@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
+	"time"
 
 	credproxy "github.com/takezoh/agent-roost/auth/credproxy"
 	"github.com/takezoh/agent-roost/config"
@@ -20,12 +23,36 @@ type SpecBuilder struct {
 	proxyAddr string
 	token     string
 	gitDir    string
+
+	mu        sync.Mutex
+	cachedPAT string
+	patExpiry time.Time
 }
 
 // NewSpecBuilder creates a SpecBuilder. proxyAddr is "127.0.0.1:<port>"; gitDir
 // is the directory where the helper script and gitconfig are written.
 func NewSpecBuilder(proxyAddr, token, gitDir string) *SpecBuilder {
 	return &SpecBuilder{proxyAddr: proxyAddr, token: token, gitDir: gitDir}
+}
+
+// ghPAT returns the current GitHub PAT from the host gh CLI, cached for tokenCacheTTL.
+func (b *SpecBuilder) ghPAT(ctx context.Context) (string, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.cachedPAT != "" && time.Now().Before(b.patExpiry) {
+		return b.cachedPAT, nil
+	}
+	out, err := exec.CommandContext(ctx, "gh", "auth", "token", "--hostname", "github.com").Output()
+	if err != nil {
+		return "", fmt.Errorf("gh auth token: %w", err)
+	}
+	pat := strings.TrimSpace(string(out))
+	if pat == "" {
+		return "", fmt.Errorf("gh auth token returned empty output")
+	}
+	b.cachedPAT = pat
+	b.patExpiry = time.Now().Add(tokenCacheTTL)
+	return pat, nil
 }
 
 func (b *SpecBuilder) Name() string { return "github" }
@@ -53,7 +80,7 @@ func (b *SpecBuilder) Routes() []credproxylib.Route {
 
 // ContainerSpec implements credproxy.Provider.
 // Returns zero Spec when proxy.github.enabled is false or gh is not installed on the host.
-func (b *SpecBuilder) ContainerSpec(_ context.Context, _ string, sb config.SandboxConfig) (credproxy.Spec, error) {
+func (b *SpecBuilder) ContainerSpec(ctx context.Context, _ string, sb config.SandboxConfig) (credproxy.Spec, error) {
 	if !sb.Proxy.GitHub.Enabled {
 		return credproxy.Spec{}, nil
 	}
@@ -63,11 +90,20 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, _ string, sb config.Sandb
 		return credproxy.Spec{}, nil
 	}
 
+	pat, err := b.ghPAT(ctx)
+	if err != nil {
+		slog.Warn("github: failed to get PAT from gh", "err", err)
+		return credproxy.Spec{}, nil
+	}
+
 	helperPath := filepath.Join(b.gitDir, "git-credential-roost")
 	gitconfigPath := filepath.Join(b.gitDir, "gitconfig")
 
+	env := containerEnv(b.proxyAddr, b.token)
+	env["GH_TOKEN"] = pat
+
 	return credproxy.Spec{
-		Env: containerEnv(b.proxyAddr, b.token),
+		Env: env,
 		Mounts: []string{
 			helperPath + ":" + containerHelperPath + ":ro",
 			gitconfigPath + ":" + containerGitconfigPath + ":ro",
