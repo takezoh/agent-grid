@@ -233,14 +233,13 @@ The first token refresh is synchronous at container start. If the impersonation 
 
 **Container image requirement:** `gcloud` must be installed in the image.
 
-### SSH Agent Forwarding
+### SSH Agent (Ephemeral Keys)
 
-When `ssh_agent.forward = true`, roost forwards SSH credentials into the container so tools like `git` can authenticate over SSH without exposing private keys.
+Roost spawns an ephemeral `ssh-agent`, loads only the listed key files, and exposes the socket as `SSH_AUTH_SOCK` inside the container. The container can sign but never sees private key material. Direct forwarding of the host `$SSH_AUTH_SOCK` is not supported — it would expose all keys the host agent holds to container processes.
 
 ```toml
 [sandbox.proxy.ssh_agent]
-forward = true          # forward host $SSH_AUTH_SOCK directly
-# keys = ["~/.ssh/id_ed25519"]  # alternatively, spawn ephemeral agent with specific keys only
+keys = ["~/.ssh/id_ed25519"]
 ```
 
-The container receives `SSH_AUTH_SOCK` pointing to the forwarded socket. No key material is written inside the container.
+The container receives `SSH_AUTH_SOCK` pointing to the ephemeral agent socket. No key material is written inside the container.

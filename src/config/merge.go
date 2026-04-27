@@ -7,7 +7,7 @@ package config
 //   - Devcontainer.CLIPath, EnvScript (scalars): project wins when non-empty
 //   - Devcontainer.ExtraUpArgs (list): user + project concat
 //   - Proxy.Enabled: user wins (proxy is process-wide)
-//   - Proxy.SSHAgent.Keys: project replaces when non-empty; Forward: OR
+//   - Proxy.SSHAgent.Keys: project replaces when non-empty
 func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	if project == nil {
 		return user
@@ -45,9 +45,6 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	}
 	if len(project.Proxy.SSHAgent.Keys) > 0 {
 		out.Proxy.SSHAgent.Keys = project.Proxy.SSHAgent.Keys
-	}
-	if project.Proxy.SSHAgent.Forward {
-		out.Proxy.SSHAgent.Forward = true
 	}
 	return out
 }

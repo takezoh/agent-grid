@@ -2,7 +2,6 @@ package sshagent
 
 import (
 	"context"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -15,14 +14,6 @@ func newBuilder(t *testing.T) *SpecBuilder {
 	return NewSpecBuilder(context.Background(), t.TempDir())
 }
 
-func cfgForward(forward bool) config.SandboxConfig {
-	return config.SandboxConfig{
-		Proxy: config.ProxyConfig{
-			SSHAgent: config.SSHAgentConfig{Forward: forward},
-		},
-	}
-}
-
 func cfgKeys(keys ...string) config.SandboxConfig {
 	return config.SandboxConfig{
 		Proxy: config.ProxyConfig{
@@ -31,55 +22,13 @@ func cfgKeys(keys ...string) config.SandboxConfig {
 	}
 }
 
-func TestSpecBuilder_forward_false(t *testing.T) {
-	spec, err := newBuilder(t).ContainerSpec(context.Background(), "/proj", cfgForward(false))
+func TestSpecBuilder_emptyConfig_zeroSpec(t *testing.T) {
+	spec, err := newBuilder(t).ContainerSpec(context.Background(), "/proj", config.SandboxConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(spec.Env) != 0 || len(spec.Mounts) != 0 {
 		t.Errorf("expected zero spec, got %+v", spec)
-	}
-}
-
-func TestSpecBuilder_forward_true_no_sock_env(t *testing.T) {
-	t.Setenv("SSH_AUTH_SOCK", "")
-	spec, err := newBuilder(t).ContainerSpec(context.Background(), "/proj", cfgForward(true))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(spec.Env) != 0 {
-		t.Errorf("expected zero spec when SSH_AUTH_SOCK unset, got %+v", spec)
-	}
-}
-
-func TestSpecBuilder_forward_true_sock_missing(t *testing.T) {
-	t.Setenv("SSH_AUTH_SOCK", "/nonexistent/path/agent.sock")
-	spec, err := newBuilder(t).ContainerSpec(context.Background(), "/proj", cfgForward(true))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(spec.Env) != 0 {
-		t.Errorf("expected zero spec when socket absent, got %+v", spec)
-	}
-}
-
-func TestSpecBuilder_forward_true_sock_present(t *testing.T) {
-	sockPath := filepath.Join(t.TempDir(), "agent.sock")
-	if err := os.WriteFile(sockPath, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("SSH_AUTH_SOCK", sockPath)
-
-	spec, err := newBuilder(t).ContainerSpec(context.Background(), "/proj", cfgForward(true))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Env["SSH_AUTH_SOCK"] != containerSocketPath {
-		t.Errorf("SSH_AUTH_SOCK = %q, want %q", spec.Env["SSH_AUTH_SOCK"], containerSocketPath)
-	}
-	wantMount := sockPath + ":" + containerSocketPath
-	if len(spec.Mounts) != 1 || spec.Mounts[0] != wantMount {
-		t.Errorf("mounts = %v, want [%s]", spec.Mounts, wantMount)
 	}
 }
 

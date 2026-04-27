@@ -1,9 +1,6 @@
-// Package sshagent implements a credproxy.Provider that forwards an SSH agent
-// socket into the container. Two modes:
-//
-//   - keys mode: roost spawns an ephemeral ssh-agent, loads only the listed keys,
-//     and forwards that socket. The container can sign but never sees private keys.
-//   - forward mode: the host $SSH_AUTH_SOCK is bind-mounted directly.
+// Package sshagent implements a credproxy.Provider that injects an ephemeral
+// SSH agent into containers. roost spawns an ssh-agent, loads only the listed
+// keys, and forwards that socket. The container can sign but never sees private keys.
 package sshagent
 
 import (
@@ -68,15 +65,10 @@ func (b *SpecBuilder) Init() error {
 func (b *SpecBuilder) Routes() []credproxylib.Route { return nil }
 
 // ContainerSpec implements credproxy.Provider.
-// In keys mode, spawns an ephemeral agent per project (cached for lifetime of roost).
-// In forward mode, forwards host $SSH_AUTH_SOCK via a file bind (known limitation:
-// container restart needed when SSH_AUTH_SOCK path changes, e.g. after host reboot).
+// Spawns an ephemeral agent per project (cached for lifetime of roost) when Keys is non-empty.
 func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string, sb config.SandboxConfig) (credproxy.Spec, error) {
 	if len(sb.Proxy.SSHAgent.Keys) > 0 {
 		return b.keysSpec(projectPath, sb.Proxy.SSHAgent.Keys)
-	}
-	if sb.Proxy.SSHAgent.Forward {
-		return b.forwardSpec()
 	}
 	return credproxy.Spec{}, nil
 }
@@ -159,25 +151,6 @@ func addKeys(sockPath string, keys []string) {
 			slog.Warn("sshagent: ssh-add failed (passphrase-protected?), skipping", "path", k, "out", string(out))
 		}
 	}
-}
-
-// forwardSpec binds the host $SSH_AUTH_SOCK as a file inside the run dir.
-// This is a file-style bind to a path within the dir-bound /opt/roost/run;
-// Docker applies it as a nested mount so the correct socket is visible.
-func (b *SpecBuilder) forwardSpec() (credproxy.Spec, error) {
-	sockPath := os.Getenv("SSH_AUTH_SOCK")
-	if sockPath == "" {
-		slog.Warn("sshagent: forward=true but SSH_AUTH_SOCK is not set")
-		return credproxy.Spec{}, nil
-	}
-	if _, err := os.Stat(sockPath); err != nil {
-		slog.Warn("sshagent: SSH_AUTH_SOCK socket not found", "path", sockPath)
-		return credproxy.Spec{}, nil
-	}
-	return credproxy.Spec{
-		Env:    map[string]string{"SSH_AUTH_SOCK": containerSocketPath},
-		Mounts: []string{sockPath + ":" + containerSocketPath},
-	}, nil
 }
 
 func (b *SpecBuilder) watchShutdown(ctx context.Context) {

@@ -80,13 +80,11 @@ type ProxyConfig struct {
 	SSHAgent    SSHAgentConfig `toml:"ssh_agent"`
 }
 
-// SSHAgentConfig controls SSH agent forwarding into containers.
-// When Keys is non-empty, an ephemeral ssh-agent is spawned with only those
-// keys loaded. When Keys is empty and Forward is true, the host $SSH_AUTH_SOCK
-// is forwarded directly.
+// SSHAgentConfig controls SSH agent injection into containers.
+// An ephemeral ssh-agent is spawned with only the listed keys loaded.
+// When Keys is empty, no SSH agent is injected.
 type SSHAgentConfig struct {
-	Forward bool     `toml:"forward"`
-	Keys    []string `toml:"keys"`
+	Keys []string `toml:"keys"`
 }
 
 // GCPConfig holds per-project gcloud CLI credential settings.

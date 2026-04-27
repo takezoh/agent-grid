@@ -108,24 +108,6 @@ keys = ["~/.ssh/id_ed25519_project"]
 	}
 }
 
-func TestSandboxResolver_SSHAgentForwardProjectEnables(t *testing.T) {
-	user := SandboxConfig{
-		Proxy: ProxyConfig{SSHAgent: SSHAgentConfig{Forward: false}},
-	}
-	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
-	os.MkdirAll(roostDir, 0o755)
-	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[sandbox.proxy.ssh_agent]
-forward = true
-`), 0o644)
-
-	r := NewSandboxResolver(user)
-	got := r.Resolve(dir)
-	if !got.Proxy.SSHAgent.Forward {
-		t.Errorf("SSHAgent.Forward = false, want true (project OR)")
-	}
-}
-
 func TestSandboxResolver_DevcontainerCLIPathOverride(t *testing.T) {
 	user := SandboxConfig{Mode: "devcontainer", Devcontainer: DevcontainerConfig{CLIPath: "devcontainer"}}
 	dir := t.TempDir()
