@@ -68,7 +68,7 @@ func (d GeminiDriver) NewState(now time.Time) state.DriverState {
 	}
 }
 
-func (d GeminiDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
+func (d GeminiDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
 	gs, ok := s.(GeminiState)
 	if !ok {
 		gs = GeminiState{}

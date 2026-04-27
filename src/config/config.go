@@ -33,6 +33,12 @@ type SandboxConfig struct {
 	Proxy        ProxyConfig        `toml:"proxy"`
 }
 
+// IsSandboxed reports whether the sandbox mode is an active isolation backend.
+// Both "" and "direct" mean no sandboxing.
+func (s SandboxConfig) IsSandboxed() bool {
+	return s.Mode != "" && s.Mode != "direct"
+}
+
 // Validate rejects unknown sandbox modes at startup.
 func (s SandboxConfig) Validate() error {
 	switch s.Mode {

@@ -92,7 +92,7 @@ func (d ShellDriver) NewState(now time.Time) state.DriverState {
 	}
 }
 
-func (d ShellDriver) PrepareLaunch(s state.DriverState, _ state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
+func (d ShellDriver) PrepareLaunch(s state.DriverState, _ state.LaunchMode, project, baseCommand string, options state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
 	ss, ok := s.(ShellState)
 	if !ok {
 		ss = ShellState{}

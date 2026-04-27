@@ -17,7 +17,7 @@ func (tickTrackerDriver) Name() string                       { return "ticktrack
 func (tickTrackerDriver) DisplayName() string                { return "ticktracker" }
 func (tickTrackerDriver) Status(s DriverState) Status        { return StatusRunning }
 func (tickTrackerDriver) NewState(now time.Time) DriverState { return tickTrackerState{} }
-func (tickTrackerDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
+func (tickTrackerDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (tickTrackerDriver) Persist(s DriverState) map[string]string { return nil }

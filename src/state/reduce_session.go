@@ -104,7 +104,8 @@ func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionPa
 		}
 	}
 
-	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, p.Project, command, p.Options)
+	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(p.Project)
+	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, p.Project, command, p.Options, sandboxed)
 	if err != nil {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
 	}
@@ -234,7 +235,8 @@ func pushDriverInternal(s State, sid SessionID, project, rawCommand string, opti
 		return s, []Effect{EffStartJob{JobID: jobID, Input: setupJob}}, nil
 	}
 
-	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, project, command, options)
+	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(project)
+	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, project, command, options, sandboxed)
 	if err != nil {
 		return s, nil, err
 	}

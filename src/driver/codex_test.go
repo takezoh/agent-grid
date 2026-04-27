@@ -207,7 +207,7 @@ func TestCodexDropsStaleHook(t *testing.T) {
 func TestCodexPrepareLaunchResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.CodexSessionID = "abc-123"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestCodexPrepareLaunchResume(t *testing.T) {
 func TestCodexPrepareLaunchNoDoubleResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.CodexSessionID = "abc-123"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex resume abc", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex resume abc", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestCodexPrepareLaunchStripsWorktreeOnResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.CodexSessionID = "abc-123"
 	cs.ManagedWorkingDir = "/repo/.roost/worktrees/codex-1234"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestCodexPrepareLaunchStripsWorktreeOnResume(t *testing.T) {
 func TestCodexPrepareLaunchStripsWorktreeWithoutResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.ManagedWorkingDir = "/repo/.roost/worktrees/codex-1234"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestCodexPrepareLaunchStripsWorktreeWithoutResume(t *testing.T) {
 func TestCodexPrepareLaunchSkipsNonCodexBaseCommand(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.CodexSessionID = "abc-123"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "env FOO=bar", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "env FOO=bar", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}

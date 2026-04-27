@@ -27,7 +27,7 @@ func (minimalDriver) View(_ state.DriverState) state.View { return state.View{} 
 func (minimalDriver) Step(prev state.DriverState, _ state.FrameContext, _ state.DriverEvent) (state.DriverState, []state.Effect, state.View) {
 	return prev, nil, state.View{}
 }
-func (minimalDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, command string, _ state.LaunchOptions) (state.LaunchPlan, error) {
+func (minimalDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, command string, _ state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
 	return state.LaunchPlan{Command: command, StartDir: project}, nil
 }
 func (minimalDriver) StartDir(_ state.DriverState) string { return "" }

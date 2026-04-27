@@ -87,7 +87,7 @@ func (d CodexDriver) NewState(now time.Time) state.DriverState {
 	}
 }
 
-func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
+func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
 	cs, ok := s.(CodexState)
 	if !ok {
 		cs = CodexState{}

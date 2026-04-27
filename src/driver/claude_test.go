@@ -920,7 +920,7 @@ func TestClaudePrepareLaunchResume(t *testing.T) {
 	if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile error: %v", err)
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -934,7 +934,7 @@ func TestClaudePrepareLaunchResume(t *testing.T) {
 func TestClaudePrepareLaunchNoSession(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --foo", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --foo", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -947,7 +947,7 @@ func TestClaudePrepareLaunchNoSession(t *testing.T) {
 func TestClaudePrepareLaunchStripsWorktree(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{ClaudeSessionID: "uuid-W"}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -961,7 +961,7 @@ func TestClaudePrepareLaunchStripsWorktree(t *testing.T) {
 func TestClaudePrepareLaunchStripsWorktreeWithName(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{ClaudeSessionID: "uuid-W"}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree my-branch", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree my-branch", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -975,7 +975,7 @@ func TestClaudePrepareLaunchStripsWorktreeWithName(t *testing.T) {
 func TestClaudePrepareLaunchStripsWorktreeEquals(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{ClaudeSessionID: "uuid-W"}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree=my-branch", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree=my-branch", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -991,7 +991,7 @@ func TestClaudePrepareLaunchAddsWorktreeFlagFromOptions(t *testing.T) {
 	cs := ClaudeState{}
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{
 		Worktree: state.WorktreeOption{Enabled: true},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1009,7 +1009,7 @@ func TestClaudePrepareLaunchMissingTranscriptSkipsResume(t *testing.T) {
 		CommonState:     CommonState{StartDir: "/repo"},
 		ClaudeSessionID: "uuid-Y",
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1022,7 +1022,7 @@ func TestClaudePrepareLaunchMissingTranscriptSkipsResume(t *testing.T) {
 func TestClaudePrepareLaunchAlreadyHasResume(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{ClaudeSessionID: "uuid-Y"}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --resume preset", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --resume preset", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1108,7 +1108,7 @@ func TestClaudePrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	cs.ManagedWorkingDir = "/repo/.roost/worktrees/feature"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{
 		Worktree: state.WorktreeOption{Enabled: true},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1122,12 +1122,69 @@ func TestClaudePrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 
 func TestClaudePrepareLaunchWorktreeFromCommand(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
 	if plan.Command != "claude --worktree" {
 		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, "claude --worktree")
+	}
+}
+
+func TestClaudePrepareLaunchAddsSandboxFlag(t *testing.T) {
+	d, cs, _ := newClaude(t)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if plan.Command != "claude --dangerously-skip-permissions" {
+		t.Errorf("PrepareLaunch.Command = %q, want sandbox flag appended", plan.Command)
+	}
+}
+
+func TestClaudePrepareLaunchSkipsDuplicateSandboxFlag(t *testing.T) {
+	d, cs, _ := newClaude(t)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --dangerously-skip-permissions", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if plan.Command != "claude --dangerously-skip-permissions" {
+		t.Errorf("PrepareLaunch.Command = %q, want no duplicate flag", plan.Command)
+	}
+}
+
+func TestClaudePrepareLaunchNoSandboxFlagWhenDirect(t *testing.T) {
+	d, cs, _ := newClaude(t)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if plan.Command != "claude" {
+		t.Errorf("PrepareLaunch.Command = %q, want no sandbox flag when not sandboxed", plan.Command)
+	}
+}
+
+func TestClaudePrepareLaunchSandboxFlagWithResume(t *testing.T) {
+	home := t.TempDir()
+	d := NewClaudeDriver(home, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		CommonState:     CommonState{StartDir: "/repo"},
+		ClaudeSessionID: "uuid-Z",
+	}
+	path := filepath.Join(home, ".claude", "projects", projectDir("/repo"), "uuid-Z.jsonl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll error: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := "claude --dangerously-skip-permissions --resume uuid-Z"
+	if plan.Command != want {
+		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
 	}
 }
 

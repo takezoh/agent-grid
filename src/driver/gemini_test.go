@@ -113,7 +113,7 @@ func TestGeminiPrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	gs.ManagedWorkingDir = "/repo/.roost/worktrees/feature"
 	plan, err := d.PrepareLaunch(gs, state.LaunchModeCreate, "/repo", "gemini", state.LaunchOptions{
 		Worktree: state.WorktreeOption{Enabled: true},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestGeminiPrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 
 func TestGeminiPrepareLaunchWorktreeFromCommand(t *testing.T) {
 	d, gs, _ := newGemini(t)
-	plan, err := d.PrepareLaunch(gs, state.LaunchModeCreate, "/repo", "gemini --worktree", state.LaunchOptions{})
+	plan, err := d.PrepareLaunch(gs, state.LaunchModeCreate, "/repo", "gemini --worktree", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestGeminiPrepareLaunchAddsWorktreeFlagFromOptions(t *testing.T) {
 	d, gs, _ := newGemini(t)
 	plan, err := d.PrepareLaunch(gs, state.LaunchModeCreate, "/repo", "gemini", state.LaunchOptions{
 		Worktree: state.WorktreeOption{Enabled: true},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}

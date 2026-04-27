@@ -32,7 +32,7 @@ func (stubDriver) Name() string                       { return "stub" }
 func (stubDriver) DisplayName() string                { return "stub" }
 func (stubDriver) Status(s DriverState) Status        { return s.(stubDriverState).status }
 func (stubDriver) NewState(now time.Time) DriverState { return stubDriverState{} }
-func (stubDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
+func (stubDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (stubDriver) Persist(s DriverState) map[string]string                  { return nil }
@@ -45,7 +45,7 @@ func (stubDriver) Step(prev DriverState, ctx FrameContext, ev DriverEvent) (Driv
 type plannerDriver struct{ stubDriver }
 
 func (plannerDriver) Name() string { return "planner" }
-func (plannerDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
+func (plannerDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
 	return LaunchPlan{Command: "planner --prepared", StartDir: "/prepared"}, nil
 }
 func (plannerDriver) PrepareCreate(s DriverState, sessionID SessionID, project, command string, options LaunchOptions) (DriverState, CreatePlan, error) {
@@ -81,7 +81,7 @@ func (sdDriver) Name() string { return "sdstub" }
 func (sdDriver) NewState(now time.Time) DriverState {
 	return sdState{}
 }
-func (sdDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
+func (sdDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
 	ss := s.(sdState)
 	startDir := project
 	if ss.startDir != "" {
@@ -1315,7 +1315,7 @@ func TestPushDriverMissingSessionIDErrors(t *testing.T) {
 type stdinDriver struct{ stubDriver }
 
 func (stdinDriver) Name() string { return "stdinstub" }
-func (stdinDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
+func (stdinDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project, Stdin: options.InitialInput}, nil
 }
 

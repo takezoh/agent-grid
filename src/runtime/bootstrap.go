@@ -346,7 +346,8 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, frame state.SessionFrame,
 	if drv == nil {
 		return nil
 	}
-	launch, err := drv.PrepareLaunch(frame.Driver, state.LaunchModeColdStart, frame.Project, frame.Command, frame.LaunchOptions)
+	sandboxed := r.state.SandboxedProject != nil && r.state.SandboxedProject(frame.Project)
+	launch, err := drv.PrepareLaunch(frame.Driver, state.LaunchModeColdStart, frame.Project, frame.Command, frame.LaunchOptions, sandboxed)
 	if err != nil {
 		slog.Error("bootstrap: prepare launch failed", "id", id, "frame", frame.ID, "err", err)
 		return err
@@ -427,6 +428,13 @@ func (r *Runtime) RecoverSandboxFrames() {
 // startup from main.go with the config's [session] aliases.
 func (r *Runtime) SetAliases(aliases map[string]string) {
 	r.state.Aliases = aliases
+}
+
+// SetSandboxedProjectResolver installs a function that returns true when a
+// project path runs inside a sandbox. Called once at startup. Mirrors the
+// SetAliases pattern — generic signal, no sandbox-specific types in state.
+func (r *Runtime) SetSandboxedProjectResolver(fn func(string) bool) {
+	r.state.SandboxedProject = fn
 }
 
 // SetDefaultCommand sets the fallback command for sessions created

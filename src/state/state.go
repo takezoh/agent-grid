@@ -45,8 +45,9 @@ type State struct {
 	NextJobID      JobID
 	NextConnID     ConnID
 	Now            time.Time         // last tick timestamp; deterministic in tests
-	Aliases        map[string]string // command alias expansion (e.g. "cw" → "codex --workspace")
-	DefaultCommand string            // fallback when session command is empty
+	Aliases          map[string]string // command alias expansion (e.g. "cw" → "codex --workspace")
+	DefaultCommand   string            // fallback when session command is empty
+	SandboxedProject func(string) bool // nil = not configured; true when project runs in sandbox
 
 	Connectors      map[string]ConnectorState // connector name → state
 	ConnectorsReady bool                      // true after first initialization

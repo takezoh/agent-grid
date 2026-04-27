@@ -146,7 +146,7 @@ func (d ClaudeDriver) NewState(now time.Time) state.DriverState {
 // is known so cold-boot recovery picks up the prior conversation.
 // Mirrors lib/claude/cli.ResumeCommand exactly so we don't take a
 // dependency on lib/claude/cli from the pure-state layer.
-func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
+func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, sandboxed bool) (state.LaunchPlan, error) {
 	cs, ok := s.(ClaudeState)
 	if !ok {
 		cs = ClaudeState{}
@@ -160,6 +160,7 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	if cs.ManagedWorkingDir == "" {
 		command = appendFlag(stripped, "--worktree", req.Enabled)
 	}
+	command = ensureClaudeSandboxFlag(command, sandboxed)
 	if mode != state.LaunchModeColdStart || cs.ClaudeSessionID == "" {
 		return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
 	}
@@ -192,6 +193,18 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 func stripWorktreeFlag(command string) string {
 	_, stripped := parseWorktreeFlags(command, "--worktree")
 	return stripped
+}
+
+const claudeSandboxSkipFlag = "--dangerously-skip-permissions"
+
+// ensureClaudeSandboxFlag appends --dangerously-skip-permissions unless already
+// present. Required because devcontainer sandboxes block the permission prompt
+// that normally gates tool use, making the flag mandatory for any activity.
+func ensureClaudeSandboxFlag(command string, sandboxed bool) string {
+	if hasFlagToken(command, claudeSandboxSkipFlag) {
+		return command
+	}
+	return appendFlag(command, claudeSandboxSkipFlag, sandboxed)
 }
 
 func isAlphanumHyphen(s string) bool {

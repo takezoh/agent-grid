@@ -76,7 +76,8 @@ func runCoordinator() error { //nolint:funlen
 	paneTap := runtime.NewTmuxPipePaneTap(tmuxBackend.PipePane, tapDir)
 
 	featureSet := features.FromConfig(cfg.Features.Enabled, features.All())
-	agentLauncher, err := newAgentLauncher(ctx, cfg.Sandbox, dataDir)
+	sbResolver := config.NewSandboxResolver(cfg.Sandbox)
+	agentLauncher, err := newAgentLauncher(ctx, cfg.Sandbox, sbResolver, dataDir)
 	if err != nil {
 		return err
 	}
@@ -101,6 +102,9 @@ func runCoordinator() error { //nolint:funlen
 
 	rt.SetAliases(cfg.Session.Aliases)
 	rt.SetDefaultCommand(cfg.Session.DefaultCommand)
+	rt.SetSandboxedProjectResolver(func(project string) bool {
+		return sbResolver.Resolve(project).IsSandboxed()
+	})
 
 	warmRestart := client.SessionExists()
 	if warmRestart {
@@ -188,8 +192,7 @@ func runCoordinator() error { //nolint:funlen
 // newAgentLauncher returns the AgentLauncher for the configured sandbox mode.
 // Returns a SandboxDispatcher that routes each launch to direct or devcontainer
 // based on the effective config for that project (user scope + optional project scope).
-func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, dataDir string) (runtime.AgentLauncher, error) {
-	resolver := config.NewSandboxResolver(sb)
+func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *config.SandboxResolver, dataDir string) (runtime.AgentLauncher, error) {
 	d := &runtime.SandboxDispatcher{
 		Resolver: resolver,
 		Direct:   runtime.DirectLauncher{},

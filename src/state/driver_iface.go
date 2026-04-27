@@ -198,7 +198,7 @@ type LaunchPlan struct {
 }
 
 type LaunchPreparer interface {
-	PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error)
+	PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, sandboxed bool) (LaunchPlan, error)
 }
 
 // Driver is the interface every per-driver-type plugin implements. Each

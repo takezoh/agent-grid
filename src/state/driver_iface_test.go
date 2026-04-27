@@ -26,7 +26,7 @@ func (m *mockDriver) Persist(s state.DriverState) map[string]string { return nil
 func (m *mockDriver) Restore(bag map[string]string, now time.Time) state.DriverState {
 	return state.DriverStateBase{}
 }
-func (m *mockDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
+func (m *mockDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
 	return state.LaunchPlan{}, nil
 }
 

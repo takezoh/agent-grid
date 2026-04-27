@@ -101,7 +101,7 @@ func (d GenericDriver) NewState(now time.Time) state.DriverState {
 	}
 }
 
-func (d GenericDriver) PrepareLaunch(s state.DriverState, _ state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
+func (d GenericDriver) PrepareLaunch(s state.DriverState, _ state.LaunchMode, project, baseCommand string, options state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
 	gs, ok := s.(GenericState)
 	if !ok {
 		gs = GenericState{}
