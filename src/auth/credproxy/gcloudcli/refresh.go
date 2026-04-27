@@ -120,7 +120,7 @@ func (r *Refresher) runWithTicker(ctx context.Context) {
 func (r *Refresher) refresh(ctx context.Context) error {
 	token, err := printAccessToken(ctx, r.account, r.serviceAccount)
 	if err != nil {
-		return fmt.Errorf("gcloud auth print-access-token --account=%s --impersonate-service-account=%s: %w", r.account, r.serviceAccount, err)
+		return fmt.Errorf("gcloudcli: token refresh (account=%s sa=%s): %w", r.account, r.serviceAccount, err)
 	}
 	if err := writeToken(r.tokenPath, []byte(token)); err != nil {
 		return fmt.Errorf("write token: %w", err)
