@@ -133,6 +133,9 @@ func (m PaletteModel) handleParamSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		m.refilter()
 		return m, nil
 	case key.Matches(msg, enterBinding):
+		if m.selectedTool == nil || m.paramIndex >= len(m.selectedTool.Params) {
+			return m, nil
+		}
 		p := m.selectedTool.Params[m.paramIndex]
 		var value string
 		if len(m.paramOptions) == 0 {
