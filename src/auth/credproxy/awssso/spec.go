@@ -17,9 +17,10 @@ import (
 // It generates a synthetic AWS config and credential helper per project
 // when aws_profiles are configured.
 type SpecBuilder struct {
-	sockHostPath string // host-side Unix socket path (e.g. <dataDir>/run/credproxy.sock)
+	sockHostPath string    // host-side Unix socket path (e.g. <dataDir>/run/credproxy.sock)
 	token        string
-	runBase      string // parent of per-project run dirs bound into containers at /opt/roost/run
+	runBase      string    // parent of per-project run dirs bound into containers at /opt/roost/run
+	provider     *Provider // shared Provider whose allowlist grows with each ContainerSpec call
 }
 
 // NewSpecBuilder creates a SpecBuilder.
@@ -28,7 +29,12 @@ type SpecBuilder struct {
 // the container at containerSockPath.
 // runBase is the parent of per-project run dirs (e.g. <dataDir>/run).
 func NewSpecBuilder(sockHostPath, token, runBase string) *SpecBuilder {
-	return &SpecBuilder{sockHostPath: sockHostPath, token: token, runBase: runBase}
+	return &SpecBuilder{
+		sockHostPath: sockHostPath,
+		token:        token,
+		runBase:      runBase,
+		provider:     New(nil),
+	}
 }
 
 func (b *SpecBuilder) Name() string { return "awssso" }
@@ -44,7 +50,7 @@ func (b *SpecBuilder) Init() error {
 // Routes returns the HTTP route that serves AWS credentials to containers.
 func (b *SpecBuilder) Routes() []credproxylib.Route {
 	return []credproxylib.Route{
-		{Path: RoutePath, Provider: New()},
+		{Path: RoutePath, Provider: b.provider},
 	}
 }
 
@@ -57,6 +63,7 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string, sb co
 	if len(profiles) == 0 {
 		return credproxy.Spec{}, nil
 	}
+	b.provider.AllowProfiles(profiles)
 
 	projectRunDir := filepath.Join(b.runBase, projectRunHash(projectPath))
 	if err := os.MkdirAll(projectRunDir, 0o700); err != nil {

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	credproxylib "github.com/takezoh/credproxy/pkg/credproxy"
+
 	"github.com/takezoh/agent-roost/config"
 )
 
@@ -22,6 +24,7 @@ func TestSpecBuilder_emptyProfiles_zeroSpec(t *testing.T) {
 }
 
 func TestSpecBuilder_withProfiles_returnsEnvAndFiles(t *testing.T) {
+	withFakeAWS(t)
 	runBase := t.TempDir()
 	sockPath := filepath.Join(runBase, "credproxy.sock")
 	b := NewSpecBuilder(sockPath, "mytoken", runBase)
@@ -56,5 +59,38 @@ func TestSpecBuilder_withProfiles_returnsEnvAndFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(projectDir, "aws-creds.sh")); err != nil {
 		t.Errorf("aws-creds.sh not created in run dir: %v", err)
+	}
+
+	// Profiles in the config must be accepted by the shared provider.
+	provider := b.Routes()[0].Provider.(*Provider)
+	_, err = provider.Get(context.Background(), credproxylib.Request{Path: "/prod"})
+	if err != nil {
+		t.Errorf("provider.Get(/prod): unexpected error: %v", err)
+	}
+	_, err = provider.Get(context.Background(), credproxylib.Request{Path: "/"})
+	if err != nil {
+		t.Errorf("provider.Get(/): unexpected error (default should be allowed): %v", err)
+	}
+	// Profile not in aws_profiles must be rejected.
+	_, err = provider.Get(context.Background(), credproxylib.Request{Path: "/other"})
+	if err == nil {
+		t.Errorf("provider.Get(/other): expected error for unlisted profile, got nil")
+	}
+}
+
+// TestSpecBuilder_NoProfiles_provider_remains_strict verifies that when ContainerSpec is never
+// called with profiles, the provider rejects all requests.
+func TestSpecBuilder_NoProfiles_provider_remains_strict(t *testing.T) {
+	runBase := t.TempDir()
+	b := NewSpecBuilder(filepath.Join(runBase, "credproxy.sock"), "tok", runBase)
+
+	provider := b.Routes()[0].Provider.(*Provider)
+	_, err := provider.Get(context.Background(), credproxylib.Request{Path: "/master"})
+	if err == nil {
+		t.Errorf("expected rejection for unlisted profile on empty allowlist, got nil")
+	}
+	_, err = provider.Get(context.Background(), credproxylib.Request{Path: "/"})
+	if err == nil {
+		t.Errorf("expected rejection for default profile on empty allowlist, got nil")
 	}
 }

@@ -52,33 +52,79 @@ type cachedCreds struct {
 // It shells out to the aws CLI to obtain temporary credentials per profile and
 // serves them as a credential_process-compatible JSON body (BodyReplace).
 // Credentials are cached per profile with a 60-second early-refresh margin.
+//
+// Only profiles explicitly registered via AllowProfiles are served; requests for
+// other profiles are rejected with an error.
 type Provider struct {
-	mu    sync.Mutex
-	cache map[string]*cachedCreds // keyed by profile name ("" = default)
+	mu      sync.Mutex
+	cache   map[string]*cachedCreds // keyed by profile name ("" = default)
+	allowed map[string]struct{}     // keyed by config name ("default", "prod", …)
 }
 
 const refreshMargin = 60 * time.Second
 
-// New creates an AWSSSOProvider.
-func New() *Provider { return &Provider{cache: make(map[string]*cachedCreds)} }
+// New creates a Provider. initial is the starting allowlist (may be nil).
+func New(initial []string) *Provider {
+	p := &Provider{
+		cache:   make(map[string]*cachedCreds),
+		allowed: make(map[string]struct{}),
+	}
+	for _, name := range initial {
+		p.allowed[name] = struct{}{}
+	}
+	return p
+}
+
+// AllowProfiles adds profiles to the process-wide union allowlist.
+// This is the only entry point that gates which AWS profiles the proxy will serve.
+func (p *Provider) AllowProfiles(profiles []string) {
+	p.mu.Lock()
+	for _, name := range profiles {
+		p.allowed[name] = struct{}{}
+	}
+	p.mu.Unlock()
+}
+
+// allowKey converts a profile string (as returned by profileFromPath) into the
+// key used for allowlist lookups. Empty string (= default) maps to "default".
+func allowKey(profile string) string {
+	if profile == "" {
+		return "default"
+	}
+	return profile
+}
 
 func (p *Provider) Get(ctx context.Context, req credproxylib.Request) (*credproxylib.Injection, error) {
 	profile := profileFromPath(req.Path)
+	key := allowKey(profile)
 	p.mu.Lock()
-	if c := p.cache[profile]; c != nil && time.Now().Add(refreshMargin).Before(c.expires) {
-		body := c.body
-		p.mu.Unlock()
-		return &credproxylib.Injection{BodyReplace: body}, nil
+	_, ok := p.allowed[key]
+	if ok {
+		if c := p.cache[profile]; c != nil && time.Now().Add(refreshMargin).Before(c.expires) {
+			body := c.body
+			p.mu.Unlock()
+			return &credproxylib.Injection{BodyReplace: body}, nil
+		}
 	}
 	p.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("awssso: profile %q not in allowlist", key)
+	}
 	return p.fetch(ctx, profile)
 }
 
 func (p *Provider) Refresh(ctx context.Context, req credproxylib.Request) (*credproxylib.Injection, error) {
 	profile := profileFromPath(req.Path)
+	key := allowKey(profile)
 	p.mu.Lock()
-	delete(p.cache, profile)
+	_, ok := p.allowed[key]
+	if ok {
+		delete(p.cache, profile)
+	}
 	p.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("awssso: profile %q not in allowlist", key)
+	}
 	return p.fetch(ctx, profile)
 }
 

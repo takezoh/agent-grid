@@ -53,7 +53,7 @@ func withFakeAWS(t *testing.T) {
 func TestGet_DefaultProfile(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New()
+	p := New([]string{"default"})
 	inj, err := p.Get(context.Background(), credproxylib.Request{Path: "/"})
 	require.NoError(t, err)
 	require.NotNil(t, inj)
@@ -69,7 +69,7 @@ func TestGet_DefaultProfile(t *testing.T) {
 func TestGet_NamedProfile(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New()
+	p := New([]string{"master"})
 	inj, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
 	require.NoError(t, err)
 
@@ -82,7 +82,7 @@ func TestGet_NamedProfile(t *testing.T) {
 func TestGet_PerProfileCacheIsolation(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New()
+	p := New([]string{"master", "general"})
 	injMaster, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
 	require.NoError(t, err)
 	injGeneral, err := p.Get(context.Background(), credproxylib.Request{Path: "/general"})
@@ -99,7 +99,7 @@ func TestGet_PerProfileCacheIsolation(t *testing.T) {
 func TestCache_ReusesWithinMargin(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New()
+	p := New([]string{"master"})
 	inj1, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
 	require.NoError(t, err)
 
@@ -114,7 +114,7 @@ func TestCache_ReusesWithinMargin(t *testing.T) {
 func TestRefresh_ClearsCacheAndRefetches(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New()
+	p := New([]string{"master"})
 	_, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
 	require.NoError(t, err)
 	p.mu.Lock()
@@ -137,7 +137,7 @@ func TestRefresh_ClearsCacheAndRefetches(t *testing.T) {
 func TestCache_Expiry(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New()
+	p := New([]string{"master"})
 	expiredBody, _ := json.Marshal(processCredentials{Version: 1, AccessKeyId: "EXPIRED"})
 	p.mu.Lock()
 	p.cache["master"] = &cachedCreds{body: expiredBody, expires: time.Now().Add(-1 * time.Second)}
@@ -171,6 +171,52 @@ func TestContainerEnv(t *testing.T) {
 	env := ContainerEnv("mytoken")
 	assert.Equal(t, "mytoken", env["ROOST_AWS_TOKEN"])
 	assert.Equal(t, ContainerSockPath, env["ROOST_PROXY_SOCK"])
+}
+
+// TestGet_RejectUnlistedProfile verifies that a profile absent from the allowlist is rejected.
+func TestGet_RejectUnlistedProfile(t *testing.T) {
+	withFakeAWS(t)
+
+	p := New([]string{"master"})
+	_, err := p.Get(context.Background(), credproxylib.Request{Path: "/general"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "general")
+
+	// unlisted profile must not be cached
+	p.mu.Lock()
+	_, cached := p.cache["general"]
+	p.mu.Unlock()
+	assert.False(t, cached)
+}
+
+// TestGet_RejectDefaultWhenNotListed verifies that the default profile is rejected when absent.
+func TestGet_RejectDefaultWhenNotListed(t *testing.T) {
+	withFakeAWS(t)
+
+	p := New([]string{"master"})
+	_, err := p.Get(context.Background(), credproxylib.Request{Path: "/"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "default")
+}
+
+// TestAllowProfiles_Union verifies that AllowProfiles grows the allowlist additively.
+func TestAllowProfiles_Union(t *testing.T) {
+	withFakeAWS(t)
+
+	p := New(nil)
+	p.AllowProfiles([]string{"a"})
+	p.AllowProfiles([]string{"b"})
+
+	injA, err := p.Get(context.Background(), credproxylib.Request{Path: "/a"})
+	require.NoError(t, err)
+	require.NotNil(t, injA)
+
+	injB, err := p.Get(context.Background(), credproxylib.Request{Path: "/b"})
+	require.NoError(t, err)
+	require.NotNil(t, injB)
+
+	_, err = p.Get(context.Background(), credproxylib.Request{Path: "/c"})
+	require.Error(t, err)
 }
 
 // TestParseExpiration verifies the edge cases of parseExpiration.
