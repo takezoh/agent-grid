@@ -24,7 +24,7 @@ type SpecBuilder struct {
 	runBase string // base for per-project run dirs (e.g. <dataDir>/run)
 
 	mu         sync.Mutex
-	refreshers map[string]*Refresher // keyed by account email
+	refreshers map[string]*Refresher // keyed by principalKey(account, sa)
 }
 
 // NewSpecBuilder creates a SpecBuilder.
@@ -57,17 +57,23 @@ func (b *SpecBuilder) Init() error {
 func (b *SpecBuilder) Routes() []credproxylib.Route { return nil }
 
 // ContainerSpec implements credproxy.Provider.
-// Returns zero Spec when sandbox.proxy.gcp.account or .projects is empty.
+// Returns zero Spec when service_account or projects are absent.
+// Returns an error when account-only is set without service_account (full-scope tokens unsupported).
 // Files are written into the per-project run dir so the single dir bind at
 // /opt/roost/run covers them without additional per-file mounts.
 func (b *SpecBuilder) ContainerSpec(ctx context.Context, projectPath string, sb config.SandboxConfig) (credproxy.Spec, error) {
 	account := sb.Proxy.GCP.Account
+	sa := sb.Proxy.GCP.ServiceAccount
 	projects := sb.Proxy.GCP.Projects
-	if account == "" || len(projects) == 0 {
+
+	if sa == "" && account == "" && len(projects) == 0 {
 		return credproxy.Spec{}, nil
 	}
+	if sa == "" || len(projects) == 0 {
+		return credproxy.Spec{}, fmt.Errorf("gcloudcli: service_account and projects must both be set; full-scope account tokens are not supported")
+	}
 
-	tokenSrc, err := b.ensureRefresher(ctx, account)
+	tokenSrc, err := b.ensureRefresher(ctx, account, sa)
 	if err != nil {
 		return credproxy.Spec{}, err
 	}
@@ -85,7 +91,7 @@ func (b *SpecBuilder) ContainerSpec(ctx context.Context, projectPath string, sb 
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return credproxy.Spec{}, fmt.Errorf("gcloudcli: mkdir config dir: %w", err)
 	}
-	if err := WriteConfigDir(configDir, account, projects); err != nil {
+	if err := WriteConfigDir(configDir, sa, projects); err != nil {
 		return credproxy.Spec{}, fmt.Errorf("gcloudcli: write config dir: %w", err)
 	}
 
@@ -96,24 +102,25 @@ func (b *SpecBuilder) ContainerSpec(ctx context.Context, projectPath string, sb 
 	return credproxy.Spec{Env: ContainerEnv("")}, nil
 }
 
-// ensureRefresher starts a token refresh goroutine for account if not already running.
+// ensureRefresher starts a token refresh goroutine for (account, sa) if not already running.
 // Returns the host path of the token file (under gcpDir, NOT the run dir).
-func (b *SpecBuilder) ensureRefresher(ctx context.Context, account string) (string, error) {
-	accountDir := filepath.Join(b.gcpDir, accountHash(account))
-	if err := os.MkdirAll(accountDir, 0o755); err != nil {
-		return "", fmt.Errorf("gcloudcli: mkdir account dir: %w", err)
+func (b *SpecBuilder) ensureRefresher(ctx context.Context, account, sa string) (string, error) {
+	key := principalKey(account, sa)
+	principalDir := filepath.Join(b.gcpDir, principalHash(key))
+	if err := os.MkdirAll(principalDir, 0o755); err != nil {
+		return "", fmt.Errorf("gcloudcli: mkdir principal dir: %w", err)
 	}
-	tokenPath := filepath.Join(accountDir, "access-token")
+	tokenPath := filepath.Join(principalDir, "access-token")
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if _, running := b.refreshers[account]; !running {
-		ref := NewRefresher(account, tokenPath)
+	if _, running := b.refreshers[key]; !running {
+		ref := NewRefresher(account, sa, tokenPath)
 		if err := ref.Prime(ctx); err != nil {
-			slog.Warn("gcloudcli: initial token fetch failed", "account", account, "err", err)
+			slog.Warn("gcloudcli: initial token fetch failed", "account", account, "sa", sa, "err", err)
 		}
-		b.refreshers[account] = ref
+		b.refreshers[key] = ref
 		go ref.Run(b.rootCtx)
 	}
 
@@ -131,8 +138,12 @@ func linkToken(tokenSrc, dst string) error {
 	return os.Link(tokenSrc, dst)
 }
 
-func accountHash(account string) string {
-	h := sha256.Sum256([]byte(account))
+// principalKey combines the host gcloud account and service account into a unique key
+// so that different (account, SA) pairs get isolated token files and refreshers.
+func principalKey(account, sa string) string { return account + "|" + sa }
+
+func principalHash(key string) string {
+	h := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(h[:4])
 }
 

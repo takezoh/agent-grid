@@ -26,13 +26,16 @@ const (
 // gcloud auth print-access-token immediately after each internal refresh,
 // falling back to a 5-minute polling ticker when the watch is unavailable.
 type Refresher struct {
-	account   string
-	tokenPath string
+	account        string
+	serviceAccount string // SA to impersonate; empty means use account's own token (not recommended)
+	tokenPath      string
 }
 
-// NewRefresher creates a Refresher that keeps tokenPath populated for account.
-func NewRefresher(account, tokenPath string) *Refresher {
-	return &Refresher{account: account, tokenPath: tokenPath}
+// NewRefresher creates a Refresher that keeps tokenPath populated.
+// account is the host gcloud principal (may be empty to use gcloud's default).
+// serviceAccount is the SA email to impersonate; must be non-empty for scope-limited tokens.
+func NewRefresher(account, serviceAccount, tokenPath string) *Refresher {
+	return &Refresher{account: account, serviceAccount: serviceAccount, tokenPath: tokenPath}
 }
 
 // Prime fetches the token once synchronously. Returns an error only if the host
@@ -115,9 +118,9 @@ func (r *Refresher) runWithTicker(ctx context.Context) {
 }
 
 func (r *Refresher) refresh(ctx context.Context) error {
-	token, err := printAccessToken(ctx, r.account)
+	token, err := printAccessToken(ctx, r.account, r.serviceAccount)
 	if err != nil {
-		return fmt.Errorf("gcloud auth print-access-token --account=%s: %w", r.account, err)
+		return fmt.Errorf("gcloud auth print-access-token --account=%s --impersonate-service-account=%s: %w", r.account, r.serviceAccount, err)
 	}
 	if err := writeToken(r.tokenPath, []byte(token)); err != nil {
 		return fmt.Errorf("write token: %w", err)
@@ -127,10 +130,15 @@ func (r *Refresher) refresh(ctx context.Context) error {
 }
 
 // printAccessToken shells out to gcloud to obtain a fresh access token.
-func printAccessToken(ctx context.Context, account string) (string, error) {
+// When serviceAccount is non-empty, --impersonate-service-account is appended so the
+// returned token is scoped to the SA's IAM bindings rather than the full user account.
+func printAccessToken(ctx context.Context, account, serviceAccount string) (string, error) {
 	args := []string{"auth", "print-access-token"}
 	if account != "" {
 		args = append(args, "--account="+account)
+	}
+	if serviceAccount != "" {
+		args = append(args, "--impersonate-service-account="+serviceAccount)
 	}
 	out, err := exec.CommandContext(ctx, "gcloud", args...).Output()
 	if err != nil {

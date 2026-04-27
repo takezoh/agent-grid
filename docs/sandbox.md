@@ -191,34 +191,45 @@ This exposes the OAuth refresh token to the container. Accept this trade-off or 
 
 ### gcloud CLI
 
-Bind-mounting `~/.config/gcloud` exposes the OAuth refresh token. Instead, roost can generate a synthetic `CLOUDSDK_CONFIG` directory and refresh a short-lived access token on the host, so containers receive only the access token (≤1h TTL).
+Bind-mounting `~/.config/gcloud` exposes the OAuth refresh token. Instead, roost impersonates a service account on the host and passes only the short-lived SA-scoped access token (≤1h TTL) into the container. The container's `gcloud` calls are limited to what the SA's IAM bindings permit — it cannot act on projects outside those bindings.
 
 **Per-project configuration** — in the project's `.roost/settings.toml`:
 
 ```toml
 [sandbox.proxy.gcp]
-account  = "user@example.com"            # from `gcloud auth list`
-projects = ["proj-prod", "proj-staging"] # GCP project IDs; first entry is the active default
+service_account = "sa@proj.iam.gserviceaccount.com"   # required — SA to impersonate
+projects        = ["proj-prod", "proj-staging"]        # required — GCP project IDs; first entry is the active default
+account         = "user@example.com"                   # optional — host gcloud principal (defaults to current gcloud auth)
 ```
 
-When `account` and `projects` are set, roost:
+`service_account` and `projects` must both be set. Configuring `account` alone (without `service_account`) is rejected because it would produce a full-scope user token with no project restriction.
 
-- Calls `gcloud auth print-access-token --account=<account>` on the host every 50 minutes and writes the result to `<dataDir>/gcp/<hash>/access-token`.
-- Generates a synthetic `CLOUDSDK_CONFIG` directory with one `configurations/config_<projectId>` per listed project. Each configuration sets `auth/access_token_file` to `/opt/roost/gcp-token`.
-- Bind-mounts both files read-only into the container.
-- Injects `CLOUDSDK_CONFIG=/opt/roost/gcloud-config` into the container environment.
+**Host prerequisites:**
+- Run `gcloud auth login` (or use a service account key) on the host so gcloud can obtain tokens.
+- Grant the host principal `roles/iam.serviceAccountTokenCreator` on the SA:
+  ```sh
+  gcloud iam service-accounts add-iam-policy-binding sa@proj.iam.gserviceaccount.com \
+    --member="user:user@example.com" \
+    --role="roles/iam.serviceAccountTokenCreator"
+  ```
+
+When configured, roost:
+
+- Calls `gcloud auth print-access-token --account=<account> --impersonate-service-account=<sa>` every 50 minutes and writes the result to `<dataDir>/gcp/<hash>/access-token`.
+- Generates a synthetic `CLOUDSDK_CONFIG` directory with one `configurations/config_<projectId>` per listed project. Each configuration sets `auth/access_token_file` so gcloud reads the token file on every invocation.
+- Injects `CLOUDSDK_CONFIG=/opt/roost/run/gcloud-config` into the container environment.
 
 Inside the container:
 
 ```sh
-gcloud config list                               # shows active project (first listed)
-gcloud --configuration=proj-staging projects list  # switch to another project
-gcloud --project=proj-staging storage ls          # also works
+gcloud config list                                  # shows SA as active account, first project as active
+gcloud --configuration=proj-staging projects list   # switch to another project
+gcloud --project=proj-staging storage ls            # also works
 ```
 
-`~/.config/gcloud` is never bind-mounted. `gcloud auth login` inside the container will fail (read-only mount) — authenticate on the host before starting containers.
+`~/.config/gcloud` is never bind-mounted. `gcloud auth login` inside the container will fail — authenticate on the host before starting containers.
 
-The first token refresh is synchronous at container start. If `gcloud auth print-access-token` fails (not logged in), a warning is logged and the container's `gcloud` calls will receive 401 until the host re-authenticates.
+The first token refresh is synchronous at container start. If the impersonation call fails, a warning is logged and the container's `gcloud` calls will receive 401 until the host re-authenticates.
 
 **Container image requirement:** `gcloud` must be installed in the image.
 

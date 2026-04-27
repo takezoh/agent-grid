@@ -20,17 +20,28 @@ func TestSpecBuilder_emptyAccount_zeroSpec(t *testing.T) {
 	}
 }
 
-func TestSpecBuilder_emptyProjects_zeroSpec(t *testing.T) {
+// TestSpecBuilder_accountOnly_returnsError verifies that account-only config (no service_account)
+// is rejected because it would produce a full-scope user token.
+func TestSpecBuilder_accountOnly_returnsError(t *testing.T) {
 	b := NewSpecBuilder(context.Background(), t.TempDir(), t.TempDir())
 	sb := config.SandboxConfig{
-		Proxy: config.ProxyConfig{GCP: config.GCPConfig{Account: "user@example.com"}},
+		Proxy: config.ProxyConfig{GCP: config.GCPConfig{Account: "user@example.com", Projects: []string{"p"}}},
 	}
-	spec, err := b.ContainerSpec(context.Background(), "/proj", sb)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := b.ContainerSpec(context.Background(), "/proj", sb)
+	if err == nil {
+		t.Fatal("expected error for account-only config without service_account, got nil")
 	}
-	if len(spec.Env) != 0 || len(spec.Mounts) != 0 {
-		t.Errorf("expected zero spec, got env=%v mounts=%v", spec.Env, spec.Mounts)
+}
+
+// TestSpecBuilder_missingServiceAccount_projectsOnly_returnsError verifies partial config is rejected.
+func TestSpecBuilder_missingServiceAccount_projectsOnly_returnsError(t *testing.T) {
+	b := NewSpecBuilder(context.Background(), t.TempDir(), t.TempDir())
+	sb := config.SandboxConfig{
+		Proxy: config.ProxyConfig{GCP: config.GCPConfig{Projects: []string{"p"}}},
+	}
+	_, err := b.ContainerSpec(context.Background(), "/proj", sb)
+	if err == nil {
+		t.Fatal("expected error when service_account is missing")
 	}
 }
 
@@ -44,8 +55,9 @@ func TestSpecBuilder_withConfig_injectsEnvAndFiles(t *testing.T) {
 	sb := config.SandboxConfig{
 		Proxy: config.ProxyConfig{
 			GCP: config.GCPConfig{
-				Account:  "user@example.com",
-				Projects: []string{"proj-a", "proj-b"},
+				ServiceAccount: "sa@proj.iam.gserviceaccount.com",
+				Account:        "user@example.com",
+				Projects:       []string{"proj-a", "proj-b"},
 			},
 		},
 	}
@@ -76,11 +88,15 @@ func TestSpecBuilder_refresherDeduplication(t *testing.T) {
 	b := NewSpecBuilder(context.Background(), t.TempDir(), t.TempDir())
 	sb := config.SandboxConfig{
 		Proxy: config.ProxyConfig{
-			GCP: config.GCPConfig{Account: "user@example.com", Projects: []string{"p"}},
+			GCP: config.GCPConfig{
+				ServiceAccount: "sa@proj.iam.gserviceaccount.com",
+				Account:        "user@example.com",
+				Projects:       []string{"p"},
+			},
 		},
 	}
 
-	// Call twice — refresher goroutine should only start once.
+	// Two projects with the same (account, SA) pair share one refresher.
 	if _, err := b.ContainerSpec(context.Background(), "/p1", sb); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +109,47 @@ func TestSpecBuilder_refresherDeduplication(t *testing.T) {
 	b.mu.Unlock()
 
 	if count != 1 {
-		t.Errorf("expected 1 refresher, got %d", count)
+		t.Errorf("expected 1 refresher for same SA, got %d", count)
+	}
+}
+
+func TestSpecBuilder_refresherIsolationByServiceAccount(t *testing.T) {
+	stubGcloudForSpec(t, "tok")
+
+	b := NewSpecBuilder(context.Background(), t.TempDir(), t.TempDir())
+
+	sb1 := config.SandboxConfig{
+		Proxy: config.ProxyConfig{
+			GCP: config.GCPConfig{
+				ServiceAccount: "sa-a@proj.iam.gserviceaccount.com",
+				Account:        "user@example.com",
+				Projects:       []string{"p"},
+			},
+		},
+	}
+	sb2 := config.SandboxConfig{
+		Proxy: config.ProxyConfig{
+			GCP: config.GCPConfig{
+				ServiceAccount: "sa-b@proj.iam.gserviceaccount.com",
+				Account:        "user@example.com",
+				Projects:       []string{"p"},
+			},
+		},
+	}
+
+	if _, err := b.ContainerSpec(context.Background(), "/p1", sb1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.ContainerSpec(context.Background(), "/p2", sb2); err != nil {
+		t.Fatal(err)
+	}
+
+	b.mu.Lock()
+	count := len(b.refreshers)
+	b.mu.Unlock()
+
+	if count != 2 {
+		t.Errorf("expected 2 refreshers for different SAs, got %d", count)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 )
 
 // stubGcloud writes a fake gcloud script to a temp dir and prepends it to PATH.
+// The script echoes token regardless of arguments.
 func stubGcloud(t *testing.T, token string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -20,11 +21,32 @@ func stubGcloud(t *testing.T, token string) {
 	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
 }
 
+// stubGcloudImpersonate writes a fake gcloud script that returns a different token
+// when --impersonate-service-account is present, so the test can verify the flag is forwarded.
+func stubGcloudImpersonate(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	script := filepath.Join(dir, "gcloud")
+	// Check for --impersonate-service-account in the argument list.
+	content := `#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    --impersonate-service-account=*) echo "sa-token"; exit 0 ;;
+  esac
+done
+echo "user-token"
+`
+	if err := os.WriteFile(script, []byte(content), 0o755); err != nil {
+		t.Fatalf("write stub gcloud: %v", err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+}
+
 func TestRefresher_Prime_writesToken(t *testing.T) {
 	stubGcloud(t, "test-access-token-abc123")
 	tokenPath := filepath.Join(t.TempDir(), "access-token")
 
-	r := NewRefresher("user@example.com", tokenPath)
+	r := NewRefresher("user@example.com", "", tokenPath)
 	if err := r.Prime(context.Background()); err != nil {
 		t.Fatalf("Prime: %v", err)
 	}
@@ -51,7 +73,7 @@ func TestRefresher_Prime_preservesInode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := NewRefresher("user@example.com", tokenPath)
+	r := NewRefresher("user@example.com", "", tokenPath)
 	if err := r.Prime(context.Background()); err != nil {
 		t.Fatalf("Prime: %v", err)
 	}
@@ -74,12 +96,40 @@ func TestRefresher_Prime_preservesInode(t *testing.T) {
 	}
 }
 
+// TestRefresher_Prime_passesImpersonateFlag verifies that the --impersonate-service-account flag
+// is forwarded to gcloud when serviceAccount is set.
+func TestRefresher_Prime_passesImpersonateFlag(t *testing.T) {
+	stubGcloudImpersonate(t)
+	tokenPath := filepath.Join(t.TempDir(), "access-token")
+
+	// With SA: expect "sa-token" (impersonation path in fake script).
+	r := NewRefresher("user@example.com", "sa@proj.iam.gserviceaccount.com", tokenPath)
+	if err := r.Prime(context.Background()); err != nil {
+		t.Fatalf("Prime with SA: %v", err)
+	}
+	data, _ := os.ReadFile(tokenPath)
+	if string(data) != "sa-token" {
+		t.Errorf("with SA: token = %q, want %q", string(data), "sa-token")
+	}
+
+	// Without SA: expect "user-token" (non-impersonation path in fake script).
+	tokenPathNoSA := filepath.Join(t.TempDir(), "access-token")
+	r2 := NewRefresher("user@example.com", "", tokenPathNoSA)
+	if err := r2.Prime(context.Background()); err != nil {
+		t.Fatalf("Prime without SA: %v", err)
+	}
+	data2, _ := os.ReadFile(tokenPathNoSA)
+	if string(data2) != "user-token" {
+		t.Errorf("without SA: token = %q, want %q", string(data2), "user-token")
+	}
+}
+
 func TestRefresher_Prime_failsWhenGcloudMissing(t *testing.T) {
 	// Override PATH to an empty dir so gcloud is not found.
 	t.Setenv("PATH", t.TempDir())
 	tokenPath := filepath.Join(t.TempDir(), "access-token")
 
-	r := NewRefresher("user@example.com", tokenPath)
+	r := NewRefresher("user@example.com", "", tokenPath)
 	if err := r.Prime(context.Background()); err == nil {
 		t.Fatal("expected error when gcloud is missing")
 	}
@@ -90,7 +140,7 @@ func TestRefresher_Run_fsnotify_triggersRefresh(t *testing.T) {
 	credDir := t.TempDir()
 	tokenPath := filepath.Join(t.TempDir(), "access-token")
 
-	r := NewRefresher("user@example.com", tokenPath)
+	r := NewRefresher("user@example.com", "", tokenPath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -128,7 +178,7 @@ func TestRefresher_Run_fallbackTicker(t *testing.T) {
 	stubGcloud(t, "polled-token")
 	tokenPath := filepath.Join(t.TempDir(), "access-token")
 
-	r := NewRefresher("user@example.com", tokenPath)
+	r := NewRefresher("user@example.com", "", tokenPath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
