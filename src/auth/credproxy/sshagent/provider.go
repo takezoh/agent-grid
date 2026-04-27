@@ -1,11 +1,10 @@
 // Package sshagent implements a credproxy.Provider that injects an ephemeral
 // SSH agent into containers. roost spawns an ssh-agent, loads only the listed
-// keys, and forwards that socket. The container can sign but never sees private keys.
+// keys, and injects that socket. The container can sign but never sees private keys.
 package sshagent
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"log/slog"
 	"net"
@@ -96,7 +95,7 @@ func (b *SpecBuilder) keysSpec(projectPath string, keys []string) (credproxy.Spe
 }
 
 func (b *SpecBuilder) spawnAgent(projectPath string, keys []string) (*ephemeralAgent, error) {
-	projectRunDir := filepath.Join(b.runBase, projectRunHash(projectPath))
+	projectRunDir := filepath.Join(b.runBase, credproxy.ProjectRunHash(projectPath))
 	if err := os.MkdirAll(projectRunDir, 0o700); err != nil {
 		return nil, fmt.Errorf("sshagent: mkdir run dir: %w", err)
 	}
@@ -165,9 +164,3 @@ func (b *SpecBuilder) watchShutdown(ctx context.Context) {
 	}
 }
 
-// projectRunHash produces the per-project run dir name (6 bytes → 12 hex chars),
-// matching the convention used by runtime.ProjectRunDir.
-func projectRunHash(projectPath string) string {
-	h := sha256.Sum256([]byte(projectPath))
-	return fmt.Sprintf("%x", h[:6])
-}

@@ -2,6 +2,8 @@ package credproxy
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 
 	"github.com/takezoh/agent-roost/config"
 	credproxylib "github.com/takezoh/credproxy/pkg/credproxy"
@@ -12,6 +14,13 @@ import (
 type Spec struct {
 	Env    map[string]string
 	Mounts []string
+}
+
+// ProjectRunHash returns the per-project run directory name (6 bytes → 12 hex chars).
+// Matches the convention used by runtime.ProjectRunDir.
+func ProjectRunHash(projectPath string) string {
+	h := sha256.Sum256([]byte(projectPath))
+	return fmt.Sprintf("%x", h[:6])
 }
 
 // Provider is implemented by each credential backend (awssso, gcloudcli, sshagent, github, ...).

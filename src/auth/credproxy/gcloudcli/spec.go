@@ -78,7 +78,7 @@ func (b *SpecBuilder) ContainerSpec(ctx context.Context, projectPath string, sb 
 		return credproxy.Spec{}, err
 	}
 
-	projectRunDir := filepath.Join(b.runBase, projectRunHash(projectPath))
+	projectRunDir := filepath.Join(b.runBase, credproxy.ProjectRunHash(projectPath))
 	if err := os.MkdirAll(projectRunDir, 0o700); err != nil {
 		return credproxy.Spec{}, fmt.Errorf("gcloudcli: mkdir run dir: %w", err)
 	}
@@ -147,9 +147,3 @@ func principalHash(key string) string {
 	return hex.EncodeToString(h[:4])
 }
 
-// projectRunHash produces the per-project run dir name (6 bytes → 12 hex chars),
-// matching the convention used by runtime.ProjectRunDir.
-func projectRunHash(projectPath string) string {
-	h := sha256.Sum256([]byte(projectPath))
-	return fmt.Sprintf("%x", h[:6])
-}

@@ -82,7 +82,6 @@ type ProxyConfig struct {
 
 // SSHAgentConfig controls SSH agent injection into containers.
 // An ephemeral ssh-agent is spawned with only the listed keys loaded.
-// When Keys is empty, no SSH agent is injected.
 type SSHAgentConfig struct {
 	Keys []string `toml:"keys"`
 }

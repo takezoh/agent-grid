@@ -3,7 +3,6 @@ package awssso
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -65,7 +64,7 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string, sb co
 	}
 	b.provider.AllowProfiles(profiles)
 
-	projectRunDir := filepath.Join(b.runBase, projectRunHash(projectPath))
+	projectRunDir := filepath.Join(b.runBase, credproxy.ProjectRunHash(projectPath))
 	if err := os.MkdirAll(projectRunDir, 0o700); err != nil {
 		return credproxy.Spec{}, fmt.Errorf("awssso: mkdir run dir: %w", err)
 	}
@@ -89,9 +88,3 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string, sb co
 	return credproxy.Spec{Env: env, Mounts: []string{mount}}, nil
 }
 
-// projectRunHash produces the per-project run dir name (6 bytes → 12 hex chars),
-// matching the convention used by runtime.ProjectRunDir.
-func projectRunHash(projectPath string) string {
-	h := sha256.Sum256([]byte(projectPath))
-	return fmt.Sprintf("%x", h[:6])
-}

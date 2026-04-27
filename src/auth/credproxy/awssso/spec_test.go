@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	credproxylib "github.com/takezoh/credproxy/pkg/credproxy"
-
+	credproxy "github.com/takezoh/agent-roost/auth/credproxy"
 	"github.com/takezoh/agent-roost/config"
+	credproxylib "github.com/takezoh/credproxy/pkg/credproxy"
 )
 
 func TestSpecBuilder_emptyProfiles_zeroSpec(t *testing.T) {
@@ -53,7 +53,7 @@ func TestSpecBuilder_withProfiles_returnsEnvAndFiles(t *testing.T) {
 	}
 
 	// Verify config file and helper script were written under the per-project run dir.
-	projectDir := filepath.Join(runBase, projectRunHash("/myproject"))
+	projectDir := filepath.Join(runBase, credproxy.ProjectRunHash("/myproject"))
 	if _, err := os.Stat(filepath.Join(projectDir, "aws-config")); err != nil {
 		t.Errorf("aws-config not created in run dir: %v", err)
 	}

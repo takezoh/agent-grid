@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	credproxy "github.com/takezoh/agent-roost/auth/credproxy"
 	"github.com/takezoh/agent-roost/config"
 )
 
@@ -76,7 +77,7 @@ func TestSpecBuilder_withConfig_injectsEnvAndFiles(t *testing.T) {
 	}
 
 	// Verify gcloud-config dir was written under the per-project run dir.
-	projectDir := filepath.Join(runBase, projectRunHash("/myproject"))
+	projectDir := filepath.Join(runBase, credproxy.ProjectRunHash("/myproject"))
 	if _, err := os.Stat(filepath.Join(projectDir, "gcloud-config")); err != nil {
 		t.Errorf("gcloud-config dir not created in run dir: %v", err)
 	}
