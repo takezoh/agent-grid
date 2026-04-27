@@ -10,7 +10,10 @@ import (
 	"github.com/takezoh/agent-roost/state"
 )
 
-const defaultRequestTimeout = 5 * time.Second
+const (
+	defaultRequestTimeout = 5 * time.Second
+	createSessionTimeout  = 5 * time.Minute
+)
 
 func (c *Client) sendDefault(cmd Command) (Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
@@ -18,7 +21,7 @@ func (c *Client) sendDefault(cmd Command) (Response, error) {
 	return c.Send(ctx, cmd)
 }
 
-func sendJSONEvent[R Response](c *Client, eventName string, req any) (R, error) {
+func sendJSONEventTimeout[R Response](c *Client, eventName string, req any, timeout time.Duration) (R, error) {
 	var payload json.RawMessage
 	if req != nil {
 		b, err := json.Marshal(req)
@@ -28,7 +31,9 @@ func sendJSONEvent[R Response](c *Client, eventName string, req any) (R, error) 
 		}
 		payload = json.RawMessage(b)
 	}
-	resp, err := c.sendDefault(CmdEvent{Event: eventName, Payload: payload})
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	resp, err := c.Send(ctx, CmdEvent{Event: eventName, Payload: payload})
 	if err != nil {
 		var zero R
 		return zero, err
@@ -41,6 +46,10 @@ func sendJSONEvent[R Response](c *Client, eventName string, req any) (R, error) 
 	return r, nil
 }
 
+func sendJSONEvent[R Response](c *Client, eventName string, req any) (R, error) {
+	return sendJSONEventTimeout[R](c, eventName, req, defaultRequestTimeout)
+}
+
 // Subscribe registers this client to receive broadcast events.
 func (c *Client) Subscribe() error {
 	_, err := c.sendDefault(CmdSubscribe{})
@@ -49,12 +58,13 @@ func (c *Client) Subscribe() error {
 
 // CreateSession asks the daemon to spawn a new session. Returns
 // the freshly assigned session id, or an error.
+// Uses a long timeout because devcontainer cold starts can take several minutes.
 func (c *Client) CreateSession(project, command string, options state.LaunchOptions) (sessionID string, err error) {
-	r, err := sendJSONEvent[RespCreateSession](c, state.EventCreateSession, state.CreateSessionParams{
+	r, err := sendJSONEventTimeout[RespCreateSession](c, state.EventCreateSession, state.CreateSessionParams{
 		Project: canonicalProjectPath(project),
 		Command: command,
 		Options: options,
-	})
+	}, createSessionTimeout)
 	if err != nil {
 		return "", err
 	}

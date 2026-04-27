@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,11 +26,42 @@ type Config struct {
 
 // SandboxConfig controls how agent processes are isolated.
 // mode = "direct" runs agents with no extra sandboxing (default).
-// mode = "docker" runs each project in a long-lived Docker container.
+// mode = "devcontainer" runs each project via @devcontainers/cli.
 type SandboxConfig struct {
-	Mode   string       `toml:"mode"`
-	Docker DockerConfig `toml:"docker"`
-	Proxy  ProxyConfig  `toml:"proxy"`
+	Mode         string             `toml:"mode"`
+	Devcontainer DevcontainerConfig `toml:"devcontainer"`
+	Proxy        ProxyConfig        `toml:"proxy"`
+}
+
+// Validate rejects unknown sandbox modes at startup.
+func (s SandboxConfig) Validate() error {
+	switch s.Mode {
+	case "", "direct", "devcontainer":
+		return nil
+	default:
+		return fmt.Errorf("sandbox.mode=%q is unknown; valid values: direct, devcontainer", s.Mode)
+	}
+}
+
+// DevcontainerConfig holds settings for the devcontainer sandbox mode.
+type DevcontainerConfig struct {
+	// CLIPath is the devcontainer CLI binary name or absolute path.
+	// Default: "devcontainer" (resolved via PATH).
+	CLIPath string `toml:"cli_path"`
+
+	// ExtraBuildArgs are appended verbatim to "devcontainer build" (roost build).
+	ExtraBuildArgs []string `toml:"extra_build_args"`
+
+	// ExtraCreateArgs are appended verbatim to "docker create".
+	ExtraCreateArgs []string `toml:"extra_create_args"`
+
+	// EnvScript is a path to a script that prints KEY=VALUE lines (dotenv format)
+	// to stdout. It receives the project path as its first argument.
+	EnvScript string `toml:"env_script"`
+
+	// AllowProjectEnvScript lists project paths whose project-scope env_script
+	// is permitted to run.
+	AllowProjectEnvScript []string `toml:"allow_project_env_script"`
 }
 
 // ProxyConfig enables roost's in-process credential injection proxy.
@@ -58,17 +90,6 @@ type SSHAgentConfig struct {
 type GCPConfig struct {
 	Account  string   `toml:"account"`  // gcloud account (email)
 	Projects []string `toml:"projects"` // GCP project IDs available in container; first entry is the active default
-}
-
-// DockerConfig holds Docker-specific sandbox parameters.
-type DockerConfig struct {
-	Image       string            `toml:"image"`
-	Network     string            `toml:"network"`
-	ExtraArgs   []string          `toml:"extra_args"`
-	ExtraMounts []string          `toml:"extra_mounts"` // "host:guest[:mode]" appended to docker run -v
-	Env         map[string]string `toml:"env"`          // fixed env passed via -e
-	ForwardEnv  []string          `toml:"forward_env"`  // host env vars to pass through if set
-	HostMounts  map[string]string `toml:"host_mounts"`  // host_path → "rw"|"ro"; per-container bind mounts
 }
 
 // CommonDriverConfig holds settings that apply to all drivers.

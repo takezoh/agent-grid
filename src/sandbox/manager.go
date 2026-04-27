@@ -55,13 +55,4 @@ type Manager[I any] interface {
 	// DestroyInstance stops and removes the sandbox. Only called when
 	// ReleaseFrame returns true (ref-count == 0).
 	DestroyInstance(ctx context.Context, inst *Instance[I]) error
-
-	// PruneOrphans stops sandbox instances that are not associated with any
-	// of knownProjects, or whose resolved image no longer matches what
-	// resolveImage returns for the project (e.g. after a config change).
-	// Call once at startup to clean up leftovers from a prior daemon run.
-	// knownProjects is the set of canonical project paths from the snapshot.
-	// resolveImage maps a project path to the currently-effective image; a
-	// container whose image label differs from this value is also pruned.
-	PruneOrphans(ctx context.Context, knownProjects []string, resolveImage func(string) string)
 }

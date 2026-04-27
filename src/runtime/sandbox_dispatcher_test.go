@@ -59,13 +59,13 @@ func TestSandboxDispatcher_EmptyMode_RoutesToDirect(t *testing.T) {
 	}
 }
 
-func TestSandboxDispatcher_DockerMode_NilDocker_ReturnsError(t *testing.T) {
-	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "docker"})
-	d := &SandboxDispatcher{Resolver: resolver, Direct: DirectLauncher{}, Docker: nil}
+func TestSandboxDispatcher_DevcontainerMode_NilDevcontainer_ReturnsError(t *testing.T) {
+	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "devcontainer"})
+	d := &SandboxDispatcher{Resolver: resolver, Direct: DirectLauncher{}, Devcontainer: nil}
 
 	_, err := d.WrapLaunch("f1", state.LaunchPlan{Project: "/workspace/foo"}, nil)
 	if err == nil {
-		t.Error("expected error when docker backend is nil but mode=docker")
+		t.Error("expected error when devcontainer backend is nil but mode=devcontainer")
 	}
 }
 
@@ -91,11 +91,4 @@ func TestSandboxDispatcher_AdoptFrame_DirectMode(t *testing.T) {
 	if !direct.adoptFrameCalled {
 		t.Error("expected direct.AdoptFrame called")
 	}
-}
-
-func TestSandboxDispatcher_PruneOrphans_NilDocker_NoOp(t *testing.T) {
-	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "direct"})
-	d := &SandboxDispatcher{Resolver: resolver, Direct: DirectLauncher{}}
-	// must not panic
-	d.PruneOrphans(context.Background(), []string{"/workspace/foo"}, nil)
 }

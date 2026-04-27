@@ -7,25 +7,25 @@ import (
 )
 
 func TestSandboxResolver_EmptyProject(t *testing.T) {
-	user := SandboxConfig{Mode: "docker"}
+	user := SandboxConfig{Mode: "devcontainer"}
 	r := NewSandboxResolver(user)
 	got := r.Resolve("")
-	if got.Mode != "docker" {
-		t.Errorf("Mode = %q, want docker (empty project returns user config)", got.Mode)
+	if got.Mode != "devcontainer" {
+		t.Errorf("Mode = %q, want devcontainer (empty project returns user config)", got.Mode)
 	}
 }
 
 func TestSandboxResolver_NoSettingsFile(t *testing.T) {
-	user := SandboxConfig{Mode: "docker"}
+	user := SandboxConfig{Mode: "devcontainer"}
 	r := NewSandboxResolver(user)
 	got := r.Resolve(t.TempDir()) // no .roost/settings.toml
-	if got.Mode != "docker" {
-		t.Errorf("Mode = %q, want docker (absent settings returns user config)", got.Mode)
+	if got.Mode != "devcontainer" {
+		t.Errorf("Mode = %q, want devcontainer (absent settings returns user config)", got.Mode)
 	}
 }
 
 func TestSandboxResolver_ProjectOverridesMode(t *testing.T) {
-	user := SandboxConfig{Mode: "docker"}
+	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
 	roostDir := filepath.Join(dir, ".roost")
 	os.MkdirAll(roostDir, 0o755)
@@ -41,7 +41,7 @@ mode = "direct"
 }
 
 func TestSandboxResolver_ProjectNoSandboxSection(t *testing.T) {
-	user := SandboxConfig{Mode: "docker"}
+	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
 	roostDir := filepath.Join(dir, ".roost")
 	os.MkdirAll(roostDir, 0o755)
@@ -51,13 +51,13 @@ name = "myproject"
 
 	r := NewSandboxResolver(user)
 	got := r.Resolve(dir)
-	if got.Mode != "docker" {
-		t.Errorf("Mode = %q, want docker (no sandbox section → user config)", got.Mode)
+	if got.Mode != "devcontainer" {
+		t.Errorf("Mode = %q, want devcontainer (no sandbox section → user config)", got.Mode)
 	}
 }
 
 func TestSandboxResolver_CacheHit(t *testing.T) {
-	user := SandboxConfig{Mode: "docker"}
+	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
 	roostDir := filepath.Join(dir, ".roost")
 	os.MkdirAll(roostDir, 0o755)
@@ -68,8 +68,6 @@ mode = "direct"
 
 	r := NewSandboxResolver(user)
 	got1 := r.Resolve(dir)
-	// overwrite file without changing its content — mtime-based cache should hit
-	// (we can't easily test mtime hit without sleeping, so just confirm consistency)
 	got2 := r.Resolve(dir)
 	if got1.Mode != got2.Mode {
 		t.Errorf("inconsistent results: %q vs %q", got1.Mode, got2.Mode)
@@ -77,7 +75,7 @@ mode = "direct"
 }
 
 func TestSandboxResolver_ParseError_FallsBackToUser(t *testing.T) {
-	user := SandboxConfig{Mode: "docker"}
+	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
 	roostDir := filepath.Join(dir, ".roost")
 	os.MkdirAll(roostDir, 0o755)
@@ -85,8 +83,8 @@ func TestSandboxResolver_ParseError_FallsBackToUser(t *testing.T) {
 
 	r := NewSandboxResolver(user)
 	got := r.Resolve(dir)
-	if got.Mode != "docker" {
-		t.Errorf("Mode = %q, want docker (parse error falls back to user)", got.Mode)
+	if got.Mode != "devcontainer" {
+		t.Errorf("Mode = %q, want devcontainer (parse error falls back to user)", got.Mode)
 	}
 }
 
@@ -128,21 +126,21 @@ forward = true
 	}
 }
 
-func TestSandboxResolver_DockerImageOverride(t *testing.T) {
-	user := SandboxConfig{Mode: "docker", Docker: DockerConfig{Image: "node:22"}}
+func TestSandboxResolver_DevcontainerCLIPathOverride(t *testing.T) {
+	user := SandboxConfig{Mode: "devcontainer", Devcontainer: DevcontainerConfig{CLIPath: "devcontainer"}}
 	dir := t.TempDir()
 	roostDir := filepath.Join(dir, ".roost")
 	os.MkdirAll(roostDir, 0o755)
-	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[sandbox.docker]
-image = "custom:latest"
+	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[sandbox.devcontainer]
+cli_path = "/usr/local/bin/devcontainer"
 `), 0o644)
 
 	r := NewSandboxResolver(user)
 	got := r.Resolve(dir)
-	if got.Docker.Image != "custom:latest" {
-		t.Errorf("Image = %q, want custom:latest (project overrides)", got.Docker.Image)
+	if got.Devcontainer.CLIPath != "/usr/local/bin/devcontainer" {
+		t.Errorf("CLIPath = %q, want /usr/local/bin/devcontainer (project overrides)", got.Devcontainer.CLIPath)
 	}
-	if got.Mode != "docker" {
-		t.Errorf("Mode = %q, want docker (not overridden)", got.Mode)
+	if got.Mode != "devcontainer" {
+		t.Errorf("Mode = %q, want devcontainer (not overridden)", got.Mode)
 	}
 }

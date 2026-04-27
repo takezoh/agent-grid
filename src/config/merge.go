@@ -3,9 +3,9 @@ package config
 // MergeSandbox returns the effective SandboxConfig for a project by merging
 // user-scope and project-scope settings. Merge rules:
 //   - project == nil: return user unchanged
-//   - Mode, Docker.Image, Docker.Network (scalars): project wins when non-empty
-//   - Docker.ExtraArgs, ExtraMounts, ForwardEnv (lists): user + project concat
-//   - Docker.Env, Docker.HostMounts (maps): user keys as base, project keys overwrite
+//   - Mode (scalar): project wins when non-empty
+//   - Devcontainer.CLIPath, EnvScript (scalars): project wins when non-empty
+//   - Devcontainer.ExtraUpArgs (list): user + project concat
 //   - Proxy.Enabled: user wins (proxy is process-wide)
 //   - Proxy.SSHAgent.Keys: project replaces when non-empty; Forward: OR
 func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
@@ -14,14 +14,12 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	}
 	out := SandboxConfig{
 		Mode: user.Mode,
-		Docker: DockerConfig{
-			Image:       user.Docker.Image,
-			Network:     user.Docker.Network,
-			ExtraArgs:   appendSlice(user.Docker.ExtraArgs, project.Docker.ExtraArgs),
-			ExtraMounts: appendSlice(user.Docker.ExtraMounts, project.Docker.ExtraMounts),
-			ForwardEnv:  appendSlice(user.Docker.ForwardEnv, project.Docker.ForwardEnv),
-			Env:         mergeMaps(user.Docker.Env, project.Docker.Env),
-			HostMounts:  mergeMaps(user.Docker.HostMounts, project.Docker.HostMounts),
+		Devcontainer: DevcontainerConfig{
+			CLIPath:               user.Devcontainer.CLIPath,
+			ExtraBuildArgs:        appendSlice(user.Devcontainer.ExtraBuildArgs, project.Devcontainer.ExtraBuildArgs),
+			ExtraCreateArgs:       appendSlice(user.Devcontainer.ExtraCreateArgs, project.Devcontainer.ExtraCreateArgs),
+			EnvScript:             user.Devcontainer.EnvScript,
+			AllowProjectEnvScript: user.Devcontainer.AllowProjectEnvScript,
 		},
 		Proxy: ProxyConfig{
 			Enabled:     user.Proxy.Enabled,
@@ -33,11 +31,11 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	if project.Mode != "" {
 		out.Mode = project.Mode
 	}
-	if project.Docker.Image != "" {
-		out.Docker.Image = project.Docker.Image
+	if project.Devcontainer.CLIPath != "" {
+		out.Devcontainer.CLIPath = project.Devcontainer.CLIPath
 	}
-	if project.Docker.Network != "" {
-		out.Docker.Network = project.Docker.Network
+	if project.Devcontainer.EnvScript != "" {
+		out.Devcontainer.EnvScript = project.Devcontainer.EnvScript
 	}
 	if len(project.Proxy.AWSProfiles) > 0 {
 		out.Proxy.AWSProfiles = project.Proxy.AWSProfiles
@@ -59,18 +57,4 @@ func appendSlice(base, extra []string) []string {
 		return append([]string(nil), base...)
 	}
 	return append(append([]string(nil), base...), extra...)
-}
-
-func mergeMaps(base, overlay map[string]string) map[string]string {
-	if len(base) == 0 && len(overlay) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(base)+len(overlay))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range overlay {
-		out[k] = v
-	}
-	return out
 }

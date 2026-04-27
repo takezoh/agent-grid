@@ -22,11 +22,13 @@ const ConfigDirEnv = "CLOUDSDK_CONFIG"
 // It prevents gcloud from probing the GCE metadata server when running in Docker.
 const OAuthAccessTokenEnv = "GOOGLE_OAUTH_ACCESS_TOKEN"
 
-// containerTokenPath is where the token file is mounted inside the container.
-const containerTokenPath = "/opt/roost/gcp-token"
+// containerTokenPath is where the token file is accessed inside the container.
+// Exposed via the /opt/roost/run directory bind mount.
+const containerTokenPath = "/opt/roost/run/gcloud-token"
 
-// containerConfigPath is where the synthetic CLOUDSDK_CONFIG dir is mounted.
-const containerConfigPath = "/opt/roost/gcloud-config"
+// containerConfigPath is where the synthetic CLOUDSDK_CONFIG dir is accessed inside the container.
+// Exposed via the /opt/roost/run directory bind mount.
+const containerConfigPath = "/opt/roost/run/gcloud-config"
 
 // globalProperties is written to CLOUDSDK_CONFIG/properties to prevent gcloud from
 // making network calls for telemetry and update checks on startup.

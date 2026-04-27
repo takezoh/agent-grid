@@ -33,12 +33,14 @@ func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, erro
 		return nil, fmt.Errorf("credproxy: generate token: %w", err)
 	}
 
+	runBase := dataDir + "/run"
+
 	// Build providers with proxyAddr="" for the first pass: Routes() does not
 	// depend on proxyAddr (HTTP handlers run on the server side), so we can
 	// collect routes before the server is started and the port is known.
-	awsSpec := awssso.NewSpecBuilder("", token, dataDir+"/aws")
-	gcpSpec := gcloudcli.NewSpecBuilder(ctx, dataDir+"/gcp")
-	sshSpec := sshagent.NewSpecBuilder(ctx, dataDir+"/ssh")
+	awsSpec := awssso.NewSpecBuilder("", token, runBase)
+	gcpSpec := gcloudcli.NewSpecBuilder(ctx, dataDir+"/gcp", runBase)
+	sshSpec := sshagent.NewSpecBuilder(ctx, runBase)
 
 	earlyProviders := []credproxy.Provider{awsSpec, gcpSpec, sshSpec}
 	var routes []credproxylib.Route
@@ -60,8 +62,8 @@ func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, erro
 
 	// Rebuild providers that need the resolved proxy address for ContainerSpec env.
 	providers := []credproxy.Provider{
-		awssso.NewSpecBuilder(proxyAddr, token, dataDir+"/aws"),
-		gcloudcli.NewSpecBuilder(ctx, dataDir+"/gcp"),
+		awssso.NewSpecBuilder(proxyAddr, token, runBase),
+		gcloudcli.NewSpecBuilder(ctx, dataDir+"/gcp", runBase),
 		sshSpec,
 	}
 

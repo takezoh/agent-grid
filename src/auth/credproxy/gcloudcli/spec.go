@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 
 	credproxy "github.com/takezoh/agent-roost/auth/credproxy"
@@ -19,38 +20,46 @@ import (
 // CLOUDSDK_CONFIG directories so containers receive only short-lived access tokens.
 type SpecBuilder struct {
 	rootCtx context.Context
-	gcpDir  string // base directory; sub-dirs keyed by account hash and project hash
+	gcpDir  string // base directory for per-account token storage
+	runBase string // base for per-project run dirs (e.g. <dataDir>/run)
 
 	mu         sync.Mutex
 	refreshers map[string]*Refresher // keyed by account email
 }
 
-// NewSpecBuilder creates a SpecBuilder. gcpDir is the directory for all GCP
-// materialized files (token files and synthetic CLOUDSDK_CONFIG dirs).
+// NewSpecBuilder creates a SpecBuilder.
+// gcpDir stores per-account token files refreshed by background goroutines.
+// runBase is the parent of per-project run dirs bound into containers at /opt/roost/run.
 // rootCtx controls the lifetime of token refresh goroutines.
-func NewSpecBuilder(rootCtx context.Context, gcpDir string) *SpecBuilder {
+func NewSpecBuilder(rootCtx context.Context, gcpDir, runBase string) *SpecBuilder {
 	return &SpecBuilder{
 		rootCtx:    rootCtx,
 		gcpDir:     gcpDir,
+		runBase:    runBase,
 		refreshers: make(map[string]*Refresher),
 	}
 }
 
 func (b *SpecBuilder) Name() string { return "gcloudcli" }
 
-// Init creates gcpDir.
+// Init creates gcpDir and runBase.
 func (b *SpecBuilder) Init() error {
 	if err := os.MkdirAll(b.gcpDir, 0o755); err != nil {
 		return fmt.Errorf("gcloudcli: mkdir: %w", err)
 	}
+	if err := os.MkdirAll(b.runBase, 0o700); err != nil {
+		return fmt.Errorf("gcloudcli: mkdir runBase: %w", err)
+	}
 	return nil
 }
 
-// Routes returns nil; gcloudcli uses a bind-mounted token file, not an HTTP route.
+// Routes returns nil; gcloudcli uses bind-mounted files, not an HTTP route.
 func (b *SpecBuilder) Routes() []credproxylib.Route { return nil }
 
 // ContainerSpec implements credproxy.Provider.
 // Returns zero Spec when sandbox.proxy.gcp.account or .projects is empty.
+// Files are written into the per-project run dir so the single dir bind at
+// /opt/roost/run covers them without additional per-file mounts.
 func (b *SpecBuilder) ContainerSpec(ctx context.Context, projectPath string, sb config.SandboxConfig) (credproxy.Spec, error) {
 	account := sb.Proxy.GCP.Account
 	projects := sb.Proxy.GCP.Projects
@@ -58,34 +67,43 @@ func (b *SpecBuilder) ContainerSpec(ctx context.Context, projectPath string, sb 
 		return credproxy.Spec{}, nil
 	}
 
-	tokenPath, err := b.ensureRefresher(ctx, account)
+	tokenSrc, err := b.ensureRefresher(ctx, account)
 	if err != nil {
 		return credproxy.Spec{}, err
 	}
 
-	configDir, err := b.writeConfigDir(projectPath, account, projects)
-	if err != nil {
-		return credproxy.Spec{}, err
+	projectRunDir := filepath.Join(b.runBase, projectRunHash(projectPath))
+	if err := os.MkdirAll(projectRunDir, 0o700); err != nil {
+		return credproxy.Spec{}, fmt.Errorf("gcloudcli: mkdir run dir: %w", err)
+	}
+
+	if err := linkToken(tokenSrc, filepath.Join(projectRunDir, "gcloud-token")); err != nil {
+		slog.Warn("gcloudcli: token link failed, skipping", "err", err)
+	}
+
+	configDir := filepath.Join(projectRunDir, "gcloud-config")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		return credproxy.Spec{}, fmt.Errorf("gcloudcli: mkdir config dir: %w", err)
+	}
+	if err := WriteConfigDir(configDir, account, projects); err != nil {
+		return credproxy.Spec{}, fmt.Errorf("gcloudcli: write config dir: %w", err)
 	}
 
 	// Do not inject GOOGLE_OAUTH_ACCESS_TOKEN: that env var is static and becomes stale after
-	// 1h. Instead, gcloud reads /opt/roost/gcp-token via auth/access_token_file on every
+	// 1h. Instead, gcloud reads containerTokenPath via auth/access_token_file on every
 	// invocation (gcloud 394+). The host Refresher writes to the same inode via os.WriteFile,
 	// so the bind-mounted file always reflects the latest token without a container restart.
-	return credproxy.Spec{
-		Env:    ContainerEnv(""),
-		Mounts: ContainerMounts(tokenPath, configDir),
-	}, nil
+	return credproxy.Spec{Env: ContainerEnv("")}, nil
 }
 
 // ensureRefresher starts a token refresh goroutine for account if not already running.
-// Returns the host path of the token file.
+// Returns the host path of the token file (under gcpDir, NOT the run dir).
 func (b *SpecBuilder) ensureRefresher(ctx context.Context, account string) (string, error) {
-	accountDir := fmt.Sprintf("%s/%s", b.gcpDir, accountHash(account))
+	accountDir := filepath.Join(b.gcpDir, accountHash(account))
 	if err := os.MkdirAll(accountDir, 0o755); err != nil {
 		return "", fmt.Errorf("gcloudcli: mkdir account dir: %w", err)
 	}
-	tokenPath := accountDir + "/access-token"
+	tokenPath := filepath.Join(accountDir, "access-token")
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -102,16 +120,15 @@ func (b *SpecBuilder) ensureRefresher(ctx context.Context, account string) (stri
 	return tokenPath, nil
 }
 
-func (b *SpecBuilder) writeConfigDir(projectPath, account string, projects []string) (string, error) {
-	hash := projectHash(projectPath)
-	configDir := b.gcpDir + "/cloudsdk-config-" + hash
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		return "", fmt.Errorf("gcloudcli: mkdir config dir: %w", err)
+// linkToken hardlinks tokenSrc into dst so the container sees the same file that
+// Refresher writes to (os.WriteFile preserves the inode, so hardlinks track updates).
+// Silently skips if tokenSrc does not exist yet (gcloud not configured).
+func linkToken(tokenSrc, dst string) error {
+	if _, err := os.Stat(tokenSrc); err != nil {
+		return nil // token not yet written (gcloud unavailable)
 	}
-	if err := WriteConfigDir(configDir, account, projects); err != nil {
-		return "", fmt.Errorf("gcloudcli: write config dir: %w", err)
-	}
-	return configDir, nil
+	_ = os.Remove(dst)
+	return os.Link(tokenSrc, dst)
 }
 
 func accountHash(account string) string {
@@ -119,7 +136,9 @@ func accountHash(account string) string {
 	return hex.EncodeToString(h[:4])
 }
 
-func projectHash(projectPath string) string {
+// projectRunHash produces the per-project run dir name (6 bytes → 12 hex chars),
+// matching the convention used by runtime.ProjectRunDir.
+func projectRunHash(projectPath string) string {
 	h := sha256.Sum256([]byte(projectPath))
-	return hex.EncodeToString(h[:4])
+	return fmt.Sprintf("%x", h[:6])
 }

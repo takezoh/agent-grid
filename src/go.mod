@@ -15,11 +15,11 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/stretchr/testify v1.11.1
+	github.com/takezoh/credproxy v0.0.0
 	github.com/takezoh/fishpath-go v0.1.0
 	golang.org/x/term v0.41.0
 	google.golang.org/api v0.276.0
 	google.golang.org/grpc v1.80.0
-	github.com/takezoh/credproxy v0.0.0
 )
 
 replace github.com/takezoh/credproxy => /workspace/credproxyd
@@ -215,6 +215,7 @@ require (
 	github.com/stbenjam/no-sprintf-host-port v0.3.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
+	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd // indirect
 	github.com/tetafro/godot v1.5.4 // indirect
 	github.com/timakin/bodyclose v0.0.0-20241222091800-1db5c5ca4d67 // indirect
 	github.com/timonwong/loggercheck v0.11.0 // indirect

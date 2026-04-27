@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"runtime"
 	"testing"
 
 	"github.com/takezoh/agent-roost/config"
@@ -16,27 +15,22 @@ func TestNewAgentLauncher_direct(t *testing.T) {
 			t.Errorf("mode=%q: unexpected error: %v", mode, err)
 			continue
 		}
-		// newAgentLauncher always returns a SandboxDispatcher; for direct mode
-		// the Docker backend must be nil (no docker spawning).
 		d, ok := l.(*appruntime.SandboxDispatcher)
 		if !ok {
 			t.Errorf("mode=%q: expected *SandboxDispatcher, got %T", mode, l)
 			continue
 		}
-		if d.Docker != nil {
-			t.Errorf("mode=%q: expected Docker=nil for direct mode, got %T", mode, d.Docker)
+		if d.Devcontainer != nil {
+			t.Errorf("mode=%q: expected Devcontainer=nil for direct mode, got %T", mode, d.Devcontainer)
 		}
 	}
 }
 
-func TestNewAgentLauncher_docker_missing(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("PATH manipulation unreliable on windows")
-	}
+func TestNewAgentLauncher_devcontainer_missing(t *testing.T) {
 	t.Setenv("PATH", "")
-	_, err := newAgentLauncher(context.Background(), config.SandboxConfig{Mode: "docker"}, t.TempDir())
+	_, err := newAgentLauncher(context.Background(), config.SandboxConfig{Mode: "devcontainer"}, t.TempDir())
 	if err == nil {
-		t.Error("expected error when docker is not in PATH, got nil")
+		t.Error("expected error when devcontainer CLI is not in PATH, got nil")
 	}
 }
 

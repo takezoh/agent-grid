@@ -1,0 +1,14 @@
+// JSONC with comment — should parse fine
+{
+  "name": "test-build",
+  "build": {
+    "dockerfile": "Dockerfile", // relative path
+    "context": "."
+  },
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "PROJECT_VAR": "from_project"
+  },
+  "mounts": ["source=/host/data,target=/data,type=bind"],
+  "runArgs": ["--network=host"]
+}

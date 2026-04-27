@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -19,13 +18,16 @@ import (
 	"github.com/takezoh/agent-roost/logger"
 	"github.com/takezoh/agent-roost/runtime"
 	"github.com/takezoh/agent-roost/runtime/worker"
-	sandboxdocker "github.com/takezoh/agent-roost/sandbox/docker"
+	sandboxdc "github.com/takezoh/agent-roost/sandbox/devcontainer"
 	"github.com/takezoh/agent-roost/state"
 )
 
 func runCoordinator() error { //nolint:funlen
 	cfg, err := loadConfig()
 	if err != nil {
+		return err
+	}
+	if err := cfg.Sandbox.Validate(); err != nil {
 		return err
 	}
 	sessionName := cfg.Tmux.SessionName
@@ -100,18 +102,6 @@ func runCoordinator() error { //nolint:funlen
 	rt.SetAliases(cfg.Session.Aliases)
 	rt.SetDefaultCommand(cfg.Session.DefaultCommand)
 
-	pruneOrphans := func(knownProjects []string) {
-		if d, ok := agentLauncher.(*runtime.SandboxDispatcher); ok {
-			pruneCtx, pruneCancel := context.WithTimeout(ctx, 30*time.Second)
-			defer pruneCancel()
-			resolveImg := func(projectPath string) string {
-				cfgImg := d.Resolver.Resolve(projectPath).Docker.Image
-				return sandboxdocker.ResolveImage(projectPath, cfgImg)
-			}
-			d.PruneOrphans(pruneCtx, knownProjects, resolveImg)
-		}
-	}
-
 	warmRestart := client.SessionExists()
 	if warmRestart {
 		slog.Info("session exists, restoring")
@@ -120,7 +110,6 @@ func runCoordinator() error { //nolint:funlen
 		if err := rt.LoadSnapshot(false); err != nil {
 			slog.Error("snapshot load failed", "err", err)
 		}
-		pruneOrphans(rt.KnownProjects())
 		if err := rt.LoadSessionPanes(); err != nil {
 			slog.Warn("window map load failed", "err", err)
 		}
@@ -141,7 +130,6 @@ func runCoordinator() error { //nolint:funlen
 		if err := rt.LoadSnapshot(true); err != nil {
 			slog.Error("snapshot load failed", "err", err)
 		}
-		pruneOrphans(rt.KnownProjects())
 		if err := rt.RecreateAll(); err != nil {
 			slog.Error("recreate failed", "err", err)
 		}
@@ -198,55 +186,40 @@ func runCoordinator() error { //nolint:funlen
 }
 
 // newAgentLauncher returns the AgentLauncher for the configured sandbox mode.
-// Returns a SandboxDispatcher that routes each launch to direct or docker based
-// on the effective config for that project (user scope + optional project scope).
-// Returns an error when user scope mode="docker" but the docker daemon is unreachable.
+// Returns a SandboxDispatcher that routes each launch to direct or devcontainer
+// based on the effective config for that project (user scope + optional project scope).
 func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, dataDir string) (runtime.AgentLauncher, error) {
 	resolver := config.NewSandboxResolver(sb)
 	d := &runtime.SandboxDispatcher{
 		Resolver: resolver,
 		Direct:   runtime.DirectLauncher{},
 	}
-	if sb.Mode == "docker" {
-		if err := checkDockerAvailable(); err != nil {
-			return nil, fmt.Errorf(
-				"sandbox.mode=docker but docker is unavailable: %w\n"+
-					"  → set sandbox.mode=direct in ~/.roost/settings.toml or fix docker", err)
+	if sb.Mode == "devcontainer" {
+		cli, err := sandboxdc.NewCLI(sb.Devcontainer.CLIPath)
+		if err != nil {
+			return nil, fmt.Errorf("sandbox: devcontainer CLI unavailable: %w", err)
 		}
-		extraArgs := sb.Docker.ExtraArgs
 		var runner *runtime.CredProxyRunner
 		if sb.Proxy.Enabled {
-			extraArgs = append(extraArgs, "--add-host=host.docker.internal:host-gateway")
-			var err error
 			runner, err = runtime.StartCredProxy(ctx, dataDir)
 			if err != nil {
 				return nil, fmt.Errorf("sandbox: start in-process credproxy: %w", err)
 			}
 		}
-		mgr := sandboxdocker.New(sandboxdocker.Config{
-			Network:    sb.Docker.Network,
-			ExtraArgs:  extraArgs,
-			HostMounts: sb.Docker.HostMounts,
+		overlayFn := runtime.BuildOverlayFunc(func(project string) config.SandboxConfig {
+			return resolver.Resolve(project)
+		}, runner, dataDir)
+		mgr := sandboxdc.New(cli, overlayFn, sandboxdc.Config{
+			CLIPath:         sb.Devcontainer.CLIPath,
+			ExtraBuildArgs:  sb.Devcontainer.ExtraBuildArgs,
+			ExtraCreateArgs: sb.Devcontainer.ExtraCreateArgs,
 		})
-		d.Docker = runtime.NewDockerLauncher(mgr, func(project string) config.SandboxConfig {
+		d.Devcontainer = runtime.NewDevcontainerLauncher(mgr, func(project string) config.SandboxConfig {
 			return resolver.Resolve(project)
 		}, runner)
-		slog.Info("sandbox: docker backend enabled", "proxy", sb.Proxy.Enabled)
+		slog.Info("sandbox: devcontainer backend enabled", "proxy", sb.Proxy.Enabled)
 	}
 	return d, nil
-}
-
-// checkDockerAvailable verifies that the docker daemon is reachable by running
-// "docker info". Returns a non-nil error when docker is missing or the daemon
-// is not running.
-func checkDockerAvailable() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "docker", "info", "--format", "{{.ServerVersion}}").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker info: %w\n%s", err, string(out))
-	}
-	return nil
 }
 
 // resolveShellDisplayFromValues picks the display name (basename) for the
