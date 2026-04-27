@@ -10,6 +10,29 @@ import (
 	"github.com/takezoh/agent-roost/state"
 )
 
+// minimalDriver is a zero-behaviour driver for testing bootstrap paths.
+type minimalDriver struct{}
+
+func (minimalDriver) Name() string        { return "minimal-test" }
+func (minimalDriver) DisplayName() string { return "minimal-test" }
+func (minimalDriver) Status(_ state.DriverState) state.Status {
+	return state.StatusIdle
+}
+func (minimalDriver) NewState(_ time.Time) state.DriverState  { return state.DriverStateBase{} }
+func (minimalDriver) Persist(_ state.DriverState) map[string]string { return nil }
+func (minimalDriver) Restore(_ map[string]string, _ time.Time) state.DriverState {
+	return state.DriverStateBase{}
+}
+func (minimalDriver) View(_ state.DriverState) state.View { return state.View{} }
+func (minimalDriver) Step(prev state.DriverState, _ state.FrameContext, _ state.DriverEvent) (state.DriverState, []state.Effect, state.View) {
+	return prev, nil, state.View{}
+}
+func (minimalDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, command string, _ state.LaunchOptions) (state.LaunchPlan, error) {
+	return state.LaunchPlan{Command: command, StartDir: project}, nil
+}
+func (minimalDriver) StartDir(_ state.DriverState) string { return "" }
+func (minimalDriver) WithStartDir(s state.DriverState, _ string) state.DriverState { return s }
+
 func TestStoreAndInvokeFrameCleanup(t *testing.T) {
 	r := New(Config{})
 
@@ -176,6 +199,62 @@ func TestEffKillSession_doesNotDrainCleanups(t *testing.T) {
 	if called.Load() {
 		t.Error("EffKillSession must not drain frame cleanups; use EffReleaseFrameSandboxes for that")
 	}
+}
+
+// TestSpawnFrameWindow_cleanupCalledOnSpawnError verifies that when WrapLaunch
+// returns a Cleanup callback but SpawnWindow subsequently fails, the Cleanup is
+// still invoked — preventing sandbox resource leaks (ref-count, containers).
+func TestSpawnFrameWindow_cleanupCalledOnSpawnError(t *testing.T) {
+	saved := state.GetRegistry()
+	t.Cleanup(func() {
+		state.ClearRegistry()
+		for _, d := range saved {
+			state.Register(d)
+		}
+	})
+	if _, ok := saved[minimalDriver{}.Name()]; !ok {
+		state.Register(minimalDriver{})
+	}
+
+	var cleanupCalled atomic.Bool
+	fakeLauncher := &testLauncher{
+		cleanup: func() error {
+			cleanupCalled.Store(true)
+			return nil
+		},
+	}
+
+	tmux := newFakeTmux()
+	tmux.spawnErr = errors.New("tmux spawn failed")
+
+	r := New(Config{Tmux: tmux, Launcher: fakeLauncher})
+	frame := state.SessionFrame{
+		ID:      "frame-spawn-err",
+		Command: "minimal-test",
+		Project: "/test/project",
+		Driver:  state.DriverStateBase{},
+	}
+
+	err := r.spawnFrameWindow("sess-1", frame, paneSize{width: 120, height: 40})
+	if err == nil {
+		t.Fatal("expected error from spawnFrameWindow, got nil")
+	}
+	if !cleanupCalled.Load() {
+		t.Error("Cleanup was not called after SpawnWindow failure")
+	}
+}
+
+// testLauncher is a WrapLaunch stub that injects a caller-supplied cleanup.
+type testLauncher struct {
+	cleanup func() error
+}
+
+func (l *testLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
+	return WrappedLaunch{Command: plan.Command, StartDir: plan.StartDir, Env: env, Cleanup: l.cleanup}, nil
+}
+
+func (l *testLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (func() error, error) {
+	return nil, nil
 }
 
 func TestEffKillSessionWindow_invokesCleanup(t *testing.T) {

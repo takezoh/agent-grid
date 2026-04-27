@@ -21,11 +21,18 @@ func TestNoToolSpecificEnvLiterals(t *testing.T) {
 		"AWS_ACCESS_KEY",
 		"AWS_SECRET_ACCESS",
 		"AWS_SESSION_TOKEN",
+		"AWS_PROFILE",
+		"AWS_REGION",
 		"ANTHROPIC_API_KEY",
 		"ANTHROPIC_AUTH_TOKEN",
 		"ANTHROPIC_BASE_URL",
 		"GOOGLE_APPLICATION_CREDENTIALS",
 		"OPENAI_API_KEY",
+		"GITHUB_TOKEN",
+		"GH_TOKEN",
+		"CLAUDE_API_KEY",
+		"GEMINI_API_KEY",
+		"CLOUDSDK_ACTIVE_CONFIG_NAME",
 	}
 
 	// Packages whose non-test .go files must contain no tool-specific env literals.
@@ -36,6 +43,7 @@ func TestNoToolSpecificEnvLiterals(t *testing.T) {
 		filepath.Join(srcRoot, "state"),
 		filepath.Join(srcRoot, "tui"),
 		filepath.Join(srcRoot, "proto"),
+		filepath.Join(srcRoot, "connector"),
 	}
 
 	for _, dir := range checkedDirs {
@@ -59,6 +67,55 @@ func TestNoToolSpecificEnvLiterals(t *testing.T) {
 					t.Errorf(
 						"%s contains tool-specific env literal %q\n"+
 							"  → move to auth/credproxy/<provider>/ or lib/<tool>/ (see ARCHITECTURE.md)",
+						path, kw,
+					)
+				}
+			}
+		}
+	}
+}
+
+// TestNoDriverNameLiterals guards against driver/tool names ("claude", "gemini",
+// "codex") appearing as routing keys or string literals in generic layers.
+// Driver names must stay within driver/ and lib/<tool>/ — see ARCHITECTURE.md.
+func TestNoDriverNameLiterals(t *testing.T) {
+	// Exact quoted strings that must not appear in generic layer source files.
+	forbidden := []string{
+		`"claude"`,
+		`"gemini"`,
+		`"codex"`,
+	}
+
+	srcRoot := ".."
+	checkedDirs := []string{
+		filepath.Join(srcRoot, "runtime"),
+		filepath.Join(srcRoot, "sandbox"),
+		filepath.Join(srcRoot, "state"),
+		filepath.Join(srcRoot, "tui"),
+		filepath.Join(srcRoot, "proto"),
+		filepath.Join(srcRoot, "connector"),
+	}
+
+	for _, dir := range checkedDirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+				continue
+			}
+			path := filepath.Join(dir, e.Name())
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Errorf("read %s: %v", path, err)
+				continue
+			}
+			for _, kw := range forbidden {
+				if bytes.Contains(data, []byte(kw)) {
+					t.Errorf(
+						"%s contains driver name literal %s\n"+
+							"  → driver names must stay within driver/ or lib/<tool>/ (see ARCHITECTURE.md)",
 						path, kw,
 					)
 				}

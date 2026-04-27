@@ -18,8 +18,8 @@ type WrappedLaunch struct {
 }
 
 // AgentLauncher wraps a state.LaunchPlan before it reaches tmux, allowing
-// sandbox implementations (bwrap, Firecracker, …) to prepend wrapper
-// commands or spin up VMs. The runtime calls WrapLaunch once per spawn;
+// sandbox implementations to prepend wrapper commands or spin up isolated
+// environments. The runtime calls WrapLaunch once per spawn;
 // DirectLauncher is used when no Launcher is configured.
 //
 // Sandbox cleanup is handled via state.EffReleaseFrameSandboxes, not through

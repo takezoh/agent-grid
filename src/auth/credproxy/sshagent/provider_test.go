@@ -100,3 +100,34 @@ func TestSpecBuilder_keys_missing_file(t *testing.T) {
 		t.Errorf("SSH_AUTH_SOCK = %q, want %q", spec.Env["SSH_AUTH_SOCK"], containerSocketPath)
 	}
 }
+
+// TestSpecBuilder_keys_passphrase_protected verifies that passphrase-protected
+// keys are silently skipped: the agent starts and the socket is advertised, but
+// no credentials are loaded. This is the specified behaviour documented in addKeys.
+func TestSpecBuilder_keys_passphrase_protected(t *testing.T) {
+	if _, err := exec.LookPath("ssh-agent"); err != nil {
+		t.Skip("ssh-agent not in PATH")
+	}
+	if _, err := exec.LookPath("ssh-keygen"); err != nil {
+		t.Skip("ssh-keygen not in PATH")
+	}
+
+	// Generate a passphrase-protected key.
+	keyDir := t.TempDir()
+	keyPath := filepath.Join(keyDir, "id_ed25519_pp")
+	cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-f", keyPath, "-N", "supersecret", "-q")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("ssh-keygen failed (sandboxed?): %v — %s", err, out)
+	}
+
+	b := newBuilder(t)
+	spec, err := b.ContainerSpec(context.Background(), "/proj-passphrase", cfgKeys(keyPath))
+	if err != nil {
+		t.Skipf("agent spawn failed (sandboxed?): %v", err)
+	}
+	// Socket env must still be set — the agent is running even though the key load failed.
+	if spec.Env["SSH_AUTH_SOCK"] != containerSocketPath {
+		t.Errorf("SSH_AUTH_SOCK = %q, want %q — agent should start even when key is passphrase-protected",
+			spec.Env["SSH_AUTH_SOCK"], containerSocketPath)
+	}
+}

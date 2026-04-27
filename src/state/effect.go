@@ -210,8 +210,7 @@ type EffEventLogAppend struct {
 
 // EffToolLogAppend appends a pre-marshalled JSONL line to the
 // per-project tool log at <dataDir>/<namespace>/tool-logs/<project>.jsonl.
-// Namespace is the driver name (e.g. "claude") — runtime treats it as an
-// opaque token and must not branch on its value.
+// Namespace is an opaque driver-supplied token; the runtime must not branch on its value.
 // Project is the projectDir() slug (e.g. "-workspace-agent-roost").
 // Line must not contain a trailing newline; the backend adds it.
 type EffToolLogAppend struct {

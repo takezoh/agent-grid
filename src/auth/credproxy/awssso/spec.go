@@ -25,9 +25,14 @@ type SpecBuilder struct {
 
 // NewSpecBuilder creates a SpecBuilder.
 // runBase is the parent of per-project run dirs (e.g. <dataDir>/run).
+// proxyAddr may be empty at construction time; call SetProxyAddr once the
+// listener port is known before invoking ContainerSpec.
 func NewSpecBuilder(proxyAddr, token, runBase string) *SpecBuilder {
 	return &SpecBuilder{proxyAddr: proxyAddr, token: token, runBase: runBase}
 }
+
+// SetProxyAddr updates the proxy address after the listener port is resolved.
+func (b *SpecBuilder) SetProxyAddr(addr string) { b.proxyAddr = addr }
 
 func (b *SpecBuilder) Name() string { return "awssso" }
 
