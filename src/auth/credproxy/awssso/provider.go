@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,18 +18,18 @@ import (
 // RoutePath is the proxy path prefix served by this provider.
 // Requests arrive as /aws-credentials/<profile>; the library strips the prefix
 // so Provider receives Request.Path = "/<profile>".
-// Generic layers use this constant to avoid hard-coding the string.
 const RoutePath = "/aws-credentials"
 
+// ContainerSockPath is the fixed in-container Unix socket path for this proxy.
+const ContainerSockPath = "/opt/roost/run/credproxy.sock"
+
 // ContainerEnv returns the env vars a container must set to reach this proxy.
-// base is "http://host.docker.internal:<port>"; token is the ephemeral bearer token.
 // Keys are roost-internal names (ROOST_*) so tool-specific AWS literals never
 // appear in runtime/ or sandbox/.
-func ContainerEnv(base, token string) map[string]string {
-	_, port, _ := net.SplitHostPort(strings.TrimPrefix(base, "http://"))
+func ContainerEnv(token string) map[string]string {
 	return map[string]string{
 		"ROOST_AWS_TOKEN":  token,
-		"ROOST_PROXY_PORT": port,
+		"ROOST_PROXY_SOCK": ContainerSockPath,
 	}
 }
 

@@ -146,6 +146,7 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 			fmt.Sprintf("type=bind,source=%s,target=/opt/roost/run", runDir),
 			fmt.Sprintf("type=bind,source=%s,target=/opt/roost/devcontainer,readonly", dcDir),
 		}
+		mounts = append(mounts, proxySpec.Mounts...)
 
 		return sandboxdc.SpecOverlay{Env: env, Mounts: mounts}, nil
 	}

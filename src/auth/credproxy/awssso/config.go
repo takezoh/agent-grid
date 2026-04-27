@@ -8,10 +8,11 @@ import (
 )
 
 // helperScript is the container-side credential_process helper.
-// It receives the profile name as $1 and calls back to the roost proxy.
+// It receives the profile name as $1 and calls back to the roost proxy via Unix socket.
 const helperScript = `#!/bin/sh
-exec curl -fsSL -H "Authorization: Bearer $ROOST_AWS_TOKEN" \
-  "http://host.docker.internal:${ROOST_PROXY_PORT}/aws-credentials/$1"
+exec curl -fsSL --unix-socket "$ROOST_PROXY_SOCK" \
+  -H "Authorization: Bearer $ROOST_AWS_TOKEN" \
+  "http://localhost/aws-credentials/$1"
 `
 
 // WriteHelperScript materializes the helper script at hostPath with mode 0o755.

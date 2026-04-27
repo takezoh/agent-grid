@@ -136,11 +136,11 @@ Bind-mounts into containers are declared in devcontainer.json `mounts`:
 
 ## Credential Proxy
 
-When `[sandbox.proxy] enabled = true`, roost starts an in-process HTTP forward proxy backed by the `credproxy` library. The proxy listens on an ephemeral loopback port (`127.0.0.1:0`) and is reached from containers via `host.docker.internal`. Its lifetime is tied to the roost process — no external daemon is needed.
+When `[sandbox.proxy] enabled = true`, roost starts an in-process HTTP proxy backed by the `credproxy` library. The proxy listens on a Unix socket at `<dataDir>/run/credproxy.sock` on the host and is bind-mounted per-project into the container at `/opt/roost/run/credproxy.sock`. Its lifetime is tied to the roost process — no external daemon is needed.
 
 ### AWS SSO Credentials (multi-profile)
 
-The proxy generates a synthetic `~/.aws/config` inside each container. Every profile entry uses `credential_process` to call back to the roost proxy via a small helper script (`/opt/roost/aws-creds`). Both the config and the script are bind-mounted read-only; no credentials are stored inside the container.
+The proxy generates a synthetic `~/.aws/config` inside each container. Every profile entry uses `credential_process` to call back to the roost proxy via a small helper script (`/opt/roost/run/aws-creds.sh`). The config, the script, and the proxy socket are available under `/opt/roost/run`; no credentials are stored inside the container.
 
 **Proxy route:** `/aws-credentials/<profile>` — returns `credential_process`-format JSON (`Version:1`, `AccessKeyId`, `SecretAccessKey`, `SessionToken`, `Expiration`).
 
@@ -149,7 +149,7 @@ Two container env vars carry the proxy coordinates:
 | Container env var | Value |
 |---|---|
 | `ROOST_AWS_TOKEN` | Ephemeral bearer token (never written to disk) |
-| `ROOST_PROXY_PORT` | TCP port of the in-process proxy |
+| `ROOST_PROXY_SOCK` | In-container Unix socket path (`/opt/roost/run/credproxy.sock`) |
 
 **Per-project profile configuration** — in the project's `.roost/settings.toml`:
 

@@ -168,9 +168,9 @@ func TestProfileFromPath(t *testing.T) {
 
 // TestContainerEnv verifies that ContainerEnv returns ROOST_* keys.
 func TestContainerEnv(t *testing.T) {
-	env := ContainerEnv("http://host.docker.internal:9000", "mytoken")
+	env := ContainerEnv("mytoken")
 	assert.Equal(t, "mytoken", env["ROOST_AWS_TOKEN"])
-	assert.Equal(t, "9000", env["ROOST_PROXY_PORT"])
+	assert.Equal(t, ContainerSockPath, env["ROOST_PROXY_SOCK"])
 }
 
 // TestParseExpiration verifies the edge cases of parseExpiration.

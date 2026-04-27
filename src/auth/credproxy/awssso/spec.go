@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 
@@ -18,21 +17,19 @@ import (
 // It generates a synthetic AWS config and credential helper per project
 // when aws_profiles are configured.
 type SpecBuilder struct {
-	proxyAddr string // "host:port" from credproxylib.Server.Addr()
-	token     string
-	runBase   string // parent of per-project run dirs bound into containers at /opt/roost/run
+	sockHostPath string // host-side Unix socket path (e.g. <dataDir>/run/credproxy.sock)
+	token        string
+	runBase      string // parent of per-project run dirs bound into containers at /opt/roost/run
 }
 
 // NewSpecBuilder creates a SpecBuilder.
+// sockHostPath is the host-side Unix socket path for the credproxy listener
+// (e.g. <dataDir>/run/credproxy.sock); it is bind-mounted per-project into
+// the container at containerSockPath.
 // runBase is the parent of per-project run dirs (e.g. <dataDir>/run).
-// proxyAddr may be empty at construction time; call SetProxyAddr once the
-// listener port is known before invoking ContainerSpec.
-func NewSpecBuilder(proxyAddr, token, runBase string) *SpecBuilder {
-	return &SpecBuilder{proxyAddr: proxyAddr, token: token, runBase: runBase}
+func NewSpecBuilder(sockHostPath, token, runBase string) *SpecBuilder {
+	return &SpecBuilder{sockHostPath: sockHostPath, token: token, runBase: runBase}
 }
-
-// SetProxyAddr updates the proxy address after the listener port is resolved.
-func (b *SpecBuilder) SetProxyAddr(addr string) { b.proxyAddr = addr }
 
 func (b *SpecBuilder) Name() string { return "awssso" }
 
@@ -78,11 +75,11 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string, sb co
 		return credproxy.Spec{}, fmt.Errorf("awssso: write config for %s: %w", projectPath, err)
 	}
 
-	_, port, _ := net.SplitHostPort(b.proxyAddr)
-	env := ContainerEnv("http://host.docker.internal:"+port, b.token)
+	env := ContainerEnv(b.token)
 	env["AWS_CONFIG_FILE"] = "/opt/roost/run/aws-config"
 
-	return credproxy.Spec{Env: env}, nil
+	mount := fmt.Sprintf("type=bind,source=%s,target=%s", b.sockHostPath, ContainerSockPath)
+	return credproxy.Spec{Env: env, Mounts: []string{mount}}, nil
 }
 
 // projectRunHash produces the per-project run dir name (6 bytes → 12 hex chars),

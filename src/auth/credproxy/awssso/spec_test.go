@@ -10,7 +10,8 @@ import (
 )
 
 func TestSpecBuilder_emptyProfiles_zeroSpec(t *testing.T) {
-	b := NewSpecBuilder("127.0.0.1:9100", "tok", t.TempDir())
+	runBase := t.TempDir()
+	b := NewSpecBuilder(filepath.Join(runBase, "credproxy.sock"), "tok", runBase)
 	spec, err := b.ContainerSpec(context.Background(), "/proj", config.SandboxConfig{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -22,7 +23,8 @@ func TestSpecBuilder_emptyProfiles_zeroSpec(t *testing.T) {
 
 func TestSpecBuilder_withProfiles_returnsEnvAndFiles(t *testing.T) {
 	runBase := t.TempDir()
-	b := NewSpecBuilder("127.0.0.1:9100", "mytoken", runBase)
+	sockPath := filepath.Join(runBase, "credproxy.sock")
+	b := NewSpecBuilder(sockPath, "mytoken", runBase)
 	sb := config.SandboxConfig{
 		Proxy: config.ProxyConfig{AWSProfiles: []string{"default", "prod"}},
 	}
@@ -35,15 +37,16 @@ func TestSpecBuilder_withProfiles_returnsEnvAndFiles(t *testing.T) {
 	if spec.Env["ROOST_AWS_TOKEN"] != "mytoken" {
 		t.Errorf("ROOST_AWS_TOKEN = %q, want %q", spec.Env["ROOST_AWS_TOKEN"], "mytoken")
 	}
-	if spec.Env["ROOST_PROXY_PORT"] != "9100" {
-		t.Errorf("ROOST_PROXY_PORT = %q, want %q", spec.Env["ROOST_PROXY_PORT"], "9100")
+	if spec.Env["ROOST_PROXY_SOCK"] != ContainerSockPath {
+		t.Errorf("ROOST_PROXY_SOCK = %q, want %q", spec.Env["ROOST_PROXY_SOCK"], ContainerSockPath)
 	}
 	if spec.Env["AWS_CONFIG_FILE"] != "/opt/roost/run/aws-config" {
 		t.Errorf("AWS_CONFIG_FILE = %q, want /opt/roost/run/aws-config", spec.Env["AWS_CONFIG_FILE"])
 	}
-	// Files are in the per-project run dir; the dir bind covers them — no per-file mounts.
-	if len(spec.Mounts) != 0 {
-		t.Errorf("expected 0 mounts, got %d: %v", len(spec.Mounts), spec.Mounts)
+	// One file bind mount for the credproxy socket.
+	wantMount := "type=bind,source=" + sockPath + ",target=" + ContainerSockPath
+	if len(spec.Mounts) != 1 || spec.Mounts[0] != wantMount {
+		t.Errorf("Mounts = %v, want [%q]", spec.Mounts, wantMount)
 	}
 
 	// Verify config file and helper script were written under the per-project run dir.

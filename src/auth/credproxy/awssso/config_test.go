@@ -54,7 +54,8 @@ func TestWriteHelperScript(t *testing.T) {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "ROOST_AWS_TOKEN")
-	assert.Contains(t, string(data), "ROOST_PROXY_PORT")
+	assert.Contains(t, string(data), "ROOST_PROXY_SOCK")
+	assert.Contains(t, string(data), "--unix-socket")
 	assert.Contains(t, string(data), "/aws-credentials/$1")
 
 	info, err := os.Stat(path)

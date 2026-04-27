@@ -6,7 +6,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"net"
+	"os"
+	"path/filepath"
 
 	credproxy "github.com/takezoh/agent-roost/auth/credproxy"
 	"github.com/takezoh/agent-roost/auth/credproxy/awssso"
@@ -34,8 +35,9 @@ func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, erro
 	}
 
 	runBase := dataDir + "/run"
+	sockPath := filepath.Join(runBase, "credproxy.sock")
 
-	awsSpec := awssso.NewSpecBuilder("", token, runBase)
+	awsSpec := awssso.NewSpecBuilder(sockPath, token, runBase)
 	gcpSpec := gcloudcli.NewSpecBuilder(ctx, dataDir+"/gcp", runBase)
 	sshSpec := sshagent.NewSpecBuilder(ctx, runBase)
 	providers := []credproxy.Provider{awsSpec, gcpSpec, sshSpec}
@@ -46,7 +48,7 @@ func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, erro
 	}
 
 	srv, err := credproxylib.New(credproxylib.ServerConfig{
-		ListenTCP:  "127.0.0.1:0",
+		ListenUnix: sockPath,
 		AuthTokens: []string{token},
 		Routes:     routes,
 	})
@@ -54,19 +56,16 @@ func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, erro
 		return nil, fmt.Errorf("credproxy: create server: %w", err)
 	}
 
-	// Inject the resolved port into providers that embed the proxy address in
-	// container env. Routes() does not depend on the address so this is safe
-	// to do after the server is created.
-	_, port, _ := net.SplitHostPort(srv.Addr())
-	awsSpec.SetProxyAddr("127.0.0.1:" + port)
-
 	for _, p := range providers {
 		if err := p.Init(); err != nil {
 			return nil, fmt.Errorf("credproxy: provider %s init: %w", p.Name(), err)
 		}
 	}
 
-	go func() { _ = srv.Run(ctx) }()
+	go func() {
+		_ = srv.Run(ctx)
+		_ = os.Remove(sockPath)
+	}()
 
 	return &CredProxyRunner{srv: srv, providers: providers}, nil
 }
