@@ -71,6 +71,17 @@ type ProxyConfig struct {
 	AWSProfiles []string       `toml:"aws_profiles"` // AWS profile names to expose in the container via credential_process
 	GCP         GCPConfig      `toml:"gcp"`
 	SSHAgent    SSHAgentConfig `toml:"ssh_agent"`
+	WinExec     WinExecConfig  `toml:"win_exec"`
+}
+
+// WinExecConfig controls the WSL2 Windows exe broker.
+// When Enabled, the host-side broker listens on a per-project Unix socket and
+// forwards exec requests from the container to allowlisted Windows binaries via
+// the WSL2 /init interop layer. Ignored on non-WSL2 hosts.
+type WinExecConfig struct {
+	Enabled     bool              `toml:"enabled"`
+	AllowedExes []string          `toml:"allowed_exes"`        // exe basenames that may be executed (e.g. "code.exe")
+	Resolve     map[string]string `toml:"resolve"`             // exe name → absolute Windows path; unlisted names use Windows PATH
 }
 
 // SSHAgentConfig controls SSH agent injection into containers.

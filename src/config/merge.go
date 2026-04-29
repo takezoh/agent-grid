@@ -8,6 +8,9 @@ package config
 //   - Devcontainer.ExtraCreateArgs (list): user + project concat
 //   - Proxy.Enabled: user wins (proxy is process-wide)
 //   - Proxy.SSHAgent.Keys: project replaces when non-empty
+//   - Proxy.WinExec.Enabled: user wins
+//   - Proxy.WinExec.AllowedExes: project replaces when non-empty
+//   - Proxy.WinExec.Resolve: merged; project keys win on collision
 func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	if project == nil {
 		return user
@@ -24,6 +27,7 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 			AWSProfiles: user.Proxy.AWSProfiles,
 			GCP:         user.Proxy.GCP,
 			SSHAgent:    user.Proxy.SSHAgent,
+			WinExec:     mergeWinExec(user.Proxy.WinExec, project.Proxy.WinExec),
 		},
 	}
 	if project.Mode != "" {
@@ -40,6 +44,38 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	}
 	if len(project.Proxy.SSHAgent.Keys) > 0 {
 		out.Proxy.SSHAgent.Keys = project.Proxy.SSHAgent.Keys
+	}
+	return out
+}
+
+// mergeWinExec merges user and project WinExecConfig.
+// Enabled: user wins. AllowedExes: project replaces when non-empty.
+// Resolve: merged map; project keys overwrite user keys.
+func mergeWinExec(user, project WinExecConfig) WinExecConfig {
+	out := WinExecConfig{
+		Enabled:     user.Enabled,
+		AllowedExes: append([]string(nil), user.AllowedExes...),
+		Resolve:     cloneStringMap(user.Resolve),
+	}
+	if len(project.AllowedExes) > 0 {
+		out.AllowedExes = append([]string(nil), project.AllowedExes...)
+	}
+	for k, v := range project.Resolve {
+		if out.Resolve == nil {
+			out.Resolve = map[string]string{}
+		}
+		out.Resolve[k] = v
+	}
+	return out
+}
+
+func cloneStringMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
 	}
 	return out
 }

@@ -17,7 +17,10 @@ import (
 var ErrMissingImage = errors.New("devcontainer.json: image or build.name is required (roost does not build images)")
 
 var localEnvRe = regexp.MustCompile(`\$\{localEnv:([A-Za-z_][A-Za-z0-9_]*)\}`)
-var containerEnvRe = regexp.MustCompile(`\$\{containerEnv:([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// envVarRe matches $VAR, ${VAR}, and ${containerEnv:VAR} for env layered expansion.
+// Capture groups: [1]=containerEnv form, [2]=${VAR} form, [3]=$VAR form.
+var envVarRe = regexp.MustCompile(`\$(?:\{containerEnv:([A-Za-z_][A-Za-z0-9_]*)\}|\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))`)
 
 // DevcontainerSpec holds the resolved container configuration for a project,
 // derived from devcontainer.json with roost overlay applied.
@@ -193,19 +196,29 @@ func substituteEnvMap(src map[string]string, projectPath, ws string) map[string]
 	return dst
 }
 
-// ResolveContainerEnvPlaceholders expands ${containerEnv:VAR} in ContainerEnv and RemoteEnv.
-// For ContainerEnv, VAR is looked up in imageEnv (image baseline).
-// For RemoteEnv, VAR is looked up in imageEnv merged with resolved ContainerEnv (containerEnv wins).
+// ResolveContainerEnvPlaceholders expands env variable references in ContainerEnv and RemoteEnv
+// using a three-layer model:
+//   - L1: imageEnv (image baseline from docker inspect)
+//   - L2: ContainerEnv — $VAR / ${VAR} / ${containerEnv:VAR} resolved against L1
+//   - L3: RemoteEnv  — same forms resolved against L1 ∪ resolved-L2
+//
+// Undefined variables expand to empty string.
 func (s *DevcontainerSpec) ResolveContainerEnvPlaceholders(imageEnv map[string]string) {
 	resolve := func(v string, lookup map[string]string) string {
-		return containerEnvRe.ReplaceAllStringFunc(v, func(m string) string {
-			return lookup[containerEnvRe.FindStringSubmatch(m)[1]]
+		return envVarRe.ReplaceAllStringFunc(v, func(m string) string {
+			subs := envVarRe.FindStringSubmatch(m)
+			for _, name := range subs[1:] {
+				if name != "" {
+					return lookup[name]
+				}
+			}
+			return ""
 		})
 	}
 	for k, v := range s.ContainerEnv {
 		s.ContainerEnv[k] = resolve(v, imageEnv)
 	}
-	// remoteEnv sees imageEnv ∪ containerEnv (containerEnv overrides image baseline)
+	// L3 sees L1 ∪ resolved-L2 (containerEnv overrides image baseline)
 	merged := make(map[string]string, len(imageEnv)+len(s.ContainerEnv))
 	for k, v := range imageEnv {
 		merged[k] = v

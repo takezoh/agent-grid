@@ -1182,24 +1182,39 @@ func TestClaudePrepareLaunchNoSandboxFlagWhenDirect(t *testing.T) {
 }
 
 func TestClaudePrepareLaunchSandboxFlagWithResume(t *testing.T) {
-	home := t.TempDir()
-	d := NewClaudeDriver(home, testEventLogDir, ClaudeOptions{}, "less")
+	// Sandboxed cold start resumes regardless of host-side transcript existence
+	// because the transcript lives inside the container.
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{
 		CommonState:     CommonState{StartDir: "/repo"},
 		ClaudeSessionID: "uuid-Z",
-	}
-	path := filepath.Join(home, ".claude", "projects", projectDir("/repo"), "uuid-Z.jsonl")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll error: %v", err)
-	}
-	if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile error: %v", err)
 	}
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
 	want := "claude --dangerously-skip-permissions --resume uuid-Z"
+	if plan.Command != want {
+		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
+	}
+}
+
+func TestClaudePrepareLaunchSandboxedResumeWithContainerTranscriptPath(t *testing.T) {
+	// Sandboxed cold start: cs.TranscriptPath is a container-internal path and
+	// no host-side file exists. Resume must still be appended.
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		CommonState: CommonState{
+			StartDir:       "/repo",
+			TranscriptPath: "/home/containeruser/.claude/projects/-repo/uuid-C.jsonl",
+		},
+		ClaudeSessionID: "uuid-C",
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := "claude --dangerously-skip-permissions --resume uuid-C"
 	if plan.Command != want {
 		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
 	}

@@ -6,6 +6,48 @@ import (
 	"testing"
 )
 
+func TestResolveContainerEnvPlaceholders_ThreeLayers(t *testing.T) {
+	imageEnv := map[string]string{
+		"PATH": "/usr/bin:/bin",
+		"HOME": "/root",
+	}
+	spec := &DevcontainerSpec{
+		ContainerEnv: map[string]string{
+			// $VAR form
+			"PATH": "/opt/shims:$PATH",
+			// ${VAR} form
+			"MYPATH": "${PATH}:/extra",
+			// ${containerEnv:VAR} form (legacy)
+			"MYPATH2": "${containerEnv:PATH}:/legacy",
+			// undefined var → empty
+			"UNDEF": "$UNDEFINED_VAR_XYZ",
+		},
+		RemoteEnv: map[string]string{
+			// L3 should see resolved ContainerEnv (not image PATH)
+			"REMOTE_PATH": "$PATH",
+		},
+	}
+	spec.ResolveContainerEnvPlaceholders(imageEnv)
+
+	cases := []struct {
+		key  string
+		env  map[string]string
+		want string
+	}{
+		{"PATH", spec.ContainerEnv, "/opt/shims:/usr/bin:/bin"},
+		{"MYPATH", spec.ContainerEnv, "/usr/bin:/bin:/extra"},
+		{"MYPATH2", spec.ContainerEnv, "/usr/bin:/bin:/legacy"},
+		{"UNDEF", spec.ContainerEnv, ""},
+		// RemoteEnv PATH resolves against L1∪resolved-L2 (containerEnv PATH wins)
+		{"REMOTE_PATH", spec.RemoteEnv, "/opt/shims:/usr/bin:/bin"},
+	}
+	for _, c := range cases {
+		if got := c.env[c.key]; got != c.want {
+			t.Errorf("%s = %q, want %q", c.key, got, c.want)
+		}
+	}
+}
+
 func TestLoadSpec_ImageField(t *testing.T) {
 	dir := setupProjectDC(t, `{"image":"myproject:dev"}`)
 	spec, err := LoadSpec(dir, filepath.Join(dir, devcontainerSubdir))

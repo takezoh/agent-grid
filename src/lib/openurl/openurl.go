@@ -7,10 +7,11 @@ package openurl
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/takezoh/agent-roost/lib/wsl"
 )
 
 // Open launches the host handler for target (file path or URL) and
@@ -26,7 +27,7 @@ type env struct {
 }
 
 func currentEnv() env {
-	return env{goos: runtime.GOOS, wsl: isWSL()}
+	return env{goos: runtime.GOOS, wsl: wsl.IsWSL()}
 }
 
 // command picks the executable and arguments to launch for target under
@@ -81,16 +82,6 @@ func fileTargetToPath(target string) (string, bool) {
 		return target, true
 	}
 	return "", false
-}
-
-func isWSL() bool {
-	if os.Getenv("WSL_DISTRO_NAME") != "" {
-		return true
-	}
-	if _, err := os.Stat("/proc/sys/fs/binfmt_misc/WSLInterop"); err == nil {
-		return true
-	}
-	return false
 }
 
 func wslToWindowsPath(p string) (string, error) {

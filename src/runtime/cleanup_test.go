@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/takezoh/agent-roost/lib/pathmap"
 	"github.com/takezoh/agent-roost/state"
 )
 
@@ -106,7 +107,7 @@ func TestInvokeFrameCleanup_errorLogged(t *testing.T) {
 
 func TestDirectLauncher_adoptFrame_noop(t *testing.T) {
 	l := DirectLauncher{}
-	cleanup, err := l.AdoptFrame(context.Background(), state.FrameID("f1"), "/workspace/foo")
+	cleanup, _, err := l.AdoptFrame(context.Background(), state.FrameID("f1"), "/workspace/foo")
 	if err != nil {
 		t.Fatalf("AdoptFrame returned error: %v", err)
 	}
@@ -253,8 +254,8 @@ func (l *testLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env ma
 	return WrappedLaunch{Command: plan.Command, StartDir: plan.StartDir, Env: env, Cleanup: l.cleanup}, nil
 }
 
-func (l *testLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (func() error, error) {
-	return nil, nil
+func (l *testLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (func() error, pathmap.Mounts, error) {
+	return nil, nil, nil
 }
 
 func TestEffKillSessionWindow_invokesCleanup(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/takezoh/agent-roost/config"
+	"github.com/takezoh/agent-roost/lib/pathmap"
 	"github.com/takezoh/agent-roost/state"
 )
 
@@ -22,9 +23,9 @@ func (f *fakeAgentLauncher) WrapLaunch(_ state.FrameID, _ state.LaunchPlan, _ ma
 	return f.wrapResult, f.wrapErr
 }
 
-func (f *fakeAgentLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (func() error, error) {
+func (f *fakeAgentLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (func() error, pathmap.Mounts, error) {
 	f.adoptFrameCalled = true
-	return nil, f.adoptErr
+	return nil, nil, f.adoptErr
 }
 
 func TestSandboxDispatcher_DirectMode_RoutesToDirect(t *testing.T) {
@@ -84,7 +85,7 @@ func TestSandboxDispatcher_AdoptFrame_DirectMode(t *testing.T) {
 	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "direct"})
 	d := &SandboxDispatcher{Resolver: resolver, Direct: direct}
 
-	_, err := d.AdoptFrame(context.Background(), "f1", "/workspace/foo")
+	_, _, err := d.AdoptFrame(context.Background(), "f1", "/workspace/foo")
 	if err != nil {
 		t.Fatalf("AdoptFrame error: %v", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/takezoh/agent-roost/auth/credproxy"
 	"github.com/takezoh/agent-roost/config"
 	"github.com/takezoh/agent-roost/lib/pathmap"
+	"github.com/takezoh/agent-roost/lib/wsl"
 	"github.com/takezoh/agent-roost/sandbox"
 	sandboxdc "github.com/takezoh/agent-roost/sandbox/devcontainer"
 	"github.com/takezoh/agent-roost/state"
@@ -166,6 +167,10 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 			env[k] = v
 		}
 		env["ROOST_SOCKET"] = ContainerSockFilePath
+		if wsl.IsWSL() && sb.Proxy.WinExec.Enabled && len(sb.Proxy.WinExec.AllowedExes) > 0 {
+			// $PATH is expanded by ResolveContainerEnvPlaceholders against image baseline (L1).
+			env["PATH"] = ContainerWinExecShimsDir + ":$PATH"
+		}
 
 		mounts := []string{
 			fmt.Sprintf("type=bind,source=%s,target=%s", runDir, ContainerRunDir),

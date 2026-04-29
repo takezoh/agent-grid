@@ -13,6 +13,7 @@ import (
 	"github.com/takezoh/agent-roost/auth/credproxy/awssso"
 	"github.com/takezoh/agent-roost/auth/credproxy/gcloudcli"
 	"github.com/takezoh/agent-roost/auth/credproxy/sshagent"
+	"github.com/takezoh/agent-roost/auth/credproxy/winexec"
 	"github.com/takezoh/agent-roost/config"
 	credproxylib "github.com/takezoh/credproxy/pkg/credproxy"
 )
@@ -40,7 +41,8 @@ func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, erro
 	awsSpec := awssso.NewSpecBuilder(sockPath, token, runBase)
 	gcpSpec := gcloudcli.NewSpecBuilder(ctx, dataDir+"/gcp", runBase)
 	sshSpec := sshagent.NewSpecBuilder(ctx, runBase)
-	providers := []credproxy.Provider{awsSpec, gcpSpec, sshSpec}
+	winExecSpec := winexec.NewSpecBuilder(ctx, runBase)
+	providers := []credproxy.Provider{awsSpec, gcpSpec, sshSpec, winExecSpec}
 
 	var routes []credproxylib.Route
 	for _, p := range providers {
