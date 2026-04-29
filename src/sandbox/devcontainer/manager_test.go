@@ -1,6 +1,7 @@
 package devcontainer
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,12 +18,36 @@ func TestBuildLaunchCommand_subdir(t *testing.T) {
 	}
 	cs := &ContainerState{containerID: "abc123", spec: spec}
 
-	got := translateWorkDir(project+"/backend", project, spec.workspaceTarget())
+	got := translateWorkDir(project+"/backend", project, spec.WorkspaceTarget())
 	want := "/workspaces/myapp/backend"
 	if got != want {
 		t.Errorf("workDir = %q, want %q", got, want)
 	}
 	_ = cs
+}
+
+func TestContainerState_WorkspaceTarget(t *testing.T) {
+	t.Run("fallback when WorkspaceFolder empty", func(t *testing.T) {
+		cs := &ContainerState{spec: &DevcontainerSpec{ProjectPath: "/workspace/myapp"}}
+		if got := cs.WorkspaceTarget(); got != "/workspaces/myapp" {
+			t.Errorf("WorkspaceTarget = %q, want /workspaces/myapp", got)
+		}
+	})
+	t.Run("uses WorkspaceFolder when set", func(t *testing.T) {
+		cs := &ContainerState{spec: &DevcontainerSpec{
+			ProjectPath:     "/workspace/myapp",
+			WorkspaceFolder: "/custom/ws",
+		}}
+		if got := cs.WorkspaceTarget(); got != "/custom/ws" {
+			t.Errorf("WorkspaceTarget = %q, want /custom/ws", got)
+		}
+	})
+	t.Run("nil ContainerState", func(t *testing.T) {
+		var cs *ContainerState
+		if got := cs.WorkspaceTarget(); got != "" {
+			t.Errorf("WorkspaceTarget = %q, want empty for nil", got)
+		}
+	})
 }
 
 func TestDevcontainerSpec_buildCreateArgs_defaults(t *testing.T) {
@@ -59,6 +84,47 @@ func TestDevcontainerSpec_buildCreateArgs_defaults(t *testing.T) {
 	if !found {
 		t.Errorf("workspace mount not found in args: %v", args)
 	}
+}
+
+// assertArgBeforeImage verifies that an arg matching pred appears before image in args.
+func assertArgBeforeImage(t *testing.T, args []string, image string, pred func(string) bool) {
+	t.Helper()
+	imageIdx := slices.Index(args, image)
+	if imageIdx < 0 {
+		t.Fatalf("image %q not found in args: %v", image, args)
+	}
+	argIdx := slices.IndexFunc(args, pred)
+	if argIdx < 0 {
+		t.Fatalf("expected arg not found in args: %v", args)
+	}
+	if argIdx >= imageIdx {
+		t.Errorf("arg[%d]=%q must appear before image[%d]=%q; args: %v", argIdx, args[argIdx], imageIdx, image, args)
+	}
+}
+
+func TestDevcontainerSpec_buildCreateArgs_extraCreateArgsBeforeImage(t *testing.T) {
+	spec := &DevcontainerSpec{
+		ProjectPath:     "/workspace/myapp",
+		ContainerEnv:    map[string]string{},
+		ExtraCreateArgs: []string{"--mount", "type=bind,source=/home/take/.roost,target=/home/ubuntu/.roost,readonly"},
+	}
+	args := spec.BuildCreateArgs("myimage:latest")
+	assertArgBeforeImage(t, args, "myimage:latest", func(a string) bool {
+		return strings.Contains(a, ".roost")
+	})
+}
+
+func TestSpecOverlay_ExtraCreateArgs(t *testing.T) {
+	spec := &DevcontainerSpec{
+		ProjectPath:  "/workspace/myapp",
+		ContainerEnv: map[string]string{},
+	}
+	spec.Apply(SpecOverlay{ExtraCreateArgs: []string{"--shm-size=2g"}})
+	if len(spec.ExtraCreateArgs) != 1 || spec.ExtraCreateArgs[0] != "--shm-size=2g" {
+		t.Errorf("ExtraCreateArgs = %v, want [--shm-size=2g]", spec.ExtraCreateArgs)
+	}
+	args := spec.BuildCreateArgs("img:latest")
+	assertArgBeforeImage(t, args, "img:latest", func(a string) bool { return a == "--shm-size=2g" })
 }
 
 func TestBuildLaunchCommand_shellUsesLoginShell(t *testing.T) {

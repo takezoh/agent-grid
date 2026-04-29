@@ -70,7 +70,7 @@ func (l *DevcontainerLauncher) WrapLaunch(frameID state.FrameID, plan state.Laun
 	l.mgr.AcquireFrame(inst)
 	slog.Debug("devcontainer launcher: frame acquired", "frame", frameID, "project", plan.Project)
 
-	mounts := buildMounts(plan.Project, inst.Internal.WorkspaceFolder(), runDir)
+	mounts := buildMounts(plan.Project, inst.Internal.WorkspaceTarget(), runDir, inst.Internal.BindMounts())
 
 	return WrappedLaunch{
 		Command:          cmd,
@@ -83,14 +83,27 @@ func (l *DevcontainerLauncher) WrapLaunch(frameID state.FrameID, plan state.Laun
 }
 
 // buildMounts constructs the pathmap.Mounts for a devcontainer instance.
-// It registers the workspace mount and the roost run-dir mount.
-func buildMounts(hostProject, containerWS, hostRunDir string) pathmap.Mounts {
+// Without the user mounts here, paths under e.g. /home/ubuntu/.claude/projects get
+// cleared at the IPC boundary and the TRANSCRIPT tab silently empties.
+func buildMounts(hostProject, containerWS, hostRunDir string, userBinds []sandboxdc.BindMount) pathmap.Mounts {
+	type key = [2]string
+	seen := map[key]bool{}
+	add := func(ms *pathmap.Mounts, host, container string) {
+		k := key{host, container}
+		if !seen[k] {
+			seen[k] = true
+			*ms = append(*ms, pathmap.Mount{Host: host, Container: container})
+		}
+	}
 	var ms pathmap.Mounts
 	if hostProject != "" && containerWS != "" {
-		ms = append(ms, pathmap.Mount{Host: hostProject, Container: containerWS})
+		add(&ms, hostProject, containerWS)
 	}
 	if hostRunDir != "" {
-		ms = append(ms, pathmap.Mount{Host: hostRunDir, Container: ContainerRunDir})
+		add(&ms, hostRunDir, ContainerRunDir)
+	}
+	for _, b := range userBinds {
+		add(&ms, b.Source, b.Target)
 	}
 	return ms
 }
@@ -108,7 +121,7 @@ func (l *DevcontainerLauncher) AdoptFrame(ctx context.Context, frameID state.Fra
 	slog.Debug("devcontainer launcher: frame adopted (warm start)", "frame", frameID, "project", projectPath)
 
 	runDir := ProjectRunDir(filepath.Join(l.dataDir, "run"), projectPath)
-	mounts := buildMounts(projectPath, inst.Internal.WorkspaceFolder(), runDir)
+	mounts := buildMounts(projectPath, inst.Internal.WorkspaceTarget(), runDir, inst.Internal.BindMounts())
 	return l.makeCleanup(frameID, inst), mounts, nil
 }
 
@@ -178,10 +191,10 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 		mounts = append(mounts, proxySpec.Mounts...)
 
 		return sandboxdc.SpecOverlay{
-			Env:        env,
-			Mounts:     mounts,
-			PreExec:    "mise trust 2>/dev/null || true",
-			PostCreate: []string{"sh", "-c", binPath + " claude setup >/dev/null 2>&1 || true"},
+			Env:             env,
+			Mounts:          mounts,
+			ExtraCreateArgs: dc.ExtraCreateArgs,
+			PostCreate:      []string{"bash", "-lc", binPath + " claude setup"},
 		}, nil
 	}
 }

@@ -96,3 +96,108 @@ func TestLoadSpec_BuildWithoutName_Error(t *testing.T) {
 		t.Errorf("expected ErrMissingImage, got %v", err)
 	}
 }
+
+func TestWorkspaceTarget_FallbackWhenWorkspaceFolderUnset(t *testing.T) {
+	s := &DevcontainerSpec{ProjectPath: "/host/myapp"}
+	if got, want := s.WorkspaceTarget(), "/workspaces/myapp"; got != want {
+		t.Errorf("WorkspaceTarget() = %q, want %q", got, want)
+	}
+}
+
+func TestWorkspaceTarget_UsesWorkspaceFolderWhenSet(t *testing.T) {
+	s := &DevcontainerSpec{ProjectPath: "/host/myapp", WorkspaceFolder: "/custom/ws"}
+	if got, want := s.WorkspaceTarget(), "/custom/ws"; got != want {
+		t.Errorf("WorkspaceTarget() = %q, want %q", got, want)
+	}
+}
+
+func TestParseMountSpec_BindLong(t *testing.T) {
+	src, tgt, ok := parseMountSpec("type=bind,source=/host/x,target=/container/x,readonly")
+	if !ok || src != "/host/x" || tgt != "/container/x" {
+		t.Errorf("parseMountSpec = (%q,%q,%v), want (/host/x,/container/x,true)", src, tgt, ok)
+	}
+}
+
+func TestParseMountSpec_BindAliases(t *testing.T) {
+	src, tgt, ok := parseMountSpec("type=bind,src=/host/x,dst=/container/x")
+	if !ok || src != "/host/x" || tgt != "/container/x" {
+		t.Errorf("parseMountSpec aliases = (%q,%q,%v)", src, tgt, ok)
+	}
+}
+
+func TestParseMountSpec_VolumeSkipped(t *testing.T) {
+	_, _, ok := parseMountSpec("type=volume,source=myvol,target=/data")
+	if ok {
+		t.Errorf("non-bind types must be skipped")
+	}
+}
+
+func TestParseMountSpec_ShortForm(t *testing.T) {
+	src, tgt, ok := parseMountSpec("/host/x:/container/x:ro")
+	if !ok || src != "/host/x" || tgt != "/container/x" {
+		t.Errorf("short form = (%q,%q,%v), want (/host/x,/container/x,true)", src, tgt, ok)
+	}
+}
+
+func TestBindMounts_IncludesWorkspaceAndExtraCreateArgs(t *testing.T) {
+	s := &DevcontainerSpec{
+		ProjectPath: "/host/myapp",
+		ExtraCreateArgs: []string{
+			"--mount", "type=bind,source=/home/take/.claude/projects,target=/home/ubuntu/.claude/projects",
+			"-v", "/home/take/.claude/sessions:/home/ubuntu/.claude/sessions:ro",
+			"--shm-size=2g", // non-mount arg should be ignored
+		},
+	}
+	got := s.BindMounts()
+
+	wantPairs := map[string]string{
+		"/host/myapp":                 "/workspaces/myapp", // workspace mount fallback
+		"/home/take/.claude/projects": "/home/ubuntu/.claude/projects",
+		"/home/take/.claude/sessions": "/home/ubuntu/.claude/sessions",
+	}
+	for src, tgt := range wantPairs {
+		found := false
+		for _, b := range got {
+			if b.Source == src && b.Target == tgt {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected BindMount{%q -> %q} not in %+v", src, tgt, got)
+		}
+	}
+}
+
+func TestBindMounts_HandlesDevcontainerJSONMounts(t *testing.T) {
+	s := &DevcontainerSpec{
+		ProjectPath: "/host/myapp",
+		Mounts:      []string{"type=bind,source=/host/cache,target=/cache"},
+	}
+	got := s.BindMounts()
+	found := false
+	for _, b := range got {
+		if b.Source == "/host/cache" && b.Target == "/cache" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("devcontainer.json mounts not picked up: %+v", got)
+	}
+}
+
+func TestBindMounts_SkipsVolumes(t *testing.T) {
+	s := &DevcontainerSpec{
+		ProjectPath: "/host/myapp",
+		ExtraCreateArgs: []string{
+			"--mount", "type=volume,source=myvol,target=/data",
+		},
+	}
+	got := s.BindMounts()
+	for _, b := range got {
+		if b.Target == "/data" {
+			t.Errorf("volume mount leaked: %+v", got)
+		}
+	}
+}

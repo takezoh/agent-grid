@@ -22,7 +22,7 @@ require (
 	google.golang.org/grpc v1.80.0
 )
 
-replace github.com/takezoh/credproxy => /workspace/credproxyd
+replace github.com/takezoh/credproxy => /workspace/credproxy
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect

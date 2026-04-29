@@ -32,26 +32,36 @@ func (cs *ContainerState) WorkspaceFolder() string {
 	return cs.spec.WorkspaceFolder
 }
 
-// Config carries devcontainer-specific parameters.
-type Config struct {
-	ExtraCreateArgs []string // extra args for "docker create"
+// WorkspaceTarget returns the effective container-side workspace path, falling
+// back to /workspaces/<basename> when workspaceFolder is absent from devcontainer.json.
+// Use this for pathmap registration so the mount covers the actual container cwd.
+func (cs *ContainerState) WorkspaceTarget() string {
+	if cs == nil || cs.spec == nil {
+		return ""
+	}
+	return cs.spec.WorkspaceTarget()
+}
+
+func (cs *ContainerState) BindMounts() []BindMount {
+	if cs == nil || cs.spec == nil {
+		return nil
+	}
+	return cs.spec.BindMounts()
 }
 
 // Manager implements sandbox.Manager[*ContainerState] using direct docker commands.
 // Roost does not build images; the image name is read from devcontainer.json (image: or build.name).
 type Manager struct {
 	overlayFn  OverlayFunc
-	cfg        Config
 	mu         sync.Mutex
 	inflight   singleflight.Group
 	containers map[string]*ContainerState // key = projectPath
 }
 
 // New returns a Manager. overlayFn may be nil.
-func New(overlayFn OverlayFunc, cfg Config) *Manager {
+func New(overlayFn OverlayFunc) *Manager {
 	return &Manager{
 		overlayFn:  overlayFn,
-		cfg:        cfg,
 		containers: make(map[string]*ContainerState),
 	}
 }
@@ -174,7 +184,7 @@ func (m *Manager) createContainer(ctx context.Context, projectPath, image string
 }
 
 func (m *Manager) createAndStart(ctx context.Context, projectPath, image string, spec *DevcontainerSpec) (string, error) {
-	createArgs := append(spec.BuildCreateArgs(image), m.cfg.ExtraCreateArgs...)
+	createArgs := spec.BuildCreateArgs(image)
 	slog.Info("devcontainer: creating container", "image", image, "project", projectPath)
 	t := time.Now()
 	createCtx, createCancel := context.WithTimeout(ctx, 30*time.Second)
@@ -209,9 +219,10 @@ func (m *Manager) runPostCreate(containerID string, spec *DevcontainerSpec) {
 	}
 	pcCtx, pcCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer pcCancel()
-	RunPostCreate(pcCtx, containerID, spec.PostCreate)
+	user := spec.EffectiveUser()
+	RunPostCreate(pcCtx, containerID, user, spec.PostCreate)
 	for _, argv := range spec.ExtraPostCreate {
-		RunPostCreate(pcCtx, containerID, argv)
+		RunPostCreate(pcCtx, containerID, user, argv)
 	}
 }
 
@@ -227,7 +238,7 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], pl
 	spec := cs.spec
 	cs.mu.Unlock()
 
-	workDir := spec.workspaceTarget()
+	workDir := spec.WorkspaceTarget()
 	workDir = translateWorkDir(plan.StartDir, inst.ProjectPath, workDir)
 
 	command := plan.Command

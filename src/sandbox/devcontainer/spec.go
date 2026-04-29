@@ -35,6 +35,7 @@ type DevcontainerSpec struct {
 	ContainerUser   string            // docker create -u
 	RemoteUser      string            // docker exec -u (fallback: RemoteUser → ContainerUser → "")
 	RunArgs         []string          // extra docker create args from runArgs field
+	ExtraCreateArgs []string          // extra docker create args from settings (injected before image)
 	PostCreate      []string          // nil = no postCreateCommand; else exec argv
 	ExtraPostCreate [][]string        // roost-injected extra postCreateCommands, run after PostCreate
 	PreExec         string            // roost extension: shell command run before each docker exec (preExecCommand)
@@ -42,10 +43,11 @@ type DevcontainerSpec struct {
 
 // SpecOverlay carries roost-injected env/mounts merged on top of base devcontainer.json.
 type SpecOverlay struct {
-	Env        map[string]string
-	Mounts     []string // docker --mount format
-	PreExec    string   // fallback preExecCommand if not set in devcontainer.json
-	PostCreate []string // extra postCreateCommand argv; run after devcontainer.json's postCreateCommand
+	Env             map[string]string
+	Mounts          []string
+	ExtraCreateArgs []string // docker create options; injected before image name
+	PreExec         string   // fallback preExecCommand if not set in devcontainer.json
+	PostCreate      []string // extra postCreateCommand argv; run after devcontainer.json's postCreateCommand
 }
 
 func projectHash(projectPath string) string {
@@ -82,7 +84,7 @@ func LoadSpec(projectPath, dcDir string) (*DevcontainerSpec, error) {
 		PreExec:         extractString(doc.Extra, "preExecCommand"),
 	}
 
-	ws := spec.workspaceTarget()
+	ws := spec.WorkspaceTarget()
 	for _, raw := range doc.Mounts {
 		var s string
 		if err := json.Unmarshal(raw, &s); err != nil {
@@ -112,6 +114,7 @@ func (s *DevcontainerSpec) Apply(overlay SpecOverlay) {
 		s.RemoteEnv[k] = v
 	}
 	s.Mounts = append(s.Mounts, overlay.Mounts...)
+	s.ExtraCreateArgs = append(s.ExtraCreateArgs, overlay.ExtraCreateArgs...)
 	if s.PreExec == "" {
 		s.PreExec = overlay.PreExec
 	}
@@ -120,12 +123,107 @@ func (s *DevcontainerSpec) Apply(overlay SpecOverlay) {
 	}
 }
 
-// workspaceTarget returns the container-side workspace path.
-func (s *DevcontainerSpec) workspaceTarget() string {
+// WorkspaceTarget returns the container-side workspace path used for -w and the
+// default workspace mount. Falls back to /workspaces/<basename> when workspaceFolder
+// is not set in devcontainer.json, matching BuildCreateArgs behaviour.
+func (s *DevcontainerSpec) WorkspaceTarget() string {
 	if s.WorkspaceFolder != "" {
 		return s.WorkspaceFolder
 	}
 	return "/workspaces/" + filepath.Base(s.ProjectPath)
+}
+
+// BindMount is a parsed (source, target) pair for a docker bind mount.
+type BindMount struct {
+	Source string
+	Target string
+}
+
+// BindMounts returns every bind mount this spec materialises at `docker create`
+// time. Used by the runtime to register host↔container path mappings with
+// pathmap so hook payload translation covers user-declared mounts (e.g.
+// ~/.claude/projects). Sources scanned: WorkspaceMount (with default fallback),
+// Mounts (devcontainer.json), RunArgs, ExtraCreateArgs. Non-bind mounts are
+// skipped; the read-only flag is ignored.
+func (s *DevcontainerSpec) BindMounts() []BindMount {
+	var out []BindMount
+	add := func(src, tgt string) {
+		if src != "" && tgt != "" {
+			out = append(out, BindMount{Source: src, Target: tgt})
+		}
+	}
+
+	if s.WorkspaceMount == "" {
+		add(s.ProjectPath, s.WorkspaceTarget())
+	} else if src, tgt, ok := parseMountSpec(s.WorkspaceMount); ok {
+		add(src, tgt)
+	}
+	for _, m := range s.Mounts {
+		if src, tgt, ok := parseMountSpec(m); ok {
+			add(src, tgt)
+		}
+	}
+	scan := func(args []string) {
+		for i := 0; i < len(args); i++ {
+			a := args[i]
+			switch {
+			case a == "--mount" && i+1 < len(args):
+				if src, tgt, ok := parseMountSpec(args[i+1]); ok {
+					add(src, tgt)
+				}
+				i++
+			case strings.HasPrefix(a, "--mount="):
+				if src, tgt, ok := parseMountSpec(strings.TrimPrefix(a, "--mount=")); ok {
+					add(src, tgt)
+				}
+			case a == "-v" && i+1 < len(args):
+				if src, tgt, ok := parseShortMount(args[i+1]); ok {
+					add(src, tgt)
+				}
+				i++
+			}
+		}
+	}
+	scan(s.RunArgs)
+	scan(s.ExtraCreateArgs)
+	return out
+}
+
+// parseMountSpec parses a `--mount` style spec ("type=bind,source=X,target=Y[,...]").
+// Falls back to the short "host:container[:ro]" form when no "=" is present.
+// Returns ok=false for non-bind types or missing fields.
+func parseMountSpec(spec string) (src, tgt string, ok bool) {
+	if !strings.Contains(spec, "=") {
+		return parseShortMount(spec)
+	}
+	typ := "bind"
+	for _, kv := range strings.Split(spec, ",") {
+		k, v, found := strings.Cut(kv, "=")
+		if !found {
+			continue
+		}
+		switch strings.TrimSpace(k) {
+		case "type":
+			typ = strings.TrimSpace(v)
+		case "source", "src":
+			src = v
+		case "target", "destination", "dst":
+			tgt = v
+		}
+	}
+	if typ != "bind" {
+		return "", "", false
+	}
+	return src, tgt, src != "" && tgt != ""
+}
+
+// parseShortMount parses the short "-v host:container[:ro]" form.
+func parseShortMount(spec string) (src, tgt string, ok bool) {
+	parts := strings.SplitN(spec, ":", 3)
+	if len(parts) < 2 {
+		return "", "", false
+	}
+	return parts[0], parts[1], parts[0] != "" && parts[1] != ""
 }
 
 // EffectiveUser returns the user for docker exec (remoteUser → containerUser → "").
@@ -152,7 +250,7 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 	if s.ContainerUser != "" {
 		args = append(args, "-u", s.ContainerUser)
 	}
-	args = append(args, "-w", s.workspaceTarget())
+	args = append(args, "-w", s.WorkspaceTarget())
 	for k, v := range s.ContainerEnv {
 		args = append(args, "-e", k+"="+v)
 	}
@@ -173,6 +271,7 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 		}
 	}
 	args = append(args, s.RunArgs...)
+	args = append(args, s.ExtraCreateArgs...)
 	args = append(args, image)
 	// Keep the container alive for `docker exec` to attach later.
 	// Equivalent to @devcontainers/cli's default overrideCommand behavior.
@@ -181,7 +280,7 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 }
 
 func (s *DevcontainerSpec) applySubstitution() {
-	ws := s.workspaceTarget()
+	ws := s.WorkspaceTarget()
 	s.ContainerEnv = substituteEnvMap(s.ContainerEnv, s.ProjectPath, ws)
 	s.RemoteEnv = substituteEnvMap(s.RemoteEnv, s.ProjectPath, ws)
 	s.WorkspaceMount = substituteVarsInStr(s.WorkspaceMount, s.ProjectPath, ws)

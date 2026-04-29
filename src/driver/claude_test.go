@@ -1437,6 +1437,67 @@ func TestResolveTranscriptPathFallback(t *testing.T) {
 	}
 }
 
+func TestResolveTranscriptPathUsesContainerStartDir(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		CommonState:       CommonState{StartDir: ""},
+		ContainerStartDir: "/workspaces/myapp",
+		ClaudeSessionID:   "uuid-C",
+	}
+	got := d.resolveTranscriptPath(cs)
+	want := "/home/test/.claude/projects/-workspaces-myapp/uuid-C.jsonl"
+	if got != want {
+		t.Errorf("resolveTranscriptPath = %q, want %q", got, want)
+	}
+}
+
+func TestResolveTranscriptPathPrefersContainerStartDir(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		CommonState:       CommonState{StartDir: "/host/path"},
+		ContainerStartDir: "/workspaces/myapp",
+		ClaudeSessionID:   "uuid-D",
+	}
+	got := d.resolveTranscriptPath(cs)
+	want := "/home/test/.claude/projects/-workspaces-myapp/uuid-D.jsonl"
+	if got != want {
+		t.Errorf("resolveTranscriptPath = %q, want %q (should prefer ContainerStartDir)", got, want)
+	}
+}
+
+func TestClaudePrepareLaunchSandboxedNoPathStillResumes(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		CommonState:       CommonState{StartDir: ""},
+		ContainerStartDir: "/workspaces/myapp",
+		ClaudeSessionID:   "uuid-S",
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/host/myapp", "claude", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := "claude --allow-dangerously-skip-permissions --resume uuid-S"
+	if plan.Command != want {
+		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
+	}
+}
+
+func TestClaudePrepareLaunchNonSandboxedEmptyPathSkipsResume(t *testing.T) {
+	// non-sandboxed: no dirs at all → resolveTranscriptPath returns "" → no --resume.
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		CommonState:     CommonState{StartDir: ""},
+		ClaudeSessionID: "uuid-T",
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if plan.Command != "claude" {
+		t.Errorf("PrepareLaunch.Command = %q, want plain command", plan.Command)
+	}
+}
+
 func TestClaudeNoStateChangeEventsStillLog(t *testing.T) {
 	events := []string{"SubagentStop", "PostToolUseFailure", "PreCompact", "PostCompact", "TaskCreated", "TaskCompleted"}
 	for _, name := range events {

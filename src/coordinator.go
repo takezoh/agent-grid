@@ -214,9 +214,7 @@ func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *co
 		overlayFn := runtime.BuildOverlayFunc(func(project string) config.SandboxConfig {
 			return resolver.Resolve(project)
 		}, runner, dataDir)
-		mgr := sandboxdc.New(overlayFn, sandboxdc.Config{
-			ExtraCreateArgs: sb.Devcontainer.ExtraCreateArgs,
-		})
+		mgr := sandboxdc.New(overlayFn)
 		d.Devcontainer = runtime.NewDevcontainerLauncher(mgr, func(project string) config.SandboxConfig {
 			return resolver.Resolve(project)
 		}, runner, dataDir)

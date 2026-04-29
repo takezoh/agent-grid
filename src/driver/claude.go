@@ -174,14 +174,14 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	if strings.Contains(command, "--resume") || !isAlphanumHyphen(cs.ClaudeSessionID) {
 		return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
 	}
-	path := d.resolveTranscriptPath(cs)
-	if path == "" {
-		return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
-	}
-	// sandboxed: transcript_path is reported from inside the container and is not
-	// visible on the host, so skip the existence check and let claude --resume
-	// handle a missing transcript gracefully.
+	// sandboxed: transcript_path lives inside the container and is not visible on
+	// the host, so skip both the path check and the existence stat. claude --resume
+	// only needs the session ID.
 	if !sandboxed {
+		path := d.resolveTranscriptPath(cs)
+		if path == "" {
+			return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
+		}
 		if _, err := os.Stat(path); err != nil {
 			if os.IsNotExist(err) {
 				return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
@@ -315,15 +315,18 @@ func (d ClaudeDriver) resolveTranscriptPath(cs ClaudeState) string {
 	if cs.TranscriptPath != "" {
 		return cs.TranscriptPath
 	}
-	if d.home == "" || cs.ClaudeSessionID == "" || cs.StartDir == "" {
+	if d.home == "" || cs.ClaudeSessionID == "" {
 		return ""
 	}
-	// Use container-side cwd for encoding when available: Claude Code encodes the
-	// project dir from its own (container-side) working directory, so the JSONL
-	// lives under ~/.claude/projects/<container-encoded>/, not the host-encoded name.
-	dir := cs.StartDir
-	if cs.ContainerStartDir != "" {
-		dir = cs.ContainerStartDir
+	// Prefer container-side cwd for encoding: Claude Code encodes the project dir
+	// from its own working directory, so the JSONL lives under
+	// ~/.claude/projects/<container-encoded>/, not the host-encoded name.
+	dir := cs.ContainerStartDir
+	if dir == "" {
+		dir = cs.StartDir
+	}
+	if dir == "" {
+		return ""
 	}
 	return filepath.Join(d.home, ".claude", "projects", projectDir(dir), cs.ClaudeSessionID+".jsonl")
 }
