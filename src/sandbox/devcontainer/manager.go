@@ -107,6 +107,13 @@ func (m *Manager) ensureContainer(ctx context.Context, projectPath string) error
 		return err
 	}
 
+	if imgEnv, err := ImageEnv(ctx, image); err != nil {
+		slog.Warn("devcontainer: image env probe failed; ${containerEnv:*} not resolved",
+			"image", image, "err", err)
+	} else {
+		spec.ResolveContainerEnvPlaceholders(imgEnv)
+	}
+
 	if ctr != nil {
 		return m.reuseContainer(ctx, projectPath, ctr, spec)
 	}
@@ -233,6 +240,10 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], pl
 	}
 	sb.WriteString(" -w ")
 	sb.WriteString(shellEscape(workDir))
+	for k, v := range spec.RemoteEnv {
+		sb.WriteString(" -e ")
+		sb.WriteString(shellEscape(k + "=" + v))
+	}
 	for k, v := range env {
 		sb.WriteString(" -e ")
 		sb.WriteString(shellEscape(k + "=" + v))

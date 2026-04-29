@@ -13,19 +13,21 @@ import (
 )
 
 var localEnvRe = regexp.MustCompile(`\$\{localEnv:([A-Za-z_][A-Za-z0-9_]*)\}`)
+var containerEnvRe = regexp.MustCompile(`\$\{containerEnv:([A-Za-z_][A-Za-z0-9_]*)\}`)
 
 // DevcontainerSpec holds the resolved container configuration for a project,
 // derived from devcontainer.json with roost overlay applied.
 type DevcontainerSpec struct {
 	ProjectPath     string
 	ContainerEnv    map[string]string
-	Mounts          []string // docker --mount or -v format
-	WorkspaceMount  string   // custom workspace mount (empty = default)
-	WorkspaceFolder string   // container-side workspace path
-	ContainerUser   string   // docker create -u
-	RemoteUser      string   // docker exec -u (fallback: RemoteUser → ContainerUser → "")
-	RunArgs         []string // extra docker create args from runArgs field
-	PostCreate      []string // nil = no postCreateCommand; else exec argv
+	RemoteEnv       map[string]string // applied via docker exec -e (like VS Code remote processes)
+	Mounts          []string          // docker --mount or -v format
+	WorkspaceMount  string            // custom workspace mount (empty = default)
+	WorkspaceFolder string            // container-side workspace path
+	ContainerUser   string            // docker create -u
+	RemoteUser      string            // docker exec -u (fallback: RemoteUser → ContainerUser → "")
+	RunArgs         []string          // extra docker create args from runArgs field
+	PostCreate      []string          // nil = no postCreateCommand; else exec argv
 }
 
 // SpecOverlay carries roost-injected env/mounts merged on top of base devcontainer.json.
@@ -67,6 +69,7 @@ func LoadSpec(projectPath, dcDir string) (*DevcontainerSpec, error) {
 	spec := &DevcontainerSpec{
 		ProjectPath:     projectPath,
 		ContainerEnv:    cloneEnv(doc.ContainerEnv),
+		RemoteEnv:       cloneEnv(doc.RemoteEnv),
 		ContainerUser:   extractString(doc.Extra, "containerUser"),
 		RemoteUser:      extractString(doc.Extra, "remoteUser"),
 		WorkspaceFolder: extractString(doc.Extra, "workspaceFolder"),
@@ -161,13 +164,43 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 
 func (s *DevcontainerSpec) applySubstitution() {
 	ws := s.workspaceTarget()
-	env := make(map[string]string, len(s.ContainerEnv))
-	for k, v := range s.ContainerEnv {
-		env[substituteVarsInStr(k, s.ProjectPath, ws)] = substituteVarsInStr(v, s.ProjectPath, ws)
-	}
-	s.ContainerEnv = env
+	s.ContainerEnv = substituteEnvMap(s.ContainerEnv, s.ProjectPath, ws)
+	s.RemoteEnv = substituteEnvMap(s.RemoteEnv, s.ProjectPath, ws)
 	s.WorkspaceMount = substituteVarsInStr(s.WorkspaceMount, s.ProjectPath, ws)
 	s.WorkspaceFolder = substituteVarsInStr(s.WorkspaceFolder, s.ProjectPath, ws)
+}
+
+func substituteEnvMap(src map[string]string, projectPath, ws string) map[string]string {
+	dst := make(map[string]string, len(src))
+	for k, v := range src {
+		dst[substituteVarsInStr(k, projectPath, ws)] = substituteVarsInStr(v, projectPath, ws)
+	}
+	return dst
+}
+
+// ResolveContainerEnvPlaceholders expands ${containerEnv:VAR} in ContainerEnv and RemoteEnv.
+// For ContainerEnv, VAR is looked up in imageEnv (image baseline).
+// For RemoteEnv, VAR is looked up in imageEnv merged with resolved ContainerEnv (containerEnv wins).
+func (s *DevcontainerSpec) ResolveContainerEnvPlaceholders(imageEnv map[string]string) {
+	resolve := func(v string, lookup map[string]string) string {
+		return containerEnvRe.ReplaceAllStringFunc(v, func(m string) string {
+			return lookup[containerEnvRe.FindStringSubmatch(m)[1]]
+		})
+	}
+	for k, v := range s.ContainerEnv {
+		s.ContainerEnv[k] = resolve(v, imageEnv)
+	}
+	// remoteEnv sees imageEnv ∪ containerEnv (containerEnv overrides image baseline)
+	merged := make(map[string]string, len(imageEnv)+len(s.ContainerEnv))
+	for k, v := range imageEnv {
+		merged[k] = v
+	}
+	for k, v := range s.ContainerEnv {
+		merged[k] = v
+	}
+	for k, v := range s.RemoteEnv {
+		s.RemoteEnv[k] = resolve(v, merged)
+	}
 }
 
 // substituteVarsInStr replaces devcontainer variable references.
@@ -189,6 +222,7 @@ func substituteVarsInStr(s, projectPath, containerWS string) string {
 type devcontainerDoc struct {
 	Mounts       []json.RawMessage          `json:"mounts,omitempty"`
 	ContainerEnv map[string]string          `json:"containerEnv,omitempty"`
+	RemoteEnv    map[string]string          `json:"remoteEnv,omitempty"`
 	Extra        map[string]json.RawMessage `json:"-"`
 }
 
@@ -196,6 +230,7 @@ func (d *devcontainerDoc) UnmarshalJSON(data []byte) error {
 	type plain struct {
 		Mounts       []json.RawMessage `json:"mounts"`
 		ContainerEnv map[string]string `json:"containerEnv"`
+		RemoteEnv    map[string]string `json:"remoteEnv"`
 	}
 	var p plain
 	if err := json.Unmarshal(data, &p); err != nil {
@@ -203,13 +238,14 @@ func (d *devcontainerDoc) UnmarshalJSON(data []byte) error {
 	}
 	d.Mounts = p.Mounts
 	d.ContainerEnv = p.ContainerEnv
+	d.RemoteEnv = p.RemoteEnv
 
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 	d.Extra = make(map[string]json.RawMessage)
-	skip := map[string]bool{"mounts": true, "containerEnv": true}
+	skip := map[string]bool{"mounts": true, "containerEnv": true, "remoteEnv": true}
 	for k, v := range raw {
 		if !skip[k] {
 			d.Extra[k] = v

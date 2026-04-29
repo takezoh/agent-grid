@@ -3,6 +3,7 @@ package devcontainer
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -36,6 +37,28 @@ func FindContainer(ctx context.Context, projectPath string) (*ContainerInfo, err
 		return nil, fmt.Errorf("docker ps: unexpected output %q", line)
 	}
 	return &ContainerInfo{ID: parts[0], State: parts[1]}, nil
+}
+
+// ImageEnv returns the image's Config.Env as a key→value map.
+func ImageEnv(ctx context.Context, imageName string) (map[string]string, error) {
+	out, err := exec.CommandContext(ctx,
+		"docker", "image", "inspect",
+		"--format", "{{json .Config.Env}}", imageName,
+	).Output()
+	if err != nil {
+		return nil, fmt.Errorf("docker image inspect env: %w", err)
+	}
+	var lines []string
+	if err := json.Unmarshal(bytes.TrimSpace(out), &lines); err != nil {
+		return nil, fmt.Errorf("parse image env: %w", err)
+	}
+	env := make(map[string]string, len(lines))
+	for _, line := range lines {
+		if i := strings.IndexByte(line, '='); i > 0 {
+			env[line[:i]] = line[i+1:]
+		}
+	}
+	return env, nil
 }
 
 // ImageExists reports whether the named image exists locally.
