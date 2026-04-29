@@ -99,6 +99,7 @@ Keys parsed from devcontainer.json:
 | `workspaceMount` | Replaces the default workspace bind-mount |
 | `runArgs` | Extra args appended to `docker create` |
 | `postCreateCommand` | Command (string or array) run once after the container is created |
+| `preExecCommand` | Shell string (roost extension) run inside the container before each `docker exec` launch, with cwd already set to the exec workdir. Default: `mise trust 2>/dev/null \|\| true`. |
 
 Variable substitution in string values: `${localWorkspaceFolder}`, `${localWorkspaceFolderBasename}`, `${containerWorkspaceFolder}`, `${localEnv:VAR}`.
 

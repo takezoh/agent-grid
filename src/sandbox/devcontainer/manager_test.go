@@ -183,6 +183,93 @@ func TestResolveContainerEnvPlaceholders(t *testing.T) {
 	})
 }
 
+func TestBuildLaunchCommand_PreExec(t *testing.T) {
+	const project = "/workspace/myapp"
+	base := &DevcontainerSpec{
+		ProjectPath:     project,
+		ContainerEnv:    map[string]string{},
+		WorkspaceFolder: "/workspaces/myapp",
+	}
+	m := &Manager{}
+
+	t.Run("preExec wraps command with bash -lc", func(t *testing.T) {
+		spec := *base
+		spec.PreExec = "mise trust 2>/dev/null || true"
+		inst := &sandbox.Instance[*ContainerState]{
+			ProjectPath: project,
+			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
+		}
+		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}, nil)
+		if err != nil {
+			t.Fatalf("BuildLaunchCommand error: %v", err)
+		}
+		if !strings.Contains(got, "bash -lc") {
+			t.Errorf("expected bash -lc wrapper, got: %s", got)
+		}
+		if !strings.Contains(got, "mise trust") {
+			t.Errorf("expected mise trust in command, got: %s", got)
+		}
+		if !strings.Contains(got, "exec bash") {
+			t.Errorf("expected exec bash in command, got: %s", got)
+		}
+	})
+
+	t.Run("no preExec leaves command unchanged", func(t *testing.T) {
+		spec := *base
+		inst := &sandbox.Instance[*ContainerState]{
+			ProjectPath: project,
+			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
+		}
+		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}, nil)
+		if err != nil {
+			t.Fatalf("BuildLaunchCommand error: %v", err)
+		}
+		if strings.Contains(got, "bash -lc") {
+			t.Errorf("unexpected bash -lc wrapper without PreExec: %s", got)
+		}
+		if !strings.HasSuffix(got, " bash") {
+			t.Errorf("expected command to end with 'bash', got: %s", got)
+		}
+	})
+
+	t.Run("preExec with shell command retains login shell lookup", func(t *testing.T) {
+		spec := *base
+		spec.PreExec = "mise trust 2>/dev/null || true"
+		inst := &sandbox.Instance[*ContainerState]{
+			ProjectPath: project,
+			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
+		}
+		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "shell"}, nil)
+		if err != nil {
+			t.Fatalf("BuildLaunchCommand error: %v", err)
+		}
+		if !strings.Contains(got, "mise trust") {
+			t.Errorf("expected mise trust in shell command, got: %s", got)
+		}
+		if !strings.Contains(got, "getent passwd") {
+			t.Errorf("expected login shell lookup in shell command, got: %s", got)
+		}
+	})
+}
+
+func TestSpecOverlay_PreExecFallback(t *testing.T) {
+	t.Run("overlay PreExec used when spec is empty", func(t *testing.T) {
+		s := &DevcontainerSpec{}
+		s.Apply(SpecOverlay{PreExec: "mise trust 2>/dev/null || true"})
+		if s.PreExec != "mise trust 2>/dev/null || true" {
+			t.Errorf("expected overlay PreExec, got %q", s.PreExec)
+		}
+	})
+
+	t.Run("spec PreExec wins over overlay", func(t *testing.T) {
+		s := &DevcontainerSpec{PreExec: "custom-hook"}
+		s.Apply(SpecOverlay{PreExec: "mise trust 2>/dev/null || true"})
+		if s.PreExec != "custom-hook" {
+			t.Errorf("expected spec PreExec to win, got %q", s.PreExec)
+		}
+	})
+}
+
 func TestDevcontainerSpec_effectiveUser(t *testing.T) {
 	cases := []struct {
 		name      string

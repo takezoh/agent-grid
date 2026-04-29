@@ -231,6 +231,9 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], pl
 	if command == "shell" {
 		command = "sh -c " + shellEscape(`exec "$(getent passwd "$(id -un)" | cut -d: -f7)" -l`)
 	}
+	if spec.PreExec != "" {
+		command = "bash -lc " + shellEscape(spec.PreExec+"; exec "+command)
+	}
 
 	var sb strings.Builder
 	sb.WriteString("docker exec -it")
