@@ -146,7 +146,6 @@ func TestContainerEndpointRejectsUnknownCommands(t *testing.T) {
 	t.Cleanup(ep.close)
 
 	for _, tc := range rejectedCmds {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			env, err := sendRawCommand(t, sp, tc.cmd)
 			if err != nil {
@@ -301,9 +300,6 @@ func TestTranslatePayloadPaths(t *testing.T) {
 	t.Run("payload without cwd: untouched", func(t *testing.T) {
 		payload, _ := json.Marshal(map[string]string{"hook_event_name": "Stop"})
 		out := ep.translatePayloadPaths(frameID, json.RawMessage(payload))
-		if string(out) == string(payload) {
-			// unchanged is fine — but check it at least parses
-		}
 		var fields map[string]string
 		if err := json.Unmarshal(out, &fields); err != nil {
 			t.Fatalf("unmarshal: %v", err)

@@ -16,7 +16,7 @@ import (
 // It generates a synthetic AWS config and credential helper per project
 // when aws_profiles are configured.
 type SpecBuilder struct {
-	sockHostPath string    // host-side Unix socket path (e.g. <dataDir>/run/credproxy.sock)
+	sockHostPath string // host-side Unix socket path (e.g. <dataDir>/run/credproxy.sock)
 	token        string
 	runBase      string    // parent of per-project run dirs bound into containers at /opt/roost/run
 	provider     *Provider // shared Provider whose allowlist grows with each ContainerSpec call
@@ -87,4 +87,3 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string, sb co
 	mount := fmt.Sprintf("type=bind,source=%s,target=%s", b.sockHostPath, ContainerSockPath)
 	return credproxy.Spec{Env: env, Mounts: []string{mount}}, nil
 }
-

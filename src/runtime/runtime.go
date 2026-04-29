@@ -136,7 +136,7 @@ type Runtime struct {
 // Config; missing backends are stubbed with no-ops at construction so
 // the loop can start even if the caller has not wired everything yet
 // (useful for incremental tests).
-func New(cfg Config) *Runtime {
+func applyConfigDefaults(cfg Config) Config {
 	if cfg.Workers <= 0 {
 		cfg.Workers = 4
 	}
@@ -167,6 +167,11 @@ func New(cfg Config) *Runtime {
 	if cfg.Notifier == nil {
 		cfg.Notifier = noopNotifier{}
 	}
+	return cfg
+}
+
+func New(cfg Config) *Runtime {
+	cfg = applyConfigDefaults(cfg)
 	initial := state.New()
 	initial.Features = cfg.Features
 	r := &Runtime{

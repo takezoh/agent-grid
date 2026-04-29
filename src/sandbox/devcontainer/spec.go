@@ -26,7 +26,7 @@ var envVarRe = regexp.MustCompile(`\$(?:\{containerEnv:([A-Za-z_][A-Za-z0-9_]*)\
 // derived from devcontainer.json with roost overlay applied.
 type DevcontainerSpec struct {
 	ProjectPath     string
-	Image           string            // resolved from devcontainer.json image: or build.name
+	Image           string // resolved from devcontainer.json image: or build.name
 	ContainerEnv    map[string]string
 	RemoteEnv       map[string]string // applied via docker exec -e (like VS Code remote processes)
 	Mounts          []string          // docker --mount or -v format

@@ -163,4 +163,3 @@ func (b *SpecBuilder) watchShutdown(ctx context.Context) {
 		_ = os.Remove(a.sockPath)
 	}
 }
-

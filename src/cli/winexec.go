@@ -25,7 +25,6 @@ func runWinExec(args []string) error {
 		fmt.Fprintf(os.Stderr, "win-exec: broker unavailable (%v)\n", err)
 		os.Exit(127)
 	}
-	defer conn.Close()
 	uc := conn.(*net.UnixConn)
 
 	cwd, _ := os.Getwd()
@@ -41,16 +40,19 @@ func runWinExec(args []string) error {
 		int(os.Stderr.Fd()),
 	}
 	if err := winexec.SendRequest(uc, req, fds); err != nil {
+		conn.Close()
 		fmt.Fprintf(os.Stderr, "win-exec: %v\n", err)
 		os.Exit(127)
 	}
 
 	var resp winexec.Response
 	if err := json.NewDecoder(uc).Decode(&resp); err != nil {
+		conn.Close()
 		fmt.Fprintf(os.Stderr, "win-exec: read response: %v\n", err)
 		os.Exit(127)
 	}
 
+	conn.Close()
 	os.Exit(resp.ExitCode)
 	return nil // unreachable
 }

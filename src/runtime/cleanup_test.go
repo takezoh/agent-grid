@@ -19,7 +19,7 @@ func (minimalDriver) DisplayName() string { return "minimal-test" }
 func (minimalDriver) Status(_ state.DriverState) state.Status {
 	return state.StatusIdle
 }
-func (minimalDriver) NewState(_ time.Time) state.DriverState  { return state.DriverStateBase{} }
+func (minimalDriver) NewState(_ time.Time) state.DriverState        { return state.DriverStateBase{} }
 func (minimalDriver) Persist(_ state.DriverState) map[string]string { return nil }
 func (minimalDriver) Restore(_ map[string]string, _ time.Time) state.DriverState {
 	return state.DriverStateBase{}
@@ -31,7 +31,7 @@ func (minimalDriver) Step(prev state.DriverState, _ state.FrameContext, _ state.
 func (minimalDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, command string, _ state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
 	return state.LaunchPlan{Command: command, StartDir: project}, nil
 }
-func (minimalDriver) StartDir(_ state.DriverState) string { return "" }
+func (minimalDriver) StartDir(_ state.DriverState) string                          { return "" }
 func (minimalDriver) WithStartDir(s state.DriverState, _ string) state.DriverState { return s }
 
 func TestStoreAndInvokeFrameCleanup(t *testing.T) {

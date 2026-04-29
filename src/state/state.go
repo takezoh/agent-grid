@@ -38,13 +38,13 @@ const (
 // Maps are owned by the state and updated copy-on-write inside Reduce —
 // callers must not mutate a State they did not produce.
 type State struct {
-	Sessions       map[SessionID]Session
-	PendingCreates map[JobID]PendingCreate
-	Subscribers    map[ConnID]Subscriber
-	Jobs           map[JobID]JobMeta
-	NextJobID      JobID
-	NextConnID     ConnID
-	Now            time.Time         // last tick timestamp; deterministic in tests
+	Sessions         map[SessionID]Session
+	PendingCreates   map[JobID]PendingCreate
+	Subscribers      map[ConnID]Subscriber
+	Jobs             map[JobID]JobMeta
+	NextJobID        JobID
+	NextConnID       ConnID
+	Now              time.Time         // last tick timestamp; deterministic in tests
 	Aliases          map[string]string // command alias expansion (e.g. "cw" → "codex --workspace")
 	DefaultCommand   string            // fallback when session command is empty
 	SandboxedProject func(string) bool // nil = not configured; true when project runs in sandbox

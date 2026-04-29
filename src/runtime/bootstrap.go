@@ -412,34 +412,8 @@ func (r *Runtime) RecoverSandboxFrames() {
 	defer cancel()
 	l := launcher(r.cfg)
 
-	// Build a set of live frame IDs for warm-token recovery below.
-	liveFrames := make(map[string]struct{})
-	for _, sess := range r.state.Sessions {
-		for _, frame := range sess.Frames {
-			if _, ok := r.sessionPanes[frame.ID]; ok {
-				liveFrames[string(frame.ID)] = struct{}{}
-			}
-		}
-	}
-
-	// Restore container tokens from warm/ so container agents can still send
-	// hook events after a daemon warm restart.
-	if r.warmFrames != nil {
-		states, err := r.warmFrames.LoadAll()
-		if err != nil {
-			slog.Warn("bootstrap: warm frame load failed", "err", err)
-		}
-		for _, st := range states {
-			if _, ok := liveFrames[st.FrameID]; !ok {
-				// orphan: no live frame — delete proactively so warm restarts don't accumulate stale files
-				_ = r.warmFrames.Delete(state.FrameID(st.FrameID))
-				continue
-			}
-			if st.ContainerToken != "" {
-				r.containerTokens.Register(state.FrameID(st.FrameID), st.ContainerToken)
-			}
-		}
-	}
+	liveFrames := r.buildLiveFrameSet()
+	r.recoverWarmTokens(liveFrames)
 
 	for _, sess := range r.state.Sessions {
 		for _, frame := range sess.Frames {
@@ -463,6 +437,40 @@ func (r *Runtime) RecoverSandboxFrames() {
 				runDir := ProjectRunDir(filepath.Join(r.cfg.DataDir, "run"), frame.Project)
 				r.startContainerEndpointIfNeeded(frame.Project, ContainerSockPath(runDir))
 			}
+		}
+	}
+}
+
+func (r *Runtime) buildLiveFrameSet() map[string]struct{} {
+	live := make(map[string]struct{})
+	for _, sess := range r.state.Sessions {
+		for _, frame := range sess.Frames {
+			if _, ok := r.sessionPanes[frame.ID]; ok {
+				live[string(frame.ID)] = struct{}{}
+			}
+		}
+	}
+	return live
+}
+
+// recoverWarmTokens restores container tokens from warm/ so container agents
+// can still send hook events after a daemon warm restart.
+func (r *Runtime) recoverWarmTokens(liveFrames map[string]struct{}) {
+	if r.warmFrames == nil {
+		return
+	}
+	states, err := r.warmFrames.LoadAll()
+	if err != nil {
+		slog.Warn("bootstrap: warm frame load failed", "err", err)
+	}
+	for _, st := range states {
+		if _, ok := liveFrames[st.FrameID]; !ok {
+			// orphan: no live frame — delete proactively so warm restarts don't accumulate stale files
+			_ = r.warmFrames.Delete(state.FrameID(st.FrameID))
+			continue
+		}
+		if st.ContainerToken != "" {
+			r.containerTokens.Register(state.FrameID(st.FrameID), st.ContainerToken)
 		}
 	}
 }

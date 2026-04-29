@@ -107,4 +107,3 @@ keys = ["~/.ssh/id_ed25519_project"]
 		t.Errorf("SSHAgent.Keys = %v, want [~/.ssh/id_ed25519_project] (project replaces)", got.Proxy.SSHAgent.Keys)
 	}
 }
-

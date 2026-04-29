@@ -24,8 +24,8 @@ const (
 	ClaudeDriverName = "claude"
 
 	// PersistedState bag keys for sessions.json round-trip.
-	claudeKeyClaudeSessionID    = "claude_session_id"
-	claudeKeyContainerStartDir  = "container_start_dir"
+	claudeKeyClaudeSessionID   = "claude_session_id"
+	claudeKeyContainerStartDir = "container_start_dir"
 )
 
 // pendingTool tracks an in-flight tool call from PreToolUse until

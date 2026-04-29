@@ -146,4 +146,3 @@ func principalHash(key string) string {
 	h := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(h[:4])
 }
-

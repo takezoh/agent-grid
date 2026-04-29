@@ -148,18 +148,9 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 		sb := resolveSandbox(projectPath)
 		dc := sb.Devcontainer
 
-		allow := isProjectEnvScriptAllowed(projectPath, dc.AllowProjectEnvScript)
-		scriptEnv := sandboxdc.RunEnvScript(context.Background(), dc.EnvScript, projectPath, allow)
-
-		var proxySpec credproxy.Spec
-		if proxy != nil {
-			specCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			var err error
-			proxySpec, err = proxy.ContainerSpec(specCtx, projectPath, sb)
-			if err != nil {
-				slog.Warn("devcontainer: credproxy spec failed", "project", projectPath, "err", err)
-			}
+		proxySpec, scriptEnv, err := resolveOverlaySpecs(proxy, projectPath, dc, sb)
+		if err != nil {
+			return sandboxdc.SpecOverlay{}, err
 		}
 
 		runDir, err := EnsureProjectRunDir(filepath.Join(dataDir, "run"), projectPath)
@@ -172,23 +163,10 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 			return sandboxdc.SpecOverlay{}, fmt.Errorf("devcontainer: install binary: %w", err)
 		}
 
-		env := make(map[string]string)
-		for k, v := range scriptEnv {
-			env[k] = v
-		}
-		for k, v := range proxySpec.Env {
-			env[k] = v
-		}
-		env["ROOST_SOCKET"] = ContainerSockFilePath
-		if wsl.IsWSL() && sb.Proxy.WinExec.Enabled && len(sb.Proxy.WinExec.AllowedExes) > 0 {
-			// $PATH is expanded by ResolveContainerEnvPlaceholders against image baseline (L1).
-			env["PATH"] = ContainerWinExecShimsDir + ":$PATH"
-		}
-
-		mounts := []string{
+		env := buildOverlayEnv(scriptEnv, proxySpec, sb)
+		mounts := append([]string{
 			fmt.Sprintf("type=bind,source=%s,target=%s", runDir, ContainerRunDir),
-		}
-		mounts = append(mounts, proxySpec.Mounts...)
+		}, proxySpec.Mounts...)
 
 		return sandboxdc.SpecOverlay{
 			Env:             env,
@@ -197,6 +175,39 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 			PostCreate:      []string{"bash", "-lc", binPath + " claude setup"},
 		}, nil
 	}
+}
+
+func resolveOverlaySpecs(proxy *CredProxyRunner, projectPath string, dc config.DevcontainerConfig, sb config.SandboxConfig) (credproxy.Spec, map[string]string, error) {
+	allow := isProjectEnvScriptAllowed(projectPath, dc.AllowProjectEnvScript)
+	scriptEnv := sandboxdc.RunEnvScript(context.Background(), dc.EnvScript, projectPath, allow)
+
+	var proxySpec credproxy.Spec
+	if proxy != nil {
+		specCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		var err error
+		proxySpec, err = proxy.ContainerSpec(specCtx, projectPath, sb)
+		if err != nil {
+			slog.Warn("devcontainer: credproxy spec failed", "project", projectPath, "err", err)
+		}
+	}
+	return proxySpec, scriptEnv, nil
+}
+
+func buildOverlayEnv(scriptEnv map[string]string, proxySpec credproxy.Spec, sb config.SandboxConfig) map[string]string {
+	env := make(map[string]string)
+	for k, v := range scriptEnv {
+		env[k] = v
+	}
+	for k, v := range proxySpec.Env {
+		env[k] = v
+	}
+	env["ROOST_SOCKET"] = ContainerSockFilePath
+	if wsl.IsWSL() && sb.Proxy.WinExec.Enabled && len(sb.Proxy.WinExec.AllowedExes) > 0 {
+		// $PATH is expanded by ResolveContainerEnvPlaceholders against image baseline (L1).
+		env["PATH"] = ContainerWinExecShimsDir + ":$PATH"
+	}
+	return env
 }
 
 // isProjectEnvScriptAllowed checks whether projectPath is in the allowlist.

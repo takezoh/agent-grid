@@ -23,7 +23,7 @@ type broker struct {
 
 func (b *broker) serve() {
 	defer b.ln.Close()
-	defer os.Remove(b.sock)
+	defer func() { _ = os.Remove(b.sock) }()
 	defer b.onStop()
 	for {
 		conn, err := b.ln.Accept()

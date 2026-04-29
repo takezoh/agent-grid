@@ -85,6 +85,11 @@ func (ep *containerEndpoint) serve(conn net.Conn) {
 }
 
 func (ep *containerEndpoint) handle(w *bufio.Writer, env proto.Envelope) {
+	if env.Cmd != proto.CmdNameHookEvent {
+		containerWriteError(w, env.ReqID, proto.ErrUnsupported, "unsupported command")
+		return
+	}
+
 	var cmd proto.CmdHookEvent
 	if len(env.Data) > 0 {
 		if err := json.Unmarshal(env.Data, &cmd); err != nil {
@@ -141,43 +146,8 @@ func (ep *containerEndpoint) translatePayloadPaths(frameID state.FrameID, payloa
 		return payload
 	}
 
-	changed := false
-
-	// cwd: translate to host path, preserve original as container_cwd.
-	if raw, exists := fields[payloadFieldCwd]; exists {
-		var s string
-		if err := json.Unmarshal(raw, &s); err == nil && s != "" {
-			fields[payloadFieldContainerCwd] = raw // preserve container path for projectDir encoding
-			if host, ok := ms.ToHost(s); ok {
-				if enc, err := json.Marshal(host); err == nil {
-					fields[payloadFieldCwd] = enc
-				}
-			} else {
-				fields[payloadFieldCwd] = json.RawMessage(`""`)
-				slog.Debug("ipc_container: cwd not covered by any mount; clearing",
-					"frame", frameID, "container_path", s)
-			}
-			changed = true
-		}
-	}
-
-	// transcript_path: translate to host path; set to "" when not reachable.
-	if raw, exists := fields[payloadFieldTranscriptPath]; exists {
-		var s string
-		if err := json.Unmarshal(raw, &s); err == nil && s != "" {
-			if host, ok := ms.ToHost(s); ok {
-				if enc, err := json.Marshal(host); err == nil {
-					fields[payloadFieldTranscriptPath] = enc
-					changed = true
-				}
-			} else {
-				fields[payloadFieldTranscriptPath] = json.RawMessage(`""`)
-				changed = true
-				slog.Debug("ipc_container: transcript_path not covered by any mount; clearing",
-					"frame", frameID, "container_path", s)
-			}
-		}
-	}
+	changed := translateCwdField(frameID, fields, ms)
+	changed = translateTranscriptField(frameID, fields, ms) || changed
 
 	if !changed {
 		return payload
@@ -187,6 +157,51 @@ func (ep *containerEndpoint) translatePayloadPaths(frameID state.FrameID, payloa
 		return payload
 	}
 	return out
+}
+
+func translateCwdField(frameID state.FrameID, fields map[string]json.RawMessage, ms pathmap.Mounts) bool {
+	raw, exists := fields[payloadFieldCwd]
+	if !exists {
+		return false
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil || s == "" {
+		return false
+	}
+	fields[payloadFieldContainerCwd] = raw
+	if host, ok := ms.ToHost(s); ok {
+		if enc, err := json.Marshal(host); err == nil {
+			fields[payloadFieldCwd] = enc
+		}
+	} else {
+		fields[payloadFieldCwd] = json.RawMessage(`""`)
+		slog.Debug("ipc_container: cwd not covered by any mount; clearing",
+			"frame", frameID, "container_path", s)
+	}
+	return true
+}
+
+func translateTranscriptField(frameID state.FrameID, fields map[string]json.RawMessage, ms pathmap.Mounts) bool {
+	raw, exists := fields[payloadFieldTranscriptPath]
+	if !exists {
+		return false
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil || s == "" {
+		return false
+	}
+	if host, ok := ms.ToHost(s); ok {
+		if enc, err := json.Marshal(host); err == nil {
+			fields[payloadFieldTranscriptPath] = enc
+			return true
+		}
+	} else {
+		fields[payloadFieldTranscriptPath] = json.RawMessage(`""`)
+		slog.Debug("ipc_container: transcript_path not covered by any mount; clearing",
+			"frame", frameID, "container_path", s)
+		return true
+	}
+	return false
 }
 
 // startContainerEndpointIfNeeded starts the container endpoint for the
