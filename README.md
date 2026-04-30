@@ -70,6 +70,25 @@ Enable devcontainer mode in `~/.roost/settings.toml`:
 mode = "devcontainer"
 ```
 
+**Restrict container egress (optional):** roost forwards `extra_create_args` to every `docker create`, so you can attach containers to a custom bridge whose egress you control with iptables.
+
+```toml
+[sandbox.devcontainer]
+extra_create_args = ["--network", "roost-egress"]
+```
+
+Set up the bridge once on the host:
+
+```sh
+docker network create --opt com.docker.network.bridge.name=roost-egress roost-egress
+sudo iptables -I DOCKER-USER -i roost-egress -j DROP
+sudo iptables -I DOCKER-USER -i roost-egress -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+sudo iptables -I DOCKER-USER -i roost-egress -p udp --dport 53 -j ACCEPT
+# ...allow specific destination IPs as needed
+```
+
+iptables operates on IPs, not hostnames; CDN-fronted services require maintaining IP ranges out-of-band. `--network=none` is not recommended — it blocks the model API the agent needs.
+
 See [Sandbox Backends](docs/sandbox.md) for credential proxy, mounts, and advanced configuration.
 
 ### Hook Setup
