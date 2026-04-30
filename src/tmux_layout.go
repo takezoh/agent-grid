@@ -46,22 +46,15 @@ func setupNewSession(client *tmux.Client, cfg *config.Config, sn string) error {
 		return fmt.Errorf("split header: %w", err)
 	}
 
-	exePath := resolveExe()
-	envPrefix := "ROOST_SESSION_ID=" + sn + " "
-	_ = client.SendKeys(sn+":0.2", envPrefix+uiproc.Sessions().Command(exePath))
-	_ = client.SendKeys(sn+":0.1", envPrefix+uiproc.Main().Command(exePath))
-	_ = client.SendKeys(sn+":0.0", envPrefix+uiproc.Header().Command(exePath))
-
 	paneMain, _ := client.DisplayMessage(sn+":0.1", "#{pane_id}")
 	_ = client.SetEnv("ROOST_FRAME__main", paneMain)
 
-	// Create the __hidden__ window to house the log TUI as a persistent process.
-	// The window stays detached so it never steals focus. remain-on-exit keeps
-	// the pane alive after the log TUI exits (for crash recovery via respawn).
+	// Create the __hidden__ window without launching the log TUI yet; the IPC
+	// socket does not exist at this point. respawnHiddenPane starts the TUI
+	// after StartIPC completes.
 	hiddenPaneID, err := client.Run(
 		"new-window", "-d", "-n", "__hidden__", "-t", sn+":",
 		"-P", "-F", "#{pane_id}",
-		envPrefix+uiproc.Log().Command(exePath),
 	)
 	if err != nil {
 		return fmt.Errorf("hidden window: %w", err)
@@ -211,9 +204,6 @@ func respawnSessionsPane(client *tmux.Client, sn string) {
 	_ = client.RespawnPane(sn+":0.2", uiproc.Sessions().Command(resolveExe()))
 }
 
-// respawnHiddenPane restarts the log TUI in __hidden__.0 after the IPC
-// socket is ready. Called after StartIPC so proto.Dial succeeds, fixing
-// the race where the pane is created before the daemon accepts connections.
 func respawnHiddenPane(client *tmux.Client, sn string) {
 	_ = client.RespawnPane(sn+":__hidden__.0", uiproc.Log().Command(resolveExe()))
 }

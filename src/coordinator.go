@@ -167,12 +167,12 @@ func runCoordinator() error { //nolint:funlen
 		rt.SetRelay(relay)
 	}
 
+	// All TUI panes are spawned here, after StartIPC, so proto.Dial succeeds
+	// on the first attempt. setupNewSession creates the pane structure with
+	// bare shells; these respawn calls install the actual roost processes.
 	rt.RespawnMainPane()
 	respawnHeaderPane(client, sessionName)
 	respawnSessionsPane(client, sessionName)
-	// respawnHiddenPane must come after StartIPC: the log TUI dials the
-	// Unix socket on startup, and the socket does not exist until StartIPC
-	// returns. Any earlier respawn results in a silent offline-mode boot.
 	respawnHiddenPane(client, sessionName)
 
 	slog.Info("attaching to tmux session")
