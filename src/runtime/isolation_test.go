@@ -11,8 +11,9 @@ import (
 
 // TestNoToolSpecificEnvLiterals guards against tool-specific environment variable
 // names (AWS_*, ANTHROPIC_*, GOOGLE_*, OPENAI_*, etc.) appearing as string literals
-// in generic layers. These names must live exclusively in auth/credproxy/<provider>/
-// or lib/<tool>/ — see ARCHITECTURE.md "Driver/Connector isolation".
+// in generic layers. These names must live exclusively in the credproxy module's
+// providers/<name>/ packages, the local winexec/ package, or lib/<tool>/ —
+// see ARCHITECTURE.md "Driver/Connector isolation".
 //
 // golangci-lint forbidigo cannot detect string literals (only call expressions),
 // so this test acts as the static enforcement gate.
@@ -67,7 +68,7 @@ func TestNoToolSpecificEnvLiterals(t *testing.T) {
 				if bytes.Contains(data, []byte(`"`+kw)) {
 					t.Errorf(
 						"%s contains tool-specific env literal %q\n"+
-							"  → move to auth/credproxy/<provider>/ or lib/<tool>/ (see ARCHITECTURE.md)",
+							"  → move to credproxy providers/<name>/, winexec/, or lib/<tool>/ (see ARCHITECTURE.md)",
 						path, kw,
 					)
 				}

@@ -13,9 +13,6 @@ import (
 	"github.com/takezoh/agent-roost/config"
 )
 
-// TestBroker_RejectsDisallowedExe spins up a real broker, connects a client over
-// Unix socket, sends a request with a name not in the allowlist, and verifies
-// that the broker responds with exit code 1 (no exe execution attempted).
 func TestBroker_RejectsDisallowedExe(t *testing.T) {
 	dir := t.TempDir()
 	sock := filepath.Join(dir, "winexec.sock")
@@ -87,8 +84,6 @@ func TestBroker_RejectsDisallowedExe(t *testing.T) {
 	}
 }
 
-// TestBroker_serveExitsOnContextCancel verifies the accept loop terminates
-// cleanly when the context is cancelled and onStop is invoked exactly once.
 func TestBroker_serveExitsOnContextCancel(t *testing.T) {
 	dir := t.TempDir()
 	sock := filepath.Join(dir, "winexec.sock")
@@ -130,7 +125,6 @@ func TestBroker_serveExitsOnContextCancel(t *testing.T) {
 		t.Errorf("onStop called %d times, want 1", got)
 	}
 
-	// Socket file should be removed by serve's defer.
 	if _, err := os.Stat(sock); !os.IsNotExist(err) {
 		t.Errorf("socket %s still exists after serve exit", sock)
 	}

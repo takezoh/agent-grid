@@ -8,13 +8,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/takezoh/agent-roost/auth/credproxy"
 	"github.com/takezoh/agent-roost/config"
 	"github.com/takezoh/agent-roost/lib/pathmap"
-	"github.com/takezoh/agent-roost/lib/wsl"
 	"github.com/takezoh/agent-roost/sandbox"
 	sandboxdc "github.com/takezoh/agent-roost/sandbox/devcontainer"
 	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/credproxy/container"
 )
 
 // DevcontainerLauncher wraps launches inside per-project devcontainers.
@@ -152,7 +151,7 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 		sb := resolveSandbox(projectPath)
 		dc := sb.Devcontainer
 
-		proxySpec, scriptEnv, err := resolveOverlaySpecs(proxy, projectPath, dc, sb)
+		proxySpec, scriptEnv, err := resolveOverlaySpecs(proxy, projectPath, dc)
 		if err != nil {
 			return sandboxdc.SpecOverlay{}, err
 		}
@@ -167,7 +166,7 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 			return sandboxdc.SpecOverlay{}, fmt.Errorf("devcontainer: install binary: %w", err)
 		}
 
-		env := buildOverlayEnv(scriptEnv, proxySpec, sb)
+		env := buildOverlayEnv(scriptEnv, proxySpec)
 		mounts := append([]string{
 			fmt.Sprintf("type=bind,source=%s,target=%s", runDir, ContainerRunDir),
 		}, proxySpec.Mounts...)
@@ -197,16 +196,16 @@ func resolveWorkspaceFallback(projectPath, prefix string) string {
 	return path.Join(prefix, projectPath)
 }
 
-func resolveOverlaySpecs(proxy *CredProxyRunner, projectPath string, dc config.DevcontainerConfig, sb config.SandboxConfig) (credproxy.Spec, map[string]string, error) {
+func resolveOverlaySpecs(proxy *CredProxyRunner, projectPath string, dc config.DevcontainerConfig) (container.Spec, map[string]string, error) {
 	allow := isProjectEnvScriptAllowed(projectPath, dc.AllowProjectEnvScript)
 	scriptEnv := sandboxdc.RunEnvScript(context.Background(), dc.EnvScript, projectPath, allow)
 
-	var proxySpec credproxy.Spec
+	var proxySpec container.Spec
 	if proxy != nil {
 		specCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		var err error
-		proxySpec, err = proxy.ContainerSpec(specCtx, projectPath, sb)
+		proxySpec, err = proxy.ContainerSpec(specCtx, projectPath)
 		if err != nil {
 			slog.Warn("devcontainer: credproxy spec failed", "project", projectPath, "err", err)
 		}
@@ -214,7 +213,7 @@ func resolveOverlaySpecs(proxy *CredProxyRunner, projectPath string, dc config.D
 	return proxySpec, scriptEnv, nil
 }
 
-func buildOverlayEnv(scriptEnv map[string]string, proxySpec credproxy.Spec, sb config.SandboxConfig) map[string]string {
+func buildOverlayEnv(scriptEnv map[string]string, proxySpec container.Spec) map[string]string {
 	env := make(map[string]string)
 	for k, v := range scriptEnv {
 		env[k] = v
@@ -224,10 +223,6 @@ func buildOverlayEnv(scriptEnv map[string]string, proxySpec credproxy.Spec, sb c
 	}
 	env["ROOST_SOCKET"] = ContainerSockFilePath
 	env["ROOST_DATA_DIR"] = ContainerRunDir
-	if wsl.IsWSL() && len(sb.Proxy.WinExec.AllowedExes) > 0 {
-		// $PATH is expanded by ResolveContainerEnvPlaceholders against image baseline (L1).
-		env["PATH"] = ContainerWinExecShimsDir + ":$PATH"
-	}
 	return env
 }
 

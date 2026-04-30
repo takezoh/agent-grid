@@ -40,7 +40,7 @@ func SendRequest(conn *net.UnixConn, req Request, fds [3]int) error {
 // RecvRequest reads a request and its three stdio fds from conn.
 func RecvRequest(conn *net.UnixConn) (Request, [3]int, error) {
 	buf := make([]byte, 4096)
-	oob := make([]byte, 128) // enough for 3 int32 fds + cmsg header
+	oob := make([]byte, 128)
 	n, oobn, _, _, err := conn.ReadMsgUnix(buf, oob)
 	if err != nil {
 		return Request{}, [3]int{}, fmt.Errorf("winexec: recv request: %w", err)

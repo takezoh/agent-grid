@@ -41,7 +41,6 @@ func TestValidateName_PathTraversal(t *testing.T) {
 }
 
 func TestResolveExe_WithMapping(t *testing.T) {
-	// Resolve values must be WSL paths (e.g. /mnt/c/...), not Windows paths (C:/...).
 	resolve := map[string]string{"code.exe": "/mnt/c/Users/take/vscode/bin/code.exe"}
 	got := resolveExe("code.exe", resolve)
 	if got != "/mnt/c/Users/take/vscode/bin/code.exe" {

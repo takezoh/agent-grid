@@ -9,7 +9,7 @@ import (
 func TestWriteShims_CreatesFiles(t *testing.T) {
 	dir := t.TempDir()
 	exes := []string{"code.exe", "clip.exe"}
-	shimDir, err := writeShims(dir, exes)
+	shimDir, err := writeShims(dir, "/opt/roost/run/roost", exes)
 	if err != nil {
 		t.Fatalf("writeShims: %v", err)
 	}
@@ -35,15 +35,14 @@ func TestWriteShims_Idempotent(t *testing.T) {
 	dir := t.TempDir()
 	exes := []string{"code.exe"}
 
-	if _, err := writeShims(dir, exes); err != nil {
+	if _, err := writeShims(dir, "/opt/roost/run/roost", exes); err != nil {
 		t.Fatalf("first writeShims: %v", err)
 	}
 
 	path := filepath.Join(dir, ShimDirName, "code.exe")
 	info1, _ := os.Stat(path)
 
-	// second call should not rewrite if content is same
-	if _, err := writeShims(dir, exes); err != nil {
+	if _, err := writeShims(dir, "/opt/roost/run/roost", exes); err != nil {
 		t.Fatalf("second writeShims: %v", err)
 	}
 	info2, _ := os.Stat(path)
@@ -55,7 +54,7 @@ func TestWriteShims_Idempotent(t *testing.T) {
 
 func TestWriteShims_ShimContent(t *testing.T) {
 	dir := t.TempDir()
-	if _, err := writeShims(dir, []string{"explorer.exe"}); err != nil {
+	if _, err := writeShims(dir, "/opt/roost/run/roost", []string{"explorer.exe"}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -6,8 +6,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/takezoh/agent-roost/auth/credproxy/winexec"
 	"github.com/takezoh/agent-roost/runtime"
+	"github.com/takezoh/agent-roost/winexec"
 )
 
 func init() {

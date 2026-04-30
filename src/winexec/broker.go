@@ -11,14 +11,13 @@ import (
 	"github.com/takezoh/agent-roost/config"
 )
 
-// broker listens on a per-project Unix socket and handles one exec per connection.
 type broker struct {
 	ctx     context.Context
 	sock    string
 	ln      net.Listener
 	project string
 	cfg     atomic.Pointer[config.WinExecConfig]
-	onStop  func() // called when serve exits, to remove from parent map
+	onStop  func()
 }
 
 func (b *broker) serve() {
@@ -29,7 +28,7 @@ func (b *broker) serve() {
 		conn, err := b.ln.Accept()
 		if err != nil {
 			if b.ctx.Err() != nil {
-				return // context cancelled; normal shutdown
+				return
 			}
 			slog.Warn("winexec: accept error", "project", b.project, "err", err)
 			return

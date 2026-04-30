@@ -176,8 +176,6 @@ keys = ["~/.ssh/id_ed25519"]
 
 Passphrase-protected keys are skipped (a warning is logged). roost does not mount `~/.ssh` — add `known_hosts` entries via `postCreateCommand` (e.g. `ssh-keyscan github.com >> ~/.ssh/known_hosts`).
 
-**GitHub — `GH_TOKEN`.** When the proxy is enabled, the host's `gh auth token` value is injected into the container as `GH_TOKEN` so the `gh` CLI works without bind-mounting `~/.config/gh`.
-
 **WSL2 Windows exe broker (WSL2 only).** Lets containerized agents invoke Windows-side executables (`*.exe`, `*.ps1`) through a host-side broker. A non-empty `allowed_exes` activates the broker; empty / absent disables it. Ignored on non-WSL2 hosts.
 
 ```toml

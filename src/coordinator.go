@@ -217,7 +217,9 @@ func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *co
 		} else if currentHost == "" {
 			slog.Info("sandbox: using default docker socket (rootless not detected)")
 		}
-		runner, err := runtime.StartCredProxy(ctx, dataDir)
+		runner, err := runtime.StartCredProxy(ctx, dataDir, func(project string) config.SandboxConfig {
+			return resolver.Resolve(project)
+		})
 		if err != nil {
 			return nil, fmt.Errorf("sandbox: start in-process credproxy: %w", err)
 		}

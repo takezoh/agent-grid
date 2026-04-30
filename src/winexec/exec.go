@@ -12,7 +12,6 @@ import (
 	"github.com/takezoh/agent-roost/config"
 )
 
-// validateName checks that name is a safe exe basename present in the allowlist.
 func validateName(name string, allowed []string) error {
 	if name == "" {
 		return fmt.Errorf("empty exe name")
@@ -28,9 +27,6 @@ func validateName(name string, allowed []string) error {
 	return fmt.Errorf("exe %q is not in the allowlist", name)
 }
 
-// resolveExe returns the path to exec. If cfg.Resolve contains a mapping for
-// name, that WSL path is used (e.g. /mnt/c/Users/.../code.exe); otherwise
-// name is passed as-is and binfmt_misc resolves it via the daemon's PATH.
 func resolveExe(name string, resolve map[string]string) string {
 	if abs, ok := resolve[name]; ok && abs != "" {
 		return abs
@@ -38,9 +34,6 @@ func resolveExe(name string, resolve map[string]string) string {
 	return name
 }
 
-// executeRequest validates req against cfg, execs /init with the resolved path,
-// attaches the provided fds as stdin/stdout/stderr, and returns the exit code.
-// The fds are always closed before the function returns.
 func executeRequest(ctx context.Context, cfg config.WinExecConfig, project string, req Request, fds [3]int) int {
 	stdin := os.NewFile(uintptr(fds[0]), "stdin")
 	stdout := os.NewFile(uintptr(fds[1]), "stdout")
@@ -65,7 +58,6 @@ func executeRequest(ctx context.Context, cfg config.WinExecConfig, project strin
 		if _, err := os.Stat(req.Cwd); err == nil {
 			cmd.Dir = req.Cwd
 		}
-		// Container-side Cwd doesn't exist on the host; skip (broker's dir is used).
 	}
 
 	if err := cmd.Run(); err != nil {

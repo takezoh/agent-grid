@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// TestSendRecvRequest exercises the SCM_RIGHTS fd-passing round-trip on a
-// socketpair so no filesystem socket is needed.
 func TestSendRecvRequest(t *testing.T) {
 	client, server, err := unixSocketpair()
 	if err != nil {
@@ -18,7 +16,6 @@ func TestSendRecvRequest(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 
-	// Create three dummy fds via pipe pairs (stdin/stdout/stderr surrogates).
 	r0, w0, _ := os.Pipe()
 	r1, w1, _ := os.Pipe()
 	r2, w2, _ := os.Pipe()
@@ -55,7 +52,6 @@ func TestSendRecvRequest(t *testing.T) {
 		t.Errorf("Cwd = %q, want %q", got.Cwd, want.Cwd)
 	}
 
-	// Received fds must be valid (positive).
 	for i, fd := range gotFDs {
 		if fd <= 0 {
 			t.Errorf("gotFDs[%d] = %d, want > 0", i, fd)
@@ -64,7 +60,6 @@ func TestSendRecvRequest(t *testing.T) {
 	}
 }
 
-// TestResponseMarshal verifies Response round-trips through JSON correctly.
 func TestResponseMarshal(t *testing.T) {
 	resp := Response{ExitCode: 42}
 	data, err := json.Marshal(resp)
@@ -80,7 +75,6 @@ func TestResponseMarshal(t *testing.T) {
 	}
 }
 
-// unixSocketpair creates a connected pair of Unix stream sockets.
 func unixSocketpair() (*net.UnixConn, *net.UnixConn, error) {
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {

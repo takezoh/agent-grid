@@ -17,7 +17,8 @@ Roost does not build images. The image name is declared by the user in `devconta
 | `state/` | Holds `LaunchPlan.Project`. Backend-agnostic |
 | `runtime/` | `AgentLauncher` wraps `LaunchPlan` into `WrappedLaunch{Command, Env, Mounts, ContainerSockDir, Cleanup}`. `SandboxDispatcher` resolves which launcher (direct / devcontainer) to use per project via `config.SandboxResolver` |
 | `sandbox/` | `Manager[I any]` interface + backend implementations. Owns container lifecycle only; does not import driver / lib / runtime / tui |
-| `auth/credproxy/` | Credential providers. Tool-specific env var names (`AWS_*`, `GOOGLE_*`, `GH_TOKEN`, `SSH_AUTH_SOCK`) live exclusively here |
+| `credproxy` library (`providers/<name>/`) | AWS SSO / gcloud / ssh-agent providers. Tool-specific env var names (`AWS_*`, `GOOGLE_*`, `SSH_AUTH_SOCK`) live exclusively here |
+| `winexec/` | WSL2 Windows-exe broker — routes `code.exe`, `clip.exe`, etc. from container back to host |
 
 `sandbox/` is tool-agnostic. It does not contain knowledge of any specific tool (e.g. Claude). Tool-specific host paths are declared by the user in `devcontainer.json` or `~/.roost/settings.toml`; they are never hardcoded in Go source.
 
@@ -119,12 +120,12 @@ Bind-mounts are declared in devcontainer.json `mounts`. `sandbox/` does not have
 
 In devcontainer mode roost always runs an in-process HTTP server backed by the `credproxy` library. The server listens on `<dataDir>/run/credproxy.sock` on the host and is bind-mounted per project into each container at `/opt/roost/run/credproxy.sock`. Its lifetime is tied to the roost process — no external daemon is needed. Each provider self-gates on its own configuration and contributes nothing to the container when its settings are empty.
 
-Each provider lives under `auth/credproxy/<name>/` and contributes to the runtime by:
+Providers come from two sources: the external `credproxy` library's `providers/<name>/` packages (AWS SSO, gcloud, ssh-agent) and the local `winexec/` package (WSL2 Windows-exe broker — not a credential, but uses the same `container.Provider` interface). Each provider contributes to the runtime by:
 
-1. Building a `Spec` (env vars to inject into the container, files to materialize under the per-project run dir, optional bearer token).
-2. Registering an HTTP route on the proxy that returns short-lived credentials.
+1. Building a `container.Spec` (env vars to inject, files to materialize under the per-project run dir, optional bind-mounts).
+2. Optionally registering an HTTP route on the proxy server (AWS SSO uses this; others rely on bind-mounts only).
 
-Generic layers (`runtime/`, `sandbox/`, `state/`, `tui/`, `proto/`) never reference tool-specific env var names (`AWS_*`, `GOOGLE_*`, `GH_TOKEN`, `SSH_AUTH_SOCK`). Those names appear only inside the corresponding provider package.
+Generic layers (`runtime/`, `sandbox/`, `state/`, `tui/`, `proto/`) never reference tool-specific env var names (`AWS_*`, `GOOGLE_*`, `SSH_AUTH_SOCK`). Those names appear only inside the corresponding provider package.
 
 ### AWS SSO (multi-profile)
 
@@ -134,8 +135,8 @@ The proxy generates a synthetic `~/.aws/config` inside each container with one `
 
 | Container env var | Value |
 |---|---|
-| `ROOST_AWS_TOKEN` | Ephemeral bearer token (never written to disk) |
-| `ROOST_PROXY_SOCK` | In-container Unix socket path (`/opt/roost/run/credproxy.sock`) |
+| `CREDPROXY_TOKEN` | Ephemeral bearer token (never written to disk) |
+| `CREDPROXY_SOCK` | In-container Unix socket path (`/opt/roost/run/credproxy.sock`) |
 
 The provider calls `aws configure export-credentials --format process --profile <name>` on the host, then falls back to reading `~/.aws/sso/cache/*.json`. `~/.aws/sso/cache` is never bind-mounted — containers obtain short-lived credentials through the proxy only.
 
@@ -158,10 +159,6 @@ Roost spawns an ephemeral `ssh-agent`, loads only the listed key files, and expo
 `SSH_AUTH_SOCK` is injected at both container-creation time (`docker create -e`) and at each frame launch (`docker exec -e`). The per-exec injection means that updating the key list takes effect on the next launch without recreating the container.
 
 Passphrase-protected keys are skipped because `ssh-add` runs non-interactively.
-
-### GitHub
-
-The provider reads the host's `gh auth token` and injects it as `GH_TOKEN` so the `gh` CLI inside the container authenticates without bind-mounting `~/.config/gh`. `GITHUB_TOKEN` is not used because some tools differentiate the two.
 
 ### WSL2 Windows exe broker
 

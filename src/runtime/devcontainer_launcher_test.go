@@ -3,9 +3,8 @@ package runtime
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/auth/credproxy"
-	"github.com/takezoh/agent-roost/config"
 	sandboxdc "github.com/takezoh/agent-roost/sandbox/devcontainer"
+	"github.com/takezoh/credproxy/container"
 )
 
 func TestResolveWorkspaceFallback(t *testing.T) {
@@ -106,7 +105,7 @@ func TestBuildMounts_OmitsRunDirWhenEmpty(t *testing.T) {
 }
 
 func TestBuildOverlayEnv_ContainerPaths(t *testing.T) {
-	env := buildOverlayEnv(nil, credproxy.Spec{}, config.SandboxConfig{})
+	env := buildOverlayEnv(nil, container.Spec{})
 	if got := env["ROOST_SOCKET"]; got != ContainerSockFilePath {
 		t.Errorf("ROOST_SOCKET = %q, want %q", got, ContainerSockFilePath)
 	}

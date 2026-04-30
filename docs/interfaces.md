@@ -292,7 +292,7 @@ src/
 │   ├── launcher.go      AgentLauncher interface + DirectLauncher + WrappedLaunch + container-token wrap
 │   ├── sandbox_dispatcher.go SandboxDispatcher: per-project mode resolution (direct / devcontainer)
 │   ├── devcontainer_launcher.go DevcontainerLauncher: adapts sandbox/devcontainer.Manager to AgentLauncher
-│   ├── credproxy_runner.go Lifecycle for the in-process credproxy server (Unix socket on `<dataDir>/run/credproxy.sock`)
+│   ├── credproxy_runner.go Lifecycle for the in-process credproxy server (Unix socket on `<dataDir>/run/credproxy.sock`; awssso registers an HTTP route, gcloud/sshagent/winexec contribute env+mounts only)
 │   ├── docker_env.go    Auto-detection of rootless docker socket → `DOCKER_HOST`
 │   ├── backends.go      TmuxBackend, PersistBackend, EventLogBackend, FSWatcher interface
 │   ├── panetap.go       PaneTap interface — raw byte stream abstraction over tmux pipe-pane
@@ -324,14 +324,8 @@ src/
 │       ├── spec.go      LoadSpec — parses devcontainer.json (image / build.name / mounts / runArgs / containerEnv / containerUser / remoteUser / workspaceFolder / workspaceMount / postCreateCommand / preExecCommand)
 │       ├── merge.go     Merges user-scope SandboxConfig with the per-project devcontainer spec
 │       └── envscript.go Resolves `${localEnv:VAR}` / `${localWorkspaceFolder*}` / `${containerWorkspaceFolder}` placeholders
-├── auth/                Credential providers exposed to sandboxed agents (tool-specific env var names live here, not in runtime/sandbox/state)
-│   └── credproxy/       In-process HTTP proxy on `<dataDir>/run/credproxy.sock`; provider plugins below
-│       ├── provider.go  Provider interface + registration
-│       ├── awssso/      AWS SSO multi-profile via `credential_process` (synthetic `~/.aws/config`)
-│       ├── gcloudcli/   gcloud SA impersonation (access-token file + `CLOUDSDK_CONFIG`)
-│       ├── sshagent/    Ephemeral ssh-agent (only listed key files loaded)
-│       ├── github/      Injects `GH_TOKEN` from host credential
-│       └── winexec/     WSL2 broker that lets containerized agents invoke Windows-side `*.exe` (e.g. `notify.ps1`)
+├── winexec/             WSL2 broker that lets containerized agents invoke Windows-side `*.exe` (`container.Provider` impl). Tool-specific env var names live here, not in runtime/sandbox/state
+│                        Credential providers (awssso / gcloudcli / sshagent) live in the external `credproxy` library under `providers/<name>/`
 ├── proto/               Typed IPC — Command / Response / ServerEvent sum types
 │   ├── envelope.go      Envelope wire format ({type, req_id, cmd|name, data})
 │   ├── command.go       Command closed sum type (CmdSubscribe, CmdUnsubscribe, CmdEvent, CmdHookEvent (container-only), CmdSurface*, CmdDriverList, CmdPeer*)

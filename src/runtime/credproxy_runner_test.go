@@ -5,40 +5,39 @@ import (
 	"errors"
 	"testing"
 
-	credproxy "github.com/takezoh/agent-roost/auth/credproxy"
-	"github.com/takezoh/agent-roost/config"
-	credproxylib "github.com/takezoh/credproxy/pkg/credproxy"
+	"github.com/takezoh/credproxy/container"
+	credproxylib "github.com/takezoh/credproxy/credproxy"
 )
 
-// stubProvider is a test-only Provider that returns fixed Spec values.
+// stubProvider is a test-only container.Provider that returns fixed Spec values.
 type stubProvider struct {
 	name string
-	spec credproxy.Spec
+	spec container.Spec
 	err  error
 }
 
 func (s *stubProvider) Name() string                 { return s.name }
 func (s *stubProvider) Init() error                  { return nil }
 func (s *stubProvider) Routes() []credproxylib.Route { return nil }
-func (s *stubProvider) ContainerSpec(_ context.Context, _ string, _ config.SandboxConfig) (credproxy.Spec, error) {
+func (s *stubProvider) ContainerSpec(_ context.Context, _ string) (container.Spec, error) {
 	return s.spec, s.err
 }
 
 func TestCredProxyRunner_ContainerSpec_MergesProviders(t *testing.T) {
 	r := &CredProxyRunner{
-		providers: []credproxy.Provider{
-			&stubProvider{name: "p1", spec: credproxy.Spec{
+		providers: []container.Provider{
+			&stubProvider{name: "p1", spec: container.Spec{
 				Env:    map[string]string{"KEY_A": "val_a"},
 				Mounts: []string{"/host/a:/container/a"},
 			}},
-			&stubProvider{name: "p2", spec: credproxy.Spec{
+			&stubProvider{name: "p2", spec: container.Spec{
 				Env:    map[string]string{"KEY_B": "val_b"},
 				Mounts: []string{"/host/b:/container/b"},
 			}},
 		},
 	}
 
-	out, err := r.ContainerSpec(context.Background(), "/project", config.SandboxConfig{})
+	out, err := r.ContainerSpec(context.Background(), "/project")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -55,15 +54,15 @@ func TestCredProxyRunner_ContainerSpec_MergesProviders(t *testing.T) {
 
 func TestCredProxyRunner_ContainerSpec_SkipsFailingProvider(t *testing.T) {
 	r := &CredProxyRunner{
-		providers: []credproxy.Provider{
-			&stubProvider{name: "good", spec: credproxy.Spec{
+		providers: []container.Provider{
+			&stubProvider{name: "good", spec: container.Spec{
 				Env: map[string]string{"KEY_OK": "ok"},
 			}},
 			&stubProvider{name: "bad", err: errors.New("provider down")},
 		},
 	}
 
-	out, err := r.ContainerSpec(context.Background(), "/project", config.SandboxConfig{})
+	out, err := r.ContainerSpec(context.Background(), "/project")
 	if err != nil {
 		t.Fatalf("unexpected top-level error: %v", err)
 	}
@@ -74,7 +73,7 @@ func TestCredProxyRunner_ContainerSpec_SkipsFailingProvider(t *testing.T) {
 
 func TestCredProxyRunner_ContainerSpec_EmptyProviders(t *testing.T) {
 	r := &CredProxyRunner{}
-	out, err := r.ContainerSpec(context.Background(), "/project", config.SandboxConfig{})
+	out, err := r.ContainerSpec(context.Background(), "/project")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
