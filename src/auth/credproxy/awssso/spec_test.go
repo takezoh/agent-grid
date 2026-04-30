@@ -8,12 +8,11 @@ import (
 
 	credproxy "github.com/takezoh/agent-roost/auth/credproxy"
 	"github.com/takezoh/agent-roost/config"
-	credproxylib "github.com/takezoh/credproxy/pkg/credproxy"
 )
 
 func TestSpecBuilder_emptyProfiles_zeroSpec(t *testing.T) {
 	runBase := t.TempDir()
-	b := NewSpecBuilder(filepath.Join(runBase, "credproxy.sock"), "tok", runBase)
+	b := NewSpecBuilder(filepath.Join(runBase, "credproxy.sock"), runBase, func(string) (string, error) { return "tok", nil })
 	spec, err := b.ContainerSpec(context.Background(), "/proj", config.SandboxConfig{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -27,7 +26,7 @@ func TestSpecBuilder_withProfiles_returnsEnvAndFiles(t *testing.T) {
 	withFakeAWS(t)
 	runBase := t.TempDir()
 	sockPath := filepath.Join(runBase, "credproxy.sock")
-	b := NewSpecBuilder(sockPath, "mytoken", runBase)
+	b := NewSpecBuilder(sockPath, runBase, func(string) (string, error) { return "mytoken", nil })
 	sb := config.SandboxConfig{
 		Proxy: config.ProxyConfig{AWSProfiles: []string{"default", "prod"}},
 	}
@@ -61,18 +60,19 @@ func TestSpecBuilder_withProfiles_returnsEnvAndFiles(t *testing.T) {
 		t.Errorf("aws-creds.sh not created in run dir: %v", err)
 	}
 
-	// Profiles in the config must be accepted by the shared provider.
+	// Profiles in the config must be accepted for this project's token_id.
+	projectID := credproxy.ProjectRunHash("/myproject")
 	provider := b.Routes()[0].Provider.(*Provider)
-	_, err = provider.Get(context.Background(), credproxylib.Request{Path: "/prod"})
+	_, err = provider.Get(context.Background(), req(projectID, "/prod"))
 	if err != nil {
 		t.Errorf("provider.Get(/prod): unexpected error: %v", err)
 	}
-	_, err = provider.Get(context.Background(), credproxylib.Request{Path: "/"})
+	_, err = provider.Get(context.Background(), req(projectID, "/"))
 	if err != nil {
 		t.Errorf("provider.Get(/): unexpected error (default should be allowed): %v", err)
 	}
 	// Profile not in aws_profiles must be rejected.
-	_, err = provider.Get(context.Background(), credproxylib.Request{Path: "/other"})
+	_, err = provider.Get(context.Background(), req(projectID, "/other"))
 	if err == nil {
 		t.Errorf("provider.Get(/other): expected error for unlisted profile, got nil")
 	}
@@ -82,14 +82,14 @@ func TestSpecBuilder_withProfiles_returnsEnvAndFiles(t *testing.T) {
 // called with profiles, the provider rejects all requests.
 func TestSpecBuilder_NoProfiles_provider_remains_strict(t *testing.T) {
 	runBase := t.TempDir()
-	b := NewSpecBuilder(filepath.Join(runBase, "credproxy.sock"), "tok", runBase)
+	b := NewSpecBuilder(filepath.Join(runBase, "credproxy.sock"), runBase, func(string) (string, error) { return "tok", nil })
 
 	provider := b.Routes()[0].Provider.(*Provider)
-	_, err := provider.Get(context.Background(), credproxylib.Request{Path: "/master"})
+	_, err := provider.Get(context.Background(), req("unknown-project", "/master"))
 	if err == nil {
 		t.Errorf("expected rejection for unlisted profile on empty allowlist, got nil")
 	}
-	_, err = provider.Get(context.Background(), credproxylib.Request{Path: "/"})
+	_, err = provider.Get(context.Background(), req("unknown-project", "/"))
 	if err == nil {
 		t.Errorf("expected rejection for default profile on empty allowlist, got nil")
 	}

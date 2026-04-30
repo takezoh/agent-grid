@@ -49,12 +49,21 @@ func withFakeAWS(t *testing.T) {
 	t.Setenv("PATH", dir+":"+origPath)
 }
 
+func req(projectID, path string) credproxylib.Request {
+	r := credproxylib.Request{Path: path}
+	if projectID != "" {
+		r.Metadata = map[string]string{"token_id": projectID}
+	}
+	return r
+}
+
 // TestGet_DefaultProfile verifies that a request with no profile returns Version:1 process credentials.
 func TestGet_DefaultProfile(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New([]string{"default"})
-	inj, err := p.Get(context.Background(), credproxylib.Request{Path: "/"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"default"})
+	inj, err := p.Get(context.Background(), req("proj-A", "/"))
 	require.NoError(t, err)
 	require.NotNil(t, inj)
 
@@ -69,8 +78,9 @@ func TestGet_DefaultProfile(t *testing.T) {
 func TestGet_NamedProfile(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New([]string{"master"})
-	inj, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master"})
+	inj, err := p.Get(context.Background(), req("proj-A", "/master"))
 	require.NoError(t, err)
 
 	var creds processCredentials
@@ -82,10 +92,11 @@ func TestGet_NamedProfile(t *testing.T) {
 func TestGet_PerProfileCacheIsolation(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New([]string{"master", "general"})
-	injMaster, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master", "general"})
+	injMaster, err := p.Get(context.Background(), req("proj-A", "/master"))
 	require.NoError(t, err)
-	injGeneral, err := p.Get(context.Background(), credproxylib.Request{Path: "/general"})
+	injGeneral, err := p.Get(context.Background(), req("proj-A", "/general"))
 	require.NoError(t, err)
 
 	var cm, cg processCredentials
@@ -99,13 +110,14 @@ func TestGet_PerProfileCacheIsolation(t *testing.T) {
 func TestCache_ReusesWithinMargin(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New([]string{"master"})
-	inj1, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master"})
+	inj1, err := p.Get(context.Background(), req("proj-A", "/master"))
 	require.NoError(t, err)
 
 	t.Setenv("PATH", "")
 
-	inj2, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
+	inj2, err := p.Get(context.Background(), req("proj-A", "/master"))
 	require.NoError(t, err)
 	assert.Equal(t, inj1.BodyReplace, inj2.BodyReplace)
 }
@@ -114,14 +126,15 @@ func TestCache_ReusesWithinMargin(t *testing.T) {
 func TestRefresh_ClearsCacheAndRefetches(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New([]string{"master"})
-	_, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master"})
+	_, err := p.Get(context.Background(), req("proj-A", "/master"))
 	require.NoError(t, err)
 	p.mu.Lock()
 	assert.NotNil(t, p.cache["master"])
 	p.mu.Unlock()
 
-	inj, err := p.Refresh(context.Background(), credproxylib.Request{Path: "/master"})
+	inj, err := p.Refresh(context.Background(), req("proj-A", "/master"))
 	require.NoError(t, err)
 
 	var creds processCredentials
@@ -137,13 +150,14 @@ func TestRefresh_ClearsCacheAndRefetches(t *testing.T) {
 func TestCache_Expiry(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New([]string{"master"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master"})
 	expiredBody, _ := json.Marshal(processCredentials{Version: 1, AccessKeyId: "EXPIRED"})
 	p.mu.Lock()
 	p.cache["master"] = &cachedCreds{body: expiredBody, expires: time.Now().Add(-1 * time.Second)}
 	p.mu.Unlock()
 
-	inj, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
+	inj, err := p.Get(context.Background(), req("proj-A", "/master"))
 	require.NoError(t, err)
 
 	var creds processCredentials
@@ -177,8 +191,9 @@ func TestContainerEnv(t *testing.T) {
 func TestGet_RejectUnlistedProfile(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New([]string{"master"})
-	_, err := p.Get(context.Background(), credproxylib.Request{Path: "/general"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master"})
+	_, err := p.Get(context.Background(), req("proj-A", "/general"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "general")
 
@@ -193,29 +208,72 @@ func TestGet_RejectUnlistedProfile(t *testing.T) {
 func TestGet_RejectDefaultWhenNotListed(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New([]string{"master"})
-	_, err := p.Get(context.Background(), credproxylib.Request{Path: "/"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master"})
+	_, err := p.Get(context.Background(), req("proj-A", "/"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "default")
 }
 
-// TestAllowProfiles_Union verifies that AllowProfiles grows the allowlist additively.
-func TestAllowProfiles_Union(t *testing.T) {
+// TestGet_UnknownProject verifies that a request from an unregistered project is rejected.
+func TestGet_UnknownProject(t *testing.T) {
 	withFakeAWS(t)
 
-	p := New(nil)
-	p.AllowProfiles([]string{"a"})
-	p.AllowProfiles([]string{"b"})
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master"})
+	_, err := p.Get(context.Background(), req("proj-B", "/master"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "proj-B")
+}
 
-	injA, err := p.Get(context.Background(), credproxylib.Request{Path: "/a"})
+// TestGet_ProjectIsolation verifies the core threat model: project A's profiles
+// are not accessible using project B's token_id.
+func TestGet_ProjectIsolation(t *testing.T) {
+	withFakeAWS(t)
+
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"A-admin"})
+	p.SetAllowedProfiles("proj-B", []string{"B-readonly"})
+
+	// proj-B cannot access proj-A's profile.
+	_, err := p.Get(context.Background(), req("proj-B", "/A-admin"))
+	require.Error(t, err, "proj-B must not access proj-A profile")
+
+	// proj-A cannot access proj-B's profile.
+	_, err = p.Get(context.Background(), req("proj-A", "/B-readonly"))
+	require.Error(t, err, "proj-A must not access proj-B profile")
+
+	// Each project can access its own profile.
+	_, err = p.Get(context.Background(), req("proj-A", "/A-admin"))
 	require.NoError(t, err)
-	require.NotNil(t, injA)
-
-	injB, err := p.Get(context.Background(), credproxylib.Request{Path: "/b"})
+	_, err = p.Get(context.Background(), req("proj-B", "/B-readonly"))
 	require.NoError(t, err)
-	require.NotNil(t, injB)
+}
 
-	_, err = p.Get(context.Background(), credproxylib.Request{Path: "/c"})
+// TestSetAllowedProfiles_Replace verifies that SetAllowedProfiles replaces, not unions.
+func TestSetAllowedProfiles_Replace(t *testing.T) {
+	withFakeAWS(t)
+
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"old-profile"})
+	p.SetAllowedProfiles("proj-A", []string{"new-profile"})
+
+	// old-profile must no longer be accessible.
+	_, err := p.Get(context.Background(), req("proj-A", "/old-profile"))
+	require.Error(t, err, "old-profile must be removed after replace")
+
+	// new-profile must be accessible.
+	_, err = p.Get(context.Background(), req("proj-A", "/new-profile"))
+	require.NoError(t, err)
+}
+
+// TestGet_NoMetadata verifies that a request with no Metadata (empty token_id) is rejected.
+func TestGet_NoMetadata(t *testing.T) {
+	withFakeAWS(t)
+
+	p := New()
+	p.SetAllowedProfiles("proj-A", []string{"master"})
+	_, err := p.Get(context.Background(), credproxylib.Request{Path: "/master"})
 	require.Error(t, err)
 }
 

@@ -53,35 +53,33 @@ type cachedCreds struct {
 // serves them as a credential_process-compatible JSON body (BodyReplace).
 // Credentials are cached per profile with a 60-second early-refresh margin.
 //
-// Only profiles explicitly registered via AllowProfiles are served; requests for
-// other profiles are rejected with an error.
+// Access is gated per project: only profiles registered for the requesting
+// project (identified by Request.Metadata["token_id"]) are served.
 type Provider struct {
 	mu      sync.Mutex
-	cache   map[string]*cachedCreds // keyed by profile name ("" = default)
-	allowed map[string]struct{}     // keyed by config name ("default", "prod", …)
+	cache   map[string]*cachedCreds        // keyed by profile name ("" = default)
+	allowed map[string]map[string]struct{} // projectID → set of allowed profile keys
 }
 
 const refreshMargin = 60 * time.Second
 
-// New creates a Provider. initial is the starting allowlist (may be nil).
-func New(initial []string) *Provider {
-	p := &Provider{
+// New creates a Provider with an empty per-project allowlist.
+func New() *Provider {
+	return &Provider{
 		cache:   make(map[string]*cachedCreds),
-		allowed: make(map[string]struct{}),
+		allowed: make(map[string]map[string]struct{}),
 	}
-	for _, name := range initial {
-		p.allowed[name] = struct{}{}
-	}
-	return p
 }
 
-// AllowProfiles adds profiles to the process-wide union allowlist.
-// This is the only entry point that gates which AWS profiles the proxy will serve.
-func (p *Provider) AllowProfiles(profiles []string) {
-	p.mu.Lock()
+// SetAllowedProfiles replaces the profile allowlist for projectID.
+// Subsequent calls replace the previous set; this is not a union.
+func (p *Provider) SetAllowedProfiles(projectID string, profiles []string) {
+	set := make(map[string]struct{}, len(profiles))
 	for _, name := range profiles {
-		p.allowed[name] = struct{}{}
+		set[allowKey(name)] = struct{}{}
 	}
+	p.mu.Lock()
+	p.allowed[projectID] = set
 	p.mu.Unlock()
 }
 
@@ -95,35 +93,49 @@ func allowKey(profile string) string {
 }
 
 func (p *Provider) Get(ctx context.Context, req credproxylib.Request) (*credproxylib.Injection, error) {
+	projectID := req.Metadata["token_id"]
 	profile := profileFromPath(req.Path)
 	key := allowKey(profile)
+
 	p.mu.Lock()
-	_, ok := p.allowed[key]
-	if ok {
-		if c := p.cache[profile]; c != nil && time.Now().Add(refreshMargin).Before(c.expires) {
-			body := c.body
-			p.mu.Unlock()
-			return &credproxylib.Injection{BodyReplace: body}, nil
-		}
+	set, hasProject := p.allowed[projectID]
+	if !hasProject {
+		p.mu.Unlock()
+		return nil, fmt.Errorf("awssso: no allowlist for project %q", projectID)
+	}
+	_, ok := set[key]
+	if c := p.cache[profile]; ok && c != nil && time.Now().Add(refreshMargin).Before(c.expires) {
+		body := c.body
+		p.mu.Unlock()
+		return &credproxylib.Injection{BodyReplace: body}, nil
 	}
 	p.mu.Unlock()
 	if !ok {
-		return nil, fmt.Errorf("awssso: profile %q not in allowlist", key)
+		return nil, fmt.Errorf("awssso: profile %q not allowed for project %q", key, projectID)
 	}
 	return p.fetch(ctx, profile)
 }
 
 func (p *Provider) Refresh(ctx context.Context, req credproxylib.Request) (*credproxylib.Injection, error) {
+	projectID := req.Metadata["token_id"]
 	profile := profileFromPath(req.Path)
 	key := allowKey(profile)
+
 	p.mu.Lock()
-	_, ok := p.allowed[key]
-	if ok {
-		delete(p.cache, profile)
+	set, hasProject := p.allowed[projectID]
+	var allowed bool
+	if hasProject {
+		if _, allowed = set[key]; allowed {
+			delete(p.cache, profile)
+		}
 	}
 	p.mu.Unlock()
-	if !ok {
-		return nil, fmt.Errorf("awssso: profile %q not in allowlist", key)
+
+	if !hasProject {
+		return nil, fmt.Errorf("awssso: no allowlist for project %q", projectID)
+	}
+	if !allowed {
+		return nil, fmt.Errorf("awssso: profile %q not allowed for project %q", key, projectID)
 	}
 	return p.fetch(ctx, profile)
 }

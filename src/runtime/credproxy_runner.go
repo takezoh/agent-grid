@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 
 	credproxy "github.com/takezoh/agent-roost/auth/credproxy"
 	"github.com/takezoh/agent-roost/auth/credproxy/awssso"
@@ -24,21 +25,41 @@ import (
 type CredProxyRunner struct {
 	srv       *credproxylib.Server
 	providers []credproxy.Provider
+
+	mu     sync.Mutex
+	tokens map[string]string // projectPath → bearer token
+}
+
+// ProjectToken returns the bearer token for projectPath, generating and registering
+// a new one if none exists yet. Safe for concurrent use.
+func (r *CredProxyRunner) ProjectToken(projectPath string) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if t, ok := r.tokens[projectPath]; ok {
+		return t, nil
+	}
+	token, err := generateToken()
+	if err != nil {
+		return "", fmt.Errorf("credproxy: generate token for %s: %w", projectPath, err)
+	}
+	projectID := credproxy.ProjectRunHash(projectPath)
+	r.srv.AddAuthToken(token, projectID)
+	r.tokens[projectPath] = token
+	return token, nil
 }
 
 // StartCredProxy starts an in-process credential proxy and registers all built-in
 // providers. The returned runner's ContainerSpec method is the only entry point
 // for docker_launcher — it contains no provider-specific logic.
 func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, error) {
-	token, err := generateToken()
-	if err != nil {
-		return nil, fmt.Errorf("credproxy: generate token: %w", err)
-	}
-
 	runBase := dataDir + "/run"
 	sockPath := filepath.Join(runBase, "credproxy.sock")
 
-	awsSpec := awssso.NewSpecBuilder(sockPath, token, runBase)
+	// runner is constructed first so its bound method (runner.ProjectToken) can be
+	// passed to awsSpec before the server is wired up.
+	runner := &CredProxyRunner{tokens: make(map[string]string)}
+
+	awsSpec := awssso.NewSpecBuilder(sockPath, runBase, runner.ProjectToken)
 	gcpSpec := gcloudcli.NewSpecBuilder(ctx, dataDir+"/gcp", runBase)
 	sshSpec := sshagent.NewSpecBuilder(ctx, runBase)
 	winExecSpec := winexec.NewSpecBuilder(ctx, runBase)
@@ -51,7 +72,6 @@ func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, erro
 
 	srv, err := credproxylib.New(credproxylib.ServerConfig{
 		ListenUnix: sockPath,
-		AuthTokens: []string{token},
 		Routes:     routes,
 	})
 	if err != nil {
@@ -64,12 +84,15 @@ func StartCredProxy(ctx context.Context, dataDir string) (*CredProxyRunner, erro
 		}
 	}
 
+	runner.srv = srv
+	runner.providers = providers
+
 	go func() {
 		_ = srv.Run(ctx)
 		_ = os.Remove(sockPath)
 	}()
 
-	return &CredProxyRunner{srv: srv, providers: providers}, nil
+	return runner, nil
 }
 
 // ContainerSpec fans out to all providers and merges their Env and Mounts.

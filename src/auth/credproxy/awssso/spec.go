@@ -16,10 +16,10 @@ import (
 // It generates a synthetic AWS config and credential helper per project
 // when aws_profiles are configured.
 type SpecBuilder struct {
-	sockHostPath string // host-side Unix socket path (e.g. <dataDir>/run/credproxy.sock)
-	token        string
-	runBase      string    // parent of per-project run dirs bound into containers at /opt/roost/run
-	provider     *Provider // shared Provider whose allowlist grows with each ContainerSpec call
+	sockHostPath string                       // host-side Unix socket path (e.g. <dataDir>/run/credproxy.sock)
+	runBase      string                       // parent of per-project run dirs bound into containers at /opt/roost/run
+	tokenFor     func(string) (string, error) // returns per-project bearer token; called lazily on first use
+	provider     *Provider
 }
 
 // NewSpecBuilder creates a SpecBuilder.
@@ -27,12 +27,13 @@ type SpecBuilder struct {
 // (e.g. <dataDir>/run/credproxy.sock); it is bind-mounted per-project into
 // the container at containerSockPath.
 // runBase is the parent of per-project run dirs (e.g. <dataDir>/run).
-func NewSpecBuilder(sockHostPath, token, runBase string) *SpecBuilder {
+// tokenFor returns (or lazily creates) the bearer token for a given project path.
+func NewSpecBuilder(sockHostPath, runBase string, tokenFor func(string) (string, error)) *SpecBuilder {
 	return &SpecBuilder{
 		sockHostPath: sockHostPath,
-		token:        token,
 		runBase:      runBase,
-		provider:     New(nil),
+		tokenFor:     tokenFor,
+		provider:     New(),
 	}
 }
 
@@ -62,9 +63,16 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string, sb co
 	if len(profiles) == 0 {
 		return credproxy.Spec{}, nil
 	}
-	b.provider.AllowProfiles(profiles)
 
-	projectRunDir := filepath.Join(b.runBase, credproxy.ProjectRunHash(projectPath))
+	projectID := credproxy.ProjectRunHash(projectPath)
+	b.provider.SetAllowedProfiles(projectID, profiles)
+
+	token, err := b.tokenFor(projectPath)
+	if err != nil {
+		return credproxy.Spec{}, fmt.Errorf("awssso: get token for %s: %w", projectPath, err)
+	}
+
+	projectRunDir := filepath.Join(b.runBase, projectID)
 	if err := os.MkdirAll(projectRunDir, 0o700); err != nil {
 		return credproxy.Spec{}, fmt.Errorf("awssso: mkdir run dir: %w", err)
 	}
@@ -81,7 +89,7 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string, sb co
 		return credproxy.Spec{}, fmt.Errorf("awssso: write config for %s: %w", projectPath, err)
 	}
 
-	env := ContainerEnv(b.token)
+	env := ContainerEnv(token)
 	env["AWS_CONFIG_FILE"] = "/opt/roost/run/aws-config"
 
 	mount := fmt.Sprintf("type=bind,source=%s,target=%s", b.sockHostPath, ContainerSockPath)
