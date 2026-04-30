@@ -206,14 +206,15 @@ func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *co
 		if _, err := exec.LookPath("docker"); err != nil {
 			return nil, fmt.Errorf("sandbox: devcontainer mode requires docker in PATH: %w", err)
 		}
+		currentHost := os.Getenv("DOCKER_HOST")
 		if host := runtime.ResolveDockerHost(
-			os.Getenv("DOCKER_HOST"),
+			currentHost,
 			os.Getenv("XDG_RUNTIME_DIR"),
 			func(p string) bool { _, err := os.Stat(p); return err == nil },
 		); host != "" {
 			_ = os.Setenv("DOCKER_HOST", host)
 			slog.Info("sandbox: rootless docker detected", "DOCKER_HOST", host)
-		} else if os.Getenv("DOCKER_HOST") == "" {
+		} else if currentHost == "" {
 			slog.Info("sandbox: using default docker socket (rootless not detected)")
 		}
 		var err error
