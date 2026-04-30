@@ -1,5 +1,7 @@
 # Sandbox Backends
 
+User-facing setup (devcontainer.json, `[sandbox.*]` settings, credential proxy provider config) lives in the [README](../README.md#sandbox). This document covers the architecture, security model, and lifecycle.
+
 ## Purpose
 
 Sandbox backends isolate agent processes per project — each project directory runs inside its own container with scoped filesystem, network, and capability restrictions.
@@ -13,10 +15,11 @@ Roost does not build images. The image name is declared by the user in `devconta
 | Layer | Sandbox role |
 |---|---|
 | `state/` | Holds `LaunchPlan.Project`. Backend-agnostic |
-| `runtime/` | `AgentLauncher` wraps `LaunchPlan` into `WrappedLaunch{Command, Cleanup}`. `SandboxDispatcher` resolves which launcher (direct / devcontainer) to use per project |
+| `runtime/` | `AgentLauncher` wraps `LaunchPlan` into `WrappedLaunch{Command, Env, Mounts, ContainerSockDir, Cleanup}`. `SandboxDispatcher` resolves which launcher (direct / devcontainer) to use per project via `config.SandboxResolver` |
 | `sandbox/` | `Manager[I any]` interface + backend implementations. Owns container lifecycle only; does not import driver / lib / runtime / tui |
+| `auth/credproxy/` | Credential providers. Tool-specific env var names (`AWS_*`, `GOOGLE_*`, `GH_TOKEN`, `SSH_AUTH_SOCK`) live exclusively here |
 
-`sandbox/` is tool-agnostic. It does not contain knowledge of any specific tool (e.g. Claude). Tool-specific host paths are declared by the user in `~/.roost/settings.toml`; they are never hardcoded in Go source.
+`sandbox/` is tool-agnostic. It does not contain knowledge of any specific tool (e.g. Claude). Tool-specific host paths are declared by the user in `devcontainer.json` or `~/.roost/settings.toml`; they are never hardcoded in Go source.
 
 ## Design Decisions
 
@@ -35,40 +38,15 @@ Roost does not build images. The image name is declared by the user in `devconta
 `AgentLauncher.WrapLaunch` → `EnsureInstance` (singleflight-serialized per project) → `AcquireFrame` → the resulting `WrappedLaunch` is embedded in `EffSpawnTmuxWindow`
 
 **Warm start**
-`AdoptFrame` reclaims the still-running container and increments the ref-count for each restored frame
+`AdoptFrame` reclaims the still-running container and increments the ref-count for each restored frame; `RecoverSandboxFrames` replays per-frame bearer tokens from `<dataDir>/warm/`
 
 **Frame exit / shutdown**
 `Cleanup` callback → `ReleaseFrame` → if count reaches zero → `DestroyInstance`
 
 **Daemon startup**
-`PruneOrphans` kills containers outside the known project set
+`PruneOrphans` kills containers outside the known project set; `<dataDir>/warm/` is wiped at cold start
 
 ## Devcontainer Backend
-
-### Image Preparation
-
-Roost does not build images. Build them outside roost by any means (e.g. `devcontainer build`, `docker build`) and declare the resulting tag in the project's `.devcontainer/devcontainer.json`:
-
-```jsonc
-// Option A — use a pre-existing image directly
-{ "image": "myproject:dev" }
-
-// Option B — Dockerfile-based project: set build.name (roost extension) as the tag
-{
-  "build": {
-    "dockerfile": "Dockerfile",
-    "name": "myproject:dev"  // roost reads this as the image to use
-  }
-}
-```
-
-Then build and tag the image yourself before starting a session:
-
-```sh
-devcontainer build --workspace-folder . --image-name myproject:dev
-# or
-docker build -t myproject:dev .
-```
 
 ### Image Resolution
 
@@ -78,7 +56,7 @@ At session start, `LoadSpec` reads the image name from `.devcontainer/devcontain
 2. Else if `build.name` is set → use it.
 3. Neither found → error: `devcontainer.json: image or build.name is required`.
 
-The image must already exist locally (or be pullable by docker on first `docker create`).
+The image must already exist locally (or be pullable by docker on first `docker create`). roost never invokes a build.
 
 ### Container Identity
 
@@ -87,21 +65,15 @@ One long-lived container per project idles between frame activations. Frames joi
 - Container name: `roost-<sha256[:6] of project path>`
 - Labels: `roost-managed=1`, `roost-project=<abs-path>`
 
-Multiple projects can share the same image name (declare the same `image:` or `build.name`). Each project still gets its own container.
+Multiple projects can share the same image name; each project still gets its own container.
 
 ### Workspace Mount
 
-The project directory is bind-mounted into the container:
+The project directory is bind-mounted into the container. By default the container-side path mirrors the host path exactly (e.g. host `/home/u/proj` → container `/home/u/proj`), so editor path resolution and CLI commands work without translation.
 
-```
-<project-path>  →  /workspaces/<project-basename>
-```
+`workspaceMount` in devcontainer.json overrides the bind-mount entirely. `host_path_mount_prefix` (roost setting) prepends a fixed prefix (e.g. `/mnt`) when devcontainer.json does not pin the workspace path. Working directory is set via `docker create -w` — no `WORKDIR` is needed in the Dockerfile.
 
-Override with `workspaceMount` in devcontainer.json. Additional mounts are declared in the `mounts` array of devcontainer.json. The working directory is set via `docker create -w` — no `WORKDIR` is needed in the Dockerfile.
-
-### devcontainer.json Support
-
-Keys parsed from devcontainer.json:
+### devcontainer.json Keys Honored by roost
 
 | Key | Effect |
 |---|---|
@@ -111,15 +83,13 @@ Keys parsed from devcontainer.json:
 | `containerEnv` | Environment variables injected via `-e` |
 | `containerUser` | User for `docker create -u` |
 | `remoteUser` | User for `docker exec -u` (takes precedence over `containerUser`) |
-| `workspaceFolder` | Container-side workspace path (default: `/workspaces/<basename>`) |
+| `workspaceFolder` | Container-side workspace path (default: mirror of host path) |
 | `workspaceMount` | Replaces the default workspace bind-mount |
-| `runArgs` | Extra args appended to `docker create` |
+| `runArgs` | Extra args appended to `docker create` (resource limits, capabilities, etc.) |
 | `postCreateCommand` | Command (string or array) run once after the container is created |
-| `preExecCommand` | Shell string (roost extension) run inside the container before each `docker exec` launch, with cwd already set to the exec workdir. Default: `mise trust 2>/dev/null \|\| true`. |
+| `preExecCommand` | Shell string (roost extension) run inside the container before each `docker exec` launch |
 
-Variable substitution in string values: `${localWorkspaceFolder}`, `${localWorkspaceFolderBasename}`, `${containerWorkspaceFolder}`, `${localEnv:VAR}`.
-
-All other keys (e.g. `features`, `customizations`) are ignored.
+Variable substitution in string values: `${localWorkspaceFolder}`, `${localWorkspaceFolderBasename}`, `${containerWorkspaceFolder}`, `${localEnv:VAR}`. All other devcontainer.json keys (`features`, `customizations`, …) are ignored.
 
 ### Crash Recovery
 
@@ -137,148 +107,74 @@ Each sandboxed project gets a dedicated Unix socket at `<dataDir>/run/<project-h
 
 **Cold start**: `warm/` is wiped before `LoadSnapshot` runs, ensuring stale tokens from a previous run do not survive a session-destroying restart.
 
+## Container↔Host Path Translation
+
+Sandboxed agents emit hook payloads containing container-absolute paths (e.g. `/workspaces/proj/.../session.jsonl`), but the daemon, drivers, and TUI operate on host-absolute paths. `lib/pathmap` translates at the IPC boundary using the bind-mount table captured in `WrappedLaunch.Mounts`. State, runtime above the launcher, proto, and TUI never see container paths.
+
 ## Host Mounts
 
-Bind-mounts into containers are declared in devcontainer.json `mounts`:
-
-```json
-{
-  "mounts": [
-    "type=bind,source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,consistency=cached"
-  ]
-}
-```
-
-`sandbox/` does not have a global host-mounts config for arbitrary paths. Tool-specific paths belong in project or user devcontainer.json, keeping the sandbox layer tool-agnostic.
-
-### Workspace mount target
-
-roost automatically bind-mounts the project directory into the container. By default the container-side path mirrors the host path exactly (e.g. host `/home/u/proj` → container `/home/u/proj`), so editor path resolution and CLI commands work without translation.
-
-If you need the workspace under a different prefix inside the container, set `host_path_mount_prefix` in `~/.roost/settings.toml`:
-
-```toml
-[sandbox.devcontainer]
-host_path_mount_prefix = "/mnt"
-# host /home/u/proj → container /mnt/home/u/proj
-```
-
-This setting is ignored when devcontainer.json explicitly specifies `workspaceFolder` or `workspaceMount`, which always take priority.
+Bind-mounts are declared in devcontainer.json `mounts`. `sandbox/` does not have a global host-mounts config for arbitrary paths — tool-specific paths belong in project or user devcontainer.json, keeping the sandbox layer tool-agnostic.
 
 ## Credential Proxy
 
-When `[sandbox.proxy] enabled = true`, roost starts an in-process HTTP proxy backed by the `credproxy` library. The proxy listens on a Unix socket at `<dataDir>/run/credproxy.sock` on the host and is bind-mounted per-project into the container at `/opt/roost/run/credproxy.sock`. Its lifetime is tied to the roost process — no external daemon is needed.
+When the proxy is enabled, roost runs an in-process HTTP server backed by the `credproxy` library. The server listens on `<dataDir>/run/credproxy.sock` on the host and is bind-mounted per project into each container at `/opt/roost/run/credproxy.sock`. Its lifetime is tied to the roost process — no external daemon is needed.
 
-### AWS SSO Credentials (multi-profile)
+Each provider lives under `auth/credproxy/<name>/` and contributes to the runtime by:
 
-The proxy generates a synthetic `~/.aws/config` inside each container. Every profile entry uses `credential_process` to call back to the roost proxy via a small helper script (`/opt/roost/run/aws-creds.sh`). The config, the script, and the proxy socket are available under `/opt/roost/run`; no credentials are stored inside the container.
+1. Building a `Spec` (env vars to inject into the container, files to materialize under the per-project run dir, optional bearer token).
+2. Registering an HTTP route on the proxy that returns short-lived credentials.
+
+Generic layers (`runtime/`, `sandbox/`, `state/`, `tui/`, `proto/`) never reference tool-specific env var names (`AWS_*`, `GOOGLE_*`, `GH_TOKEN`, `SSH_AUTH_SOCK`). Those names appear only inside the corresponding provider package.
+
+### AWS SSO (multi-profile)
+
+The proxy generates a synthetic `~/.aws/config` inside each container with one `[profile <name>]` per profile listed in the project config. Each profile entry uses `credential_process` to call back to the roost proxy via a small helper script (`/opt/roost/run/aws-creds.sh`). The config, the script, and the proxy socket are available under `/opt/roost/run`; no AWS credentials are stored inside the container.
 
 **Proxy route:** `/aws-credentials/<profile>` — returns `credential_process`-format JSON (`Version:1`, `AccessKeyId`, `SecretAccessKey`, `SessionToken`, `Expiration`).
-
-Two container env vars carry the proxy coordinates:
 
 | Container env var | Value |
 |---|---|
 | `ROOST_AWS_TOKEN` | Ephemeral bearer token (never written to disk) |
 | `ROOST_PROXY_SOCK` | In-container Unix socket path (`/opt/roost/run/credproxy.sock`) |
 
-**Per-project profile configuration** — in the project's `.roost/settings.toml`:
-
-```toml
-# <project-root>/.roost/settings.toml
-[sandbox.proxy]
-aws_profiles = ["default", "master", "general"]
-```
-
-Each name in the array appears as a `[profile <name>]` section in the synthetic `~/.aws/config`. Including `"default"` adds a `[default]` section so `aws` commands without `--profile` also work. Profiles not listed are not reachable from the container. If `aws_profiles` is absent or empty, no synthetic config is mounted and AWS proxy is a no-op for that project.
-
-Enable the proxy in the global `~/.roost/settings.toml`:
-
-```toml
-[sandbox.proxy]
-enabled = true
-```
-
-The provider calls `aws configure export-credentials --format process --profile <name>` on the host, then falls back to reading `~/.aws/sso/cache/*.json`. Run `aws sso login` on the host before starting containers. `~/.aws/sso/cache` is never bind-mounted — containers obtain short-lived credentials through the proxy only.
-
-**Container image requirement:** `curl` must be available (present in standard base images; document explicitly for minimal images).
-
-### Claude Code (Subscription)
-
-Claude Code uses OAuth subscription credentials stored in `~/.claude/.credentials.json`. Container-side auth state is determined by the presence of this file; environment variables alone are not sufficient for the interactive UI to show a logged-in state.
-
-Declare the bind-mount in devcontainer.json to expose the credential store:
-
-```json
-{
-  "mounts": [
-    "type=bind,source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,consistency=cached",
-    "type=bind,source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,consistency=cached"
-  ]
-}
-```
-
-This exposes the OAuth refresh token to the container. Accept this trade-off or restrict write access to specific subdirs if the threat model requires tighter isolation.
+The provider calls `aws configure export-credentials --format process --profile <name>` on the host, then falls back to reading `~/.aws/sso/cache/*.json`. `~/.aws/sso/cache` is never bind-mounted — containers obtain short-lived credentials through the proxy only.
 
 ### gcloud CLI
 
-Bind-mounting `~/.config/gcloud` exposes the OAuth refresh token. Instead, roost impersonates a service account on the host and passes only the short-lived SA-scoped access token (≤1h TTL) into the container. The container's `gcloud` calls are limited to what the SA's IAM bindings permit — it cannot act on projects outside those bindings.
-
-**Per-project configuration** — in the project's `.roost/settings.toml`:
-
-```toml
-[sandbox.proxy.gcp]
-service_account = "sa@proj.iam.gserviceaccount.com"   # required — SA to impersonate
-projects        = ["proj-prod", "proj-staging"]        # required — GCP project IDs; first entry is the active default
-account         = "user@example.com"                   # optional — host gcloud principal (defaults to current gcloud auth)
-```
-
-`service_account` and `projects` must both be set. Configuring `account` alone (without `service_account`) is rejected because it would produce a full-scope user token with no project restriction.
-
-**Host prerequisites:**
-- Run `gcloud auth login` (or use a service account key) on the host so gcloud can obtain tokens.
-- Grant the host principal `roles/iam.serviceAccountTokenCreator` on the SA:
-  ```sh
-  gcloud iam service-accounts add-iam-policy-binding sa@proj.iam.gserviceaccount.com \
-    --member="user:user@example.com" \
-    --role="roles/iam.serviceAccountTokenCreator"
-  ```
+Bind-mounting `~/.config/gcloud` would expose the OAuth refresh token. Instead, roost impersonates a service account on the host and passes only the short-lived SA-scoped access token (≤1h TTL) into the container. The container's `gcloud` calls are limited to what the SA's IAM bindings permit — it cannot act on projects outside those bindings.
 
 When configured, roost:
 
-- Calls `gcloud auth print-access-token --account=<account> --impersonate-service-account=<sa>` every 50 minutes and writes the result to `<dataDir>/gcp/<hash>/access-token`.
+- Calls `gcloud auth print-access-token --account=<account> --impersonate-service-account=<sa>` every 50 minutes and writes the result to `<dataDir>/gcp/<hash>/access-token` (preserving the inode on rewrite so long-lived gcloud invocations keep reading the same file).
 - Generates a synthetic `CLOUDSDK_CONFIG` directory with one `configurations/config_<projectId>` per listed project. Each configuration sets `auth/access_token_file` so gcloud reads the token file on every invocation.
-- Injects `CLOUDSDK_CONFIG=/opt/roost/run/gcloud-config` into the container environment.
+- Injects `CLOUDSDK_CONFIG=/opt/roost/run/gcloud-config` and `GOOGLE_OAUTH_ACCESS_TOKEN` into the container environment (the latter prevents the GCE metadata probe from hanging).
 
-Inside the container:
+`~/.config/gcloud` is never bind-mounted. The first token refresh is synchronous at container start; if it fails, a warning is logged and the container's `gcloud` calls receive 401 until the host re-authenticates.
 
-```sh
-gcloud config list                                  # shows SA as active account, first project as active
-gcloud --configuration=proj-staging projects list   # switch to another project
-gcloud --project=proj-staging storage ls            # also works
-```
-
-`~/.config/gcloud` is never bind-mounted. `gcloud auth login` inside the container will fail — authenticate on the host before starting containers.
-
-The first token refresh is synchronous at container start. If the impersonation call fails, a warning is logged and the container's `gcloud` calls will receive 401 until the host re-authenticates.
-
-**Container image requirement:** `gcloud` must be installed in the image.
-
-### SSH Agent (Ephemeral Keys)
+### SSH Agent (ephemeral keys)
 
 Roost spawns an ephemeral `ssh-agent`, loads only the listed key files, and exposes the socket as `SSH_AUTH_SOCK` inside the container. The container can sign but never sees private key material. Direct forwarding of the host `$SSH_AUTH_SOCK` is not supported — it would expose all keys the host agent holds to container processes.
 
-```toml
-[sandbox.proxy.ssh_agent]
-keys = ["~/.ssh/id_ed25519"]
-```
+`SSH_AUTH_SOCK` is injected at both container-creation time (`docker create -e`) and at each frame launch (`docker exec -e`). The per-exec injection means that updating the key list takes effect on the next launch without recreating the container.
 
-The container receives `SSH_AUTH_SOCK` pointing to the ephemeral agent socket. No key material is written inside the container.
+Passphrase-protected keys are skipped because `ssh-add` runs non-interactively.
 
-`SSH_AUTH_SOCK` is injected at both container-creation time (`docker create -e`) and at each frame launch (`docker exec -e`). The per-exec injection means that updating `keys` in the config takes effect on the next launch without recreating the container.
+### GitHub
 
-**Passphrase-protected keys** are not supported — `ssh-add` runs non-interactively, so passphrase prompts are skipped and a warning is logged.
+The provider reads the host's `gh auth token` and injects it as `GH_TOKEN` so the `gh` CLI inside the container authenticates without bind-mounting `~/.config/gh`. `GITHUB_TOKEN` is not used because some tools differentiate the two.
 
-**`known_hosts`**: roost does not mount `~/.ssh` into the container. If `ssh -T git@github.com` fails with a host-key verification error, add the host key inside the container image (e.g. via `postCreateCommand: "ssh-keyscan github.com >> ~/.ssh/known_hosts"`).
+### WSL2 Windows exe broker
 
-**Container reuse**: the `/opt/roost/run` directory is bind-mounted at container-creation time. If an existing container lacks this mount (created with an older roost version), remove it with `docker rm -f roost-$(echo -n <project-path> | sha256sum | head -c 12)` and relaunch.
+On WSL2 hosts, containerized agents cannot reach Windows-side executables because WSL2's `/init` interop is unavailable inside a container. The `winexec` broker bridges this gap:
+
+1. The host runs a per-project Unix socket (`<dataDir>/run/<project-hash>/winexec.sock`) bind-mounted into the container.
+2. The container has shim binaries on `PATH` (one per allowed exe basename); each shim sends a request over the socket carrying argv, env, cwd, and stdio fds.
+3. The host broker validates the basename against the allowlist, resolves the absolute Windows path (explicit map first, else Windows `PATH`), invokes the binary via `/init`, and forwards stdio. Exit codes are propagated.
+
+Only basenames listed in the allowlist are executable; the broker rejects everything else. Ignored on non-WSL2 hosts.
+
+### Subscription credentials (interactive auth)
+
+Some tools (Claude Code, etc.) authenticate via OAuth flows that store refresh tokens in user-config files. The credential proxy cannot synthesise these — they require a real interactive login. The user opts in by declaring a bind-mount in devcontainer.json for the credential file/directory. This exposes the OAuth refresh token to the container; the trade-off is the user's call.
+
+**Container reuse**: `/opt/roost/run` is bind-mounted at container-creation time. If an existing container lacks this mount (created with an older roost version), remove it with `docker rm -f roost-<hash>` and relaunch.

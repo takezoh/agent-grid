@@ -106,9 +106,95 @@ iptables operates on IPs, not hostnames; CDN-fronted services require maintainin
 }
 ```
 
-**Credential proxy (optional):** when `[sandbox.proxy] enabled = true`, roost exposes a per-project Unix socket inside the container that brokers short-lived credentials without bind-mounting host credential files. Supported providers: AWS SSO (multi-profile via `credential_process`), gcloud (service-account impersonation), ssh-agent (ephemeral agent with explicit key list), GitHub (`GH_TOKEN`).
+**Workspace mount target (optional):** by default roost mirrors the host path inside the container (host `/home/u/proj` → container `/home/u/proj`). Override the prefix when the host path cannot exist in the container:
 
-See [Sandbox Backends](docs/sandbox.md) for credential proxy details, mounts, and advanced configuration.
+```toml
+[sandbox.devcontainer]
+host_path_mount_prefix = "/mnt"   # → container /mnt/home/u/proj
+```
+
+Ignored when devcontainer.json sets `workspaceFolder` or `workspaceMount`.
+
+**Pre-exec hook (optional):** `preExecCommand` (roost extension) in devcontainer.json runs inside the container before each `docker exec` launch, with cwd already set to the exec workdir. Default: `mise trust 2>/dev/null || true`.
+
+**Tool credential bind-mounts:** declare interactive-auth credential paths in devcontainer.json `mounts`. Example for Claude Code subscription auth:
+
+```jsonc
+{
+  "mounts": [
+    "type=bind,source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,consistency=cached",
+    "type=bind,source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,consistency=cached"
+  ]
+}
+```
+
+#### Credential proxy (optional)
+
+Enable to broker short-lived credentials over a per-project Unix socket inside the container, instead of bind-mounting host credential files:
+
+```toml
+# ~/.roost/settings.toml
+[sandbox.proxy]
+enabled = true
+```
+
+The container needs `curl` available (present in standard base images).
+
+**AWS SSO — multi-profile.** Run `aws sso login` on the host before starting containers. List the profile names that should appear inside the container in the project's `.roost/settings.toml`:
+
+```toml
+# <project>/.roost/settings.toml
+[sandbox.proxy]
+aws_profiles = ["default", "master", "general"]
+```
+
+Each name becomes a `[profile <name>]` section in a synthetic `~/.aws/config` inside the container, wired to `credential_process`. Profiles outside the list are not reachable from the container. `~/.aws/sso/cache` is never bind-mounted.
+
+**gcloud — service-account impersonation.** Container `gcloud` calls operate as the impersonated SA, scoped by the SA's IAM bindings. The OAuth refresh token never enters the container.
+
+```toml
+# <project>/.roost/settings.toml
+[sandbox.proxy.gcp]
+service_account = "sa@proj.iam.gserviceaccount.com"   # required
+projects        = ["proj-prod", "proj-staging"]        # required; first entry is the active default
+account         = "user@example.com"                   # optional — defaults to current host gcloud principal
+```
+
+Configuring `account` without `service_account` is rejected (would yield a full-scope user token).
+
+Host prerequisites:
+
+```sh
+gcloud auth login                                                                  # or use a SA key
+gcloud iam service-accounts add-iam-policy-binding sa@proj.iam.gserviceaccount.com \
+  --member="user:user@example.com" \
+  --role="roles/iam.serviceAccountTokenCreator"
+```
+
+`gcloud` must be installed in the container image. `gcloud auth login` inside the container fails by design.
+
+**SSH agent — ephemeral keys only.** roost spawns an ephemeral `ssh-agent`, loads only the listed keys, and exposes its socket as `SSH_AUTH_SOCK` inside the container. Direct forwarding of the host `$SSH_AUTH_SOCK` is not supported.
+
+```toml
+[sandbox.proxy.ssh_agent]
+keys = ["~/.ssh/id_ed25519"]
+```
+
+Passphrase-protected keys are skipped (a warning is logged). roost does not mount `~/.ssh` — add `known_hosts` entries via `postCreateCommand` (e.g. `ssh-keyscan github.com >> ~/.ssh/known_hosts`).
+
+**GitHub — `GH_TOKEN`.** When the proxy is enabled, the host's `gh auth token` value is injected into the container as `GH_TOKEN` so the `gh` CLI works without bind-mounting `~/.config/gh`.
+
+**WSL2 Windows exe broker (WSL2 only).** Lets containerized agents invoke Windows-side executables (`*.exe`, `*.ps1`) through a host-side broker. Ignored on non-WSL2 hosts.
+
+```toml
+[sandbox.proxy.win_exec]
+enabled       = true
+allowed_exes  = ["powershell.exe", "code.exe"]   # basenames the container may invoke
+[sandbox.proxy.win_exec.resolve]
+"notify.ps1"  = "C:\\Tools\\notify.ps1"          # optional; unlisted names use Windows PATH
+```
+
+See [Sandbox Backends](docs/sandbox.md) for the architecture, security model, and lifecycle internals.
 
 ### Hook Setup
 
@@ -237,7 +323,7 @@ mode = "devcontainer"               # "direct" (default) | "devcontainer"
                                     # "/mnt": prepend prefix (e.g. /home/u/proj → /mnt/home/u/proj)
                                     # ignored when devcontainer.json sets workspaceFolder or workspaceMount
 
-# [sandbox.proxy]                   # credential proxy — see docs/sandbox.md
+# [sandbox.proxy]                   # credential proxy — see "Sandbox > Credential proxy" above
 # enabled = true
 
 [driver]

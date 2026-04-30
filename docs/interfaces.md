@@ -222,17 +222,14 @@ On cold start, the bootstrap walks each session's frames in root-to-tail order a
 | `~/.roost/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / Hook event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
 | `~/.roost/events/{frameID}.log` | Text | Per-frame agent hook event log | Appended via `EffEventLogAppend`. The runtime's EventLogBackend manages file handles with lazy-open |
 | `~/.roost/roost.log` | slog | Application log | Created/appended at daemon startup |
-| `~/.roost/roost.sock` | Unix socket | Inter-process communication | Created at daemon startup. Deleted on exit |
+| `~/.roost/roost.sock` | Unix socket | Host IPC endpoint (SO_PEERCRED auth) — TUI / CLI / palette clients | Created at daemon startup. Deleted on exit |
+| `~/.roost/run/<project-hash>/roost.sock` | Unix socket | Container IPC endpoint (bearer-token auth) — sandboxed agents only; implements `hook-event` only | Started on first container spawn for a project. Bind-mounted into the container as `/opt/roost/run/roost.sock` |
+| `~/.roost/run/credproxy.sock` | Unix socket | Credential proxy endpoint (single instance per daemon; bearer token per project) | Listens while `[sandbox.proxy] enabled = true`. Bind-mounted per project into the container as `/opt/roost/run/credproxy.sock` |
+| `~/.roost/warm/<frameID>.json` | JSON | Per-frame container bearer token (atomic, `0o600`) | Written when a sandboxed frame is launched; replayed by `RecoverSandboxFrames` on warm restart. Wiped at cold start |
 
 Base path can be changed via `Config.DataDir` (set to TempDir during tests).
 
-All fields in `settings.toml` (default values in parentheses):
-
-- Top-level: `language` (`"english"`), `theme` (`"default"`)
-- `tmux`: `session_name` (`"roost"`), `prefix` (`"C-b"`), `pane_ratio_horizontal` (`75`), `pane_ratio_vertical` (`70`)
-- `monitor`: `poll_interval_ms` (`1000`), `idle_threshold_sec` (`30`)
-- `session`: `auto_name` (`true`), `default_command` (`"claude"`), `commands` (`["claude","gemini","codex"]`), `aliases` (map)
-- `projects`: `project_roots` (`["~/dev","~/work"]`), `project_paths` (`[]`)
+User-facing `settings.toml` fields and defaults are documented in the [README Configuration section](../README.md#configuration).
 
 ## File Structure
 
@@ -287,7 +284,16 @@ src/
 ├── runtime/             Imperative shell — event loop + Effect interpreter
 │   ├── runtime.go       Runtime.Run() — single event loop (select)
 │   ├── interpret.go     execute(Effect) — interpreter for all side effects
-│   ├── ipc.go           IPC server (accept + SO_PEERCRED uid check, readLoop, writeLoop)
+│   ├── ipc.go           Host IPC server (accept + SO_PEERCRED uid check, readLoop, writeLoop)
+│   ├── ipc_container.go Container IPC endpoint (per-project Unix socket; only `hook-event` is registered)
+│   ├── frame_token.go   Per-frame bearer-token registry (`ROOST_SOCKET_TOKEN` → frame id)
+│   ├── warm_state.go    Persists / replays container tokens across daemon warm-restart (`<dataDir>/warm/`)
+│   ├── rundir.go        Per-project run directory (host-side dir bind-mounted as `/opt/roost/run`)
+│   ├── launcher.go      AgentLauncher interface + DirectLauncher + WrappedLaunch + container-token wrap
+│   ├── sandbox_dispatcher.go SandboxDispatcher: per-project mode resolution (direct / devcontainer)
+│   ├── devcontainer_launcher.go DevcontainerLauncher: adapts sandbox/devcontainer.Manager to AgentLauncher
+│   ├── credproxy_runner.go Lifecycle for the in-process credproxy server (Unix socket on `<dataDir>/run/credproxy.sock`)
+│   ├── docker_env.go    Auto-detection of rootless docker socket → `DOCKER_HOST`
 │   ├── backends.go      TmuxBackend, PersistBackend, EventLogBackend, FSWatcher interface
 │   ├── panetap.go       PaneTap interface — raw byte stream abstraction over tmux pipe-pane
 │   ├── tmux_pipe_tap.go TmuxPipePaneTap — pipe-pane + FIFO + reader goroutine
@@ -301,7 +307,8 @@ src/
 │   ├── fsnotify.go      FSWatcher concrete implementation
 │   ├── convert.go       state.View → proto.SessionInfo conversion
 │   ├── proto_bridge.go  proto.Command → state.Event conversion
-│   ├── bootstrap.go     Initial State construction for warm/cold restart
+│   ├── bootstrap.go     Initial State construction for warm/cold restart; RecoverSandboxFrames
+│   ├── cleanup.go       Per-frame cleanup callbacks (sandbox release, container token revoke)
 │   ├── filerelay.go     File relay
 │   ├── testing.go       Test helper (fake backend)
 │   └── worker/          Worker pool
@@ -310,12 +317,24 @@ src/
 │       └── runners.go   built-in runners (TranscriptParse, HaikuSummary, GitBranch, CapturePane)
 ├── sandbox/             Project-level sandbox backends (generic Manager[I any])
 │   ├── manager.go       Instance[I] / Manager[I] / StartOptions interface definitions
-│   └── docker/          Docker backend
-│       ├── manager.go   Manager (impl), ContainerState, EnsureInstance/BuildLaunchCommand/PruneOrphans
-│       └── image.go     resolveImage (user config > devcontainer.json > default)
+│   └── devcontainer/    Devcontainer backend (per-project container lifecycle via docker)
+│       ├── manager.go   Manager (impl): EnsureInstance / BuildLaunchCommand / AdoptFrame / DestroyInstance
+│       ├── lifecycle.go docker create / start / exec / rm and container reuse logic
+│       ├── docker.go    Low-level docker CLI wrapper (singleflight-serialized per project)
+│       ├── spec.go      LoadSpec — parses devcontainer.json (image / build.name / mounts / runArgs / containerEnv / containerUser / remoteUser / workspaceFolder / workspaceMount / postCreateCommand / preExecCommand)
+│       ├── merge.go     Merges user-scope SandboxConfig with the per-project devcontainer spec
+│       └── envscript.go Resolves `${localEnv:VAR}` / `${localWorkspaceFolder*}` / `${containerWorkspaceFolder}` placeholders
+├── auth/                Credential providers exposed to sandboxed agents (tool-specific env var names live here, not in runtime/sandbox/state)
+│   └── credproxy/       In-process HTTP proxy on `<dataDir>/run/credproxy.sock`; provider plugins below
+│       ├── provider.go  Provider interface + registration
+│       ├── awssso/      AWS SSO multi-profile via `credential_process` (synthetic `~/.aws/config`)
+│       ├── gcloudcli/   gcloud SA impersonation (access-token file + `CLOUDSDK_CONFIG`)
+│       ├── sshagent/    Ephemeral ssh-agent (only listed key files loaded)
+│       ├── github/      Injects `GH_TOKEN` from host credential
+│       └── winexec/     WSL2 broker that lets containerized agents invoke Windows-side `*.exe` (e.g. `notify.ps1`)
 ├── proto/               Typed IPC — Command / Response / ServerEvent sum types
 │   ├── envelope.go      Envelope wire format ({type, req_id, cmd|name, data})
-│   ├── command.go       Command closed sum type (CmdSubscribe, CmdUnsubscribe, CmdEvent, CmdSurfaceReadText, CmdSurfaceSendText, CmdSurfaceSendKey, CmdDriverList)
+│   ├── command.go       Command closed sum type (CmdSubscribe, CmdUnsubscribe, CmdEvent, CmdHookEvent (container-only), CmdSurface*, CmdDriverList, CmdPeer*)
 │   ├── response.go      Response closed sum type (RespOK, RespCreateSession, RespSessions, RespActiveSession, RespSurfaceText, RespDriverList)
 │   ├── event.go         ServerEvent closed sum type
 │   ├── codec.go         NDJSON encode/decode
@@ -335,12 +354,18 @@ src/
 │   │   └── git.go       Git branch detection (DetectBranch)
 │   ├── github/
 │   │   └── github.go    GitHub API client
+│   ├── pathmap/         Container↔host path translation for IPC payloads (uses WrappedLaunch.Mounts)
 │   ├── vcs/
 │   │   └── vcs.go       VCS abstraction
 │   └── plastic/
 │       └── plastic.go   Plastic SCM integration
 ├── config/
-│   └── config.go        TOML configuration loading
+│   ├── config.go        TOML configuration loading (`ROOST_DATA_DIR` env override)
+│   ├── merge.go         MergeSandbox — user-scope settings merged into per-project overrides
+│   ├── sandbox_resolver.go SandboxResolver — resolves effective sandbox mode per project (mtime-cached)
+│   ├── project.go       Project enumeration from `project_roots` / `project_paths`
+│   ├── workspace_resolver.go Reads each project's `.roost/settings.toml` for workspace grouping
+│   └── notify.go        Notification rule matching
 ├── tmux/
 │   ├── interfaces.go    PaneOperator
 │   ├── client.go        tmux command wrapper (concrete implementation)
