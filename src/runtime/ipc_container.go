@@ -71,11 +71,16 @@ func (ep *containerEndpoint) accept() {
 	}
 }
 
+const containerConnIdleTimeout = 30 * time.Second
+
 func (ep *containerEndpoint) serve(conn net.Conn) {
 	defer conn.Close()
 	dec := json.NewDecoder(conn)
 	w := bufio.NewWriter(conn)
 	for {
+		// Reset deadline before each round-trip so a slow or hung agent
+		// cannot pin a goroutine. Both read and write share the same window.
+		_ = conn.SetDeadline(time.Now().Add(containerConnIdleTimeout))
 		var env proto.Envelope
 		if err := dec.Decode(&env); err != nil {
 			return

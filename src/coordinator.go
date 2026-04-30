@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -203,6 +204,9 @@ func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *co
 		Direct:   runtime.DirectLauncher{},
 	}
 	if sb.Mode == "devcontainer" {
+		if _, err := exec.LookPath("docker"); err != nil {
+			return nil, fmt.Errorf("sandbox: devcontainer mode requires docker in PATH: %w", err)
+		}
 		var err error
 		var runner *runtime.CredProxyRunner
 		if sb.Proxy.Enabled {
@@ -213,7 +217,7 @@ func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *co
 		}
 		overlayFn := runtime.BuildOverlayFunc(func(project string) config.SandboxConfig {
 			return resolver.Resolve(project)
-		}, runner, dataDir)
+		}, runner, dataDir, statedriver.ClaudeDriverName+" setup")
 		mgr := sandboxdc.New(overlayFn)
 		d.Devcontainer = runtime.NewDevcontainerLauncher(mgr, func(project string) config.SandboxConfig {
 			return resolver.Resolve(project)

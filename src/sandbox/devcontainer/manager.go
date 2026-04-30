@@ -80,9 +80,13 @@ func (m *Manager) EnsureInstance(ctx context.Context, projectPath, _ string, _ s
 	cs := m.containers[projectPath]
 	m.mu.Unlock()
 
+	image := ""
+	if cs != nil && cs.spec != nil {
+		image = cs.spec.Image
+	}
 	return &sandbox.Instance[*ContainerState]{
 		ProjectPath: projectPath,
-		Image:       "devcontainer",
+		Image:       image,
 		Internal:    cs,
 	}, nil
 }
@@ -139,10 +143,9 @@ func (m *Manager) loadSpec(projectPath, dcDir string) (*DevcontainerSpec, error)
 	if m.overlayFn != nil {
 		overlay, err := m.overlayFn(projectPath, dcDir)
 		if err != nil {
-			slog.Warn("devcontainer: overlay failed, continuing without overlay", "project", projectPath, "err", err)
-		} else {
-			spec.Apply(overlay)
+			return nil, fmt.Errorf("devcontainer: overlay: %w", err)
 		}
+		spec.Apply(overlay)
 	}
 	return spec, nil
 }

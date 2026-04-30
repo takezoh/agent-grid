@@ -194,7 +194,7 @@ func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state
 
 // handleSessionStart absorbs identity and kicks initial transcript
 // watch + parse + event log.
-func (d ClaudeDriver) handleSessionStart(cs ClaudeState, ctx state.FrameContext, hp hookPayload, now time.Time) (ClaudeState, []state.Effect) {
+func (d ClaudeDriver) handleSessionStart(cs ClaudeState, ctx state.FrameContext, hp hookPayload, now time.Time) (ClaudeState, []state.Effect) { //nolint:funlen
 	cs = absorbIdentityFromHP(cs, hp)
 	if hp.Cwd != "" {
 		cs.StartDir = hp.Cwd

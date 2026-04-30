@@ -61,6 +61,28 @@ func TestBuildMounts_IncludesUserBindMounts(t *testing.T) {
 	}
 }
 
+// When both host and container workspace paths are empty, no workspace mount
+// should be emitted; only the run-dir mount remains.
+func TestBuildMounts_OmitsWorkspaceWhenBothPathsEmpty(t *testing.T) {
+	ms := buildMounts("", "", "/host/run", nil)
+	if len(ms) != 1 {
+		t.Fatalf("len = %d, want 1 (run dir only): %+v", len(ms), ms)
+	}
+	if ms[0].Host != "/host/run" {
+		t.Errorf("expected only run dir mount, got %+v", ms)
+	}
+}
+
+// When hostRunDir is empty (e.g. dataDir not configured), run-dir mount is skipped.
+func TestBuildMounts_OmitsRunDirWhenEmpty(t *testing.T) {
+	ms := buildMounts("/host/myapp", "/workspaces/myapp", "", nil)
+	for _, m := range ms {
+		if m.Container == ContainerRunDir {
+			t.Errorf("run dir mount must be omitted when hostRunDir is empty: %+v", ms)
+		}
+	}
+}
+
 // Workspace and run-dir mounts that would be emitted twice (once from defaults,
 // once from user binds) must be deduplicated.
 func TestBuildMounts_DeduplicatesWorkspaceAndRunDir(t *testing.T) {

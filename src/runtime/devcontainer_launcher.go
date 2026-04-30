@@ -141,9 +141,12 @@ func (l *DevcontainerLauncher) makeCleanup(frameID state.FrameID, inst *sandbox.
 
 // BuildOverlayFunc returns the OverlayFunc for the given sandbox resolver and proxy runner.
 // dataDir is the daemon's data directory (e.g. ~/.roost); it contains the run/ directory tree.
+// postCreateSubcmd, if non-empty, is appended to the roost binary path and run via bash -lc
+// as an ExtraPostCreate step. The caller (main/coordinator) supplies the driver-specific
+// subcommand; runtime itself has no knowledge of driver names.
 // The returned function is called per-EnsureInstance to compute the roost-specific
 // env/mounts overlay without triggering any image build.
-func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *CredProxyRunner, dataDir string) sandboxdc.OverlayFunc {
+func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *CredProxyRunner, dataDir, postCreateSubcmd string) sandboxdc.OverlayFunc {
 	return func(projectPath, dcDir string) (sandboxdc.SpecOverlay, error) {
 		sb := resolveSandbox(projectPath)
 		dc := sb.Devcontainer
@@ -168,11 +171,16 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 			fmt.Sprintf("type=bind,source=%s,target=%s", runDir, ContainerRunDir),
 		}, proxySpec.Mounts...)
 
+		var postCreate []string
+		if postCreateSubcmd != "" {
+			postCreate = []string{"bash", "-lc", binPath + " " + postCreateSubcmd}
+		}
+
 		return sandboxdc.SpecOverlay{
 			Env:             env,
 			Mounts:          mounts,
 			ExtraCreateArgs: dc.ExtraCreateArgs,
-			PostCreate:      []string{"bash", "-lc", binPath + " claude setup"},
+			PostCreate:      postCreate,
 		}, nil
 	}
 }

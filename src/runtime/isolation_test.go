@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -78,13 +79,13 @@ func TestNoToolSpecificEnvLiterals(t *testing.T) {
 // TestNoDriverNameLiterals guards against driver/tool names ("claude", "gemini",
 // "codex") appearing as routing keys or string literals in generic layers.
 // Driver names must stay within driver/ and lib/<tool>/ — see ARCHITECTURE.md.
+//
+// Both exact matches ("claude") and embedded occurrences (" claude setup",
+// "run claude -") are detected via word-boundary regexp on string literals.
 func TestNoDriverNameLiterals(t *testing.T) {
-	// Exact quoted strings that must not appear in generic layer source files.
-	forbidden := []string{
-		`"claude"`,
-		`"gemini"`,
-		`"codex"`,
-	}
+	// Word-boundary patterns that must not appear inside any double-quoted string
+	// in generic layer source files.
+	forbidden := []string{"claude", "gemini", "codex"}
 
 	srcRoot := ".."
 	checkedDirs := []string{
@@ -111,12 +112,14 @@ func TestNoDriverNameLiterals(t *testing.T) {
 				t.Errorf("read %s: %v", path, err)
 				continue
 			}
-			for _, kw := range forbidden {
-				if bytes.Contains(data, []byte(kw)) {
+			for _, name := range forbidden {
+				// Match driver name as a whole word inside any double-quoted string literal.
+				re := regexp.MustCompile(`"[^"\n]*\b` + name + `\b[^"\n]*"`)
+				if loc := re.Find(data); loc != nil {
 					t.Errorf(
-						"%s contains driver name literal %s\n"+
+						"%s contains driver name %q inside a string literal: %s\n"+
 							"  → driver names must stay within driver/ or lib/<tool>/ (see ARCHITECTURE.md)",
-						path, kw,
+						path, name, bytes.TrimSpace(loc),
 					)
 				}
 			}

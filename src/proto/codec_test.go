@@ -10,6 +10,7 @@ func TestEncodeDecodeCommand(t *testing.T) {
 		CmdSubscribe{Filters: []string{"sessions-changed"}},
 		CmdUnsubscribe{},
 		CmdEvent{Event: "session-start", SenderID: "abc", Payload: json.RawMessage(`{"k":"v"}`)},
+		CmdHookEvent{Token: "deadbeef", Hook: "SessionStart", Payload: json.RawMessage(`{"cwd":"/p"}`)},
 	}
 	for _, c := range cases {
 		t.Run(c.CommandName(), func(t *testing.T) {
