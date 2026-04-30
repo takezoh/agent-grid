@@ -127,38 +127,15 @@ Providers come from two sources: the external `credproxy` library's `providers/<
 
 Generic layers (`runtime/`, `sandbox/`, `state/`, `tui/`, `proto/`) never reference tool-specific env var names (`AWS_*`, `GOOGLE_*`, `SSH_AUTH_SOCK`). Those names appear only inside the corresponding provider package.
 
-### AWS SSO (multi-profile)
+### AWS SSO, gcloud CLI, SSH Agent
 
-The proxy generates a synthetic `~/.aws/config` inside each container with one `[profile <name>]` per profile listed in the project config. Each profile entry uses `credential_process` to call back to the roost proxy via a small helper script (`/opt/roost/run/aws-creds.sh`). The config, the script, and the proxy socket are available under `/opt/roost/run`; no AWS credentials are stored inside the container.
+Behavior of each provider (credential fetch flow, security model, container env vars) is documented in the credproxy repository:
 
-**Proxy route:** `/aws-credentials/<profile>` — returns `credential_process`-format JSON (`Version:1`, `AccessKeyId`, `SecretAccessKey`, `SessionToken`, `Expiration`).
+- [providers/awssso](https://github.com/takezoh/credproxy/tree/main/providers/awssso) — `credential_process` via proxy HTTP route; `~/.aws/sso/cache` never bind-mounted
+- [providers/gcloudcli](https://github.com/takezoh/credproxy/tree/main/providers/gcloudcli) — SA impersonation + synthetic `CLOUDSDK_CONFIG`; `~/.config/gcloud` never bind-mounted
+- [providers/sshagent](https://github.com/takezoh/credproxy/tree/main/providers/sshagent) — per-project ephemeral agent; container receives socket only
 
-| Container env var | Value |
-|---|---|
-| `CREDPROXY_TOKEN` | Ephemeral bearer token (never written to disk) |
-| `CREDPROXY_SOCK` | In-container Unix socket path (`/opt/roost/run/credproxy.sock`) |
-
-The provider calls `aws configure export-credentials --format process --profile <name>` on the host, then falls back to reading `~/.aws/sso/cache/*.json`. `~/.aws/sso/cache` is never bind-mounted — containers obtain short-lived credentials through the proxy only.
-
-### gcloud CLI
-
-Bind-mounting `~/.config/gcloud` would expose the OAuth refresh token. Instead, roost impersonates a service account on the host and passes only the short-lived SA-scoped access token (≤1h TTL) into the container. The container's `gcloud` calls are limited to what the SA's IAM bindings permit — it cannot act on projects outside those bindings.
-
-When configured, roost:
-
-- Calls `gcloud auth print-access-token --account=<account> --impersonate-service-account=<sa>` every 50 minutes and writes the result to `<dataDir>/gcp/<hash>/access-token` (preserving the inode on rewrite so long-lived gcloud invocations keep reading the same file).
-- Generates a synthetic `CLOUDSDK_CONFIG` directory with one `configurations/config_<projectId>` per listed project. Each configuration sets `auth/access_token_file` so gcloud reads the token file on every invocation.
-- Injects `CLOUDSDK_CONFIG=/opt/roost/run/gcloud-config` and `GOOGLE_OAUTH_ACCESS_TOKEN` into the container environment (the latter prevents the GCE metadata probe from hanging).
-
-`~/.config/gcloud` is never bind-mounted. The first token refresh is synchronous at container start; if it fails, a warning is logged and the container's `gcloud` calls receive 401 until the host re-authenticates.
-
-### SSH Agent (ephemeral keys)
-
-Roost spawns an ephemeral `ssh-agent`, loads only the listed key files, and exposes the socket as `SSH_AUTH_SOCK` inside the container. The container can sign but never sees private key material. Direct forwarding of the host `$SSH_AUTH_SOCK` is not supported — it would expose all keys the host agent holds to container processes.
-
-`SSH_AUTH_SOCK` is injected at both container-creation time (`docker create -e`) and at each frame launch (`docker exec -e`). The per-exec injection means that updating the key list takes effect on the next launch without recreating the container.
-
-Passphrase-protected keys are skipped because `ssh-add` runs non-interactively.
+`SSH_AUTH_SOCK` is injected at both container-creation time (`docker create -e`) and at each frame launch (`docker exec -e`), so updating the key list takes effect on the next launch without recreating the container.
 
 ### Host-exec broker
 
