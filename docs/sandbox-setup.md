@@ -1,0 +1,150 @@
+# Sandbox Setup
+
+Each agent runs inside a project-scoped devcontainer instead of the host shell, isolating filesystem, network, and credentials per project.
+
+**Requirements:** Place a `devcontainer.json` in `<project>/.devcontainer/` and declare the image name using `image:` (pre-existing image) or `build.name` (roost extension for Dockerfile-based projects).
+
+**Build images before first use** (roost does not build images):
+
+```bash
+# Dockerfile-based: build and set build.name in devcontainer.json
+devcontainer build --workspace-folder . --image-name myproject:dev
+
+# Or use docker directly:
+docker build -t myproject:dev .
+```
+
+At session start, roost reads the image name from devcontainer.json (`image:` takes precedence over `build.name`).
+
+Enable devcontainer mode in `~/.roost/settings.toml`:
+
+```toml
+[sandbox]
+mode = "devcontainer"
+```
+
+**Restrict container egress (optional):** roost forwards `extra_create_args` to every `docker create`, so you can attach containers to a custom bridge whose egress you control with iptables.
+
+```toml
+[sandbox.devcontainer]
+extra_create_args = ["--network", "roost-egress"]
+```
+
+Set up the bridge once on the host:
+
+```sh
+docker network create --opt com.docker.network.bridge.name=roost-egress roost-egress
+sudo iptables -I DOCKER-USER -i roost-egress -j DROP
+sudo iptables -I DOCKER-USER -i roost-egress -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+sudo iptables -I DOCKER-USER -i roost-egress -p udp --dport 53 -j ACCEPT
+# ...allow specific destination IPs as needed
+```
+
+iptables operates on IPs, not hostnames; CDN-fronted services require maintaining IP ranges out-of-band. `--network=none` is not recommended — it blocks the model API the agent needs.
+
+**Resource limits (optional):** use `runArgs` in `.devcontainer/devcontainer.json` to cap resource usage per project:
+
+```jsonc
+{
+  "runArgs": ["--pids-limit", "512", "--memory", "4g", "--cpus", "2.0"]
+}
+```
+
+**Workspace file ownership:** set `containerUser` and `remoteUser` to a non-root user to avoid root-owned files in the workspace. roost passes `containerUser` to `docker create -u` and `remoteUser` to `docker exec -u`.
+
+```jsonc
+{
+  "containerUser": "ubuntu",
+  "remoteUser": "ubuntu"
+}
+```
+
+**Workspace mount target (optional):** by default roost mirrors the host path inside the container (host `/home/u/proj` → container `/home/u/proj`). Override the prefix when the host path cannot exist in the container:
+
+```toml
+[sandbox.devcontainer]
+host_path_mount_prefix = "/mnt"   # → container /mnt/home/u/proj
+```
+
+Ignored when devcontainer.json sets `workspaceFolder` or `workspaceMount`.
+
+**Pre-exec hook (optional):** `preExecCommand` (roost extension) in devcontainer.json runs inside the container before each `docker exec` launch, with cwd already set to the exec workdir. Default: `mise trust 2>/dev/null || true`.
+
+**Tool credential bind-mounts:** declare interactive-auth credential paths in devcontainer.json `mounts`. Example for Claude Code subscription auth:
+
+```jsonc
+{
+  "mounts": [
+    "type=bind,source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,consistency=cached",
+    "type=bind,source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,consistency=cached"
+  ]
+}
+```
+
+## Credential proxy (optional)
+
+The credential proxy brokers short-lived credentials over a per-project Unix socket inside the container, instead of bind-mounting host credential files. Each provider activates only when its own settings are populated — listing nothing means nothing is exposed.
+
+The container needs `curl` available (present in standard base images).
+
+**AWS SSO — multi-profile.** Run `aws sso login` on the host before starting containers. List the profile names that should appear inside the container in the project's `.roost/settings.toml`:
+
+```toml
+# <project>/.roost/settings.toml
+[sandbox.proxy]
+aws_profiles = ["default", "master", "general"]
+```
+
+Each name becomes a `[profile <name>]` section in a synthetic `~/.aws/config` inside the container, wired to `credential_process`. Profiles outside the list are not reachable from the container. `~/.aws/sso/cache` is never bind-mounted.
+
+**gcloud — service-account impersonation.** Container `gcloud` calls operate as the impersonated SA, scoped by the SA's IAM bindings. The OAuth refresh token never enters the container.
+
+```toml
+# <project>/.roost/settings.toml
+[sandbox.proxy.gcp]
+service_account = "sa@proj.iam.gserviceaccount.com"   # required
+projects        = ["proj-prod", "proj-staging"]        # required; first entry is the active default
+account         = "user@example.com"                   # optional — defaults to current host gcloud principal
+```
+
+Configuring `account` without `service_account` is rejected (would yield a full-scope user token).
+
+Host prerequisites:
+
+```sh
+gcloud auth login                                                                  # or use a SA key
+gcloud iam service-accounts add-iam-policy-binding sa@proj.iam.gserviceaccount.com \
+  --member="user:user@example.com" \
+  --role="roles/iam.serviceAccountTokenCreator"
+```
+
+`gcloud` must be installed in the container image. `gcloud auth login` inside the container fails by design.
+
+**SSH agent — ephemeral keys only.** roost spawns an ephemeral `ssh-agent`, loads only the listed keys, and exposes its socket as `SSH_AUTH_SOCK` inside the container. Direct forwarding of the host `$SSH_AUTH_SOCK` is not supported.
+
+```toml
+[sandbox.proxy.ssh_agent]
+keys = ["~/.ssh/id_ed25519"]
+```
+
+Passphrase-protected keys are skipped (a warning is logged). roost does not mount `~/.ssh` — add `known_hosts` entries via `postCreateCommand` (e.g. `ssh-keyscan github.com >> ~/.ssh/known_hosts`).
+
+**Host-exec broker.** Lets containerized agents invoke host binaries (e.g. `gh`, `aws`, `kubectl`) without receiving credentials or tokens. Commands are filtered by deny/allow glob patterns with `*` as a wildcard. A non-empty `allow` list activates the broker.
+
+```toml
+[sandbox.proxy.host_exec]
+allow = [
+  "gh pr *",
+  "gh issue *",
+  "gh api GET /repos/*",
+]
+deny = [
+  "gh * delete*",
+  "gh auth *",
+  "gh secret *",
+]
+```
+
+Leading `KEY=VALUE` env assignments in patterns are stripped before matching (`"GH_TOKEN=x gh pr *"` ≡ `"gh pr *"`). Deny rules are checked first; unmatched commands are rejected by default.
+
+See [Sandbox Backends](sandbox.md) for the architecture, security model, and lifecycle internals.
