@@ -97,7 +97,11 @@ aws_profiles = ["default", "master", "general"]
 
 Each name becomes a `[profile <name>]` section in a synthetic `~/.aws/config` inside the container, wired to `credential_process`. Profiles outside the list are not reachable from the container. `~/.aws/sso/cache` is never bind-mounted.
 
-**gcloud — service-account impersonation.** Container `gcloud` calls operate as the impersonated SA, scoped by the SA's IAM bindings. The OAuth refresh token never enters the container.
+**gcloud — credential isolation.** The OAuth refresh token never enters the container. Only short-lived access tokens (≤1h) are bind-mounted; containers have no means to refresh them.
+
+Two modes:
+
+**Service-account impersonation (recommended).** Container `gcloud` calls operate as the SA, scoped by its IAM bindings. Project boundaries are enforced on the host.
 
 ```toml
 # <project>/.roost/settings.toml
@@ -107,15 +111,22 @@ projects        = ["proj-prod", "proj-staging"]        # required; first entry i
 account         = "user@example.com"                   # optional — defaults to current host gcloud principal
 ```
 
-Configuring `account` without `service_account` is rejected (would yield a full-scope user token).
-
 Host prerequisites:
 
 ```sh
-gcloud auth login                                                                  # or use a SA key
+gcloud auth login
 gcloud iam service-accounts add-iam-policy-binding sa@proj.iam.gserviceaccount.com \
   --member="user:user@example.com" \
   --role="roles/iam.serviceAccountTokenCreator"
+```
+
+**User-account proxy (opt-in).** Omits impersonation; the container receives a full-scope user access token. Refresh-token isolation is preserved, but project boundary enforcement is not. Use when SA setup is not feasible.
+
+```toml
+[sandbox.proxy.gcp]
+account              = "user@example.com"
+projects             = ["my-project"]
+enable_user_account  = true
 ```
 
 `gcloud` must be installed in the container image. `gcloud auth login` inside the container fails by design.

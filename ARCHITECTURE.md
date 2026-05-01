@@ -54,7 +54,7 @@ features/      Feature flags — Flag/Set types (runtime), build-tag const (comp
 lib/           Utilities — external tool integration (lib/git/, lib/claude/, lib/github/)
 sandbox/       Project-level sandbox backends (generic Manager[I]). devcontainer/ implements per-project container lifecycle via docker — see docs/sandbox.md
 hostexec/      Host-exec broker (`container.Provider` for running allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding)
-               Credential providers (AWS SSO, gcloud SA impersonation, ssh-agent) live in the external `credproxy` library
+               Credential providers (AWS SSO, gcloud CLI, ssh-agent) live in the external `credproxy` library
 config/        Configuration — TOML loading, DataDir injection, SandboxResolver (user + per-project mode resolution)
 logger/        Logging — slog initialization, log file management
 ```
