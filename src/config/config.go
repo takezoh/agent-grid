@@ -100,13 +100,14 @@ type SSHAgentConfig struct {
 }
 
 // GCPConfig holds per-project gcloud CLI credential settings.
-// ServiceAccount and Projects must both be set to enable GCP credential injection.
-// roost impersonates ServiceAccount on the host to obtain a scope-limited access token;
-// the container never receives the OAuth refresh token or a full-scope user token.
+// Projects must always be set. ServiceAccount is required unless enable_user_account = true.
+// Only short-lived access tokens (≤1h) reach the container; refresh tokens never do.
+// Without ServiceAccount, project boundary enforcement is not available.
 type GCPConfig struct {
-	ServiceAccount string   `toml:"service_account"` // SA email to impersonate (required)
-	Account        string   `toml:"account"`         // host gcloud principal (optional; defaults to current gcloud auth)
-	Projects       []string `toml:"projects"`        // GCP project IDs available in container; first entry is the active default
+	ServiceAccount   string   `toml:"service_account"`    // SA email to impersonate; required unless enable_user_account = true
+	Account          string   `toml:"account"`            // host gcloud principal (optional; defaults to current gcloud auth)
+	Projects         []string `toml:"projects"`           // GCP project IDs available in container; first entry is the active default
+	EnableUserAccount bool     `toml:"enable_user_account"` // allow user-account proxy when service_account is empty
 }
 
 // CommonDriverConfig holds settings that apply to all drivers.

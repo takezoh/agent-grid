@@ -292,3 +292,52 @@ session_name = "test"
 		t.Errorf("expected empty Drivers, got %v", cfg.Drivers)
 	}
 }
+
+func TestLoadProjectFrom_GCPConfig_enableUserAccount(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.toml")
+	os.WriteFile(path, []byte(`
+[sandbox.proxy.gcp]
+account = "user@example.com"
+projects = ["proj-x"]
+enable_user_account = true
+`), 0o644)
+
+	proj, err := LoadProjectFrom(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proj.Sandbox == nil {
+		t.Fatal("expected Sandbox to be non-nil")
+	}
+	gcp := proj.Sandbox.Proxy.GCP
+	if !gcp.EnableUserAccount {
+		t.Error("EnableUserAccount should be true when enable_user_account = true")
+	}
+	if gcp.ServiceAccount != "" {
+		t.Errorf("ServiceAccount should be empty, got %q", gcp.ServiceAccount)
+	}
+	if gcp.Account != "user@example.com" {
+		t.Errorf("Account = %q, want %q", gcp.Account, "user@example.com")
+	}
+}
+
+func TestLoadProjectFrom_GCPConfig_defaultsToSARequired(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.toml")
+	os.WriteFile(path, []byte(`
+[sandbox.proxy.gcp]
+projects = ["proj-x"]
+`), 0o644)
+
+	proj, err := LoadProjectFrom(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proj.Sandbox == nil {
+		t.Fatal("expected Sandbox to be non-nil")
+	}
+	if proj.Sandbox.Proxy.GCP.EnableUserAccount {
+		t.Error("EnableUserAccount should default to false")
+	}
+}
