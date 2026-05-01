@@ -341,3 +341,49 @@ projects = ["proj-x"]
 		t.Error("EnableUserAccount should default to false")
 	}
 }
+
+func TestLoadProjectFrom_MCPProxy_server(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.toml")
+	os.WriteFile(path, []byte(`
+[sandbox.proxy.mcp_proxy.servers.observability]
+command = "npx"
+args    = ["-y", "@example/obs-mcp"]
+allow   = ["list_*"]
+deny    = ["delete_*"]
+
+[sandbox.proxy.mcp_proxy.servers.observability.env]
+GOOGLE_APPLICATION_CREDENTIALS = "~/.config/gcloud/application_default_credentials.json"
+`), 0o644)
+
+	proj, err := LoadProjectFrom(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proj.Sandbox == nil {
+		t.Fatal("expected Sandbox to be non-nil")
+	}
+	servers := proj.Sandbox.Proxy.MCPProxy.Servers
+	if len(servers) != 1 {
+		t.Fatalf("expected 1 MCP server, got %d", len(servers))
+	}
+	s, ok := servers["observability"]
+	if !ok {
+		t.Fatal("expected key 'observability' in servers map")
+	}
+	if s.Command != "npx" {
+		t.Errorf("Command = %q, want npx", s.Command)
+	}
+	if len(s.Args) != 2 || s.Args[0] != "-y" {
+		t.Errorf("Args = %v, unexpected", s.Args)
+	}
+	if len(s.Allow) != 1 || s.Allow[0] != "list_*" {
+		t.Errorf("Allow = %v, unexpected", s.Allow)
+	}
+	if len(s.Deny) != 1 || s.Deny[0] != "delete_*" {
+		t.Errorf("Deny = %v, unexpected", s.Deny)
+	}
+	if cred, ok := s.Env["GOOGLE_APPLICATION_CREDENTIALS"]; !ok || cred == "" {
+		t.Errorf("Env GOOGLE_APPLICATION_CREDENTIALS missing or empty")
+	}
+}

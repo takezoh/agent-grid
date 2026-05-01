@@ -16,6 +16,7 @@ const (
 	ContainerSockFileName     = "roost.sock"
 	ContainerSockFilePath     = ContainerRunDir + "/" + ContainerSockFileName
 	ContainerHostExecSockPath = ContainerRunDir + "/hostexec.sock"
+	ContainerMCPSockPath      = ContainerRunDir + "/mcp.sock"
 )
 
 // ProjectRunDir returns the per-project ephemeral run directory path.

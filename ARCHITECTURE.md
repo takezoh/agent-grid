@@ -54,6 +54,7 @@ features/      Feature flags — Flag/Set types (runtime), build-tag const (comp
 lib/           Utilities — external tool integration (lib/git/, lib/claude/, lib/github/)
 sandbox/       Project-level sandbox backends (generic Manager[I]). devcontainer/ implements per-project container lifecycle via docker — see docs/sandbox.md
 hostexec/      Host-exec broker (`container.Provider` for running allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding)
+mcpproxy/      MCP proxy broker (`container.Provider` for running MCP servers on the host with JSON-RPC stdio relayed into the container; tool-level policy enforcement; generates a `.mcp.json` overlay so Claude Code routes the configured aliases through the broker automatically)
                Credential providers (AWS SSO, gcloud CLI, ssh-agent) live in the external `credproxy` library
 config/        Configuration — TOML loading, DataDir injection, SandboxResolver (user + per-project mode resolution)
 logger/        Logging — slog initialization, log file management

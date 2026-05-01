@@ -9,6 +9,7 @@ package config
 //   - Devcontainer.ExtraCreateArgs (list): user + project concat
 //   - Proxy.SSHAgent.Keys: project replaces when non-empty
 //   - Proxy.HostExec.Allow/Deny: user + project concat
+//   - Proxy.MCPProxy.Servers: user + project concat; project server overrides user on same alias
 func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	if project == nil {
 		return user
@@ -29,6 +30,9 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 				Allow: appendSlice(user.Proxy.HostExec.Allow, project.Proxy.HostExec.Allow),
 				Deny:  appendSlice(user.Proxy.HostExec.Deny, project.Proxy.HostExec.Deny),
 			},
+			MCPProxy: MCPProxyConfig{
+				Servers: mergeMCPServerMap(user.Proxy.MCPProxy.Servers, project.Proxy.MCPProxy.Servers),
+			},
 		},
 	}
 	if project.Mode != "" {
@@ -48,6 +52,22 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	}
 	if len(project.Proxy.SSHAgent.Keys) > 0 {
 		out.Proxy.SSHAgent.Keys = project.Proxy.SSHAgent.Keys
+	}
+	return out
+}
+
+// mergeMCPServerMap merges user and project server maps.
+// Project entries override user entries on the same alias; others are kept.
+func mergeMCPServerMap(user, project map[string]MCPProxyServer) map[string]MCPProxyServer {
+	if len(user) == 0 && len(project) == 0 {
+		return nil
+	}
+	out := make(map[string]MCPProxyServer, len(user)+len(project))
+	for alias, s := range user {
+		out[alias] = s
+	}
+	for alias, s := range project {
+		out[alias] = s
 	}
 	return out
 }

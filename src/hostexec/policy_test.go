@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/takezoh/agent-roost/config"
+	"github.com/takezoh/agent-roost/internal/globutil"
 )
 
 // binaryName extracts and validates the binary name from allow patterns.
@@ -67,9 +68,9 @@ func TestCompileGlob(t *testing.T) {
 		{"gh * delete*", "gh repo view", false},
 	}
 	for _, c := range cases {
-		re, err := compileGlob(c.pattern)
+		re, err := globutil.CompileGlob(c.pattern)
 		if err != nil {
-			t.Fatalf("compileGlob(%q): %v", c.pattern, err)
+			t.Fatalf("CompileGlob(%q): %v", c.pattern, err)
 		}
 		got := re.MatchString(c.input)
 		if got != c.match {

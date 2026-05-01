@@ -115,3 +115,38 @@ func TestMergeSandbox_DoesNotMutateInput(t *testing.T) {
 		t.Errorf("project ExtraCreateArgs mutated: %v", project.Devcontainer.ExtraCreateArgs)
 	}
 }
+
+func TestMergeMCPServers_projectAppends(t *testing.T) {
+	user := map[string]MCPProxyServer{"obs": {Command: "obs-mcp", Allow: []string{"list_*"}}}
+	project := map[string]MCPProxyServer{"fs": {Command: "fs-mcp", Allow: []string{"read_*"}}}
+	got := mergeMCPServerMap(user, project)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(got))
+	}
+}
+
+func TestMergeMCPServers_projectOverridesOnSameAlias(t *testing.T) {
+	user := map[string]MCPProxyServer{"obs": {Command: "old-mcp", Allow: []string{"list_*"}}}
+	project := map[string]MCPProxyServer{"obs": {Command: "new-mcp", Allow: []string{"get_*"}}}
+	got := mergeMCPServerMap(user, project)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 server after override, got %d", len(got))
+	}
+	if got["obs"].Command != "new-mcp" {
+		t.Errorf("Command = %q, want new-mcp to win", got["obs"].Command)
+	}
+	if len(got["obs"].Allow) != 1 || got["obs"].Allow[0] != "get_*" {
+		t.Errorf("Allow = %v, want project allow to win", got["obs"].Allow)
+	}
+}
+
+func TestMergeMCPServers_nilProject(t *testing.T) {
+	user := map[string]MCPProxyServer{"obs": {Command: "obs-mcp"}}
+	got := mergeMCPServerMap(user, nil)
+	if len(got) != 1 {
+		t.Errorf("mergeMCPServerMap with nil project should return user servers, got %v", got)
+	}
+	if _, ok := got["obs"]; !ok {
+		t.Error("expected key 'obs' in result")
+	}
+}

@@ -158,4 +158,21 @@ deny = [
 
 Leading `KEY=VALUE` env assignments in patterns are stripped before matching (`"GH_TOKEN=x gh pr *"` ≡ `"gh pr *"`). Deny rules are checked first; unmatched commands are rejected by default.
 
+**MCP proxy.** Runs MCP servers on the host so credentials (GCP ADC, AWS, etc.) never enter the container. Servers are declared in `~/.roost/settings.toml` or the project's `.roost/settings.toml`:
+
+```toml
+[sandbox.proxy.mcp_proxy.servers.observability]
+command = "npx"
+args    = ["-y", "@example/observability-mcp"]
+allow   = ["list_*", "describe_*"]
+deny    = ["delete_*"]
+
+[sandbox.proxy.mcp_proxy.servers.observability.env]
+GOOGLE_APPLICATION_CREDENTIALS = "~/.config/gcloud/application_default_credentials.json"
+```
+
+The map key (`observability`) is the MCP server alias. At container launch roost writes a `.mcp.json` into the project workspace (read-only bind-mount) that routes each configured alias through `roost mcp-exec <alias>`, overriding any project-local `.mcp.json` entry for the same names. No manual `.mcp.json` edits are required.
+
+`allow`/`deny` patterns match the tool name with `*` as wildcard and use deny-first, default-deny semantics. User-scope and project-scope server maps are merged; project entries override user entries on the same alias.
+
 See [Sandbox Backends](sandbox.md) for the architecture, security model, and lifecycle internals.

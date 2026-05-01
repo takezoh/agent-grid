@@ -79,6 +79,32 @@ type ProxyConfig struct {
 	GCP         GCPConfig      `toml:"gcp"`
 	SSHAgent    SSHAgentConfig `toml:"ssh_agent"`
 	HostExec    HostExecConfig `toml:"host_exec"`
+	MCPProxy    MCPProxyConfig `toml:"mcp_proxy"`
+}
+
+// MCPProxyConfig lists MCP servers to run on the host with stdio proxied into
+// the container. Each server runs as a host process; the container receives
+// only JSON-RPC messages (no credentials).
+// Servers is a map keyed by alias (server name), matching Claude Code's
+// mcpServers object structure. Example TOML:
+//
+//	[sandbox.proxy.mcp_proxy.servers.observability]
+//	command = "npx"
+//	args    = ["-y", "@google-cloud/observability-mcp"]
+//	allow   = ["list_*"]
+type MCPProxyConfig struct {
+	Servers map[string]MCPProxyServer `toml:"servers"`
+}
+
+// MCPProxyServer defines one MCP server to proxy.
+// command/args/env match Claude Code's mcpServers entry format.
+// Deny is checked before allow; neither matching is default-deny.
+type MCPProxyServer struct {
+	Command string            `toml:"command"`
+	Args    []string          `toml:"args"`
+	Env     map[string]string `toml:"env"`
+	Allow   []string          `toml:"allow"`
+	Deny    []string          `toml:"deny"`
 }
 
 // HostExecConfig configures host binaries exposed to containers via the host-exec broker.
@@ -104,9 +130,9 @@ type SSHAgentConfig struct {
 // Only short-lived access tokens (≤1h) reach the container; refresh tokens never do.
 // Without ServiceAccount, project boundary enforcement is not available.
 type GCPConfig struct {
-	ServiceAccount   string   `toml:"service_account"`    // SA email to impersonate; required unless enable_user_account = true
-	Account          string   `toml:"account"`            // host gcloud principal (optional; defaults to current gcloud auth)
-	Projects         []string `toml:"projects"`           // GCP project IDs available in container; first entry is the active default
+	ServiceAccount    string   `toml:"service_account"`     // SA email to impersonate; required unless enable_user_account = true
+	Account           string   `toml:"account"`             // host gcloud principal (optional; defaults to current gcloud auth)
+	Projects          []string `toml:"projects"`            // GCP project IDs available in container; first entry is the active default
 	EnableUserAccount bool     `toml:"enable_user_account"` // allow user-account proxy when service_account is empty
 }
 

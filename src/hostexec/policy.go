@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/takezoh/agent-roost/internal/globutil"
 )
 
 // envAssignRe matches a shell-style env assignment token (KEY=...).
@@ -51,7 +53,7 @@ func CompilePolicy(allow, deny []string) (*Policy, error) {
 		if stripped == "" {
 			return nil, fmt.Errorf("deny pattern %q: no command after env assignments", pat)
 		}
-		re, err := compileGlob(stripped)
+		re, err := globutil.CompileGlob(stripped)
 		if err != nil {
 			return nil, fmt.Errorf("deny pattern %q: %w", pat, err)
 		}
@@ -62,7 +64,7 @@ func CompilePolicy(allow, deny []string) (*Policy, error) {
 		if stripped == "" {
 			return nil, fmt.Errorf("allow pattern %q: no command after env assignments", pat)
 		}
-		re, err := compileGlob(stripped)
+		re, err := globutil.CompileGlob(stripped)
 		if err != nil {
 			return nil, fmt.Errorf("allow pattern %q: %w", pat, err)
 		}
@@ -85,17 +87,6 @@ func (p *Policy) Check(argv []string) error {
 		}
 	}
 	return fmt.Errorf("command not in allowlist: %s", s)
-}
-
-// compileGlob converts a glob pattern (only * is special) to a regex.
-// * matches any string including spaces; literal characters are escaped.
-func compileGlob(pattern string) (*regexp.Regexp, error) {
-	parts := strings.Split(pattern, "*")
-	quoted := make([]string, len(parts))
-	for i, p := range parts {
-		quoted[i] = regexp.QuoteMeta(p)
-	}
-	return regexp.Compile(`\A` + strings.Join(quoted, `.*`) + `\z`)
 }
 
 // shellJoin reconstructs a shell command string from argv.

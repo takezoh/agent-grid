@@ -12,6 +12,7 @@ import (
 
 	"github.com/takezoh/agent-roost/config"
 	"github.com/takezoh/agent-roost/hostexec"
+	"github.com/takezoh/agent-roost/mcpproxy"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 	"github.com/takezoh/credproxy/providers/awssso"
@@ -129,7 +130,19 @@ func buildProviders(
 		},
 		func(p string) config.HostExecConfig { return resolveSandbox(p).Proxy.HostExec },
 	)
-	return []container.Provider{awsSpec, gcpSpec, sshSpec, hostExecSpec}
+	mcpSpec := mcpproxy.NewSpecBuilder(
+		ctx,
+		mcpproxy.Config{
+			RunBase:           runBase,
+			ContainerSockPath: ContainerMCPSockPath,
+			ContainerBinPath:  ContainerBinaryPath,
+			WorkspaceFolderFor: func(p string) string {
+				return resolveWorkspaceFallback(p, resolveSandbox(p).Devcontainer.HostPathMountPrefix)
+			},
+		},
+		func(p string) config.MCPProxyConfig { return resolveSandbox(p).Proxy.MCPProxy },
+	)
+	return []container.Provider{awsSpec, gcpSpec, sshSpec, hostExecSpec, mcpSpec}
 }
 
 // ContainerSpec fans out to all providers and merges their Env and Mounts.

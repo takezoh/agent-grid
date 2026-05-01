@@ -164,6 +164,21 @@ Binary names must match `[a-zA-Z0-9][a-zA-Z0-9._-]*`; patterns whose first non-e
 
 User-scope and project-scope `allow`/`deny` lists are concatenated; project patterns cannot remove user-level deny rules.
 
+### MCP proxy
+
+The `mcpproxy` provider runs MCP server processes on the host and relays JSON-RPC stdio into the container via a per-project Unix socket broker (`<dataDir>/run/<project-hash>/mcp.sock`). Credentials (GCP ADC, AWS profiles, etc.) are never transmitted — the MCP process itself runs on the host where the credentials reside.
+
+**Mechanism:**
+
+1. The host starts a per-project Unix socket broker bind-mounted at `/opt/roost/run/mcp.sock` inside the container.
+2. At container launch, roost generates a `.mcp.json` in the project workspace (read-only bind-mount) that overrides any project-local `.mcp.json` for configured aliases, routing them through `roost mcp-exec <alias>`.
+3. `roost mcp-exec <alias>` (the in-container shim) sends its three stdio fds via SCM_RIGHTS over the socket.
+4. The broker starts the actual MCP server process on the host and relays JSON-RPC messages. `tools/call` requests are policy-checked before forwarding; `tools/list` responses are filtered to the allowed set.
+
+**Policy (deny-first, default-deny):** patterns match the tool name directly with `*` as wildcard. User-scope and project-scope server definitions are merged; project entries override user entries on the same alias.
+
+**Container env var:** `ROOST_MCP_SOCK=/opt/roost/run/mcp.sock` (set when any server is configured).
+
 ### Subscription credentials (interactive auth)
 
 Some tools (Claude Code, etc.) authenticate via OAuth flows that store refresh tokens in user-config files. The credential proxy cannot synthesise these — they require a real interactive login. The user opts in by declaring a bind-mount in devcontainer.json for the credential file/directory. This exposes the OAuth refresh token to the container; the trade-off is the user's call.
