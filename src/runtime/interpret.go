@@ -452,9 +452,12 @@ func (r *Runtime) activeStatusLine() string {
 
 // reconcileWindows checks whether each tracked session pane still
 // exists. Missing panes are reported via EvTmuxWindowVanished.
+// The active frame is skipped because it is swap-paned into roost:0.1 and
+// detected reactively via swapSessionIntoMain returning isMissingPaneErr.
 func (r *Runtime) reconcileWindows() {
 	for frameID, target := range r.sessionPanes {
 		if frameID == r.activeFrameID {
+			slog.Debug("runtime: reconcile pane skipped (active)", "frame", frameID, "target", target)
 			continue
 		}
 		alive, err := r.cfg.Tmux.PaneAlive(target)
@@ -463,6 +466,11 @@ func (r *Runtime) reconcileWindows() {
 			continue
 		}
 		if !alive {
+			if tail, terr := r.cfg.Tmux.CapturePane(target, 20); terr == nil && tail != "" {
+				slog.Info("runtime: pane tail on vanish", "frame", frameID, "target", target, "tail", tail)
+			} else {
+				slog.Info("runtime: pane vanished", "frame", frameID, "target", target)
+			}
 			r.Enqueue(state.EvTmuxWindowVanished{FrameID: frameID})
 		}
 	}

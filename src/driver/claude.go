@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -168,10 +169,18 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	}
 	command = ensureClaudeSandboxFlag(command, sandboxed)
 	if mode != state.LaunchModeColdStart || cs.ClaudeSessionID == "" {
+		if mode == state.LaunchModeColdStart {
+			slog.Debug("claude: coldstart without resume", "project", project, "reason", "no_session_id")
+		}
 		return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
 	}
 	command = strings.TrimSpace(stripWorktreeFlag(command))
-	if strings.Contains(command, "--resume") || !isAlphanumHyphen(cs.ClaudeSessionID) {
+	if strings.Contains(command, "--resume") {
+		slog.Debug("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "already_has_resume")
+		return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
+	}
+	if !isAlphanumHyphen(cs.ClaudeSessionID) {
+		slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "invalid_session_id")
 		return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
 	}
 	// sandboxed: transcript_path lives inside the container and is not visible on
@@ -180,15 +189,18 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	if !sandboxed {
 		path := d.resolveTranscriptPath(cs)
 		if path == "" {
+			slog.Debug("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "no_transcript_path")
 			return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
 		}
 		if _, err := os.Stat(path); err != nil {
 			if os.IsNotExist(err) {
+				slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "transcript_not_found", "path", path)
 				return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
 			}
 			return state.LaunchPlan{}, err
 		}
 	}
+	slog.Info("claude: coldstart with resume", "project", project, "session", cs.ClaudeSessionID, "sandboxed", sandboxed)
 	return state.LaunchPlan{
 		Command:  command + " --resume " + cs.ClaudeSessionID,
 		StartDir: startDir,

@@ -58,7 +58,7 @@ func compileEntries(cfg config.HostExecConfig) (map[string]*entry, error) {
 	return m, nil
 }
 
-func executeRequest(ctx context.Context, e *entry, project string, req Request, fds [3]int) int {
+func executeRequest(ctx context.Context, e *entry, project string, req Request, fds [3]int, callerPID int) int {
 	stdin := os.NewFile(uintptr(fds[0]), "stdin")
 	stdout := os.NewFile(uintptr(fds[1]), "stdout")
 	stderr := os.NewFile(uintptr(fds[2]), "stderr")
@@ -68,7 +68,7 @@ func executeRequest(ctx context.Context, e *entry, project string, req Request, 
 
 	argv := append([]string{req.Binary}, req.Args...)
 	if err := e.policy.Check(argv); err != nil {
-		slog.Warn("hostexec: request rejected", "project", project, "binary", req.Binary, "err", err)
+		slog.Warn("hostexec: request rejected", "project", project, "binary", req.Binary, "caller_pid", callerPID, "caller", procComm(callerPID), "err", err)
 		fmt.Fprintf(stderr, "host-exec: %v\n", err)
 		return 126
 	}

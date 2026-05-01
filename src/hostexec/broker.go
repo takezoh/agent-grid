@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
+	"syscall"
 )
 
 type broker struct {
@@ -43,22 +45,23 @@ func (b *broker) handleConn(conn *net.UnixConn) {
 		}
 	}()
 
+	callerPID := peerPID(conn)
 	req, fds, err := RecvRequest(conn)
 	if err != nil {
 		slog.Warn("hostexec: recv request failed", "project", b.project, "err", err)
 		return
 	}
 
-	exitCode := b.dispatch(req, fds)
+	exitCode := b.dispatch(callerPID, req, fds)
 
 	resp, _ := json.Marshal(Response{ExitCode: exitCode})
 	_, _ = conn.Write(resp)
 }
 
-func (b *broker) dispatch(req Request, fds [3]int) int {
+func (b *broker) dispatch(callerPID int, req Request, fds [3]int) int {
 	e, ok := b.entries[req.Binary]
 	if !ok {
-		slog.Warn("hostexec: unknown binary", "project", b.project, "binary", req.Binary)
+		slog.Warn("hostexec: unknown binary", "project", b.project, "binary", req.Binary, "caller_pid", callerPID, "caller", procComm(callerPID))
 		stderr := os.NewFile(uintptr(fds[2]), "stderr")
 		fmt.Fprintf(stderr, "host-exec: unknown binary: %s\n", req.Binary)
 		stderr.Close()
@@ -66,5 +69,35 @@ func (b *broker) dispatch(req Request, fds [3]int) int {
 		os.NewFile(uintptr(fds[1]), "stdout").Close()
 		return 127
 	}
-	return executeRequest(b.ctx, e, b.project, req, fds)
+	return executeRequest(b.ctx, e, b.project, req, fds, callerPID)
+}
+
+// peerPID returns the PID of the process on the other end of conn via SO_PEERCRED.
+// Returns 0 on any error.
+func peerPID(conn *net.UnixConn) int {
+	raw, err := conn.SyscallConn()
+	if err != nil {
+		return 0
+	}
+	var pid int
+	_ = raw.Control(func(fd uintptr) {
+		cred, cerr := syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+		if cerr == nil {
+			pid = int(cred.Pid)
+		}
+	})
+	return pid
+}
+
+// procComm returns the comm name (process name, up to 15 chars) of pid via /proc.
+// Returns "" on any error.
+func procComm(pid int) string {
+	if pid <= 0 {
+		return ""
+	}
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
