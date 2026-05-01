@@ -293,14 +293,29 @@ session_name = "test"
 	}
 }
 
-func TestLoadProjectFrom_GCPConfig_enableUserAccount(t *testing.T) {
+func TestLoadProjectFrom_GCPConfig_enableUserAccount_returnsError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.toml")
 	os.WriteFile(path, []byte(`
 [sandbox.proxy.gcp]
 account = "user@example.com"
-projects = ["proj-x"]
+active  = "proj-x"
 enable_user_account = true
+`), 0o644)
+
+	_, err := LoadProjectFrom(path)
+	if err == nil {
+		t.Fatal("expected error for deprecated enable_user_account = true, got nil")
+	}
+}
+
+func TestLoadProjectFrom_GCPConfig_userAccountMode(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.toml")
+	os.WriteFile(path, []byte(`
+[sandbox.proxy.gcp]
+account = "user@example.com"
+active  = "proj-x"
 `), 0o644)
 
 	proj, err := LoadProjectFrom(path)
@@ -311,34 +326,41 @@ enable_user_account = true
 		t.Fatal("expected Sandbox to be non-nil")
 	}
 	gcp := proj.Sandbox.Proxy.GCP
-	if !gcp.EnableUserAccount {
-		t.Error("EnableUserAccount should be true when enable_user_account = true")
+	if gcp.Account != "user@example.com" {
+		t.Errorf("Account = %q, want %q", gcp.Account, "user@example.com")
+	}
+	if gcp.Active != "proj-x" {
+		t.Errorf("Active = %q, want %q", gcp.Active, "proj-x")
 	}
 	if gcp.ServiceAccount != "" {
 		t.Errorf("ServiceAccount should be empty, got %q", gcp.ServiceAccount)
 	}
-	if gcp.Account != "user@example.com" {
-		t.Errorf("Account = %q, want %q", gcp.Account, "user@example.com")
-	}
 }
 
-func TestLoadProjectFrom_GCPConfig_defaultsToSARequired(t *testing.T) {
+func TestLoadProjectFrom_GCPConfig_SAMode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.toml")
 	os.WriteFile(path, []byte(`
 [sandbox.proxy.gcp]
-projects = ["proj-x"]
+account         = "user@example.com"
+active          = "proj-a"
+service_account = "sa@proj.iam.gserviceaccount.com"
+projects        = ["proj-a", "proj-b"]
 `), 0o644)
 
 	proj, err := LoadProjectFrom(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proj.Sandbox == nil {
-		t.Fatal("expected Sandbox to be non-nil")
+	gcp := proj.Sandbox.Proxy.GCP
+	if gcp.ServiceAccount != "sa@proj.iam.gserviceaccount.com" {
+		t.Errorf("ServiceAccount = %q", gcp.ServiceAccount)
 	}
-	if proj.Sandbox.Proxy.GCP.EnableUserAccount {
-		t.Error("EnableUserAccount should default to false")
+	if gcp.Active != "proj-a" {
+		t.Errorf("Active = %q, want %q", gcp.Active, "proj-a")
+	}
+	if len(gcp.Projects) != 2 {
+		t.Errorf("Projects = %v, want 2 entries", gcp.Projects)
 	}
 }
 

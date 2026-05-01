@@ -45,6 +45,11 @@ func LoadProjectFrom(path string) (*ProjectConfig, error) {
 	if _, err := toml.DecodeFile(path, cfg); err != nil {
 		return nil, err
 	}
+	if cfg.Sandbox != nil {
+		if err := cfg.Sandbox.Proxy.GCP.Validate(); err != nil {
+			return nil, err
+		}
+	}
 	return cfg, nil
 }
 

@@ -113,7 +113,7 @@ func buildProviders(
 		gcloudcli.Config{GCPDir: dataDir + "/gcp", RunBase: runBase, ContainerRunDir: ContainerRunDir},
 		func(p string) gcloudcli.GCPConfig {
 			g := resolveSandbox(p).Proxy.GCP
-			return gcloudcli.GCPConfig{Account: g.Account, ServiceAccount: g.ServiceAccount, Projects: g.Projects, EnableUserAccount: g.EnableUserAccount}
+			return gcloudcli.GCPConfig{Account: g.Account, ServiceAccount: g.ServiceAccount, Active: g.Active, Projects: g.Projects}
 		},
 	)
 	sshSpec := sshagent.NewSpecBuilder(

@@ -99,16 +99,24 @@ Each name becomes a `[profile <name>]` section in a synthetic `~/.aws/config` in
 
 **gcloud — credential isolation.** The OAuth refresh token never enters the container. Only short-lived access tokens (≤1h) are bind-mounted; containers have no means to refresh them.
 
-Two modes:
+Two modes, selected by the presence of `service_account`. Both require `account` and `active`.
 
-**Service-account impersonation (recommended).** Container `gcloud` calls operate as the SA, scoped by its IAM bindings. Project boundaries are enforced on the host.
+| field | required | description |
+|-------|----------|-------------|
+| `account` | yes | host gcloud principal whose credentials are used |
+| `active` | yes | default project inside the container |
+| `service_account` | SA mode only | SA email to impersonate |
+| `projects` | SA mode only | all project IDs available in the container |
+
+**Service-account impersonation (recommended).** Container `gcloud` calls operate as the SA, scoped by its IAM bindings. Project boundaries are enforced.
 
 ```toml
 # <project>/.roost/settings.toml
 [sandbox.proxy.gcp]
-service_account = "sa@proj.iam.gserviceaccount.com"   # required
-projects        = ["proj-prod", "proj-staging"]        # required; first entry is the active default
-account         = "user@example.com"                   # optional — defaults to current host gcloud principal
+account         = "user@example.com"
+active          = "proj-prod"
+service_account = "sa@proj.iam.gserviceaccount.com"
+projects        = ["proj-prod", "proj-staging"]
 ```
 
 Host prerequisites:
@@ -120,13 +128,12 @@ gcloud iam service-accounts add-iam-policy-binding sa@proj.iam.gserviceaccount.c
   --role="roles/iam.serviceAccountTokenCreator"
 ```
 
-**User-account proxy (opt-in).** Omits impersonation; the container receives a full-scope user access token. Refresh-token isolation is preserved, but project boundary enforcement is not. Use when SA setup is not feasible.
+**User-account proxy.** Omits impersonation; the container receives a full-scope user access token. Refresh-token isolation is preserved, but project boundary enforcement is not. Use when SA setup is not feasible.
 
 ```toml
 [sandbox.proxy.gcp]
-account              = "user@example.com"
-projects             = ["my-project"]
-enable_user_account  = true
+account = "user@example.com"
+active  = "my-project"
 ```
 
 `gcloud` must be installed in the container image. `gcloud auth login` inside the container fails by design.

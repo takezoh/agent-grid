@@ -39,14 +39,14 @@ func (s SandboxConfig) IsSandboxed() bool {
 	return s.Mode != "" && s.Mode != "direct"
 }
 
-// Validate rejects unknown sandbox modes at startup.
+// Validate rejects unknown sandbox modes and deprecated proxy config at startup.
 func (s SandboxConfig) Validate() error {
 	switch s.Mode {
 	case "", "direct", "devcontainer":
-		return nil
 	default:
 		return fmt.Errorf("sandbox.mode=%q is unknown; valid values: direct, devcontainer", s.Mode)
 	}
+	return s.Proxy.GCP.Validate()
 }
 
 // DevcontainerConfig holds settings for the devcontainer sandbox mode.
@@ -126,14 +126,23 @@ type SSHAgentConfig struct {
 }
 
 // GCPConfig holds per-project gcloud CLI credential settings.
-// Projects must always be set. ServiceAccount is required unless enable_user_account = true.
+// Account and Active are required when any GCP field is set.
+// ServiceAccount selects SA mode (impersonation); omitting it selects user-account mode.
 // Only short-lived access tokens (≤1h) reach the container; refresh tokens never do.
-// Without ServiceAccount, project boundary enforcement is not available.
 type GCPConfig struct {
-	ServiceAccount    string   `toml:"service_account"`     // SA email to impersonate; required unless enable_user_account = true
-	Account           string   `toml:"account"`             // host gcloud principal (optional; defaults to current gcloud auth)
-	Projects          []string `toml:"projects"`            // GCP project IDs available in container; first entry is the active default
-	EnableUserAccount bool     `toml:"enable_user_account"` // allow user-account proxy when service_account is empty
+	ServiceAccount    string   `toml:"service_account"`     // SA email to impersonate; omit for user-account mode
+	Account           string   `toml:"account"`             // required
+	Active            string   `toml:"active"`              // required; default project in the container
+	Projects          []string `toml:"projects"`            // SA mode only
+	EnableUserAccount bool     `toml:"enable_user_account"` // deprecated; errors if true
+}
+
+// Validate returns an error if the config uses the removed enable_user_account field.
+func (g GCPConfig) Validate() error {
+	if g.EnableUserAccount {
+		return fmt.Errorf("sandbox.proxy.gcp: enable_user_account has been removed; delete it and use account + active instead")
+	}
+	return nil
 }
 
 // CommonDriverConfig holds settings that apply to all drivers.
@@ -201,6 +210,9 @@ func LoadFrom(path string) (*Config, error) {
 		return nil, err
 	}
 	if err := cfg.Notifications.Validate(); err != nil {
+		return nil, err
+	}
+	if err := cfg.Sandbox.Validate(); err != nil {
 		return nil, err
 	}
 	cfg.Driver.Pager = resolvePager(cfg.Driver.Pager)
