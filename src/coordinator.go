@@ -108,6 +108,7 @@ func runCoordinator() error { //nolint:funlen
 		return sbResolver.Resolve(project).IsSandboxed()
 	})
 
+	projects := cfg.ListProjects()
 	warmRestart := client.SessionExists()
 	if warmRestart {
 		slog.Info("session exists, restoring")
@@ -145,6 +146,7 @@ func runCoordinator() error { //nolint:funlen
 			slog.Error("recreate failed", "err", err)
 		}
 	}
+	go rt.CleanupUntrackedWorktrees(ctx, projects)
 
 	runErrCh := make(chan error, 1)
 	go func() {
