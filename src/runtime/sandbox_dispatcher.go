@@ -36,6 +36,23 @@ func (d *SandboxDispatcher) WrapLaunch(frameID state.FrameID, plan state.LaunchP
 	}
 }
 
+// EnsureProject resolves the effective sandbox mode for projectPath and delegates
+// to the appropriate backend to warm up the container without allocating a frame.
+func (d *SandboxDispatcher) EnsureProject(ctx context.Context, projectPath string) error {
+	mode := d.Resolver.Resolve(projectPath).Mode
+	switch mode {
+	case "devcontainer":
+		if d.Devcontainer == nil {
+			return nil
+		}
+		return d.Devcontainer.EnsureProject(ctx, projectPath)
+	case "", "direct":
+		return d.Direct.EnsureProject(ctx, projectPath)
+	default:
+		return fmt.Errorf("sandbox dispatcher: unknown mode %q for project %q", mode, projectPath)
+	}
+}
+
 // AdoptFrame resolves the effective sandbox mode for projectPath and delegates
 // to the appropriate backend to reclaim the pre-running sandbox frame.
 func (d *SandboxDispatcher) AdoptFrame(ctx context.Context, frameID state.FrameID, projectPath string) (func() error, pathmap.Mounts, error) {

@@ -1,10 +1,48 @@
 package runtime
 
 import (
+	"context"
 	"log/slog"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/takezoh/agent-roost/state"
 )
+
+const coldStartContainerConcurrency = 4
+
+// PrewarmContainers starts devcontainers for all sandboxed projects in parallel
+// before the serial spawn loop. Errors are logged but do not abort cold start;
+// the serial path will surface the same error per-frame if it persists.
+func (r *Runtime) PrewarmContainers(ctx context.Context) {
+	if r.state.SandboxedProject == nil {
+		return
+	}
+	seen := make(map[string]bool)
+	for _, sess := range r.state.Sessions {
+		for _, frame := range sess.Frames {
+			if frame.Project != "" && r.state.SandboxedProject(frame.Project) {
+				seen[frame.Project] = true
+			}
+		}
+	}
+	if len(seen) == 0 {
+		return
+	}
+
+	l := launcher(r.cfg)
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(coldStartContainerConcurrency)
+	for p := range seen {
+		eg.Go(func() error {
+			if err := l.EnsureProject(egCtx, p); err != nil {
+				slog.Warn("cold start: container prewarm failed", "project", p, "err", err)
+			}
+			return nil
+		})
+	}
+	_ = eg.Wait()
+}
 
 // RecreateAll spawns fresh tmux windows for every session in r.state.
 // Used during cold-start (the tmux session was just created and

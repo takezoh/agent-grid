@@ -44,6 +44,10 @@ type AgentLauncher interface {
 	// Returns the Cleanup callback and the bind-mount map for the frame (may be
 	// nil for non-sandbox backends). Must not start or restart the sandbox.
 	AdoptFrame(ctx context.Context, frameID state.FrameID, projectPath string) (func() error, pathmap.Mounts, error)
+
+	// EnsureProject prepares the sandbox environment for a project without
+	// allocating a frame. No-op for non-sandbox launchers.
+	EnsureProject(ctx context.Context, projectPath string) error
 }
 
 // DirectLauncher is the no-op implementation: it passes the plan through
@@ -61,6 +65,8 @@ func (DirectLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map
 func (DirectLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (func() error, pathmap.Mounts, error) {
 	return nil, nil, nil
 }
+
+func (DirectLauncher) EnsureProject(_ context.Context, _ string) error { return nil }
 
 // launcher returns cfg.Launcher if set, otherwise a zero-cost DirectLauncher.
 func launcher(cfg Config) AgentLauncher {
