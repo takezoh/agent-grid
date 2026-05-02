@@ -58,8 +58,6 @@ type fakeTmuxBackend struct {
 	popups           []string
 	alive            map[string]bool
 	captured         string
-	inspectCalls     []string
-	inspectSnapshot  PaneSnapshot
 	spawnWID         string
 	spawnPane        string
 	breakNewWID      string
@@ -212,14 +210,6 @@ func (f *fakeTmuxBackend) CapturePane(string, int) (string, error) {
 }
 func (f *fakeTmuxBackend) CapturePaneEscaped(string, int) (string, error) {
 	return f.captured, nil
-}
-func (f *fakeTmuxBackend) InspectPane(target string, _ int) (PaneSnapshot, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.inspectCalls = append(f.inspectCalls, target)
-	snap := f.inspectSnapshot
-	snap.Target = target
-	return snap, nil
 }
 func (f *fakeTmuxBackend) DetachClient() error { return nil }
 func (f *fakeTmuxBackend) KillSession() error {
@@ -476,56 +466,6 @@ func TestRuntimeRespawnsDeadPane(t *testing.T) {
 	}
 	if tmux.respawnCmds[0] != "'/usr/bin/roost' --tui sessions" {
 		t.Errorf("respawn cmd = %q", tmux.respawnCmds[0])
-	}
-}
-
-func TestActivateSessionInspectsPanesAroundSwap(t *testing.T) {
-	tmux := newFakeTmux()
-	r := New(Config{
-		SessionName:       "roost-test",
-		MainPaneHeightPct: 70,
-		Tmux:              tmux,
-	})
-	r.sessionPanes["_main"] = "%main"
-	r.state.Sessions["sess-1"] = state.Session{
-		ID:      "sess-1",
-		Command: "shell",
-		Driver:  driver.NewGenericDriver("shell", "shell", 0).NewState(time.Now()),
-		Frames:  []state.SessionFrame{{ID: "frame-1", Command: "shell", Driver: driver.NewGenericDriver("shell", "shell", 0).NewState(time.Now())}},
-	}
-	r.sessionPanes["frame-1"] = "%3"
-
-	r.execute(state.EffActivateSession{
-		SessionID: "sess-1",
-		Reason:    state.EventPreviewSession,
-	})
-
-	tmux.mu.Lock()
-	defer tmux.mu.Unlock()
-	if tmux.swapCalls != 1 {
-		t.Fatalf("swapCalls = %d, want 1", tmux.swapCalls)
-	}
-	if tmux.swapSources[0] != "%3" || tmux.swapTargets[0] != "roost-test:0.1" {
-		t.Fatalf("swap = %q -> %q, want %%3 -> roost-test:0.1", tmux.swapSources[0], tmux.swapTargets[0])
-	}
-	if r.sessionPanes["frame-1"] != "%3" {
-		t.Errorf("sessionPanes[frame-1] = %q, want %%3", r.sessionPanes["frame-1"])
-	}
-	if r.sessionPanes["_main"] != "%main" {
-		t.Errorf("sessionPanes[_main] = %q, want %%main", r.sessionPanes["_main"])
-	}
-
-	if len(tmux.inspectCalls) != 3 {
-		t.Fatalf("inspectCalls = %d, want 3", len(tmux.inspectCalls))
-	}
-	wantTargets := []string{"roost-test:0.1", "%3", "roost-test:0.1"}
-	for i, want := range wantTargets {
-		if tmux.inspectCalls[i] != want {
-			t.Fatalf("inspectCalls[%d] = %q, want %q", i, tmux.inspectCalls[i], want)
-		}
-	}
-	if r.mainPaneSession != "sess-1" {
-		t.Fatalf("activeSession = %q, want sess-1", r.mainPaneSession)
 	}
 }
 
@@ -1003,7 +943,7 @@ func TestActivateSessionSwapsOnFrameChange(t *testing.T) {
 	r.mainPaneSession = sid
 	r.activeFrameID = rootFrameID // old frame — different from top-of-stack
 
-	r.activateSession(sid, "push")
+	r.activateSession(sid)
 
 	tmux.mu.Lock()
 	defer tmux.mu.Unlock()
@@ -1050,39 +990,12 @@ func TestActivateSessionNoopWhenFrameUnchanged(t *testing.T) {
 	r.mainPaneSession = sid
 	r.activeFrameID = frameID // already on the active frame
 
-	r.activateSession(sid, "noop")
+	r.activateSession(sid)
 
 	tmux.mu.Lock()
 	defer tmux.mu.Unlock()
 	if tmux.swapCalls != 0 {
 		t.Fatalf("swapCalls = %d, want 0 (same frame, no swap needed)", tmux.swapCalls)
-	}
-}
-
-func TestMonitorParkedPanesTracksInactiveOnly(t *testing.T) {
-	tmux := newFakeTmux()
-	tmux.inspectSnapshot = PaneSnapshot{
-		Target:         "%2",
-		CurrentCommand: "node",
-		CursorX:        "0",
-		CursorY:        "35",
-		ContentTail:    "gemini",
-	}
-	r := New(Config{
-		SessionName: "roost-test",
-		Tmux:        tmux,
-	})
-	r.sessionPanes["active"] = "%1"
-	r.sessionPanes["idle"] = "%2"
-	r.activeFrameID = "active"
-
-	r.monitorParkedPanes()
-
-	if _, ok := r.parkedPaneSnapshot["active"]; ok {
-		t.Fatal("active session should not be tracked as parked")
-	}
-	if _, ok := r.parkedPaneSnapshot["idle"]; !ok {
-		t.Fatal("inactive session should be tracked as parked")
 	}
 }
 

@@ -155,7 +155,7 @@ func (r *Runtime) executeTmuxEffect(eff state.Effect) { //nolint:funlen
 		r.invokeFrameCleanup(e.FrameID)
 
 	case state.EffActivateSession:
-		r.activateSession(e.SessionID, e.Reason)
+		r.activateSession(e.SessionID)
 
 	case state.EffDeactivateSession:
 		r.deactivateSession()
@@ -173,7 +173,6 @@ func (r *Runtime) executeTmuxEffect(eff state.Effect) { //nolint:funlen
 				r.taps.stop(e.FrameID)
 			}
 			delete(r.sessionPanes, e.FrameID)
-			delete(r.parkedPaneSnapshot, e.FrameID)
 			_ = r.cfg.Tmux.UnsetEnv(sessionPaneEnvKey(e.FrameID))
 			r.cfg.EventLog.Close(e.FrameID)
 			if r.cfg.TerminalEvict != nil {

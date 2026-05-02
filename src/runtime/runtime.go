@@ -77,11 +77,8 @@ type Runtime struct {
 	// the physical occupant only.
 	mainPaneSession state.SessionID
 	activeFrameID   state.FrameID
-	// parkedPaneSnapshot stores the last logged parked-pane signature per session.
-	parkedPaneSnapshot map[state.FrameID]string
-
-	eventCh    chan state.Event   // public events from any goroutine
-	internalCh chan internalEvent // runtime-internal lifecycle (conn open/close)
+	eventCh         chan state.Event   // public events from any goroutine
+	internalCh      chan internalEvent // runtime-internal lifecycle (conn open/close)
 
 	workers *worker.Pool
 
@@ -103,10 +100,6 @@ type Runtime struct {
 	// tickN is a monotonic counter incremented on each main tick, passed
 	// as EvTick.N so reducers and drivers can gate work to every N-th tick.
 	tickN uint64
-	// parkedScanIdx is a round-robin cursor for monitorParkedPanes;
-	// one non-active frame is inspected per tick rather than all of them.
-	parkedScanIdx int
-
 	// workspaceResolver resolves the workspace name for each session's
 	// project directory, with mtime-based caching of .roost/settings.toml.
 	workspaceResolver *config.WorkspaceResolver
@@ -175,16 +168,15 @@ func New(cfg Config) *Runtime {
 	initial := state.New()
 	initial.Features = cfg.Features
 	r := &Runtime{
-		cfg:                cfg,
-		state:              initial,
-		sessionPanes:       map[state.FrameID]string{},
-		parkedPaneSnapshot: map[state.FrameID]string{},
-		eventCh:            make(chan state.Event, 256),
-		internalCh:         make(chan internalEvent, 64),
-		conns:              map[state.ConnID]*ipcConn{},
-		done:               make(chan struct{}),
-		workspaceResolver:  config.NewWorkspaceResolver(),
-		frameCleanups:      map[state.FrameID]func() error{},
+		cfg:               cfg,
+		state:             initial,
+		sessionPanes:      map[state.FrameID]string{},
+		eventCh:           make(chan state.Event, 256),
+		internalCh:        make(chan internalEvent, 64),
+		conns:             map[state.ConnID]*ipcConn{},
+		done:              make(chan struct{}),
+		workspaceResolver: config.NewWorkspaceResolver(),
+		frameCleanups:     map[state.FrameID]func() error{},
 	}
 	if cfg.Pool != nil {
 		r.workers = cfg.Pool
@@ -310,7 +302,6 @@ func (r *Runtime) Run(ctx context.Context) error { //nolint:funlen
 
 		case t := <-ticker.C:
 			r.tickN++
-			r.monitorParkedPanes()
 			r.dispatch(state.EvTick{Now: t, PaneTargets: r.snapshotPaneTargets(), N: r.tickN})
 
 		case <-fastTicker.C:

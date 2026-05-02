@@ -53,8 +53,6 @@ type PaneInspect interface {
 	// CapturePaneEscaped returns the trailing nLines with ANSI escape sequences
 	// preserved (-e flag). Used by the VT-parser-based state detection.
 	CapturePaneEscaped(paneTarget string, nLines int) (string, error)
-	// InspectPane snapshots a pane's visible state for diagnostics.
-	InspectPane(target string, nLines int) (PaneSnapshot, error)
 }
 
 // SessionEnv covers tmux session-level environment variable operations.
@@ -187,16 +185,6 @@ type FSEvent struct {
 
 type noopTmux struct{}
 
-type PaneSnapshot struct {
-	Target         string
-	Dead           bool
-	InMode         bool
-	CurrentCommand string
-	CursorX        string
-	CursorY        string
-	ContentTail    string
-}
-
 func (noopTmux) SpawnWindow(name, command, startDir string, env map[string]string) (string, string, error) {
 	return "", "", nil
 }
@@ -219,19 +207,16 @@ func (noopTmux) PaneAlive(string) (bool, error)                 { return true, n
 func (noopTmux) RespawnPane(string, string) error               { return nil }
 func (noopTmux) CapturePane(string, int) (string, error)        { return "", nil }
 func (noopTmux) CapturePaneEscaped(string, int) (string, error) { return "", nil }
-func (noopTmux) InspectPane(string, int) (PaneSnapshot, error) {
-	return PaneSnapshot{}, nil
-}
-func (noopTmux) ShowEnvironment() (string, error)          { return "", nil }
-func (noopTmux) DetachClient() error                       { return nil }
-func (noopTmux) KillSession() error                        { return nil }
-func (noopTmux) DisplayPopup(string, string, string) error { return nil }
-func (noopTmux) PipePane(string, string) error             { return nil }
-func (noopTmux) SendKeys(string, string) error             { return nil }
-func (noopTmux) SendKey(string, string) error              { return nil }
-func (noopTmux) LoadBuffer(string, string) error           { return nil }
-func (noopTmux) PasteBuffer(string, string) error          { return nil }
-func (noopTmux) SendEnter(string) error                    { return nil }
+func (noopTmux) ShowEnvironment() (string, error)               { return "", nil }
+func (noopTmux) DetachClient() error                            { return nil }
+func (noopTmux) KillSession() error                             { return nil }
+func (noopTmux) DisplayPopup(string, string, string) error      { return nil }
+func (noopTmux) PipePane(string, string) error                  { return nil }
+func (noopTmux) SendKeys(string, string) error                  { return nil }
+func (noopTmux) SendKey(string, string) error                   { return nil }
+func (noopTmux) LoadBuffer(string, string) error                { return nil }
+func (noopTmux) PasteBuffer(string, string) error               { return nil }
+func (noopTmux) SendEnter(string) error                         { return nil }
 
 type noopPersist struct{}
 

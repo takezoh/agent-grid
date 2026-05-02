@@ -7,7 +7,7 @@ import (
 	"github.com/takezoh/agent-roost/state"
 )
 
-func (r *Runtime) activateSession(sessID state.SessionID, reason string) {
+func (r *Runtime) activateSession(sessID state.SessionID) {
 	sess, ok := r.state.Sessions[sessID]
 	if !ok {
 		return
@@ -25,14 +25,9 @@ func (r *Runtime) activateSession(sessID state.SessionID, reason string) {
 		return
 	}
 
-	main := r.mainPaneTarget()
-	r.logPaneSnapshot(reason, "before-main", main)
-	r.logPaneSnapshot(reason, "before-target", paneID)
-
 	if !r.swapSessionIntoMain(sessID) {
 		return
 	}
-	r.logPaneSnapshot(reason, "after-main", main)
 }
 
 func (r *Runtime) deactivateSession() {
