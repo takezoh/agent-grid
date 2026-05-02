@@ -51,19 +51,18 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           allowed_tools: "Bash,Edit,Write,Read"
           prompt: |
-            GitHub Actions の CI (run id: ${{ github.event.workflow_run.id }}) が main で失敗した。
-            以下の手順で修復せよ:
+            CI run ${{ github.event.workflow_run.id }} failed on main. Fix it:
 
-            1. 失敗ログを取得する:
+            1. Get the failure log:
                gh run view ${{ github.event.workflow_run.id }} --log-failed
 
-            2. 原因を特定し、最小限の修正を加える。
-               AGENTS.md の規約を守る (1 ファイル 500 行以内、1 関数 50 行以内、
-               新機能・バグ修正には必ずテストを書く)。
+            2. Identify the root cause and apply the minimal fix.
+               Follow AGENTS.md rules: max 500 lines/file, 50 lines/function,
+               tests are required for any new or changed behavior.
 
-            3. 修正後に以下を全て通すこと:
+            3. Verify all checks pass:
                cd src && go vet ./... && go test ./... && go build -o ../roost . && go tool golangci-lint run ./...
 
-            4. 全て通ったら、修正内容を説明するコミットメッセージで main に commit & push する。
+            4. Commit and push the fix to main with a descriptive commit message.
           env: |
             GITHUB_TOKEN=${{ github.token }}
