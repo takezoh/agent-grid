@@ -3,8 +3,6 @@ package notify
 import (
 	"context"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -28,96 +26,19 @@ func TestXMLEscape(t *testing.T) {
 	}
 }
 
-func TestEmbeddedScript_NotEmpty(t *testing.T) {
-	s := string(notifyScript)
-	if !strings.Contains(s, "param") {
-		t.Error("embedded script should have param declaration")
-	}
-	if !strings.Contains(s, "ToastText02") {
-		t.Error("embedded script should use ToastText02 template")
-	}
-	if !strings.Contains(s, "ToastNotificationManager") {
-		t.Error("embedded script should call ToastNotificationManager")
-	}
-	if !strings.Contains(s, `"Roost"`) {
-		t.Error(`embedded script should use "Roost" as notifier ID`)
-	}
-}
-
-// TestInstallScript_WritesToDataDir verifies that installScript creates
-// <dataDir>/scripts/notify.ps1 with the embedded content, and that calling
-// it a second time overwrites the file idempotently.
-func TestInstallScript_WritesToDataDir(t *testing.T) {
-	if _, err := exec.LookPath("wslpath"); err != nil {
-		t.Skip("wslpath not available; installScript requires WSL")
-	}
-
-	dir := t.TempDir()
-	ctx := context.Background()
-
-	winPath1, err := installScript(ctx, dir)
-	if err != nil {
-		t.Fatalf("installScript: %v", err)
-	}
-	if winPath1 == "" {
-		t.Fatal("expected non-empty winPath")
-	}
-
-	scriptPath := filepath.Join(dir, "scripts", "notify.ps1")
-	got, err := os.ReadFile(scriptPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	if string(got) != string(notifyScript) {
-		t.Error("scripts/notify.ps1 content does not match embedded script")
-	}
-
-	// Second call must overwrite idempotently and return the same Windows path.
-	winPath2, err := installScript(ctx, dir)
-	if err != nil {
-		t.Fatalf("installScript (2nd call): %v", err)
-	}
-	if winPath1 != winPath2 {
-		t.Errorf("winPath changed between calls: %q vs %q", winPath1, winPath2)
-	}
-}
-
-// TestInstallScript_CreatesSubdir verifies that installScript creates the
-// scripts/ subdirectory even when it does not yet exist.
-func TestInstallScript_CreatesSubdir(t *testing.T) {
-	if _, err := exec.LookPath("wslpath"); err != nil {
-		t.Skip("wslpath not available; installScript requires WSL")
-	}
-
-	dir := t.TempDir()
-	ctx := context.Background()
-
-	if _, err := installScript(ctx, dir); err != nil {
-		t.Fatalf("installScript: %v", err)
-	}
-
-	info, err := os.Stat(filepath.Join(dir, "scripts"))
-	if err != nil {
-		t.Fatalf("scripts/ subdir not created: %v", err)
-	}
-	if !info.IsDir() {
-		t.Error("scripts/ should be a directory")
-	}
-}
-
-// TestNew_NoPowerShell verifies that New returns a no-op Notifier (nil error)
-// when powershell.exe is not on PATH.
-func TestNew_NoPowerShell(t *testing.T) {
+// TestNew_NoPSBackend verifies that New skips the PowerShell backend when
+// powershell.exe is absent or scriptPath is empty, returning a no-op Notifier.
+func TestNew_NoPSBackend(t *testing.T) {
 	t.Setenv("PATH", "")
-	n, err := New(context.Background(), t.TempDir())
+	n, err := New(context.Background(), "")
 	if err != nil {
-		t.Fatalf("New with no powershell.exe should return nil error, got: %v", err)
+		t.Fatalf("New should return nil error, got: %v", err)
 	}
 	if n == nil {
 		t.Fatal("New should return non-nil Notifier")
 	}
 	if n.psPath != "" {
-		t.Errorf("no-op Notifier should have empty psPath, got %q", n.psPath)
+		t.Errorf("Notifier should have empty psPath, got %q", n.psPath)
 	}
 }
 
@@ -166,5 +87,26 @@ func TestEscapeAppleScript(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("escapeAppleScript(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestNotifyScriptFileExists(t *testing.T) {
+	// go test runs with working directory set to the package directory.
+	content, err := os.ReadFile("notify.ps1")
+	if err != nil {
+		t.Skipf("notify.ps1 not available: %v", err)
+	}
+	s := string(content)
+	if !strings.Contains(s, "param") {
+		t.Error("notify.ps1 should have param declaration")
+	}
+	if !strings.Contains(s, "ToastText02") {
+		t.Error("notify.ps1 should use ToastText02 template")
+	}
+	if !strings.Contains(s, "ToastNotificationManager") {
+		t.Error("notify.ps1 should call ToastNotificationManager")
+	}
+	if !strings.Contains(s, `"Roost"`) {
+		t.Error(`notify.ps1 should use "Roost" as notifier ID`)
 	}
 }

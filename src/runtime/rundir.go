@@ -76,20 +76,37 @@ func InstallSockBridgeInRunDir(runDir string) error {
 	return installExecInRunDir(src, filepath.Join(runDir, "sockbridge"))
 }
 
-// findHelperBinary resolves the path to a helper binary (roost-bridge,
-// sockbridge). It first checks alongside the roost executable (covers both
-// development builds and portable installations), then falls back to the
-// libexec directory (~/.local/lib/roost/) used by the standard `make install`.
-func findHelperBinary(name string) (string, error) {
+// FindHelperFile returns the absolute path to a helper file (binary, script,
+// asset) if it can be located alongside the executable or in the libexec
+// directory (~/.local/lib/roost/). Returns "" when not found at either location.
+func FindHelperFile(name string) string {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("rundir: executable: %w", err)
+		return ""
 	}
 	if resolved, e := filepath.EvalSymlinks(exe); e == nil {
 		exe = resolved
 	}
 	if candidate := filepath.Join(filepath.Dir(exe), name); fileExists(candidate) {
-		return candidate, nil
+		return candidate
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	candidate := filepath.Join(home, ".local", "lib", "roost", name)
+	if fileExists(candidate) {
+		return candidate
+	}
+	return ""
+}
+
+// findHelperBinary resolves the path to a helper binary. Returns the located
+// path when found; otherwise returns the standard libexec path so the caller
+// can fail with a clear stat error.
+func findHelperBinary(name string) (string, error) {
+	if p := FindHelperFile(name); p != "" {
+		return p, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {

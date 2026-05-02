@@ -20,10 +20,10 @@ type Notifier struct {
 // New prepares the appropriate notification backend for the current platform
 // and returns a Notifier. Priority order: PowerShell (WSL/Windows) →
 // notify-send (Linux) → osascript (macOS) → no-op.
-func New(ctx context.Context, dataDir string) (*Notifier, error) {
+func New(ctx context.Context, scriptPath string) (*Notifier, error) {
 	// WSL / Windows: PowerShell Toast
-	if ps, err := exec.LookPath("powershell.exe"); err == nil {
-		winPath, err := installScript(ctx, dataDir)
+	if ps, err := exec.LookPath("powershell.exe"); err == nil && scriptPath != "" {
+		winPath, err := toWindowsPath(ctx, scriptPath)
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 BINARY      := roost
 BRIDGE      := roost-bridge
 SOCKBRIDGE  := sockbridge
+NOTIFY_PS1  := notify.ps1
 SRC_DIR     := src
 INSTALL_DIR    := $(HOME)/.local/bin
 LIBEXEC_DIR    := $(HOME)/.local/lib/roost
@@ -11,6 +12,7 @@ build:
 	cd $(SRC_DIR) && go build -o ../$(BINARY) .
 	cd $(SRC_DIR) && go build -o ../$(BRIDGE) ./cmd/bridge
 	cd $(SRC_DIR) && go build -o ../$(SOCKBRIDGE) github.com/takezoh/credproxy/cmd/sockbridge
+	cp $(SRC_DIR)/lib/notify/notify.ps1 ./$(NOTIFY_PS1)
 
 build-experimental:
 	cd $(SRC_DIR) && go build -tags experimental -o ../$(BINARY) .
@@ -20,6 +22,7 @@ install: build
 	install -m 755 $(BINARY) $(INSTALL_DIR)/$(BINARY)
 	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(BRIDGE)
 	install -m 755 $(SOCKBRIDGE) $(LIBEXEC_DIR)/$(SOCKBRIDGE)
+	install -m 644 $(NOTIFY_PS1) $(LIBEXEC_DIR)/$(NOTIFY_PS1)
 
 test:
 	cd $(SRC_DIR) && go test ./...
@@ -35,4 +38,4 @@ verify-bridge-deps:
 	@cd $(SRC_DIR) && go list -deps ./cmd/bridge | grep -E 'takezoh/agent-roost/(state|uiproc|features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
 
 clean:
-	rm -f $(BINARY) $(BRIDGE) $(SOCKBRIDGE)
+	rm -f $(BINARY) $(BRIDGE) $(SOCKBRIDGE) $(NOTIFY_PS1)

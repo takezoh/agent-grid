@@ -6,11 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
-	"github.com/takezoh/agent-roost/config"
 	libnotify "github.com/takezoh/agent-roost/lib/notify"
+	"github.com/takezoh/agent-roost/runtime"
 )
 
 func init() {
@@ -35,11 +34,10 @@ func RunNotify(args []string) error {
 		return fmt.Errorf("notify: --title or --body required")
 	}
 
-	dataDir := resolveNotifyDataDir()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	n, err := libnotify.New(ctx, dataDir)
+	n, err := libnotify.New(ctx, runtime.FindHelperFile("notify.ps1"))
 	if err != nil {
 		return fmt.Errorf("notify: init backend: %w", err)
 	}
@@ -62,10 +60,3 @@ func notifyStdout(title, body string) error {
 	})
 }
 
-func resolveNotifyDataDir() string {
-	cfg, err := config.Load()
-	if err != nil {
-		return filepath.Join(os.TempDir(), "roost")
-	}
-	return cfg.ResolveDataDir()
-}

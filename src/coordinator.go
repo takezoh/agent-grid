@@ -65,7 +65,7 @@ func runCoordinator() error { //nolint:funlen
 	connector.RegisterRunners()
 	pool := worker.NewPool(ctx, 4)
 
-	ln, err := libnotify.New(ctx, dataDir)
+	ln, err := libnotify.New(ctx, runtime.FindHelperFile("notify.ps1"))
 	if err != nil {
 		return fmt.Errorf("notify: %w", err)
 	}
