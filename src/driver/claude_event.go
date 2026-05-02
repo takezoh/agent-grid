@@ -344,7 +344,7 @@ func (d ClaudeDriver) handleWindowTitle(cs ClaudeState, title string, now time.T
 			cs.StatusChangedAt = now
 		}
 	case unicode.In(r, unicode.Braille):
-		if cs.Status == state.StatusIdle || cs.Status == state.StatusWaiting {
+		if cs.Status != state.StatusRunning {
 			cs.Status = state.StatusRunning
 			cs.StatusChangedAt = now
 		}

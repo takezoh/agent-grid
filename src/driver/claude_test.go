@@ -1862,6 +1862,28 @@ func TestHandleWindowTitle_BrailleSpinner_SetsRunning(t *testing.T) {
 	}
 }
 
+func TestHandleWindowTitle_BrailleSpinner_FromPending_SetsRunning(t *testing.T) {
+	d, cs, now := newClaude(t)
+	cs.Status = state.StatusPending
+
+	next := d.handleWindowTitle(cs, "⠂ Claude Code", now)
+
+	if next.Status != state.StatusRunning {
+		t.Errorf("Status = %v, want Running", next.Status)
+	}
+}
+
+func TestHandleWindowTitle_BrailleSpinner_FromStopped_SetsRunning(t *testing.T) {
+	d, cs, now := newClaude(t)
+	cs.Status = state.StatusStopped
+
+	next := d.handleWindowTitle(cs, "⠂ Claude Code", now)
+
+	if next.Status != state.StatusRunning {
+		t.Errorf("Status = %v, want Running", next.Status)
+	}
+}
+
 func TestHandleWindowTitle_WaitingSymbol_SetsWaiting(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.Status = state.StatusRunning
