@@ -165,20 +165,23 @@ deny = [
 
 Leading `KEY=VALUE` env assignments in patterns are stripped before matching (`"GH_TOKEN=x gh pr *"` ≡ `"gh pr *"`). Deny rules are checked first; unmatched commands are rejected by default.
 
-**Overlay paths.** Use `overlay` to bind-mount shims at specific paths inside the container. Useful when existing scripts reference binaries via relative paths (e.g. `./bin/gh`) rather than bare names on `PATH`. Each entry is either a project-relative path (resolved against the container-side workspace folder) or an absolute path.
+**Overlay paths.** Use `overlay` to bind-mount shims at specific container paths. Useful when scripts reference binaries via relative paths (e.g. `./bin/plastic.exe`) rather than bare names on `PATH`. Each entry declares a `target` (project-relative or absolute container path) and optional per-overlay `allow`/`deny` patterns.
 
 ```toml
-[sandbox.proxy.host_exec]
-allow   = ["gh pr *", "gh issue *"]
-deny    = ["gh auth *"]
-overlay = [
-  "bin/gh",                      # <workspace>/bin/gh
-  "../shared/bin/tool",          # parent dir — useful when extra_create_args mounts the parent
-  "/opt/company/bin/internal",   # absolute path anywhere in the container
-]
+[[sandbox.proxy.host_exec.overlay]]
+target = "bin/gh"                      # <workspace>/bin/gh
+allow  = ["gh pr *", "gh issue *"]
+deny   = ["gh auth *"]
+
+[[sandbox.proxy.host_exec.overlay]]
+target = "../shared/bin/tool"          # parent dir
+
+[[sandbox.proxy.host_exec.overlay]]
+target = "/opt/company/bin/internal"   # absolute path
+allow  = ["internal *"]                # allow required; omitting means default-deny
 ```
 
-The shim at each overlay path calls the same broker as the `PATH`-prepended shim, so `allow`/`deny` rules apply equally. Multiple overlay paths with the same basename (e.g. `bin/gh` and `tools/gh`) share one shim file on the host. User-scope and project-scope `overlay` lists are concatenated with duplicates removed.
+Each overlay entry gets a unique broker alias derived from its target path, so two entries sharing a basename (e.g. `bin/gh` and `tools/gh`) remain independent and can carry different `allow`/`deny` rules. An empty `allow` list means default-deny (same as global `host_exec` allow semantics). User-scope and project-scope overlay lists are concatenated; entries with the same `target` are deduplicated with the project entry taking precedence.
 
 **MCP proxy.** Runs MCP servers on the host so credentials (GCP ADC, AWS, etc.) never enter the container. Servers are declared in `~/.roost/settings.toml` or the project's `.roost/settings.toml`:
 

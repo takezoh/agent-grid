@@ -25,8 +25,11 @@ func newTestSpecBuilder(t *testing.T, wsDir string) (*SpecBuilder, string) {
 func TestContainerSpec_OverlayMounts(t *testing.T) {
 	b, _ := newTestSpecBuilder(t, "/workspace/myproject")
 	cfg := config.HostExecConfig{
-		Allow:   []string{"gcloud *"},
-		Overlay: []string{"bin/gcloud", "tools/gcloud"},
+		Allow: []string{"gcloud *"},
+		Overlay: []config.OverlayEntry{
+			{Target: "bin/gcloud"},
+			{Target: "tools/gcloud"},
+		},
 	}
 	b.cfgFor = func(string) config.HostExecConfig { return cfg }
 
@@ -51,9 +54,10 @@ func TestContainerSpec_OverlayMounts(t *testing.T) {
 
 func TestContainerSpec_OverlayShimWritten(t *testing.T) {
 	b, runBase := newTestSpecBuilder(t, "/workspace/myproject")
+	dst := "/workspace/myproject/bin/gcloud"
 	cfg := config.HostExecConfig{
 		Allow:   []string{"gcloud *"},
-		Overlay: []string{"bin/gcloud"},
+		Overlay: []config.OverlayEntry{{Target: "bin/gcloud"}},
 	}
 	b.cfgFor = func(string) config.HostExecConfig { return cfg }
 
@@ -62,35 +66,31 @@ func TestContainerSpec_OverlayShimWritten(t *testing.T) {
 		t.Fatalf("ContainerSpec: %v", err)
 	}
 
-	// find overlay shim file
-	entries, _ := os.ReadDir(filepath.Join(runBase, filepath.Base("/host/myproject")+"_"+strings.ReplaceAll("/host/myproject", "/", "_")))
-	_ = entries
-
-	// locate any hostexec-overlay dir under runBase
+	alias := OverlayAlias(dst)
 	var shimPath string
 	_ = filepath.WalkDir(runBase, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if d.Name() == "gcloud" && strings.Contains(path, OverlayDirName) {
+		if d.Name() == alias && strings.Contains(path, OverlayDirName) {
 			shimPath = path
 		}
 		return nil
 	})
 	if shimPath == "" {
-		t.Fatal("overlay shim gcloud not written")
+		t.Fatalf("overlay shim %q not written", alias)
 	}
 	content, _ := os.ReadFile(shimPath)
-	if !strings.Contains(string(content), "host-exec gcloud") {
-		t.Errorf("shim content = %q, want host-exec gcloud", string(content))
+	if !strings.Contains(string(content), "host-exec "+alias) {
+		t.Errorf("shim content = %q, want host-exec %s", string(content), alias)
 	}
 }
 
-func TestContainerSpec_OverlayEmptyPath_Skipped(t *testing.T) {
+func TestContainerSpec_OverlayEmptyTarget_Skipped(t *testing.T) {
 	b, _ := newTestSpecBuilder(t, "/workspace/myproject")
 	cfg := config.HostExecConfig{
 		Allow:   []string{"gcloud *"},
-		Overlay: []string{"", "bin/gcloud"},
+		Overlay: []config.OverlayEntry{{Target: ""}, {Target: "bin/gcloud"}},
 	}
 	b.cfgFor = func(string) config.HostExecConfig { return cfg }
 
@@ -99,15 +99,14 @@ func TestContainerSpec_OverlayEmptyPath_Skipped(t *testing.T) {
 		t.Fatalf("ContainerSpec: %v", err)
 	}
 	if len(spec.Mounts) != 1 {
-		t.Errorf("Mounts = %v, want 1 (empty path skipped)", spec.Mounts)
+		t.Errorf("Mounts = %v, want 1 (empty target skipped)", spec.Mounts)
 	}
 }
 
 func TestContainerSpec_OverlayAbsolutePath(t *testing.T) {
 	b, _ := newTestSpecBuilder(t, "/workspace/myproject")
 	cfg := config.HostExecConfig{
-		Allow:   []string{"plastic *"},
-		Overlay: []string{"/mnt/d/dev/SocialVR/UnrealEngine/.claude/skills/plasticscm/bin/plastic.exe"},
+		Overlay: []config.OverlayEntry{{Target: "/mnt/d/dev/SocialVR/UnrealEngine/.claude/skills/plasticscm/bin/plastic.exe"}},
 	}
 	b.cfgFor = func(string) config.HostExecConfig { return cfg }
 
@@ -126,8 +125,7 @@ func TestContainerSpec_OverlayAbsolutePath(t *testing.T) {
 func TestContainerSpec_OverlayParentRelative(t *testing.T) {
 	b, _ := newTestSpecBuilder(t, "/workspace/proj")
 	cfg := config.HostExecConfig{
-		Allow:   []string{"foo *"},
-		Overlay: []string{"../.claude/skills/foo/bin/foo"},
+		Overlay: []config.OverlayEntry{{Target: "../.claude/skills/foo/bin/foo"}},
 	}
 	b.cfgFor = func(string) config.HostExecConfig { return cfg }
 
@@ -146,8 +144,7 @@ func TestContainerSpec_OverlayParentRelative(t *testing.T) {
 func TestContainerSpec_OverlayAbsolute_NoWsDir(t *testing.T) {
 	b, _ := newTestSpecBuilder(t, "")
 	cfg := config.HostExecConfig{
-		Allow:   []string{"foo *"},
-		Overlay: []string{"/opt/shims/foo"},
+		Overlay: []config.OverlayEntry{{Target: "/opt/shims/foo"}},
 	}
 	b.cfgFor = func(string) config.HostExecConfig { return cfg }
 
@@ -163,8 +160,7 @@ func TestContainerSpec_OverlayAbsolute_NoWsDir(t *testing.T) {
 func TestContainerSpec_OverlayRelative_NoWsDir_Skipped(t *testing.T) {
 	b, _ := newTestSpecBuilder(t, "")
 	cfg := config.HostExecConfig{
-		Allow:   []string{"gcloud *"},
-		Overlay: []string{"bin/gcloud"},
+		Overlay: []config.OverlayEntry{{Target: "bin/gcloud"}},
 	}
 	b.cfgFor = func(string) config.HostExecConfig { return cfg }
 
@@ -177,9 +173,25 @@ func TestContainerSpec_OverlayRelative_NoWsDir_Skipped(t *testing.T) {
 	}
 }
 
+func TestContainerSpec_OverlayOnlyNoAllow(t *testing.T) {
+	b, _ := newTestSpecBuilder(t, "/workspace/proj")
+	cfg := config.HostExecConfig{
+		Overlay: []config.OverlayEntry{{Target: "/opt/tools/plastic.exe"}},
+	}
+	b.cfgFor = func(string) config.HostExecConfig { return cfg }
+
+	spec, err := b.ContainerSpec(context.Background(), "/host/proj")
+	if err != nil {
+		t.Fatalf("ContainerSpec: %v", err)
+	}
+	if len(spec.Mounts) != 1 {
+		t.Errorf("Mounts = %v, want 1 (overlay without global allow)", spec.Mounts)
+	}
+}
+
 func TestContainerSpec_NoOverlay_NoMounts(t *testing.T) {
 	b, _ := newTestSpecBuilder(t, "/workspace/myproject")
-	cfg := config.HostExecConfig{Allow: []string{"gcloud *"}}
+	cfg := config.HostExecConfig{Allow: []string{"gcloud *"}, Overlay: nil}
 	b.cfgFor = func(string) config.HostExecConfig { return cfg }
 
 	spec, err := b.ContainerSpec(context.Background(), "/host/myproject")
@@ -188,6 +200,38 @@ func TestContainerSpec_NoOverlay_NoMounts(t *testing.T) {
 	}
 	if len(spec.Mounts) != 0 {
 		t.Errorf("Mounts = %v, want empty when no overlay configured", spec.Mounts)
+	}
+}
+
+func TestSpecBuilderRefreshesEntries(t *testing.T) {
+	b, _ := newTestSpecBuilder(t, "")
+	allow1 := []string{"op.exe *"}
+	allow2 := []string{"op.exe *", "cm.exe *"}
+	call := 0
+	b.cfgFor = func(string) config.HostExecConfig {
+		call++
+		if call == 1 {
+			return config.HostExecConfig{Allow: allow1}
+		}
+		return config.HostExecConfig{Allow: allow2}
+	}
+
+	if _, err := b.ContainerSpec(context.Background(), "/host/proj"); err != nil {
+		t.Fatalf("first ContainerSpec: %v", err)
+	}
+	if _, err := b.ContainerSpec(context.Background(), "/host/proj"); err != nil {
+		t.Fatalf("second ContainerSpec: %v", err)
+	}
+
+	b.mu.Lock()
+	br := b.brokers["/host/proj"]
+	b.mu.Unlock()
+
+	if _, ok := br.loadEntries()["op.exe"]; !ok {
+		t.Error("op.exe should be in entries after refresh")
+	}
+	if _, ok := br.loadEntries()["cm.exe"]; !ok {
+		t.Error("cm.exe should be in entries after second ContainerSpec")
 	}
 }
 

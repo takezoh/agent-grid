@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -16,9 +17,12 @@ type broker struct {
 	sock    string
 	ln      net.Listener
 	project string
-	entries map[string]*entry // keyed by container alias
+	entries atomic.Pointer[map[string]*entry]
 	onStop  func()
 }
+
+func (b *broker) storeEntries(m map[string]*entry) { b.entries.Store(&m) }
+func (b *broker) loadEntries() map[string]*entry   { return *b.entries.Load() }
 
 func (b *broker) serve() {
 	defer b.ln.Close()
@@ -52,14 +56,14 @@ func (b *broker) handleConn(conn *net.UnixConn) {
 		return
 	}
 
-	exitCode := b.dispatch(callerPID, req, fds)
+	exitCode := b.dispatch(req, fds, callerPID)
 
 	resp, _ := json.Marshal(Response{ExitCode: exitCode})
 	_, _ = conn.Write(resp)
 }
 
-func (b *broker) dispatch(callerPID int, req Request, fds [3]int) int {
-	e, ok := b.entries[req.Binary]
+func (b *broker) dispatch(req Request, fds [3]int, callerPID int) int {
+	e, ok := b.loadEntries()[req.Binary]
 	if !ok {
 		slog.Warn("hostexec: unknown binary", "project", b.project, "binary", req.Binary, "caller_pid", callerPID, "caller", procComm(callerPID))
 		stderr := os.NewFile(uintptr(fds[2]), "stderr")

@@ -115,9 +115,18 @@ type MCPProxyServer struct {
 // extraction, so "GH_TOKEN=x gh pr *" is equivalent to "gh pr *".
 // The binary name is derived from the first non-env-assignment token of the allow patterns.
 type HostExecConfig struct {
-	Allow   []string `toml:"allow"`   // glob patterns that permit a command; first non-env-assignment token is the binary name
-	Deny    []string `toml:"deny"`    // glob patterns that deny a command; checked before allow
-	Overlay []string `toml:"overlay"` // container paths (project-relative or absolute) where host-exec shims are bind-mounted (e.g. "bin/gcloud", "../shared/bin/tool", "/opt/tools/gcloud")
+	Allow   []string       `toml:"allow"`   // glob patterns that permit a command; first non-env-assignment token is the binary name
+	Deny    []string       `toml:"deny"`    // glob patterns that deny a command; checked before allow
+	Overlay []OverlayEntry `toml:"overlay"` // per-path shim bind-mounts with optional allow/deny
+}
+
+// OverlayEntry bind-mounts a host-exec shim at a specific container path.
+// Each entry gets a unique broker alias derived from its target, so basename collisions across
+// entries are impossible.
+type OverlayEntry struct {
+	Target string   `toml:"target"` // container path (project-relative or absolute)
+	Allow  []string `toml:"allow"`  // glob patterns for allowed commands; empty = allow all
+	Deny   []string `toml:"deny"`   // glob patterns for denied commands; checked before allow
 }
 
 // SSHAgentConfig controls SSH agent injection into containers.

@@ -69,7 +69,7 @@ func (b *SpecBuilder) Routes() []credproxylib.Route { return nil }
 // Returns an empty Spec when no HostExecConfig entries are configured for projectPath.
 func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (container.Spec, error) {
 	cfg := b.cfgFor(projectPath)
-	if len(cfg.Allow) == 0 {
+	if len(cfg.Allow) == 0 && len(cfg.Overlay) == 0 {
 		return container.Spec{}, nil
 	}
 
@@ -78,7 +78,26 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 		return container.Spec{}, fmt.Errorf("hostexec: mkdir run dir: %w", err)
 	}
 
-	if err := b.ensureBroker(projectPath, projRunDir, cfg); err != nil {
+	var globalEntries map[string]*entry
+	var err error
+	if len(cfg.Allow) > 0 {
+		globalEntries, err = compileEntries(cfg)
+		if err != nil {
+			return container.Spec{}, err
+		}
+	}
+
+	var mounts []string
+	var overlayEntries map[string]*entry
+	if len(cfg.Overlay) > 0 {
+		mounts, overlayEntries, err = b.buildOverlayMounts(projRunDir, projectPath, cfg.Overlay)
+		if err != nil {
+			return container.Spec{}, err
+		}
+	}
+
+	allEntries := mergeEntries(globalEntries, overlayEntries)
+	if err := b.ensureBroker(projectPath, projRunDir, allEntries); err != nil {
 		return container.Spec{}, err
 	}
 
@@ -88,22 +107,27 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 	}
 
 	shimsDir := b.cfg.ContainerRunDir + "/" + ShimDirName
-	spec := container.Spec{
-		Env: map[string]string{"PATH": shimsDir + ":$PATH"},
-	}
-
-	if len(cfg.Overlay) > 0 {
-		mounts, err := b.buildOverlayMounts(projRunDir, projectPath, cfg.Overlay)
-		if err != nil {
-			return container.Spec{}, err
-		}
-		spec.Mounts = mounts
-	}
-
-	return spec, nil
+	return container.Spec{
+		Env:    map[string]string{"PATH": shimsDir + ":$PATH"},
+		Mounts: mounts,
+	}, nil
 }
 
-func (b *SpecBuilder) buildOverlayMounts(projRunDir, projectPath string, overlays []string) ([]string, error) {
+func mergeEntries(global, overlay map[string]*entry) map[string]*entry {
+	if len(overlay) == 0 {
+		return global
+	}
+	out := make(map[string]*entry, len(global)+len(overlay))
+	for k, v := range global {
+		out[k] = v
+	}
+	for k, v := range overlay {
+		out[k] = v
+	}
+	return out
+}
+
+func (b *SpecBuilder) buildOverlayMounts(projRunDir, projectPath string, overlays []config.OverlayEntry) ([]string, map[string]*entry, error) {
 	wsDir := projectPath
 	if b.cfg.WorkspaceFolderFor != nil {
 		wsDir = b.cfg.WorkspaceFolderFor(projectPath)
@@ -111,48 +135,48 @@ func (b *SpecBuilder) buildOverlayMounts(projRunDir, projectPath string, overlay
 
 	overlayDir := filepath.Join(projRunDir, OverlayDirName)
 	if err := os.MkdirAll(overlayDir, 0o755); err != nil {
-		return nil, fmt.Errorf("hostexec: mkdir overlay dir: %w", err)
+		return nil, nil, fmt.Errorf("hostexec: mkdir overlay dir: %w", err)
 	}
 
-	writtenNames := make(map[string]struct{})
+	entries := make(map[string]*entry, len(overlays))
 	var mounts []string
-	for _, target := range overlays {
-		if target == "" {
-			slog.Warn("hostexec: skipping empty overlay path")
+	for _, ov := range overlays {
+		if ov.Target == "" {
+			slog.Warn("hostexec: skipping empty overlay target")
 			continue
 		}
-		var dst string
-		if filepath.IsAbs(target) {
-			dst = filepath.Clean(target)
+		var dst, hostExecPath string
+		if filepath.IsAbs(ov.Target) {
+			dst = filepath.Clean(ov.Target)
+			hostExecPath = dst
 		} else {
 			if wsDir == "" {
-				slog.Warn("hostexec: workspace folder unknown, skipping relative overlay", "path", target, "project", projectPath)
+				slog.Warn("hostexec: workspace folder unknown, skipping relative overlay", "path", ov.Target, "project", projectPath)
 				continue
 			}
-			dst = filepath.Clean(filepath.Join(wsDir, target))
+			dst = filepath.Clean(filepath.Join(wsDir, ov.Target))
+			hostExecPath = filepath.Clean(filepath.Join(projectPath, ov.Target))
 		}
-		name := filepath.Base(dst)
-		if _, written := writtenNames[name]; !written {
-			if err := writeShim(overlayDir, b.cfg.ContainerBinPath, name); err != nil {
-				return nil, fmt.Errorf("hostexec: write overlay shim %q: %w", target, err)
-			}
-			writtenNames[name] = struct{}{}
+		alias := OverlayAlias(dst)
+		if err := writeShim(overlayDir, b.cfg.ContainerBinPath, alias); err != nil {
+			return nil, nil, fmt.Errorf("hostexec: write overlay shim %q: %w", ov.Target, err)
 		}
-		src := filepath.Join(overlayDir, name)
+		e, err := compileOverlayEntry(filepath.Base(dst), hostExecPath, ov.Allow, ov.Deny)
+		if err != nil {
+			return nil, nil, err
+		}
+		entries[alias] = e
+		src := filepath.Join(overlayDir, alias)
 		mounts = append(mounts, fmt.Sprintf("type=bind,source=%s,target=%s,readonly", src, dst))
 	}
-	return mounts, nil
+	return mounts, entries, nil
 }
 
-func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, cfg config.HostExecConfig) error {
-	entries, err := compileEntries(cfg)
-	if err != nil {
-		return err
-	}
-
+func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, entries map[string]*entry) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if _, ok := b.brokers[projectPath]; ok {
+	if br, ok := b.brokers[projectPath]; ok {
+		br.storeEntries(entries)
 		return nil
 	}
 
@@ -169,13 +193,13 @@ func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, cfg config.Ho
 		sock:    sockPath,
 		ln:      ln,
 		project: projectPath,
-		entries: entries,
 		onStop: func() {
 			b.mu.Lock()
 			delete(b.brokers, projectPath)
 			b.mu.Unlock()
 		},
 	}
+	br.storeEntries(entries)
 	b.brokers[projectPath] = br
 	go br.serve()
 	return nil

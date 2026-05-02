@@ -141,28 +141,43 @@ func TestMergeMCPServers_projectOverridesOnSameAlias(t *testing.T) {
 }
 
 func TestMergeSandbox_HostExecOverlay_Concat(t *testing.T) {
-	user := SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []string{"bin/gcloud"}}}}
-	project := &SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []string{"tools/aws"}}}}
+	user := SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []OverlayEntry{{Target: "bin/gcloud"}}}}}
+	project := &SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []OverlayEntry{{Target: "tools/aws"}}}}}
 	got := MergeSandbox(user, project)
 	if len(got.Proxy.HostExec.Overlay) != 2 {
 		t.Fatalf("Overlay = %v, want 2 entries", got.Proxy.HostExec.Overlay)
 	}
 }
 
-func TestMergeSandbox_HostExecOverlay_Dedup(t *testing.T) {
-	user := SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []string{"bin/gcloud", "tools/aws"}}}}
-	project := &SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []string{"bin/gcloud"}}}}
+func TestMergeSandbox_HostExecOverlay_DedupProjectWins(t *testing.T) {
+	user := SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []OverlayEntry{
+		{Target: "bin/gcloud", Allow: []string{"*"}},
+		{Target: "tools/aws"},
+	}}}}
+	project := &SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []OverlayEntry{
+		{Target: "bin/gcloud", Allow: []string{"config *"}},
+	}}}}
 	got := MergeSandbox(user, project)
 	if len(got.Proxy.HostExec.Overlay) != 2 {
-		t.Fatalf("Overlay = %v, want 2 unique entries", got.Proxy.HostExec.Overlay)
+		t.Fatalf("Overlay = %v, want 2 entries", got.Proxy.HostExec.Overlay)
+	}
+	// project entry for bin/gcloud should win
+	var gcEntry OverlayEntry
+	for _, e := range got.Proxy.HostExec.Overlay {
+		if e.Target == "bin/gcloud" {
+			gcEntry = e
+		}
+	}
+	if len(gcEntry.Allow) != 1 || gcEntry.Allow[0] != "config *" {
+		t.Errorf("bin/gcloud Allow = %v, want [config *] (project wins)", gcEntry.Allow)
 	}
 }
 
 func TestMergeSandbox_HostExecOverlay_NilProject(t *testing.T) {
-	user := SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []string{"bin/gcloud"}}}}
+	user := SandboxConfig{Proxy: ProxyConfig{HostExec: HostExecConfig{Overlay: []OverlayEntry{{Target: "bin/gcloud"}}}}}
 	got := MergeSandbox(user, nil)
-	if len(got.Proxy.HostExec.Overlay) != 1 || got.Proxy.HostExec.Overlay[0] != "bin/gcloud" {
-		t.Errorf("Overlay = %v, want [bin/gcloud]", got.Proxy.HostExec.Overlay)
+	if len(got.Proxy.HostExec.Overlay) != 1 || got.Proxy.HostExec.Overlay[0].Target != "bin/gcloud" {
+		t.Errorf("Overlay = %v, want [{Target:bin/gcloud}]", got.Proxy.HostExec.Overlay)
 	}
 }
 

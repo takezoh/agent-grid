@@ -30,7 +30,7 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 			HostExec: HostExecConfig{
 				Allow:   appendSlice(user.Proxy.HostExec.Allow, project.Proxy.HostExec.Allow),
 				Deny:    appendSlice(user.Proxy.HostExec.Deny, project.Proxy.HostExec.Deny),
-				Overlay: appendUniq(user.Proxy.HostExec.Overlay, project.Proxy.HostExec.Overlay),
+				Overlay: mergeOverlays(user.Proxy.HostExec.Overlay, project.Proxy.HostExec.Overlay),
 			},
 			MCPProxy: MCPProxyConfig{
 				Servers: mergeMCPServerMap(user.Proxy.MCPProxy.Servers, project.Proxy.MCPProxy.Servers),
@@ -79,6 +79,26 @@ func appendSlice(base, extra []string) []string {
 		return append([]string(nil), base...)
 	}
 	return append(append([]string(nil), base...), extra...)
+}
+
+// mergeOverlays concatenates user and project overlay entries, deduplicating by Target.
+// Project entries take precedence over user entries with the same Target.
+func mergeOverlays(user, project []OverlayEntry) []OverlayEntry {
+	seen := make(map[string]struct{}, len(user)+len(project))
+	out := make([]OverlayEntry, 0, len(user)+len(project))
+	for _, e := range project {
+		if _, ok := seen[e.Target]; !ok {
+			seen[e.Target] = struct{}{}
+			out = append(out, e)
+		}
+	}
+	for _, e := range user {
+		if _, ok := seen[e.Target]; !ok {
+			seen[e.Target] = struct{}{}
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // appendUniq concatenates base and extra, removing duplicates (preserving first occurrence).
