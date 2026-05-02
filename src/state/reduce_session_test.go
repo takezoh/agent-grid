@@ -452,6 +452,41 @@ func TestTmuxSpawnFailedNoManagedWorktreeForStub(t *testing.T) {
 
 // === reduceStopSession ===
 
+func TestStopSessionRemovesManagedWorktree(t *testing.T) {
+	s := New()
+	id := SessionID("abc")
+	s.Sessions[id] = Session{
+		ID:      id,
+		Command: "planner",
+		Driver:  stubDriverState{},
+		Frames:  []SessionFrame{{ID: FrameID(id), Command: "planner", Driver: stubDriverState{}}},
+	}
+	_, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: "stop-session",
+		Payload: mustPayload(map[string]string{"session_id": string(id)}),
+	})
+	eff, ok := findEff[EffRemoveManagedWorktree](effs)
+	if !ok {
+		t.Fatal("expected EffRemoveManagedWorktree")
+	}
+	if eff.Path != "/repo/.roost/worktrees/planner" {
+		t.Errorf("unexpected worktree path: %q", eff.Path)
+	}
+}
+
+func TestStopSessionNoManagedWorktreeForStub(t *testing.T) {
+	s := New()
+	id := SessionID("abc")
+	s.Sessions[id] = stubSession(id)
+	_, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: "stop-session",
+		Payload: mustPayload(map[string]string{"session_id": string(id)}),
+	})
+	if _, ok := findEff[EffRemoveManagedWorktree](effs); ok {
+		t.Fatal("did not expect EffRemoveManagedWorktree")
+	}
+}
+
 func TestStopSessionEvictsImmediately(t *testing.T) {
 	s := New()
 	id := SessionID("abc")

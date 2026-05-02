@@ -307,11 +307,8 @@ func reduceTmuxSpawnFailed(s State, e EvTmuxSpawnFailed) (State, []Effect) {
 	if sess, ok := s.Sessions[e.SessionID]; ok {
 		if idx := findFrameIndex(sess, e.FrameID); idx >= 0 {
 			frame := sess.Frames[idx]
-			drv := GetDriver(frame.Command)
-			if provider, ok := drv.(ManagedWorktreeProvider); ok {
-				if path := provider.ManagedWorktreePath(frame.Driver); path != "" {
-					effs = append(effs, EffRemoveManagedWorktree{Path: path})
-				}
+			if path := sessionManagedWorktreePath([]SessionFrame{frame}); path != "" {
+				effs = append(effs, EffRemoveManagedWorktree{Path: path})
 			}
 			sess, _ = truncateFrames(sess, idx)
 			s.Sessions = cloneSessions(s.Sessions)
@@ -358,8 +355,23 @@ func reduceStopSession(s State, connID ConnID, reqID string, p StopSessionParams
 			EffUnwatchFile{FrameID: frame.ID},
 		)
 	}
+	if path := sessionManagedWorktreePath(removed); path != "" {
+		effs = append(effs, EffRemoveManagedWorktree{Path: path})
+	}
 	effs = append(effs, okResp(connID, reqID, nil), EffPersistSnapshot{})
 	return s, effs
+}
+
+func sessionManagedWorktreePath(frames []SessionFrame) string {
+	for _, frame := range frames {
+		drv := GetDriver(frame.Command)
+		if provider, ok := drv.(ManagedWorktreeProvider); ok {
+			if path := provider.ManagedWorktreePath(frame.Driver); path != "" {
+				return path
+			}
+		}
+	}
+	return ""
 }
 
 func reducePreviewSession(s State, connID ConnID, reqID string, p PreviewSessionParams) (State, []Effect) {
