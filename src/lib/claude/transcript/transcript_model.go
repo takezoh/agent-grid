@@ -28,9 +28,8 @@ const (
 // have no uuid in the wire format and leave both fields empty.
 //
 // Synthetic marks KindUser entries that originate from Claude-injected
-// content blocks rather than the user's CLI input. Examples are skill
-// bootstrap text ("Base directory for this skill: ..."), interrupt
-// markers ("[Request interrupted by user]"), and command output echoes.
+// content blocks rather than the user's CLI input. Examples are interrupt
+// markers ("[Request interrupted by user]") and command output echoes.
 // transcript.Tracker uses this flag to keep these out of the lastPrompt
 // chain while still letting renderers display them.
 type Entry struct {

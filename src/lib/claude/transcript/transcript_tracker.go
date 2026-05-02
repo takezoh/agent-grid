@@ -46,7 +46,7 @@ type trackerState struct {
 	// recentTurns is a rolling window of text-bearing user/assistant entries
 	// in arrival order, used by RecentRounds for the haiku summarizer. Real
 	// user prompts and assistant text blocks are recorded; synthetic user
-	// blocks (tool_result, skill bootstrap, ...) and pure tool_use entries
+	// blocks (tool_result, interrupt markers, ...) and pure tool_use entries
 	// are skipped. Capped at recentTurnsCap to bound memory.
 	recentTurns []TurnText
 
@@ -284,7 +284,7 @@ func (st *trackerState) applyMetaEntry(e Entry) {
 // caches the prompt text on KindUser entries with non-empty content, and
 // advances the tail. Non-conversation entries (system, attachment,
 // custom-title, ...) carry no UUID in the wire format and are skipped.
-// Synthetic KindUser entries (skill bootstrap, interrupt markers, etc.)
+// Synthetic KindUser entries (interrupt markers, command echoes, etc.)
 // extend the chain so subsequent walks still terminate, but their text
 // is NOT registered as a candidate user prompt.
 func (st *trackerState) applyChainEntry(e Entry) {

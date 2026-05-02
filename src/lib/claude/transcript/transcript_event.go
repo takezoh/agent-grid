@@ -231,10 +231,9 @@ func (p *Parser) parseUserEntry(msg *jsonMessage, topToolUseResult json.RawMessa
 		case "text":
 			if t := strings.TrimSpace(b.Text); t != "" {
 				// Block-text user content always originates from Claude
-				// itself (skill bootstrap, interrupt markers, command
-				// output echoes) — never from the human at the CLI.
-				// Mark Synthetic so transcript.Tracker excludes it from
-				// the lastPrompt chain.
+				// itself (interrupt markers, command output echoes) —
+				// never from the human at the CLI. Mark Synthetic so
+				// transcript.Tracker excludes it from the lastPrompt chain.
 				entries = append(entries, Entry{Kind: KindUser, Text: t, Synthetic: true})
 			}
 		case "tool_result":

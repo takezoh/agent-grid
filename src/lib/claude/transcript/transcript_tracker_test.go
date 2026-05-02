@@ -213,14 +213,14 @@ func TestTracker_LastPromptIgnoresBashInputBlob(t *testing.T) {
 }
 
 func TestTracker_LastPromptIgnoresSyntheticBlockText(t *testing.T) {
-	// Block-text user content (skill bootstrap, interrupt markers,
-	// command echoes) is always Synthetic. Tracker must skip it so the
-	// previous real user prompt remains the answer.
+	// Block-text user content (interrupt markers, command echoes) is
+	// always Synthetic. Tracker must skip it so the previous real user
+	// prompt remains the answer.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sess.jsonl")
 	writeJSONL(t, path, `{"type":"user","uuid":"u1","parentUuid":null,"message":{"content":"real prompt"}}
 {"type":"assistant","uuid":"a1","parentUuid":"u1","message":{"content":[{"type":"text","text":"reply"}]}}
-{"type":"user","uuid":"u2","parentUuid":"a1","message":{"content":[{"type":"text","text":"Base directory for this skill: /home/take/.claude/skills/commit"}]}}
+{"type":"user","uuid":"u2","parentUuid":"a1","message":{"content":[{"type":"text","text":"[Request interrupted by user]"}]}}
 `)
 	tr := NewTracker()
 	if _, err := tr.Update("sess", path); err != nil {
