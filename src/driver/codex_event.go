@@ -71,9 +71,17 @@ func (d CodexDriver) handleHook(cs CodexState, ctx state.FrameContext, e state.D
 	}
 	cs.CodexSessionID = hp.SessionID
 
-	var effs []state.Effect
-	effs = append(effs, watchCodexTranscript(&cs)...)
+	effs := watchCodexTranscript(&cs)
+	cs, effs = d.applyHookEvent(cs, ctx, hp, e, effs)
 
+	line := strings.TrimSpace(hp.formatLog())
+	if line != "" {
+		effs = append(effs, state.EffEventLogAppend{Line: line})
+	}
+	return cs, effs
+}
+
+func (d CodexDriver) applyHookEvent(cs CodexState, ctx state.FrameContext, hp codexHookPayload, e state.DEvHook, effs []state.Effect) (CodexState, []state.Effect) {
 	switch hp.HookEventName {
 	case "SessionStart":
 		cs.PendingTools = nil
@@ -85,17 +93,14 @@ func (d CodexDriver) handleHook(cs CodexState, ctx state.FrameContext, e state.D
 			if target != "" && !cs.BranchInFlight {
 				cs.BranchInFlight = true
 				cs.BranchTarget = target
-				effs = append(effs, state.EffStartJob{
-					Input: BranchDetectInput{WorkingDir: target},
-				})
+				effs = append(effs, state.EffStartJob{Input: BranchDetectInput{WorkingDir: target}})
 			}
 		}
 	case "UserPromptSubmit":
 		cs.LastPrompt = strings.TrimSpace(hp.Prompt)
 		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
 		turns := recentUserTurns(appendHookPromptTurn(cs.RecentTurns, hp.Prompt), 2)
-		prompt := formatSummaryPrompt(cs.Summary, turns)
-		effs, cs.SummaryInFlight = enqueueSummaryJob(effs, cs.SummaryInFlight, prompt)
+		effs, cs.SummaryInFlight = enqueueSummaryJob(effs, cs.SummaryInFlight, formatSummaryPrompt(cs.Summary, turns))
 		effs = append(effs, d.startCodexTranscriptParse(&cs)...)
 	case "PreToolUse":
 		cs.CurrentTool = strings.TrimSpace(hp.ToolName)
@@ -113,11 +118,6 @@ func (d CodexDriver) handleHook(cs CodexState, ctx state.FrameContext, e state.D
 		}
 		cs = applyHookStatus(cs, state.StatusWaiting, e.Timestamp)
 		effs = append(effs, d.startCodexTranscriptParse(&cs)...)
-	}
-
-	line := strings.TrimSpace(hp.formatLog())
-	if line != "" {
-		effs = append(effs, state.EffEventLogAppend{Line: line})
 	}
 	return cs, effs
 }
