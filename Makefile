@@ -7,7 +7,7 @@ INSTALL_DIR := $(HOME)/.local/bin
 
 build:
 	cd $(SRC_DIR) && go build -o ../$(BINARY) .
-	cd $(SRC_DIR) && go build -o ../$(SOCKBRIDGE) ../../credproxy/cmd/sockbridge
+	cd $(SRC_DIR) && go build -o ../$(SOCKBRIDGE) github.com/takezoh/credproxy/cmd/sockbridge
 
 build-experimental:
 	cd $(SRC_DIR) && go build -tags experimental -o ../$(BINARY) .
