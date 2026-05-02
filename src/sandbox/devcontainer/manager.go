@@ -122,12 +122,13 @@ func (m *Manager) ensureContainer(ctx context.Context, projectPath string) error
 	slog.Info("devcontainer: stage", "name", "load_spec", "image", spec.Image, "elapsed", time.Since(t), "project", projectPath)
 
 	image := spec.Image
-	if imgEnv, err := ImageEnv(ctx, image); err != nil {
-		slog.Warn("devcontainer: image env probe failed; ${containerEnv:*} not resolved",
+	imgEnv, err := ImageEnv(ctx, image)
+	if err != nil {
+		slog.Warn("devcontainer: image env probe failed; resolving without image baseline",
 			"image", image, "err", err)
-	} else {
-		spec.ResolveContainerEnvPlaceholders(imgEnv)
+		imgEnv = map[string]string{}
 	}
+	spec.ResolveContainerEnvPlaceholders(imgEnv)
 
 	if ctr != nil {
 		return m.reuseContainer(ctx, projectPath, ctr, spec)

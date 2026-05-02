@@ -234,6 +234,28 @@ func TestResolveContainerEnvPlaceholders(t *testing.T) {
 		}
 	})
 
+	t.Run("empty imageEnv (ImageEnv probe failed) preserves explicit containerEnv paths in remoteEnv", func(t *testing.T) {
+		// Simulates the ImageEnv-failure fallback: called with empty map instead of being skipped.
+		// containerEnv PATH has google-cloud-sdk explicitly listed before ${containerEnv:PATH}.
+		// remoteEnv PATH references ${containerEnv:PATH}.
+		// After resolution, remoteEnv PATH must include google-cloud-sdk even without image baseline.
+		spec := &DevcontainerSpec{
+			ContainerEnv: map[string]string{
+				"PATH": "/home/ubuntu/.local/share/google-cloud-sdk/bin:/usr/local/bin:${containerEnv:PATH}",
+			},
+			RemoteEnv: map[string]string{
+				"PATH": "/home/ubuntu/.local/share/mise/shims:${containerEnv:PATH}",
+			},
+		}
+		spec.ResolveContainerEnvPlaceholders(map[string]string{}) // empty = no image baseline
+		if !strings.Contains(spec.RemoteEnv["PATH"], "google-cloud-sdk") {
+			t.Errorf("RemoteEnv[PATH] = %q, must contain google-cloud-sdk after empty-baseline resolve", spec.RemoteEnv["PATH"])
+		}
+		if !strings.Contains(spec.ContainerEnv["PATH"], "google-cloud-sdk") {
+			t.Errorf("ContainerEnv[PATH] = %q, must contain google-cloud-sdk", spec.ContainerEnv["PATH"])
+		}
+	})
+
 	t.Run("no placeholder is unchanged", func(t *testing.T) {
 		spec := &DevcontainerSpec{
 			ContainerEnv: map[string]string{"FOO": "bar"},
@@ -336,6 +358,54 @@ func TestSpecOverlay_PreExecFallback(t *testing.T) {
 	})
 }
 
+func TestApplyPathOverlayPrependsToUserPath(t *testing.T) {
+	// The hostexec overlay injects "shims:$PATH". It must NOT overwrite the
+	// user's explicit containerEnv/remoteEnv PATH (e.g. one containing google-cloud-sdk).
+	// It should prepend the shims prefix and preserve the user's value.
+	userPath := "/home/ubuntu/.local/share/google-cloud-sdk/bin:/usr/local/bin:${containerEnv:PATH}"
+	remotePath := "/home/ubuntu/.local/share/mise/shims:${containerEnv:PATH}"
+	s := &DevcontainerSpec{
+		ContainerEnv: map[string]string{"PATH": userPath},
+		RemoteEnv:    map[string]string{"PATH": remotePath},
+	}
+	shimsDir := "/opt/roost/run/hostexec-shims"
+	s.Apply(SpecOverlay{Env: map[string]string{"PATH": shimsDir + ":$PATH"}})
+
+	if got := s.ContainerEnv["PATH"]; got != shimsDir+":"+userPath {
+		t.Errorf("ContainerEnv[PATH] = %q, want shims prepended to user PATH %q", got, shimsDir+":"+userPath)
+	}
+	if got := s.RemoteEnv["PATH"]; got != shimsDir+":"+remotePath {
+		t.Errorf("RemoteEnv[PATH] = %q, want shims prepended to remote PATH %q", got, shimsDir+":"+remotePath)
+	}
+	// google-cloud-sdk must survive in ContainerEnv
+	if !strings.Contains(s.ContainerEnv["PATH"], "google-cloud-sdk") {
+		t.Errorf("ContainerEnv[PATH] lost google-cloud-sdk: %s", s.ContainerEnv["PATH"])
+	}
+}
+
+func TestApplyPathOverlayUsedAsIsWhenNoExistingPath(t *testing.T) {
+	s := &DevcontainerSpec{}
+	s.Apply(SpecOverlay{Env: map[string]string{"PATH": "/opt/shims:$PATH"}})
+	if got := s.ContainerEnv["PATH"]; got != "/opt/shims:$PATH" {
+		t.Errorf("ContainerEnv[PATH] = %q, want /opt/shims:$PATH when no existing PATH", got)
+	}
+}
+
+func TestApplyNonPathOverlayOverridesExisting(t *testing.T) {
+	// Non-PATH vars (no ":$VAR" suffix) must override, not prepend.
+	s := &DevcontainerSpec{
+		ContainerEnv: map[string]string{"SSH_AUTH_SOCK": "/old/agent.sock"},
+		RemoteEnv:    map[string]string{"SSH_AUTH_SOCK": "/old/agent.sock"},
+	}
+	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/roost/run/agent.sock"}})
+	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/roost/run/agent.sock" {
+		t.Errorf("ContainerEnv[SSH_AUTH_SOCK] = %q, want override", got)
+	}
+	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/roost/run/agent.sock" {
+		t.Errorf("RemoteEnv[SSH_AUTH_SOCK] = %q, want override", got)
+	}
+}
+
 func TestApplyMergesOverlayEnvIntoBothContainerAndRemoteEnv(t *testing.T) {
 	s := &DevcontainerSpec{
 		ContainerEnv: map[string]string{"EXISTING": "yes"},
@@ -420,6 +490,43 @@ func TestApplyOverlayPostCreateAppendsToExtraPostCreate(t *testing.T) {
 			t.Errorf("ExtraPostCreate should be empty, got %v", s.ExtraPostCreate)
 		}
 	})
+}
+
+func TestResolveContainerEnvPlaceholders_DeduplicatesPath(t *testing.T) {
+	// Full layered scenario: Dockerfile ENV, user containerEnv with ${containerEnv:PATH},
+	// remoteEnv with ${containerEnv:PATH}, and overlay shims prepended.
+	// After resolution the same directory must appear only once in each env.
+	imageEnv := map[string]string{
+		"PATH": "/home/ubuntu/.local/bin:/home/ubuntu/.local/share/mise/shims:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/bin:/usr/bin:/bin",
+	}
+	spec := &DevcontainerSpec{
+		ContainerEnv: map[string]string{
+			"PATH": "/opt/roost/run/hostexec-shims:/home/ubuntu/.local/bin:/home/ubuntu/.local/share/mise/shims:/home/ubuntu/.local/share/google-cloud-sdk/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${containerEnv:PATH}",
+		},
+		RemoteEnv: map[string]string{
+			"PATH": "/opt/roost/run/hostexec-shims:/home/ubuntu/.local/share/mise/shims:${containerEnv:PATH}",
+		},
+	}
+	spec.ResolveContainerEnvPlaceholders(imageEnv)
+
+	checkNoDuplicates := func(t *testing.T, label, val string) {
+		t.Helper()
+		seen := map[string]int{}
+		for _, seg := range strings.Split(val, ":") {
+			seen[seg]++
+		}
+		for seg, n := range seen {
+			if n > 1 {
+				t.Errorf("%s: %q appears %d times in PATH: %s", label, seg, n, val)
+			}
+		}
+	}
+	checkNoDuplicates(t, "ContainerEnv", spec.ContainerEnv["PATH"])
+	checkNoDuplicates(t, "RemoteEnv", spec.RemoteEnv["PATH"])
+
+	if !strings.Contains(spec.RemoteEnv["PATH"], "google-cloud-sdk") {
+		t.Errorf("RemoteEnv[PATH] missing google-cloud-sdk: %s", spec.RemoteEnv["PATH"])
+	}
 }
 
 func TestDevcontainerSpec_effectiveUser(t *testing.T) {

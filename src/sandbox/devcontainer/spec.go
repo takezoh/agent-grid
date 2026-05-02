@@ -112,8 +112,8 @@ func (s *DevcontainerSpec) Apply(overlay SpecOverlay) {
 		s.RemoteEnv = make(map[string]string)
 	}
 	for k, v := range overlay.Env {
-		s.ContainerEnv[k] = v
-		s.RemoteEnv[k] = v
+		s.ContainerEnv[k] = prependEnvVal(v, s.ContainerEnv[k])
+		s.RemoteEnv[k] = prependEnvVal(v, s.RemoteEnv[k])
 	}
 	s.Mounts = append(s.Mounts, overlay.Mounts...)
 	s.ExtraCreateArgs = append(s.ExtraCreateArgs, overlay.ExtraCreateArgs...)
@@ -126,6 +126,26 @@ func (s *DevcontainerSpec) Apply(overlay SpecOverlay) {
 	if overlay.WorkspaceFolderFallback != "" {
 		s.WorkspaceFolderFallback = overlay.WorkspaceFolderFallback
 	}
+}
+
+// envSuffixRe matches a trailing ":<var-ref>" (e.g. ":$PATH", ":${containerEnv:PATH}")
+// so the self-reference can be stripped before prepending to an existing value.
+var envSuffixRe = regexp.MustCompile(`:\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})$`)
+
+// prependEnvVal prepends the overlay prefix to existing, stripping any trailing
+// ":<var-ref>" suffix to avoid double-expansion. No suffix means plain override.
+func prependEnvVal(overlay, existing string) string {
+	if existing == "" {
+		return overlay
+	}
+	prefix := envSuffixRe.ReplaceAllString(overlay, "")
+	if prefix == overlay {
+		return overlay
+	}
+	if prefix == "" {
+		return existing
+	}
+	return prefix + ":" + existing
 }
 
 // WorkspaceTarget returns the container-side workspace path used for -w and the
@@ -334,6 +354,29 @@ func (s *DevcontainerSpec) ResolveContainerEnvPlaceholders(imageEnv map[string]s
 	for k, v := range s.RemoteEnv {
 		s.RemoteEnv[k] = resolve(v, merged)
 	}
+	if p, ok := s.ContainerEnv["PATH"]; ok {
+		s.ContainerEnv["PATH"] = deduplicateColonList(p)
+	}
+	if p, ok := s.RemoteEnv["PATH"]; ok {
+		s.RemoteEnv["PATH"] = deduplicateColonList(p)
+	}
+}
+
+func deduplicateColonList(s string) string {
+	segs := strings.Split(s, ":")
+	if len(segs) == 1 {
+		return s
+	}
+	seen := make(map[string]bool, len(segs))
+	out := make([]string, 0, len(segs))
+	for _, seg := range segs {
+		if seg == "" || seen[seg] {
+			continue
+		}
+		seen[seg] = true
+		out = append(out, seg)
+	}
+	return strings.Join(out, ":")
 }
 
 // substituteVarsInStr replaces devcontainer variable references.
