@@ -42,6 +42,8 @@ func NewDevcontainerLauncher(
 	}
 }
 
+const containerEnsureTimeout = 120 * time.Second
+
 // WrapLaunch ensures the project devcontainer is running and returns a launch
 // spec that runs the agent via "docker exec".
 // The image must already be built ("roost build <project>").
@@ -50,7 +52,7 @@ func (l *DevcontainerLauncher) WrapLaunch(frameID state.FrameID, plan state.Laun
 		return WrappedLaunch{}, fmt.Errorf("devcontainer launcher: plan.Project is empty for frame %s", frameID)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), containerEnsureTimeout)
 	defer cancel()
 
 	inst, err := l.mgr.EnsureInstance(ctx, plan.Project, "", sandbox.StartOptions{})
@@ -107,6 +109,16 @@ func buildMounts(hostProject, containerWS, hostRunDir string, userBinds []sandbo
 		add(&ms, b.Source, b.Target)
 	}
 	return ms
+}
+
+func (l *DevcontainerLauncher) EnsureProject(ctx context.Context, projectPath string) error {
+	ctx, cancel := context.WithTimeout(ctx, containerEnsureTimeout)
+	defer cancel()
+	_, err := l.mgr.EnsureInstance(ctx, projectPath, "", sandbox.StartOptions{})
+	if err != nil {
+		return fmt.Errorf("devcontainer launcher: ensure project %s: %w", projectPath, err)
+	}
+	return nil
 }
 
 // AdoptFrame reclaims an existing devcontainer for a pre-running frame.

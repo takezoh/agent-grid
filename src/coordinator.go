@@ -141,6 +141,7 @@ func runCoordinator() error { //nolint:funlen
 		if err := rt.LoadSnapshot(true); err != nil {
 			slog.Error("snapshot load failed", "err", err)
 		}
+		rt.PrewarmContainers(ctx)
 		if err := rt.RecreateAll(); err != nil {
 			slog.Error("recreate failed", "err", err)
 		}
