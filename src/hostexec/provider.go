@@ -3,6 +3,7 @@ package hostexec
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -22,6 +23,9 @@ type Config struct {
 	ContainerRunDir string
 	// ContainerBinPath is the roost binary path inside the container.
 	ContainerBinPath string
+	// WorkspaceFolderFor returns the container-side workspace path for a host project path.
+	// Used to resolve overlay bind mount targets. When nil, the project path is used as-is.
+	WorkspaceFolderFor func(projectPath string) string
 }
 
 // SpecBuilder implements container.Provider for host-exec proxying.
@@ -84,9 +88,60 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 	}
 
 	shimsDir := b.cfg.ContainerRunDir + "/" + ShimDirName
-	return container.Spec{
+	spec := container.Spec{
 		Env: map[string]string{"PATH": shimsDir + ":$PATH"},
-	}, nil
+	}
+
+	if len(cfg.Overlay) > 0 {
+		mounts, err := b.buildOverlayMounts(projRunDir, projectPath, cfg.Overlay)
+		if err != nil {
+			return container.Spec{}, err
+		}
+		spec.Mounts = mounts
+	}
+
+	return spec, nil
+}
+
+func (b *SpecBuilder) buildOverlayMounts(projRunDir, projectPath string, overlays []string) ([]string, error) {
+	wsDir := projectPath
+	if b.cfg.WorkspaceFolderFor != nil {
+		wsDir = b.cfg.WorkspaceFolderFor(projectPath)
+	}
+
+	overlayDir := filepath.Join(projRunDir, OverlayDirName)
+	if err := os.MkdirAll(overlayDir, 0o755); err != nil {
+		return nil, fmt.Errorf("hostexec: mkdir overlay dir: %w", err)
+	}
+
+	writtenNames := make(map[string]struct{})
+	var mounts []string
+	for _, target := range overlays {
+		if target == "" {
+			slog.Warn("hostexec: skipping empty overlay path")
+			continue
+		}
+		var dst string
+		if filepath.IsAbs(target) {
+			dst = filepath.Clean(target)
+		} else {
+			if wsDir == "" {
+				slog.Warn("hostexec: workspace folder unknown, skipping relative overlay", "path", target, "project", projectPath)
+				continue
+			}
+			dst = filepath.Clean(filepath.Join(wsDir, target))
+		}
+		name := filepath.Base(dst)
+		if _, written := writtenNames[name]; !written {
+			if err := writeShim(overlayDir, b.cfg.ContainerBinPath, name); err != nil {
+				return nil, fmt.Errorf("hostexec: write overlay shim %q: %w", target, err)
+			}
+			writtenNames[name] = struct{}{}
+		}
+		src := filepath.Join(overlayDir, name)
+		mounts = append(mounts, fmt.Sprintf("type=bind,source=%s,target=%s,readonly", src, dst))
+	}
+	return mounts, nil
 }
 
 func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, cfg config.HostExecConfig) error {

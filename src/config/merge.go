@@ -9,6 +9,7 @@ package config
 //   - Devcontainer.ExtraCreateArgs (list): user + project concat
 //   - Proxy.SSHAgent.Keys: project replaces when non-empty
 //   - Proxy.HostExec.Allow/Deny: user + project concat
+//   - Proxy.HostExec.Overlay: user + project concat, duplicates removed
 //   - Proxy.MCPProxy.Servers: user + project concat; project server overrides user on same alias
 func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	if project == nil {
@@ -27,8 +28,9 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 			GCP:         user.Proxy.GCP,
 			SSHAgent:    user.Proxy.SSHAgent,
 			HostExec: HostExecConfig{
-				Allow: appendSlice(user.Proxy.HostExec.Allow, project.Proxy.HostExec.Allow),
-				Deny:  appendSlice(user.Proxy.HostExec.Deny, project.Proxy.HostExec.Deny),
+				Allow:   appendSlice(user.Proxy.HostExec.Allow, project.Proxy.HostExec.Allow),
+				Deny:    appendSlice(user.Proxy.HostExec.Deny, project.Proxy.HostExec.Deny),
+				Overlay: appendUniq(user.Proxy.HostExec.Overlay, project.Proxy.HostExec.Overlay),
 			},
 			MCPProxy: MCPProxyConfig{
 				Servers: mergeMCPServerMap(user.Proxy.MCPProxy.Servers, project.Proxy.MCPProxy.Servers),
@@ -77,4 +79,23 @@ func appendSlice(base, extra []string) []string {
 		return append([]string(nil), base...)
 	}
 	return append(append([]string(nil), base...), extra...)
+}
+
+// appendUniq concatenates base and extra, removing duplicates (preserving first occurrence).
+func appendUniq(base, extra []string) []string {
+	seen := make(map[string]struct{}, len(base)+len(extra))
+	out := make([]string, 0, len(base)+len(extra))
+	for _, s := range base {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	for _, s := range extra {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
 }

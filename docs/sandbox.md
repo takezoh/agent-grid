@@ -144,9 +144,10 @@ The `hostexec` provider lets container processes invoke host binaries (e.g. `gh`
 **Mechanism:**
 
 1. The host starts a per-project Unix socket broker (`<dataDir>/run/<project-hash>/hostexec.sock`) bind-mounted at `/opt/roost/run/hostexec.sock` inside the container.
-2. Shell shim scripts are written to `/opt/roost/run/hostexec-shims/<name>` and prepended to `PATH`. Each shim calls `roost host-exec <name> "$@"`.
-3. The shim sends the request (binary name, args, cwd) plus the three stdio fds via SCM_RIGHTS over the socket.
-4. The broker policy-checks the command, then exec's the host binary with the transferred fds as its stdin/stdout/stderr. The exit code is returned to the shim.
+2. Shell shim scripts are written to `<dataDir>/run/<project-hash>/hostexec-shims/<name>` and prepended to `PATH` inside the container. Each shim calls `roost host-exec <name> "$@"`.
+3. If `overlay` paths are configured, additional shims are written to `<dataDir>/run/<project-hash>/hostexec-overlay/<name>` and bind-mounted read-only at each path. Each entry is a project-relative path (resolved against the container-side workspace folder, `..` allowed) or an absolute path. This lets existing scripts that invoke binaries via relative paths (`./bin/gh`) or scripts in parent directories mounted via `extra_create_args` route through the same broker.
+4. The shim sends the request (binary name, args, cwd) plus the three stdio fds via SCM_RIGHTS over the socket.
+5. The broker policy-checks the command, then exec's the host binary with the transferred fds as its stdin/stdout/stderr. The exit code is returned to the shim.
 
 **Policy (deny-first, default-deny):**
 
@@ -162,7 +163,7 @@ Leading `KEY=VALUE` env assignments in patterns are stripped before matching, so
 
 Binary names must match `[a-zA-Z0-9][a-zA-Z0-9._-]*`; patterns whose first non-env token fails this check are rejected at config load time.
 
-User-scope and project-scope `allow`/`deny` lists are concatenated; project patterns cannot remove user-level deny rules.
+User-scope and project-scope `allow`/`deny` lists are concatenated; project patterns cannot remove user-level deny rules. `overlay` lists are also concatenated, with duplicates removed. Relative entries from different scopes are resolved independently against each project's workspace folder at runtime.
 
 ### MCP proxy
 

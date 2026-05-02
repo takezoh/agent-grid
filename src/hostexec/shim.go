@@ -6,8 +6,11 @@ import (
 	"path/filepath"
 )
 
-// ShimDirName is the subdirectory within the per-project run dir that holds shim scripts.
+// ShimDirName is the subdirectory within the per-project run dir that holds PATH shim scripts.
 const ShimDirName = "hostexec-shims"
+
+// OverlayDirName is the subdirectory within the per-project run dir that holds overlay shim scripts.
+const OverlayDirName = "hostexec-overlay"
 
 func writeShims(runDir, containerBinPath string, aliases []string) (string, error) {
 	shimDir := filepath.Join(runDir, ShimDirName)

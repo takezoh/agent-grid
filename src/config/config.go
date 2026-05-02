@@ -115,8 +115,9 @@ type MCPProxyServer struct {
 // extraction, so "GH_TOKEN=x gh pr *" is equivalent to "gh pr *".
 // The binary name is derived from the first non-env-assignment token of the allow patterns.
 type HostExecConfig struct {
-	Allow []string `toml:"allow"` // glob patterns that permit a command; first non-env-assignment token is the binary name
-	Deny  []string `toml:"deny"`  // glob patterns that deny a command; checked before allow
+	Allow   []string `toml:"allow"`   // glob patterns that permit a command; first non-env-assignment token is the binary name
+	Deny    []string `toml:"deny"`    // glob patterns that deny a command; checked before allow
+	Overlay []string `toml:"overlay"` // container paths (project-relative or absolute) where host-exec shims are bind-mounted (e.g. "bin/gcloud", "../shared/bin/tool", "/opt/tools/gcloud")
 }
 
 // SSHAgentConfig controls SSH agent injection into containers.

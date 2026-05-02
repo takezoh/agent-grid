@@ -127,6 +127,9 @@ func buildProviders(
 			RunBase:          runBase,
 			ContainerRunDir:  ContainerRunDir,
 			ContainerBinPath: ContainerBinaryPath,
+			WorkspaceFolderFor: func(p string) string {
+				return resolveWorkspaceFallback(p, resolveSandbox(p).Devcontainer.HostPathMountPrefix)
+			},
 		},
 		func(p string) config.HostExecConfig { return resolveSandbox(p).Proxy.HostExec },
 	)
