@@ -1,0 +1,71 @@
+name: Auto Fix CI
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  auto-fix:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      # 同一 head_sha に対する auto-fix 再試行を 1 回に制限
+      - name: Check for prior auto-fix run
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          count=$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow "Auto Fix CI" \
+            --status success \
+            --json headSha \
+            --jq "[.[] | select(.headSha == \"$HEAD_SHA\")] | length")
+          echo "prior_success=$count" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.prior_success == '0'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-go@v5
+        if: steps.guard.outputs.prior_success == '0'
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Auto-fix with Claude Code
+        if: steps.guard.outputs.prior_success == '0'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_tools: "Bash,Edit,Write,Read"
+          prompt: |
+            GitHub Actions の CI (run id: ${{ github.event.workflow_run.id }}) が main で失敗した。
+            以下の手順で修復せよ:
+
+            1. 失敗ログを取得する:
+               gh run view ${{ github.event.workflow_run.id }} --log-failed
+
+            2. 原因を特定し、最小限の修正を加える。
+               AGENTS.md の規約を守る (1 ファイル 500 行以内、1 関数 50 行以内、
+               新機能・バグ修正には必ずテストを書く)。
+
+            3. 修正後に以下を全て通すこと:
+               cd src && go vet ./... && go test ./... && go build -o ../roost . && go tool golangci-lint run ./...
+
+            4. 全て通ったら、修正内容を説明するコミットメッセージで main に commit & push する。
+          env: |
+            GITHUB_TOKEN=${{ github.token }}
