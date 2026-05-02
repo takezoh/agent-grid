@@ -188,8 +188,8 @@ func hookSpecs() []eventSpec {
 		{Name: "SessionStart", Matcher: "startup|resume"},
 		{Name: "UserPromptSubmit"},
 		{Name: "Stop", Timeout: 30},
-		{Name: "PreToolUse", Matcher: "Bash"},
-		{Name: "PostToolUse", Matcher: "Bash"},
+		{Name: "PreToolUse"},
+		{Name: "PostToolUse"},
 	}
 }
 

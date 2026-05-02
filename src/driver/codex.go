@@ -22,14 +22,22 @@ type CodexState struct {
 
 	CodexSessionID     string
 	ManagedWorkingDir  string
+	CurrentTool        string
 	TranscriptInFlight bool
 	WatchedFile        string
 	StatusLine         string
 	RecentTurns        []SummaryTurn
+	PendingTools       map[string]codexPendingTool
 }
 
 type CodexDriver struct {
 	eventLogDir string
+}
+
+type codexPendingTool struct {
+	Name      string
+	Input     map[string]any
+	StartedAt time.Time
 }
 
 type codexHookPayload struct {
@@ -42,6 +50,10 @@ type codexHookPayload struct {
 	Prompt               string         `json:"prompt"`
 	ToolName             string         `json:"tool_name"`
 	ToolInput            map[string]any `json:"tool_input"`
+	ToolUseID            string         `json:"tool_use_id"`
+	PermissionMode       string         `json:"permission_mode"`
+	Error                string         `json:"error"`
+	IsInterrupt          bool           `json:"is_interrupt"`
 	LastAssistantMessage string         `json:"last_assistant_message"`
 	StopReason           string         `json:"stop_reason"`
 }
@@ -176,6 +188,8 @@ func (d CodexDriver) Step(prev state.DriverState, ctx state.FrameContext, ev sta
 	case state.DEvJobResult:
 		next, effs := d.handleJobResult(cs, e)
 		return next, effs, d.view(next)
+	case state.DEvStatusLineClick:
+		return cs, nil, d.view(cs)
 	}
 	return cs, nil, d.view(cs)
 }

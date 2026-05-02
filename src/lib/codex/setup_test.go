@@ -80,6 +80,12 @@ func TestRegisterHooks_WritesFilesAndIsIdempotent(t *testing.T) {
 	if len(hf.Hooks["SessionStart"]) == 0 {
 		t.Fatal("missing SessionStart hook")
 	}
+	if got := hf.Hooks["PreToolUse"][0].Matcher; got != "" {
+		t.Fatalf("PreToolUse matcher = %q, want empty", got)
+	}
+	if got := hf.Hooks["PostToolUse"][0].Matcher; got != "" {
+		t.Fatalf("PostToolUse matcher = %q, want empty", got)
+	}
 
 	changed2, events2, err := RegisterHooks(cfgPath, hooksPath, roost)
 	if err != nil {
@@ -183,6 +189,43 @@ func TestRegisterHooks_UpdatesExistingTimeoutForSameMatcher(t *testing.T) {
 	}
 	if got := hf.Hooks["Stop"][0].Hooks[0].Timeout; got != 30 {
 		t.Fatalf("timeout = %d, want 30", got)
+	}
+}
+
+func TestRegisterHooks_ReplacesLegacyBashMatcher(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.toml")
+	hooksPath := filepath.Join(dir, "hooks.json")
+
+	err := os.WriteFile(hooksPath, []byte(`{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/roost event codex"}]}],"PostToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/roost event codex"}]}]}}`), 0o644)
+	if err != nil {
+		t.Fatalf("write hooks: %v", err)
+	}
+
+	changed, _, err := RegisterHooks(cfgPath, hooksPath, "/roost")
+	if err != nil {
+		t.Fatalf("RegisterHooks: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed=true")
+	}
+
+	raw, _ := os.ReadFile(hooksPath)
+	var hf hooksFile
+	if err := json.Unmarshal(raw, &hf); err != nil {
+		t.Fatalf("unmarshal hooks: %v", err)
+	}
+	if len(hf.Hooks["PreToolUse"]) != 2 {
+		t.Fatalf("PreToolUse entries = %d, want 2", len(hf.Hooks["PreToolUse"]))
+	}
+	if len(hf.Hooks["PostToolUse"]) != 2 {
+		t.Fatalf("PostToolUse entries = %d, want 2", len(hf.Hooks["PostToolUse"]))
+	}
+	if hf.Hooks["PreToolUse"][1].Matcher != "" {
+		t.Fatalf("new PreToolUse matcher = %q, want empty", hf.Hooks["PreToolUse"][1].Matcher)
+	}
+	if hf.Hooks["PostToolUse"][1].Matcher != "" {
+		t.Fatalf("new PostToolUse matcher = %q, want empty", hf.Hooks["PostToolUse"][1].Matcher)
 	}
 }
 

@@ -24,6 +24,16 @@ func newCodex(t *testing.T) (CodexDriver, CodexState, time.Time) {
 	return d, cs, now
 }
 
+func findCodexEffect[T state.Effect](effs []state.Effect) (T, bool) {
+	var zero T
+	for _, e := range effs {
+		if v, ok := e.(T); ok {
+			return v, true
+		}
+	}
+	return zero, false
+}
+
 func TestCodexSessionStartSetsIdle(t *testing.T) {
 	d, cs, now := newCodex(t)
 	ev := codexHook(map[string]string{
@@ -186,6 +196,9 @@ func TestCodexPendingTransitionsToRunningOnPreToolUse(t *testing.T) {
 	}, now))
 	if next.Status != state.StatusRunning {
 		t.Fatalf("Status = %v, want running", next.Status)
+	}
+	if next.CurrentTool != "Bash" {
+		t.Fatalf("CurrentTool = %q, want Bash", next.CurrentTool)
 	}
 }
 
@@ -416,6 +429,8 @@ func TestCodexTranscriptChangedStartsParse(t *testing.T) {
 func TestCodexTranscriptParseResultMergesFields(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.TranscriptInFlight = true
+	cs.Status = state.StatusRunning
+	cs.CurrentTool = "Bash"
 	next, effs := d.handleJobResult(cs, state.DEvJobResult{
 		Now: now,
 		Result: CodexTranscriptParseResult{
@@ -437,6 +452,9 @@ func TestCodexTranscriptParseResultMergesFields(t *testing.T) {
 	}
 	if next.LastAssistantMessage != "done" || next.StatusLine != "gpt-5-codex | 7,205 tok" {
 		t.Fatalf("unexpected transcript fields: %+v", next)
+	}
+	if next.CurrentTool != "Bash" {
+		t.Fatalf("CurrentTool = %q, want preserved while running", next.CurrentTool)
 	}
 	if len(next.RecentTurns) != 2 {
 		t.Fatalf("RecentTurns len = %d, want 2", len(next.RecentTurns))
@@ -466,6 +484,7 @@ func TestCodexViewAddsTranscriptTab(t *testing.T) {
 	cs.TranscriptPath = "/tmp/t.jsonl"
 	cs.Title = "saved-session"
 	cs.Summary = "session summary"
+	cs.CurrentTool = "Bash"
 	v := d.view(cs)
 	if len(v.LogTabs) == 0 {
 		t.Fatal("expected tabs")
@@ -481,6 +500,9 @@ func TestCodexViewAddsTranscriptTab(t *testing.T) {
 	}
 	if v.Card.Subtitle != "session summary" {
 		t.Fatalf("subtitle = %q", v.Card.Subtitle)
+	}
+	if len(v.Card.Indicators) != 1 || v.Card.Indicators[0] != "▸ Bash" {
+		t.Fatalf("indicators = %#v", v.Card.Indicators)
 	}
 }
 

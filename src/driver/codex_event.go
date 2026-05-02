@@ -26,10 +26,12 @@ func (hp codexHookPayload) formatLog() string {
 		if hp.Prompt != "" {
 			detail = fmt.Sprintf(`prompt="%s"`, previewText(hp.Prompt))
 		}
-	case "PreToolUse", "PostToolUse":
+	case "PreToolUse", "PostToolUse", "PostToolUseFailure":
 		detail = strings.TrimSpace(hp.ToolName)
 		if cmd := hp.toolInputString("command"); cmd != "" {
 			detail = strings.TrimSpace(fmt.Sprintf(`%s cmd="%s"`, detail, previewText(cmd)))
+		} else if path := hp.toolInputString("file_path"); path != "" {
+			detail = strings.TrimSpace(fmt.Sprintf(`%s path="%s"`, detail, previewText(path)))
 		}
 	case "Stop":
 		var parts []string
@@ -74,6 +76,8 @@ func (d CodexDriver) handleHook(cs CodexState, ctx state.FrameContext, e state.D
 
 	switch hp.HookEventName {
 	case "SessionStart":
+		cs.PendingTools = nil
+		cs.CurrentTool = ""
 		cs = applyHookStatus(cs, state.StatusIdle, e.Timestamp)
 		effs = append(effs, d.startCodexTranscriptParse(&cs)...)
 		if ctx.IsRoot {
@@ -93,9 +97,17 @@ func (d CodexDriver) handleHook(cs CodexState, ctx state.FrameContext, e state.D
 		prompt := formatSummaryPrompt(cs.Summary, turns)
 		effs, cs.SummaryInFlight = enqueueSummaryJob(effs, cs.SummaryInFlight, prompt)
 		effs = append(effs, d.startCodexTranscriptParse(&cs)...)
-	case "PreToolUse", "PostToolUse":
+	case "PreToolUse":
+		cs.CurrentTool = strings.TrimSpace(hp.ToolName)
 		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
+		cs, effs = d.handleToolLog(cs, hp, e.Timestamp, effs)
+	case "PostToolUse", "PostToolUseFailure":
+		cs.CurrentTool = ""
+		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
+		cs, effs = d.handleToolLog(cs, hp, e.Timestamp, effs)
 	case "Stop":
+		cs.CurrentTool = ""
+		cs.PendingTools = nil
 		if msg := strings.TrimSpace(hp.LastAssistantMessage); msg != "" {
 			cs.LastAssistantMessage = msg
 		}
@@ -134,6 +146,9 @@ func (d CodexDriver) handleJobResult(cs CodexState, e state.DEvJobResult) (Codex
 		}
 		cs.StatusLine = r.StatusLine
 		cs.RecentTurns = r.RecentTurns
+		if cs.Status != state.StatusRunning {
+			cs.CurrentTool = ""
+		}
 		return cs, nil
 	case BranchDetectResult:
 		cs.BranchInFlight = false
