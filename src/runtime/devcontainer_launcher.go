@@ -154,12 +154,11 @@ func (l *DevcontainerLauncher) makeCleanup(frameID state.FrameID, inst *sandbox.
 
 // BuildOverlayFunc returns the OverlayFunc for the given sandbox resolver and proxy runner.
 // dataDir is the daemon's data directory (e.g. ~/.roost); it contains the run/ directory tree.
-// postCreateSubcmd, if non-empty, is appended to the roost binary path and run via bash -lc
-// as an ExtraPostCreate step. The caller (main/coordinator) supplies the driver-specific
-// subcommand; runtime itself has no knowledge of driver names.
+// postCreateSubcmds lists driver-specific setup commands; the caller supplies these to enforce
+// driver/runtime isolation — runtime itself has no knowledge of driver names.
 // The returned function is called per-EnsureInstance to compute the roost-specific
 // env/mounts overlay without triggering any image build.
-func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *CredProxyRunner, dataDir, postCreateSubcmd string) sandboxdc.OverlayFunc {
+func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *CredProxyRunner, dataDir string, postCreateSubcmds []string) sandboxdc.OverlayFunc {
 	return func(projectPath, dcDir string) (sandboxdc.SpecOverlay, error) {
 		sb := resolveSandbox(projectPath)
 		dc := sb.Devcontainer
@@ -187,7 +186,7 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 			fmt.Sprintf("type=bind,source=%s,target=%s", runDir, ContainerRunDir),
 		}, proxySpec.Mounts...)
 
-		postCreate := buildPostCreate(binPath, postCreateSubcmd, proxySpec.BridgeSpecs)
+		postCreate := buildPostCreate(binPath, postCreateSubcmds, proxySpec.BridgeSpecs)
 
 		return sandboxdc.SpecOverlay{
 			Env:                     env,
@@ -241,15 +240,15 @@ func buildOverlayEnv(scriptEnv map[string]string, proxySpec container.Spec) map[
 
 // buildPostCreate assembles a bash -lc postCreateCommand that:
 //  1. starts each bridge as a background daemon, and
-//  2. runs the roost postCreateSubcmd (if any) in the foreground.
-func buildPostCreate(binPath, postCreateSubcmd string, bridges []container.BridgeSpec) []string {
+//  2. runs each postCreateSubcmd in sequence in the foreground.
+func buildPostCreate(binPath string, postCreateSubcmds []string, bridges []container.BridgeSpec) []string {
 	var parts []string
 	for _, bs := range bridges {
 		parts = append(parts, fmt.Sprintf("%s -listen %s -socket %s &",
 			ContainerSockBridgePath, bs.ListenAddr, bs.ContainerSocketPath))
 	}
-	if postCreateSubcmd != "" {
-		parts = append(parts, binPath+" "+postCreateSubcmd)
+	for _, sub := range postCreateSubcmds {
+		parts = append(parts, binPath+" "+sub)
 	}
 	if len(parts) == 0 {
 		return nil

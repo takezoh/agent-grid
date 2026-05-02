@@ -228,7 +228,11 @@ func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *co
 		}
 		overlayFn := runtime.BuildOverlayFunc(func(project string) config.SandboxConfig {
 			return resolver.Resolve(project)
-		}, runner, dataDir, "setup "+statedriver.ClaudeDriverName)
+		}, runner, dataDir, []string{
+			"setup " + statedriver.ClaudeDriverName,
+			"setup " + statedriver.CodexDriverName,
+			"setup " + statedriver.GeminiDriverName,
+		})
 		mgr := sandboxdc.New(overlayFn)
 		d.Devcontainer = runtime.NewDevcontainerLauncher(mgr, func(project string) config.SandboxConfig {
 			return resolver.Resolve(project)

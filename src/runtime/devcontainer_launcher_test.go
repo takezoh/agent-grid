@@ -104,6 +104,26 @@ func TestBuildMounts_OmitsRunDirWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestBuildPostCreate_MultipleSubcmds(t *testing.T) {
+	bin := "/opt/roost/run/roost-bridge"
+	subcmds := []string{"setup claude", "setup codex", "setup gemini"}
+	got := buildPostCreate(bin, subcmds, nil)
+	if len(got) != 3 || got[0] != "bash" || got[1] != "-lc" {
+		t.Fatalf("unexpected argv prefix: %v", got)
+	}
+	want := bin + " setup claude\n" + bin + " setup codex\n" + bin + " setup gemini"
+	if got[2] != want {
+		t.Errorf("script = %q, want %q", got[2], want)
+	}
+}
+
+func TestBuildPostCreate_EmptySubcmds(t *testing.T) {
+	got := buildPostCreate("/opt/roost/run/roost-bridge", nil, nil)
+	if got != nil {
+		t.Errorf("expected nil for empty input, got %v", got)
+	}
+}
+
 func TestBuildOverlayEnv_ContainerPaths(t *testing.T) {
 	env := buildOverlayEnv(nil, container.Spec{})
 	if got := env["ROOST_SOCKET"]; got != ContainerSockFilePath {
