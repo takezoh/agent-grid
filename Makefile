@@ -2,7 +2,8 @@ BINARY      := roost
 BRIDGE      := roost-bridge
 SOCKBRIDGE  := sockbridge
 SRC_DIR     := src
-INSTALL_DIR := $(HOME)/.local/bin
+INSTALL_DIR    := $(HOME)/.local/bin
+LIBEXEC_DIR    := $(HOME)/.local/lib/roost
 
 .PHONY: build build-experimental install clean test vet lint verify-bridge-deps
 
@@ -15,10 +16,10 @@ build-experimental:
 	cd $(SRC_DIR) && go build -tags experimental -o ../$(BINARY) .
 
 install: build
-	install -d $(INSTALL_DIR)
+	install -d $(INSTALL_DIR) $(LIBEXEC_DIR)
 	install -m 755 $(BINARY) $(INSTALL_DIR)/$(BINARY)
-	install -m 755 $(BRIDGE) $(INSTALL_DIR)/$(BRIDGE)
-	install -m 755 $(SOCKBRIDGE) $(INSTALL_DIR)/$(SOCKBRIDGE)
+	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(BRIDGE)
+	install -m 755 $(SOCKBRIDGE) $(LIBEXEC_DIR)/$(SOCKBRIDGE)
 
 test:
 	cd $(SRC_DIR) && go test ./...

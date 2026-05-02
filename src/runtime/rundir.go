@@ -45,20 +45,15 @@ func ContainerSockPath(runDir string) string {
 	return filepath.Join(runDir, ContainerSockFileName)
 }
 
-// InstallBinaryInRunDir copies the roost-bridge binary (expected alongside the
-// roost executable) into runDir as "roost-bridge" (mode 0o755).
-// The file is bind-mounted into the devcontainer at ContainerRunDir, so the
-// copy is accessible inside the container as ContainerBinaryPath.
-// Returns the container-internal path.
+// InstallBinaryInRunDir copies the roost-bridge binary into runDir as
+// "roost-bridge" (mode 0o755). The file is bind-mounted into the devcontainer
+// at ContainerRunDir, so the copy is accessible inside the container as
+// ContainerBinaryPath. Returns the container-internal path.
 func InstallBinaryInRunDir(runDir string) (string, error) {
-	exe, err := os.Executable()
+	src, err := findHelperBinary("roost-bridge")
 	if err != nil {
-		return "", fmt.Errorf("rundir: executable: %w", err)
+		return "", err
 	}
-	if resolved, e := filepath.EvalSymlinks(exe); e == nil {
-		exe = resolved
-	}
-	src := filepath.Join(filepath.Dir(exe), "roost-bridge")
 	return installBridgeInRunDir(src, runDir)
 }
 
@@ -71,18 +66,41 @@ func installBridgeInRunDir(src, runDir string) (string, error) {
 	return ContainerBinaryPath, nil
 }
 
-// InstallSockBridgeInRunDir copies the sockbridge binary (expected alongside the
-// roost executable) into runDir as "sockbridge" (mode 0o755).
+// InstallSockBridgeInRunDir copies the sockbridge binary into runDir as
+// "sockbridge" (mode 0o755).
 func InstallSockBridgeInRunDir(runDir string) error {
+	src, err := findHelperBinary("sockbridge")
+	if err != nil {
+		return err
+	}
+	return installExecInRunDir(src, filepath.Join(runDir, "sockbridge"))
+}
+
+// findHelperBinary resolves the path to a helper binary (roost-bridge,
+// sockbridge). It first checks alongside the roost executable (covers both
+// development builds and portable installations), then falls back to the
+// libexec directory (~/.local/lib/roost/) used by the standard `make install`.
+func findHelperBinary(name string) (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("rundir: executable: %w", err)
+		return "", fmt.Errorf("rundir: executable: %w", err)
 	}
 	if resolved, e := filepath.EvalSymlinks(exe); e == nil {
 		exe = resolved
 	}
-	src := filepath.Join(filepath.Dir(exe), "sockbridge")
-	return installExecInRunDir(src, filepath.Join(runDir, "sockbridge"))
+	if candidate := filepath.Join(filepath.Dir(exe), name); fileExists(candidate) {
+		return candidate, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("rundir: home dir: %w", err)
+	}
+	return filepath.Join(home, ".local", "lib", "roost", name), nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // installExecInRunDir copies src to dst (mode 0o755) with size+mtime short-circuit.
