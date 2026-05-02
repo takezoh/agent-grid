@@ -48,6 +48,12 @@ func Dial(sockPath string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("proto: dial %s: %w", sockPath, err)
 	}
+	return DialConn(conn), nil
+}
+
+// DialConn creates a Client from an existing net.Conn and starts the
+// reader goroutine. Useful for testing with net.Pipe().
+func DialConn(conn net.Conn) *Client {
 	c := &Client{
 		conn:    conn,
 		writer:  bufio.NewWriter(conn),
@@ -57,7 +63,7 @@ func Dial(sockPath string) (*Client, error) {
 		closed:  make(chan struct{}),
 	}
 	go c.read()
-	return c, nil
+	return c
 }
 
 // Close shuts down the connection. Idempotent.

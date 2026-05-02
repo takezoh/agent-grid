@@ -3,7 +3,7 @@ package proto
 import (
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	stateview "github.com/takezoh/agent-roost/state/view"
 )
 
 // Response is the closed sum type of every successful reply the
@@ -62,9 +62,9 @@ type SessionInfo struct {
 	Workspace      string       `json:"workspace,omitempty"`
 	Command        string       `json:"command"`
 	CreatedAt      string       `json:"created_at"`
-	State          state.Status `json:"state,omitempty"`
-	StateChangedAt string       `json:"state_changed_at,omitempty"`
-	View           state.View   `json:"view"`
+	State          stateview.Status `json:"state,omitempty"`
+	StateChangedAt string           `json:"state_changed_at,omitempty"`
+	View           stateview.View   `json:"view"`
 	Frames         []FrameInfo  `json:"frames,omitempty"`
 	ActiveFrameID  string       `json:"active_frame_id,omitempty"`
 	IsActive       bool         `json:"is_active,omitempty"` // true when displayed in main pane
@@ -112,7 +112,7 @@ type ConnectorInfo struct {
 	Label     string                   `json:"label"`
 	Summary   string                   `json:"summary"`
 	Available bool                     `json:"available"`
-	Sections  []state.ConnectorSection `json:"sections,omitempty"`
+	Sections  []stateview.ConnectorSection `json:"sections,omitempty"`
 }
 
 // RespSurfaceText is the response to surface.read_text.

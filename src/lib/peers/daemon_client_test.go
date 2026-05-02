@@ -28,6 +28,7 @@ func TestDialDaemon_CustomSocket(t *testing.T) {
 
 func TestDialDaemon_HomeFallback(t *testing.T) {
 	t.Setenv("ROOST_SOCKET", "")
+	t.Setenv("ROOST_DATA_DIR", "")
 	t.Setenv("HOME", t.TempDir())
 	_, err := dialDaemon()
 	// no daemon running — connection refused is expected; what matters is no panic

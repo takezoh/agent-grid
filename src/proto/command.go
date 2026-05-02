@@ -3,8 +3,6 @@ package proto
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/takezoh/agent-roost/state"
 )
 
 // Command is the closed sum type of every IPC request the daemon
@@ -31,11 +29,11 @@ const (
 	CmdNameDriverList = "driver.list"
 
 	// peer.* — peer-to-peer frame messaging.
-	// Wire command names mirror state event-dispatch keys; keep them unified.
-	CmdNamePeerSend       = state.EventPeerSend
-	CmdNamePeerList       = state.EventPeerList
-	CmdNamePeerSetSummary = state.EventPeerSetSummary
-	CmdNamePeerDrainInbox = state.EventPeerDrainInbox
+	// These must match state.EventPeer* constants (verified by integration test).
+	CmdNamePeerSend       = "peer.send"
+	CmdNamePeerList       = "peer.list"
+	CmdNamePeerSetSummary = "peer.set_summary"
+	CmdNamePeerDrainInbox = "peer.drain_inbox"
 
 	// hook-event — container endpoint only. Carries a driver hook notification
 	// with a bearer token that resolves to the spawning frame. Not accepted on

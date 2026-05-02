@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 )
 
 func init() {
@@ -27,10 +28,10 @@ func runActivateOccupant(args []string) error {
 	if err != nil {
 		return fmt.Errorf("activate-occupant: %w", err)
 	}
-	client, err := proto.Dial(sockPath)
+	raw, err := proto.Dial(sockPath)
 	if err != nil {
 		return fmt.Errorf("activate-occupant: dial: %w", err)
 	}
-	defer client.Close()
-	return client.ActivateOccupant(kind, "", "")
+	defer raw.Close()
+	return psess.Wrap(raw).ActivateOccupant(kind, "", "")
 }

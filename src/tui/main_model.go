@@ -6,12 +6,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 	"github.com/takezoh/agent-roost/state"
 	"github.com/takezoh/agent-roost/tui/glyphs"
 )
 
 type MainModel struct {
-	client          *proto.Client
+	client          *psess.Client
 	viewport        viewport.Model
 	spinner         spinner.Model
 	sessions        []proto.SessionInfo
@@ -25,7 +26,7 @@ type MainModel struct {
 type mainEventMsg struct{ event proto.ServerEvent }
 type mainDisconnectMsg struct{}
 
-func NewMainModel(client *proto.Client) MainModel {
+func NewMainModel(client *psess.Client) MainModel {
 	return MainModel{
 		client:  client,
 		spinner: spinner.New(spinner.WithSpinner(spinner.MiniDot)),

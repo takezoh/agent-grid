@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 )
 
 func init() {
@@ -25,10 +26,10 @@ func runStatusLineClick(args []string) error {
 	if err != nil {
 		return fmt.Errorf("statusline-click: %w", err)
 	}
-	client, err := proto.Dial(sockPath)
+	raw, err := proto.Dial(sockPath)
 	if err != nil {
 		return fmt.Errorf("statusline-click: dial: %w", err)
 	}
-	defer client.Close()
-	return client.StatusLineClick(rangeName)
+	defer raw.Close()
+	return psess.Wrap(raw).StatusLineClick(rangeName)
 }

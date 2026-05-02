@@ -102,7 +102,7 @@ Driver is a **value-type plugin**: no goroutines, no I/O, no mutexes. Per-frame 
 **Launch plan is resolved in the reducer, not the runtime.** `reduceCreateSession` (or `handlePendingCreate` for planner-gated flows) calls `Driver.PrepareLaunch` synchronously, writes the normalized `LaunchOptions` onto the frame, and bakes `launch.Command` / `launch.StartDir` / `launch.Options` into `EffSpawnTmuxWindow`. The runtime interprets the effect verbatim and never calls driver methods, keeping driver-specific logic entirely inside the pure functional core.
 
 ```go
-// state/status.go — Status enum
+// state/view/status.go — canonical Status definition (stdlib-only; no state import)
 type Status int
 const (
     StatusRunning Status = iota
@@ -111,6 +111,11 @@ const (
     StatusStopped
     StatusPending
 )
+
+// state/status.go — re-exports via type aliases (transparent to existing callers)
+type Status = v.Status
+type StatusInfo = v.StatusInfo
+// constants re-exported as StatusRunning = v.StatusRunning, etc.
 ```
 
 ```go
@@ -259,9 +264,14 @@ src/
 │   ├── driver_iface.go  Driver interface (Step, Status, View, Persist, Restore, PrepareLaunch)
 │   │                    DriverState / DriverEvent / DriverStateBase marker
 │   │                    LaunchMode / LaunchOptions / LaunchPlan / CreateLaunch / CreatePlan
-│   ├── status.go        Status enum (Running/Waiting/Idle/Stopped/Pending)
-│   ├── view.go          View / Card / Tag — display value types for TUI
-│   └── clone.go         Copy-on-write helpers for State
+│   ├── status.go        Re-exports state/view.Status, StatusInfo as type aliases
+│   ├── view.go          Re-exports state/view.View, Card, Tag, LogTab, InfoLine as type aliases
+│   ├── connector.go     Re-exports state/view.ConnectorSection, ConnectorItem as type aliases
+│   ├── clone.go         Copy-on-write helpers for State
+│   └── view/            Wire-safe view types (stdlib-only; no state import; safe for proto and roost-bridge)
+│       ├── status.go    Status enum + StatusInfo — canonical definition (Running/Waiting/Idle/Stopped/Pending)
+│       ├── view.go      View / Card / Tag / LogTab / TabKind / InfoLine
+│       └── connector.go ConnectorSection / ConnectorItem
 ├── driver/              Driver implementations — value-type plugins (no goroutines, no I/O)
 │   ├── claude.go        claudeDriver — event-driven status + transcript job emit
 │   ├── claude_event.go  DEvHook dispatch (state-change, session-start, ...)
@@ -326,16 +336,22 @@ src/
 │       └── envscript.go Resolves `${localEnv:VAR}` / `${localWorkspaceFolder*}` / `${containerWorkspaceFolder}` placeholders
 ├── hostexec/            Host-exec broker (`container.Provider` impl): per-project Unix socket server that runs allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding; deny/allow glob policy with env-assignment prefix stripping
 │                        Credential providers (awssso / gcloudcli / sshagent) live in the external `credproxy` library under `providers/<name>/`
-├── proto/               Typed IPC — Command / Response / ServerEvent sum types
+├── proto/               Typed IPC wire layer — imports state/view only (safe for roost-bridge)
 │   ├── envelope.go      Envelope wire format ({type, req_id, cmd|name, data})
 │   ├── command.go       Command closed sum type (CmdSubscribe, CmdUnsubscribe, CmdEvent, CmdHookEvent (container-only), CmdSurface*, CmdDriverList, CmdPeer*)
-│   ├── response.go      Response closed sum type (RespOK, RespCreateSession, RespSessions, RespActiveSession, RespSurfaceText, RespDriverList)
+│   ├── response.go      Response closed sum type (RespOK, RespSurfaceText, RespDriverList, RespPeerList, RespPeerDrainInbox). Session-related types live in proto/sessions
 │   ├── event.go         ServerEvent closed sum type
 │   ├── codec.go         NDJSON encode/decode
-│   ├── client.go        proto.Client (for TUI / palette / hook bridge)
-│   ├── client_helpers.go  typed helpers (SendEvent, ...)
+│   ├── client.go        proto.Client (Dial / DialConn / Send / Events); used by TUI, bridge, palette
+│   ├── client_helpers.go  Peer helpers (PeerSend/List/SetSummary/DrainInbox), SendEvent, SendHookEvent
 │   ├── reqid.go         Request ID generation
 │   └── errors.go        ErrCode enum
+├── proto/sessions/      Session management layer — imports proto + state (NOT used by roost-bridge)
+│   ├── client.go        sessions.Client wraps *proto.Client; session helpers (CreateSession, StopSession, ListSessions, PushDriver, ActivateFrame, ...)
+│   ├── helpers.go       sendJSONEvent / sendJSONEventTimeout helpers; timeout constants
+│   ├── client_test.go   External tests (TestCreateSessionUsesLongTimeout, TestPushDriverDecodesCreateSessionReply, ...)
+│   ├── canonical_test.go  canonicalProjectPath unit tests
+│   └── sync_test.go     Integration: proto.CmdNamePeer* == state.EventPeer* (divergence detection)
 ├── tools/
 │   └── tools.go         Tool + Param + ToolContext + Registry + DefaultRegistry
 ├── lib/

@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 	"github.com/takezoh/agent-roost/state"
 )
 
@@ -49,7 +50,7 @@ type LogModel struct {
 	following      bool
 	width          int
 	height         int
-	client         *proto.Client
+	client         *psess.Client
 	renderer       state.TabRenderer
 	currentSession *proto.SessionInfo
 
@@ -59,7 +60,7 @@ type LogModel struct {
 	projectLine int
 }
 
-func NewLogModel(appLogPath string, client *proto.Client) LogModel {
+func NewLogModel(appLogPath string, client *psess.Client) LogModel {
 	return LogModel{
 		appLogPath: appLogPath,
 		tabs: []*tabState{

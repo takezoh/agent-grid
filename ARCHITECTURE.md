@@ -42,11 +42,13 @@ Runtime startup is always either a Warm start or a Cold start; there is no separ
 
 ```
 state/         Pure domain layer — State, Event, Effect, Reduce (no I/O, no goroutine)
+state/view/    Wire-safe view types — Status, View, Card, Tag, ConnectorSection, etc. (stdlib-only; no state import)
 driver/        Driver implementations — value-type Driver plugins + per-frame DriverState. No I/O
 connector/     Connector implementations — value-type Connector plugins + per-daemon ConnectorState. No I/O
 runtime/       Imperative shell — single event loop, Effect interpreter, backend abstraction
 runtime/worker/ Worker pool — slow I/O job execution (haiku, transcript parse, git, capture-pane, github fetch)
-proto/         Typed IPC — Command / Response / ServerEvent sum types + wire codec
+proto/         Typed IPC wire layer — Command / Response / ServerEvent sum types + codec. No state import (imports state/view only)
+proto/sessions/ Session management helpers — sessions.Client wraps proto.Client with session-management methods. Imports state
 tools/         Palette tools — Tool abstraction for TUI + DefaultRegistry
 tui/           Presentation layer — Bubbletea UI state management, rendering, key input
 tmux/          Infrastructure layer — tmux command execution wrapper
@@ -67,11 +69,14 @@ Code dependency direction:
 - `runtime` → `state` (calls Reduce), `proto` (wire encode/decode), `runtime/worker` (Pool + Dispatch)
 - `runtime/worker` → `state` (JobID, JobInput, EvJobResult). Does not import driver/connector/lib
 - `state` is self-contained — imports no external packages (pure functional core)
+- `state/view` imports only stdlib — wire-safe types that can be used without pulling in the full state layer
+- `state` re-exports `state/view` types as type aliases (transparent to all existing callers)
 - `driver` → `state` (DriverStateBase embed, Effect/View types), `runtime/worker` (RegisterRunner), `lib/*` (implementation)
 - `connector` → `state` (ConnectorStateBase embed, Effect types), `runtime/worker` (RegisterRunner), `lib/*` (implementation)
-- `proto` → `state` (carries Status enum, View/ConnectorSection types on wire)
-- `tools` → `proto` (Client calls)
-- `tui` → `proto` (Client + SessionInfo + ConnectorInfo), `state` (Status/View/ConnectorSection/TabRenderer types), `tools` (ToolRegistry). Does not import driver/connector/lib
+- `proto` → `state/view` only (carries Status enum, View/ConnectorSection types on wire). Does **not** import `state`
+- `proto/sessions` → `proto` + `state` (session-management helpers; not used by roost-bridge). The `make verify-bridge-deps` CI target enforces that roost-bridge's dependency graph contains no `state`, `uiproc`, or `features` packages
+- `tools` → `proto/sessions` (sessions.Client calls)
+- `tui` → `proto/sessions` (sessions.Client + SessionInfo + ConnectorInfo), `proto` (wire types), `state` (Status/View/ConnectorSection/TabRenderer types), `tools` (ToolRegistry). Does not import driver/connector/lib
 - `lib/claude/command.go` (hook bridge) → `event` (sends CmdEvent via event.Send), `config`
 - `lib/claude/transcript` → `state` (registers TabRenderer factory via RegisterTabRenderer)
 - `cli/subcommand.go` provides a subcommand registry. Each lib package registers in `init()`, and `main` dispatches via `cli.Dispatch`

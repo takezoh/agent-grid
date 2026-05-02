@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
 )
 
 // fakeServer pairs a net.Pipe end with a goroutine that reads
@@ -75,7 +74,7 @@ func TestClientSendRoundTrip(t *testing.T) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		resp, err := c.Send(ctx, CmdEvent{Event: state.EventCreateSession, Payload: json.RawMessage(`{"project":"/foo","command":"claude"}`)})
+		resp, err := c.Send(ctx, CmdEvent{Event: "create-session", Payload: json.RawMessage(`{"project":"/foo","command":"claude"}`)})
 		resCh <- result{resp, err}
 	}()
 
@@ -107,7 +106,7 @@ func TestClientErrorResponse(t *testing.T) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		_, err := c.Send(ctx, CmdEvent{Event: state.EventStopSession, Payload: json.RawMessage(`{"session_id":"ghost"}`)})
+		_, err := c.Send(ctx, CmdEvent{Event: "stop-session", Payload: json.RawMessage(`{"session_id":"ghost"}`)})
 		resCh <- err
 	}()
 
@@ -159,7 +158,7 @@ func TestClientCloseUnblocksPending(t *testing.T) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		_, err := c.Send(ctx, CmdEvent{Event: state.EventShutdown})
+		_, err := c.Send(ctx, CmdEvent{Event: "shutdown"})
 		resCh <- err
 	}()
 
@@ -225,26 +224,6 @@ func TestDecodeResponseByCommandHeuristics(t *testing.T) {
 				t.Errorf("got %q, want %q", gotName, tc.want)
 			}
 		})
-	}
-}
-
-// TestPushDriverDecodesCreateSessionReply verifies Fix C: PushDriver expects a
-// CreateSessionReply from the daemon (not RespOK) and returns nil on success.
-func TestPushDriverDecodesCreateSessionReply(t *testing.T) {
-	c, server := newFakeServer(t)
-	defer c.Close()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- c.PushDriver("sess-1", "shell", nil)
-	}()
-
-	env := server.recv()
-	wire, _ := EncodeResponse(env.ReqID, RespCreateSession{SessionID: "sess-1"})
-	server.send(wire)
-
-	if err := <-errCh; err != nil {
-		t.Fatalf("PushDriver returned error: %v", err)
 	}
 }
 

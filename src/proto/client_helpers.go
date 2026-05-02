@@ -4,10 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"time"
-
-	"github.com/takezoh/agent-roost/state"
 )
 
 const (
@@ -48,121 +45,6 @@ func sendJSONEventTimeout[R Response](c *Client, eventName string, req any, time
 
 func sendJSONEvent[R Response](c *Client, eventName string, req any) (R, error) {
 	return sendJSONEventTimeout[R](c, eventName, req, defaultRequestTimeout)
-}
-
-// Subscribe registers this client to receive broadcast events.
-func (c *Client) Subscribe() error {
-	_, err := c.sendDefault(CmdSubscribe{})
-	return err
-}
-
-// CreateSession asks the daemon to spawn a new session. Returns
-// the freshly assigned session id, or an error.
-// Uses a long timeout because devcontainer cold starts can take several minutes.
-func (c *Client) CreateSession(project, command string, options state.LaunchOptions) (sessionID string, err error) {
-	r, err := sendJSONEventTimeout[RespCreateSession](c, state.EventCreateSession, state.CreateSessionParams{
-		Project: canonicalProjectPath(project),
-		Command: command,
-		Options: options,
-	}, createSessionTimeout)
-	if err != nil {
-		return "", err
-	}
-	return r.SessionID, nil
-}
-
-// StopSession kills a session by id.
-func (c *Client) StopSession(id string) error {
-	_, err := sendJSONEvent[RespOK](c, state.EventStopSession, map[string]string{"session_id": id})
-	return err
-}
-
-// ListSessions returns the current session table, active session id,
-// active occupant kind, connector info, and the list of enabled runtime
-// feature flags.
-func (c *Client) ListSessions() ([]SessionInfo, string, string, []ConnectorInfo, []string, error) {
-	r, err := sendJSONEvent[RespSessions](c, state.EventListSessions, nil)
-	if err != nil {
-		return nil, "", "", nil, nil, err
-	}
-	return r.Sessions, r.ActiveSessionID, r.ActiveOccupant, r.Connectors, r.Features, nil
-}
-
-// PreviewSession swaps a session into pane 0.0 without focusing it.
-// Returns the active session id.
-func (c *Client) PreviewSession(sessionID string) (string, error) {
-	r, err := sendJSONEvent[RespActiveSession](c, state.EventPreviewSession, map[string]string{"session_id": sessionID})
-	if err != nil {
-		return "", err
-	}
-	return r.ActiveSessionID, nil
-}
-
-// SwitchSession swaps a session into pane 0.0 and focuses it.
-// Returns the active session id.
-func (c *Client) SwitchSession(sessionID string) (string, error) {
-	r, err := sendJSONEvent[RespActiveSession](c, state.EventSwitchSession, map[string]string{"session_id": sessionID})
-	if err != nil {
-		return "", err
-	}
-	return r.ActiveSessionID, nil
-}
-
-// PreviewProject deactivates the current session and broadcasts
-// project-selected.
-func (c *Client) PreviewProject(project string) error {
-	_, err := sendJSONEvent[RespOK](c, state.EventPreviewProject, map[string]string{"project": project})
-	return err
-}
-
-// FocusPane focuses the named control pane.
-func (c *Client) FocusPane(pane string) error {
-	_, err := sendJSONEvent[RespOK](c, state.EventFocusPane, map[string]string{"pane": pane})
-	return err
-}
-
-// LaunchTool tells the daemon to display a popup running the named
-// tool. Args are pre-filled values the popup should start with.
-func (c *Client) LaunchTool(toolName string, args map[string]string) error {
-	m := map[string]string{"tool": toolName}
-	for k, v := range args {
-		m[k] = v
-	}
-	_, err := sendJSONEvent[RespOK](c, state.EventLaunchTool, m)
-	return err
-}
-
-// Shutdown tells the daemon to terminate.
-func (c *Client) Shutdown() error {
-	_, err := sendJSONEvent[RespOK](c, state.EventShutdown, nil)
-	return err
-}
-
-// Detach asks the daemon to detach the tmux client (keeps daemon alive).
-func (c *Client) Detach() error {
-	_, err := sendJSONEvent[RespOK](c, state.EventDetach, nil)
-	return err
-}
-
-// ActivateFrame switches the active frame for a session. The main pane
-// swaps to the target frame's tmux pane.
-func (c *Client) ActivateFrame(sessionID, frameID string) error {
-	_, err := sendJSONEvent[RespOK](c, state.EventActivateFrame, state.ActivateFrameParams{
-		SessionID: sessionID,
-		FrameID:   frameID,
-	})
-	return err
-}
-
-// PushDriver asks the daemon to push a new driver frame onto the given session.
-// input is the stdin content to pipe into the spawned command; nil means no stdin.
-func (c *Client) PushDriver(sessionID, command string, input []byte) error {
-	_, err := sendJSONEvent[RespCreateSession](c, state.EventPushDriver, state.PushDriverParams{
-		SessionID: sessionID,
-		Command:   command,
-		Input:     input,
-	})
-	return err
 }
 
 // PeerSend sends a peer message to the target frame.
@@ -215,7 +97,6 @@ func (c *Client) PeerDrainInbox(frameID string) ([]PeerMessage, error) {
 }
 
 // SendHookEvent sends a hook-event command to the container endpoint.
-// token is the ROOST_SOCKET_TOKEN injected at frame spawn.
 func (c *Client) SendHookEvent(token, hook string, timestamp time.Time, payload json.RawMessage) error {
 	return c.SendWithTimeout(CmdHookEvent{
 		Token:     token,
@@ -233,47 +114,4 @@ func (c *Client) SendEvent(eventName string, timestamp time.Time, senderID strin
 		SenderID:  senderID,
 		Payload:   payload,
 	}, defaultRequestTimeout)
-}
-
-// ActivateOccupant changes what occupies the main pane (0.1).
-// kind must be "main", "log", or "frame"; session/frame IDs are only
-// needed for kind="frame".
-func (c *Client) ActivateOccupant(kind, sessionID, frameID string) error {
-	_, err := sendJSONEvent[RespOK](c, state.EventActivateOccupant, state.ActivateOccupantParams{
-		Kind:      state.OccupantKind(kind),
-		SessionID: sessionID,
-		FrameID:   frameID,
-	})
-	return err
-}
-
-// ActivateLog respawns pane 0.1 with the log TUI.
-func (c *Client) ActivateLog() error { return c.ActivateOccupant("log", "", "") }
-
-// ActivateMain restores pane 0.1 to the main TUI.
-func (c *Client) ActivateMain() error { return c.ActivateOccupant("main", "", "") }
-
-// StatusLineClick notifies the daemon that the user clicked a named region in
-// the tmux status bar. rangeName is the tmux #{mouse_status_range} value;
-// empty string means the click landed outside any driver-defined region.
-func (c *Client) StatusLineClick(rangeName string) error {
-	_, err := sendJSONEvent[RespOK](c, state.EventStatusLineClick, map[string]string{"range": rangeName})
-	return err
-}
-
-// canonicalProjectPath returns the canonical absolute path for a project
-// directory. Trailing slashes are removed and symlinks are resolved so that
-// "/workspace/foo" and "/workspace/foo/" map to the same sandbox container.
-// Falls back to filepath.Clean(Abs) when EvalSymlinks fails (e.g. the path
-// does not yet exist).
-func canonicalProjectPath(p string) string {
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return filepath.Clean(p)
-	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return filepath.Clean(abs)
-	}
-	return resolved
 }

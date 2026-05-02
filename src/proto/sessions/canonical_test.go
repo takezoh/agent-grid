@@ -1,4 +1,4 @@
-package proto
+package sessions
 
 import (
 	"os"
@@ -29,7 +29,6 @@ func TestCanonicalProjectPath_symlink(t *testing.T) {
 		t.Skip("symlink creation failed:", err)
 	}
 	got := canonicalProjectPath(link)
-	// Symlink must be resolved; resolved path equals the real dir.
 	if got == link {
 		t.Errorf("symlink not resolved: canonicalProjectPath(%q) = %q", link, got)
 	}

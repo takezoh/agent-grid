@@ -4,13 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/takezoh/agent-roost/cli"
 )
-
-func init() {
-	cli.Register("claude", "Claude Code integration (setup)", Run)
-}
 
 // Run dispatches Claude subcommands.
 func Run(args []string) error {
@@ -20,7 +14,7 @@ func Run(args []string) error {
 	}
 	switch args[0] {
 	case "setup":
-		return runSetup()
+		return RunSetup()
 	case "help", "-h", "--help":
 		printHelp()
 		return nil
@@ -40,7 +34,8 @@ Commands:
 `)
 }
 
-func runSetup() error {
+// RunSetup registers roost hooks and MCP server in Claude's settings.
+func RunSetup() error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err

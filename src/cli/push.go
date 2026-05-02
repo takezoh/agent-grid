@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 	"golang.org/x/term"
 )
 
@@ -45,13 +46,13 @@ func RunPush(args []string) error {
 	if err != nil {
 		return fmt.Errorf("push: %w", err)
 	}
-	client, err := proto.Dial(sockPath)
+	raw, err := proto.Dial(sockPath)
 	if err != nil {
 		return fmt.Errorf("push: dial: %w", err)
 	}
-	defer client.Close()
+	defer raw.Close()
 
-	if err := client.PushDriver(sid, command, input); err != nil {
+	if err := psess.Wrap(raw).PushDriver(sid, command, input); err != nil {
 		return fmt.Errorf("push: %w", err)
 	}
 	return nil

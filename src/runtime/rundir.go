@@ -12,7 +12,7 @@ import (
 // These are the canonical sources; callers must not hard-code these literals.
 const (
 	ContainerRunDir            = "/opt/roost/run"
-	ContainerBinaryPath        = ContainerRunDir + "/roost"
+	ContainerBinaryPath        = ContainerRunDir + "/roost-bridge"
 	ContainerSockBridgePath    = ContainerRunDir + "/sockbridge"
 	ContainerSockFileName      = "roost.sock"
 	ContainerSockFilePath      = ContainerRunDir + "/" + ContainerSockFileName
@@ -45,19 +45,27 @@ func ContainerSockPath(runDir string) string {
 	return filepath.Join(runDir, ContainerSockFileName)
 }
 
-// InstallBinaryInRunDir copies the current roost executable into runDir as
-// "roost" (mode 0o755). The file is bind-mounted into the devcontainer at
-// ContainerRunDir, so the copy is accessible inside the container as
-// ContainerBinaryPath. Returns the container-internal path.
+// InstallBinaryInRunDir copies the roost-bridge binary (expected alongside the
+// roost executable) into runDir as "roost-bridge" (mode 0o755).
+// The file is bind-mounted into the devcontainer at ContainerRunDir, so the
+// copy is accessible inside the container as ContainerBinaryPath.
+// Returns the container-internal path.
 func InstallBinaryInRunDir(runDir string) (string, error) {
-	src, err := os.Executable()
+	exe, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("rundir: executable: %w", err)
 	}
-	if resolved, e := filepath.EvalSymlinks(src); e == nil {
-		src = resolved
+	if resolved, e := filepath.EvalSymlinks(exe); e == nil {
+		exe = resolved
 	}
-	if err := installExecInRunDir(src, filepath.Join(runDir, "roost")); err != nil {
+	src := filepath.Join(filepath.Dir(exe), "roost-bridge")
+	return installBridgeInRunDir(src, runDir)
+}
+
+// installBridgeInRunDir copies src (roost-bridge) into runDir and returns the
+// container-internal path. Separated for testability.
+func installBridgeInRunDir(src, runDir string) (string, error) {
+	if err := installExecInRunDir(src, filepath.Join(runDir, "roost-bridge")); err != nil {
 		return "", err
 	}
 	return ContainerBinaryPath, nil
@@ -74,9 +82,6 @@ func InstallSockBridgeInRunDir(runDir string) error {
 		exe = resolved
 	}
 	src := filepath.Join(filepath.Dir(exe), "sockbridge")
-	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("rundir: sockbridge binary not found at %s: %w", src, err)
-	}
 	return installExecInRunDir(src, filepath.Join(runDir, "sockbridge"))
 }
 

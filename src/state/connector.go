@@ -3,6 +3,8 @@ package state
 import (
 	"sort"
 	"time"
+
+	v "github.com/takezoh/agent-roost/state/view"
 )
 
 // ConnectorState is the per-connector private state value. Each
@@ -55,18 +57,10 @@ type ConnectorView struct {
 	Sections  []ConnectorSection `json:"sections,omitempty"`
 }
 
-// ConnectorSection is a titled group of items in the main TUI display.
-type ConnectorSection struct {
-	Title string          `json:"title"`
-	Items []ConnectorItem `json:"items,omitempty"`
-}
-
-// ConnectorItem is one entry within a ConnectorSection.
-type ConnectorItem struct {
-	Symbol string `json:"symbol"`
-	Title  string `json:"title"`
-	Meta   string `json:"meta"`
-}
+// ConnectorSection and ConnectorItem are wire types defined in state/view
+// and re-exported here as type aliases.
+type ConnectorSection = v.ConnectorSection
+type ConnectorItem = v.ConnectorItem
 
 // Connector is the interface every daemon-level connector plugin
 // implements. Each impl is a stateless value type registered once at

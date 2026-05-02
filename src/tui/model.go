@@ -8,11 +8,12 @@ import (
 	"github.com/takezoh/agent-roost/config"
 	"github.com/takezoh/agent-roost/features"
 	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 	"github.com/takezoh/agent-roost/tools"
 )
 
 type Model struct {
-	client   *proto.Client
+	client   *psess.Client
 	cfg      *config.Config
 	registry *tools.Registry
 	keys     KeyMap
@@ -41,7 +42,7 @@ type Model struct {
 	height            int
 }
 
-func NewModel(client *proto.Client, cfg *config.Config) Model {
+func NewModel(client *psess.Client, cfg *config.Config) Model {
 	feats := features.FromConfig(cfg.Features.Enabled, features.All())
 	return Model{
 		client:            client,

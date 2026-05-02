@@ -16,6 +16,7 @@ import (
 	"github.com/takezoh/agent-roost/lib/openurl"
 	"github.com/takezoh/agent-roost/logger"
 	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 	"github.com/takezoh/agent-roost/tools"
 	"github.com/takezoh/agent-roost/tui"
 	"github.com/takezoh/agent-roost/tui/glyphs"
@@ -30,7 +31,7 @@ type tuiBootstrapOpts struct {
 // If AllowOffline is true and Dial fails, returns (cfg, nil, nil).
 // If Subscribe is true and Dial succeeds, calls client.Subscribe().
 // Caller must defer client.Close() when client is non-nil.
-func tuiBootstrap(opts tuiBootstrapOpts) (*config.Config, *proto.Client, error) {
+func tuiBootstrap(opts tuiBootstrapOpts) (*config.Config, *psess.Client, error) {
 	cfg, err := loadConfig()
 	if err != nil {
 		return nil, nil, err
@@ -39,13 +40,14 @@ func tuiBootstrap(opts tuiBootstrapOpts) (*config.Config, *proto.Client, error) 
 	initGlyphs()
 	sockPath := filepath.Join(cfg.ResolveDataDir(), "roost.sock")
 
-	client, err := proto.Dial(sockPath)
+	raw, err := proto.Dial(sockPath)
 	if err != nil {
 		if opts.AllowOffline {
 			return cfg, nil, nil
 		}
 		return nil, nil, fmt.Errorf("connect: %w", err)
 	}
+	client := psess.Wrap(raw)
 
 	if opts.Subscribe {
 		_ = client.Subscribe()

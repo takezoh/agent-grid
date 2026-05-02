@@ -306,15 +306,15 @@ type Param struct {
 }
 
 type ToolContext struct {
-    Client *proto.Client   // typed IPC connection to daemon
-    Config ToolConfig      // palette config (commands, projects)
+    Client *sessions.Client // typed IPC connection to daemon (sessions.Wrap(*proto.Client))
+    Config ToolConfig       // palette config (commands, projects)
     Args   map[string]string
 }
 ```
 
 ### Tool to IPC Command Mapping
 
-A Tool's `Run` sends typed IPC commands via `ToolContext.Client` (`proto.Client`). Each Tool corresponds to one IPC command. By returning a `ToolInvocation`, tool chaining within the same popup (e.g., create-project → new-session) is achieved.
+A Tool's `Run` sends typed IPC commands via `ToolContext.Client` (`sessions.Client`, which wraps `proto.Client`). Each Tool corresponds to one IPC command. By returning a `ToolInvocation`, tool chaining within the same popup (e.g., create-project → new-session) is achieved.
 
 | Tool | IPC Command | Parameters |
 |------|-------------|------------|

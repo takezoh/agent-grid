@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/sahilm/fuzzy"
-	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 )
 
 // Param describes one input the palette must collect before running
@@ -43,7 +43,7 @@ type ToolInvocation struct {
 // call. Client is the daemon connection; Config carries static
 // palette config (commands, projects).
 type ToolContext struct {
-	Client       *proto.Client
+	Client       *psess.Client
 	Config       ToolConfig
 	Args         map[string]string
 	IsGitProject func(path string) bool // nil-safe; injected by main

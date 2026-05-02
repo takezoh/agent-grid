@@ -2,8 +2,8 @@ package peers
 
 import (
 	"os"
-	"path/filepath"
 
+	"github.com/takezoh/agent-roost/event"
 	"github.com/takezoh/agent-roost/proto"
 )
 
@@ -28,14 +28,11 @@ func defaultDialer() dialer {
 }
 
 // dialDaemon opens a proto.Client to the roost daemon socket.
+// Honors ROOST_SOCKET, falling back to the configured data dir.
 func dialDaemon() (*proto.Client, error) {
-	socketPath := os.Getenv("ROOST_SOCKET")
-	if socketPath == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		socketPath = filepath.Join(home, ".roost", "data", "roost.sock")
+	socketPath, err := event.ResolveSocketPath()
+	if err != nil {
+		return nil, err
 	}
 	return proto.Dial(socketPath)
 }

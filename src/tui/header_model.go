@@ -4,13 +4,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/takezoh/agent-roost/proto"
+	psess "github.com/takezoh/agent-roost/proto/sessions"
 )
 
 // HeaderModel is the 1-row frame tab bar rendered above the main pane.
 // It subscribes to EvtSessionsChanged, finds the active session, and
 // shows its frames as clickable tabs.
 type HeaderModel struct {
-	client         *proto.Client
+	client         *psess.Client
 	sessions       []proto.SessionInfo
 	activeOccupant string
 	width          int
@@ -29,7 +30,7 @@ type frameTabHitbox struct {
 }
 
 // NewHeaderModel creates a HeaderModel. client may be nil (offline/test).
-func NewHeaderModel(client *proto.Client) HeaderModel {
+func NewHeaderModel(client *psess.Client) HeaderModel {
 	return HeaderModel{client: client}
 }
 

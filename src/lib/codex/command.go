@@ -4,14 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/takezoh/agent-roost/cli"
 )
 
-func init() {
-	cli.Register("codex", "Codex CLI integration (setup)", Run)
-}
-
+// Run dispatches Codex subcommands.
 func Run(args []string) error {
 	if len(args) == 0 {
 		printHelp()
@@ -19,7 +14,7 @@ func Run(args []string) error {
 	}
 	switch args[0] {
 	case "setup":
-		return runSetup()
+		return RunSetup()
 	case "help", "-h", "--help":
 		printHelp()
 		return nil
@@ -39,7 +34,8 @@ Commands:
 `)
 }
 
-func runSetup() error {
+// RunSetup registers roost hooks and MCP server in Codex's config files.
+func RunSetup() error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
