@@ -6,5 +6,6 @@ roost.log
 .codex
 .claude/worktrees/
 .roost/worktrees/
+.roost/settings.toml
 go.work
 go.work.sum
