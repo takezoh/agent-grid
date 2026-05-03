@@ -43,10 +43,11 @@ type ToolInvocation struct {
 // call. Client is the daemon connection; Config carries static
 // palette config (commands, projects).
 type ToolContext struct {
-	Client       *psess.Client
-	Config       ToolConfig
-	Args         map[string]string
-	IsGitProject func(path string) bool // nil-safe; injected by main
+	Client             *psess.Client
+	Config             ToolConfig
+	Args               map[string]string
+	IsGitProject       func(path string) bool // nil-safe; injected by main
+	IsSandboxedProject func(path string) bool // nil-safe; injected by main
 }
 
 type ToolConfig struct {

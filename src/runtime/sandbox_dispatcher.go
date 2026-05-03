@@ -22,6 +22,9 @@ type SandboxDispatcher struct {
 // WrapLaunch resolves the effective sandbox mode for plan.Project and
 // delegates to the appropriate backend launcher.
 func (d *SandboxDispatcher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
+	if plan.Options.Sandbox == state.SandboxOverrideHost {
+		return d.Direct.WrapLaunch(frameID, plan, env)
+	}
 	mode := d.Resolver.Resolve(plan.Project).Mode
 	switch mode {
 	case "devcontainer":

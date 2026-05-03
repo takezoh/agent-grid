@@ -115,6 +115,8 @@ var (
 	selItemStyle      lipgloss.Style
 	itemStyle         lipgloss.Style
 	worktreeChipStyle lipgloss.Style
+	hostChipOnStyle   lipgloss.Style
+	hostChipOffStyle  lipgloss.Style
 
 	// Sessions filter bar chips
 	filterChipOnStyle  lipgloss.Style
@@ -205,6 +207,8 @@ func rebuildPaletteStyles(t Theme) {
 	selItemStyle = lipgloss.NewStyle().Background(t.SelBg).Foreground(t.SelFg)
 	itemStyle = lipgloss.NewStyle()
 	worktreeChipStyle = lipgloss.NewStyle().Background(t.Primary).Foreground(t.TagFg).Bold(true)
+	hostChipOnStyle = lipgloss.NewStyle().Background(lipgloss.Color("#7C5CBF")).Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
+	hostChipOffStyle = lipgloss.NewStyle().Background(t.SelBg).Foreground(t.Muted)
 }
 
 func rebuildFilterStyles(t Theme) {

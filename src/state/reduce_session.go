@@ -104,11 +104,12 @@ func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionPa
 		}
 	}
 
-	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(p.Project)
+	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(p.Project) && p.Options.Sandbox != SandboxOverrideHost
 	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, p.Project, command, p.Options, sandboxed)
 	if err != nil {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
 	}
+	launch.Options.Sandbox = p.Options.Sandbox
 	session.Frames[0].LaunchOptions = launch.Options
 
 	s.Sessions = cloneSessions(s.Sessions)
@@ -235,11 +236,12 @@ func pushDriverInternal(s State, sid SessionID, project, rawCommand string, opti
 		return s, []Effect{EffStartJob{JobID: jobID, Input: setupJob}}, nil
 	}
 
-	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(project)
+	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(project) && options.Sandbox != SandboxOverrideHost
 	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, project, command, options, sandboxed)
 	if err != nil {
 		return s, nil, err
 	}
+	launch.Options.Sandbox = options.Sandbox
 	sess.Frames[len(sess.Frames)-1].LaunchOptions = launch.Options
 	s.Sessions[sid] = sess
 

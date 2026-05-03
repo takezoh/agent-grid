@@ -23,13 +23,15 @@ type PaletteModel struct {
 	cursor      int
 
 	// parameter input
-	selectedTool *tools.Tool
-	paramIndex   int
-	paramArgs    map[string]string
-	paramOptions []string
-	paramCursor  int
-	worktreeOn   bool
-	projectIsGit bool // cached on entering command param phase; false = hide wt chip
+	selectedTool       *tools.Tool
+	paramIndex         int
+	paramArgs          map[string]string
+	paramOptions       []string
+	paramCursor        int
+	worktreeOn         bool
+	hostOn             bool
+	projectIsGit       bool // cached on entering command param phase; false = hide wt chip
+	projectIsSandboxed bool // cached on entering command param phase; false = hide host chip
 
 	width  int
 	height int

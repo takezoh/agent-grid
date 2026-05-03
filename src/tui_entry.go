@@ -180,6 +180,7 @@ func runPalette(args []string) error { //nolint:funlen
 	for i, r := range cfg.Projects.ProjectRoots {
 		roots[i] = config.ExpandPath(r)
 	}
+	sbResolver := config.NewSandboxResolver(cfg.Sandbox)
 	ctx := &tools.ToolContext{
 		Client: client,
 		Config: tools.ToolConfig{
@@ -189,8 +190,9 @@ func runPalette(args []string) error { //nolint:funlen
 			Projects:       cfg.ListProjects(),
 			ProjectRoots:   roots,
 		},
-		Args:         prefill,
-		IsGitProject: git.IsRepo,
+		Args:               prefill,
+		IsGitProject:       git.IsRepo,
+		IsSandboxedProject: func(path string) bool { return sbResolver.Resolve(path).IsSandboxed() },
 	}
 
 	model := tui.NewPaletteModel(reg, ctx, toolName)

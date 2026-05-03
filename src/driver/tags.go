@@ -19,6 +19,9 @@ const (
 	geminiTagBg  = "#1A73E8"
 	geminiTagFg  = "#FFFFFF"
 
+	hostTagBg = "#7C5CBF" // purple — used for both HostTag and the palette host chip
+	hostTagFg = "#FFFFFF"
+
 	// shell brand colors
 	bashTagBg       = "#4EAA25" // GNU bash logo green
 	zshTagBg        = "#2D6DB5" // Z Shell blue
@@ -74,6 +77,12 @@ func GeminiCommandTag() state.Tag {
 		Background: geminiTagBg,
 		Foreground: geminiTagFg,
 	}
+}
+
+// HostTag returns a tag indicating the session was launched on the host
+// instead of its configured sandbox.
+func HostTag() state.Tag {
+	return state.Tag{Text: "host", Background: hostTagBg, Foreground: hostTagFg}
 }
 
 // BranchTag returns a VCS branch tag with pre-resolved brand colors.

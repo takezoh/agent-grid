@@ -176,9 +176,19 @@ type WorktreeOption struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
+// SandboxOverride selects the launch sandbox mode for a single session,
+// overriding the project-level config.
+type SandboxOverride int
+
+const (
+	SandboxOverrideAuto SandboxOverride = iota // follow project config
+	SandboxOverrideHost                        // force direct (host) launch
+)
+
 type LaunchOptions struct {
-	Worktree     WorktreeOption `json:"worktree,omitempty"`
-	InitialInput []byte         `json:"initial_input,omitempty"`
+	Worktree     WorktreeOption  `json:"worktree,omitempty"`
+	InitialInput []byte          `json:"initial_input,omitempty"`
+	Sandbox      SandboxOverride `json:"sandbox,omitempty"`
 }
 
 type LaunchPlan struct {

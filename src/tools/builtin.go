@@ -25,9 +25,13 @@ func DefaultRegistry(feats features.Set) *Registry { //nolint:funlen
 			{Name: "command", Options: func(ctx *ToolContext) []string { return ctx.Config.Commands }},
 		},
 		Run: func(ctx *ToolContext, args map[string]string) (*ToolInvocation, error) {
-			_, err := ctx.Client.CreateSession(args["project"], args["command"], state.LaunchOptions{
+			opts := state.LaunchOptions{
 				Worktree: state.WorktreeOption{Enabled: args["worktree"] == "on"},
-			})
+			}
+			if args["sandbox"] == "direct" {
+				opts.Sandbox = state.SandboxOverrideHost
+			}
+			_, err := ctx.Client.CreateSession(args["project"], args["command"], opts)
 			return nil, err
 		},
 	})

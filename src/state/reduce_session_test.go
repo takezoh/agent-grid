@@ -1603,3 +1603,35 @@ func TestSwitchSessionNoSwapWhenMain(t *testing.T) {
 	}
 	mustOK(t, effs)
 }
+
+// TestCreateSession_SandboxOverrideHost verifies that SandboxOverrideHost is
+// preserved in the frame's LaunchOptions so the dispatcher can route to host.
+func TestCreateSession_SandboxOverrideHost(t *testing.T) {
+	s := New()
+	s.SandboxedProject = func(string) bool { return true } // project is sandboxed by config
+	payload, _ := json.Marshal(map[string]any{
+		"project": "/foo",
+		"command": "stub",
+		"options": map[string]any{"sandbox": int(SandboxOverrideHost)},
+	})
+	next, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: "create-session",
+		Payload: json.RawMessage(payload),
+	})
+	mustOK(t, effs)
+	spawn, ok := findEff[EffSpawnTmuxWindow](effs)
+	if !ok {
+		t.Fatal("expected EffSpawnTmuxWindow")
+	}
+	if spawn.Options.Sandbox != SandboxOverrideHost {
+		t.Errorf("Options.Sandbox = %v, want SandboxOverrideHost", spawn.Options.Sandbox)
+	}
+	for _, sess := range next.Sessions {
+		frame := sess.Frames[0]
+		if frame.LaunchOptions.Sandbox != SandboxOverrideHost {
+			t.Errorf("frame LaunchOptions.Sandbox = %v, want SandboxOverrideHost", frame.LaunchOptions.Sandbox)
+		}
+		return
+	}
+	t.Fatal("no session found")
+}

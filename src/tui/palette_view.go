@@ -133,10 +133,11 @@ func renderPaletteParam(m PaletteModel, innerWidth int) string { //nolint:funlen
 	b.WriteString(inputStyle.Render(m.input))
 	b.WriteString("█\n\n")
 
-	showWorktreeChip := m.selectedTool != nil && m.selectedTool.Name == "new-session" &&
+	onCommandStep := m.selectedTool != nil && m.selectedTool.Name == "new-session" &&
 		m.paramIndex < len(m.selectedTool.Params) &&
-		m.selectedTool.Params[m.paramIndex].Name == "command" &&
-		m.projectIsGit
+		m.selectedTool.Params[m.paramIndex].Name == "command"
+	showWorktreeChip := onCommandStep && m.projectIsGit
+	showHostChip := onCommandStep && m.projectIsSandboxed
 
 	if len(m.paramOptions) == 0 {
 		b.WriteString(descStyle.Render("(type value, enter to confirm)"))
@@ -163,19 +164,15 @@ func renderPaletteParam(m PaletteModel, innerWidth int) string { //nolint:funlen
 		if i == m.paramCursor {
 			left := "▸ " + highlighted + suffix
 			var rendered string
-			if showWorktreeChip {
-				stateText := "off"
-				if m.worktreeOn {
-					stateText = "on"
-				}
-				chip := worktreeChipStyle.Render(" wt " + stateText + " ⇥")
-				chipW := lipgloss.Width(chip)
+			if showWorktreeChip || showHostChip {
+				chips := buildParamChips(m.worktreeOn, showWorktreeChip, m.hostOn, showHostChip)
+				chipsW := lipgloss.Width(chips)
 				leftW := lipgloss.Width("▸ " + display + "  " + dir)
-				gap := innerWidth - leftW - chipW
+				gap := innerWidth - leftW - chipsW
 				if gap < 1 {
 					gap = 1
 				}
-				rendered = selItemStyle.MaxHeight(1).Render(left + strings.Repeat(" ", gap) + chip)
+				rendered = selItemStyle.MaxHeight(1).Render(left + strings.Repeat(" ", gap) + chips)
 			} else {
 				rendered = selItemStyle.Width(innerWidth).MaxHeight(1).Render(left)
 			}
@@ -195,4 +192,26 @@ func renderPaletteParam(m PaletteModel, innerWidth int) string { //nolint:funlen
 		b.WriteString(descStyle.Render("(no matching items)"))
 	}
 	return b.String()
+}
+
+// buildParamChips assembles the WT and HOST indicator chips shown on the selected row.
+func buildParamChips(wtOn, showWT, hostOn, showHost bool) string {
+	var chips string
+	if showWT {
+		stateText := "off"
+		if wtOn {
+			stateText = "on"
+		}
+		chips += worktreeChipStyle.Render(" wt " + stateText + " ⇥")
+	}
+	if showHost {
+		var chip string
+		if hostOn {
+			chip = hostChipOnStyle.Render(" host ⇧⇥")
+		} else {
+			chip = hostChipOffStyle.Render(" host ⇧⇥")
+		}
+		chips += chip
+	}
+	return chips
 }

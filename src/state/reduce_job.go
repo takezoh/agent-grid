@@ -85,11 +85,12 @@ func handlePendingCreate(s State, pending PendingCreate, e EvJobResult) (State, 
 	if err != nil {
 		return s, []Effect{errResp(pending.ReplyConn, pending.ReplyReqID, ErrCodeInvalidArgument, err.Error())}
 	}
-	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(frame.Project)
+	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(frame.Project) && frame.LaunchOptions.Sandbox != SandboxOverrideHost
 	plan, err := drv.PrepareLaunch(nextDS, LaunchModeCreate, frame.Project, createLaunch.Command, createLaunch.Options, sandboxed)
 	if err != nil {
 		return s, []Effect{errResp(pending.ReplyConn, pending.ReplyReqID, ErrCodeInvalidArgument, err.Error())}
 	}
+	plan.Options.Sandbox = frame.LaunchOptions.Sandbox
 	pending.Session.Frames = append([]SessionFrame(nil), pending.Session.Frames...)
 	pending.Session.Frames[frameIdx].Driver = nextDS
 	pending.Session.Frames[frameIdx].LaunchOptions = plan.Options

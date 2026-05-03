@@ -19,12 +19,13 @@ type matchedOption struct {
 }
 
 var (
-	escapeBinding = key.NewBinding(key.WithKeys("esc", "escape"))
-	enterBinding  = key.NewBinding(key.WithKeys("enter"))
-	upBinding     = key.NewBinding(key.WithKeys("up", "ctrl+p"))
-	downBinding   = key.NewBinding(key.WithKeys("down", "ctrl+n"))
-	bsBinding     = key.NewBinding(key.WithKeys("backspace"))
-	tabBinding    = key.NewBinding(key.WithKeys("tab"))
+	escapeBinding   = key.NewBinding(key.WithKeys("esc", "escape"))
+	enterBinding    = key.NewBinding(key.WithKeys("enter"))
+	upBinding       = key.NewBinding(key.WithKeys("up", "ctrl+p"))
+	downBinding     = key.NewBinding(key.WithKeys("down", "ctrl+n"))
+	bsBinding       = key.NewBinding(key.WithKeys("backspace"))
+	tabBinding      = key.NewBinding(key.WithKeys("tab"))
+	shiftTabBinding = key.NewBinding(key.WithKeys("shift+tab"))
 )
 
 func (m PaletteModel) handleToolSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -82,17 +83,7 @@ func (m PaletteModel) advanceParam() (tea.Model, tea.Cmd) {
 		m.paramCursor = 0
 		m.input = ""
 		if m.selectedTool != nil && m.selectedTool.Name == "new-session" && p.Name == "command" {
-			m.projectIsGit = m.ctx != nil && m.ctx.IsGitProject != nil &&
-				m.ctx.IsGitProject(m.paramArgs["project"])
-			switch {
-			case !m.projectIsGit:
-				m.worktreeOn = false
-				delete(m.paramArgs, "worktree")
-			case m.worktreeOn:
-				m.paramArgs["worktree"] = "on"
-			default:
-				delete(m.paramArgs, "worktree")
-			}
+			applyNewSessionCommandState(&m)
 		}
 		return m, nil
 	}
@@ -118,6 +109,28 @@ func (m PaletteModel) advanceParam() (tea.Model, tea.Cmd) {
 		slog.Error("chained tool not found", "tool", next.Name)
 	}
 	return m, tea.Quit
+}
+
+func applyNewSessionCommandState(m *PaletteModel) {
+	m.projectIsGit = m.ctx != nil && m.ctx.IsGitProject != nil &&
+		m.ctx.IsGitProject(m.paramArgs["project"])
+	m.projectIsSandboxed = m.ctx != nil && m.ctx.IsSandboxedProject != nil &&
+		m.ctx.IsSandboxedProject(m.paramArgs["project"])
+	switch {
+	case !m.projectIsGit:
+		m.worktreeOn = false
+		delete(m.paramArgs, "worktree")
+	case m.worktreeOn:
+		m.paramArgs["worktree"] = "on"
+	default:
+		delete(m.paramArgs, "worktree")
+	}
+	if !m.projectIsSandboxed {
+		m.hostOn = false
+		delete(m.paramArgs, "sandbox")
+	} else if m.hostOn {
+		m.paramArgs["sandbox"] = "direct"
+	}
 }
 
 func (m PaletteModel) handleParamSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) { //nolint:funlen
@@ -163,6 +176,18 @@ func (m PaletteModel) handleParamSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 				m.paramArgs["worktree"] = "on"
 			} else {
 				delete(m.paramArgs, "worktree")
+			}
+		}
+	case key.Matches(msg, shiftTabBinding):
+		if m.selectedTool != nil && m.selectedTool.Name == "new-session" &&
+			m.paramIndex < len(m.selectedTool.Params) &&
+			m.selectedTool.Params[m.paramIndex].Name == "command" &&
+			m.projectIsSandboxed {
+			m.hostOn = !m.hostOn
+			if m.hostOn {
+				m.paramArgs["sandbox"] = "direct"
+			} else {
+				delete(m.paramArgs, "sandbox")
 			}
 		}
 	case key.Matches(msg, upBinding):

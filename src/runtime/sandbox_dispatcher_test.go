@@ -82,6 +82,37 @@ func TestSandboxDispatcher_UnknownMode_ReturnsError(t *testing.T) {
 	}
 }
 
+// TestSandboxDispatcher_HostOverride_RoutesToDirect verifies that SandboxOverrideHost
+// bypasses the project-level sandbox config and goes directly to Direct.
+// Devcontainer is left nil; without the override that would return an error —
+// the fact that Direct succeeds confirms the early-return path was taken.
+func TestSandboxDispatcher_HostOverride_RoutesToDirect(t *testing.T) {
+	direct := &fakeAgentLauncher{wrapResult: WrappedLaunch{Command: "claude"}}
+	// Mode=devcontainer with nil Devcontainer normally errors, but HostOverride must bypass.
+	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "devcontainer"})
+	d := &SandboxDispatcher{
+		Resolver:     resolver,
+		Direct:       direct,
+		Devcontainer: nil,
+	}
+
+	plan := state.LaunchPlan{
+		Project: "/workspace/foo",
+		Command: "claude",
+		Options: state.LaunchOptions{Sandbox: state.SandboxOverrideHost},
+	}
+	got, err := d.WrapLaunch("f1", plan, nil)
+	if err != nil {
+		t.Fatalf("WrapLaunch error: %v", err)
+	}
+	if !direct.wrapLaunchCalled {
+		t.Error("expected Direct.WrapLaunch to be called")
+	}
+	if got.Command != "claude" {
+		t.Errorf("Command = %q, want claude", got.Command)
+	}
+}
+
 func TestSandboxDispatcher_AdoptFrame_DirectMode(t *testing.T) {
 	direct := &fakeAgentLauncher{}
 	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "direct"})

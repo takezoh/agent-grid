@@ -454,3 +454,126 @@ func TestPaletteIgnoresUnknownChainTarget(t *testing.T) {
 		t.Errorf("expected QuitMsg fallback, got %T", cmd())
 	}
 }
+
+func TestRenderPaletteParamHostChip(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(tools.Tool{
+		Name: "new-session",
+		Params: []tools.Param{
+			{Name: "command", Options: func(ctx *tools.ToolContext) []string {
+				return []string{"claude", "gemini"}
+			}},
+		},
+		Run: func(ctx *tools.ToolContext, args map[string]string) (*tools.ToolInvocation, error) {
+			return nil, nil
+		},
+	})
+
+	m := NewPaletteModel(registry, &tools.ToolContext{}, "")
+	m.width = 80
+	m.height = 20
+	m.phase = phaseParamSelect
+	m.selectedTool = registry.Get("new-session")
+	m.paramIndex = 0
+	m.paramOptions = []string{"claude", "gemini"}
+	m.projectIsSandboxed = true
+	m.hostOn = false
+	m.paramCursor = 0
+
+	out := renderPaletteParam(m, 76)
+	cursorLine := ""
+	for _, l := range strings.Split(out, "\n") {
+		if strings.Contains(l, "claude") {
+			cursorLine = l
+			break
+		}
+	}
+	if !strings.Contains(cursorLine, "host") {
+		t.Errorf("cursor line should contain 'host' chip when projectIsSandboxed=true, got: %q", cursorLine)
+	}
+
+	m.hostOn = true
+	out2 := renderPaletteParam(m, 76)
+	found := false
+	for _, l := range strings.Split(out2, "\n") {
+		if strings.Contains(l, "claude") && strings.Contains(l, "host") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("cursor line should still contain host chip when hostOn=true")
+	}
+}
+
+func TestShiftTabTogglesHostOn(t *testing.T) {
+	registry := tools.NewRegistry()
+	var capturedArgs map[string]string
+	registry.Register(tools.Tool{
+		Name: "new-session",
+		Params: []tools.Param{
+			{Name: "project", Options: func(ctx *tools.ToolContext) []string { return []string{"/proj"} }},
+			{Name: "command", Options: func(ctx *tools.ToolContext) []string { return []string{"claude"} }},
+		},
+		Run: func(ctx *tools.ToolContext, args map[string]string) (*tools.ToolInvocation, error) {
+			capturedArgs = args
+			return nil, nil
+		},
+	})
+
+	ctx := &tools.ToolContext{
+		IsSandboxedProject: func(string) bool { return true },
+	}
+	m := NewPaletteModel(registry, ctx, "")
+	m.phase = phaseParamSelect
+	m.selectedTool = registry.Get("new-session")
+	m.paramIndex = 1 // on command step
+	m.paramOptions = []string{"claude"}
+	m.projectIsSandboxed = true
+
+	shiftTab := tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
+
+	got, _ := m.handleParamSelect(shiftTab)
+	pm := got.(PaletteModel)
+	if !pm.hostOn {
+		t.Error("hostOn should be true after first shift+tab")
+	}
+	if pm.paramArgs["sandbox"] != "direct" {
+		t.Errorf("paramArgs[sandbox] = %q, want direct", pm.paramArgs["sandbox"])
+	}
+
+	got2, _ := pm.handleParamSelect(shiftTab)
+	pm2 := got2.(PaletteModel)
+	if pm2.hostOn {
+		t.Error("hostOn should be false after second shift+tab")
+	}
+	if _, ok := pm2.paramArgs["sandbox"]; ok {
+		t.Error("paramArgs[sandbox] should be deleted when hostOn=false")
+	}
+	_ = capturedArgs
+}
+
+func TestShiftTabIgnoredWhenNotSandboxed(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(tools.Tool{
+		Name: "new-session",
+		Params: []tools.Param{
+			{Name: "command", Options: func(ctx *tools.ToolContext) []string { return []string{"claude"} }},
+		},
+		Run: func(ctx *tools.ToolContext, args map[string]string) (*tools.ToolInvocation, error) { return nil, nil },
+	})
+
+	m := NewPaletteModel(registry, &tools.ToolContext{}, "")
+	m.phase = phaseParamSelect
+	m.selectedTool = registry.Get("new-session")
+	m.paramIndex = 0
+	m.paramOptions = []string{"claude"}
+	m.projectIsSandboxed = false
+
+	shiftTab := tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
+	got, _ := m.handleParamSelect(shiftTab)
+	pm := got.(PaletteModel)
+	if pm.hostOn {
+		t.Error("hostOn should remain false when project is not sandboxed")
+	}
+}
