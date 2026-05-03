@@ -66,6 +66,43 @@ func TestReducePaneOsc_OSC0_RoutesToDriver_NotRecordNotification(t *testing.T) {
 	}
 }
 
+func TestReducePaneOsc_OSC0_AppendsEventLog(t *testing.T) {
+	s := New()
+	sessID := SessionID("sess1")
+	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
+	frameID := FrameID(sessID)
+
+	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 0, Title: "✳ Claude Code"})
+
+	logEff, ok := findEff[EffEventLogAppend](effs)
+	if !ok {
+		t.Fatal("OSC 0 should produce EffEventLogAppend")
+	}
+	if logEff.FrameID != frameID {
+		t.Errorf("FrameID = %q, want %q", logEff.FrameID, frameID)
+	}
+	if logEff.Line != "[osc0] ✳ Claude Code" {
+		t.Errorf("Line = %q, want %q", logEff.Line, "[osc0] ✳ Claude Code")
+	}
+}
+
+func TestReducePaneOsc_OSC2_AppendsEventLog(t *testing.T) {
+	s := New()
+	sessID := SessionID("sess1")
+	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
+	frameID := FrameID(sessID)
+
+	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 2, Title: "✋ Action Required"})
+
+	logEff, ok := findEff[EffEventLogAppend](effs)
+	if !ok {
+		t.Fatal("OSC 2 should produce EffEventLogAppend")
+	}
+	if logEff.Line != "[osc2] ✋ Action Required" {
+		t.Errorf("Line = %q, want %q", logEff.Line, "[osc2] ✋ Action Required")
+	}
+}
+
 func TestReducePaneOsc_OSC0_EmptyTitle_NoEffect(t *testing.T) {
 	s := New()
 	sessID := SessionID("sess1")
@@ -126,6 +163,39 @@ func TestReducePanePrompt_RoutesToDriver(t *testing.T) {
 		if _, ok := e.(EffRecordNotification); ok {
 			t.Error("EvPanePrompt should not produce EffRecordNotification")
 		}
+	}
+}
+
+func TestReducePanePrompt_AppendsEventLog_Input(t *testing.T) {
+	s := New()
+	sessID := SessionID("sess1")
+	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
+	frameID := FrameID(sessID)
+
+	_, effs := Reduce(s, EvPanePrompt{FrameID: frameID, Phase: PromptPhaseInput})
+	logEff, ok := findEff[EffEventLogAppend](effs)
+	if !ok {
+		t.Fatal("EvPanePrompt should produce EffEventLogAppend")
+	}
+	if logEff.Line != "[osc133] phase=input" {
+		t.Errorf("Line = %q, want %q", logEff.Line, "[osc133] phase=input")
+	}
+}
+
+func TestReducePanePrompt_AppendsEventLog_CompleteWithExitCode(t *testing.T) {
+	s := New()
+	sessID := SessionID("sess1")
+	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
+	frameID := FrameID(sessID)
+
+	code := 42
+	_, effs := Reduce(s, EvPanePrompt{FrameID: frameID, Phase: PromptPhaseComplete, ExitCode: &code})
+	logEff, ok := findEff[EffEventLogAppend](effs)
+	if !ok {
+		t.Fatal("EvPanePrompt should produce EffEventLogAppend")
+	}
+	if logEff.Line != "[osc133] phase=complete exit=42" {
+		t.Errorf("Line = %q, want %q", logEff.Line, "[osc133] phase=complete exit=42")
 	}
 }
 
