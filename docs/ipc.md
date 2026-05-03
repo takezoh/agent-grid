@@ -20,14 +20,14 @@ flowchart TB
         Reduce["state.Reduce(state, event)<br/>→ (state', []Effect)<br/>pure function: no goroutine, no I/O"]
         Interp["Effect interpreter<br/>runtime.execute(eff)<br/>tmux / IPC / persist / worker / tap"]
         Pool["Worker pool (4 goroutine)<br/>worker.Dispatch<br/>JobKind-based runner registry"]
-        Tap["tapManager<br/>1 reader goroutine / live frame<br/>pipe-pane → OSC parser → EvPaneOsc / EvPaneActivity"]
+        Tap["tapManager<br/>1 reader goroutine / live frame<br/>pipe-pane → VT emulator → EvPaneOsc / EvPanePrompt"]
 
         EL --> Reduce
         Reduce --> Interp
         Interp -->|EffStartJob| Pool
         Pool -->|EvJobResult| EL
         Interp -->|EffRegisterPane| Tap
-        Tap -->|"EvPaneOsc<br/>EvPaneActivity"| EL
+        Tap -->|"EvPaneOsc<br/>EvPanePrompt"| EL
     end
 
     subgraph clients["Clients (TUI / CLI / palette)"]
@@ -43,7 +43,7 @@ flowchart TB
 - `state`: `state.State` — all domain state (Sessions map, Active, Subscribers, Jobs). Solely owned by the event loop goroutine
 - `eventCh`: channel where external goroutines (IPC reader, worker pool, fsnotify watcher, tap readers) submit Events
 - `workers`: `worker.Pool` — fixed-size (4) goroutine pool. `worker.Dispatch` dispatches via registered runner lookup using `JobInput.JobKind()`
-- `taps`: `*tapManager` — per-frame PaneTap reader goroutines. Started on `EffRegisterPane`, stopped on `EffUnregisterPane`. Each goroutine parses the raw byte stream from `tmux pipe-pane`, emitting `EvPaneActivity` and `EvPaneOsc` into `eventCh`
+- `taps`: `*tapManager` — per-frame PaneTap reader goroutines. Started on `EffRegisterPane`, stopped on `EffUnregisterPane`. Each goroutine feeds the raw byte stream from `tmux pipe-pane` into a per-frame VT emulator (`driver/vt.Terminal`), which fires synchronous callbacks for OSC notifications, window titles, and OSC 133 prompt phases. Callbacks enqueue `EvPaneOsc` / `EvPanePrompt` into `eventCh`
 - `conns`: `map[ConnID]*ipcConn` — connection management. Solely owned by the event loop goroutine
 - `cfg.Tmux` / `cfg.Persist` / `cfg.EventLog` / `cfg.Watcher`: backend interfaces (replaceable with fakes during testing)
 
@@ -168,7 +168,7 @@ flowchart LR
     Tmux -->|EvTmuxPaneSpawned| EL["event loop (eventCh)"]
     Pool -->|EvJobResult| EL
     Watcher -->|EvFileChanged| EL
-    TapMgr -->|"EvPaneOsc<br/>EvPaneActivity"| EL
+    TapMgr -->|"EvPaneOsc<br/>EvPanePrompt"| EL
 ```
 
 Legend:
@@ -179,7 +179,7 @@ Legend:
 
 #### Worker Pool (Off-Loop Execution of Slow I/O)
 
-Heavy I/O (transcript parse, haiku summary, git branch detect, capture-pane) is executed outside the event loop in a fixed-size worker pool (`worker.Pool`, 4 goroutines). Runners are registered via `RegisterRunner[In,Out]` by the driver at init time, and `Dispatch` looks them up by `JobInput.JobKind()`:
+Heavy I/O (transcript parse, haiku summary, git branch detect) is executed outside the event loop in a fixed-size worker pool (`worker.Pool`, 4 goroutines). Runners are registered via `RegisterRunner[In,Out]` by the driver at init time, and `Dispatch` looks them up by `JobInput.JobKind()`:
 
 ```mermaid
 sequenceDiagram
@@ -187,16 +187,16 @@ sequenceDiagram
     participant Red as state.Reduce
     participant Interp as Effect interpreter
     participant Pool as Worker pool (4 goroutine)
-    participant Runner as Runner<br/>(TranscriptParse / Haiku / Git / CapturePane)
+    participant Runner as Runner<br/>(TranscriptParse / Haiku / Git)
 
     EL->>Red: Reduce(state, EvTick)
-    Red-->>EL: (state', [EffStartJob{input: CapturePaneInput}])
+    Red-->>EL: (state', [EffStartJob{input: TranscriptParseInput}])
     EL->>Interp: execute(EffStartJob)
     Interp->>Pool: Submit(Job{ID, Input})
     Note over EL: event loop proceeds immediately to next select
 
     Pool->>Runner: Dispatch(pool, jobID, input)<br/>runner lookup by JobKind()
-    Runner-->>Pool: (CapturePaneResult, nil)
+    Runner-->>Pool: (TranscriptParseResult, nil)
     Pool->>EL: EvJobResult{JobID, Result}
 
     EL->>Red: Reduce(state, EvJobResult)
@@ -206,11 +206,11 @@ sequenceDiagram
 Key points:
 - **The event loop never blocks**: EffStartJob only submits to the worker pool. Results return asynchronously as EvJobResult
 - **Fixed goroutine count**: event loop (1) + IPC accept (1) + worker pool (4) + IPC reader/writer (per client). Independent of session count
-- **Type-based runner registration**: `worker.RegisterRunner("capture_pane", runner)` — adding a new job type requires only one RegisterRunner call + a runner function + a JobKind() method
+- **Type-based runner registration**: `worker.RegisterRunner("transcript_parse", runner)` — adding a new job type requires only one RegisterRunner call + a runner function + a JobKind() method
 
 #### Tick Processing Sequence
 
-On each tick, `state.Reduce` calls Driver.Step for all sessions and returns the necessary Effects (capture-pane job, transcript parse job, broadcast, persist):
+On each tick, `state.Reduce` calls Driver.Step for all sessions and returns the necessary Effects (transcript parse / branch detect job, broadcast, persist):
 
 ```mermaid
 sequenceDiagram
@@ -227,7 +227,7 @@ sequenceDiagram
     Red->>D1: Driver.Step(driverState1, DEvTick{Active: true})
     D1-->>Red: (driverState1', [EffStartJob{TranscriptParse}], view1)
     Red->>D2: Driver.Step(driverState2, DEvTick{Active: false})
-    D2-->>Red: (driverState2', [EffStartJob{CapturePane}], view2)
+    D2-->>Red: (driverState2', [EffStartJob{BranchDetect}], view2)
     Red-->>EL: (state', [EffStartJob×N, EffBroadcastSessionsChanged,<br/>EffPersistSnapshot, EffSyncStatusLine])
     EL->>Interp: execute(effects...)
     Note over Interp: Interprets each Effect in order<br/>EffStartJob → worker pool submit<br/>EffBroadcast → IPC send<br/>EffPersist → write sessions.json
@@ -251,7 +251,7 @@ Both paths converge at `EvDriverEvent` entering the event loop. See [state-monit
 | `ipcConn.readLoop` | M (1 / client) | IPC reader. Converts Commands to Events and submits to eventCh |
 | `ipcConn.writeLoop` | M (1 / client) | IPC writer. Drains outbox and writes to socket |
 | `worker.Pool.run` | 4 (fixed) | Worker pool goroutines |
-| `tapManager.readTap` | N (1 / live frame) | PaneTap reader. Parses raw byte stream from `tmux pipe-pane`, emits `EvPaneActivity` and `EvPaneOsc` into eventCh |
+| `tapManager.readTap` | N (1 / live frame) | PaneTap reader. Feeds raw byte stream from `tmux pipe-pane` into a per-frame VT emulator, which fires callbacks that emit `EvPaneOsc` (window titles + OSC 9/99/777 notifications) and `EvPanePrompt` (OSC 133 phases) into eventCh |
 
 IPC reader/writer scales with client count; tap readers scale with live frame count. Both are continuous sources that only emit events — they never read or write `state.State`.
 

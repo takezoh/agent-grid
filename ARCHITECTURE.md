@@ -46,7 +46,7 @@ state/view/    Wire-safe view types — Status, View, Card, Tag, ConnectorSectio
 driver/        Driver implementations — value-type Driver plugins + per-frame DriverState. No I/O
 connector/     Connector implementations — value-type Connector plugins + per-daemon ConnectorState. No I/O
 runtime/       Imperative shell — single event loop, Effect interpreter, backend abstraction
-runtime/worker/ Worker pool — slow I/O job execution (haiku, transcript parse, git, capture-pane, github fetch)
+runtime/worker/ Worker pool — slow I/O job execution (haiku, transcript parse, git, github fetch)
 proto/         Typed IPC wire layer — Command / Response / ServerEvent sum types + codec. No state import (imports state/view only)
 proto/sessions/ Session management helpers — sessions.Client wraps proto.Client with session-management methods. Imports state
 tools/         Palette tools — Tool abstraction for TUI + DefaultRegistry

@@ -4,12 +4,13 @@ For the interactive operation processing flow (TUI → IPC → Reduce → Effect
 
 ## Background pipeline
 
-Two parallel event sources feed Driver.Step:
+Three parallel event sources feed Driver.Step:
 
 - **Periodic tick (1s)**: `reduceTick` steps the active frame of each running session via `Driver.Step(frame.Driver, DEvTick{...})`. Pane reconciliation and the pane 0.0 health check are performed on the same tick. For the detailed sequence, see [ipc.md](ipc.md#tick-processing-sequence).
-- **PaneTap activity (`EvPaneActivity`)**: When the `tapManager` reader goroutine receives bytes from `tmux pipe-pane`, it emits `EvPaneActivity` (debounced to 100 ms). `reduceActivity` calls `Driver.Step(frame.Driver, DEvPaneActivity{...})`, which triggers an immediate capture-pane job for the owning frame rather than waiting for the next tick.
+- **PaneTap OSC events**: When the `tapManager` reader goroutine receives bytes from `tmux pipe-pane`, it feeds them into a per-frame `driver/vt.Terminal` (a thin wrapper over `charmbracelet/x/vt`). The emulator fires synchronous callbacks for OSC 0/2 (window titles), OSC 9/99/777 (notifications), and OSC 133 (semantic prompt phases). The reader translates these into `EvPaneOsc` and `EvPanePrompt` events.
+- **Driver hooks (`EvDriverEvent`)**: hook subprocesses send events through the IPC bridge; `reduceDriverHook` dispatches them to the owning frame's driver as `DEvHook`.
 
-Driver.Step returns `EffStartJob`, which is submitted to the worker pool. The result is fed back via `EvJobResult` → `Driver.Step(DEvJobResult)` and reflected in DriverState.
+Driver.Step returns `[]Effect` — `EffStartJob` for slow I/O (transcript parse, haiku summary, git branch detect), `EffEventLogAppend` for operator-visible event log writes, and so on. Worker results are fed back via `EvJobResult` → `Driver.Step(DEvJobResult)` and reflected in DriverState.
 
 ## State monitoring
 
@@ -24,8 +25,9 @@ The Driver plugin's `Step` method is responsible for status updates. For the Dri
 | `PrepareLaunch(s, mode, project, cmd, options)` | `reduceCreateSession`, `reducePushDriver`, cold-start bootstrap | Pure function that resolves the frame's launch plan (command / start_dir / normalized `LaunchOptions`). Called synchronously inside `state.Reduce` and on cold-start restoration; the resolved plan is baked into `EffSpawnTmuxWindow` so the runtime never calls drivers |
 | `PrepareCreate(s, sessID, project, cmd, options)` | `reduceCreateSession` (planner-gated drivers only) | Optional extension returning a `CreatePlan` with a `SetupJob` for async pre-launch work (e.g., creating a managed worktree) |
 | `CompleteCreate(s, cmd, options, result, err)` | `handlePendingCreate` (planner-gated drivers only) | Runs after the SetupJob completes; returns the final `CreateLaunch` and the normalized `LaunchOptions` to persist on the frame |
-| `Step(prev, DEvTick)` | `reduceTick` | Periodic tick on the active frame of each running session. Claude gates on `DEvTick.Active`, emitting transcript parse jobs only when active. Generic uses tick only for idle-threshold detection when no capture-pane is already in flight |
-| `Step(prev, DEvPaneActivity)` | `reduceActivity` | Fired by the PaneTap reader goroutine when bytes arrive from the pane (debounced 100 ms). Generic and Shell drivers emit an immediate capture-pane job, bypassing the tick interval |
+| `Step(prev, DEvTick)` | `reduceTick` | Periodic tick on the active frame of each running session. Claude gates on `DEvTick.Active`, emitting transcript parse jobs only when active. Generic transitions Running → Waiting after `IdleThreshold` elapses without OSC activity |
+| `Step(prev, DEvPaneOsc)` | `reducePaneOsc` | Routes OSC 0/2 (window title) sequences to the driver. Claude/Codex/Gemini interpret the title to update status (e.g. Braille spinner = Running, "✳" = Waiting) |
+| `Step(prev, DEvPanePrompt)` | `reducePanePrompt` | Routes OSC 133 semantic-prompt events. Shell driver sets `SawPromptEvent` on first observation and updates `LastExitCode` on `PromptPhaseComplete` |
 | `Step(prev, DEvHook)` | `reduceDriverHook` | Receives hook events targeted at a specific frame and updates that frame's DriverState. Claude performs status transitions + event log append effects |
 | `Step(prev, DEvJobResult)` | `reduceJobResult` | Reflects results from the worker pool into the owning frame's DriverState. Transcript parse results such as title / lastPrompt |
 | `Step(prev, DEvFileChanged)` | `reduceFileChanged` | File change notification from fsnotify. Emits transcript parse job |
@@ -70,36 +72,26 @@ A mechanism for the hook subprocess to identify its owning roost frame in a race
 
 **Solution**: Inject a frame-scoped env var into the pane environment at `tmux new-window -e` time. The env var is set at the kernel exec level simultaneously with the window creation, so no race occurs. The hook bridge reads the frame id directly from its own process environment, requiring no round-trip to tmux. The reducer then scans the frame stacks to locate the owning frame and routes the hook to that frame's driver. Hooks whose target frame has already been truncated off the stack are silently dropped — this is the intended behavior when a frame's pane has just died and the reducer is still processing the eviction.
 
-### Generic driver (activity-driven + tick idle detection)
+### OSC pipeline (pipe-pane → VT emulator → driver)
 
-`genericDriver` determines state by comparing capture-pane hashes. Capture-pane jobs are now triggered primarily by `DEvPaneActivity` (bytes arriving via PaneTap), with `DEvTick` used only for idle-threshold detection. Results arrive from the worker pool via `DEvJobResult{CapturePaneResult}`:
+Pane status detection is OSC-driven. tmux `pipe-pane` streams the raw byte sequence from each frame into a per-frame `driver/vt.Terminal`; the emulator parses the byte stream and fires synchronous callbacks for the OSC sequences agents and shells emit:
 
-```mermaid
-flowchart TD
-    act["DEvPaneActivity<br/>(PaneTap bytes received)"] -->|captureInFlight?| guard{in flight?}
-    guard -->|Yes| skip[Skip — already pending]
-    guard -->|No| submit["Submit CapturePane job<br/>(EffStartJob)"]
-    tick["DEvTick<br/>(1 s periodic)"] --> idle{Idle threshold<br/>exceeded?}
-    idle -->|No| noop[No action]
-    idle -->|Yes| idleStatus["StatusIdle (○ gray)"]
+| OSC | Source | Routing |
+|-----|--------|---------|
+| 0 / 2 | Window title (Claude/Codex/Gemini emit "✳ Working", "✋ Action Required", etc.) | `EvPaneOsc` → `EffEventLogAppend` (EVENTS log) + `DEvPaneOsc` to driver for status interpretation |
+| 9 / 99 / 777 | Desktop notification protocols (Growl / Kitty / urxvt) | `EvPaneOsc` → `EffRecordNotification` (writes EVENTS log + dispatches optional desktop toast) |
+| 133 | FinalTerm semantic prompt phases (`A`=start, `B`=input, `C`=command, `D`=complete with exit code) | `EvPanePrompt` → `EffEventLogAppend` + `DEvPanePrompt` to driver |
 
-    submit --> cap
-    cap["CapturePaneResult<br/>(received from worker pool)"] --> primed{primed?}
-    primed -->|No| baseline["Set baseline only<br/>(status unchanged)"]
-    primed -->|Yes| hash[SHA256 hash comparison]
-    hash --> changed{Hash changed?}
-    changed -->|Changed| prompt{Prompt detected?}
-    prompt -->|Yes| waiting["StatusWaiting (◆ yellow)"]
-    prompt -->|No| running["StatusRunning (● green)"]
-    changed -->|Unchanged| keep[No action]
-    cap -.->|Error| log[Debug log only<br/>no status change]
-```
+### Generic driver
 
-**The first capture-pane result does not change status** — it only sets the internal hash baseline. Status changes begin from the second result onward.
+`genericDriver` runs in a Waiting state by default. OSC events received via `DEvPaneOsc` may transition it to Running (e.g. when the pane reports a working spinner). Without OSC activity, the driver falls back to `IdleThreshold`-based decay: Running → Waiting after the configured duration elapses.
 
-When `Driver.Restore` is called, `lastActivity` is also seeded from `status_changed_at`, allowing the idle countdown to continue across restarts.
+### Shell driver
 
-The idle threshold can be changed via `IdleThresholdSec` in `settings.toml` (default 30 seconds). The polling interval is `PollIntervalMs` (default 1000ms). Prompt detection uses per-driver regular expressions. The generic pattern `` (?m)(^>|[>$❯]\s*$) `` serves as the base, while claude uses `` (?m)(^>|❯\s*$) `` excluding `$` to prevent false positives with bash shells.
+`shellDriver` consumes OSC 133 prompt events:
+
+- First observation of any phase sets `SawPromptEvent = true`, indicating the shell uses semantic prompt markers.
+- `PromptPhaseComplete` updates `LastExitCode` from `\x1b]133;D;<exit-code>\x1b\\`.
 
 ### State persistence and restoration
 

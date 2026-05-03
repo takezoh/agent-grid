@@ -94,7 +94,7 @@ type DriverState interface {
 }
 
 // DriverEvent — input to Driver.Step (closed sum type)
-// DEvTick, DEvPaneActivity, DEvHook, DEvJobResult, DEvFileChanged
+// DEvTick, DEvHook, DEvJobResult, DEvFileChanged, DEvPaneOsc, DEvPanePrompt
 ```
 
 Driver is a **value-type plugin**: no goroutines, no I/O, no mutexes. Per-frame state is embedded on each `SessionFrame.Driver` as a `DriverState` value, and round-trips as arguments and return values of `Driver.Step`. Side effects are returned as `[]Effect` and executed by the runtime's Effect interpreter.
@@ -254,8 +254,9 @@ src/
 │   ├── reduce_event.go  EvEvent → registered handler dispatch, EvDriverEvent → Driver.Step routing
 │   ├── reduce_session.go  session / frame lifecycle reducers (create-session, push-driver, stop-session, …)
 │   ├── reduce_tick.go   EvTick → step active frame of each session → Driver.Step(DEvTick)
-│   ├── reduce_activity.go  EvPaneActivity → Driver.Step(DEvPaneActivity) — activity-driven capture-pane
-│   ├── reduce_osc.go    EvPaneOsc → EffRecordNotification routing
+│   ├── reduce_osc.go    EvPaneOsc / EvPanePrompt → EffEventLogAppend + driver routing
+│   │                    (OSC 0/2 → DEvPaneOsc; OSC 133 → DEvPanePrompt;
+│   │                    OSC 9/99/777 → EffRecordNotification)
 │   ├── reduce_surface.go  surface.read_text / send_text / send_key / driver.list reducers
 │   ├── reduce_job.go    EvJobResult → Driver.Step(DEvJobResult)
 │   ├── reduce_conn.go   IPC connection lifecycle
@@ -278,11 +279,13 @@ src/
 │   ├── claude_tick.go   DEvTick: active gate + transcript parse job emit
 │   ├── claude_view.go   View() — Card, LogTabs, InfoExtras, StatusLine
 │   ├── claude_persist.go  Persist / Restore — opaque bag round-trip
-│   ├── generic.go       genericDriver — polling-driven (capture-pane job emit + hash comparison)
+│   ├── generic.go       genericDriver — Idle/Waiting transitions driven by tick + OSC events
 │   ├── generic_view.go  View()
-│   ├── jobs.go          Job input/output types (TranscriptParseInput, CapturePaneInput, ...)
-│   ├── poll.go          capture-pane shared helper for drivers
-│   ├── runners.go       built-in runners (TranscriptParse, HaikuSummary, GitBranch, CapturePane)
+│   ├── shell.go         shellDriver — OSC 133 prompt-phase consumer (DEvPanePrompt)
+│   ├── vt/              VT emulator wrapper — driver/vt.Terminal feeds bytes to charmbracelet/x/vt
+│   │                    and exposes OnOscNotification / OnWindowTitle / OnPromptEvent callbacks
+│   ├── jobs.go          Job input/output types (TranscriptParseInput, BranchDetectInput, ...)
+│   ├── runners.go       built-in runners (TranscriptParse, HaikuSummary, GitBranch)
 │   ├── tags.go          CommandTag helper
 │   └── register.go      init() registers with state.Register
 ├── connector/           Connector plugin system (external service integration)
@@ -307,8 +310,9 @@ src/
 │   ├── backends.go      TmuxBackend, PersistBackend, EventLogBackend, FSWatcher interface
 │   ├── panetap.go       PaneTap interface — raw byte stream abstraction over tmux pipe-pane
 │   ├── tmux_pipe_tap.go TmuxPipePaneTap — pipe-pane + FIFO + reader goroutine
-│   ├── tap_manager.go   per-frame tap lifecycle; emits EvPaneActivity / EvPaneOsc into eventCh
-│   ├── osc_parser.go    lightweight OSC state machine (extracts OSC 9/99/777 from raw stream)
+│   ├── tap_manager.go   per-frame tap lifecycle; runs a goroutine that feeds pipe-pane bytes
+│   │                    into a driver/vt.Terminal and emits EvPaneOsc (OSC 0/2/9/99/777) and
+│   │                    EvPanePrompt (OSC 133) into eventCh
 │   ├── peercred_linux.go  SO_PEERCRED uid verification (Linux)
 │   ├── peercred_other.go  no-op stub (non-Linux)
 │   ├── tmux_real.go     TmuxBackend concrete implementation
@@ -324,7 +328,7 @@ src/
 │   └── worker/          Worker pool
 │       ├── pool.go      Pool + Submit[In,Out] (typed job submission)
 │       ├── registry.go  RegisterRunner[In,Out] + Dispatch (JobKind-based runner registry)
-│       └── runners.go   built-in runners (TranscriptParse, HaikuSummary, GitBranch, CapturePane)
+│       └── runners.go   built-in runners (TranscriptParse, HaikuSummary, GitBranch)
 ├── sandbox/             Project-level sandbox backends (generic Manager[I any])
 │   ├── manager.go       Instance[I] / Manager[I] / StartOptions interface definitions
 │   └── devcontainer/    Devcontainer backend (per-project container lifecycle via docker)
