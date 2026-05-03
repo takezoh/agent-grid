@@ -12,13 +12,19 @@ import (
 )
 
 type trackingLauncher struct {
-	mu     sync.Mutex
-	calls  map[string]int
-	delay  time.Duration
-	failOn string
+	mu          sync.Mutex
+	calls       map[string]int
+	delay       time.Duration
+	failOn      string
+	wrapCalled  bool
+	lastSandbox state.SandboxOverride
 }
 
 func (l *trackingLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
+	l.mu.Lock()
+	l.wrapCalled = true
+	l.lastSandbox = plan.Options.Sandbox
+	l.mu.Unlock()
 	return WrappedLaunch{Command: plan.Command, StartDir: plan.StartDir, Env: env}, nil
 }
 
@@ -172,5 +178,86 @@ func TestPrewarmContainers_NoSessionsIsNoop(t *testing.T) {
 	defer l.mu.Unlock()
 	if len(l.calls) != 0 {
 		t.Errorf("expected no calls with empty sessions, got %v", l.calls)
+	}
+}
+
+func TestPrewarmContainers_SkipsHostOnlyProject(t *testing.T) {
+	l := &trackingLauncher{calls: make(map[string]int)}
+	r := New(Config{
+		SessionName:  "roost-test",
+		TickInterval: 10 * time.Second,
+		Tmux:         noopTmux{},
+		Launcher:     l,
+	})
+	r.SetSandboxedProjectResolver(func(string) bool { return true })
+	r.state.Sessions["s1"] = state.Session{
+		ID: "s1", Project: "/proj/host",
+		Frames: []state.SessionFrame{
+			{ID: "f1", Project: "/proj/host", Command: "shell", LaunchOptions: state.LaunchOptions{Sandbox: state.SandboxOverrideHost}},
+			{ID: "f2", Project: "/proj/host", Command: "shell", LaunchOptions: state.LaunchOptions{Sandbox: state.SandboxOverrideHost}},
+		},
+	}
+
+	r.PrewarmContainers(context.Background())
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.calls) != 0 {
+		t.Errorf("EnsureProject called for host-only project: %v", l.calls)
+	}
+}
+
+func registerMinimalDriver(t *testing.T) {
+	t.Helper()
+	saved := state.GetRegistry()
+	t.Cleanup(func() {
+		state.ClearRegistry()
+		for _, d := range saved {
+			state.Register(d)
+		}
+	})
+	if _, ok := saved[minimalDriver{}.Name()]; !ok {
+		state.Register(minimalDriver{})
+	}
+}
+
+func TestSpawnFrameWindow_SandboxOptionOnColdStart(t *testing.T) {
+	tests := []struct {
+		name        string
+		sandbox     state.SandboxOverride
+		wantSandbox state.SandboxOverride
+	}{
+		{"host override propagates", state.SandboxOverrideHost, state.SandboxOverrideHost},
+		{"auto does not become host", state.SandboxOverrideAuto, state.SandboxOverrideAuto},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			registerMinimalDriver(t)
+			l := &trackingLauncher{calls: make(map[string]int)}
+			r := New(Config{
+				SessionName: "roost-test",
+				Tmux:        newFakeTmux(),
+				Launcher:    l,
+			})
+			r.SetSandboxedProjectResolver(func(string) bool { return true })
+			frame := state.SessionFrame{
+				ID:            "f1",
+				Project:       "/proj/sandboxed",
+				Command:       "minimal-test",
+				LaunchOptions: state.LaunchOptions{Sandbox: tt.sandbox},
+				Driver:        state.DriverStateBase{},
+			}
+			if err := r.spawnFrameWindow("s1", frame, paneSize{width: 120, height: 40}); err != nil {
+				t.Fatalf("spawnFrameWindow: %v", err)
+			}
+			l.mu.Lock()
+			defer l.mu.Unlock()
+			if !l.wrapCalled {
+				t.Fatal("WrapLaunch was not called")
+			}
+			if l.lastSandbox != tt.wantSandbox {
+				t.Errorf("WrapLaunch received Sandbox=%v, want %v", l.lastSandbox, tt.wantSandbox)
+			}
+		})
 	}
 }

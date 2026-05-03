@@ -21,7 +21,8 @@ func (r *Runtime) PrewarmContainers(ctx context.Context) {
 	seen := make(map[string]bool)
 	for _, sess := range r.state.Sessions {
 		for _, frame := range sess.Frames {
-			if frame.Project != "" && r.state.SandboxedProject(frame.Project) {
+			if frame.Project != "" && r.state.SandboxedProject(frame.Project) &&
+				frame.LaunchOptions.Sandbox != state.SandboxOverrideHost {
 				seen[frame.Project] = true
 			}
 		}
@@ -83,12 +84,15 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, frame state.SessionFrame,
 	if drv == nil {
 		return nil
 	}
-	sandboxed := r.state.SandboxedProject != nil && r.state.SandboxedProject(frame.Project)
+	sandboxed := r.state.SandboxedProject != nil &&
+		r.state.SandboxedProject(frame.Project) &&
+		frame.LaunchOptions.Sandbox != state.SandboxOverrideHost
 	launch, err := drv.PrepareLaunch(frame.Driver, state.LaunchModeColdStart, frame.Project, frame.Command, frame.LaunchOptions, sandboxed)
 	if err != nil {
 		slog.Error("bootstrap: prepare launch failed", "id", id, "frame", frame.ID, "err", err)
 		return err
 	}
+	launch.Options.Sandbox = frame.LaunchOptions.Sandbox
 	launch.Project = frame.Project
 
 	baseEnv := map[string]string{
