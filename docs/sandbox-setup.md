@@ -97,7 +97,7 @@ aws_profiles = ["default", "master", "general"]
 
 Each name becomes a `[profile <name>]` section in a synthetic `~/.aws/config` inside the container, wired to `credential_process`. Profiles outside the list are not reachable from the container. `~/.aws/sso/cache` is never bind-mounted.
 
-**gcloud — credential isolation.** The OAuth refresh token never enters the container. The container reaches a GCE metadata server emulator running on the host, which calls `gcloud auth print-access-token` on demand. Tokens are always fresh — `gcloud` on the host auto-refreshes via the stored refresh token when needed.
+**gcloud — credential isolation.** The OAuth refresh token never enters the container. The container reaches a GCE metadata server emulator running on the host, which calls `gcloud auth application-default print-access-token` (user-account mode) or `gcloud auth print-access-token --impersonate-service-account` (SA mode) on demand. Tokens are always fresh — `gcloud` on the host auto-refreshes via the stored refresh token when needed.
 
 Two modes, selected by the presence of `service_account`. Both require `account` and `active`.
 
@@ -128,12 +128,18 @@ gcloud iam service-accounts add-iam-policy-binding sa@proj.iam.gserviceaccount.c
   --role="roles/iam.serviceAccountTokenCreator"
 ```
 
-**User-account proxy.** Omits impersonation; the container receives a full-scope user access token. Refresh-token isolation is preserved, but project boundary enforcement is not. Use when SA setup is not feasible.
+**User-account proxy.** Omits impersonation; the container receives an ADC access token issued on behalf of the user. Refresh-token isolation is preserved, but project boundary enforcement is not. Use when SA setup is not feasible.
 
 ```toml
 [sandbox.proxy.gcp]
 account = "user@example.com"
 active  = "my-project"
+```
+
+Host prerequisite — ADC credentials must be set up (`gcloud auth login` alone is not sufficient):
+
+```sh
+gcloud auth application-default login
 ```
 
 `gcloud` must be installed in the container image. `gcloud auth login` inside the container fails by design — credentials flow only from the host via the metadata emulator.
