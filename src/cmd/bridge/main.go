@@ -4,7 +4,7 @@
 //
 //	event <type>      – agent hook (forwards CmdEvent / CmdHookEvent to daemon)
 //	host-exec <bin>   – PATH shim target (proxies stdio to host via SCM_RIGHTS)
-//	peers-mcp         – stdio MCP server for roost-peers
+//	mcp-exec <alias>  – MCP proxy client (relays stdio to host MCP server via SCM_RIGHTS)
 //	setup <agent>     – postCreate hook registration (claude / codex / gemini)
 package main
 
@@ -19,13 +19,17 @@ import (
 	"github.com/takezoh/agent-roost/lib/claude"
 	"github.com/takezoh/agent-roost/lib/codex"
 	"github.com/takezoh/agent-roost/lib/gemini"
-	"github.com/takezoh/agent-roost/lib/peers"
+	"github.com/takezoh/agent-roost/mcpproxy"
 )
 
 // hostExecSockPath is the Unix socket for the host-exec broker inside the container.
 // This matches runtime.ContainerHostExecSockPath; duplicated here to avoid importing
 // the full runtime package (which would pull in tmux, TUI, and other host-only deps).
 const hostExecSockPath = "/opt/roost/run/hostexec.sock"
+
+// mcpSockPath is the Unix socket for the MCP proxy broker inside the container.
+// Matches runtime.ContainerMCPSockPath; duplicated here to avoid importing the runtime package.
+const mcpSockPath = "/opt/roost/run/mcp.sock"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -41,8 +45,8 @@ func main() {
 		err = event.Run(rest)
 	case "host-exec":
 		err = runHostExec(rest)
-	case "peers-mcp":
-		err = peers.Run(rest)
+	case "mcp-exec":
+		err = runMCPExec(rest)
 	case "setup":
 		err = runSetup(rest)
 	default:
@@ -93,6 +97,38 @@ func runHostExec(args []string) error {
 	return nil //nolint:govet // unreachable after os.Exit
 }
 
+func runMCPExec(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: mcp-exec <alias>")
+	}
+
+	conn, err := net.Dial("unix", mcpSockPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mcp-exec: broker unavailable (%v)\n", err)
+		os.Exit(127)
+	}
+	uc := conn.(*net.UnixConn)
+
+	req := mcpproxy.Request{Alias: args[0]}
+	fds := [3]int{int(os.Stdin.Fd()), int(os.Stdout.Fd()), int(os.Stderr.Fd())}
+	if err := mcpproxy.SendRequest(uc, req, fds); err != nil {
+		conn.Close()
+		fmt.Fprintf(os.Stderr, "mcp-exec: %v\n", err)
+		os.Exit(127)
+	}
+
+	var resp mcpproxy.Response
+	if err := json.NewDecoder(uc).Decode(&resp); err != nil {
+		conn.Close()
+		fmt.Fprintf(os.Stderr, "mcp-exec: read response: %v\n", err)
+		os.Exit(127)
+	}
+
+	conn.Close()
+	os.Exit(resp.ExitCode)
+	return nil //nolint:govet // unreachable after os.Exit
+}
+
 func runSetup(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: setup <agent> (claude|codex|gemini)")
@@ -115,7 +151,7 @@ func usage() {
 Subcommands:
   event <type>      Send an event to the roost daemon
   host-exec <bin>   Execute a host binary via the hostexec broker
-  peers-mcp         Start the roost-peers MCP server (stdio)
+  mcp-exec <alias>  Relay stdio to a host MCP server via the mcpproxy broker
   setup <agent>     Register roost hooks for an agent (claude|codex|gemini)
 `)
 }
