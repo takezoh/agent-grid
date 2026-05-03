@@ -61,7 +61,7 @@ func (r *SandboxResolver) Resolve(projectPath string) SandboxConfig {
 	proj, err := LoadProjectFrom(settingsPath)
 	resolved := r.user
 	if err != nil {
-		slog.Warn("sandbox resolver: failed to load project settings", "path", settingsPath, "err", err)
+		slog.Error("sandbox resolver: failed to load project settings", "path", settingsPath, "err", err)
 	} else {
 		resolved = MergeSandbox(r.user, proj.Sandbox)
 	}
