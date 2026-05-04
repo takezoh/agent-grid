@@ -64,7 +64,7 @@ func TestCreateSessionUsesLongTimeout(t *testing.T) {
 	}
 	resCh := make(chan result, 1)
 	go func() {
-		id, err := c.CreateSession("/tmp/project", "shell", state.LaunchOptions{})
+		id, err := c.CreateSession("/tmp/project", "shell", state.SandboxOverrideAuto, state.LaunchOptions{})
 		resCh <- result{id, err}
 	}()
 
@@ -112,7 +112,7 @@ func TestCanonicalProjectPathRoundtrips(t *testing.T) {
 
 	resCh := make(chan error, 1)
 	go func() {
-		_, err := c.CreateSession("/tmp", "shell", state.LaunchOptions{})
+		_, err := c.CreateSession("/tmp", "shell", state.SandboxOverrideAuto, state.LaunchOptions{})
 		resCh <- err
 	}()
 

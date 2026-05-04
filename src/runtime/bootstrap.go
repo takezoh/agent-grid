@@ -38,7 +38,7 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 	if createdAt.IsZero() {
 		createdAt = now
 	}
-	sess := state.Session{ID: state.SessionID(snap.ID), Project: snap.Project, CreatedAt: createdAt}
+	sess := state.Session{ID: state.SessionID(snap.ID), Project: snap.Project, CreatedAt: createdAt, Sandbox: snap.Sandbox}
 	for _, fsnap := range snap.Frames {
 		drv := state.GetDriver(fsnap.Command)
 		if drv == nil {

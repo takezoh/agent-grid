@@ -99,7 +99,7 @@ func TestSandboxDispatcher_HostOverride_RoutesToDirect(t *testing.T) {
 	plan := state.LaunchPlan{
 		Project: "/workspace/foo",
 		Command: "claude",
-		Options: state.LaunchOptions{Sandbox: state.SandboxOverrideHost},
+		Sandbox: state.SandboxOverrideHost,
 	}
 	got, err := d.WrapLaunch("f1", plan, nil)
 	if err != nil {

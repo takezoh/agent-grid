@@ -1605,14 +1605,14 @@ func TestSwitchSessionNoSwapWhenMain(t *testing.T) {
 }
 
 // TestCreateSession_SandboxOverrideHost verifies that SandboxOverrideHost is
-// preserved in the frame's LaunchOptions so the dispatcher can route to host.
+// preserved in Session.Sandbox so the dispatcher can route to host.
 func TestCreateSession_SandboxOverrideHost(t *testing.T) {
 	s := New()
 	s.SandboxedProject = func(string) bool { return true } // project is sandboxed by config
 	payload, _ := json.Marshal(map[string]any{
 		"project": "/foo",
 		"command": "stub",
-		"options": map[string]any{"sandbox": int(SandboxOverrideHost)},
+		"sandbox": int(SandboxOverrideHost),
 	})
 	next, effs := Reduce(s, EvEvent{
 		ConnID: 1, ReqID: "r", Event: "create-session",
@@ -1623,15 +1623,103 @@ func TestCreateSession_SandboxOverrideHost(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnTmuxWindow")
 	}
-	if spawn.Options.Sandbox != SandboxOverrideHost {
-		t.Errorf("Options.Sandbox = %v, want SandboxOverrideHost", spawn.Options.Sandbox)
+	if spawn.Sandbox != SandboxOverrideHost {
+		t.Errorf("spawn.Sandbox = %v, want SandboxOverrideHost", spawn.Sandbox)
 	}
 	for _, sess := range next.Sessions {
-		frame := sess.Frames[0]
-		if frame.LaunchOptions.Sandbox != SandboxOverrideHost {
-			t.Errorf("frame LaunchOptions.Sandbox = %v, want SandboxOverrideHost", frame.LaunchOptions.Sandbox)
+		if sess.Sandbox != SandboxOverrideHost {
+			t.Errorf("sess.Sandbox = %v, want SandboxOverrideHost", sess.Sandbox)
 		}
 		return
 	}
 	t.Fatal("no session found")
+}
+
+// TestPushDriver_InheritsSandboxFromSession verifies that a pushed frame inherits
+// the session-level Sandbox and propagates it through EffSpawnTmuxWindow.Sandbox.
+func TestPushDriver_InheritsSandboxFromSession(t *testing.T) {
+	s := New()
+	s.SandboxedProject = func(string) bool { return true }
+
+	// Create session with SandboxOverrideHost.
+	createPayload, _ := json.Marshal(map[string]any{
+		"project": "/foo",
+		"command": "stub",
+		"sandbox": int(SandboxOverrideHost),
+	})
+	next, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r1", Event: "create-session",
+		Payload: json.RawMessage(createPayload),
+	})
+	mustOK(t, effs)
+
+	var sessID SessionID
+	for id, sess := range next.Sessions {
+		if sess.Sandbox != SandboxOverrideHost {
+			t.Fatalf("sess.Sandbox = %v, want SandboxOverrideHost", sess.Sandbox)
+		}
+		sessID = id
+		break
+	}
+	if sessID == "" {
+		t.Fatal("no session created")
+	}
+
+	// Push a second driver frame (no sandbox field — auto).
+	pushPayload, _ := json.Marshal(map[string]any{
+		"session_id": string(sessID),
+		"command":    "stub",
+	})
+	_, pushEffs := Reduce(next, EvEvent{
+		ConnID: 2, ReqID: "r2", Event: "push-driver",
+		Payload: json.RawMessage(pushPayload),
+	})
+	mustOK(t, pushEffs)
+	spawn, ok := findEff[EffSpawnTmuxWindow](pushEffs)
+	if !ok {
+		t.Fatal("expected EffSpawnTmuxWindow from push-driver")
+	}
+	if spawn.Sandbox != SandboxOverrideHost {
+		t.Errorf("pushed frame spawn.Sandbox = %v, want SandboxOverrideHost", spawn.Sandbox)
+	}
+}
+
+// TestPushDriver_AutoSandboxSession verifies that Auto sandbox session produces
+// Auto sandbox on pushed frames (project config decides at dispatch time).
+func TestPushDriver_AutoSandboxSession(t *testing.T) {
+	s := New()
+	s.SandboxedProject = func(string) bool { return true }
+
+	createPayload, _ := json.Marshal(map[string]any{
+		"project": "/foo",
+		"command": "stub",
+	})
+	next, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r1", Event: "create-session",
+		Payload: json.RawMessage(createPayload),
+	})
+	mustOK(t, effs)
+
+	var sessID SessionID
+	for id := range next.Sessions {
+		sessID = id
+		break
+	}
+
+	pushPayload, _ := json.Marshal(map[string]any{
+		"session_id": string(sessID),
+		"command":    "stub",
+	})
+	_, pushEffs := Reduce(next, EvEvent{
+		ConnID: 2, ReqID: "r2", Event: "push-driver",
+		Payload: json.RawMessage(pushPayload),
+	})
+	mustOK(t, pushEffs)
+	spawn, ok := findEff[EffSpawnTmuxWindow](pushEffs)
+	if !ok {
+		t.Fatal("expected EffSpawnTmuxWindow from push-driver")
+	}
+	if spawn.Sandbox != SandboxOverrideAuto {
+		t.Errorf("pushed frame spawn.Sandbox = %v, want SandboxOverrideAuto", spawn.Sandbox)
+	}
 }

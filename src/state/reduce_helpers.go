@@ -29,6 +29,31 @@ func allocFrameID() FrameID {
 	return FrameID(allocSessionID())
 }
 
+// isSandboxed reports whether a frame for the given project should run inside a sandbox.
+// Returns false when the session has SandboxOverrideHost or no resolver is configured.
+func isSandboxed(s State, project string, override SandboxOverride) bool {
+	return s.SandboxedProject != nil && s.SandboxedProject(project) && override != SandboxOverrideHost
+}
+
+// spawnEffect builds an EffSpawnTmuxWindow from a resolved LaunchPlan.
+// plan.Project, plan.Sandbox, and plan.Stdin must be set by the caller before invoking.
+func spawnEffect(sessID SessionID, frameID FrameID, plan LaunchPlan, connID ConnID, reqID string) EffSpawnTmuxWindow {
+	return EffSpawnTmuxWindow{
+		SessionID:  sessID,
+		FrameID:    frameID,
+		Mode:       LaunchModeCreate,
+		Project:    plan.Project,
+		Command:    plan.Command,
+		StartDir:   plan.StartDir,
+		Sandbox:    plan.Sandbox,
+		Options:    plan.Options,
+		Stdin:      plan.Stdin,
+		Env:        map[string]string{"ROOST_SESSION_ID": string(sessID), "ROOST_FRAME_ID": string(frameID)},
+		ReplyConn:  connID,
+		ReplyReqID: reqID,
+	}
+}
+
 func rootFrame(sess Session) (SessionFrame, bool) {
 	if len(sess.Frames) == 0 {
 		if sess.Command == "" || sess.Driver == nil {

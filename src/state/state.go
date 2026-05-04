@@ -85,6 +85,7 @@ type Session struct {
 	ActiveFrameID FrameID   // explicit active frame; empty = use Frames[len-1]
 	MRUFrameIDs   []FrameID // MRU stack for fallback on active-frame death
 	Command       string
+	Sandbox       SandboxOverride // session-scoped sandbox mode, set at creation, applies to all frames
 	LaunchOptions LaunchOptions
 	Driver        DriverState
 }

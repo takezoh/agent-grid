@@ -131,6 +131,7 @@ type SessionSnapshot struct {
 	Frames        []SessionFrameSnapshot `json:"frames"`
 	ActiveFrameID string                 `json:"active_frame_id,omitempty"`
 	MRUFrameIDs   []string               `json:"mru_frame_ids,omitempty"`
+	Sandbox       state.SandboxOverride  `json:"sandbox,omitempty"`
 }
 
 type SessionFrameSnapshot struct {

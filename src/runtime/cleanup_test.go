@@ -236,7 +236,7 @@ func TestSpawnFrameWindow_cleanupCalledOnSpawnError(t *testing.T) {
 		Driver:  state.DriverStateBase{},
 	}
 
-	err := r.spawnFrameWindow("sess-1", frame, paneSize{width: 120, height: 40})
+	err := r.spawnFrameWindow("sess-1", state.SandboxOverrideAuto, frame, paneSize{width: 120, height: 40})
 	if err == nil {
 		t.Fatal("expected error from spawnFrameWindow, got nil")
 	}

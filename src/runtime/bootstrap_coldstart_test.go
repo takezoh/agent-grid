@@ -23,7 +23,7 @@ type trackingLauncher struct {
 func (l *trackingLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
 	l.mu.Lock()
 	l.wrapCalled = true
-	l.lastSandbox = plan.Options.Sandbox
+	l.lastSandbox = plan.Sandbox
 	l.mu.Unlock()
 	return WrappedLaunch{Command: plan.Command, StartDir: plan.StartDir, Env: env}, nil
 }
@@ -192,9 +192,10 @@ func TestPrewarmContainers_SkipsHostOnlyProject(t *testing.T) {
 	r.SetSandboxedProjectResolver(func(string) bool { return true })
 	r.state.Sessions["s1"] = state.Session{
 		ID: "s1", Project: "/proj/host",
+		Sandbox: state.SandboxOverrideHost,
 		Frames: []state.SessionFrame{
-			{ID: "f1", Project: "/proj/host", Command: "shell", LaunchOptions: state.LaunchOptions{Sandbox: state.SandboxOverrideHost}},
-			{ID: "f2", Project: "/proj/host", Command: "shell", LaunchOptions: state.LaunchOptions{Sandbox: state.SandboxOverrideHost}},
+			{ID: "f1", Project: "/proj/host", Command: "shell"},
+			{ID: "f2", Project: "/proj/host", Command: "shell"},
 		},
 	}
 
@@ -241,13 +242,12 @@ func TestSpawnFrameWindow_SandboxOptionOnColdStart(t *testing.T) {
 			})
 			r.SetSandboxedProjectResolver(func(string) bool { return true })
 			frame := state.SessionFrame{
-				ID:            "f1",
-				Project:       "/proj/sandboxed",
-				Command:       "minimal-test",
-				LaunchOptions: state.LaunchOptions{Sandbox: tt.sandbox},
-				Driver:        state.DriverStateBase{},
+				ID:      "f1",
+				Project: "/proj/sandboxed",
+				Command: "minimal-test",
+				Driver:  state.DriverStateBase{},
 			}
-			if err := r.spawnFrameWindow("s1", frame, paneSize{width: 120, height: 40}); err != nil {
+			if err := r.spawnFrameWindow("s1", tt.sandbox, frame, paneSize{width: 120, height: 40}); err != nil {
 				t.Fatalf("spawnFrameWindow: %v", err)
 			}
 			l.mu.Lock()

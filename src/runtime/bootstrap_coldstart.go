@@ -20,9 +20,11 @@ func (r *Runtime) PrewarmContainers(ctx context.Context) {
 	}
 	seen := make(map[string]bool)
 	for _, sess := range r.state.Sessions {
+		if sess.Sandbox == state.SandboxOverrideHost {
+			continue
+		}
 		for _, frame := range sess.Frames {
-			if frame.Project != "" && r.state.SandboxedProject(frame.Project) &&
-				frame.LaunchOptions.Sandbox != state.SandboxOverrideHost {
+			if frame.Project != "" && r.state.SandboxedProject(frame.Project) {
 				seen[frame.Project] = true
 			}
 		}
@@ -69,7 +71,7 @@ func (r *Runtime) RecreateAll() error {
 
 func (r *Runtime) recreateSessionFrames(id state.SessionID, sess state.Session, size paneSize) error {
 	for _, frame := range sess.Frames {
-		if err := r.spawnFrameWindow(id, frame, size); err != nil {
+		if err := r.spawnFrameWindow(id, sess.Sandbox, frame, size); err != nil {
 			return err
 		}
 	}
@@ -79,20 +81,20 @@ func (r *Runtime) recreateSessionFrames(id state.SessionID, sess state.Session, 
 // spawnFrameWindow prepares and spawns a single frame's tmux window during cold start.
 // It runs PrepareLaunch → WrapLaunch → SpawnWindow, registers the cleanup callback,
 // and records the pane ID in session env.
-func (r *Runtime) spawnFrameWindow(id state.SessionID, frame state.SessionFrame, size paneSize) error {
+func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOverride, frame state.SessionFrame, size paneSize) error {
 	drv := state.GetDriver(frame.Command)
 	if drv == nil {
 		return nil
 	}
 	sandboxed := r.state.SandboxedProject != nil &&
 		r.state.SandboxedProject(frame.Project) &&
-		frame.LaunchOptions.Sandbox != state.SandboxOverrideHost
+		sandbox != state.SandboxOverrideHost
 	launch, err := drv.PrepareLaunch(frame.Driver, state.LaunchModeColdStart, frame.Project, frame.Command, frame.LaunchOptions, sandboxed)
 	if err != nil {
 		slog.Error("bootstrap: prepare launch failed", "id", id, "frame", frame.ID, "err", err)
 		return err
 	}
-	launch.Options.Sandbox = frame.LaunchOptions.Sandbox
+	launch.Sandbox = sandbox
 	launch.Project = frame.Project
 
 	baseEnv := map[string]string{

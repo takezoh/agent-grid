@@ -276,6 +276,7 @@ func (r *Runtime) spawnTmuxWindowAsync(e state.EffSpawnTmuxWindow) {
 		Command:  e.Command,
 		StartDir: e.StartDir,
 		Project:  e.Project,
+		Sandbox:  e.Sandbox,
 		Options:  e.Options,
 		Stdin:    e.Stdin,
 	}
@@ -422,6 +423,7 @@ func (r *Runtime) snapshotSessions() []SessionSnapshot {
 			Frames:        frames,
 			ActiveFrameID: string(sess.ActiveFrameID),
 			MRUFrameIDs:   mruIDs,
+			Sandbox:       sess.Sandbox,
 		})
 	}
 	return out

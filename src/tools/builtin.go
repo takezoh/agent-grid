@@ -28,10 +28,11 @@ func DefaultRegistry(feats features.Set) *Registry { //nolint:funlen
 			opts := state.LaunchOptions{
 				Worktree: state.WorktreeOption{Enabled: args["worktree"] == "on"},
 			}
+			sandbox := state.SandboxOverrideAuto
 			if args["sandbox"] == "direct" {
-				opts.Sandbox = state.SandboxOverrideHost
+				sandbox = state.SandboxOverrideHost
 			}
-			_, err := ctx.Client.CreateSession(args["project"], args["command"], opts)
+			_, err := ctx.Client.CreateSession(args["project"], args["command"], sandbox, opts)
 			return nil, err
 		},
 	})

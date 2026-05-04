@@ -176,8 +176,8 @@ type WorktreeOption struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
-// SandboxOverride selects the launch sandbox mode for a single session,
-// overriding the project-level config.
+// SandboxOverride selects the sandbox mode for a session. It is set once at
+// session creation and applies to all frames in the session.
 type SandboxOverride int
 
 const (
@@ -186,15 +186,15 @@ const (
 )
 
 type LaunchOptions struct {
-	Worktree     WorktreeOption  `json:"worktree,omitempty"`
-	InitialInput []byte          `json:"initial_input,omitempty"`
-	Sandbox      SandboxOverride `json:"sandbox,omitempty"`
+	Worktree     WorktreeOption `json:"worktree,omitempty"`
+	InitialInput []byte         `json:"initial_input,omitempty"`
 }
 
 type LaunchPlan struct {
 	Command  string
 	StartDir string
-	Project  string // canonical project root passed opaquely to the sandbox launcher
+	Project  string          // canonical project root passed opaquely to the sandbox launcher
+	Sandbox  SandboxOverride // session-level sandbox mode, written by reducer before dispatch
 	Options  LaunchOptions
 	Stdin    []byte // content piped into the spawned command; nil = no stdin
 }

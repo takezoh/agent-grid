@@ -85,35 +85,19 @@ func handlePendingCreate(s State, pending PendingCreate, e EvJobResult) (State, 
 	if err != nil {
 		return s, []Effect{errResp(pending.ReplyConn, pending.ReplyReqID, ErrCodeInvalidArgument, err.Error())}
 	}
-	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(frame.Project) && frame.LaunchOptions.Sandbox != SandboxOverrideHost
-	plan, err := drv.PrepareLaunch(nextDS, LaunchModeCreate, frame.Project, createLaunch.Command, createLaunch.Options, sandboxed)
+	plan, err := drv.PrepareLaunch(nextDS, LaunchModeCreate, frame.Project, createLaunch.Command, createLaunch.Options, isSandboxed(s, frame.Project, pending.Session.Sandbox))
 	if err != nil {
 		return s, []Effect{errResp(pending.ReplyConn, pending.ReplyReqID, ErrCodeInvalidArgument, err.Error())}
 	}
-	plan.Options.Sandbox = frame.LaunchOptions.Sandbox
+	plan.Project = frame.Project
+	plan.Sandbox = pending.Session.Sandbox
+	plan.Stdin = initialInput
 	pending.Session.Frames = append([]SessionFrame(nil), pending.Session.Frames...)
 	pending.Session.Frames[frameIdx].Driver = nextDS
 	pending.Session.Frames[frameIdx].LaunchOptions = plan.Options
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[pending.Session.ID] = pending.Session
-	return s, []Effect{
-		EffSpawnTmuxWindow{
-			SessionID: pending.Session.ID,
-			FrameID:   pending.FrameID,
-			Mode:      LaunchModeCreate,
-			Project:   frame.Project,
-			Command:   plan.Command,
-			StartDir:  plan.StartDir,
-			Options:   plan.Options,
-			Stdin:     initialInput,
-			Env: map[string]string{
-				"ROOST_SESSION_ID": string(pending.Session.ID),
-				"ROOST_FRAME_ID":   string(pending.FrameID),
-			},
-			ReplyConn:  pending.ReplyConn,
-			ReplyReqID: pending.ReplyReqID,
-		},
-	}
+	return s, []Effect{spawnEffect(pending.Session.ID, pending.FrameID, plan, pending.ReplyConn, pending.ReplyReqID)}
 }
 
 // reduceFileChanged routes a fsnotify event to the matching

@@ -296,7 +296,7 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 			}
 		}
 	}
-	if frame.LaunchOptions.Sandbox == state.SandboxOverrideHost {
+	if sess.Sandbox == state.SandboxOverrideHost {
 		view.Card.Tags = append(view.Card.Tags, driver.HostTag())
 	}
 	if len(frame.PeerInbox) > 0 && view.Card.BorderBadge == "" {

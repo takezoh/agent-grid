@@ -23,6 +23,7 @@ type EffSpawnTmuxWindow struct {
 	Project    string
 	Command    string
 	StartDir   string
+	Sandbox    SandboxOverride
 	Options    LaunchOptions
 	Stdin      []byte // piped into the spawned command; nil = no stdin
 	Env        map[string]string

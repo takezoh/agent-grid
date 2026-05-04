@@ -6,9 +6,10 @@ import (
 )
 
 type CreateSessionParams struct {
-	Project string        `json:"project"`
-	Command string        `json:"command"`
-	Options LaunchOptions `json:"options,omitempty"`
+	Project string          `json:"project"`
+	Command string          `json:"command"`
+	Sandbox SandboxOverride `json:"sandbox,omitempty"`
+	Options LaunchOptions   `json:"options,omitempty"`
 }
 
 type PushDriverParams struct {
@@ -74,28 +75,26 @@ func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionPa
 		CreatedAt:     s.Now,
 		ActiveFrameID: rootFrameID,
 		Command:       command,
+		Sandbox:       p.Sandbox,
 		LaunchOptions: p.Options,
 		Driver:        driverState,
 		Frames: []SessionFrame{{
-			ID:            rootFrameID,
-			Project:       p.Project,
-			Command:       command,
-			LaunchOptions: p.Options,
-			CreatedAt:     s.Now,
-			Driver:        driverState,
+			ID:        rootFrameID,
+			Project:   p.Project,
+			Command:   command,
+			CreatedAt: s.Now,
+			Driver:    driverState,
 		}},
 	}
-	frame := session.Frames[0]
-
 	if setupJob != nil {
 		s.NextJobID++
 		jobID := s.NextJobID
 		s.Jobs = cloneJobs(s.Jobs)
-		s.Jobs[jobID] = JobMeta{SessionID: sessID, FrameID: frame.ID, StartedAt: s.Now}
+		s.Jobs[jobID] = JobMeta{SessionID: sessID, FrameID: rootFrameID, StartedAt: s.Now}
 		s.PendingCreates = clonePendingCreates(s.PendingCreates)
 		s.PendingCreates[jobID] = PendingCreate{
 			Session:    session,
-			FrameID:    frame.ID,
+			FrameID:    rootFrameID,
 			ReplyConn:  connID,
 			ReplyReqID: reqID,
 		}
@@ -104,34 +103,18 @@ func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionPa
 		}
 	}
 
-	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(p.Project) && p.Options.Sandbox != SandboxOverrideHost
-	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, p.Project, command, p.Options, sandboxed)
+	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, p.Project, command, p.Options, isSandboxed(s, p.Project, p.Sandbox))
 	if err != nil {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
 	}
-	launch.Options.Sandbox = p.Options.Sandbox
+	launch.Project = p.Project
+	launch.Sandbox = p.Sandbox
 	session.Frames[0].LaunchOptions = launch.Options
 
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[sessID] = session
 
-	return s, []Effect{
-		EffSpawnTmuxWindow{
-			SessionID: sessID,
-			FrameID:   frame.ID,
-			Mode:      LaunchModeCreate,
-			Project:   p.Project,
-			Command:   launch.Command,
-			StartDir:  launch.StartDir,
-			Options:   launch.Options,
-			Env: map[string]string{
-				"ROOST_SESSION_ID": string(sessID),
-				"ROOST_FRAME_ID":   string(frame.ID),
-			},
-			ReplyConn:  connID,
-			ReplyReqID: reqID,
-		},
-	}
+	return s, []Effect{spawnEffect(sessID, rootFrameID, launch, connID, reqID)}
 }
 
 func resolveCreateCommand(s State, command string) string {
@@ -213,12 +196,11 @@ func pushDriverInternal(s State, sid SessionID, project, rawCommand string, opti
 	}
 
 	frame := SessionFrame{
-		ID:            allocFrameID(),
-		Project:       project,
-		Command:       command,
-		LaunchOptions: options,
-		CreatedAt:     s.Now,
-		Driver:        driverState,
+		ID:        allocFrameID(),
+		Project:   project,
+		Command:   command,
+		CreatedAt: s.Now,
+		Driver:    driverState,
 	}
 	sess = pushMRU(sess, sess.ActiveFrameID)
 	sess.ActiveFrameID = frame.ID
@@ -236,34 +218,16 @@ func pushDriverInternal(s State, sid SessionID, project, rawCommand string, opti
 		return s, []Effect{EffStartJob{JobID: jobID, Input: setupJob}}, nil
 	}
 
-	sandboxed := s.SandboxedProject != nil && s.SandboxedProject(project) && options.Sandbox != SandboxOverrideHost
-	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, project, command, options, sandboxed)
+	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, project, command, options, isSandboxed(s, project, sess.Sandbox))
 	if err != nil {
 		return s, nil, err
 	}
-	launch.Options.Sandbox = options.Sandbox
+	launch.Project = project
+	launch.Sandbox = sess.Sandbox
 	sess.Frames[len(sess.Frames)-1].LaunchOptions = launch.Options
 	s.Sessions[sid] = sess
 
-	effs := []Effect{
-		EffSpawnTmuxWindow{
-			SessionID: sid,
-			FrameID:   frame.ID,
-			Mode:      LaunchModeCreate,
-			Project:   project,
-			Command:   launch.Command,
-			StartDir:  launch.StartDir,
-			Options:   launch.Options,
-			Stdin:     launch.Stdin,
-			Env: map[string]string{
-				"ROOST_SESSION_ID": string(sid),
-				"ROOST_FRAME_ID":   string(frame.ID),
-			},
-			ReplyConn:  connID,
-			ReplyReqID: reqID,
-		},
-	}
-	return s, effs, nil
+	return s, []Effect{spawnEffect(sid, frame.ID, launch, connID, reqID)}, nil
 }
 
 func reduceTmuxPaneSpawned(s State, e EvTmuxPaneSpawned) (State, []Effect) {
