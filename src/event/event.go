@@ -25,11 +25,11 @@ func Run(args []string) error {
 	}
 	eventType := args[0]
 
-	senderID := os.Getenv("ROOST_FRAME_ID")
-	if senderID == "" {
-		slog.Debug("event: ROOST_FRAME_ID not set; dropping event", "type", eventType)
+	if os.Getenv("ROOST_SOCKET") == "" {
+		slog.Debug("event: ROOST_SOCKET not set; dropping event", "type", eventType)
 		return nil
 	}
+	senderID := os.Getenv("ROOST_FRAME_ID")
 	ts := time.Now()
 
 	var input []byte

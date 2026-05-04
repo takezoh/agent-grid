@@ -8,7 +8,6 @@ import (
 )
 
 func TestRegisterHooks_NewFile(t *testing.T) {
-	t.Setenv("ROOST_SOCKET", "") // ensure no socket path leaks from test environment
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 
@@ -41,7 +40,7 @@ func TestRegisterHooks_NewFile(t *testing.T) {
 	}
 }
 
-func TestRegisterHooks_WithRoostSocket(t *testing.T) {
+func TestRegisterHooks_CommandIgnoresRoostSocket(t *testing.T) {
 	t.Setenv("ROOST_SOCKET", "/opt/roost/run/roost.sock")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
@@ -60,26 +59,23 @@ func TestRegisterHooks_WithRoostSocket(t *testing.T) {
 	entry := entries[0].(map[string]any)
 	hookArr := entry["hooks"].([]any)
 	hook := hookArr[0].(map[string]any)
-	want := "env ROOST_SOCKET=/opt/roost/run/roost.sock /opt/roost/run/roost event claude"
+	want := "/opt/roost/run/roost event claude"
 	if hook["command"] != want {
 		t.Errorf("command = %v, want %v", hook["command"], want)
 	}
 }
 
 func TestRegisterHooks_ReplacesStaleRoostEntry(t *testing.T) {
-	t.Setenv("ROOST_SOCKET", "/opt/roost/run/roost.sock")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 
-	// First setup without ROOST_SOCKET (simulates old host-side setup).
-	t.Setenv("ROOST_SOCKET", "")
+	// First setup with host binary path.
 	_, err := RegisterHooks(path, "/usr/local/bin/roost")
 	if err != nil {
 		t.Fatalf("first RegisterHooks: %v", err)
 	}
 
-	// Second setup with ROOST_SOCKET set (simulates container-side setup).
-	t.Setenv("ROOST_SOCKET", "/opt/roost/run/roost.sock")
+	// Second setup with a different binary path (simulates re-deploy).
 	_, err = RegisterHooks(path, "/opt/roost/run/roost")
 	if err != nil {
 		t.Fatalf("second RegisterHooks: %v", err)
@@ -97,7 +93,7 @@ func TestRegisterHooks_ReplacesStaleRoostEntry(t *testing.T) {
 	entry := entries[0].(map[string]any)
 	hookArr := entry["hooks"].([]any)
 	hook := hookArr[0].(map[string]any)
-	want := "env ROOST_SOCKET=/opt/roost/run/roost.sock /opt/roost/run/roost event claude"
+	want := "/opt/roost/run/roost event claude"
 	if hook["command"] != want {
 		t.Errorf("command = %v, want %v", hook["command"], want)
 	}

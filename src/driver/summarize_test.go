@@ -39,26 +39,28 @@ func TestSummarizeWithCommandError(t *testing.T) {
 	}
 }
 
-func TestFilteredRoostEnvStripsRoostPrefix(t *testing.T) {
+func TestFilteredRoostEnvStripsRoostSocket(t *testing.T) {
 	src := []string{
 		"PATH=/usr/bin",
-		"ROOST_SESSION_ID=drop",
-		"ROOST_FRAME_ID=drop",
-		"ROOST_W_PANE=drop",
+		"ROOST_SOCKET=/opt/roost/run/roost.sock",
+		"ROOST_FRAME_ID=keep",
+		"ROOST_SESSION_ID=keep",
 		"HOME=/home/take",
 		"ANTHROPIC_API_KEY=keep-me",
-		"ROOSTERS=keep", // prefix ROOST but not ROOST_
+		"ROOSTERS=keep", // prefix ROOST but not ROOST_SOCKET=
 	}
 	out := filteredRoostEnv(src)
 
 	for _, kv := range out {
-		if strings.HasPrefix(kv, "ROOST_") {
-			t.Errorf("ROOST_* leaked into filtered env: %q (full: %v)", kv, out)
+		if strings.HasPrefix(kv, "ROOST_SOCKET=") {
+			t.Errorf("ROOST_SOCKET leaked into filtered env: %q (full: %v)", kv, out)
 		}
 	}
 
 	mustKeep := []string{
 		"PATH=/usr/bin",
+		"ROOST_FRAME_ID=keep",
+		"ROOST_SESSION_ID=keep",
 		"HOME=/home/take",
 		"ANTHROPIC_API_KEY=keep-me",
 		"ROOSTERS=keep",
@@ -77,17 +79,17 @@ func TestFilteredRoostEnvStripsRoostPrefix(t *testing.T) {
 	}
 }
 
-func TestSummarizeWithCommandDropsRoostFrameID(t *testing.T) {
-	t.Setenv("ROOST_FRAME_ID", "leak")
+func TestSummarizeWithCommandDropsRoostSocket(t *testing.T) {
+	t.Setenv("ROOST_SOCKET", "/opt/roost/run/roost.sock")
 	ctx := context.Background()
-	// If ROOST_FRAME_ID were passed through, echo would print "leak".
+	// If ROOST_SOCKET were passed through, echo would print the path.
 	// filteredRoostEnv must strip it so the output is empty.
-	got, err := summarizeWithCommand(ctx, "", `echo "$ROOST_FRAME_ID"`)
+	got, err := summarizeWithCommand(ctx, "", `echo "$ROOST_SOCKET"`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got != "" {
-		t.Errorf("ROOST_FRAME_ID leaked into subprocess: got %q, want empty", got)
+		t.Errorf("ROOST_SOCKET leaked into subprocess: got %q, want empty", got)
 	}
 }
 

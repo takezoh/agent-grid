@@ -39,13 +39,6 @@ func RegisterHooks(settingsPath, roostBinary string) ([]string, error) { //nolin
 	}
 	registered := []string{}
 	command := roostBinary + " event claude"
-	// When ROOST_SOCKET is set (e.g. inside a devcontainer where the socket is
-	// bind-mounted at a fixed path), bake it into the hook command via env(1)
-	// so the socket path is honored even when Claude Code execs the hook
-	// directly (without a shell, where inline VAR=val assignments are ignored).
-	if sock := os.Getenv("ROOST_SOCKET"); sock != "" {
-		command = "env ROOST_SOCKET=" + sock + " " + command
-	}
 
 	for _, event := range events {
 		if addHookEntry(hooks, event, command) {

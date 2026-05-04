@@ -78,7 +78,7 @@ func runCoordinator() error { //nolint:funlen
 
 	featureSet := features.FromConfig(cfg.Features.Enabled, features.All())
 	sbResolver := config.NewSandboxResolver(cfg.Sandbox)
-	agentLauncher, err := newAgentLauncher(ctx, cfg.Sandbox, sbResolver, dataDir)
+	agentLauncher, err := newAgentLauncher(ctx, cfg.Sandbox, sbResolver, dataDir, sockPath)
 	if err != nil {
 		return err
 	}
@@ -199,10 +199,10 @@ func runCoordinator() error { //nolint:funlen
 // newAgentLauncher returns the AgentLauncher for the configured sandbox mode.
 // Returns a SandboxDispatcher that routes each launch to direct or devcontainer
 // based on the effective config for that project (user scope + optional project scope).
-func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *config.SandboxResolver, dataDir string) (runtime.AgentLauncher, error) {
+func newAgentLauncher(ctx context.Context, sb config.SandboxConfig, resolver *config.SandboxResolver, dataDir, sockPath string) (runtime.AgentLauncher, error) {
 	d := &runtime.SandboxDispatcher{
 		Resolver: resolver,
-		Direct:   runtime.DirectLauncher{},
+		Direct:   runtime.DirectLauncher{SockPath: sockPath},
 	}
 	if sb.Mode == "devcontainer" {
 		if _, err := exec.LookPath("docker"); err != nil {

@@ -52,9 +52,21 @@ type AgentLauncher interface {
 
 // DirectLauncher is the no-op implementation: it passes the plan through
 // unchanged so behaviour is identical to the pre-launcher code path.
-type DirectLauncher struct{}
+// SockPath, when non-empty, is injected as ROOST_SOCKET so hook subprocesses
+// can reach the daemon without relying on baked-in or fallback paths.
+type DirectLauncher struct {
+	SockPath string
+}
 
-func (DirectLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
+func (d DirectLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
+	if d.SockPath != "" {
+		merged := make(map[string]string, len(env)+1)
+		for k, v := range env {
+			merged[k] = v
+		}
+		merged["ROOST_SOCKET"] = d.SockPath
+		env = merged
+	}
 	return WrappedLaunch{
 		Command:  plan.Command,
 		StartDir: plan.StartDir,
