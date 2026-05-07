@@ -1198,6 +1198,67 @@ func TestClaudePrepareLaunchNoSandboxFlagWhenDirect(t *testing.T) {
 	}
 }
 
+func TestClaudePrepareLaunchStripsAutoModeWhenSandboxed(t *testing.T) {
+	d, cs, _ := newClaude(t)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := "claude --allow-dangerously-skip-permissions"
+	if plan.Command != want {
+		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
+	}
+}
+
+func TestClaudePrepareLaunchStripsAutoModeWithExistingBypassFlag(t *testing.T) {
+	d, cs, _ := newClaude(t)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode --allow-dangerously-skip-permissions", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := "claude --allow-dangerously-skip-permissions"
+	if plan.Command != want {
+		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
+	}
+}
+
+func TestClaudePrepareLaunchStripsAllAutoModeOccurrences(t *testing.T) {
+	d, cs, _ := newClaude(t)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode --foo --enable-auto-mode", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := "claude --foo --allow-dangerously-skip-permissions"
+	if plan.Command != want {
+		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
+	}
+}
+
+func TestClaudePrepareLaunchKeepsAutoModeWhenNotSandboxed(t *testing.T) {
+	d, cs, _ := newClaude(t)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := "claude --enable-auto-mode"
+	if plan.Command != want {
+		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
+	}
+}
+
+func TestClaudePrepareLaunchKeepsAutoModeEqualFormWhenSandboxed(t *testing.T) {
+	// "--enable-auto-mode=value" form is NOT stripped (only exact token match).
+	d, cs, _ := newClaude(t)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode=true", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := "claude --enable-auto-mode=true --allow-dangerously-skip-permissions"
+	if plan.Command != want {
+		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
+	}
+}
+
 func TestClaudePrepareLaunchSandboxFlagWithResume(t *testing.T) {
 	// Sandboxed cold start resumes regardless of host-side transcript existence
 	// because the transcript lives inside the container.

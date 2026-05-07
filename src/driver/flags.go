@@ -13,3 +13,17 @@ func hasFlagToken(command, flag string) bool {
 	}
 	return false
 }
+
+// stripFlagToken removes exact flag tokens; "--flag=value" form is left intact
+// (asymmetric with hasFlagToken by design — targets boolean-only flags).
+func stripFlagToken(command, flag string) string {
+	parts := strings.Fields(command)
+	out := parts[:0]
+	for _, p := range parts {
+		if p == flag {
+			continue
+		}
+		out = append(out, p)
+	}
+	return strings.Join(out, " ")
+}

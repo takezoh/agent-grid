@@ -212,16 +212,27 @@ func stripWorktreeFlag(command string) string {
 	return stripped
 }
 
-const claudeSandboxSkipFlag = "--allow-dangerously-skip-permissions"
+const (
+	claudeSandboxSkipFlag = "--allow-dangerously-skip-permissions"
+	claudeAutoModeFlag    = "--enable-auto-mode"
+)
 
-// ensureClaudeSandboxFlag appends --allow-dangerously-skip-permissions unless already
-// present. Required because devcontainer sandboxes block the permission prompt
-// that normally gates tool use, making the flag mandatory for any activity.
+// ensureClaudeSandboxFlag enforces sandbox-required flag adjustments:
+//   - strips --enable-auto-mode (conflicts with bypass-permissions semantics)
+//   - appends --allow-dangerously-skip-permissions unless already present
+//
+// devcontainer sandboxes block the permission prompt that normally gates
+// tool use, making the bypass flag mandatory; auto-mode therefore becomes
+// redundant/conflicting and is removed.
 func ensureClaudeSandboxFlag(command string, sandboxed bool) string {
+	if !sandboxed {
+		return command
+	}
+	command = stripFlagToken(command, claudeAutoModeFlag)
 	if hasFlagToken(command, claudeSandboxSkipFlag) {
 		return command
 	}
-	return appendFlag(command, claudeSandboxSkipFlag, sandboxed)
+	return appendFlag(command, claudeSandboxSkipFlag, true)
 }
 
 func isAlphanumHyphen(s string) bool {
