@@ -283,6 +283,10 @@ func reduceForkSession(s State, connID ConnID, reqID string, p ForkSessionParams
 		}
 	}
 
+	return spawnForkSession(s, connID, reqID, sess, forkDrv, driverState, forkCommand, opts, setupJob)
+}
+
+func spawnForkSession(s State, connID ConnID, reqID string, sess Session, forkDrv Driver, driverState DriverState, forkCommand string, opts LaunchOptions, setupJob JobInput) (State, []Effect) {
 	newSessID := allocSessionID()
 	rootFrameID := allocFrameID()
 	newSess := Session{

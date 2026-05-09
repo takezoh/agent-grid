@@ -154,14 +154,15 @@ func runPalette(args []string) error { //nolint:funlen
 	var scopeProject bool
 	prefill := make(map[string]string)
 	for _, a := range args {
-		if strings.HasPrefix(a, "--tool=") {
+		switch {
+		case strings.HasPrefix(a, "--tool="):
 			toolName = strings.TrimPrefix(a, "--tool=")
-		} else if strings.HasPrefix(a, "--arg=") {
+		case strings.HasPrefix(a, "--arg="):
 			kv := strings.TrimPrefix(a, "--arg=")
 			if parts := strings.SplitN(kv, "=", 2); len(parts) == 2 {
 				prefill[parts[0]] = parts[1]
 			}
-		} else if a == "--scope=project" {
+		case a == "--scope=project":
 			scopeProject = true
 		}
 	}

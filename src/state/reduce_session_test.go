@@ -1712,7 +1712,7 @@ func (forkableDriver) Persist(s DriverState) map[string]string { return nil }
 func (forkableDriver) Restore(bag map[string]string, now time.Time) DriverState {
 	return forkableState{}
 }
-func (forkableDriver) View(s DriverState) View  { return View{} }
+func (forkableDriver) View(s DriverState) View     { return View{} }
 func (forkableDriver) Status(s DriverState) Status { return StatusIdle }
 func (forkableDriver) Step(prev DriverState, ctx FrameContext, ev DriverEvent) (DriverState, []Effect, View) {
 	return prev, nil, View{}

@@ -312,18 +312,18 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 	}
 	activeF, _ := sessionActiveFrame(sess)
 	info := proto.SessionInfo{
-		ID:            string(sess.ID),
-		Project:       sess.Project,
-		Workspace:     r.workspaceResolver.Resolve(sess.Project),
-		Command:       frame.Command,
+		ID:                 string(sess.ID),
+		Project:            sess.Project,
+		Workspace:          r.workspaceResolver.Resolve(sess.Project),
+		Command:            frame.Command,
 		RootDriver:         rootDriverName,
 		RootDriverForkable: rootDriverForkable,
-		CreatedAt:     sess.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		State:         view.Status,
-		View:          view,
-		Frames:        frames,
-		ActiveFrameID: string(activeF.ID),
-		IsActive:      r.state.ActiveSession == sess.ID,
+		CreatedAt:          sess.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		State:              view.Status,
+		View:               view,
+		Frames:             frames,
+		ActiveFrameID:      string(activeF.ID),
+		IsActive:           r.state.ActiveSession == sess.ID,
 	}
 	if !view.StatusChangedAt.IsZero() {
 		info.StateChangedAt = view.StatusChangedAt.Format("2006-01-02T15:04:05Z07:00")

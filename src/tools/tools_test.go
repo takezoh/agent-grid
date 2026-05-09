@@ -251,4 +251,3 @@ func TestMatchMultiToken(t *testing.T) {
 		}
 	}
 }
-
