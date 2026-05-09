@@ -37,15 +37,15 @@ func (r *WorkspaceResolver) Resolve(projectPath string) string {
 	defer r.mu.Unlock()
 
 	if entry, ok := r.cache[projectPath]; ok {
-		if entry.settingsPath == "" {
-			// Previously found no settings file; return cached default.
+		if entry.settingsPath != "" {
+			info, err := os.Stat(entry.settingsPath)
+			if err == nil && info.ModTime().Equal(entry.mtime) {
+				return entry.workspace
+			}
+			// File changed or disappeared; fall through to re-read.
+		} else if findProjectSettings(projectPath) == "" {
 			return DefaultWorkspaceName
 		}
-		info, err := os.Stat(entry.settingsPath)
-		if err == nil && info.ModTime().Equal(entry.mtime) {
-			return entry.workspace
-		}
-		// File changed or disappeared; fall through to re-read.
 	}
 
 	settingsPath := findProjectSettings(projectPath)

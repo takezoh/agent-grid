@@ -108,6 +108,31 @@ keys = ["~/.ssh/id_ed25519_project"]
 	}
 }
 
+func TestSandboxResolver_SettingsFileCreatedAfterFirstResolve(t *testing.T) {
+	user := SandboxConfig{Mode: "devcontainer"}
+	dir := t.TempDir()
+
+	r := NewSandboxResolver(user)
+	// First resolve: no settings file — caches "not found"
+	got := r.Resolve(dir)
+	if got.Mode != "devcontainer" {
+		t.Fatalf("want devcontainer before file exists, got %q", got.Mode)
+	}
+
+	// Create the settings file after first resolve
+	roostDir := filepath.Join(dir, ".roost")
+	os.MkdirAll(roostDir, 0o755)
+	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[sandbox]
+mode = "direct"
+`), 0o644)
+
+	// Second resolve: should pick up the newly created file
+	got = r.Resolve(dir)
+	if got.Mode != "direct" {
+		t.Errorf("Mode = %q after file created, want direct (cache must not freeze on empty settingsPath)", got.Mode)
+	}
+}
+
 func TestSandboxResolver_HostPathMountPrefixFromTOML(t *testing.T) {
 	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()

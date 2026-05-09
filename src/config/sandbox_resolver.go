@@ -42,12 +42,13 @@ func (r *SandboxResolver) Resolve(projectPath string) SandboxConfig {
 	defer r.mu.Unlock()
 
 	if entry, ok := r.cache[projectPath]; ok {
-		if entry.settingsPath == "" {
+		if entry.settingsPath != "" {
+			info, err := os.Stat(entry.settingsPath)
+			if err == nil && info.ModTime().Equal(entry.mtime) {
+				return entry.resolved
+			}
+		} else if findProjectSettings(projectPath) == "" {
 			return r.user
-		}
-		info, err := os.Stat(entry.settingsPath)
-		if err == nil && info.ModTime().Equal(entry.mtime) {
-			return entry.resolved
 		}
 	}
 
