@@ -46,12 +46,18 @@ func (m PaletteModel) View() tea.View {
 	switch m.phase {
 	case phaseToolSelect:
 		title = "PALETTE"
+		if m.activeProject != "" {
+			title += " · " + m.activeProject
+		}
 		badge = fmt.Sprintf("%d tools", len(m.filtered))
 		body = renderPaletteTool(m, innerWidth)
 	case phaseParamSelect:
 		if m.selectedTool != nil && m.paramIndex < len(m.selectedTool.Params) {
 			p := m.selectedTool.Params[m.paramIndex]
 			title = m.selectedTool.Name
+			if m.activeProject != "" {
+				title += " · " + m.activeProject
+			}
 			badge = p.Name
 			body = renderPaletteParam(m, innerWidth)
 		}

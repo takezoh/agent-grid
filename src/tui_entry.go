@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -164,18 +163,25 @@ func runPalette(args []string) error { //nolint:funlen
 		}
 	}
 
-	if toolName == "push-driver" {
-		_, activeID, _, _, _, err := client.ListSessions()
-		if err != nil || activeID == "" {
-			fmt.Fprintln(os.Stderr, "no active session")
-			time.Sleep(700 * time.Millisecond)
-			return nil
+	sessions, activeID, activeOccupant, _, _, err := client.ListSessions()
+	if err != nil {
+		slog.Warn("palette: ListSessions failed", "err", err)
+	}
+
+	mainHasDriver := activeID != "" && activeOccupant == "main"
+
+	var activeProject string
+	if activeID != "" {
+		for _, s := range sessions {
+			if s.ID == activeID {
+				activeProject = tools.ProjectDisplayName(s.Project)
+				break
+			}
 		}
-		prefill["session_id"] = activeID
 	}
 
 	feats := features.FromConfig(cfg.Features.Enabled, features.All())
-	reg := tools.DefaultRegistry(feats)
+	reg := tools.DefaultRegistry(feats, tools.PaletteContext{MainHasDriverFrame: mainHasDriver})
 	roots := make([]string, len(cfg.Projects.ProjectRoots))
 	for i, r := range cfg.Projects.ProjectRoots {
 		roots[i] = config.ExpandPath(r)
@@ -195,7 +201,7 @@ func runPalette(args []string) error { //nolint:funlen
 		IsSandboxedProject: func(path string) bool { return sbResolver.Resolve(path).IsSandboxed() },
 	}
 
-	model := tui.NewPaletteModel(reg, ctx, toolName)
+	model := tui.NewPaletteModel(reg, ctx, toolName, activeProject)
 	if _, err := tea.NewProgram(model).Run(); err != nil {
 		return fmt.Errorf("palette: %w", err)
 	}

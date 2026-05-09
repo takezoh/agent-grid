@@ -52,20 +52,36 @@ func TestGetReturnsHiddenTool(t *testing.T) {
 	}
 }
 
-func TestPushDriverToolIsHidden(t *testing.T) {
+func TestPushDriverHiddenWhenNoDriverFrame(t *testing.T) {
 	r := DefaultRegistry(features.Set{features.Peers: true})
-	got := r.Get("push-driver")
-	if got == nil {
-		t.Fatal("push-driver not registered")
+	// Without PaletteContext (MainHasDriverFrame=false), push-driver is not registered.
+	if got := r.Get("push-driver"); got != nil {
+		t.Error("push-driver should not be registered when MainHasDriverFrame is false")
 	}
-	if !got.Hidden {
-		t.Error("push-driver should be Hidden")
-	}
-	// Should not appear in All().
 	for _, tool := range r.All() {
 		if tool.Name == "push-driver" {
-			t.Error("push-driver should not appear in All()")
+			t.Error("push-driver should not appear in All() when MainHasDriverFrame is false")
 		}
+	}
+}
+
+func TestPushDriverVisibleWhenMainHasDriverFrame(t *testing.T) {
+	r := DefaultRegistry(features.Set{features.Peers: true}, PaletteContext{MainHasDriverFrame: true})
+	got := r.Get("push-driver")
+	if got == nil {
+		t.Fatal("push-driver should be registered when MainHasDriverFrame is true")
+	}
+	if got.Hidden {
+		t.Error("push-driver should not be Hidden")
+	}
+	found := false
+	for _, tool := range r.All() {
+		if tool.Name == "push-driver" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("push-driver should appear in All() when MainHasDriverFrame is true")
 	}
 }
 
@@ -154,18 +170,3 @@ func TestMatchMultiToken(t *testing.T) {
 	}
 }
 
-func TestPushDriverToolRequiresSessionID(t *testing.T) {
-	r := DefaultRegistry(features.Set{features.Peers: true})
-	tool := r.Get("push-driver")
-	if tool == nil {
-		t.Fatal("push-driver not registered")
-	}
-	ctx := &ToolContext{
-		Client: nil, // won't be reached if session_id validation fires first
-		Args:   map[string]string{},
-	}
-	_, err := tool.Run(ctx, map[string]string{"command": "shell"})
-	if err == nil {
-		t.Fatal("expected error when session_id is empty")
-	}
-}

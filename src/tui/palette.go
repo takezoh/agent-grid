@@ -14,13 +14,14 @@ const (
 )
 
 type PaletteModel struct {
-	registry    *tools.Registry
-	ctx         *tools.ToolContext
-	initialTool string
-	phase       palettePhase
-	input       string
-	filtered    []tools.MatchedTool
-	cursor      int
+	registry      *tools.Registry
+	ctx           *tools.ToolContext
+	initialTool   string
+	activeProject string
+	phase         palettePhase
+	input         string
+	filtered      []tools.MatchedTool
+	cursor        int
 
 	// parameter input
 	selectedTool       *tools.Tool
@@ -37,13 +38,16 @@ type PaletteModel struct {
 	height int
 }
 
-func NewPaletteModel(registry *tools.Registry, ctx *tools.ToolContext, initialTool string) PaletteModel {
+func NewPaletteModel(registry *tools.Registry, ctx *tools.ToolContext, initialTool string, activeProject ...string) PaletteModel {
 	m := PaletteModel{
 		registry:    registry,
 		ctx:         ctx,
 		filtered:    registry.Match(""),
 		paramArgs:   make(map[string]string),
 		initialTool: initialTool,
+	}
+	if len(activeProject) > 0 {
+		m.activeProject = activeProject[0]
 	}
 	m.worktreeOn = ctx != nil && ctx.Args["worktree"] == "on"
 	return m

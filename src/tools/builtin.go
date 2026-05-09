@@ -13,9 +13,17 @@ import (
 	"github.com/takezoh/agent-roost/state"
 )
 
+// PaletteContext holds per-invocation state for gating tool visibility.
+// Evaluated fresh each time the palette opens, unlike static feature flags.
+type PaletteContext struct {
+	// ActiveOccupant=="main" and an active session exists.
+	MainHasDriverFrame bool
+}
+
 // DefaultRegistry returns the built-in palette tool set.
 // feats gates optional tools behind runtime feature flags.
-func DefaultRegistry(feats features.Set) *Registry { //nolint:funlen
+// pctx gates per-invocation context-sensitive tools; zero value omits them.
+func DefaultRegistry(feats features.Set, pctx ...PaletteContext) *Registry { //nolint:funlen
 	r := NewRegistry()
 	r.Register(Tool{
 		Name:        "new-session",
@@ -69,21 +77,26 @@ func DefaultRegistry(feats features.Set) *Registry { //nolint:funlen
 			return nil, ctx.Client.Shutdown()
 		},
 	})
-	r.Register(Tool{
-		Name:        "push-driver",
-		Description: "Push driver onto active session",
-		Hidden:      true,
-		Params: []Param{
-			{Name: "command", Options: func(ctx *ToolContext) []string { return ctx.Config.PushCommands }},
-		},
-		Run: func(ctx *ToolContext, args map[string]string) (*ToolInvocation, error) {
-			sid := ctx.Args["session_id"]
-			if sid == "" {
-				return nil, fmt.Errorf("session_id required")
-			}
-			return nil, ctx.Client.PushDriver(sid, args["command"], nil)
-		},
-	})
+	var pc PaletteContext
+	if len(pctx) > 0 {
+		pc = pctx[0]
+	}
+	if pc.MainHasDriverFrame {
+		r.Register(Tool{
+			Name:        "push-driver",
+			Description: "Push driver onto active session",
+			Params: []Param{
+				{Name: "command", Options: func(ctx *ToolContext) []string { return ctx.Config.PushCommands }},
+			},
+			Run: func(ctx *ToolContext, args map[string]string) (*ToolInvocation, error) {
+				_, activeID, _, _, _, err := ctx.Client.ListSessions()
+				if err != nil || activeID == "" {
+					return nil, fmt.Errorf("no active session")
+				}
+				return nil, ctx.Client.PushDriver(activeID, args["command"], nil)
+			},
+		})
+	}
 	if feats.On(features.Peers) {
 		r.Register(Tool{
 			Name:        "send-to-session",
