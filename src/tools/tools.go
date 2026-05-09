@@ -53,7 +53,6 @@ type ToolContext struct {
 type ToolConfig struct {
 	DefaultCommand string
 	Commands       []string
-	PushCommands   []string
 	Projects       []string
 	ProjectRoots   []string
 }

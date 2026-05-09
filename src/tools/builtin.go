@@ -33,6 +33,9 @@ type PaletteContext struct {
 	MainHasDriverFrame bool
 	// Root driver of the active session supports fork (e.g. claude).
 	MainHasForkableDriver bool
+	// PushCommands is the list from settings.toml [session].push_commands.
+	// Each entry becomes a separate palette item when MainHasDriverFrame is true.
+	PushCommands []string
 }
 
 // DefaultRegistry returns the built-in palette tool set.
@@ -103,20 +106,19 @@ func DefaultRegistry(feats features.Set, pctx ...PaletteContext) *Registry { //n
 
 	if pc.Scope == ScopeProject {
 		if pc.MainHasDriverFrame {
-			r.Register(Tool{
-				Name:        "push-driver",
-				Description: "Push driver onto active session",
-				Params: []Param{
-					{Name: "command", Options: func(ctx *ToolContext) []string { return ctx.Config.PushCommands }},
-				},
-				Run: func(ctx *ToolContext, args map[string]string) (*ToolInvocation, error) {
-					_, activeID, _, _, _, err := ctx.Client.ListSessions()
-					if err != nil || activeID == "" {
-						return nil, fmt.Errorf("no active session")
-					}
-					return nil, ctx.Client.PushDriver(activeID, args["command"], nil)
-				},
-			})
+			for _, cmd := range pc.PushCommands {
+				r.Register(Tool{
+					Name:        "command: " + cmd,
+					Description: "Push " + cmd + " onto active session",
+					Run: func(ctx *ToolContext, _ map[string]string) (*ToolInvocation, error) {
+						_, activeID, _, _, _, err := ctx.Client.ListSessions()
+						if err != nil || activeID == "" {
+							return nil, fmt.Errorf("no active session")
+						}
+						return nil, ctx.Client.PushDriver(activeID, cmd, nil)
+					},
+				})
+			}
 		}
 		if pc.MainHasForkableDriver {
 			r.Register(Tool{

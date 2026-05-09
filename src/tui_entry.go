@@ -205,6 +205,7 @@ func runPalette(args []string) error { //nolint:funlen
 		Scope:                 scope,
 		MainHasDriverFrame:    mainHasDriver,
 		MainHasForkableDriver: mainHasForkable,
+		PushCommands:          cfg.Session.PushCommands,
 	})
 	roots := make([]string, len(cfg.Projects.ProjectRoots))
 	for i, r := range cfg.Projects.ProjectRoots {
@@ -216,7 +217,6 @@ func runPalette(args []string) error { //nolint:funlen
 		Config: tools.ToolConfig{
 			DefaultCommand: cfg.Session.DefaultCommand,
 			Commands:       cfg.Session.Commands,
-			PushCommands:   cfg.Session.PushCommands,
 			Projects:       cfg.ListProjects(),
 			ProjectRoots:   roots,
 		},

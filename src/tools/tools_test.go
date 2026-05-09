@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/takezoh/agent-roost/features"
@@ -52,36 +53,58 @@ func TestGetReturnsHiddenTool(t *testing.T) {
 	}
 }
 
-func TestPushDriverHiddenWhenNoDriverFrame(t *testing.T) {
-	r := DefaultRegistry(features.Set{features.Peers: true})
-	// Without PaletteContext (MainHasDriverFrame=false), push-driver is not registered.
-	if got := r.Get("push-driver"); got != nil {
-		t.Error("push-driver should not be registered when MainHasDriverFrame is false")
+func TestPushCommandsHiddenWhenNoDriverFrame(t *testing.T) {
+	// Without MainHasDriverFrame, no command: entries are registered.
+	r := DefaultRegistry(features.Set{features.Peers: true}, PaletteContext{
+		Scope:        ScopeProject,
+		PushCommands: []string{"shell", "vim"},
+	})
+	if got := r.Get("command: shell"); got != nil {
+		t.Error("command: shell should not be registered when MainHasDriverFrame is false")
 	}
 	for _, tool := range r.All() {
-		if tool.Name == "push-driver" {
-			t.Error("push-driver should not appear in All() when MainHasDriverFrame is false")
+		if tool.Name == "command: shell" || tool.Name == "command: vim" {
+			t.Errorf("push command %q should not appear in All() when MainHasDriverFrame is false", tool.Name)
 		}
 	}
 }
 
-func TestPushDriverVisibleWhenMainHasDriverFrame(t *testing.T) {
-	r := DefaultRegistry(features.Set{features.Peers: true}, PaletteContext{Scope: ScopeProject, MainHasDriverFrame: true})
-	got := r.Get("push-driver")
-	if got == nil {
-		t.Fatal("push-driver should be registered when MainHasDriverFrame is true")
-	}
-	if got.Hidden {
-		t.Error("push-driver should not be Hidden")
-	}
-	found := false
-	for _, tool := range r.All() {
-		if tool.Name == "push-driver" {
-			found = true
+func TestPushCommandsVisibleWhenMainHasDriverFrame(t *testing.T) {
+	r := DefaultRegistry(features.Set{features.Peers: true}, PaletteContext{
+		Scope:              ScopeProject,
+		MainHasDriverFrame: true,
+		PushCommands:       []string{"shell", "vim"},
+	})
+	for _, name := range []string{"command: shell", "command: vim"} {
+		got := r.Get(name)
+		if got == nil {
+			t.Fatalf("%q should be registered when MainHasDriverFrame is true and PushCommands contains it", name)
+		}
+		if got.Hidden {
+			t.Errorf("%q should not be Hidden", name)
 		}
 	}
-	if !found {
-		t.Error("push-driver should appear in All() when MainHasDriverFrame is true")
+	var found []string
+	for _, tool := range r.All() {
+		if tool.Name == "command: shell" || tool.Name == "command: vim" {
+			found = append(found, tool.Name)
+		}
+	}
+	if len(found) != 2 {
+		t.Errorf("All() should contain both push commands, got %v", found)
+	}
+}
+
+func TestPushCommandsEmptyWhenNoPushCommands(t *testing.T) {
+	// MainHasDriverFrame=true but PushCommands is nil — no command: entries registered.
+	r := DefaultRegistry(features.Set{}, PaletteContext{
+		Scope:              ScopeProject,
+		MainHasDriverFrame: true,
+	})
+	for _, tool := range r.All() {
+		if strings.HasPrefix(tool.Name, "command: ") {
+			t.Errorf("unexpected push command %q when PushCommands is nil", tool.Name)
+		}
 	}
 }
 
@@ -120,7 +143,7 @@ func TestForkVisibleWhenForkableDriver(t *testing.T) {
 
 func TestStandardScopeOmitsProjectTools(t *testing.T) {
 	r := DefaultRegistry(features.Set{features.Peers: true})
-	for _, name := range []string{"push-driver", "fork-session"} {
+	for _, name := range []string{"command: shell", "fork-session"} {
 		if r.Get(name) != nil {
 			t.Errorf("standard scope: %q should not be registered", name)
 		}
@@ -134,7 +157,7 @@ func TestStandardScopeOmitsProjectTools(t *testing.T) {
 
 func TestProjectScopeOmitsStandardOnlyTools(t *testing.T) {
 	r := DefaultRegistry(features.Set{features.Peers: true}, PaletteContext{Scope: ScopeProject})
-	for _, name := range []string{"detach", "shutdown", "create-project", "stop-session", "send-to-session"} {
+	for _, name := range []string{"detach", "shutdown", "create-project", "stop-session", "send-to-session", "command: shell"} {
 		if r.Get(name) != nil {
 			t.Errorf("project scope: %q should not be registered", name)
 		}
