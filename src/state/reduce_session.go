@@ -248,33 +248,45 @@ func reduceForkSession(s State, connID ConnID, reqID string, p ForkSessionParams
 	if !ok {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, "session has no root frame")}
 	}
+	rootDrv, forkDrv, forkCommand, ok, errEff := resolveForkDrv(s, connID, reqID, rootF)
+	if !ok {
+		return s, errEff
+	}
+	return buildForkSession(s, connID, reqID, sess, sid, rootF, rootDrv, forkDrv, forkCommand)
+}
+
+// resolveForkDrv looks up and validates drivers for a fork operation.
+// Returns (rootDrv, forkDrv, forkCommand, true) on success,
+// or (nil, nil, "", false) with errEff set on failure.
+func resolveForkDrv(s State, connID ConnID, reqID string, rootF SessionFrame) (Driver, Driver, string, bool, []Effect) {
 	rootDrv := GetDriver(rootF.Command)
 	if rootDrv == nil {
-		return s, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "no driver for command "+rootF.Command)}
+		return nil, nil, "", false, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "no driver for command "+rootF.Command)}
 	}
 	forkable, ok := rootDrv.(Forkable)
 	if !ok {
-		return s, []Effect{errResp(connID, reqID, ErrCodeUnsupported, rootDrv.Name()+" driver does not support fork")}
+		return nil, nil, "", false, []Effect{errResp(connID, reqID, ErrCodeUnsupported, rootDrv.Name()+" driver does not support fork")}
 	}
 	forkCmd, ok := forkable.ForkCommand(rootF.Driver, rootF.Command)
 	if !ok {
-		return s, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "fork not available (session ID not yet established)")}
+		return nil, nil, "", false, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "fork not available (session ID not yet established)")}
 	}
-
-	// Build the forked session inheriting project and sandbox settings.
-	// Worktree creation is deliberately skipped: the fork shares the
-	// original's working directory instead.
 	forkCommand := resolveCreateCommand(s, forkCmd)
 	forkDrv := GetDriver(forkCommand)
 	if forkDrv == nil {
-		return s, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "no driver for fork command "+forkCommand)}
+		return nil, nil, "", false, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "no driver for fork command "+forkCommand)}
 	}
+	return rootDrv, forkDrv, forkCommand, true, nil
+}
+
+// buildForkSession constructs and enqueues (or directly spawns) the forked session.
+// Worktree creation is deliberately skipped: the fork shares the original's working directory.
+func buildForkSession(s State, connID ConnID, reqID string, sess Session, sid SessionID, rootF SessionFrame, rootDrv, forkDrv Driver, forkCommand string) (State, []Effect) {
 	opts := LaunchOptions{Worktree: WorktreeOption{Enabled: false}}
 	driverState, setupJob, err := prepareSessionDriver(s, forkDrv, sid, sess.Project, forkCommand, opts)
 	if err != nil {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
 	}
-
 	if rp, ok := rootDrv.(StartDirAware); ok {
 		if dir := rp.StartDir(rootF.Driver); dir != "" {
 			if wp, ok := forkDrv.(StartDirAware); ok {
@@ -289,41 +301,18 @@ func reduceForkSession(s State, connID ConnID, reqID string, p ForkSessionParams
 func spawnForkSession(s State, connID ConnID, reqID string, sess Session, forkDrv Driver, driverState DriverState, forkCommand string, opts LaunchOptions, setupJob JobInput) (State, []Effect) {
 	newSessID := allocSessionID()
 	rootFrameID := allocFrameID()
-	newSess := Session{
-		ID:            newSessID,
-		Project:       sess.Project,
-		CreatedAt:     s.Now,
-		ActiveFrameID: rootFrameID,
-		Command:       forkCommand,
-		Sandbox:       sess.Sandbox,
-		LaunchOptions: opts,
-		Driver:        driverState,
-		Frames: []SessionFrame{{
-			ID:        rootFrameID,
-			Project:   sess.Project,
-			Command:   forkCommand,
-			CreatedAt: s.Now,
-			Driver:    driverState,
-		}},
-	}
-
+	newSess := makeForkSession(s, sess, newSessID, rootFrameID, forkCommand, opts, driverState)
 	if setupJob != nil {
 		s.NextJobID++
 		jobID := s.NextJobID
 		s.Jobs = cloneJobs(s.Jobs)
 		s.Jobs[jobID] = JobMeta{SessionID: newSessID, FrameID: rootFrameID, StartedAt: s.Now}
 		s.PendingCreates = clonePendingCreates(s.PendingCreates)
-		s.PendingCreates[jobID] = PendingCreate{
-			Session:    newSess,
-			FrameID:    rootFrameID,
-			ReplyConn:  connID,
-			ReplyReqID: reqID,
-		}
+		s.PendingCreates[jobID] = PendingCreate{Session: newSess, FrameID: rootFrameID, ReplyConn: connID, ReplyReqID: reqID}
 		s.Sessions = cloneSessions(s.Sessions)
 		s.Sessions[newSessID] = newSess
 		return s, []Effect{EffStartJob{JobID: jobID, Input: setupJob}}
 	}
-
 	launch, err := forkDrv.PrepareLaunch(driverState, LaunchModeCreate, sess.Project, forkCommand, opts, isSandboxed(s, sess.Project, sess.Sandbox))
 	if err != nil {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
@@ -331,11 +320,30 @@ func spawnForkSession(s State, connID ConnID, reqID string, sess Session, forkDr
 	launch.Project = sess.Project
 	launch.Sandbox = sess.Sandbox
 	newSess.Frames[0].LaunchOptions = launch.Options
-
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[newSessID] = newSess
-
 	return s, []Effect{spawnEffect(newSessID, rootFrameID, launch, connID, reqID)}
+}
+
+// makeForkSession initialises a new Session value for a fork operation.
+func makeForkSession(s State, src Session, newSessID SessionID, rootFrameID FrameID, forkCommand string, opts LaunchOptions, driverState DriverState) Session {
+	return Session{
+		ID:            newSessID,
+		Project:       src.Project,
+		CreatedAt:     s.Now,
+		ActiveFrameID: rootFrameID,
+		Command:       forkCommand,
+		Sandbox:       src.Sandbox,
+		LaunchOptions: opts,
+		Driver:        driverState,
+		Frames: []SessionFrame{{
+			ID:        rootFrameID,
+			Project:   src.Project,
+			Command:   forkCommand,
+			CreatedAt: s.Now,
+			Driver:    driverState,
+		}},
+	}
 }
 
 // worktreePathReferenced reports whether any session other than exceptSession
@@ -356,76 +364,6 @@ func worktreePathReferenced(s State, path string, exceptSession SessionID) bool 
 		}
 	}
 	return false
-}
-
-func reduceTmuxPaneSpawned(s State, e EvTmuxPaneSpawned) (State, []Effect) {
-	sess, ok := s.Sessions[e.SessionID]
-	if !ok {
-		return s, nil
-	}
-	frameIdx := findFrameIndex(sess, e.FrameID)
-	if frameIdx < 0 {
-		return s, nil
-	}
-	var bootstrapEffs []Effect
-	if frameIdx == 0 {
-		s, bootstrapEffs, _ = bootstrapDriverSessionStart(s, e.FrameID)
-	}
-	s, pre := ensureMainAtVisibleSlot(s)
-	s.ActiveOccupant = OccupantFrame
-	s.ActiveSession = e.SessionID
-
-	effs := []Effect{}
-	effs = append(effs, bootstrapEffs...)
-	effs = append(effs, EffRegisterPane{
-		FrameID:    e.FrameID,
-		PaneTarget: e.PaneTarget,
-		Tap:        frameIdx == 0,
-	})
-	effs = append(effs, pre...)
-	effs = append(effs,
-		EffActivateSession{SessionID: e.SessionID, Reason: EventCreateSession},
-		EffSelectPane{Target: "{sessionName}:0.1"},
-		EffSyncStatusLine{Line: ""},
-		EffPersistSnapshot{},
-		EffBroadcastSessionsChanged{},
-	)
-	if e.ReplyConn != 0 {
-		effs = append(effs, okResp(e.ReplyConn, e.ReplyReqID, CreateSessionReply{
-			SessionID: string(e.SessionID),
-		}))
-	}
-	return s, effs
-}
-
-type CreateSessionReply struct {
-	SessionID string
-}
-
-func reduceTmuxSpawnFailed(s State, e EvTmuxSpawnFailed) (State, []Effect) {
-	var effs []Effect
-	if sess, ok := s.Sessions[e.SessionID]; ok {
-		if idx := findFrameIndex(sess, e.FrameID); idx >= 0 {
-			frame := sess.Frames[idx]
-			if path := sessionManagedWorktreePath([]SessionFrame{frame}); path != "" {
-				effs = append(effs, EffRemoveManagedWorktree{Path: path})
-			}
-			sess, _ = truncateFrames(sess, idx)
-			s.Sessions = cloneSessions(s.Sessions)
-			if len(sess.Frames) == 0 {
-				delete(s.Sessions, e.SessionID)
-			} else {
-				s.Sessions[e.SessionID] = sess
-			}
-		}
-	}
-	if e.ReplyConn == 0 {
-		return s, effs
-	}
-	return s, append(effs,
-		errResp(e.ReplyConn, e.ReplyReqID, ErrCodeInternal,
-			fmt.Sprintf("tmux spawn failed: %s", e.Err)),
-	)
 }
 
 func reduceStopSession(s State, connID ConnID, reqID string, p StopSessionParams) (State, []Effect) {
@@ -474,111 +412,4 @@ func sessionManagedWorktreePath(frames []SessionFrame) string {
 		}
 	}
 	return ""
-}
-
-func reducePreviewSession(s State, connID ConnID, reqID string, p PreviewSessionParams) (State, []Effect) {
-	sid := SessionID(p.SessionID)
-	if _, ok := s.Sessions[sid]; !ok {
-		return s, []Effect{errResp(connID, reqID, ErrCodeNotFound, "session not found")}
-	}
-	s, pre := ensureMainAtVisibleSlot(s)
-	s.ActiveOccupant = OccupantFrame
-	s.ActiveSession = sid
-
-	pre = append(pre,
-		EffActivateSession{SessionID: sid, Reason: EventPreviewSession},
-		EffSyncStatusLine{Line: ""},
-		EffBroadcastSessionsChanged{IsPreview: true},
-		okResp(connID, reqID, ActiveSessionReply{ActiveSessionID: string(sid)}),
-	)
-	return s, pre
-}
-
-func reduceSwitchSession(s State, connID ConnID, reqID string, p SwitchSessionParams) (State, []Effect) {
-	sid := SessionID(p.SessionID)
-	if _, ok := s.Sessions[sid]; !ok {
-		return s, []Effect{errResp(connID, reqID, ErrCodeNotFound, "session not found")}
-	}
-	s, pre := ensureMainAtVisibleSlot(s)
-	s.ActiveOccupant = OccupantFrame
-	s.ActiveSession = sid
-
-	pre = append(pre,
-		EffActivateSession{SessionID: sid, Reason: EventSwitchSession},
-		EffSelectPane{Target: "{sessionName}:0.1"},
-		EffSyncStatusLine{Line: ""},
-		EffBroadcastSessionsChanged{},
-		okResp(connID, reqID, ActiveSessionReply{ActiveSessionID: string(sid)}),
-	)
-	return s, pre
-}
-
-type ActiveSessionReply struct {
-	ActiveSessionID string
-}
-
-func reducePreviewProject(s State, connID ConnID, reqID string, p PreviewProjectParams) (State, []Effect) {
-	var effs []Effect
-	if s.ActiveOccupant == OccupantFrame {
-		s.ActiveOccupant = OccupantMain
-		effs = append(effs, EffDeactivateSession{})
-	}
-	s.ActiveSession = ""
-	effs = append(effs, okResp(connID, reqID, nil))
-	effs = append(effs, EffBroadcastEvent{
-		Name:    "project-selected",
-		Payload: ProjectSelectedPayload(p),
-	})
-	return s, effs
-}
-
-type ProjectSelectedPayload struct {
-	Project string
-}
-
-func reduceListSessions(s State, connID ConnID, reqID string, _ struct{}) (State, []Effect) {
-	return s, []Effect{
-		okResp(connID, reqID, SessionsReply{}),
-	}
-}
-
-type SessionsReply struct{}
-
-func reduceFocusPane(s State, connID ConnID, reqID string, p FocusPaneParams) (State, []Effect) {
-	if p.Pane == "" {
-		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, "pane arg required")}
-	}
-	return s, []Effect{
-		EffSelectPane{Target: p.Pane},
-		EffBroadcastEvent{
-			Name:    "pane-focused",
-			Payload: PaneFocusedPayload(p),
-		},
-		okResp(connID, reqID, nil),
-	}
-}
-
-type PaneFocusedPayload struct {
-	Pane string
-}
-
-func reduceLaunchTool(s State, connID ConnID, reqID string, raw json.RawMessage) (State, []Effect) {
-	var m map[string]string
-	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &m)
-	}
-	tool := m["tool"]
-	if tool == "" {
-		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, "tool arg required")}
-	}
-	delete(m, "tool")
-	return s, []Effect{
-		EffDisplayPopup{
-			Width:  "60%",
-			Height: "50%",
-			Tool:   tool,
-			Args:   m,
-		},
-		okResp(connID, reqID, nil),
-	}
 }

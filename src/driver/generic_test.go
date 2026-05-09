@@ -227,7 +227,7 @@ func TestGenericFallbackHasNoCommandTag(t *testing.T) {
 
 func TestGetDriverFallbackFactory(t *testing.T) {
 	state.ClearRegistry()
-	state.RegisterFallbackFactory(func(command string) state.Driver {
+	state.RegisterDefaultFactory(func(command string) state.Driver {
 		name := state.FirstToken(command)
 		return NewGenericDriver(name, name, 0)
 	})
@@ -254,7 +254,7 @@ func TestGetDriverFallbackFactory(t *testing.T) {
 
 func TestGenericViewFallbackChip(t *testing.T) {
 	state.ClearRegistry()
-	state.RegisterFallbackFactory(func(command string) state.Driver {
+	state.RegisterDefaultFactory(func(command string) state.Driver {
 		name := state.FirstToken(command)
 		return NewGenericDriver(name, name, 0)
 	})

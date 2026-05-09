@@ -86,8 +86,9 @@ func (l *DevcontainerLauncher) WrapLaunch(frameID state.FrameID, plan state.Laun
 }
 
 // buildMounts constructs the pathmap.Mounts for a devcontainer instance.
-// Without the user mounts here, paths under e.g. /home/ubuntu/.claude/projects get
-// cleared at the IPC boundary and the TRANSCRIPT tab silently empties.
+// Without the user-declared bind mounts here, driver-specific data paths that
+// are bind-mounted into the container get cleared at the IPC boundary and
+// driver tab views silently empty.
 func buildMounts(hostProject, containerWS, hostRunDir string, userBinds []sandboxdc.BindMount) pathmap.Mounts {
 	type key = [2]string
 	seen := map[key]bool{}

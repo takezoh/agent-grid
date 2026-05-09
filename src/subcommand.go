@@ -5,18 +5,7 @@ import (
 	"io"
 
 	"github.com/takezoh/agent-roost/cli"
-	"github.com/takezoh/agent-roost/lib/claude"
-	"github.com/takezoh/agent-roost/lib/codex"
-	"github.com/takezoh/agent-roost/lib/gemini"
-	"github.com/takezoh/agent-roost/lib/peers"
 )
-
-func init() {
-	cli.Register("claude", "Claude Code integration (setup)", claude.Run)
-	cli.Register("codex", "Codex CLI integration (setup)", codex.Run)
-	cli.Register("gemini", "Gemini CLI integration (setup)", gemini.Run)
-	cli.Register("peers-mcp", "roost-peers MCP server (stdio)", peers.Run)
-}
 
 type commandKind int
 

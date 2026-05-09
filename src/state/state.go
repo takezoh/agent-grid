@@ -1,7 +1,7 @@
 // Package state holds the pure functional core of roost. State is a plain
 // data type, Reduce is a pure function, Event and Effect are closed sum
-// types. No goroutines, no I/O, no globals (except the driver registry,
-// which is set once at init time).
+// types. No goroutines, no I/O, no globals (except the driver registry and
+// the default-driver factory, both set once at init time).
 //
 // The runtime package interprets effects and feeds events back into Reduce.
 // All concurrency lives in runtime; state is single-threaded by construction.

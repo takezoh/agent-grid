@@ -10,6 +10,9 @@ import (
 	"github.com/takezoh/agent-roost/state"
 )
 
+// ShellDriverName is the registry key for the shell driver.
+const ShellDriverName = "shell"
+
 // ShellState is the per-session state for the shell driver. Plain data — no
 // goroutines, no I/O.
 type ShellState struct {

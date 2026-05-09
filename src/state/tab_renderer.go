@@ -1,9 +1,6 @@
 package state
 
-import (
-	"encoding/json"
-	"log/slog"
-)
+import "encoding/json"
 
 // TabRenderer is the interface TUI uses to render tab content without
 // knowing the driver-specific format. Drivers register a factory via
@@ -24,9 +21,11 @@ func RegisterTabRenderer[C any](kind TabKind, factory func(C) TabRenderer) {
 	rendererFactories[kind] = func(raw json.RawMessage) TabRenderer {
 		var cfg C
 		if len(raw) > 0 {
-			if err := json.Unmarshal(raw, &cfg); err != nil {
-				slog.Debug("tab_renderer: unmarshal config", "kind", kind, "err", err)
-			}
+			// Unmarshal errors are silently ignored; factory receives
+			// the zero-value config and the renderer falls back to its
+			// default behaviour. Logging in state/ would violate the
+			// pure-functional-core contract.
+			_ = json.Unmarshal(raw, &cfg)
 		}
 		return factory(cfg)
 	}

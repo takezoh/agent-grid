@@ -67,7 +67,7 @@ type ConnectorItem = v.ConnectorItem
 // init time; the per-connector state lives in ConnectorState values
 // returned by NewState.
 type Connector interface {
-	// Name is the registry key (e.g. "github").
+	// Name is the registry key used to look up this connector.
 	Name() string
 
 	// DisplayName is the human-readable label shown in TUI.

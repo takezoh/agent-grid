@@ -41,7 +41,7 @@ func RegisterDefaults(opts RegisterOptions) {
 		state.Register(NewCodexDriver(opts.EventLogDir))
 		state.Register(NewGeminiDriver(opts.EventLogDir))
 		state.Register(NewGenericDriver("", "", opts.IdleThreshold))
-		state.RegisterFallbackFactory(func(command string) state.Driver {
+		state.RegisterDefaultFactory(func(command string) state.Driver {
 			name := state.FirstToken(command)
 			return NewGenericDriver(name, name, opts.IdleThreshold)
 		})
@@ -49,6 +49,17 @@ func RegisterDefaults(opts RegisterOptions) {
 }
 
 var registerOnce sync.Once
+
+// SetupSubcmds returns the "setup <name>" subcommands for all built-in drivers
+// that ship a setup CLI subcommand. Used by the coordinator to configure the
+// devcontainer post-create script without embedding driver names in main.
+func SetupSubcmds() []string {
+	return []string{
+		"setup " + ClaudeDriverName,
+		"setup " + CodexDriverName,
+		"setup " + GeminiDriverName,
+	}
+}
 
 // ParseClaudeOptions decodes the [drivers.claude] config section into a
 // ClaudeOptions value.

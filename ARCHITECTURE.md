@@ -68,7 +68,7 @@ Code dependency direction:
 - `main` → `runtime`, `driver`, `connector`, `proto`, `tools`, `tmux`, `config`, `logger`
 - `runtime` → `state` (calls Reduce), `proto` (wire encode/decode), `runtime/worker` (Pool + Dispatch)
 - `runtime/worker` → `state` (JobID, JobInput, EvJobResult). Does not import driver/connector/lib
-- `state` is self-contained — imports no external packages (pure functional core)
+- `state` is self-contained — imports no third-party packages; only stdlib and stdlib-only internal packages (`features`, `uiproc`) are permitted (pure functional core)
 - `state/view` imports only stdlib — wire-safe types that can be used without pulling in the full state layer
 - `state` re-exports `state/view` types as type aliases (transparent to all existing callers)
 - `driver` → `state` (DriverStateBase embed, Effect/View types), `runtime/worker` (RegisterRunner), `lib/*` (implementation)
@@ -79,7 +79,7 @@ Code dependency direction:
 - `tui` → `proto/sessions` (sessions.Client + SessionInfo + ConnectorInfo), `proto` (wire types), `state` (Status/View/ConnectorSection/TabRenderer types), `tools` (ToolRegistry). Does not import driver/connector/lib
 - `lib/claude/command.go` (hook bridge) → `event` (sends CmdEvent via event.Send), `config`
 - `lib/claude/transcript` → `state` (registers TabRenderer factory via RegisterTabRenderer)
-- `cli/subcommand.go` provides a subcommand registry. Each lib package registers in `init()`, and `main` dispatches via `cli.Dispatch`
+- `cli/` provides a subcommand registry. Tool-specific subcommands are registered in `cli/<tool>.go` via `init()`, keeping driver names out of `main`; `main` dispatches via `cli.Dispatch`
 - `event/send.go` (event subcommand) → `proto` (sends CmdEvent), `cli` (registers "event" subcommand)
 - `state.Session` owns a stack of `SessionFrame` values, each carrying its own DriverState. Reduce routes session-level events by sessionID and frame-level events (driver hooks, frame lifecycle) by frameID, and passes them to the owning frame's `Driver.Step`
 - `state.State.Connectors` holds per-daemon ConnectorState. Reduce routes by connector name and passes to Connector.Step

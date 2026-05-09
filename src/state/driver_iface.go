@@ -297,10 +297,11 @@ type StartDirAware interface {
 	WithStartDir(s DriverState, dir string) DriverState
 }
 
-// driver registry. set once at init time by each driver impl package.
+// driver registry and default-driver factory. Set once at init time by each
+// driver impl package.
 var (
-	driverRegistry  = make(map[string]Driver)
-	fallbackFactory func(command string) Driver
+	driverRegistry = make(map[string]Driver)
+	defaultFactory func(command string) Driver
 )
 
 // Register adds a Driver to the registry under its Name(). Called from
@@ -313,11 +314,14 @@ func Register(d Driver) {
 	driverRegistry[d.Name()] = d
 }
 
-// RegisterFallbackFactory installs a factory used by GetDriver when
+// RegisterDefaultFactory installs a factory used by GetDriver when
 // the command does not match any registered driver. The factory
 // receives the raw command string and returns a fresh Driver instance.
-func RegisterFallbackFactory(factory func(command string) Driver) {
-	fallbackFactory = factory
+// This is distinct from the "No fallbacks" principle (which prohibits
+// synthesising status when a data source is unavailable); this factory
+// selects a driver for unrecognised commands, not a substitute status.
+func RegisterDefaultFactory(factory func(command string) Driver) {
+	defaultFactory = factory
 }
 
 // GetRegistry returns the current driver registry. Used for testing.
@@ -325,10 +329,10 @@ func GetRegistry() map[string]Driver {
 	return driverRegistry
 }
 
-// ClearRegistry clears the driver registry and fallback factory. Used for testing.
+// ClearRegistry clears the driver registry and default factory. Used for testing.
 func ClearRegistry() {
 	driverRegistry = map[string]Driver{}
-	fallbackFactory = nil
+	defaultFactory = nil
 }
 
 // FirstToken extracts the first whitespace-delimited word from a command string.
@@ -349,8 +353,8 @@ func GetDriver(command string) Driver {
 	if d, ok := driverRegistry[name]; ok {
 		return d
 	}
-	if fallbackFactory != nil {
-		return fallbackFactory(command)
+	if defaultFactory != nil {
+		return defaultFactory(command)
 	}
 	return driverRegistry[""]
 }

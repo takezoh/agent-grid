@@ -48,33 +48,17 @@ func TestNoToolSpecificEnvLiterals(t *testing.T) {
 		filepath.Join(srcRoot, "connector"),
 	}
 
-	for _, dir := range checkedDirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			// Directory may not exist for all builds; skip gracefully.
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-				continue
-			}
-			path := filepath.Join(dir, e.Name())
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Errorf("read %s: %v", path, err)
-				continue
-			}
-			for _, kw := range forbidden {
-				if bytes.Contains(data, []byte(`"`+kw)) {
-					t.Errorf(
-						"%s contains tool-specific env literal %q\n"+
-							"  → move to credproxy providers/<name>/, hostexec/, or lib/<tool>/ (see ARCHITECTURE.md)",
-						path, kw,
-					)
-				}
+	walkChecked(t, checkedDirs, func(t *testing.T, path string, data []byte) {
+		for _, kw := range forbidden {
+			if bytes.Contains(data, []byte(`"`+kw)) {
+				t.Errorf(
+					"%s contains tool-specific env literal %q\n"+
+						"  → move to credproxy providers/<name>/, hostexec/, or lib/<tool>/ (see ARCHITECTURE.md)",
+					path, kw,
+				)
 			}
 		}
-	}
+	})
 }
 
 // TestNoDriverNameLiterals guards against driver/tool names ("claude", "gemini",
@@ -98,32 +82,103 @@ func TestNoDriverNameLiterals(t *testing.T) {
 		filepath.Join(srcRoot, "connector"),
 	}
 
-	for _, dir := range checkedDirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-				continue
+	walkChecked(t, checkedDirs, func(t *testing.T, path string, data []byte) {
+		for _, name := range forbidden {
+			// Match driver name as a whole word inside any double-quoted string literal.
+			re := regexp.MustCompile(`"[^"\n]*\b` + name + `\b[^"\n]*"`)
+			if loc := re.Find(data); loc != nil {
+				t.Errorf(
+					"%s contains driver name %q inside a string literal: %s\n"+
+						"  → driver names must stay within driver/ or lib/<tool>/ (see ARCHITECTURE.md)",
+					path, name, bytes.TrimSpace(loc),
+				)
 			}
-			path := filepath.Join(dir, e.Name())
+		}
+	})
+}
+
+// TestNoConnectorNameLiteralsInTUI guards against connector names ("github")
+// appearing in tui/ routing logic. TUI must not branch on connector identity
+// — see ARCHITECTURE.md "Driver/Connector isolation".
+//
+// connector/ itself is exempt (it is the implementation site).
+// Import paths containing the connector name are also exempt.
+func TestNoConnectorNameLiteralsInTUI(t *testing.T) {
+	connectorNames := []string{"github"}
+
+	srcRoot := ".."
+	// Only check presentation and protocol layers; connector/ is the
+	// canonical owner of connector names.
+	checkedDirs := []string{
+		filepath.Join(srcRoot, "tui"),
+		filepath.Join(srcRoot, "proto"),
+		filepath.Join(srcRoot, "state"),
+		filepath.Join(srcRoot, "runtime"),
+	}
+
+	walkChecked(t, checkedDirs, func(t *testing.T, path string, data []byte) {
+		for _, name := range connectorNames {
+			// Match the connector name as a standalone value (not part of a URL path).
+			// Skip occurrences that are clearly import paths (contain a dot after the name).
+			re := regexp.MustCompile(`"` + name + `"`)
+			if loc := re.Find(data); loc != nil {
+				t.Errorf(
+					"%s contains connector name %q as a standalone string literal: %s\n"+
+						"  → connector names must stay within connector/ (see ARCHITECTURE.md)",
+					path, name, bytes.TrimSpace(loc),
+				)
+			}
+		}
+	})
+}
+
+// TestNoDriverNameLiteralsMain guards the main package (coordinator.go,
+// subcommand.go, main.go) against tool-specific string literals. The main
+// package wires generic config values into runtime; it must not embed
+// driver/connector names as string literals — use constants from driver/.
+func TestNoDriverNameLiteralsMain(t *testing.T) {
+	forbidden := []string{"claude", "gemini", "codex"}
+
+	srcRoot := ".."
+	// The main package lives at the src/ root — walk only *.go files there.
+	walkChecked(t, []string{srcRoot}, func(t *testing.T, path string, data []byte) {
+		// Only check files directly in srcRoot (not sub-packages).
+		if filepath.Dir(path) != srcRoot {
+			return
+		}
+		for _, name := range forbidden {
+			re := regexp.MustCompile(`"[^"\n]*\b` + name + `\b[^"\n]*"`)
+			if loc := re.Find(data); loc != nil {
+				t.Errorf(
+					"%s (main package) contains driver name %q as a string literal: %s\n"+
+						"  → use constants from driver/ instead (see ARCHITECTURE.md)",
+					path, name, bytes.TrimSpace(loc),
+				)
+			}
+		}
+	})
+}
+
+// walkChecked walks each dir recursively, calling fn for every non-test .go file.
+func walkChecked(t *testing.T, dirs []string, fn func(*testing.T, string, []byte)) {
+	t.Helper()
+	for _, dir := range dirs {
+		if err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil // skip unreadable entries silently
+			}
+			if d.IsDir() || !strings.HasSuffix(d.Name(), ".go") || strings.HasSuffix(d.Name(), "_test.go") {
+				return nil
+			}
 			data, err := os.ReadFile(path)
 			if err != nil {
 				t.Errorf("read %s: %v", path, err)
-				continue
+				return nil
 			}
-			for _, name := range forbidden {
-				// Match driver name as a whole word inside any double-quoted string literal.
-				re := regexp.MustCompile(`"[^"\n]*\b` + name + `\b[^"\n]*"`)
-				if loc := re.Find(data); loc != nil {
-					t.Errorf(
-						"%s contains driver name %q inside a string literal: %s\n"+
-							"  → driver names must stay within driver/ or lib/<tool>/ (see ARCHITECTURE.md)",
-						path, name, bytes.TrimSpace(loc),
-					)
-				}
-			}
+			fn(t, path, data)
+			return nil
+		}); err != nil {
+			t.Errorf("walk %s: %v", dir, err)
 		}
 	}
 }

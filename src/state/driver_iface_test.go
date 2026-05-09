@@ -52,7 +52,7 @@ func TestGetDriverUsesFallbackFactory(t *testing.T) {
 	state.ClearRegistry()
 
 	var factoryCalls []string
-	state.RegisterFallbackFactory(func(command string) state.Driver {
+	state.RegisterDefaultFactory(func(command string) state.Driver {
 		factoryCalls = append(factoryCalls, command)
 		name := state.FirstToken(command)
 		return &mockDriver{name: name, displayName: name}
@@ -91,7 +91,7 @@ func TestGetDriverPrefersRegistryOverFactory(t *testing.T) {
 	state.Register(&mockDriver{name: "explicit", displayName: "Explicit"})
 
 	factoryCalled := false
-	state.RegisterFallbackFactory(func(command string) state.Driver {
+	state.RegisterDefaultFactory(func(command string) state.Driver {
 		factoryCalled = true
 		return &mockDriver{name: "factory", displayName: "factory"}
 	})

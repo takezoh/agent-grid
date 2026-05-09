@@ -33,8 +33,8 @@ type TmuxInjector interface {
 
 // InjectPrompt pastes prompt into the tmux pane owned by frameID and
 // submits it with Enter. This is the only reliable way to feed a prompt
-// into an Ink-based TUI driver (Claude Code, Codex, Gemini) from an
-// external process, since those TUIs ignore piped stdin.
+// into a driver whose TUI ignores piped stdin (e.g. Ink-based renderers)
+// from an external process.
 //
 // Trailing whitespace and newlines are stripped from prompt before
 // sending; a trailing newline would otherwise cause a double-submit

@@ -20,7 +20,7 @@ import (
 // alive, etc.) call r.Enqueue, which is non-blocking and goroutine-
 // safe so the case can fire from inside the event loop without
 // risking deadlock on the channel.
-func (r *Runtime) execute(eff state.Effect) { //nolint:funlen
+func (r *Runtime) execute(eff state.Effect) {
 	switch e := eff.(type) {
 	case state.EffSpawnTmuxWindow, state.EffKillSessionWindow, state.EffActivateSession,
 		state.EffDeactivateSession, state.EffRegisterPane, state.EffUnregisterPane,
@@ -34,13 +34,27 @@ func (r *Runtime) execute(eff state.Effect) { //nolint:funlen
 		state.EffBroadcastSessionsChanged, state.EffBroadcastEvent, state.EffCloseConn:
 		r.executeIPCEffect(e)
 
+	case state.EffWatchFile, state.EffUnwatchFile:
+		r.executeFSEffect(e)
+
+	case state.EffSendTmuxKeys:
+		r.executeSendTmuxKeys(e)
+
+	case state.EffInjectPrompt:
+		r.executeInjectPrompt(e)
+
+	default:
+		r.executeMiscEffect(eff)
+	}
+}
+
+// executeMiscEffect handles effects that don't fit the tmux/IPC/FS categories.
+func (r *Runtime) executeMiscEffect(eff state.Effect) {
+	switch e := eff.(type) {
 	case state.EffPersistSnapshot:
 		if err := r.cfg.Persist.Save(r.snapshotSessions()); err != nil {
 			slog.Error("runtime: persist failed", "err", err)
 		}
-
-	case state.EffWatchFile, state.EffUnwatchFile:
-		r.executeFSEffect(e)
 
 	case state.EffEventLogAppend:
 		if err := r.cfg.EventLog.Append(e.FrameID, e.Line); err != nil {
@@ -70,18 +84,7 @@ func (r *Runtime) execute(eff state.Effect) { //nolint:funlen
 		r.cfg.Notifier.Dispatch(e)
 
 	case state.EffRecordNotification:
-		r.broadcastAgentNotification(e)
-		source := fmt.Sprintf("osc%d", e.Cmd)
-		if err := r.cfg.EventLog.Append(e.FrameID, oscEventLogLine(source, e.Title, e.Body)); err != nil {
-			slog.Debug("runtime: osc event log failed", "frame", e.FrameID, "err", err)
-		}
-		r.cfg.Notifier.DispatchOSC(e.Title, e.Body, source)
-
-	case state.EffSendTmuxKeys:
-		r.executeSendTmuxKeys(e)
-
-	case state.EffInjectPrompt:
-		r.executeInjectPrompt(e)
+		r.executeRecordNotification(e)
 
 	case state.EffReleaseFrameSandboxes:
 		// Emitted by reduceShutdown (not reduceDetach) so containers are
@@ -93,6 +96,15 @@ func (r *Runtime) execute(eff state.Effect) { //nolint:funlen
 	default:
 		slog.Warn("runtime: unhandled effect type", "type", fmt.Sprintf("%T", eff))
 	}
+}
+
+func (r *Runtime) executeRecordNotification(e state.EffRecordNotification) {
+	r.broadcastAgentNotification(e)
+	source := fmt.Sprintf("osc%d", e.Cmd)
+	if err := r.cfg.EventLog.Append(e.FrameID, oscEventLogLine(source, e.Title, e.Body)); err != nil {
+		slog.Debug("runtime: osc event log failed", "frame", e.FrameID, "err", err)
+	}
+	r.cfg.Notifier.DispatchOSC(e.Title, e.Body, source)
 }
 
 func (r *Runtime) executeSendTmuxKeys(e state.EffSendTmuxKeys) {
@@ -132,99 +144,105 @@ func (r *Runtime) executeInjectPrompt(e state.EffInjectPrompt) {
 	}
 }
 
-func (r *Runtime) executeTmuxEffect(eff state.Effect) { //nolint:funlen
+func (r *Runtime) executeTmuxEffect(eff state.Effect) {
 	switch e := eff.(type) {
 	case state.EffSpawnTmuxWindow:
 		go r.spawnTmuxWindowAsync(e)
-
 	case state.EffKillSessionWindow:
-		if target := r.sessionPanes[e.FrameID]; target != "" {
-			if tail, err := r.cfg.Tmux.CapturePane(target, 20); err == nil && tail != "" {
-				slog.Info("runtime: pane tail on kill", "frame", e.FrameID, "target", target, "tail", tail)
-			}
-			if err := r.cfg.Tmux.KillPaneWindow(target); err != nil {
-				slog.Error("runtime: kill window failed", "target", target, "err", err)
-			}
-		}
-		r.containerTokens.Revoke(e.FrameID)
-		if r.warmFrames != nil {
-			if err := r.warmFrames.Delete(e.FrameID); err != nil {
-				slog.Warn("runtime: warm frame delete failed", "frame", e.FrameID, "err", err)
-			}
-		}
-		r.invokeFrameCleanup(e.FrameID)
-
+		r.executeKillSessionWindow(e)
 	case state.EffActivateSession:
 		r.activateSession(e.SessionID)
-
 	case state.EffDeactivateSession:
 		r.deactivateSession()
-
 	case state.EffRegisterPane:
-		r.sessionPanes[e.FrameID] = e.PaneTarget
-		_ = r.cfg.Tmux.SetEnv(sessionPaneEnvKey(e.FrameID), e.PaneTarget)
-		if e.Tap && r.taps != nil {
-			r.taps.start(e.FrameID, e.PaneTarget, r.Enqueue)
-		}
-
+		r.executeRegisterPane(e)
 	case state.EffUnregisterPane:
-		if target, ok := r.sessionPanes[e.FrameID]; ok {
-			if r.taps != nil {
-				r.taps.stop(e.FrameID)
-			}
-			delete(r.sessionPanes, e.FrameID)
-			_ = r.cfg.Tmux.UnsetEnv(sessionPaneEnvKey(e.FrameID))
-			r.cfg.EventLog.Close(e.FrameID)
-			if r.cfg.TerminalEvict != nil {
-				r.cfg.TerminalEvict(target)
-			}
-		}
-
+		r.executeUnregisterPane(e)
 	case state.EffSelectPane:
 		target := substitutePlaceholdersString(e.Target, r.cfg.SessionName, r.cfg.RoostExe)
 		_ = r.cfg.Tmux.SelectPane(target)
-
 	case state.EffSyncStatusLine:
-		line := e.Line
-		if line == "" {
-			line = r.activeStatusLine()
-		}
-		_ = r.cfg.Tmux.SetStatusLine(line)
-
+		r.executeSyncStatusLine(e)
 	case state.EffSetTmuxEnv:
 		_ = r.cfg.Tmux.SetEnv(e.Key, e.Value)
-
 	case state.EffUnsetTmuxEnv:
 		_ = r.cfg.Tmux.UnsetEnv(e.Key)
-
 	case state.EffCheckPaneAlive:
-		target := substitutePlaceholdersString(e.Pane, r.cfg.SessionName, r.cfg.RoostExe)
-		if alive, err := r.cfg.Tmux.PaneAlive(target); err == nil && !alive {
-			ev := state.EvPaneDied{Pane: e.Pane}
-			if e.Pane == "{sessionName}:0.1" {
-				ev.OwnerFrameID = r.findPaneOwner(target)
-			}
-			r.Enqueue(ev)
-		}
-
+		r.executeCheckPaneAlive(e)
 	case state.EffRespawnPane:
 		target := substitutePlaceholdersString(e.Pane, r.cfg.SessionName, r.cfg.RoostExe)
 		_ = r.cfg.Tmux.RespawnPane(target, e.Proc.Command(r.cfg.RoostExe))
-
 	case state.EffSwapHidden:
 		r.swapHidden()
-
 	case state.EffDetachClient:
 		_ = r.cfg.Tmux.DetachClient()
-
 	case state.EffDisplayPopup:
 		_ = r.cfg.Tmux.DisplayPopup(e.Width, e.Height, uiproc.Palette(e.Tool, e.Args, "").Command(r.cfg.RoostExe))
-
 	case state.EffKillSession:
 		_ = r.cfg.Tmux.KillSession()
-
 	case state.EffReconcileWindows:
 		r.reconcileWindows()
+	}
+}
+
+func (r *Runtime) executeKillSessionWindow(e state.EffKillSessionWindow) {
+	if target := r.sessionPanes[e.FrameID]; target != "" {
+		if tail, err := r.cfg.Tmux.CapturePane(target, 20); err == nil && tail != "" {
+			slog.Info("runtime: pane tail on kill", "frame", e.FrameID, "target", target, "tail", tail)
+		}
+		if err := r.cfg.Tmux.KillPaneWindow(target); err != nil {
+			slog.Error("runtime: kill window failed", "target", target, "err", err)
+		}
+	}
+	r.containerTokens.Revoke(e.FrameID)
+	if r.warmFrames != nil {
+		if err := r.warmFrames.Delete(e.FrameID); err != nil {
+			slog.Warn("runtime: warm frame delete failed", "frame", e.FrameID, "err", err)
+		}
+	}
+	r.invokeFrameCleanup(e.FrameID)
+}
+
+func (r *Runtime) executeRegisterPane(e state.EffRegisterPane) {
+	r.sessionPanes[e.FrameID] = e.PaneTarget
+	_ = r.cfg.Tmux.SetEnv(sessionPaneEnvKey(e.FrameID), e.PaneTarget)
+	if e.Tap && r.taps != nil {
+		r.taps.start(e.FrameID, e.PaneTarget, r.Enqueue)
+	}
+}
+
+func (r *Runtime) executeUnregisterPane(e state.EffUnregisterPane) {
+	target, ok := r.sessionPanes[e.FrameID]
+	if !ok {
+		return
+	}
+	if r.taps != nil {
+		r.taps.stop(e.FrameID)
+	}
+	delete(r.sessionPanes, e.FrameID)
+	_ = r.cfg.Tmux.UnsetEnv(sessionPaneEnvKey(e.FrameID))
+	r.cfg.EventLog.Close(e.FrameID)
+	if r.cfg.TerminalEvict != nil {
+		r.cfg.TerminalEvict(target)
+	}
+}
+
+func (r *Runtime) executeSyncStatusLine(e state.EffSyncStatusLine) {
+	line := e.Line
+	if line == "" {
+		line = r.activeStatusLine()
+	}
+	_ = r.cfg.Tmux.SetStatusLine(line)
+}
+
+func (r *Runtime) executeCheckPaneAlive(e state.EffCheckPaneAlive) {
+	target := substitutePlaceholdersString(e.Pane, r.cfg.SessionName, r.cfg.RoostExe)
+	if alive, err := r.cfg.Tmux.PaneAlive(target); err == nil && !alive {
+		ev := state.EvPaneDied{Pane: e.Pane}
+		if e.Pane == "{sessionName}:0.1" {
+			ev.OwnerFrameID = r.findPaneOwner(target)
+		}
+		r.Enqueue(ev)
 	}
 }
 
