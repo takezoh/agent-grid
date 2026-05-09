@@ -20,6 +20,10 @@ type PushDriverParams struct {
 	Input     []byte        `json:"input,omitempty"`
 }
 
+type ForkSessionParams struct {
+	SessionID string `json:"session_id"`
+}
+
 type StopSessionParams struct {
 	SessionID string `json:"session_id"`
 }
@@ -43,6 +47,7 @@ type FocusPaneParams struct {
 func init() {
 	RegisterEvent[CreateSessionParams](EventCreateSession, reduceCreateSession)
 	RegisterEvent[PushDriverParams](EventPushDriver, reducePushDriver)
+	RegisterEvent[ForkSessionParams](EventForkSession, reduceForkSession)
 	RegisterEvent[StopSessionParams](EventStopSession, reduceStopSession)
 	RegisterEvent[struct{}](EventListSessions, reduceListSessions)
 	RegisterEvent[PreviewSessionParams](EventPreviewSession, reducePreviewSession)
@@ -230,6 +235,125 @@ func pushDriverInternal(s State, sid SessionID, project, rawCommand string, opti
 	return s, []Effect{spawnEffect(sid, frame.ID, launch, connID, reqID)}, nil
 }
 
+func reduceForkSession(s State, connID ConnID, reqID string, p ForkSessionParams) (State, []Effect) {
+	sid := SessionID(p.SessionID)
+	if sid == "" {
+		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, "session_id required")}
+	}
+	sess, ok := s.Sessions[sid]
+	if !ok {
+		return s, []Effect{errResp(connID, reqID, ErrCodeNotFound, "session not found")}
+	}
+	rootF, ok := rootFrame(sess)
+	if !ok {
+		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, "session has no root frame")}
+	}
+	rootDrv := GetDriver(rootF.Command)
+	if rootDrv == nil {
+		return s, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "no driver for command "+rootF.Command)}
+	}
+	forkable, ok := rootDrv.(Forkable)
+	if !ok {
+		return s, []Effect{errResp(connID, reqID, ErrCodeUnsupported, rootDrv.Name()+" driver does not support fork")}
+	}
+	forkCmd, ok := forkable.ForkCommand(rootF.Driver, rootF.Command)
+	if !ok {
+		return s, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "fork not available (session ID not yet established)")}
+	}
+
+	// Build the forked session inheriting project and sandbox settings.
+	// Worktree creation is deliberately skipped: the fork shares the
+	// original's working directory instead.
+	forkCommand := resolveCreateCommand(s, forkCmd)
+	forkDrv := GetDriver(forkCommand)
+	if forkDrv == nil {
+		return s, []Effect{errResp(connID, reqID, ErrCodeUnsupported, "no driver for fork command "+forkCommand)}
+	}
+	opts := LaunchOptions{Worktree: WorktreeOption{Enabled: false}}
+	driverState, setupJob, err := prepareSessionDriver(s, forkDrv, sid, sess.Project, forkCommand, opts)
+	if err != nil {
+		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
+	}
+
+	if rp, ok := rootDrv.(StartDirAware); ok {
+		if dir := rp.StartDir(rootF.Driver); dir != "" {
+			if wp, ok := forkDrv.(StartDirAware); ok {
+				driverState = wp.WithStartDir(driverState, dir)
+			}
+		}
+	}
+
+	newSessID := allocSessionID()
+	rootFrameID := allocFrameID()
+	newSess := Session{
+		ID:            newSessID,
+		Project:       sess.Project,
+		CreatedAt:     s.Now,
+		ActiveFrameID: rootFrameID,
+		Command:       forkCommand,
+		Sandbox:       sess.Sandbox,
+		LaunchOptions: opts,
+		Driver:        driverState,
+		Frames: []SessionFrame{{
+			ID:        rootFrameID,
+			Project:   sess.Project,
+			Command:   forkCommand,
+			CreatedAt: s.Now,
+			Driver:    driverState,
+		}},
+	}
+
+	if setupJob != nil {
+		s.NextJobID++
+		jobID := s.NextJobID
+		s.Jobs = cloneJobs(s.Jobs)
+		s.Jobs[jobID] = JobMeta{SessionID: newSessID, FrameID: rootFrameID, StartedAt: s.Now}
+		s.PendingCreates = clonePendingCreates(s.PendingCreates)
+		s.PendingCreates[jobID] = PendingCreate{
+			Session:    newSess,
+			FrameID:    rootFrameID,
+			ReplyConn:  connID,
+			ReplyReqID: reqID,
+		}
+		s.Sessions = cloneSessions(s.Sessions)
+		s.Sessions[newSessID] = newSess
+		return s, []Effect{EffStartJob{JobID: jobID, Input: setupJob}}
+	}
+
+	launch, err := forkDrv.PrepareLaunch(driverState, LaunchModeCreate, sess.Project, forkCommand, opts, isSandboxed(s, sess.Project, sess.Sandbox))
+	if err != nil {
+		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
+	}
+	launch.Project = sess.Project
+	launch.Sandbox = sess.Sandbox
+	newSess.Frames[0].LaunchOptions = launch.Options
+
+	s.Sessions = cloneSessions(s.Sessions)
+	s.Sessions[newSessID] = newSess
+
+	return s, []Effect{spawnEffect(newSessID, rootFrameID, launch, connID, reqID)}
+}
+
+// worktreePathReferenced reports whether any session other than exceptSession
+// has a frame whose ManagedWorktreePath matches path. Used by reduceStopSession
+// to avoid deleting a worktree that is still referenced by another session.
+func worktreePathReferenced(s State, path string, exceptSession SessionID) bool {
+	for sid, sess := range s.Sessions {
+		if sid == exceptSession {
+			continue
+		}
+		for _, f := range sess.Frames {
+			drv := GetDriver(f.Command)
+			if provider, ok := drv.(ManagedWorktreeProvider); ok {
+				if provider.ManagedWorktreePath(f.Driver) == path {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func reduceTmuxPaneSpawned(s State, e EvTmuxPaneSpawned) (State, []Effect) {
 	sess, ok := s.Sessions[e.SessionID]
 	if !ok {
@@ -328,7 +452,9 @@ func reduceStopSession(s State, connID ConnID, reqID string, p StopSessionParams
 		)
 	}
 	if path := sessionManagedWorktreePath(removed); path != "" {
-		effs = append(effs, EffRemoveManagedWorktree{Path: path})
+		if !worktreePathReferenced(s, path, sid) {
+			effs = append(effs, EffRemoveManagedWorktree{Path: path})
+		}
 	}
 	effs = append(effs, okResp(connID, reqID, nil), EffPersistSnapshot{})
 	return s, effs

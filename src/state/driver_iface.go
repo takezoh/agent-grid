@@ -261,6 +261,15 @@ type ManagedWorktreeProvider interface {
 	ManagedWorktreePath(s DriverState) string
 }
 
+// Forkable is an optional driver extension for drivers whose CLI supports
+// forking the current conversation into a new independent branch.
+// ForkCommand returns the full launch command for the forked session derived
+// from s and the root frame's baseCommand. Returns ok=false when the driver
+// state does not yet have enough identity to fork (e.g. no session ID).
+type Forkable interface {
+	ForkCommand(s DriverState, baseCommand string) (command string, ok bool)
+}
+
 // WarmStartRecoverer is an optional driver extension for restoring
 // driver-owned runtime state after a warm start. Drivers use this to
 // re-install watches and resume async parsing from already-restored

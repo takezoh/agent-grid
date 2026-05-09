@@ -16,6 +16,7 @@ import (
 	"github.com/takezoh/agent-roost/logger"
 	"github.com/takezoh/agent-roost/proto"
 	psess "github.com/takezoh/agent-roost/proto/sessions"
+	"github.com/takezoh/agent-roost/state"
 	"github.com/takezoh/agent-roost/tools"
 	"github.com/takezoh/agent-roost/tui"
 	"github.com/takezoh/agent-roost/tui/glyphs"
@@ -170,18 +171,27 @@ func runPalette(args []string) error { //nolint:funlen
 
 	mainHasDriver := activeID != "" && activeOccupant == proto.OccupantFrame
 
+	mainHasForkable := false
+
 	var activeProject string
 	if activeID != "" {
 		for _, s := range sessions {
 			if s.ID == activeID {
 				activeProject = tools.ProjectDisplayName(s.Project)
+				if mainHasDriver {
+					drv := state.GetDriver(s.RootDriver)
+					_, mainHasForkable = drv.(state.Forkable)
+				}
 				break
 			}
 		}
 	}
 
 	feats := features.FromConfig(cfg.Features.Enabled, features.All())
-	reg := tools.DefaultRegistry(feats, tools.PaletteContext{MainHasDriverFrame: mainHasDriver})
+	reg := tools.DefaultRegistry(feats, tools.PaletteContext{
+		MainHasDriverFrame:    mainHasDriver,
+		MainHasForkableDriver: mainHasForkable,
+	})
 	roots := make([]string, len(cfg.Projects.ProjectRoots))
 	for i, r := range cfg.Projects.ProjectRoots {
 		roots[i] = config.ExpandPath(r)

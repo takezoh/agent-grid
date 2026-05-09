@@ -1684,6 +1684,266 @@ func TestPushDriver_InheritsSandboxFromSession(t *testing.T) {
 	}
 }
 
+// === reduceForkSession ===
+
+// forkableState carries the session ID needed by forkableDriver.
+type forkableState struct {
+	DriverStateBase
+	sessionID string
+	startDir  string
+}
+
+// forkableDriver is a minimal StartDirAware + Forkable driver for fork tests.
+type forkableDriver struct{ stubDriver }
+
+func (forkableDriver) Name() string { return "forkable" }
+func (forkableDriver) NewState(now time.Time) DriverState {
+	return forkableState{}
+}
+func (forkableDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+	fs, ok := s.(forkableState)
+	dir := project
+	if ok && fs.startDir != "" {
+		dir = fs.startDir
+	}
+	return LaunchPlan{Command: baseCommand, StartDir: dir}, nil
+}
+func (forkableDriver) Persist(s DriverState) map[string]string { return nil }
+func (forkableDriver) Restore(bag map[string]string, now time.Time) DriverState {
+	return forkableState{}
+}
+func (forkableDriver) View(s DriverState) View  { return View{} }
+func (forkableDriver) Status(s DriverState) Status { return StatusIdle }
+func (forkableDriver) Step(prev DriverState, ctx FrameContext, ev DriverEvent) (DriverState, []Effect, View) {
+	return prev, nil, View{}
+}
+func (forkableDriver) StartDir(s DriverState) string {
+	if fs, ok := s.(forkableState); ok {
+		return fs.startDir
+	}
+	return ""
+}
+func (forkableDriver) WithStartDir(s DriverState, dir string) DriverState {
+	fs, ok := s.(forkableState)
+	if !ok {
+		return s
+	}
+	fs.startDir = dir
+	return fs
+}
+func (forkableDriver) ForkCommand(s DriverState, baseCommand string) (string, bool) {
+	fs, ok := s.(forkableState)
+	if !ok || fs.sessionID == "" {
+		return "", false
+	}
+	return baseCommand + " --fork " + fs.sessionID, true
+}
+
+func init() {
+	if _, exists := driverRegistry["forkable"]; !exists {
+		Register(forkableDriver{})
+	}
+}
+
+func forkableSession(id SessionID) Session {
+	ds := forkableState{sessionID: "ext-id-001"}
+	return Session{
+		ID:      id,
+		Project: "/repo",
+		Command: "forkable",
+		Driver:  ds,
+		Frames: []SessionFrame{{
+			ID:      FrameID(id),
+			Project: "/repo",
+			Command: "forkable",
+			Driver:  ds,
+		}},
+	}
+}
+
+func TestForkSessionCreatesNewSession(t *testing.T) {
+	s := New()
+	s.Now = time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	id := SessionID("origin")
+	s.Sessions[id] = forkableSession(id)
+
+	next, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: EventForkSession,
+		Payload: mustPayload(map[string]string{"session_id": string(id)}),
+	})
+	mustOK(t, effs)
+
+	if len(next.Sessions) != 2 {
+		t.Fatalf("sessions = %d, want 2 (orig + fork)", len(next.Sessions))
+	}
+	// Find the new session (not "origin").
+	var newSess Session
+	for sid, sess := range next.Sessions {
+		if sid != id {
+			newSess = sess
+		}
+	}
+	if newSess.ID == id {
+		t.Fatal("fork session should have a different ID")
+	}
+	if newSess.Project != "/repo" {
+		t.Errorf("fork session Project = %q, want /repo", newSess.Project)
+	}
+	if len(newSess.Frames) != 1 {
+		t.Fatalf("fork session frames = %d, want 1", len(newSess.Frames))
+	}
+	spawn, ok := findEff[EffSpawnTmuxWindow](effs)
+	if !ok {
+		t.Fatal("expected EffSpawnTmuxWindow")
+	}
+	if spawn.SessionID != newSess.ID {
+		t.Errorf("spawn.SessionID = %q, want %q", spawn.SessionID, newSess.ID)
+	}
+}
+
+func TestForkSessionInheritsStartDir(t *testing.T) {
+	s := New()
+	s.Now = time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	id := SessionID("origin")
+	sess := forkableSession(id)
+	// set startDir on root frame state
+	ds := sess.Frames[0].Driver.(forkableState)
+	ds.startDir = "/repo/worktrees/feature"
+	sess.Frames[0].Driver = ds
+	sess.Driver = ds
+	s.Sessions[id] = sess
+
+	_, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: EventForkSession,
+		Payload: mustPayload(map[string]string{"session_id": string(id)}),
+	})
+	mustOK(t, effs)
+
+	spawn, ok := findEff[EffSpawnTmuxWindow](effs)
+	if !ok {
+		t.Fatal("expected EffSpawnTmuxWindow")
+	}
+	if spawn.StartDir != "/repo/worktrees/feature" {
+		t.Errorf("spawn.StartDir = %q, want /repo/worktrees/feature", spawn.StartDir)
+	}
+}
+
+func TestForkSessionUnknownErrors(t *testing.T) {
+	s := New()
+	_, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: EventForkSession,
+		Payload: mustPayload(map[string]string{"session_id": "ghost"}),
+	})
+	if _, ok := findEff[EffSendError](effs); !ok {
+		t.Error("expected EffSendError for unknown session")
+	}
+}
+
+func TestForkSessionEmptyIDErrors(t *testing.T) {
+	s := New()
+	_, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: EventForkSession,
+	})
+	if _, ok := findEff[EffSendError](effs); !ok {
+		t.Error("expected EffSendError for empty session_id")
+	}
+}
+
+func TestForkSessionNonForkableErrors(t *testing.T) {
+	s := New()
+	id := SessionID("nostub")
+	s.Sessions[id] = stubSession(id)
+	_, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: EventForkSession,
+		Payload: mustPayload(map[string]string{"session_id": string(id)}),
+	})
+	errEff, ok := findEff[EffSendError](effs)
+	if !ok {
+		t.Fatal("expected EffSendError for non-forkable driver")
+	}
+	if errEff.Code != ErrCodeUnsupported {
+		t.Errorf("code = %q, want %q", errEff.Code, ErrCodeUnsupported)
+	}
+}
+
+func TestForkSessionNoSessionIDErrors(t *testing.T) {
+	s := New()
+	id := SessionID("noextid")
+	// forkableState with empty sessionID → ForkCommand returns false.
+	ds := forkableState{sessionID: ""}
+	s.Sessions[id] = Session{
+		ID: id, Project: "/p", Command: "forkable", Driver: ds,
+		Frames: []SessionFrame{{ID: FrameID(id), Project: "/p", Command: "forkable", Driver: ds}},
+	}
+	_, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: EventForkSession,
+		Payload: mustPayload(map[string]string{"session_id": string(id)}),
+	})
+	errEff, ok := findEff[EffSendError](effs)
+	if !ok {
+		t.Fatal("expected EffSendError when ForkCommand returns ok=false")
+	}
+	if errEff.Code != ErrCodeUnsupported {
+		t.Errorf("code = %q, want %q", errEff.Code, ErrCodeUnsupported)
+	}
+}
+
+// === worktreePathReferenced / stop-session shared worktree protection ===
+
+func TestWorktreePathReferencedByOtherSession(t *testing.T) {
+	s := New()
+	s.Sessions["s1"] = Session{
+		ID: "s1", Command: "planner", Driver: stubDriverState{},
+		Frames: []SessionFrame{{ID: "f1", Command: "planner", Driver: stubDriverState{}}},
+	}
+	s.Sessions["s2"] = Session{
+		ID: "s2", Command: "planner", Driver: stubDriverState{},
+		Frames: []SessionFrame{{ID: "f2", Command: "planner", Driver: stubDriverState{}}},
+	}
+	// planner.ManagedWorktreePath returns "/repo/.roost/worktrees/planner" for any state.
+	if !worktreePathReferenced(s, "/repo/.roost/worktrees/planner", "s1") {
+		t.Error("worktreePathReferenced should be true: s2 still references the path")
+	}
+	if worktreePathReferenced(s, "/other/path", "s1") {
+		t.Error("worktreePathReferenced should be false for a path no other session holds")
+	}
+}
+
+func TestStopSessionPreservesSharedWorktree(t *testing.T) {
+	s := New()
+	// Two sessions sharing the same managed worktree path via planner driver.
+	s1 := SessionID("sess-orig")
+	s2 := SessionID("sess-fork")
+	plannerFrame := func(id SessionID) Session {
+		return Session{
+			ID: id, Command: "planner", Driver: stubDriverState{},
+			Frames: []SessionFrame{{ID: FrameID(id), Command: "planner", Driver: stubDriverState{}}},
+		}
+	}
+	s.Sessions[s1] = plannerFrame(s1)
+	s.Sessions[s2] = plannerFrame(s2)
+
+	// Stop s1 — s2 still references the worktree, so no EffRemoveManagedWorktree.
+	next, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: "stop-session",
+		Payload: mustPayload(map[string]string{"session_id": string(s1)}),
+	})
+	mustOK(t, effs)
+	if _, ok := findEff[EffRemoveManagedWorktree](effs); ok {
+		t.Error("should NOT emit EffRemoveManagedWorktree while fork session still references the worktree")
+	}
+
+	// Now stop s2 — no more references, worktree should be removed.
+	_, effs2 := Reduce(next, EvEvent{
+		ConnID: 1, ReqID: "r2", Event: "stop-session",
+		Payload: mustPayload(map[string]string{"session_id": string(s2)}),
+	})
+	mustOK(t, effs2)
+	if _, ok := findEff[EffRemoveManagedWorktree](effs2); !ok {
+		t.Error("should emit EffRemoveManagedWorktree after last session referencing worktree is stopped")
+	}
+}
+
 // TestPushDriver_AutoSandboxSession verifies that Auto sandbox session produces
 // Auto sandbox on pushed frames (project config decides at dispatch time).
 func TestPushDriver_AutoSandboxSession(t *testing.T) {

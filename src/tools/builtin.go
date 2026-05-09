@@ -18,6 +18,8 @@ import (
 type PaletteContext struct {
 	// ActiveOccupant=="frame" and an active session exists.
 	MainHasDriverFrame bool
+	// Root driver of the active session supports fork (e.g. claude).
+	MainHasForkableDriver bool
 }
 
 // DefaultRegistry returns the built-in palette tool set.
@@ -94,6 +96,20 @@ func DefaultRegistry(feats features.Set, pctx ...PaletteContext) *Registry { //n
 					return nil, fmt.Errorf("no active session")
 				}
 				return nil, ctx.Client.PushDriver(activeID, args["command"], nil)
+			},
+		})
+	}
+	if pc.MainHasForkableDriver {
+		r.Register(Tool{
+			Name:        "fork-session",
+			Description: "Fork active session (new branch)",
+			Run: func(ctx *ToolContext, _ map[string]string) (*ToolInvocation, error) {
+				_, activeID, _, _, _, err := ctx.Client.ListSessions()
+				if err != nil || activeID == "" {
+					return nil, fmt.Errorf("no active session")
+				}
+				_, err = ctx.Client.ForkSession(activeID)
+				return nil, err
 			},
 		})
 	}

@@ -131,6 +131,19 @@ func (c *Client) PushDriver(sessionID, command string, input []byte) error {
 	return err
 }
 
+// ForkSession asks the daemon to fork the given session's conversation into
+// a new independent session. The fork command is resolved daemon-side by the
+// root frame's driver; returns the new session ID on success.
+func (c *Client) ForkSession(sessionID string) (string, error) {
+	r, err := sendJSONEvent[proto.RespCreateSession](c.Client, state.EventForkSession, state.ForkSessionParams{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return "", err
+	}
+	return r.SessionID, nil
+}
+
 // ActivateOccupant changes what occupies the main pane (0.1).
 func (c *Client) ActivateOccupant(kind, sessionID, frameID string) error {
 	_, err := sendJSONEvent[proto.RespOK](c.Client, state.EventActivateOccupant, state.ActivateOccupantParams{

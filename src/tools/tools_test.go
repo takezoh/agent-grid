@@ -85,6 +85,39 @@ func TestPushDriverVisibleWhenMainHasDriverFrame(t *testing.T) {
 	}
 }
 
+func TestForkHiddenWhenNoForkableDriver(t *testing.T) {
+	r := DefaultRegistry(features.Set{})
+	// Without MainHasForkableDriver, fork is not registered.
+	if got := r.Get("fork-session"); got != nil {
+		t.Error("fork should not be registered when MainHasForkableDriver is false")
+	}
+	for _, tool := range r.All() {
+		if tool.Name == "fork-session" {
+			t.Error("fork should not appear in All() when MainHasForkableDriver is false")
+		}
+	}
+}
+
+func TestForkVisibleWhenForkableDriver(t *testing.T) {
+	r := DefaultRegistry(features.Set{}, PaletteContext{MainHasForkableDriver: true})
+	got := r.Get("fork-session")
+	if got == nil {
+		t.Fatal("fork should be registered when MainHasForkableDriver is true")
+	}
+	if got.Hidden {
+		t.Error("fork should not be Hidden")
+	}
+	found := false
+	for _, tool := range r.All() {
+		if tool.Name == "fork-session" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("fork should appear in All() when MainHasForkableDriver is true")
+	}
+}
+
 func TestMatchEmptyQueryReturnsAll(t *testing.T) {
 	r := NewRegistry()
 	r.Register(Tool{Name: "alpha"})

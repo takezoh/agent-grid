@@ -25,6 +25,7 @@ const (
 	EventShutdown         = "shutdown"
 	EventDetach           = "detach"
 	EventPushDriver       = "push-driver"
+	EventForkSession      = "fork-session"
 	EventActivateFrame    = "activate-frame"
 	EventActivateOccupant = "activate-occupant"
 	EventStatusLineClick  = "statusline-click"

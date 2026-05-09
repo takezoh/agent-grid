@@ -286,8 +286,10 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 	}
 	drv := state.GetDriver(frame.Command)
 	var view state.View
+	var rootDriverName string
 	if drv != nil {
 		view = drv.View(frame.Driver)
+		rootDriverName = drv.Name()
 	}
 	if len(sess.Frames) > 1 {
 		if activeF, ok := sessionActiveFrame(sess); ok {
@@ -312,6 +314,7 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		Project:       sess.Project,
 		Workspace:     r.workspaceResolver.Resolve(sess.Project),
 		Command:       frame.Command,
+		RootDriver:    rootDriverName,
 		CreatedAt:     sess.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		State:         view.Status,
 		View:          view,
