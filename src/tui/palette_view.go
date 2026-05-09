@@ -130,7 +130,7 @@ func renderDirSuffix(dir string, indexes []int) string {
 	return descStyle.Render("  ") + highlightMatches(dir, indexes, descStyle, lipgloss.NewStyle().Bold(true).Foreground(Active.Primary))
 }
 
-func renderPaletteParam(m PaletteModel, innerWidth int) string { //nolint:funlen
+func renderPaletteParam(m PaletteModel, innerWidth int) string {
 	hitStyle := lipgloss.NewStyle().Bold(true).Foreground(Active.Primary)
 	plain := lipgloss.NewStyle()
 

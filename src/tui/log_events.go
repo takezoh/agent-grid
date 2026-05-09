@@ -81,7 +81,7 @@ func (m LogModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m LogModel) handleLogEvent(ev proto.ServerEvent) (tea.Model, tea.Cmd) { //nolint:funlen
+func (m LogModel) handleLogEvent(ev proto.ServerEvent) (tea.Model, tea.Cmd) {
 	switch e := ev.(type) {
 	case proto.EvtSessionsChanged:
 		m.currentSession = pickActiveSession(e.Sessions, e.ActiveSessionID)

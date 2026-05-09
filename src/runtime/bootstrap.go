@@ -167,7 +167,7 @@ func (r *Runtime) ReconcileOrphans() {
 }
 
 // RecoverActivePaneAtMain restores a consistent main-pane owner on warm start.
-func (r *Runtime) RecoverActivePaneAtMain() { //nolint:funlen
+func (r *Runtime) RecoverActivePaneAtMain() {
 	paneAtZero, err := r.cfg.Tmux.PaneID(r.mainPaneTarget())
 	if err != nil {
 		slog.Debug("bootstrap: could not get pane id at 0.0", "err", err)

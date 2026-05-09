@@ -161,7 +161,7 @@ const (
 )
 
 // PersistCommon writes the shared fields of CommonState into the persistence bag.
-func (c *CommonState) PersistCommon(out map[string]string) { //nolint:funlen
+func (c *CommonState) PersistCommon(out map[string]string) {
 	if c.RoostSessionID != "" {
 		out[keyRoostSessionID] = c.RoostSessionID
 	}

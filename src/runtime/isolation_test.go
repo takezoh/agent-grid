@@ -1,3 +1,12 @@
+// Package runtime_test contains isolation enforcement tests that complement depguard.
+//
+// Enforcement split:
+//   - depguard (.golangci.yml): prevents driver/, connector/, and lib/<tool>/ packages
+//     from being imported by generic layers (state/, runtime/, tui/, proto/, sandbox/).
+//     This is the primary, zero-false-positive gate.
+//   - This file: catches cases that import-boundary checks cannot see — env variable
+//     name literals (e.g. "ANTHROPIC_API_KEY"), driver command strings (e.g. "claude"),
+//     and standalone connector name literals (e.g. "github") in generic layers.
 package runtime_test
 
 import (

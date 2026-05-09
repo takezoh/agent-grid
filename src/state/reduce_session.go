@@ -57,7 +57,7 @@ func init() {
 	RegisterEvent[json.RawMessage](EventLaunchTool, reduceLaunchTool)
 }
 
-func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionParams) (State, []Effect) { //nolint:funlen
+func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionParams) (State, []Effect) {
 	if p.Project == "" {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, "project arg required")}
 	}
@@ -167,7 +167,7 @@ func reducePushDriver(s State, connID ConnID, reqID string, p PushDriverParams) 
 
 // pushDriverInternal is the shared implementation for pushing a new driver frame
 // onto a session. Used by reducePushDriver (IPC) and reduceDriverHook (EffPushDriver).
-func pushDriverInternal(s State, sid SessionID, project, rawCommand string, options LaunchOptions, input []byte, connID ConnID, reqID string) (State, []Effect, error) { //nolint:funlen
+func pushDriverInternal(s State, sid SessionID, project, rawCommand string, options LaunchOptions, input []byte, connID ConnID, reqID string) (State, []Effect, error) {
 	sess, ok := s.Sessions[sid]
 	if !ok {
 		return s, nil, fmt.Errorf("session not found")

@@ -32,7 +32,7 @@ type deactivateDoneMsg struct {
 	err error
 }
 
-func (m Model) handleServerEvent(ev proto.ServerEvent) (tea.Model, tea.Cmd) { //nolint:funlen
+func (m Model) handleServerEvent(ev proto.ServerEvent) (tea.Model, tea.Cmd) {
 	switch e := ev.(type) {
 	case proto.EvtSessionsChanged:
 		m.sessions = e.Sessions

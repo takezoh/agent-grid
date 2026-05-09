@@ -23,7 +23,7 @@ func (li *listItem) SetRows(rendered string) {
 	li.rows = strings.Count(rendered, "\n") + 1
 }
 
-func (m *Model) rebuildItems() { //nolint:funlen
+func (m *Model) rebuildItems() {
 	var prev listItem
 	if m.cursor >= 0 && m.cursor < len(m.items) {
 		prev = m.items[m.cursor]

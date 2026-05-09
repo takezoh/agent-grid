@@ -122,7 +122,7 @@ func parseHookPayload(payload json.RawMessage) hookPayload {
 
 // handleHook parses the raw JSON from the bridge and dispatches by
 // hook_event_name.
-func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state.DEvHook) (ClaudeState, []state.Effect) { //nolint:funlen
+func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state.DEvHook) (ClaudeState, []state.Effect) {
 	hp := parseHookPayload(e.Payload)
 	if hp.SessionID == "" {
 		return cs, nil
@@ -199,7 +199,7 @@ func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state
 
 // handleSessionStart absorbs identity and kicks initial transcript
 // watch + parse + event log.
-func (d ClaudeDriver) handleSessionStart(cs ClaudeState, ctx state.FrameContext, hp hookPayload, now time.Time) (ClaudeState, []state.Effect) { //nolint:funlen
+func (d ClaudeDriver) handleSessionStart(cs ClaudeState, ctx state.FrameContext, hp hookPayload, now time.Time) (ClaudeState, []state.Effect) {
 	cs = absorbIdentityFromHP(cs, hp)
 	if now.IsZero() {
 		now = cs.StatusChangedAt

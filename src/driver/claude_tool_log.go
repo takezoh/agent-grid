@@ -161,7 +161,7 @@ func (d ClaudeDriver) handleToolLog(cs ClaudeState, hp hookPayload, now time.Tim
 // emitToolLog looks up the matching PreToolUse entry, derives the kind,
 // builds a JSONL line, emits EffToolLogAppend, and removes the entry
 // from PendingTools. kindOverride is non-empty only for failure paths.
-func (d ClaudeDriver) emitToolLog(cs ClaudeState, hp hookPayload, now time.Time, kindOverride string) (ClaudeState, []state.Effect) { //nolint:funlen
+func (d ClaudeDriver) emitToolLog(cs ClaudeState, hp hookPayload, now time.Time, kindOverride string) (ClaudeState, []state.Effect) {
 	var (
 		kind       string
 		durationMs int64

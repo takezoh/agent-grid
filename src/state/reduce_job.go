@@ -50,7 +50,7 @@ func reduceJobResult(s State, e EvJobResult) (State, []Effect) {
 	return s, effs
 }
 
-func handlePendingCreate(s State, pending PendingCreate, e EvJobResult) (State, []Effect) { //nolint:funlen
+func handlePendingCreate(s State, pending PendingCreate, e EvJobResult) (State, []Effect) {
 	s.PendingCreates = clonePendingCreates(s.PendingCreates)
 	delete(s.PendingCreates, e.JobID)
 	s.Jobs = cloneJobs(s.Jobs)

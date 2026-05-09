@@ -64,7 +64,7 @@ type PeerListReply struct {
 	Peers []PeerInfo `json:"peers"`
 }
 
-func reducePeerSend(s State, connID ConnID, reqID string, ctx FrameCtx, p PeerSendParams) (State, []Effect) { //nolint:funlen
+func reducePeerSend(s State, connID ConnID, reqID string, ctx FrameCtx, p PeerSendParams) (State, []Effect) {
 	if !s.Features.On(features.Peers) {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, "peers feature is disabled")}
 	}
@@ -122,7 +122,7 @@ func reducePeerSend(s State, connID ConnID, reqID string, ctx FrameCtx, p PeerSe
 	return s, effs
 }
 
-func reducePeerList(s State, connID ConnID, reqID string, p PeerListParams) (State, []Effect) { //nolint:funlen
+func reducePeerList(s State, connID ConnID, reqID string, p PeerListParams) (State, []Effect) {
 	if !s.Features.On(features.Peers) {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, "peers feature is disabled")}
 	}

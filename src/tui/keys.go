@@ -103,7 +103,7 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (Model, bool) {
 	return m, true
 }
 
-func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) { //nolint:funlen
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.hovering = false
 	if model, handled := m.handleWorkspaceKey(msg); handled {
 		return model, nil

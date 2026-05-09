@@ -141,7 +141,7 @@ type iconScheme struct {
 // renderIconPreviewBody renders a comparison table of status icon schemes
 // so the user can evaluate all options in-context before committing to one.
 // Any status cell with >=2 frames animates live via animFrame.
-func renderIconPreviewBody() string { //nolint:funlen
+func renderIconPreviewBody() string {
 	statuses := []state.Status{
 		state.StatusRunning, state.StatusWaiting, state.StatusIdle,
 		state.StatusStopped, state.StatusPending,

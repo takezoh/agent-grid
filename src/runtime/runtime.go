@@ -263,7 +263,7 @@ func (r *Runtime) StartTapsForRestoredFrames() {
 // Internal events (connOpen, connClose) bypass state.Reduce and go
 // straight to dispatchInternal — they manipulate runtime fields the
 // reducer can't see (the conns map, the next conn id counter).
-func (r *Runtime) Run(ctx context.Context) error { //nolint:funlen
+func (r *Runtime) Run(ctx context.Context) error {
 	defer close(r.done)
 	defer r.workers.Stop()
 	defer r.shutdownIPC()

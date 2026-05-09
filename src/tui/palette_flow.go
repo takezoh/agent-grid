@@ -133,7 +133,7 @@ func applyNewSessionCommandState(m *PaletteModel) {
 	}
 }
 
-func (m PaletteModel) handleParamSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) { //nolint:funlen
+func (m PaletteModel) handleParamSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, escapeBinding):
 		if m.initialTool != "" {
@@ -212,7 +212,7 @@ func (m PaletteModel) handleParamSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 	return m, nil
 }
 
-func (m PaletteModel) filterParamOptions() []matchedOption { //nolint:funlen
+func (m PaletteModel) filterParamOptions() []matchedOption {
 	tokens := strings.Fields(m.input)
 	if len(tokens) == 0 {
 		out := make([]matchedOption, len(m.paramOptions))

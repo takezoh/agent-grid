@@ -9,7 +9,7 @@ import (
 
 // RegisterHooks registers roost hooks in Claude's settings.json.
 // Returns the list of registered event names.
-func RegisterHooks(settingsPath, roostBinary string) ([]string, error) { //nolint:funlen
+func RegisterHooks(settingsPath, roostBinary string) ([]string, error) {
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return nil, err

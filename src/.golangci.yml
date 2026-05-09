@@ -27,7 +27,7 @@ linters:
 
   settings:
     funlen:
-      lines: 50
+      lines: 80
       statements: 99999
       ignore-comments: true
 
@@ -124,6 +124,11 @@ linters:
       # Test files: funlen and errcheck are relaxed in tests
       - linters: [funlen]
         path: "_test\\.go$"
+      # state-machine reducer dispatch tables are exempt from the function-length limit.
+      # Forced extraction of dispatch arms produces single-use helpers that fragment the
+      # state machine without adding clarity.
+      - linters: [funlen]
+        path: "state/reduce_.*\\.go$"
       - linters: [errcheck]
         path: "_test\\.go$"
       # Deferred close is idiomatic — errors are unrecoverable at that point
