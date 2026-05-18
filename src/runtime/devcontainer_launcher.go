@@ -88,7 +88,7 @@ func (l *DevcontainerLauncher) WrapLaunch(frameID state.FrameID, plan state.Laun
 		preparedPlan.StartDir = containerPath
 	}
 
-	cmd, outEnv, err := l.mgr.BuildLaunchCommand(inst, preparedPlan, env)
+	cmd, outEnv, err := l.mgr.BuildLaunchCommand(inst, preparedPlan, sandbox.FrameContext{FrameID: frameID}, env)
 	if err != nil {
 		return WrappedLaunch{}, fmt.Errorf("devcontainer launcher: build command: %w", err)
 	}

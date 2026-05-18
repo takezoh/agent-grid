@@ -30,6 +30,17 @@ type StartOptions struct {
 	SharedMode      bool              // use shared container (isolation=shared) instead of per-project
 }
 
+// FrameContext carries per-frame values the launcher resolves at launch time.
+// Keeping these off the container-scoped DevcontainerSpec is what lets a
+// shared container host frames from different projects without leaking the
+// first frame's project state into every later one.
+type FrameContext struct {
+	FrameID state.FrameID     // identifies the frame this command is for
+	WorkDir string            // container-side cwd (pathmap で解決済み); empty falls back to spec
+	Env     map[string]string // per-frame -e KEY=VAL; wins over spec.RemoteEnv on conflict
+	Mounts  []string          // per-frame -v / --mount (将来用、当面空)
+}
+
 // Manager is the backend-neutral lifecycle controller for project sandboxes.
 // I is the backend-specific internal state type.
 // Implementations must be safe for concurrent use from multiple goroutines.
@@ -41,9 +52,10 @@ type Manager[I any] interface {
 	EnsureInstance(ctx context.Context, projectPath, image string, opts StartOptions) (*Instance[I], error)
 
 	// BuildLaunchCommand generates the shell command string and environment to
-	// run plan inside the sandbox instance. The returned command is passed to
-	// TmuxBackend.SpawnWindow.
-	BuildLaunchCommand(inst *Instance[I], plan state.LaunchPlan, env map[string]string) (command string, outEnv map[string]string, err error)
+	// run plan inside the sandbox instance. frameCtx carries per-frame values
+	// (workDir, env) the launcher resolved at launch time. The returned command
+	// is passed to TmuxBackend.SpawnWindow.
+	BuildLaunchCommand(inst *Instance[I], plan state.LaunchPlan, frameCtx FrameContext, env map[string]string) (command string, outEnv map[string]string, err error)
 
 	// AcquireFrame increments the ref-count for the instance.
 	// Must be called before the frame is spawned.

@@ -323,7 +323,11 @@ func (m *Manager) runPostCreate(containerID string, spec *DevcontainerSpec) {
 }
 
 // BuildLaunchCommand generates a "docker exec" command to run plan inside inst.
-func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], plan state.LaunchPlan, env map[string]string) (string, map[string]string, error) {
+// frameCtx carries per-frame values (workDir, env) the launcher resolved at
+// launch time; in shared mode this is the only path by which per-frame state
+// reaches docker exec (the container-scoped spec stays user-scope only).
+func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], plan state.LaunchPlan, frameCtx sandbox.FrameContext, env map[string]string) (string, map[string]string, error) {
+	_ = frameCtx // Phase B-1: signature only; consumed in B-2/B-3
 	cs := inst.Internal
 	if cs == nil {
 		return "", nil, fmt.Errorf("devcontainer: nil ContainerState for %s", inst.ProjectPath)

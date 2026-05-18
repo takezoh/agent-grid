@@ -186,7 +186,7 @@ func TestBuildLaunchCommand_streamDirectCommand(t *testing.T) {
 		Subsystem: state.LaunchSubsystemStream,
 	}
 
-	got, _, err := m.BuildLaunchCommand(inst, plan, nil)
+	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestBuildLaunchCommand_shellUsesLoginShell(t *testing.T) {
 	m := &Manager{}
 	plan := state.LaunchPlan{Project: project, StartDir: project, Command: "shell"}
 
-	got, _, err := m.BuildLaunchCommand(inst, plan, nil)
+	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestBuildLaunchCommand_RemoteEnv(t *testing.T) {
 	m := &Manager{}
 	plan := state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}
 
-	got, _, err := m.BuildLaunchCommand(inst, plan, nil)
+	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestBuildLaunchCommand_PreExec(t *testing.T) {
 			ProjectPath: project,
 			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
 		}
-		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}, nil)
+		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}, sandbox.FrameContext{}, nil)
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
@@ -376,7 +376,7 @@ func TestBuildLaunchCommand_PreExec(t *testing.T) {
 			ProjectPath: project,
 			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
 		}
-		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}, nil)
+		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}, sandbox.FrameContext{}, nil)
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
@@ -395,7 +395,7 @@ func TestBuildLaunchCommand_PreExec(t *testing.T) {
 			ProjectPath: project,
 			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
 		}
-		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "shell"}, nil)
+		got, _, err := m.BuildLaunchCommand(inst, state.LaunchPlan{Project: project, StartDir: project, Command: "shell"}, sandbox.FrameContext{}, nil)
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
@@ -519,7 +519,7 @@ func TestApplyOverlayEnvAppearsInBuildLaunchCommand(t *testing.T) {
 	m := &Manager{}
 	plan := state.LaunchPlan{Project: project, StartDir: project, Command: "claude"}
 
-	got, _, err := m.BuildLaunchCommand(inst, plan, nil)
+	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
