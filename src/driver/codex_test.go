@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -9,11 +8,6 @@ import (
 	codextranscript "github.com/takezoh/agent-roost/lib/codex/transcript"
 	"github.com/takezoh/agent-roost/state"
 )
-
-func codexHook(fields map[string]string, ts time.Time) state.DEvHook {
-	raw, _ := json.Marshal(fields)
-	return state.DEvHook{Payload: raw, Timestamp: ts}
-}
 
 func newCodex(t *testing.T) (CodexDriver, CodexState, time.Time) {
 	t.Helper()
@@ -33,40 +27,39 @@ func findCodexEffect[T state.Effect](effs []state.Effect) (T, bool) {
 	return zero, false
 }
 
-func TestCodexSessionStartSetsIdle(t *testing.T) {
+func TestCodexSubsystemSessionReadySetsIdle(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.StartDir = "/repo"
-	ev := codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "SessionStart",
-		"transcript_path": "/tmp/t.jsonl",
-		"source":          "resume",
-	}, now)
-	ev.RoostSessionID = "r1"
-	next, effs := d.handleHook(cs, state.FrameContext{IsRoot: true}, ev)
-
+	cs.Status = state.StatusRunning
+	next, effs := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemSessionReady,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID:         "thread-1",
+			TargetID:          "thread-1",
+			RequestedTargetID: "thread-1",
+			ObservedTargetID:  "thread-1",
+			ResumePhase:       "attached",
+		},
+	})
 	if next.Status != state.StatusIdle {
 		t.Fatalf("Status = %v, want idle", next.Status)
 	}
-	if next.CodexSessionID != "sess-1" {
-		t.Fatalf("CodexSessionID = %q", next.CodexSessionID)
+	if next.ThreadID != "thread-1" {
+		t.Fatalf("ThreadID = %q", next.ThreadID)
 	}
-	if next.RoostSessionID != "r1" {
-		t.Fatalf("RoostSessionID = %q", next.RoostSessionID)
+	if next.RequestedThreadID != "thread-1" {
+		t.Fatalf("RequestedThreadID = %q", next.RequestedThreadID)
 	}
-	if next.StartDir != "/repo" || next.TranscriptPath != "/tmp/t.jsonl" {
-		t.Fatalf("working data not absorbed: %+v", next)
+	if next.ObservedThreadID != "thread-1" {
+		t.Fatalf("ObservedThreadID = %q", next.ObservedThreadID)
 	}
-	if len(effs) != 4 {
-		t.Fatalf("effects = %d, want 4", len(effs))
+	if next.ResumePhase != "attached" {
+		t.Fatalf("ResumePhase = %q", next.ResumePhase)
 	}
 	foundBranch := false
-	foundWatch := false
-	foundTranscriptParse := false
 	for _, eff := range effs {
-		if watch, ok := eff.(state.EffWatchFile); ok {
-			foundWatch = watch.Path == "/tmp/t.jsonl"
-		}
 		job, ok := eff.(state.EffStartJob)
 		if !ok {
 			continue
@@ -74,50 +67,33 @@ func TestCodexSessionStartSetsIdle(t *testing.T) {
 		if _, ok := job.Input.(BranchDetectInput); ok {
 			foundBranch = true
 		}
-		if _, ok := job.Input.(CodexTranscriptParseInput); ok {
-			foundTranscriptParse = true
-		}
 	}
 	if !foundBranch {
 		t.Fatal("expected BranchDetectInput job")
 	}
-	if !foundWatch {
-		t.Fatal("expected EffWatchFile")
-	}
-	if !foundTranscriptParse {
-		t.Fatal("expected CodexTranscriptParseInput job")
-	}
 }
 
-func TestCodexSessionStartNonRootSkipsBranchDetect(t *testing.T) {
+func TestCodexSubsystemSessionReadyNonRootSkipsBranchDetect(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.StartDir = "/repo"
-	ev := codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "SessionStart",
-		"transcript_path": "/tmp/t.jsonl",
-	}, now)
-	ev.RoostSessionID = "r1"
-	next, effs := d.handleHook(cs, state.FrameContext{IsRoot: false}, ev)
-	// Non-root: BranchDetect must NOT be emitted.
+	next, effs := d.handleSubsystem(cs, state.FrameContext{IsRoot: false}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemSessionReady,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+		},
+	})
 	if next.BranchInFlight {
 		t.Error("BranchInFlight should be false for non-root frame")
 	}
 	if len(effs) != 0 {
-		t.Fatalf("non-root SessionStart effects = %d, want 0", len(effs))
-	}
-	if next.CodexSessionID != "sess-1" {
-		t.Errorf("CodexSessionID = %q", next.CodexSessionID)
-	}
-	if next.StartDir != "/repo" {
-		t.Errorf("StartDir = %q", next.StartDir)
-	}
-	if next.TranscriptPath != "" {
-		t.Errorf("TranscriptPath = %q, want empty", next.TranscriptPath)
+		t.Fatalf("non-root SessionReady effects = %d, want 0", len(effs))
 	}
 }
 
-func TestCodexBootstrapSessionStartSetsIdleWithoutIdentity(t *testing.T) {
+func TestCodexBootstrapSessionStartSetsIdle(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.Status = state.StatusRunning
 	cs.StartDir = "/repo"
@@ -132,11 +108,8 @@ func TestCodexBootstrapSessionStartSetsIdleWithoutIdentity(t *testing.T) {
 	if next.Status != state.StatusIdle {
 		t.Fatalf("Status = %v, want idle", next.Status)
 	}
-	if next.CodexSessionID != "" {
-		t.Fatalf("CodexSessionID = %q, want empty", next.CodexSessionID)
-	}
-	if next.TranscriptPath != "" {
-		t.Fatalf("TranscriptPath = %q, want empty", next.TranscriptPath)
+	if next.ThreadID != "" {
+		t.Fatalf("ThreadID = %q, want empty", next.ThreadID)
 	}
 	if !next.BranchInFlight {
 		t.Fatal("BranchInFlight should be true")
@@ -144,16 +117,9 @@ func TestCodexBootstrapSessionStartSetsIdleWithoutIdentity(t *testing.T) {
 	if next.BranchTarget != "/repo" {
 		t.Fatalf("BranchTarget = %q", next.BranchTarget)
 	}
-	if next.WatchedFile != "" {
-		t.Fatalf("WatchedFile = %q, want empty", next.WatchedFile)
-	}
 
 	foundBranch := false
-	foundLog := false
 	for _, eff := range effs {
-		if logEff, ok := eff.(state.EffEventLogAppend); ok && logEff.Line == "[event:SessionStart] startup" {
-			foundLog = true
-		}
 		job, ok := eff.(state.EffStartJob)
 		if ok {
 			_, foundBranch = job.Input.(BranchDetectInput)
@@ -162,46 +128,9 @@ func TestCodexBootstrapSessionStartSetsIdleWithoutIdentity(t *testing.T) {
 	if !foundBranch {
 		t.Fatal("expected BranchDetectInput job")
 	}
-	if !foundLog {
-		t.Fatal("expected SessionStart startup event log")
-	}
 }
 
-func TestCodexBootstrapThenHookAbsorbsIdentity(t *testing.T) {
-	d, cs, now := newCodex(t)
-	cs.StartDir = "/repo"
-	nextState, _ := d.BootstrapSessionStart(cs, state.FrameContext{
-		ID:      "frame-1",
-		Project: "/repo",
-		Command: "codex",
-		IsRoot:  true,
-	}, now)
-
-	next, effs := d.handleHook(nextState.(CodexState), state.FrameContext{IsRoot: true}, codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "UserPromptSubmit",
-		"transcript_path": "/tmp/t.jsonl",
-		"prompt":          "implement this",
-	}, now.Add(time.Second)))
-
-	if next.CodexSessionID != "sess-1" {
-		t.Fatalf("CodexSessionID = %q", next.CodexSessionID)
-	}
-	if next.TranscriptPath != "/tmp/t.jsonl" {
-		t.Fatalf("TranscriptPath = %q", next.TranscriptPath)
-	}
-	if next.Status != state.StatusRunning {
-		t.Fatalf("Status = %v, want running", next.Status)
-	}
-	if next.WatchedFile != "/tmp/t.jsonl" {
-		t.Fatalf("WatchedFile = %q", next.WatchedFile)
-	}
-	if _, ok := findCodexEffect[state.EffWatchFile](effs); !ok {
-		t.Fatal("expected EffWatchFile")
-	}
-}
-
-func TestCodexUserPromptTransitionsRunning(t *testing.T) {
+func TestCodexSubsystemPromptSubmittedTransitionsRunning(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.RecentTurns = []SummaryTurn{
 		{Role: "user", Text: "inspect repo"},
@@ -209,11 +138,16 @@ func TestCodexUserPromptTransitionsRunning(t *testing.T) {
 		{Role: "user", Text: "find failing tests"},
 		{Role: "assistant", Text: "found driver failures"},
 	}
-	next, effs := d.handleHook(cs, state.FrameContext{IsRoot: true}, codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "UserPromptSubmit",
-		"prompt":          "implement this",
-	}, now))
+	next, effs := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemPromptSubmitted,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Prompt:    "implement this",
+		},
+	})
 	if next.Status != state.StatusRunning {
 		t.Fatalf("Status = %v, want running", next.Status)
 	}
@@ -247,14 +181,19 @@ func TestCodexUserPromptTransitionsRunning(t *testing.T) {
 	}
 }
 
-func TestCodexStopTransitionsWaiting(t *testing.T) {
+func TestCodexSubsystemTurnCompletedTransitionsWaiting(t *testing.T) {
 	d, cs, now := newCodex(t)
-	next, _ := d.handleHook(cs, state.FrameContext{IsRoot: true}, codexHook(map[string]string{
-		"session_id":             "sess-1",
-		"hook_event_name":        "Stop",
-		"last_assistant_message": "done",
-		"stop_reason":            "finished",
-	}, now))
+	cs.Status = state.StatusRunning
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemTurnCompleted,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID:            "thread-1",
+			TargetID:             "thread-1",
+			LastAssistantMessage: "done",
+		},
+	})
 	if next.Status != state.StatusWaiting {
 		t.Fatalf("Status = %v, want waiting", next.Status)
 	}
@@ -263,20 +202,107 @@ func TestCodexStopTransitionsWaiting(t *testing.T) {
 	}
 }
 
-func TestCodexPendingTransitionsToRunningOnPreToolUse(t *testing.T) {
+func TestCodexSubsystemApprovalRequestedTransitionsPending(t *testing.T) {
 	d, cs, now := newCodex(t)
-	cs.Status = state.StatusPending
-	cs.StatusChangedAt = now.Add(-time.Minute)
-	next, _ := d.handleHook(cs, state.FrameContext{IsRoot: true}, codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "PreToolUse",
-		"tool_name":       "Bash",
-	}, now))
-	if next.Status != state.StatusRunning {
-		t.Fatalf("Status = %v, want running", next.Status)
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemApprovalRequested,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			Approval:  &state.SubsystemApproval{ID: "ap1", Kind: "command"},
+		},
+	})
+	if next.Status != state.StatusPending {
+		t.Fatalf("Status = %v, want pending", next.Status)
 	}
-	if next.CurrentTool != "Bash" {
-		t.Fatalf("CurrentTool = %q, want Bash", next.CurrentTool)
+	if !next.PendingApproval {
+		t.Fatal("PendingApproval should be true")
+	}
+}
+
+func TestCodexSubsystemToolLifecycleUpdatesState(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.StartDir = "/repo"
+	start, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemToolStarted,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			Tool: &state.SubsystemTool{
+				ID:      "tool-1",
+				Name:    "Bash",
+				Command: "go test ./...",
+			},
+		},
+	})
+	if start.CurrentTool != "Bash" {
+		t.Fatalf("CurrentTool = %q", start.CurrentTool)
+	}
+	if _, ok := start.PendingTools["tool-1"]; !ok {
+		t.Fatal("expected pending tool")
+	}
+
+	done, effs := d.handleSubsystem(start, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemToolCompleted,
+		Timestamp: now.Add(time.Second),
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			Tool: &state.SubsystemTool{
+				ID:      "tool-1",
+				Name:    "Bash",
+				Command: "go test ./...",
+			},
+		},
+	})
+	if done.CurrentTool != "" {
+		t.Fatalf("CurrentTool = %q, want empty", done.CurrentTool)
+	}
+	if _, ok := done.PendingTools["tool-1"]; ok {
+		t.Fatal("pending tool should be cleared")
+	}
+	if _, ok := findCodexEffect[state.EffToolLogAppend](effs); !ok {
+		t.Fatal("expected EffToolLogAppend")
+	}
+}
+
+func TestCodexSubsystemMessageAndPlanUpdates(t *testing.T) {
+	d, cs, now := newCodex(t)
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemMessageUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID:            "thread-1",
+			LastAssistantMessage: "done",
+			Message: &state.SubsystemMessage{
+				RecentTurns: []state.SubsystemTurn{
+					{Role: "user", Text: "do x"},
+					{Role: "assistant", Text: "done"},
+				},
+			},
+		},
+	})
+	if next.LastAssistantMessage != "done" {
+		t.Fatalf("LastAssistantMessage = %q", next.LastAssistantMessage)
+	}
+	if len(next.RecentTurns) != 2 {
+		t.Fatalf("RecentTurns = %d", len(next.RecentTurns))
+	}
+
+	next, _ = d.handleSubsystem(next, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemPlanUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			Plan:      &state.SubsystemPlan{Summary: "implement subsystem support"},
+		},
+	})
+	if next.PlanSummary != "implement subsystem support" {
+		t.Fatalf("PlanSummary = %q", next.PlanSummary)
 	}
 }
 
@@ -323,60 +349,52 @@ func TestCodexWindowTitleViaStepIgnoresNonRoot(t *testing.T) {
 	}
 }
 
-func TestCodexDropsStaleHook(t *testing.T) {
-	d, cs, now := newCodex(t)
-	cs.LastHookAt = now
-	next, effs := d.handleHook(cs, state.FrameContext{IsRoot: true}, codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "Stop",
-	}, now))
-	if next.Status != cs.Status {
-		t.Fatal("stale hook should not update status")
-	}
-	if len(effs) != 0 {
-		t.Fatalf("effects = %d, want 0", len(effs))
-	}
-}
-
-func TestCodexPrepareLaunchResume(t *testing.T) {
+func TestCodexPrepareLaunchResumesWithThreadID(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	cs.CodexSessionID = "abc-123"
+	cs.ThreadID = "thread-abc-123"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
-	got := plan.Command
-	want := "codex --model gpt-5-codex resume abc-123"
-	if got != want {
-		t.Fatalf("PrepareLaunch.Command = %q, want %q", got, want)
+	if plan.Command != "codex --model gpt-5-codex" {
+		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
+	}
+	if plan.Subsystem != state.LaunchSubsystemStream {
+		t.Fatalf("PrepareLaunch.Subsystem = %q, want %q", plan.Subsystem, state.LaunchSubsystemStream)
+	}
+	if plan.Stream.ResumeThreadID != "thread-abc-123" {
+		t.Fatalf("Stream.ResumeThreadID = %q", plan.Stream.ResumeThreadID)
 	}
 }
 
 func TestCodexPrepareLaunchNoDoubleResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	cs.CodexSessionID = "abc-123"
+	cs.ThreadID = "thread-abc-123"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex resume abc", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
-	got := plan.Command
-	if got != "codex resume abc" {
-		t.Fatalf("PrepareLaunch.Command = %q", got)
+	if plan.Command != "codex resume abc" {
+		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
+	}
+	if plan.Stream.ResumeThreadID != "" {
+		t.Fatalf("Stream.ResumeThreadID = %q, want empty", plan.Stream.ResumeThreadID)
 	}
 }
 
 func TestCodexPrepareLaunchStripsWorktreeOnResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	cs.CodexSessionID = "abc-123"
+	cs.ThreadID = "thread-abc-123"
 	cs.ManagedWorkingDir = "/repo/.roost/worktrees/codex-1234"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
-	got := plan.Command
-	want := "codex --model gpt-5-codex resume abc-123"
-	if got != want {
-		t.Fatalf("PrepareLaunch.Command = %q, want %q", got, want)
+	if plan.Command != "codex --model gpt-5-codex" {
+		t.Fatalf("PrepareLaunch.Command = %q, want %q", plan.Command, "codex --model gpt-5-codex")
+	}
+	if plan.Stream.ResumeThreadID != "thread-abc-123" {
+		t.Fatalf("Stream.ResumeThreadID = %q", plan.Stream.ResumeThreadID)
 	}
 }
 
@@ -387,49 +405,84 @@ func TestCodexPrepareLaunchStripsWorktreeWithoutResume(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
-	got := plan.Command
-	want := "codex --model gpt-5-codex"
-	if got != want {
-		t.Fatalf("PrepareLaunch.Command = %q, want %q", got, want)
+	if plan.Command != "codex --model gpt-5-codex" {
+		t.Fatalf("PrepareLaunch.Command = %q, want %q", plan.Command, "codex --model gpt-5-codex")
+	}
+	if plan.Stream.ResumeThreadID != "" {
+		t.Fatalf("Stream.ResumeThreadID = %q, want empty", plan.Stream.ResumeThreadID)
 	}
 }
 
-func TestCodexPrepareLaunchAddsYoloWhenSandboxed(t *testing.T) {
+func TestCodexPrepareLaunchSetsExternalSandboxWhenSandboxed(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, true)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
-	got := plan.Command
-	want := "codex --model gpt-5-codex --yolo"
-	if got != want {
-		t.Fatalf("PrepareLaunch.Command = %q, want %q", got, want)
+	if plan.Command != "codex --model gpt-5-codex" {
+		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
+	}
+	if plan.Subsystem != state.LaunchSubsystemStream {
+		t.Fatalf("PrepareLaunch.Subsystem = %q, want %q", plan.Subsystem, state.LaunchSubsystemStream)
+	}
+	if plan.Stream.SandboxPolicy != state.StreamSandboxPolicyExternal {
+		t.Fatalf("Stream.SandboxPolicy = %q, want %q", plan.Stream.SandboxPolicy, state.StreamSandboxPolicyExternal)
+	}
+	if plan.Stream.ApprovalPolicy != state.StreamApprovalPolicyAutoApprove {
+		t.Fatalf("Stream.ApprovalPolicy = %q, want %q", plan.Stream.ApprovalPolicy, state.StreamApprovalPolicyAutoApprove)
 	}
 }
 
-func TestCodexPrepareLaunchDoesNotDuplicateYolo(t *testing.T) {
+func TestCodexPrepareLaunchLeavesStreamPoliciesDefaultWithoutSandbox(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --model gpt-5-codex --yolo", state.LaunchOptions{}, true)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
-	got := plan.Command
-	want := "codex --model gpt-5-codex --yolo"
-	if got != want {
-		t.Fatalf("PrepareLaunch.Command = %q, want %q", got, want)
+	if plan.Stream.SandboxPolicy != state.StreamSandboxPolicyDefault {
+		t.Fatalf("Stream.SandboxPolicy = %q, want default", plan.Stream.SandboxPolicy)
+	}
+	if plan.Stream.ApprovalPolicy != state.StreamApprovalPolicyDefault {
+		t.Fatalf("Stream.ApprovalPolicy = %q, want default", plan.Stream.ApprovalPolicy)
 	}
 }
 
 func TestCodexPrepareLaunchSkipsNonCodexBaseCommand(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	cs.CodexSessionID = "abc-123"
+	cs.ThreadID = "thread-abc-123"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "env FOO=bar", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
-	got := plan.Command
-	if got != "env FOO=bar" {
-		t.Fatalf("PrepareLaunch.Command = %q", got)
+	if plan.Command != "env FOO=bar" {
+		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
+	}
+}
+
+func TestCodexPrepareLaunchColdStartUsesPersistedStartDir(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	cs.CommonState.StartDir = "/proj/.roost/worktrees/foo"
+	for _, mode := range []state.LaunchMode{state.LaunchModeCreate, state.LaunchModeColdStart} {
+		plan, err := d.PrepareLaunch(cs, mode, "/proj", "codex", state.LaunchOptions{}, false)
+		if err != nil {
+			t.Fatalf("mode=%v PrepareLaunch error: %v", mode, err)
+		}
+		if plan.StartDir != "/proj/.roost/worktrees/foo" {
+			t.Errorf("mode=%v StartDir = %q, want worktree path", mode, plan.StartDir)
+		}
+	}
+}
+
+func TestCodexPrepareLaunchFallsBackToProjectWhenStartDirEmpty(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	for _, mode := range []state.LaunchMode{state.LaunchModeCreate, state.LaunchModeColdStart} {
+		plan, err := d.PrepareLaunch(cs, mode, "/proj", "codex", state.LaunchOptions{}, false)
+		if err != nil {
+			t.Fatalf("mode=%v PrepareLaunch error: %v", mode, err)
+		}
+		if plan.StartDir != "/proj" {
+			t.Errorf("mode=%v StartDir = %q, want /proj", mode, plan.StartDir)
+		}
 	}
 }
 
@@ -454,12 +507,12 @@ func TestCodexPersistRestoreRoundTrip(t *testing.T) {
 		LastHookEvent:        "Stop",
 		LastHookAt:           now,
 	}
-	cs.CodexSessionID = "c1"
+	cs.ThreadID = "thread-t1"
 	cs.ManagedWorkingDir = "/repo/.roost/worktrees/codex-abcd"
 
 	bag := d.Persist(cs)
 	got := d.Restore(bag, now.Add(time.Hour)).(CodexState)
-	if got.CodexSessionID != "c1" || got.StartDir != "/repo" {
+	if got.ThreadID != "thread-t1" || got.StartDir != "/repo" {
 		t.Fatalf("restore mismatch: %+v", got)
 	}
 	if got.ManagedWorkingDir != "/repo/.roost/worktrees/codex-abcd" || got.WorktreeName != "codex-abcd" {

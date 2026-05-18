@@ -30,6 +30,8 @@ func (f *fakeAgentLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ str
 
 func (f *fakeAgentLauncher) EnsureProject(_ context.Context, _ string) error { return nil }
 
+func (f *fakeAgentLauncher) IsContainer(_ string) bool { return false }
+
 func TestSandboxDispatcher_DirectMode_RoutesToDirect(t *testing.T) {
 	direct := &fakeAgentLauncher{wrapResult: WrappedLaunch{Command: "bash"}}
 	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "direct"})

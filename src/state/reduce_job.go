@@ -97,7 +97,7 @@ func handlePendingCreate(s State, pending PendingCreate, e EvJobResult) (State, 
 	pending.Session.Frames[frameIdx].LaunchOptions = plan.Options
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[pending.Session.ID] = pending.Session
-	return s, []Effect{spawnEffect(pending.Session.ID, pending.FrameID, plan, pending.ReplyConn, pending.ReplyReqID)}
+	return s, []Effect{spawnEffect(pending.Session.ID, pending.FrameID, pending.Session.Frames[frameIdx].SubsystemID, plan, pending.ReplyConn, pending.ReplyReqID)}
 }
 
 // reduceFileChanged routes a fsnotify event to the matching

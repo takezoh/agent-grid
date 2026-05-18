@@ -100,9 +100,9 @@ Variable substitution in string values: `${localWorkspaceFolder}`, `${localWorks
 
 Each sandboxed project gets a dedicated Unix socket at `<dataDir>/run/<project-hash>/roost.sock` on the host. It is bind-mounted read-write into the container at `/opt/roost/run/roost.sock` (via the per-project run dir mount that already exists for credential helper files). The container agent reads `ROOST_SOCKET` (set to `/opt/roost/run/roost.sock`) to locate it.
 
-**API surface**: only `hook-event` is implemented. Commands such as `event`, `surface.send_text`, `peer.send`, `shutdown`, and all others are structurally absent — no handler is registered, so they receive a protocol error without touching state.
+**API surface**: `hook-event` and `subsystem-event` are implemented. Commands such as `event`, `surface.send_text`, `peer.send`, `shutdown`, and all others are structurally absent — no handler is registered, so they receive a protocol error without touching state.
 
-**Authentication**: at frame spawn time, a 32-byte `crypto/rand` token is generated and injected into the container via `ROOST_SOCKET_TOKEN`. Every `hook-event` message carries the token; server-side Lookup resolves it to the owning frame ID. No client-supplied frame ID is trusted.
+**Authentication**: at frame spawn time, a 32-byte `crypto/rand` token is generated and injected into the container via `ROOST_SOCKET_TOKEN`. Every `hook-event` and `subsystem-event` message carries the token; server-side Lookup resolves it to the owning frame ID. No client-supplied frame ID is trusted.
 
 **Warm-start recovery**: tokens are persisted to `<dataDir>/warm/<frameID>.json` (atomic write, `0o600`). On daemon warm restart (containers survive, daemon replaces), `RecoverSandboxFrames` reads `warm/*.json` and re-registers each token for live frames so hook events continue to work immediately. The `warm/` directory is never bind-mounted into containers — a container process cannot read other frames' tokens.
 
@@ -110,7 +110,7 @@ Each sandboxed project gets a dedicated Unix socket at `<dataDir>/run/<project-h
 
 ## Container↔Host Path Translation
 
-Sandboxed agents emit hook payloads containing container-absolute paths (e.g. `/workspaces/proj/.../session.jsonl`), but the daemon, drivers, and TUI operate on host-absolute paths. `lib/pathmap` translates at the IPC boundary using the bind-mount table captured in `WrappedLaunch.Mounts`. State, runtime above the launcher, proto, and TUI never see container paths.
+Sandboxed agents emit hook payloads and subsystem payloads containing container-absolute paths (e.g. `/workspaces/proj/.../session.jsonl`), but the daemon, drivers, and TUI operate on host-absolute paths. `lib/pathmap` translates at the IPC boundary using the bind-mount table captured in `WrappedLaunch.Mounts`. State, runtime above the launcher, proto, and TUI never see container paths.
 
 ## Host Mounts
 

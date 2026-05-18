@@ -75,11 +75,18 @@ func (l *DevcontainerLauncher) WrapLaunch(frameID state.FrameID, plan state.Laun
 
 	mounts := buildMounts(plan.Project, inst.Internal.WorkspaceTarget(), runDir, inst.Internal.BindMounts())
 
+	startDir := plan.StartDir
+	if containerPath, ok := mounts.ToContainer(startDir); ok {
+		startDir = containerPath
+	}
+
 	return WrappedLaunch{
 		Command:          cmd,
-		StartDir:         plan.StartDir,
+		StartDir:         startDir,
 		Env:              outEnv,
 		Cleanup:          l.makeCleanup(frameID, inst),
+		Subsystem:        plan.Subsystem,
+		Stream:           plan.Stream,
 		ContainerSockDir: runDir,
 		Mounts:           mounts,
 	}, nil
@@ -111,6 +118,8 @@ func buildMounts(hostProject, containerWS, hostRunDir string, userBinds []sandbo
 	}
 	return ms
 }
+
+func (l *DevcontainerLauncher) IsContainer(_ string) bool { return true }
 
 func (l *DevcontainerLauncher) EnsureProject(ctx context.Context, projectPath string) error {
 	ctx, cancel := context.WithTimeout(ctx, containerEnsureTimeout)
@@ -187,7 +196,10 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 			fmt.Sprintf("type=bind,source=%s,target=%s", runDir, ContainerRunDir),
 		}, proxySpec.Mounts...)
 
-		postCreate := buildPostCreate(binPath, postCreateSubcmds, proxySpec.BridgeSpecs)
+		// codex backend's sockbridge is registered alongside provider
+		// bridges so postCreate starts them all in one place.
+		bridges := append(proxySpec.BridgeSpecs, codexContainerBridgeSpec())
+		postCreate := buildPostCreate(binPath, postCreateSubcmds, bridges)
 
 		return sandboxdc.SpecOverlay{
 			Env:                     env,

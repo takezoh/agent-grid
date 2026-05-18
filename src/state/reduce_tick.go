@@ -1,6 +1,10 @@
 package state
 
-import "github.com/takezoh/agent-roost/uiproc"
+import (
+	"log/slog"
+
+	"github.com/takezoh/agent-roost/uiproc"
+)
 
 // Tick reducer. Fans the tick out to every session's driver and
 // emits periodic reconciliation + health-check effects.
@@ -80,13 +84,19 @@ func stepConnectors(s State) (State, []Effect) {
 //   - Pane 0.1 with no active session: main or log TUI crashed — respawn it
 //   - Pane 0.1 with active session: evict the owning session
 func reducePaneDied(s State, e EvPaneDied) (State, []Effect) {
+	slog.Info("state: reducePaneDied entry",
+		"pane", e.Pane, "owner", e.OwnerFrameID,
+		"occupant", s.ActiveOccupant, "activeSession", s.ActiveSession)
+
 	// Hidden pane (log TUI): log TUI process crashed — respawn it in place.
 	if e.Pane == "{sessionName}:__hidden__.0" {
+		slog.Info("state: reducePaneDied branch=hidden-log")
 		return s, []Effect{EffRespawnPane{Pane: e.Pane, Proc: uiproc.Log()}}
 	}
 
 	// Control pane respawn
 	if proc, ok := uiproc.RespawnTarget(e.Pane); ok {
+		slog.Info("state: reducePaneDied branch=control-respawn", "proc", proc.Name)
 		return s, []Effect{
 			EffRespawnPane{Pane: e.Pane, Proc: proc},
 		}
@@ -98,6 +108,8 @@ func reducePaneDied(s State, e EvPaneDied) (State, []Effect) {
 		if s.ActiveOccupant == OccupantLog {
 			proc = uiproc.Log()
 		}
+		slog.Info("state: reducePaneDied branch=no-active-frame-respawn",
+			"proc", proc.Name, "occupant", s.ActiveOccupant)
 		return s, []Effect{
 			EffRespawnPane{Pane: e.Pane, Proc: proc},
 		}
@@ -111,16 +123,25 @@ func reducePaneDied(s State, e EvPaneDied) (State, []Effect) {
 		if sess, ok := s.Sessions[s.ActiveSession]; ok {
 			if frame, ok := activeFrame(sess); ok {
 				ownerID = frame.ID
+				slog.Info("state: reducePaneDied owner fallback via ActiveSession",
+					"owner", ownerID)
 			}
 		}
 	}
 	if ownerID == "" {
+		slog.Info("state: reducePaneDied bail=no-owner")
 		return s, nil
+	}
+	if next, effs, handled := failSubsystemFrame(s, ownerID, "pane exited", true); handled {
+		slog.Info("state: reducePaneDied branch=failSubsystemFrame", "owner", ownerID)
+		return next, effs
 	}
 	s, effs, ok := evictFrame(s, ownerID, true)
 	if !ok {
+		slog.Info("state: reducePaneDied evictFrame returned !ok", "owner", ownerID)
 		return s, nil
 	}
+	slog.Info("state: reducePaneDied evictFrame ok", "owner", ownerID, "neffs", len(effs))
 	return s, effs
 }
 

@@ -67,6 +67,97 @@ type DEvHook struct {
 
 func (DEvHook) isDriverEvent() {}
 
+type SubsystemKind string
+
+const (
+	SubsystemCLI    SubsystemKind = "cli"
+	SubsystemStream SubsystemKind = "stream"
+)
+
+type SubsystemEventKind string
+
+const (
+	SubsystemSessionReady      SubsystemEventKind = "session_ready"
+	SubsystemFailed            SubsystemEventKind = "failed"
+	SubsystemPromptSubmitted   SubsystemEventKind = "prompt_submitted"
+	SubsystemTurnStarted       SubsystemEventKind = "turn_started"
+	SubsystemTurnCompleted     SubsystemEventKind = "turn_completed"
+	SubsystemToolStarted       SubsystemEventKind = "tool_started"
+	SubsystemToolCompleted     SubsystemEventKind = "tool_completed"
+	SubsystemApprovalRequested SubsystemEventKind = "approval_requested"
+	SubsystemApprovalResolved  SubsystemEventKind = "approval_resolved"
+	SubsystemPlanUpdated       SubsystemEventKind = "plan_updated"
+	SubsystemDiffUpdated       SubsystemEventKind = "diff_updated"
+	SubsystemMessageUpdated    SubsystemEventKind = "message_updated"
+)
+
+type SubsystemTurn struct {
+	Role string `json:"role"`
+	Text string `json:"text"`
+}
+
+type SubsystemTool struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Command        string `json:"command"`
+	Path           string `json:"path"`
+	Error          string `json:"error"`
+	PermissionMode string `json:"permission_mode"`
+	IsInterrupt    bool   `json:"is_interrupt"`
+}
+
+type SubsystemApproval struct {
+	ID          string `json:"id"`
+	Kind        string `json:"kind"`
+	Command     string `json:"command"`
+	Path        string `json:"path"`
+	Reason      string `json:"reason"`
+	AutoApprove bool   `json:"auto_approve"`
+	Resolved    bool   `json:"resolved"`
+	Denied      bool   `json:"denied"`
+}
+
+type SubsystemPlan struct {
+	Summary string `json:"summary"`
+}
+
+type SubsystemDiff struct {
+	Summary string   `json:"summary"`
+	Paths   []string `json:"paths"`
+}
+
+type SubsystemMessage struct {
+	RecentTurns []SubsystemTurn `json:"recent_turns"`
+}
+
+type SubsystemPayload struct {
+	SessionID            string             `json:"session_id"`
+	TurnID               string             `json:"turn_id"`
+	TargetID             string             `json:"target_id"`
+	RequestedTargetID    string             `json:"requested_target_id"`
+	ObservedTargetID     string             `json:"observed_target_id"`
+	ResumePhase          string             `json:"resume_phase"`
+	Prompt               string             `json:"prompt"`
+	Error                string             `json:"error"`
+	LastAssistantMessage string             `json:"last_assistant_message"`
+	StatusLine           string             `json:"status_line"`
+	TranscriptPath       string             `json:"transcript_path"`
+	Tool                 *SubsystemTool     `json:"tool,omitempty"`
+	Approval             *SubsystemApproval `json:"approval,omitempty"`
+	Plan                 *SubsystemPlan     `json:"plan,omitempty"`
+	Diff                 *SubsystemDiff     `json:"diff,omitempty"`
+	Message              *SubsystemMessage  `json:"message,omitempty"`
+}
+
+type DEvSubsystem struct {
+	Source    SubsystemKind
+	Kind      SubsystemEventKind
+	Timestamp time.Time
+	Payload   SubsystemPayload
+}
+
+func (DEvSubsystem) isDriverEvent() {}
+
 // DEvTick is the periodic tick. Active reflects whether this session is
 // currently shown in pane 0.0 — drivers use it to gate expensive work
 // that only matters when the user is looking. PaneTarget is the tmux
@@ -190,17 +281,50 @@ type LaunchOptions struct {
 	InitialInput []byte         `json:"initial_input,omitempty"`
 }
 
+type LaunchSubsystem string
+
+const (
+	LaunchSubsystemCLI    LaunchSubsystem = "cli"
+	LaunchSubsystemStream LaunchSubsystem = "stream"
+)
+
+type StreamSandboxPolicy string
+
+const (
+	StreamSandboxPolicyDefault  StreamSandboxPolicy = ""
+	StreamSandboxPolicyExternal StreamSandboxPolicy = "external"
+)
+
+type StreamApprovalPolicy string
+
+const (
+	StreamApprovalPolicyDefault     StreamApprovalPolicy = ""
+	StreamApprovalPolicyAutoApprove StreamApprovalPolicy = "auto_approve"
+)
+
+type StreamLaunchOptions struct {
+	SandboxPolicy  StreamSandboxPolicy  `json:"sandbox_policy,omitempty"`
+	ApprovalPolicy StreamApprovalPolicy `json:"approval_policy,omitempty"`
+	ResumeThreadID string               `json:"resume_thread_id,omitempty"`
+}
+
 type LaunchPlan struct {
-	Command  string
-	StartDir string
-	Project  string          // canonical project root passed opaquely to the sandbox launcher
-	Sandbox  SandboxOverride // session-level sandbox mode, written by reducer before dispatch
-	Options  LaunchOptions
-	Stdin    []byte // content piped into the spawned command; nil = no stdin
+	Command   string
+	StartDir  string
+	Project   string          // canonical project root passed opaquely to the sandbox launcher
+	Sandbox   SandboxOverride // session-level sandbox mode, written by reducer before dispatch
+	Options   LaunchOptions
+	Subsystem LaunchSubsystem
+	Stream    StreamLaunchOptions
+	Stdin     []byte // content piped into the spawned command; nil = no stdin
 }
 
 type LaunchPreparer interface {
 	PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, sandboxed bool) (LaunchPlan, error)
+}
+
+type SubsystemPlanner interface {
+	SubsystemID(project string, sandbox SandboxOverride, frameID FrameID) SubsystemID
 }
 
 // Driver is the interface every per-driver-type plugin implements. Each

@@ -11,10 +11,19 @@ func (CodexDriver) Persist(s state.DriverState) map[string]string {
 	if !ok {
 		return nil
 	}
-	out := make(map[string]string, 10)
+	out := make(map[string]string, 13)
 	cs.PersistCommon(out)
-	if cs.CodexSessionID != "" {
-		out[codexKeyCodexSessionID] = cs.CodexSessionID
+	if cs.ThreadID != "" {
+		out[codexKeyThreadID] = cs.ThreadID
+	}
+	if cs.RequestedThreadID != "" {
+		out[codexKeyRequestedThreadID] = cs.RequestedThreadID
+	}
+	if cs.ObservedThreadID != "" {
+		out[codexKeyObservedThreadID] = cs.ObservedThreadID
+	}
+	if cs.ResumePhase != "" {
+		out[codexKeyResumePhase] = cs.ResumePhase
 	}
 	if cs.ManagedWorkingDir != "" {
 		out[codexKeyManagedWorkingDir] = cs.ManagedWorkingDir
@@ -33,7 +42,10 @@ func (d CodexDriver) Restore(bag map[string]string, now time.Time) state.DriverS
 		return cs
 	}
 	cs.RestoreCommon(bag)
-	cs.CodexSessionID = bag[codexKeyCodexSessionID]
+	cs.ThreadID = bag[codexKeyThreadID]
+	cs.RequestedThreadID = bag[codexKeyRequestedThreadID]
+	cs.ObservedThreadID = bag[codexKeyObservedThreadID]
+	cs.ResumePhase = bag[codexKeyResumePhase]
 	cs.ManagedWorkingDir = bag[codexKeyManagedWorkingDir]
 	return cs
 }

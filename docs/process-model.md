@@ -97,6 +97,7 @@ roost --tui palette [flags] → Command palette (tmux popup)
 roost --tui log             → Log TUI (Pane 0.1)
 roost event <eventType>     → Hook event receiver (short-lived process invoked by hook)
 roost claude setup          → Claude hook registration (writes to ~/.claude/settings.json)
+roost codex setup           → Codex MCP registration (writes ~/.codex/mcp.json)
 ```
 
 ### Daemon (Runtime)
@@ -135,6 +136,8 @@ runDaemon()
 ```
 
 **The difference between warm start and cold start is only the bootstrap path**. Both use sessions.json as the source of truth, and both restore the same frame stack per session. The driver's PersistedState (status / title / summary / branch, etc.) is included in each frame's `driver_state` bag, and each frame's normalized `LaunchOptions` is persisted alongside it so cold start can respawn with the same launch flavor.
+
+For Codex, the daemon starts one `codex app-server --listen unix://<runDir>/codex.sock` per project and connects to it via **WebSocket-over-UDS** (HTTP Upgrade handshake — the transport codex app-server speaks). Structured RPC events from the app-server are converted to `DEvSubsystem` and dispatched to the owning frame. The pane TUI connects with `codex --remote ws://127.0.0.1:8282` (cold start) or `codex resume <id> --remote ws://...` (warm start); `sockbridge` bridges the TCP loopback port to the UDS (host mode: daemon starts it; container mode: postCreate). Codex state is not driven by hooks.
 
 #### Detach vs Shutdown
 

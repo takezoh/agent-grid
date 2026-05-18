@@ -124,6 +124,14 @@ type Runtime struct {
 	// warmFrames persists warm-only per-frame state (container tokens) to
 	// <dataDir>/warm/ so they survive daemon warm restarts.
 	warmFrames *warmFrameStore
+
+	// hostSubsystems is the SubsystemRegistry for host-launched frames.
+	hostSubsystems *SubsystemRegistry
+	// containerSubsystems holds one *SubsystemRegistry per project path for
+	// frames that run inside a devcontainer. Access via sync.Map because
+	// spawnTmuxWindowAsync runs in goroutines.
+	containerSubsystems sync.Map // string (project path) → *SubsystemRegistry
+	codexBackends       sync.Map // state.SubsystemID → *codexBackend
 }
 
 // New constructs a Runtime ready for Run. Backends must be set on the
@@ -190,12 +198,26 @@ func New(cfg Config) *Runtime {
 		} else {
 			r.warmFrames = wf
 		}
+		r.hostSubsystems = newSubsystemRegistry()
+	} else {
+		r.hostSubsystems = newSubsystemRegistry()
 	}
 	return r
 }
 
 // Done signals when Run has fully exited.
 func (r *Runtime) Done() <-chan struct{} { return r.done }
+
+// getSubsystemRegistry returns the SubsystemRegistry for the environment that
+// hosts the given project. Host frames share one registry; each devcontainer
+// project gets its own so endpoint files remain in env-local directories.
+func (r *Runtime) getSubsystemRegistry(project string) *SubsystemRegistry {
+	if !launcher(r.cfg).IsContainer(project) {
+		return r.hostSubsystems
+	}
+	v, _ := r.containerSubsystems.LoadOrStore(project, newSubsystemRegistry())
+	return v.(*SubsystemRegistry)
+}
 
 func (r *Runtime) ResetWarmState() error {
 	if r.warmFrames == nil {
@@ -338,6 +360,8 @@ func (r *Runtime) scheduleActiveFramePaneProbe() {
 		if err != nil || alive {
 			return
 		}
+		slog.Info("runtime: fast probe detected pane dead",
+			"frame", frameID, "target", target)
 		r.Enqueue(state.EvPaneDied{
 			Pane:         "{sessionName}:0.1",
 			OwnerFrameID: frameID,
@@ -361,12 +385,19 @@ func (r *Runtime) dispatch(ev state.Event) {
 // EvTick so reducers can forward pane targets to drivers without
 // accessing the runtime directly.
 func (r *Runtime) snapshotPaneTargets() map[state.FrameID]string {
-	if len(r.sessionPanes) == 0 {
+	if len(r.state.Sessions) == 0 {
 		return nil
 	}
 	out := make(map[state.FrameID]string, len(r.sessionPanes))
-	for k, v := range r.sessionPanes {
-		out[k] = v
+	for _, sess := range r.state.Sessions {
+		for _, frame := range sess.Frames {
+			if pane := r.subsystemPaneForFrame(frame); pane != "" {
+				out[frame.ID] = pane
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }
@@ -378,10 +409,13 @@ func (r *Runtime) sessionPaneForSession(sid state.SessionID) string {
 	if !ok {
 		return ""
 	}
-	for _, fr := range sess.Frames {
-		if p, ok := r.sessionPanes[fr.ID]; ok && p != "" {
-			return p
-		}
+	frame, ok := sessionActiveFrame(sess)
+	if !ok {
+		return ""
 	}
-	return ""
+	return r.subsystemPaneForFrame(frame)
+}
+
+func (r *Runtime) subsystemPaneForFrame(frame state.SessionFrame) string {
+	return r.sessionPanes[frame.ID]
 }

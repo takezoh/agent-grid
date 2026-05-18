@@ -115,3 +115,14 @@ func (c *Client) SendEvent(eventName string, timestamp time.Time, senderID strin
 		Payload:   payload,
 	}, defaultRequestTimeout)
 }
+
+func (c *Client) SendSubsystemEvent(token, frameID, source, kind string, timestamp time.Time, payload json.RawMessage) error {
+	return c.SendWithTimeout(CmdSubsystemEvent{
+		Token:     token,
+		FrameID:   frameID,
+		Source:    source,
+		Kind:      kind,
+		Timestamp: timestamp,
+		Payload:   payload,
+	}, defaultRequestTimeout)
+}

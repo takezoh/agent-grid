@@ -31,7 +31,7 @@ func reduceTmuxPaneSpawned(s State, e EvTmuxPaneSpawned) (State, []Effect) {
 	effs = append(effs, EffRegisterPane{
 		FrameID:    e.FrameID,
 		PaneTarget: e.PaneTarget,
-		Tap:        frameIdx == 0,
+		Tap:        frameIdx == 0 || sess.Frames[frameIdx].SubsystemID != "",
 	})
 	effs = append(effs, pre...)
 	effs = append(effs,
@@ -58,6 +58,18 @@ func reduceTmuxSpawnFailed(s State, e EvTmuxSpawnFailed) (State, []Effect) {
 	if sess, ok := s.Sessions[e.SessionID]; ok {
 		if idx := findFrameIndex(sess, e.FrameID); idx >= 0 {
 			frame := sess.Frames[idx]
+			if frame.SubsystemID != "" {
+				next, effs, handled := failSubsystemFrame(s, e.FrameID, "tmux spawn failed: "+e.Err, false)
+				if handled {
+					if e.ReplyConn == 0 {
+						return next, effs
+					}
+					return next, append(effs,
+						errResp(e.ReplyConn, e.ReplyReqID, ErrCodeInternal,
+							fmt.Sprintf("tmux spawn failed: %s", e.Err)),
+					)
+				}
+			}
 			if path := sessionManagedWorktreePath([]SessionFrame{frame}); path != "" {
 				effs = append(effs, EffRemoveManagedWorktree{Path: path})
 			}

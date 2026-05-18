@@ -29,35 +29,22 @@ func printHelp() {
 	fmt.Print(`Usage: roost codex <command>
 
 Commands:
-  setup    Enable hooks in ~/.codex/config.toml and register roost hook handlers
+  setup    Register roost MCP server in ~/.codex/mcp.json
   help     Show this help message
 `)
 }
 
-// RunSetup registers roost hooks and MCP server in Codex's config files.
+// RunSetup registers roost MCP server in Codex's config file.
 func RunSetup() error {
-	home, err := os.UserHomeDir()
+	configDir, err := getConfigDir()
 	if err != nil {
 		return err
 	}
-	cfgPath := filepath.Join(home, ".codex", "config.toml")
-	hooksPath := filepath.Join(home, ".codex", "hooks.json")
-	mcpPath := filepath.Join(home, ".codex", "mcp.json")
+	mcpPath := filepath.Join(configDir, "mcp.json")
 
 	roostPath, _ := os.Executable()
 	if resolved, err := filepath.EvalSymlinks(roostPath); err == nil {
 		roostPath = resolved
-	}
-	updated, events, err := RegisterHooks(cfgPath, hooksPath, roostPath)
-	if err != nil {
-		return err
-	}
-	if !updated {
-		fmt.Println("Codex hooks already configured")
-	} else {
-		fmt.Printf("Configured Codex hooks: %v\n", events)
-		fmt.Printf("  Config: %s\n", cfgPath)
-		fmt.Printf("  Hooks:  %s\n", hooksPath)
 	}
 	added, err := RegisterMCPServer(mcpPath, roostPath)
 	if err != nil {
@@ -70,4 +57,15 @@ func RunSetup() error {
 		fmt.Println("MCP server roost-peers already registered")
 	}
 	return nil
+}
+
+func getConfigDir() (string, error) {
+	if dir := os.Getenv("CODEX_CONFIG_DIR"); dir != "" {
+		return dir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".codex"), nil
 }

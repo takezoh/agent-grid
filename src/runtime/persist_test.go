@@ -16,11 +16,13 @@ func TestFilePersistRoundTrip(t *testing.T) {
 			Project:   "/foo",
 			CreatedAt: "2026-04-10T12:00:00Z",
 			Frames: []SessionFrameSnapshot{{
-				ID:        "f1",
-				Project:   "/foo",
-				Command:   "claude",
-				CreatedAt: "2026-04-10T12:00:00Z",
-				Driver:    "claude",
+				ID:          "f1",
+				SubsystemID: "cli:f1",
+				TargetID:    "f1",
+				Project:     "/foo",
+				Command:     "claude",
+				CreatedAt:   "2026-04-10T12:00:00Z",
+				Driver:      "claude",
 				DriverState: map[string]string{
 					"session_id": "uuid",
 				},
@@ -52,6 +54,9 @@ func TestFilePersistRoundTrip(t *testing.T) {
 	}
 	if got[0].Frames[0].DriverState["session_id"] != "uuid" {
 		t.Errorf("DriverState[session_id] = %q", got[0].Frames[0].DriverState["session_id"])
+	}
+	if got[0].Frames[0].SubsystemID != "cli:f1" || got[0].Frames[0].TargetID != "f1" {
+		t.Errorf("frame identity = %+v", got[0].Frames[0])
 	}
 }
 

@@ -94,6 +94,9 @@ func DecodeCommand(env Envelope) (Command, error) {
 	case CmdNameEvent:
 		var c CmdEvent
 		return decodeInto(env.Data, &c)
+	case CmdNameSubsystem:
+		var c CmdSubsystemEvent
+		return decodeInto(env.Data, &c)
 	case CmdNameSurfaceReadText:
 		var c CmdSurfaceReadText
 		return decodeInto(env.Data, &c)

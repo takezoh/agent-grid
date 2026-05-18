@@ -94,8 +94,10 @@ type DriverState interface {
 }
 
 // DriverEvent — input to Driver.Step (closed sum type)
-// DEvTick, DEvHook, DEvJobResult, DEvFileChanged, DEvPaneOsc, DEvPanePrompt
+// DEvTick, DEvHook, DEvJobResult, DEvFileChanged, DEvPaneOsc, DEvPanePrompt, DEvSubsystem
 ```
+
+Hook-driven agents (Claude, Gemini) receive `DEvHook`. Stream-backed agents (Codex) receive `DEvSubsystem` carrying structured thread / turn / tool / approval events from `codex app-server`.
 
 Driver is a **value-type plugin**: no goroutines, no I/O, no mutexes. Per-frame state is embedded on each `SessionFrame.Driver` as a `DriverState` value, and round-trips as arguments and return values of `Driver.Step`. Side effects are returned as `[]Effect` and executed by the runtime's Effect interpreter.
 
@@ -215,7 +217,9 @@ type CmdEvent struct {
 }
 ```
 
-Driver-specific hook payloads are passed through typed IPC as `proto.CmdEvent{Event, Timestamp, SenderID, Payload}`. Each driver subcommand (e.g., `roost event <eventType>`) reads the frame id from its pane environment, packs its own hook payload into `CmdEvent` with `SenderID = frameID`, and sends it. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions and calls `Driver.Step(frame.Driver, DEvHook{...})`. Hooks whose target frame has already been truncated off the stack are silently dropped. Neither the state layer nor the runtime layer hardcodes any driver-specific key names.
+Hook-driven agents pass their payloads through typed IPC as `proto.CmdEvent{Event, Timestamp, SenderID, Payload}`. Each hook bridge subcommand (e.g., `roost event <eventType>`) reads the frame id from its pane environment, packs its hook payload into `CmdEvent` with `SenderID = frameID`, and sends it. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions and calls `Driver.Step(frame.Driver, DEvHook{...})`. Hooks whose target frame has already been truncated off the stack are silently dropped.
+
+Structured backends such as Codex App Server use `proto.CmdSubsystemEvent{Source, Kind, Payload}` instead. The runtime converts this to `EvSubsystem`, updates the frame's `TargetID` when present, and calls `Driver.Step(frame.Driver, DEvSubsystem{...})`.
 
 On cold start, the bootstrap walks each session's frames in root-to-tail order and calls `Driver.PrepareLaunch(frame.Driver, LaunchModeColdStart, project, command, frame.LaunchOptions)` to reconstruct the launch plan, including any driver-specific resume logic (e.g. the Claude driver assembles `claude --resume <id>` here using the session id it persisted in `DriverState`). The generic driver returns the base command as-is. The resolved launch plan drives `tmux new-window` directly — no separate driver method is involved.
 
@@ -224,11 +228,11 @@ On cold start, the bootstrap walks each session's frames in root-to-tail order a
 | Path | Format | Contents | Lifecycle |
 |------|--------|----------|-----------|
 | `~/.roost/config.toml` | TOML | User settings (see below) | Created by user. Falls back to default values if absent |
-| `~/.roost/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / Hook event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
+| `~/.roost/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, `subsystem_id`, `target_id`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / hook / subsystem event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
 | `~/.roost/events/{frameID}.log` | Text | Per-frame agent hook event log | Appended via `EffEventLogAppend`. The runtime's EventLogBackend manages file handles with lazy-open |
 | `~/.roost/roost.log` | slog | Application log | Created/appended at daemon startup |
 | `~/.roost/roost.sock` | Unix socket | Host IPC endpoint (SO_PEERCRED auth) — TUI / CLI / palette clients | Created at daemon startup. Deleted on exit |
-| `~/.roost/run/<project-hash>/roost.sock` | Unix socket | Container IPC endpoint (bearer-token auth) — sandboxed agents only; implements `hook-event` only | Started on first container spawn for a project. Bind-mounted into the container as `/opt/roost/run/roost.sock` |
+| `~/.roost/run/<project-hash>/roost.sock` | Unix socket | Container IPC endpoint (bearer-token auth) — sandboxed agents only; implements `hook-event` and `subsystem-event` | Started on first container spawn for a project. Bind-mounted into the container as `/opt/roost/run/roost.sock` |
 | `~/.roost/run/credproxy.sock` | Unix socket | Credential proxy endpoint (single instance per daemon; bearer token per project) | Listens whenever sandbox mode is `devcontainer`. Bind-mounted per project into the container as `/opt/roost/run/credproxy.sock` |
 | `~/.roost/warm/<frameID>.json` | JSON | Per-frame container bearer token (atomic, `0o600`) | Written when a sandboxed frame is launched; replayed by `RecoverSandboxFrames` on warm restart. Wiped at cold start |
 
@@ -247,11 +251,11 @@ src/
 │   └── send.go          Event sender (registers "event" subcommand in init)
 ├── state/               Pure domain layer (no I/O, no goroutine)
 │   ├── state.go         State, Session, SessionFrame, Subscriber, JobMeta, LaunchOptions — plain value types
-│   ├── event.go         Event closed sum type (EvEvent, EvDriverEvent, EvTick, EvJobResult, EvPaneDied, EvTmuxWindowVanished, ...)
+│   ├── event.go         Event closed sum type (EvEvent, EvDriverEvent, EvSubsystem, EvTick, EvJobResult, EvPaneDied, EvTmuxWindowVanished, ...)
 │   ├── event_dispatch.go  RegisterEvent[T] registry + dispatch lookup
 │   ├── effect.go        Effect closed sum type (EffSpawnTmuxWindow, EffKillSessionWindow, EffRegisterPane, EffUnregisterPane, EffActivateSession, EffDeactivateSession, EffStartJob, ...)
 │   ├── reduce.go        Reduce(State, Event) → (State, []Effect) — pure state transition function
-│   ├── reduce_event.go  EvEvent → registered handler dispatch, EvDriverEvent → Driver.Step routing
+│   ├── reduce_event.go  EvEvent → registered handler dispatch, EvDriverEvent / EvSubsystem → Driver.Step routing
 │   ├── reduce_session.go  session / frame lifecycle reducers (create-session, push-driver, stop-session, …)
 │   ├── reduce_tick.go   EvTick → step active frame of each session → Driver.Step(DEvTick)
 │   ├── reduce_osc.go    EvPaneOsc / EvPanePrompt → EffEventLogAppend + driver routing
@@ -298,7 +302,7 @@ src/
 │   ├── runtime.go       Runtime.Run() — single event loop (select)
 │   ├── interpret.go     execute(Effect) — interpreter for all side effects
 │   ├── ipc.go           Host IPC server (accept + SO_PEERCRED uid check, readLoop, writeLoop)
-│   ├── ipc_container.go Container IPC endpoint (per-project Unix socket; only `hook-event` is registered)
+│   ├── ipc_container.go Container IPC endpoint (per-project Unix socket; `hook-event` / `subsystem-event`)
 │   ├── frame_token.go   Per-frame bearer-token registry (`ROOST_SOCKET_TOKEN` → frame id)
 │   ├── warm_state.go    Persists / replays container tokens across daemon warm-restart (`<dataDir>/warm/`)
 │   ├── rundir.go        Per-project run directory (host-side dir bind-mounted as `/opt/roost/run`)

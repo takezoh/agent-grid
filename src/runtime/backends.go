@@ -136,6 +136,8 @@ type SessionSnapshot struct {
 
 type SessionFrameSnapshot struct {
 	ID            string              `json:"id"`
+	SubsystemID   string              `json:"subsystem_id,omitempty"`
+	TargetID      string              `json:"target_id,omitempty"`
 	Project       string              `json:"project"`
 	Command       string              `json:"command"`
 	LaunchOptions state.LaunchOptions `json:"launch_options,omitempty"`

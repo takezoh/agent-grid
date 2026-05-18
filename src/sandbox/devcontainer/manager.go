@@ -16,6 +16,11 @@ import (
 	"github.com/takezoh/agent-roost/state"
 )
 
+// containerBinaryPath is the in-container path of the roost-bridge binary,
+// bind-mounted from the host run directory. Mirrors runtime.ContainerBinaryPath
+// without importing runtime (which would create a circular dependency).
+const containerBinaryPath = "/opt/roost/run/roost-bridge"
+
 // ContainerState holds runtime data for one project's devcontainer.
 type ContainerState struct {
 	mu          sync.Mutex
@@ -48,6 +53,37 @@ func (cs *ContainerState) BindMounts() []BindMount {
 		return nil
 	}
 	return cs.spec.BindMounts()
+}
+
+func (cs *ContainerState) ContainerID() string {
+	if cs == nil {
+		return ""
+	}
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	return cs.containerID
+}
+
+// PreExec returns the devcontainer.json `preExecCommand` (or the spec
+// fallback). Callers that build their own docker exec command (e.g. the
+// codex backend bypassing BuildLaunchCommand) need this to wrap their
+// command with the same `bash -lc 'preExec; exec ...'` envelope the pane
+// uses, otherwise binaries that depend on the shell init (mise shims,
+// tool-version managers, env loaders) won't see the expected setup.
+func (cs *ContainerState) PreExec() string {
+	if cs == nil || cs.spec == nil {
+		return ""
+	}
+	return cs.spec.PreExec
+}
+
+func (cs *ContainerState) EffectiveUser() string {
+	if cs == nil || cs.spec == nil {
+		return ""
+	}
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	return cs.spec.EffectiveUser()
 }
 
 // Manager implements sandbox.Manager[*ContainerState] using direct docker commands.

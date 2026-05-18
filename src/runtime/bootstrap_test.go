@@ -236,6 +236,33 @@ func TestRecoverActivePaneAtMain_IdentifiesMainTUIActive(t *testing.T) {
 	}
 }
 
+func TestRecoverActivePaneAtMain_RewritesStaleMainPaneEnv(t *testing.T) {
+	ftmux := newFakeTmux()
+	ftmux.mu.Lock()
+	ftmux.spawnPane = "%1"
+	ftmux.envs["ROOST_FRAME__main"] = "%0"
+	ftmux.mu.Unlock()
+	r := New(Config{
+		SessionName:  "roost-test",
+		TickInterval: 10 * time.Second,
+		Tmux:         ftmux,
+	})
+	r.state.Sessions["s1"] = state.Session{ID: "s1", Frames: []state.SessionFrame{{ID: "f1", Command: "stub", Driver: driver.NewGenericDriver("", "", 0).NewState(time.Now())}}}
+	r.sessionPanes["f1"] = "%2"
+	r.sessionPanes["_main"] = "%0"
+
+	r.RecoverActivePaneAtMain()
+
+	if r.sessionPanes["_main"] != "%1" {
+		t.Fatalf("sessionPanes[_main] = %q, want %%1", r.sessionPanes["_main"])
+	}
+	ftmux.mu.Lock()
+	defer ftmux.mu.Unlock()
+	if ftmux.envs["ROOST_FRAME__main"] != "%1" {
+		t.Fatalf("ROOST_FRAME__main = %q, want %%1", ftmux.envs["ROOST_FRAME__main"])
+	}
+}
+
 func TestRecoverActivePaneAtMain_LeavesSessionActiveWhenMainPaneUnknown(t *testing.T) {
 	ftmux := newFakeTmux()
 	ftmux.mu.Lock()

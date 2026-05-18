@@ -24,6 +24,9 @@ import (
 )
 
 func runCoordinator() error {
+	if v := os.Getenv("TMUX"); v != "" {
+		return fmt.Errorf("refusing to start coordinator inside an existing tmux session ($TMUX is set); run `roost` outside tmux or detach first")
+	}
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
@@ -212,6 +215,21 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 	slog.Info("attaching to tmux session")
 	if err := client.Attach(); err != nil {
 		slog.Warn("attach exited", "err", err)
+		if shouldKeepRuntimeAliveAfterAttach(err, client.SessionExists()) {
+			slog.Info("attach failed; keeping runtime alive", "session", sessionName)
+			<-rt.Done()
+			if err, ok := <-runErrCh; ok {
+				close(runErrCh)
+				return fmt.Errorf("runtime: %w", err)
+			}
+			close(runErrCh)
+			if client.SessionExists() {
+				slog.Info("detached, session kept alive")
+			} else {
+				slog.Info("tmux server exited")
+			}
+			return nil
+		}
 	}
 	cancel()
 	<-rt.Done()
@@ -225,6 +243,10 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 		slog.Info("tmux server exited")
 	}
 	return nil
+}
+
+func shouldKeepRuntimeAliveAfterAttach(err error, sessionExists bool) bool {
+	return err != nil && sessionExists
 }
 
 // newAgentLauncher returns the AgentLauncher for the configured sandbox mode.

@@ -1,42 +1,12 @@
 package driver
 
 import (
-	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/takezoh/agent-roost/state"
 )
-
-func (hp codexHookPayload) formatLog() string {
-	name := hp.HookEventName
-	detail := ""
-	switch hp.HookEventName {
-	case "SessionStart":
-		detail = hp.Source
-	case "UserPromptSubmit":
-		if hp.Prompt != "" {
-			detail = fmt.Sprintf(`prompt="%s"`, previewText(hp.Prompt))
-		}
-	case "PreToolUse", "PostToolUse", "PostToolUseFailure":
-		detail = strings.TrimSpace(hp.ToolName)
-		if cmd := toolInputString(hp.ToolInput, "command"); cmd != "" {
-			detail = strings.TrimSpace(fmt.Sprintf(`%s cmd="%s"`, detail, previewText(cmd)))
-		} else if path := toolInputString(hp.ToolInput, "file_path"); path != "" {
-			detail = strings.TrimSpace(fmt.Sprintf(`%s path="%s"`, detail, previewText(path)))
-		}
-	case "Stop":
-		var parts []string
-		if hp.StopReason != "" {
-			parts = append(parts, "reason="+previewText(hp.StopReason))
-		}
-		if hp.LastAssistantMessage != "" {
-			parts = append(parts, fmt.Sprintf(`last="%s"`, previewText(hp.LastAssistantMessage)))
-		}
-		detail = strings.Join(parts, " ")
-	}
-	return eventLogLine(name, detail)
-}
 
 func statusTime(ts, fallback time.Time) time.Time {
 	if !ts.IsZero() {
@@ -70,7 +40,6 @@ func (d CodexDriver) BootstrapSessionStart(s state.DriverState, ctx state.FrameC
 	}
 	effs := watchCodexTranscript(&cs)
 	cs, effs = d.applySessionStart(cs, ctx, now, effs)
-	effs = append(effs, state.EffEventLogAppend{Line: eventLogLine("SessionStart", "startup")})
 	return cs, effs
 }
 
@@ -78,66 +47,119 @@ func codexTitleNeedsUserAction(title string) bool {
 	return strings.Contains(title, "Action Required")
 }
 
-func (d CodexDriver) handleHook(cs CodexState, ctx state.FrameContext, e state.DEvHook) (CodexState, []state.Effect) {
-	hp := parseCodexHookPayload(e.Payload)
-	preamble := hookPreamble{
-		SessionID:     hp.SessionID,
-		HookEventName: hp.HookEventName,
+func (d CodexDriver) handleSubsystem(cs CodexState, ctx state.FrameContext, e state.DEvSubsystem) (CodexState, []state.Effect) {
+	prevStatus := cs.Status
+	prevThreadID := cs.ThreadID
+	p := e.Payload
+	if p.RequestedTargetID != "" {
+		cs.RequestedThreadID = p.RequestedTargetID
 	}
-	if ctx.IsRoot {
-		preamble.TranscriptPath = hp.TranscriptPath
+	if p.ObservedTargetID != "" {
+		cs.ObservedThreadID = p.ObservedTargetID
 	}
-	if !cs.applyHookPreamble(preamble, e) {
-		return cs, nil
+	if p.ResumePhase != "" {
+		cs.ResumePhase = p.ResumePhase
 	}
-	cs.CodexSessionID = hp.SessionID
+	if p.TargetID != "" {
+		cs.ThreadID = p.TargetID
+	}
 	if !ctx.IsRoot {
+		slog.Debug("codex: subsystem event ignored for non-root frame",
+			"frame", ctx.ID,
+			"kind", e.Kind,
+			"thread", cs.ThreadID,
+			"prev_thread", prevThreadID)
 		return cs, nil
 	}
 
-	effs := watchCodexTranscript(&cs)
-	cs, effs = d.applyHookEvent(cs, ctx, hp, e, effs)
-
-	line := strings.TrimSpace(hp.formatLog())
-	if line != "" {
-		effs = append(effs, state.EffEventLogAppend{Line: line})
+	if p.TranscriptPath != "" {
+		cs.TranscriptPath = p.TranscriptPath
 	}
-	return cs, effs
-}
+	if p.StatusLine != "" {
+		cs.StatusLine = p.StatusLine
+	}
+	effs := watchCodexTranscript(&cs)
 
-func (d CodexDriver) applyHookEvent(cs CodexState, ctx state.FrameContext, hp codexHookPayload, e state.DEvHook, effs []state.Effect) (CodexState, []state.Effect) {
-	switch hp.HookEventName {
-	case "SessionStart":
+	switch e.Kind {
+	case state.SubsystemSessionReady:
 		cs, effs = d.applySessionStart(cs, ctx, e.Timestamp, effs)
-	case "UserPromptSubmit":
-		cs.LastPrompt = strings.TrimSpace(hp.Prompt)
+	case state.SubsystemFailed:
+		cs.PendingTools = nil
+		cs.CurrentTool = ""
+		cs.PendingApproval = false
+		cs.FailureReason = strings.TrimSpace(p.Error)
+		cs = applyHookStatus(cs, state.StatusStopped, e.Timestamp)
+	case state.SubsystemPromptSubmitted:
+		cs.LastPrompt = strings.TrimSpace(p.Prompt)
 		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
-		turns := recentUserTurns(appendHookPromptTurn(cs.RecentTurns, hp.Prompt), 2)
+		turns := recentUserTurns(appendHookPromptTurn(cs.RecentTurns, p.Prompt), 2)
 		effs, cs.SummaryInFlight = enqueueSummaryJob(effs, cs.SummaryInFlight, formatSummaryPrompt(cs.Summary, turns))
 		effs = append(effs, d.startCodexTranscriptParse(&cs)...)
-	case "PreToolUse":
-		cs.CurrentTool = strings.TrimSpace(hp.ToolName)
+	case state.SubsystemTurnStarted:
 		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
-		cs, effs = d.handleToolLog(cs, hp, e.Timestamp, effs)
-	case "PostToolUse", "PostToolUseFailure":
-		cs.CurrentTool = ""
-		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
-		cs, effs = d.handleToolLog(cs, hp, e.Timestamp, effs)
-	case "Stop":
+	case state.SubsystemTurnCompleted:
 		cs.CurrentTool = ""
 		cs.PendingTools = nil
-		if msg := strings.TrimSpace(hp.LastAssistantMessage); msg != "" {
+		cs.PendingApproval = false
+		if msg := strings.TrimSpace(p.LastAssistantMessage); msg != "" {
 			cs.LastAssistantMessage = msg
 		}
 		cs = applyHookStatus(cs, state.StatusWaiting, e.Timestamp)
-		effs = append(effs, d.startCodexTranscriptParse(&cs)...)
+	case state.SubsystemToolStarted:
+		cs.PendingApproval = false
+		cs.CurrentTool = subsystemToolName(p.Tool)
+		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
+		cs, effs = d.handleSubsystemToolStarted(cs, p, e.Timestamp, effs)
+	case state.SubsystemToolCompleted:
+		cs.CurrentTool = ""
+		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
+		cs, effs = d.handleSubsystemToolCompleted(cs, p, e.Timestamp, effs)
+	case state.SubsystemApprovalRequested:
+		cs.PendingApproval = true
+		cs = applyHookStatus(cs, state.StatusPending, e.Timestamp)
+	case state.SubsystemApprovalResolved:
+		cs.PendingApproval = false
+		if p.Approval != nil && p.Approval.Denied {
+			cs = applyHookStatus(cs, state.StatusWaiting, e.Timestamp)
+		} else {
+			cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
+		}
+	case state.SubsystemPlanUpdated:
+		if p.Plan != nil {
+			cs.PlanSummary = strings.TrimSpace(p.Plan.Summary)
+		}
+	case state.SubsystemDiffUpdated:
+		if p.Diff != nil {
+			cs.DiffSummary = strings.TrimSpace(p.Diff.Summary)
+			cs.DiffPaths = append([]string(nil), p.Diff.Paths...)
+		}
+	case state.SubsystemMessageUpdated:
+		if msg := strings.TrimSpace(p.LastAssistantMessage); msg != "" {
+			cs.LastAssistantMessage = msg
+		}
+		if p.Message != nil {
+			cs.RecentTurns = subsystemTurnsToSummaryTurns(p.Message.RecentTurns)
+		}
 	}
+	slog.Debug("codex: subsystem event applied",
+		"frame", ctx.ID,
+		"kind", e.Kind,
+		"source", e.Source,
+		"thread", cs.ThreadID,
+		"prev_thread", prevThreadID,
+		"status", cs.Status,
+		"prev_status", prevStatus,
+		"tool", cs.CurrentTool,
+		"pending_approval", cs.PendingApproval)
+
 	return cs, effs
 }
 
 func (d CodexDriver) applySessionStart(cs CodexState, ctx state.FrameContext, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {
 	cs.PendingTools = nil
 	cs.CurrentTool = ""
+	cs.PendingApproval = false
+	cs.FailureReason = ""
 	cs = applyHookStatus(cs, state.StatusIdle, now)
 	effs = append(effs, d.startCodexTranscriptParse(&cs)...)
 	if ctx.IsRoot {
@@ -149,6 +171,91 @@ func (d CodexDriver) applySessionStart(cs CodexState, ctx state.FrameContext, no
 		}
 	}
 	return cs, effs
+}
+
+func subsystemToolName(tool *state.SubsystemTool) string {
+	if tool == nil {
+		return ""
+	}
+	return strings.TrimSpace(tool.Name)
+}
+
+func subsystemTurnsToSummaryTurns(turns []state.SubsystemTurn) []SummaryTurn {
+	if len(turns) == 0 {
+		return nil
+	}
+	out := make([]SummaryTurn, 0, len(turns))
+	for _, turn := range turns {
+		text := strings.TrimSpace(turn.Text)
+		role := strings.TrimSpace(turn.Role)
+		if text == "" || role == "" {
+			continue
+		}
+		out = append(out, SummaryTurn{Role: role, Text: text})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func (d CodexDriver) handleSubsystemToolStarted(cs CodexState, payload state.SubsystemPayload, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {
+	tool := payload.Tool
+	if tool == nil || tool.ID == "" || tool.Name == "" {
+		return cs, effs
+	}
+	if cs.PendingTools == nil {
+		cs.PendingTools = make(map[string]codexPendingTool)
+	}
+	input := subsystemToolInput(tool)
+	cs.PendingTools[tool.ID] = codexPendingTool{
+		Name:      tool.Name,
+		Input:     input,
+		StartedAt: now,
+	}
+	return cs, effs
+}
+
+func (d CodexDriver) handleSubsystemToolCompleted(cs CodexState, payload state.SubsystemPayload, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {
+	tool := payload.Tool
+	if tool == nil || tool.Name == "" {
+		return cs, effs
+	}
+	ev := codexToolEvent{
+		Kind:        "PostToolUse",
+		ToolName:    tool.Name,
+		ToolInput:   subsystemToolInput(tool),
+		ToolUseID:   tool.ID,
+		Error:       tool.Error,
+		IsInterrupt: tool.IsInterrupt,
+	}
+	kind := "auto"
+	if tool.Error != "" {
+		ev.Kind = "PostToolUseFailure"
+		if tool.IsInterrupt {
+			kind = "denied"
+		} else {
+			kind = "failed"
+		}
+	}
+	return d.emitToolLog(cs, ev, now, kind, effs)
+}
+
+func subsystemToolInput(tool *state.SubsystemTool) map[string]any {
+	if tool == nil {
+		return nil
+	}
+	input := make(map[string]any, 2)
+	if tool.Command != "" {
+		input["command"] = tool.Command
+	}
+	if tool.Path != "" {
+		input["file_path"] = tool.Path
+	}
+	if len(input) == 0 {
+		return nil
+	}
+	return input
 }
 
 func (d CodexDriver) handleJobResult(cs CodexState, e state.DEvJobResult) CodexState {

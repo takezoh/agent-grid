@@ -30,6 +30,16 @@ func commandToStateEvent(connID state.ConnID, reqID string, cmd proto.Command) s
 			SenderID:  state.FrameID(c.SenderID),
 			Payload:   c.Payload,
 		}
+	case proto.CmdSubsystemEvent:
+		return state.EvSubsystem{
+			ConnID:    connID,
+			ReqID:     reqID,
+			FrameID:   state.FrameID(c.FrameID),
+			Source:    state.SubsystemKind(c.Source),
+			Kind:      state.SubsystemEventKind(c.Kind),
+			Timestamp: c.Timestamp,
+			Payload:   decodeSubsystemPayload(c.Payload),
+		}
 	case proto.CmdSurfaceReadText:
 		return state.EvCmdSurfaceReadText{
 			ConnID:    connID,
@@ -76,6 +86,17 @@ func commandToStateEvent(connID state.ConnID, reqID string, cmd proto.Command) s
 		})
 	}
 	return nil
+}
+
+func decodeSubsystemPayload(raw json.RawMessage) state.SubsystemPayload {
+	if len(raw) == 0 {
+		return state.SubsystemPayload{}
+	}
+	var payload state.SubsystemPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return state.SubsystemPayload{}
+	}
+	return payload
 }
 
 // peerEvEvent marshals a peer params struct and wraps it in state.EvEvent

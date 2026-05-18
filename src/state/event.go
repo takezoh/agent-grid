@@ -98,6 +98,16 @@ type EvDriverEvent struct {
 	Payload   json.RawMessage
 }
 
+type EvSubsystem struct {
+	ConnID    ConnID
+	ReqID     string
+	FrameID   FrameID
+	Source    SubsystemKind
+	Kind      SubsystemEventKind
+	Timestamp time.Time
+	Payload   SubsystemPayload
+}
+
 // === Connection lifecycle ===
 
 type EvConnOpened struct {
@@ -215,6 +225,7 @@ func (EvCmdSurfaceSendKey) isEvent()  {}
 func (EvCmdDriverList) isEvent()      {}
 func (EvEvent) isEvent()              {}
 func (EvDriverEvent) isEvent()        {}
+func (EvSubsystem) isEvent()          {}
 func (EvConnOpened) isEvent()         {}
 func (EvConnClosed) isEvent()         {}
 func (EvTick) isEvent()               {}

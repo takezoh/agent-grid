@@ -16,7 +16,7 @@ func (r *Runtime) activateSession(sessID state.SessionID) {
 	if !ok {
 		return
 	}
-	paneID := r.sessionPanes[frame.ID]
+	paneID := r.subsystemPaneForFrame(frame)
 	if paneID == "" {
 		slog.Warn("runtime: activate session — no pane target", "session", sessID)
 		return
@@ -38,23 +38,32 @@ func (r *Runtime) deactivateSession() {
 }
 
 func (r *Runtime) swapSessionIntoMain(sessID state.SessionID) bool {
+	slog.Info("runtime: swapSessionIntoMain entry",
+		"session", sessID,
+		"prevActiveFrame", r.activeFrameID,
+		"prevMainPaneSession", r.mainPaneSession)
 	sess, ok := r.state.Sessions[sessID]
 	if !ok {
+		slog.Info("runtime: swapSessionIntoMain bail=session-missing", "session", sessID)
 		return false
 	}
 	frame, ok := sessionActiveFrame(sess)
 	if !ok {
+		slog.Info("runtime: swapSessionIntoMain bail=no-active-frame", "session", sessID)
 		return false
 	}
-	paneID := r.sessionPanes[frame.ID]
+	paneID := r.subsystemPaneForFrame(frame)
 	if paneID == "" {
-		slog.Warn("runtime: swap-pane session skipped; pane missing", "session", sessID)
+		slog.Warn("runtime: swap-pane session skipped; pane missing", "session", sessID, "frame", frame.ID)
 		return false
 	}
 	if _, ok := r.ensureMainPaneID(); !ok {
 		slog.Warn("runtime: swap-pane session skipped; main pane unknown", "session", sessID)
 		return false
 	}
+	slog.Info("runtime: swapSessionIntoMain SwapPane",
+		"session", sessID, "frame", frame.ID,
+		"srcPane", paneID, "dstTarget", r.mainPaneTarget())
 	if err := r.cfg.Tmux.SwapPane(paneID, r.mainPaneTarget()); err != nil {
 		if isMissingPaneErr(err) {
 			r.Enqueue(state.EvTmuxWindowVanished{FrameID: frame.ID})
@@ -64,6 +73,8 @@ func (r *Runtime) swapSessionIntoMain(sessID state.SessionID) bool {
 	}
 	r.mainPaneSession = sessID
 	r.activeFrameID = frame.ID
+	slog.Info("runtime: swapSessionIntoMain ok",
+		"session", sessID, "activeFrame", r.activeFrameID)
 	return true
 }
 

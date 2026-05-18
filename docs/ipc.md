@@ -9,7 +9,7 @@ JSON messaging over Unix domain sockets. Two physical endpoints serve different 
 | **Host** | `<dataDir>/roost.sock` | SO_PEERCRED UID check | TUI, CLI, palette popups |
 | **Container** | `<dataDir>/run/<project-hash>/roost.sock` | Bearer token (`ROOST_SOCKET_TOKEN`) | Sandboxed agent processes inside devcontainers |
 
-The host endpoint exposes the full command surface. The container endpoint implements only `hook-event`; all other commands are structurally absent (no handler registered, not a filter). See [Sandbox Backends](sandbox.md#container-ipc-endpoint) for security properties.
+The host endpoint exposes the full command surface. The container endpoint accepts `hook-event` and `subsystem-event`; all other commands are structurally absent (no handler registered, not a filter). See [Sandbox Backends](sandbox.md#container-ipc-endpoint) for security properties.
 
 ### Topology
 
@@ -83,6 +83,7 @@ Command / Response / ServerEvent are closed sum types. See [interfaces.md](inter
 | `unsubscribe` | - | Stop receiving broadcasts |
 | `event` | event, timestamp, sender_id, payload | Unified event envelope — domain operations and driver hooks (see below). **Host endpoint only.** |
 | `hook-event` | token, hook, timestamp, payload | Driver hook notification from a sandboxed agent. **Container endpoint only.** Token resolves to the owning frame server-side. |
+| `subsystem-event` | token, source, kind, timestamp, payload | Structured subsystem event from a sandboxed backend. **Container endpoint only.** Token resolves to the owning frame server-side. |
 | `surface.read_text` | session_id, lines | Read the trailing N lines of the active pane's VT snapshot |
 | `surface.send_text` | session_id, text | Send text followed by Enter to the session's active pane |
 | `surface.send_key` | session_id, key | Send a named key (e.g. `Escape`, `q`) without Enter |
@@ -90,7 +91,7 @@ Command / Response / ServerEvent are closed sum types. See [interfaces.md](inter
 
 #### Event Types (via `CmdEvent.Event`)
 
-Domain operations and driver hooks are dispatched via `CmdEvent`. TUI/tool operations are registered via `RegisterEvent[T]` and dispatched to typed handlers. Driver hook events (those with `SenderID` set) are routed as `EvDriverEvent` to the owning frame's driver — `SenderID` is the frame id read from the hook bridge's own pane environment.
+Domain operations and hook-driven agent events are dispatched via `CmdEvent`. TUI/tool operations are registered via `RegisterEvent[T]` and dispatched to typed handlers. Hook-driven events (those with `SenderID` set) are routed as `EvDriverEvent` to the owning frame's driver. Structured backends such as Codex App Server use `CmdSubsystemEvent` and route through `EvSubsystem`.
 
 | Event Type | Payload | Function |
 |------------|---------|----------|
@@ -105,7 +106,8 @@ Domain operations and driver hooks are dispatched via `CmdEvent`. TUI/tool opera
 | `launch-tool` | tool | Launch palette popup |
 | `shutdown` | - | Shutdown all |
 | `detach` | - | Detach |
-| *(driver hooks)* | driver-specific | Hook events from agent (e.g., `state-change`, `session-start`). `SenderID` is the frame id; the reducer locates the owning frame across all sessions and routes the hook to that frame's driver |
+| *(driver hooks)* | driver-specific | Hook events from hook-driven agents such as Claude and Gemini. `SenderID` is the frame id; the reducer locates the owning frame across all sessions and routes the hook to that frame's driver |
+| *(subsystem events)* | source, kind, payload | Structured execution events emitted by a subsystem. Codex App Server uses this path for thread lifecycle, tool execution, approvals, plan, diff, and assistant message updates |
 
 ### Client Message Routing
 
@@ -233,13 +235,15 @@ sequenceDiagram
     Note over Interp: Interprets each Effect in order<br/>EffStartJob → worker pool submit<br/>EffBroadcast → IPC send<br/>EffPersist → write sessions.json
 ```
 
-#### Hook Event Routing
+#### Hook and Subsystem Event Routing
 
 **Host frames**: `CmdEvent` (with `SenderID` set to the frame's env var) → IPC reader → event loop → `reduceDriverHook` → `Driver.Step(DEvHook)`.
 
 **Sandboxed frames**: `CmdHookEvent` (with bearer token) → container endpoint accept loop → token Lookup → `EvDriverEvent{SenderID: resolvedFrameID}` → event loop → `reduceDriverHook` → `Driver.Step(DEvHook)`. The client-supplied frame ID is not used; the token resolves it server-side.
 
-Both paths converge at `EvDriverEvent` entering the event loop. See [state-monitoring.md](state-monitoring.md#hook-event-routing-and-race-free-identification) for the host-frame path details.
+**Structured backends**: `CmdSubsystemEvent` (host or container bearer-token path) → IPC reader / container endpoint → `EvSubsystem{FrameID: resolvedFrameID}` → event loop → `reduceSubsystem` → `Driver.Step(DEvSubsystem)`.
+
+Hook-driven agents converge at `EvDriverEvent`; structured backends converge at `EvSubsystem`. See [state-monitoring.md](state-monitoring.md) for the driver-side handling details.
 
 #### Resident Goroutines
 
@@ -273,6 +277,26 @@ sequenceDiagram
     Red->>Drv: Step(prev, DEvHook{Event, Payload})
     Drv-->>Red: (next, [EffEventLogAppend, EffStartJob{Haiku}], view)
     Red-->>EL: (state', effects + EffSendResponse + EffBroadcastSessionsChanged)
+    EL->>EL: execute(effects...)
+```
+
+#### Subsystem Event Routing Sequence
+
+```mermaid
+sequenceDiagram
+    participant Bridge as Codex bridge / gateway
+    participant Reader as IPC reader or container endpoint
+    participant EL as Event loop
+    participant Red as state.Reduce
+    participant Drv as Driver.Step<br/>(CodexDriver)
+
+    Bridge->>Reader: proto.CmdSubsystemEvent{Source, Kind, Payload}
+    Reader->>EL: EvSubsystem (eventCh)
+    EL->>Red: Reduce(state, EvSubsystem)
+    Note over Red: reduceSubsystem: locate the owning frame<br/>update TargetID if provided<br/>→ Driver.Step(frame.Driver, DEvSubsystem{...})
+    Red->>Drv: Step(prev, DEvSubsystem{Kind, Payload})
+    Drv-->>Red: (next, effects, view)
+    Red-->>EL: (state', effects + EffPersistSnapshot + EffBroadcastSessionsChanged)
     EL->>EL: execute(effects...)
 ```
 

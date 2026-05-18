@@ -16,10 +16,12 @@ import (
 // Identifier types. Distinct named types prevent accidental mix-up at the
 // type level instead of at runtime.
 type (
-	SessionID string
-	FrameID   string
-	ConnID    uint64
-	JobID     uint64
+	SessionID   string
+	FrameID     string
+	SubsystemID string
+	TargetID    string
+	ConnID      uint64
+	JobID       uint64
 )
 
 // OccupantKind identifies what currently occupies pane 0.1.
@@ -92,6 +94,8 @@ type Session struct {
 
 type SessionFrame struct {
 	ID            FrameID
+	SubsystemID   SubsystemID
+	TargetID      TargetID
 	Project       string
 	Command       string
 	LaunchOptions LaunchOptions

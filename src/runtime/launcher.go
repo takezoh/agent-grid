@@ -14,10 +14,12 @@ import (
 // directly to TmuxBackend.SpawnWindow; Cleanup is called when the frame
 // is destroyed (nil is safe to ignore).
 type WrappedLaunch struct {
-	Command  string
-	StartDir string
-	Env      map[string]string
-	Cleanup  func() error
+	Command   string
+	StartDir  string
+	Env       map[string]string
+	Cleanup   func() error
+	Subsystem state.LaunchSubsystem
+	Stream    state.StreamLaunchOptions
 	// ContainerSockDir is set by devcontainer sandbox launchers to the host-side
 	// run directory that is bind-mounted into the container as /opt/roost/run.
 	// When non-empty, the runtime starts the container endpoint for this project.
@@ -48,6 +50,11 @@ type AgentLauncher interface {
 	// EnsureProject prepares the sandbox environment for a project without
 	// allocating a frame. No-op for non-sandbox launchers.
 	EnsureProject(ctx context.Context, projectPath string) error
+
+	// IsContainer reports whether the given project will be run inside a
+	// container by this launcher. The runtime uses this to decide whether to
+	// inject ROOST_SOCKET_TOKEN before calling WrapLaunch.
+	IsContainer(project string) bool
 }
 
 // DirectLauncher is the no-op implementation: it passes the plan through
@@ -59,18 +66,16 @@ type DirectLauncher struct {
 }
 
 func (d DirectLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
+	merged := stripContainerOnlyEnv(env)
 	if d.SockPath != "" {
-		merged := make(map[string]string, len(env)+1)
-		for k, v := range env {
-			merged[k] = v
-		}
-		merged["ROOST_SOCKET"] = d.SockPath
-		env = merged
+		merged = cloneAndSet(merged, "ROOST_SOCKET", d.SockPath)
 	}
 	return WrappedLaunch{
-		Command:  plan.Command,
-		StartDir: plan.StartDir,
-		Env:      env,
+		Command:   plan.Command,
+		StartDir:  plan.StartDir,
+		Env:       merged,
+		Subsystem: plan.Subsystem,
+		Stream:    plan.Stream,
 	}, nil
 }
 
@@ -80,6 +85,23 @@ func (DirectLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (
 
 func (DirectLauncher) EnsureProject(_ context.Context, _ string) error { return nil }
 
+func (DirectLauncher) IsContainer(_ string) bool { return false }
+
+// stripContainerOnlyEnv returns a copy of env without ROOST_SOCKET_TOKEN.
+// Token injection is only valid inside containers; DirectLauncher drops it
+// so host processes are never given a container credential.
+func stripContainerOnlyEnv(env map[string]string) map[string]string {
+	out := cloneEnvMap(env, 0)
+	delete(out, "ROOST_SOCKET_TOKEN")
+	return out
+}
+
+func cloneAndSet(env map[string]string, key, value string) map[string]string {
+	out := cloneEnvMap(env, 1)
+	out[key] = value
+	return out
+}
+
 // launcher returns cfg.Launcher if set, otherwise a zero-cost DirectLauncher.
 func launcher(cfg Config) AgentLauncher {
 	if cfg.Launcher != nil {
@@ -88,31 +110,26 @@ func launcher(cfg Config) AgentLauncher {
 	return DirectLauncher{}
 }
 
-// wrapWithContainerToken generates a bearer token, calls WrapLaunch with
-// ROOST_SOCKET_TOKEN injected into env, and registers the per-project container
-// endpoint + warm-frame state on success. The token is revoked on any wrap
-// failure, and also when the resolved WrappedLaunch is not container-backed
-// (ContainerSockDir == "").
+// wrapWithContainerToken calls WrapLaunch, injecting ROOST_SOCKET_TOKEN only
+// when the launcher reports that the project runs inside a container.
+// For non-container launchers the token is never generated, eliminating the
+// previous "generate then revoke" pattern.
 func (r *Runtime) wrapWithContainerToken(frameID state.FrameID, project string, plan state.LaunchPlan, baseEnv map[string]string) (WrappedLaunch, error) {
+	l := launcher(r.cfg)
+	if !l.IsContainer(project) {
+		return l.WrapLaunch(frameID, plan, baseEnv)
+	}
+
 	token, err := r.containerTokens.Generate(frameID)
 	if err != nil {
 		return WrappedLaunch{}, fmt.Errorf("token generate: %w", err)
 	}
-	env := make(map[string]string, len(baseEnv)+1)
-	for k, v := range baseEnv {
-		env[k] = v
-	}
-	env["ROOST_SOCKET_TOKEN"] = token
+	env := cloneAndSet(baseEnv, "ROOST_SOCKET_TOKEN", token)
 
-	wrapped, err := launcher(r.cfg).WrapLaunch(frameID, plan, env)
+	wrapped, err := l.WrapLaunch(frameID, plan, env)
 	if err != nil {
 		r.containerTokens.Revoke(frameID)
 		return WrappedLaunch{}, fmt.Errorf("launcher wrap: %w", err)
-	}
-
-	if wrapped.ContainerSockDir == "" {
-		r.containerTokens.Revoke(frameID)
-		return wrapped, nil
 	}
 
 	r.startContainerEndpointIfNeeded(project, ContainerSockPath(wrapped.ContainerSockDir))

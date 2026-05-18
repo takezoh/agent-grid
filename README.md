@@ -33,19 +33,21 @@ roost
 
 Creates a tmux session (or attaches to an existing one) and launches with a 3-pane layout.
 
-### Hook Setup
+### Agent Setup
 
-Register roost hooks so agent status (● ◆ ◇ ○ ■) updates in real time. Run once per agent type:
+Set up each agent integration once:
 
 ```bash
 roost claude setup    # registers hooks in ~/.claude/settings.json
-roost codex setup     # registers hooks in ~/.codex/
+roost codex setup     # registers roost-peers MCP in ~/.codex/ (or $CODEX_CONFIG_DIR)
 roost gemini setup    # registers hooks in ~/.gemini/settings.json
 ```
 
-Hooks are idempotent — re-running adds only missing entries and never overwrites existing config.
+- Claude / Gemini: hooks are required for real-time state updates
+- Codex: hooks are not used. Roost has a built-in Codex integration for state updates
+- `roost codex setup` only registers the `roost-peers` MCP server; it does not modify hook settings
 
-Without hooks, roost still launches sessions but status detection degrades to polling (idle detection only).
+Setup is idempotent — re-running adds only missing entries and never overwrites existing config.
 
 ### Key Bindings
 
@@ -108,6 +110,12 @@ Displayed as a popup. Filter tools by typing, press Enter to execute.
 | `◇` yellow | Pending approval (awaiting tool execution permission) |
 | `○` gray | Idle (no output for 30+ seconds) |
 | `■` red | Stopped |
+
+### Codex Notes
+
+- `roost codex setup` only registers MCP config
+- Codex status and approvals work without hook registration
+- Codex transcripts are display-only; session state is managed by Roost
 
 ## Configuration
 

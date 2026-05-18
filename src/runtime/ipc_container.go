@@ -22,8 +22,7 @@ const (
 
 // containerEndpoint listens on the per-project Unix socket that is
 // bind-mounted into the devcontainer at /opt/roost/run/roost.sock.
-// It accepts only hook-event commands; all other commands receive an
-// "unsupported" error without reaching the state machine.
+// It accepts hook-event and subsystem-event commands.
 //
 // Authentication is via a bearer token (ROOST_SOCKET_TOKEN) carried
 // in each CmdHookEvent. A valid token resolves to the FrameID of the
@@ -90,11 +89,17 @@ func (ep *containerEndpoint) serve(conn net.Conn) {
 }
 
 func (ep *containerEndpoint) handle(w *bufio.Writer, env proto.Envelope) {
-	if env.Cmd != proto.CmdNameHookEvent {
+	switch env.Cmd {
+	case proto.CmdNameHookEvent:
+		ep.handleHook(w, env)
+	case proto.CmdNameSubsystem:
+		ep.handleSubsystem(w, env)
+	default:
 		containerWriteError(w, env.ReqID, proto.ErrUnsupported, "unsupported command")
-		return
 	}
+}
 
+func (ep *containerEndpoint) handleHook(w *bufio.Writer, env proto.Envelope) {
 	var cmd proto.CmdHookEvent
 	if len(env.Data) > 0 {
 		if err := json.Unmarshal(env.Data, &cmd); err != nil {
@@ -126,6 +131,44 @@ func (ep *containerEndpoint) handle(w *bufio.Writer, env proto.Envelope) {
 		Timestamp: ts,
 		SenderID:  frameID,
 		Payload:   payload,
+	})
+	containerWriteOK(w, env.ReqID)
+}
+
+func (ep *containerEndpoint) handleSubsystem(w *bufio.Writer, env proto.Envelope) {
+	var cmd proto.CmdSubsystemEvent
+	if len(env.Data) > 0 {
+		if err := json.Unmarshal(env.Data, &cmd); err != nil {
+			containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "bad payload")
+			return
+		}
+	}
+
+	frameID, ok := ep.tokens.Lookup(cmd.Token)
+	if !ok {
+		containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "invalid token")
+		return
+	}
+
+	ts := cmd.Timestamp
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+
+	decoded, err := ep.translateSubsystemPayload(frameID, cmd.Payload)
+	if err != nil {
+		containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "bad subsystem payload")
+		return
+	}
+
+	ep.enqueue(state.EvSubsystem{
+		ConnID:    0,
+		ReqID:     env.ReqID,
+		FrameID:   frameID,
+		Source:    state.SubsystemKind(cmd.Source),
+		Kind:      state.SubsystemEventKind(cmd.Kind),
+		Timestamp: ts,
+		Payload:   decoded,
 	})
 	containerWriteOK(w, env.ReqID)
 }
@@ -162,6 +205,62 @@ func (ep *containerEndpoint) translatePayloadPaths(frameID state.FrameID, payloa
 		return payload
 	}
 	return out
+}
+
+func (ep *containerEndpoint) translateSubsystemPayload(frameID state.FrameID, raw json.RawMessage) (state.SubsystemPayload, error) {
+	var p state.SubsystemPayload
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return p, err
+		}
+	}
+	if ep.getMounts != nil {
+		if ms, ok := ep.getMounts(frameID); ok && len(ms) > 0 {
+			translateSubsystemToolPaths(&p, ms)
+			translateSubsystemDiffPaths(&p, ms)
+		}
+	}
+	return p, nil
+}
+
+func translateSubsystemToolPaths(p *state.SubsystemPayload, ms pathmap.Mounts) {
+	if p == nil {
+		return
+	}
+	if p.Tool != nil {
+		if host, ok := ms.ToHost(p.Tool.Path); ok {
+			p.Tool.Path = host
+		} else if p.Tool.Path != "" {
+			p.Tool.Path = ""
+		}
+	}
+	if host, ok := ms.ToHost(p.TranscriptPath); ok {
+		p.TranscriptPath = host
+	} else if p.TranscriptPath != "" {
+		p.TranscriptPath = ""
+	}
+	if p.Approval != nil {
+		if host, ok := ms.ToHost(p.Approval.Path); ok {
+			p.Approval.Path = host
+		} else if p.Approval.Path != "" {
+			p.Approval.Path = ""
+		}
+	}
+}
+
+func translateSubsystemDiffPaths(p *state.SubsystemPayload, ms pathmap.Mounts) {
+	if p == nil || p.Diff == nil || len(p.Diff.Paths) == 0 {
+		return
+	}
+	paths := make([]string, 0, len(p.Diff.Paths))
+	for _, path := range p.Diff.Paths {
+		if host, ok := ms.ToHost(path); ok {
+			paths = append(paths, host)
+		} else {
+			slog.Debug("ipc_container: diff path not covered by mount, dropping", "path", path)
+		}
+	}
+	p.Diff.Paths = paths
 }
 
 func translateCwdField(frameID state.FrameID, fields map[string]json.RawMessage, ms pathmap.Mounts) bool {

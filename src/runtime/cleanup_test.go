@@ -260,6 +260,8 @@ func (l *testLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) 
 
 func (l *testLauncher) EnsureProject(_ context.Context, _ string) error { return nil }
 
+func (l *testLauncher) IsContainer(_ string) bool { return false }
+
 func TestEffKillSessionWindow_invokesCleanup(t *testing.T) {
 	var called atomic.Bool
 	tmux := &fakeTmux{}

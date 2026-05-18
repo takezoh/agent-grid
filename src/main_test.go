@@ -98,6 +98,39 @@ func TestRunMainTUIDoesNotPrint(t *testing.T) {
 	}
 }
 
+func TestRunMainUnknownCommandDoesNotRunCoordinator(t *testing.T) {
+	restore := stubMainDeps(t)
+	defer restore()
+
+	dir := t.TempDir()
+	loadBootstrapConfig = func() (*config.Config, error) {
+		cfg := config.DefaultConfig()
+		cfg.DataDir = dir
+		return cfg, nil
+	}
+	coordinatorCalled := false
+	runCoordinatorFn = func() error {
+		coordinatorCalled = true
+		return nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runMain([]string{"totally-unknown-command"}, &stdout, &stderr)
+	if coordinatorCalled {
+		t.Fatal("runCoordinatorFn must not be called for unknown subcommands")
+	}
+	if code == 0 {
+		t.Fatal("unknown command should exit non-zero")
+	}
+}
+
+func TestRunMainUnknownCommandClassifiedAsCLI(t *testing.T) {
+	if got := classifyCommand([]string{"bogus-command"}); got != commandKindCLI {
+		t.Fatalf("classifyCommand(['bogus-command']) = %v, want commandKindCLI", got)
+	}
+}
+
 func stubMainDeps(t *testing.T) func() {
 	t.Helper()
 	t.Setenv("ROOST_DATA_DIR", "")

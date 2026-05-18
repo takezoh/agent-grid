@@ -74,8 +74,10 @@ type SessionInfo struct {
 
 // FrameInfo is the per-frame wire payload for header tab rendering.
 type FrameInfo struct {
-	ID      string `json:"id"`
-	Command string `json:"command"`
+	ID          string `json:"id"`
+	Command     string `json:"command"`
+	SubsystemID string `json:"subsystem_id,omitempty"`
+	TargetID    string `json:"target_id,omitempty"`
 }
 
 // Name returns the display name for the session (basename of project).

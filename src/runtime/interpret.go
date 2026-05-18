@@ -193,6 +193,7 @@ func (r *Runtime) executeKillSessionWindow(e state.EffKillSessionWindow) {
 		if err := r.cfg.Tmux.KillPaneWindow(target); err != nil {
 			slog.Error("runtime: kill window failed", "target", target, "err", err)
 		}
+		delete(r.sessionPanes, e.FrameID)
 	}
 	r.containerTokens.Revoke(e.FrameID)
 	if r.warmFrames != nil {
@@ -242,6 +243,8 @@ func (r *Runtime) executeCheckPaneAlive(e state.EffCheckPaneAlive) {
 		if e.Pane == "{sessionName}:0.1" {
 			ev.OwnerFrameID = r.findPaneOwner(target)
 		}
+		slog.Info("runtime: pane alive check failed",
+			"pane", e.Pane, "target", target, "owner", ev.OwnerFrameID)
 		r.Enqueue(ev)
 	}
 }
@@ -291,26 +294,38 @@ func (r *Runtime) enqueueSpawnFailed(e state.EffSpawnTmuxWindow, msg string) {
 
 func (r *Runtime) spawnTmuxWindowAsync(e state.EffSpawnTmuxWindow) {
 	plan := state.LaunchPlan{
-		Command:  e.Command,
-		StartDir: e.StartDir,
-		Project:  e.Project,
-		Sandbox:  e.Sandbox,
-		Options:  e.Options,
-		Stdin:    e.Stdin,
+		Command:   e.Command,
+		StartDir:  e.StartDir,
+		Project:   e.Project,
+		Sandbox:   e.Sandbox,
+		Options:   e.Options,
+		Subsystem: e.Subsystem,
+		Stream:    e.Stream,
+		Stdin:     e.Stdin,
 	}
-	wrapped, err := r.wrapWithContainerToken(e.FrameID, e.Project, plan, e.Env)
+	reg := r.getSubsystemRegistry(e.Project)
+	plan, extraEnv, err := reg.Inject(e.Subsystem, plan, e.Stdin)
+	if err != nil {
+		slog.Error("runtime: inject subsystem failed", "frame", e.FrameID, "err", err)
+		r.enqueueSpawnFailed(e, err.Error())
+		return
+	}
+	plan, err = r.prepareStreamLaunch(e.FrameID, e.SubsystemID, plan)
+	if err != nil {
+		slog.Error("runtime: prepare stream launch failed", "frame", e.FrameID, "err", err)
+		r.enqueueSpawnFailed(e, err.Error())
+		return
+	}
+	mergedEnv := mergeEnvMaps(e.Env, extraEnv)
+
+	wrapped, err := r.wrapWithContainerToken(e.FrameID, e.Project, plan, mergedEnv)
 	if err != nil {
 		slog.Error("runtime: wrap launch failed", "frame", e.FrameID, "err", err)
 		r.enqueueSpawnFailed(e, err.Error())
 		return
 	}
 	name := windowName(e.Project, string(e.FrameID))
-	spawnCmd := "exec " + wrapped.Command
-	if isShellCommand(wrapped.Command) {
-		spawnCmd = ""
-	} else if len(e.Stdin) > 0 {
-		spawnCmd = wrapCommandWithStdin(wrapped.Command, e.Stdin)
-	}
+	spawnCmd := buildSpawnCommand(wrapped.Command, e.Stdin)
 	slog.Info("runtime: spawning window", "frame", e.FrameID, "cmd", spawnCmd)
 	size := r.mainPaneSize()
 	target, paneID, err := r.cfg.Tmux.SpawnWindow(name, spawnCmd, wrapped.StartDir, wrapped.Env)
@@ -326,6 +341,18 @@ func (r *Runtime) spawnTmuxWindowAsync(e state.EffSpawnTmuxWindow) {
 		SessionID: e.SessionID, FrameID: e.FrameID,
 		PaneTarget: paneID, ReplyConn: e.ReplyConn, ReplyReqID: e.ReplyReqID,
 	})
+}
+
+// buildSpawnCommand builds the tmux command string for a resolved wrapped.Command.
+// Returns empty for shell commands (tmux spawns a login shell with no command argument).
+func buildSpawnCommand(command string, stdin []byte) string {
+	if isShellCommand(command) {
+		return ""
+	}
+	if len(stdin) > 0 {
+		return wrapCommandWithStdin(command, stdin)
+	}
+	return "exec " + command
 }
 
 // windowName builds a stable display name for a new tmux window from
@@ -422,6 +449,8 @@ func (r *Runtime) snapshotSessions() []SessionSnapshot {
 			persistOpts.InitialInput = nil
 			frames = append(frames, SessionFrameSnapshot{
 				ID:            string(frame.ID),
+				SubsystemID:   string(frame.SubsystemID),
+				TargetID:      string(frame.TargetID),
 				Project:       frame.Project,
 				Command:       frame.Command,
 				LaunchOptions: persistOpts,
@@ -497,5 +526,7 @@ func (r *Runtime) reconcileWindows() {
 
 // findPaneOwner returns the FrameID currently active in pane 0.0.
 func (r *Runtime) findPaneOwner(_ string) state.FrameID {
+	slog.Info("runtime: findPaneOwner",
+		"activeFrameID", r.activeFrameID, "mainPaneSession", r.mainPaneSession)
 	return r.activeFrameID
 }

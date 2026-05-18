@@ -37,3 +37,7 @@ func TestRedirectStderrNilLogFile(t *testing.T) {
 	// Must not panic.
 	RedirectStderr()
 }
+
+func TestLogPath(t *testing.T) {
+	t.Logf("LOG_PATH: %s", LogFilePath())
+}

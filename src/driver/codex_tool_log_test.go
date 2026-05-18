@@ -9,28 +9,37 @@ import (
 	"github.com/takezoh/agent-roost/state"
 )
 
-func TestCodexPostToolUseEmitsToolLog(t *testing.T) {
+func toolStartedEv(id, name, cmd string, ts time.Time) state.DEvSubsystem {
+	return state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemToolStarted,
+		Timestamp: ts,
+		Payload: state.SubsystemPayload{
+			Tool: &state.SubsystemTool{ID: id, Name: name, Command: cmd},
+		},
+	}
+}
+
+func toolCompletedEv(id, name, cmd, errStr string, ts time.Time) state.DEvSubsystem {
+	return state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemToolCompleted,
+		Timestamp: ts,
+		Payload: state.SubsystemPayload{
+			Tool: &state.SubsystemTool{ID: id, Name: name, Command: cmd, Error: errStr},
+		},
+	}
+}
+
+func TestCodexSubsystemToolCompletedEmitsToolLog(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.StartDir = "/repo"
+	ctx := state.FrameContext{IsRoot: true}
 
-	pre := codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "PreToolUse",
-		"tool_name":       "Bash",
-		"tool_use_id":     "tool-1",
-	}, now)
-	next, _ := d.handleHook(cs, state.FrameContext{IsRoot: true}, pre)
-	if next.CurrentTool != "Bash" {
-		t.Fatalf("CurrentTool = %q, want Bash", next.CurrentTool)
-	}
+	cs, _ = d.handleSubsystem(cs, ctx, toolStartedEv("tool-1", "Bash", "echo hi", now))
 
-	post := codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "PostToolUse",
-		"tool_name":       "Bash",
-		"tool_use_id":     "tool-1",
-	}, now.Add(2*time.Second))
-	next, effs := d.handleHook(next, state.FrameContext{IsRoot: true}, post)
+	next, effs := d.handleSubsystem(cs, ctx, toolCompletedEv("tool-1", "Bash", "echo hi", "", now.Add(2*time.Second)))
+
 	if next.CurrentTool != "" {
 		t.Fatalf("CurrentTool = %q, want empty", next.CurrentTool)
 	}
@@ -58,17 +67,12 @@ func TestCodexPostToolUseEmitsToolLog(t *testing.T) {
 	}
 }
 
-func TestCodexPostToolUseWithoutPreIsOrphan(t *testing.T) {
+func TestCodexSubsystemToolCompletedWithoutStartIsOrphan(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.StartDir = "/repo"
+	ctx := state.FrameContext{IsRoot: true}
 
-	post := codexHook(map[string]string{
-		"session_id":      "sess-1",
-		"hook_event_name": "PostToolUse",
-		"tool_name":       "Read",
-		"tool_use_id":     "missing",
-	}, now)
-	_, effs := d.handleHook(cs, state.FrameContext{IsRoot: true}, post)
+	_, effs := d.handleSubsystem(cs, ctx, toolCompletedEv("missing-id", "Read", "", "", now))
 
 	appendEff, ok := findCodexEffect[state.EffToolLogAppend](effs)
 	if !ok {
@@ -84,21 +88,13 @@ func TestCodexPostToolUseWithoutPreIsOrphan(t *testing.T) {
 	}
 }
 
-func TestCodexPostToolUseSummarisesToolInput(t *testing.T) {
+func TestCodexSubsystemToolCompletedSummarisesToolInput(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.StartDir = "/repo"
-	long := strings.Repeat("x", 240)
+	ctx := state.FrameContext{IsRoot: true}
 
-	raw, _ := json.Marshal(map[string]any{
-		"session_id":      "sess-1",
-		"hook_event_name": "PostToolUse",
-		"tool_name":       "Bash",
-		"tool_input": map[string]any{
-			"command": long,
-		},
-	})
-	ev := state.DEvHook{Payload: raw, Timestamp: now}
-	_, effs := d.handleHook(cs, state.FrameContext{IsRoot: true}, ev)
+	longCmd := strings.Repeat("x", 240)
+	_, effs := d.handleSubsystem(cs, ctx, toolCompletedEv("tool-2", "Bash", longCmd, "", now))
 
 	appendEff, ok := findCodexEffect[state.EffToolLogAppend](effs)
 	if !ok {
@@ -111,7 +107,7 @@ func TestCodexPostToolUseSummarisesToolInput(t *testing.T) {
 	}
 	cmd, _ := entry.ToolInput["command"].(string)
 	if len([]rune(cmd)) > 201 {
-		t.Fatalf("command too long: %d", len([]rune(cmd)))
+		t.Fatalf("command too long: %d runes", len([]rune(cmd)))
 	}
 	if !strings.HasSuffix(cmd, "…") {
 		t.Fatalf("command = %q, want truncated suffix", cmd)

@@ -5,7 +5,7 @@
 //	event <type>      – agent hook (forwards CmdEvent / CmdHookEvent to daemon)
 //	host-exec <bin>   – PATH shim target (proxies stdio to host via SCM_RIGHTS)
 //	mcp-exec <alias>  – MCP proxy client (relays stdio to host MCP server via SCM_RIGHTS)
-//	setup <agent>     – postCreate hook registration (claude / codex / gemini)
+//	setup <agent>     – postCreate integration setup (claude / codex / gemini)
 package main
 
 import (
@@ -152,6 +152,6 @@ Subcommands:
   event <type>      Send an event to the roost daemon
   host-exec <bin>   Execute a host binary via the hostexec broker
   mcp-exec <alias>  Relay stdio to a host MCP server via the mcpproxy broker
-  setup <agent>     Register roost hooks for an agent (claude|codex|gemini)
+  setup <agent>     Run agent integration setup (claude|codex|gemini)
 `)
 }

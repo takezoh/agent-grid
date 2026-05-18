@@ -28,7 +28,7 @@ func classifyCommand(args []string) commandKind {
 	if cli.Has(args[0]) {
 		return commandKindCLI
 	}
-	return commandKindRoost
+	return commandKindCLI
 }
 
 func runCommand(args []string, stdout io.Writer) error {
@@ -47,7 +47,7 @@ func runCommand(args []string, stdout io.Writer) error {
 	if handled {
 		return err
 	}
-	return runCoordinatorFn()
+	return fmt.Errorf("unknown command: %s (run `roost help` for usage)", args[0])
 }
 
 var tuiHandlers = map[string]func([]string) error{

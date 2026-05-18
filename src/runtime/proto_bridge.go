@@ -308,7 +308,12 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 	}
 	frames := make([]proto.FrameInfo, 0, len(sess.Frames))
 	for _, sf := range sess.Frames {
-		frames = append(frames, proto.FrameInfo{ID: string(sf.ID), Command: sf.Command})
+		frames = append(frames, proto.FrameInfo{
+			ID:          string(sf.ID),
+			Command:     sf.Command,
+			SubsystemID: string(sf.SubsystemID),
+			TargetID:    string(sf.TargetID),
+		})
 	}
 	activeF, _ := sessionActiveFrame(sess)
 	info := proto.SessionInfo{

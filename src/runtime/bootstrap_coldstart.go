@@ -101,7 +101,19 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 		"ROOST_SESSION_ID": string(id),
 		"ROOST_FRAME_ID":   string(frame.ID),
 	}
-	wrapped, err := r.wrapWithContainerToken(frame.ID, frame.Project, launch, baseEnv)
+	reg := r.getSubsystemRegistry(frame.Project)
+	launch, extraEnv, err := reg.Inject(launch.Subsystem, launch, nil)
+	if err != nil {
+		slog.Error("bootstrap: inject subsystem failed", "id", id, "frame", frame.ID, "err", err)
+		return err
+	}
+	launch, err = r.prepareStreamLaunch(frame.ID, frame.SubsystemID, launch)
+	if err != nil {
+		slog.Error("bootstrap: prepare stream launch failed", "id", id, "frame", frame.ID, "err", err)
+		return err
+	}
+	mergedEnv := mergeEnvMaps(baseEnv, extraEnv)
+	wrapped, err := r.wrapWithContainerToken(frame.ID, frame.Project, launch, mergedEnv)
 	if err != nil {
 		slog.Error("bootstrap: wrap launch failed", "id", id, "frame", frame.ID, "err", err)
 		return err
@@ -132,10 +144,7 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 // spawnWrapped calls SpawnWindow for a WrappedLaunch and resizes the resulting window.
 func (r *Runtime) spawnWrapped(frameID state.FrameID, project string, wrapped WrappedLaunch, size paneSize) (string, error) {
 	name := windowName(project, string(frameID))
-	tmuxCmd := "exec " + wrapped.Command
-	if isShellCommand(wrapped.Command) {
-		tmuxCmd = ""
-	}
+	tmuxCmd := buildSpawnCommand(wrapped.Command, nil)
 	slog.Info("runtime: spawning window", "frame", frameID, "cmd", tmuxCmd, "mode", "coldstart")
 	target, paneID, err := r.cfg.Tmux.SpawnWindow(name, tmuxCmd, wrapped.StartDir, wrapped.Env)
 	if err != nil {

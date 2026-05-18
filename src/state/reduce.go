@@ -21,6 +21,8 @@ func Reduce(s State, ev Event) (State, []Effect) {
 	// driver hook event → route to session's driver
 	case EvDriverEvent:
 		return reduceDriverHook(s, e)
+	case EvSubsystem:
+		return reduceSubsystem(s, e)
 
 	// tmux feedback
 	case EvTmuxPaneSpawned:

@@ -56,6 +56,28 @@ func (d *SandboxDispatcher) EnsureProject(ctx context.Context, projectPath strin
 	}
 }
 
+// IsContainer reports whether projectPath will be run inside a container.
+func (d *SandboxDispatcher) IsContainer(projectPath string) bool {
+	if d.Devcontainer == nil {
+		return false
+	}
+	mode := d.Resolver.Resolve(projectPath).Mode
+	return mode == "devcontainer"
+}
+
+// devcontainerLauncherFor extracts the *DevcontainerLauncher from l, handling
+// both a bare *DevcontainerLauncher and a *SandboxDispatcher wrapper.
+// Returns nil if l has no devcontainer backend.
+func devcontainerLauncherFor(l AgentLauncher) *DevcontainerLauncher {
+	switch v := l.(type) {
+	case *DevcontainerLauncher:
+		return v
+	case *SandboxDispatcher:
+		return v.Devcontainer
+	}
+	return nil
+}
+
 // AdoptFrame resolves the effective sandbox mode for projectPath and delegates
 // to the appropriate backend to reclaim the pre-running sandbox frame.
 func (d *SandboxDispatcher) AdoptFrame(ctx context.Context, frameID state.FrameID, projectPath string) (func() error, pathmap.Mounts, error) {

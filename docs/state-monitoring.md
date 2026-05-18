@@ -4,11 +4,12 @@ For the interactive operation processing flow (TUI → IPC → Reduce → Effect
 
 ## Background pipeline
 
-Three parallel event sources feed Driver.Step:
+Four parallel event sources feed Driver.Step:
 
 - **Periodic tick (1s)**: `reduceTick` steps the active frame of each running session via `Driver.Step(frame.Driver, DEvTick{...})`. Pane reconciliation and the pane 0.0 health check are performed on the same tick. For the detailed sequence, see [ipc.md](ipc.md#tick-processing-sequence).
 - **PaneTap OSC events**: When the `tapManager` reader goroutine receives bytes from `tmux pipe-pane`, it feeds them into a per-frame `driver/vt.Terminal` (a thin wrapper over `charmbracelet/x/vt`). The emulator fires synchronous callbacks for OSC 0/2 (window titles), OSC 9/99/777 (notifications), and OSC 133 (semantic prompt phases). The reader translates these into `EvPaneOsc` and `EvPanePrompt` events.
 - **Driver hooks (`EvDriverEvent`)**: hook subprocesses send events through the IPC bridge; `reduceDriverHook` dispatches them to the owning frame's driver as `DEvHook`.
+- **Subsystem events (`EvSubsystem`)**: structured backends send typed execution events through the IPC bridge; `reduceSubsystem` dispatches them to the owning frame's driver as `DEvSubsystem`.
 
 Driver.Step returns `[]Effect` — `EffStartJob` for slow I/O (transcript parse, haiku summary, git branch detect), `EffEventLogAppend` for operator-visible event log writes, and so on. Worker results are fed back via `EvJobResult` → `Driver.Step(DEvJobResult)` and reflected in DriverState.
 
@@ -28,7 +29,8 @@ The Driver plugin's `Step` method is responsible for status updates. For the Dri
 | `Step(prev, DEvTick)` | `reduceTick` | Periodic tick on the active frame of each running session. Claude gates on `DEvTick.Active`, emitting transcript parse jobs only when active. Generic transitions Running → Waiting after `IdleThreshold` elapses without OSC activity |
 | `Step(prev, DEvPaneOsc)` | `reducePaneOsc` | Routes OSC 0/2 (window title) sequences to the driver. Claude/Codex/Gemini interpret the title to update status (e.g. Braille spinner = Running, "✳" = Waiting) |
 | `Step(prev, DEvPanePrompt)` | `reducePanePrompt` | Routes OSC 133 semantic-prompt events. Shell driver sets `SawPromptEvent` on first observation and updates `LastExitCode` on `PromptPhaseComplete` |
-| `Step(prev, DEvHook)` | `reduceDriverHook` | Receives hook events targeted at a specific frame and updates that frame's DriverState. Claude performs status transitions + event log append effects |
+| `Step(prev, DEvHook)` | `reduceDriverHook` | Receives hook events targeted at a specific frame and updates that frame's DriverState. Used by hook-driven agents such as Claude and Gemini |
+| `Step(prev, DEvSubsystem)` | `reduceSubsystem` | Receives structured subsystem events targeted at a specific frame and updates that frame's DriverState. Used by Codex App Server |
 | `Step(prev, DEvJobResult)` | `reduceJobResult` | Reflects results from the worker pool into the owning frame's DriverState. Transcript parse results such as title / lastPrompt |
 | `Step(prev, DEvFileChanged)` | `reduceFileChanged` | File change notification from fsnotify. Emits transcript parse job |
 | `View(driverState)` | runtime's `broadcastSessionsChanged` / `activeStatusLine` | Pure getter that returns display payloads for the TUI (Card / LogTabs / InfoExtras / StatusLine) |
@@ -63,6 +65,17 @@ Hook event → driver.Status mapping:
 | SessionEnd | Stopped |
 
 The `roost event <eventType>` subcommand repackages the Claude hook payload into `proto.CmdEvent` and sends it via IPC. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions using the frame id it received as `SenderID`, and calls `Driver.Step(frame.Driver, DEvHook{...})`. Neither the state layer nor the runtime layer holds any Claude-specific state logic.
+
+### Codex driver (App Server stream + display-only transcript)
+
+`CodexDriver` is driven by structured subsystem events from `codex app-server`, not by hooks.
+
+- `Step(prev, DEvSubsystem{Kind: session_ready | turn_started | turn_completed})`: updates running/waiting lifecycle and stores the logical thread identity
+- `Step(prev, DEvSubsystem{Kind: tool_started | tool_completed | approval_requested | approval_resolved})`: updates current tool and pending approval state
+- `Step(prev, DEvSubsystem{Kind: plan_updated | diff_updated | message_updated})`: updates plan summary, diff summary, assistant message, and recent turns
+- `Step(prev, DEvFileChanged)` / `Step(prev, DEvJobResult)`: transcript parsing still runs, but only to populate display tabs and supplemental fields
+
+For Codex, transcript files are display-only. The source of truth for status, approval, tool execution, plan, and diff is the App Server event stream.
 
 ### Hook event routing and race-free identification
 
@@ -169,6 +182,22 @@ sequenceDiagram
   "branch_at":            "2026-04-09T12:00:00Z",
   "branch_is_worktree":   "1",
   "branch_parent_branch": "main",
+  "summary":              "haiku summary text",
+  "title":                "conversation title",
+  "last_prompt":          "most recent user prompt"
+}
+```
+
+`codexDriver.PersistedState()`:
+```
+{
+  "thread_id":            "abc-123",
+  "requested_thread_id":  "abc-123",
+  "observed_thread_id":   "abc-123",
+  "resume_phase":         "attached",
+  "managed_working_dir":  "/path/to/worktree",
+  "status":               "running",
+  "status_changed_at":    "2026-04-09T12:34:56Z",
   "summary":              "haiku summary text",
   "title":                "conversation title",
   "last_prompt":          "most recent user prompt"

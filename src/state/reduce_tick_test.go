@@ -130,6 +130,29 @@ func TestPaneDiedActiveSessionEmitsDeactivate(t *testing.T) {
 	}
 }
 
+// TestPaneDiedRootFrameWithSubsystemIDEvictsSession is a regression test for
+// the bug where assignSubsystemID always produces a non-empty SubsystemID,
+// causing failSubsystemFrame to return handled=true for root frames and
+// preventing eviction.
+func TestPaneDiedRootFrameWithSubsystemIDEvictsSession(t *testing.T) {
+	s := New()
+	id := SessionID("abc")
+	sess := stubSession(id)
+	sess.Frames[0].SubsystemID = SubsystemID("cli:" + string(id)) // as assignSubsystemID produces
+	s.Sessions[id] = sess
+	s.ActiveOccupant = OccupantFrame
+	s.ActiveSession = id
+
+	next, effs := Reduce(s, EvPaneDied{Pane: "{sessionName}:0.1", OwnerFrameID: FrameID(id)})
+
+	if _, ok := next.Sessions[id]; ok {
+		t.Error("session should be evicted when root frame's pane dies")
+	}
+	if _, ok := findEff[EffDeactivateSession](effs); !ok {
+		t.Error("expected EffDeactivateSession when active root frame's pane dies")
+	}
+}
+
 func TestTmuxWindowVanishedActiveSessionEmitsDeactivateAndRespawn(t *testing.T) {
 	s := New()
 	id := SessionID("abc")

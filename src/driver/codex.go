@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -11,21 +10,45 @@ import (
 const (
 	CodexDriverName = "codex"
 
-	codexKeyCodexSessionID    = "codex_session_id"
+	// CodexAppServerSockName is the project-private filename of the codex
+	// app-server's UDS, used in both the host run dir
+	// (<dataDir>/run/<projhash>/) and the container run dir
+	// (/opt/roost/run/). The directory itself differentiates projects, so
+	// no further encoding is needed.
+	CodexAppServerSockName = "codex.sock"
+
+	// CodexAppServerLoopbackPort is the fixed loopback TCP port the
+	// sockbridge listens on for the codex TUI's ws:// attach. Inside a
+	// project devcontainer the network namespace is isolated so this port
+	// is collision-free across projects; in host mode the daemon serves
+	// one project at a time, so the same fixed port works.
+	CodexAppServerLoopbackPort = 8282
+
+	codexKeyThreadID          = "thread_id"
+	codexKeyRequestedThreadID = "requested_thread_id"
+	codexKeyObservedThreadID  = "observed_thread_id"
+	codexKeyResumePhase       = "resume_phase"
 	codexKeyManagedWorkingDir = "managed_working_dir"
-	codexSandboxYoloFlag      = "--yolo"
 )
 
 type CodexState struct {
 	CommonState
 
-	CodexSessionID     string
+	ThreadID           string
+	RequestedThreadID  string
+	ObservedThreadID   string
+	ResumePhase        string
+	FailureReason      string
 	ManagedWorkingDir  string
 	CurrentTool        string
+	PendingApproval    bool
 	TranscriptInFlight bool
 	WatchedFile        string
 	StatusLine         string
 	LastWindowTitle    string
+	PlanSummary        string
+	DiffSummary        string
+	DiffPaths          []string
 	RecentTurns        []SummaryTurn
 	PendingTools       map[string]codexPendingTool
 }
@@ -40,21 +63,15 @@ type codexPendingTool struct {
 	StartedAt time.Time
 }
 
-type codexHookPayload struct {
-	SessionID            string         `json:"session_id"`
-	HookEventName        string         `json:"hook_event_name"`
-	NotificationType     string         `json:"notification_type"`
-	TranscriptPath       string         `json:"transcript_path"`
-	Source               string         `json:"source"`
-	Prompt               string         `json:"prompt"`
-	ToolName             string         `json:"tool_name"`
-	ToolInput            map[string]any `json:"tool_input"`
-	ToolUseID            string         `json:"tool_use_id"`
-	PermissionMode       string         `json:"permission_mode"`
-	Error                string         `json:"error"`
-	IsInterrupt          bool           `json:"is_interrupt"`
-	LastAssistantMessage string         `json:"last_assistant_message"`
-	StopReason           string         `json:"stop_reason"`
+// codexToolEvent carries the minimum fields needed for tool log emission.
+// Used internally by handleSubsystemToolCompleted → emitToolLog.
+type codexToolEvent struct {
+	Kind        string // "PreToolUse" | "PostToolUse" | "PostToolUseFailure"
+	ToolName    string
+	ToolInput   map[string]any
+	ToolUseID   string
+	Error       string
+	IsInterrupt bool
 }
 
 func NewCodexDriver(eventLogDir string) CodexDriver {
@@ -64,6 +81,14 @@ func NewCodexDriver(eventLogDir string) CodexDriver {
 func (CodexDriver) Name() string                            { return CodexDriverName }
 func (CodexDriver) DisplayName() string                     { return CodexDriverName }
 func (CodexDriver) Status(s state.DriverState) state.Status { return s.(CodexState).Status }
+
+func (CodexDriver) SubsystemID(project string, sandbox state.SandboxOverride, _ state.FrameID) state.SubsystemID {
+	mode := "auto"
+	if sandbox == state.SandboxOverrideHost {
+		mode = "host"
+	}
+	return state.SubsystemID("codex:" + mode + ":" + strings.ReplaceAll(project, ":", "_"))
+}
 
 func (CodexDriver) StartDir(s state.DriverState) string {
 	cs, ok := s.(CodexState)
@@ -117,28 +142,30 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 	if mode == state.LaunchModeCreate || req.Enabled || cs.ManagedWorkingDir != "" {
 		base = stripped
 	}
-	base = ensureCodexSandboxFlag(base, sandboxed)
-	if mode != state.LaunchModeColdStart || cs.CodexSessionID == "" || !isAlphanumHyphen(cs.CodexSessionID) || hasResumeToken(base) {
+	stream := state.StreamLaunchOptions{}
+	if sandboxed {
+		stream.SandboxPolicy = state.StreamSandboxPolicyExternal
+		stream.ApprovalPolicy = state.StreamApprovalPolicyAutoApprove
+	}
+	if mode != state.LaunchModeColdStart || cs.ThreadID == "" || !isAlphanumHyphen(cs.ThreadID) || hasResumeToken(base) {
 		return state.LaunchPlan{
-			Command:  base,
-			StartDir: startDir,
-			Options:  state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled || cs.ManagedWorkingDir != ""}},
-			Stdin:    options.InitialInput,
+			Command:   base,
+			StartDir:  startDir,
+			Options:   state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled || cs.ManagedWorkingDir != ""}},
+			Subsystem: state.LaunchSubsystemStream,
+			Stream:    stream,
+			Stdin:     options.InitialInput,
 		}, nil
 	}
+	stream.ResumeThreadID = cs.ThreadID
 	return state.LaunchPlan{
-		Command:  strings.TrimSpace(base) + " resume " + cs.CodexSessionID,
-		StartDir: startDir,
-		Options:  state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled || cs.ManagedWorkingDir != ""}},
-		Stdin:    options.InitialInput,
+		Command:   strings.TrimSpace(base),
+		StartDir:  startDir,
+		Options:   state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled || cs.ManagedWorkingDir != ""}},
+		Subsystem: state.LaunchSubsystemStream,
+		Stream:    stream,
+		Stdin:     options.InitialInput,
 	}, nil
-}
-
-func ensureCodexSandboxFlag(command string, sandboxed bool) string {
-	if hasFlagToken(command, codexSandboxYoloFlag) {
-		return command
-	}
-	return appendFlag(command, codexSandboxYoloFlag, sandboxed)
 }
 
 func hasResumeToken(command string) bool {
@@ -150,24 +177,22 @@ func hasResumeToken(command string) bool {
 	return false
 }
 
-func parseCodexHookPayload(payload json.RawMessage) codexHookPayload {
-	return parsePayload[codexHookPayload](payload)
-}
-
 func (d CodexDriver) Step(prev state.DriverState, ctx state.FrameContext, ev state.DriverEvent) (state.DriverState, []state.Effect, state.View) {
 	cs, ok := prev.(CodexState)
 	if !ok {
 		cs = d.NewState(time.Time{}).(CodexState)
 	}
 	if !ctx.IsRoot {
-		if _, ok := ev.(state.DEvHook); !ok {
+		switch ev.(type) {
+		case state.DEvSubsystem:
+		default:
 			return cs, nil, d.view(cs)
 		}
 	}
 
 	switch e := ev.(type) {
-	case state.DEvHook:
-		next, effs := d.handleHook(cs, ctx, e)
+	case state.DEvSubsystem:
+		next, effs := d.handleSubsystem(cs, ctx, e)
 		return next, effs, d.view(next)
 	case state.DEvTick:
 		effs := cs.HandleTick(e, false)

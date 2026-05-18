@@ -19,6 +19,7 @@ const (
 	CmdNameSubscribe   = "subscribe"
 	CmdNameUnsubscribe = "unsubscribe"
 	CmdNameEvent       = "event"
+	CmdNameSubsystem   = "subsystem-event"
 
 	// surface.* — pane read/write operations
 	CmdNameSurfaceReadText = "surface.read_text"
@@ -63,6 +64,18 @@ type CmdEvent struct {
 
 func (CmdEvent) isCommand()          {}
 func (CmdEvent) CommandName() string { return CmdNameEvent }
+
+type CmdSubsystemEvent struct {
+	Token     string          `json:"token,omitempty"`
+	FrameID   string          `json:"frame_id,omitempty"`
+	Source    string          `json:"source"`
+	Kind      string          `json:"kind"`
+	Timestamp time.Time       `json:"timestamp"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+}
+
+func (CmdSubsystemEvent) isCommand()          {}
+func (CmdSubsystemEvent) CommandName() string { return CmdNameSubsystem }
 
 // CmdSurfaceReadText reads the trailing Lines of a session's pane content.
 // SessionID identifies the target session; Lines=0 uses the server default (30).

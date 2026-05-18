@@ -42,6 +42,44 @@ func init() {
 	}
 }
 
+type subsystemStubState struct {
+	DriverStateBase
+	lastKind   SubsystemEventKind
+	lastSource SubsystemKind
+}
+
+type subsystemDriverStub struct{}
+
+func (subsystemDriverStub) Name() string                       { return "subsystemstub" }
+func (subsystemDriverStub) DisplayName() string                { return "subsystemstub" }
+func (subsystemDriverStub) Status(s DriverState) Status        { return StatusIdle }
+func (subsystemDriverStub) NewState(now time.Time) DriverState { return subsystemStubState{} }
+func (subsystemDriverStub) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
+}
+func (subsystemDriverStub) Persist(s DriverState) map[string]string { return nil }
+func (subsystemDriverStub) Restore(bag map[string]string, now time.Time) DriverState {
+	return subsystemStubState{}
+}
+func (subsystemDriverStub) View(s DriverState) View {
+	return View{Card: Card{BorderTitle: Tag{Text: "subsystemstub"}}}
+}
+func (subsystemDriverStub) Step(prev DriverState, ctx FrameContext, ev DriverEvent) (DriverState, []Effect, View) {
+	st, _ := prev.(subsystemStubState)
+	if sev, ok := ev.(DEvSubsystem); ok {
+		st.lastKind = sev.Kind
+		st.lastSource = sev.Source
+		return st, nil, View{}
+	}
+	return st, nil, View{}
+}
+
+func init() {
+	if _, exists := driverRegistry["subsystemstub"]; !exists {
+		Register(subsystemDriverStub{})
+	}
+}
+
 // bogusSessionDriverStub emits EffPushDriver with a non-existent SessionID.
 type bogusSessionDriverStub struct{}
 
@@ -156,5 +194,95 @@ func TestDriverHookEffPushDriverIsResolved(t *testing.T) {
 	}
 	if sess.Frames[1].Project != "/project" {
 		t.Errorf("new frame project = %q, want /project", sess.Frames[1].Project)
+	}
+}
+
+func TestSubsystemEventRoutesToDriver(t *testing.T) {
+	s := New()
+	sid := SessionID("sess-sub")
+	frameID := FrameID("frame-sub")
+	s.Sessions = map[SessionID]Session{
+		sid: {
+			ID:      sid,
+			Project: "/project",
+			Command: "subsystemstub",
+			Driver:  subsystemStubState{},
+			Frames: []SessionFrame{{
+				ID:      frameID,
+				Project: "/project",
+				Command: "subsystemstub",
+				Driver:  subsystemStubState{},
+			}},
+		},
+	}
+
+	next, effs := Reduce(s, EvSubsystem{
+		ConnID:    1,
+		ReqID:     "r1",
+		FrameID:   frameID,
+		Source:    SubsystemStream,
+		Kind:      SubsystemMessageUpdated,
+		Timestamp: time.Now(),
+		Payload:   SubsystemPayload{TargetID: "thread-1"},
+	})
+
+	st, ok := next.Sessions[sid].Frames[0].Driver.(subsystemStubState)
+	if !ok {
+		t.Fatalf("driver state = %T", next.Sessions[sid].Frames[0].Driver)
+	}
+	if st.lastKind != SubsystemMessageUpdated {
+		t.Fatalf("lastKind = %q", st.lastKind)
+	}
+	if st.lastSource != SubsystemStream {
+		t.Fatalf("lastSource = %q", st.lastSource)
+	}
+	if got := next.Sessions[sid].Frames[0].TargetID; got != "thread-1" {
+		t.Fatalf("TargetID = %q", got)
+	}
+	if _, ok := findEff[EffPersistSnapshot](effs); !ok {
+		t.Fatal("expected EffPersistSnapshot")
+	}
+	if _, ok := findEff[EffBroadcastSessionsChanged](effs); !ok {
+		t.Fatal("expected EffBroadcastSessionsChanged")
+	}
+	if _, ok := findEff[EffSendResponse](effs); !ok {
+		t.Fatal("expected EffSendResponse")
+	}
+}
+
+func TestSubsystemEventUnknownFrameReturnsError(t *testing.T) {
+	s := New()
+	_, effs := Reduce(s, EvSubsystem{
+		ConnID:  1,
+		ReqID:   "r1",
+		FrameID: "ghost",
+		Source:  SubsystemStream,
+		Kind:    SubsystemMessageUpdated,
+	})
+
+	errEff, ok := findEff[EffSendError](effs)
+	if !ok {
+		t.Fatal("expected EffSendError")
+	}
+	if errEff.Code != string(ErrCodeNotFound) {
+		t.Fatalf("error code = %q", errEff.Code)
+	}
+}
+
+func TestSubsystemEventMissingFrameReturnsError(t *testing.T) {
+	s := New()
+	_, effs := Reduce(s, EvSubsystem{
+		ConnID: 1,
+		ReqID:  "r1",
+		Source: SubsystemStream,
+		Kind:   SubsystemMessageUpdated,
+	})
+
+	errEff, ok := findEff[EffSendError](effs)
+	if !ok {
+		t.Fatal("expected EffSendError")
+	}
+	if errEff.Code != string(ErrCodeInvalidArgument) {
+		t.Fatalf("error code = %q", errEff.Code)
 	}
 }

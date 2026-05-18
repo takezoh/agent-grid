@@ -60,6 +60,45 @@ func TestDirectLauncher_noSockPath_noROOST_SOCKET(t *testing.T) {
 	}
 }
 
+func TestDirectLauncher_IsContainer(t *testing.T) {
+	l := DirectLauncher{}
+	if l.IsContainer("/any/project") {
+		t.Error("DirectLauncher.IsContainer should always return false")
+	}
+}
+
+func TestDirectLauncher_stripsContainerToken(t *testing.T) {
+	l := DirectLauncher{}
+	env := map[string]string{
+		"ROOST_SOCKET_TOKEN": "secret-token",
+		"OTHER":              "keep",
+	}
+	got, err := l.WrapLaunch("f1", state.LaunchPlan{Command: "claude"}, env)
+	if err != nil {
+		t.Fatalf("WrapLaunch: %v", err)
+	}
+	if _, ok := got.Env["ROOST_SOCKET_TOKEN"]; ok {
+		t.Error("ROOST_SOCKET_TOKEN should be stripped by DirectLauncher")
+	}
+	if got.Env["OTHER"] != "keep" {
+		t.Errorf("OTHER env lost: %v", got.Env)
+	}
+}
+
+func TestDirectLauncher_keepsDirectStreamCommand(t *testing.T) {
+	l := DirectLauncher{}
+	plan := state.LaunchPlan{
+		Command: "codex resume thr_123 --remote unix:///opt/roost/run/codex-foo.sock",
+	}
+	got, err := l.WrapLaunch("f1", plan, nil)
+	if err != nil {
+		t.Fatalf("WrapLaunch: %v", err)
+	}
+	if got.Command != plan.Command {
+		t.Errorf("Command = %q, want %q", got.Command, plan.Command)
+	}
+}
+
 func TestLauncher_nilFallback(t *testing.T) {
 	cfg := Config{} // Launcher is nil
 	l := launcher(cfg)

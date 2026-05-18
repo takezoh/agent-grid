@@ -58,7 +58,10 @@ func codexInfoExtras(cs CodexState) []state.InfoLine {
 		}
 	}
 	add("Title", cs.Title)
-	add("Codex Session", cs.CodexSessionID)
+	add("Thread", cs.ThreadID)
+	add("Requested Thread", cs.RequestedThreadID)
+	add("Observed Thread", cs.ObservedThreadID)
+	add("Resume Phase", cs.ResumePhase)
 	add("Working Dir", cs.StartDir)
 	add("Managed Worktree", cs.ManagedWorkingDir)
 	add("Worktree Name", cs.WorktreeName)
@@ -68,9 +71,10 @@ func codexInfoExtras(cs CodexState) []state.InfoLine {
 	}
 	add("Transcript", cs.TranscriptPath)
 	add("Summary", cs.Summary)
+	add("Plan", cs.PlanSummary)
+	add("Diff", cs.DiffSummary)
 	add("Status Line", cs.StatusLine)
 	add("Last Prompt", cs.LastPrompt)
 	add("Last Assistant", cs.LastAssistantMessage)
-	add("Last Hook", cs.LastHookEvent)
 	return lines
 }

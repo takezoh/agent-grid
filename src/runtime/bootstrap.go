@@ -52,8 +52,18 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 		if frameCreatedAt.IsZero() {
 			frameCreatedAt = createdAt
 		}
+		subsystemID := fsnap.SubsystemID
+		if subsystemID == "" {
+			subsystemID = fsnap.ID
+		}
+		targetID := fsnap.TargetID
+		if targetID == "" {
+			targetID = fsnap.ID
+		}
 		sess.Frames = append(sess.Frames, state.SessionFrame{
 			ID:            state.FrameID(fsnap.ID),
+			SubsystemID:   state.SubsystemID(subsystemID),
+			TargetID:      state.TargetID(targetID),
 			Project:       fsnap.Project,
 			Command:       fsnap.Command,
 			LaunchOptions: fsnap.LaunchOptions,
@@ -195,12 +205,12 @@ func (r *Runtime) RecoverActivePaneAtMain() {
 		break
 	}
 	if owner == "" {
-		if r.sessionPanes["_main"] == "" {
+		if r.sessionPanes["_main"] != paneAtZero {
 			r.sessionPanes["_main"] = paneAtZero
 			_ = r.cfg.Tmux.SetEnv("ROOST_FRAME__main", paneAtZero)
 		}
 		r.mainPaneSession = ""
-		slog.Info("bootstrap: main TUI active at 0.0", "pane", paneAtZero)
+		slog.Info("bootstrap: main TUI active at 0.1", "pane", paneAtZero)
 		return
 	}
 	if r.sessionPanes["_main"] == "" {

@@ -3,6 +3,7 @@ package driver
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -177,6 +178,7 @@ func (d ShellDriver) Step(prev state.DriverState, ctx state.FrameContext, ev sta
 
 func applyShellPromptEvent(ss ShellState, e state.DEvPanePrompt) ShellState {
 	ss.SawPromptEvent = true
+	prev := ss.Status
 	switch e.Phase {
 	case state.PromptPhaseInput:
 		ss = setShellStatus(ss, state.StatusWaiting, e.Now)
@@ -186,6 +188,9 @@ func applyShellPromptEvent(ss ShellState, e state.DEvPanePrompt) ShellState {
 		ss.LastExitCode = e.ExitCode
 		ss = setShellStatus(ss, state.StatusWaiting, e.Now)
 	}
+	slog.Info("shell: prompt event",
+		"phase", e.Phase, "prevStatus", prev, "nextStatus", ss.Status,
+		"exitCode", e.ExitCode)
 	return ss
 }
 

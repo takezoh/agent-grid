@@ -127,6 +127,34 @@ func TestSpecOverlay_ExtraCreateArgs(t *testing.T) {
 	assertArgBeforeImage(t, args, "img:latest", func(a string) bool { return a == "--shm-size=2g" })
 }
 
+func TestBuildLaunchCommand_streamDirectCommand(t *testing.T) {
+	const project = "/workspace/myapp"
+	spec := &DevcontainerSpec{
+		ProjectPath:     project,
+		ContainerEnv:    map[string]string{},
+		WorkspaceFolder: "/workspaces/myapp",
+	}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: project,
+		Internal:    &ContainerState{containerID: "ctr42", spec: spec},
+	}
+	m := &Manager{}
+	plan := state.LaunchPlan{
+		Project:   project,
+		StartDir:  project,
+		Command:   "codex resume thr_123 --remote unix:///opt/roost/run/codex-foo.sock",
+		Subsystem: state.LaunchSubsystemStream,
+	}
+
+	got, _, err := m.BuildLaunchCommand(inst, plan, nil)
+	if err != nil {
+		t.Fatalf("BuildLaunchCommand error: %v", err)
+	}
+	if !strings.Contains(got, "codex resume thr_123 --remote unix:///opt/roost/run/codex-foo.sock") {
+		t.Errorf("expected direct codex remote command, got: %s", got)
+	}
+}
+
 func TestBuildLaunchCommand_shellUsesLoginShell(t *testing.T) {
 	const project = "/workspace/myapp"
 	spec := &DevcontainerSpec{
