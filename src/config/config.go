@@ -301,8 +301,14 @@ func EnsureConfigDir() string {
 }
 
 func (c *Config) ListProjects() []string {
+	return c.Projects.ListProjects()
+}
+
+// ListProjects returns all project directories: non-hidden subdirs of each
+// ProjectRoot, plus each explicit ProjectPath that exists as a directory.
+func (p *ProjectsConfig) ListProjects() []string {
 	var projects []string
-	for _, root := range c.Projects.ProjectRoots {
+	for _, root := range p.ProjectRoots {
 		root = ExpandPath(root)
 		entries, err := os.ReadDir(root)
 		if err != nil {
@@ -314,10 +320,10 @@ func (c *Config) ListProjects() []string {
 			}
 		}
 	}
-	for _, p := range c.Projects.ProjectPaths {
-		p = ExpandPath(p)
-		if info, err := os.Stat(p); err == nil && info.IsDir() {
-			projects = append(projects, p)
+	for _, path := range p.ProjectPaths {
+		path = ExpandPath(path)
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			projects = append(projects, path)
 		}
 	}
 	return projects

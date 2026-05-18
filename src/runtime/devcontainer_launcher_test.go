@@ -1,8 +1,11 @@
 package runtime
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/takezoh/agent-roost/config"
 	sandboxdc "github.com/takezoh/agent-roost/sandbox/devcontainer"
 	"github.com/takezoh/credproxy/container"
 )
@@ -145,5 +148,68 @@ func TestBuildMounts_DeduplicatesWorkspaceAndRunDir(t *testing.T) {
 	ms := buildMounts("/host/myapp", "/workspaces/myapp", "/host/run", binds)
 	if len(ms) != 3 {
 		t.Fatalf("len = %d, want 3 (ws + run + claude/projects): %+v", len(ms), ms)
+	}
+}
+
+func TestSharedWorkspaceBindMounts_EnumeratesProjects(t *testing.T) {
+	root := t.TempDir()
+	projA := filepath.Join(root, "proj-a")
+	projB := filepath.Join(root, "proj-b")
+	hidden := filepath.Join(root, ".hidden")
+	for _, d := range []string{projA, projB, hidden} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	direct := t.TempDir()
+
+	projects := config.ProjectsConfig{
+		ProjectRoots: []string{root},
+		ProjectPaths: []string{direct},
+	}
+	binds := sharedWorkspaceBindMounts(projects, "")
+
+	// Should include proj-a, proj-b, and direct; skip .hidden.
+	bySource := map[string]string{}
+	for _, b := range binds {
+		bySource[b.Source] = b.Target
+	}
+	if _, ok := bySource[projA]; !ok {
+		t.Errorf("expected proj-a in binds: %+v", binds)
+	}
+	if _, ok := bySource[projB]; !ok {
+		t.Errorf("expected proj-b in binds: %+v", binds)
+	}
+	if _, ok := bySource[direct]; !ok {
+		t.Errorf("expected direct in binds: %+v", binds)
+	}
+	if _, ok := bySource[hidden]; ok {
+		t.Errorf("hidden dir must not appear in binds: %+v", binds)
+	}
+}
+
+func TestSharedWorkspaceBindMounts_WithPrefix(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "myapp")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	projects := config.ProjectsConfig{ProjectRoots: []string{root}}
+	binds := sharedWorkspaceBindMounts(projects, "/mnt")
+	if len(binds) != 1 {
+		t.Fatalf("expected 1 bind, got %v", binds)
+	}
+	want := "/mnt" + proj
+	if binds[0].Target != want {
+		t.Errorf("Target = %q, want %q", binds[0].Target, want)
+	}
+}
+
+func TestSharedWorkspaceBindMounts_ProjectMode_ReturnsNothing(t *testing.T) {
+	// In project mode, BuildOverlayFunc does not call sharedWorkspaceBindMounts.
+	// Verify that the function itself returns nothing when projects is empty.
+	binds := sharedWorkspaceBindMounts(config.ProjectsConfig{}, "")
+	if len(binds) != 0 {
+		t.Errorf("expected no binds for empty config, got %v", binds)
 	}
 }

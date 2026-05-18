@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -25,7 +24,6 @@ type DevcontainerLauncher struct {
 	mgr                 sandbox.Manager[*sandboxdc.ContainerState]
 	resolveSandbox      func(projectPath string) config.SandboxConfig
 	resolveProjectScope func(projectPath string) *config.SandboxConfig
-	projectsConfig      config.ProjectsConfig
 	proxy               *CredProxyRunner // nil when proxy disabled
 	dataDir             string
 }
@@ -33,12 +31,10 @@ type DevcontainerLauncher struct {
 // NewDevcontainerLauncher creates an AgentLauncher that runs agents inside devcontainers.
 // dataDir is the daemon's data directory (e.g. ~/.roost); it contains the run/ subtree.
 // resolveProjectScope returns the raw project-scope SandboxConfig (nil if absent).
-// projectsConfig is used to enumerate workspace dirs for shared-mode containers.
 func NewDevcontainerLauncher(
 	mgr sandbox.Manager[*sandboxdc.ContainerState],
 	resolveSandbox func(string) config.SandboxConfig,
 	resolveProjectScope func(string) *config.SandboxConfig,
-	projectsConfig config.ProjectsConfig,
 	proxy *CredProxyRunner,
 	dataDir string,
 ) *DevcontainerLauncher {
@@ -46,7 +42,6 @@ func NewDevcontainerLauncher(
 		mgr:                 mgr,
 		resolveSandbox:      resolveSandbox,
 		resolveProjectScope: resolveProjectScope,
-		projectsConfig:      projectsConfig,
 		proxy:               proxy,
 		dataDir:             dataDir,
 	}
@@ -134,47 +129,10 @@ func (l *DevcontainerLauncher) resolveStartOptions(projectPath string) sandbox.S
 		return sandbox.StartOptions{}
 	}
 
-	dcDir := config.ExpandPath(userSandbox.Devcontainer.Path)
-	prefix := userSandbox.Devcontainer.HostPathMountPrefix
 	return sandbox.StartOptions{
 		SharedMode:      true,
-		DevcontainerDir: dcDir,
-		ExtraMounts:     l.sharedWorkspaceMounts(prefix),
+		DevcontainerDir: config.ExpandPath(userSandbox.Devcontainer.Path),
 	}
-}
-
-// sharedWorkspaceMounts builds "type=bind,source=X,target=Y" mount specs for all
-// configured project roots and paths. prefix is HostPathMountPrefix (may be "").
-func (l *DevcontainerLauncher) sharedWorkspaceMounts(prefix string) []string {
-	seen := map[string]struct{}{}
-	var mounts []string
-	add := func(hostPath string) {
-		if _, dup := seen[hostPath]; dup {
-			return
-		}
-		seen[hostPath] = struct{}{}
-		containerPath := resolveWorkspaceFallback(hostPath, prefix)
-		mounts = append(mounts, fmt.Sprintf("type=bind,source=%s,target=%s,consistency=cached", hostPath, containerPath))
-	}
-	for _, root := range l.projectsConfig.ProjectRoots {
-		root = config.ExpandPath(root)
-		entries, err := os.ReadDir(root)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-				add(filepath.Join(root, e.Name()))
-			}
-		}
-	}
-	for _, p := range l.projectsConfig.ProjectPaths {
-		p = config.ExpandPath(p)
-		if info, err := os.Stat(p); err == nil && info.IsDir() {
-			add(p)
-		}
-	}
-	return mounts
 }
 
 // buildMounts constructs the pathmap.Mounts for a devcontainer instance.
@@ -258,9 +216,10 @@ func (l *DevcontainerLauncher) makeCleanup(frameID state.FrameID, inst *sandbox.
 // dataDir is the daemon's data directory (e.g. ~/.roost); it contains the run/ directory tree.
 // postCreateSubcmds lists driver-specific setup commands; the caller supplies these to enforce
 // driver/runtime isolation — runtime itself has no knowledge of driver names.
+// projects is used to enumerate workspace bind-mounts for shared containers.
 // The returned function is called per-EnsureInstance to compute the roost-specific
 // env/mounts overlay without triggering any image build.
-func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *CredProxyRunner, dataDir string, postCreateSubcmds []string) sandboxdc.OverlayFunc {
+func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, projects config.ProjectsConfig, proxy *CredProxyRunner, dataDir string, postCreateSubcmds []string) sandboxdc.OverlayFunc {
 	return func(instanceKey, projectPath, dcDir string) (sandboxdc.SpecOverlay, error) {
 		// For shared containers use user-scope config only (no project-scope settings).
 		configKey := projectPath
@@ -301,14 +260,38 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, proxy *C
 		bridges = append(bridges, cstream.ContainerBridgeSpec(ContainerRunDir))
 		postCreate := buildPostCreate(binPath, postCreateSubcmds, bridges)
 
+		var extraWorkspaces []sandboxdc.BindMount
+		if instanceKey == sandboxdc.SharedContainerKey {
+			extraWorkspaces = sharedWorkspaceBindMounts(projects, dc.HostPathMountPrefix)
+		}
+
 		return sandboxdc.SpecOverlay{
 			Env:                     env,
 			Mounts:                  mounts,
+			ExtraWorkspaces:         extraWorkspaces,
 			ExtraCreateArgs:         dc.ExtraCreateArgs,
 			PostCreate:              postCreate,
 			WorkspaceFolderFallback: resolveWorkspaceFallback(projectPath, dc.HostPathMountPrefix),
 		}, nil
 	}
+}
+
+// sharedWorkspaceBindMounts enumerates all project directories from projects
+// and returns them as BindMount entries for the shared container spec.
+func sharedWorkspaceBindMounts(projects config.ProjectsConfig, prefix string) []sandboxdc.BindMount {
+	seen := map[string]struct{}{}
+	var out []sandboxdc.BindMount
+	for _, hostPath := range projects.ListProjects() {
+		if _, dup := seen[hostPath]; dup {
+			continue
+		}
+		seen[hostPath] = struct{}{}
+		out = append(out, sandboxdc.BindMount{
+			Source: hostPath,
+			Target: resolveWorkspaceFallback(hostPath, prefix),
+		})
+	}
+	return out
 }
 
 // resolveWorkspaceFallback returns the container-side path to use when
