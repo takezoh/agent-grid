@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/takezoh/agent-roost/config"
 	appruntime "github.com/takezoh/agent-roost/runtime"
@@ -69,6 +72,79 @@ func TestRunCoordinatorRejectsInsideTmux(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "refusing to start coordinator") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// SIGHUP must not kill the daemon. Regression test for the failure mode
+// where the daemon process vanished after `attaching to tmux session`,
+// leaving every TUI pane dead and the user staring at a broken session.
+//
+// `tmux attach-session` runs as a child of the daemon; once it takes the
+// TTY the parent terminal can deliver a spurious SIGHUP (pane closed in
+// WSL/Windows Terminal, controlling-tty races, etc.). The default action
+// for SIGHUP is process termination, which would kill the daemon while
+// the tmux session itself stays up — exactly the "all 4 TUI panes EOFed
+// simultaneously, daemon gone, no shutdown log" pattern.
+//
+// installSignalHandlers must log the signal and ignore it, leaving the
+// context live so the daemon keeps serving the tmux session.
+func TestInstallSignalHandlers_SIGHUP_IgnoredKeepsContextAlive(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	stop := installSignalHandlers(cancel)
+	defer stop()
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGHUP); err != nil {
+		t.Fatalf("send SIGHUP: %v", err)
+	}
+	// Allow the goroutine to consume the signal.
+	deadline := time.After(200 * time.Millisecond)
+	for {
+		select {
+		case <-deadline:
+			if err := ctx.Err(); err != nil {
+				t.Fatalf("SIGHUP cancelled the context: %v", err)
+			}
+			return
+		default:
+			if ctx.Err() != nil {
+				t.Fatalf("SIGHUP cancelled the context: %v", ctx.Err())
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+}
+
+// SIGTERM must cancel the context for graceful shutdown.
+func TestInstallSignalHandlers_SIGTERM_CancelsContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	stop := installSignalHandlers(cancel)
+	defer stop()
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatalf("send SIGTERM: %v", err)
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("SIGTERM did not cancel context within 1s")
+	}
+}
+
+// stop() must unblock even when no signals arrived. Guards against a
+// goroutine leak in long-lived tests / repeated start-stop cycles.
+func TestInstallSignalHandlers_StopUnblocksWithNoSignals(t *testing.T) {
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop := installSignalHandlers(cancel)
+	doneCh := make(chan struct{})
+	go func() {
+		stop()
+		close(doneCh)
+	}()
+	select {
+	case <-doneCh:
+	case <-time.After(time.Second):
+		t.Fatal("stop() did not return within 1s with no signals delivered")
 	}
 }
 

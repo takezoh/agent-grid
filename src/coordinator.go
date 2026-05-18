@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/takezoh/agent-roost/config"
@@ -185,9 +187,42 @@ func coldStart(ctx context.Context, rt *runtime.Runtime, client *tmux.Client, cf
 	return nil
 }
 
+// installSignalHandlers wires SIGINT/SIGTERM/SIGHUP into the coordinator
+// context. SIGINT/SIGTERM cancel the context for graceful shutdown.
+// SIGHUP is logged and ignored: when daemon spawns `tmux attach-session` as
+// a child the parent terminal can deliver spurious SIGHUP (closing pane,
+// WSL2 init quirks); killing the daemon there would tear down every TUI
+// pane via socket EOF while the tmux session itself stays alive — the
+// "TUI suddenly broke, daemon vanished without a log" failure mode.
+//
+// Returns a stop function the caller must defer to restore default handlers.
+func installSignalHandlers(cancel context.CancelFunc) func() {
+	sigCh := make(chan os.Signal, 4)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for sig := range sigCh {
+			slog.Info("coordinator: signal received", "signal", sig.String())
+			if sig == syscall.SIGHUP {
+				continue
+			}
+			cancel()
+			return
+		}
+	}()
+	return func() {
+		signal.Stop(sigCh)
+		close(sigCh)
+		<-done
+	}
+}
+
 // runAndWait starts the event loop, IPC server, TUI panes, and blocks until
 // the session ends or the runtime errors.
 func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runtime, client *tmux.Client, sockPath, sessionName, exePath string) error {
+	stopSignals := installSignalHandlers(cancel)
+	defer stopSignals()
 	runErrCh := make(chan error, 1)
 	go func() {
 		if err := rt.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -212,7 +247,10 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 	respawnSessionsPane(client, sessionName, exePath)
 	respawnHiddenPane(client, sessionName, exePath)
 	slog.Info("attaching to tmux session")
-	if err := client.Attach(); err != nil {
+	attachErr := client.Attach()
+	slog.Info("coordinator: tmux attach returned", "err", attachErr, "session_exists", client.SessionExists())
+	if attachErr != nil {
+		err := attachErr
 		slog.Warn("attach exited", "err", err)
 		if shouldKeepRuntimeAliveAfterAttach(err, client.SessionExists()) {
 			slog.Info("attach failed; keeping runtime alive", "session", sessionName)
