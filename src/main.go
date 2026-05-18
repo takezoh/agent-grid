@@ -54,6 +54,12 @@ func runMain(args []string, stdout, stderr io.Writer) (code int) {
 		procio.UseTerminal()
 	case commandKindDaemon, commandKindRoost:
 		procio.UseLogFile(logger.LogFile())
+		// Dup fd 2 to the log file so goroutine panics (which bypass the
+		// main-goroutine recover() and write the stack trace straight to
+		// stderr) land in the log instead of vanishing onto a terminal
+		// that may or may not still be there. Without this, "daemon
+		// disappeared without a trace" is genuinely tracelessly true.
+		redirectStderr()
 	default:
 	}
 	if cfgErr != nil {

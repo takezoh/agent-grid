@@ -148,6 +148,90 @@ func TestInstallSignalHandlers_StopUnblocksWithNoSignals(t *testing.T) {
 	}
 }
 
+// A panic inside the runtime goroutine must not kill the daemon process.
+// It must (a) land on errCh as an error, (b) cancel the supervisor
+// context so the rest of the daemon shuts down cleanly. Before this
+// guard a state.Reduce panic took the entire daemon down without any
+// log line beyond "proto: read loop ended" from the orphaned TUI
+// subprocesses — the symptom users kept reporting as "TUI suddenly
+// broken, daemon vanished".
+func TestSuperviseRun_PanicSurfacesErrorAndCancels(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error, 1)
+	done := make(chan struct{})
+	go func() {
+		superviseRun(ctx, cancel, errCh, func() error {
+			panic("synthetic reducer panic")
+		})
+		close(done)
+	}()
+	select {
+	case err := <-errCh:
+		if err == nil || !strings.Contains(err.Error(), "synthetic reducer panic") {
+			t.Errorf("want panic surfaced via errCh, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("superviseRun did not push panic to errCh within 1s")
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("superviseRun did not cancel the parent context after panic")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("superviseRun did not return after panic")
+	}
+}
+
+// Errors returned by fn (not panics) surface on errCh but do not cancel
+// the supervisor context — that path is reserved for unrecoverable
+// goroutine panics.
+func TestSuperviseRun_ErrorPropagatesWithoutCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error, 1)
+	want := errors.New("ordinary runtime error")
+	done := make(chan struct{})
+	go func() {
+		superviseRun(ctx, cancel, errCh, func() error { return want })
+		close(done)
+	}()
+	select {
+	case got := <-errCh:
+		if !errors.Is(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("error did not arrive on errCh within 1s")
+	}
+	if ctx.Err() != nil {
+		t.Errorf("ordinary error must not cancel ctx, got %v", ctx.Err())
+	}
+	<-done
+}
+
+// context.Canceled is the cooperative shutdown signal and must never be
+// reported as an error.
+func TestSuperviseRun_ContextCanceledSwallowed(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error, 1)
+	done := make(chan struct{})
+	go func() {
+		superviseRun(ctx, cancel, errCh, func() error { return context.Canceled })
+		close(done)
+	}()
+	select {
+	case got := <-errCh:
+		t.Fatalf("context.Canceled must not be reported, got %v", got)
+	case <-time.After(50 * time.Millisecond):
+	}
+	<-done
+}
+
 func TestShouldKeepRuntimeAliveAfterAttach(t *testing.T) {
 	errAttach := errors.New("attach failed")
 	if !shouldKeepRuntimeAliveAfterAttach(errAttach, true) {

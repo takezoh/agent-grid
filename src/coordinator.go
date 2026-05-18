@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -187,6 +188,30 @@ func coldStart(ctx context.Context, rt *runtime.Runtime, client *tmux.Client, cf
 	return nil
 }
 
+// superviseRun runs fn in the current goroutine and converts panics into
+// logged errors on errCh, then cancels the parent context so the rest of
+// the daemon can shut down cleanly. Without this guard, a panic in the
+// runtime event loop (e.g. state.Reduce hitting an unhandled event) would
+// terminate the entire daemon process, drop every IPC client (TUI panes
+// see EOF and exit), and leave the user staring at a broken tmux session
+// — with the panic stack only on whatever terminal happened to be hooked
+// up to fd 2, which roost's daemon path was not redirecting to the log.
+func superviseRun(ctx context.Context, cancel context.CancelFunc, errCh chan<- error, fn func() error) {
+	_ = ctx // parameter kept so the call site reads as "supervise the runtime tied to ctx"
+	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Error("runtime: goroutine panicked",
+				"err", fmt.Sprintf("%v", rec),
+				"stack", string(debug.Stack()))
+			errCh <- fmt.Errorf("runtime panic: %v", rec)
+			cancel()
+		}
+	}()
+	if err := fn(); err != nil && !errors.Is(err, context.Canceled) {
+		errCh <- err
+	}
+}
+
 // installSignalHandlers wires SIGINT/SIGTERM/SIGHUP into the coordinator
 // context. SIGINT/SIGTERM cancel the context for graceful shutdown.
 // SIGHUP is logged and ignored: when daemon spawns `tmux attach-session` as
@@ -224,11 +249,7 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 	stopSignals := installSignalHandlers(cancel)
 	defer stopSignals()
 	runErrCh := make(chan error, 1)
-	go func() {
-		if err := rt.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			runErrCh <- err
-		}
-	}()
+	go superviseRun(ctx, cancel, runErrCh, func() error { return rt.Run(ctx) })
 	rt.StartTapsForRestoredFrames()
 	if err := rt.StartIPC(sockPath); err != nil {
 		return fmt.Errorf("ipc: %w", err)
