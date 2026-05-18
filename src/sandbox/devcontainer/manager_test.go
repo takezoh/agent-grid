@@ -26,6 +26,46 @@ func TestBuildLaunchCommand_subdir(t *testing.T) {
 	_ = cs
 }
 
+func TestResolveWorkDir_Shared_UsesPlanStartDir(t *testing.T) {
+	// In shared mode, plan.StartDir arrives already translated to a container
+	// path by the launcher. resolveWorkDir must use it as-is rather than
+	// falling back to spec.WorkspaceTarget (which is the first project's path).
+	spec := &DevcontainerSpec{
+		ProjectPath:     "/workspace/fintech", // first project pinned at container creation
+		Isolation:       IsolationShared,
+		WorkspaceFolder: "/workspace/fintech",
+	}
+	got := resolveWorkDir(spec, "/workspace/credproxy", "/workspace/credproxy")
+	if got != "/workspace/credproxy" {
+		t.Errorf("workDir = %q, want /workspace/credproxy", got)
+	}
+}
+
+func TestResolveWorkDir_Shared_EmptyStartDir_FallsBack(t *testing.T) {
+	spec := &DevcontainerSpec{
+		ProjectPath:     "/workspace/fintech",
+		Isolation:       IsolationShared,
+		WorkspaceFolder: "/workspace/fintech",
+	}
+	got := resolveWorkDir(spec, "", "/workspace/credproxy")
+	if got != "/workspace/fintech" {
+		t.Errorf("workDir = %q, want /workspace/fintech", got)
+	}
+}
+
+func TestResolveWorkDir_Project_TranslatesHostPath(t *testing.T) {
+	const project = "/home/take/code/myapp"
+	spec := &DevcontainerSpec{
+		ProjectPath:     project,
+		Isolation:       IsolationProject,
+		WorkspaceFolder: "/workspaces/myapp",
+	}
+	got := resolveWorkDir(spec, project+"/backend", project)
+	if got != "/workspaces/myapp/backend" {
+		t.Errorf("workDir = %q, want /workspaces/myapp/backend", got)
+	}
+}
+
 func TestContainerState_WorkspaceTarget(t *testing.T) {
 	t.Run("fallback when WorkspaceFolder empty", func(t *testing.T) {
 		cs := &ContainerState{spec: &DevcontainerSpec{ProjectPath: "/workspace/myapp"}}

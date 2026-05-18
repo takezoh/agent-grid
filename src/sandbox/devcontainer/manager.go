@@ -330,8 +330,7 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], pl
 	spec := cs.spec
 	cs.mu.Unlock()
 
-	workDir := spec.WorkspaceTarget()
-	workDir = translateWorkDir(plan.StartDir, inst.ProjectPath, workDir)
+	workDir := resolveWorkDir(spec, plan.StartDir, inst.ProjectPath)
 
 	command := plan.Command
 	if command == "shell" {
@@ -417,6 +416,21 @@ func (m *Manager) DestroyInstance(ctx context.Context, inst *sandbox.Instance[*C
 	rmCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	return RemoveContainer(rmCtx, id)
+}
+
+// resolveWorkDir returns the container-side working directory for a launch.
+// Shared containers have no canonical project root, so the caller is expected
+// to have already translated plan.StartDir to a container path via pathmap;
+// it is used as-is. Project containers fall back to translateWorkDir, which
+// maps a host path under projectPath into the container workspace.
+func resolveWorkDir(spec *DevcontainerSpec, planStartDir, projectPath string) string {
+	if spec.Isolation == IsolationShared {
+		if planStartDir != "" {
+			return planStartDir
+		}
+		return spec.WorkspaceTarget()
+	}
+	return translateWorkDir(planStartDir, projectPath, spec.WorkspaceTarget())
 }
 
 // translateWorkDir maps a host-side launch directory to its container-side
