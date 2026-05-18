@@ -75,16 +75,28 @@ func projectHash(projectPath string) string {
 	return hashShort(projectPath)
 }
 
-// ExtraWorkspacesHash returns a deterministic short hash of ExtraWorkspaces,
-// used as the roost-mount-hash container label to detect mount drift between
-// the live container and the current spec. Returns "none" when empty.
-func (s *DevcontainerSpec) ExtraWorkspacesHash() string {
-	if len(s.ExtraWorkspaces) == 0 {
-		return "none"
+// MountConfigurationHash is the deterministic short hash stamped onto the
+// roost-mount-hash container label. It covers every bind-mount the container
+// is created with — workspace mounts plus spec.Mounts (run-dir bind, proxy
+// sockets, devcontainer.json `mounts`) — so any drift between the spec and a
+// live container forces an auto-recreate in ensureContainer.
+//
+// Earlier this only hashed ExtraWorkspaces, which missed run-dir source path
+// changes after the SharedContainerKey unification: a container created with
+// /opt/roost/run -> /home/take/.roost/run/<random-hash> was happily reused
+// by a binary that now writes the codex socket under
+// /home/take/.roost/run/__shared__, and codex frames failed to reach the
+// in-container sockbridge.
+func (s *DevcontainerSpec) MountConfigurationHash() string {
+	entries := make([]string, 0, len(s.ExtraWorkspaces)+len(s.Mounts))
+	for _, w := range s.ExtraWorkspaces {
+		entries = append(entries, "ws\t"+w.Source+"\t"+w.Target)
 	}
-	entries := make([]string, len(s.ExtraWorkspaces))
-	for i, w := range s.ExtraWorkspaces {
-		entries[i] = w.Source + "\t" + w.Target
+	for _, m := range s.Mounts {
+		entries = append(entries, "mount\t"+m)
+	}
+	if len(entries) == 0 {
+		return "none"
 	}
 	sort.Strings(entries)
 	return hashShort(strings.Join(entries, "\n"))
@@ -319,7 +331,7 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 	}
 	if s.Isolation == IsolationShared {
 		args = append(args, "--label", "roost-isolation=shared")
-		args = append(args, "--label", "roost-mount-hash="+s.ExtraWorkspacesHash())
+		args = append(args, "--label", "roost-mount-hash="+s.MountConfigurationHash())
 	} else {
 		args = append(args, "--label", "roost-project="+s.ProjectPath)
 	}

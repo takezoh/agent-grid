@@ -1371,19 +1371,19 @@ func TestIsStaleBindMountError(t *testing.T) {
 	}
 }
 
-func TestExtraWorkspacesHash_Deterministic(t *testing.T) {
+func TestMountConfigurationHash_Deterministic(t *testing.T) {
 	spec := &DevcontainerSpec{ExtraWorkspaces: []BindMount{
 		{Source: "/a", Target: "/a"},
 		{Source: "/b", Target: "/b"},
 	}}
-	h1 := spec.ExtraWorkspacesHash()
-	h2 := spec.ExtraWorkspacesHash()
+	h1 := spec.MountConfigurationHash()
+	h2 := spec.MountConfigurationHash()
 	if h1 != h2 || h1 == "" {
 		t.Errorf("non-deterministic or empty hash: %q vs %q", h1, h2)
 	}
 }
 
-func TestExtraWorkspacesHash_OrderIndependent(t *testing.T) {
+func TestMountConfigurationHash_OrderIndependent(t *testing.T) {
 	a := &DevcontainerSpec{ExtraWorkspaces: []BindMount{
 		{Source: "/a", Target: "/a"},
 		{Source: "/b", Target: "/b"},
@@ -1392,24 +1392,104 @@ func TestExtraWorkspacesHash_OrderIndependent(t *testing.T) {
 		{Source: "/b", Target: "/b"},
 		{Source: "/a", Target: "/a"},
 	}}
-	if a.ExtraWorkspacesHash() != b.ExtraWorkspacesHash() {
+	if a.MountConfigurationHash() != b.MountConfigurationHash() {
 		t.Errorf("order should not affect hash: %q vs %q",
-			a.ExtraWorkspacesHash(), b.ExtraWorkspacesHash())
+			a.MountConfigurationHash(), b.MountConfigurationHash())
 	}
 }
 
-func TestExtraWorkspacesHash_DifferentSets(t *testing.T) {
+func TestMountConfigurationHash_DifferentSets(t *testing.T) {
 	a := &DevcontainerSpec{ExtraWorkspaces: []BindMount{{Source: "/a", Target: "/a"}}}
 	b := &DevcontainerSpec{ExtraWorkspaces: []BindMount{{Source: "/b", Target: "/b"}}}
-	if a.ExtraWorkspacesHash() == b.ExtraWorkspacesHash() {
+	if a.MountConfigurationHash() == b.MountConfigurationHash() {
 		t.Errorf("different sets must hash differently")
 	}
 }
 
-func TestExtraWorkspacesHash_Empty(t *testing.T) {
+// Regression for "codex frame fails to connect to remote app server after a
+// roost binary upgrade": the host-side stream backend now writes its socket
+// under ~/.roost/run/__shared__/ while a pre-existing roost-shared container
+// still has /opt/roost/run bind-mounted to the older random-hash directory
+// (~/.roost/run/<hash>/). The Manager's mount-hash label hasn't changed —
+// because it only covered ExtraWorkspaces — so the stale container is
+// reused, the in-container sockbridge talks to the old host path, and codex
+// CLI gets "failed to connect to remote app server".
+//
+// MountConfigurationHash must include every container-create-time mount
+// (workspace + run-dir + proxy / devcontainer.json mounts) so changing the
+// run-dir source path flips the label and triggers an auto-recreate.
+func TestMountConfigurationHash_DetectsRunDirMountChange(t *testing.T) {
+	specOld := &DevcontainerSpec{
+		ExtraWorkspaces: []BindMount{
+			{Source: "/workspace/a", Target: "/workspace/a"},
+		},
+		Mounts: []string{
+			"type=bind,source=/home/take/.roost/run/4342aed7adbf,target=/opt/roost/run",
+		},
+	}
+	specNew := &DevcontainerSpec{
+		ExtraWorkspaces: []BindMount{
+			{Source: "/workspace/a", Target: "/workspace/a"},
+		},
+		Mounts: []string{
+			"type=bind,source=/home/take/.roost/run/__shared__,target=/opt/roost/run",
+		},
+	}
+	if got := specOld.MountConfigurationHash(); got == specNew.MountConfigurationHash() {
+		t.Errorf("run-dir mount drift must flip the hash; got identical %q", got)
+	}
+}
+
+// Adding an arbitrary mount (e.g. credproxy AWS sock) must also change the
+// hash so an upgrade that introduces a new bind-mount triggers recreate.
+func TestMountConfigurationHash_DetectsAddedMount(t *testing.T) {
+	baseMounts := []string{"type=bind,source=/host/run,target=/opt/roost/run"}
+	specOld := &DevcontainerSpec{Mounts: baseMounts}
+	specNew := &DevcontainerSpec{Mounts: append(
+		append([]string{}, baseMounts...),
+		"type=bind,source=/host/aws.sock,target=/opt/aws.sock",
+	)}
+	if specOld.MountConfigurationHash() == specNew.MountConfigurationHash() {
+		t.Errorf("adding a mount must change the hash")
+	}
+}
+
+// Mount order in spec.Mounts is incidental — provider iteration over Go maps
+// is non-deterministic — so the hash must canonicalize.
+func TestMountConfigurationHash_OrderIndependentForMounts(t *testing.T) {
+	mountsA := []string{
+		"type=bind,source=/a,target=/x",
+		"type=bind,source=/b,target=/y",
+	}
+	mountsB := []string{
+		"type=bind,source=/b,target=/y",
+		"type=bind,source=/a,target=/x",
+	}
+	a := &DevcontainerSpec{Mounts: mountsA}
+	b := &DevcontainerSpec{Mounts: mountsB}
+	if a.MountConfigurationHash() != b.MountConfigurationHash() {
+		t.Errorf("mount-order should not affect hash; got %q vs %q",
+			a.MountConfigurationHash(), b.MountConfigurationHash())
+	}
+}
+
+// Empty spec must still produce a stable, non-empty fallback so the label
+// value is always parseable.
+func TestMountConfigurationHash_EmptyStable(t *testing.T) {
+	a := (&DevcontainerSpec{}).MountConfigurationHash()
+	b := (&DevcontainerSpec{}).MountConfigurationHash()
+	if a == "" {
+		t.Errorf("empty spec must produce non-empty hash")
+	}
+	if a != b {
+		t.Errorf("empty spec hash must be stable")
+	}
+}
+
+func TestMountConfigurationHash_Empty(t *testing.T) {
 	spec := &DevcontainerSpec{}
-	if got := spec.ExtraWorkspacesHash(); got != "none" {
-		t.Errorf("ExtraWorkspacesHash() = %q, want \"none\"", got)
+	if got := spec.MountConfigurationHash(); got != "none" {
+		t.Errorf("MountConfigurationHash() = %q, want \"none\"", got)
 	}
 }
 
@@ -1423,7 +1503,7 @@ func TestBuildCreateArgs_shared_includes_mount_hash_label(t *testing.T) {
 		},
 	}
 	args := spec.BuildCreateArgs("img:latest")
-	want := "roost-mount-hash=" + spec.ExtraWorkspacesHash()
+	want := "roost-mount-hash=" + spec.MountConfigurationHash()
 	for _, a := range args {
 		if a == want {
 			return

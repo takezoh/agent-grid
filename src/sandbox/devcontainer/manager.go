@@ -218,7 +218,7 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	spec.ResolveContainerEnvPlaceholders(imgEnv)
 
 	if ctr != nil && opts.SharedMode {
-		expected := spec.ExtraWorkspacesHash()
+		expected := spec.MountConfigurationHash()
 		if ctr.MountHash != expected {
 			slog.Info("devcontainer: mount mismatch, recreating shared container",
 				"id", shortID(ctr.ID), "old", ctr.MountHash, "new", expected)
