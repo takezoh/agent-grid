@@ -149,3 +149,13 @@ func RemoveContainer(ctx context.Context, containerID string) error {
 	}
 	return nil
 }
+
+// StopContainer runs "docker stop -t 5 <containerID>".
+// The container is preserved (no rm) so a later StartContainer can resume it.
+func StopContainer(ctx context.Context, containerID string) error {
+	out, err := exec.CommandContext(ctx, "docker", "stop", "-t", "5", containerID).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker stop %s: %w\n%s", shortID(containerID), err, string(out))
+	}
+	return nil
+}

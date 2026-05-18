@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	cstream "github.com/takezoh/agent-roost/runtime/subsystem/stream"
-	"github.com/takezoh/agent-roost/sandbox"
 )
 
 // resolveStreamSockPaths returns the host-side and container-side sock paths
@@ -18,13 +17,18 @@ func (r *Runtime) resolveStreamSockPaths(project string) (string, string, error)
 	if dataDir == "" {
 		dataDir = os.TempDir()
 	}
-	runDir, err := EnsureProjectRunDir(filepath.Join(dataDir, "run"), project)
+	l := launcher(r.cfg)
+	runDirKey := project
+	if dl := devcontainerLauncherFor(l); dl != nil && l.IsContainer(project) {
+		runDirKey = dl.RunDirKey(project)
+	}
+	runDir, err := EnsureProjectRunDir(filepath.Join(dataDir, "run"), runDirKey)
 	if err != nil {
 		return "", "", fmt.Errorf("stream backend: run dir: %w", err)
 	}
 	hostSock := filepath.Join(runDir, cstream.SockName)
 	containerSock := hostSock
-	if launcher(r.cfg).IsContainer(project) {
+	if l.IsContainer(project) {
 		containerSock = ContainerRunDir + "/" + cstream.SockName
 	}
 	return hostSock, containerSock, nil
@@ -40,7 +44,7 @@ func (r *Runtime) ContainerExecConfig(ctx context.Context, project string) (*cst
 	if dl == nil {
 		return nil, fmt.Errorf("runtime: unsupported container launcher for stream backend")
 	}
-	inst, err := dl.mgr.EnsureInstance(ctx, project, "", sandbox.StartOptions{})
+	inst, err := dl.mgr.EnsureInstance(ctx, project, "", dl.StartOptionsFor(project))
 	if err != nil {
 		return nil, err
 	}

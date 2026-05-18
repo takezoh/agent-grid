@@ -383,10 +383,10 @@ func (m *Manager) ReleaseFrame(inst *sandbox.Instance[*ContainerState]) bool {
 	return zero
 }
 
-// DestroyInstance stops and removes the container.
-// For shared containers only the in-memory entry is cleared; the docker container
-// persists so it can be reused by the next frame or roost restart.
-// Image layers are kept by Docker so the next "docker create" reuses the cache.
+// DestroyInstance handles end-of-life for an instance.
+// Project-mode containers are removed (docker rm). Shared containers are
+// stopped (docker stop) but not removed, so a later EnsureInstance restarts
+// the same container without losing image layer cache or the spec's mount set.
 func (m *Manager) DestroyInstance(ctx context.Context, inst *sandbox.Instance[*ContainerState]) error {
 	cs := inst.Internal
 
@@ -399,14 +399,19 @@ func (m *Manager) DestroyInstance(ctx context.Context, inst *sandbox.Instance[*C
 	delete(m.containers, instanceKey)
 	m.mu.Unlock()
 
-	if cs.IsShared() {
-		slog.Debug("devcontainer: shared container released (container kept alive)")
-		return nil
-	}
-
 	cs.mu.Lock()
 	id := cs.containerID
 	cs.mu.Unlock()
+	if id == "" {
+		return nil
+	}
+
+	if cs.IsShared() {
+		slog.Info("devcontainer: stopping shared container", "id", shortID(id))
+		stopCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		return StopContainer(stopCtx, id)
+	}
 
 	slog.Info("devcontainer: removing container", "id", shortID(id), "project", inst.ProjectPath)
 	rmCtx, cancel := context.WithTimeout(ctx, 15*time.Second)

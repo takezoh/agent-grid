@@ -350,7 +350,11 @@ func (r *Runtime) RecoverSandboxFrames() {
 			// Start the container endpoint for sandboxed frames so hook events
 			// can be received immediately after daemon warm restart.
 			if r.state.SandboxedProject != nil && r.state.SandboxedProject(frame.Project) && r.cfg.DataDir != "" {
-				runDir := ProjectRunDir(filepath.Join(r.cfg.DataDir, "run"), frame.Project)
+				runDirKey := frame.Project
+				if dl := devcontainerLauncherFor(l); dl != nil {
+					runDirKey = dl.RunDirKey(frame.Project)
+				}
+				runDir := ProjectRunDir(filepath.Join(r.cfg.DataDir, "run"), runDirKey)
 				r.startContainerEndpointIfNeeded(frame.Project, ContainerSockPath(runDir))
 			}
 		}

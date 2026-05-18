@@ -110,6 +110,21 @@ func (l *DevcontainerLauncher) runDirKey(projectPath string, opts sandbox.StartO
 	return projectPath
 }
 
+// RunDirKey returns the run-dir key (instance key) for projectPath, resolving
+// shared vs project isolation. Callers outside WrapLaunch use this to align
+// the per-frame run directory with the container the launcher will actually
+// produce.
+func (l *DevcontainerLauncher) RunDirKey(projectPath string) string {
+	return l.runDirKey(projectPath, l.resolveStartOptions(projectPath))
+}
+
+// StartOptionsFor exposes the resolved StartOptions for projectPath so callers
+// that interact with the underlying Manager directly (e.g. stream backend) use
+// the same shared/project decision as WrapLaunch.
+func (l *DevcontainerLauncher) StartOptionsFor(projectPath string) sandbox.StartOptions {
+	return l.resolveStartOptions(projectPath)
+}
+
 // resolveStartOptions determines whether to use shared or project isolation for
 // projectPath, and builds the corresponding sandbox.StartOptions.
 func (l *DevcontainerLauncher) resolveStartOptions(projectPath string) sandbox.StartOptions {
