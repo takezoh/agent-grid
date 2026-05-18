@@ -239,15 +239,15 @@ func (l *DevcontainerLauncher) makeCleanup(frameID state.FrameID, inst *sandbox.
 // env/mounts overlay without triggering any image build.
 func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, projects config.ProjectsConfig, proxy *CredProxyRunner, dataDir string, postCreateSubcmds []string) sandboxdc.OverlayFunc {
 	return func(instanceKey, projectPath, dcDir string) (sandboxdc.SpecOverlay, error) {
-		// For shared containers use user-scope config only (no project-scope settings).
-		configKey := projectPath
-		if instanceKey == sandboxdc.SharedContainerKey {
-			configKey = ""
-		}
-		sb := resolveSandbox(configKey)
+		// Shared containers run all projects in one image: per-project env,
+		// credentials, bridges, and workspace fallback would otherwise be
+		// frozen to whichever project triggered the overlay first and leak
+		// into every later frame. Resolve everything at user scope instead.
+		overlayProject := effectiveOverlayProject(instanceKey, projectPath)
+		sb := resolveSandbox(overlayProject)
 		dc := sb.Devcontainer
 
-		proxySpec, scriptEnv, err := resolveOverlaySpecs(proxy, projectPath, dc)
+		proxySpec, scriptEnv, err := resolveOverlaySpecs(proxy, overlayProject, dc)
 		if err != nil {
 			return sandboxdc.SpecOverlay{}, err
 		}
@@ -289,9 +289,21 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, projects
 			ExtraWorkspaces:         extraWorkspaces,
 			ExtraCreateArgs:         dc.ExtraCreateArgs,
 			PostCreate:              postCreate,
-			WorkspaceFolderFallback: resolveWorkspaceFallback(projectPath, dc.HostPathMountPrefix),
+			WorkspaceFolderFallback: resolveWorkspaceFallback(overlayProject, dc.HostPathMountPrefix),
 		}, nil
 	}
+}
+
+// effectiveOverlayProject returns the project context that BuildOverlayFunc
+// should hand to env-script, credproxy, and workspace-fallback resolution.
+// Project-mode containers use the frame's actual project. Shared containers
+// must use "" so the resolved values stay at user scope — otherwise the first
+// frame's project pins them onto the shared spec for every later frame.
+func effectiveOverlayProject(instanceKey, projectPath string) string {
+	if instanceKey == sandboxdc.SharedContainerKey {
+		return ""
+	}
+	return projectPath
 }
 
 func sharedWorkspaceBindMounts(projects config.ProjectsConfig, prefix string) []sandboxdc.BindMount {

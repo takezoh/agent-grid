@@ -213,3 +213,120 @@ func TestSharedWorkspaceBindMounts_ProjectMode_ReturnsNothing(t *testing.T) {
 		t.Errorf("expected no binds for empty config, got %v", binds)
 	}
 }
+
+func TestEffectiveOverlayProject(t *testing.T) {
+	cases := []struct {
+		name        string
+		instanceKey string
+		projectPath string
+		want        string
+	}{
+		{"project mode passes project through", "/workspace/myapp", "/workspace/myapp", "/workspace/myapp"},
+		{"shared mode erases project", sandboxdc.SharedContainerKey, "/workspace/fintech", ""},
+		{"shared mode erases empty project", sandboxdc.SharedContainerKey, "", ""},
+		{"project mode with empty project", "", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := effectiveOverlayProject(tc.instanceKey, tc.projectPath)
+			if got != tc.want {
+				t.Errorf("effectiveOverlayProject(%q, %q) = %q, want %q",
+					tc.instanceKey, tc.projectPath, got, tc.want)
+			}
+		})
+	}
+}
+
+// stubHelperBinaries places dummy roost-bridge / sockbridge next to the test
+// executable so InstallBinaryInRunDir succeeds without a real build artifact.
+func stubHelperBinaries(t *testing.T) {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skipf("os.Executable: %v", err)
+	}
+	dir := filepath.Dir(exe)
+	for _, name := range []string{"roost-bridge", "sockbridge"} {
+		p := filepath.Join(dir, name)
+		if _, err := os.Stat(p); err == nil {
+			continue
+		}
+		if err := os.WriteFile(p, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Skipf("write %s: %v", p, err)
+		}
+		t.Cleanup(func() { _ = os.Remove(p) })
+	}
+}
+
+// Regression guard for BUG #4–#7: in shared mode the overlay must not be
+// stamped with the first-frame project, because every later frame's docker
+// exec would otherwise pick up that project's env/credentials/bridges.
+func TestBuildOverlayFunc_SharedMode_UsesUserScope(t *testing.T) {
+	stubHelperBinaries(t)
+	// resolveSandbox captures which key is requested. Project mode must
+	// pass the project; shared mode must pass "".
+	var lastConfigKey string
+	resolveSandbox := func(key string) config.SandboxConfig {
+		lastConfigKey = key
+		return config.SandboxConfig{}
+	}
+	dataDir := t.TempDir()
+	overlay := BuildOverlayFunc(resolveSandbox, config.ProjectsConfig{}, nil, dataDir, nil)
+
+	if _, err := overlay(sandboxdc.SharedContainerKey, "/workspace/fintech", "/tmp/dc"); err != nil {
+		t.Fatalf("shared overlay: %v", err)
+	}
+	if lastConfigKey != "" {
+		t.Errorf("shared mode: resolveSandbox got %q, want \"\" (user scope)", lastConfigKey)
+	}
+
+	if _, err := overlay("/workspace/myapp", "/workspace/myapp", "/tmp/dc"); err != nil {
+		t.Fatalf("project overlay: %v", err)
+	}
+	if lastConfigKey != "/workspace/myapp" {
+		t.Errorf("project mode: resolveSandbox got %q, want /workspace/myapp", lastConfigKey)
+	}
+}
+
+// Regression guard: the WorkspaceFolderFallback baked into the shared spec
+// must NOT be the first frame's project — otherwise spec.WorkspaceTarget()
+// returns that path and every later frame's docker exec lands there.
+func TestBuildOverlayFunc_SharedMode_WorkspaceFallbackIsEmpty(t *testing.T) {
+	stubHelperBinaries(t)
+	resolveSandbox := func(string) config.SandboxConfig {
+		return config.SandboxConfig{
+			Devcontainer: config.DevcontainerConfig{HostPathMountPrefix: ""},
+		}
+	}
+	dataDir := t.TempDir()
+	overlay := BuildOverlayFunc(resolveSandbox, config.ProjectsConfig{}, nil, dataDir, nil)
+
+	ov, err := overlay(sandboxdc.SharedContainerKey, "/workspace/fintech", "/tmp/dc")
+	if err != nil {
+		t.Fatalf("overlay: %v", err)
+	}
+	if ov.WorkspaceFolderFallback != "" {
+		t.Errorf("shared mode WorkspaceFolderFallback = %q, want \"\" (per-frame pathmap handles it)",
+			ov.WorkspaceFolderFallback)
+	}
+}
+
+func TestBuildOverlayFunc_ProjectMode_WorkspaceFallbackUsesProject(t *testing.T) {
+	stubHelperBinaries(t)
+	resolveSandbox := func(string) config.SandboxConfig {
+		return config.SandboxConfig{
+			Devcontainer: config.DevcontainerConfig{HostPathMountPrefix: "/mnt"},
+		}
+	}
+	dataDir := t.TempDir()
+	overlay := BuildOverlayFunc(resolveSandbox, config.ProjectsConfig{}, nil, dataDir, nil)
+
+	ov, err := overlay("/workspace/myapp", "/workspace/myapp", "/tmp/dc")
+	if err != nil {
+		t.Fatalf("overlay: %v", err)
+	}
+	if ov.WorkspaceFolderFallback != "/mnt/workspace/myapp" {
+		t.Errorf("project mode WorkspaceFolderFallback = %q, want /mnt/workspace/myapp",
+			ov.WorkspaceFolderFallback)
+	}
+}
