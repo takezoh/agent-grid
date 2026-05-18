@@ -327,7 +327,6 @@ func (m *Manager) runPostCreate(containerID string, spec *DevcontainerSpec) {
 // launch time; in shared mode this is the only path by which per-frame state
 // reaches docker exec (the container-scoped spec stays user-scope only).
 func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], plan state.LaunchPlan, frameCtx sandbox.FrameContext, env map[string]string) (string, map[string]string, error) {
-	_ = frameCtx // Phase B-1: signature only; consumed in B-2/B-3
 	cs := inst.Internal
 	if cs == nil {
 		return "", nil, fmt.Errorf("devcontainer: nil ContainerState for %s", inst.ProjectPath)
@@ -338,7 +337,7 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], pl
 	spec := cs.spec
 	cs.mu.Unlock()
 
-	workDir := resolveWorkDir(spec, plan.StartDir, inst.ProjectPath)
+	workDir := resolveWorkDir(spec, frameCtx.WorkDir, plan.StartDir, inst.ProjectPath)
 
 	command := plan.Command
 	if command == "shell" {
@@ -431,7 +430,13 @@ func (m *Manager) DestroyInstance(ctx context.Context, inst *sandbox.Instance[*C
 // to have already translated plan.StartDir to a container path via pathmap;
 // it is used as-is. Project containers fall back to translateWorkDir, which
 // maps a host path under projectPath into the container workspace.
-func resolveWorkDir(spec *DevcontainerSpec, planStartDir, projectPath string) string {
+// resolveWorkDir returns the container-side cwd for docker exec.
+// Priority: frameCtx WorkDir (already container-side, resolved via pathmap by
+// the launcher) → shared-mode plan.StartDir → translateWorkDir (project mode).
+func resolveWorkDir(spec *DevcontainerSpec, ctxWorkDir, planStartDir, projectPath string) string {
+	if ctxWorkDir != "" {
+		return ctxWorkDir
+	}
 	if spec.Isolation == IsolationShared {
 		if planStartDir != "" {
 			return planStartDir

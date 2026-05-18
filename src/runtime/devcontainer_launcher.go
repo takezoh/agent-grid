@@ -80,22 +80,24 @@ func (l *DevcontainerLauncher) WrapLaunch(frameID state.FrameID, plan state.Laun
 	}
 	mounts := buildMounts(wsHost, wsContainer, runDir, inst.Internal.BindMounts())
 
-	// Resolve startDir to its container-side path before BuildLaunchCommand so
-	// shared containers (which have no canonical project root) get the right
-	// `docker exec -w` value derived from the actual bind mounts.
-	preparedPlan := plan
+	// Resolve startDir to its container-side path via the pathmap before handing
+	// it to BuildLaunchCommand. Pass it through FrameContext so shared containers
+	// (which have no canonical project root) get the right `docker exec -w`
+	// without the spec needing to know anything about the frame's project.
+	workDir := plan.StartDir
 	if containerPath, ok := mounts.ToContainer(plan.StartDir); ok {
-		preparedPlan.StartDir = containerPath
+		workDir = containerPath
 	}
+	frameCtx := sandbox.FrameContext{FrameID: frameID, WorkDir: workDir}
 
-	cmd, outEnv, err := l.mgr.BuildLaunchCommand(inst, preparedPlan, sandbox.FrameContext{FrameID: frameID}, env)
+	cmd, outEnv, err := l.mgr.BuildLaunchCommand(inst, plan, frameCtx, env)
 	if err != nil {
 		return WrappedLaunch{}, fmt.Errorf("devcontainer launcher: build command: %w", err)
 	}
 
 	return WrappedLaunch{
 		Command:          cmd,
-		StartDir:         preparedPlan.StartDir,
+		StartDir:         workDir,
 		Env:              outEnv,
 		Cleanup:          l.makeCleanup(frameID, inst),
 		Subsystem:        plan.Subsystem,
