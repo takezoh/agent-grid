@@ -218,7 +218,25 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	}
 
 	if ctr != nil {
-		return m.reuseContainer(ctx, instanceKey, ctr, spec)
+		if err := m.reuseContainer(ctx, instanceKey, ctr, spec); err != nil {
+			// docker start can fail with stale Docker Desktop bind-mount cache
+			// entries even when the container itself is healthy (file mounts
+			// disappear from /run/desktop/mnt across restarts). Recover by
+			// removing the stuck container and recreating from scratch — the
+			// image cache is preserved, only the container layer is rebuilt.
+			slog.Warn("devcontainer: reuse failed, recreating", "id", shortID(ctr.ID), "err", err)
+			rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
+			rmErr := RemoveContainer(rmCtx, ctr.ID)
+			rmCancel()
+			if rmErr != nil {
+				return fmt.Errorf("devcontainer: recover after reuse failure: %w (original: %v)", rmErr, err)
+			}
+			m.mu.Lock()
+			delete(m.containers, instanceKey)
+			m.mu.Unlock()
+			return m.createContainer(ctx, instanceKey, image, spec)
+		}
+		return nil
 	}
 	return m.createContainer(ctx, instanceKey, image, spec)
 }
