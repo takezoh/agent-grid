@@ -1,6 +1,7 @@
 package devcontainer
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -787,6 +788,137 @@ func TestIsShared(t *testing.T) {
 			t.Error("expected IsShared() false for nil")
 		}
 	})
+}
+
+// staleBindMountErr returns the exact error string Docker Desktop produces when
+// its WSL bind-mount cache loses a file-mount source. Tests reuse this so the
+// regression assertions stay bound to the real failure mode.
+func staleBindMountErr(id string) error {
+	return fmt.Errorf("docker start %s: exit status 1\nError response from daemon: "+
+		"failed to create task for container: failed to create shim task: "+
+		"OCI runtime create failed: runc create failed: "+
+		"unable to start container process: error during container init: "+
+		`error mounting "/run/desktop/mnt/host/wsl/docker-desktop-bind-mounts/Ubuntu-22.04/abc123" `+
+		`to rootfs at "/home/ubuntu/.claude.json": `+
+		`mount src=..., dst=..., flags=MS_BIND|MS_REC: no such file or directory`, id)
+}
+
+// withMockDockerFns swaps the package-level docker indirections for the duration
+// of a test. The originals are restored on t.Cleanup so other tests are unaffected.
+func withMockDockerFns(t *testing.T, start func(ctx context.Context, id string) error, remove func(ctx context.Context, id string) error) {
+	t.Helper()
+	origStart, origRm := startContainerFn, removeContainerFn
+	t.Cleanup(func() {
+		startContainerFn = origStart
+		removeContainerFn = origRm
+	})
+	if start != nil {
+		startContainerFn = start
+	}
+	if remove != nil {
+		removeContainerFn = remove
+	}
+}
+
+// Reproduces the user's "frame won't start after roost restart" bug:
+// after a clean shutdown, docker start of the existing roost-shared fails
+// with an OCI mount error because Docker Desktop's WSL bind-mount cache lost
+// the source path for ~/.claude.json. tryReuseElseRecreate must catch that
+// specific failure, remove the broken container, and tell ensureContainer to
+// recreate. Any other reuse failure must propagate unchanged.
+func TestTryReuseElseRecreate_StaleBindMount(t *testing.T) {
+	withMockDockerFns(t,
+		func(_ context.Context, id string) error {
+			return staleBindMountErr(id) // reuseContainer's docker start fails this way
+		},
+		func(_ context.Context, _ string) error {
+			return nil // remove succeeds
+		},
+	)
+	m := &Manager{containers: map[string]*ContainerState{}}
+	ctr := &ContainerInfo{ID: "abc123", State: "exited"}
+	spec := &DevcontainerSpec{ProjectPath: "/workspace/myapp", Isolation: IsolationShared}
+
+	recreate, err := m.tryReuseElseRecreate(context.Background(), SharedContainerKey, ctr, spec)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !recreate {
+		t.Errorf("recreate=false; auto-recover did not trigger on stale bind-mount")
+	}
+	// reuseContainer may have stored an entry just before the start error
+	// surfaced. After recovery, the stale entry must be gone so createContainer
+	// can populate it fresh.
+	if _, ok := m.containers[SharedContainerKey]; ok {
+		t.Errorf("stale containers[__shared__] entry was not cleared")
+	}
+}
+
+func TestTryReuseElseRecreate_PropagatesUnrelatedError(t *testing.T) {
+	otherErr := fmt.Errorf("docker start abc: permission denied")
+	withMockDockerFns(t,
+		func(_ context.Context, _ string) error { return otherErr },
+		func(_ context.Context, _ string) error {
+			t.Errorf("RemoveContainer must NOT be called for non-stale failures")
+			return nil
+		},
+	)
+	m := &Manager{containers: map[string]*ContainerState{}}
+	ctr := &ContainerInfo{ID: "abc", State: "exited"}
+	spec := &DevcontainerSpec{ProjectPath: "/workspace/myapp"}
+
+	recreate, err := m.tryReuseElseRecreate(context.Background(), "/workspace/myapp", ctr, spec)
+	if recreate {
+		t.Errorf("recreate=true; non-stale errors must not trigger recover")
+	}
+	if err == nil {
+		t.Errorf("expected propagated error, got nil")
+	}
+}
+
+func TestTryReuseElseRecreate_NoErrorWhenReuseSucceeds(t *testing.T) {
+	rmCalled := false
+	withMockDockerFns(t,
+		func(_ context.Context, _ string) error { return nil }, // reuse OK
+		func(_ context.Context, _ string) error {
+			rmCalled = true
+			return nil
+		},
+	)
+	m := &Manager{containers: map[string]*ContainerState{}}
+	ctr := &ContainerInfo{ID: "abc", State: "exited"}
+	spec := &DevcontainerSpec{ProjectPath: "/workspace/myapp"}
+
+	recreate, err := m.tryReuseElseRecreate(context.Background(), "/workspace/myapp", ctr, spec)
+	if err != nil || recreate {
+		t.Errorf("clean reuse: got recreate=%v err=%v", recreate, err)
+	}
+	if rmCalled {
+		t.Errorf("RemoveContainer must not be called when reuse succeeds")
+	}
+	// reuseContainer must have populated the in-memory entry.
+	if _, ok := m.containers["/workspace/myapp"]; !ok {
+		t.Errorf("containers entry not populated after successful reuse")
+	}
+}
+
+func TestTryReuseElseRecreate_RemoveFailurePropagates(t *testing.T) {
+	rmErr := fmt.Errorf("docker rm abc: permission denied")
+	withMockDockerFns(t,
+		func(_ context.Context, id string) error { return staleBindMountErr(id) },
+		func(_ context.Context, _ string) error { return rmErr },
+	)
+	m := &Manager{containers: map[string]*ContainerState{}}
+	ctr := &ContainerInfo{ID: "abc", State: "exited"}
+	spec := &DevcontainerSpec{}
+
+	recreate, err := m.tryReuseElseRecreate(context.Background(), SharedContainerKey, ctr, spec)
+	if recreate {
+		t.Errorf("recreate=true when remove failed; caller would skip createContainer with bad state")
+	}
+	if err == nil || !strings.Contains(err.Error(), "recover after stale bind-mount") {
+		t.Errorf("expected recover-error wrap, got: %v", err)
+	}
 }
 
 func TestIsStaleBindMountError(t *testing.T) {

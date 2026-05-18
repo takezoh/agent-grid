@@ -22,6 +22,14 @@ import (
 // Overlay functions compare against this to detect shared vs project context.
 const SharedContainerKey = "__shared__"
 
+// Docker call indirections. Tests override these to drive ensureContainer
+// scenarios that would otherwise require a real docker daemon (e.g. the
+// stale-bind-mount recreate path).
+var (
+	startContainerFn  = StartContainer
+	removeContainerFn = RemoveContainer
+)
+
 // ContainerState holds runtime data for one project's devcontainer.
 type ContainerState struct {
 	mu          sync.Mutex
@@ -219,36 +227,49 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	}
 
 	if ctr != nil {
-		err := m.reuseContainer(ctx, instanceKey, ctr, spec)
-		if err == nil {
+		recovered, err := m.tryReuseElseRecreate(ctx, instanceKey, ctr, spec)
+		if err != nil {
+			return err
+		}
+		if !recovered {
 			return nil
 		}
-		// Docker Desktop's WSL bind-mount cache occasionally drops the
-		// "/run/desktop/mnt/host/wsl/docker-desktop-bind-mounts/.../<hash>"
-		// entry for file mounts (notably ~/.claude.json) once the container
-		// has been stopped. The container itself is healthy but `docker start`
-		// fails the OCI mount step with "no such file or directory". When we
-		// see that exact failure, removing and recreating the container is
-		// safe: image layers and the mount-hash label are preserved, and the
-		// only state we lose is what already lived in the now-broken container
-		// layer. Host bind-mounts (~/.claude/sessions, ~/.codex/sessions)
-		// are unaffected, so claude / codex session resume still works.
-		if !isStaleBindMountError(err) {
-			return err
+		// fall through to createContainer
+	}
+	return m.createContainer(ctx, instanceKey, image, spec)
+}
+
+// tryReuseElseRecreate attempts to reuse the existing container. If reuse
+// fails because of a stale Docker Desktop bind-mount cache (file mounts like
+// ~/.claude.json silently dropping their source path), it removes the broken
+// container so the caller can recreate from scratch. Returns:
+//   - (false, nil): reuse succeeded, no recreate needed
+//   - (true,  nil): container was removed; caller must call createContainer
+//   - (_,   error): reuse failed for an unrelated reason — propagate
+//
+// Image layers and the mount-hash label survive the remove; the only state
+// lost is what already lived in the dead container layer. Host bind-mounts
+// (~/.claude/sessions, ~/.codex/sessions) are untouched, so claude/codex
+// session resume still works after the recreate.
+func (m *Manager) tryReuseElseRecreate(ctx context.Context, instanceKey string, ctr *ContainerInfo, spec *DevcontainerSpec) (recreate bool, err error) {
+	if reuseErr := m.reuseContainer(ctx, instanceKey, ctr, spec); reuseErr != nil {
+		if !isStaleBindMountError(reuseErr) {
+			return false, reuseErr
 		}
 		slog.Warn("devcontainer: stale bind-mount cache, recreating container",
 			"id", shortID(ctr.ID), "key", instanceKey)
 		rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
-		rmErr := RemoveContainer(rmCtx, ctr.ID)
+		rmErr := removeContainerFn(rmCtx, ctr.ID)
 		rmCancel()
 		if rmErr != nil {
-			return fmt.Errorf("devcontainer: recover after stale bind-mount: %w (original: %v)", rmErr, err)
+			return false, fmt.Errorf("devcontainer: recover after stale bind-mount: %w (original: %v)", rmErr, reuseErr)
 		}
 		m.mu.Lock()
 		delete(m.containers, instanceKey)
 		m.mu.Unlock()
+		return true, nil
 	}
-	return m.createContainer(ctx, instanceKey, image, spec)
+	return false, nil
 }
 
 // isStaleBindMountError detects the specific Docker Desktop failure mode where
@@ -286,7 +307,7 @@ func (m *Manager) reuseContainer(ctx context.Context, instanceKey string, ctr *C
 		slog.Info("devcontainer: starting existing container", "id", shortID(ctr.ID), "state", ctr.State, "key", instanceKey)
 		t := time.Now()
 		startCtx, startCancel := context.WithTimeout(ctx, 30*time.Second)
-		err := StartContainer(startCtx, ctr.ID)
+		err := startContainerFn(startCtx, ctr.ID)
 		startCancel()
 		slog.Info("devcontainer: stage", "name", "start_existing", "elapsed", time.Since(t), "key", instanceKey)
 		if err != nil {
