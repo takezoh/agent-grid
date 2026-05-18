@@ -88,7 +88,11 @@ func (l *DevcontainerLauncher) WrapLaunch(frameID state.FrameID, plan state.Laun
 	if containerPath, ok := mounts.ToContainer(plan.StartDir); ok {
 		workDir = containerPath
 	}
-	frameCtx := sandbox.FrameContext{FrameID: frameID, WorkDir: workDir}
+	frameCtx, err := l.ResolveFrameContext(ctx, plan.Project, frameID)
+	if err != nil {
+		return WrappedLaunch{}, fmt.Errorf("devcontainer launcher: frame ctx: %w", err)
+	}
+	frameCtx.WorkDir = workDir
 
 	cmd, outEnv, err := l.mgr.BuildLaunchCommand(inst, plan, frameCtx, env)
 	if err != nil {
@@ -332,6 +336,35 @@ func resolveWorkspaceFallback(projectPath, prefix string) string {
 		return projectPath
 	}
 	return path.Join(prefix, projectPath)
+}
+
+// ResolveFrameContext computes per-frame env by invoking env-script and
+// credproxy for the frame's project at launch time.
+//
+// In shared mode the project parameter is dropped (user scope only) — project
+// scope sandbox config is intentionally not merged when isolation=shared, so
+// every shared-container frame sees the same user-scope credential set.
+//
+// In project mode the actual project path is used so per-project credentials
+// (AWS profile, GCP active, hostexec policy, …) resolve correctly. The result
+// is fed to BuildLaunchCommand via sandbox.FrameContext.Env and emitted as
+// docker exec -e — it never touches the container-scoped DevcontainerSpec.
+func (l *DevcontainerLauncher) ResolveFrameContext(ctx context.Context, projectPath string, frameID state.FrameID) (sandbox.FrameContext, error) {
+	opts := l.resolveStartOptions(projectPath)
+	effectiveProject := projectPath
+	if opts.SharedMode {
+		effectiveProject = ""
+	}
+	dc := l.resolveSandbox(effectiveProject).Devcontainer
+
+	proxySpec, scriptEnv, err := resolveOverlaySpecs(l.proxy, effectiveProject, dc)
+	if err != nil {
+		return sandbox.FrameContext{}, err
+	}
+	return sandbox.FrameContext{
+		FrameID: frameID,
+		Env:     buildOverlayEnv(scriptEnv, proxySpec),
+	}, nil
 }
 
 func resolveOverlaySpecs(proxy *CredProxyRunner, projectPath string, dc config.DevcontainerConfig) (container.Spec, map[string]string, error) {

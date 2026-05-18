@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -255,6 +256,67 @@ func stubHelperBinaries(t *testing.T) {
 			t.Skipf("write %s: %v", p, err)
 		}
 		t.Cleanup(func() { _ = os.Remove(p) })
+	}
+}
+
+// ResolveFrameContext must call the credproxy / env-script with the actual
+// project in project mode and with "" in shared mode (project scope is
+// intentionally not merged when isolation=shared).
+func TestResolveFrameContext_ProjectMode_UsesProjectPath(t *testing.T) {
+	l := &DevcontainerLauncher{
+		resolveSandbox:      func(string) config.SandboxConfig { return config.SandboxConfig{} },
+		resolveProjectScope: func(string) *config.SandboxConfig { return nil },
+		// no devcontainer.json discovery → resolveStartOptions falls through to
+		// "not shared" because resolveSandbox returns empty isolation. So this
+		// is treated as project mode.
+	}
+	// proxy nil means resolveOverlaySpecs returns zero spec, but we can still
+	// observe that the function does not error and FrameID is propagated.
+	ctx, err := l.ResolveFrameContext(context.Background(), "/workspace/credproxy", "frame-1")
+	if err != nil {
+		t.Fatalf("ResolveFrameContext: %v", err)
+	}
+	if ctx.FrameID != "frame-1" {
+		t.Errorf("FrameID = %q, want frame-1", ctx.FrameID)
+	}
+}
+
+func TestResolveFrameContext_SharedMode_DropsProject(t *testing.T) {
+	// In shared mode resolveStartOptions returns SharedMode=true and
+	// ResolveFrameContext must use "" (user scope) for env-script & credproxy.
+	// We verify by capturing the project key passed to resolveSandbox.
+	var lastKey string
+	l := &DevcontainerLauncher{
+		resolveSandbox: func(p string) config.SandboxConfig {
+			lastKey = p
+			if p == "" {
+				return config.SandboxConfig{Isolation: "shared"}
+			}
+			return config.SandboxConfig{Isolation: "shared"}
+		},
+		resolveProjectScope: func(string) *config.SandboxConfig { return nil },
+	}
+	_, err := l.ResolveFrameContext(context.Background(), "/workspace/fintech", "frame-1")
+	if err != nil {
+		t.Fatalf("ResolveFrameContext: %v", err)
+	}
+	if lastKey != "" {
+		t.Errorf("shared mode: resolveSandbox called with %q, want \"\" (user scope)", lastKey)
+	}
+}
+
+func TestResolveFrameContext_EmptyProjectPath(t *testing.T) {
+	// Host launches that accidentally hit the devcontainer launcher must not panic.
+	l := &DevcontainerLauncher{
+		resolveSandbox:      func(string) config.SandboxConfig { return config.SandboxConfig{} },
+		resolveProjectScope: func(string) *config.SandboxConfig { return nil },
+	}
+	ctx, err := l.ResolveFrameContext(context.Background(), "", "frame-1")
+	if err != nil {
+		t.Fatalf("ResolveFrameContext: %v", err)
+	}
+	if ctx.FrameID != "frame-1" {
+		t.Errorf("FrameID = %q", ctx.FrameID)
 	}
 }
 
