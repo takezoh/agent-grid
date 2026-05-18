@@ -224,6 +224,41 @@ func registerMinimalDriver(t *testing.T) {
 	}
 }
 
+func TestRecreateAll_SpawnFailureLeavesSessionInState(t *testing.T) {
+	registerMinimalDriver(t)
+	tmux := newFakeTmux()
+	tmux.spawnErr = errors.New("injected spawn failure")
+	persist := &recordingPersist{}
+	r := New(Config{
+		SessionName: "roost-test",
+		Tmux:        tmux,
+		Launcher:    &trackingLauncher{calls: make(map[string]int)},
+		Persist:     persist,
+	})
+	r.SetSandboxedProjectResolver(func(string) bool { return false })
+	r.state.Sessions["s1"] = state.Session{
+		ID:      "s1",
+		Project: "/proj/a",
+		Frames: []state.SessionFrame{{
+			ID: "f1", Project: "/proj/a", Command: "minimal-test",
+			Driver: state.DriverStateBase{},
+		}},
+	}
+
+	if err := r.RecreateAll(); err != nil {
+		t.Fatalf("RecreateAll: %v", err)
+	}
+	if _, ok := r.state.Sessions["s1"]; !ok {
+		t.Error("session s1 was removed from state, want it preserved")
+	}
+	persist.mu.Lock()
+	saves := persist.saves
+	persist.mu.Unlock()
+	if saves != 0 {
+		t.Errorf("Persist.Save called %d times, want 0", saves)
+	}
+}
+
 func TestSpawnFrameWindow_StreamSubsystemInjectsEndpointDir(t *testing.T) {
 	t.Skip("endpoint-dir injection was removed with the codex helper")
 }

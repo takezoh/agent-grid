@@ -51,20 +51,14 @@ func (r *Runtime) PrewarmContainers(ctx context.Context) {
 // RecreateAll spawns fresh tmux windows for every session in r.state.
 // Used during cold-start (the tmux session was just created and
 // contains no roost windows yet). Populates r.sessionPanes.
+// Spawn failures are logged but do not remove the session: a transient
+// error is not evidence that the user intended to delete the session.
 func (r *Runtime) RecreateAll() error {
 	size := r.mainPaneSize()
-	var dead []state.SessionID
 	for id, sess := range r.state.Sessions {
 		if err := r.recreateSessionFrames(id, sess, size); err != nil {
-			dead = append(dead, id)
-		}
-	}
-	for _, id := range dead {
-		delete(r.state.Sessions, id)
-	}
-	if len(dead) > 0 {
-		if err := r.cfg.Persist.Save(r.snapshotSessions()); err != nil {
-			slog.Error("bootstrap: persist after recreate failed", "err", err)
+			slog.Warn("bootstrap: session cold-start incomplete, leaving in state",
+				"session", id, "err", err)
 		}
 	}
 	return nil
