@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -65,6 +66,22 @@ type SpecOverlay struct {
 
 func projectHash(projectPath string) string {
 	h := sha256.Sum256([]byte(projectPath))
+	return fmt.Sprintf("%x", h[:6])
+}
+
+// ExtraWorkspacesHash returns a deterministic short hash of ExtraWorkspaces,
+// used as the roost-mount-hash container label to detect mount drift between
+// the live container and the current spec. Returns "none" when empty.
+func (s *DevcontainerSpec) ExtraWorkspacesHash() string {
+	if len(s.ExtraWorkspaces) == 0 {
+		return "none"
+	}
+	entries := make([]string, len(s.ExtraWorkspaces))
+	for i, w := range s.ExtraWorkspaces {
+		entries[i] = w.Source + "\t" + w.Target
+	}
+	sort.Strings(entries)
+	h := sha256.Sum256([]byte(strings.Join(entries, "\n")))
 	return fmt.Sprintf("%x", h[:6])
 }
 
@@ -297,6 +314,7 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 	}
 	if s.Isolation == IsolationShared {
 		args = append(args, "--label", "roost-isolation=shared")
+		args = append(args, "--label", "roost-mount-hash="+s.ExtraWorkspacesHash())
 	} else {
 		args = append(args, "--label", "roost-project="+s.ProjectPath)
 	}

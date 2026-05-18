@@ -13,8 +13,24 @@ import (
 
 // ContainerInfo holds basic info from "docker ps -a".
 type ContainerInfo struct {
-	ID    string
-	State string // "running", "exited", "created", etc.
+	ID        string
+	State     string // "running", "exited", "created", etc.
+	MountHash string // roost-mount-hash label; empty for project-mode containers
+}
+
+const psFormat = "{{.ID}}\t{{.State}}\t{{.Label \"roost-mount-hash\"}}"
+
+// parsePsLine parses one line of "docker ps" output in psFormat.
+func parsePsLine(line string) (*ContainerInfo, error) {
+	parts := strings.SplitN(line, "\t", 3)
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("unexpected output %q", line)
+	}
+	info := &ContainerInfo{ID: parts[0], State: parts[1]}
+	if len(parts) >= 3 {
+		info.MountHash = parts[2]
+	}
+	return info, nil
 }
 
 // FindSharedContainer returns the roost-shared container, or nil if not found.
@@ -22,7 +38,7 @@ func FindSharedContainer(ctx context.Context) (*ContainerInfo, error) {
 	out, err := exec.CommandContext(ctx, "docker", "ps", "-a",
 		"--filter", "label=roost-managed=1",
 		"--filter", "label=roost-isolation=shared",
-		"--format", "{{.ID}}\t{{.State}}",
+		"--format", psFormat,
 	).Output()
 	if err != nil {
 		return nil, fmt.Errorf("docker ps (shared): %w", err)
@@ -31,11 +47,11 @@ func FindSharedContainer(ctx context.Context) (*ContainerInfo, error) {
 	if line == "" {
 		return nil, nil
 	}
-	parts := strings.SplitN(strings.SplitN(line, "\n", 2)[0], "\t", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("docker ps (shared): unexpected output %q", line)
+	info, err := parsePsLine(strings.SplitN(line, "\n", 2)[0])
+	if err != nil {
+		return nil, fmt.Errorf("docker ps (shared): %w", err)
 	}
-	return &ContainerInfo{ID: parts[0], State: parts[1]}, nil
+	return info, nil
 }
 
 // FindContainer returns the first roost-managed container for projectPath, or nil.
@@ -43,7 +59,7 @@ func FindContainer(ctx context.Context, projectPath string) (*ContainerInfo, err
 	out, err := exec.CommandContext(ctx, "docker", "ps", "-a",
 		"--filter", "label=roost-managed=1",
 		"--filter", "label=roost-project="+projectPath,
-		"--format", "{{.ID}}\t{{.State}}",
+		"--format", psFormat,
 	).Output()
 	if err != nil {
 		return nil, fmt.Errorf("docker ps: %w", err)
@@ -52,12 +68,11 @@ func FindContainer(ctx context.Context, projectPath string) (*ContainerInfo, err
 	if line == "" {
 		return nil, nil
 	}
-	// take first result only
-	parts := strings.SplitN(strings.SplitN(line, "\n", 2)[0], "\t", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("docker ps: unexpected output %q", line)
+	info, err := parsePsLine(strings.SplitN(line, "\n", 2)[0])
+	if err != nil {
+		return nil, fmt.Errorf("docker ps: %w", err)
 	}
-	return &ContainerInfo{ID: parts[0], State: parts[1]}, nil
+	return info, nil
 }
 
 // ImageEnv returns the image's Config.Env as a key→value map.

@@ -276,8 +276,6 @@ func BuildOverlayFunc(resolveSandbox func(string) config.SandboxConfig, projects
 	}
 }
 
-// sharedWorkspaceBindMounts enumerates all project directories from projects
-// and returns them as BindMount entries for the shared container spec.
 func sharedWorkspaceBindMounts(projects config.ProjectsConfig, prefix string) []sandboxdc.BindMount {
 	seen := map[string]struct{}{}
 	var out []sandboxdc.BindMount

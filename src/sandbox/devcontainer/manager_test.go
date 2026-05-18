@@ -596,6 +596,81 @@ func TestIsShared(t *testing.T) {
 	})
 }
 
+func TestExtraWorkspacesHash_Deterministic(t *testing.T) {
+	spec := &DevcontainerSpec{ExtraWorkspaces: []BindMount{
+		{Source: "/a", Target: "/a"},
+		{Source: "/b", Target: "/b"},
+	}}
+	h1 := spec.ExtraWorkspacesHash()
+	h2 := spec.ExtraWorkspacesHash()
+	if h1 != h2 || h1 == "" {
+		t.Errorf("non-deterministic or empty hash: %q vs %q", h1, h2)
+	}
+}
+
+func TestExtraWorkspacesHash_OrderIndependent(t *testing.T) {
+	a := &DevcontainerSpec{ExtraWorkspaces: []BindMount{
+		{Source: "/a", Target: "/a"},
+		{Source: "/b", Target: "/b"},
+	}}
+	b := &DevcontainerSpec{ExtraWorkspaces: []BindMount{
+		{Source: "/b", Target: "/b"},
+		{Source: "/a", Target: "/a"},
+	}}
+	if a.ExtraWorkspacesHash() != b.ExtraWorkspacesHash() {
+		t.Errorf("order should not affect hash: %q vs %q",
+			a.ExtraWorkspacesHash(), b.ExtraWorkspacesHash())
+	}
+}
+
+func TestExtraWorkspacesHash_DifferentSets(t *testing.T) {
+	a := &DevcontainerSpec{ExtraWorkspaces: []BindMount{{Source: "/a", Target: "/a"}}}
+	b := &DevcontainerSpec{ExtraWorkspaces: []BindMount{{Source: "/b", Target: "/b"}}}
+	if a.ExtraWorkspacesHash() == b.ExtraWorkspacesHash() {
+		t.Errorf("different sets must hash differently")
+	}
+}
+
+func TestExtraWorkspacesHash_Empty(t *testing.T) {
+	spec := &DevcontainerSpec{}
+	if got := spec.ExtraWorkspacesHash(); got != "none" {
+		t.Errorf("ExtraWorkspacesHash() = %q, want \"none\"", got)
+	}
+}
+
+func TestBuildCreateArgs_shared_includes_mount_hash_label(t *testing.T) {
+	spec := &DevcontainerSpec{
+		ProjectPath:  "/workspace/myapp",
+		Isolation:    IsolationShared,
+		ContainerEnv: map[string]string{},
+		ExtraWorkspaces: []BindMount{
+			{Source: "/workspace/myapp", Target: "/workspace/myapp"},
+		},
+	}
+	args := spec.BuildCreateArgs("img:latest")
+	want := "roost-mount-hash=" + spec.ExtraWorkspacesHash()
+	for _, a := range args {
+		if a == want {
+			return
+		}
+	}
+	t.Errorf("args missing %q: %v", want, args)
+}
+
+func TestBuildCreateArgs_project_omits_mount_hash_label(t *testing.T) {
+	spec := &DevcontainerSpec{
+		ProjectPath:  "/workspace/myapp",
+		Isolation:    IsolationProject,
+		ContainerEnv: map[string]string{},
+	}
+	args := spec.BuildCreateArgs("img:latest")
+	for _, a := range args {
+		if strings.HasPrefix(a, "roost-mount-hash=") {
+			t.Errorf("project mode must not emit roost-mount-hash label: %v", args)
+		}
+	}
+}
+
 func TestBuildCreateArgs_shared_labels(t *testing.T) {
 	spec := &DevcontainerSpec{
 		ProjectPath:  "/workspace/myapp",
@@ -644,7 +719,6 @@ func TestBuildCreateArgs_shared_labels(t *testing.T) {
 		t.Errorf("expected 2 ExtraWorkspace mounts, found %d; args: %v", found, args)
 	}
 }
-
 
 func TestDevcontainerSpec_effectiveUser(t *testing.T) {
 	cases := []struct {

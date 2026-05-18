@@ -202,6 +202,21 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	}
 	spec.ResolveContainerEnvPlaceholders(imgEnv)
 
+	if ctr != nil && opts.SharedMode {
+		expected := spec.ExtraWorkspacesHash()
+		if ctr.MountHash != expected {
+			slog.Info("devcontainer: mount mismatch, recreating shared container",
+				"id", shortID(ctr.ID), "old", ctr.MountHash, "new", expected)
+			rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
+			rmErr := RemoveContainer(rmCtx, ctr.ID)
+			rmCancel()
+			if rmErr != nil {
+				return fmt.Errorf("devcontainer: remove stale shared container: %w", rmErr)
+			}
+			ctr = nil
+		}
+	}
+
 	if ctr != nil {
 		return m.reuseContainer(ctx, instanceKey, ctr, spec)
 	}
