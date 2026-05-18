@@ -3,6 +3,8 @@ package devcontainer
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -790,6 +792,297 @@ func TestIsShared(t *testing.T) {
 	})
 }
 
+// Regression guard for the "shared container never stops" symptom: shared
+// containers must docker stop on DestroyInstance (kept around for reuse) while
+// project containers docker rm (per-project lifecycle).
+// withMockDockerStack swaps every Manager docker indirection at once. Tests
+// drive the full ensureContainer flow without invoking real docker.
+func withMockDockerStack(t *testing.T, m dockerStackMocks) {
+	t.Helper()
+	saved := struct {
+		start  func(context.Context, string) error
+		stop   func(context.Context, string) error
+		rm     func(context.Context, string) error
+		create func(context.Context, []string) (string, error)
+		find   func(context.Context, string) (*ContainerInfo, error)
+		shared func(context.Context) (*ContainerInfo, error)
+		image  func(context.Context, string) (map[string]string, error)
+		post   func(context.Context, string, string, []string)
+	}{
+		startContainerFn, stopContainerFn, removeContainerFn,
+		createContainerFn, findContainerFn, findSharedContainerFn,
+		imageEnvFn, runPostCreateFn,
+	}
+	t.Cleanup(func() {
+		startContainerFn = saved.start
+		stopContainerFn = saved.stop
+		removeContainerFn = saved.rm
+		createContainerFn = saved.create
+		findContainerFn = saved.find
+		findSharedContainerFn = saved.shared
+		imageEnvFn = saved.image
+		runPostCreateFn = saved.post
+	})
+	if m.start != nil {
+		startContainerFn = m.start
+	}
+	if m.stop != nil {
+		stopContainerFn = m.stop
+	}
+	if m.remove != nil {
+		removeContainerFn = m.remove
+	}
+	if m.create != nil {
+		createContainerFn = m.create
+	}
+	if m.find != nil {
+		findContainerFn = m.find
+	}
+	if m.findShared != nil {
+		findSharedContainerFn = m.findShared
+	}
+	if m.imageEnv != nil {
+		imageEnvFn = m.imageEnv
+	}
+	if m.postCreate != nil {
+		runPostCreateFn = m.postCreate
+	}
+}
+
+type dockerStackMocks struct {
+	start      func(context.Context, string) error
+	stop       func(context.Context, string) error
+	remove     func(context.Context, string) error
+	create     func(context.Context, []string) (string, error)
+	find       func(context.Context, string) (*ContainerInfo, error)
+	findShared func(context.Context) (*ContainerInfo, error)
+	imageEnv   func(context.Context, string) (map[string]string, error)
+	postCreate func(context.Context, string, string, []string)
+}
+
+// setupTestSpec writes a minimal devcontainer.json so loadSpec succeeds.
+func setupTestSpec(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	dcDir := filepath.Join(dir, ".devcontainer")
+	if err := os.MkdirAll(dcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dcDir, "devcontainer.json"),
+		[]byte(`{"image":"test:latest"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestEnsureInstance_CreateNew_ProjectMode(t *testing.T) {
+	project := setupTestSpec(t)
+	created := false
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			return nil, nil // no existing container
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		create: func(_ context.Context, _ []string) (string, error) {
+			created = true
+			return "new-ctr-id", nil
+		},
+		start: func(_ context.Context, _ string) error { return nil },
+		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+	})
+	m := New(nil)
+	inst, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{})
+	if err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if !created {
+		t.Errorf("CreateContainer was not called")
+	}
+	if inst == nil || inst.Internal == nil {
+		t.Fatalf("Instance/Internal not populated")
+	}
+	if inst.Internal.ContainerID() != "new-ctr-id" {
+		t.Errorf("ContainerID = %q, want new-ctr-id", inst.Internal.ContainerID())
+	}
+}
+
+func TestEnsureInstance_ReuseExisting_ProjectMode(t *testing.T) {
+	project := setupTestSpec(t)
+	startCalled := false
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			return &ContainerInfo{ID: "existing", State: "exited"}, nil
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		start: func(_ context.Context, id string) error {
+			startCalled = true
+			if id != "existing" {
+				t.Errorf("StartContainer called with %q, want existing", id)
+			}
+			return nil
+		},
+		create: func(_ context.Context, _ []string) (string, error) {
+			t.Errorf("CreateContainer must not be called when reusing")
+			return "", nil
+		},
+	})
+	m := New(nil)
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if !startCalled {
+		t.Errorf("StartContainer was not called on existing exited container")
+	}
+}
+
+func TestEnsureInstance_ImageEnvFailureIsNonFatal(t *testing.T) {
+	project := setupTestSpec(t)
+	withMockDockerStack(t, dockerStackMocks{
+		find:     func(_ context.Context, _ string) (*ContainerInfo, error) { return nil, nil },
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
+			return nil, fmt.Errorf("image not found locally")
+		},
+		create:     func(_ context.Context, _ []string) (string, error) { return "id", nil },
+		start:      func(_ context.Context, _ string) error { return nil },
+		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+	})
+	m := New(nil)
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+		t.Errorf("imageEnv error must be non-fatal, got %v", err)
+	}
+}
+
+func TestEnsureInstance_FindContainerError(t *testing.T) {
+	project := setupTestSpec(t)
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			return nil, fmt.Errorf("docker daemon not running")
+		},
+	})
+	m := New(nil)
+	_, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{})
+	if err == nil || !strings.Contains(err.Error(), "find container") {
+		t.Errorf("expected find-container error, got: %v", err)
+	}
+}
+
+func TestEnsureInstance_CachedSecondCall(t *testing.T) {
+	project := setupTestSpec(t)
+	createCalls := 0
+	withMockDockerStack(t, dockerStackMocks{
+		find:     func(_ context.Context, _ string) (*ContainerInfo, error) { return nil, nil },
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) { return map[string]string{}, nil },
+		create: func(_ context.Context, _ []string) (string, error) {
+			createCalls++
+			return "id", nil
+		},
+		start:      func(_ context.Context, _ string) error { return nil },
+		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+	})
+	m := New(nil)
+	for i := 0; i < 3; i++ {
+		if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+			t.Fatalf("EnsureInstance #%d: %v", i, err)
+		}
+	}
+	if createCalls != 1 {
+		t.Errorf("CreateContainer called %d times across 3 EnsureInstance calls, want 1", createCalls)
+	}
+}
+
+func TestDestroyInstance_SharedCallsStopNotRemove(t *testing.T) {
+	stopID, rmID := "", ""
+	origStop, origRm := stopContainerFn, removeContainerFn
+	t.Cleanup(func() {
+		stopContainerFn = origStop
+		removeContainerFn = origRm
+	})
+	stopContainerFn = func(_ context.Context, id string) error { stopID = id; return nil }
+	removeContainerFn = func(_ context.Context, id string) error { rmID = id; return nil }
+
+	m := &Manager{containers: map[string]*ContainerState{
+		SharedContainerKey: {containerID: "shared-id", spec: &DevcontainerSpec{Isolation: IsolationShared}},
+	}}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: "/workspace/myapp",
+		Internal:    m.containers[SharedContainerKey],
+	}
+	if err := m.DestroyInstance(context.Background(), inst); err != nil {
+		t.Fatalf("DestroyInstance: %v", err)
+	}
+	if stopID != "shared-id" {
+		t.Errorf("stop called with %q, want shared-id", stopID)
+	}
+	if rmID != "" {
+		t.Errorf("rm must NOT be called for shared container; got %q", rmID)
+	}
+	// The in-memory entry must be cleared so the next EnsureInstance re-locks the spec.
+	if _, ok := m.containers[SharedContainerKey]; ok {
+		t.Errorf("containers[__shared__] still present after Destroy")
+	}
+}
+
+func TestDestroyInstance_ProjectCallsRemoveNotStop(t *testing.T) {
+	stopID, rmID := "", ""
+	origStop, origRm := stopContainerFn, removeContainerFn
+	t.Cleanup(func() {
+		stopContainerFn = origStop
+		removeContainerFn = origRm
+	})
+	stopContainerFn = func(_ context.Context, id string) error { stopID = id; return nil }
+	removeContainerFn = func(_ context.Context, id string) error { rmID = id; return nil }
+
+	const project = "/workspace/myapp"
+	m := &Manager{containers: map[string]*ContainerState{
+		project: {containerID: "proj-id", spec: &DevcontainerSpec{Isolation: IsolationProject}},
+	}}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: project,
+		Internal:    m.containers[project],
+	}
+	if err := m.DestroyInstance(context.Background(), inst); err != nil {
+		t.Fatalf("DestroyInstance: %v", err)
+	}
+	if rmID != "proj-id" {
+		t.Errorf("rm called with %q, want proj-id", rmID)
+	}
+	if stopID != "" {
+		t.Errorf("stop must NOT be called for project container; got %q", stopID)
+	}
+	if _, ok := m.containers[project]; ok {
+		t.Errorf("containers[%q] still present after Destroy", project)
+	}
+}
+
+func TestDestroyInstance_EmptyContainerIDIsNoop(t *testing.T) {
+	stopCalled, rmCalled := false, false
+	origStop, origRm := stopContainerFn, removeContainerFn
+	t.Cleanup(func() {
+		stopContainerFn = origStop
+		removeContainerFn = origRm
+	})
+	stopContainerFn = func(_ context.Context, _ string) error { stopCalled = true; return nil }
+	removeContainerFn = func(_ context.Context, _ string) error { rmCalled = true; return nil }
+
+	m := &Manager{containers: map[string]*ContainerState{
+		"/p": {containerID: "", spec: &DevcontainerSpec{Isolation: IsolationProject}}, // never started
+	}}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: "/p",
+		Internal:    m.containers["/p"],
+	}
+	if err := m.DestroyInstance(context.Background(), inst); err != nil {
+		t.Fatalf("DestroyInstance: %v", err)
+	}
+	if stopCalled || rmCalled {
+		t.Errorf("docker should not be called when containerID is empty")
+	}
+}
+
 // staleBindMountErr returns the exact error string Docker Desktop produces when
 // its WSL bind-mount cache loses a file-mount source. Tests reuse this so the
 // regression assertions stay bound to the real failure mode.
@@ -826,6 +1119,132 @@ func withMockDockerFns(t *testing.T, start func(ctx context.Context, id string) 
 // the source path for ~/.claude.json. tryReuseElseRecreate must catch that
 // specific failure, remove the broken container, and tell ensureContainer to
 // recreate. Any other reuse failure must propagate unchanged.
+func TestContainerState_Getters(t *testing.T) {
+	t.Run("nil safe", func(t *testing.T) {
+		var cs *ContainerState
+		if cs.WorkspaceFolder() != "" || cs.BindMounts() != nil || cs.ContainerID() != "" ||
+			cs.PreExec() != "" || cs.EffectiveUser() != "" {
+			t.Errorf("nil ContainerState getters must return zero values")
+		}
+	})
+	t.Run("nil spec safe", func(t *testing.T) {
+		cs := &ContainerState{} // spec is nil
+		if cs.WorkspaceFolder() != "" || cs.BindMounts() != nil ||
+			cs.PreExec() != "" || cs.EffectiveUser() != "" {
+			t.Errorf("ContainerState with nil spec must return zero values")
+		}
+	})
+	t.Run("populated spec", func(t *testing.T) {
+		spec := &DevcontainerSpec{
+			ProjectPath:     "/workspace/myapp",
+			WorkspaceFolder: "/workspaces/myapp",
+			PreExec:         "source .env",
+			RemoteUser:      "ubuntu",
+		}
+		cs := &ContainerState{containerID: "id123", spec: spec}
+		if got := cs.WorkspaceFolder(); got != "/workspaces/myapp" {
+			t.Errorf("WorkspaceFolder = %q", got)
+		}
+		if got := cs.ContainerID(); got != "id123" {
+			t.Errorf("ContainerID = %q", got)
+		}
+		if got := cs.PreExec(); got != "source .env" {
+			t.Errorf("PreExec = %q", got)
+		}
+		if got := cs.EffectiveUser(); got != "ubuntu" {
+			t.Errorf("EffectiveUser = %q", got)
+		}
+		// BindMounts goes through spec; with no extra mounts it returns the
+		// workspace fallback as a single entry.
+		if binds := cs.BindMounts(); len(binds) == 0 {
+			t.Errorf("BindMounts should include at least the workspace mount")
+		}
+	})
+}
+
+func TestManager_New(t *testing.T) {
+	called := 0
+	overlay := func(string, string, string) (SpecOverlay, error) { called++; return SpecOverlay{}, nil }
+	m := New(overlay)
+	if m == nil {
+		t.Fatalf("New returned nil")
+	}
+	if m.containers == nil {
+		t.Errorf("New must initialize the containers map")
+	}
+	// Verify the overlay function was stored by exercising it through loadSpec
+	// surrogate: just invoke the function via the manager field directly.
+	if m.overlayFn == nil {
+		t.Fatalf("overlayFn not stored")
+	}
+	if _, err := m.overlayFn("", "", ""); err != nil {
+		t.Errorf("overlay invocation: %v", err)
+	}
+	if called != 1 {
+		t.Errorf("overlay called %d times, want 1", called)
+	}
+}
+
+func TestAcquireReleaseFrame_RefCount(t *testing.T) {
+	m := &Manager{}
+	inst := &sandbox.Instance[*ContainerState]{Internal: &ContainerState{}}
+
+	// First two frames: ref-count grows, ReleaseFrame returns false (no destroy).
+	m.AcquireFrame(inst)
+	m.AcquireFrame(inst)
+	if got := m.ReleaseFrame(inst); got {
+		t.Errorf("ReleaseFrame on 2 acquires: got destroy=true after first release")
+	}
+	// Last frame: ReleaseFrame returns true so the caller knows to DestroyInstance.
+	if got := m.ReleaseFrame(inst); !got {
+		t.Errorf("ReleaseFrame at refCount==0: got destroy=false, want true")
+	}
+}
+
+func TestReleaseFrame_NeverGoesNegative(t *testing.T) {
+	// Defensive: callers should never Release without Acquire, but if they do
+	// (e.g. duplicate cleanup), the call must still report destroy=true rather
+	// than wedging the container forever or panicking.
+	m := &Manager{}
+	inst := &sandbox.Instance[*ContainerState]{Internal: &ContainerState{}}
+	if got := m.ReleaseFrame(inst); !got {
+		t.Errorf("ReleaseFrame from refCount=0: got %v, want true (treat as destroyable)", got)
+	}
+	if got := m.ReleaseFrame(inst); !got {
+		t.Errorf("ReleaseFrame from refCount<0: got %v, want true (idempotent destroy)", got)
+	}
+}
+
+func TestAcquireReleaseFrame_ConcurrentSafe(t *testing.T) {
+	// AcquireFrame / ReleaseFrame guard the count with cs.mu. The shared
+	// container in particular has frames from multiple projects acquiring /
+	// releasing in parallel; if the mutex regressed we'd see a refCount that
+	// drops to zero (and triggers DestroyInstance) while frames still hold it.
+	m := &Manager{}
+	inst := &sandbox.Instance[*ContainerState]{Internal: &ContainerState{}}
+
+	const n = 100
+	done := make(chan bool, n*2)
+	for i := 0; i < n; i++ {
+		go func() { m.AcquireFrame(inst); done <- true }()
+	}
+	for i := 0; i < n; i++ {
+		<-done
+	}
+	if inst.Internal.refCount != n {
+		t.Fatalf("after %d concurrent acquires: refCount=%d, want %d", n, inst.Internal.refCount, n)
+	}
+	for i := 0; i < n; i++ {
+		go func() { _ = m.ReleaseFrame(inst); done <- true }()
+	}
+	for i := 0; i < n; i++ {
+		<-done
+	}
+	if inst.Internal.refCount != 0 {
+		t.Errorf("after %d concurrent releases: refCount=%d, want 0", n, inst.Internal.refCount)
+	}
+}
+
 func TestTryReuseElseRecreate_StaleBindMount(t *testing.T) {
 	withMockDockerFns(t,
 		func(_ context.Context, id string) error {

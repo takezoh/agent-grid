@@ -128,3 +128,104 @@ func TestSandboxDispatcher_AdoptFrame_DirectMode(t *testing.T) {
 		t.Error("expected direct.AdoptFrame called")
 	}
 }
+
+// fakeEnsureLauncher tracks EnsureProject calls.
+type fakeEnsureLauncher struct {
+	fakeAgentLauncher
+	ensureCalled bool
+	ensureErr    error
+}
+
+func (f *fakeEnsureLauncher) EnsureProject(_ context.Context, _ string) error {
+	f.ensureCalled = true
+	return f.ensureErr
+}
+
+func TestSandboxDispatcher_EnsureProject_DirectMode(t *testing.T) {
+	direct := &fakeEnsureLauncher{}
+	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "direct"})
+	d := &SandboxDispatcher{Resolver: resolver, Direct: direct}
+
+	if err := d.EnsureProject(context.Background(), "/p"); err != nil {
+		t.Fatalf("EnsureProject: %v", err)
+	}
+	if !direct.ensureCalled {
+		t.Errorf("direct.EnsureProject not called")
+	}
+}
+
+func TestSandboxDispatcher_EnsureProject_DevcontainerWithoutBackend_NoOp(t *testing.T) {
+	// devcontainer mode but no Devcontainer backend wired → return nil (no error)
+	// instead of crashing. This is the path coordinator.go takes when Docker is
+	// unavailable but the user still asked for devcontainer mode.
+	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "devcontainer"})
+	d := &SandboxDispatcher{Resolver: resolver, Direct: &fakeEnsureLauncher{}}
+
+	if err := d.EnsureProject(context.Background(), "/p"); err != nil {
+		t.Errorf("EnsureProject without backend: %v, want nil", err)
+	}
+}
+
+func TestSandboxDispatcher_EnsureProject_UnknownMode(t *testing.T) {
+	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "vagrant"})
+	d := &SandboxDispatcher{Resolver: resolver, Direct: &fakeEnsureLauncher{}}
+	err := d.EnsureProject(context.Background(), "/p")
+	if err == nil {
+		t.Errorf("unknown mode must error")
+	}
+}
+
+func TestSandboxDispatcher_IsContainer_NoBackend(t *testing.T) {
+	d := &SandboxDispatcher{
+		Resolver: config.NewSandboxResolver(config.SandboxConfig{Mode: "devcontainer"}),
+		// Devcontainer left nil
+	}
+	if d.IsContainer("/p") {
+		t.Errorf("IsContainer must return false when no devcontainer backend")
+	}
+}
+
+func TestSandboxDispatcher_IsContainer_DevcontainerMode(t *testing.T) {
+	d := &SandboxDispatcher{
+		Resolver:     config.NewSandboxResolver(config.SandboxConfig{Mode: "devcontainer"}),
+		Devcontainer: &DevcontainerLauncher{},
+	}
+	if !d.IsContainer("/p") {
+		t.Errorf("IsContainer must be true for devcontainer mode + backend")
+	}
+}
+
+func TestSandboxDispatcher_AdoptFrame_DevcontainerWithoutBackend(t *testing.T) {
+	resolver := config.NewSandboxResolver(config.SandboxConfig{Mode: "devcontainer"})
+	d := &SandboxDispatcher{Resolver: resolver, Direct: &fakeAgentLauncher{}}
+	cleanup, mounts, err := d.AdoptFrame(context.Background(), "f1", "/p")
+	if err != nil || cleanup != nil || mounts != nil {
+		t.Errorf("nil-backend devcontainer adopt: got cleanup-set=%v mounts=%v err=%v",
+			cleanup != nil, mounts, err)
+	}
+}
+
+func TestSandboxDispatcher_AdoptFrame_UnknownMode(t *testing.T) {
+	d := &SandboxDispatcher{
+		Resolver: config.NewSandboxResolver(config.SandboxConfig{Mode: "vagrant"}),
+		Direct:   &fakeAgentLauncher{},
+	}
+	_, _, err := d.AdoptFrame(context.Background(), "f1", "/p")
+	if err == nil {
+		t.Errorf("unknown mode must error")
+	}
+}
+
+func TestDevcontainerLauncherFor(t *testing.T) {
+	dl := &DevcontainerLauncher{}
+	if got := devcontainerLauncherFor(dl); got != dl {
+		t.Errorf("bare DevcontainerLauncher: got %v, want %v", got, dl)
+	}
+	disp := &SandboxDispatcher{Devcontainer: dl}
+	if got := devcontainerLauncherFor(disp); got != dl {
+		t.Errorf("wrapped: got %v, want %v", got, dl)
+	}
+	if got := devcontainerLauncherFor(&fakeAgentLauncher{}); got != nil {
+		t.Errorf("unknown launcher type: got %v, want nil", got)
+	}
+}

@@ -22,12 +22,18 @@ import (
 // Overlay functions compare against this to detect shared vs project context.
 const SharedContainerKey = "__shared__"
 
-// Docker call indirections. Tests override these to drive ensureContainer
-// scenarios that would otherwise require a real docker daemon (e.g. the
-// stale-bind-mount recreate path).
+// Docker call indirections. Tests override these to drive Manager scenarios
+// that would otherwise require a real docker daemon (the stale-bind-mount
+// recreate path, the shared-vs-project destroy split, …).
 var (
-	startContainerFn  = StartContainer
-	removeContainerFn = RemoveContainer
+	startContainerFn        = StartContainer
+	stopContainerFn         = StopContainer
+	removeContainerFn       = RemoveContainer
+	createContainerFn       = CreateContainer
+	findContainerFn         = FindContainer
+	findSharedContainerFn   = FindSharedContainer
+	imageEnvFn              = ImageEnv
+	runPostCreateFn         = RunPostCreate
 )
 
 // ContainerState holds runtime data for one project's devcontainer.
@@ -162,9 +168,9 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	t := time.Now()
 	findCtx, findCancel := context.WithTimeout(ctx, 5*time.Second)
 	if opts.SharedMode {
-		ctr, err = FindSharedContainer(findCtx)
+		ctr, err = findSharedContainerFn(findCtx)
 	} else {
-		ctr, err = FindContainer(findCtx, projectPath)
+		ctr, err = findContainerFn(findCtx, projectPath)
 	}
 	findCancel()
 	slog.Info("devcontainer: stage", "name", "find", "elapsed", time.Since(t), "project", projectPath, "shared", opts.SharedMode)
@@ -203,7 +209,7 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	slog.Info("devcontainer: stage", "name", "load_spec", "image", spec.Image, "elapsed", time.Since(t), "project", projectPath)
 
 	image := spec.Image
-	imgEnv, err := ImageEnv(ctx, image)
+	imgEnv, err := imageEnvFn(ctx, image)
 	if err != nil {
 		slog.Warn("devcontainer: image env probe failed; resolving without image baseline",
 			"image", image, "err", err)
@@ -217,7 +223,7 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 			slog.Info("devcontainer: mount mismatch, recreating shared container",
 				"id", shortID(ctr.ID), "old", ctr.MountHash, "new", expected)
 			rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
-			rmErr := RemoveContainer(rmCtx, ctr.ID)
+			rmErr := removeContainerFn(rmCtx, ctr.ID)
 			rmCancel()
 			if rmErr != nil {
 				return fmt.Errorf("devcontainer: remove stale shared container: %w", rmErr)
@@ -347,7 +353,7 @@ func (m *Manager) createAndStart(ctx context.Context, instanceKey, image string,
 	slog.Info("devcontainer: creating container", "image", image, "key", instanceKey)
 	t := time.Now()
 	createCtx, createCancel := context.WithTimeout(ctx, 30*time.Second)
-	containerID, err := CreateContainer(createCtx, createArgs)
+	containerID, err := createContainerFn(createCtx, createArgs)
 	createCancel()
 	slog.Info("devcontainer: stage", "name", "create", "elapsed", time.Since(t), "key", instanceKey)
 	if err != nil {
@@ -357,7 +363,7 @@ func (m *Manager) createAndStart(ctx context.Context, instanceKey, image string,
 	slog.Info("devcontainer: starting container", "id", shortID(containerID), "key", instanceKey)
 	t = time.Now()
 	startCtx, startCancel := context.WithTimeout(ctx, 30*time.Second)
-	err = StartContainer(startCtx, containerID)
+	err = startContainerFn(startCtx, containerID)
 	startCancel()
 	slog.Info("devcontainer: stage", "name", "start_new", "elapsed", time.Since(t), "key", instanceKey)
 	if err != nil {
@@ -379,7 +385,7 @@ func (m *Manager) runPostCreate(containerID string, spec *DevcontainerSpec) {
 	pcCtx, pcCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer pcCancel()
 	user := spec.EffectiveUser()
-	RunPostCreate(pcCtx, containerID, user, spec.PostCreate)
+	runPostCreateFn(pcCtx, containerID, user, spec.PostCreate)
 	for _, argv := range spec.ExtraPostCreate {
 		RunPostCreate(pcCtx, containerID, user, argv)
 	}
@@ -489,13 +495,13 @@ func (m *Manager) DestroyInstance(ctx context.Context, inst *sandbox.Instance[*C
 		slog.Info("devcontainer: stopping shared container", "id", shortID(id))
 		stopCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
-		return StopContainer(stopCtx, id)
+		return stopContainerFn(stopCtx, id)
 	}
 
 	slog.Info("devcontainer: removing container", "id", shortID(id), "project", inst.ProjectPath)
 	rmCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	return RemoveContainer(rmCtx, id)
+	return removeContainerFn(rmCtx, id)
 }
 
 // resolveWorkDir returns the container-side working directory for a launch.

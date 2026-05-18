@@ -3,6 +3,7 @@ package devcontainer
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -97,6 +98,79 @@ func TestLoadSpec_BuildWithoutName_Error(t *testing.T) {
 	}
 }
 
+func TestLoadSpec_FullDocumentParsed(t *testing.T) {
+	// Exercise the LoadSpec branches that string/array extractors and Mounts
+	// substitution touch — without this, LoadSpec coverage stops at ImageField
+	// happy path and misses everything else.
+	const project = "/home/take/myapp"
+	dir := setupProjectDC(t, `{
+		"image": "myproject:dev",
+		"containerEnv": {"FROM_FILE": "1"},
+		"remoteEnv":    {"REMOTE_FROM_FILE": "1"},
+		"containerUser": "root",
+		"remoteUser":    "ubuntu",
+		"workspaceFolder": "/workspaces/custom",
+		"workspaceMount":  "type=bind,source=${localWorkspaceFolder},target=/workspaces/custom",
+		"runArgs":         ["--shm-size=2g"],
+		"postCreateCommand": ["./scripts/setup.sh", "--quick"],
+		"preExecCommand":    "source .env",
+		"mounts": ["source=${localWorkspaceFolder}/data,target=/data,type=bind"]
+	}`)
+	spec, err := LoadSpec(project, filepath.Join(dir, ".devcontainer"))
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	checks := []struct {
+		field, got, want string
+	}{
+		{"Image", spec.Image, "myproject:dev"},
+		{"ContainerUser", spec.ContainerUser, "root"},
+		{"RemoteUser", spec.RemoteUser, "ubuntu"},
+		{"WorkspaceFolder", spec.WorkspaceFolder, "/workspaces/custom"},
+		{"PreExec", spec.PreExec, "source .env"},
+	}
+	for _, c := range checks {
+		if c.got != c.want {
+			t.Errorf("%s = %q, want %q", c.field, c.got, c.want)
+		}
+	}
+	if spec.ContainerEnv["FROM_FILE"] != "1" {
+		t.Errorf("ContainerEnv not parsed: %v", spec.ContainerEnv)
+	}
+	if spec.RemoteEnv["REMOTE_FROM_FILE"] != "1" {
+		t.Errorf("RemoteEnv not parsed: %v", spec.RemoteEnv)
+	}
+	if len(spec.RunArgs) != 1 || spec.RunArgs[0] != "--shm-size=2g" {
+		t.Errorf("RunArgs = %v", spec.RunArgs)
+	}
+	if len(spec.PostCreate) != 2 || spec.PostCreate[0] != "./scripts/setup.sh" {
+		t.Errorf("PostCreate = %v", spec.PostCreate)
+	}
+	// Mounts go through substituteVarsInStr; ${localWorkspaceFolder} should
+	// have been replaced with projectPath.
+	if len(spec.Mounts) != 1 {
+		t.Fatalf("Mounts = %v", spec.Mounts)
+	}
+	if !strings.Contains(spec.Mounts[0], project+"/data") {
+		t.Errorf("Mount substitution failed; ${localWorkspaceFolder} unresolved in %q", spec.Mounts[0])
+	}
+}
+
+func TestLoadSpec_MissingFileError(t *testing.T) {
+	_, err := LoadSpec("/some/project", "/nonexistent/dir")
+	if err == nil {
+		t.Errorf("expected error for missing devcontainer.json")
+	}
+}
+
+func TestLoadSpec_InvalidJSONError(t *testing.T) {
+	dir := setupProjectDC(t, `{not valid json}`)
+	_, err := LoadSpec("/p", filepath.Join(dir, ".devcontainer"))
+	if err == nil {
+		t.Errorf("expected error for malformed devcontainer.json")
+	}
+}
+
 func TestWorkspaceTarget_FallbackWhenWorkspaceFolderUnset(t *testing.T) {
 	s := &DevcontainerSpec{ProjectPath: "/host/myapp"}
 	if got, want := s.WorkspaceTarget(), "/host/myapp"; got != want {
@@ -154,6 +228,52 @@ func TestParseMountSpec_ShortForm(t *testing.T) {
 	src, tgt, ok := parseMountSpec("/host/x:/container/x:ro")
 	if !ok || src != "/host/x" || tgt != "/container/x" {
 		t.Errorf("short form = (%q,%q,%v), want (/host/x,/container/x,true)", src, tgt, ok)
+	}
+}
+
+func TestParseShortMount(t *testing.T) {
+	cases := []struct {
+		in      string
+		src     string
+		tgt     string
+		ok      bool
+	}{
+		{"/host:/container", "/host", "/container", true},
+		{"/host:/container:ro", "/host", "/container", true},
+		{"single-segment", "", "", false},
+		{"", "", "", false},
+		{":/container", "", "/container", false},     // empty source
+		{"/host:", "/host", "", false},               // empty target
+	}
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			src, tgt, ok := parseShortMount(tc.in)
+			if src != tc.src || tgt != tc.tgt || ok != tc.ok {
+				t.Errorf("parseShortMount(%q) = (%q,%q,%v), want (%q,%q,%v)",
+					tc.in, src, tgt, ok, tc.src, tc.tgt, tc.ok)
+			}
+		})
+	}
+}
+
+func TestParseMountSpec_NonBindVolumeRejected(t *testing.T) {
+	src, tgt, ok := parseMountSpec("type=volume,source=v1,target=/data")
+	if ok || src != "" || tgt != "" {
+		t.Errorf("volume mount must be rejected; got (%q,%q,%v)", src, tgt, ok)
+	}
+}
+
+func TestParseMountSpec_MissingTarget(t *testing.T) {
+	src, tgt, ok := parseMountSpec("type=bind,source=/host")
+	if ok || tgt != "" {
+		t.Errorf("missing target must fail; got (%q,%q,%v)", src, tgt, ok)
+	}
+}
+
+func TestParseMountSpec_MissingSource(t *testing.T) {
+	src, tgt, ok := parseMountSpec("type=bind,target=/container")
+	if ok || src != "" {
+		t.Errorf("missing source must fail; got (%q,%q,%v)", src, tgt, ok)
 	}
 }
 

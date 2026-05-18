@@ -238,6 +238,109 @@ func TestEffectiveOverlayProject(t *testing.T) {
 	}
 }
 
+// RunDirKey returns the run-dir key the Manager will use for projectPath.
+// Shared launches must collapse onto SharedContainerKey so the host-side run
+// dir aligns with the container-side mount.
+func TestRunDirKey(t *testing.T) {
+	cases := []struct {
+		name        string
+		isolation   string
+		hasDC       bool                 // simulate .devcontainer present?
+		projectPath string
+		want        string
+	}{
+		{
+			name:        "shared mode collapses to SharedContainerKey",
+			isolation:   "shared",
+			projectPath: "/workspace/agent-roost",
+			want:        sandboxdc.SharedContainerKey,
+		},
+		{
+			name:        "project mode keeps project path",
+			isolation:   "project",
+			projectPath: "/workspace/agent-roost",
+			want:        "/workspace/agent-roost",
+		},
+		{
+			name:        "default (no isolation) is project-mode keyed by project",
+			isolation:   "",
+			projectPath: "/workspace/agent-roost",
+			want:        "/workspace/agent-roost",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := &DevcontainerLauncher{
+				resolveSandbox: func(string) config.SandboxConfig {
+					return config.SandboxConfig{Isolation: tc.isolation}
+				},
+				resolveProjectScope: func(string) *config.SandboxConfig { return nil },
+			}
+			if got := l.RunDirKey(tc.projectPath); got != tc.want {
+				t.Errorf("RunDirKey(%q) = %q, want %q", tc.projectPath, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStartOptionsFor_PropagatesIsolation(t *testing.T) {
+	l := &DevcontainerLauncher{
+		resolveSandbox: func(string) config.SandboxConfig {
+			return config.SandboxConfig{Isolation: "shared"}
+		},
+		resolveProjectScope: func(string) *config.SandboxConfig { return nil },
+	}
+	opts := l.StartOptionsFor("/workspace/agent-roost")
+	if !opts.SharedMode {
+		t.Errorf("shared isolation must produce SharedMode=true, got %+v", opts)
+	}
+
+	l.resolveSandbox = func(string) config.SandboxConfig { return config.SandboxConfig{} }
+	opts = l.StartOptionsFor("/workspace/agent-roost")
+	if opts.SharedMode {
+		t.Errorf("empty isolation must produce SharedMode=false (project default), got %+v", opts)
+	}
+}
+
+func TestResolveStartOptions_ProjectScopeForcesProject(t *testing.T) {
+	// project-scope sandbox config explicitly says isolation=project; even if
+	// the user-scope is "shared" the launcher must stay project-mode.
+	l := &DevcontainerLauncher{
+		resolveSandbox: func(string) config.SandboxConfig {
+			return config.SandboxConfig{Isolation: "shared"} // user level
+		},
+		resolveProjectScope: func(string) *config.SandboxConfig {
+			return &config.SandboxConfig{Isolation: "project"} // project override
+		},
+	}
+	opts := l.resolveStartOptions("/workspace/myapp")
+	if opts.SharedMode {
+		t.Errorf("project-scope isolation=project must win; got SharedMode=true")
+	}
+}
+
+func TestResolveStartOptions_ProjectScopeDevcontainerPath(t *testing.T) {
+	// Specifying [sandbox.devcontainer] path at project scope is treated as an
+	// explicit project-mode signal: that project has its own container.
+	l := &DevcontainerLauncher{
+		resolveSandbox: func(string) config.SandboxConfig {
+			return config.SandboxConfig{Isolation: "shared"}
+		},
+		resolveProjectScope: func(string) *config.SandboxConfig {
+			return &config.SandboxConfig{
+				Devcontainer: config.DevcontainerConfig{Path: "/some/dir"},
+			}
+		},
+	}
+	opts := l.resolveStartOptions("/workspace/myapp")
+	if opts.SharedMode {
+		t.Errorf("project-scope devcontainer path must force project-mode; got SharedMode=true")
+	}
+	if opts.DevcontainerDir == "" {
+		t.Errorf("expected DevcontainerDir to be propagated from project scope")
+	}
+}
+
 // stubHelperBinaries places dummy roost-bridge / sockbridge next to the test
 // executable so InstallBinaryInRunDir succeeds without a real build artifact.
 func stubHelperBinaries(t *testing.T) {

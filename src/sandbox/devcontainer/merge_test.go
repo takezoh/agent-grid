@@ -43,6 +43,34 @@ func TestProjectBaseDC_notFound(t *testing.T) {
 	}
 }
 
+func TestUserBaseDC_found(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dcDir := filepath.Join(home, ".devcontainer")
+	if err := os.MkdirAll(dcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dcDir, "devcontainer.json"), []byte(`{"image":"ubuntu"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := UserBaseDC()
+	if err != nil {
+		t.Fatalf("UserBaseDC: %v", err)
+	}
+	want := filepath.Join(dcDir, "devcontainer.json")
+	if got != want {
+		t.Errorf("UserBaseDC = %q, want %q", got, want)
+	}
+}
+
+func TestUserBaseDC_notFound(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	_, err := UserBaseDC()
+	if !errors.Is(err, ErrNoUserDevcontainer) {
+		t.Errorf("expected ErrNoUserDevcontainer, got %v", err)
+	}
+}
+
 // ── FindDevcontainerPath with override ────────────────────────────────────────
 
 func TestFindDevcontainerPath_override_found(t *testing.T) {
