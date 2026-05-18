@@ -138,10 +138,6 @@ type Runtime struct {
 	// kind to the Factory that constructs Backends for that kind. Populated
 	// once in New; never mutated thereafter.
 	subsystemFactories map[state.LaunchSubsystem]rsubsystem.Factory
-	// cliFactory is held as a typed handle so CleanupUntracked can iterate
-	// only CLI backends without exposing CLI-specific methods on the generic
-	// Subsystem interface.
-	cliFactory *clisubsystem.Factory
 	// frameSubsystems tracks which subsystem owns each live frame,
 	// keyed by FrameID → subsystem.Subsystem. Used to route ReleaseFrame.
 	frameSubsystems sync.Map // state.FrameID → subsystem.Subsystem
@@ -219,16 +215,14 @@ func New(cfg Config) *Runtime {
 // registerSubsystemFactories is the one place that knows which factories
 // back each kind; adding a new subsystem only requires extending this map.
 func (r *Runtime) registerSubsystemFactories() {
-	r.cliFactory = clisubsystem.NewFactory()
-	streamFactory := cstream.NewFactory(cstream.FactoryConfig{
-		Runtime:          r,
-		ResolveSockPaths: r.resolveStreamSockPaths,
-		IsContainer:      func(project string) bool { return launcher(r.cfg).IsContainer(project) },
-		ActiveFrameID:    func() state.FrameID { return r.activeFrameID },
-	})
 	r.subsystemFactories = map[state.LaunchSubsystem]rsubsystem.Factory{
-		state.LaunchSubsystemCLI:    r.cliFactory,
-		state.LaunchSubsystemStream: streamFactory,
+		state.LaunchSubsystemCLI: clisubsystem.NewFactory(),
+		state.LaunchSubsystemStream: cstream.NewFactory(cstream.FactoryConfig{
+			Runtime:          r,
+			ResolveSockPaths: r.resolveStreamSockPaths,
+			IsContainer:      func(project string) bool { return launcher(r.cfg).IsContainer(project) },
+			ActiveFrameID:    func() state.FrameID { return r.activeFrameID },
+		}),
 	}
 }
 
@@ -242,15 +236,28 @@ func (r *Runtime) ResetWarmState() error {
 	return r.warmFrames.Reset()
 }
 
-// CleanupSubsystems removes untracked managed worktrees for all known CLI
-// backends. Called at coordinator startup to prune orphans from previous runs.
-// Type-asserts on a narrow interface so the generic Subsystem contract stays
-// free of CLI-specific concerns.
+// CleanupSubsystems removes untracked managed worktrees after cold start.
+// Tracked paths come from driver state rather than per-subsystem caches so the
+// result is correct regardless of which subsystem backends are live at cleanup time.
 func (r *Runtime) CleanupSubsystems(ctx context.Context) {
-	r.cliFactory.Range(func(b *clisubsystem.Backend) bool {
-		b.CleanupUntracked(ctx)
-		return true
-	})
+	rsubsystem.CleanupUntracked(ctx, r.KnownProjects(), collectTrackedWorktrees(r.state))
+}
+
+func collectTrackedWorktrees(s state.State) map[string]struct{} {
+	tracked := make(map[string]struct{})
+	for _, sess := range s.Sessions {
+		for _, fr := range sess.Frames {
+			drv := state.GetDriver(fr.Command)
+			sda, ok := drv.(state.StartDirAware)
+			if !ok {
+				continue
+			}
+			if dir := sda.StartDir(fr.Driver); dir != "" && rsubsystem.IsManagedWorktreePath(dir) {
+				tracked[dir] = struct{}{}
+			}
+		}
+	}
+	return tracked
 }
 
 // KnownProjects returns the canonical project paths for all sessions currently

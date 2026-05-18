@@ -80,16 +80,3 @@ func (b *Backend) ReleaseFrame(frameID state.FrameID) {
 // Stop is a no-op for the CLI backend; resources are released per-frame.
 func (b *Backend) Stop(_ context.Context) {}
 
-// CleanupUntracked removes worktrees under the project's .roost/worktrees/
-// that are not tracked by any registered frame.
-func (b *Backend) CleanupUntracked(ctx context.Context) {
-	b.mu.Lock()
-	tracked := make(map[string]struct{}, len(b.frames))
-	for _, path := range b.frames {
-		if path != "" {
-			tracked[path] = struct{}{}
-		}
-	}
-	b.mu.Unlock()
-	subsystem.CleanupUntracked(ctx, []string{b.project}, tracked)
-}

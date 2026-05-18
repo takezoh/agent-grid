@@ -75,6 +75,7 @@ type Backend struct {
 type frameBinding struct {
 	frameID         state.FrameID
 	startDir        string
+	worktreePath    string // non-empty when a managed worktree was adopted or created
 	threadID        string
 	requestedID     string
 	observedID      string
@@ -186,8 +187,10 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	startDir := req.Plan.StartDir
 
 	// Worktree resolution: same logic as CLI backend.
+	var worktreePath string
 	switch {
 	case subsystem.IsManagedWorktreePath(startDir):
+		worktreePath = startDir
 		result.WorktreeStartDir = startDir
 	case req.Plan.Options.Worktree.Enabled:
 		names := subsystem.GenerateWorktreeNames(subsystem.WorktreeNameAttempts)
@@ -199,13 +202,14 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 			return subsystem.BindResult{}, err
 		}
 		startDir = wt.StartDir
+		worktreePath = wt.StartDir
 		result.Plan.StartDir = startDir
 		result.WorktreeStartDir = wt.StartDir
 		result.WorktreeName = wt.Name
 	}
 
 	// Thread binding.
-	threadID, err := b.bindThread(req.FrameID, startDir, req.Plan.Stream, req.Stdin)
+	threadID, err := b.bindThread(req.FrameID, startDir, worktreePath, req.Plan.Stream, req.Stdin)
 	if err != nil {
 		return subsystem.BindResult{}, err
 	}
@@ -286,11 +290,12 @@ func (b *Backend) buildServerCommand(ctx context.Context) (*exec.Cmd, error) {
 
 // bindThread associates a new frame with a thread in the app-server and
 // returns the thread ID bound (either resumed or empty if a new thread).
-func (b *Backend) bindThread(frameID state.FrameID, startDir string, opts state.StreamLaunchOptions, stdin []byte) (string, error) {
+func (b *Backend) bindThread(frameID state.FrameID, startDir, worktreePath string, opts state.StreamLaunchOptions, stdin []byte) (string, error) {
 	b.mu.Lock()
 	b.frames[frameID] = &frameBinding{
-		frameID:  frameID,
-		startDir: startDir,
+		frameID:      frameID,
+		startDir:     startDir,
+		worktreePath: worktreePath,
 	}
 	b.mu.Unlock()
 	if opts.ResumeThreadID != "" {

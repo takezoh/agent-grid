@@ -95,12 +95,6 @@ func TestReleaseFrameRemovesTracking(t *testing.T) {
 	}
 }
 
-func TestCleanupUntrackedNoop(t *testing.T) {
-	b := New(t.TempDir())
-	// No .roost/worktrees/ dir exists — should not panic or error.
-	b.CleanupUntracked(context.Background())
-}
-
 func TestIsManagedWorktreePath(t *testing.T) {
 	cases := []struct {
 		path string

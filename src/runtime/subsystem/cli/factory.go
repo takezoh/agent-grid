@@ -35,8 +35,7 @@ func (f *Factory) Ensure(_ context.Context, project string, _ state.LaunchPlan) 
 	return b, id, nil
 }
 
-// Range iterates all live backends. Used by the runtime for cross-backend
-// operations such as CleanupUntracked.
+// Range iterates all live backends.
 func (f *Factory) Range(fn func(*Backend) bool) {
 	f.mu.Lock()
 	snapshot := make([]*Backend, 0, len(f.backends))
@@ -50,3 +49,4 @@ func (f *Factory) Range(fn func(*Backend) bool) {
 		}
 	}
 }
+
