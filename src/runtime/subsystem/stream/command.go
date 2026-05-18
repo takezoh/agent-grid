@@ -8,8 +8,7 @@ import (
 	"github.com/takezoh/credproxy/container"
 )
 
-// These constants mirror driver.Codex* but are owned here as the canonical
-// implementation site for the codex app-server protocol.
+// Re-exported from driver/ so callers need not import both packages.
 const (
 	DriverName   = driver.CodexDriverName
 	SockName     = driver.CodexAppServerSockName

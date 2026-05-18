@@ -20,7 +20,10 @@ import (
 
 const (
 	serverDialTimeout    = 15 * time.Second
-	containerEnsureLimit = 120 * time.Second
+	containerEnsureLimit = 120 * time.Second // matches devcontainer_launcher.containerEnsureTimeout; cannot share due to import cycle
+
+	resumePhasePending  = "resume_pending"
+	resumePhaseAttached = "attached"
 )
 
 // RuntimeHook is implemented by *runtime.Runtime and lets the stream backend
@@ -59,7 +62,6 @@ type Backend struct {
 	containerSock string // UDS path inside container
 	hostBridgeCmd *exec.Cmd
 	bridgePort    int
-	readDone      chan error
 	writeMu       sync.Mutex
 	mu            sync.Mutex
 	nextID        int64
@@ -143,9 +145,10 @@ func (b *Backend) Start() error {
 	}
 	b.cmd = cmd
 	b.wsConn = wsConn
-	b.readDone = make(chan error, 1)
 	go func() {
-		b.readDone <- b.runReadLoop()
+		if err := b.runReadLoop(); err != nil {
+			slog.Debug("stream backend: read loop closed", "subsystem", b.subsystemID, "err", err)
+		}
 	}()
 	if err := b.initialize(); err != nil {
 		_ = wsConn.Close(websocket.StatusInternalError, "initialize failed")
@@ -247,7 +250,7 @@ func (b *Backend) BindFrame(frameID state.FrameID, startDir string, opts state.S
 			binding.threadID = threadID
 			binding.requestedID = opts.ResumeThreadID
 			binding.observedID = threadID
-			binding.resumePhase = "resume_pending"
+			binding.resumePhase = resumePhasePending
 		}
 		b.threads[threadID] = frameID
 		b.mu.Unlock()

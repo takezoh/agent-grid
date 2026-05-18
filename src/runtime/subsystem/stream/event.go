@@ -83,7 +83,7 @@ func (b *Backend) handleThreadStarted(raw json.RawMessage) {
 		binding.threadID = threadID
 		binding.requestedID = threadID
 		binding.observedID = threadID
-		binding.resumePhase = "attached"
+		binding.resumePhase = resumePhaseAttached
 		b.threads[threadID] = frameID
 	}
 	b.mu.Unlock()
@@ -99,12 +99,14 @@ func (b *Backend) handleTurnCompleted(raw json.RawMessage) {
 	last := strings.TrimSpace(extractText(raw))
 	b.mu.Lock()
 	binding := b.frames[frameID]
-	if binding != nil {
-		binding.activeTurnID = ""
-		if last != "" {
-			binding.lastAssistant = last
-			appendHistory(&binding.history, "assistant", last)
-		}
+	if binding == nil {
+		b.mu.Unlock()
+		return
+	}
+	binding.activeTurnID = ""
+	if last != "" {
+		binding.lastAssistant = last
+		appendHistory(&binding.history, "assistant", last)
 	}
 	history := append([]state.SubsystemTurn(nil), binding.history...)
 	b.mu.Unlock()
@@ -115,20 +117,33 @@ func (b *Backend) handleTurnCompleted(raw json.RawMessage) {
 }
 
 func (b *Backend) handleAgentMessageDelta(raw json.RawMessage) {
-	threadID := extractThreadID(raw)
-	frameID := b.frameForThread(threadID)
-	if frameID == "" {
+	// Hot path: single unmarshal instead of two separate extract calls.
+	var params struct {
+		ThreadID string `json:"threadId"`
+		Delta    string `json:"delta"`
+		Text     string `json:"text"`
+	}
+	if json.Unmarshal(raw, &params) != nil {
 		return
 	}
-	text := extractText(raw)
+	text := params.Delta
 	if text == "" {
+		text = params.Text
+	}
+	if text == "" {
+		return
+	}
+	frameID := b.frameForThread(params.ThreadID)
+	if frameID == "" {
 		return
 	}
 	b.mu.Lock()
 	binding := b.frames[frameID]
-	if binding != nil {
-		binding.lastAssistant += text
+	if binding == nil {
+		b.mu.Unlock()
+		return
 	}
+	binding.lastAssistant += text
 	last := binding.lastAssistant
 	history := append([]state.SubsystemTurn(nil), binding.history...)
 	b.mu.Unlock()
@@ -176,16 +191,14 @@ func (b *Backend) handleThreadStatusChanged(raw json.RawMessage) {
 	}
 	b.mu.Lock()
 	binding := b.frames[frameID]
-	prevStatus := binding.threadStatus
-	prevWaiting := binding.waitApproval
-	b.mu.Unlock()
-	events, nextStatus, nextWaiting := threadStatusEvents(raw, threadID, prevStatus, prevWaiting)
-	b.mu.Lock()
-	binding = b.frames[frameID]
-	if binding != nil {
-		binding.threadStatus = nextStatus
-		binding.waitApproval = nextWaiting
+	if binding == nil {
+		b.mu.Unlock()
+		return
 	}
+	prevStatus, prevWaiting := binding.threadStatus, binding.waitApproval
+	events, nextStatus, nextWaiting := threadStatusEvents(raw, threadID, prevStatus, prevWaiting)
+	binding.threadStatus = nextStatus
+	binding.waitApproval = nextWaiting
 	b.mu.Unlock()
 	for _, ev := range events {
 		ev.payload = b.withTracking(frameID, ev.payload)

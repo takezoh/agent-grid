@@ -76,10 +76,6 @@ func GeminiCommandTag() state.Tag {
 	}
 }
 
-// HostTag returns a tag indicating the session was launched on the host
-// instead of its configured sandbox.
-func HostTag() state.Tag { return state.HostTag() }
-
 // BranchTag returns a VCS branch tag with pre-resolved brand colors.
 // When parentBranch is non-empty the tag text includes an arrow
 // showing the main worktree's branch (e.g. "feature → main").

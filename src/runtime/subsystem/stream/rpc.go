@@ -89,6 +89,9 @@ func (b *Backend) request(method string, params map[string]any) (rpcMessage, err
 	b.pending[id] = ch
 	b.mu.Unlock()
 	if err := b.writeRPC(rpcMessage{ID: &id, Method: method, Params: mustJSON(params)}); err != nil {
+		b.mu.Lock()
+		delete(b.pending, id)
+		b.mu.Unlock()
 		return rpcMessage{}, err
 	}
 	select {
