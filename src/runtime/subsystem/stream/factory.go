@@ -24,6 +24,12 @@ type FactoryConfig struct {
 	ResolveSockPaths func(project string) (host string, container string, err error)
 	// IsContainer reports whether the given project runs in a devcontainer.
 	IsContainer func(project string) bool
+	// RunDirKey returns the container key the project shares (the same key
+	// DevcontainerLauncher uses for its run dir): "__shared__" for shared
+	// isolation, the project path for project isolation, "" when not
+	// containerized. Used in makeID so all frames living in one container
+	// reduce to a single subsystem instance.
+	RunDirKey func(project string) string
 	// ActiveFrameID returns the currently active FrameID; used by Backends
 	// to route events to the foreground frame.
 	ActiveFrameID func() state.FrameID
@@ -109,12 +115,31 @@ func (f *Factory) Range(fn func(*Backend) bool) {
 	}
 }
 
-// makeID encodes (kind, sandbox mode, project) into an opaque SubsystemID.
-// Sandbox override is resolved here so it does not leak outside this package.
+// makeID derives the SubsystemID from (sandbox kind, container key).
+//
+// Container-mode IDs key on the container the project lives in, not the
+// project itself: every frame inside one container shares one stream backend
+// because they share one in-container sockbridge listening on 127.0.0.1:8282.
+// In shared isolation that collapses N projects onto a single ID
+// (stream:container:__shared__); in project isolation each project still gets
+// its own container and thus its own ID (stream:container:<projectPath>).
+//
+// Host-mode IDs stay per-project — each host project runs its own codex
+// app-server in its own cwd, so collapsing them would mix unrelated threads.
+//
+// SandboxOverrideHost wins over IsContainer: it's the per-frame "use the host"
+// escape hatch even when the project would otherwise containerize.
 func (f *Factory) makeID(project string, sandbox state.SandboxOverride) state.SubsystemID {
-	mode := "auto"
+	escapedProject := strings.ReplaceAll(project, ":", "_")
 	if sandbox == state.SandboxOverrideHost {
-		mode = "host"
+		return state.SubsystemID("stream:host:" + escapedProject)
 	}
-	return state.SubsystemID("stream:" + mode + ":" + strings.ReplaceAll(project, ":", "_"))
+	if f.cfg.IsContainer != nil && f.cfg.IsContainer(project) {
+		key := project
+		if f.cfg.RunDirKey != nil {
+			key = f.cfg.RunDirKey(project)
+		}
+		return state.SubsystemID("stream:container:" + strings.ReplaceAll(key, ":", "_"))
+	}
+	return state.SubsystemID("stream:host:" + escapedProject)
 }

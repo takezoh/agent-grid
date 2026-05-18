@@ -9,6 +9,19 @@ import (
 	cstream "github.com/takezoh/agent-roost/runtime/subsystem/stream"
 )
 
+// streamRunDirKey returns the container key the project shares for stream-
+// subsystem run-dir bookkeeping. Mirrors DevcontainerLauncher.RunDirKey:
+// "__shared__" for shared isolation, the project path for project isolation,
+// and the project path for host launches (no container). Empty when the
+// devcontainer launcher isn't configured.
+func (r *Runtime) streamRunDirKey(project string) string {
+	l := launcher(r.cfg)
+	if dl := devcontainerLauncherFor(l); dl != nil && l.IsContainer(project) {
+		return dl.RunDirKey(project)
+	}
+	return project
+}
+
 // resolveStreamSockPaths returns the host-side and container-side sock paths
 // for the given project. The container path equals the host path when the
 // project runs directly on the host.
@@ -17,18 +30,13 @@ func (r *Runtime) resolveStreamSockPaths(project string) (string, string, error)
 	if dataDir == "" {
 		dataDir = os.TempDir()
 	}
-	l := launcher(r.cfg)
-	runDirKey := project
-	if dl := devcontainerLauncherFor(l); dl != nil && l.IsContainer(project) {
-		runDirKey = dl.RunDirKey(project)
-	}
-	runDir, err := EnsureProjectRunDir(filepath.Join(dataDir, "run"), runDirKey)
+	runDir, err := EnsureProjectRunDir(filepath.Join(dataDir, "run"), r.streamRunDirKey(project))
 	if err != nil {
 		return "", "", fmt.Errorf("stream backend: run dir: %w", err)
 	}
 	hostSock := filepath.Join(runDir, cstream.SockName)
 	containerSock := hostSock
-	if l.IsContainer(project) {
+	if launcher(r.cfg).IsContainer(project) {
 		containerSock = ContainerRunDir + "/" + cstream.SockName
 	}
 	return hostSock, containerSock, nil

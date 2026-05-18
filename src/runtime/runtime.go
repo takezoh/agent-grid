@@ -221,6 +221,7 @@ func (r *Runtime) registerSubsystemFactories() {
 			Runtime:          r,
 			ResolveSockPaths: r.resolveStreamSockPaths,
 			IsContainer:      func(project string) bool { return launcher(r.cfg).IsContainer(project) },
+			RunDirKey:        r.streamRunDirKey,
 			ActiveFrameID:    func() state.FrameID { return r.activeFrameID },
 		}),
 	}
