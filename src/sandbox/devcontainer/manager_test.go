@@ -235,6 +235,64 @@ func TestBuildLaunchCommand_shellUsesLoginShell(t *testing.T) {
 	}
 }
 
+func TestBuildLaunchCommand_MergesFrameCtxEnv(t *testing.T) {
+	const project = "/workspace/myapp"
+	spec := &DevcontainerSpec{
+		ProjectPath:     project,
+		ContainerEnv:    map[string]string{},
+		WorkspaceFolder: "/workspaces/myapp",
+	}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: project,
+		Internal:    &ContainerState{containerID: "ctr1", spec: spec},
+	}
+	m := &Manager{}
+	plan := state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}
+	frameCtx := sandbox.FrameContext{Env: map[string]string{"AWS_PROFILE": "prod"}}
+
+	got, _, err := m.BuildLaunchCommand(inst, plan, frameCtx, nil)
+	if err != nil {
+		t.Fatalf("BuildLaunchCommand error: %v", err)
+	}
+	if !strings.Contains(got, "AWS_PROFILE=prod") {
+		t.Errorf("frameCtx.Env not in command: %s", got)
+	}
+}
+
+func TestBuildLaunchCommand_FrameCtxEnvWinsOnConflict(t *testing.T) {
+	// docker exec applies the last `-e KEY=VAL` so the order we emit is what
+	// determines who wins. spec → frameCtx → env; later entries override.
+	const project = "/workspace/myapp"
+	spec := &DevcontainerSpec{
+		ProjectPath:     project,
+		ContainerEnv:    map[string]string{},
+		RemoteEnv:       map[string]string{"AWS_PROFILE": "default"},
+		WorkspaceFolder: "/workspaces/myapp",
+	}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: project,
+		Internal:    &ContainerState{containerID: "ctr1", spec: spec},
+	}
+	m := &Manager{}
+	plan := state.LaunchPlan{Project: project, StartDir: project, Command: "bash"}
+	frameCtx := sandbox.FrameContext{Env: map[string]string{"AWS_PROFILE": "prod"}}
+
+	got, _, err := m.BuildLaunchCommand(inst, plan, frameCtx, nil)
+	if err != nil {
+		t.Fatalf("BuildLaunchCommand error: %v", err)
+	}
+	// Both must appear, frameCtx (prod) must appear AFTER spec (default) so
+	// docker treats frameCtx as the winning value.
+	specIdx := strings.Index(got, "AWS_PROFILE=default")
+	ctxIdx := strings.Index(got, "AWS_PROFILE=prod")
+	if specIdx < 0 || ctxIdx < 0 {
+		t.Fatalf("expected both AWS_PROFILE entries; got: %s", got)
+	}
+	if ctxIdx <= specIdx {
+		t.Errorf("frameCtx.Env must appear after spec.RemoteEnv; spec=%d ctx=%d in %s", specIdx, ctxIdx, got)
+	}
+}
+
 func TestBuildLaunchCommand_RemoteEnv(t *testing.T) {
 	const project = "/workspace/myapp"
 	spec := &DevcontainerSpec{

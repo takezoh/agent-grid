@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -355,14 +356,24 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], pl
 	}
 	sb.WriteString(" -w ")
 	sb.WriteString(shellEscape(workDir))
-	for k, v := range spec.RemoteEnv {
-		sb.WriteString(" -e ")
-		sb.WriteString(shellEscape(k + "=" + v))
+	// docker exec -e accepts repeated KEY=VAL; the last occurrence wins.
+	// Emit in priority order: spec (container default) → frameCtx (per-frame
+	// credential) → env (driver-specific token). Keys are sorted within each
+	// source to keep test output deterministic.
+	writeEnv := func(m map[string]string) {
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sb.WriteString(" -e ")
+			sb.WriteString(shellEscape(k + "=" + m[k]))
+		}
 	}
-	for k, v := range env {
-		sb.WriteString(" -e ")
-		sb.WriteString(shellEscape(k + "=" + v))
-	}
+	writeEnv(spec.RemoteEnv)
+	writeEnv(frameCtx.Env)
+	writeEnv(env)
 	sb.WriteString(" ")
 	sb.WriteString(containerID)
 	sb.WriteString(" ")
