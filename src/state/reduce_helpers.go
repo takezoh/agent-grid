@@ -195,6 +195,9 @@ func stepDriver(s State, frameID FrameID, ev DriverEvent) (State, []Effect, bool
 		IsRoot:        frameIdx == 0,
 	}
 
+	if frame.Driver == nil {
+		frame.Driver = drv.NewState(s.Now)
+	}
 	oldStatus := drv.Status(frame.Driver)
 	nextDS, rawEffs, _ := drv.Step(frame.Driver, ctx, ev)
 
