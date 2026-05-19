@@ -34,7 +34,6 @@ var (
 	findSharedContainerFn = FindSharedContainer
 	imageEnvFn            = ImageEnv
 	runPostCreateFn       = RunPostCreate
-	waitForContainerFn    = waitForContainer
 )
 
 // ContainerState holds runtime data for one project's devcontainer.
@@ -319,8 +318,7 @@ func (m *Manager) loadSpec(instanceKey, projectPath, dcDir string) (*Devcontaine
 }
 
 func (m *Manager) reuseContainer(ctx context.Context, instanceKey string, ctr *ContainerInfo, spec *DevcontainerSpec) error {
-	wasExited := ctr.State != "running"
-	if wasExited {
+	if ctr.State != "running" {
 		slog.Info("devcontainer: starting existing container", "id", shortID(ctr.ID), "state", ctr.State, "key", instanceKey)
 		t := time.Now()
 		startCtx, startCancel := context.WithTimeout(ctx, 30*time.Second)
@@ -341,14 +339,6 @@ func (m *Manager) reuseContainer(ctx context.Context, instanceKey string, ctr *C
 	m.mu.Lock()
 	m.containers[instanceKey] = &ContainerState{containerID: ctr.ID, spec: spec}
 	m.mu.Unlock()
-
-	// docker start で resume した場合、container 内のサービスプロセス
-	// (sockbridge 等) は失われている。roost-injected な ExtraPostCreate を
-	// 再実行して bridges を再起動する。devcontainer.json 由来の PostCreate は
-	// 冪等とは限らないので再実行しない。
-	if wasExited {
-		m.runExtraPostCreate(ctr.ID, spec)
-	}
 	return nil
 }
 
@@ -397,7 +387,7 @@ func (m *Manager) runPostCreate(containerID string, spec *DevcontainerSpec) {
 	}
 	readyCtx, readyCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer readyCancel()
-	if err := waitForContainerFn(readyCtx, containerID); err != nil {
+	if err := waitForContainer(readyCtx, containerID); err != nil {
 		slog.Warn("devcontainer: container not ready for exec, skipping postCreate", "err", err)
 		return
 	}
@@ -406,29 +396,7 @@ func (m *Manager) runPostCreate(containerID string, spec *DevcontainerSpec) {
 	user := spec.EffectiveUser()
 	runPostCreateFn(pcCtx, containerID, user, spec.PostCreate)
 	for _, argv := range spec.ExtraPostCreate {
-		runPostCreateFn(pcCtx, containerID, user, argv)
-	}
-}
-
-// runExtraPostCreate executes only the roost-injected ExtraPostCreate
-// commands. Used when resuming an existing container — devcontainer.json's
-// PostCreate is assumed non-idempotent so we skip it, but roost's bridges
-// must be restarted (the previous container instance's processes are gone).
-func (m *Manager) runExtraPostCreate(containerID string, spec *DevcontainerSpec) {
-	if len(spec.ExtraPostCreate) == 0 {
-		return
-	}
-	readyCtx, readyCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer readyCancel()
-	if err := waitForContainerFn(readyCtx, containerID); err != nil {
-		slog.Warn("devcontainer: container not ready for exec, skipping ExtraPostCreate", "err", err)
-		return
-	}
-	pcCtx, pcCancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer pcCancel()
-	user := spec.EffectiveUser()
-	for _, argv := range spec.ExtraPostCreate {
-		runPostCreateFn(pcCtx, containerID, user, argv)
+		RunPostCreate(pcCtx, containerID, user, argv)
 	}
 }
 
