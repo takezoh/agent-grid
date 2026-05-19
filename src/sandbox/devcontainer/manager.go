@@ -203,35 +203,9 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	}
 	spec.ResolveContainerEnvPlaceholders(imgEnv)
 
-	// Cold start contract: any container that survived a non-graceful daemon
-	// exit must be discarded so the new launch starts from a known-fresh
-	// state (in-container daemons like sockbridge / codex app-server are
-	// only spawned via postCreate, which runs on container creation).
-	if ctr != nil && opts.ColdStart {
-		slog.Info("devcontainer: cold start discarding existing container",
-			"id", shortID(ctr.ID), "state", ctr.State, "key", instanceKey)
-		rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
-		rmErr := removeContainerFn(rmCtx, ctr.ID)
-		rmCancel()
-		if rmErr != nil {
-			return fmt.Errorf("devcontainer: cold-start remove: %w", rmErr)
-		}
-		ctr = nil
-	}
-
-	if ctr != nil && opts.SharedMode {
-		expected := spec.MountConfigurationHash()
-		if ctr.MountHash != expected {
-			slog.Info("devcontainer: mount mismatch, recreating shared container",
-				"id", shortID(ctr.ID), "old", ctr.MountHash, "new", expected)
-			rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
-			rmErr := removeContainerFn(rmCtx, ctr.ID)
-			rmCancel()
-			if rmErr != nil {
-				return fmt.Errorf("devcontainer: remove stale shared container: %w", rmErr)
-			}
-			ctr = nil
-		}
+	ctr, err = discardContainerIfStale(ctx, ctr, instanceKey, spec, opts)
+	if err != nil {
+		return err
 	}
 
 	if ctr != nil {
@@ -242,9 +216,40 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 		if !recovered {
 			return nil
 		}
-		// fall through to createContainer
 	}
 	return m.createContainer(ctx, instanceKey, image, spec)
+}
+
+// discardContainerIfStale removes an existing container when a cold-start or
+// shared-mode mount-hash mismatch requires a fresh container, returning nil
+// so the caller proceeds to createContainer.
+func discardContainerIfStale(ctx context.Context, ctr *ContainerInfo, instanceKey string, spec *DevcontainerSpec, opts sandbox.StartOptions) (*ContainerInfo, error) {
+	if ctr != nil && opts.ColdStart {
+		slog.Info("devcontainer: cold start discarding existing container",
+			"id", shortID(ctr.ID), "state", ctr.State, "key", instanceKey)
+		rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
+		rmErr := removeContainerFn(rmCtx, ctr.ID)
+		rmCancel()
+		if rmErr != nil {
+			return nil, fmt.Errorf("devcontainer: cold-start remove: %w", rmErr)
+		}
+		return nil, nil
+	}
+	if ctr != nil && opts.SharedMode {
+		expected := spec.MountConfigurationHash()
+		if ctr.MountHash != expected {
+			slog.Info("devcontainer: mount mismatch, recreating shared container",
+				"id", shortID(ctr.ID), "old", ctr.MountHash, "new", expected)
+			rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
+			rmErr := removeContainerFn(rmCtx, ctr.ID)
+			rmCancel()
+			if rmErr != nil {
+				return nil, fmt.Errorf("devcontainer: remove stale shared container: %w", rmErr)
+			}
+			return nil, nil
+		}
+	}
+	return ctr, nil
 }
 
 // resolveDCPath returns the path to devcontainer.json for the given project and options.
