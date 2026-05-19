@@ -1,7 +1,7 @@
 package state
 
 import (
-	v "github.com/takezoh/agent-roost/state/view"
+	v "github.com/takezoh/agent-roost/client/state/view"
 )
 
 // View and related types are defined in state/view and re-exported here

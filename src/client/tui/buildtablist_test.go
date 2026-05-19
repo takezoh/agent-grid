@@ -3,8 +3,8 @@ package tui
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func TestBuildTabList_DriverProvidedTabsThenInfoThenLog(t *testing.T) {

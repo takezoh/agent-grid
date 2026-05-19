@@ -1,6 +1,6 @@
 package driver
 
-import "github.com/takezoh/agent-roost/state"
+import "github.com/takezoh/agent-roost/client/state"
 
 func (d ClaudeDriver) PrepareCreate(s state.DriverState, _ state.SessionID, project, command string, options state.LaunchOptions) (state.DriverState, state.CreateLaunch, error) {
 	cs, ok := s.(ClaudeState)

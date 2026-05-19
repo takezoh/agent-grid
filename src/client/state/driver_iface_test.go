@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // mockDriver is a minimal Driver implementation used to exercise the

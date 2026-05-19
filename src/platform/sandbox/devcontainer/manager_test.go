@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/sandbox"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/platform/sandbox"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func TestBuildLaunchCommand_subdir(t *testing.T) {

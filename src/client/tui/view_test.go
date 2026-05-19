@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // baseHeaderRows is the header row count when no connectors and no workspace bar

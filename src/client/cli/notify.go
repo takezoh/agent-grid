@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	libnotify "github.com/takezoh/agent-roost/lib/notify"
-	"github.com/takezoh/agent-roost/runtime"
+	libnotify "github.com/takezoh/agent-roost/platform/lib/notify"
+	"github.com/takezoh/agent-roost/client/runtime"
 )
 
 func init() {

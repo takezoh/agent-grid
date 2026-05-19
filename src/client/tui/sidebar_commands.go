@@ -3,7 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/proto"
 )
 
 func (m Model) requestSessions() tea.Cmd {

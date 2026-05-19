@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/sandbox"
-	sandboxdc "github.com/takezoh/agent-roost/sandbox/devcontainer"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/platform/sandbox"
+	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // mockMgr is a sandbox.Manager[*sandboxdc.ContainerState] that lets tests

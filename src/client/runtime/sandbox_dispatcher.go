@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/lib/pathmap"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // SandboxDispatcher implements AgentLauncher by selecting the correct backend

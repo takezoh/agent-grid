@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func newGenericState(t *testing.T, threshold time.Duration) (GenericDriver, GenericState, time.Time) {

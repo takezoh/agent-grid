@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 const (

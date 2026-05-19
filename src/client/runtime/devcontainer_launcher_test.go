@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-roost/config"
-	sandboxdc "github.com/takezoh/agent-roost/sandbox/devcontainer"
+	"github.com/takezoh/agent-roost/client/config"
+	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
 	"github.com/takezoh/credproxy/container"
 )
 

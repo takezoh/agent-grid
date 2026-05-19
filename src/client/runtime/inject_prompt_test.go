@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // recordedInjCall captures one call made to fakePromptInjector.

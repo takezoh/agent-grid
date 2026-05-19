@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func toolStartedEv(id, name, cmd string, ts time.Time) state.DEvSubsystem {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func TestFactoryEnsureSameProjectSameInstance(t *testing.T) {

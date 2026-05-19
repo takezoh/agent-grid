@@ -6,7 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/proto"
 )
 
 // frameTabLayout renders a row of frame tab chips for the active session

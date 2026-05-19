@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/driver"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/driver"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // These tests use drivers registered in TestMain (runtime_test.go):

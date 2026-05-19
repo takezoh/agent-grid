@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	codextranscript "github.com/takezoh/agent-roost/lib/codex/transcript"
+	codextranscript "github.com/takezoh/agent-roost/platform/lib/codex/transcript"
 )
 
 func newCodexTranscriptParse() func(context.Context, CodexTranscriptParseInput) (CodexTranscriptParseResult, error) {

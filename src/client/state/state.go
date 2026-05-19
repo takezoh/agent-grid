@@ -10,7 +10,7 @@ package state
 import (
 	"time"
 
-	"github.com/takezoh/agent-roost/features"
+	"github.com/takezoh/agent-roost/platform/features"
 )
 
 // Identifier types. Distinct named types prevent accidental mix-up at the

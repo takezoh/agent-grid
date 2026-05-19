@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/client/proto"
 	"golang.org/x/term"
 )
 

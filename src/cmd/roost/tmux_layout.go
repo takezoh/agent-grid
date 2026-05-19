@@ -7,9 +7,9 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/lib/tmux"
-	"github.com/takezoh/agent-roost/uiproc"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/platform/lib/tmux"
+	"github.com/takezoh/agent-roost/client/uiproc"
 )
 
 // Window 0 pane layout (3 panes):

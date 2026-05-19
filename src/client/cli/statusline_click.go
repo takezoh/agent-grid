@@ -3,8 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/takezoh/agent-roost/proto"
-	psess "github.com/takezoh/agent-roost/proto/sessions"
+	"github.com/takezoh/agent-roost/client/proto"
+	psess "github.com/takezoh/agent-roost/client/proto/sessions"
 )
 
 func init() {

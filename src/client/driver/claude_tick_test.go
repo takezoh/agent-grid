@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func TestClaudeTickEarlyReturnOnIdle(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/takezoh/agent-roost/runtime/subsystem"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/runtime/subsystem"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // FactoryConfig holds runtime-supplied dependencies the Stream Factory needs

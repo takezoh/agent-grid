@@ -6,8 +6,8 @@ package sessions
 import (
 	"path/filepath"
 
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // Client wraps proto.Client with session management methods.

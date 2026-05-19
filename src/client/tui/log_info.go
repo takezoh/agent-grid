@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/tui/glyphs"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/tui/glyphs"
 )
 
 // renderInfoContent builds the INFO tab body. The TUI prepends a generic

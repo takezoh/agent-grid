@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func TestTokenStoreGenerateLookup(t *testing.T) {

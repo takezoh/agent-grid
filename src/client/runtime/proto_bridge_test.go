@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/takezoh/agent-roost/driver"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/driver"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // newTestRelayAttached builds a Runtime with a standalone FileRelay

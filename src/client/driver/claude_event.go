@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // Hook event handling for the Claude driver. The hook bridge sends the

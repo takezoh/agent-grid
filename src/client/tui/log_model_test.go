@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // testKindTranscript is a test-local TabKind matching what the Claude

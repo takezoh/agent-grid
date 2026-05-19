@@ -6,8 +6,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/takezoh/agent-roost/mcpproxy"
-	"github.com/takezoh/agent-roost/runtime"
+	"github.com/takezoh/agent-roost/platform/mcpproxy"
+	"github.com/takezoh/agent-roost/client/runtime"
 )
 
 func init() {

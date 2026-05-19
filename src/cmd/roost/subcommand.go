@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/takezoh/agent-roost/cli"
+	"github.com/takezoh/agent-roost/client/cli"
 )
 
 type commandKind int

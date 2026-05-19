@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/takezoh/agent-roost/lib/wsl"
+	"github.com/takezoh/agent-roost/platform/lib/wsl"
 )
 
 // Open launches the host handler for target (file path or URL) and

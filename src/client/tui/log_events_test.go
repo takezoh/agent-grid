@@ -5,7 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/proto"
 )
 
 // stubOpen swaps openProject for the duration of a test and records

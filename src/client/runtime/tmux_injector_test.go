@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // fakeTmux is a recording TmuxBackend for injector tests.

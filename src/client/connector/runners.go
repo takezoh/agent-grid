@@ -3,8 +3,8 @@ package connector
 import (
 	"context"
 
-	"github.com/takezoh/agent-roost/lib/github"
-	"github.com/takezoh/agent-roost/runtime/worker"
+	"github.com/takezoh/agent-roost/platform/lib/github"
+	"github.com/takezoh/agent-roost/client/runtime/worker"
 )
 
 func RegisterRunners() {

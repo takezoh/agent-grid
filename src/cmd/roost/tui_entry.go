@@ -9,16 +9,16 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/features"
-	"github.com/takezoh/agent-roost/lib/git"
-	"github.com/takezoh/agent-roost/lib/openurl"
-	"github.com/takezoh/agent-roost/logger"
-	"github.com/takezoh/agent-roost/proto"
-	psess "github.com/takezoh/agent-roost/proto/sessions"
-	"github.com/takezoh/agent-roost/tools"
-	"github.com/takezoh/agent-roost/tui"
-	"github.com/takezoh/agent-roost/tui/glyphs"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/platform/features"
+	"github.com/takezoh/agent-roost/platform/lib/git"
+	"github.com/takezoh/agent-roost/platform/lib/openurl"
+	"github.com/takezoh/agent-roost/platform/logger"
+	"github.com/takezoh/agent-roost/client/proto"
+	psess "github.com/takezoh/agent-roost/client/proto/sessions"
+	"github.com/takezoh/agent-roost/client/tools"
+	"github.com/takezoh/agent-roost/client/tui"
+	"github.com/takezoh/agent-roost/client/tui/glyphs"
 )
 
 type tuiBootstrapOpts struct {

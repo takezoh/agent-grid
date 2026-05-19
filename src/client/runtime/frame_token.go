@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // tokenStore maps container access tokens to frame IDs and back.

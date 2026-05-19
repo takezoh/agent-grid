@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/lib/tmux"
+	"github.com/takezoh/agent-roost/platform/lib/tmux"
 )
 
 // RealTmuxBackend wraps a *tmux.Client into the runtime's TmuxBackend

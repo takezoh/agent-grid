@@ -3,8 +3,8 @@ package peers
 import (
 	"os"
 
-	"github.com/takezoh/agent-roost/event"
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/event"
+	"github.com/takezoh/agent-roost/client/proto"
 )
 
 // peerClient is the minimal proto.Client surface the MCP handlers need.

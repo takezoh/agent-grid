@@ -1,6 +1,6 @@
 package transcript
 
-import "github.com/takezoh/agent-roost/state"
+import "github.com/takezoh/agent-roost/client/state"
 
 const KindTranscript state.TabKind = "codex_transcript"
 

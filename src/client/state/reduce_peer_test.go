@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/features"
+	"github.com/takezoh/agent-roost/platform/features"
 )
 
 // peerTestState builds a minimal State with two sessions/frames for peer tests.

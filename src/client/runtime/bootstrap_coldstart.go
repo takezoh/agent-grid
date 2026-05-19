@@ -6,8 +6,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	rsubsystem "github.com/takezoh/agent-roost/runtime/subsystem"
-	"github.com/takezoh/agent-roost/state"
+	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 const coldStartContainerConcurrency = 4

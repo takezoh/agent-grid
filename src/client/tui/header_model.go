@@ -3,8 +3,8 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/proto"
-	psess "github.com/takezoh/agent-roost/proto/sessions"
+	"github.com/takezoh/agent-roost/client/proto"
+	psess "github.com/takezoh/agent-roost/client/proto/sessions"
 )
 
 // HeaderModel is the 1-row frame tab bar rendered above the main pane.

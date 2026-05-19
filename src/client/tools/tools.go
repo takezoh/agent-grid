@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/sahilm/fuzzy"
-	psess "github.com/takezoh/agent-roost/proto/sessions"
+	psess "github.com/takezoh/agent-roost/client/proto/sessions"
 )
 
 // Param describes one input the palette must collect before running

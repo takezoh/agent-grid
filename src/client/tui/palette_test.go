@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/takezoh/agent-roost/tools"
+	"github.com/takezoh/agent-roost/client/tools"
 )
 
 func TestPaletteChainsToNextTool(t *testing.T) {

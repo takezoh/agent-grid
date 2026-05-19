@@ -9,7 +9,7 @@ package sandbox
 import (
 	"context"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // Instance represents a running sandbox for one project directory.

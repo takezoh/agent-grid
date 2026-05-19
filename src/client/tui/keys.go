@@ -3,8 +3,8 @@ package tui
 import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // ShortHelp implements help.KeyMap with a curated one-line set of bindings.

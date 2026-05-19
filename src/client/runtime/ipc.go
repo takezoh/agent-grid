@@ -11,8 +11,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // ipcConn is one accepted client connection. The reader goroutine

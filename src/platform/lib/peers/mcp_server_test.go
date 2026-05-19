@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/proto"
 )
 
 // fakePeerClient is a test double for peerClient.

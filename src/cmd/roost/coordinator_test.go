@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/config"
-	appruntime "github.com/takezoh/agent-roost/runtime"
+	"github.com/takezoh/agent-roost/client/config"
+	appruntime "github.com/takezoh/agent-roost/client/runtime"
 )
 
 func TestNewAgentLauncher_direct(t *testing.T) {

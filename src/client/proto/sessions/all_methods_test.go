@@ -3,7 +3,7 @@ package sessions_test
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/proto"
 )
 
 func reply(t *testing.T, srv *fakeServer, resp proto.Response) {

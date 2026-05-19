@@ -13,17 +13,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/connector"
-	statedriver "github.com/takezoh/agent-roost/driver"
-	"github.com/takezoh/agent-roost/features"
-	libnotify "github.com/takezoh/agent-roost/lib/notify"
-	"github.com/takezoh/agent-roost/lib/tmux"
-	"github.com/takezoh/agent-roost/logger"
-	"github.com/takezoh/agent-roost/runtime"
-	"github.com/takezoh/agent-roost/runtime/worker"
-	sandboxdc "github.com/takezoh/agent-roost/sandbox/devcontainer"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/client/connector"
+	statedriver "github.com/takezoh/agent-roost/client/driver"
+	"github.com/takezoh/agent-roost/platform/features"
+	libnotify "github.com/takezoh/agent-roost/platform/lib/notify"
+	"github.com/takezoh/agent-roost/platform/lib/tmux"
+	"github.com/takezoh/agent-roost/platform/logger"
+	"github.com/takezoh/agent-roost/client/runtime"
+	"github.com/takezoh/agent-roost/client/runtime/worker"
+	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func runCoordinator() error {

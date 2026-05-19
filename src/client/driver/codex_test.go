@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	codextranscript "github.com/takezoh/agent-roost/lib/codex/transcript"
-	"github.com/takezoh/agent-roost/state"
+	codextranscript "github.com/takezoh/agent-roost/platform/lib/codex/transcript"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func newCodex(t *testing.T) (CodexDriver, CodexState, time.Time) {

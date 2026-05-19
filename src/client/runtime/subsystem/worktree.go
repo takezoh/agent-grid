@@ -9,7 +9,7 @@ import (
 	"time"
 
 	petname "github.com/dustinkirkland/golang-petname"
-	roostgit "github.com/takezoh/agent-roost/lib/git"
+	roostgit "github.com/takezoh/agent-roost/platform/lib/git"
 )
 
 const WorktreeNameAttempts = 5

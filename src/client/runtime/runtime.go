@@ -18,14 +18,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/features"
-	"github.com/takezoh/agent-roost/lib/pathmap"
-	rsubsystem "github.com/takezoh/agent-roost/runtime/subsystem"
-	clisubsystem "github.com/takezoh/agent-roost/runtime/subsystem/cli"
-	cstream "github.com/takezoh/agent-roost/runtime/subsystem/stream"
-	"github.com/takezoh/agent-roost/runtime/worker"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/platform/features"
+	"github.com/takezoh/agent-roost/platform/pathmap"
+	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
+	clisubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem/cli"
+	cstream "github.com/takezoh/agent-roost/client/runtime/subsystem/stream"
+	"github.com/takezoh/agent-roost/client/runtime/worker"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // sameSessionMap returns true when the two maps refer to the same

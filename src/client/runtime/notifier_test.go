@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func TestConfigNotifierDispatch(t *testing.T) {

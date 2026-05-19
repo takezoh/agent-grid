@@ -3,8 +3,8 @@ package runtime
 import (
 	"encoding/json"
 
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func commandToStateEvent(connID state.ConnID, reqID string, cmd proto.Command) state.Event {

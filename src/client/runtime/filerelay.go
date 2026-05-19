@@ -9,8 +9,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // FileRelay watches log and session files via fsnotify, reads new

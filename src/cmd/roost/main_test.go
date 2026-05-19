@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/config"
+	"github.com/takezoh/agent-roost/client/config"
 )
 
 func TestRunMainRoostSuccess(t *testing.T) {

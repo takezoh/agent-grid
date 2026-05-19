@@ -7,7 +7,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func newTestFileRelay(t *testing.T) *FileRelay {

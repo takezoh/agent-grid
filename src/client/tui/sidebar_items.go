@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/client/proto"
 )
 
 type listItem struct {

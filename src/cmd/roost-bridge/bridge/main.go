@@ -14,12 +14,12 @@ import (
 	"net"
 	"os"
 
-	"github.com/takezoh/agent-roost/event"
-	"github.com/takezoh/agent-roost/hostexec"
-	"github.com/takezoh/agent-roost/lib/claude"
-	"github.com/takezoh/agent-roost/lib/codex"
-	"github.com/takezoh/agent-roost/lib/gemini"
-	"github.com/takezoh/agent-roost/mcpproxy"
+	"github.com/takezoh/agent-roost/client/event"
+	"github.com/takezoh/agent-roost/platform/hostexec"
+	"github.com/takezoh/agent-roost/platform/lib/claude"
+	"github.com/takezoh/agent-roost/platform/lib/codex"
+	"github.com/takezoh/agent-roost/platform/lib/gemini"
+	"github.com/takezoh/agent-roost/platform/mcpproxy"
 )
 
 // hostExecSockPath is the Unix socket for the host-exec broker inside the container.

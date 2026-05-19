@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/takezoh/agent-roost/proto"
+	"github.com/takezoh/agent-roost/client/proto"
 )
 
 const (

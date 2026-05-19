@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/takezoh/agent-roost/runtime/subsystem"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/runtime/subsystem"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 const (

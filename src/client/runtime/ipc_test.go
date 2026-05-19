@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // startRuntimeWithIPC spins up a Runtime, opens a Unix socket in a

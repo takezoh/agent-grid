@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func geminiHook(fields map[string]string, ts time.Time) state.DEvHook {

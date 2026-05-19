@@ -3,8 +3,8 @@ package driver
 import (
 	"context"
 
-	"github.com/takezoh/agent-roost/lib/vcs"
-	"github.com/takezoh/agent-roost/runtime/worker"
+	"github.com/takezoh/agent-roost/platform/lib/vcs"
+	"github.com/takezoh/agent-roost/client/runtime/worker"
 )
 
 // RegisterRunners registers all worker-pool runners for the driver package.

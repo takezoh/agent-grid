@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/lib/claude/transcript"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/platform/lib/claude/transcript"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 const testHome = "/home/test"

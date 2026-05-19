@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/driver/vt"
+	"github.com/takezoh/agent-roost/client/driver/vt"
 )
 
 func TestOscPipeVsVtEmulator(t *testing.T) {

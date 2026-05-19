@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/takezoh/agent-roost/driver"
+	"github.com/takezoh/agent-roost/client/driver"
 	"github.com/takezoh/credproxy/container"
 )
 

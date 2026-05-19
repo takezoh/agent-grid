@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // FileEventLog is the production EventLogBackend. It writes one file

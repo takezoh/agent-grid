@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/takezoh/agent-roost/features"
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/platform/features"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // PaletteScope controls which tool set DefaultRegistry registers.

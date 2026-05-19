@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-roost/lib/claude/transcript"
+	"github.com/takezoh/agent-roost/platform/lib/claude/transcript"
 )
 
 func newTranscriptSummaryRunners(summarizeCmd string) (

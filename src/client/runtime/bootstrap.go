@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
-	"github.com/takezoh/agent-roost/uiproc"
+	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/client/uiproc"
 )
 
 // Bootstrap helpers used at startup before the event loop starts.

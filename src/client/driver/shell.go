@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // ShellDriverName is the registry key for the shell driver.

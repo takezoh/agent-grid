@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	cstream "github.com/takezoh/agent-roost/runtime/subsystem/stream"
+	cstream "github.com/takezoh/agent-roost/client/runtime/subsystem/stream"
 )
 
 // streamRunDirKey returns the container key the project shares for stream-

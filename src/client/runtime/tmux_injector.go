@@ -3,7 +3,7 @@ package runtime
 import (
 	"fmt"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // RuntimeTmuxInjector implements TmuxInjector backed by the

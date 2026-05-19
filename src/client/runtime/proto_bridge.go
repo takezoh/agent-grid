@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/takezoh/agent-roost/proto"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // Bridge functions that translate state-package payloads (which are

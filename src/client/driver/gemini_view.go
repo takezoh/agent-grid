@@ -1,7 +1,7 @@
 package driver
 
 import (
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 	"github.com/takezoh/fishpath-go"
 )
 

@@ -3,7 +3,7 @@ package state
 import (
 	"log/slog"
 
-	"github.com/takezoh/agent-roost/uiproc"
+	"github.com/takezoh/agent-roost/client/uiproc"
 )
 
 // Tick reducer. Fans the tick out to every session's driver and

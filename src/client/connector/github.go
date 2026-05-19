@@ -3,7 +3,7 @@ package connector
 import (
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 const githubFetchInterval = 2 * time.Minute

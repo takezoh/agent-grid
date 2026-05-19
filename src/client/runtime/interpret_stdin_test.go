@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/driver"
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/driver"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func TestWrapCommandWithStdinProducesBashC(t *testing.T) {

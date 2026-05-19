@@ -3,8 +3,8 @@ package vcs
 import (
 	"context"
 
-	"github.com/takezoh/agent-roost/lib/git"
-	"github.com/takezoh/agent-roost/lib/plastic"
+	"github.com/takezoh/agent-roost/platform/lib/git"
+	"github.com/takezoh/agent-roost/platform/lib/plastic"
 )
 
 // Result holds the detected branch name and brand colors for display.

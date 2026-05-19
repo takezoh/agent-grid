@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 var registry = map[string]func(*Pool, state.JobID, state.JobInput){}

@@ -1,6 +1,6 @@
 package state
 
-import "github.com/takezoh/agent-roost/uiproc"
+import "github.com/takezoh/agent-roost/client/uiproc"
 
 // Effect is the closed sum type of every side effect the reducer can
 // request. The runtime's effect interpreter (runtime.execute) is the

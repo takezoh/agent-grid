@@ -3,7 +3,7 @@ package driver
 import (
 	"strings"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // handleStatusLineClick fires when the user clicks a named region in the tmux

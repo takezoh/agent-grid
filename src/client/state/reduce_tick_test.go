@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/uiproc"
+	"github.com/takezoh/agent-roost/client/uiproc"
 )
 
 // tickTrackerDriver emits a unique EffStartJob on every DEvTick so tests can

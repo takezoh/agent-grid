@@ -3,7 +3,7 @@ package pathmap_test
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/lib/pathmap"
+	"github.com/takezoh/agent-roost/platform/pathmap"
 )
 
 func TestToHost(t *testing.T) {

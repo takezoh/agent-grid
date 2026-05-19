@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	rsubsystem "github.com/takezoh/agent-roost/runtime/subsystem"
-	"github.com/takezoh/agent-roost/runtime/worker"
-	"github.com/takezoh/agent-roost/state"
-	"github.com/takezoh/agent-roost/uiproc"
+	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
+	"github.com/takezoh/agent-roost/client/runtime/worker"
+	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/client/uiproc"
 )
 
 // execute is the side-effect interpreter. Each Effect type has a

@@ -9,7 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/takezoh/agent-roost/tools"
+	"github.com/takezoh/agent-roost/client/tools"
 )
 
 // highlightMatches renders s with rune-positions in indexes styled with hit,

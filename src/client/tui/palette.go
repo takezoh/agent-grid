@@ -3,7 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/tools"
+	"github.com/takezoh/agent-roost/client/tools"
 )
 
 type palettePhase int

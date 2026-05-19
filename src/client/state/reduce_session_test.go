@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/uiproc"
+	"github.com/takezoh/agent-roost/client/uiproc"
 )
 
 // === Test driver registration ===

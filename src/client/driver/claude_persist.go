@@ -3,7 +3,7 @@ package driver
 import (
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 // Persist writes the Claude driver state into the bag SessionService

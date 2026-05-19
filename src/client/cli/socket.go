@@ -1,6 +1,6 @@
 package cli
 
-import "github.com/takezoh/agent-roost/event"
+import "github.com/takezoh/agent-roost/client/event"
 
 // resolveSocketPath returns the roost daemon UDS path, preferring the
 // ROOST_SOCKET env var when set. Inside a Docker sandbox container the env is

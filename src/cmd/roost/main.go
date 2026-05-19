@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/logger"
-	"github.com/takezoh/agent-roost/procio"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/platform/logger"
+	"github.com/takezoh/agent-roost/client/procio"
 )
 
 var (

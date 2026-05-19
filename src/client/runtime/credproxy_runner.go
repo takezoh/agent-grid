@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/takezoh/agent-roost/config"
-	"github.com/takezoh/agent-roost/hostexec"
-	"github.com/takezoh/agent-roost/mcpproxy"
+	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-roost/platform/hostexec"
+	"github.com/takezoh/agent-roost/platform/mcpproxy"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 	"github.com/takezoh/credproxy/providers/awssso"

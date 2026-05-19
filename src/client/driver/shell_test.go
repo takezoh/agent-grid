@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/state"
+	"github.com/takezoh/agent-roost/client/state"
 )
 
 func newShellState(t *testing.T, threshold time.Duration) (ShellDriver, ShellState, time.Time) {
