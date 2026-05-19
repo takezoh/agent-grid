@@ -40,6 +40,14 @@ cd src && TMPDIR=/tmp go test -coverprofile=/tmp/c.out ./path/to/pkg
 go tool cover -func=/tmp/c.out
 ```
 
+## Enforcement
+
+CI runs `scripts/check-coverage.sh` (the `coverage` step in `.github/workflows/ci.yml`), which executes the full test suite with coverage and compares each package against the floor declared in `scripts/coverage-floors.txt`. Any package below its floor — or any covered package missing from that file — fails the build.
+
+Floors sit a few points below current measurement so legitimate variance does not break the build; the *target* in the Tier table above is the aspiration. When coverage gains stick, raise the floor in the same PR — never lower one without a written justification.
+
+The `Simplify` workflow (`.github/workflows/simplify.yml`) runs on every pull request and applies the `/simplify` skill (parallel reuse / quality / efficiency review agents) to the diff, fixing defects, leaky abstractions, narration-only comments, no-assert tests, and concrete duplication. Treat its results like any other reviewer.
+
 ## When Coverage Can't Be Reached
 
 Some packages can't hit their Tier target in CI because the dependency is the OS itself — `lib/tmux` wraps the tmux binary, `cmd/bridge` is a process entry point. For these:

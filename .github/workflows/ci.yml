@@ -26,6 +26,10 @@ jobs:
       - name: test
         run: go test ./...
 
+      - name: coverage
+        working-directory: .
+        run: scripts/check-coverage.sh
+
       - name: build
         run: go build -o ../roost .
 

@@ -1,0 +1,56 @@
+name: Simplify
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  simplify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Simplify review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--dangerously-skip-permissions"
+          show_full_output: "true"
+          prompt: |
+            Run the /simplify skill on the changes in this PR (#${{ github.event.pull_request.number }}).
+
+            1. Identify the diff:
+               git diff origin/${{ github.event.pull_request.base.ref }}...HEAD
+
+            2. Run the /simplify workflow:
+               - Launch the three review agents (reuse, quality, efficiency) in parallel against the diff.
+               - Aggregate findings. Skip false positives, but fix every real defect, leaky
+                 abstraction, narration-only comment, no-assert test, and duplication that has
+                 a concrete replacement in the codebase.
+               - Apply fixes directly via Edit/Write.
+
+            3. Verify nothing regressed:
+               cd src && go vet ./... && go test ./... && go build -o ../roost .
+               cd .. && scripts/check-coverage.sh
+               cd src && go tool golangci-lint run ./...
+
+            4. If you made fixes, commit and push to the PR branch with a descriptive message.
+               If the code was already clean, post a single PR comment via
+               `gh pr comment ${{ github.event.pull_request.number }}` saying so and exit.
+
+            Follow AGENTS.md and docs/testing.md throughout.

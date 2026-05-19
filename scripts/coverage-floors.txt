@@ -1,0 +1,55 @@
+# Per-package coverage floors enforced by CI.
+#
+# Format: <package import path> <minimum percent>
+# Lines starting with `#` and blank lines are ignored.
+#
+# Tier targets live in docs/testing.md (S=85, A=75, B=60, C=40, D=smoke).
+# Floors here are a few points below current measurement so legitimate
+# variance does not break the build. Raise the floor whenever a package
+# gains durable coverage — never lower it without a written justification.
+
+github.com/takezoh/agent-roost                              15
+github.com/takezoh/agent-roost/cli                          12
+github.com/takezoh/agent-roost/cmd/bridge                    0
+github.com/takezoh/agent-roost/config                       85
+github.com/takezoh/agent-roost/connector                    70
+github.com/takezoh/agent-roost/driver                       75
+github.com/takezoh/agent-roost/driver/vt                    55
+github.com/takezoh/agent-roost/event                        20
+github.com/takezoh/agent-roost/features                     85
+github.com/takezoh/agent-roost/hostexec                     50
+github.com/takezoh/agent-roost/internal/globutil            95
+github.com/takezoh/agent-roost/lib/claude                   55
+github.com/takezoh/agent-roost/lib/claude/cli               95
+github.com/takezoh/agent-roost/lib/claude/transcript        75
+github.com/takezoh/agent-roost/lib/codex                    75
+github.com/takezoh/agent-roost/lib/codex/transcript         60
+github.com/takezoh/agent-roost/lib/gemini                   80
+github.com/takezoh/agent-roost/lib/git                      70
+github.com/takezoh/agent-roost/lib/github                   85
+github.com/takezoh/agent-roost/lib/notify                   30
+github.com/takezoh/agent-roost/lib/openurl                  60
+github.com/takezoh/agent-roost/lib/pathmap                  95
+github.com/takezoh/agent-roost/lib/peers                    50
+github.com/takezoh/agent-roost/lib/plastic                  45
+github.com/takezoh/agent-roost/lib/tmux                     10
+github.com/takezoh/agent-roost/lib/vcs                      85
+github.com/takezoh/agent-roost/lib/wsl                      45
+github.com/takezoh/agent-roost/logger                       60
+github.com/takezoh/agent-roost/mcpproxy                     50
+github.com/takezoh/agent-roost/procio                       95
+github.com/takezoh/agent-roost/proto                        85
+github.com/takezoh/agent-roost/proto/sessions               80
+github.com/takezoh/agent-roost/runtime                      55
+github.com/takezoh/agent-roost/runtime/subsystem            15
+github.com/takezoh/agent-roost/runtime/subsystem/cli        70
+github.com/takezoh/agent-roost/runtime/subsystem/stream     50
+github.com/takezoh/agent-roost/runtime/worker               90
+github.com/takezoh/agent-roost/sandbox/devcontainer         70
+github.com/takezoh/agent-roost/state                        80
+github.com/takezoh/agent-roost/state/view                   95
+github.com/takezoh/agent-roost/tools                        50
+github.com/takezoh/agent-roost/tui                          50
+github.com/takezoh/agent-roost/tui/glyphs                   85
+github.com/takezoh/agent-roost/tui/image                    50
+github.com/takezoh/agent-roost/uiproc                       95
