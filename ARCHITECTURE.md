@@ -42,30 +42,51 @@ Runtime startup is always either a Warm start or a Cold start; there is no separ
 
 ## Layer Structure
 
+Three top-level trees under `src/`:
+
 ```
-state/         Pure domain layer — State, Event, Effect, Reduce (no I/O, no goroutine)
-state/view/    Wire-safe view types — Status, View, Card, Tag, ConnectorSection, etc. (stdlib-only; no state import)
-driver/        Driver implementations — value-type Driver plugins + per-frame DriverState. No I/O
-connector/     Connector implementations — value-type Connector plugins + per-daemon ConnectorState. No I/O
-runtime/       Imperative shell — single event loop, Effect interpreter, backend abstraction
-runtime/worker/ Worker pool — slow I/O job execution (haiku, transcript parse, git, github fetch)
-runtime/subsystem/ `Subsystem` and `Factory` interfaces, shared worktree utilities (`CreateWorktree`, `RemoveWorktree`, `CleanupUntracked`, `GenerateWorktreeNames`, `IsManagedWorktreePath`). Subsystem implementations — `cli` (per-frame process and worktree lifecycle) and `stream` (WebSocket-over-UDS backend for structured app-servers). Each implementation provides a `Factory` keyed by its own opaque `SubsystemID` scheme (`cli:<project>` for CLI; `stream:host:<projectPath>` for host-mode stream; `stream:container:<containerKey>` for container-mode stream, where `containerKey` is `__shared__` in shared isolation or the project path in project isolation — this collapses every frame inside one container onto one backend); the runtime dispatches uniformly through the `subsystemFactories` map registered in `runtime.New`. Owns goroutines and I/O. The only location in `runtime/` permitted to import `driver/<tool>` (for tool-specific constants and socket paths)
-proto/         Typed IPC wire layer — Command / Response / ServerEvent sum types + codec. No state import (imports state/view only)
-proto/sessions/ Session management helpers — sessions.Client wraps proto.Client with session-management methods. Imports state
-tools/         Palette tools — Tool abstraction for TUI + DefaultRegistry
-tui/           Presentation layer — Bubbletea UI state management, rendering, key input
-tmux/          Infrastructure layer — tmux command execution wrapper
-features/      Feature flags — Flag/Set types (runtime), build-tag const (compile-time). No external deps
-lib/           Utilities — external tool integration (lib/git/, lib/claude/, lib/github/)
-sandbox/       Project-level sandbox backends (generic Manager[I]). devcontainer/ implements per-project container lifecycle via docker — see docs/sandbox.md
-hostexec/      Host-exec broker (`container.Provider` for running allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding)
-mcpproxy/      MCP proxy broker (`container.Provider` for running MCP servers on the host with JSON-RPC stdio relayed into the container; tool-level policy enforcement; generates a `.mcp.json` overlay so Claude Code routes the configured aliases through the broker automatically)
-               Credential providers (AWS SSO, gcloud CLI, ssh-agent) live in the external `credproxy` library
-config/        Configuration — TOML loading, DataDir injection, SandboxResolver (user + per-project mode resolution)
-logger/        Logging — slog initialization, log file management
+platform/      Shared infrastructure — roost and orchestrator both depend on this
+client/        roost-specific code — TUI, state machine, runtime, drivers, connectors
+cmd/           Binary entry points — cmd/roost/, cmd/roost-bridge/, (future: cmd/orchestrator/)
 ```
 
-Files matching `state/reduce_*.go` host state-machine dispatch tables. They are exempt from the 80-line function limit (see AGENTS.md) because forced extraction of dispatch arms produces single-use helpers that fragment the state machine without adding clarity. File-length (500 lines) and naming rules still apply.
+Import direction: `cmd/*` → `client/*` + `platform/*` → (no reverse). `client/*` must not import `orchestrator/*`. `platform/*` must not import `client/*` or `orchestrator/*`. Enforced by `depguard` (see `src/.golangci.yml`).
+
+### `platform/` — shared base
+
+```
+platform/sandbox/      Project-level sandbox backends (generic Manager[I]). devcontainer/ implements per-project container lifecycle via docker — see docs/sandbox.md
+platform/hostexec/     Host-exec broker (`container.Provider` for running allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding)
+platform/mcpproxy/     MCP proxy broker (`container.Provider` for running MCP servers on the host with JSON-RPC stdio relayed into the container; tool-level policy enforcement; generates a `.mcp.json` overlay so Claude Code routes the configured aliases through the broker automatically)
+                       Credential providers (AWS SSO, gcloud CLI, ssh-agent) live in the external `credproxy` library
+platform/pathmap/      Container↔host path translation using WrappedLaunch.Mounts
+platform/logger/       slog initialization + log file management
+platform/features/     Feature flags — Flag/Set types (runtime), build-tag const (compile-time). No external deps
+platform/lib/          External tool integration — git, github, codex CLI wrapper, claude CLI wrapper, gemini, wsl, openurl, notify, …
+```
+
+### `client/` — roost-specific
+
+```
+client/state/          Pure domain layer — State, Event, Effect, Reduce (no I/O, no goroutine)
+client/state/view/     Wire-safe view types — Status, View, Card, Tag, ConnectorSection, etc. (stdlib-only; no state import)
+client/driver/         Driver implementations — value-type Driver plugins + per-frame DriverState. No I/O
+client/connector/      Connector implementations — value-type Connector plugins + per-daemon ConnectorState. No I/O
+client/runtime/        Imperative shell — single event loop, Effect interpreter, backend abstraction
+client/runtime/worker/ Worker pool — slow I/O job execution (haiku, transcript parse, git, github fetch)
+client/runtime/subsystem/ `Subsystem` and `Factory` interfaces, shared worktree utilities. Subsystem implementations — `cli` and `stream`. The only location in `client/runtime/` permitted to import `client/driver/<tool>`
+client/proto/          Typed IPC wire layer — Command / Response / ServerEvent sum types + codec. No state import (imports state/view only)
+client/proto/sessions/ Session management helpers — sessions.Client wraps proto.Client with session-management methods. Imports state
+client/tools/          Palette tools — Tool abstraction for TUI + DefaultRegistry
+client/tui/            Presentation layer — Bubbletea UI state management, rendering, key input
+client/config/         Configuration — TOML loading, DataDir injection, SandboxResolver (user + per-project mode resolution)
+client/cli/            Subcommand registry — tool-specific subcommands registered via init()
+client/lib/peers/      Peers MCP server (roost-specific IPC)
+client/lib/claude/transcript/ Claude transcript renderer (depends on client/state for TUI integration)
+client/lib/codex/transcript/  Codex transcript renderer (depends on client/state for TUI integration)
+```
+
+Files matching `client/state/reduce_*.go` host state-machine dispatch tables. They are exempt from the 80-line function limit (see AGENTS.md) because forced extraction of dispatch arms produces single-use helpers that fragment the state machine without adding clarity. File-length (500 lines) and naming rules still apply.
 
 The daemon process and TUI process are separate processes that communicate via typed IPC (`proto` package) over a Unix socket. The daemon exposes two physical endpoints: the **host endpoint** (`<dataDir>/roost.sock`, SO_PEERCRED auth) serves TUI, CLI, and palette clients; the **container endpoint** (`<dataDir>/run/<project-hash>/roost.sock`, bearer-token auth) serves sandboxed agent processes and currently accepts `hook-event` and `subsystem-event`. See [IPC](docs/ipc.md) and [Sandbox Backends](docs/sandbox.md).
 
