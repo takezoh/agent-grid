@@ -233,6 +233,23 @@ func (r *Runtime) executeSyncStatusLine(e state.EffSyncStatusLine) {
 }
 
 func (r *Runtime) executeCheckPaneAlive(e state.EffCheckPaneAlive) {
+	// active frame の 0.1 は positional ではなく pane_id で probe する。
+	// remain-on-exit off で frame pane が破棄されると tmux が layout を詰めて
+	// 別 pane が 0.1 を占めるため、positional クエリは alive を誤検知する。
+	// pane_id ならプロセスと共に消えるので、err も dead 扱いにする。
+	if e.Pane == "{sessionName}:0.1" && r.activeFrameID != "" {
+		if paneID := r.sessionPanes[r.activeFrameID]; paneID != "" {
+			alive, err := r.cfg.Tmux.PaneAlive(paneID)
+			if err == nil && alive {
+				return
+			}
+			ev := state.EvPaneDied{Pane: e.Pane, OwnerFrameID: r.activeFrameID}
+			slog.Info("runtime: active frame pane alive check failed",
+				"pane", e.Pane, "target", paneID, "owner", ev.OwnerFrameID, "err", err)
+			r.Enqueue(ev)
+			return
+		}
+	}
 	target := substitutePlaceholdersString(e.Pane, r.cfg.SessionName, r.cfg.RoostExe)
 	if alive, err := r.cfg.Tmux.PaneAlive(target); err == nil && !alive {
 		ev := state.EvPaneDied{Pane: e.Pane}

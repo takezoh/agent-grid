@@ -629,7 +629,7 @@ func TestRuntimeStopSession(t *testing.T) {
 
 func TestFastTickDetectsActivePaneDeath(t *testing.T) {
 	tmux := newFakeTmux()
-	tmux.alive["roost-test:0.1"] = false // mark pane 0.1 as dead
+	tmux.alive["%42"] = false // frame pane destroyed
 	r := New(Config{
 		SessionName:      "roost-test",
 		TickInterval:     10 * time.Second,
@@ -637,6 +637,7 @@ func TestFastTickDetectsActivePaneDeath(t *testing.T) {
 		Tmux:             tmux,
 	})
 	r.activeFrameID = "frame-1"
+	r.sessionPanes["frame-1"] = "%42"
 
 	r.scheduleActiveFramePaneProbe()
 
@@ -676,7 +677,7 @@ func TestFastTickSkipsWhenNoActiveFrame(t *testing.T) {
 
 func TestFastTickIgnoresAliveActivePane(t *testing.T) {
 	tmux := newFakeTmux()
-	tmux.alive["roost-test:0.1"] = true
+	tmux.alive["%42"] = true
 	r := New(Config{
 		SessionName:      "roost-test",
 		TickInterval:     10 * time.Second,
@@ -684,6 +685,7 @@ func TestFastTickIgnoresAliveActivePane(t *testing.T) {
 		Tmux:             tmux,
 	})
 	r.activeFrameID = "frame-1"
+	r.sessionPanes["frame-1"] = "%42"
 
 	r.scheduleActiveFramePaneProbe()
 
@@ -692,6 +694,69 @@ func TestFastTickIgnoresAliveActivePane(t *testing.T) {
 		t.Fatalf("expected no event for alive pane, got %T", ev)
 	case <-time.After(100 * time.Millisecond):
 		// OK: no-op
+	}
+}
+
+// Regression: when an active frame's program exits, tmux destroys the pane
+// (remain-on-exit off) and the layout reflows — so positional target
+// "{sessionName}:0.1" then resolves to a different, alive pane. The probe
+// must target the frame's pane_id, not the positional slot.
+func TestFastTickDetectsActivePaneDeathByPaneID(t *testing.T) {
+	tmux := newFakeTmux()
+	// Frame pane is destroyed → dead at its pane_id.
+	tmux.alive["%42"] = false
+	// Positional 0.1 now points at a different, alive pane (shifted up).
+	tmux.alive["roost-test:0.1"] = true
+	r := New(Config{
+		SessionName:      "roost-test",
+		TickInterval:     10 * time.Second,
+		FastTickInterval: 10 * time.Millisecond,
+		Tmux:             tmux,
+	})
+	r.activeFrameID = "frame-1"
+	r.sessionPanes["frame-1"] = "%42"
+
+	r.scheduleActiveFramePaneProbe()
+
+	select {
+	case ev := <-r.eventCh:
+		pd, ok := ev.(state.EvPaneDied)
+		if !ok {
+			t.Fatalf("expected EvPaneDied, got %T", ev)
+		}
+		if pd.OwnerFrameID != "frame-1" {
+			t.Errorf("OwnerFrameID = %q, want frame-1", pd.OwnerFrameID)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected EvPaneDied to be enqueued within 500ms")
+	}
+}
+
+// Same scenario via the tick-driven EffCheckPaneAlive path.
+func TestExecuteCheckPaneAliveResolvesActiveFramePaneID(t *testing.T) {
+	tmux := newFakeTmux()
+	tmux.alive["%42"] = false
+	tmux.alive["roost-test:0.1"] = true
+	r := New(Config{
+		SessionName: "roost-test",
+		Tmux:        tmux,
+	})
+	r.activeFrameID = "frame-1"
+	r.sessionPanes["frame-1"] = "%42"
+
+	r.executeCheckPaneAlive(state.EffCheckPaneAlive{Pane: "{sessionName}:0.1"})
+
+	select {
+	case ev := <-r.eventCh:
+		pd, ok := ev.(state.EvPaneDied)
+		if !ok {
+			t.Fatalf("expected EvPaneDied, got %T", ev)
+		}
+		if pd.OwnerFrameID != "frame-1" {
+			t.Errorf("OwnerFrameID = %q, want frame-1", pd.OwnerFrameID)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected EvPaneDied within 500ms")
 	}
 }
 

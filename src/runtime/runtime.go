@@ -380,23 +380,31 @@ func (r *Runtime) Run(ctx context.Context) error {
 // scheduleActiveFramePaneProbe は active frame (pane 0.1 にスワップ中) の
 // 死亡を高速検出する。PaneAlive の tmux shell-out をゴルーチンに委譲して
 // event loop をブロックしない。同時実行は atomic guard で 1 本に制限する。
+//
+// ターゲットは frame の pane_id を使う。remain-on-exit off で frame が exit
+// すると tmux が pane を破棄し layout を詰めるため、positional "0.1" は
+// 別の生存 pane を指してしまう。pane_id ならプロセスと一緒に消えるので、
+// display-message が err を返したケースも dead 扱いにする。
 func (r *Runtime) scheduleActiveFramePaneProbe() {
 	if r.activeFrameID == "" {
+		return
+	}
+	target := r.sessionPanes[r.activeFrameID]
+	if target == "" {
 		return
 	}
 	if !r.fastProbeInFlight.CompareAndSwap(false, true) {
 		return
 	}
-	target := substitutePlaceholdersString("{sessionName}:0.1", r.cfg.SessionName, r.cfg.RoostExe)
 	frameID := r.activeFrameID // snapshot owned by event loop goroutine
 	go func() {
 		defer r.fastProbeInFlight.Store(false)
 		alive, err := r.cfg.Tmux.PaneAlive(target)
-		if err != nil || alive {
+		if err == nil && alive {
 			return
 		}
 		slog.Info("runtime: fast probe detected pane dead",
-			"frame", frameID, "target", target)
+			"frame", frameID, "target", target, "err", err)
 		r.Enqueue(state.EvPaneDied{
 			Pane:         "{sessionName}:0.1",
 			OwnerFrameID: frameID,
