@@ -939,6 +939,77 @@ func TestEnsureInstance_ReuseExisting_ProjectMode(t *testing.T) {
 	}
 }
 
+// Regression: when an existing container is in "exited" state, `docker start`
+// resumes it but does NOT re-run postCreateCommand. The roost-injected
+// ExtraPostCreate (e.g. sockbridge bootstrap that lets codex frames connect
+// to the in-container 127.0.0.1:8282 bridge) must still run on reuse, or
+// every codex frame fails with "failed to connect to remote app server".
+func TestEnsureInstance_ReuseExitedReRunsExtraPostCreate(t *testing.T) {
+	project := setupTestSpec(t)
+	var postArgs [][]string
+	savedWait := waitForContainerFn
+	waitForContainerFn = func(_ context.Context, _ string) error { return nil }
+	t.Cleanup(func() { waitForContainerFn = savedWait })
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			return &ContainerInfo{ID: "existing", State: "exited"}, nil
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		start: func(_ context.Context, _ string) error { return nil },
+		create: func(_ context.Context, _ []string) (string, error) {
+			t.Errorf("CreateContainer must not be called when reusing")
+			return "", nil
+		},
+		postCreate: func(_ context.Context, _, _ string, argv []string) {
+			postArgs = append(postArgs, argv)
+		},
+	})
+	bridge := []string{"sh", "-c", "/opt/roost/run/sockbridge --listen 127.0.0.1:8282 --target /opt/roost/run/codex.sock &"}
+	m := New(func(_, _, _ string) (SpecOverlay, error) {
+		return SpecOverlay{PostCreate: bridge}, nil
+	})
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if len(postArgs) == 0 {
+		t.Fatalf("ExtraPostCreate must run when reusing exited container; got 0 calls")
+	}
+	if got := postArgs[0]; !slices.Equal(got, bridge) {
+		t.Errorf("ExtraPostCreate argv = %v, want %v", got, bridge)
+	}
+}
+
+// Reusing a running container must NOT re-run ExtraPostCreate (sockbridge
+// is already alive — running it again would conflict on the listen port).
+func TestEnsureInstance_ReuseRunningSkipsExtraPostCreate(t *testing.T) {
+	project := setupTestSpec(t)
+	var postCalls int
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			return &ContainerInfo{ID: "running-ctr", State: "running"}, nil
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		start: func(_ context.Context, _ string) error {
+			t.Errorf("StartContainer must not be called when already running")
+			return nil
+		},
+		postCreate: func(_ context.Context, _, _ string, _ []string) { postCalls++ },
+	})
+	m := New(func(_, _, _ string) (SpecOverlay, error) {
+		return SpecOverlay{PostCreate: []string{"sh", "-c", "echo x"}}, nil
+	})
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if postCalls != 0 {
+		t.Errorf("ExtraPostCreate must not run for already-running container; got %d calls", postCalls)
+	}
+}
+
 func TestEnsureInstance_ImageEnvFailureIsNonFatal(t *testing.T) {
 	project := setupTestSpec(t)
 	withMockDockerStack(t, dockerStackMocks{
