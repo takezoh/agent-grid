@@ -8,8 +8,8 @@ import (
 	"golang.org/x/term"
 
 	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/platform/lib/tmux"
 	"github.com/takezoh/agent-roost/client/uiproc"
+	"github.com/takezoh/agent-roost/platform/lib/tmux"
 )
 
 // Window 0 pane layout (3 panes):

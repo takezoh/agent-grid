@@ -35,9 +35,11 @@ func (frameExitStub) NewState(now time.Time) DriverState { return frameExitState
 func (frameExitStub) PrepareLaunch(s DriverState, _ LaunchMode, project, baseCommand string, _ LaunchOptions, _ bool) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
-func (frameExitStub) Persist(s DriverState) map[string]string                  { return nil }
-func (frameExitStub) Restore(bag map[string]string, now time.Time) DriverState { return frameExitState{} }
-func (frameExitStub) View(s DriverState) View                                  { return View{} }
+func (frameExitStub) Persist(s DriverState) map[string]string { return nil }
+func (frameExitStub) Restore(bag map[string]string, now time.Time) DriverState {
+	return frameExitState{}
+}
+func (frameExitStub) View(s DriverState) View { return View{} }
 func (frameExitStub) Step(prev DriverState, ctx FrameContext, ev DriverEvent) (DriverState, []Effect, View) {
 	s := prev.(frameExitState)
 	if _, ok := ev.(DEvCommandExited); ok {

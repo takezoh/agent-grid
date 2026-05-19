@@ -5,9 +5,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/platform/features"
 	"github.com/takezoh/agent-roost/client/proto"
 	"github.com/takezoh/agent-roost/client/tools"
+	"github.com/takezoh/agent-roost/platform/features"
 )
 
 type serverEventMsg struct{ event proto.ServerEvent }

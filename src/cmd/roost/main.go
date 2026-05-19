@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/platform/logger"
 	"github.com/takezoh/agent-roost/client/procio"
+	"github.com/takezoh/agent-roost/platform/logger"
 )
 
 var (

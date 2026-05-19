@@ -14,8 +14,8 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/takezoh/agent-roost/platform/sandbox"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/sandbox"
 )
 
 // SharedContainerKey is the containers map key used for shared-mode instances.

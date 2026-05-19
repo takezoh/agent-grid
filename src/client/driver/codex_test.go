@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	codextranscript "github.com/takezoh/agent-roost/platform/lib/codex/transcript"
+	codextranscript "github.com/takezoh/agent-roost/client/lib/codex/transcript"
 	"github.com/takezoh/agent-roost/client/state"
 )
 

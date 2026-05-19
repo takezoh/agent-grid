@@ -6,10 +6,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/platform/features"
 	"github.com/takezoh/agent-roost/client/proto"
 	psess "github.com/takezoh/agent-roost/client/proto/sessions"
 	"github.com/takezoh/agent-roost/client/tools"
+	"github.com/takezoh/agent-roost/platform/features"
 )
 
 type Model struct {

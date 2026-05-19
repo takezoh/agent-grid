@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/takezoh/agent-roost/platform/lib/claude/transcript"
+	"github.com/takezoh/agent-roost/client/lib/claude/transcript"
 	"github.com/takezoh/agent-roost/client/state"
 	"github.com/takezoh/fishpath-go"
 )

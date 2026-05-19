@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/platform/pathmap"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/pathmap"
 )
 
 // fakeAgentLauncher records calls for assertion in tests.

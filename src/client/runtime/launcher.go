@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/takezoh/agent-roost/platform/pathmap"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/pathmap"
 )
 
 // WrappedLaunch is the resolved launch specification after the launcher

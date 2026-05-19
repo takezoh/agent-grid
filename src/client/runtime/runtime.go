@@ -19,13 +19,13 @@ import (
 	"time"
 
 	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/platform/features"
-	"github.com/takezoh/agent-roost/platform/pathmap"
 	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
 	clisubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem/cli"
 	cstream "github.com/takezoh/agent-roost/client/runtime/subsystem/stream"
 	"github.com/takezoh/agent-roost/client/runtime/worker"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/features"
+	"github.com/takezoh/agent-roost/platform/pathmap"
 )
 
 // sameSessionMap returns true when the two maps refer to the same
