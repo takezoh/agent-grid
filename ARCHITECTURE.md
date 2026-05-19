@@ -21,6 +21,7 @@ roost is a session lifecycle manager — not an agent orchestrator. It does not 
 - [State Monitoring](docs/state-monitoring.md) — State detection via Driver plugins, Claude/Generic driver, persistence/restoration
 - [Interface and File Reference](docs/interfaces.md) — Go type definitions, data files, source tree
 - [Sandbox Backends](docs/sandbox.md) — per-project devcontainer isolation, image resolution from devcontainer.json, devcontainer.json support, credential proxy
+- [Testing](docs/testing.md) — testability as a design constraint, Tier-based coverage targets per package
 
 ## Terminology
 

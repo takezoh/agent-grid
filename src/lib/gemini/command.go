@@ -25,6 +25,17 @@ func Run(args []string) error {
 	}
 }
 
+func resolveSettingsPath() (string, error) {
+	if p := os.Getenv("GEMINI_SETTINGS_PATH"); p != "" {
+		return p, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".gemini", "settings.json"), nil
+}
+
 func printHelp() {
 	fmt.Print(`Usage: roost gemini <command>
 
@@ -36,11 +47,10 @@ Commands:
 
 // RunSetup registers roost hooks and MCP server in Gemini's settings.
 func RunSetup() error {
-	home, err := os.UserHomeDir()
+	settingsPath, err := resolveSettingsPath()
 	if err != nil {
 		return err
 	}
-	settingsPath := filepath.Join(home, ".gemini", "settings.json")
 	roostPath, _ := os.Executable()
 	if resolved, err := filepath.EvalSymlinks(roostPath); err == nil {
 		roostPath = resolved

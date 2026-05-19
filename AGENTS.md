@@ -16,6 +16,7 @@ cd src && go test -run TestName ./...  # Run a specific test
 - Actively use libraries. Do not implement from scratch
 - Do not overwrite user config files (~/.roost/)
 - Always write tests for new features and bug fixes. Do not consider work complete without tests
+- Testability is a primary design constraint. Refactor production code (interface extraction, env-var override, dependency injection) when it's needed to enable a test. Per-package coverage targets and the Tier scheme are in `docs/testing.md`
 
 ## Library Selection
 

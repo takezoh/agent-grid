@@ -9,12 +9,28 @@ import (
 	"time"
 )
 
-var (
-	ErrNotAvailable = errors.New("gh CLI not available")
+var ErrNotAvailable = errors.New("gh CLI not available")
 
-	ghOnce  sync.Once
-	ghFound bool
-)
+type Runner interface {
+	Run(ctx context.Context, args ...string) ([]byte, error)
+	Available() bool
+}
+
+type execRunner struct {
+	once  sync.Once
+	found bool
+}
+
+func (e *execRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, "gh", args...).Output()
+}
+
+func (e *execRunner) Available() bool {
+	e.once.Do(func() { _, err := exec.LookPath("gh"); e.found = err == nil })
+	return e.found
+}
+
+var DefaultRunner Runner = &execRunner{}
 
 type Summary struct {
 	PRs    []Item
@@ -51,51 +67,53 @@ type ghSearchItem struct {
 }
 
 func FetchSummary(ctx context.Context) (Summary, error) {
-	ghOnce.Do(func() { _, err := exec.LookPath("gh"); ghFound = err == nil })
-	if !ghFound {
+	return FetchSummaryWith(ctx, DefaultRunner)
+}
+
+func FetchSummaryWith(ctx context.Context, r Runner) (Summary, error) {
+	if !r.Available() {
 		return Summary{}, ErrNotAvailable
 	}
-
-	prs, err := searchPRs(ctx)
+	prs, err := searchPRs(ctx, r)
 	if err != nil {
 		return Summary{}, err
 	}
-	issues, err := searchIssues(ctx)
+	issues, err := searchIssues(ctx, r)
 	if err != nil {
 		return Summary{}, err
 	}
-	runs, _ := fetchRuns(ctx)
+	runs, _ := fetchRuns(ctx, r)
 	return Summary{PRs: prs, Issues: issues, Runs: runs}, nil
 }
 
-func searchPRs(ctx context.Context) ([]Item, error) {
-	out, err := exec.CommandContext(ctx, "gh", "search", "prs",
+func searchPRs(ctx context.Context, r Runner) ([]Item, error) {
+	out, err := r.Run(ctx, "search", "prs",
 		"--author=@me", "--state=open",
 		"--json", "number,title,repository,url,updatedAt",
-	).Output()
+	)
 	if err != nil {
 		return nil, err
 	}
 	return parseItems(out)
 }
 
-func searchIssues(ctx context.Context) ([]Item, error) {
-	owned, err := runIssueSearch(ctx, "--owner=@me")
+func searchIssues(ctx context.Context, r Runner) ([]Item, error) {
+	owned, err := runIssueSearch(ctx, r, "--owner=@me")
 	if err != nil {
 		return nil, err
 	}
-	assigned, err := runIssueSearch(ctx, "--assignee=@me")
+	assigned, err := runIssueSearch(ctx, r, "--assignee=@me")
 	if err != nil {
 		return nil, err
 	}
 	return dedup(owned, assigned), nil
 }
 
-func runIssueSearch(ctx context.Context, filter string) ([]Item, error) {
-	out, err := exec.CommandContext(ctx, "gh", "search", "issues",
+func runIssueSearch(ctx context.Context, r Runner, filter string) ([]Item, error) {
+	out, err := r.Run(ctx, "search", "issues",
 		filter, "--state=open",
 		"--json", "number,title,repository,url,updatedAt",
-	).Output()
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +148,8 @@ type ghRunItem struct {
 	URL        string    `json:"url"`
 }
 
-func fetchRuns(ctx context.Context) ([]Run, error) {
-	repos, err := listMyRepos(ctx)
+func fetchRuns(ctx context.Context, r Runner) ([]Run, error) {
+	repos, err := listMyRepos(ctx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -143,10 +161,10 @@ func fetchRuns(ctx context.Context) ([]Run, error) {
 	sem := make(chan struct{}, 5)
 	ch := make(chan result, len(repos))
 	for _, repo := range repos {
-		go func(r string) {
+		go func(repo string) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			runs, _ := listRepoRuns(ctx, r)
+			runs, _ := listRepoRuns(ctx, r, repo)
 			ch <- result{runs: runs}
 		}(repo)
 	}
@@ -159,8 +177,8 @@ func fetchRuns(ctx context.Context) ([]Run, error) {
 	return all, nil
 }
 
-func listMyRepos(ctx context.Context) ([]string, error) {
-	out, err := exec.CommandContext(ctx, "gh", "repo", "list", "--json", "nameWithOwner", "--limit", "30").Output()
+func listMyRepos(ctx context.Context, r Runner) ([]string, error) {
+	out, err := r.Run(ctx, "repo", "list", "--json", "nameWithOwner", "--limit", "30")
 	if err != nil {
 		return nil, err
 	}
@@ -175,12 +193,12 @@ func listMyRepos(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
-func listRepoRuns(ctx context.Context, repo string) ([]Run, error) {
-	out, err := exec.CommandContext(ctx, "gh", "run", "list",
+func listRepoRuns(ctx context.Context, r Runner, repo string) ([]Run, error) {
+	out, err := r.Run(ctx, "run", "list",
 		"--repo", repo,
 		"--json", "name,status,conclusion,headBranch,updatedAt,url",
 		"--limit", "5",
-	).Output()
+	)
 	if err != nil {
 		return nil, err
 	}
