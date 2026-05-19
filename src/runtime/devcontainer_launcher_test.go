@@ -302,6 +302,44 @@ func TestStartOptionsFor_PropagatesIsolation(t *testing.T) {
 	}
 }
 
+// Cold-start window propagation: BeginColdStart must stamp ColdStart=true
+// on every StartOptions returned during the window, EndColdStart must
+// restore the default (false). Pins the coordinator → launcher → Manager
+// contract for "Cold Start で古い稼働中のコンテナを見つけた場合は再作成する".
+func TestColdStart_PropagatesToStartOptions(t *testing.T) {
+	l := &DevcontainerLauncher{
+		resolveSandbox: func(string) config.SandboxConfig {
+			return config.SandboxConfig{Isolation: "shared"}
+		},
+		resolveProjectScope: func(string) *config.SandboxConfig { return nil },
+	}
+
+	if opts := l.StartOptionsFor("/workspace/agent-roost"); opts.ColdStart {
+		t.Fatalf("default StartOptions must have ColdStart=false; got %+v", opts)
+	}
+
+	l.BeginColdStart()
+	if opts := l.StartOptionsFor("/workspace/agent-roost"); !opts.ColdStart {
+		t.Errorf("BeginColdStart must set ColdStart=true on subsequent StartOptions; got %+v", opts)
+	}
+	if opts := l.StartOptionsFor("/workspace/fintech"); !opts.ColdStart {
+		t.Errorf("ColdStart must be true for every project while the window is open; got %+v", opts)
+	}
+
+	l.EndColdStart()
+	if opts := l.StartOptionsFor("/workspace/agent-roost"); opts.ColdStart {
+		t.Errorf("EndColdStart must reset ColdStart=false; got %+v", opts)
+	}
+}
+
+// ColdStartAware interface conformance: the coordinator switches into
+// cold-start mode via type assertion, so DevcontainerLauncher must satisfy
+// ColdStartAware. A direct interface assignment catches the regression at
+// compile time as well.
+func TestDevcontainerLauncher_ImplementsColdStartAware(t *testing.T) {
+	var _ ColdStartAware = (*DevcontainerLauncher)(nil)
+}
+
 func TestResolveStartOptions_ProjectScopeForcesProject(t *testing.T) {
 	// project-scope sandbox config explicitly says isolation=project; even if
 	// the user-scope is "shared" the launcher must stay project-mode.

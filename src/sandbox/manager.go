@@ -28,6 +28,11 @@ type StartOptions struct {
 	ForwardEnv      []string          // host env var names to pass through if set on the host
 	DevcontainerDir string            // devcontainer.json directory override; empty = auto-discover
 	SharedMode      bool              // use shared container (isolation=shared) instead of per-project
+	// ColdStart asks EnsureInstance to discard any existing container before
+	// provisioning a fresh one. Set by the coordinator's cold-start path so
+	// that a daemon SIGKILL (no graceful DestroyInstance) cannot leak stale
+	// in-container daemons (sockbridge, app-server) into the next launch.
+	ColdStart bool
 }
 
 // FrameContext carries per-frame values the launcher resolves at launch time.

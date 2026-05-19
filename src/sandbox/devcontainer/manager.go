@@ -203,6 +203,22 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	}
 	spec.ResolveContainerEnvPlaceholders(imgEnv)
 
+	// Cold start contract: any container that survived a non-graceful daemon
+	// exit must be discarded so the new launch starts from a known-fresh
+	// state (in-container daemons like sockbridge / codex app-server are
+	// only spawned via postCreate, which runs on container creation).
+	if ctr != nil && opts.ColdStart {
+		slog.Info("devcontainer: cold start discarding existing container",
+			"id", shortID(ctr.ID), "state", ctr.State, "key", instanceKey)
+		rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
+		rmErr := removeContainerFn(rmCtx, ctr.ID)
+		rmCancel()
+		if rmErr != nil {
+			return fmt.Errorf("devcontainer: cold-start remove: %w", rmErr)
+		}
+		ctr = nil
+	}
+
 	if ctr != nil && opts.SharedMode {
 		expected := spec.MountConfigurationHash()
 		if ctr.MountHash != expected {
@@ -477,10 +493,13 @@ func (m *Manager) ReleaseFrame(inst *sandbox.Instance[*ContainerState]) bool {
 	return zero
 }
 
-// DestroyInstance handles end-of-life for an instance.
-// Project-mode containers are removed (docker rm). Shared containers are
-// stopped (docker stop) but not removed, so a later EnsureInstance restarts
-// the same container without losing image layer cache or the spec's mount set.
+// DestroyInstance handles end-of-life for an instance. Shutdown semantics:
+// all sandbox resources are released, so containers (shared and project alike)
+// are removed (docker rm -f). Cold start then always provisions a fresh
+// container — image layer cache survives, but the running container, mounts,
+// and in-container daemons (sockbridge, etc.) are gone. Detach uses a
+// different code path (EffDetachClient) and never reaches this function, so
+// warm restart keeps the container intact.
 func (m *Manager) DestroyInstance(ctx context.Context, inst *sandbox.Instance[*ContainerState]) error {
 	cs := inst.Internal
 
@@ -500,14 +519,8 @@ func (m *Manager) DestroyInstance(ctx context.Context, inst *sandbox.Instance[*C
 		return nil
 	}
 
-	if cs.IsShared() {
-		slog.Info("devcontainer: stopping shared container", "id", shortID(id))
-		stopCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		defer cancel()
-		return stopContainerFn(stopCtx, id)
-	}
-
-	slog.Info("devcontainer: removing container", "id", shortID(id), "project", inst.ProjectPath)
+	slog.Info("devcontainer: removing container",
+		"id", shortID(id), "project", inst.ProjectPath, "shared", cs.IsShared())
 	rmCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	return removeContainerFn(rmCtx, id)

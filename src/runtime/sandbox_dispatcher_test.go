@@ -229,3 +229,44 @@ func TestDevcontainerLauncherFor(t *testing.T) {
 		t.Errorf("unknown launcher type: got %v, want nil", got)
 	}
 }
+
+// ColdStart 仕様: coordinator は SandboxDispatcher を AgentLauncher として
+// 受け取るので、SandboxDispatcher が ColdStartAware を実装していないと
+// 内部の DevcontainerLauncher に cold-start window が伝播しない。
+// Devcontainer フィールドが nil でも panic せず no-op であること。
+func TestSandboxDispatcher_BeginEndColdStart_ForwardsToDevcontainer(t *testing.T) {
+	dl := &DevcontainerLauncher{
+		resolveSandbox:      func(string) config.SandboxConfig { return config.SandboxConfig{Isolation: "shared"} },
+		resolveProjectScope: func(string) *config.SandboxConfig { return nil },
+	}
+	d := &SandboxDispatcher{
+		Resolver:     config.NewSandboxResolver(config.SandboxConfig{Mode: "devcontainer"}),
+		Direct:       DirectLauncher{},
+		Devcontainer: dl,
+	}
+
+	// Compile-time check: SandboxDispatcher must satisfy ColdStartAware so
+	// the coordinator's type assertion succeeds.
+	var _ ColdStartAware = d
+
+	if opts := dl.StartOptionsFor("/workspace/agent-roost"); opts.ColdStart {
+		t.Fatalf("default StartOptions must have ColdStart=false; got %+v", opts)
+	}
+	d.BeginColdStart()
+	if opts := dl.StartOptionsFor("/workspace/agent-roost"); !opts.ColdStart {
+		t.Errorf("after dispatcher BeginColdStart: ColdStart=true expected, got %+v", opts)
+	}
+	d.EndColdStart()
+	if opts := dl.StartOptionsFor("/workspace/agent-roost"); opts.ColdStart {
+		t.Errorf("after dispatcher EndColdStart: ColdStart=false expected, got %+v", opts)
+	}
+}
+
+func TestSandboxDispatcher_BeginColdStart_NilDevcontainerIsNoop(t *testing.T) {
+	d := &SandboxDispatcher{
+		Resolver: config.NewSandboxResolver(config.SandboxConfig{Mode: "direct"}),
+		Direct:   DirectLauncher{},
+	}
+	d.BeginColdStart()
+	d.EndColdStart()
+}

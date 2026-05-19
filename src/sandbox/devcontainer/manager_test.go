@@ -939,6 +939,106 @@ func TestEnsureInstance_ReuseExisting_ProjectMode(t *testing.T) {
 	}
 }
 
+// Cold start contract: if a previous daemon crashed (no graceful shutdown),
+// the leftover container must be discarded so the new launch re-runs
+// postCreate (sockbridge / app-server bootstrap) on a fresh container.
+func TestEnsureInstance_ColdStartDiscardsExistingContainer(t *testing.T) {
+	project := setupTestSpec(t)
+	var removed string
+	var created bool
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			return &ContainerInfo{ID: "stale", State: "running"}, nil
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		remove: func(_ context.Context, id string) error {
+			removed = id
+			return nil
+		},
+		create: func(_ context.Context, _ []string) (string, error) {
+			created = true
+			return "new-ctr", nil
+		},
+		start:      func(_ context.Context, _ string) error { return nil },
+		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+	})
+	m := New(nil)
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{ColdStart: true}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if removed != "stale" {
+		t.Errorf("cold start: existing container must be removed; got removed=%q", removed)
+	}
+	if !created {
+		t.Errorf("cold start: a fresh container must be created after the discard")
+	}
+}
+
+// Cold start without an existing container: no remove call, straight to create.
+func TestEnsureInstance_ColdStartNoExistingGoesStraightToCreate(t *testing.T) {
+	project := setupTestSpec(t)
+	var removeCalled bool
+	var created bool
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) { return nil, nil },
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		remove: func(_ context.Context, _ string) error {
+			removeCalled = true
+			return nil
+		},
+		create: func(_ context.Context, _ []string) (string, error) {
+			created = true
+			return "new-ctr", nil
+		},
+		start:      func(_ context.Context, _ string) error { return nil },
+		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+	})
+	m := New(nil)
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{ColdStart: true}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if removeCalled {
+		t.Errorf("cold start with no existing container must not call remove")
+	}
+	if !created {
+		t.Errorf("create must be called")
+	}
+}
+
+// Warm start path: existing container must be reused (no discard).
+func TestEnsureInstance_WarmStartReusesExistingContainer(t *testing.T) {
+	project := setupTestSpec(t)
+	var removeCalled, createCalled bool
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			return &ContainerInfo{ID: "warm-ctr", State: "running"}, nil
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		remove: func(_ context.Context, _ string) error { removeCalled = true; return nil },
+		create: func(_ context.Context, _ []string) (string, error) {
+			createCalled = true
+			return "", nil
+		},
+		start: func(_ context.Context, _ string) error { return nil },
+	})
+	m := New(nil)
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if removeCalled {
+		t.Errorf("warm start must not destroy the existing container")
+	}
+	if createCalled {
+		t.Errorf("warm start must not create a fresh container; existing was usable")
+	}
+}
+
 func TestEnsureInstance_ImageEnvFailureIsNonFatal(t *testing.T) {
 	project := setupTestSpec(t)
 	withMockDockerStack(t, dockerStackMocks{
@@ -994,7 +1094,11 @@ func TestEnsureInstance_CachedSecondCall(t *testing.T) {
 	}
 }
 
-func TestDestroyInstance_SharedCallsStopNotRemove(t *testing.T) {
+// Shutdown 仕様: shared container も含めてすべて破棄する。Cold start で
+// 必ず新しい container が作られるよう、shutdown は資源を完全に解放する。
+// detach 経路 (EffDetachClient) は DestroyInstance を呼ばないので、warm
+// restart 用に container を残したい場合は detach を使う。
+func TestDestroyInstance_SharedRemoved(t *testing.T) {
 	stopID, rmID := "", ""
 	origStop, origRm := stopContainerFn, removeContainerFn
 	t.Cleanup(func() {
@@ -1014,13 +1118,12 @@ func TestDestroyInstance_SharedCallsStopNotRemove(t *testing.T) {
 	if err := m.DestroyInstance(context.Background(), inst); err != nil {
 		t.Fatalf("DestroyInstance: %v", err)
 	}
-	if stopID != "shared-id" {
-		t.Errorf("stop called with %q, want shared-id", stopID)
+	if rmID != "shared-id" {
+		t.Errorf("rm called with %q, want shared-id", rmID)
 	}
-	if rmID != "" {
-		t.Errorf("rm must NOT be called for shared container; got %q", rmID)
+	if stopID != "" {
+		t.Errorf("stop must NOT be called on shutdown; got %q", stopID)
 	}
-	// The in-memory entry must be cleared so the next EnsureInstance re-locks the spec.
 	if _, ok := m.containers[SharedContainerKey]; ok {
 		t.Errorf("containers[__shared__] still present after Destroy")
 	}

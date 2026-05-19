@@ -230,6 +230,11 @@ func (r *Runtime) registerSubsystemFactories() {
 // Done signals when Run has fully exited.
 func (r *Runtime) Done() <-chan struct{} { return r.done }
 
+// Launcher returns the resolved AgentLauncher (cfg.Launcher or DirectLauncher).
+// Used by the coordinator to opt-in to ColdStartAware capability outside the
+// runtime package.
+func (r *Runtime) Launcher() AgentLauncher { return launcher(r.cfg) }
+
 func (r *Runtime) ResetWarmState() error {
 	if r.warmFrames == nil {
 		return nil

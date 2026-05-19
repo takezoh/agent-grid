@@ -57,6 +57,17 @@ type AgentLauncher interface {
 	IsContainer(project string) bool
 }
 
+// ColdStartAware は cold-start 区間中の sandbox 再構築を sandbox-bearing な
+// launcher だけが知る optional capability。coordinator.coldStart が
+// BeginColdStart / EndColdStart を defer 越しに呼び、その区間内の
+// EnsureProject / WrapLaunch は pre-existing container を破棄して新規
+// provisioning を行う。capability を持たない launcher (DirectLauncher 等)
+// は実装不要 ― 型 assertion 経由でしか呼ばれない。
+type ColdStartAware interface {
+	BeginColdStart()
+	EndColdStart()
+}
+
 // DirectLauncher is the no-op implementation: it passes the plan through
 // unchanged so behaviour is identical to the pre-launcher code path.
 // SockPath, when non-empty, is injected as ROOST_SOCKET so hook subprocesses
@@ -86,6 +97,9 @@ func (DirectLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (
 func (DirectLauncher) EnsureProject(_ context.Context, _ string) error { return nil }
 
 func (DirectLauncher) IsContainer(_ string) bool { return false }
+
+func (DirectLauncher) BeginColdStart() {}
+func (DirectLauncher) EndColdStart()   {}
 
 // stripContainerOnlyEnv returns a copy of env without ROOST_SOCKET_TOKEN.
 // Token injection is only valid inside containers; DirectLauncher drops it

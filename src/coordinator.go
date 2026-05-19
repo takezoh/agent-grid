@@ -181,11 +181,25 @@ func coldStart(ctx context.Context, rt *runtime.Runtime, client *tmux.Client, cf
 	if err := rt.LoadSnapshot(true); err != nil {
 		slog.Error("snapshot load failed", "err", err)
 	}
+	// Tell the launcher we are in cold-start mode so EnsureProject /
+	// WrapLaunch issued during prewarm + recreate discard any container
+	// that survived a non-graceful daemon exit and provision a fresh one.
+	if cs, ok := launcherFor(rt).(runtime.ColdStartAware); ok {
+		cs.BeginColdStart()
+		defer cs.EndColdStart()
+	}
 	rt.PrewarmContainers(ctx)
 	if err := rt.RecreateAll(); err != nil {
 		slog.Error("recreate failed", "err", err)
 	}
 	return nil
+}
+
+// launcherFor exposes the runtime's AgentLauncher for the coordinator's
+// cold-start switchover. Wrapped so callers don't reach into runtime
+// internals directly.
+func launcherFor(rt *runtime.Runtime) runtime.AgentLauncher {
+	return rt.Launcher()
 }
 
 // superviseRun runs fn and converts panics into logged errors on errCh,

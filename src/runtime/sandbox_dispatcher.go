@@ -65,6 +65,27 @@ func (d *SandboxDispatcher) IsContainer(projectPath string) bool {
 	return mode == "devcontainer"
 }
 
+// BeginColdStart / EndColdStart forward the coordinator's cold-start window
+// to every backend that supports it (currently only the devcontainer
+// launcher; Direct mode has no persistent sandbox to discard).
+func (d *SandboxDispatcher) BeginColdStart() {
+	if d.Devcontainer != nil {
+		d.Devcontainer.BeginColdStart()
+	}
+	if cs, ok := d.Direct.(ColdStartAware); ok {
+		cs.BeginColdStart()
+	}
+}
+
+func (d *SandboxDispatcher) EndColdStart() {
+	if d.Devcontainer != nil {
+		d.Devcontainer.EndColdStart()
+	}
+	if cs, ok := d.Direct.(ColdStartAware); ok {
+		cs.EndColdStart()
+	}
+}
+
 // devcontainerLauncherFor extracts the *DevcontainerLauncher from l, handling
 // both a bare *DevcontainerLauncher and a *SandboxDispatcher wrapper.
 // Returns nil if l has no devcontainer backend.

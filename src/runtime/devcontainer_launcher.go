@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/takezoh/agent-roost/config"
@@ -26,7 +27,15 @@ type DevcontainerLauncher struct {
 	resolveProjectScope func(projectPath string) *config.SandboxConfig
 	proxy               *CredProxyRunner // nil when proxy disabled
 	dataDir             string
+	coldStart           atomic.Bool // toggled by coordinator's cold-start path
 }
+
+// BeginColdStart marks the launcher as being in cold-start mode (implements
+// ColdStartAware). EnsureProject / WrapLaunch calls issued in this window
+// discard any pre-existing container so a fresh one is provisioned —
+// covering daemon crashes / SIGKILL where DestroyInstance never ran.
+func (l *DevcontainerLauncher) BeginColdStart() { l.coldStart.Store(true) }
+func (l *DevcontainerLauncher) EndColdStart()   { l.coldStart.Store(false) }
 
 // NewDevcontainerLauncher creates an AgentLauncher that runs agents inside devcontainers.
 // dataDir is the daemon's data directory (e.g. ~/.roost); it contains the run/ subtree.
@@ -136,7 +145,15 @@ func (l *DevcontainerLauncher) StartOptionsFor(projectPath string) sandbox.Start
 
 // resolveStartOptions determines whether to use shared or project isolation for
 // projectPath, and builds the corresponding sandbox.StartOptions.
+// ColdStart is propagated from the launcher's mode flag so any container
+// found during this call is discarded and reprovisioned.
 func (l *DevcontainerLauncher) resolveStartOptions(projectPath string) sandbox.StartOptions {
+	opts := l.startOptionsForIsolation(projectPath)
+	opts.ColdStart = l.coldStart.Load()
+	return opts
+}
+
+func (l *DevcontainerLauncher) startOptionsForIsolation(projectPath string) sandbox.StartOptions {
 	// Project has its own .devcontainer — always project isolation (cheap check first).
 	if _, err := sandboxdc.ProjectBaseDC(projectPath); err == nil {
 		return sandbox.StartOptions{}
