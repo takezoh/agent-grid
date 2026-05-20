@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/takezoh/agent-roost/orchestrator/agent"
 	"github.com/takezoh/agent-roost/orchestrator/scheduler"
 	"github.com/takezoh/agent-roost/orchestrator/tracker"
 	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
@@ -78,10 +79,12 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	}
 
 	ws := workspace.New(cfg)
+	runner := agent.New(ws, cfg, wf.PromptTemplate)
 
 	sched := scheduler.New(absPath, cfg, scheduler.Deps{
 		RefreshTracker: tr,
 		Workspace:      ws,
+		Spawn:          runner.Spawn,
 	})
 
 	if err := sched.Run(ctx); err != nil {
