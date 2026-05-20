@@ -29,7 +29,10 @@ type Event struct {
 	Err       error
 }
 
-type procFunc func(ctx context.Context, cwd, cmdLine string) (io.ReadCloser, io.WriteCloser, error)
+// procFunc launches the agent subprocess and returns its stdout/stdin plus a
+// wait func that reaps the process. wait must be called once the read loop has
+// drained stdout (i.e. after conn.Run returns) to avoid leaking a zombie.
+type procFunc func(ctx context.Context, cwd, cmdLine string) (stdout io.ReadCloser, stdin io.WriteCloser, wait func(), err error)
 
 // Runner builds scheduler.SpawnFunc-compatible spawn calls for the orchestrator.
 type Runner struct {

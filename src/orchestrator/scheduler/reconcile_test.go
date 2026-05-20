@@ -49,15 +49,13 @@ func (f *fakeWorkspace) Remove(_ context.Context, identifier string) error {
 
 // newReconcileScheduler builds a Scheduler with injected fakes for reconcile tests.
 func newReconcileScheduler(tr schedulerTrackerAPI, ws schedulerWorkspaceAPI, clk Clock) *Scheduler {
-	s := &Scheduler{
+	return &Scheduler{
 		state:     NewState(),
 		tracker:   tr,
 		workspace: ws,
 		clock:     clk,
 		retryFire: make(chan retryFireReq, 16),
 	}
-	s.deps.Reconcile = func(context.Context) error { return nil }
-	return s
 }
 
 // --- Stall tests ---
@@ -139,6 +137,28 @@ func TestReconcileRefresh_TerminalKillsAndCleansWorkspace(t *testing.T) {
 	}
 	if len(ws.removed) != 1 || ws.removed[0] != "PROJ-4" {
 		t.Errorf("expected workspace Remove(PROJ-4), got %v", ws.removed)
+	}
+}
+
+func TestReconcileRefresh_TerminalMatchIsCaseInsensitive(t *testing.T) {
+	w := &fakeWorker{}
+	ws := &fakeWorkspace{}
+	issue := testIssue("id4b", "PROJ-4B")
+	refreshed := issue
+	refreshed.State = "DONE" // tracker casing differs from config
+
+	tr := &fakeReconcileTracker{refreshIssues: []ptrackerv.Issue{refreshed}}
+	s := newReconcileScheduler(tr, ws, newFakeClock(time.Now()))
+	_ = s.state.Dispatch(issue, 1, LiveSession{Worker: w}, time.Now())
+
+	// config terminal state is lowercase "done" — must still match "DONE".
+	s.reconcile(context.Background(), refreshCfg([]string{"done"}, []string{"in progress"}))
+
+	if len(w.killed) != 1 || w.killed[0] != "terminal" {
+		t.Errorf("expected Kill(terminal) on case-insensitive match, got %v", w.killed)
+	}
+	if len(ws.removed) != 1 || ws.removed[0] != "PROJ-4B" {
+		t.Errorf("expected workspace Remove(PROJ-4B), got %v", ws.removed)
 	}
 }
 

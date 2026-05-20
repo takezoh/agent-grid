@@ -18,9 +18,6 @@ type CandidateSource interface {
 // SpawnFunc spawns a worker for the given issue and returns its session (injected by issue 013).
 type SpawnFunc func(ctx context.Context, issue tracker.Issue, attempt int) (LiveSession, error)
 
-// ReconcileFunc runs startup/periodic cleanup (injected by issue 014).
-type ReconcileFunc func(ctx context.Context) error
-
 // dispatchOnce performs one dispatch pass: filter eligible, sort, allocate slots (SPEC §8.1–§8.3).
 // It consumes up to the available global and per-state slot counts.
 func dispatchOnce(ctx context.Context, cands []tracker.Issue, st *State, clk Clock, fireCh chan<- retryFireReq, spawn SpawnFunc, cfg wfconfig.Config) {

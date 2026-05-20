@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"slices"
+	"strings"
 	"time"
 
 	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
@@ -78,14 +78,19 @@ func (s *Scheduler) reconcileRefresh(ctx context.Context, snap StateSnapshot, cf
 		byID[iss.ID] = iss
 	}
 
+	// State matching is case-insensitive, consistent with dispatch eligibility (§8.2).
+	terminal := normSet(cfg.Tracker.TerminalStates)
+	active := normSet(cfg.Tracker.ActiveStates)
+
 	for id, run := range snap.Running {
 		iss, found := byID[id]
 		if !found {
 			continue
 		}
 
+		norm := strings.ToLower(iss.State)
 		switch {
-		case slices.Contains(cfg.Tracker.TerminalStates, iss.State):
+		case terminal[norm]:
 			if run.Session.Worker != nil {
 				if err := run.Session.Worker.Kill("terminal"); err != nil {
 					slog.Warn("reconcile: terminal kill failed", "issue_id", id, "err", err)
@@ -98,7 +103,7 @@ func (s *Scheduler) reconcileRefresh(ctx context.Context, snap StateSnapshot, cf
 			slog.Info("reconcile: terminal issue cleaned up",
 				"issue_id", id, "identifier", run.Issue.Identifier, "state", iss.State)
 
-		case slices.Contains(cfg.Tracker.ActiveStates, iss.State):
+		case active[norm]:
 			s.state.UpdateIssueSnapshot(id, iss)
 
 		default:

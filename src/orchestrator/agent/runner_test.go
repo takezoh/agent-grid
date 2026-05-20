@@ -29,6 +29,7 @@ const (
 type fakeServer struct {
 	srv      *codexclient.Server
 	failTurn bool // if true, emits error instead of turn/completed
+	hangTurn bool // if true, starts the session but never completes the turn
 	mu       sync.Mutex
 }
 
@@ -38,13 +39,17 @@ func (f *fakeServer) OnNotification(method string, _ json.RawMessage) {
 	}
 	f.mu.Lock()
 	fail := f.failTurn
+	hang := f.hangTurn
 	f.mu.Unlock()
 
 	_ = f.srv.EmitThreadStarted(testThreadID, "/ws")
 	_ = f.srv.EmitTurnStarted(testThreadID, testTurnID)
-	if fail {
+	switch {
+	case hang:
+		// session is live but the turn never resolves — exercises turn_timeout_ms.
+	case fail:
 		_ = f.srv.EmitTurnFailed(testThreadID, "simulated failure")
-	} else {
+	default:
 		_ = f.srv.EmitTurnCompleted(testThreadID, testTurnID, "done")
 	}
 }
@@ -57,7 +62,7 @@ func (f *fakeServer) OnServerRequest(id int64, method string, _ json.RawMessage)
 
 // makeFakeProc returns a procFunc that wires runner ↔ fakeServer via io.Pipe.
 func makeFakeProc(fs *fakeServer) procFunc {
-	return func(ctx context.Context, cwd, cmdLine string) (io.ReadCloser, io.WriteCloser, error) {
+	return func(ctx context.Context, cwd, cmdLine string) (io.ReadCloser, io.WriteCloser, func(), error) {
 		// runner reads pr1; server reads pr2
 		pr1, pw1 := io.Pipe()
 		pr2, pw2 := io.Pipe()
@@ -73,7 +78,15 @@ func makeFakeProc(fs *fakeServer) procFunc {
 			_ = serverConn.Run(ctx, fs)
 		}()
 
-		return pr1, pw2, nil
+		// The stdio transport is not context-aware; emulate process death on
+		// cancellation by closing the runner's read end so its loop sees EOF
+		// (a real bash subprocess dies and EOFs its stdout the same way).
+		go func() {
+			<-ctx.Done()
+			_ = pw1.Close()
+		}()
+
+		return pr1, pw2, func() {}, nil
 	}
 }
 
@@ -152,6 +165,29 @@ func TestSpawn_turnFailedEmitsEvent(t *testing.T) {
 	assert.Equal(t, EventSessionStarted, events[0].Kind)
 	assert.Equal(t, EventTurnFailed, events[1].Kind)
 	assert.NotNil(t, events[1].Err)
+}
+
+func TestSpawn_turnTimeoutKillsAndFails(t *testing.T) {
+	fs := &fakeServer{hangTurn: true}
+	wsRoot := t.TempDir()
+	cfg := wfconfig.Config{
+		Workspace: wfconfig.WorkspaceConfig{Root: wsRoot},
+		Codex:     wfconfig.CodexConfig{Command: "unused", TurnTimeoutMS: 50},
+	}
+	r := &Runner{
+		Workspace:      workspace.New(cfg),
+		Cfg:            cfg,
+		PromptTemplate: "",
+		proc:           makeFakeProc(fs),
+	}
+	iss := tracker.Issue{Identifier: "PROJ-T"}
+
+	events := collectEvents(t, r, iss, 1)
+
+	require.GreaterOrEqual(t, len(events), 2)
+	assert.Equal(t, EventSessionStarted, events[0].Kind)
+	assert.Equal(t, EventTurnFailed, events[1].Kind)
+	assert.ErrorContains(t, events[1].Err, "turn timeout")
 }
 
 func TestSpawn_workspaceEnsureCreatesDir(t *testing.T) {

@@ -52,18 +52,39 @@ func Render(tmpl string, vars Vars) (string, error) {
 }
 
 func toIssueMap(iss tracker.Issue) map[string]any {
-	m := map[string]any{
+	// Every SPEC §4.1.1 field is always present as a key so that referencing a
+	// defined-but-null field renders empty rather than tripping StrictVariables;
+	// only genuinely unknown variables must fail (§5.4). liquid's StrictVariables
+	// treats a nil value as undefined, so null priority is represented as "" —
+	// matching how the string-or-null fields (description/url) render when empty.
+	var priority any = ""
+	if iss.Priority != nil {
+		priority = *iss.Priority
+	}
+	return map[string]any{
 		"id":          iss.ID,
 		"identifier":  iss.Identifier,
 		"title":       iss.Title,
 		"description": iss.Description,
+		"priority":    priority,
 		"state":       iss.State,
 		"branch_name": iss.BranchName,
 		"url":         iss.URL,
 		"labels":      iss.Labels,
+		"blocked_by":  toBlockerList(iss.BlockedBy),
+		"created_at":  iss.CreatedAt,
+		"updated_at":  iss.UpdatedAt,
 	}
-	if iss.Priority != nil {
-		m["priority"] = *iss.Priority
+}
+
+func toBlockerList(blockers []tracker.Blocker) []map[string]any {
+	out := make([]map[string]any, len(blockers))
+	for i, b := range blockers {
+		out[i] = map[string]any{
+			"id":         b.ID,
+			"identifier": b.Identifier,
+			"state":      b.State,
+		}
 	}
-	return m
+	return out
 }

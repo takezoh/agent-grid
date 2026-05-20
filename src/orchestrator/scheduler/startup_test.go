@@ -10,15 +10,13 @@ import (
 )
 
 func newStartupScheduler(tr schedulerTrackerAPI, ws schedulerWorkspaceAPI) *Scheduler {
-	s := &Scheduler{
+	return &Scheduler{
 		state:     NewState(),
 		tracker:   tr,
 		workspace: ws,
 		clock:     newFakeClock(time.Now()),
 		retryFire: make(chan retryFireReq, 16),
 	}
-	s.deps.Reconcile = func(context.Context) error { return nil }
-	return s
 }
 
 func TestStartupCleanup_RemovesTerminalWorkspaces(t *testing.T) {

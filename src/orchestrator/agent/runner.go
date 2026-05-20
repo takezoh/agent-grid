@@ -47,7 +47,7 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 	}
 
 	worker := &Worker{cancel: cancel, done: lr.doneCh}
-	go r.runMonitor(issue.Identifier, ids, lr.turnDone, lr.doneCh, emit)
+	go r.runMonitor(issue.Identifier, ids, lr.turnDone, lr.doneCh, cancel, emit)
 
 	emit(Event{
 		Kind:      EventSessionStarted,
@@ -81,7 +81,7 @@ func (r *Runner) prepareWorkspace(ctx context.Context, identifier string) (strin
 }
 
 func (r *Runner) launchConn(ctx context.Context, wsPath string) (*launchResult, error) {
-	stdout, stdin, err := r.proc(ctx, wsPath, r.Cfg.Codex.Command)
+	stdout, stdin, wait, err := r.proc(ctx, wsPath, r.Cfg.Codex.Command)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +102,7 @@ func (r *Runner) launchConn(ctx context.Context, wsPath string) (*launchResult, 
 	go func() {
 		defer close(doneCh)
 		_ = conn.Run(ctx, h)
+		wait() // reap the subprocess after the read loop drains stdout
 	}()
 
 	return &launchResult{
@@ -133,10 +134,24 @@ func initSession(conn *codexclient.Conn, wsPath, rendered string, sessionReady <
 	}
 }
 
-func (r *Runner) runMonitor(identifier string, ids sessionIDs, turnDone <-chan turnResult, doneCh <-chan struct{}, emit func(Event)) {
+func (r *Runner) runMonitor(identifier string, ids sessionIDs, turnDone <-chan turnResult, doneCh <-chan struct{}, cancel context.CancelFunc, emit func(Event)) {
 	var result turnResult
+
+	// Enforce codex.turn_timeout_ms (§10.3): a turn that neither completes nor
+	// fails within the budget is killed and reported as a failure.
+	var timeoutCh <-chan time.Time
+	if r.Cfg.Codex.TurnTimeoutMS > 0 {
+		timer := time.NewTimer(time.Duration(r.Cfg.Codex.TurnTimeoutMS) * time.Millisecond)
+		defer timer.Stop()
+		timeoutCh = timer.C
+	}
+
 	select {
 	case result = <-turnDone:
+	case <-timeoutCh:
+		cancel()
+		<-doneCh
+		result = turnResult{failed: true, err: fmt.Errorf("turn timeout exceeded (%dms)", r.Cfg.Codex.TurnTimeoutMS)}
 	case <-doneCh:
 		select {
 		case result = <-turnDone:
@@ -163,5 +178,9 @@ func (r *Runner) runMonitor(identifier string, ids sessionIDs, turnDone <-chan t
 			Timestamp: time.Now(),
 		})
 	}
+
+	// Single-turn (§16.5): stop the session/subprocess, then run after_run
+	// best-effort. cancel triggers conn.Run to return, which reaps the process.
+	cancel()
 	r.Workspace.AfterRun(context.Background(), identifier)
 }

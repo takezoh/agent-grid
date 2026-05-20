@@ -244,23 +244,3 @@ func TestTickSpawnFailSchedulesRetry(t *testing.T) {
 		t.Error("want claim released after spawn failure")
 	}
 }
-
-// TestRunReconcileErrorContinues verifies reconcile error does not stop the loop.
-func TestRunReconcileErrorContinues(t *testing.T) {
-	path := writeWorkflow(t)
-	cfg := wfconfig.Config{Polling: wfconfig.PollingConfig{IntervalMS: 1}}
-	called := false
-	deps := Deps{Reconcile: func(context.Context) error {
-		called = true
-		return context.DeadlineExceeded
-	}}
-	s := New(path, cfg, deps)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	s.Run(ctx) //nolint:errcheck
-
-	if !called {
-		t.Error("want reconcile to be called")
-	}
-}

@@ -26,15 +26,11 @@ type schedulerWorkspaceAPI interface {
 }
 
 // Deps bundles injectable dependencies for the Scheduler (SPEC §16.2).
-// Nil fields receive safe defaults:
-//   - Reconcile → no-op
-//   - Clock     → real wall clock
-//
+// A nil Clock defaults to the real wall clock.
 // Tracker and Spawn may be nil; in that case dispatch is skipped with a warning.
 type Deps struct {
 	Tracker        CandidateSource
 	Spawn          SpawnFunc
-	Reconcile      ReconcileFunc
 	Clock          Clock
 	RefreshTracker schedulerTrackerAPI
 	Workspace      schedulerWorkspaceAPI
@@ -58,12 +54,7 @@ func New(workflowPath string, cfg wfconfig.Config, deps Deps) *Scheduler {
 	if clk == nil {
 		clk = realClock{}
 	}
-	rec := deps.Reconcile
-	if rec == nil {
-		rec = func(context.Context) error { return nil }
-	}
 	deps.Clock = clk
-	deps.Reconcile = rec
 	return &Scheduler{
 		workflowPath: workflowPath,
 		interval:     time.Duration(cfg.Polling.IntervalMS) * time.Millisecond,
@@ -85,7 +76,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 
 	s.StartupCleanup(ctx)
-	s.runReconcile(ctx)
 	s.tickOnce(ctx)
 
 	ticker := time.NewTicker(s.interval)
@@ -103,24 +93,14 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-// runReconcile calls the injected reconcile function; errors are logged but do not stop the loop.
-func (s *Scheduler) runReconcile(ctx context.Context) {
-	if err := s.deps.Reconcile(ctx); err != nil {
-		slog.Error("reconcile error", "err", err)
-	}
-}
-
 // tickOnce runs one poll cycle per SPEC §8.1.
 func (s *Scheduler) tickOnce(ctx context.Context) {
-	// §8.1 step 1: injected reconcile runs before dispatch.
-	s.runReconcile(ctx)
-
 	cfg, ok := s.reloadConfig()
 	if !ok {
 		return
 	}
 
-	// P3d: active-run reconciliation (stall + tracker state refresh).
+	// §8.1 step 1: active-run reconciliation (stall + tracker state refresh) runs before dispatch.
 	s.reconcile(ctx, cfg)
 
 	if s.deps.Tracker == nil || s.deps.Spawn == nil {

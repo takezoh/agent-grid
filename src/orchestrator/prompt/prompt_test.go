@@ -60,3 +60,21 @@ func TestRender_allIssueFields(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "id-1|PROJ-2|T|active|feature/proj-2|https://example.com|1", out)
 }
+
+func TestRender_labelsAndBlockers(t *testing.T) {
+	iss := tracker.Issue{
+		Labels:    []string{"bug", "urgent"},
+		BlockedBy: []tracker.Blocker{{Identifier: "PROJ-9", State: "Done"}},
+	}
+	tmpl := `labels={{ issue.labels | join: "," }} blockers={% for b in issue.blocked_by %}{{ b.identifier }}:{{ b.state }}{% endfor %}`
+	out, err := prompt.Render(tmpl, prompt.Vars{Issue: iss})
+	assert.NoError(t, err)
+	assert.Equal(t, "labels=bug,urgent blockers=PROJ-9:Done", out)
+}
+
+func TestRender_nullPriorityRendersEmpty(t *testing.T) {
+	// priority is "integer or null" (§4.1.1); a null value must render empty, not error.
+	out, err := prompt.Render("p={{ issue.priority }}", prompt.Vars{Issue: tracker.Issue{}})
+	assert.NoError(t, err)
+	assert.Equal(t, "p=", out)
+}
