@@ -17,12 +17,16 @@ import (
 
 // fakeScheduler implements SchedulerReader for tests.
 type fakeScheduler struct {
-	snap      scheduler.StateSnapshot
-	refreshed bool
-	coalesce  bool
+	snap          scheduler.StateSnapshot
+	refreshed     bool
+	coalesce      bool
+	snapshotCalls int
 }
 
-func (f *fakeScheduler) Snapshot() scheduler.StateSnapshot { return f.snap }
+func (f *fakeScheduler) Snapshot() scheduler.StateSnapshot {
+	f.snapshotCalls++
+	return f.snap
+}
 func (f *fakeScheduler) Refresh() (coalesced bool) {
 	f.refreshed = true
 	return f.coalesce
@@ -403,7 +407,8 @@ func TestMethodNotAllowed_405(t *testing.T) {
 	}
 }
 
-// TestDashboard_200 validates GET / returns 200 HTML.
+// TestDashboard_200 validates GET / returns a 200 static HTML shell that
+// consumes the JSON REST API client-side (it must not read scheduler state).
 func TestDashboard_200(t *testing.T) {
 	sched := &fakeScheduler{snap: scheduler.StateSnapshot{
 		Running:       map[string]scheduler.RunAttempt{},
@@ -415,8 +420,20 @@ func TestDashboard_200(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status want 200, got %d", status)
 	}
-	if !strings.Contains(string(body), "Orchestrator Dashboard") {
+	s := string(body)
+	if !strings.Contains(s, "Orchestrator Dashboard") {
 		t.Error("dashboard body should contain 'Orchestrator Dashboard'")
+	}
+	// The shell is an API client: it fetches state and posts refresh.
+	if !strings.Contains(s, "/api/v1/state") {
+		t.Error("dashboard should fetch /api/v1/state client-side")
+	}
+	if !strings.Contains(s, "/api/v1/refresh") {
+		t.Error("dashboard should POST /api/v1/refresh for manual refresh")
+	}
+	// Decoupling: rendering the dashboard must not touch scheduler state.
+	if sched.snapshotCalls != 0 {
+		t.Errorf("GET / must not call Snapshot(); got %d calls", sched.snapshotCalls)
 	}
 }
 

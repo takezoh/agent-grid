@@ -26,8 +26,9 @@ func NewMux(sched SchedulerReader, workspaceRoot string) http.Handler {
 			writeError(w, http.StatusNotFound, "not_found", "not found")
 			return
 		}
-		snap := sched.Snapshot()
-		renderDashboard(w, snap)
+		// The dashboard is a static shell that consumes the JSON API client-side;
+		// it does not read scheduler state here.
+		renderDashboard(w)
 	})
 
 	mux.HandleFunc("GET /api/v1/state", func(w http.ResponseWriter, r *http.Request) {
