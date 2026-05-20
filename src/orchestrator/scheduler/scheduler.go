@@ -15,6 +15,7 @@ import (
 type Scheduler struct {
 	workflowPath string
 	interval     time.Duration
+	state        *State
 }
 
 // New returns a Scheduler. cfg.Polling.IntervalMS determines the tick interval.
@@ -22,6 +23,7 @@ func New(workflowPath string, cfg wfconfig.Config) *Scheduler {
 	return &Scheduler{
 		workflowPath: workflowPath,
 		interval:     time.Duration(cfg.Polling.IntervalMS) * time.Millisecond,
+		state:        NewState(),
 	}
 }
 
