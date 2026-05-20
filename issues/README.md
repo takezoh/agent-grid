@@ -34,30 +34,46 @@
 | [006](006-p1b-wfconfig.md) | wfconfig — typed config view (default/$VAR/~/検証) | P1b | Done | 005 |
 | [007](007-p1c-preflight-stub-scheduler.md) | dispatch preflight + stub scheduler loop | P1c | Open | 006 |
 
-### P2 batch (tracker / workspace)
+### P2 batch (tracker / workspace) — 完了
 
 | ID | タイトル | Phase | Status | Depends on |
 |---|---|---|---|---|
-| [008](008-p2a-linear-tracker.md) | `platform/tracker` Linear GraphQL adapter | P2a | Open | P0 (merged) |
-| [009](009-p2b-orchestrator-tracker.md) | `orchestrator/tracker` config wrapper | P2b | Open | 008, 006 |
+| [008](008-p2a-linear-tracker.md) | `platform/tracker` Linear GraphQL adapter | P2a | Done | P0 (merged) |
+| [009](009-p2b-orchestrator-tracker.md) | `orchestrator/tracker` config wrapper | P2b | Done | 008, 006 |
 | [010](010-p2c-workspace-manager.md) | `orchestrator/workspace` manager + hooks + safety | P2c | Done | 006 |
+
+### P3 batch (scheduler core)
+
+| ID | タイトル | Phase | Status | Depends on |
+|---|---|---|---|---|
+| [011](011-p3a-scheduler-state.md) | scheduler state machine + runtime state (§7) | P3a | Open | 007, 008 |
+| [012](012-p3b-dispatch-tick.md) | poll/dispatch tick — eligibility/sort/concurrency/retry (§8) | P3b | Open | 011, 009 |
+| [013](013-p3c-agent-runner.md) | agent runner — prompt + 生 codex 1 turn + events | P3c | Open | 010, P0c, 008 |
+| [014](014-p3d-reconciliation.md) | reconciliation + startup cleanup (§8.5/§8.6) | P3d | Open | 011, 009, 010 |
 
 ## 依存関係グラフ
 
 ```
-  P1 (直列):  005 ── 006 ── 007
-              loader wfconfig preflight+stub loop
-                       │
-                       ├──────────────┐  (006 完了済み)
-  P2:                  ▼              ▼
-              008 ──── 009          010
-              linear   tracker      workspace
-              adapter  wrapper      manager
+  P1:  005 ── 006 ── 007 (Open)
+       (Done) (Done)  preflight + stub loop
+                │
+  P2:  008 ──── 009          010      ← 全 Done
+       (Done)   (Done)       (Done)
+
+  P3:        007 ─────────────┐
+              │               │
+              ▼               ▼
+       011 ─┬─ 012 ────────────────┐
+       state │  dispatch tick      ▼   ← 011+012+013 で M1 単線
+             └─ 014               013
+                reconcile         agent runner
+                                  (010 + P0c)
 ```
 
-- **P1** は直列。各段が前段の出力を入力に取る (loader→config→preflight)
-- **P2** は 006 (完了) を前提に並行可能。**008** (純 HTTP/GraphQL client) と **010** (workspace、tracker 非依存) は即着手可、**009** は 008 を待つ
-- P2 は P1c (007) に依存しない — tracker/workspace は scheduler が P3 で使うライブラリで、stub loop とは独立
+- **P3a (011)** が scheduler の core。007 (loop scaffold) と 008 (Issue 型) が前提
+- **012/014** は 011 に依存（dispatch tick と reconcile が state machine を使う）。012 は 009 (candidates)、014 は 009+010 も要る
+- **013 (agent runner)** は 011 に**非依存**で並行可 — 010 (workspace) + P0c (codexclient) があれば書ける。012 は 013 の runner を **spawn 関数注入**で後から配線
+- **M1 単線通電 = 007 + 011 + 012 + 013**。014 は堅牢性（stall/terminal 整理）を足す
 
 ## 完了済み (archive)
 
@@ -65,10 +81,10 @@ P0 batch (M0: 構造分離) は完了し [.archive/](.archive/) に移動:
 
 - [001](.archive/001-p0a-physical-move.md) P0a 物理移動 / [002](.archive/002-p0b-agentlaunch.md) P0b agentlaunch / [003](.archive/003-p0c-codexclient.md) P0c codexclient / [004](.archive/004-p0d-cmd-scaffolding.md) P0d cmd 雛形
 
-## 次の batch (P3 以降)
+## 次の batch (P4 以降)
 
-- P3: scheduler core (poll/dispatch/retry/reconcile) + 生 codex 単線 — 007 + 009 + 010 が前提
-- P4: agent 起動を codexclient 経由に + sandbox 配線
+- P4: agent 起動を `agentlaunch` 経由の sandbox 配線に + codexclient 経由へ統一 — P3 + P0b/P0c が前提
+- P5: `claude-app-server` shim 実装
 
 詳細は [plans/04-phases.md](../plans/04-phases.md) / [plans/roadmap.md](../plans/roadmap.md) を参照。
 

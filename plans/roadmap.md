@@ -7,8 +7,9 @@ Symphony SPEC 実装の全体ロードマップと進捗。設計の詳細は [0
 
 ## 現在地
 
-**M0 (構造分離) 完了。M1 (最小単線通電) 進行中。** P1 は loader (005) と wfconfig (006) が完了し、
-残るは preflight + stub scheduler (007)。並行して P2 (tracker / workspace) のバッチを起票済み。
+**M0 (構造分離) 完了。M1 (最小単線通電) 進行中。** P1 は loader (005)・wfconfig (006) 完了、残るは
+preflight + stub scheduler (007)。P2 (tracker 008/009・workspace 010) は完了。次は **P3 (scheduler core)** を
+4 issue (011–014) に分解して起票済み。011+012+013 が揃うと M1 の単線が通る。
 
 ## Phase 進捗
 
@@ -21,10 +22,13 @@ Symphony SPEC 実装の全体ロードマップと進捗。設計の詳細は [0
 | P1a | WORKFLOW.md loader | ✅ Done | [005](../issues/005-p1a-workflowfile.md) |
 | P1b | wfconfig typed config | ✅ Done | [006](../issues/006-p1b-wfconfig.md) |
 | P1c | preflight + stub scheduler loop | ▶ Next | [007](../issues/007-p1c-preflight-stub-scheduler.md) |
-| P2a | `platform/tracker` Linear adapter | ⬜ Open | [008](../issues/008-p2a-linear-tracker.md) |
-| P2b | `orchestrator/tracker` config wrapper | ⬜ Open | [009](../issues/009-p2b-orchestrator-tracker.md) |
-| P2c | `orchestrator/workspace` manager + hooks | ⬜ Open | [010](../issues/010-p2c-workspace-manager.md) |
-| P3 | scheduler core (poll/dispatch/retry/reconcile) + 生 codex 単線 | ⬜ Pending | — |
+| P2a | `platform/tracker` Linear adapter | ✅ Done | [008](../issues/008-p2a-linear-tracker.md) |
+| P2b | `orchestrator/tracker` config wrapper | ✅ Done | [009](../issues/009-p2b-orchestrator-tracker.md) |
+| P2c | `orchestrator/workspace` manager + hooks | ✅ Done | [010](../issues/010-p2c-workspace-manager.md) |
+| P3a | scheduler state machine + runtime state (§7) | ⬜ Open | [011](../issues/011-p3a-scheduler-state.md) |
+| P3b | poll/dispatch tick — eligibility/sort/concurrency/retry (§8) | ⬜ Open | [012](../issues/012-p3b-dispatch-tick.md) |
+| P3c | agent runner — prompt + 生 codex 1 turn + events (§10/§16.5) | ⬜ Open | [013](../issues/013-p3c-agent-runner.md) |
+| P3d | reconciliation + startup cleanup (§8.5/§8.6) | ⬜ Open | [014](../issues/014-p3d-reconciliation.md) |
 | P4 | agent 起動を codexclient 経由に + sandbox 配線 | ⬜ Pending | — |
 | P5 | `claude-app-server` shim 実装 | ⬜ Pending | — |
 | P6 | continuation turn + stall + reconciliation + metrics | ⬜ Pending | — |
