@@ -1,7 +1,7 @@
 # 021: platform/metrics — token/runtime aggregation + codex activity (stall) tracking
 
 - **Phase**: P6b ([plans/04-phases.md#p6-continuation--reconciliation--metrics](../plans/04-phases.md))
-- **Status**: Done (2026-05-20)
+- **Status**: A/B/B' Done (2026-05-20)。**B''（生涯累積 codex_totals, §13.5）要追加** — 022 の前提
 - **Depends on**: 013 (merged; runner emits events)、014 (merged; stall 検知の枠)
 - **並行可**: P5 と別領域。codex の既存 event から集計でき claude shim 不要（agent 非依存の集計）
 - **Blocks**: M3、022 (HTTP server が集計値を出す)
@@ -27,12 +27,23 @@ SPEC §13.5 が要請する token/runtime 集計と、§8.5 Part A の stall 検
 - [x] rate-limit snapshot（codex/claude が返す場合）の保持
 - [x] codex の `turn/completed` usage を取り込み `RunAttempt.Total*Tokens` に反映。**claude は per-turn usage を shim(019)が absolute に積み上げて emit する責務**（orchestrator は常に absolute を受ける前提）
 
+### B''. orchestrator 生涯の累積 `codex_totals`（§13.5「accumulate aggregate totals in orchestrator state」— 要追加）
+
+現状 `WorkerExitNormal`/`WorkerExitAbnormal`/`ReleaseClaim` は per-issue の `usage` accumulator を **roll-up せず delete** しており、ended/released session 分が失われる。§13.5/§13.7.2 の `codex_totals`（aggregate tokens + runtime seconds）は orchestrator 生涯の累積なので、これを満たす:
+
+- [ ] `State` に scalar の累積 `codexTotals`（`metrics.Totals` + 累積 runtime）を追加
+- [ ] **最終 exit/release 時**（terminal cleanup / released）に per-issue accumulator の確定値を `codexTotals` に roll-up してから delete
+- [ ] **continuation（`WorkerExitNormal`）では roll-up せず accumulator を保持**（同一 codex thread が cumulative absolute を報告し続けるため、reset すると次 turn で全累積を再加算し二重計上する）。continuation は同一 issue キーで accumulator を継続
+- [ ] `StateSnapshot` に `codexTotals`（running 中 + ended の総和）を載せ、022 が read-only で公開できるようにする
+- 備考: これは 022 ではなく **本 issue（scheduler state 責務）** で実装。022 は純 read-only を維持
+
 ### C. テスト (§17.5)
 
 - [x] event 受信で LastCodexTimestamp が進む → stall 検知が活動基準になる
 - [x] 同じ累積 absolute total を複数回報告しても **二重計上されない**（last-reported 差分追跡が効く）
 - [x] `last_token_usage` 等の delta 形式 payload は集計に**混入しない**（無視される）
 - [x] usage event から input/output/total が集計される
+- [ ] **生涯累積**: session が終了/解放されても `codexTotals` から token/runtime が**減らない**（roll-up が効く）。continuation 跨ぎで**二重計上されない**
 
 ## Acceptance Criteria
 
@@ -40,6 +51,7 @@ SPEC §13.5 が要請する token/runtime 集計と、§8.5 Part A の stall 検
 - token は **absolute thread totals のみ**から集計し、last-reported 差分追跡で**二重計上しない**。delta 形式 payload は無視（conformance「delta フォールバック禁止」と一致）
 - runtime が正確に集計され RunAttempt/observability に載る
 - orchestrator は常に absolute を受ける前提（claude の per-turn → absolute 積み上げは shim 019 の責務）。集計コード自体は agent 非依存
+- **`codex_totals` は orchestrator 生涯の累積**（running + ended）として State に保持され `StateSnapshot` で公開される（§13.5「accumulate aggregate totals in orchestrator state」）。session 終了で減らず、continuation で二重計上しない
 - `go test ./platform/metrics/ ./orchestrator/...` 緑、lint 緑
 
 ## References
