@@ -18,8 +18,9 @@ type Mount struct {
 }
 
 // WrappedLaunch is the resolved launch specification after sandboxing has been
-// applied. Command/StartDir/Env are passed to TmuxBackend.SpawnWindow;
-// Cleanup is called when the frame is destroyed.
+// applied. Command/StartDir/Env are handed to the caller's spawn layer (a tmux
+// backend for roost, a direct stdio exec for the orchestrator);
+// Cleanup is called when the launch is torn down.
 type WrappedLaunch struct {
 	Command          string
 	StartDir         string

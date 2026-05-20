@@ -7,10 +7,13 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"syscall"
 
 	"github.com/takezoh/agent-roost/platform/agent/codexclient"
 	"github.com/takezoh/agent-roost/platform/agent/codexschema"
+	codexschemav1 "github.com/takezoh/agent-roost/platform/agent/codexschema/v1"
 	"github.com/takezoh/agent-roost/platform/logger"
 )
 
@@ -28,13 +31,41 @@ type appHandler struct {
 func (h *appHandler) OnServerRequest(id int64, method string, _ json.RawMessage) {
 	switch method {
 	case codexschema.MethodInitialize:
-		_ = h.conn.Reply(id, map[string]any{
-			"serverInfo":   map[string]any{"name": "claude-app-server", "version": "0"},
-			"capabilities": map[string]any{"experimentalApi": true},
-		})
+		_ = h.conn.Reply(id, initializeResponse())
 	default:
 		_ = h.conn.ReplyError(id, fmt.Sprintf("method %q not implemented", method))
 	}
+}
+
+// initializeResponse builds a schema-valid Codex InitializeResponse. The shim
+// reports its own platform metadata; codexHome falls back to the conventional
+// ~/.codex when $CODEX_HOME is unset.
+func initializeResponse() codexschemav1.InitializeResponse {
+	platformOS := runtime.GOOS
+	if platformOS == "darwin" {
+		platformOS = "macos"
+	}
+	family := "unix"
+	if runtime.GOOS == "windows" {
+		family = "windows"
+	}
+	return codexschemav1.InitializeResponse{
+		CodexHome:      codexHome(),
+		PlatformFamily: family,
+		PlatformOS:     platformOS,
+		UserAgent:      "claude-app-server/0",
+	}
+}
+
+func codexHome() string {
+	if h := os.Getenv("CODEX_HOME"); h != "" {
+		return h
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "/"
+	}
+	return filepath.Join(home, ".codex")
 }
 
 func (h *appHandler) OnNotification(method string, _ json.RawMessage) {

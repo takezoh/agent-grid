@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/takezoh/agent-roost/platform/agent/codexclient"
+	codexschemav1 "github.com/takezoh/agent-roost/platform/agent/codexschema/v1"
 )
 
 func newTestTransport(input string, out *bytes.Buffer) codexclient.Transport {
@@ -33,14 +34,14 @@ func TestInitializeResponse(t *testing.T) {
 		t.Errorf("want id=1, got %d", msg.ID)
 	}
 
-	var result struct {
-		Capabilities map[string]any `json:"capabilities"`
-	}
+	// The response must satisfy the pinned codex InitializeResponse schema:
+	// codexHome, platformFamily, platformOs, userAgent are all required.
+	var result codexschemav1.InitializeResponse
 	if err := json.Unmarshal(msg.Result, &result); err != nil {
 		t.Fatalf("parse result: %v", err)
 	}
-	if result.Capabilities == nil {
-		t.Error("want capabilities in result")
+	if result.CodexHome == "" || result.PlatformFamily == "" || result.PlatformOS == "" || result.UserAgent == "" {
+		t.Errorf("InitializeResponse missing required fields: %+v", result)
 	}
 }
 

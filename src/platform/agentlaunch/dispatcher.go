@@ -2,8 +2,9 @@ package agentlaunch
 
 import "context"
 
-// Dispatcher wraps a LaunchPlan before it reaches tmux, applying any sandbox
-// or container logic. Implementations must be safe for concurrent use.
+// Dispatcher wraps a LaunchPlan before it reaches the caller's spawn layer,
+// applying any sandbox or container logic. Implementations must be safe for
+// concurrent use.
 type Dispatcher interface {
 	// Wrap applies sandbox logic to plan and returns the resolved launch spec.
 	Wrap(ctx context.Context, frameID string, plan LaunchPlan) (WrappedLaunch, error)
