@@ -19,6 +19,21 @@
   - [ ] `cfg.Tracker.{Endpoint, APIKey, ProjectSlug, ActiveStates}` を `platform/tracker/linear.New(endpoint, apiKey, projectSlug, activeStates)` に渡す (active states は adapter に束ねる — 008 B 参照)
   - [ ] `api_key` 空なら `missing_tracker_api_key`、`project_slug` 空なら `missing_tracker_project_slug` (preflight=007 と整合する error 分類を再利用)
 - [ ] `cfg.Tracker.TerminalStates` は wrapper 側で保持し、`TerminalIssues` 呼び出し時に引数で渡す (adapter には持たせない)
+- [ ] **テスト seam — factory 注入**: active states は `linear.New` の構築時に束ねられ interface メソッドからは観測できないため、構築を差し替え可能にする:
+
+```go
+type adapterFactory func(endpoint, apiKey, projectSlug string, activeStates []string) ptracker.Adapter
+
+func defaultFactory(ep, key, slug string, active []string) ptracker.Adapter {
+    return linear.New(ep, key, slug, active)
+}
+
+func New(cfg wfconfig.Config) (*Tracker, error) { return newWithFactory(cfg, defaultFactory) }
+
+func newWithFactory(cfg wfconfig.Config, factory adapterFactory) (*Tracker, error) { ... }
+```
+
+  - `newWithFactory` は非公開・内部テスト (`package tracker`) から呼ぶ。global 可変 var は使わない (parallel test 競合回避)
 
 ### B. 業務オペレーション
 
@@ -35,7 +50,8 @@
 
 - [ ] `kind != linear` で `unsupported_tracker_kind`
 - [ ] api_key / project_slug 欠落で対応 typed error
-- [ ] active/terminal state set が adapter 呼び出しに渡る (fake adapter で検証)
+- [ ] **active states が構築時に adapter へ渡る**: fake `adapterFactory` で `New` 引数の `activeStates` を捕捉し検証
+- [ ] **terminal states が per-call で渡る**: fake adapter が `FetchIssuesByStates` の引数を記録し、`TerminalIssues(ctx)` 経由で `cfg.Tracker.TerminalStates` が渡ることを検証
 - [ ] 空 ids の `RefreshStates` が API 呼び出しなしで空返し
 
 ## Acceptance Criteria
