@@ -7,10 +7,11 @@ Symphony SPEC 実装の全体ロードマップと進捗。設計の詳細は [0
 
 ## 現在地
 
-**M0 (構造分離)・M1 (最小単線通電) ともに完了。** P1 (005–007)・P2 (008–010)・P3 (011–014) を全て実装・
-レビュー・merge 済み（007/011–014 のレビュー修正は `3c659e0`）。1 issue → workspace → codex app-server で
-1 turn が direct mode で通電する。次は **M2 / P4 (agent 起動の sandbox 配線)** を 2 issue (015–016) に分解して起票。
-015 で launch を `agentlaunch.Dispatcher` 経由にし、016 で devcontainer モードを配線する。
+**M0 (構造分離)・M1 (最小単線通電) 完了。M2 (多 agent 対応) は P4 完了・P5 着手。**
+P1–P3 (005–014) と P4 (015–016) を全て実装・レビュー・merge 済み（015/016 のレビュー修正は `1cacc74`、
+main へ ff-merge 済み）。direct/devcontainer の両モードで agent launch が `agentlaunch.Dispatcher` 経由に。
+残るは **P5 (claude-app-server shim)** を 3 issue (017–019) に分解して起票。017 で `claude -p` の stream-json
+reader、018 で shim 本体、019 で agent 切替 end-to-end を通すと M2 完成。
 
 ## Phase 進捗
 
@@ -30,12 +31,16 @@ Symphony SPEC 実装の全体ロードマップと進捗。設計の詳細は [0
 | P3b | poll/dispatch tick — eligibility/sort/concurrency/retry (§8) | ✅ Done | [012](../issues/.archive/012-p3b-dispatch-tick.md) |
 | P3c | agent runner — prompt + codex 1 turn + events (§10/§16.5) | ✅ Done | [013](../issues/.archive/013-p3c-agent-runner.md) |
 | P3d | reconciliation + startup cleanup (§8.5/§8.6) | ✅ Done | [014](../issues/.archive/014-p3d-reconciliation.md) |
-| P4a | launch を `agentlaunch.Dispatcher` 経由に (direct mode) | ▶ Next | [015](../issues/015-p4a-agentlaunch-seam.md) |
-| P4b | devcontainer モード + host↔container path 変換 | ⬜ Open | [016](../issues/016-p4b-devcontainer-mode.md) |
-| P5 | `claude-app-server` shim 実装 | ⬜ Pending | — |
-| P6 | continuation turn + stall + reconciliation + metrics | ⬜ Pending | — |
-| P7 | HTTP server (`/`, `/api/v1/*`) | ⬜ Pending | — |
-| P8 | WORKFLOW.md hot reload + `linear_graphql` tool | ⬜ Pending | — |
+| P4a | launch を `agentlaunch.Dispatcher` 経由に (direct mode) | ✅ Done | [015](../issues/.archive/015-p4a-agentlaunch-seam.md) |
+| P4b | devcontainer モード + host↔container path 変換 | ✅ Done | [016](../issues/.archive/016-p4b-devcontainer-mode.md) |
+| P5a | `claude -p` stream-json reader (`platform/lib/claude/streamjson`) | ▶ Next | [017](../issues/017-p5a-claude-streamjson.md) |
+| P5b | `claude-app-server` shim — codex stdio + `claude -p` 中継 | ⬜ Open | [018](../issues/018-p5b-claude-app-server.md) |
+| P5c | token usage + approval posture + agent 切替 end-to-end | ⬜ Open | [019](../issues/019-p5c-agent-switch-conformance.md) |
+| P6a | continuation multi-turn loop + worker-exit→state | ⬜ Open (並列可) | [020](../issues/020-p6a-continuation-loop.md) |
+| P6b | token/runtime 集計 + codex activity (stall) tracking | ⬜ Open (並列可) | [021](../issues/021-p6b-metrics.md) |
+| P7 | observability HTTP server (`/`, `/api/v1/*`) | ⬜ Open (並列可) | [022](../issues/022-p7-http-server.md) |
+| P8a | WORKFLOW.md hot reload (§6.2) | ⬜ Open (並列可) | [023](../issues/023-p8a-hot-reload.md) |
+| P8b | `linear_graphql` agent tool (mcpproxy, §10.5) | ⬜ Open (並列可) | [024](../issues/024-p8b-linear-graphql-tool.md) |
 | P9 | SPEC §17 conformance test + loki retirement | ⬜ Pending | — |
 
 ## マイルストーン

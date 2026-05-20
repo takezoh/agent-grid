@@ -26,31 +26,51 @@
 
 ## 直近 issue 一覧
 
-### P4 batch (agent launch の sandbox 配線) — M2 前半
+M1 (P1–P3) + P4 (sandbox 配線) は merge 済み。以降は **P5（agent 切替）と並列トラック（P6/P7/P8）を同時進行**できる。
+
+### P5 batch (claude-app-server shim) — M2 後半 / 内部は直列
 
 | ID | タイトル | Phase | Status | Depends on |
 |---|---|---|---|---|
-| [015](015-p4a-agentlaunch-seam.md) | launch を `agentlaunch.Dispatcher` 経由に (direct mode) | P4a | Open | 013 (merged), P0b (merged) |
-| [016](016-p4b-devcontainer-mode.md) | devcontainer モード + host↔container path 変換 | P4b | Open | 015 |
+| [017](017-p5a-claude-streamjson.md) | `claude -p` stream-json reader (`platform/lib/claude/streamjson`) | P5a | Open | なし (leaf) |
+| [018](018-p5b-claude-app-server.md) | claude-app-server shim — codex stdio + `claude -p` 中継 | P5b | Open | 017, P0c (merged) |
+| [019](019-p5c-agent-switch-conformance.md) | token usage + approval posture + agent 切替 end-to-end | P5c | Open | 018 |
+
+### 並列トラック (P5 と独立に進行可) — M3 前倒し
+
+| ID | タイトル | Phase | Status | Depends on |
+|---|---|---|---|---|
+| [020](020-p6a-continuation-loop.md) | continuation multi-turn loop + worker-exit→state | P6a | Open | 013/011/012 (merged) |
+| [021](021-p6b-metrics.md) | token/runtime 集計 + codex activity (stall) tracking | P6b | Open | 013/014 (merged) |
+| [022](022-p7-http-server.md) | observability HTTP server (§13.7) | P7 | Open | 011 (merged) |
+| [023](023-p8a-hot-reload.md) | WORKFLOW.md hot reload (§6.2) | P8a | Open | 006/007 (merged) |
+| [024](024-p8b-linear-graphql-tool.md) | `linear_graphql` agent tool via mcpproxy (§10.5) | P8b | Open | 008/P0b/P0c (merged) |
 
 ## 依存関係グラフ
 
 ```
-  M1 (Done):  005─006─007 ─┐
-              008─009─010 ─┼─ 011 ─┬─ 012 ─┬─ 013 (agent runner)
-                           │       └─ 014  │
-                           └──────────────→ M1 単線通電 ✅
+  merged (M1+P4): 013 agent runner / 011 state / 012 dispatch / 014 reconcile
+                  P0b agentlaunch / P0c codexclient / 015·016 sandbox 配線
 
-  P4:  013 (merged) ──► 015 ──► 016
-       agent runner     Dispatcher    devcontainer
-       (P0b agentlaunch)  seam        + path 変換
-       (direct mode)
+  P5 (直列):   017 streamjson ──► 018 shim ──► 019 切替/usage/posture ──► M2 完成
+               (leaf)            (+P0c)        (agent 非依存を実証)
+
+  並列トラック (P5 と同時・相互非依存、全て merged 基盤の上):
+     020 continuation  ── orchestrator/agent + scheduler   (codex で完結)
+     021 metrics/stall  ── platform/metrics + state         (agent 非依存集計)
+     022 HTTP server    ── orchestrator/httpserver (read-only state)
+     023 hot reload     ── scheduler/wfconfig
+     024 linear_graphql ── platform/mcpproxy + tracker
 ```
 
-- **P4a (015)** が P4 のルート。前提は **013**（agent runner、merged）+ **P0b**（`platform/agentlaunch`、merged）。launch を `Dispatcher.Wrap` 経由にするだけで挙動は direct のまま（回帰なし）
-- **P4b (016)** は **015 に直列依存**。015 で入れた seam に `DevcontainerLauncher` を差し込み、container 内 launch・cwd の host↔container 変換・sock/mounts を配線
-- **016 には設計判断**（devcontainer 設定の出どころ）があり、実装前に PR で確定する（推奨: roost `~/.roost/` config 再利用）
-- P4 完了で **direct / devcontainer 両モード**で 1 issue end-to-end。続く **P5**（claude-app-server shim）で agent 切替に進み M2 完成
+- **P5 内は直列**: 017(reader) → 018(shim 本体) → 019(usage/posture/切替)。017 は leaf で即着手可
+- **020–024 は P5 に非依存**で並列着手可。いずれも merged 済みの基盤（013/011/012/014/P0b/P0c/006-009）の上に立ち、**触るファイルが P5（`cmd/claude-app-server`）と重ならない**:
+  - 020 → `orchestrator/agent`+`scheduler`（M1 レビュー #6 の worker-exit→state を解消）
+  - 021 → `platform/metrics`+state（#7 の LastCodexTimestamp を解消）。022 が集計値を表示
+  - 022 → 新規 `orchestrator/httpserver`（state を read-only 公開、§13.7 必須）
+  - 023 → `scheduler`/`wfconfig`（§6.2 即時 reload + last-known-good）
+  - 024 → `platform/mcpproxy`+`tracker`（agent 向け Linear tool、agent 種別非依存）
+- **競合に注意**: 020 と 021 はともに `scheduler/state.go` の `RunAttempt` を触るため、片方先行 or 調整推奨。022 は 021 の集計値に依存（先に 021 → 022 が理想だが、022 は空集計でも単独着手可）
 
 ## 完了済み (archive)
 
@@ -60,11 +80,11 @@
 - **M1 / P1 batch** (loader→config→scheduler): [005](.archive/005-p1a-workflowfile.md) loader / [006](.archive/006-p1b-wfconfig.md) wfconfig / [007](.archive/007-p1c-preflight-stub-scheduler.md) preflight+stub loop
 - **M1 / P2 batch** (tracker/workspace): [008](.archive/008-p2a-linear-tracker.md) linear adapter / [009](.archive/009-p2b-orchestrator-tracker.md) tracker wrapper / [010](.archive/010-p2c-workspace-manager.md) workspace manager
 - **M1 / P3 batch** (scheduler core): [011](.archive/011-p3a-scheduler-state.md) state machine / [012](.archive/012-p3b-dispatch-tick.md) dispatch tick / [013](.archive/013-p3c-agent-runner.md) agent runner / [014](.archive/014-p3d-reconciliation.md) reconciliation
+- **M2 / P4 batch** (sandbox 配線): [015](.archive/015-p4a-agentlaunch-seam.md) Dispatcher seam / [016](.archive/016-p4b-devcontainer-mode.md) devcontainer + path 変換
 
-## 次の batch (P5 以降)
+## 次の batch (P9)
 
-- P5: `claude-app-server` shim 実装（container 内で claude を codex protocol で喋らせる、要 016）
-- P6 以降: continuation turn + stall + metrics / HTTP server / hot reload + linear_graphql / conformance test
+- P9: SPEC §17 conformance test 群 + loki retirement（P5–P8 が出揃ってから。一部は先行して書ける）
 
 詳細は [plans/04-phases.md](../plans/04-phases.md) / [plans/roadmap.md](../plans/roadmap.md) を参照。
 
