@@ -108,7 +108,7 @@ func buildScheduler(ctx context.Context, absPath string, cfg wfconfig.Config, tm
 	}
 
 	ws := workspace.New(cfg)
-	runner := agent.New(ws, cfg, tmpl, dispatcher)
+	runner := agent.New(ws, cfg, tmpl, dispatcher, tr)
 
 	sched := scheduler.New(absPath, cfg, scheduler.Deps{
 		Tracker:        tr,
@@ -116,5 +116,6 @@ func buildScheduler(ctx context.Context, absPath string, cfg wfconfig.Config, tm
 		Workspace:      ws,
 		Spawn:          runner.Spawn,
 	})
+	runner.WorkerDone = sched.WorkerDone()
 	return sched, dispatcherCleanup, nil
 }

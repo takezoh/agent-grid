@@ -14,6 +14,12 @@ import (
 	"github.com/takezoh/agent-roost/platform/tracker"
 )
 
+// stateRefresher fetches current issue states between turns (SPEC §16.5).
+// Satisfied by *orchestrator/tracker.Tracker; fakes implement it in tests.
+type stateRefresher interface {
+	RefreshStates(ctx context.Context, ids []string) ([]tracker.Issue, error)
+}
+
 const (
 	EventSessionStarted = "session_started"
 	EventTurnCompleted  = "turn_completed"
@@ -41,16 +47,19 @@ type Runner struct {
 	Cfg            wfconfig.Config
 	PromptTemplate string
 	Dispatcher     agentlaunch.Dispatcher
+	Tracker        stateRefresher
+	WorkerDone     chan<- scheduler.WorkerExit
 	proc           procFunc
 }
 
 // New returns a Runner wired with the real exec subprocess and DirectDispatcher.
-func New(ws *workspace.Manager, cfg wfconfig.Config, tmpl string, d agentlaunch.Dispatcher) *Runner {
+func New(ws *workspace.Manager, cfg wfconfig.Config, tmpl string, d agentlaunch.Dispatcher, tr stateRefresher) *Runner {
 	return &Runner{
 		Workspace:      ws,
 		Cfg:            cfg,
 		PromptTemplate: tmpl,
 		Dispatcher:     d,
+		Tracker:        tr,
 		proc:           realProc,
 	}
 }

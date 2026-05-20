@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/takezoh/agent-roost/orchestrator/prompt"
@@ -13,7 +14,10 @@ import (
 	"github.com/takezoh/agent-roost/platform/tracker"
 )
 
-const spawnTimeout = 30 * time.Second
+const (
+	spawnTimeout       = 30 * time.Second
+	continuationPrompt = "Continue working on the issue."
+)
 
 type launchResult struct {
 	conn         *codexclient.Conn
@@ -24,13 +28,28 @@ type launchResult struct {
 	cleanup      func(context.Context) error
 }
 
+// workerParams bundles the per-session state for the multi-turn loop goroutine.
+type workerParams struct {
+	issue        tracker.Issue
+	attempt      int
+	conn         *codexclient.Conn
+	startDir     string
+	ids          sessionIDs
+	sessionReady <-chan sessionIDs
+	turnDone     <-chan turnResult
+	doneCh       <-chan struct{}
+	cancel       context.CancelFunc
+	worker       *Worker
+	emit         func(Event)
+}
+
 func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int, emit func(Event)) (scheduler.LiveSession, error) {
 	wsPath, err := r.prepareWorkspace(ctx, issue.Identifier)
 	if err != nil {
 		return scheduler.LiveSession{}, err
 	}
 
-	rendered, err := prompt.Render(r.PromptTemplate, prompt.Vars{Issue: issue, Attempt: attempt})
+	rendered, err := r.renderPrompt(issue, attempt)
 	if err != nil {
 		return scheduler.LiveSession{}, err
 	}
@@ -52,7 +71,21 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 	}
 
 	worker := &Worker{cancel: cancel, done: lr.doneCh, cleanup: lr.cleanup}
-	go r.runMonitor(issue.Identifier, ids, lr.turnDone, lr.doneCh, cancel, worker, emit)
+
+	wp := workerParams{
+		issue:        issue,
+		attempt:      attempt,
+		conn:         lr.conn,
+		startDir:     lr.startDir,
+		ids:          ids,
+		sessionReady: lr.sessionReady,
+		turnDone:     lr.turnDone,
+		doneCh:       lr.doneCh,
+		cancel:       cancel,
+		worker:       worker,
+		emit:         emit,
+	}
+	go r.runLoop(workerCtx, wp)
 
 	emit(Event{
 		Kind:      EventSessionStarted,
@@ -71,6 +104,124 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 	}, nil
 }
 
+// runLoop runs the §16.5 multi-turn while-loop in a goroutine.
+// It signals worker exit via sendWorkerExit after teardown completes.
+func (r *Runner) runLoop(ctx context.Context, wp workerParams) {
+	var loopErr error
+	for turn := 1; ; turn++ {
+		result := r.awaitTurn(wp)
+		if result.failed {
+			wp.emit(r.turnFailedEvent(wp.ids, result.err))
+			loopErr = result.err
+			break
+		}
+		wp.emit(r.turnCompletedEvent(wp.ids))
+
+		if !r.shouldContinue(ctx, wp.issue, turn) {
+			break
+		}
+		if err := r.nextTurn(ctx, &wp, turn+1); err != nil {
+			loopErr = err
+			break
+		}
+	}
+	r.teardown(wp)
+	r.sendWorkerExit(wp.issue.ID, wp.attempt, loopErr)
+}
+
+// awaitTurn waits for the current turn to complete, applying per-turn timeout.
+// Timeout and unexpected process exit are mapped to turnResult{failed:true}.
+func (r *Runner) awaitTurn(wp workerParams) turnResult {
+	var timeoutCh <-chan time.Time
+	if r.Cfg.Codex.TurnTimeoutMS > 0 {
+		timer := time.NewTimer(time.Duration(r.Cfg.Codex.TurnTimeoutMS) * time.Millisecond)
+		defer timer.Stop()
+		timeoutCh = timer.C
+	}
+
+	select {
+	case result := <-wp.turnDone:
+		return result
+	case <-timeoutCh:
+		wp.cancel()
+		<-wp.doneCh
+		return turnResult{failed: true, err: fmt.Errorf("turn timeout exceeded (%dms)", r.Cfg.Codex.TurnTimeoutMS)}
+	case <-wp.doneCh:
+		select {
+		case result := <-wp.turnDone:
+			return result
+		default:
+			return turnResult{failed: true, err: errors.New("codex process exited unexpectedly")}
+		}
+	}
+}
+
+// shouldContinue re-fetches issue state and checks continuation criteria (§16.5).
+// Returns false when the issue is no longer active or max_turns is reached.
+func (r *Runner) shouldContinue(ctx context.Context, issue tracker.Issue, turn int) bool {
+	if turn >= r.Cfg.Agent.MaxTurns {
+		return false
+	}
+	if r.Tracker == nil {
+		return false
+	}
+	issues, err := r.Tracker.RefreshStates(ctx, []string{issue.ID})
+	if err != nil {
+		return false
+	}
+	if len(issues) == 0 {
+		return false
+	}
+	norm := strings.ToLower(issues[0].State)
+	for _, s := range r.Cfg.Tracker.ActiveStates {
+		if strings.ToLower(s) == norm {
+			return true
+		}
+	}
+	return false
+}
+
+// nextTurn issues the next turn on the same thread and awaits turn/started.
+func (r *Runner) nextTurn(workerCtx context.Context, wp *workerParams, turn int) error {
+	if err := codexclient.StartTurn(wp.conn, wp.ids.threadID, wp.startDir, []byte(continuationPrompt)); err != nil {
+		return fmt.Errorf("agent: start turn %d: %w", turn, err)
+	}
+	timer := time.NewTimer(spawnTimeout)
+	defer timer.Stop()
+	select {
+	case ids := <-wp.sessionReady:
+		wp.ids = ids
+		return nil
+	case <-timer.C:
+		return fmt.Errorf("agent: timeout waiting for turn %d to start", turn)
+	case <-wp.doneCh:
+		return fmt.Errorf("agent: codex exited before turn %d started", turn)
+	case <-workerCtx.Done():
+		return fmt.Errorf("agent: context cancelled waiting for turn %d", turn)
+	}
+}
+
+// teardown cancels the worker context, waits for process exit, and runs cleanup.
+func (r *Runner) teardown(wp workerParams) {
+	wp.cancel()
+	<-wp.doneCh
+	wp.worker.runCleanup()
+	r.Workspace.AfterRun(context.Background(), wp.issue.Identifier)
+}
+
+// sendWorkerExit delivers the worker exit signal to the scheduler (§16.6).
+// Uses non-blocking send because the channel is buffered (cap 64) and teardown
+// must complete before the scheduler can re-dispatch to the same workspace.
+func (r *Runner) sendWorkerExit(issueID string, attempt int, exitErr error) {
+	if r.WorkerDone == nil {
+		return
+	}
+	select {
+	case r.WorkerDone <- scheduler.WorkerExit{IssueID: issueID, Err: exitErr, Attempt: attempt}:
+	default:
+	}
+}
+
 func (r *Runner) prepareWorkspace(ctx context.Context, identifier string) (string, error) {
 	wsPath, err := r.Workspace.Ensure(ctx, identifier)
 	if err != nil {
@@ -83,6 +234,14 @@ func (r *Runner) prepareWorkspace(ctx context.Context, identifier string) (strin
 		return "", fmt.Errorf("agent: before run: %w", err)
 	}
 	return wsPath, nil
+}
+
+func (r *Runner) renderPrompt(issue tracker.Issue, attempt int) (string, error) {
+	rendered, err := prompt.Render(r.PromptTemplate, prompt.Vars{Issue: issue, Attempt: attempt})
+	if err != nil {
+		return "", fmt.Errorf("agent: render prompt: %w", err)
+	}
+	return rendered, nil
 }
 
 func (r *Runner) launchConn(ctx context.Context, frameID, wsPath string) (*launchResult, error) {
@@ -152,55 +311,23 @@ func initSession(conn *codexclient.Conn, wsPath, rendered string, sessionReady <
 	}
 }
 
-func (r *Runner) runMonitor(identifier string, ids sessionIDs, turnDone <-chan turnResult, doneCh <-chan struct{}, cancel context.CancelFunc, worker *Worker, emit func(Event)) {
-	var result turnResult
-
-	// Enforce codex.turn_timeout_ms (§10.3): a turn that neither completes nor
-	// fails within the budget is killed and reported as a failure.
-	var timeoutCh <-chan time.Time
-	if r.Cfg.Codex.TurnTimeoutMS > 0 {
-		timer := time.NewTimer(time.Duration(r.Cfg.Codex.TurnTimeoutMS) * time.Millisecond)
-		defer timer.Stop()
-		timeoutCh = timer.C
+func (r *Runner) turnCompletedEvent(ids sessionIDs) Event {
+	return Event{
+		Kind:      EventTurnCompleted,
+		SessionID: ids.sessionID(),
+		ThreadID:  ids.threadID,
+		TurnID:    ids.turnID,
+		Timestamp: time.Now(),
 	}
+}
 
-	select {
-	case result = <-turnDone:
-	case <-timeoutCh:
-		cancel()
-		<-doneCh
-		result = turnResult{failed: true, err: fmt.Errorf("turn timeout exceeded (%dms)", r.Cfg.Codex.TurnTimeoutMS)}
-	case <-doneCh:
-		select {
-		case result = <-turnDone:
-		default:
-			result = turnResult{failed: true, err: errors.New("codex process exited unexpectedly")}
-		}
+func (r *Runner) turnFailedEvent(ids sessionIDs, err error) Event {
+	return Event{
+		Kind:      EventTurnFailed,
+		SessionID: ids.sessionID(),
+		ThreadID:  ids.threadID,
+		TurnID:    ids.turnID,
+		Timestamp: time.Now(),
+		Err:       err,
 	}
-
-	if result.failed {
-		emit(Event{
-			Kind:      EventTurnFailed,
-			SessionID: ids.sessionID(),
-			ThreadID:  ids.threadID,
-			TurnID:    ids.turnID,
-			Timestamp: time.Now(),
-			Err:       result.err,
-		})
-	} else {
-		emit(Event{
-			Kind:      EventTurnCompleted,
-			SessionID: ids.sessionID(),
-			ThreadID:  ids.threadID,
-			TurnID:    ids.turnID,
-			Timestamp: time.Now(),
-		})
-	}
-
-	// Single-turn (§16.5): stop the session/subprocess, then run after_run
-	// best-effort. cancel triggers conn.Run to return, which reaps the process.
-	cancel()
-	<-doneCh
-	worker.runCleanup()
-	r.Workspace.AfterRun(context.Background(), identifier)
 }

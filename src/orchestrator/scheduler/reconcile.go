@@ -22,14 +22,14 @@ func (s *Scheduler) reconcile(ctx context.Context, cfg wfconfig.Config) {
 		return
 	}
 
-	s.reconcileStall(snap, cfg)
+	s.reconcileStall(ctx, snap, cfg)
 	if s.tracker != nil && s.workspace != nil {
 		s.reconcileRefresh(ctx, snap, cfg)
 	}
 }
 
 // reconcileStall kills workers that have exceeded stall_timeout_ms (§8.5 Part A).
-func (s *Scheduler) reconcileStall(snap StateSnapshot, cfg wfconfig.Config) {
+func (s *Scheduler) reconcileStall(ctx context.Context, snap StateSnapshot, cfg wfconfig.Config) {
 	if cfg.Codex.StallTimeoutMS <= 0 {
 		return
 	}
@@ -55,7 +55,7 @@ func (s *Scheduler) reconcileStall(snap StateSnapshot, cfg wfconfig.Config) {
 		}
 
 		if entry, ok := s.state.WorkerExitAbnormal(id, ErrStall, run.Attempt); ok {
-			s.state.EnqueueRetry(entry)
+			scheduleRetry(s.state, s.clock, s.retryFire, ctx, entry, backoffDelay(entry.Attempt, cfg))
 		}
 	}
 }
@@ -114,7 +114,7 @@ func (s *Scheduler) reconcileRefresh(ctx context.Context, snap StateSnapshot, cf
 				}
 			}
 			if entry, ok := s.state.WorkerExitAbnormal(id, errors.New("issue left active states"), run.Attempt); ok {
-				s.state.EnqueueRetry(entry)
+				scheduleRetry(s.state, s.clock, s.retryFire, ctx, entry, backoffDelay(entry.Attempt, cfg))
 			}
 			slog.Info("reconcile: non-active issue, worker stopped",
 				"issue_id", id, "identifier", run.Issue.Identifier, "state", iss.State)

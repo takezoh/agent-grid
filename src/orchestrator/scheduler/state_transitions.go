@@ -83,6 +83,7 @@ func (s *State) WorkerExitNormal(issueID string) (RetryEntry, bool) {
 		return RetryEntry{}, false
 	}
 	delete(s.running, issueID)
+	delete(s.claimed, issueID)
 
 	return RetryEntry{
 		IssueID:    issueID,
@@ -104,6 +105,7 @@ func (s *State) WorkerExitAbnormal(issueID string, err error, attempt int) (Retr
 		return RetryEntry{}, false
 	}
 	delete(s.running, issueID)
+	delete(s.claimed, issueID)
 
 	return RetryEntry{
 		IssueID:    issueID,

@@ -36,6 +36,14 @@ type Deps struct {
 	Workspace      schedulerWorkspaceAPI
 }
 
+// WorkerExit is sent on the workerDone channel when an agent runner's turn loop ends.
+// Err == nil indicates a clean exit; non-nil indicates an abnormal exit.
+type WorkerExit struct {
+	IssueID string
+	Err     error
+	Attempt int
+}
+
 // Scheduler runs the polling loop per SPEC §16.2.
 type Scheduler struct {
 	workflowPath string
@@ -44,6 +52,7 @@ type Scheduler struct {
 	deps         Deps
 	clock        Clock
 	retryFire    chan retryFireReq
+	workerDone   chan WorkerExit
 	tracker      schedulerTrackerAPI
 	workspace    schedulerWorkspaceAPI
 }
@@ -62,6 +71,7 @@ func New(workflowPath string, cfg wfconfig.Config, deps Deps) *Scheduler {
 		deps:         deps,
 		clock:        clk,
 		retryFire:    make(chan retryFireReq, 64),
+		workerDone:   make(chan WorkerExit, 64),
 		tracker:      deps.RefreshTracker,
 		workspace:    deps.Workspace,
 	}
@@ -89,7 +99,30 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			s.tickOnce(ctx)
 		case req := <-s.retryFire:
 			s.handleRetry(ctx, req)
+		case w := <-s.workerDone:
+			s.handleWorkerExit(ctx, w)
 		}
+	}
+}
+
+// WorkerDone returns the send-side of the worker-exit channel. The agent runner
+// sends a WorkerExit on this channel when its turn loop ends (SPEC §16.6).
+func (s *Scheduler) WorkerDone() chan<- WorkerExit {
+	return s.workerDone
+}
+
+// handleWorkerExit processes a worker-exit notification from the agent runner.
+// It releases the scheduler slot and schedules a continuation or backoff retry.
+func (s *Scheduler) handleWorkerExit(ctx context.Context, w WorkerExit) {
+	cfg, _ := s.reloadConfig()
+	if w.Err == nil {
+		if entry, ok := s.state.WorkerExitNormal(w.IssueID); ok {
+			scheduleRetry(s.state, s.clock, s.retryFire, ctx, entry, continuationDelay)
+		}
+		return
+	}
+	if entry, ok := s.state.WorkerExitAbnormal(w.IssueID, w.Err, w.Attempt); ok {
+		scheduleRetry(s.state, s.clock, s.retryFire, ctx, entry, backoffDelay(entry.Attempt, cfg))
 	}
 }
 
