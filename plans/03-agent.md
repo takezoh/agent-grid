@@ -142,10 +142,11 @@ orchestrator が advertise する optional client-side tool。SPEC は agent pro
 
 ### 実装方針
 
-- **mcpproxy 経由で実装**: Linear MCP server (`@anthropic-ai/linear-mcp-server`) を host で起動し、container 内 agent から JSON-RPC で叩く
-- orchestrator が WORKFLOW.md の Linear auth を使って MCP server を起動 (token は env 経由)
+- **自作の薄い in-repo MCP サーバ** を host で起動し、`platform/mcpproxy/` で container 内 agent に relay する。既製 `@anthropic-ai/linear-mcp-server` は採用しない（高水準 tool 群を出すため §10.5 の raw `query`+`variables` passthrough 形状に合わず、httptest モック/token 非ログのテスト要件も満たせず、node/npx の host 依存が増える）
+- サーバは **`linear_graphql` tool 1 個だけ**を出す: `query` + `variables` を受け Linear GraphQL に POST、success/errors を判別して返す。wire 層は既存の `codexclient.Conn`（stdio JSON-RPC）を再利用し、Linear POST は stdlib `net/http`
+- orchestrator が WORKFLOW.md の Linear auth を env 経由で渡してサーバを起動 (token は env のみ、ログ禁止)
 - agent (codex / claude-app-server) は MCP tool として `linear_graphql` を見る
-- SPEC §10.5 が要請する input/output 形式 (query + variables、success/errors の判別) は MCP server 側で確保
+- SPEC §10.5 が要請する input/output 形式 (query + variables、success/errors の判別) は **この in-repo サーバ**で確保。httptest で Linear をモックして単体テスト可能
 
 → orchestrator binary は Linear API を **2 系統**持つ:
 1. tracker 用 (`platform/tracker/linear/` 経由で dispatch decisions)

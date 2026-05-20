@@ -8,14 +8,17 @@
 
 ## Background
 
-SPEC §10.5 は orchestrator が advertise する optional client-side tool `linear_graphql` を規定。agent process が Linear に query/mutation を発行できるようにする。[plans/03-agent.md](../plans/03-agent.md) の方針どおり **mcpproxy 経由**で Linear MCP server を host 起動し、container 内 agent から見せる。これにより orchestrator は Linear API を 2 系統持つ（tracker 用 = dispatch 判断、agent tool 用 = 本 issue）。
+SPEC §10.5 は orchestrator が advertise する optional client-side tool `linear_graphql` を規定。agent process が Linear に query/mutation を発行できるようにする。
+
+**実装方針（確定）: 自作の薄い in-repo MCP サーバ**。既製 `@anthropic-ai/linear-mcp-server` は採用しない — 高水準 tool 群を出すため §10.5 の raw `query`+`variables` passthrough と形が合わず、Task C の httptest モック/token 非ログを満たせず、node/npx の host 依存が増えるため。in-repo サーバは wire 層に既存 `codexclient.Conn`（stdio JSON-RPC）を再利用し、Linear POST は stdlib `net/http`。`platform/mcpproxy/` は container↔host の relay として使う。これにより orchestrator は Linear API を 2 系統持つ（tracker 用 = dispatch 判断、agent tool 用 = 本 issue）。
 
 ## Tasks
 
-### A. Linear MCP server を mcpproxy 経由で起動
+### A. in-repo MCP サーバ（`linear_graphql` tool 1 個）を mcpproxy 経由で公開
 
-- [ ] WORKFLOW.md の Linear auth（`tracker.api_key`）を env 経由で Linear MCP server に渡して host 起動（token はログ禁止）
-- [ ] `platform/mcpproxy/` 経由で container 内 agent から JSON-RPC で到達できるよう配線（016 の sock/mounts と整合）
+- [ ] `linear_graphql` だけを出す薄い MCP stdio サーバを in-repo 実装（`codexclient.Conn` の server-side helper を wire 層に再利用。既製 npm パッケージは使わない）
+- [ ] WORKFLOW.md の Linear auth（`tracker.api_key`）を env 経由でサーバに渡して host 起動（token はログ禁止）
+- [ ] `platform/mcpproxy/` 経由で container 内 agent から JSON-RPC で到達できるよう relay 配線（016 の sock/mounts と整合）
 - [ ] agent（codex / claude-app-server）が MCP tool として `linear_graphql` を見る
 
 ### B. §10.5 input/output 形式
