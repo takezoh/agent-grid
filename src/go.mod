@@ -13,6 +13,7 @@ require (
 	github.com/coder/websocket v1.8.14
 	github.com/dustinkirkland/golang-petname v0.0.0-20260215035315-f0c533e9ce9b
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/osteele/liquid v1.8.1
 	github.com/sahilm/fuzzy v0.1.1
