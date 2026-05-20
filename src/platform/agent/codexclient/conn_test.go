@@ -159,6 +159,38 @@ func TestStdioTransport_MultiMessage(t *testing.T) {
 	}
 }
 
+// TestStdioTransport_LargeMessage verifies that a message larger than the
+// bufio.Scanner default token size (64 KiB) round-trips intact. Codex/Claude
+// turn events carrying diffs or file contents routinely exceed that bound.
+func TestStdioTransport_LargeMessage(t *testing.T) {
+	pr, pw := io.Pipe()
+	trW := codexclient.StdioTransport(io.NopCloser(strings.NewReader("")), pw)
+	trR := codexclient.StdioTransport(pr, io.Discard)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	payload := strings.Repeat("x", 1<<20) // 1 MiB, well past the 64 KiB default
+	msg, err := json.Marshal(map[string]any{"method": "turn/completed", "text": payload})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	writeErr := make(chan error, 1)
+	go func() { writeErr <- trW.WriteMessage(ctx, msg) }()
+
+	got, err := trR.ReadMessage(ctx)
+	if err != nil {
+		t.Fatalf("ReadMessage: %v", err)
+	}
+	if werr := <-writeErr; werr != nil {
+		t.Fatalf("WriteMessage: %v", werr)
+	}
+	if len(got) != len(msg) {
+		t.Fatalf("got %d bytes, want %d", len(got), len(msg))
+	}
+}
+
 // --- test doubles ---
 
 type echoHandler struct{ conn *codexclient.Conn }

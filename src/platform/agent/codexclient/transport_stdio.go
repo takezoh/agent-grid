@@ -8,12 +8,20 @@ import (
 	"sync"
 )
 
+// maxStdioMessage caps a single newline-delimited JSON message. Codex/Claude
+// turn events carrying large diffs or file contents routinely exceed the
+// bufio.Scanner default (64 KiB), which would silently end the read loop; the
+// WebSocket transport sidesteps this with SetReadLimit(-1).
+const maxStdioMessage = 64 << 20 // 64 MiB
+
 // StdioTransport returns a Transport that reads newline-delimited JSON from r
 // and writes newline-delimited JSON to w.  Pass os.Stdin/os.Stdout for the
 // claude-app-server shim or orchestrator agent-launch paths.
 func StdioTransport(r io.Reader, w io.Writer) Transport {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64<<10), maxStdioMessage)
 	return &stdioTransport{
-		scanner: bufio.NewScanner(r),
+		scanner: scanner,
 		w:       w,
 	}
 }
