@@ -47,10 +47,11 @@ Three top-level trees under `src/`:
 ```
 platform/      Shared infrastructure — roost and orchestrator both depend on this
 client/        roost-specific code — TUI, state machine, runtime, drivers, connectors
-cmd/           Binary entry points — cmd/roost/, cmd/roost-bridge/, (future: cmd/orchestrator/)
+orchestrator/  Symphony SPEC implementation — poll/dispatch/reconcile + observability HTTP
+cmd/           Binary entry points — cmd/roost/, cmd/roost-bridge/, cmd/orchestrator/, cmd/claude-app-server/
 ```
 
-Import direction: `cmd/*` → `client/*` + `platform/*` → (no reverse). `client/*` must not import `orchestrator/*`. `platform/*` must not import `client/*` or `orchestrator/*`. Enforced by `depguard` (see `src/.golangci.yml`).
+Import direction: `cmd/*` → `client/*` + `orchestrator/*` + `platform/*` → (no reverse). `client/*` must not import `orchestrator/*`. `platform/*` must not import `client/*` or `orchestrator/*`. Enforced by `depguard` (see `src/.golangci.yml`).
 
 ### `platform/` — shared base
 
@@ -85,6 +86,33 @@ client/lib/peers/      Peers MCP server (roost-specific IPC)
 client/lib/claude/transcript/ Claude transcript renderer (depends on client/state for TUI integration)
 client/lib/codex/transcript/  Codex transcript renderer (depends on client/state for TUI integration)
 ```
+
+### `orchestrator/` — Symphony SPEC implementation
+
+The orchestrator is a **TUI-less**, **single-authority** background service that implements the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md). It:
+
+- Polls a Linear tracker, dispatches coding agents to per-issue workspaces, reconciles running/stalled sessions, and exposes a read-only observability HTTP server (SPEC §13.7 — mandatory in our implementation).
+- Lives entirely inside `orchestrator/`; does **not** import `client/`.
+- Shares `platform/` (logger, metrics, tracker/linear, agent/codexclient, sandbox, …) with roost.
+
+```
+orchestrator/workflowfile/  WORKFLOW.md YAML front matter + body loader (SPEC §5)
+orchestrator/wfconfig/      Config resolution, defaults, $VAR expansion (SPEC §6)
+orchestrator/scheduler/     Poll loop, dispatch, retry/backoff, reconcile (SPEC §7 §8 §16)
+orchestrator/tracker/       Tracker adapter wrapper (→ platform/tracker/linear/)
+orchestrator/workspace/     Per-issue workspace directory + lifecycle hooks (SPEC §9)
+orchestrator/agent/         Agent runner + event handler (SPEC §10)
+orchestrator/prompt/        Liquid-compatible prompt template renderer (SPEC §12)
+orchestrator/httpserver/    Observability HTTP server — /api/v1/state, /api/v1/refresh (SPEC §13.7)
+orchestrator/lineargql/     linear_graphql client-side tool handler (SPEC §10.5, advertise blocked)
+```
+
+SPEC component ↔ Go package の詳細対応は [`docs/orchestrator/symphony-conformance.md`](docs/orchestrator/symphony-conformance.md) および [`plans/05-conformance.md`](plans/05-conformance.md) を参照。
+
+Three-layer boundary enforced by `depguard` (see `src/.golangci.yml` rules `platform-no-client-or-orchestrator` and `client-no-orchestrator`):
+- `platform/*` imports neither `client/*` nor `orchestrator/*`
+- `client/*` does not import `orchestrator/*`
+- `orchestrator/*` does not import `client/*`
 
 Files matching `client/state/reduce_*.go` host state-machine dispatch tables. They are exempt from the 80-line function limit (see AGENTS.md) because forced extraction of dispatch arms produces single-use helpers that fragment the state machine without adding clarity. File-length (500 lines) and naming rules still apply.
 

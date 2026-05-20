@@ -12,6 +12,20 @@ cd src && go test ./path/to/pkg  # Run tests for a specific package
 cd src && go test -run TestName ./...  # Run a specific test
 ```
 
+## Orchestrator Service
+
+The repo hosts two independent services in one Go module:
+
+| Binary | Source | Role |
+|---|---|---|
+| `roost` | `src/cmd/roost/` | TUI session lifecycle manager (original roost) |
+| `orchestrator` | `src/cmd/orchestrator/` | Symphony SPEC implementation — autonomous poll/dispatch/reconcile + observability HTTP |
+| `claude-app-server` | `src/cmd/claude-app-server/` | Codex app-server stdio shim for claude; enables agent-switch via `codex.command` in WORKFLOW.md |
+
+Build targets: `make build-orchestrator` / `make build-claude-app-server` / `make build-all` (see `## Build & Test` above).  
+Test: `cd src && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...`  
+Conformance: `docs/orchestrator/symphony-conformance.md` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。
+
 ## Rules
 
 - Follow the design principles in ARCHITECTURE.md
