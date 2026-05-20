@@ -35,7 +35,7 @@ func TestRunGracefulShutdown(t *testing.T) {
 	cfg := wfconfig.Config{
 		Polling: wfconfig.PollingConfig{IntervalMS: 1},
 	}
-	s := New(path, cfg)
+	s := New(path, cfg, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- s.Run(ctx) }()
@@ -60,7 +60,7 @@ func TestRunContinuesAfterTickPreflightFailure(t *testing.T) {
 	cfg := wfconfig.Config{
 		Polling: wfconfig.PollingConfig{IntervalMS: 1},
 	}
-	s := New(path, cfg)
+	s := New(path, cfg, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- s.Run(ctx) }()

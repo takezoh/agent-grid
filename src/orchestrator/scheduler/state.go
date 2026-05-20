@@ -43,8 +43,11 @@ const (
 	RetryBackoff                       // abnormal exit → exponential backoff
 )
 
-// WorkerHandle is a placeholder for the agent process handle (concrete type set in issue 013).
-type WorkerHandle any
+// Worker is the interface through which the scheduler stops an agent process (SPEC §7.2).
+// The concrete implementation lives in the codex agent runner (issue 013).
+type Worker interface {
+	Kill(reason string) error
+}
 
 // RetryTimer is a placeholder for the retry timer handle (concrete type set in issue 012).
 type RetryTimer any
@@ -76,7 +79,7 @@ type LiveSession struct {
 	ThreadID  string
 	TurnID    string
 	StartedAt time.Time
-	Worker    WorkerHandle
+	Worker    Worker
 }
 
 // RetryEntry holds the scheduled retry for an issue (SPEC §4.1.7).

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"errors"
 	"maps"
+	"time"
 
 	"github.com/takezoh/agent-roost/platform/tracker"
 )
@@ -14,7 +15,7 @@ var ErrDuplicateDispatch = errors.New("issue already claimed or running")
 // Dispatch records a new running attempt for issue (SPEC §16.4).
 // Returns ErrDuplicateDispatch if the issue is already claimed or running.
 // Removes any existing retry entry for the issue.
-func (s *State) Dispatch(issue tracker.Issue, attempt int, session LiveSession) error {
+func (s *State) Dispatch(issue tracker.Issue, attempt int, session LiveSession, startedAt time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -29,12 +30,27 @@ func (s *State) Dispatch(issue tracker.Issue, attempt int, session LiveSession) 
 
 	s.claimed[issue.ID] = struct{}{}
 	s.running[issue.ID] = RunAttempt{
-		Issue:   issue,
-		Session: session,
-		Attempt: attempt,
-		Phase:   PhasePreparingWorkspace,
+		Issue:     issue,
+		Session:   session,
+		Attempt:   attempt,
+		Phase:     PhasePreparingWorkspace,
+		StartedAt: startedAt,
 	}
 	return nil
+}
+
+// UpdateIssueSnapshot replaces the Issue snapshot for a running attempt (SPEC §8.5 Part B).
+// No-op if issueID is not in running.
+func (s *State) UpdateIssueSnapshot(issueID string, issue tracker.Issue) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	run, ok := s.running[issueID]
+	if !ok {
+		return
+	}
+	run.Issue = issue
+	s.running[issueID] = run
 }
 
 // WorkerExitNormal records a clean worker exit and returns a continuation RetryEntry (SPEC §7.3).
