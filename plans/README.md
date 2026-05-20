@@ -13,6 +13,7 @@ Symphony SPEC ([openai/symphony](https://github.com/openai/symphony)) を agent-
 
 | ファイル | 内容 |
 |---|---|
+| [roadmap.md](roadmap.md) | 全体ロードマップと進捗 (現状を反映する living tracker) |
 | [00-overview.md](00-overview.md) | ゴール / 決定事項 / 非ゴール / 範囲 |
 | [01-spec-gap.md](01-spec-gap.md) | Symphony SPEC.md と既存資産 (roost / loki) の gap 分析 |
 | [02-layout.md](02-layout.md) | リポジトリ構成 / バイナリ / パッケージ境界 / 共有実装方針 |

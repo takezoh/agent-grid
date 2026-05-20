@@ -20,40 +20,39 @@
 ## References
 ```
 
-## 直近 issue 一覧 (P0 batch)
+全体の進捗は [plans/roadmap.md](../plans/roadmap.md) を参照。
+
+## 直近 issue 一覧 (P1 batch)
 
 | ID | タイトル | Phase | Status | Depends on |
 |---|---|---|---|---|
-| [001](001-p0a-physical-move.md) | roost を client/ に、共有を platform/ に物理移動 | P0a | Open | — |
-| [002](002-p0b-agentlaunch.md) | agentlaunch を runtime/ から platform/ へ抽出 | P0b | Open | 001 |
-| [003](003-p0c-codexclient.md) | codexclient と codexschema を stream/ から platform/agent/ へ抽出 | P0c | Open | 001 |
-| [004](004-p0d-cmd-scaffolding.md) | cmd/orchestrator/ と cmd/claude-app-server/ の雛形 + Makefile | P0d | Open | 001 |
+| [005](005-p1a-workflowfile.md) | WORKFLOW.md loader (front matter + body 分離) | P1a | Open | P0 (merged) |
+| [006](006-p1b-wfconfig.md) | wfconfig — typed config view (default/$VAR/~/検証) | P1b | Open | 005 |
+| [007](007-p1c-preflight-stub-scheduler.md) | dispatch preflight + stub scheduler loop | P1c | Open | 006 |
 
 ## 依存関係グラフ
 
 ```
-            001 (P0a)
-              │
-   ┌──────────┼──────────┐
-   ▼          ▼          ▼
-  002        003        004
- (P0b)      (P0c)      (P0d)
+  005 (P1a) ── 006 (P1b) ── 007 (P1c)
+  loader       wfconfig      preflight + stub loop
 ```
 
-- **001 (P0a)** が全てのルート。ディレクトリ構造を確定させる必要があるため
-- **002 / 003 / 004** は 001 完了後に並行可能
-- 001 は 1 PR で完結させるのが望ましいが規模次第で move-only と import-update に分割可
+- P0 と異なり P1 は **直列**。各段が前段の出力を入力に取るため
+- **005** loader が front matter map を返す → **006** が typed config に解決 → **007** が config を preflight 検証し loop に配線
+- 005 → 006 → 007 を 3 PR で順に積むか、規模次第で 005+006 を 1 PR にまとめ 007 を別 PR でも可
 
-## 次の batch (P1 以降)
+## 完了済み (archive)
 
-P0 完了後に作成する issue 群:
+P0 batch (M0: 構造分離) は完了し [.archive/](.archive/) に移動:
 
-- P1: WORKFLOW.md loader + wfconfig + preflight + stub scheduler
-- P2: Linear adapter + workspace + 4 hooks
-- P3: scheduler core (poll/dispatch/retry/reconcile)
-- ...
+- [001](.archive/001-p0a-physical-move.md) P0a 物理移動 / [002](.archive/002-p0b-agentlaunch.md) P0b agentlaunch / [003](.archive/003-p0c-codexclient.md) P0c codexclient / [004](.archive/004-p0d-cmd-scaffolding.md) P0d cmd 雛形
 
-詳細は [plans/04-phases.md](../plans/04-phases.md) を参照。
+## 次の batch (P2 以降)
+
+- P2: Linear adapter (`platform/tracker/linear/`) + workspace manager + 4 hooks
+- P3: scheduler core (poll/dispatch/retry/reconcile) + 生 codex 単線
+
+詳細は [plans/04-phases.md](../plans/04-phases.md) / [plans/roadmap.md](../plans/roadmap.md) を参照。
 
 ## ライフサイクル
 
