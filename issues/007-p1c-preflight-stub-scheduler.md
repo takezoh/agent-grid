@@ -1,7 +1,7 @@
 # 007: dispatch preflight + stub scheduler loop
 
 - **Phase**: P1c ([plans/04-phases.md#p1-workflow-loader--wfconfig--preflight](../plans/04-phases.md))
-- **Status**: Open
+- **Status**: Done
 - **Depends on**: [006](006-p1b-wfconfig.md) (typed config を検証する)
 - **Blocks**: P2 (Linear adapter)、P3 (scheduler core が本 loop を肉付けする)
 
@@ -16,37 +16,37 @@ log するだけ。実際の poll/dispatch は P3 で肉付けする。
 
 ### A. preflight validation (SPEC §6.3)
 
-- [ ] `src/orchestrator/scheduler/` を新設 (`package scheduler`)
-- [ ] `Preflight(cfg wfconfig.Config) error` を実装。検証項目:
-  - [ ] workflow file が load/parse 済み (loader 段で担保 → 呼び出し順で保証)
-  - [ ] `tracker.kind` が present かつ supported (`linear`)
-  - [ ] `tracker.api_key` が `$` 解決後に present
-  - [ ] `tracker.project_slug` が present (kind=linear で REQUIRED)
-  - [ ] `codex.command` が present かつ非空
-- [ ] 失敗は **operator-visible error** (slog.Error + stderr) として表面化
+- [x] `src/orchestrator/scheduler/` を新設 (`package scheduler`)
+- [x] `Preflight(cfg wfconfig.Config) error` を実装。検証項目:
+  - [x] workflow file が load/parse 済み (loader 段で担保 → 呼び出し順で保証)
+  - [x] `tracker.kind` が present かつ supported (`linear`)
+  - [x] `tracker.api_key` が `$` 解決後に present
+  - [x] `tracker.project_slug` が present (kind=linear で REQUIRED)
+  - [x] `codex.command` が present かつ非空
+- [x] 失敗は **operator-visible error** (slog.Error + stderr) として表面化
 
 ### B. stub scheduler loop (SPEC §16.2 骨格)
 
-- [ ] `Scheduler.Run(ctx) error`:
-  - [ ] **起動時 preflight** → 失敗なら起動失敗 (非ゼロ exit) + operator-visible error
-  - [ ] `polling.interval_ms` ごとに tick
-  - [ ] 各 tick で **per-tick preflight 再検証** → 失敗なら dispatch skip + reconcile 継続 (現状 reconcile は no-op) + operator-visible error。成功時は「dispatch なし」を log
-  - [ ] `ctx.Done()` で graceful shutdown
-- [ ] dispatch / candidate fetch は **未実装** (P3)。loop だけ回す
+- [x] `Scheduler.Run(ctx) error`:
+  - [x] **起動時 preflight** → 失敗なら起動失敗 (非ゼロ exit) + operator-visible error
+  - [x] `polling.interval_ms` ごとに tick
+  - [x] 各 tick で **per-tick preflight 再検証** → 失敗なら dispatch skip + reconcile 継続 (現状 reconcile は no-op) + operator-visible error。成功時は「dispatch なし」を log
+  - [x] `ctx.Done()` で graceful shutdown
+- [x] dispatch / candidate fetch は **未実装** (P3)。loop だけ回す
 
 ### C. cmd/orchestrator 配線
 
-- [ ] `cmd/orchestrator/main.go` を更新:
-  - [ ] workflow path precedence (SPEC §5.1): `--workflow` 明示 > cwd の `WORKFLOW.md`
-  - [ ] `workflowfile.Load` → `wfconfig.Resolve` → `scheduler.New(cfg)` → `scheduler.Run(ctx)`
-  - [ ] 既存の SIGTERM/SIGINT graceful shutdown を維持
-  - [ ] `--port` は P7 まで保持 (未使用)
+- [x] `cmd/orchestrator/main.go` を更新:
+  - [x] workflow path precedence (SPEC §5.1): `--workflow` 明示 > cwd の `WORKFLOW.md`
+  - [x] `workflowfile.Load` → `wfconfig.Resolve` → `scheduler.New(cfg)` → `scheduler.Run(ctx)`
+  - [x] 既存の SIGTERM/SIGINT graceful shutdown を維持
+  - [x] `--port` は P7 まで保持 (未使用)
 
 ### D. テスト (SPEC §17.1, §17.7)
 
-- [ ] preflight の各失敗ケース (kind 欠落/未対応、api_key 欠落、project_slug 欠落、command 空) の test
-- [ ] loop の tick → graceful shutdown を fake clock / 短 interval + context cancel で test
-- [ ] `cmd/orchestrator` の起動失敗パス (preflight NG で非ゼロ exit) の test
+- [x] preflight の各失敗ケース (kind 欠落/未対応、api_key 欠落、project_slug 欠落、command 空) の test
+- [x] loop の tick → graceful shutdown を fake clock / 短 interval + context cancel で test
+- [x] `cmd/orchestrator` の起動失敗パス (preflight NG で非ゼロ exit) の test
 
 ## Acceptance Criteria
 

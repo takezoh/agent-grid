@@ -8,8 +8,12 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
+	"github.com/takezoh/agent-roost/orchestrator/scheduler"
+	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
+	"github.com/takezoh/agent-roost/orchestrator/workflowfile"
 	"github.com/takezoh/agent-roost/platform/logger"
 )
 
@@ -35,14 +39,41 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	}
 	defer logger.Close()
 
-	if _, err := os.Stat(*workflow); err != nil {
-		fmt.Fprintf(stderr, "orchestrator: workflow file not found: %s\n", *workflow)
-		slog.Error("workflow file not found", "path", *workflow)
+	slog.Info("orchestrator starting", "workflow", *workflow, "port", *port)
+
+	absPath, err := filepath.Abs(*workflow)
+	if err != nil {
+		fmt.Fprintf(stderr, "orchestrator: workflow path: %v\n", err)
+		slog.Error("workflow path error", "path", *workflow, "err", err)
 		return 1
 	}
 
-	slog.Info("orchestrator starting", "workflow", *workflow, "port", *port)
-	<-ctx.Done()
-	slog.Info("orchestrator shutting down")
+	wf, err := workflowfile.Load(absPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "orchestrator: %v\n", err)
+		slog.Error("workflow load failed", "path", absPath, "err", err)
+		return 1
+	}
+
+	cfg, err := wfconfig.Resolve(wf.Config, filepath.Dir(absPath))
+	if err != nil {
+		fmt.Fprintf(stderr, "orchestrator: config error: %v\n", err)
+		slog.Error("config resolve failed", "err", err)
+		return 1
+	}
+
+	if err := scheduler.Preflight(cfg); err != nil {
+		fmt.Fprintf(stderr, "orchestrator: %v\n", err)
+		slog.Error("preflight failed", "err", err)
+		return 1
+	}
+
+	if err := scheduler.New(absPath, cfg).Run(ctx); err != nil {
+		fmt.Fprintf(stderr, "orchestrator: scheduler: %v\n", err)
+		slog.Error("scheduler error", "err", err)
+		return 1
+	}
+
+	slog.Info("orchestrator stopped")
 	return 0
 }
