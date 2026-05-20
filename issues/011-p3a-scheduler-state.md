@@ -18,10 +18,19 @@ orchestrator は scheduling state を変更する唯一の権威 (§7.4 single-a
 
 - [x] claim state を定義: `Unclaimed` / `Claimed` / `Running` / `RetryQueued` / `Released`
 - [x] in-memory state (§16.4 の構造に対応):
-  - [x] `running` map (issue_id → run state: worker handle, identifier, issue snapshot, session_id, codex_app_server_pid, last_codex_{message,event,timestamp}, started_at, retry_attempt)
+  - [x] `running` map (issue_id → run state: worker, identifier, issue snapshot, session_id, codex_app_server_pid, last_codex_{message,event,timestamp}, started_at, retry_attempt)
   - [x] `claimed` set
   - [x] `retry_attempts` map (issue_id → {attempt, identifier, error, due_at_ms, timer handle})
 - [x] token/runtime 集計フィールドは **構造だけ用意** (実集計は P6)
+- [x] worker は `any` でなく **consumer-side の `Worker` interface** で保持 (driver encapsulation):
+
+```go
+// scheduler パッケージに定義。具象は 013 の agent runner が実装。
+type Worker interface {
+    Kill(reason string) error // §7.2 CanceledByReconciliation / stall のログ・event 用
+}
+```
+  - scheduler は agent/codex の具体を知らず `Kill` だけ呼ぶ。メソッドは現状 Kill のみ (投機的に増やさない)
 
 ### B. 遷移関数 (§7.3) — I/O を持たない純粋関数中心
 

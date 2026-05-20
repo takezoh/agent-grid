@@ -26,6 +26,7 @@ SPEC §10 / §16.5 の Agent Runner を `orchestrator/agent/` に実装する。
 
 ### B. agent runner (§10.7 / §16.5 を single-turn に簡約)
 
+- [ ] 具象 worker が `scheduler.Worker`（`Kill(reason string) error`）を満たす — codex app-server プロセスと turn ループを保持し、Kill で subprocess 終了 + ループ停止。spawn が `scheduler.Worker` を返す
 - [ ] `orchestrator/agent/` 新設、`RunAttempt(ctx, issue, attempt, emit func(Event))`:
   1. workspace `Ensure` (010) → 失敗で fail
   2. `before_run` hook (010) → 失敗で fail

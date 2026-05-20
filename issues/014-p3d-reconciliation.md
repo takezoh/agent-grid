@@ -14,16 +14,16 @@ SPEC §8.5 / §8.6 / §16.3 の reconciliation を実装する。毎 tick の頭
 ### A. Part A — stall detection (§8.5)
 
 - [ ] running issue ごとに `elapsed_ms` を算出: `last_codex_timestamp` があればそこから、無ければ `started_at`
-- [ ] `elapsed_ms > codex.stall_timeout_ms` で worker を kill + retry queue (state machine 011 の WorkerExitAbnormal 経路)
+- [ ] `elapsed_ms > codex.stall_timeout_ms` で `run.Worker.Kill("stall")` + retry queue (state machine 011 の WorkerExitAbnormal 経路)
 - [ ] **`stall_timeout_ms <= 0` なら stall 検出を完全に skip** (§5.3.6 / §8.5)
 
 ### B. Part B — tracker state refresh (§8.5)
 
 - [ ] running 全 issue ID の現在 state を `tracker.RefreshStates` で取得
 - [ ] 各 running issue:
-  - [ ] terminal → worker kill + workspace `Remove` (clean)
+  - [ ] terminal → `run.Worker.Kill("terminal")` + workspace `Remove` (clean)
   - [ ] active → in-memory issue snapshot 更新
-  - [ ] active でも terminal でもない → worker kill (**workspace は残す**)
+  - [ ] active でも terminal でもない → `run.Worker.Kill("non-active")` (**workspace は残す**)
 - [ ] **refresh 失敗時は worker を止めず次 tick に再試行** (§8.5)
 
 ### C. startup terminal cleanup (§8.6 / §16.3)
