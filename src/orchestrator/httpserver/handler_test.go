@@ -139,6 +139,47 @@ func TestStateEndpoint_WithRunningIssue(t *testing.T) {
 	}
 }
 
+// TestStateEndpoint_RateLimitMostRecent verifies that with multiple running
+// issues carrying rate limits, the state response reports the snapshot from the
+// most-recently-active issue (deterministic, not map-iteration-order dependent).
+func TestStateEndpoint_RateLimitMostRecent(t *testing.T) {
+	older := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
+	newer := time.Now().UTC().Truncate(time.Second)
+	sched := &fakeScheduler{snap: scheduler.StateSnapshot{
+		Running: map[string]scheduler.RunAttempt{
+			"id-old": {
+				Issue:              ptrackerv.Issue{ID: "id-old", Identifier: "MT-1", State: "In Progress"},
+				LastCodexTimestamp: older,
+				RateLimit:          &metrics.RateLimitSnapshot{PrimaryUsedPercent: 20},
+			},
+			"id-new": {
+				Issue:              ptrackerv.Issue{ID: "id-new", Identifier: "MT-2", State: "In Progress"},
+				LastCodexTimestamp: newer,
+				RateLimit:          &metrics.RateLimitSnapshot{PrimaryUsedPercent: 90},
+			},
+		},
+		Claimed:       map[string]struct{}{},
+		RetryAttempts: map[string]scheduler.RetryEntry{},
+	}}
+	h := newMux(sched)
+	// Run repeatedly: map order is randomized, so a non-deterministic selection
+	// would eventually pick the older issue and fail.
+	for i := 0; i < 20; i++ {
+		_, body := getBody(t, h, http.MethodGet, "/api/v1/state")
+		var resp map[string]any
+		if err := json.Unmarshal(body, &resp); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		rl, ok := resp["rate_limits"].(map[string]any)
+		if !ok {
+			t.Fatalf("rate_limits missing or null: %s", body)
+		}
+		if rl["primary_used_percent"].(float64) != 90 {
+			t.Fatalf("want most-recent rate limit (90), got %v", rl["primary_used_percent"])
+		}
+	}
+}
+
 // TestStateEndpoint_WithRetrying validates the retrying entry shape.
 func TestStateEndpoint_WithRetrying(t *testing.T) {
 	dueMS := time.Now().Add(30 * time.Second).UnixMilli()

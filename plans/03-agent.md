@@ -140,17 +140,17 @@ orchestrator 側の変更は **不要**。
 
 orchestrator が advertise する optional client-side tool。SPEC は agent process がこれを呼ぶことを規定する。
 
-### 実装方針
+### 実装方針（確定: codex native client-side tool。MCP は不採用）
 
-- **自作の薄い in-repo MCP サーバ** を host で起動し、`platform/mcpproxy/` で container 内 agent に relay する。既製 `@anthropic-ai/linear-mcp-server` は採用しない（高水準 tool 群を出すため §10.5 の raw `query`+`variables` passthrough 形状に合わず、httptest モック/token 非ログのテスト要件も満たせず、node/npx の host 依存が増える）
-- サーバは **`linear_graphql` tool 1 個だけ**を出す: `query` + `variables` を受け Linear GraphQL に POST、success/errors を判別して返す。wire 層は既存の `codexclient.Conn`（stdio JSON-RPC）を再利用し、Linear POST は stdlib `net/http`
-- orchestrator が WORKFLOW.md の Linear auth を env 経由で渡してサーバを起動 (token は env のみ、ログ禁止)
-- agent (codex / claude-app-server) は MCP tool として `linear_graphql` を見る
-- SPEC §10.5 が要請する input/output 形式 (query + variables、success/errors の判別) は **この in-repo サーバ**で確保。httptest で Linear をモックして単体テスト可能
+- **codex app-server protocol の native client-side tool** として実装。MCP / `platform/mcpproxy` は使わない（SPEC §10.5 は「orchestrator 自身が tool を実行」「agent に raw token を読ませない」と規定し、MCP という語は SPEC に登場しない）
+- `item/tool/call`（agent→orchestrator の ServerRequest）を `orchestrator/agent/handler.go` の `OnServerRequest` で受け、`orchestrator/lineargql/` が `query`+`variables` を Linear GraphQL に POST して success/errors を判別。Linear POST は stdlib `net/http`、token は env 経由のみ・ログ禁止
+- Linear client は `wfconfig.TrackerConfig`（Endpoint/APIKey）から構築し `Runner.LinearClient` に注入（`agent.New` で auth が揃えば自動有効化）
+
+> ⚠ **advertise 制約（pinned codex 0.128.0）**: tool を agent に discover させる wire 経路が pinned schema に**存在しない**。`DynamicToolSpec`（tool 宣言形）は schema 定義のみで request からの `$ref` 参照ゼロの orphan、`InitializeCapabilities` も `experimentalApi`+opt-out のみ。よって handler は実装済みだが、実機 codex が自発的に `item/tool/call` を発火するには codex schema bump（`DynamicToolSpec` の配線）が必要。詳細は [issues/024](../issues/024-p8b-linear-graphql-tool.md) §B。
 
 → orchestrator binary は Linear API を **2 系統**持つ:
 1. tracker 用 (`platform/tracker/linear/` 経由で dispatch decisions)
-2. agent tool 用 (`platform/mcpproxy/` 経由で agent に提供)
+2. agent tool 用 (`orchestrator/lineargql/` 経由で `item/tool/call` に応答)
 
 ## roost との関係
 

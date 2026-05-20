@@ -26,6 +26,11 @@ import (
 // ids is a deterministic sequence for newID; returns the client conn, cancel, and a done chan.
 func pipeShim(t *testing.T, launch claudeLauncher, ids []string) (*codexclient.Conn, context.CancelFunc, <-chan struct{}) {
 	t.Helper()
+	// runWith calls logger.Init, which writes under ~/.roost. Point HOME at a
+	// writable temp dir so the read loop actually starts; otherwise logger.Init
+	// fails, runWith returns early, and the client's Initialize write blocks
+	// forever on a reader-less pipe (10-minute test hang under a read-only HOME).
+	isolateHome(t)
 	pr1, pw1 := io.Pipe()
 	pr2, pw2 := io.Pipe()
 
@@ -276,6 +281,32 @@ func TestShim_TurnFailed(t *testing.T) {
 
 	errParams := nc.lastParams(codexschema.MethodError)
 	assert.Equal(t, "oops", errParams["message"])
+}
+
+// TestShim_NoResultEmitsTurnFailed verifies that a turn whose claude process
+// ends cleanly without ever emitting a result line still produces an error
+// notification, so the orchestrator never waits out its full turn_timeout.
+func TestShim_NoResultEmitsTurnFailed(t *testing.T) {
+	var calls [][]string
+	// Stream has a system init + assistant text but no result line; wait()==nil.
+	launch := fakeLauncherSequence(&calls, []string{lineSystemInit, lineAssistant})
+	clientConn, _, _ := pipeShim(t, launch, []string{"thread-1", "turn-1"})
+
+	nc := &notificationCollector{}
+	go func() { _ = clientConn.Run(context.Background(), nc) }()
+
+	require.NoError(t, codexclient.Initialize(clientConn))
+	require.NoError(t, codexclient.StartTurn(clientConn, "", "/ws", []byte("no result")))
+
+	waitForMethods(t, nc, []string{
+		codexschema.MethodThreadStarted,
+		codexschema.MethodTurnStarted,
+		codexschema.MethodItemAgentMessageDelta,
+		codexschema.MethodError,
+	})
+
+	errParams := nc.lastParams(codexschema.MethodError)
+	assert.Contains(t, errParams["message"], "without emitting a result")
 }
 
 // TestShim_ToolEvents verifies that tool_use and tool_result are emitted as

@@ -15,7 +15,18 @@ func newTestTransport(input string, out *bytes.Buffer) codexclient.Transport {
 	return codexclient.StdioTransport(strings.NewReader(input), out)
 }
 
+// isolateHome points HOME at a temp dir so runWith's logger.Init writes the
+// roost.log under a writable temp path instead of the developer's (or the
+// sandbox's read-only) ~/.roost. Without this, logger.Init fails, runWith
+// returns early before the read loop starts, and any client write blocks
+// forever on a pipe with no reader. logger.Init resolves paths via os.UserHomeDir().
+func isolateHome(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+}
+
 func TestInitializeResponse(t *testing.T) {
+	isolateHome(t)
 	var buf bytes.Buffer
 	tr := newTestTransport(`{"id":1,"method":"initialize","params":{}}`, &buf)
 	code := run(context.Background(), tr)
@@ -46,6 +57,7 @@ func TestInitializeResponse(t *testing.T) {
 }
 
 func TestUnknownMethodError(t *testing.T) {
+	isolateHome(t)
 	var buf bytes.Buffer
 	tr := newTestTransport(`{"id":2,"method":"unknown/method","params":{}}`, &buf)
 	run(context.Background(), tr)
@@ -66,6 +78,7 @@ func TestUnknownMethodError(t *testing.T) {
 }
 
 func TestEOFExits(t *testing.T) {
+	isolateHome(t)
 	var buf bytes.Buffer
 	tr := newTestTransport("", &buf)
 	code := run(context.Background(), tr)
@@ -75,6 +88,7 @@ func TestEOFExits(t *testing.T) {
 }
 
 func TestContextCancelExits(t *testing.T) {
+	isolateHome(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var buf bytes.Buffer

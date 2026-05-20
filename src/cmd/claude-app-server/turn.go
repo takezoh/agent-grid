@@ -90,8 +90,15 @@ func (r *turnRunner) runTurn(req turnReq) {
 	}
 
 	resultReceived := r.scanStream(threadID, turnID, sessionID, streamjson.NewScanner(stdout))
-	if err := wait(); err != nil && !resultReceived {
-		msg := fmt.Sprintf("claude exited: %v", err)
+	werr := wait()
+	// If no result line arrived, the turn produced neither turn/completed nor
+	// error. Always emit a turn failure here so the orchestrator does not wait
+	// out its full turn_timeout on a silently-ended process (clean or not).
+	if !resultReceived {
+		msg := "claude exited without emitting a result"
+		if werr != nil {
+			msg = fmt.Sprintf("claude exited: %v", werr)
+		}
 		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, msg) })
 	}
 }

@@ -26,18 +26,25 @@ func projectState(snap scheduler.StateSnapshot, now time.Time) stateResponse {
 		SecondsRunning: snap.CodexSecondsRunning,
 	}
 
-	// Collect the most recently seen rate-limit from any running issue.
+	// Pick the rate-limit from the most-recently-active running issue. Map
+	// iteration order is non-deterministic, so selecting by last activity makes
+	// the chosen snapshot stable and meaningful across calls.
 	var rl *rateLimits
+	var rlAt time.Time
 	for _, run := range snap.Running {
-		if run.RateLimit != nil {
-			rl = &rateLimits{
-				PrimaryUsedPercent:   run.RateLimit.PrimaryUsedPercent,
-				PrimaryResetsAt:      run.RateLimit.PrimaryResetsAt,
-				SecondaryUsedPercent: run.RateLimit.SecondaryUsedPercent,
-				SecondaryResetsAt:    run.RateLimit.SecondaryResetsAt,
-			}
-			break
+		if run.RateLimit == nil {
+			continue
 		}
+		if rl != nil && !run.LastCodexTimestamp.After(rlAt) {
+			continue
+		}
+		rl = &rateLimits{
+			PrimaryUsedPercent:   run.RateLimit.PrimaryUsedPercent,
+			PrimaryResetsAt:      run.RateLimit.PrimaryResetsAt,
+			SecondaryUsedPercent: run.RateLimit.SecondaryUsedPercent,
+			SecondaryResetsAt:    run.RateLimit.SecondaryResetsAt,
+		}
+		rlAt = run.LastCodexTimestamp
 	}
 
 	return stateResponse{
