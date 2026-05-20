@@ -269,6 +269,7 @@ func (r *Runner) launchConn(ctx context.Context, frameID, wsPath string) (*launc
 	turnDone := make(chan turnResult, 1)
 	h := &turnHandler{
 		conn:         conn,
+		linearClient: r.LinearClient,
 		sessionReady: sessionReady,
 		turnDone:     turnDone,
 	}

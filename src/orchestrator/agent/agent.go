@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/takezoh/agent-roost/orchestrator/lineargql"
 	"github.com/takezoh/agent-roost/orchestrator/scheduler"
 	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
 	"github.com/takezoh/agent-roost/orchestrator/workspace"
@@ -49,17 +50,25 @@ type Runner struct {
 	Dispatcher     agentlaunch.Dispatcher
 	Tracker        stateRefresher
 	WorkerDone     chan<- scheduler.WorkerExit
+	LinearClient   *lineargql.Client // nil disables the linear_graphql tool (SPEC §10.5)
 	proc           procFunc
 }
 
-// New returns a Runner wired with the real exec subprocess and DirectDispatcher.
+// New returns a Runner wired with the real exec subprocess.
+// If cfg.Tracker.APIKey and cfg.Tracker.Endpoint are set, the linear_graphql
+// agent tool (SPEC §10.5) is enabled using those credentials.
 func New(ws *workspace.Manager, cfg wfconfig.Config, tmpl string, d agentlaunch.Dispatcher, tr stateRefresher) *Runner {
+	var lc *lineargql.Client
+	if cfg.Tracker.APIKey != "" && cfg.Tracker.Endpoint != "" {
+		lc = lineargql.New(cfg.Tracker.Endpoint, cfg.Tracker.APIKey)
+	}
 	return &Runner{
 		Workspace:      ws,
 		Cfg:            cfg,
 		PromptTemplate: tmpl,
 		Dispatcher:     d,
 		Tracker:        tr,
+		LinearClient:   lc,
 		proc:           realProc,
 	}
 }

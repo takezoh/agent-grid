@@ -38,6 +38,9 @@ const (
 const (
 	MethodItemCommandExecutionRequestApproval = "item/commandExecution/requestApproval"
 	MethodItemFileChangeRequestApproval       = "item/fileChange/requestApproval"
+	// MethodItemToolCall is the ServerRequest the agent sends when the model invokes
+	// a client-side tool (SPEC §10.5). The client replies with the tool result.
+	MethodItemToolCall = "item/tool/call"
 )
 
 // Approval reply values.
