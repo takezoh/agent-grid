@@ -6,10 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 
-	clientconfig "github.com/takezoh/agent-roost/client/config"
-	clientruntime "github.com/takezoh/agent-roost/client/runtime"
 	"github.com/takezoh/agent-roost/platform/agentlaunch"
 	platformconfig "github.com/takezoh/agent-roost/platform/config"
 	"github.com/takezoh/agent-roost/platform/credproxy"
@@ -17,28 +14,26 @@ import (
 )
 
 // buildDispatcher constructs the Dispatcher for the orchestrator.
-// It loads the user sandbox config from ~/.roost/settings.toml and enables
+// It loads the shared sandbox config from ~/.roost/settings.toml and enables
 // the devcontainer backend when the workspace project is configured for it.
 // Returns the dispatcher and a cleanup func that stops any background services.
 func buildDispatcher(ctx context.Context, workspaceRoot string) (agentlaunch.Dispatcher, func(), error) {
-	userCfg, err := clientconfig.Load()
+	settings, err := platformconfig.LoadUserSettings()
 	if err != nil {
-		return nil, nil, fmt.Errorf("orchestrator: load user config: %w", err)
+		return nil, nil, fmt.Errorf("orchestrator: load user settings: %w", err)
 	}
 
-	resolver := platformconfig.NewSandboxResolver(userCfg.Sandbox)
-
+	resolver := platformconfig.NewSandboxResolver(settings.Sandbox)
 	d := &agentlaunch.SandboxDispatcher{
 		Resolver: resolver,
 		Direct:   agentlaunch.DirectDispatcher{},
 	}
 
-	effectiveMode := resolver.Resolve(workspaceRoot).Mode
-	if effectiveMode != "devcontainer" {
+	if resolver.Resolve(workspaceRoot).Mode != "devcontainer" {
 		return d, func() {}, nil
 	}
 
-	devLauncher, cleanup, err := buildDevcontainerLauncher(ctx, resolver, userCfg)
+	devLauncher, cleanup, err := buildDevcontainerLauncher(ctx, resolver, settings.ResolveDataDir())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -51,14 +46,14 @@ func buildDispatcher(ctx context.Context, workspaceRoot string) (agentlaunch.Dis
 func buildDevcontainerLauncher(
 	ctx context.Context,
 	resolver *platformconfig.SandboxResolver,
-	userCfg *clientconfig.Config,
+	dataDir string,
 ) (*agentlaunch.DevcontainerLauncher, func(), error) {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return nil, nil, fmt.Errorf("sandbox: devcontainer mode requires docker in PATH: %w", err)
 	}
 
 	currentHost := os.Getenv("DOCKER_HOST")
-	if host := clientruntime.ResolveDockerHost(
+	if host := platformconfig.ResolveDockerHost(
 		currentHost,
 		os.Getenv("XDG_RUNTIME_DIR"),
 		func(p string) bool { _, err := os.Stat(p); return err == nil },
@@ -69,7 +64,6 @@ func buildDevcontainerLauncher(
 		slog.Info("sandbox: using default docker socket (rootless not detected)")
 	}
 
-	dataDir := userCfg.ResolveDataDir()
 	runner, err := credproxy.Start(ctx, dataDir, func(project string) platformconfig.SandboxConfig {
 		return resolver.Resolve(project)
 	}, credproxy.Paths{
@@ -94,12 +88,9 @@ func buildDevcontainerLauncher(
 		dataDir,
 	)
 
-	cleanup := func() {
-		runDir := filepath.Join(dataDir, "run")
-		_ = runDir // runner is stopped when context is cancelled
-	}
-
-	return devLauncher, cleanup, nil
+	// credproxy and the devcontainer manager are bound to ctx and stop when the
+	// orchestrator's context is cancelled, so no explicit teardown is required.
+	return devLauncher, func() {}, nil
 }
 
 // ensureProject warms up the dispatcher for a project path, supporting

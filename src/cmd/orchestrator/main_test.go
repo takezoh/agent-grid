@@ -27,7 +27,17 @@ func writeWorkflow(t *testing.T, content string) string {
 	return path
 }
 
+// isolateHome points HOME at a temp dir so run() neither reads the developer's
+// real ~/.roost/settings.toml (which may select devcontainer mode and shell out
+// to docker) nor writes the real ~/.roost/roost.log. Both logger.Init and the
+// sandbox config loader resolve paths via os.UserHomeDir().
+func isolateHome(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+}
+
 func TestRunMissingWorkflow(t *testing.T) {
+	isolateHome(t)
 	ctx := context.Background()
 	var stderr bytes.Buffer
 	code := run(ctx, []string{"--workflow", filepath.Join(t.TempDir(), "no-such.md")}, &stderr)
@@ -40,6 +50,7 @@ func TestRunMissingWorkflow(t *testing.T) {
 }
 
 func TestRunGracefulShutdown(t *testing.T) {
+	isolateHome(t)
 	wf := writeWorkflow(t, validWorkflow)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -51,6 +62,7 @@ func TestRunGracefulShutdown(t *testing.T) {
 }
 
 func TestRunInvalidFlag(t *testing.T) {
+	isolateHome(t)
 	ctx := context.Background()
 	var stderr bytes.Buffer
 	code := run(ctx, []string{"--no-such-flag"}, &stderr)
@@ -60,6 +72,7 @@ func TestRunInvalidFlag(t *testing.T) {
 }
 
 func TestRunPreflightFailure(t *testing.T) {
+	isolateHome(t)
 	// Missing project_slug triggers preflight error after config resolve.
 	content := `---
 tracker:
@@ -82,6 +95,7 @@ codex:
 }
 
 func TestRunConfigResolveFailure(t *testing.T) {
+	isolateHome(t)
 	// polling.interval_ms < 0 fails wfconfig.validate before preflight.
 	content := `---
 tracker:

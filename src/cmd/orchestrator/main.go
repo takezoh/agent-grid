@@ -71,35 +71,13 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 		return 1
 	}
 
-	tr, err := tracker.New(cfg)
+	sched, cleanup, err := buildScheduler(ctx, absPath, cfg, wf.PromptTemplate)
 	if err != nil {
-		fmt.Fprintf(stderr, "orchestrator: tracker: %v\n", err)
-		slog.Error("tracker init failed", "err", err)
-		return 1
-	}
-
-	dispatcher, dispatcherCleanup, err := buildDispatcher(ctx, cfg.Workspace.Root)
-	if err != nil {
-		fmt.Fprintf(stderr, "orchestrator: dispatcher: %v\n", err)
-		slog.Error("dispatcher build failed", "err", err)
-		return 1
-	}
-	defer dispatcherCleanup()
-
-	if err := ensureProject(ctx, dispatcher, cfg.Workspace.Root); err != nil {
 		fmt.Fprintf(stderr, "orchestrator: %v\n", err)
-		slog.Error("ensure project failed", "err", err)
+		slog.Error("scheduler setup failed", "err", err)
 		return 1
 	}
-
-	ws := workspace.New(cfg)
-	runner := agent.New(ws, cfg, wf.PromptTemplate, dispatcher)
-
-	sched := scheduler.New(absPath, cfg, scheduler.Deps{
-		RefreshTracker: tr,
-		Workspace:      ws,
-		Spawn:          runner.Spawn,
-	})
+	defer cleanup()
 
 	if err := sched.Run(ctx); err != nil {
 		fmt.Fprintf(stderr, "orchestrator: scheduler: %v\n", err)
@@ -109,4 +87,34 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 
 	slog.Info("orchestrator stopped")
 	return 0
+}
+
+// buildScheduler wires the tracker, agent dispatcher, and scheduler together.
+// The returned cleanup stops background services started for the dispatcher.
+func buildScheduler(ctx context.Context, absPath string, cfg wfconfig.Config, tmpl string) (*scheduler.Scheduler, func(), error) {
+	tr, err := tracker.New(cfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("tracker: %w", err)
+	}
+
+	dispatcher, dispatcherCleanup, err := buildDispatcher(ctx, cfg.Workspace.Root)
+	if err != nil {
+		return nil, nil, fmt.Errorf("dispatcher: %w", err)
+	}
+
+	if err := ensureProject(ctx, dispatcher, cfg.Workspace.Root); err != nil {
+		dispatcherCleanup()
+		return nil, nil, err
+	}
+
+	ws := workspace.New(cfg)
+	runner := agent.New(ws, cfg, tmpl, dispatcher)
+
+	sched := scheduler.New(absPath, cfg, scheduler.Deps{
+		Tracker:        tr,
+		RefreshTracker: tr,
+		Workspace:      ws,
+		Spawn:          runner.Spawn,
+	})
+	return sched, dispatcherCleanup, nil
 }

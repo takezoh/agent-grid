@@ -343,7 +343,7 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 			return nil, fmt.Errorf("sandbox: devcontainer mode requires docker in PATH: %w", err)
 		}
 		currentHost := os.Getenv("DOCKER_HOST")
-		if host := runtime.ResolveDockerHost(
+		if host := platformconfig.ResolveDockerHost(
 			currentHost,
 			os.Getenv("XDG_RUNTIME_DIR"),
 			func(p string) bool { _, err := os.Stat(p); return err == nil },
