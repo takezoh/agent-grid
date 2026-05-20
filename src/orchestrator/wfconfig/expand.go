@@ -29,8 +29,3 @@ func expandPath(s string) string {
 func expandAPIKey(s string) string {
 	return expandVar(s)
 }
-
-// expandHookScript resolves "$VAR" for hook script paths (no tilde expansion).
-func expandHookScript(s string) string {
-	return expandVar(s)
-}

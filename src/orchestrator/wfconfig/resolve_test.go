@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -278,5 +279,81 @@ func TestResolve_VarExpansion_WorkspaceRoot(t *testing.T) {
 	}
 	if !strings.HasPrefix(cfg.Workspace.Root, dir) {
 		t.Errorf("Workspace.Root = %q, want prefix %q", cfg.Workspace.Root, dir)
+	}
+}
+
+// SPEC §5.3.1 / §6.4: terminal_states default is exactly these five values,
+// including both "Cancelled" (British) and "Canceled" (American) spellings.
+func TestResolve_TerminalStatesDefault_MatchesSPEC(t *testing.T) {
+	cfg, err := Resolve(map[string]any{}, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"Closed", "Cancelled", "Canceled", "Duplicate", "Done"}
+	got := cfg.Tracker.TerminalStates
+	if !slices.Equal(got, want) {
+		t.Errorf("TerminalStates = %v, want %v", got, want)
+	}
+}
+
+// SPEC §5.3.6: stall_timeout_ms <= 0 is valid and means "stall detection
+// disabled"; it must not fail validation.
+func TestResolve_StallTimeoutZero_Allowed(t *testing.T) {
+	raw := map[string]any{
+		"codex": map[string]any{"stall_timeout_ms": 0},
+	}
+	cfg, err := Resolve(raw, t.TempDir())
+	if err != nil {
+		t.Fatalf("stall_timeout_ms=0 should be valid (disabled), got: %v", err)
+	}
+	if cfg.Codex.StallTimeoutMS != 0 {
+		t.Errorf("StallTimeoutMS = %d, want 0", cfg.Codex.StallTimeoutMS)
+	}
+}
+
+// SPEC §5.3.6: approval_policy / thread_sandbox / turn_sandbox_policy are
+// pass-through Codex config values, kept verbatim as strings.
+func TestResolve_CodexPassthroughFields_Captured(t *testing.T) {
+	raw := map[string]any{
+		"codex": map[string]any{
+			"approval_policy":     "on-request",
+			"thread_sandbox":      "workspace-write",
+			"turn_sandbox_policy": "read-only",
+		},
+	}
+	cfg, err := Resolve(raw, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Codex.ApprovalPolicy != "on-request" {
+		t.Errorf("ApprovalPolicy = %q, want %q", cfg.Codex.ApprovalPolicy, "on-request")
+	}
+	if cfg.Codex.ThreadSandbox != "workspace-write" {
+		t.Errorf("ThreadSandbox = %q, want %q", cfg.Codex.ThreadSandbox, "workspace-write")
+	}
+	if cfg.Codex.TurnSandboxPolicy != "read-only" {
+		t.Errorf("TurnSandboxPolicy = %q, want %q", cfg.Codex.TurnSandboxPolicy, "read-only")
+	}
+}
+
+// SPEC §6.1: hook scripts are arbitrary shell command strings and must not be
+// rewritten at config time, even when the whole value is a single $VAR token.
+func TestResolve_HookScriptNotExpanded(t *testing.T) {
+	t.Setenv("DEPLOY", "should-not-leak")
+	raw := map[string]any{
+		"hooks": map[string]any{
+			"after_create": "$DEPLOY",
+			"before_run":   "npm install && echo $DEPLOY",
+		},
+	}
+	cfg, err := Resolve(raw, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Hooks.AfterCreate != "$DEPLOY" {
+		t.Errorf("AfterCreate = %q, want literal %q", cfg.Hooks.AfterCreate, "$DEPLOY")
+	}
+	if cfg.Hooks.BeforeRun != "npm install && echo $DEPLOY" {
+		t.Errorf("BeforeRun = %q, want literal", cfg.Hooks.BeforeRun)
 	}
 }

@@ -48,7 +48,7 @@ func applyTrackerDefaults(c *Config, tracker map[string]any) {
 	}
 	if _, ok := tracker["terminal_states"]; !ok {
 		if len(c.Tracker.TerminalStates) == 0 {
-			c.Tracker.TerminalStates = []string{"Done", "Canceled", "Duplicate", "Closed", "Completed"}
+			c.Tracker.TerminalStates = []string{"Closed", "Cancelled", "Canceled", "Duplicate", "Done"}
 		}
 	}
 }

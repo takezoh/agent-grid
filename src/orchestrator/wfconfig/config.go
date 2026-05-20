@@ -56,6 +56,12 @@ type CodexConfig struct {
 	TurnTimeoutMS  int
 	ReadTimeoutMS  int
 	StallTimeoutMS int
+	// Pass-through Codex config values (§5.3.6). Kept as raw strings; the
+	// targeted Codex app-server version defines the valid set. Empty means
+	// unset (use the app-server's own default).
+	ApprovalPolicy    string
+	ThreadSandbox     string
+	TurnSandboxPolicy string
 }
 
 var (

@@ -18,8 +18,7 @@ func validate(c *Config) error {
 	if c.Codex.ReadTimeoutMS <= 0 {
 		return fmt.Errorf("%w: codex.read_timeout_ms must be > 0, got %d", ErrConfigValidation, c.Codex.ReadTimeoutMS)
 	}
-	if c.Codex.StallTimeoutMS <= 0 {
-		return fmt.Errorf("%w: codex.stall_timeout_ms must be > 0, got %d", ErrConfigValidation, c.Codex.StallTimeoutMS)
-	}
+	// codex.stall_timeout_ms <= 0 is valid: SPEC §5.3.6 defines it as
+	// "stall detection disabled". No lower-bound check here.
 	return nil
 }

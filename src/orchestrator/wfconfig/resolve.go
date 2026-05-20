@@ -33,13 +33,13 @@ func Resolve(raw map[string]any, workflowDir string) (Config, error) {
 	return c, validate(&c)
 }
 
+// expandFields applies $VAR/~ expansion to path/key fields only. Hook scripts
+// and codex.command are arbitrary shell strings and are left verbatim per
+// SPEC §6.1 ("do not rewrite ... arbitrary shell command strings"); their
+// $VAR references are resolved by the shell at execution time.
 func expandFields(c *Config) {
 	c.Tracker.APIKey = expandAPIKey(c.Tracker.APIKey)
 	c.Workspace.Root = expandPath(c.Workspace.Root)
-	c.Hooks.AfterCreate = expandHookScript(c.Hooks.AfterCreate)
-	c.Hooks.BeforeRun = expandHookScript(c.Hooks.BeforeRun)
-	c.Hooks.AfterRun = expandHookScript(c.Hooks.AfterRun)
-	c.Hooks.BeforeRemove = expandHookScript(c.Hooks.BeforeRemove)
 }
 
 func normalizeWorkspaceRoot(c *Config, workflowDir string) {
@@ -227,6 +227,20 @@ func decodeCodex(raw map[string]any, c *Config) error {
 	if s, ok := m["stall_timeout_ms"]; ok {
 		if c.Codex.StallTimeoutMS, err = coerceInt(s); err != nil {
 			return fmt.Errorf("codex.stall_timeout_ms: %w", err)
+		}
+	}
+	for _, f := range []struct {
+		key  string
+		dest *string
+	}{
+		{"approval_policy", &c.Codex.ApprovalPolicy},
+		{"thread_sandbox", &c.Codex.ThreadSandbox},
+		{"turn_sandbox_policy", &c.Codex.TurnSandboxPolicy},
+	} {
+		if s, ok := m[f.key]; ok {
+			if *f.dest, err = coerceString(s); err != nil {
+				return fmt.Errorf("codex.%s: %w", f.key, err)
+			}
 		}
 	}
 	return nil
