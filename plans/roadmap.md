@@ -13,7 +13,7 @@ orchestrator が agent 非依存に動くことを実証（M2 完成）。M3 前
 P6b metrics+stall (021)、P7 observability HTTP server (022)、P8a WORKFLOW.md hot reload (023) を実装・archive 済み。
 **P8b `linear_graphql` (024) は handler + wiring まで完了したが、tool の advertise が pinned codex 0.128.0 の
 制約で不能**（`DynamicToolSpec` が schema 上 orphan = request からの `$ref` 参照ゼロ）。handler は forward-compatible
-で、codex schema bump が入れば実機 codex から到達可能になる。残るは **M4 (P9: SPEC §17 conformance + loki retire)**。
+で、codex schema bump が入れば実機 codex から到達可能になる。残るは **M4 (P9: SPEC §17 conformance + 位置付け doc)**。
 
 ## Phase 進捗
 
@@ -44,7 +44,7 @@ P6b metrics+stall (021)、P7 observability HTTP server (022)、P8a WORKFLOW.md h
 | P8a | WORKFLOW.md hot reload (§6.2) | ✅ Done | [023](../issues/.archive/023-p8a-hot-reload.md) |
 | P8b | `linear_graphql` agent tool (native `item/tool/call`, §10.5) | ⚠ Partial — advertise が schema 制約で blocked | [024](../issues/024-p8b-linear-graphql-tool.md) |
 | P9a | SPEC §17 conformance test 群 + conformance 表 | ⬜ Next | [025](../issues/025-p9a-conformance-suite.md) |
-| P9b | loki retirement + orchestrator 位置付け doc | ⬜ Next | [026](../issues/026-p9b-loki-retirement.md) |
+| P9b | orchestrator サービスの位置付け doc (AGENTS.md/ARCHITECTURE.md) | ⬜ Next | [026](../issues/026-p9b-positioning-docs.md) |
 
 ## マイルストーン
 
@@ -54,7 +54,7 @@ P6b metrics+stall (021)、P7 observability HTTP server (022)、P8a WORKFLOW.md h
 | **M1** 最小単線通電 | P1–P3 | 1 issue → codex app-server で 1 turn | ✅ Done |
 | **M2** 多 agent 対応 | P4–P5 | sandbox 配線 + claude / codex 切替 | ✅ Done |
 | **M3** SPEC 機能完成 | P6–P8 | SPEC §1–§16 を満たす | ✅ 実質完了（P8b advertise のみ codex schema 制約で blocked）|
-| **M4** conformance 確認 | P9 | SPEC §17 test pass + loki retire | ▶ Next |
+| **M4** conformance 確認 | P9 | SPEC §17 test pass + 位置付け doc | ▶ Next |
 
 ## P0 で確立した基盤 (現状)
 

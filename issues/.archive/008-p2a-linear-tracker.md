@@ -9,7 +9,7 @@
 
 SPEC §11 の Issue Tracker 統合を `platform/` に実装する。**正規化済み Issue ドメインモデル (§4.1.1)** と **tracker adapter interface (§11.1)**、その Linear 実装 (§11.2) を提供する。orchestrator から使い回すため platform に置く (platform ↛ orchestrator 境界を維持し、設定値は引数で受け取る — `wfconfig.Config` を import しない)。
 
-roost 側に Linear connector は存在しない (新規実装)。loki `clients/linear.py` は移植参考に留め、SPEC が source of truth。
+roost 側に Linear connector は存在しない。SPEC を source of truth として新規実装する。
 
 ## Tasks
 
@@ -80,4 +80,3 @@ type Adapter interface {
 
 - [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md) §4.1.1 (Issue model), §11 (Tracker Integration), §17.3
 - [plans/02-layout.md](../plans/02-layout.md), [plans/04-phases.md#p2](../plans/04-phases.md)
-- `/workspace/loki/loki2/clients/linear.py` (移植参考、非規範)

@@ -1,6 +1,6 @@
 # Symphony SPEC Gap Analysis
 
-[Symphony SPEC.md](https://github.com/openai/symphony/blob/main/SPEC.md) v1 Draft と既存資産 (agent-roost / loki) との gap を §単位で整理する。
+[Symphony SPEC.md](https://github.com/openai/symphony/blob/main/SPEC.md) v1 Draft と既存資産 (agent-roost) との gap を §単位で整理する。
 
 ## SPEC の前提
 
@@ -17,44 +17,44 @@
 
 ## §単位の gap 表
 
-| SPEC §  | 項目 | roost | loki | Gap 充足策 |
-|---|---|---|---|---|
-| §3.1.1 | Workflow Loader (`WORKFLOW.md` parser) | 無 | 無 (`settings.json`) | **新規** |
-| §3.1.2 | Config Layer (typed getter / `$VAR` / preflight) | TOML + DataDir | settings.json + secrets.env | **新規** |
-| §3.1.3 | Issue Tracker Client (Linear GraphQL) | 部分的 (connector に類似) | **有** (`clients/linear.py`) | **`platform/tracker/linear/` に共通実装**、loki から移植 |
-| §3.1.4 | Orchestrator (poll/dispatch/reconcile/retry の単一 authority) | 無 | **有** (`forge/orchestrator.py`) | **新規**。loki の shape は SPEC とは別物なので参考のみ |
-| §3.1.5 | Workspace Manager (sanitize / 再利用 / hooks) | 部分 (worktree 管理) | 部分 (worktree 前提) | **新規** (VCS 非前提化 + hooks) |
-| §3.1.6 | Agent Runner (Codex app-server stdio) | **強い** (`runtime/subsystem/stream`) | 無 (Claude 直結のみ) | **`platform/agent/codexclient/` に抽出** |
-| §3.1.7 | Status Surface (OPTIONAL) | TUI 完備 | 無 | orchestrator では **HTTP server** で実装 (D6) |
-| §3.1.8 | Logging (structured, key=value) | slog 完備 | 部分 | **`platform/logger/` に key=value helper 追加** |
-| §5.3 | front matter schema (tracker/polling/workspace/hooks/agent/codex) | 該当無し | 該当無し | **新規** (orchestrator/workflowfile/) |
-| §5.4 | strict prompt template (Liquid 互換) | 無 | 自前 prompt 構築 | **新規** (orchestrator/prompt/) |
-| §6.2 | WORKFLOW.md dynamic reload (fsnotify) | fsnotify 利用済 | 無 | **新規** (パターンは roost 流用) |
-| §6.3 | preflight validation (startup + 毎 tick) | 無 | 無 | **新規** |
-| §7.1 | orch state machine (Unclaimed/Claimed/Running/RetryQueued/Released) | 無 | 別 shape | **新規** (orchestrator/scheduler/) |
-| §7.1, §16.5 | continuation turn (max_turns ループ) | 土台あり (stream subsystem) | 無 | **新規** |
-| §8.1 | poll loop (reconcile → validate → fetch → dispatch) | 無 | 部分 | **新規** |
-| §8.2 | dispatch eligibility (active state, blocker(Todo) rule) | 無 | 部分 | **新規** |
-| §8.3 | global + per-state concurrency 制限 | 無 | global のみ | **新規** |
-| §8.4 | retry/backoff (`min(10000*2^(n-1), max)` + 連続 retry 1s) | 無 | 別ロジック | **新規** |
-| §8.5 | reconciliation (stall detection + tracker state refresh) | 無 | 部分 | **新規** |
-| §8.6 | startup terminal cleanup | 無 | 不明 | **新規** |
-| §9.1-9.3 | workspace (sanitized key, root containment, VCS 非前提) | 部分 | 部分 (git 前提) | **新規** (sanitize 強化 + 再設計) |
-| §9.4 | 4 種 hooks (after_create / before_run / after_run / before_remove) | 無 | 無 | **新規** (orchestrator/workspace/hooks.go) |
-| §9.5 | safety invariants (cwd == workspace, root prefix, regex sanitize) | 部分 | 部分 | invariant チェック明示 |
-| §10.1-10.6 | agent runner (codex app-server, `bash -lc`, stdio framing, thread/turn 抽出, `session_id`) | **強い** (`runtime/subsystem/stream/`) | 無 | **`platform/agent/codexclient/` に抽出 + roost と orchestrator が共有** |
-| §10.5 | approval policy (実装依存、文書化必須) | sandbox/mcpproxy/credproxy で土台 | 無 | **roost 既存資産を活用** |
-| §10.5 | `linear_graphql` client-side tool | 無 | 無 | **新規** (mcpproxy 経由) |
-| §11.1-11.4 | Linear adapter (GraphQL, pagination, normalize, error map) | 無 | **有** | **`platform/tracker/linear/` に loki から移植** |
-| §12 | prompt construction (strict, issue+attempt 注入) | 無 | 部分 | **新規** |
-| §13.1-13.5 | observability (structured log + token accounting + rate limits) | slog のみ | 部分 | **新規 + `platform/metrics/` に共通化** |
-| §13.3 | snapshot API (synchronous) | proto に view 型あり | 無 | **新規** (orchestrator/httpserver/) |
-| §13.7 | HTTP server (dashboard + `/api/v1/*`) | 無 | webhook のみ | **新規** (orchestrator/httpserver/、ベース部は `platform/httpsurface/` で共有検討) |
-| §14 | failure model (カテゴリ別 recovery) | 部分 | 部分 | 体系化 |
-| §15 | security (workspace 境界 + secret 非ログ + hook timeout) | sandbox/devcontainer で過充足 | bwrap | **roost 資産活用** |
-| §16 | reference algorithms (擬似コード) | — | — | そのまま実装テンプレ |
-| §17 | conformance test matrix | テスト多数 | テスト有 | **orchestrator/ 専用テスト群を新規** |
-| Appendix A | SSH worker extension | container 隔離はあるが用途別 | 無 | **対象外** (将来) |
+| SPEC §  | 項目 | roost | Gap 充足策 |
+|---|---|---|---|
+| §3.1.1 | Workflow Loader (`WORKFLOW.md` parser) | 無 | **新規** |
+| §3.1.2 | Config Layer (typed getter / `$VAR` / preflight) | TOML + DataDir | **新規** |
+| §3.1.3 | Issue Tracker Client (Linear GraphQL) | 部分的 (connector に類似) | **`platform/tracker/linear/` に新規実装** |
+| §3.1.4 | Orchestrator (poll/dispatch/reconcile/retry の単一 authority) | 無 | **新規** |
+| §3.1.5 | Workspace Manager (sanitize / 再利用 / hooks) | 部分 (worktree 管理) | **新規** (VCS 非前提化 + hooks) |
+| §3.1.6 | Agent Runner (Codex app-server stdio) | **強い** (`runtime/subsystem/stream`) | **`platform/agent/codexclient/` に抽出** |
+| §3.1.7 | Status Surface (OPTIONAL) | TUI 完備 | orchestrator では **HTTP server** で実装 (D6) |
+| §3.1.8 | Logging (structured, key=value) | slog 完備 | **`platform/logger/` に key=value helper 追加** |
+| §5.3 | front matter schema (tracker/polling/workspace/hooks/agent/codex) | 該当無し | **新規** (orchestrator/workflowfile/) |
+| §5.4 | strict prompt template (Liquid 互換) | 無 | **新規** (orchestrator/prompt/) |
+| §6.2 | WORKFLOW.md dynamic reload (fsnotify) | fsnotify 利用済 | **新規** (パターンは roost 流用) |
+| §6.3 | preflight validation (startup + 毎 tick) | 無 | **新規** |
+| §7.1 | orch state machine (Unclaimed/Claimed/Running/RetryQueued/Released) | 無 | **新規** (orchestrator/scheduler/) |
+| §7.1, §16.5 | continuation turn (max_turns ループ) | 土台あり (stream subsystem) | **新規** |
+| §8.1 | poll loop (reconcile → validate → fetch → dispatch) | 無 | **新規** |
+| §8.2 | dispatch eligibility (active state, blocker(Todo) rule) | 無 | **新規** |
+| §8.3 | global + per-state concurrency 制限 | 無 | **新規** |
+| §8.4 | retry/backoff (`min(10000*2^(n-1), max)` + 連続 retry 1s) | 無 | **新規** |
+| §8.5 | reconciliation (stall detection + tracker state refresh) | 無 | **新規** |
+| §8.6 | startup terminal cleanup | 無 | **新規** |
+| §9.1-9.3 | workspace (sanitized key, root containment, VCS 非前提) | 部分 | **新規** (sanitize 強化 + 再設計) |
+| §9.4 | 4 種 hooks (after_create / before_run / after_run / before_remove) | 無 | **新規** (orchestrator/workspace/hooks.go) |
+| §9.5 | safety invariants (cwd == workspace, root prefix, regex sanitize) | 部分 | invariant チェック明示 |
+| §10.1-10.6 | agent runner (codex app-server, `bash -lc`, stdio framing, thread/turn 抽出, `session_id`) | **強い** (`runtime/subsystem/stream/`) | **`platform/agent/codexclient/` に抽出 + roost と orchestrator が共有** |
+| §10.5 | approval policy (実装依存、文書化必須) | sandbox/mcpproxy/credproxy で土台 | **roost 既存資産を活用** |
+| §10.5 | `linear_graphql` client-side tool | 無 | **新規** (codex native `item/tool/call`、advertise は schema 制約で blocked) |
+| §11.1-11.4 | Linear adapter (GraphQL, pagination, normalize, error map) | 無 | **`platform/tracker/linear/` に新規実装** |
+| §12 | prompt construction (strict, issue+attempt 注入) | 無 | **新規** |
+| §13.1-13.5 | observability (structured log + token accounting + rate limits) | slog のみ | **新規 + `platform/metrics/` に共通化** |
+| §13.3 | snapshot API (synchronous) | proto に view 型あり | **新規** (orchestrator/httpserver/) |
+| §13.7 | HTTP server (dashboard + `/api/v1/*`) | 無 | **新規** (orchestrator/httpserver/、ベース部は `platform/httpsurface/` で共有検討) |
+| §14 | failure model (カテゴリ別 recovery) | 部分 | 体系化 |
+| §15 | security (workspace 境界 + secret 非ログ + hook timeout) | sandbox/devcontainer で過充足 | **roost 資産活用** |
+| §16 | reference algorithms (擬似コード) | — | そのまま実装テンプレ |
+| §17 | conformance test matrix | テスト多数 | **orchestrator/ 専用テスト群を新規** |
+| Appendix A | SSH worker extension | container 隔離はあるが用途別 | **対象外** (将来) |
 
 ## roost で**強くカバー**できる領域
 
@@ -88,10 +88,10 @@
 
 | 項目 | 問題 | 対応 |
 |---|---|---|
-| loki の Linear status state machine (Planning/PendingApproval/Implementing/InReview) | SPEC §11.5 と衝突。Symphony は orchestrator に workflow phase を持たない | **採用しない**。phase は prompt + agent tool に押し込む |
-| loki の sqlite DB (`loki2.db`) | SPEC §14.3 と衝突。in-memory + tracker 再 poll で復旧 | **採用しない**。tracker と filesystem を source of truth に |
-| loki の git worktree 前提 | SPEC §9.3 と衝突。VCS 非前提 | workspace は mkdir、git は `after_create` hook で実施 |
-| loki の Claude CLI 専用設計 | SPEC §10 と衝突 (Codex app-server 専用) | **`claude-app-server` shim** で stdio protocol を喋らせ、SPEC の `codex.command` 経由で切替 |
+| Linear status の state machine 化 (Planning/PendingApproval/...) | SPEC §11.5 と衝突。Symphony は orchestrator に workflow phase を持たない | **採用しない**。phase は prompt + agent tool に押し込む |
+| sqlite 等での永続化 | SPEC §14.3 と衝突。in-memory + tracker 再 poll で復旧 | **採用しない**。tracker と filesystem を source of truth に |
+| git worktree 前提の workspace | SPEC §9.3 と衝突。VCS 非前提 | workspace は mkdir、git は `after_create` hook で実施 |
+| 単一 agent (Claude/Codex のみ) 専用設計 | SPEC §10 は Codex app-server stdio を規定 | **`claude-app-server` shim** で stdio protocol を喋らせ、SPEC の `codex.command` 経由で切替 |
 | roost の `LaunchPlan` ベース起動 | SPEC §10.1 の `bash -lc` invocation と stdio framing 要件を subsystem の起動経路に乗せる必要 | `platform/agentlaunch/` に抽出する際に Codex-compatible 起動経路を整える |
 
 ## 新規実装の概算 LOC
@@ -103,7 +103,7 @@
 | reconciliation / stall / retry detail | ~400 |
 | workspace manager + hooks | ~300 |
 | prompt template renderer | ~150 (ライブラリ採用前提) |
-| Linear adapter (loki から移植) | ~500 |
+| Linear adapter (新規実装) | ~500 |
 | Codex stdio client (抽出 + 整理) | ~200 |
 | claude-app-server shim | ~400 |
 | HTTP server | ~300 |

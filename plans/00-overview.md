@@ -12,13 +12,13 @@ Symphony SPEC 準拠の自立型開発パイプラインバイナリ (`orchestra
 | D2 | roost 専用コードは `client/` に集約 | `state/` `runtime/` `tui/` `tmux/` `proto/` `driver/` `connector/` 等 |
 | D3 | Symphony 実装は `orchestrator/` に集約 | 新規ツリー |
 | D4 | バイナリは 3 種類 (`roost` / `orchestrator` / `claude-app-server`) | `cmd/<name>/main.go` 配置 |
-| D5 | loki は retire、SPEC.md に寄せる | loki の Linear クライアントのみ移植元として参照 |
+| D5 | 全コンポーネントは Go で新規実装し、SPEC.md を正本とする | Linear adapter 含め後方互換は持たず SPEC に合わせる |
 | D6 | orchestrator は **TUI 非使用**。観測は HTTP server (SPEC §13.7) | dashboard `/` + `/api/v1/*` |
 | D7 | agent は **Codex 専用にしない**。`claude -p` を Codex stdio protocol で wrap する shim を実装 | `cmd/claude-app-server/` |
 | D8 | agent 切替は SPEC §10.1 の `codex.command` 経由 | `codex.command: claude-app-server` で claude が走る |
 | D9 | 新規実装でも roost / orchestrator 双方で活用できるものは `platform/` に検討 | 詳細は [02-layout.md](02-layout.md) |
-| D10 | 永続 DB なし (SPEC §14.3 準拠)。loki の sqlite (`loki2.db`) は捨てる | restart 復旧は tracker 再 poll + workspace 残存 |
-| D11 | loki の Linear status state machine (Planning/PendingApproval/...) は **採用しない** | SPEC §11.5 — workflow phase は agent prompt 側に押し込む |
+| D10 | 永続 DB なし (SPEC §14.3 準拠) | restart 復旧は tracker 再 poll + workspace 残存 |
+| D11 | Linear status の state machine 化は **しない** | SPEC §11.5 — workflow phase は agent prompt 側に押し込む |
 | D12 | git worktree 前提を捨てる (SPEC §9.3) | workspace 作成は単純な mkdir、git 拡張は hook で |
 
 ## 非ゴール
@@ -27,7 +27,6 @@ Symphony SPEC 準拠の自立型開発パイプラインバイナリ (`orchestra
 - 汎用ワークフローエンジン
 - 既存 roost の TUI / tmux 設計を変更すること
 - 既存 roost の単一イベントループ純粋性を緩めること
-- loki の状態機械や DB スキーマの後方互換維持
 
 ## 範囲
 
@@ -66,4 +65,3 @@ agent-roost の [ARCHITECTURE.md](../ARCHITECTURE.md) の設計原則は `client
 - [Symphony SPEC.md](https://github.com/openai/symphony/blob/main/SPEC.md) (v1 Draft, language-agnostic)
 - agent-roost [ARCHITECTURE.md](../ARCHITECTURE.md)
 - agent-roost [docs/sandbox.md](../docs/sandbox.md), [docs/ipc.md](../docs/ipc.md)
-- loki: `/workspace/loki/` (実験プロジェクト、retire 予定)

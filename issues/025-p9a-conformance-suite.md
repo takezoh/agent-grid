@@ -1,6 +1,6 @@
 # 025: orchestrator — SPEC §17 conformance test 群 + conformance 表
 
-- **Phase**: P9a ([plans/04-phases.md#p9-conformance-test--loki-retirement](../plans/04-phases.md))
+- **Phase**: P9a ([plans/04-phases.md#p9-conformance-tests--docs](../plans/04-phases.md))
 - **Status**: Open
 - **Depends on**: 005–023（merged; 各 Phase が §17.x 系 test を既に持つ）。026 とは独立（並行可）
 - **Blocks**: M4 完成

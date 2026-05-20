@@ -4,8 +4,7 @@ Symphony SPEC ([openai/symphony](https://github.com/openai/symphony)) を agent-
 
 ## 背景
 
-- 自立型開発パイプラインを agent-roost / loki / 新規 のどこに実装するかを検討した結果、**agent-roost の環境基盤を共有**しつつ Symphony SPEC を実装することにした
-- loki は実験プロジェクトとして retire し、SPEC.md に寄せる
+- 自立型開発パイプラインを **agent-roost の環境基盤を共有**しつつ Symphony SPEC として実装する
 - roost TUI は使わず、観測は HTTP server で行う
 - agent は Codex 専用にせず、`claude -p` を **Codex app-server stdio protocol** で wrap する shim を作って選択可能にする
 
@@ -15,7 +14,7 @@ Symphony SPEC ([openai/symphony](https://github.com/openai/symphony)) を agent-
 |---|---|
 | [roadmap.md](roadmap.md) | 全体ロードマップと進捗 (現状を反映する living tracker) |
 | [00-overview.md](00-overview.md) | ゴール / 決定事項 / 非ゴール / 範囲 |
-| [01-spec-gap.md](01-spec-gap.md) | Symphony SPEC.md と既存資産 (roost / loki) の gap 分析 |
+| [01-spec-gap.md](01-spec-gap.md) | Symphony SPEC.md と既存資産 (roost) の gap 分析 |
 | [02-layout.md](02-layout.md) | リポジトリ構成 / バイナリ / パッケージ境界 / 共有実装方針 |
 | [03-agent.md](03-agent.md) | Agent 抽象戦略 (stdio shim) と `claude-app-server` 設計 |
 | [04-phases.md](04-phases.md) | フェーズ別実装計画 (P0a-P9) |

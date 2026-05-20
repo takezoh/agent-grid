@@ -15,8 +15,8 @@
 | **P5** | `claude-app-server` shim 実装 | cmd/claude-app-server | 中 |
 | **P6** | continuation turn + stall detection + reconciliation + token accounting | orchestrator + platform | 大 |
 | **P7** | HTTP server (`/`, `/api/v1/state`, `/api/v1/<id>`, `/api/v1/refresh`) | orchestrator | 中 |
-| **P8** | WORKFLOW.md hot reload + `linear_graphql` tool (mcpproxy 経由) | orchestrator | 中 |
-| **P9** | SPEC §17 conformance test 群 + loki retirement | orchestrator + docs | 中 |
+| **P8** | WORKFLOW.md hot reload + `linear_graphql` tool (codex native `item/tool/call`) | orchestrator | 中 |
+| **P9** | SPEC §17 conformance test 群 + orchestrator 位置付け doc | orchestrator + docs | 中 |
 
 P0a-P3 で **Linear → workspace → agent 起動 → 1 turn** の単線が通る。
 P4-P5 で container 内 agent と claude/codex 切替が動く。
@@ -156,7 +156,7 @@ type Dispatcher interface {
 **目的**: SPEC §9 + §11 を実装。1 issue を fetch して workspace を作って hook を実行できる。
 
 **作業**:
-1. `platform/tracker/linear/` 新設、loki `clients/linear.py` を Go 移植:
+1. `platform/tracker/linear/` 新設（Linear GraphQL adapter を Go で新規実装）:
    - `FetchCandidateIssues()` (active states, project slug filter, pagination)
    - `FetchIssuesByStates(stateNames)` (startup terminal cleanup 用)
    - `FetchIssueStatesByIDs(ids)` (reconciliation 用)
@@ -297,23 +297,20 @@ type Dispatcher interface {
 - WORKFLOW.md を save すると orchestrator が再読込
 - agent が `linear_graphql` tool で Linear に query / mutation を発行できる
 
-### P9: conformance test + loki retirement
+### P9: conformance tests + docs
 
-**目的**: SPEC §17 conformance test を埋め、loki を retire。
+**目的**: SPEC §17 conformance test を埋め、orchestrator サービスの位置付けを doc 化。
 
 **作業**:
 1. SPEC §17.1-§17.7 (Core Conformance) を埋める test を `orchestrator/*` 配下に追加
 2. SPEC §17.8 (Real Integration Profile) は `LINEAR_API_KEY` 有無で skip/run
 3. `docs/orchestrator/symphony-conformance.md` で SPEC 各項目と test の対応表を作成
-4. loki retire:
-   - `/workspace/loki/README.md` に retirement notice
-   - 移植元として参照されたファイルへリンクを残す
-5. agent-roost の AGENTS.md / ARCHITECTURE.md に orchestrator サービスの位置付けを追記
+4. agent-roost の AGENTS.md / ARCHITECTURE.md に orchestrator サービスの位置付けを追記
 
 **成功条件**:
 - SPEC §17 のチェック項目がテストでカバー
 - conformance 表が SPEC 各 § と紐づいて閲覧可能
-- loki retired 状態が明示
+- orchestrator サービスの位置付け（3 バイナリ・三層・責務）が doc から辿れる
 
 ## 依存関係
 
@@ -338,4 +335,4 @@ P0a ──┬─ P0b ──┐
 | **M1: 最小単線通電** | P3 | 1 issue → codex app-server で 1 turn |
 | **M2: 多 agent 対応** | P5 | claude vs codex 切替 |
 | **M3: SPEC 機能完成** | P8 | SPEC §1-§16 を満たす |
-| **M4: conformance 確認** | P9 | SPEC §17 test pass + loki retire |
+| **M4: conformance 確認** | P9 | SPEC §17 test pass + 位置付け doc |

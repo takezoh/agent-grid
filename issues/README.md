@@ -34,12 +34,12 @@ M0–M2 と M3 前半 (P5–P8a) は実装・レビュー・archive 済み。残
 |---|---|---|---|---|
 | [024](024-p8b-linear-graphql-tool.md) | `linear_graphql` agent tool (native `item/tool/call`, §10.5) | P8b | Partial / Blocked | handler + wiring は実装済。**advertise** は codex 0.128.0 で `DynamicToolSpec` が orphan（request からの `$ref` 参照ゼロ）のため不能 → codex schema bump 待ち |
 | [025](025-p9a-conformance-suite.md) | SPEC §17 conformance test 群 + conformance 表 | P9a | Open | 005–023（merged） |
-| [026](026-p9b-loki-retirement.md) | loki retirement + orchestrator 位置付け doc | P9b | Open | M3（done）、025 推奨先行 |
+| [026](026-p9b-positioning-docs.md) | orchestrator サービスの位置付けを agent-roost doc に追記 | P9b | Open | M3（done）、025 推奨先行 |
 
 ### 次の batch (M4 / P9)
 
 - **025 (P9a)**: SPEC §17.1–§17.7 の網羅監査 + `TestSPEC_*` canonical マーカー + §17.8 実 Linear profile + `docs/orchestrator/symphony-conformance.md`
-- **026 (P9b)**: loki (`/workspace/loki`) retirement notice（cross-repo）+ AGENTS.md/ARCHITECTURE.md への orchestrator 位置付け + port-provenance 表
+- **026 (P9b)**: `AGENTS.md` / `ARCHITECTURE.md` への orchestrator サービス位置付け追記 + SPEC component ↔ package 対応表
 - 024 advertise の end-to-end のみ codex schema bump 待ちで保留（P9 の範囲外）
 
 ## 完了済み (archive)
