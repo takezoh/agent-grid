@@ -48,6 +48,9 @@ type WorkerExit struct {
 type Scheduler struct {
 	workflowPath string
 	interval     time.Duration
+	lastGood     wfconfig.Config // last successfully resolved config; seeded from New
+	reloadCh     chan struct{}   // fsnotify → loop coalesced reload signal (buffered 1)
+	degraded     bool            // true while workflow is invalid; controls warn/recovery log
 	state        *State
 	deps         Deps
 	clock        Clock
@@ -57,7 +60,8 @@ type Scheduler struct {
 	workspace    schedulerWorkspaceAPI
 }
 
-// New returns a Scheduler. cfg.Polling.IntervalMS determines the tick interval.
+// New returns a Scheduler. cfg.Polling.IntervalMS determines the initial tick interval.
+// cfg is used as the initial last-known-good (caller must have validated it).
 func New(workflowPath string, cfg wfconfig.Config, deps Deps) *Scheduler {
 	clk := deps.Clock
 	if clk == nil {
@@ -67,6 +71,8 @@ func New(workflowPath string, cfg wfconfig.Config, deps Deps) *Scheduler {
 	return &Scheduler{
 		workflowPath: workflowPath,
 		interval:     time.Duration(cfg.Polling.IntervalMS) * time.Millisecond,
+		lastGood:     cfg,
+		reloadCh:     make(chan struct{}, 1),
 		state:        NewState(),
 		deps:         deps,
 		clock:        clk,
@@ -78,17 +84,27 @@ func New(workflowPath string, cfg wfconfig.Config, deps Deps) *Scheduler {
 }
 
 // Run starts the scheduler loop and blocks until ctx is cancelled.
-// Startup: startup cleanup → reconcile → immediate tick → poll at interval.
+// Startup: startup cleanup → immediate tick → poll at interval.
+// WORKFLOW.md is watched via fsnotify for immediate re-apply; poll remains as a safety net.
 func (s *Scheduler) Run(ctx context.Context) error {
 	slog.Info("scheduler starting", "interval_ms", s.interval.Milliseconds())
 	if s.deps.Spawn == nil {
 		slog.Warn("scheduler: no spawn func wired, running in poll-only mode")
 	}
 
+	if s.workflowPath != "" {
+		closer, err := watchWorkflow(ctx, s.workflowPath, s.reloadCh)
+		if err != nil {
+			slog.Warn("scheduler: fsnotify watch failed, falling back to poll-only", "err", err)
+		} else {
+			defer closer.Close()
+		}
+	}
+
 	s.StartupCleanup(ctx)
 	s.tickOnce(ctx)
 
-	ticker := time.NewTicker(s.interval)
+	ticker := time.NewTicker(s.intervalOrFallback())
 	defer ticker.Stop()
 	for {
 		select {
@@ -97,10 +113,14 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			s.tickOnce(ctx)
+			s.applyInterval(ticker)
 		case req := <-s.retryFire:
 			s.handleRetry(ctx, req)
 		case w := <-s.workerDone:
 			s.handleWorkerExit(ctx, w)
+		case <-s.reloadCh:
+			s.tickOnce(ctx)
+			s.applyInterval(ticker)
 		}
 	}
 }
@@ -126,15 +146,37 @@ func (s *Scheduler) handleWorkerExit(ctx context.Context, w WorkerExit) {
 	}
 }
 
+// intervalOrFallback returns the current interval, defaulting to 1s if zero.
+// A zero interval (e.g. in tests with empty cfg) would panic time.NewTicker.
+func (s *Scheduler) intervalOrFallback() time.Duration {
+	if s.interval > 0 {
+		return s.interval
+	}
+	return time.Second
+}
+
+// applyInterval resets ticker if the last-known-good config specifies a different interval.
+func (s *Scheduler) applyInterval(ticker *time.Ticker) {
+	want := time.Duration(s.lastGood.Polling.IntervalMS) * time.Millisecond
+	if want > 0 && want != s.interval {
+		s.interval = want
+		ticker.Reset(want)
+		slog.Info("scheduler: poll interval updated", "interval_ms", want.Milliseconds())
+	}
+}
+
 // tickOnce runs one poll cycle per SPEC §8.1.
+// reconcile always runs on last-known-good cfg (§5.5: stall/terminal cleanup must not stop).
+// dispatchOnce is skipped when the workflow is currently invalid (§5.5 dispatch gating).
 func (s *Scheduler) tickOnce(ctx context.Context) {
-	cfg, ok := s.reloadConfig()
-	if !ok {
+	cfg, valid := s.reloadConfig()
+
+	// §8.1 step 1: reconcile runs even when workflow is invalid (keeps running agents healthy).
+	s.reconcile(ctx, cfg)
+
+	if !valid {
 		return
 	}
-
-	// §8.1 step 1: active-run reconciliation (stall + tracker state refresh) runs before dispatch.
-	s.reconcile(ctx, cfg)
 
 	if s.deps.Tracker == nil || s.deps.Spawn == nil {
 		slog.Info("tick: tracker or spawn not wired, skipping dispatch")
@@ -150,29 +192,44 @@ func (s *Scheduler) tickOnce(ctx context.Context) {
 	dispatchOnce(ctx, cands, s.state, s.clock, s.retryFire, s.deps.Spawn, cfg)
 }
 
-// reloadConfig reloads the workflow and resolves config; returns false if preflight fails.
+// reloadConfig reloads WORKFLOW.md and resolves config (§6.2).
+// On failure: returns last-known-good with valid=false; emits one operator-visible warn.
+// On success: updates last-known-good; logs recovery if previously degraded.
 func (s *Scheduler) reloadConfig() (wfconfig.Config, bool) {
 	wf, err := workflowfile.Load(s.workflowPath)
 	if err != nil {
-		slog.Error("dispatch skipped", "reason", err)
-		return wfconfig.Config{}, false
+		s.markDegraded(err)
+		return s.lastGood, false
 	}
 	cfg, err := wfconfig.Resolve(wf.Config, filepath.Dir(s.workflowPath))
 	if err != nil {
-		slog.Error("dispatch skipped", "reason", err)
-		return wfconfig.Config{}, false
+		s.markDegraded(err)
+		return s.lastGood, false
 	}
 	if err := Preflight(cfg); err != nil {
-		slog.Error("dispatch skipped", "reason", err)
-		return wfconfig.Config{}, false
+		s.markDegraded(err)
+		return s.lastGood, false
 	}
+	if s.degraded {
+		slog.Info("scheduler: workflow recovered, resuming dispatch")
+		s.degraded = false
+	}
+	s.lastGood = cfg
 	return cfg, true
 }
 
+func (s *Scheduler) markDegraded(err error) {
+	if !s.degraded {
+		slog.Warn("scheduler: workflow reload failed, gating new dispatch", "reason", err)
+		s.degraded = true
+	}
+}
+
 // handleRetry processes a retry-fire event from a timer callback.
+// Gated by §5.5: spawn is skipped while the workflow is invalid.
 func (s *Scheduler) handleRetry(ctx context.Context, req retryFireReq) {
-	cfg, ok := s.reloadConfig()
-	if !ok {
+	cfg, valid := s.reloadConfig()
+	if !valid {
 		return
 	}
 	if s.deps.Tracker == nil || s.deps.Spawn == nil {

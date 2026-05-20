@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	"time"
 
 	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
-	"github.com/takezoh/agent-roost/platform/tracker"
+	ptrackerv "github.com/takezoh/agent-roost/platform/tracker"
 )
 
 const validFrontMatter = `---
@@ -35,12 +36,12 @@ func writeWorkflow(t *testing.T) string {
 // fakeTracker implements CandidateSource for tests.
 type fakeTracker struct {
 	mu      sync.Mutex
-	issues  []tracker.Issue
+	issues  []ptrackerv.Issue
 	callErr error
 	calls   int
 }
 
-func (f *fakeTracker) Candidates(_ context.Context) ([]tracker.Issue, error) {
+func (f *fakeTracker) Candidates(_ context.Context) ([]ptrackerv.Issue, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -59,11 +60,11 @@ type fakeSpawn struct {
 }
 
 type spawnCall struct {
-	Issue   tracker.Issue
+	Issue   ptrackerv.Issue
 	Attempt int
 }
 
-func (f *fakeSpawn) fn(ctx context.Context, iss tracker.Issue, attempt int) (LiveSession, error) {
+func (f *fakeSpawn) fn(ctx context.Context, iss ptrackerv.Issue, attempt int) (LiveSession, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, spawnCall{iss, attempt})
@@ -203,7 +204,7 @@ func TestRunContinuesAfterTickPreflightFailure(t *testing.T) {
 
 // TestTickDispatchesEligibleIssues verifies dispatch calls spawn for eligible issues.
 func TestTickDispatchesEligibleIssues(t *testing.T) {
-	tr := &fakeTracker{issues: []tracker.Issue{
+	tr := &fakeTracker{issues: []ptrackerv.Issue{
 		{ID: "1", Identifier: "P-1", Title: "issue one", State: "In Progress"},
 	}}
 	spawn := &fakeSpawn{}
@@ -221,9 +222,179 @@ func TestTickDispatchesEligibleIssues(t *testing.T) {
 	}
 }
 
+// --- Hot-reload tests (issue 023) ---
+
+// warnCapture is a minimal slog.Handler that counts Warn-level records.
+type warnCapture struct {
+	mu    sync.Mutex
+	warns int
+}
+
+func (c *warnCapture) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= slog.LevelWarn
+}
+func (c *warnCapture) Handle(_ context.Context, r slog.Record) error {
+	if r.Level == slog.LevelWarn {
+		c.mu.Lock()
+		c.warns++
+		c.mu.Unlock()
+	}
+	return nil
+}
+func (c *warnCapture) WithAttrs(_ []slog.Attr) slog.Handler { return c }
+func (c *warnCapture) WithGroup(_ string) slog.Handler      { return c }
+
+func (c *warnCapture) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.warns
+}
+
+// installWarnCapture replaces the default slog handler and restores it on test cleanup.
+func installWarnCapture(t *testing.T) *warnCapture {
+	t.Helper()
+	cap := &warnCapture{}
+	old := slog.Default()
+	slog.SetDefault(slog.New(cap))
+	t.Cleanup(func() { slog.SetDefault(old) })
+	return cap
+}
+
+// writeFrontMatter writes a WORKFLOW.md with the given front-matter content.
+func writeFrontMatter(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestApplyIntervalUpdatesOnChange verifies that applyInterval resets the ticker
+// when lastGood has a different Polling.IntervalMS than s.interval.
+func TestApplyIntervalUpdatesOnChange(t *testing.T) {
+	path := writeWorkflow(t)           // validFrontMatter; default interval = 30000ms
+	s := New(path, schedCfg(), Deps{}) // schedCfg has interval 1ms
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.tickOnce(ctx) // loads WORKFLOW.md → lastGood.Polling.IntervalMS = 30000
+
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
+
+	s.applyInterval(ticker)
+
+	const wantMS = 30000
+	if s.interval != wantMS*time.Millisecond {
+		t.Errorf("want interval %dms, got %v", wantMS, s.interval)
+	}
+}
+
+// TestDispatchGatingOnBadReload verifies that on an invalid reload:
+//   - reconcile runs on last-known-good (terminal issue is cleaned up), and
+//   - new dispatch is gated (spawn is not called).
+func TestDispatchGatingOnBadReload(t *testing.T) {
+	path := writeWorkflow(t)
+	tr := &fakeTracker{issues: []ptrackerv.Issue{
+		{ID: "1", Identifier: "P-1", Title: "issue", State: "In Progress"},
+	}}
+	spawn := &fakeSpawn{}
+	rt := &fakeReconcileTracker{
+		refreshIssues: []ptrackerv.Issue{{ID: "1", Identifier: "P-1", State: "Done"}},
+	}
+	ws := &fakeWorkspace{}
+	s := New(path, schedCfg(), Deps{
+		Tracker:        tr,
+		Spawn:          spawn.fn,
+		Clock:          newFakeClock(time.Now()),
+		RefreshTracker: rt,
+		Workspace:      ws,
+	})
+
+	// Put issue "1" in running state so reconcile has something to process.
+	_ = s.state.Dispatch(testIssue("1", "P-1"), 1, LiveSession{Worker: &fakeWorker{}}, time.Now())
+
+	// Write invalid config (missing project_slug fails Preflight).
+	writeFrontMatter(t, path, strings.ReplaceAll(validFrontMatter, "project_slug: test-proj\n", ""))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.tickOnce(ctx)
+
+	// Dispatch must be gated.
+	if spawn.callCount() != 0 {
+		t.Errorf("want 0 spawn calls on bad reload, got %d", spawn.callCount())
+	}
+	// Reconcile must have run: terminal state "Done" should have cleaned up running["1"].
+	if _, ok := s.state.Snapshot().Running["1"]; ok {
+		t.Error("reconcile should have cleaned up terminal issue '1' using last-known-good config")
+	}
+}
+
+// TestDispatchResumesAfterRecovery verifies that dispatch is re-enabled once
+// a previously invalid WORKFLOW.md is corrected.
+func TestDispatchResumesAfterRecovery(t *testing.T) {
+	path := writeWorkflow(t)
+	tr := &fakeTracker{issues: []ptrackerv.Issue{
+		{ID: "2", Identifier: "P-2", Title: "issue two", State: "In Progress"},
+	}}
+	spawn := &fakeSpawn{}
+	s := New(path, schedCfg(), minDeps(tr, spawn.fn, newFakeClock(time.Now())))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Degrade: write bad config.
+	writeFrontMatter(t, path, strings.ReplaceAll(validFrontMatter, "project_slug: test-proj\n", ""))
+	s.tickOnce(ctx)
+	if spawn.callCount() != 0 {
+		t.Fatalf("want 0 spawn calls while degraded, got %d", spawn.callCount())
+	}
+
+	// Recover: restore valid config.
+	writeFrontMatter(t, path, validFrontMatter)
+	s.tickOnce(ctx)
+	if spawn.callCount() != 1 {
+		t.Errorf("want 1 spawn call after recovery, got %d", spawn.callCount())
+	}
+}
+
+// TestDegradedWarnEmittedOnce verifies that the operator-visible Warn is emitted
+// once when the workflow turns bad, and not repeated on subsequent bad ticks.
+// Also verifies degraded resets to false on recovery.
+func TestDegradedWarnEmittedOnce(t *testing.T) {
+	cap := installWarnCapture(t)
+
+	path := writeWorkflow(t)
+	s := New(path, schedCfg(), Deps{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	badContent := strings.ReplaceAll(validFrontMatter, "project_slug: test-proj\n", "")
+	writeFrontMatter(t, path, badContent)
+
+	s.tickOnce(ctx)
+	s.tickOnce(ctx)
+	s.tickOnce(ctx)
+
+	if got := cap.count(); got != 1 {
+		t.Errorf("want exactly 1 warn on repeated bad reloads, got %d", got)
+	}
+	if !s.degraded {
+		t.Error("want s.degraded == true while workflow is invalid")
+	}
+
+	// Restore valid config: degraded should clear.
+	writeFrontMatter(t, path, validFrontMatter)
+	s.tickOnce(ctx)
+	if s.degraded {
+		t.Error("want s.degraded == false after successful reload")
+	}
+}
+
 // TestTickSpawnFailSchedulesRetry verifies spawn failure leads to retry scheduling.
 func TestTickSpawnFailSchedulesRetry(t *testing.T) {
-	tr := &fakeTracker{issues: []tracker.Issue{
+	tr := &fakeTracker{issues: []ptrackerv.Issue{
 		{ID: "1", Identifier: "P-1", Title: "issue", State: "In Progress"},
 	}}
 	spawn := &fakeSpawn{err: context.DeadlineExceeded}
