@@ -1,7 +1,9 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -9,10 +11,15 @@ import (
 	"github.com/takezoh/agent-roost/orchestrator/scheduler"
 )
 
+// snapshotTimeout is the maximum time the HTTP handler will wait for the
+// scheduler state lock before returning a 503 snapshot_timeout response
+// (SPEC §13.3 RECOMMENDED).
+const snapshotTimeout = 500 * time.Millisecond
+
 // SchedulerReader is the read-only interface the HTTP handlers use to access
 // scheduler state. Satisfied by *scheduler.Scheduler; use a fake in tests.
 type SchedulerReader interface {
-	Snapshot() scheduler.StateSnapshot
+	SnapshotCtx(ctx context.Context) (scheduler.StateSnapshot, error)
 	Refresh() (coalesced bool)
 }
 
@@ -32,7 +39,13 @@ func NewMux(sched SchedulerReader, workspaceRoot string) http.Handler {
 	})
 
 	mux.HandleFunc("GET /api/v1/state", func(w http.ResponseWriter, r *http.Request) {
-		snap := sched.Snapshot()
+		ctx, cancel := context.WithTimeout(r.Context(), snapshotTimeout)
+		defer cancel()
+		snap, err := sched.SnapshotCtx(ctx)
+		if err != nil {
+			writeSnapshotError(w, err)
+			return
+		}
 		writeJSON(w, http.StatusOK, projectState(snap, time.Now()))
 	})
 
@@ -62,7 +75,13 @@ func NewMux(sched SchedulerReader, workspaceRoot string) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_identifier", "invalid identifier")
 			return
 		}
-		snap := sched.Snapshot()
+		ctx, cancel := context.WithTimeout(r.Context(), snapshotTimeout)
+		defer cancel()
+		snap, err := sched.SnapshotCtx(ctx)
+		if err != nil {
+			writeSnapshotError(w, err)
+			return
+		}
 		resp := projectIssue(snap, id, workspaceRoot)
 		if resp == nil {
 			writeError(w, http.StatusNotFound, "issue_not_found", "issue not found: "+id)
@@ -121,4 +140,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, errorEnvelope{Error: errorDetail{Code: code, Message: message}})
+}
+
+// writeSnapshotError writes a 503 response for snapshot errors (SPEC §13.3 RECOMMENDED).
+// ErrSnapshotTimeout → "snapshot_timeout"; ErrOrchestratorUnavailable →
+// "orchestrator_unavailable"; other errors → 500 "internal_error".
+func writeSnapshotError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, scheduler.ErrSnapshotTimeout):
+		writeError(w, http.StatusServiceUnavailable, "snapshot_timeout", "snapshot timed out")
+	case errors.Is(err, scheduler.ErrOrchestratorUnavailable):
+		writeError(w, http.StatusServiceUnavailable, "orchestrator_unavailable", "orchestrator unavailable")
+	default:
+		writeError(w, http.StatusInternalServerError, "internal_error", "internal error")
+	}
 }

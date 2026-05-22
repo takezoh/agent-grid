@@ -93,6 +93,8 @@ Symphony SPEC v1 Draft への conformance の正本ドキュメント。
 |---|---|
 | `/api/v1/state` response contains required top-level fields | `TestSPEC_17_6_StateShape` (`orchestrator/httpserver`) / `TestStateEndpoint_EmptySnapshot` |
 | 405 Method Not Allowed uses standard error envelope | `TestSPEC_17_6_MethodNotAllowedEnvelope` (`orchestrator/httpserver`) / `TestMethodNotAllowed_405` |
+| Snapshot timeout returns 503 with `snapshot_timeout` code (§13.3 RECOMMENDED) | `TestSPEC_17_6_SnapshotTimeout` (`orchestrator/httpserver`) / `TestSnapshotCtx_Timeout` (`scheduler`) |
+| Orchestrator unavailable returns 503 with `orchestrator_unavailable` code (§13.3 RECOMMENDED) | `TestSPEC_17_6_OrchestratorUnavailable` (`orchestrator/httpserver`) / `TestScheduler_SnapshotCtx_Unavailable` (`scheduler`) |
 | Logging sink failures do not crash orchestration | `TestRunContinuesAfterTickPreflightFailure` (`cmd/orchestrator`) |
 
 ### §17.7 CLI and Host Lifecycle
