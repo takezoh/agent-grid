@@ -52,8 +52,11 @@ func (s *scriptedServer) OnNotification(method string, params json.RawMessage) {
 }
 
 func (s *scriptedServer) OnServerRequest(id int64, method string, _ json.RawMessage) {
-	if method == codexschema.MethodInitialize {
+	switch method {
+	case codexschema.MethodInitialize:
 		_ = s.srv.Conn().Reply(id, map[string]any{})
+	case codexschema.MethodThreadStart:
+		_ = s.srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": testThreadID}})
 	}
 }
 

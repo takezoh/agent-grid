@@ -63,7 +63,7 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 		return scheduler.LiveSession{}, err
 	}
 
-	ids, err := initSession(lr.conn, lr.startDir, rendered, lr.sessionReady, lr.doneCh)
+	ids, err := initSession(lr.conn, lr.startDir, rendered, r.dynamicToolSpecs(), lr.sessionReady, lr.doneCh)
 	if err != nil {
 		cancel()
 		<-lr.doneCh
@@ -246,10 +246,13 @@ func (r *Runner) renderPrompt(issue tracker.Issue, attempt int) (string, error) 
 
 func (r *Runner) launchConn(ctx context.Context, frameID, wsPath, issueID string) (*launchResult, error) {
 	plan := agentlaunch.LaunchPlan{
-		Command:  r.Cfg.Codex.Command,
-		Env:      map[string]string{},
+		Command: r.Cfg.Codex.Command,
+		Env:     map[string]string{},
+		// StartDir is the per-issue workspace (agent cwd); Project is the
+		// workspace root so every issue shares one per-project devcontainer.
+		// pathmap translates StartDir to <WorkspaceTarget>/<id> inside it.
 		StartDir: wsPath,
-		Project:  wsPath,
+		Project:  r.Workspace.Root(),
 	}
 	wrapped, err := r.Dispatcher.Wrap(ctx, frameID, plan)
 	if err != nil {
@@ -303,11 +306,15 @@ func (r *Runner) launchConn(ctx context.Context, frameID, wsPath, issueID string
 	}, nil
 }
 
-func initSession(conn *codexclient.Conn, wsPath, rendered string, sessionReady <-chan sessionIDs, doneCh <-chan struct{}) (sessionIDs, error) {
+func initSession(conn *codexclient.Conn, wsPath, rendered string, dynamicTools []any, sessionReady <-chan sessionIDs, doneCh <-chan struct{}) (sessionIDs, error) {
 	if err := codexclient.Initialize(conn); err != nil {
 		return sessionIDs{}, fmt.Errorf("agent: initialize: %w", err)
 	}
-	if err := codexclient.StartTurn(conn, "", wsPath, []byte(rendered)); err != nil {
+	threadID, err := codexclient.StartThread(conn, wsPath, dynamicTools)
+	if err != nil {
+		return sessionIDs{}, fmt.Errorf("agent: start thread: %w", err)
+	}
+	if err := codexclient.StartTurn(conn, threadID, wsPath, []byte(rendered)); err != nil {
 		return sessionIDs{}, fmt.Errorf("agent: start turn: %w", err)
 	}
 

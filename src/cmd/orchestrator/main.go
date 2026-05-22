@@ -138,12 +138,15 @@ func buildScheduler(ctx context.Context, absPath string, cfg wfconfig.Config, tm
 		return nil, nil, fmt.Errorf("dispatcher: %w", err)
 	}
 
-	if err := ensureProject(ctx, dispatcher, cfg.Workspace.Root); err != nil {
+	ws := workspace.New(cfg)
+
+	// Warm up the per-project container on the same key dispatch uses
+	// (workspace root), so the warmed container is reused instead of discarded.
+	if err := ensureProject(ctx, dispatcher, ws.Root()); err != nil {
 		dispatcherCleanup()
 		return nil, nil, err
 	}
 
-	ws := workspace.New(cfg)
 	runner := agent.New(ws, cfg, tmpl, dispatcher, tr)
 
 	sched := scheduler.New(absPath, cfg, scheduler.Deps{

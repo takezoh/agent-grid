@@ -11,21 +11,30 @@ import (
 
 // claudeLauncher starts a claude process and returns its stdout, a wait func, and any startup error.
 // resumeSessionID is empty for a new session; non-empty triggers --resume.
-type claudeLauncher func(ctx context.Context, cwd, resumeSessionID, prompt string) (io.ReadCloser, func() error, error)
+// appendSystemPrompt, when non-empty, is passed via --append-system-prompt (used
+// to teach claude the dynamic-tool calling convention; see turn.go).
+type claudeLauncher func(ctx context.Context, cwd, resumeSessionID, appendSystemPrompt, prompt string) (io.ReadCloser, func() error, error)
 
-func realLaunch(ctx context.Context, cwd, resumeSessionID, prompt string) (io.ReadCloser, func() error, error) {
+// claudeArgs builds the claude CLI argv. --verbose is mandatory: current claude
+// versions reject `-p --output-format stream-json` without it ("requires --verbose").
+func claudeArgs(resumeSessionID, appendSystemPrompt, prompt string) []string {
+	args := []string{"-p", "--output-format", "stream-json", "--verbose"}
+	if appendSystemPrompt != "" {
+		args = append(args, "--append-system-prompt", appendSystemPrompt)
+	}
+	if resumeSessionID != "" {
+		args = append(args, "--resume", resumeSessionID)
+	}
+	return append(args, prompt)
+}
+
+func realLaunch(ctx context.Context, cwd, resumeSessionID, appendSystemPrompt, prompt string) (io.ReadCloser, func() error, error) {
 	bin := os.Getenv("CLAUDE_BIN")
 	if bin == "" {
 		bin = "claude"
 	}
 
-	args := []string{"-p", "--output-format", "stream-json"}
-	if resumeSessionID != "" {
-		args = append(args, "--resume", resumeSessionID)
-	}
-	args = append(args, prompt)
-
-	cmd := exec.CommandContext(ctx, bin, args...) //nolint:gosec
+	cmd := exec.CommandContext(ctx, bin, claudeArgs(resumeSessionID, appendSystemPrompt, prompt)...) //nolint:gosec
 	cmd.Dir = cwd
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Kill the whole process group on context cancellation so claude's children

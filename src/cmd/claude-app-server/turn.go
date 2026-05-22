@@ -28,9 +28,20 @@ type turnRunner struct {
 	writeMu  *sync.Mutex
 	threads  map[string]string           // threadID → claude session_id
 	cumUsage map[string]streamjson.Usage // threadID → cumulative token usage
+	dynTools map[string][]dynToolSpec    // threadID → advertised dynamic tools (§10.5)
 	mu       sync.Mutex
 	launch   claudeLauncher
 	newID    func() string
+}
+
+// startThread allocates a thread id and records its advertised dynamic tools.
+// Called when the orchestrator sends thread/start.
+func (r *turnRunner) startThread(tools []dynToolSpec) string {
+	threadID := r.newID()
+	r.mu.Lock()
+	r.dynTools[threadID] = tools
+	r.mu.Unlock()
+	return threadID
 }
 
 func (r *turnRunner) run(turns <-chan turnReq, stopCh <-chan struct{}) {
@@ -79,36 +90,99 @@ func (r *turnRunner) runTurn(req turnReq) {
 	}
 
 	r.mu.Lock()
-	resumeID := r.threads[threadID]
+	tools := r.dynTools[threadID]
 	r.mu.Unlock()
+	r.runTurnLoop(threadID, turnID, sessionID, req.cwd, req.prompt, buildToolSystemPrompt(tools))
+}
 
-	stdout, wait, err := r.launch(r.ctx, req.cwd, resumeID, req.prompt)
-	if err != nil {
-		slog.Error("launch claude", "err", err)
-		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, err.Error()) })
-		return
-	}
+// runTurnLoop drives one codex turn. With dynamic tools advertised it simulates
+// codex's client-tool round-trips: launch claude, and when claude emits a
+// tool-call sentinel, forward it to the orchestrator and resume claude with the
+// result. The whole loop is presented as a single turn (one turn/started ..
+// turn/completed); internal claude resumes are hidden from the orchestrator.
+func (r *turnRunner) runTurnLoop(threadID, turnID, sessionID, cwd, prompt, sysPrompt string) {
+	var turnUsage streamjson.Usage
+	for iter := 0; ; iter++ {
+		r.mu.Lock()
+		resumeID := r.threads[threadID]
+		r.mu.Unlock()
 
-	resultReceived := r.scanStream(threadID, turnID, sessionID, streamjson.NewScanner(stdout))
-	werr := wait()
-	// If no result line arrived, the turn produced neither turn/completed nor
-	// error. Always emit a turn failure here so the orchestrator does not wait
-	// out its full turn_timeout on a silently-ended process (clean or not).
-	if !resultReceived {
-		msg := "claude exited without emitting a result"
-		if werr != nil {
-			msg = fmt.Sprintf("claude exited: %v", werr)
+		stdout, wait, err := r.launch(r.ctx, cwd, resumeID, sysPrompt, prompt)
+		if err != nil {
+			slog.Error("launch claude", "err", err)
+			_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, err.Error()) })
+			return
 		}
-		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, msg) })
+		scan := r.scanStream(threadID, turnID, streamjson.NewScanner(stdout))
+		werr := wait()
+
+		// No result line means the process ended without turn/completed or error.
+		// Always emit a failure so the orchestrator does not wait out turn_timeout.
+		if !scan.resultReceived {
+			msg := "claude exited without emitting a result"
+			if werr != nil {
+				msg = fmt.Sprintf("claude exited: %v", werr)
+			}
+			_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, msg) })
+			return
+		}
+		turnUsage = addUsage(turnUsage, scan.usage)
+		if scan.isError {
+			_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, scan.resultText) })
+			return
+		}
+
+		call, isCall := toolCall{}, false
+		if sysPrompt != "" {
+			call, isCall = parseToolCall(scan.resultText)
+		}
+		if !isCall {
+			r.completeTurn(threadID, turnID, sessionID, turnUsage, scan.resultText)
+			return
+		}
+		if iter >= maxToolCalls {
+			_ = r.emit(func() error {
+				return r.srv.EmitTurnFailed(threadID, fmt.Sprintf("exceeded max external tool calls (%d)", maxToolCalls))
+			})
+			return
+		}
+		prompt = r.runToolCall(threadID, turnID, call)
 	}
 }
 
-// scanStream processes the claude stream-json events for one turn and emits
-// the corresponding Codex protocol notifications. Returns true when a result
-// event was received (success or error).
-func (r *turnRunner) scanStream(threadID, turnID, sessionID string, sc *streamjson.Scanner) bool { //nolint:cyclop
+// runToolCall forwards a dynamic-tool invocation to the orchestrator via
+// item/tool/call and returns the resume prompt carrying the result. The
+// orchestrator executes the tool (it holds the credentials); the shim never
+// sees the raw token.
+func (r *turnRunner) runToolCall(threadID, turnID string, call toolCall) string {
+	res, err := r.srv.Conn().Request(codexschema.MethodItemToolCall, map[string]any{
+		"tool":      call.Tool,
+		"arguments": call.Arguments,
+		"callId":    r.newID(),
+		"threadId":  threadID,
+		"turnId":    turnID,
+	})
+	if err != nil {
+		return fmt.Sprintf("External tool `%s` failed: %v\n\nContinue with the task without it.", call.Tool, err)
+	}
+	return formatToolResult(call, res)
+}
+
+// turnScanResult captures the outcome of scanning one claude invocation.
+type turnScanResult struct {
+	resultReceived bool
+	isError        bool
+	resultText     string
+	usage          streamjson.Usage
+}
+
+// scanStream processes claude stream-json events for one claude invocation,
+// emitting per-item Codex notifications, and returns the final result. It does
+// not emit turn/completed or turn/failed — runTurnLoop decides that after
+// checking for a tool call.
+func (r *turnRunner) scanStream(threadID, turnID string, sc *streamjson.Scanner) turnScanResult {
 	toolNames := map[string]string{} // toolUseID → name for item/completed correlation
-	resultReceived := false
+	var out turnScanResult
 	for sc.Scan() {
 		switch ev := sc.Event().(type) {
 		case streamjson.SystemInit:
@@ -143,26 +217,23 @@ func (r *turnRunner) scanStream(threadID, turnID, sessionID string, sc *streamjs
 			})
 
 		case streamjson.Result:
-			resultReceived = true
-			if ev.IsError {
-				_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, ev.ResultText) })
-			} else {
-				r.emitUsageAndComplete(threadID, turnID, sessionID, ev.Usage, ev.ResultText)
-			}
+			out.resultReceived = true
+			out.isError = ev.IsError
+			out.resultText = ev.ResultText
+			out.usage = ev.Usage
 		}
 	}
 	if err := sc.Err(); err != nil {
 		slog.Error("stream scan", "err", err)
 	}
-	return resultReceived
+	return out
 }
 
-func (r *turnRunner) emitUsageAndComplete(threadID, turnID, sessionID string, u streamjson.Usage, text string) {
+// completeTurn accumulates token usage for the thread and emits the final
+// thread/tokenUsage/updated + turn/completed for the turn.
+func (r *turnRunner) completeTurn(threadID, turnID, sessionID string, u streamjson.Usage, text string) {
 	r.mu.Lock()
-	cum := r.cumUsage[threadID]
-	cum.InputTokens += u.InputTokens
-	cum.OutputTokens += u.OutputTokens
-	cum.TotalTokens = cum.InputTokens + cum.OutputTokens
+	cum := addUsage(r.cumUsage[threadID], u)
 	r.cumUsage[threadID] = cum
 	r.mu.Unlock()
 
@@ -180,6 +251,14 @@ func (r *turnRunner) emit(fn func() error) error {
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 	return fn()
+}
+
+// addUsage returns a+b with TotalTokens recomputed as input+output.
+func addUsage(a, b streamjson.Usage) streamjson.Usage {
+	a.InputTokens += b.InputTokens
+	a.OutputTokens += b.OutputTokens
+	a.TotalTokens = a.InputTokens + a.OutputTokens
+	return a
 }
 
 // usageBreakdown converts a streamjson.Usage to the codex TokenUsageBreakdown map shape.

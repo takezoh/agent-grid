@@ -68,7 +68,13 @@ func (h *turnHandler) OnNotification(method string, params json.RawMessage) {
 
 	case codexschema.MethodTurnStarted:
 		turnID := extractString(params, "turnId")
+		tid := extractString(params, "threadId")
 		h.mu.Lock()
+		if tid != "" {
+			// With explicit thread/start the thread id arrives here even if no
+			// thread/started notification preceded it; keep h.threadID current.
+			h.threadID = tid
+		}
 		threadID := h.threadID
 		h.turnStartedAt = now
 		h.mu.Unlock()

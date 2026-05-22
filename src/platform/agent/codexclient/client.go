@@ -18,6 +18,32 @@ func Initialize(c *Conn) error {
 	return c.Notify(codexschema.MethodInitialized, map[string]any{})
 }
 
+// StartThread sends a `thread/start` request and returns the new thread id.
+// dynamicTools advertises client-side tools (SPEC §10.5) for the thread; pass
+// nil to advertise none. The agent invokes them via `item/tool/call`.
+func StartThread(c *Conn, cwd string, dynamicTools []any) (string, error) {
+	params := map[string]any{}
+	if cwd != "" {
+		params["cwd"] = cwd
+	}
+	if len(dynamicTools) > 0 {
+		params["dynamicTools"] = dynamicTools
+	}
+	res, err := c.Request(codexschema.MethodThreadStart, params)
+	if err != nil {
+		return "", err
+	}
+	var p struct {
+		Thread struct {
+			ID string `json:"id"`
+		} `json:"thread"`
+	}
+	if err := json.Unmarshal(res, &p); err != nil {
+		return "", err
+	}
+	return p.Thread.ID, nil
+}
+
 // ResumeThread sends a `thread/resume` request and returns the raw result.
 func ResumeThread(c *Conn, threadID, startDir string) (json.RawMessage, error) {
 	params := map[string]any{"threadId": threadID}

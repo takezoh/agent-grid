@@ -17,6 +17,29 @@ func newTestManager(t *testing.T) *Manager {
 	})
 }
 
+// Root returns the cleaned workspace root (the per-project container key).
+func TestRoot_ReturnsCleanedRoot(t *testing.T) {
+	m := New(wfconfig.Config{
+		Workspace: wfconfig.WorkspaceConfig{Root: "/foo/bar/"},
+	})
+	if got := m.Root(); got != "/foo/bar" {
+		t.Errorf("Root() = %q, want %q", got, "/foo/bar")
+	}
+}
+
+// Root must be the parent of every Path so pathmap can translate the per-issue
+// StartDir to a subdir of the project mount.
+func TestRoot_IsParentOfPath(t *testing.T) {
+	m := newTestManager(t)
+	p, err := m.Path("ISSUE-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dir := filepath.Dir(p); dir != m.Root() {
+		t.Errorf("filepath.Dir(Path) = %q, want Root() = %q", dir, m.Root())
+	}
+}
+
 // §17.2: identifier→path is deterministic.
 func TestPath_Deterministic(t *testing.T) {
 	m := newTestManager(t)

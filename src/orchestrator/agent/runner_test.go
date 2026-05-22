@@ -29,11 +29,12 @@ const (
 // fakeServer simulates a codex app-server over an in-memory pipe.
 // It handles initialize, then responds to turn/start by emitting the standard sequence.
 type fakeServer struct {
-	srv      *codexclient.Server
-	failTurn bool // if true, emits error instead of turn/completed
-	hangTurn bool // if true, starts the session but never completes the turn
-	mu       sync.Mutex
-	lastCWD  string // cwd from the most recent turn/start notification
+	srv              *codexclient.Server
+	failTurn         bool // if true, emits error instead of turn/completed
+	hangTurn         bool // if true, starts the session but never completes the turn
+	mu               sync.Mutex
+	lastCWD          string          // cwd from the most recent turn/start notification
+	lastDynamicTools json.RawMessage // params from the most recent thread/start request
 }
 
 func (f *fakeServer) OnNotification(method string, params json.RawMessage) {
@@ -74,9 +75,15 @@ func (f *fakeServer) getLastCWD() string {
 	return f.lastCWD
 }
 
-func (f *fakeServer) OnServerRequest(id int64, method string, _ json.RawMessage) {
-	if method == codexschema.MethodInitialize {
+func (f *fakeServer) OnServerRequest(id int64, method string, params json.RawMessage) {
+	switch method {
+	case codexschema.MethodInitialize:
 		_ = f.srv.Conn().Reply(id, map[string]any{})
+	case codexschema.MethodThreadStart:
+		f.mu.Lock()
+		f.lastDynamicTools = params
+		f.mu.Unlock()
+		_ = f.srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": testThreadID}})
 	}
 }
 
@@ -328,9 +335,50 @@ func TestSpawn_dispatcherWrapInvoked(t *testing.T) {
 	require.Len(t, calls, 1)
 	assert.Equal(t, "PROJ-D1#2", calls[0].frameID)
 	assert.Equal(t, "my-codex", calls[0].plan.Command)
-	// Project is now the per-issue workspace path (not the global root), so
-	// SandboxResolver.ResolveProjectScope can do correct upward search from it.
-	assert.Equal(t, filepath.Join(wsRoot, "PROJ-D1"), calls[0].plan.Project)
+	// Project is the workspace root so every issue shares one per-project
+	// container; the per-issue cwd is carried by StartDir, which pathmap
+	// translates to a subdir of the project mount inside the container.
+	// SandboxResolver.ResolveProjectScope still resolves correctly because the
+	// upward search from the root reaches the same .roost/settings.toml.
+	assert.Equal(t, filepath.Clean(wsRoot), calls[0].plan.Project)
+	assert.Equal(t, filepath.Join(wsRoot, "PROJ-D1"), calls[0].plan.StartDir)
+}
+
+// TestSpawn_perProjectContainerKey is a regression guard for per-project
+// container sharing: two different issues must yield the same plan.Project
+// (the workspace root, i.e. the container key) but distinct StartDir (cwd).
+func TestSpawn_perProjectContainerKey(t *testing.T) {
+	wsRoot := t.TempDir()
+	cfg := wfconfig.Config{
+		Workspace: wfconfig.WorkspaceConfig{Root: wsRoot},
+		Codex:     wfconfig.CodexConfig{Command: "my-codex"},
+	}
+	d := &fakeDispatcher{}
+
+	for _, id := range []string{"PROJ-A1", "PROJ-B2"} {
+		fs := &fakeServer{}
+		r := &Runner{
+			Workspace:      workspace.New(cfg),
+			Cfg:            cfg,
+			PromptTemplate: "",
+			Dispatcher:     d,
+			proc:           makeFakeProc(fs),
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_, err := r.spawnWith(ctx, tracker.Issue{Identifier: id}, 1, func(Event) {})
+		cancel()
+		require.NoError(t, err)
+	}
+
+	calls := d.wrapCalls()
+	require.Len(t, calls, 2)
+	// Same container key for both issues.
+	assert.Equal(t, filepath.Clean(wsRoot), calls[0].plan.Project)
+	assert.Equal(t, calls[0].plan.Project, calls[1].plan.Project)
+	// Distinct per-issue working directories.
+	assert.Equal(t, filepath.Join(wsRoot, "PROJ-A1"), calls[0].plan.StartDir)
+	assert.Equal(t, filepath.Join(wsRoot, "PROJ-B2"), calls[1].plan.StartDir)
+	assert.NotEqual(t, calls[0].plan.StartDir, calls[1].plan.StartDir)
 }
 
 func TestSpawn_wrappedFieldsPropagateToProc(t *testing.T) {
@@ -532,4 +580,46 @@ func TestSpawn_startTurnUsesWrappedStartDir_directFallback(t *testing.T) {
 	// Direct mode: StartTurn cwd must be the host workspace path.
 	expectedWS := filepath.Join(wsRoot, "PROJ-SDD")
 	assert.Equal(t, expectedWS, fs.getLastCWD())
+}
+
+// thread/start must advertise linear_graphql as a dynamicTool when the Linear
+// client is configured (§10.5), and advertise none when it is not.
+func threadStartDynamicTools(t *testing.T, fs *fakeServer) []map[string]any {
+	t.Helper()
+	fs.mu.Lock()
+	raw := fs.lastDynamicTools
+	fs.mu.Unlock()
+	require.NotEmpty(t, raw, "thread/start should have been sent")
+	var p struct {
+		DynamicTools []map[string]any `json:"dynamicTools"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &p))
+	return p.DynamicTools
+}
+
+func TestSpawn_advertisesLinearGraphqlWhenConfigured(t *testing.T) {
+	fs := &fakeServer{}
+	r := makeRunner(t, "", makeFakeProc(fs))
+	r.LinearClient = makeLinearServer(t, `{"data":{}}`)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := r.spawnWith(ctx, tracker.Issue{Identifier: "PROJ-DT1"}, 1, func(Event) {})
+	require.NoError(t, err)
+
+	tools := threadStartDynamicTools(t, fs)
+	require.Len(t, tools, 1)
+	assert.Equal(t, "linear_graphql", tools[0]["name"])
+}
+
+func TestSpawn_noDynamicToolsWhenLinearUnconfigured(t *testing.T) {
+	fs := &fakeServer{}
+	r := makeRunner(t, "", makeFakeProc(fs)) // LinearClient nil by default
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := r.spawnWith(ctx, tracker.Issue{Identifier: "PROJ-DT2"}, 1, func(Event) {})
+	require.NoError(t, err)
+
+	assert.Empty(t, threadStartDynamicTools(t, fs))
 }

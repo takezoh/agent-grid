@@ -35,6 +35,7 @@ func newAppHandler(conn *codexclient.Conn, appCtx context.Context, launch claude
 			writeMu:  nil, // set below after h is built
 			threads:  make(map[string]string),
 			cumUsage: make(map[string]streamjson.Usage),
+			dynTools: make(map[string][]dynToolSpec),
 			launch:   launch,
 			newID:    newID,
 		},
@@ -48,6 +49,17 @@ func (h *appHandler) OnServerRequest(id int64, method string, params json.RawMes
 	case codexschema.MethodInitialize:
 		h.writeMu.Lock()
 		_ = h.conn.Reply(id, initializeResponse())
+		h.writeMu.Unlock()
+	case codexschema.MethodThreadStart:
+		var p struct {
+			CWD          string        `json:"cwd"`
+			DynamicTools []dynToolSpec `json:"dynamicTools"`
+		}
+		_ = json.Unmarshal(params, &p)
+		threadID := h.runner.startThread(p.DynamicTools)
+		h.writeMu.Lock()
+		_ = h.runner.srv.EmitThreadStarted(threadID, p.CWD)
+		_ = h.conn.Reply(id, map[string]any{"thread": map[string]any{"id": threadID}})
 		h.writeMu.Unlock()
 	case codexschema.MethodThreadResume:
 		var p struct {
