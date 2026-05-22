@@ -1,7 +1,6 @@
 package linear
 
 import (
-	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -10,14 +9,9 @@ import (
 )
 
 func normalizeIssue(n rawNode) (tracker.Issue, error) {
-	createdAt, err := parseTime(n.CreatedAt)
-	if err != nil {
-		return tracker.Issue{}, fmt.Errorf("createdAt: %w", err)
-	}
-	updatedAt, err := parseTime(n.UpdatedAt)
-	if err != nil {
-		return tracker.Issue{}, fmt.Errorf("updatedAt: %w", err)
-	}
+	// SPEC §11.3: timestamp parse failures are non-fatal; use zero time (null equivalent).
+	createdAt, _ := parseTime(n.CreatedAt)
+	updatedAt, _ := parseTime(n.UpdatedAt)
 	return tracker.Issue{
 		ID:          n.ID,
 		Identifier:  n.Identifier,
