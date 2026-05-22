@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -316,4 +317,153 @@ func TestHandleToolCall_linearDisabled_replyError(t *testing.T) {
 	spawnAndWaitForToolReply(t, r, ts)
 
 	assert.NotEmpty(t, ts.replyErr, "disabled linear_graphql should return a JSON-RPC error")
+}
+
+// --- user-input-required hard fail tests (SPEC §10.5) ---
+
+// userInputRequiredServer is a fake codex app-server that:
+//  1. Replies to initialize and thread/start.
+//  2. On turn/start: emits thread/started + turn/started, then sends item/tool/requestUserInput.
+//  3. Captures whether the request returned an error.
+type userInputRequiredServer struct {
+	srv      *codexclient.Server
+	replyErr string
+	done     chan struct{}
+}
+
+func (s *userInputRequiredServer) OnServerRequest(id int64, method string, _ json.RawMessage) {
+	switch method {
+	case codexschema.MethodInitialize:
+		_ = s.srv.Conn().Reply(id, map[string]any{})
+	case codexschema.MethodThreadStart:
+		_ = s.srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": testThreadID}})
+	}
+}
+
+func (s *userInputRequiredServer) OnNotification(method string, _ json.RawMessage) {
+	if method != codexschema.MethodTurnStart {
+		return
+	}
+	_ = s.srv.EmitThreadStarted(testThreadID, "/ws")
+	_ = s.srv.EmitTurnStarted(testThreadID, testTurnID)
+
+	go func() {
+		defer close(s.done)
+		_, err := s.srv.Conn().Request(codexschema.MethodItemToolRequestUserInput, map[string]any{
+			"itemId":    "item-1",
+			"threadId":  testThreadID,
+			"turnId":    testTurnID,
+			"questions": []map[string]any{},
+		})
+		if err != nil {
+			s.replyErr = err.Error()
+		}
+		// Do NOT emit turn/completed — the orchestrator is expected to hard-fail.
+	}()
+}
+
+func makeUserInputRequiredProc(s *userInputRequiredServer) procFunc {
+	return func(ctx context.Context, _ string, _ map[string]string, _ string) (io.ReadCloser, io.WriteCloser, func(), error) {
+		pr1, pw1 := io.Pipe()
+		pr2, pw2 := io.Pipe()
+		serverConn := codexclient.NewConn(codexclient.StdioTransport(pr2, pw1), 2*time.Second)
+		s.srv = codexclient.NewServer(serverConn)
+		go func() {
+			defer pw2.Close()
+			_ = serverConn.Run(ctx, s)
+		}()
+		go func() {
+			<-ctx.Done()
+			_ = pw1.Close()
+		}()
+		return pr1, pw2, func() {}, nil
+	}
+}
+
+// TestHandleUserInputRequired_hardFails verifies the SPEC §10.5 documented posture:
+// when item/tool/requestUserInput is received, the turn is hard-failed and the
+// orchestrator does not stall waiting for user input.
+func TestHandleUserInputRequired_hardFails(t *testing.T) {
+	s := &userInputRequiredServer{done: make(chan struct{})}
+	r := makeRunner(t, "", makeUserInputRequiredProc(s))
+
+	workerDone := make(chan scheduler.WorkerExit, 1)
+	r.WorkerDone = workerDone
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := r.spawnWith(ctx, testIssue(), 1, func(Event) {})
+	require.NoError(t, err)
+
+	var exit scheduler.WorkerExit
+	select {
+	case exit = <-workerDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout: turn did not hard-fail on user-input-required")
+	}
+
+	assert.Error(t, exit.Err, "worker exit must carry an error for user-input-required")
+	assert.Contains(t, exit.Err.Error(), "user input required")
+
+	// The orchestrator must also have replied with a JSON-RPC error to the agent.
+	select {
+	case <-s.done:
+	case <-time.After(time.Second):
+		t.Fatal("timeout: agent did not receive reply to requestUserInput")
+	}
+	assert.NotEmpty(t, s.replyErr, "agent must receive a JSON-RPC error for requestUserInput")
+}
+
+// TestHandleUserInputRequired_activityEmitted verifies that the turn_input_required
+// activity event is emitted when the agent sends item/tool/requestUserInput.
+func TestHandleUserInputRequired_activityEmitted(t *testing.T) {
+	s := &userInputRequiredServer{done: make(chan struct{})}
+
+	var activities []scheduler.CodexActivity
+	var mu sync.Mutex
+	actCh := make(chan scheduler.CodexActivity, 16)
+
+	r := makeRunner(t, "", makeUserInputRequiredProc(s))
+	r.CodexActivity = actCh
+
+	// Drain activities in background.
+	go func() {
+		for a := range actCh {
+			mu.Lock()
+			activities = append(activities, a)
+			mu.Unlock()
+		}
+	}()
+
+	workerDone := make(chan scheduler.WorkerExit, 1)
+	r.WorkerDone = workerDone
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := r.spawnWith(ctx, testIssue(), 1, func(Event) {})
+	require.NoError(t, err)
+
+	select {
+	case <-workerDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for worker to exit")
+	}
+
+	// Allow the activity goroutine to drain.
+	time.Sleep(50 * time.Millisecond)
+	close(actCh)
+
+	mu.Lock()
+	defer mu.Unlock()
+	var found bool
+	for _, a := range activities {
+		if a.Event == "turn_input_required" {
+			found = true
+			assert.Equal(t, testIssue().ID, a.IssueID)
+			break
+		}
+	}
+	assert.True(t, found, "turn_input_required activity must be emitted")
 }
