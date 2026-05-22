@@ -12,6 +12,14 @@ Agent Roost is a tmux-based control surface for running Claude, Codex, Gemini, a
 - **Keep agents running after you disconnect.** Built on tmux, so closing the UI or dropping the connection doesn't stop the work.
 - **Run each agent in its own sandbox.** Optional per-project devcontainer with brokered AWS / gcloud / SSH credentials and a policy-gated host-exec channel. Long-lived secrets stay on the host; the container only sees short-lived tokens or stdio.
 
+## Binaries
+
+This module builds three binaries from a single Go module:
+
+- **`roost`** — the tmux control surface (interactive TUI for managing agent sessions)
+- **`orchestrator`** — the scheduling brain that reads `WORKFLOW.md`, dispatches work to codex agents, and reconciles state (P1+ implementation)
+- **`claude-app-server`** — a stdio JSON-RPC shim that wraps a Claude agent as a drop-in Codex app-server (P5 implementation)
+
 ## Requirements
 
 - Go 1.26+
@@ -212,6 +220,39 @@ name = "work"    # Group this project under a named workspace
 The workspace switcher chip bar appears in the SESSIONS pane automatically when
 two or more distinct workspaces exist, and is hidden for single-workspace setups.
 Projects without a settings file fall back to the `default` workspace.
+
+## Orchestrator (WORKFLOW.md)
+
+The orchestrator reads a `WORKFLOW.md` front-matter block from the root of each project to determine how to dispatch work. The `codex:` section controls which agent binary is used.
+
+### Agent selection (`codex.command`)
+
+Use `codex app-server` (the default, requires Codex CLI) or `claude-app-server` (the built-in Claude shim) interchangeably — the orchestrator speaks the same Codex app-server stdio protocol to both:
+
+```yaml
+---
+codex:
+  # Use the native Codex agent (default)
+  command: codex app-server
+
+  # — OR — use the Claude shim (no Codex CLI required)
+  command: claude-app-server
+
+  # Optional: approval and sandbox policy hints forwarded to the agent.
+  # claude-app-server logs these values but does not enforce them;
+  # actual isolation is provided by the devcontainer (see docs/sandbox-setup.md).
+  approval_policy: localSandboxed
+  thread_sandbox: projectDirectory
+  turn_sandbox_policy: ""
+
+  # Timeouts in milliseconds (0 = use defaults)
+  turn_timeout_ms: 0
+  read_timeout_ms: 0
+  stall_timeout_ms: 0
+---
+```
+
+Both agents emit the same `thread/started → turn/started → item/* → thread/tokenUsage/updated → turn/completed` event sequence, so switching `codex.command` never requires any orchestrator-side changes.
 
 ## Sandbox
 

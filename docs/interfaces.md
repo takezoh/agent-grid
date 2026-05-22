@@ -242,14 +242,18 @@ User-facing `settings.toml` fields and defaults are documented in the [README Co
 
 ## File Structure
 
+Source tree is split into three top-level trees under `src/` — see ARCHITECTURE.md "Layer Structure".
+`src/platform/` holds shared infrastructure, `src/client/` holds roost-specific code, `src/cmd/` holds binary entry points.
+
 ```
 src/
-├── main.go              daemon / TUI mode branching (subcommand delegation via cli.Dispatch)
-├── cli/
+├── cmd/roost/           Daemon / TUI binary (main.go + coordinator.go + subcommand.go + tui_entry.go)
+├── cmd/roost-bridge/    Bridge binary (thin container-side client)
+├── client/cli/
 │   └── subcommand.go    Subcommand registry (Register, Dispatch)
-├── event/
+├── client/event/
 │   └── send.go          Event sender (registers "event" subcommand in init)
-├── state/               Pure domain layer (no I/O, no goroutine)
+├── client/state/        Pure domain layer (no I/O, no goroutine)
 │   ├── state.go         State, Session, SessionFrame, Subscriber, JobMeta, LaunchOptions — plain value types
 │   ├── event.go         Event closed sum type (EvEvent, EvDriverEvent, EvSubsystem, EvTick, EvJobResult, EvPaneDied, EvTmuxWindowVanished, ...)
 │   ├── event_dispatch.go  RegisterEvent[T] registry + dispatch lookup
@@ -277,7 +281,7 @@ src/
 │       ├── status.go    Status enum + StatusInfo — canonical definition (Running/Waiting/Idle/Stopped/Pending)
 │       ├── view.go      View / Card / Tag / LogTab / TabKind / InfoLine
 │       └── connector.go ConnectorSection / ConnectorItem
-├── driver/              Driver implementations — value-type plugins (no goroutines, no I/O)
+├── client/driver/              Driver implementations — value-type plugins (no goroutines, no I/O)
 │   ├── claude.go        claudeDriver — event-driven status + transcript job emit
 │   ├── claude_event.go  DEvHook dispatch (state-change, session-start, ...)
 │   ├── claude_tick.go   DEvTick: active gate + transcript parse job emit
@@ -292,13 +296,13 @@ src/
 │   ├── runners.go       built-in runners (TranscriptParse, HaikuSummary, GitBranch)
 │   ├── tags.go          CommandTag helper
 │   └── register.go      init() registers with state.Register
-├── connector/           Connector plugin system (external service integration)
+├── client/connector/           Connector plugin system (external service integration)
 │   ├── github.go        GitHub connector — issues, PRs, workflow runs
 │   ├── github_state.go  GitHub connector state types
 │   ├── jobs.go          Connector job input/output types
 │   ├── runners.go       Connector worker pool runners
 │   └── register.go      init() registers connectors
-├── runtime/             Imperative shell — event loop + Effect interpreter
+├── client/runtime/             Imperative shell — event loop + Effect interpreter
 │   ├── runtime.go       Runtime.Run() — single event loop (select)
 │   ├── interpret.go     execute(Effect) — interpreter for all side effects
 │   ├── ipc.go           Host IPC server (accept + SO_PEERCRED uid check, readLoop, writeLoop)
@@ -333,7 +337,7 @@ src/
 │       ├── pool.go      Pool + Submit[In,Out] (typed job submission)
 │       ├── registry.go  RegisterRunner[In,Out] + Dispatch (JobKind-based runner registry)
 │       └── runners.go   built-in runners (TranscriptParse, HaikuSummary, GitBranch)
-├── sandbox/             Project-level sandbox backends (generic Manager[I any])
+├── platform/sandbox/             Project-level sandbox backends (generic Manager[I any])
 │   ├── manager.go       Instance[I] / Manager[I] / StartOptions interface definitions
 │   └── devcontainer/    Devcontainer backend (per-project container lifecycle via docker)
 │       ├── manager.go   Manager (impl): EnsureInstance / BuildLaunchCommand / AdoptFrame / DestroyInstance
@@ -342,9 +346,9 @@ src/
 │       ├── spec.go      LoadSpec — parses devcontainer.json (image / build.name / mounts / runArgs / containerEnv / containerUser / remoteUser / workspaceFolder / workspaceMount / postCreateCommand / preExecCommand)
 │       ├── merge.go     Merges user-scope SandboxConfig with the per-project devcontainer spec
 │       └── envscript.go Resolves `${localEnv:VAR}` / `${localWorkspaceFolder*}` / `${containerWorkspaceFolder}` placeholders
-├── hostexec/            Host-exec broker (`container.Provider` impl): per-project Unix socket server that runs allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding; deny/allow glob policy with env-assignment prefix stripping
+├── platform/hostexec/            Host-exec broker (`container.Provider` impl): per-project Unix socket server that runs allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding; deny/allow glob policy with env-assignment prefix stripping
 │                        Credential providers (awssso / gcloudcli / sshagent) live in the external `credproxy` library under `providers/<name>/`
-├── proto/               Typed IPC wire layer — imports state/view only (safe for roost-bridge)
+├── client/proto/               Typed IPC wire layer — imports state/view only (safe for roost-bridge)
 │   ├── envelope.go      Envelope wire format ({type, req_id, cmd|name, data})
 │   ├── command.go       Command closed sum type (CmdSubscribe, CmdUnsubscribe, CmdEvent, CmdHookEvent (container-only), CmdSurface*, CmdDriverList, CmdPeer*)
 │   ├── response.go      Response closed sum type (RespOK, RespSurfaceText, RespDriverList, RespPeerList, RespPeerDrainInbox). Session-related types live in proto/sessions
@@ -354,15 +358,15 @@ src/
 │   ├── client_helpers.go  Peer helpers (PeerSend/List/SetSummary/DrainInbox), SendEvent, SendHookEvent
 │   ├── reqid.go         Request ID generation
 │   └── errors.go        ErrCode enum
-├── proto/sessions/      Session management layer — imports proto + state (NOT used by roost-bridge)
+├── client/proto/sessions/      Session management layer — imports proto + state (NOT used by roost-bridge)
 │   ├── client.go        sessions.Client wraps *proto.Client; session helpers (CreateSession, StopSession, ListSessions, PushDriver, ActivateFrame, ...)
 │   ├── helpers.go       sendJSONEvent / sendJSONEventTimeout helpers; timeout constants
 │   ├── client_test.go   External tests (TestCreateSessionUsesLongTimeout, TestPushDriverDecodesCreateSessionReply, ...)
 │   ├── canonical_test.go  canonicalProjectPath unit tests
 │   └── sync_test.go     Integration: proto.CmdNamePeer* == state.EventPeer* (divergence detection)
-├── tools/
+├── client/tools/
 │   └── tools.go         Tool + Param + ToolContext + Registry + DefaultRegistry
-├── lib/
+├── platform/lib/
 │   ├── claude/
 │   │   ├── command.go   Claude subcommand handler (registers "claude" in init)
 │   │   ├── cli/         Claude CLI launch command assembly (ResumeCommand etc.)
@@ -377,7 +381,7 @@ src/
 │   │   └── vcs.go       VCS abstraction
 │   └── plastic/
 │       └── plastic.go   Plastic SCM integration
-├── config/
+├── client/config/
 │   ├── config.go        TOML configuration loading (`ROOST_DATA_DIR` env override)
 │   ├── merge.go         MergeSandbox — user-scope settings merged into per-project overrides
 │   ├── sandbox_resolver.go SandboxResolver — resolves effective sandbox mode per project (mtime-cached)
@@ -388,7 +392,7 @@ src/
 │   ├── interfaces.go    PaneOperator
 │   ├── client.go        tmux command wrapper (concrete implementation)
 │   └── pane.go          Pane operations
-├── tui/
+├── client/tui/
 │   ├── model.go         Session list Model (UI state only. Directly imports state.Status)
 │   ├── view.go          Session list rendering
 │   ├── mouse.go         Mouse input handler
