@@ -277,7 +277,6 @@ func TestSPEC_17_3_FetchIssueStatesByIDsUsesIDType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// §11.2 requires nullable list [ID!], not non-null list [ID!]!
 	if !strings.Contains(*body, "[ID!]") {
 		t.Errorf("query must declare ids as [ID!]; body: %s", *body)
 	}
