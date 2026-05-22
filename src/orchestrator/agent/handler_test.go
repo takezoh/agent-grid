@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -206,17 +205,17 @@ func (s *toolCallServer) OnNotification(method string, _ json.RawMessage) {
 	}()
 }
 
-// makeToolCallProc wires runner ↔ toolCallServer via io.Pipe, same pattern as
-// makeFakeProc in runner_test.go.
-func makeToolCallProc(ts *toolCallServer) procFunc {
+// makeConnectedProc wires a codexclient.Handler to a pipe-based Conn, calls setSrv with the
+// resulting Server, and returns a procFunc. It mirrors the pattern in makeFakeProc.
+func makeConnectedProc(h codexclient.Handler, setSrv func(*codexclient.Server)) procFunc {
 	return func(ctx context.Context, _ string, _ map[string]string, _ string) (io.ReadCloser, io.WriteCloser, func(), error) {
 		pr1, pw1 := io.Pipe()
 		pr2, pw2 := io.Pipe()
 		serverConn := codexclient.NewConn(codexclient.StdioTransport(pr2, pw1), 2*time.Second)
-		ts.srv = codexclient.NewServer(serverConn)
+		setSrv(codexclient.NewServer(serverConn))
 		go func() {
 			defer pw2.Close()
-			_ = serverConn.Run(ctx, ts)
+			_ = serverConn.Run(ctx, h)
 		}()
 		go func() {
 			<-ctx.Done()
@@ -224,6 +223,10 @@ func makeToolCallProc(ts *toolCallServer) procFunc {
 		}()
 		return pr1, pw2, func() {}, nil
 	}
+}
+
+func makeToolCallProc(ts *toolCallServer) procFunc {
+	return makeConnectedProc(ts, func(s *codexclient.Server) { ts.srv = s })
 }
 
 func makeLinearServer(t *testing.T, respBody string) *lineargql.Client {
@@ -244,7 +247,7 @@ func makeRunnerWithLinear(t *testing.T, lc *lineargql.Client, proc procFunc) *Ru
 }
 
 func testIssue() tracker.Issue {
-	return tracker.Issue{Identifier: "PROJ-H1", Title: "handler test issue"}
+	return tracker.Issue{ID: "issue-h1", Identifier: "PROJ-H1", Title: "handler test issue"}
 }
 
 func spawnAndWaitForToolReply(t *testing.T, r *Runner, ts *toolCallServer) {
@@ -321,10 +324,7 @@ func TestHandleToolCall_linearDisabled_replyError(t *testing.T) {
 
 // --- user-input-required hard fail tests (SPEC §10.5) ---
 
-// userInputRequiredServer is a fake codex app-server that:
-//  1. Replies to initialize and thread/start.
-//  2. On turn/start: emits thread/started + turn/started, then sends item/tool/requestUserInput.
-//  3. Captures whether the request returned an error.
+// userInputRequiredServer sends item/tool/requestUserInput after turn/start and captures the reply error.
 type userInputRequiredServer struct {
 	srv      *codexclient.Server
 	replyErr string
@@ -363,21 +363,7 @@ func (s *userInputRequiredServer) OnNotification(method string, _ json.RawMessag
 }
 
 func makeUserInputRequiredProc(s *userInputRequiredServer) procFunc {
-	return func(ctx context.Context, _ string, _ map[string]string, _ string) (io.ReadCloser, io.WriteCloser, func(), error) {
-		pr1, pw1 := io.Pipe()
-		pr2, pw2 := io.Pipe()
-		serverConn := codexclient.NewConn(codexclient.StdioTransport(pr2, pw1), 2*time.Second)
-		s.srv = codexclient.NewServer(serverConn)
-		go func() {
-			defer pw2.Close()
-			_ = serverConn.Run(ctx, s)
-		}()
-		go func() {
-			<-ctx.Done()
-			_ = pw1.Close()
-		}()
-		return pr1, pw2, func() {}, nil
-	}
+	return makeConnectedProc(s, func(srv *codexclient.Server) { s.srv = srv })
 }
 
 // TestHandleUserInputRequired_hardFails verifies the SPEC §10.5 documented posture:
@@ -419,22 +405,10 @@ func TestHandleUserInputRequired_hardFails(t *testing.T) {
 // activity event is emitted when the agent sends item/tool/requestUserInput.
 func TestHandleUserInputRequired_activityEmitted(t *testing.T) {
 	s := &userInputRequiredServer{done: make(chan struct{})}
-
-	var activities []scheduler.CodexActivity
-	var mu sync.Mutex
 	actCh := make(chan scheduler.CodexActivity, 16)
 
 	r := makeRunner(t, "", makeUserInputRequiredProc(s))
 	r.CodexActivity = actCh
-
-	// Drain activities in background.
-	go func() {
-		for a := range actCh {
-			mu.Lock()
-			activities = append(activities, a)
-			mu.Unlock()
-		}
-	}()
 
 	workerDone := make(chan scheduler.WorkerExit, 1)
 	r.WorkerDone = workerDone
@@ -451,18 +425,14 @@ func TestHandleUserInputRequired_activityEmitted(t *testing.T) {
 		t.Fatal("timeout waiting for worker to exit")
 	}
 
-	// Allow the activity goroutine to drain.
-	time.Sleep(50 * time.Millisecond)
+	// By the time workerDone fires, report() has already sent to actCh (before turnDone was signalled).
 	close(actCh)
 
-	mu.Lock()
-	defer mu.Unlock()
 	var found bool
-	for _, a := range activities {
+	for a := range actCh {
 		if a.Event == "turn_input_required" {
 			found = true
 			assert.Equal(t, testIssue().ID, a.IssueID)
-			break
 		}
 	}
 	assert.True(t, found, "turn_input_required activity must be emitted")

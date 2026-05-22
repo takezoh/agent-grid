@@ -173,9 +173,7 @@ func (h *turnHandler) OnServerRequest(id int64, method string, params json.RawMe
 	}
 }
 
-// handleUserInputRequired implements the SPEC §10.5 documented posture for
-// user-input-required signals: automated orchestration cannot provide user
-// input, so the turn is hard-failed immediately.
+// SPEC §10.5: automated orchestration cannot provide user input; hard-fail the turn.
 func (h *turnHandler) handleUserInputRequired(id int64) {
 	_ = h.conn.ReplyError(id, "user input required: automated orchestration cannot provide user input")
 	if h.report != nil {
