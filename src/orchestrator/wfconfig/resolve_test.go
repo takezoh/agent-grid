@@ -336,7 +336,7 @@ func TestResolve_CodexPassthroughFields_Captured(t *testing.T) {
 	}
 }
 
-// SPEC §5.3.1: kind=linear かつ api_key 未指定時に canonical env LINEAR_API_KEY へフォールバックする。
+// SPEC §5.3.1: absent api_key falls back to the canonical env var LINEAR_API_KEY.
 func TestResolve_LinearAPIKey_CanonicalEnvFallback(t *testing.T) {
 	t.Setenv("LINEAR_API_KEY", "sk-fallback")
 	raw := map[string]any{
@@ -351,7 +351,7 @@ func TestResolve_LinearAPIKey_CanonicalEnvFallback(t *testing.T) {
 	}
 }
 
-// SPEC §5.3.1: api_key が空文字列に解決された場合も LINEAR_API_KEY にフォールバックする。
+// SPEC §5.3.1: api_key that expands to empty also falls back to LINEAR_API_KEY.
 func TestResolve_LinearAPIKey_EmptyResolvesToCanonicalEnv(t *testing.T) {
 	t.Setenv("MY_KEY", "")
 	t.Setenv("LINEAR_API_KEY", "sk-canonical")
@@ -367,7 +367,7 @@ func TestResolve_LinearAPIKey_EmptyResolvesToCanonicalEnv(t *testing.T) {
 	}
 }
 
-// SPEC §5.3.1: 明示的な api_key が設定されている場合は LINEAR_API_KEY より優先される。
+// SPEC §5.3.1: an explicit api_key takes precedence over LINEAR_API_KEY.
 func TestResolve_LinearAPIKey_ExplicitKeyWins(t *testing.T) {
 	t.Setenv("LINEAR_API_KEY", "sk-canonical")
 	raw := map[string]any{
@@ -382,7 +382,6 @@ func TestResolve_LinearAPIKey_ExplicitKeyWins(t *testing.T) {
 	}
 }
 
-// kind が linear でない場合は LINEAR_API_KEY へのフォールバックを行わない。
 func TestResolve_NonLinearTracker_NoCanonicalEnvFallback(t *testing.T) {
 	t.Setenv("LINEAR_API_KEY", "sk-should-not-appear")
 	raw := map[string]any{
@@ -394,6 +393,21 @@ func TestResolve_NonLinearTracker_NoCanonicalEnvFallback(t *testing.T) {
 	}
 	if cfg.Tracker.APIKey != "" {
 		t.Errorf("APIKey = %q, want empty (non-linear tracker must not use LINEAR_API_KEY)", cfg.Tracker.APIKey)
+	}
+}
+
+// SPEC §5.3.1: when LINEAR_API_KEY is also absent, fallback yields empty string without error.
+func TestResolve_LinearAPIKey_FallbackEnvAbsent(t *testing.T) {
+	t.Setenv("LINEAR_API_KEY", "")
+	raw := map[string]any{
+		"tracker": map[string]any{"kind": "linear"},
+	}
+	cfg, err := Resolve(raw, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Tracker.APIKey != "" {
+		t.Errorf("APIKey = %q, want empty when LINEAR_API_KEY is unset", cfg.Tracker.APIKey)
 	}
 }
 
