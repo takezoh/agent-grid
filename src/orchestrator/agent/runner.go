@@ -236,10 +236,6 @@ func (r *Runner) prepareWorkspace(ctx context.Context, identifier string) (strin
 	return wsPath, nil
 }
 
-// currentTemplate returns the most up-to-date prompt template.
-// If PromptLoader is set it is called per-dispatch so that live edits to
-// WORKFLOW.md are reflected immediately (SPEC §6.2). PromptTemplate is used
-// as a static fallback (e.g. in tests that set it directly).
 func (r *Runner) currentTemplate() string {
 	if r.PromptLoader != nil {
 		return r.PromptLoader()

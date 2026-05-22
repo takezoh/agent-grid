@@ -271,7 +271,7 @@ func writeFrontMatter(t *testing.T, path string, content string) {
 // TestApplyIntervalUpdatesOnChange verifies that applyInterval resets the ticker
 // when lastGood has a different Polling.IntervalMS than s.interval.
 func TestApplyIntervalUpdatesOnChange(t *testing.T) {
-	path := writeWorkflow(t)           // validFrontMatter; default interval = 30000ms
+	path := writeWorkflow(t)               // validFrontMatter; default interval = 30000ms
 	s := New(path, schedCfg(), "", Deps{}) // schedCfg has interval 1ms
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -63,7 +63,7 @@ type Scheduler struct {
 	interval         time.Duration
 	lastGood         wfconfig.Config // last successfully resolved config; seeded from New
 	lastGoodTemplate string          // last successfully loaded prompt template body; seeded from New
-	reloadCh         chan struct{}    // fsnotify → loop coalesced reload signal (buffered 1)
+	reloadCh         chan struct{}   // fsnotify → loop coalesced reload signal (buffered 1)
 	degraded         bool            // true while workflow is invalid; controls warn/recovery log
 	state            *State
 	deps             Deps
@@ -102,7 +102,6 @@ func New(workflowPath string, cfg wfconfig.Config, tmpl string, deps Deps) *Sche
 }
 
 // LastGoodTemplate returns the most recently successfully loaded prompt template body.
-// Callers (e.g. the agent runner) should call this per-dispatch to pick up WORKFLOW.md edits.
 func (s *Scheduler) LastGoodTemplate() string {
 	return s.lastGoodTemplate
 }

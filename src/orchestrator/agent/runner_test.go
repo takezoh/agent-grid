@@ -34,6 +34,7 @@ type fakeServer struct {
 	hangTurn         bool // if true, starts the session but never completes the turn
 	mu               sync.Mutex
 	lastCWD          string          // cwd from the most recent turn/start notification
+	lastMessage      string          // rendered prompt from the most recent turn/start notification
 	lastDynamicTools json.RawMessage // params from the most recent thread/start request
 }
 
@@ -42,13 +43,15 @@ func (f *fakeServer) OnNotification(method string, params json.RawMessage) {
 		return
 	}
 
-	// Capture the cwd field from the params for test assertions.
+	// Capture cwd and rendered prompt for test assertions.
 	var p struct {
-		CWD string `json:"cwd"`
+		CWD     string `json:"cwd"`
+		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(params, &p); err == nil {
 		f.mu.Lock()
 		f.lastCWD = p.CWD
+		f.lastMessage = p.Message
 		f.mu.Unlock()
 	}
 
@@ -73,6 +76,12 @@ func (f *fakeServer) getLastCWD() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.lastCWD
+}
+
+func (f *fakeServer) getLastMessage() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastMessage
 }
 
 func (f *fakeServer) OnServerRequest(id int64, method string, params json.RawMessage) {
@@ -648,34 +657,9 @@ func TestCurrentTemplate_fallbackToStatic(t *testing.T) {
 }
 
 // TestSpawn_promptLoaderUsedPerDispatch verifies that when PromptLoader is set,
-// each spawnWith call reads the latest value from the loader (SPEC §6.2).
+// each spawnWith call renders with the latest value from the loader (SPEC §6.2).
 func TestSpawn_promptLoaderUsedPerDispatch(t *testing.T) {
-	// Capture the rendered prompt that the fake server receives via turn/start.
 	var mu sync.Mutex
-	var capturedPrompts []string
-	captureProc := func(ctx context.Context, dir string, env map[string]string, command string) (io.ReadCloser, io.WriteCloser, func(), error) {
-		fs := &fakeServer{}
-		pr1, pw1 := io.Pipe()
-		pr2, pw2 := io.Pipe()
-		serverConn := codexclient.NewConn(codexclient.StdioTransport(pr2, pw1), 2*time.Second)
-		srv := codexclient.NewServer(serverConn)
-		fs.srv = srv
-
-		go func() {
-			defer pw2.Close()
-			_ = serverConn.Run(ctx, fs)
-		}()
-		go func() {
-			<-ctx.Done()
-			_ = pw1.Close()
-		}()
-		// Capture prompts by wrapping OnNotification after fs.srv is set.
-		_ = capturedPrompts // referenced in closure below
-		return pr1, pw2, func() {}, nil
-	}
-	_ = captureProc // suppress unused warning; test uses fakeServer directly below
-
-	// Use a mutable loader that returns different values on successive calls.
 	current := "first template {{ issue.identifier }}"
 	loader := func() string {
 		mu.Lock()
@@ -697,12 +681,12 @@ func TestSpawn_promptLoaderUsedPerDispatch(t *testing.T) {
 		proc:         makeFakeProc(fs),
 	}
 
-	iss := tracker.Issue{Identifier: "PROJ-PL1"}
-	events := collectEvents(t, r, iss)
+	events := collectEvents(t, r, tracker.Issue{Identifier: "PROJ-PL1"})
 	require.GreaterOrEqual(t, len(events), 2)
 	assert.Equal(t, EventTurnCompleted, events[1].Kind)
+	assert.Equal(t, "first template PROJ-PL1", fs.getLastMessage())
 
-	// Update loader value; next spawn should use the new template.
+	// Swap the loader value; the next dispatch must pick it up immediately.
 	mu.Lock()
 	current = "second template {{ issue.identifier }}"
 	mu.Unlock()
@@ -712,4 +696,5 @@ func TestSpawn_promptLoaderUsedPerDispatch(t *testing.T) {
 	events2 := collectEvents(t, r, tracker.Issue{Identifier: "PROJ-PL2"})
 	require.GreaterOrEqual(t, len(events2), 2)
 	assert.Equal(t, EventTurnCompleted, events2[1].Kind)
+	assert.Equal(t, "second template PROJ-PL2", fs2.getLastMessage())
 }
