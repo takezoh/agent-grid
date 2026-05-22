@@ -23,8 +23,9 @@ type sessionIDs struct {
 func (s sessionIDs) sessionID() string { return s.threadID + "-" + s.turnID }
 
 type turnResult struct {
-	failed bool
-	err    error
+	failed    bool
+	cancelled bool
+	err       error
 }
 
 // toolCallParams is the shape of DynamicToolCallParams from the codex protocol.
@@ -55,11 +56,13 @@ type turnHandler struct {
 	linearClient  *lineargql.Client // nil when linear_graphql is not configured
 	mu            sync.Mutex
 	threadID      string
+	turnID        string    // protected by mu; current turn id
 	turnStartedAt time.Time // protected by mu; set on turn/started, cleared on turn/completed
 	sessionReady  chan<- sessionIDs
 	turnDone      chan<- turnResult
 	issueID       string
 	report        func(scheduler.CodexActivity)
+	emitEvent     func(Event) // nil when event emission is not wired
 }
 
 func (h *turnHandler) OnNotification(method string, params json.RawMessage) {
@@ -82,6 +85,7 @@ func (h *turnHandler) OnNotification(method string, params json.RawMessage) {
 			// thread/started notification preceded it; keep h.threadID current.
 			h.threadID = tid
 		}
+		h.turnID = turnID
 		threadID := h.threadID
 		h.turnStartedAt = now
 		h.mu.Unlock()
@@ -178,6 +182,19 @@ func (h *turnHandler) handleToolCall(id int64, params json.RawMessage) {
 		return
 	}
 	if p.Tool != "linear_graphql" || h.linearClient == nil {
+		h.mu.Lock()
+		threadID := h.threadID
+		turnID := h.turnID
+		h.mu.Unlock()
+		if h.emitEvent != nil {
+			h.emitEvent(Event{
+				Kind:      EventUnsupportedToolCall,
+				SessionID: threadID + "-" + turnID,
+				ThreadID:  threadID,
+				TurnID:    turnID,
+				Timestamp: time.Now(),
+			})
+		}
 		_ = h.conn.ReplyError(id, "unknown tool: "+p.Tool)
 		return
 	}

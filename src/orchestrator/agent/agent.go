@@ -22,9 +22,13 @@ type stateRefresher interface {
 }
 
 const (
-	EventSessionStarted = "session_started"
-	EventTurnCompleted  = "turn_completed"
-	EventTurnFailed     = "turn_failed"
+	EventSessionStarted      = "session_started"
+	EventTurnCompleted       = "turn_completed"
+	EventTurnFailed          = "turn_failed"
+	EventTurnCancelled       = "turn_cancelled"
+	EventStartupFailed       = "startup_failed"
+	EventUnsupportedToolCall = "unsupported_tool_call"
+	EventTurnInputRequired   = "turn_input_required"
 )
 
 // Event carries a single agent lifecycle notification.
