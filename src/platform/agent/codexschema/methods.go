@@ -1,5 +1,5 @@
 // Package codexschema provides pinned JSON Schema and method-name constants for the
-// Codex app-server stdio JSON-RPC protocol (codex-cli 0.128.0).
+// Codex app-server stdio JSON-RPC protocol (codex-cli 0.133.0).
 //
 // Generated Go types live in the v1/ and v2/ sub-packages.
 // The raw schema bundles used as the drift-detection reference are in schema/.
@@ -8,6 +8,7 @@ package codexschema
 // Client → server requests (expect a response).
 const (
 	MethodInitialize   = "initialize"
+	MethodThreadStart  = "thread/start"
 	MethodThreadResume = "thread/resume"
 )
 

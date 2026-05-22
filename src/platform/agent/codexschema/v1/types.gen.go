@@ -43,6 +43,8 @@ type InitializeCapabilities struct {
 	// Exact notification method names that should be suppressed for this connection (for         
 	// example `thread/started`).                                                                 
 	OptOutNotificationMethods                                                            []string `json:"optOutNotificationMethods"`
+	// Opt into `attestation/generate` requests for upstream `x-oai-attestation`.                 
+	RequestAttestation                                                                   *bool    `json:"requestAttestation,omitempty"`
 }
 
 type ClientInfo struct {
