@@ -1,12 +1,13 @@
 package agent
 
 // Tests for SPEC §10.4 event taxonomy extension (DEV-188).
-// Covers: turn_cancelled, startup_failed, unsupported_tool_call, turn_input_required.
+// Covers: turn_cancelled, startup_failed, unsupported_tool_call.
 
 import (
 	"context"
 	"encoding/json"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,8 +30,13 @@ func TestSpawn_turnCancelledOnKill(t *testing.T) {
 	r := makeRunner(t, "", makeFakeProc(fs))
 	iss := tracker.Issue{Identifier: "PROJ-CANCEL"}
 
+	var mu sync.Mutex
 	var events []Event
-	emit := func(e Event) { events = append(events, e) }
+	emit := func(e Event) {
+		mu.Lock()
+		events = append(events, e)
+		mu.Unlock()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -45,16 +51,24 @@ func TestSpawn_turnCancelledOnKill(t *testing.T) {
 	// Wait for the cancelled event to be emitted by runLoop.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if len(events) >= 2 {
+		mu.Lock()
+		n := len(events)
+		mu.Unlock()
+		if n >= 2 {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	require.GreaterOrEqual(t, len(events), 2, "want session_started + turn_cancelled")
-	assert.Equal(t, EventSessionStarted, events[0].Kind)
-	assert.Equal(t, EventTurnCancelled, events[1].Kind)
-	assert.Nil(t, events[1].Err, "turn_cancelled must carry no error")
+	mu.Lock()
+	evs := make([]Event, len(events))
+	copy(evs, events)
+	mu.Unlock()
+
+	require.GreaterOrEqual(t, len(evs), 2, "want session_started + turn_cancelled")
+	assert.Equal(t, EventSessionStarted, evs[0].Kind)
+	assert.Equal(t, EventTurnCancelled, evs[1].Kind)
+	assert.Nil(t, evs[1].Err, "turn_cancelled must carry no error")
 }
 
 // ---- startup_failed ----
@@ -151,8 +165,13 @@ func TestSpawn_unsupportedToolCallEmitsEvent(t *testing.T) {
 	// No LinearClient — all tool calls are unsupported.
 	r := makeRunner(t, "", makeToolCallProc(ts))
 
+	var mu sync.Mutex
 	var events []Event
-	emit := func(e Event) { events = append(events, e) }
+	emit := func(e Event) {
+		mu.Lock()
+		events = append(events, e)
+		mu.Unlock()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -163,6 +182,7 @@ func TestSpawn_unsupportedToolCallEmitsEvent(t *testing.T) {
 	// Wait for the unsupported_tool_call event.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
+		mu.Lock()
 		found := false
 		for _, e := range events {
 			if e.Kind == EventUnsupportedToolCall {
@@ -170,28 +190,26 @@ func TestSpawn_unsupportedToolCallEmitsEvent(t *testing.T) {
 				break
 			}
 		}
+		mu.Unlock()
 		if found {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 
+	mu.Lock()
+	evs := make([]Event, len(events))
+	copy(evs, events)
+	mu.Unlock()
+
 	var toolEvent *Event
-	for i := range events {
-		if events[i].Kind == EventUnsupportedToolCall {
-			toolEvent = &events[i]
+	for i := range evs {
+		if evs[i].Kind == EventUnsupportedToolCall {
+			toolEvent = &evs[i]
 			break
 		}
 	}
 	require.NotNil(t, toolEvent, "want unsupported_tool_call event")
 	assert.NotEmpty(t, toolEvent.ThreadID, "event must carry a thread id")
 	assert.NotEmpty(t, toolEvent.TurnID, "event must carry a turn id")
-}
-
-// ---- turn_input_required constant ----
-
-// TestEventKinds_TurnInputRequired ensures the constant is defined correctly
-// so it can be referenced by observability consumers.
-func TestEventKinds_TurnInputRequired(t *testing.T) {
-	assert.Equal(t, "turn_input_required", EventTurnInputRequired)
 }

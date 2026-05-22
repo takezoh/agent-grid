@@ -347,33 +347,26 @@ func initSession(conn *codexclient.Conn, wsPath, rendered string, dynamicTools [
 	}
 }
 
-func (r *Runner) turnCompletedEvent(ids sessionIDs) Event {
+func newTurnEvent(kind string, ids sessionIDs) Event {
 	return Event{
-		Kind:      EventTurnCompleted,
+		Kind:      kind,
 		SessionID: ids.sessionID(),
 		ThreadID:  ids.threadID,
 		TurnID:    ids.turnID,
 		Timestamp: time.Now(),
 	}
+}
+
+func (r *Runner) turnCompletedEvent(ids sessionIDs) Event {
+	return newTurnEvent(EventTurnCompleted, ids)
 }
 
 func (r *Runner) turnFailedEvent(ids sessionIDs, err error) Event {
-	return Event{
-		Kind:      EventTurnFailed,
-		SessionID: ids.sessionID(),
-		ThreadID:  ids.threadID,
-		TurnID:    ids.turnID,
-		Timestamp: time.Now(),
-		Err:       err,
-	}
+	e := newTurnEvent(EventTurnFailed, ids)
+	e.Err = err
+	return e
 }
 
 func (r *Runner) turnCancelledEvent(ids sessionIDs) Event {
-	return Event{
-		Kind:      EventTurnCancelled,
-		SessionID: ids.sessionID(),
-		ThreadID:  ids.threadID,
-		TurnID:    ids.turnID,
-		Timestamp: time.Now(),
-	}
+	return newTurnEvent(EventTurnCancelled, ids)
 }

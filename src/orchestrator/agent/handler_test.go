@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -165,6 +166,7 @@ func TestTurnHandler_NilReportNoPanic(t *testing.T) {
 //  3. Sends one item/tool/call request to the orchestrator and captures the reply.
 //  4. After capturing the reply, emits turn/completed to end the session.
 type toolCallServer struct {
+	mu       sync.Mutex
 	srv      *codexclient.Server
 	toolName string
 	args     json.RawMessage
@@ -196,11 +198,13 @@ func (s *toolCallServer) OnNotification(method string, _ json.RawMessage) {
 			"threadId":  testThreadID,
 			"turnId":    testTurnID,
 		})
+		s.mu.Lock()
 		if err != nil {
 			s.replyErr = err.Error()
 		} else {
 			s.reply = raw
 		}
+		s.mu.Unlock()
 		_ = s.srv.EmitTurnCompleted(testThreadID, testTurnID, "done")
 	}()
 }
@@ -254,7 +258,13 @@ func spawnAndWaitForToolReply(t *testing.T, r *Runner, ts *toolCallServer) {
 	require.NoError(t, err)
 
 	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) && ts.reply == nil && ts.replyErr == "" {
+	for time.Now().Before(deadline) {
+		ts.mu.Lock()
+		done := ts.reply != nil || ts.replyErr != ""
+		ts.mu.Unlock()
+		if done {
+			break
+		}
 		time.Sleep(20 * time.Millisecond)
 	}
 }

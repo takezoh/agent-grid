@@ -56,7 +56,7 @@ type turnHandler struct {
 	linearClient  *lineargql.Client // nil when linear_graphql is not configured
 	mu            sync.Mutex
 	threadID      string
-	turnID        string    // protected by mu; current turn id
+	turnID        string    // protected by mu
 	turnStartedAt time.Time // protected by mu; set on turn/started, cleared on turn/completed
 	sessionReady  chan<- sessionIDs
 	turnDone      chan<- turnResult
@@ -187,11 +187,12 @@ func (h *turnHandler) handleToolCall(id int64, params json.RawMessage) {
 		turnID := h.turnID
 		h.mu.Unlock()
 		if h.emitEvent != nil {
+			ids := sessionIDs{threadID: threadID, turnID: turnID}
 			h.emitEvent(Event{
 				Kind:      EventUnsupportedToolCall,
-				SessionID: threadID + "-" + turnID,
-				ThreadID:  threadID,
-				TurnID:    turnID,
+				SessionID: ids.sessionID(),
+				ThreadID:  ids.threadID,
+				TurnID:    ids.turnID,
 				Timestamp: time.Now(),
 			})
 		}
