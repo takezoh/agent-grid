@@ -8,8 +8,9 @@ import (
 	"github.com/takezoh/agent-roost/platform/tracker"
 )
 
-func normalizeIssue(n rawNode) (tracker.Issue, error) {
-	// SPEC §11.3: timestamp parse failures are non-fatal; use zero time (null equivalent).
+// normalizeIssue converts a raw API node to a tracker.Issue.
+// Timestamp parse failures are non-fatal per SPEC §11.3: zero time is used instead.
+func normalizeIssue(n rawNode) tracker.Issue {
 	createdAt, _ := parseTime(n.CreatedAt)
 	updatedAt, _ := parseTime(n.UpdatedAt)
 	return tracker.Issue{
@@ -25,7 +26,7 @@ func normalizeIssue(n rawNode) (tracker.Issue, error) {
 		BlockedBy:   normalizeBlockers(n.InverseRelations.Nodes),
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
-	}, nil
+	}
 }
 
 // normalizeLabels lowercases each label name (§11.3).

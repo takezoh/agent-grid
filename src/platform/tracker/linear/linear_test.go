@@ -351,8 +351,6 @@ func TestErrorMapping_MissingDataField(t *testing.T) {
 	}
 }
 
-// TestSPEC_11_3_BadTimestampPreservesIssue verifies that a malformed timestamp
-// does not abort the fetch: the issue is returned with zero-value times (§11.3).
 func TestSPEC_11_3_BadTimestampPreservesIssue(t *testing.T) {
 	node := fakeNode("id1", "PROJ-1")
 	node["createdAt"] = "not-a-date"
