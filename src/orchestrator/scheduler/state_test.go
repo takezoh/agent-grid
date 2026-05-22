@@ -357,10 +357,12 @@ func TestRecordUsage_AccumulatorPersistsAcrossContinuation(t *testing.T) {
 	s.RecordUsage("id23", metrics.Usage{ThreadID: "t1", Input: 100, Output: 50, Total: 150})
 	s.WorkerExitNormal("id23")
 
-	// Re-dispatch with same thread continuing (higher absolute).
-	if err := s.Dispatch(issue, 2, LiveSession{}, time.Now()); err != nil {
+	// Re-dispatch: WorkerExitNormal retains claimed (SPEC §7.1); use ClaimFromRetry.
+	s.EnqueueRetry(RetryEntry{IssueID: "id23", Identifier: "PROJ-23", Attempt: 2})
+	if err := s.ClaimFromRetry("id23", 2); err != nil {
 		t.Fatal(err)
 	}
+	s.MarkRunning("id23", issue, 2, LiveSession{}, time.Now())
 	// Thread resumes: reports 50 more input, 20 more output (absolute 150/70/220).
 	s.RecordUsage("id23", metrics.Usage{ThreadID: "t1", Input: 150, Output: 70, Total: 220})
 	snap := s.Snapshot()
@@ -423,10 +425,12 @@ func TestCodexTotals_NoDoubleCountAcrossRetry(t *testing.T) {
 	s.RecordUsage("id31", metrics.Usage{ThreadID: "t1", Input: 100, Output: 40, Total: 140})
 	s.WorkerExitNormal("id31")
 
-	// Attempt 2: same thread resumes, reports 150 absolute (50 more).
-	if err := s.Dispatch(issue, 2, LiveSession{}, time.Now()); err != nil {
+	// Attempt 2: WorkerExitNormal retains claimed (SPEC §7.1); use ClaimFromRetry.
+	s.EnqueueRetry(RetryEntry{IssueID: "id31", Identifier: "PROJ-31", Attempt: 2})
+	if err := s.ClaimFromRetry("id31", 2); err != nil {
 		t.Fatal(err)
 	}
+	s.MarkRunning("id31", issue, 2, LiveSession{}, time.Now())
 	s.RecordUsage("id31", metrics.Usage{ThreadID: "t1", Input: 150, Output: 60, Total: 210})
 
 	// Terminal release: should roll up accumulated 150/60/210 once.
@@ -449,10 +453,12 @@ func TestCodexTotals_RuntimePersistsAcrossRetry(t *testing.T) {
 	s.AddRuntime("id32", 5*time.Second)
 	s.WorkerExitNormal("id32")
 
-	// Re-dispatch, add more runtime in segment 2.
-	if err := s.Dispatch(issue, 2, LiveSession{}, time.Now()); err != nil {
+	// Re-dispatch: WorkerExitNormal retains claimed (SPEC §7.1); use ClaimFromRetry.
+	s.EnqueueRetry(RetryEntry{IssueID: "id32", Identifier: "PROJ-32", Attempt: 2})
+	if err := s.ClaimFromRetry("id32", 2); err != nil {
 		t.Fatal(err)
 	}
+	s.MarkRunning("id32", issue, 2, LiveSession{}, time.Now())
 	s.AddRuntime("id32", 3*time.Second)
 
 	snap := s.Snapshot()
