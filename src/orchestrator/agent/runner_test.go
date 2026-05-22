@@ -80,17 +80,13 @@ func (f *fakeServer) getLastCWD() string {
 func (f *fakeServer) getLastThreadParams() json.RawMessage {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	raw := make(json.RawMessage, len(f.lastThreadParams))
-	copy(raw, f.lastThreadParams)
-	return raw
+	return f.lastThreadParams
 }
 
 func (f *fakeServer) getLastTurnParams() json.RawMessage {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	raw := make(json.RawMessage, len(f.lastTurnParams))
-	copy(raw, f.lastTurnParams)
-	return raw
+	return f.lastTurnParams
 }
 
 func (f *fakeServer) OnServerRequest(id int64, method string, params json.RawMessage) {
@@ -645,11 +641,13 @@ func TestSpawn_noDynamicToolsWhenLinearUnconfigured(t *testing.T) {
 
 // ---- §10.2 approval/sandbox policy and serviceName tests ----
 
-// threadStartParam decodes a single top-level string field from thread/start params.
-func threadStartParam(t *testing.T, fs *fakeServer, field string) string {
+type paramsGetter func() json.RawMessage
+
+// startParam decodes a single top-level string field from a JSON params blob.
+func startParam(t *testing.T, get paramsGetter, msgName, field string) string {
 	t.Helper()
-	raw := fs.getLastThreadParams()
-	require.NotEmpty(t, raw, "thread/start should have been sent")
+	raw := get()
+	require.NotEmpty(t, raw, "%s should have been sent", msgName)
 	var m map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(raw, &m))
 	v, ok := m[field]
@@ -661,42 +659,29 @@ func threadStartParam(t *testing.T, fs *fakeServer, field string) string {
 	return s
 }
 
-// threadStartParamAbsent asserts that a given field is absent from thread/start params.
-func threadStartParamAbsent(t *testing.T, fs *fakeServer, field string) {
+// startParamAbsent asserts that a field is absent from a JSON params blob.
+func startParamAbsent(t *testing.T, get paramsGetter, msgName, field string) {
 	t.Helper()
-	raw := fs.getLastThreadParams()
-	require.NotEmpty(t, raw, "thread/start should have been sent")
+	raw := get()
+	require.NotEmpty(t, raw, "%s should have been sent", msgName)
 	var m map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(raw, &m))
 	_, ok := m[field]
-	assert.False(t, ok, "field %q should be absent from thread/start params", field)
+	assert.False(t, ok, "field %q should be absent from %s params", field, msgName)
 }
 
-// turnStartParam decodes a single top-level string field from turn/start params.
-func turnStartParam(t *testing.T, fs *fakeServer, field string) string {
+// startParamObject decodes a top-level JSON-object field from a params blob.
+func startParamObject(t *testing.T, get paramsGetter, msgName, field string) map[string]string {
 	t.Helper()
-	raw := fs.getLastTurnParams()
-	require.NotEmpty(t, raw, "turn/start should have been sent")
+	raw := get()
+	require.NotEmpty(t, raw, "%s should have been sent", msgName)
 	var m map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(raw, &m))
 	v, ok := m[field]
-	if !ok {
-		return ""
-	}
-	var s string
-	require.NoError(t, json.Unmarshal(v, &s))
-	return s
-}
-
-// turnStartParamAbsent asserts that a given field is absent from turn/start params.
-func turnStartParamAbsent(t *testing.T, fs *fakeServer, field string) {
-	t.Helper()
-	raw := fs.getLastTurnParams()
-	require.NotEmpty(t, raw, "turn/start should have been sent")
-	var m map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(raw, &m))
-	_, ok := m[field]
-	assert.False(t, ok, "field %q should be absent from turn/start params", field)
+	require.True(t, ok, "field %q should be present in %s params", field, msgName)
+	var obj map[string]string
+	require.NoError(t, json.Unmarshal(v, &obj))
+	return obj
 }
 
 // makeRunnerWithCodex creates a Runner with specific CodexConfig fields for §10.2 tests.
@@ -731,7 +716,7 @@ func TestSPEC_17_5_ThreadStartSendsApprovalPolicy(t *testing.T) {
 	_, err := r.spawnWith(ctx, tracker.Issue{Identifier: "PROJ-AP1"}, 1, func(Event) {})
 	require.NoError(t, err)
 
-	assert.Equal(t, "never", threadStartParam(t, fs, "approvalPolicy"))
+	assert.Equal(t, "never", startParam(t, fs.getLastThreadParams, "thread/start", "approvalPolicy"))
 }
 
 // TestSPEC_17_5_ThreadStartSendsSandboxMode verifies that codex.thread_sandbox
@@ -748,7 +733,7 @@ func TestSPEC_17_5_ThreadStartSendsSandboxMode(t *testing.T) {
 	_, err := r.spawnWith(ctx, tracker.Issue{Identifier: "PROJ-SM1"}, 1, func(Event) {})
 	require.NoError(t, err)
 
-	assert.Equal(t, "danger-full-access", threadStartParam(t, fs, "sandbox"))
+	assert.Equal(t, "danger-full-access", startParam(t, fs.getLastThreadParams, "thread/start", "sandbox"))
 }
 
 // TestSPEC_17_5_ThreadStartSendsServiceName verifies that the issue identifier
@@ -763,7 +748,7 @@ func TestSPEC_17_5_ThreadStartSendsServiceName(t *testing.T) {
 	_, err := r.spawnWith(ctx, iss, 1, func(Event) {})
 	require.NoError(t, err)
 
-	assert.Equal(t, "DEV-42: Fix the bug", threadStartParam(t, fs, "serviceName"))
+	assert.Equal(t, "DEV-42: Fix the bug", startParam(t, fs.getLastThreadParams, "thread/start", "serviceName"))
 }
 
 // TestSPEC_17_5_TurnStartSendsApprovalPolicy verifies that codex.approval_policy
@@ -780,7 +765,7 @@ func TestSPEC_17_5_TurnStartSendsApprovalPolicy(t *testing.T) {
 	_, err := r.spawnWith(ctx, tracker.Issue{Identifier: "PROJ-TAP1"}, 1, func(Event) {})
 	require.NoError(t, err)
 
-	assert.Equal(t, "on-failure", turnStartParam(t, fs, "approvalPolicy"))
+	assert.Equal(t, "on-failure", startParam(t, fs.getLastTurnParams, "turn/start", "approvalPolicy"))
 }
 
 // TestSPEC_17_5_TurnStartSendsSandboxPolicy verifies that codex.turn_sandbox_policy
@@ -797,15 +782,7 @@ func TestSPEC_17_5_TurnStartSendsSandboxPolicy(t *testing.T) {
 	_, err := r.spawnWith(ctx, tracker.Issue{Identifier: "PROJ-TSP1"}, 1, func(Event) {})
 	require.NoError(t, err)
 
-	// sandboxPolicy must be a JSON object with "type" field.
-	raw := fs.getLastTurnParams()
-	require.NotEmpty(t, raw)
-	var m map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(raw, &m))
-	spRaw, ok := m["sandboxPolicy"]
-	require.True(t, ok, "sandboxPolicy should be present in turn/start params")
-	var sp map[string]string
-	require.NoError(t, json.Unmarshal(spRaw, &sp))
+	sp := startParamObject(t, fs.getLastTurnParams, "turn/start", "sandboxPolicy")
 	assert.Equal(t, "workspace-write", sp["type"])
 }
 
@@ -820,8 +797,8 @@ func TestSPEC_17_5_EmptyPolicyFieldsOmitted(t *testing.T) {
 	_, err := r.spawnWith(ctx, tracker.Issue{Identifier: "PROJ-EMP1"}, 1, func(Event) {})
 	require.NoError(t, err)
 
-	threadStartParamAbsent(t, fs, "approvalPolicy")
-	threadStartParamAbsent(t, fs, "sandbox")
-	turnStartParamAbsent(t, fs, "approvalPolicy")
-	turnStartParamAbsent(t, fs, "sandboxPolicy")
+	startParamAbsent(t, fs.getLastThreadParams, "thread/start", "approvalPolicy")
+	startParamAbsent(t, fs.getLastThreadParams, "thread/start", "sandbox")
+	startParamAbsent(t, fs.getLastTurnParams, "turn/start", "approvalPolicy")
+	startParamAbsent(t, fs.getLastTurnParams, "turn/start", "sandboxPolicy")
 }

@@ -340,8 +340,11 @@ func (r *Runner) buildThreadOptions(issue tracker.Issue) codexclient.ThreadOptio
 		ApprovalPolicy: r.Cfg.Codex.ApprovalPolicy,
 		SandboxMode:    r.Cfg.Codex.ThreadSandbox,
 	}
-	if issue.Identifier != "" || issue.Title != "" {
+	switch {
+	case issue.Identifier != "" && issue.Title != "":
 		opts.ServiceName = issue.Identifier + ": " + issue.Title
+	case issue.Identifier != "":
+		opts.ServiceName = issue.Identifier
 	}
 	return opts
 }
