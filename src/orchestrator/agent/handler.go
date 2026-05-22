@@ -24,6 +24,7 @@ func (s sessionIDs) sessionID() string { return s.threadID + "-" + s.turnID }
 
 type turnResult struct {
 	failed bool
+	killed bool // orchestrator killed the worker gracefully (handoff/terminal); not an agent error
 	err    error
 }
 

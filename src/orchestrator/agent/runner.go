@@ -110,6 +110,10 @@ func (r *Runner) runLoop(ctx context.Context, wp workerParams) {
 	var loopErr error
 	for turn := 1; ; turn++ {
 		result := r.awaitTurn(wp)
+		if result.killed {
+			// Orchestrator killed the worker (handoff/terminal); not an agent error.
+			break
+		}
 		if result.failed {
 			wp.emit(r.turnFailedEvent(wp.ids, result.err))
 			loopErr = result.err
@@ -151,6 +155,9 @@ func (r *Runner) awaitTurn(wp workerParams) turnResult {
 		case result := <-wp.turnDone:
 			return result
 		default:
+			if wp.worker.WasKilledGracefully() {
+				return turnResult{killed: true}
+			}
 			return turnResult{failed: true, err: errors.New("codex process exited unexpectedly")}
 		}
 	}
