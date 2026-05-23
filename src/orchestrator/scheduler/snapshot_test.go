@@ -62,7 +62,7 @@ func TestSnapshotCtx_Cancelled(t *testing.T) {
 }
 
 func TestScheduler_SnapshotCtx_Unavailable(t *testing.T) {
-	s := New("", schedCfg(), minDeps(nil, nil, newFakeClock(time.Now())))
+	s := New("", schedCfg(), "", minDeps(nil, nil, newFakeClock(time.Now())))
 	// available is false by default (Run has not been called).
 
 	ctx := context.Background()
@@ -73,7 +73,7 @@ func TestScheduler_SnapshotCtx_Unavailable(t *testing.T) {
 }
 
 func TestScheduler_SnapshotCtx_AvailableWhileRunning(t *testing.T) {
-	s := New("", schedCfg(), minDeps(nil, nil, newFakeClock(time.Now())))
+	s := New("", schedCfg(), "", minDeps(nil, nil, newFakeClock(time.Now())))
 	s.available.Store(true)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
