@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/takezoh/agent-roost/platform/metrics"
@@ -66,6 +67,7 @@ type Scheduler struct {
 	lastGoodTemplate string          // last successfully loaded prompt template body; seeded from New
 	reloadCh         chan struct{}   // fsnotify → loop coalesced reload signal (buffered 1)
 	degraded         bool            // true while workflow is invalid; controls warn/recovery log
+	available        atomic.Bool     // true while Run is executing (SPEC §13.3)
 	state            *State
 	deps             Deps
 	clock            Clock
@@ -111,6 +113,8 @@ func (s *Scheduler) LastGoodTemplate() string {
 // Startup: startup cleanup → immediate tick → poll at interval.
 // WORKFLOW.md is watched via fsnotify for immediate re-apply; poll remains as a safety net.
 func (s *Scheduler) Run(ctx context.Context) error {
+	s.available.Store(true)
+	defer s.available.Store(false)
 	slog.Info("scheduler starting", "interval_ms", s.interval.Milliseconds())
 	if s.deps.Spawn == nil {
 		slog.Warn("scheduler: no spawn func wired, running in poll-only mode")
@@ -166,6 +170,18 @@ func (s *Scheduler) CodexActivity() chan<- CodexActivity {
 // Safe to call concurrently with Run.
 func (s *Scheduler) Snapshot() StateSnapshot {
 	return s.state.Snapshot()
+}
+
+// SnapshotCtx returns a read-only copy of the current scheduler state with
+// context-aware error handling (SPEC §13.3 RECOMMENDED).
+// Returns ErrOrchestratorUnavailable when the scheduler is not running.
+// Returns ErrSnapshotTimeout when the context deadline expires before the
+// state lock can be acquired.
+func (s *Scheduler) SnapshotCtx(ctx context.Context) (StateSnapshot, error) {
+	if !s.available.Load() {
+		return StateSnapshot{}, ErrOrchestratorUnavailable
+	}
+	return s.state.SnapshotCtx(ctx)
 }
 
 // Refresh queues an immediate poll+reconcile tick. Returns true when the request

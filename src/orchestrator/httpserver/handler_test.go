@@ -1,6 +1,7 @@
 package httpserver_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -17,15 +18,19 @@ import (
 
 // fakeScheduler implements SchedulerReader for tests.
 type fakeScheduler struct {
-	snap          scheduler.StateSnapshot
-	refreshed     bool
-	coalesce      bool
-	snapshotCalls int
+	snap             scheduler.StateSnapshot
+	refreshed        bool
+	coalesce         bool
+	snapshotCtxCalls int
+	snapshotErr      error
 }
 
-func (f *fakeScheduler) Snapshot() scheduler.StateSnapshot {
-	f.snapshotCalls++
-	return f.snap
+func (f *fakeScheduler) SnapshotCtx(_ context.Context) (scheduler.StateSnapshot, error) {
+	f.snapshotCtxCalls++
+	if f.snapshotErr != nil {
+		return scheduler.StateSnapshot{}, f.snapshotErr
+	}
+	return f.snap, nil
 }
 func (f *fakeScheduler) Refresh() (coalesced bool) {
 	f.refreshed = true
@@ -432,8 +437,8 @@ func TestDashboard_200(t *testing.T) {
 		t.Error("dashboard should POST /api/v1/refresh for manual refresh")
 	}
 	// Decoupling: rendering the dashboard must not touch scheduler state.
-	if sched.snapshotCalls != 0 {
-		t.Errorf("GET / must not call Snapshot(); got %d calls", sched.snapshotCalls)
+	if sched.snapshotCtxCalls != 0 {
+		t.Errorf("GET / must not call SnapshotCtx(); got %d calls", sched.snapshotCtxCalls)
 	}
 }
 
