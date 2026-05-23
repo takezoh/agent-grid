@@ -54,6 +54,20 @@ func makeIssue(id, state string) tracker.Issue {
 	return tracker.Issue{ID: id, Identifier: "P-" + id, Title: "t", State: state}
 }
 
+// setupRetryQueued drives a state machine through Dispatch → WorkerExitNormal → EnqueueRetry,
+// leaving the issue in RetryQueued (claimed, in retryAttempts, not running).
+func setupRetryQueued(t *testing.T, st *State, id string) {
+	t.Helper()
+	iss := makeIssue(id, "In Progress")
+	if err := st.Dispatch(iss, 1, LiveSession{}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := st.WorkerExitNormal(id); !ok {
+		t.Fatal("WorkerExitNormal failed")
+	}
+	st.EnqueueRetry(RetryEntry{IssueID: id, Identifier: "P-" + id, Attempt: 2, Kind: RetryContinuation})
+}
+
 // TestDispatchOnce_EligibleIssueSpawned verifies a basic eligible dispatch.
 func TestDispatchOnce_EligibleIssueSpawned(t *testing.T) {
 	st := NewState()
@@ -257,6 +271,54 @@ func TestDispatchOnce_RevalidationPartial(t *testing.T) {
 	}
 }
 
+func TestDispatchOnce_FirstRunAttemptIsZero(t *testing.T) {
+	st := NewState()
+	spawn := &fakeSpawn{}
+	clk := newFakeClock(time.Now())
+	fireCh := make(chan retryFireReq, 4)
+
+	cands := []tracker.Issue{makeIssue("1", "In Progress")}
+	dispatchOnce(context.Background(), cands, st, clk, fireCh, spawn.fn, dispCfg(), nil)
+
+	if spawn.callCount() != 1 {
+		t.Fatalf("want 1 spawn, got %d", spawn.callCount())
+	}
+	if got := spawn.calls[0].Attempt; got != 0 {
+		t.Errorf("first run: want attempt=0, got %d", got)
+	}
+	snap := st.Snapshot()
+	if run, ok := snap.Running["1"]; !ok {
+		t.Error("want issue 1 in running")
+	} else if run.Attempt != 0 {
+		t.Errorf("RunAttempt.Attempt: want 0, got %d", run.Attempt)
+	}
+}
+
+func TestDispatchOnce_SpawnFail_FirstBackoff10s(t *testing.T) {
+	st := NewState()
+	spawn := &fakeSpawn{err: errors.New("spawn error")}
+	clk := newFakeClock(time.Now())
+	fireCh := make(chan retryFireReq, 4)
+
+	cfg := dispCfg()
+	cands := []tracker.Issue{makeIssue("1", "In Progress")}
+	dispatchOnce(context.Background(), cands, st, clk, fireCh, spawn.fn, cfg, nil)
+
+	snap := st.Snapshot()
+	entry, ok := snap.RetryAttempts["1"]
+	if !ok {
+		t.Fatal("want retry entry after spawn fail")
+	}
+	if entry.Attempt != 1 {
+		t.Errorf("first retry: want attempt=1, got %d", entry.Attempt)
+	}
+	want10s := backoffDelay(1, cfg)
+	gotDelayMS := entry.DueAtMS - clk.Now().UnixMilli()
+	if gotDelayMS != want10s.Milliseconds() {
+		t.Errorf("first backoff: want %dms (10s), got %dms", want10s.Milliseconds(), gotDelayMS)
+	}
+}
+
 // TestHandleRetryFire_IssueNotFound releases the claim.
 func TestHandleRetryFire_IssueNotFound(t *testing.T) {
 	st := NewState()
@@ -292,8 +354,11 @@ func TestHandleRetryFire_NotActive(t *testing.T) {
 }
 
 // TestHandleRetryFire_EligibleAndSlots dispatches and marks running.
+// The issue must be in RetryQueued state (claimed + retryAttempts) before firing.
 func TestHandleRetryFire_EligibleAndSlots(t *testing.T) {
 	st := NewState()
+	setupRetryQueued(t, st, "1")
+
 	tr := &fakeTracker{issues: []tracker.Issue{makeIssue("1", "In Progress")}}
 	spawn := &fakeSpawn{}
 	clk := newFakeClock(time.Now())
@@ -307,6 +372,33 @@ func TestHandleRetryFire_EligibleAndSlots(t *testing.T) {
 	snap := st.Snapshot()
 	if _, ok := snap.Running["1"]; !ok {
 		t.Error("want issue in running after retry dispatch")
+	}
+}
+
+// TestDispatchOnce_RetryQueuedNotRedispatched is the §7.4 acceptance test:
+// a tick during the retry backoff window must not re-dispatch the same issue.
+func TestDispatchOnce_RetryQueuedNotRedispatched(t *testing.T) {
+	st := NewState()
+	spawn := &fakeSpawn{}
+	clk := newFakeClock(time.Now())
+	fireCh := make(chan retryFireReq, 4)
+
+	setupRetryQueued(t, st, "1")
+
+	// Simulate a poll tick while the issue is still in the retry window.
+	cands := []tracker.Issue{makeIssue("1", "In Progress")}
+	dispatchOnce(context.Background(), cands, st, clk, fireCh, spawn.fn, dispCfg(), nil)
+
+	// The spawn must NOT be called: issue is still claimed (RetryQueued).
+	if spawn.callCount() != 0 {
+		t.Errorf("want 0 spawns during retry window, got %d (double-dispatch bug)", spawn.callCount())
+	}
+	snap := st.Snapshot()
+	if _, ok := snap.Claimed["1"]; !ok {
+		t.Error("want issue still claimed during retry window")
+	}
+	if _, ok := snap.RetryAttempts["1"]; !ok {
+		t.Error("want issue still in retryAttempts during retry window")
 	}
 }
 

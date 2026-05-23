@@ -75,7 +75,7 @@ func dispatchOnce(ctx context.Context, cands []tracker.Issue, st *State, clk Clo
 			continue
 		}
 
-		if err := st.Claim(iss, 1); err != nil {
+		if err := st.Claim(iss, 0); err != nil {
 			// Duplicate claim — already claimed elsewhere; skip.
 			continue
 		}
@@ -100,19 +100,19 @@ func dispatchOnce(ctx context.Context, cands []tracker.Issue, st *State, clk Clo
 			}
 		}
 
-		session, err := spawn(ctx, iss, 1)
+		session, err := spawn(ctx, iss, 0)
 		if err != nil {
-			slog.Error("spawn failed", "issue_id", iss.ID, "identifier", iss.Identifier, "err", err)
+			slog.Error("spawn failed", "issue_id", iss.ID, "issue_identifier", iss.Identifier, "err", err)
 			st.ReleaseClaim(iss.ID)
-			entry := RetryEntry{IssueID: iss.ID, Identifier: iss.Identifier, Attempt: 2, Kind: RetryBackoff, Err: err}
-			scheduleRetry(st, clk, fireCh, ctx, entry, backoffDelay(2, cfg))
+			entry := RetryEntry{IssueID: iss.ID, Identifier: iss.Identifier, Attempt: 1, Kind: RetryBackoff, Err: err}
+			scheduleRetry(st, clk, fireCh, ctx, entry, backoffDelay(1, cfg))
 			continue
 		}
 
-		st.MarkRunning(iss.ID, iss, 1, session, time.Now())
+		st.MarkRunning(iss.ID, iss, 0, session, time.Now())
 		globalAvail--
 		perStateUsed[norm]++
-		slog.Info("dispatched", "issue_id", iss.ID, "identifier", iss.Identifier)
+		slog.Info("dispatched", "issue_id", iss.ID, "issue_identifier", iss.Identifier)
 	}
 }
 
@@ -137,22 +137,19 @@ func handleRetryFire(ctx context.Context, req retryFireReq, tr CandidateSource, 
 		return
 	}
 
+	// RetryQueued issues are in snap.Claimed and snap.RetryAttempts, so eligible() correctly
+	// excludes them. Skip it: check only active/terminal state, then use ClaimFromRetry
+	// (not Claim) because claimed is already retained by WorkerExit* (SPEC §7.1).
 	terminal := normSet(cfg.Tracker.TerminalStates)
+	active := normSet(cfg.Tracker.ActiveStates)
 	norm := strings.ToLower(found.State)
-	if terminal[norm] {
+	if terminal[norm] || !active[norm] {
 		slog.Info("retry-fire: issue not active, releasing", "issue_id", req.IssueID, "state", found.State)
 		st.ReleaseClaim(req.IssueID)
 		return
 	}
 
 	snap := st.Snapshot()
-	active := normSet(cfg.Tracker.ActiveStates)
-	if !eligible(*found, snap, active, terminal) {
-		slog.Info("retry-fire: issue not eligible, releasing", "issue_id", req.IssueID)
-		st.ReleaseClaim(req.IssueID)
-		return
-	}
-
 	if availableGlobalSlots(snap, cfg) <= 0 || availablePerStateSlots(found.State, snap, cfg) <= 0 {
 		slog.Info("retry-fire: no available orchestrator slots, requeuing", "issue_id", req.IssueID)
 		entry := RetryEntry{IssueID: req.IssueID, Identifier: found.Identifier, Attempt: req.Attempt, Kind: RetryBackoff}
@@ -160,7 +157,7 @@ func handleRetryFire(ctx context.Context, req retryFireReq, tr CandidateSource, 
 		return
 	}
 
-	if err := st.Claim(*found, req.Attempt); err != nil {
+	if err := st.ClaimFromRetry(req.IssueID, req.Attempt); err != nil {
 		slog.Info("retry-fire: claim rejected", "issue_id", req.IssueID, "err", err)
 		return
 	}
@@ -175,5 +172,5 @@ func handleRetryFire(ctx context.Context, req retryFireReq, tr CandidateSource, 
 	}
 
 	st.MarkRunning(req.IssueID, *found, req.Attempt, session, time.Now())
-	slog.Info("retry-fire: dispatched", "issue_id", req.IssueID, "identifier", found.Identifier, "attempt", req.Attempt)
+	slog.Info("retry-fire: dispatched", "issue_id", req.IssueID, "issue_identifier", found.Identifier, "attempt", req.Attempt)
 }
