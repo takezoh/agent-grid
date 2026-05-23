@@ -89,6 +89,14 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 		return scheduler.LiveSession{}, err
 	}
 
+	committed = true
+	return r.startRunLoop(workerCtx, lr, issue, attempt, ids, cancel, emit), nil
+}
+
+// startRunLoop wires the Worker, launches the §16.5 multi-turn runLoop, emits
+// EventSessionStarted, and returns the LiveSession handle. Callers must set
+// committed=true (ownership of AfterRun transfers to runLoop) before calling.
+func (r *Runner) startRunLoop(workerCtx context.Context, lr *launchResult, issue tracker.Issue, attempt int, ids sessionIDs, cancel context.CancelFunc, emit func(Event)) scheduler.LiveSession {
 	worker := &Worker{
 		cancel:          cancel,
 		done:            lr.doneCh,
@@ -110,7 +118,6 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 		worker:       worker,
 		emit:         emit,
 	}
-	committed = true
 	go r.runLoop(workerCtx, wp)
 
 	emit(Event{
@@ -127,7 +134,7 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 		TurnID:    ids.turnID,
 		StartedAt: time.Now(),
 		Worker:    worker,
-	}, nil
+	}
 }
 
 // runLoop runs the §16.5 multi-turn while-loop in a goroutine.

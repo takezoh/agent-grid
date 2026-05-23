@@ -27,7 +27,10 @@ type FileRelay struct {
 	mu      sync.Mutex
 	watcher *fsnotify.Watcher
 	files   map[string]*relayFile
-	rt      *Runtime
+	// send posts an internal event onto the runtime event loop. FileRelay
+	// holds only this bound function (not *Runtime) so its background sweep
+	// goroutine cannot touch loop-owned state (conns / Subscribers) directly.
+	send func(internalEvent)
 
 	stop chan struct{}
 	wg   sync.WaitGroup
@@ -52,7 +55,7 @@ func NewFileRelay(rt *Runtime) (*FileRelay, error) {
 	fr := &FileRelay{
 		watcher: w,
 		files:   map[string]*relayFile{},
-		rt:      rt,
+		send:    rt.enqueueInternal,
 		stop:    make(chan struct{}),
 	}
 	fr.wg.Add(2)
@@ -246,5 +249,5 @@ func (fr *FileRelay) broadcast(f *relayFile, content string) {
 	if err != nil {
 		return
 	}
-	fr.rt.broadcastWire(wire, event.EventName())
+	fr.send(internalBroadcastWire{wire: wire, eventName: event.EventName()})
 }

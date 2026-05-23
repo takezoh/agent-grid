@@ -125,6 +125,16 @@ type internalSetRelay struct {
 
 func (internalSetRelay) isInternalEvent() {}
 
+// internalBroadcastWire is enqueued by FileRelay so broadcastWire runs
+// on the event loop, never on the sweep goroutine (which would race
+// the loop's conns / Subscribers maps).
+type internalBroadcastWire struct {
+	wire      []byte
+	eventName string
+}
+
+func (internalBroadcastWire) isInternalEvent() {}
+
 // internalStartRestoredTaps is enqueued by StartTapsForRestoredFrames to
 // attach pane taps to panes that were restored from the snapshot (warm
 // or cold start) — bypasses the reducer because Reduce is only invoked
@@ -141,6 +151,8 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 		r.handleConnOpen(e.conn)
 	case connClose:
 		r.handleConnClose(e.id)
+	case internalBroadcastWire:
+		r.broadcastWire(e.wire, e.eventName)
 	case internalSetRelay:
 		r.relay = e.relay
 		r.syncRelayWatches()

@@ -1,12 +1,17 @@
 package runtime
 
 import (
+	"context"
+	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/takezoh/agent-roost/client/proto"
 	"github.com/takezoh/agent-roost/client/state"
 )
 
@@ -112,5 +117,114 @@ func TestWatchFileIdempotent(t *testing.T) {
 
 	if len(fr.files) != 1 {
 		t.Errorf("fr.files len = %d, want 1 (idempotent)", len(fr.files))
+	}
+}
+
+// TestBroadcastEnqueuesInternalEvent asserts that broadcast does not call
+// broadcastWire synchronously (which would touch loop-owned state from the
+// sweep goroutine) but instead posts an internalBroadcastWire onto the loop.
+func TestBroadcastEnqueuesInternalEvent(t *testing.T) {
+	var got []internalEvent
+	fr := &FileRelay{
+		files: map[string]*relayFile{},
+		send:  func(ev internalEvent) { got = append(got, ev) },
+	}
+
+	fr.broadcast(&relayFile{path: "/tmp/app.log", kind: "log"}, "hello\n")
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 internal event, got %d", len(got))
+	}
+	bw, ok := got[0].(internalBroadcastWire)
+	if !ok {
+		t.Fatalf("expected internalBroadcastWire, got %T", got[0])
+	}
+	if bw.eventName != proto.EvtNameLogLine {
+		t.Errorf("eventName = %q, want %q", bw.eventName, proto.EvtNameLogLine)
+	}
+	if len(bw.wire) == 0 {
+		t.Error("expected non-empty wire bytes")
+	}
+}
+
+// TestBroadcastRaceWithConnChurn drives a real event loop while the FileRelay
+// sweep goroutine broadcasts log lines and connections are opened/closed on
+// the loop. Before the fix (broadcast → fr.rt.broadcastWire on the sweep
+// goroutine) this races the loop-owned conns / state maps and `go test -race`
+// fatals; after routing broadcasts through internalCh it is clean.
+func TestBroadcastRaceWithConnChurn(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := New(Config{
+		SessionName: "roost-test",
+		RoostExe:    "/usr/bin/roost",
+		Tmux:        newFakeTmux(),
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { _ = r.Run(ctx) }()
+
+	fr, err := NewFileRelay(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.SetRelay(fr)
+	fr.WatchLog(logPath)
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	// Writer goroutine: append to the watched file so the sweep goroutine
+	// keeps broadcasting.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o644)
+				if err == nil {
+					_, _ = f.WriteString("log line\n")
+					_ = f.Close()
+				}
+				time.Sleep(time.Millisecond)
+			}
+		}
+	}()
+
+	// Churn goroutine: open and close connections so the event loop keeps
+	// writing the conns map and reassigning state.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				c1, c2 := net.Pipe()
+				r.enqueueInternal(connOpen{conn: c1})
+				_ = c1.Close()
+				_ = c2.Close()
+				time.Sleep(time.Millisecond)
+			}
+		}
+	}()
+
+	time.Sleep(500 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+
+	fr.Close()
+	cancel()
+	select {
+	case <-r.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("runtime did not stop within timeout")
 	}
 }
