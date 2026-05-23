@@ -48,54 +48,63 @@ type WorkerExit struct {
 // CodexActivity is sent on the codexActivity channel when the agent runner receives
 // a codex protocol notification (SPEC §10 / §13.5).
 type CodexActivity struct {
-	IssueID      string
-	Event        string // codex notification method name
-	Message      string // non-empty for item/agentMessage/delta events
-	Timestamp    time.Time
-	Usage        *metrics.Usage             // non-nil for thread/tokenUsage/updated
-	RateLimit    *metrics.RateLimitSnapshot // non-nil for account/rateLimits/updated
-	TurnDuration *time.Duration             // non-nil for turn/completed (elapsed turn time)
+	IssueID       string
+	Event         string // codex notification method name
+	Message       string // non-empty for item/agentMessage/delta events
+	Timestamp     time.Time
+	Usage         *metrics.Usage             // non-nil for thread/tokenUsage/updated
+	RateLimit     *metrics.RateLimitSnapshot // non-nil for account/rateLimits/updated
+	TurnDuration  *time.Duration             // non-nil for turn/completed (elapsed turn time)
+	TurnCompleted bool                       // true when a turn/completed notification was received (SPEC §4.1.6)
 }
 
 // Scheduler runs the polling loop per SPEC §16.2.
 type Scheduler struct {
-	workflowPath  string
-	interval      time.Duration
-	lastGood      wfconfig.Config // last successfully resolved config; seeded from New
-	reloadCh      chan struct{}   // fsnotify → loop coalesced reload signal (buffered 1)
-	degraded      bool            // true while workflow is invalid; controls warn/recovery log
-	state         *State
-	deps          Deps
-	clock         Clock
-	retryFire     chan retryFireReq
-	workerDone    chan WorkerExit
-	codexActivity chan CodexActivity
-	tracker       schedulerTrackerAPI
-	workspace     schedulerWorkspaceAPI
+	workflowPath     string
+	interval         time.Duration
+	lastGood         wfconfig.Config // last successfully resolved config; seeded from New
+	lastGoodTemplate string          // last successfully loaded prompt template body; seeded from New
+	reloadCh         chan struct{}   // fsnotify → loop coalesced reload signal (buffered 1)
+	degraded         bool            // true while workflow is invalid; controls warn/recovery log
+	state            *State
+	deps             Deps
+	clock            Clock
+	retryFire        chan retryFireReq
+	workerDone       chan WorkerExit
+	codexActivity    chan CodexActivity
+	tracker          schedulerTrackerAPI
+	workspace        schedulerWorkspaceAPI
 }
 
 // New returns a Scheduler. cfg.Polling.IntervalMS determines the initial tick interval.
 // cfg is used as the initial last-known-good (caller must have validated it).
-func New(workflowPath string, cfg wfconfig.Config, deps Deps) *Scheduler {
+// tmpl is the initial prompt template body; reloadConfig updates it on each successful reload.
+func New(workflowPath string, cfg wfconfig.Config, tmpl string, deps Deps) *Scheduler {
 	clk := deps.Clock
 	if clk == nil {
 		clk = realClock{}
 	}
 	deps.Clock = clk
 	return &Scheduler{
-		workflowPath:  workflowPath,
-		interval:      time.Duration(cfg.Polling.IntervalMS) * time.Millisecond,
-		lastGood:      cfg,
-		reloadCh:      make(chan struct{}, 1),
-		state:         NewState(),
-		deps:          deps,
-		clock:         clk,
-		retryFire:     make(chan retryFireReq, 64),
-		workerDone:    make(chan WorkerExit, 64),
-		codexActivity: make(chan CodexActivity, 64),
-		tracker:       deps.RefreshTracker,
-		workspace:     deps.Workspace,
+		workflowPath:     workflowPath,
+		interval:         time.Duration(cfg.Polling.IntervalMS) * time.Millisecond,
+		lastGood:         cfg,
+		lastGoodTemplate: tmpl,
+		reloadCh:         make(chan struct{}, 1),
+		state:            NewState(),
+		deps:             deps,
+		clock:            clk,
+		retryFire:        make(chan retryFireReq, 64),
+		workerDone:       make(chan WorkerExit, 64),
+		codexActivity:    make(chan CodexActivity, 64),
+		tracker:          deps.RefreshTracker,
+		workspace:        deps.Workspace,
 	}
+}
+
+// LastGoodTemplate returns the most recently successfully loaded prompt template body.
+func (s *Scheduler) LastGoodTemplate() string {
+	return s.lastGoodTemplate
 }
 
 // Run starts the scheduler loop and blocks until ctx is cancelled.
@@ -198,6 +207,9 @@ func (s *Scheduler) handleCodexActivity(a CodexActivity) {
 	if a.TurnDuration != nil {
 		s.state.AddRuntime(a.IssueID, *a.TurnDuration)
 	}
+	if a.TurnCompleted {
+		s.state.IncrementTurnCount(a.IssueID)
+	}
 }
 
 // intervalOrFallback returns the current interval, defaulting to 1s if zero.
@@ -243,7 +255,7 @@ func (s *Scheduler) tickOnce(ctx context.Context) {
 		return
 	}
 
-	dispatchOnce(ctx, cands, s.state, s.clock, s.retryFire, s.deps.Spawn, cfg)
+	dispatchOnce(ctx, cands, s.state, s.clock, s.retryFire, s.deps.Spawn, cfg, s.tracker)
 }
 
 // reloadConfig reloads WORKFLOW.md and resolves config (§6.2).
@@ -269,6 +281,7 @@ func (s *Scheduler) reloadConfig() (wfconfig.Config, bool) {
 		s.degraded = false
 	}
 	s.lastGood = cfg
+	s.lastGoodTemplate = wf.PromptTemplate
 	return cfg, true
 }
 
