@@ -501,3 +501,56 @@ func TestAddRuntime_Accumulates(t *testing.T) {
 		t.Errorf("got %v, want 5s", got)
 	}
 }
+
+func TestIncrementTurnCount_Basic(t *testing.T) {
+	s := NewState()
+	issue := testIssue("id40", "PROJ-40")
+	if err := s.Dispatch(issue, 1, LiveSession{}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	s.IncrementTurnCount("id40")
+	s.IncrementTurnCount("id40")
+	s.IncrementTurnCount("id40")
+
+	snap := s.Snapshot()
+	if got := snap.Running["id40"].TurnCount; got != 3 {
+		t.Errorf("got TurnCount=%d, want 3", got)
+	}
+}
+
+func TestIncrementTurnCount_NoopForUnknown(t *testing.T) {
+	s := NewState()
+	s.IncrementTurnCount("unknown") // must not panic
+
+	snap := s.Snapshot()
+	if len(snap.Running) != 0 {
+		t.Error("expected running to remain empty")
+	}
+}
+
+func TestIncrementTurnCount_ResetOnRespawn(t *testing.T) {
+	s := NewState()
+	issue := testIssue("id41", "PROJ-41")
+
+	// Attempt 1: increment twice and confirm it reaches 2.
+	if err := s.Dispatch(issue, 1, LiveSession{}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	s.IncrementTurnCount("id41")
+	s.IncrementTurnCount("id41")
+	if got := s.Snapshot().Running["id41"].TurnCount; got != 2 {
+		t.Fatalf("attempt 1: got TurnCount=%d, want 2", got)
+	}
+	s.WorkerExitNormal("id41")
+
+	// Attempt 2: TurnCount must not carry over from attempt 1.
+	if err := s.Dispatch(issue, 2, LiveSession{}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	s.IncrementTurnCount("id41")
+	snap := s.Snapshot()
+	if got := snap.Running["id41"].TurnCount; got != 1 {
+		t.Errorf("got TurnCount=%d after respawn+1 increment, want 1 (carry-over from attempt 1 would give 3)", got)
+	}
+}
