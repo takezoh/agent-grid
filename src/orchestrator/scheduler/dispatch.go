@@ -95,22 +95,19 @@ func handleRetryFire(ctx context.Context, req retryFireReq, tr CandidateSource, 
 		return
 	}
 
+	// RetryQueued issues are in snap.Claimed and snap.RetryAttempts, so eligible() correctly
+	// excludes them. Skip it: check only active/terminal state, then use ClaimFromRetry
+	// (not Claim) because claimed is already retained by WorkerExit* (SPEC §7.1).
 	terminal := normSet(cfg.Tracker.TerminalStates)
+	active := normSet(cfg.Tracker.ActiveStates)
 	norm := strings.ToLower(found.State)
-	if terminal[norm] {
+	if terminal[norm] || !active[norm] {
 		slog.Info("retry-fire: issue not active, releasing", "issue_id", req.IssueID, "state", found.State)
 		st.ReleaseClaim(req.IssueID)
 		return
 	}
 
 	snap := st.Snapshot()
-	active := normSet(cfg.Tracker.ActiveStates)
-	if !eligible(*found, snap, active, terminal) {
-		slog.Info("retry-fire: issue not eligible, releasing", "issue_id", req.IssueID)
-		st.ReleaseClaim(req.IssueID)
-		return
-	}
-
 	if availableGlobalSlots(snap, cfg) <= 0 || availablePerStateSlots(found.State, snap, cfg) <= 0 {
 		slog.Info("retry-fire: no available orchestrator slots, requeuing", "issue_id", req.IssueID)
 		entry := RetryEntry{IssueID: req.IssueID, Identifier: found.Identifier, Attempt: req.Attempt, Kind: RetryBackoff}
@@ -118,7 +115,7 @@ func handleRetryFire(ctx context.Context, req retryFireReq, tr CandidateSource, 
 		return
 	}
 
-	if err := st.Claim(*found, req.Attempt); err != nil {
+	if err := st.ClaimFromRetry(req.IssueID, req.Attempt); err != nil {
 		slog.Info("retry-fire: claim rejected", "issue_id", req.IssueID, "err", err)
 		return
 	}

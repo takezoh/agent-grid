@@ -27,6 +27,20 @@ func makeIssue(id, state string) tracker.Issue {
 	return tracker.Issue{ID: id, Identifier: "P-" + id, Title: "t", State: state}
 }
 
+// setupRetryQueued drives a state machine through Dispatch → WorkerExitNormal → EnqueueRetry,
+// leaving the issue in RetryQueued (claimed, in retryAttempts, not running).
+func setupRetryQueued(t *testing.T, st *State, id string) {
+	t.Helper()
+	iss := makeIssue(id, "In Progress")
+	if err := st.Dispatch(iss, 1, LiveSession{}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := st.WorkerExitNormal(id); !ok {
+		t.Fatal("WorkerExitNormal failed")
+	}
+	st.EnqueueRetry(RetryEntry{IssueID: id, Identifier: "P-" + id, Attempt: 2, Kind: RetryContinuation})
+}
+
 // TestDispatchOnce_EligibleIssueSpawned verifies a basic eligible dispatch.
 func TestDispatchOnce_EligibleIssueSpawned(t *testing.T) {
 	st := NewState()
@@ -151,8 +165,11 @@ func TestHandleRetryFire_NotActive(t *testing.T) {
 }
 
 // TestHandleRetryFire_EligibleAndSlots dispatches and marks running.
+// The issue must be in RetryQueued state (claimed + retryAttempts) before firing.
 func TestHandleRetryFire_EligibleAndSlots(t *testing.T) {
 	st := NewState()
+	setupRetryQueued(t, st, "1")
+
 	tr := &fakeTracker{issues: []tracker.Issue{makeIssue("1", "In Progress")}}
 	spawn := &fakeSpawn{}
 	clk := newFakeClock(time.Now())
@@ -166,6 +183,33 @@ func TestHandleRetryFire_EligibleAndSlots(t *testing.T) {
 	snap := st.Snapshot()
 	if _, ok := snap.Running["1"]; !ok {
 		t.Error("want issue in running after retry dispatch")
+	}
+}
+
+// TestDispatchOnce_RetryQueuedNotRedispatched is the §7.4 acceptance test:
+// a tick during the retry backoff window must not re-dispatch the same issue.
+func TestDispatchOnce_RetryQueuedNotRedispatched(t *testing.T) {
+	st := NewState()
+	spawn := &fakeSpawn{}
+	clk := newFakeClock(time.Now())
+	fireCh := make(chan retryFireReq, 4)
+
+	setupRetryQueued(t, st, "1")
+
+	// Simulate a poll tick while the issue is still in the retry window.
+	cands := []tracker.Issue{makeIssue("1", "In Progress")}
+	dispatchOnce(context.Background(), cands, st, clk, fireCh, spawn.fn, dispCfg())
+
+	// The spawn must NOT be called: issue is still claimed (RetryQueued).
+	if spawn.callCount() != 0 {
+		t.Errorf("want 0 spawns during retry window, got %d (double-dispatch bug)", spawn.callCount())
+	}
+	snap := st.Snapshot()
+	if _, ok := snap.Claimed["1"]; !ok {
+		t.Error("want issue still claimed during retry window")
+	}
+	if _, ok := snap.RetryAttempts["1"]; !ok {
+		t.Error("want issue still in retryAttempts during retry window")
 	}
 }
 
