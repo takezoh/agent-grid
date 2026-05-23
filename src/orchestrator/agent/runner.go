@@ -69,7 +69,7 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 	frameID := fmt.Sprintf("%s#%d", issue.Identifier, attempt)
 
 	workerCtx, cancel := context.WithCancel(ctx)
-	lr, err := r.launchConn(workerCtx, frameID, wsPath, issue.ID)
+	lr, err := r.launchConn(workerCtx, frameID, wsPath, issue.ID, emit)
 	if err != nil {
 		cancel()
 		return scheduler.LiveSession{}, err
@@ -81,6 +81,11 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 	if err != nil {
 		cancel()
 		<-lr.doneCh
+		emit(Event{
+			Kind:      EventStartupFailed,
+			Timestamp: time.Now(),
+			Err:       err,
+		})
 		return scheduler.LiveSession{}, err
 	}
 
@@ -130,7 +135,11 @@ func (r *Runner) spawnWith(ctx context.Context, issue tracker.Issue, attempt int
 func (r *Runner) runLoop(ctx context.Context, wp workerParams) {
 	var loopErr error
 	for turn := 1; ; turn++ {
-		result := r.awaitTurn(wp)
+		result := r.awaitTurn(ctx, wp)
+		if result.cancelled {
+			wp.emit(r.turnCancelledEvent(wp.ids))
+			break
+		}
 		if result.failed {
 			wp.emit(r.turnFailedEvent(wp.ids, result.err))
 			loopErr = result.err
@@ -151,8 +160,10 @@ func (r *Runner) runLoop(ctx context.Context, wp workerParams) {
 }
 
 // awaitTurn waits for the current turn to complete, applying per-turn timeout.
-// Timeout and unexpected process exit are mapped to turnResult{failed:true}.
-func (r *Runner) awaitTurn(wp workerParams) turnResult {
+// Timeout maps to turnResult{failed:true}; context cancellation (intentional kill)
+// maps to turnResult{cancelled:true}; unexpected process exit maps to
+// turnResult{failed:true}.
+func (r *Runner) awaitTurn(ctx context.Context, wp workerParams) turnResult {
 	var timeoutCh <-chan time.Time
 	if r.Cfg.Codex.TurnTimeoutMS > 0 {
 		timer := time.NewTimer(time.Duration(r.Cfg.Codex.TurnTimeoutMS) * time.Millisecond)
@@ -168,6 +179,10 @@ func (r *Runner) awaitTurn(wp workerParams) turnResult {
 		<-wp.doneCh
 		return turnResult{failed: true, err: fmt.Errorf("turn timeout exceeded (%dms)", r.Cfg.Codex.TurnTimeoutMS)}
 	case <-wp.doneCh:
+		// Check if the process exited due to intentional context cancellation.
+		if ctx.Err() != nil {
+			return turnResult{cancelled: true}
+		}
 		select {
 		case result := <-wp.turnDone:
 			return result
@@ -263,7 +278,7 @@ func (r *Runner) renderPrompt(issue tracker.Issue, attempt int) (string, error) 
 	return rendered, nil
 }
 
-func (r *Runner) launchConn(ctx context.Context, frameID, wsPath, issueID string) (*launchResult, error) {
+func (r *Runner) launchConn(ctx context.Context, frameID, wsPath, issueID string, emit func(Event)) (*launchResult, error) {
 	plan := agentlaunch.LaunchPlan{
 		Command: r.Cfg.Codex.Command,
 		Env:     map[string]string{},
@@ -306,6 +321,7 @@ func (r *Runner) launchConn(ctx context.Context, frameID, wsPath, issueID string
 		turnDone:     turnDone,
 		issueID:      issueID,
 		report:       report,
+		emitEvent:    emit,
 	}
 
 	doneCh := make(chan struct{})
@@ -374,9 +390,9 @@ func (r *Runner) buildTurnOptions() codexclient.TurnOptions {
 	}
 }
 
-func (r *Runner) turnCompletedEvent(ids sessionIDs) Event {
+func newTurnEvent(kind string, ids sessionIDs) Event {
 	return Event{
-		Kind:      EventTurnCompleted,
+		Kind:      kind,
 		SessionID: ids.sessionID(),
 		ThreadID:  ids.threadID,
 		TurnID:    ids.turnID,
@@ -384,13 +400,16 @@ func (r *Runner) turnCompletedEvent(ids sessionIDs) Event {
 	}
 }
 
+func (r *Runner) turnCompletedEvent(ids sessionIDs) Event {
+	return newTurnEvent(EventTurnCompleted, ids)
+}
+
 func (r *Runner) turnFailedEvent(ids sessionIDs, err error) Event {
-	return Event{
-		Kind:      EventTurnFailed,
-		SessionID: ids.sessionID(),
-		ThreadID:  ids.threadID,
-		TurnID:    ids.turnID,
-		Timestamp: time.Now(),
-		Err:       err,
-	}
+	e := newTurnEvent(EventTurnFailed, ids)
+	e.Err = err
+	return e
+}
+
+func (r *Runner) turnCancelledEvent(ids sessionIDs) Event {
+	return newTurnEvent(EventTurnCancelled, ids)
 }
