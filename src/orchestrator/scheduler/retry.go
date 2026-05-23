@@ -42,12 +42,12 @@ func scheduleRetry(st *State, clk Clock, fireCh chan<- retryFireReq, ctx context
 	issueID := entry.IssueID
 	identifier := entry.Identifier
 	attempt := entry.Attempt
-	entry.Timer = RetryTimer{t: clk.NewTimer(delay, func() {
+	entry.Timer = clk.NewTimer(delay, func() {
 		select {
 		case fireCh <- retryFireReq{IssueID: issueID, Identifier: identifier, Attempt: attempt}:
 		case <-ctx.Done():
 		}
-	})}
+	})
 	st.EnqueueRetry(entry)
 	slog.Info("retry scheduled", "issue_id", issueID, "attempt", attempt, "delay_ms", delay.Milliseconds())
 }

@@ -70,7 +70,7 @@ func TestScheduleRetry_TimerFires(t *testing.T) {
 		if req.IssueID != "id1" || req.Attempt != 2 {
 			t.Errorf("unexpected req: %+v", req)
 		}
-	case <-time.After(time.Second):
+	default:
 		t.Fatal("timer did not fire")
 	}
 }
@@ -87,7 +87,11 @@ func TestScheduleRetry_CancelledContextDropped(t *testing.T) {
 	entry := RetryEntry{IssueID: "id2", Identifier: "P-2", Attempt: 1, Kind: RetryBackoff}
 	scheduleRetry(st, clk, fireCh, ctx, entry, time.Millisecond)
 	clk.Advance(time.Millisecond)
-	// Should not block; just assert no panic.
+	select {
+	case req := <-fireCh:
+		t.Fatalf("cancelled ctx: unexpected fire: %+v", req)
+	default:
+	}
 }
 
 // TestScheduleRetry_RearmStopsOldTimer verifies that re-arming a retry for the same
@@ -95,12 +99,12 @@ func TestScheduleRetry_CancelledContextDropped(t *testing.T) {
 func TestScheduleRetry_RearmStopsOldTimer(t *testing.T) {
 	clk := newFakeClock(time.Now())
 	st := NewState()
-	fireCh := make(chan retryFireReq, 4)
+	fireCh := make(chan retryFireReq, 1)
 
 	e1 := RetryEntry{IssueID: "id3", Identifier: "P-3", Attempt: 1, Kind: RetryBackoff}
 	scheduleRetry(st, clk, fireCh, context.Background(), e1, 10*time.Second)
 
-	// Re-arm before the first timer fires — old timer must be stopped.
+	// Re-arm before first timer fires.
 	e2 := RetryEntry{IssueID: "id3", Identifier: "P-3", Attempt: 2, Kind: RetryBackoff}
 	scheduleRetry(st, clk, fireCh, context.Background(), e2, 20*time.Second)
 
@@ -119,15 +123,7 @@ func TestScheduleRetry_RearmStopsOldTimer(t *testing.T) {
 		if req.IssueID != "id3" || req.Attempt != 2 {
 			t.Errorf("unexpected req: %+v", req)
 		}
-	case <-time.After(time.Second):
+	default:
 		t.Fatal("second timer did not fire")
-	}
-}
-
-// TestRetryTimer_StopZeroValue verifies RetryTimer.Stop on a zero value does not panic.
-func TestRetryTimer_StopZeroValue(t *testing.T) {
-	var rt RetryTimer
-	if rt.Stop() {
-		t.Error("zero-value RetryTimer.Stop() should return false")
 	}
 }
