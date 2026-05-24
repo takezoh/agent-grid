@@ -1,18 +1,18 @@
 # Symphony SPEC Conformance
 
-Symphony SPEC v1 Draft への conformance の正本ドキュメント。  
-`plans/05-conformance.md` が working doc であり、本ファイルは M4 時点でのスナップショットとして機能する。
+Authoritative conformance document against Symphony SPEC v1 Draft.
+`plans/05-conformance.md` is the working doc; this file serves as the M4 snapshot.
 
 ---
 
-## SPEC §17 ↔ テスト対応表
+## SPEC §17 ↔ Test Mapping
 
-各 §17.x チェック項目に対し、canonical `TestSPEC_*` マーカーまたは per-phase テストを対応させる。  
-命名規約: `TestSPEC_<section>_<short_name>` (詳細は `plans/05-conformance.md#conformance-test-の整備-p9`)。
+Each §17.x check item is mapped to a canonical `TestSPEC_*` marker or a per-phase test.
+Naming convention: `TestSPEC_<section>_<short_name>` (see `plans/05-conformance.md#conformance-test-の整備-p9`).
 
 ### §17.1 Workflow and Config Parsing
 
-| チェック項目 | テスト |
+| Check | Test |
 |---|---|
 | Workflow file path precedence (explicit > cwd default) | `TestSPEC_17_1_WorkflowFilePathPrecedence` (`cmd/orchestrator`) |
 | Workflow file changes trigger re-read without restart | `TestWatchWorkflowSignalsOnWrite`, `TestWatchWorkflowSignalsOnWrite_Coalesces` (`scheduler`) |
@@ -32,7 +32,7 @@ Symphony SPEC v1 Draft への conformance の正本ドキュメント。
 
 ### §17.2 Workspace Manager and Safety
 
-| チェック項目 | テスト |
+| Check | Test |
 |---|---|
 | Deterministic workspace path per issue identifier | `TestPath_Deterministic` (`workspace`) |
 | Missing workspace directory is created | `TestEnsure_CreatesDirectory` (`workspace`) |
@@ -47,7 +47,7 @@ Symphony SPEC v1 Draft への conformance の正本ドキュメント。
 
 ### §17.3 Issue Tracker Client
 
-| チェック項目 | テスト |
+| Check | Test |
 |---|---|
 | Candidate issue fetch uses active states and project slug | `TestSPEC_17_3_CandidateFetchUsesActiveStates` (`platform/tracker/linear`) |
 | Linear query uses slugId project filter field | `TestSPEC_17_3_LinearProjectFilterUsesSlugId` |
@@ -60,7 +60,7 @@ Symphony SPEC v1 Draft への conformance の正本ドキュメント。
 
 ### §17.4 Orchestrator Dispatch, Reconciliation, and Retry
 
-| チェック項目 | テスト |
+| Check | Test |
 |---|---|
 | Dispatch sort order: priority then oldest creation time | `TestSortCandidates` (`scheduler`) |
 | `Todo` issue with non-terminal blockers is not eligible | `TestEligible_RequiredFields`, `TestEligible_BlockerRule` (`scheduler`) |
@@ -77,7 +77,7 @@ Symphony SPEC v1 Draft への conformance の正本ドキュメント。
 
 ### §17.5 Coding-Agent App-Server Client
 
-| チェック項目 | テスト |
+| Check | Test |
 |---|---|
 | Launch command uses workspace cwd; `codex.command` is tokenized via `SplitArgs` and spawned argv-direct through `agentlaunch.Spawn` (no host shell); container mode wraps the argv in `docker exec` | `TestSpawn_sessionStartedAndTurnCompleted` (`agent`) |
 | Thread/turn identities extracted and used to emit `session_started` | `TestSPEC_17_5_SessionIDFormat` (`agent`) / `TestShim_SessionID` (`cmd/claude-app-server`) |
@@ -92,7 +92,7 @@ Symphony SPEC v1 Draft への conformance の正本ドキュメント。
 
 ### §17.6 Observability
 
-| チェック項目 | テスト |
+| Check | Test |
 |---|---|
 | `/api/v1/state` response contains required top-level fields | `TestSPEC_17_6_StateShape` (`orchestrator/httpserver`) / `TestStateEndpoint_EmptySnapshot` |
 | 405 Method Not Allowed uses standard error envelope | `TestSPEC_17_6_MethodNotAllowedEnvelope` (`orchestrator/httpserver`) / `TestMethodNotAllowed_405` |
@@ -102,7 +102,7 @@ Symphony SPEC v1 Draft への conformance の正本ドキュメント。
 
 ### §17.7 CLI and Host Lifecycle
 
-| チェック項目 | テスト |
+| Check | Test |
 |---|---|
 | CLI accepts positional `--workflow` argument | `TestSPEC_17_1_WorkflowFilePathPrecedence` (`cmd/orchestrator`) |
 | CLI uses `./WORKFLOW.md` when no workflow path provided | `TestSPEC_17_1_WorkflowFilePathPrecedence` (cwd sub-test) |
@@ -114,86 +114,86 @@ Symphony SPEC v1 Draft への conformance の正本ドキュメント。
 
 ### §17.8 Real Integration Profile
 
-| チェック項目 | テスト |
+| Check | Test |
 |---|---|
 | `FetchCandidateIssues` with real API key succeeds | `TestSPEC_17_8_RealLinearFetchCandidates` (`platform/tracker/linear`) — env-gated |
-| `FetchIssuesByStates` with real API succeeds | 同上 (3-op chain 内) |
-| `FetchIssueStatesByIDs` with real API succeeds | 同上 (3-op chain 内) |
-| Skipped when credentials absent; not silently passed | env 未設定で `t.Skip` → `--- SKIP` として報告 |
+| `FetchIssuesByStates` with real API succeeds | Same (within 3-op chain) |
+| `FetchIssueStatesByIDs` with real API succeeds | Same (within 3-op chain) |
+| Skipped when credentials absent; not silently passed | `t.Skip` when env unset → reported as `--- SKIP` |
 
-**実行方法** (§17.8):
+**How to run** (§17.8):
 ```sh
 LINEAR_API_KEY=<key> LINEAR_PROJECT_SLUG=<slug> \
   go test -run TestSPEC_17_8 -v ./platform/tracker/linear/
 ```
 
-オプション env: `LINEAR_TRACKER_ENDPOINT`（既定: `https://api.linear.app/graphql`）、`LINEAR_ACTIVE_STATES`（カンマ区切り、既定: `Todo,In Progress`）。
+Optional env: `LINEAR_TRACKER_ENDPOINT` (default: `https://api.linear.app/graphql`), `LINEAR_ACTIVE_STATES` (comma-separated, default: `Todo,In Progress`).
 
 ---
 
-## SPEC §3.1 Component ↔ Go package 対応
+## SPEC §3.1 Component ↔ Go Package Mapping
 
-詳細は [`plans/05-conformance.md#SPEC-用語と実装名の対応`](../../../plans/05-conformance.md) が正本。以下は要約。
+The authoritative source is [`plans/05-conformance.md#SPEC-用語と実装名の対応`](../../../plans/05-conformance.md). The following is a summary.
 
 | SPEC §3.1 Component | Go package |
 |---|---|
 | Workflow Loader (§3.1.1) | `orchestrator/workflowfile/` |
 | Config Layer (§3.1.2) | `orchestrator/wfconfig/` |
 | Issue Tracker Client (§3.1.3) | `orchestrator/tracker/` (→ `platform/tracker/linear/`) |
-| Orchestrator (§3.1.4) — SPEC の scheduler 相当 | `orchestrator/scheduler/` |
+| Orchestrator (§3.1.4) — equivalent to SPEC's scheduler | `orchestrator/scheduler/` |
 | Workspace Manager (§3.1.5) | `orchestrator/workspace/` |
 | Agent Runner (§3.1.6) | `orchestrator/agent/` (→ `platform/agent/codexclient/`) |
 | Status Surface (§3.1.7) | `orchestrator/httpserver/` |
 | Logging (§3.1.8) | `platform/logger/` |
 
-**注**: SPEC §3.1.4 コンポーネント名 "Orchestrator" はサービス全体名と衝突するため、実装では `orchestrator/scheduler/` に rename。`plans/02-layout.md#naming` 参照。
+**Note**: The SPEC §3.1.4 component name "Orchestrator" conflicts with the overall service name, so the implementation renames it to `orchestrator/scheduler/`. See `plans/02-layout.md#naming`.
 
 ---
 
-## 厳守する項目 (抜粋)
+## Mandatory Items (Excerpt)
 
-完全な一覧は `plans/05-conformance.md#厳守する項目` を参照。代表的な厳守項目:
+The complete list is in `plans/05-conformance.md`. Representative mandatory items:
 
-- **§4.2**: session_id = `<thread_id>-<turn_id>`、workspace key sanitize 正規表現 `[A-Za-z0-9._-]`
-- **§8.4**: continuation retry は固定 1s、失敗 retry は `min(10000×2^(n-1), max)` ms
-- **§11.2**: Linear slugId フィルタ、ID 型 `[ID!]`、pagination 50/page、timeout 30s
-- **§11.3**: labels lowercase、blockers from `blocks` 反転、priority int-only、ISO-8601
-- **§13.5**: absolute thread totals 優先、delta フォールバック禁止
-- **§15.3**: `tracker.api_key` 等の secret はログ出力禁止（存在チェックのみ可）
+- **§4.2**: session_id = `<thread_id>-<turn_id>`; workspace key sanitize regex `[A-Za-z0-9._-]`
+- **§8.4**: continuation retry is fixed 1s; failure retry is `min(10000×2^(n-1), max)` ms
+- **§11.2**: Linear slugId filter, ID type `[ID!]`, pagination 50/page, timeout 30s
+- **§11.3**: labels lowercase; blockers from inverse of `blocks`; priority int-only; ISO-8601
+- **§13.5**: absolute thread totals preferred; delta fallback prohibited
+- **§15.3**: secrets such as `tracker.api_key` must never appear in logs (existence check only)
 
 ---
 
-## 逸脱 / 拡張する項目
+## Deviations / Extensions
 
-完全な一覧は `plans/05-conformance.md#逸脱--拡張する項目` を参照。主要な逸脱:
+The complete list is in `plans/05-conformance.md`. Major deviations:
 
-| SPEC § | SPEC | 我々の選択 |
+| SPEC § | SPEC | Our Choice |
 |---|---|---|
-| §10 | Codex app-server 専用 | `codex.command` 経由の stdio shim で複数 agent 対応 (`claude-app-server`) |
-| §10.5 `linear_graphql` | OPTIONAL extension | codex native `item/tool/call` で実装; advertise は pinned codex 0.133.0 で blocked (→ [issues/024](../../../issues/024-p8b-linear-graphql-tool.md) §B) |
-| §13.7 | HTTP server は OPTIONAL | **必須として実装** — orchestrator は TUI を持たない |
-| §3.3 | sandbox は impl-defined | devcontainer mode をデフォルト推奨 |
-| §9.3 | workspace population は impl-defined | `after_create` hook で `git worktree add` を強く推奨 |
-| §15.5 | harness hardening は文書化のみ | devcontainer + credproxy + mcpproxy がデフォルト |
-| §18.2 | persistence / tracker write / pluggable tracker | 実装しない (SPEC §14.3 in-memory 設計維持) |
+| §10 | Codex app-server only | stdio shim via `codex.command` supports multiple agents (`claude-app-server`) |
+| §10.5 `linear_graphql` | OPTIONAL extension | implemented in `orchestrator/lineargql/` via codex native `item/tool/call`; advertise blocked until pinned codex 0.133.0 bumps schema (→ [issues/024](../../../issues/024-p8b-linear-graphql-tool.md) §B) |
+| §13.7 | HTTP server is OPTIONAL | **implemented as mandatory** — orchestrator has no TUI |
+| §3.3 | sandbox is impl-defined | devcontainer mode recommended as default |
+| §9.3 | workspace population is impl-defined | `after_create` hook strongly recommended to run `git worktree add` |
+| §15.5 | harness hardening is documentation-only | devcontainer + credproxy + mcpproxy are default |
+| §18.2 | persistence / tracker write / pluggable tracker | not implemented (maintaining SPEC §14.3 in-memory design) |
 
 ---
 
-## Documented Posture (SPEC §10.5 / §15.5 要請)
+## Documented Posture (SPEC §10.5 / §15.5)
 
 ### approval / sandbox policy (§10.5)
 
-- `codex.command: codex app-server` の場合: Codex 側の auto-approve policy を WORKFLOW.md で指定。
-- `codex.command: claude-app-server` の場合: claude には approval 概念がないため shim が**即実行**。受け取った `approvalPolicy`/`sandboxPolicy` 値は `slog.Warn` に記録するのみ（オペレータへの逸脱通知）。実際の安全境界は container が担う。
+- When `codex.command: codex app-server`: Codex-side auto-approve policy is specified in WORKFLOW.md.
+- When `codex.command: claude-app-server`: Claude has no approval concept, so the shim **executes immediately**. Received `approvalPolicy`/`sandboxPolicy` values are logged only via `slog.Warn` (deviation notification to operator). Actual security boundary is enforced by the container.
 
 ### user-input-required (§10.5)
 
-user input を要求する turn は **fail 扱い**する（自動運転前提）。
+Turns that require user input are treated as **failures** (autonomous operation assumed).
 
 ### harness hardening (§15.5)
 
-default で適用: devcontainer 隔離、credproxy、mcpproxy whitelist、hostexec allow-list、secret 非ログ、hook script 出力 truncate。
+Applied by default: devcontainer isolation, credproxy, mcpproxy whitelist, hostexec allow-list, secret non-logging, hook script output truncation.
 
-### §10.5 `linear_graphql` advertise blocked (最新逸脱)
+### §10.5 `linear_graphql` advertise blocked (latest deviation)
 
-`DynamicToolSpec` が codex schema 上 orphan のため tool 宣言の wire 経路が無い。handler は `orchestrator/lineargql/` に実装済だが、advertise は pinned codex 0.133.0 が schema bump するまで不可。`codex.command: claude-app-server` 経由では `item/tool/call` で call は到達するが codex 正規経路では blocked。詳細: [issues/024](../../../issues/024-p8b-linear-graphql-tool.md) §B。
+`DynamicToolSpec` is an orphan in the codex schema, so there is no wire path for tool declaration. The handler is implemented in `orchestrator/lineargql/`, but advertise is blocked until pinned codex 0.133.0 bumps the schema. Via `codex.command: claude-app-server`, calls reach the handler via `item/tool/call`, but the standard codex path is blocked. Details: [issues/024](../../../issues/024-p8b-linear-graphql-tool.md) §B.
