@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/agentlaunch"
 )
 
 type fakeRuntime struct {
@@ -13,18 +14,29 @@ type fakeRuntime struct {
 }
 
 func (f *fakeRuntime) Enqueue(e state.Event) { f.events = append(f.events, e) }
-func (f *fakeRuntime) ContainerExecConfig(context.Context, string) (*ContainerExecConfig, error) {
-	return nil, nil
+
+// fakeDispatcher is a stub agentlaunch.Dispatcher for unit tests.
+type fakeDispatcher struct {
+	container bool
 }
 
+func (d *fakeDispatcher) IsContainer(_ string) bool { return d.container }
+func (d *fakeDispatcher) Wrap(_ context.Context, _ string, plan agentlaunch.LaunchPlan) (agentlaunch.WrappedLaunch, error) {
+	return agentlaunch.WrappedLaunch{Argv: plan.Argv}, nil
+}
+func (d *fakeDispatcher) AdoptFrame(_ context.Context, _, _ string) (func(context.Context) error, []agentlaunch.Mount, error) {
+	return nil, nil, nil
+}
+func (d *fakeDispatcher) EnsureProject(_ context.Context, _ string) error { return nil }
+
 func TestStopBeforeStartIsNoop(t *testing.T) {
-	b := New(&fakeRuntime{}, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", "/csock", 0, nil, 0)
+	b, _ := newTestBackend()
 	// Never Started: cancel and done are nil. Stop must not panic or block.
 	b.Stop(context.Background())
 }
 
 func TestStopCancelsAndWaitsForReap(t *testing.T) {
-	b := New(&fakeRuntime{}, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", "/csock", 0, nil, 0)
+	b, _ := newTestBackend()
 	b.ctx, b.cancel = context.WithCancel(context.Background())
 	b.done = make(chan struct{})
 	// Emulate waitProcess: closes done once the subsystem ctx is cancelled.
@@ -46,7 +58,7 @@ func TestStopCancelsAndWaitsForReap(t *testing.T) {
 }
 
 func TestBackendKindAndBridgePort(t *testing.T) {
-	b := New(&fakeRuntime{}, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", "/csock", 1234, nil, 0)
+	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", "/csock", 1234, nil, 0)
 	if b.Kind() != state.LaunchSubsystemStream {
 		t.Errorf("Kind = %v", b.Kind())
 	}
@@ -56,7 +68,7 @@ func TestBackendKindAndBridgePort(t *testing.T) {
 }
 
 func TestReleaseFrameAndLookup(t *testing.T) {
-	b := New(&fakeRuntime{}, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", "/csock", 0, nil, 0)
+	b, _ := newTestBackend()
 	b.mu.Lock()
 	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
 	b.threads["t1"] = "f1"
@@ -85,6 +97,32 @@ func TestReleaseFrameAndLookup(t *testing.T) {
 	b.ReleaseFrame("nonexistent")
 }
 
+func TestChooseSockPath(t *testing.T) {
+	const hostSock = "/host/codex.sock"
+	const ctrSock = "/container/codex.sock"
+
+	t.Run("nil dispatcher uses host sock", func(t *testing.T) {
+		b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
+		if got := b.chooseSockPath(); got != hostSock {
+			t.Errorf("chooseSockPath() = %q, want host sock %q", got, hostSock)
+		}
+	})
+
+	t.Run("dispatcher IsContainer=false uses host sock", func(t *testing.T) {
+		b := New(&fakeRuntime{}, &fakeDispatcher{container: false}, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
+		if got := b.chooseSockPath(); got != hostSock {
+			t.Errorf("chooseSockPath() = %q, want host sock %q", got, hostSock)
+		}
+	})
+
+	t.Run("dispatcher IsContainer=true uses container sock", func(t *testing.T) {
+		b := New(&fakeRuntime{}, &fakeDispatcher{container: true}, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
+		if got := b.chooseSockPath(); got != ctrSock {
+			t.Errorf("chooseSockPath() = %q, want container sock %q", got, ctrSock)
+		}
+	})
+}
+
 func TestFactoryRange(t *testing.T) {
 	f := NewFactory(FactoryConfig{})
 	f.backends["a"] = &Backend{subsystemID: "a"}
@@ -105,16 +143,5 @@ func TestFactoryRange(t *testing.T) {
 	})
 	if count != 1 {
 		t.Errorf("early-stop visited %d, want 1", count)
-	}
-}
-
-func TestIsContainerProject(t *testing.T) {
-	b := New(&fakeRuntime{}, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", "/csock", 0, nil, 0)
-	ok, err := b.isContainerProject(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
-		t.Errorf("nil container config should be host mode")
 	}
 }

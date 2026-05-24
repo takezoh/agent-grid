@@ -8,6 +8,8 @@ import (
 
 	"github.com/takezoh/agent-roost/client/runtime/subsystem"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-roost/platform/lib/codex"
 	"github.com/takezoh/agent-roost/platform/procgroup"
 )
 
@@ -16,9 +18,11 @@ import (
 // and capabilities — the Factory itself encapsulates environment knowledge
 // (host vs container) within the SubsystemID it constructs.
 type FactoryConfig struct {
-	// Runtime is the hook used by Backends to enqueue events and resolve
-	// container exec config.
+	// Runtime is the hook used by Backends to enqueue events.
 	Runtime RuntimeHook
+	// Dispatcher applies sandbox/container wrapping to each app-server launch.
+	// Nil falls back to a direct (no-op) dispatch.
+	Dispatcher agentlaunch.Dispatcher
 	// ResolveSockPaths returns the host-side and container-side sock paths for
 	// the given session and project. Paths are unique per session to allow
 	// multiple concurrent app-server processes. project is passed explicitly so
@@ -54,7 +58,11 @@ func NewFactory(cfg FactoryConfig) *Factory {
 
 // Ensure implements subsystem.Factory.
 func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project string, plan state.LaunchPlan) (subsystem.Subsystem, state.SubsystemID, error) {
-	cmdCfg, err := ParseCommand(plan.Command)
+	argv, err := agentlaunch.SplitArgs(plan.Command)
+	if err != nil {
+		return nil, "", fmt.Errorf("stream factory: parse command: %w", err)
+	}
+	cmdCfg, err := libcodex.ParseCommand(argv)
 	if err != nil {
 		return nil, "", err
 	}
@@ -73,6 +81,7 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 	}
 	b := New(
 		f.cfg.Runtime,
+		f.cfg.Dispatcher,
 		id,
 		sessionID,
 		project,
