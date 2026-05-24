@@ -62,6 +62,14 @@ func TestAppServerArgs(t *testing.T) {
 			// prompt must be the last arg
 			wantContains: []string{"my prompt"},
 		},
+		{
+			name:               "append-system-prompt precedes resume and prompt",
+			resumeSessionID:    "sess-9",
+			appendSystemPrompt: "tool rules",
+			prompt:             "go",
+			// Exact expected order matters: claude CLI processes flags left-to-right.
+			wantOrder: []string{"--append-system-prompt", "tool rules", "--resume", "sess-9", "go"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,6 +84,19 @@ func TestAppServerArgs(t *testing.T) {
 				}
 				if !found {
 					t.Errorf("AppServerArgs(...) = %v, missing element %q", got, want)
+				}
+			}
+			// Verify that wantOrder elements appear as a subsequence in the correct order.
+			if len(tt.wantOrder) > 0 {
+				j := 0
+				for _, g := range got {
+					if j < len(tt.wantOrder) && g == tt.wantOrder[j] {
+						j++
+					}
+				}
+				if j != len(tt.wantOrder) {
+					t.Errorf("AppServerArgs(...) = %v, expected subsequence %v (matched %d/%d elements)",
+						got, tt.wantOrder, j, len(tt.wantOrder))
 				}
 			}
 			if tt.prompt != "" && (len(got) == 0 || got[len(got)-1] != tt.prompt) {

@@ -6,6 +6,7 @@ package stream
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -169,12 +170,18 @@ func (b *Backend) Start(ctx context.Context) error {
 	return nil
 }
 
+// chooseSockPath returns the UDS socket path to pass to the app-server argv.
+// Container mode uses the in-container path; host mode uses the host path.
+func (b *Backend) chooseSockPath() string {
+	if b.dispatcher != nil && b.dispatcher.IsContainer(b.project) {
+		return b.containerSock
+	}
+	return b.sockPath
+}
+
 // spawnServer wraps the app-server using the dispatcher and spawns the process.
 func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, string, error) {
-	sockPath := b.sockPath
-	if b.dispatcher != nil && b.dispatcher.IsContainer(b.project) {
-		sockPath = b.containerSock
-	}
+	sockPath := b.chooseSockPath()
 	argv := libcodex.AppServerListenArgs(b.serverBin, sockPath, b.serverArgs, b.sandboxed)
 
 	plan := agentlaunch.LaunchPlan{
@@ -346,8 +353,14 @@ func (b *Backend) waitProcess() {
 		frameIDs = append(frameIDs, frameID)
 	}
 	b.mu.Unlock()
+	var stopErr error
+	if err != nil {
+		stopErr = fmt.Errorf("stream backend stopped: %w", err)
+	} else {
+		stopErr = errors.New("stream backend stopped")
+	}
 	for _, frameID := range frameIDs {
-		b.failFrame(frameID, fmt.Errorf("stream backend stopped: %w", err))
+		b.failFrame(frameID, stopErr)
 	}
 }
 

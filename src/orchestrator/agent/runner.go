@@ -319,6 +319,9 @@ func (r *Runner) launchConn(ctx context.Context, frameID, wsPath, issueID string
 
 	res, err := r.spawn(ctx, wrapped, agentlaunch.SpawnOptions{InheritEnv: true})
 	if err != nil {
+		if wrapped.Cleanup != nil {
+			_ = wrapped.Cleanup(ctx)
+		}
 		return nil, err
 	}
 	stdout, stdin := res.Stdout, res.Stdin

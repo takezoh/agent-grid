@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/agentlaunch"
 )
 
 type fakeRuntime struct {
@@ -13,6 +14,20 @@ type fakeRuntime struct {
 }
 
 func (f *fakeRuntime) Enqueue(e state.Event) { f.events = append(f.events, e) }
+
+// fakeDispatcher is a stub agentlaunch.Dispatcher for unit tests.
+type fakeDispatcher struct {
+	container bool
+}
+
+func (d *fakeDispatcher) IsContainer(_ string) bool { return d.container }
+func (d *fakeDispatcher) Wrap(_ context.Context, _ string, plan agentlaunch.LaunchPlan) (agentlaunch.WrappedLaunch, error) {
+	return agentlaunch.WrappedLaunch{Argv: plan.Argv}, nil
+}
+func (d *fakeDispatcher) AdoptFrame(_ context.Context, _, _ string) (func(context.Context) error, []agentlaunch.Mount, error) {
+	return nil, nil, nil
+}
+func (d *fakeDispatcher) EnsureProject(_ context.Context, _ string) error { return nil }
 
 func TestStopBeforeStartIsNoop(t *testing.T) {
 	b, _ := newTestBackend()
@@ -80,6 +95,32 @@ func TestReleaseFrameAndLookup(t *testing.T) {
 
 	// idempotent
 	b.ReleaseFrame("nonexistent")
+}
+
+func TestChooseSockPath(t *testing.T) {
+	const hostSock = "/host/codex.sock"
+	const ctrSock = "/container/codex.sock"
+
+	t.Run("nil dispatcher uses host sock", func(t *testing.T) {
+		b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
+		if got := b.chooseSockPath(); got != hostSock {
+			t.Errorf("chooseSockPath() = %q, want host sock %q", got, hostSock)
+		}
+	})
+
+	t.Run("dispatcher IsContainer=false uses host sock", func(t *testing.T) {
+		b := New(&fakeRuntime{}, &fakeDispatcher{container: false}, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
+		if got := b.chooseSockPath(); got != hostSock {
+			t.Errorf("chooseSockPath() = %q, want host sock %q", got, hostSock)
+		}
+	})
+
+	t.Run("dispatcher IsContainer=true uses container sock", func(t *testing.T) {
+		b := New(&fakeRuntime{}, &fakeDispatcher{container: true}, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
+		if got := b.chooseSockPath(); got != ctrSock {
+			t.Errorf("chooseSockPath() = %q, want container sock %q", got, ctrSock)
+		}
+	})
 }
 
 func TestFactoryRange(t *testing.T) {

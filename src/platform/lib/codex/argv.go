@@ -21,8 +21,14 @@ type CommandConfig struct {
 }
 
 // ParseCommand parses a codex launch command string into a CommandConfig.
+// Uses POSIX-style tokenization so quoted -c values (e.g. -c 'key="v"') are
+// preserved correctly. Note: cannot use agentlaunch.SplitArgs here because
+// agentlaunch imports lib/codex (circular dependency); the tokenizer is inlined.
 func ParseCommand(command string) (CommandConfig, error) {
-	fields := strings.Fields(command)
+	fields, err := tokenize(command)
+	if err != nil {
+		return CommandConfig{}, fmt.Errorf("codex: parse command %q: %w", command, err)
+	}
 	if len(fields) == 0 || fields[0] != DriverName {
 		return CommandConfig{}, fmt.Errorf("codex: unsupported command %q", command)
 	}
@@ -45,6 +51,63 @@ func ParseCommand(command string) (CommandConfig, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// tokenize splits a POSIX-style shell command string into tokens.
+// Handles single-quoted and double-quoted spans; backslash-escape inside
+// double quotes. Mirrors agentlaunch.SplitArgs (inlined to avoid the
+// agentlaunch → lib/codex circular import).
+func tokenize(command string) ([]string, error) {
+	var args []string
+	var cur strings.Builder
+	inToken := false
+	for i := 0; i < len(command); {
+		c := command[i]
+		switch {
+		case c == '\'': // single-quoted: literal content until closing '
+			i++
+			inToken = true
+			for i < len(command) && command[i] != '\'' {
+				cur.WriteByte(command[i])
+				i++
+			}
+			if i >= len(command) {
+				return nil, fmt.Errorf("unterminated single quote")
+			}
+			i++ // consume closing '
+		case c == '"': // double-quoted: backslash-escape inside
+			i++
+			inToken = true
+			for i < len(command) && command[i] != '"' {
+				if command[i] == '\\' && i+1 < len(command) {
+					i++
+					cur.WriteByte(command[i])
+				} else {
+					cur.WriteByte(command[i])
+				}
+				i++
+			}
+			if i >= len(command) {
+				return nil, fmt.Errorf("unterminated double quote")
+			}
+			i++ // consume closing "
+		case c == ' ' || c == '\t' || c == '\n':
+			if inToken {
+				args = append(args, cur.String())
+				cur.Reset()
+				inToken = false
+			}
+			i++
+		default:
+			cur.WriteByte(c)
+			inToken = true
+			i++
+		}
+	}
+	if inToken {
+		args = append(args, cur.String())
+	}
+	return args, nil
 }
 
 // AppServerListenArgs returns the argv for `codex app-server --listen unix://<sock>`.

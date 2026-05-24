@@ -88,7 +88,13 @@ func buildEnv(env map[string]string, inherit bool) []string {
 		result = append(result, k+"="+v)
 	}
 	if len(result) == 0 {
-		return nil // nil = inherit os.Environ() via procgroup/exec
+		if inherit {
+			// InheritEnv=true with empty w.Env: nil signals os/exec to inherit.
+			return nil
+		}
+		// InheritEnv=false with empty w.Env: return non-nil empty slice so
+		// os/exec does not inherit the parent environment.
+		return []string{}
 	}
 	return result
 }

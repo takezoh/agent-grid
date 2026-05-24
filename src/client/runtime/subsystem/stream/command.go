@@ -6,6 +6,7 @@ import (
 
 	"github.com/takezoh/agent-roost/client/driver"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/agentlaunch"
 )
 
 // Re-exported from driver/ so callers need not import both packages.
@@ -27,8 +28,13 @@ type CommandConfig struct {
 }
 
 // ParseCommand parses a codex launch command string into a CommandConfig.
+// Uses POSIX-style tokenization so quoted -c values (e.g. -c 'key="v"') are
+// preserved correctly.
 func ParseCommand(command string) (CommandConfig, error) {
-	fields := strings.Fields(command)
+	fields, err := agentlaunch.SplitArgs(command)
+	if err != nil {
+		return CommandConfig{}, fmt.Errorf("stream backend: parse command %q: %w", command, err)
+	}
 	if len(fields) == 0 || fields[0] != DriverName {
 		return CommandConfig{}, fmt.Errorf("stream backend: unsupported command %q", command)
 	}
