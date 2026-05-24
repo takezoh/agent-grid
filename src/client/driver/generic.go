@@ -102,7 +102,6 @@ func (d GenericDriver) PrepareLaunch(s state.DriverState, _ state.LaunchMode, pr
 	req, command := resolveWorktreeRequest(baseCommand, options, "--worktree")
 	if gs.StartDir != "" {
 		startDir = gs.StartDir
-		req.Enabled = true
 	}
 	return state.LaunchPlan{
 		Command:  strings.TrimSpace(command),

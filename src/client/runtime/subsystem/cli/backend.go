@@ -30,18 +30,31 @@ func (b *Backend) Kind() state.LaunchSubsystem { return state.LaunchSubsystemCLI
 
 func (b *Backend) Start(_ context.Context) error { return nil }
 
-// BindFrame resolves the launch plan for a CLI frame. If StartDir is already
-// a managed worktree path (cold-start adoption), or Options.Worktree.Enabled
-// is set (fresh start), a worktree is registered for cleanup on ReleaseFrame.
+// BindFrame resolves the launch plan for a CLI frame.
+//
+// Worktree ownership rules:
+//   - Worktree.Enabled=true, StartDir not a managed path → fresh create; this
+//     frame owns the worktree and is responsible for removing it on release.
+//   - StartDir is already a managed path AND Worktree.Enabled=true (cold-start
+//     re-adoption by the original owner) → adopt without creating; this frame
+//     still owns the worktree and removes it on release.
+//   - StartDir is already a managed path AND Worktree.Enabled=false → a child
+//     frame borrowing another frame's worktree; do NOT register for cleanup.
+//     This prevents cross-frame (or cross-backend) deletion of a shared path.
 func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (subsystem.BindResult, error) {
 	result := subsystem.BindResult{Plan: req.Plan}
 	worktreePath := ""
 
 	switch {
 	case subsystem.IsManagedWorktreePath(req.Plan.StartDir):
-		// Cold-start adoption: existing worktree, no creation needed.
-		worktreePath = req.Plan.StartDir
-		result.WorktreeStartDir = worktreePath
+		// The StartDir already points at an existing managed worktree.
+		result.WorktreeStartDir = req.Plan.StartDir
+		if req.Plan.Options.Worktree.Enabled {
+			// Original owner re-adopting on cold-start: register for cleanup.
+			worktreePath = req.Plan.StartDir
+		}
+		// Borrower (Enabled=false): worktreePath stays "", so ReleaseFrame
+		// will not remove a worktree owned by a different frame or backend.
 
 	case req.Plan.Options.Worktree.Enabled:
 		// Fresh start: create a new managed worktree.
@@ -66,13 +79,21 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 }
 
 // ReleaseFrame removes the frame from tracking and asynchronously removes
-// its managed worktree (if any).
+// its managed worktree if no other tracked frame still references the same path.
+// This prevents destroying a worktree shared between root and child frames.
 func (b *Backend) ReleaseFrame(frameID state.FrameID) {
 	b.mu.Lock()
 	path := b.frames[frameID]
 	delete(b.frames, frameID)
+	stillUsed := false
+	for _, p := range b.frames {
+		if p == path {
+			stillUsed = true
+			break
+		}
+	}
 	b.mu.Unlock()
-	if path != "" {
+	if path != "" && !stillUsed {
 		subsystem.RemoveWorktree(path)
 	}
 }

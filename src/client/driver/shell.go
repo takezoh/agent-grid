@@ -90,7 +90,6 @@ func (d ShellDriver) PrepareLaunch(s state.DriverState, _ state.LaunchMode, proj
 	req, command := resolveWorktreeRequest(baseCommand, options, "--worktree")
 	if ss.StartDir != "" {
 		startDir = ss.StartDir
-		req.Enabled = true
 	}
 	return state.LaunchPlan{
 		Command:  strings.TrimSpace(command),

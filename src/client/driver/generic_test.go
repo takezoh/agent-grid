@@ -462,3 +462,40 @@ func TestGenericStepNonRootSkipsTick(t *testing.T) {
 		t.Errorf("non-root DEvTick mutated Status: got %v, want %v", next.(GenericState).Status, s.Status)
 	}
 }
+
+// TestGenericPrepareLaunchInheritedPlainStartDir verifies that a child frame
+// inheriting a plain project StartDir does not trigger worktree creation.
+// Previously generic forced Worktree.Enabled=true whenever StartDir was set,
+// causing a new worktree for every non-root frame.
+func TestGenericPrepareLaunchInheritedPlainStartDir(t *testing.T) {
+	d, s, _ := newGenericState(t, 0)
+	s.StartDir = "/repo"
+	plan, err := d.PrepareLaunch(s, state.LaunchModeCreate, "/repo", "bash", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if plan.StartDir != "/repo" {
+		t.Errorf("StartDir = %q, want /repo", plan.StartDir)
+	}
+	if plan.Options.Worktree.Enabled {
+		t.Error("Worktree.Enabled should be false; inherited plain StartDir must not trigger worktree creation")
+	}
+}
+
+// TestGenericPrepareLaunchManagedWorktreePathNoForcedEnable verifies that
+// a managed worktree StartDir does not force Worktree.Enabled; adoption
+// is handled by BindFrame (IsManagedWorktreePath), not PrepareLaunch.
+func TestGenericPrepareLaunchManagedWorktreePathNoForcedEnable(t *testing.T) {
+	d, s, _ := newGenericState(t, 0)
+	s.StartDir = "/repo/.roost/worktrees/test-name"
+	plan, err := d.PrepareLaunch(s, state.LaunchModeColdStart, "/repo", "bash", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if plan.StartDir != "/repo/.roost/worktrees/test-name" {
+		t.Errorf("StartDir = %q, want managed worktree path", plan.StartDir)
+	}
+	if plan.Options.Worktree.Enabled {
+		t.Error("Worktree.Enabled should be false; BindFrame handles adoption via IsManagedWorktreePath")
+	}
+}

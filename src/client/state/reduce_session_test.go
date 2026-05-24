@@ -1859,3 +1859,46 @@ func TestPushDriver_AutoSandboxSession(t *testing.T) {
 		t.Errorf("pushed frame spawn.Sandbox = %v, want SandboxOverrideAuto", spawn.Sandbox)
 	}
 }
+
+// TestPushDriverNonRootNoImplicitWorktree verifies that pushing a non-root frame
+// never requests worktree creation unless explicitly asked. The root frame's
+// StartDir must be reused without launching a new git worktree.
+func TestPushDriverNonRootNoImplicitWorktree(t *testing.T) {
+	s := New()
+	s.Now = time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	// Root frame with an inherited StartDir (simulates a plain project root
+	// after the first tick backfills StartDir).
+	rootDS := sdState{startDir: "/repo"}
+	sid := SessionID("sess-1")
+	s.Sessions = map[SessionID]Session{
+		sid: {
+			ID:      sid,
+			Project: "/repo",
+			Command: "sdstub",
+			Driver:  rootDS,
+			Frames: []SessionFrame{{
+				ID:      FrameID("frame-root"),
+				Project: "/repo",
+				Command: "sdstub",
+				Driver:  rootDS,
+			}},
+		},
+	}
+
+	// Push a non-root sdstub frame with no worktree request.
+	_, effs := Reduce(s, EvEvent{
+		ConnID: 1, ReqID: "r", Event: EventPushDriver,
+		Payload: mustPayload(map[string]string{"session_id": string(sid), "command": "sdstub"}),
+	})
+	mustOK(t, effs)
+	spawn, ok := findEff[EffSpawnTmuxWindow](effs)
+	if !ok {
+		t.Fatal("expected EffSpawnTmuxWindow")
+	}
+	if spawn.StartDir != "/repo" {
+		t.Errorf("StartDir = %q, want /repo (inherited from root)", spawn.StartDir)
+	}
+	if spawn.Options.Worktree.Enabled {
+		t.Error("Worktree.Enabled should be false; non-root frame must reuse root's directory, not create a new worktree")
+	}
+}
