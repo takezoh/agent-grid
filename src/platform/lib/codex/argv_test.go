@@ -8,46 +8,46 @@ import (
 func TestParseCommand(t *testing.T) {
 	tests := []struct {
 		name    string
-		command string
+		argv    []string
 		want    CommandConfig
 		wantErr bool
 	}{
 		{
-			name:    "bare codex",
-			command: "codex",
-			want:    CommandConfig{ServerBin: "codex"},
+			name: "bare codex",
+			argv: []string{"codex"},
+			want: CommandConfig{ServerBin: "codex"},
 		},
 		{
-			name:    "model flag",
-			command: "codex -m gpt-4o",
-			want:    CommandConfig{ServerBin: "codex", Model: "gpt-4o"},
+			name: "model flag",
+			argv: []string{"codex", "-m", "gpt-4o"},
+			want: CommandConfig{ServerBin: "codex", Model: "gpt-4o"},
 		},
 		{
-			name:    "resume skips thread id",
-			command: "codex resume abc-123",
-			want:    CommandConfig{ServerBin: "codex"},
+			name: "resume skips thread id",
+			argv: []string{"codex", "resume", "abc-123"},
+			want: CommandConfig{ServerBin: "codex"},
 		},
 		{
-			name:    "config flag",
-			command: "codex -c key=val",
-			want:    CommandConfig{ServerBin: "codex", ServerArgs: []string{"-c", "key=val"}},
+			name: "config flag with quoted value preserved as element",
+			argv: []string{"codex", "-c", `sandbox_mode="danger-full-access"`},
+			want: CommandConfig{ServerBin: "codex", ServerArgs: []string{"-c", `sandbox_mode="danger-full-access"`}},
 		},
 		{
 			name:    "unsupported command",
-			command: "claude",
+			argv:    []string{"claude"},
 			wantErr: true,
 		},
 		{
-			name:    "empty command",
-			command: "",
+			name:    "empty argv",
+			argv:    nil,
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseCommand(tt.command)
+			got, err := ParseCommand(tt.argv)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("ParseCommand(%q) error = %v, wantErr %v", tt.command, err, tt.wantErr)
+				t.Fatalf("ParseCommand(%v) error = %v, wantErr %v", tt.argv, err, tt.wantErr)
 			}
 			if tt.wantErr {
 				return

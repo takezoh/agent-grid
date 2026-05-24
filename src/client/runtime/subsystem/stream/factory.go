@@ -9,6 +9,7 @@ import (
 	"github.com/takezoh/agent-roost/client/runtime/subsystem"
 	"github.com/takezoh/agent-roost/client/state"
 	"github.com/takezoh/agent-roost/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-roost/platform/lib/codex"
 	"github.com/takezoh/agent-roost/platform/procgroup"
 )
 
@@ -56,7 +57,11 @@ func NewFactory(cfg FactoryConfig) *Factory {
 
 // Ensure implements subsystem.Factory.
 func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project string, plan state.LaunchPlan) (subsystem.Subsystem, state.SubsystemID, error) {
-	cmdCfg, err := ParseCommand(plan.Command)
+	argv, err := agentlaunch.SplitArgs(plan.Command)
+	if err != nil {
+		return nil, "", fmt.Errorf("stream factory: parse command: %w", err)
+	}
+	cmdCfg, err := libcodex.ParseCommand(argv)
 	if err != nil {
 		return nil, "", err
 	}
