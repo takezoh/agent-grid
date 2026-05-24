@@ -18,6 +18,7 @@ import (
 	"github.com/takezoh/agent-roost/client/runtime/subsystem"
 	"github.com/takezoh/agent-roost/client/state"
 	"github.com/takezoh/agent-roost/platform/agent/codexclient"
+	"github.com/takezoh/agent-roost/platform/procgroup"
 )
 
 const (
@@ -26,6 +27,11 @@ const (
 
 	resumePhasePending  = "resume_pending"
 	resumePhaseAttached = "attached"
+
+	// stopGrace bounds how long Stop waits for the read loop + process Wait to
+	// finish after cancelling. A little above procgroup's WaitDelay so the
+	// SIGKILL'd group has time to be reaped before Stop returns.
+	stopGrace = procgroup.DefaultWaitDelay + time.Second
 )
 
 // RuntimeHook is implemented by *runtime.Runtime and lets the stream backend
@@ -59,6 +65,10 @@ type Backend struct {
 	sandboxed     bool
 	autoApprove   bool
 	readTimeout   time.Duration
+	ctx           context.Context    // subsystem-scoped; child of the daemon ctx
+	cancel        context.CancelFunc // cancels ctx → reaps read loop + process group
+	done          chan struct{}      // closed when waitProcess returns (process reaped)
+	tracker       *procgroup.Tracker // records pgids for crash-path reaping; may be nil
 	cmd           *exec.Cmd
 	conn          *codexclient.Conn
 	sockPath      string // UDS path dialed by daemon (host-side)
@@ -130,8 +140,14 @@ func (b *Backend) BridgePort() int { return b.bridgePort }
 // a new Backend instead.
 func (b *Backend) Start(ctx context.Context) error {
 	_ = os.Remove(b.sockPath)
+	// Derive a subsystem-scoped context from the daemon context. Cancelling it
+	// (via Stop, or daemon shutdown cascading from the parent) tears down the
+	// read loop and SIGKILLs the app-server / sockbridge process groups.
+	b.ctx, b.cancel = context.WithCancel(ctx)
+	b.done = make(chan struct{})
 	cmd, err := b.buildServerCommand(ctx)
 	if err != nil {
+		b.cancel()
 		return err
 	}
 	var serverErrBuf strings.Builder
@@ -141,7 +157,7 @@ func (b *Backend) Start(ctx context.Context) error {
 	}
 	t, err := codexclient.DialUDS(b.sockPath, serverDialTimeout)
 	if err != nil {
-		_ = cmd.Process.Kill()
+		b.cancel()
 		_ = cmd.Wait()
 		slog.Error("stream backend: app-server dial failed",
 			"subsystem", b.subsystemID, "sock", b.sockPath,
@@ -151,13 +167,13 @@ func (b *Backend) Start(ctx context.Context) error {
 	b.cmd = cmd
 	b.conn = codexclient.NewConn(t, b.readTimeout)
 	go func() {
-		if err := b.conn.Run(context.Background(), b); err != nil {
+		if err := b.conn.Run(b.ctx, b); err != nil {
 			slog.Debug("stream backend: read loop closed", "subsystem", b.subsystemID, "err", err)
 		}
 	}()
 	if err := codexclient.Initialize(b.conn); err != nil {
 		_ = b.conn.Close()
-		_ = cmd.Process.Kill()
+		b.cancel()
 		return err
 	}
 	// Container mode: sockbridge is part of devcontainer postCreate
@@ -165,18 +181,31 @@ func (b *Backend) Start(ctx context.Context) error {
 	isContainer, err := b.isContainerProject(ctx)
 	if err != nil {
 		_ = b.conn.Close()
-		_ = cmd.Process.Kill()
+		b.cancel()
 		return err
 	}
 	if !isContainer {
 		if err := b.startHostBridge(); err != nil {
 			_ = b.conn.Close()
-			_ = cmd.Process.Kill()
+			b.cancel()
 			return fmt.Errorf("stream backend: host bridge: %w", err)
 		}
 	}
+	b.trackProcessGroups()
 	go b.waitProcess()
 	return nil
+}
+
+// trackProcessGroups records the app-server and host-bridge pgids so a future
+// boot's PruneOrphans reaps them if this daemon dies without a graceful Stop.
+// No-op when tracker is nil.
+func (b *Backend) trackProcessGroups() {
+	if b.cmd != nil && b.cmd.Process != nil {
+		b.tracker.Track(b.cmd.Process.Pid)
+	}
+	if b.hostBridgeCmd != nil && b.hostBridgeCmd.Process != nil {
+		b.tracker.Track(b.hostBridgeCmd.Process.Pid)
+	}
 }
 
 // BindFrame implements subsystem.Subsystem. It resolves worktree (if requested),
@@ -230,10 +259,21 @@ func (b *Backend) ReleaseFrame(frameID state.FrameID) {
 	b.mu.Unlock()
 }
 
-// Stop kills the app-server process. The waitProcess goroutine handles cleanup.
+// Stop cancels the subsystem context (SIGKILLing the app-server and sockbridge
+// process groups via procgroup) and blocks until waitProcess has reaped them,
+// so the call returns only once the spawned processes are gone. A grace bound
+// prevents a stuck Wait from blocking shutdown forever.
 func (b *Backend) Stop(_ context.Context) {
-	if b.cmd != nil && b.cmd.Process != nil {
-		_ = b.cmd.Process.Kill()
+	if b.cancel != nil {
+		b.cancel()
+	}
+	if b.done == nil {
+		return
+	}
+	select {
+	case <-b.done:
+	case <-time.After(stopGrace):
+		slog.Warn("stream backend: Stop timed out waiting for reap", "subsystem", b.subsystemID)
 	}
 }
 
@@ -257,10 +297,14 @@ func (b *Backend) startHostBridge() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(bin,
-		"-listen", fmt.Sprintf("127.0.0.1:%d", b.bridgePort),
-		"-socket", b.sockPath,
-	)
+	cmd := procgroup.Command(procgroup.Spec{
+		Ctx: b.ctx,
+		Bin: bin,
+		Args: []string{
+			"-listen", fmt.Sprintf("127.0.0.1:%d", b.bridgePort),
+			"-socket", b.sockPath,
+		},
+	})
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -277,7 +321,7 @@ func (b *Backend) buildServerCommand(ctx context.Context) (*exec.Cmd, error) {
 		return nil, err
 	}
 	if containerCfg == nil {
-		return exec.Command(b.serverBin, args...), nil
+		return procgroup.Command(procgroup.Spec{Ctx: b.ctx, Bin: b.serverBin, Args: args}), nil
 	}
 	containerArgs := buildServerArgs(b.serverArgs, b.sandboxed, b.containerSock)
 	execArgs := []string{"exec", "-i"}
@@ -295,7 +339,7 @@ func (b *Backend) buildServerCommand(ctx context.Context) (*exec.Cmd, error) {
 		execArgs = append(execArgs, b.serverBin)
 		execArgs = append(execArgs, containerArgs...)
 	}
-	return exec.Command("docker", execArgs...), nil
+	return procgroup.Command(procgroup.Spec{Ctx: b.ctx, Bin: "docker", Args: execArgs}), nil
 }
 
 // bindThread associates a new frame with a thread in the app-server and
@@ -335,15 +379,21 @@ func (b *Backend) bindThread(frameID state.FrameID, startDir, worktreePath strin
 }
 
 func (b *Backend) waitProcess() {
+	defer close(b.done)
 	err := b.cmd.Wait()
+	if b.cmd.Process != nil {
+		b.tracker.Untrack(b.cmd.Process.Pid)
+	}
 	if err != nil {
 		slog.Error("stream backend exited", "subsystem", b.subsystemID, "err", err)
 	} else {
 		slog.Warn("stream backend exited", "subsystem", b.subsystemID)
 	}
 	if b.hostBridgeCmd != nil && b.hostBridgeCmd.Process != nil {
+		bridgePID := b.hostBridgeCmd.Process.Pid
 		_ = b.hostBridgeCmd.Process.Kill()
 		_ = b.hostBridgeCmd.Wait()
+		b.tracker.Untrack(bridgePID)
 	}
 	_ = b.conn.Close()
 	b.mu.Lock()

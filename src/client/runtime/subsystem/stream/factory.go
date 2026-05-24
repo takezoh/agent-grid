@@ -9,6 +9,7 @@ import (
 
 	"github.com/takezoh/agent-roost/client/runtime/subsystem"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/procgroup"
 )
 
 // FactoryConfig holds runtime-supplied dependencies the Stream Factory needs
@@ -37,6 +38,10 @@ type FactoryConfig struct {
 	// ReadTimeout overrides the per-request JSON-RPC timeout.  Zero uses the
 	// default (15 seconds).  Corresponds to the codex.read_timeout_ms config key.
 	ReadTimeout time.Duration
+	// Tracker records the app-server / sockbridge process-group pgids so a
+	// future boot can reap them if this daemon dies without a graceful Stop.
+	// Nil disables crash-path tracking (e.g. tests, non-Linux).
+	Tracker *procgroup.Tracker
 }
 
 // Factory creates Stream Backends keyed by (sandbox mode × project). Sandbox
@@ -87,6 +92,7 @@ func (f *Factory) Ensure(ctx context.Context, project string, plan state.LaunchP
 		f.cfg.ActiveFrameID,
 		f.cfg.ReadTimeout,
 	)
+	b.tracker = f.cfg.Tracker
 
 	f.mu.Lock()
 	if existing, ok := f.backends[id]; ok {

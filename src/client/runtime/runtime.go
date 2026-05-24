@@ -13,6 +13,7 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -26,6 +27,7 @@ import (
 	"github.com/takezoh/agent-roost/client/state"
 	"github.com/takezoh/agent-roost/platform/features"
 	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-roost/platform/procgroup"
 )
 
 // sameSessionMap returns true when the two maps refer to the same
@@ -157,6 +159,36 @@ type Runtime struct {
 	// frameSubsystems tracks which subsystem owns each live frame,
 	// keyed by FrameID → subsystem.Subsystem. Used to route ReleaseFrame.
 	frameSubsystems sync.Map // state.FrameID → subsystem.Subsystem
+
+	// baseCtx is the long-lived daemon context used as the parent for
+	// subsystem goroutines and spawned process groups, so daemon shutdown
+	// cascades into every backend. Set by SetBaseContext before cold-start
+	// spawns (which run before Run) and defaulted in Run for the warm path.
+	baseCtx context.Context
+
+	// pgidTracker records host process-group pgids (codex app-server,
+	// sockbridge) so PruneProcessGroups can reap them after a crash that
+	// skipped graceful Stop. Nil when no data dir is configured.
+	pgidTracker *procgroup.Tracker
+}
+
+// PruneProcessGroups reaps host process groups left marked by an earlier daemon
+// boot that died without a graceful Stop (SIGKILL/panic). Call once at startup
+// before spawning. No-op without a data dir or on non-Linux platforms.
+func (r *Runtime) PruneProcessGroups() { r.pgidTracker.Prune() }
+
+// SetBaseContext stores the long-lived daemon context. It must be called
+// before cold-start spawning so subsystems created during RecreateAll inherit
+// the daemon's cancellation. Run also sets it for callers that start directly.
+func (r *Runtime) SetBaseContext(ctx context.Context) { r.baseCtx = ctx }
+
+// baseContext returns the daemon context, or context.Background() if one was
+// never set (e.g. unit tests that exercise spawn helpers without a daemon).
+func (r *Runtime) baseContext() context.Context {
+	if r.baseCtx != nil {
+		return r.baseCtx
+	}
+	return context.Background()
 }
 
 // New constructs a Runtime ready for Run. Backends must be set on the
@@ -223,6 +255,10 @@ func New(cfg Config) *Runtime {
 		} else {
 			r.warmFrames = wf
 		}
+		r.pgidTracker = &procgroup.Tracker{
+			Dir:   filepath.Join(cfg.DataDir, "run", "pgids"),
+			Nonce: procgroup.NewBootNonce(),
+		}
 	}
 	r.registerSubsystemFactories()
 	return r
@@ -240,6 +276,7 @@ func (r *Runtime) registerSubsystemFactories() {
 			RunDirKey:        r.streamRunDirKey,
 			ActiveFrameID:    func() state.FrameID { return r.activeFrameID },
 			ReadTimeout:      r.cfg.StreamReadTimeout,
+			Tracker:          r.pgidTracker,
 		}),
 	}
 }
@@ -343,6 +380,9 @@ func (r *Runtime) StartTapsForRestoredFrames() {
 // straight to dispatchInternal — they manipulate runtime fields the
 // reducer can't see (the conns map, the next conn id counter).
 func (r *Runtime) Run(ctx context.Context) error {
+	if r.baseCtx == nil {
+		r.baseCtx = ctx
+	}
 	defer close(r.done)
 	defer r.workers.Stop()
 	defer r.shutdownIPC()

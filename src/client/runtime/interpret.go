@@ -306,7 +306,7 @@ func (r *Runtime) enqueueSpawnFailed(e state.EffSpawnTmuxWindow, msg string) {
 }
 
 func (r *Runtime) spawnTmuxWindowAsync(e state.EffSpawnTmuxWindow) {
-	ctx := context.Background()
+	ctx := r.baseContext()
 	plan := state.LaunchPlan{
 		Command:   e.Command,
 		StartDir:  e.StartDir,

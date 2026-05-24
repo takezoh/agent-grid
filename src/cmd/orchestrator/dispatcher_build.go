@@ -6,12 +6,17 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/takezoh/agent-roost/platform/agentlaunch"
 	platformconfig "github.com/takezoh/agent-roost/platform/config"
 	"github.com/takezoh/agent-roost/platform/credproxy"
 	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
 )
+
+// credproxyShutdownTimeout bounds how long graceful teardown waits for the
+// credproxy server goroutine to exit before giving up.
+const credproxyShutdownTimeout = 5 * time.Second
 
 // buildDispatcher constructs the Dispatcher for the orchestrator.
 // It loads the shared sandbox config from ~/.roost/settings.toml and enables
@@ -89,9 +94,15 @@ func buildDevcontainerLauncher(
 		false, // orchestrator drives the agent over piped JSON-RPC stdio: no TTY
 	)
 
-	// credproxy and the devcontainer manager are bound to ctx and stop when the
-	// orchestrator's context is cancelled, so no explicit teardown is required.
-	return devLauncher, func() {}, nil
+	// credproxy is also bound to ctx, but Shutdown makes teardown deterministic:
+	// it reaps provider-managed processes (ssh-agent) and waits for the server
+	// goroutine to remove its socket before returning.
+	cleanup := func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), credproxyShutdownTimeout)
+		defer cancel()
+		runner.Shutdown(shutdownCtx)
+	}
+	return devLauncher, cleanup, nil
 }
 
 // ensureProject warms up the dispatcher for a project path, supporting

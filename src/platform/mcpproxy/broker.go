@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/takezoh/agent-roost/platform/procgroup"
 )
 
 type serverEntry struct {
@@ -127,11 +129,12 @@ func (b *broker) startMCPProcess(srv *serverEntry, stderr *os.File) (*os.File, *
 		fmt.Fprintf(stderr, "mcp-exec: pipe: %v\n", err)
 		return nil, nil, nil, err
 	}
-	cmd := exec.CommandContext(b.ctx, srv.command, srv.args...)
+	// procgroup.Command puts the MCP host in its own process group so ctx
+	// cancellation SIGKILLs its descendants (npm/node-launched servers) too.
+	cmd := procgroup.Command(procgroup.Spec{Ctx: b.ctx, Bin: srv.command, Args: srv.args, Env: srv.env})
 	cmd.Stdin = stdinR
 	cmd.Stdout = stdoutW
 	cmd.Stderr = stderr
-	cmd.Env = srv.env
 	if err := cmd.Start(); err != nil {
 		stdinR.Close()
 		stdinW.Close()

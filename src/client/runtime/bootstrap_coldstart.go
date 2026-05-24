@@ -110,7 +110,7 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 	launch.Sandbox = sandbox
 	launch.Project = frame.Project
 
-	ctx := context.Background()
+	ctx := r.baseContext()
 	sub, _, err := r.ensureSubsystem(ctx, launch.Subsystem, frame.Project, launch)
 	if err != nil {
 		slog.Error("bootstrap: ensure subsystem failed", "id", id, "frame", frame.ID, "err", err)

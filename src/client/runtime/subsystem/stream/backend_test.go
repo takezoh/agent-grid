@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/takezoh/agent-roost/client/state"
 )
@@ -14,6 +15,34 @@ type fakeRuntime struct {
 func (f *fakeRuntime) Enqueue(e state.Event) { f.events = append(f.events, e) }
 func (f *fakeRuntime) ContainerExecConfig(context.Context, string) (*ContainerExecConfig, error) {
 	return nil, nil
+}
+
+func TestStopBeforeStartIsNoop(t *testing.T) {
+	b := New(&fakeRuntime{}, "sid", "/p", "codex", nil, "", false, false, "/sock", "/csock", 0, nil, 0)
+	// Never Started: cancel and done are nil. Stop must not panic or block.
+	b.Stop(context.Background())
+}
+
+func TestStopCancelsAndWaitsForReap(t *testing.T) {
+	b := New(&fakeRuntime{}, "sid", "/p", "codex", nil, "", false, false, "/sock", "/csock", 0, nil, 0)
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.done = make(chan struct{})
+	// Emulate waitProcess: closes done once the subsystem ctx is cancelled.
+	go func() {
+		<-b.ctx.Done()
+		close(b.done)
+	}()
+
+	start := time.Now()
+	b.Stop(context.Background())
+	if elapsed := time.Since(start); elapsed >= stopGrace {
+		t.Fatalf("Stop blocked %v (>= grace %v); did not observe reap", elapsed, stopGrace)
+	}
+	select {
+	case <-b.done:
+	default:
+		t.Fatal("Stop returned before done was closed")
+	}
 }
 
 func TestBackendKindAndBridgePort(t *testing.T) {

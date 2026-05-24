@@ -5,21 +5,29 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
+
+	"github.com/takezoh/agent-roost/platform/procgroup"
 )
 
 // realProc launches "bash -lc command" with Dir=dir and the process environment
 // set to os.Environ() extended by env. Returns stdout, stdin, and a wait func
 // that reaps the process after stdout has been fully drained.
+//
+// procgroup.Command runs the agent in its own process group and SIGKILLs the
+// whole group when ctx is cancelled, so codex / tool subprocesses spawned by
+// the shell are reaped with it rather than orphaned.
 func realProc(ctx context.Context, dir string, env map[string]string, command string) (io.ReadCloser, io.WriteCloser, func(), error) {
-	cmd := exec.CommandContext(ctx, "bash", "-lc", command) //nolint:gosec
-	cmd.Dir = dir
-
 	merged := os.Environ()
 	for k, v := range env {
 		merged = append(merged, k+"="+v)
 	}
-	cmd.Env = merged
+	cmd := procgroup.Command(procgroup.Spec{
+		Ctx:  ctx,
+		Bin:  "bash",
+		Args: []string{"-lc", command},
+		Dir:  dir,
+		Env:  merged,
+	})
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

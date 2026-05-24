@@ -70,6 +70,13 @@ func runCoordinator() error {
 	if err != nil {
 		return err
 	}
+	// Bind subsystem goroutines / spawned process groups to the daemon context
+	// so shutdown cascades into them. Must precede cold-start spawning.
+	rt.SetBaseContext(ctx)
+	// Reap host process groups (codex app-server, sockbridge) orphaned by a
+	// prior daemon boot that died without a graceful Stop. Must run before any
+	// new spawn so it only targets earlier boots' markers.
+	rt.PruneProcessGroups()
 
 	if err := startSession(ctx, rt, client, cfg, sessionName, exePath, idleThreshold); err != nil {
 		return err
@@ -363,6 +370,10 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 		if err != nil {
 			return nil, fmt.Errorf("sandbox: start in-process credproxy: %w", err)
 		}
+		// credproxy providers run under a child of this ctx (the daemon context).
+		// The coordinator's defer cancel() on graceful shutdown cascades into
+		// them, reaping provider-managed processes such as the ssh-agent. detach
+		// leaves ctx live so the agent survives for warm restart.
 		overlayFn := agentlaunch.BuildContainerOverlay(func(project string) platformconfig.SandboxConfig {
 			return resolver.Resolve(project)
 		}, projects, runner, dataDir, statedriver.SetupSubcmds())

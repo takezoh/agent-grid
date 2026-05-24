@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -36,6 +37,12 @@ type Paths struct {
 type Runner struct {
 	srv       *credproxylib.Server
 	providers []container.Provider
+
+	// srvCancel cancels the server context; serverDone closes when the server
+	// goroutine exits. Together they let Shutdown deterministically reap
+	// provider-managed processes (e.g. ssh-agent) on graceful teardown.
+	srvCancel  context.CancelFunc
+	serverDone chan struct{}
 
 	mu     sync.Mutex
 	tokens map[string]string // projectPath → bearer token
@@ -69,8 +76,11 @@ func Start(ctx context.Context, dataDir string, resolveSandbox func(string) conf
 	}
 	sockPath := filepath.Join(runBase, "credproxy.sock")
 
-	runner := &Runner{tokens: make(map[string]string)}
-	providers := buildProviders(ctx, runBase, sockPath, resolveSandbox, runner.ProjectToken, paths)
+	// Providers and the server share a child context so Shutdown (or daemon
+	// ctx cancellation) tears down provider-managed processes such as ssh-agent.
+	srvCtx, srvCancel := context.WithCancel(ctx)
+	runner := &Runner{tokens: make(map[string]string), srvCancel: srvCancel, serverDone: make(chan struct{})}
+	providers := buildProviders(srvCtx, runBase, sockPath, resolveSandbox, runner.ProjectToken, paths)
 
 	var routes []credproxylib.Route
 	for _, p := range providers {
@@ -100,11 +110,34 @@ func Start(ctx context.Context, dataDir string, resolveSandbox func(string) conf
 	runner.providers = providers
 
 	go func() {
-		_ = srv.Run(ctx)
+		defer close(runner.serverDone)
+		_ = srv.Run(srvCtx)
 		_ = os.Remove(sockPath)
 	}()
 
 	return runner, nil
+}
+
+// Shutdown cancels the credproxy server context — which reaps provider-managed
+// processes such as the ssh-agent via their context watchers — waits for the
+// server goroutine to exit (and remove its socket), then closes any provider
+// implementing io.Closer. It is bounded by ctx so a stuck provider cannot block
+// daemon shutdown indefinitely. Safe to call on a Runner whose Start failed.
+func (r *Runner) Shutdown(ctx context.Context) {
+	if r.srvCancel != nil {
+		r.srvCancel()
+	}
+	if r.serverDone != nil {
+		select {
+		case <-r.serverDone:
+		case <-ctx.Done():
+		}
+	}
+	for _, p := range r.providers {
+		if c, ok := p.(io.Closer); ok {
+			_ = c.Close()
+		}
+	}
 }
 
 func buildProviders(

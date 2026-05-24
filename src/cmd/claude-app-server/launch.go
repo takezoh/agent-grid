@@ -4,9 +4,8 @@ import (
 	"context"
 	"io"
 	"os"
-	"os/exec"
-	"syscall"
-	"time"
+
+	"github.com/takezoh/agent-roost/platform/procgroup"
 )
 
 // claudeLauncher starts a claude process and returns its stdout, a wait func,
@@ -36,22 +35,20 @@ func realLaunch(ctx context.Context, cwd, resumeSessionID, appendSystemPrompt, p
 		bin = "claude"
 	}
 
-	cmd := exec.CommandContext(ctx, bin, claudeArgs(resumeSessionID, appendSystemPrompt, prompt)...) //nolint:gosec
-	cmd.Dir = cwd
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	// Kill the whole process group on context cancellation so claude's children
-	// (tool subprocesses) are also terminated.
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return nil
-		}
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
-	cmd.WaitDelay = 5 * time.Second
-
+	// procgroup.Command runs claude in its own process group and SIGKILLs the
+	// whole group on context cancellation, so claude's tool subprocesses are
+	// terminated with it rather than orphaned.
+	var env []string
 	if len(extraEnv) > 0 {
-		cmd.Env = append(os.Environ(), extraEnv...)
+		env = append(os.Environ(), extraEnv...)
 	}
+	cmd := procgroup.Command(procgroup.Spec{
+		Ctx:  ctx,
+		Bin:  bin,
+		Args: claudeArgs(resumeSessionID, appendSystemPrompt, prompt),
+		Dir:  cwd,
+		Env:  env,
+	})
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
