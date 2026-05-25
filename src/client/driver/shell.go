@@ -192,6 +192,8 @@ func applyShellPromptEvent(ss ShellState, e state.DEvPanePrompt) ShellState {
 	case state.PromptPhaseComplete:
 		ss.LastExitCode = e.ExitCode
 		ss = setShellStatus(ss, state.StatusWaiting, e.Now)
+	case state.PromptPhaseNone, state.PromptPhaseStart:
+		// no status transition for these phases
 	}
 	slog.Info("shell: prompt event",
 		"phase", e.Phase, "prevStatus", prev, "nextStatus", ss.Status,

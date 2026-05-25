@@ -101,7 +101,8 @@ func ImageEnv(ctx context.Context, imageName string) (map[string]string, error) 
 func ImageExists(ctx context.Context, imageName string) (bool, error) {
 	err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.ID}}", imageName).Run()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
 			return false, nil
 		}
 		return false, fmt.Errorf("docker image inspect: %w", err)

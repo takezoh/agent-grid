@@ -697,7 +697,7 @@ func TestProcessGroupKill(t *testing.T) {
 	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, "bash", scriptPath) //nolint:gosec
+	cmd := exec.CommandContext(ctx, "bash", scriptPath)
 	cmd.Dir = dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {

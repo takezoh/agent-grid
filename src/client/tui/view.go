@@ -369,6 +369,8 @@ func itemCacheKey(item listItem, selected bool, width int, folded bool, notifLin
 	switch item.session.State {
 	case state.StatusRunning, state.StatusWaiting:
 		return "" // animated: spinner glyph changes every frame
+	default:
+		// all other states are static and therefore cacheable
 	}
 	secondaryDim := !frameFocused && len(item.session.Frames) > 1
 	return fmt.Sprintf("s|%v|%d|%s|%v", selected, width, notifLine, secondaryDim)

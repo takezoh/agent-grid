@@ -85,12 +85,14 @@ func Detect() Capability {
 // Render encodes img as an inline terminal image escape sequence using the
 // given capability. Returns "" for CapNone or on error.
 func Render(img image.Image, cap Capability) string {
-	if img == nil || cap == CapNone {
+	if img == nil {
 		return ""
 	}
 	var buf bytes.Buffer
 	var err error
 	switch cap {
+	case CapNone:
+		return ""
 	case CapKitty:
 		err = rasterm.KittyWriteImage(&buf, img, rasterm.KittyImgOpts{})
 	case CapITerm2:

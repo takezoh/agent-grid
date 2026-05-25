@@ -58,23 +58,32 @@ Key intents:
 - **`runtime-no-driver`**: only the runtime **root** is forbidden from importing driver. Tool-specific backends move to `runtime/subsystem/<kind>/`. Exception: `client/driver/vt` is explicitly allowed in `exclusions.rules`.
 - **`codexclient` reusability**: a shared protocol transport, so it knows nothing of agent-roost internals.
 
-## 2. No mutexes in state/ (forbidigo)
+## 2. Pure-core purity (forbidigo + ruleguard)
 
-The `forbidigo` linter forbids mutex use in **both decision-loop functional cores** — `client/state` and `orchestrator/scheduler` (`forbidigo.patterns` in `.golangci.yml`) — with the message **"… is a pure functional core — no mutexes allowed"**. Concurrency control lives outside the reducer (in the event-loop shell); state is folded as an immutable value. Observability reads an immutable published snapshot lock-free (`atomic.Pointer[State]`), so neither core needs a mutex.
+The decision-loop functional cores — `client/state` and `orchestrator/scheduler` — must hold no mutex, spawn no goroutine, read no wall clock, and perform no I/O (the only permitted synchronous I/O is bounded read-only `os.Stat`). State is folded as an immutable value; concurrency, timers, and I/O live in the event-loop shell. Observability reads an immutable published snapshot lock-free (`atomic.Pointer[State]`), so neither core needs a mutex.
+
+| Invariant | Enforced by | Notes |
+|---|---|---|
+| No mutex | `forbidigo` (`sync.Mutex` / `sync.RWMutex`, pkg-scoped) | message: "… is a pure functional core — no mutexes allowed" |
+| No goroutine | `gocritic` ruleguard (`gorules/purecore.go`) | `go` is a `GoStmt`, invisible to forbidigo's CallExpr matching |
+| No wall clock | `gocritic` ruleguard | `time.Now` / `time.Since` — time enters `Reduce` as a value |
+| No direct I/O | `gocritic` ruleguard | `os.Open`/`WriteFile`/…, `net.Dial`/`Listen`, `exec.Command`; `os.Stat` allowed |
+
+`client/state` is wholly pure, so the ruleguard rules apply to every non-test file in it. In `orchestrator/scheduler` the pure reducer and the imperative shell share one package, so the rules skip the shell files (`scheduler.go`, `effects_exec.go`, `clock.go`, `watch.go`) — these legitimately own the loop, timers, and I/O. Test files are exempt.
 
 ## 3. Length limits
 
 | Limit | Value | Enforced by |
 |---|---|---|
 | Function length | 80 lines (`funlen`, `ignore-comments: true`) | lint (`.golangci.yml`) |
-| File length | 500 lines | convention (AGENTS.md); not linted, upheld in review |
+| File length | 500 lines (`revive` `file-length-limit`, skipping comments/blanks) | lint (`.golangci.yml`) |
 
-`funlen` exceptions (in `exclusions.rules`):
+Length exceptions (in `exclusions.rules`):
 
-- `_test.go` — tests relax funlen / errcheck.
+- `_test.go` — tests relax both function and file length (table-driven tests grow large by nature) as well as errcheck.
 - `client/state/reduce_*.go` — state-machine dispatch tables stay cohesive as one unit (function-length exempt).
 
-Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code annotation** — anything matching `reduce_*.go` is exempt automatically. Generated code (`codexschema/v*/types.gen.go`, etc.) is auto-excluded from file/function-length checks too.
+Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code annotation** — anything matching `reduce_*.go` is exempt automatically. Generated code (`codexschema/v*/types.gen.go`, etc.) is auto-excluded from length checks too.
 
 ## 4. Feature flags
 
@@ -87,9 +96,9 @@ Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code 
 
 A runtime flag is read as `st.Features.On(features.Peers)` (`features.go:36`). `FromConfig` **silently ignores unknown keys** (`features.go:46`), so deleting a Flag constant never breaks config parsing on existing installations. When a flag stabilises, delete the constant and inline the enabled branch.
 
-## 5. Wire format is stdlib-only (convention)
+## 5. Wire format is stdlib-only (depguard)
 
-Wire-format / persistence types are written with **stdlib only (`encoding/json`)** (AGENTS.md / ARCHITECTURE.md). This is a portability constraint, currently **a convention upheld in review rather than linted**. As a worked example, `client/proto/codec.go` uses only `encoding/json`. Do not bring a new codec library (protobuf, etc.) into the wire layer.
+Wire-format / persistence types are written with **stdlib only (`encoding/json`)** (AGENTS.md / ARCHITECTURE.md) — a portability constraint. The `depguard` rule `proto-wire-stdlib-only` (scope `client/proto/**`) denies codec libraries (protobuf, msgpack, cbor) from the wire layer; `client/proto/codec.go` uses only `encoding/json`. The rule is a deny-list of the realistic offenders rather than a stdlib allow-list, matching the intent: do not bring a new codec library into the wire layer.
 
 ## Related
 

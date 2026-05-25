@@ -314,7 +314,7 @@ func TestStartTapsForRestoredFrames_DispatchesViaEventLoop(t *testing.T) {
 	r.StartTapsForRestoredFrames()
 
 	deadline := time.Now().Add(1 * time.Second)
-	for len(tap.startedSorted()) != 1 { //nolint:staticcheck
+	for len(tap.startedSorted()) != 1 {
 		if time.Now().After(deadline) {
 			t.Fatalf("tap never started; got %v", tap.startedSorted())
 		}

@@ -96,7 +96,7 @@ func runHostExec(args []string) error {
 
 	conn.Close()
 	os.Exit(resp.ExitCode)
-	return nil //nolint:govet // unreachable after os.Exit
+	return nil
 }
 
 func runMCPExec(args []string) error {
@@ -128,7 +128,7 @@ func runMCPExec(args []string) error {
 
 	conn.Close()
 	os.Exit(resp.ExitCode)
-	return nil //nolint:govet // unreachable after os.Exit
+	return nil
 }
 
 func runSetup(args []string) error {

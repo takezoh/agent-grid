@@ -180,6 +180,9 @@ func countOperations(src string) int {
 func (sc *gqlScanner) advanceLexer() bool {
 	ch := sc.src[sc.i]
 	switch sc.ss {
+	case gqlssNormal:
+		// not inside a comment or string literal — defer to document scanning
+		return false
 	case gqlssComment:
 		if ch == '\n' {
 			sc.ss = gqlssNormal
@@ -210,7 +213,7 @@ func (sc *gqlScanner) advanceLexer() bool {
 
 // advanceDoc handles one document-level character in normal (non-string,
 // non-comment) scan mode.
-func (sc *gqlScanner) advanceDoc() { //nolint:cyclop
+func (sc *gqlScanner) advanceDoc() {
 	ch := sc.src[sc.i]
 	n := len(sc.src)
 	switch {
@@ -265,6 +268,8 @@ func (sc *gqlScanner) openBrace() {
 
 func (sc *gqlScanner) closeBrace() {
 	switch sc.ds {
+	case gqldsIdle:
+		// stray closing brace outside any operation or body — ignore
 	case gqldsOperation, gqldsFragment:
 		if sc.headerDepth > 0 {
 			sc.headerDepth--

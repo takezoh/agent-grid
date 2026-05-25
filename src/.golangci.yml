@@ -19,17 +19,47 @@ linters:
     - unconvert
     - unparam
     - copyloopvar
+    # State-machine completeness — flag domain-enum switches that drop cases
+    - exhaustive
     # Design principles
     - depguard
     - forbidigo
     # Function length (AGENTS.md: functions ≤ 50 lines)
     - funlen
+    # nolint hygiene — flags directives for disabled linters and missing explanations
+    - nolintlint
 
   settings:
     funlen:
       lines: 80
       statements: 99999
       ignore-comments: true
+
+    exhaustive:
+      # A switch with a default is treated as exhaustive: selective switches that
+      # intentionally handle a few enum values and fall through to default are not
+      # flagged. What remains are switches over domain enums that silently drop a
+      # case with no default — a state-machine completeness gap.
+      default-signifies-exhaustive: true
+
+    nolintlint:
+      # Reject //nolint for linters that aren't even enabled (cruft), and require
+      # the suppressed linter be named. Explanations are encouraged but not forced
+      # (many existing directives are self-evident, e.g. errcheck on os.Remove).
+      allow-unused: false
+      require-specific: true
+      require-explanation: false
+
+    gocritic:
+      # Add ruleguard on top of gocritic's default checks. ruleguard runs the
+      # custom AST rules in gorules/ that encode pure-functional-core invariants
+      # forbidigo cannot express (no goroutines / wall-clock / I/O in the core).
+      enabled-checks:
+        - ruleguard
+      settings:
+        ruleguard:
+          failOn: all
+          rules: "gorules/purecore.go"
 
     forbidigo:
       # Disable default patterns (^fmt\.Print.*$ etc.) — CLI command files intentionally print
@@ -47,9 +77,9 @@ linters:
         - pattern: 'sync\.RWMutex'
           pkg: github\.com/takezoh/agent-roost/orchestrator/scheduler
           msg: "scheduler/ is a pure functional core — no mutexes allowed (concurrency lives in the shell loop)"
-      # NOTE: "go" keyword (goroutines) cannot be detected by forbidigo because it matches
-      # CallExpr nodes only; GoStmt is invisible to it. The "no goroutines in state/" rule
-      # is enforced by code review. A custom staticcheck analyzer would be needed to automate it.
+      # The no-goroutine / no-wall-clock / no-direct-I/O invariants of the pure cores
+      # are enforced by gocritic's ruleguard checker (gorules/purecore.go); forbidigo
+      # matches CallExpr only and cannot see the GoStmt that `go` produces.
 
     depguard:
       rules:
@@ -115,6 +145,23 @@ linters:
               desc: "sandbox/ must be tool-agnostic — no lib/ imports (see ARCHITECTURE.md)"
             - pkg: github.com/takezoh/agent-roost/client/runtime
               desc: "sandbox/ must be tool-agnostic — no runtime/ imports (see ARCHITECTURE.md)"
+        proto-wire-stdlib-only:
+          # The wire/persistence layer must serialize with stdlib only (encoding/json).
+          # Bringing a codec library into proto/ breaks the portability constraint
+          # (code-enforcement.md §5). Deny the realistic offenders rather than an
+          # allow-list, matching the doc's intent: "Do not bring a new codec library
+          # (protobuf, etc.) into the wire layer."
+          files:
+            - "**/client/proto/**"
+          deny:
+            - pkg: google.golang.org/protobuf
+              desc: "wire layer is stdlib-only (encoding/json) — no protobuf (see code-enforcement.md §5)"
+            - pkg: github.com/golang/protobuf
+              desc: "wire layer is stdlib-only (encoding/json) — no protobuf (see code-enforcement.md §5)"
+            - pkg: github.com/vmihailenco/msgpack
+              desc: "wire layer is stdlib-only (encoding/json) — no msgpack (see code-enforcement.md §5)"
+            - pkg: github.com/fxamacker/cbor
+              desc: "wire layer is stdlib-only (encoding/json) — no cbor (see code-enforcement.md §5)"
         proto-isolation:
           files:
             - "**/client/proto/**"
@@ -166,6 +213,12 @@ linters:
           disabled: true
         - name: unused-parameter
           disabled: true
+        # File length ≤ 500 lines (AGENTS.md / code-enforcement.md §3)
+        - name: file-length-limit
+          arguments:
+            - max: 500
+              skipComments: true
+              skipBlankLines: true
 
   exclusions:
     rules:
@@ -194,6 +247,17 @@ linters:
       # client/driver/vt is a generic VT terminal emulator sub-package, not a tool-specific driver
       - linters: [depguard]
         text: "client/driver/vt.*is not allowed from list 'runtime-no-driver'"
+      # nolintlint is a production-code hygiene gate. In tests, errcheck is already
+      # relaxed by path (above), so per-line //nolint:errcheck directives there are
+      # redundant by construction — don't make nolintlint flag them.
+      - linters: [nolintlint]
+        path: "_test\\.go$"
+      # File-length limit targets production maintainability; tests relax it like
+      # funlen does (table-driven tests grow large by nature). Only file-length-limit
+      # is relaxed here — revive's other rules still apply to tests.
+      - linters: [revive]
+        path: "_test\\.go$"
+        text: "file-length-limit"
 formatters:
   enable:
     - gofmt

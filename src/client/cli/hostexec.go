@@ -48,5 +48,5 @@ func runHostExec(args []string) error {
 
 	conn.Close()
 	os.Exit(resp.ExitCode)
-	return nil //nolint:govet // unreachable after os.Exit
+	return nil
 }

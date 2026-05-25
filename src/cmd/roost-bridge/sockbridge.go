@@ -229,5 +229,5 @@ func bridgeExtractToken(rawPath string) string {
 }
 
 func bridgeReply502(conn net.Conn) {
-	fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n") //nolint:errcheck
+	fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
 }

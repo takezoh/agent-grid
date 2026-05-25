@@ -58,6 +58,8 @@ func applyEntryToMeta(snap *MetaSnapshot, e Entry) {
 		if e.Text != "" && !e.Synthetic {
 			snap.LastPrompt = e.Text
 		}
+	default:
+		// only title/user kinds contribute to meta; others are ignored here
 	}
 	applyEntryToInsight(&snap.Insight, e)
 }
@@ -91,6 +93,8 @@ func applyEntryToInsight(insight *SessionInsight, e Entry) {
 				insight.SubagentCounts[ar.AgentType]++
 			}
 		}
+	default:
+		// other entry kinds do not contribute to the insight aggregate
 	}
 }
 

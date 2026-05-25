@@ -187,7 +187,7 @@ func collectEvents(t *testing.T, r *Runner, issue tracker.Issue) []Event {
 		mu.Lock()
 		n := len(events)
 		mu.Unlock()
-		if n >= 2 { //nolint:mnd
+		if n >= 2 {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)

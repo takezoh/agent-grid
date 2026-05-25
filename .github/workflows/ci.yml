@@ -41,6 +41,26 @@ jobs:
       - name: lint
         run: go tool golangci-lint run ./...
 
+  # The race detector guards the single-writer event loop: it catches
+  # unsynchronized concurrent access to loop-owned state introduced by a stray
+  # goroutine in the imperative shell. Run as a separate job because -race makes
+  # tests several times slower; it is off the main ci job's critical path.
+  race:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: test -race
+        run: go test -race ./...
+
   schema-drift:
     runs-on: ubuntu-latest
     steps:
