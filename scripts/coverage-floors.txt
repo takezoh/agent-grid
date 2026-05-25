@@ -22,6 +22,7 @@ github.com/takezoh/agent-roost/client/procio                       95
 github.com/takezoh/agent-roost/client/proto                        85
 github.com/takezoh/agent-roost/client/proto/sessions               80
 github.com/takezoh/agent-roost/client/runtime                      55
+github.com/takezoh/agent-roost/client/runtime/framereg             95
 github.com/takezoh/agent-roost/client/runtime/subsystem            15
 github.com/takezoh/agent-roost/client/runtime/subsystem/cli        70
 github.com/takezoh/agent-roost/client/runtime/subsystem/stream     50
@@ -36,11 +37,18 @@ github.com/takezoh/agent-roost/client/uiproc                       95
 
 # cmd/ — binary entry points
 github.com/takezoh/agent-roost/cmd/claude-app-server               60
-github.com/takezoh/agent-roost/cmd/orchestrator                    65
+github.com/takezoh/agent-roost/cmd/linear-graphql-cli               0
+# cmd/orchestrator: buildDevcontainerLauncher (requires Docker) and main() are
+# structurally untestable in unit tests; floor reflects achievable non-Docker coverage.
+github.com/takezoh/agent-roost/cmd/orchestrator                    55
 github.com/takezoh/agent-roost/cmd/roost                           15
 github.com/takezoh/agent-roost/cmd/roost-bridge                     0
 
 # orchestrator/ — Symphony scheduler service
+github.com/takezoh/agent-roost/orchestrator/agent                  80
+github.com/takezoh/agent-roost/orchestrator/httpserver             75
+github.com/takezoh/agent-roost/orchestrator/lineargql              90
+github.com/takezoh/agent-roost/orchestrator/prompt                 95
 github.com/takezoh/agent-roost/orchestrator/scheduler              82
 github.com/takezoh/agent-roost/orchestrator/tracker                85
 github.com/takezoh/agent-roost/orchestrator/wfconfig               70
@@ -48,7 +56,7 @@ github.com/takezoh/agent-roost/orchestrator/workflowfile           95
 github.com/takezoh/agent-roost/orchestrator/workspace              80
 
 # platform/ — shared execution base
-github.com/takezoh/agent-roost/platform/agent/codexclient          60
+github.com/takezoh/agent-roost/platform/agent/codexclient          80
 github.com/takezoh/agent-roost/platform/tracker/linear             80
 github.com/takezoh/agent-roost/platform/agent/codexschema/v1        0
 github.com/takezoh/agent-roost/platform/agent/codexschema/v2        0
@@ -60,6 +68,7 @@ github.com/takezoh/agent-roost/platform/hostexec                   50
 github.com/takezoh/agent-roost/platform/internal/globutil          95
 github.com/takezoh/agent-roost/platform/lib/claude                 55
 github.com/takezoh/agent-roost/platform/lib/claude/cli             95
+github.com/takezoh/agent-roost/platform/lib/claude/streamjson      85
 github.com/takezoh/agent-roost/platform/lib/codex                  75
 github.com/takezoh/agent-roost/platform/lib/gemini                 80
 github.com/takezoh/agent-roost/platform/lib/git                    70
@@ -74,4 +83,5 @@ github.com/takezoh/agent-roost/platform/logger                     60
 github.com/takezoh/agent-roost/platform/mcpproxy                   50
 github.com/takezoh/agent-roost/platform/metrics                    95
 github.com/takezoh/agent-roost/platform/pathmap                    95
+github.com/takezoh/agent-roost/platform/procgroup                  75
 github.com/takezoh/agent-roost/platform/sandbox/devcontainer       70

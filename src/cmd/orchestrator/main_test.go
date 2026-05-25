@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -117,5 +119,54 @@ codex:
 	}
 	if stderr.Len() == 0 {
 		t.Error("want operator-visible error on stderr")
+	}
+}
+
+// freePort returns an available TCP port on loopback.
+func freePort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("freePort: %v", err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	return port
+}
+
+func TestRunWithServerPortFromWorkflow(t *testing.T) {
+	isolateHome(t)
+	port := freePort(t)
+	content := fmt.Sprintf(`---
+tracker:
+  kind: linear
+  api_key: lin_api_test
+  project_slug: test-proj
+server:
+  port: %d
+codex:
+  command: codex app-server
+---
+`, port)
+	wf := writeWorkflow(t, content)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var stderr bytes.Buffer
+	code := run(ctx, []string{"--workflow", wf}, &stderr)
+	if code != 0 {
+		t.Errorf("want 0 for graceful shutdown with HTTP server, got %d; stderr: %s", code, &stderr)
+	}
+}
+
+func TestRunWithExplicitPort(t *testing.T) {
+	isolateHome(t)
+	port := freePort(t)
+	wf := writeWorkflow(t, validWorkflow)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var stderr bytes.Buffer
+	code := run(ctx, []string{"--workflow", wf, "--port", fmt.Sprintf("%d", port)}, &stderr)
+	if code != 0 {
+		t.Errorf("want 0 for graceful shutdown with explicit --port, got %d; stderr: %s", code, &stderr)
 	}
 }

@@ -122,3 +122,186 @@ func (h *initHandler) OnNotification(_ string, _ json.RawMessage) {}
 func (h *initHandler) OnServerRequest(id int64, _ string, _ json.RawMessage) {
 	_ = h.conn.Reply(id, map[string]any{})
 }
+
+// --- server accessor and emit methods ---
+
+func TestServer_Conn(t *testing.T) {
+	pr, pw := io.Pipe()
+	tr := codexclient.StdioTransport(pr, pw)
+	conn := codexclient.NewConn(tr, time.Second)
+	srv := codexclient.NewServer(conn)
+	if srv.Conn() != conn {
+		t.Fatal("Conn() must return the wrapped conn")
+	}
+	_ = pr.Close()
+	_ = pw.Close()
+}
+
+func TestServer_EmitNotification(t *testing.T) {
+	msg := emitAndCapture(t, func(s *codexclient.Server) {
+		if err := s.EmitNotification("custom/event", map[string]any{"k": "v"}); err != nil {
+			t.Fatalf("EmitNotification: %v", err)
+		}
+	})
+	if msg["method"] != "custom/event" {
+		t.Fatalf("method = %v, want custom/event", msg["method"])
+	}
+}
+
+func TestServer_EmitTurnStarted(t *testing.T) {
+	msg := emitAndCapture(t, func(s *codexclient.Server) {
+		if err := s.EmitTurnStarted("tid1", "turn1"); err != nil {
+			t.Fatalf("EmitTurnStarted: %v", err)
+		}
+	})
+	if msg["method"] != codexschema.MethodTurnStarted {
+		t.Fatalf("method = %v, want %v", msg["method"], codexschema.MethodTurnStarted)
+	}
+}
+
+func TestServer_EmitItemStarted(t *testing.T) {
+	item := map[string]any{"type": "tool", "id": "x1"}
+	msg := emitAndCapture(t, func(s *codexclient.Server) {
+		if err := s.EmitItemStarted("tid1", "turn1", item); err != nil {
+			t.Fatalf("EmitItemStarted: %v", err)
+		}
+	})
+	if msg["method"] != codexschema.MethodItemStarted {
+		t.Fatalf("method = %v, want %v", msg["method"], codexschema.MethodItemStarted)
+	}
+}
+
+func TestServer_EmitItemCompleted(t *testing.T) {
+	item := map[string]any{"type": "tool", "id": "x1", "output": "done"}
+	msg := emitAndCapture(t, func(s *codexclient.Server) {
+		if err := s.EmitItemCompleted("tid1", "turn1", item); err != nil {
+			t.Fatalf("EmitItemCompleted: %v", err)
+		}
+	})
+	if msg["method"] != codexschema.MethodItemCompleted {
+		t.Fatalf("method = %v, want %v", msg["method"], codexschema.MethodItemCompleted)
+	}
+}
+
+func TestServer_EmitTokenUsage(t *testing.T) {
+	last := map[string]any{"inputTokens": float64(10), "outputTokens": float64(5)}
+	total := map[string]any{"inputTokens": float64(100), "outputTokens": float64(50)}
+	msg := emitAndCapture(t, func(s *codexclient.Server) {
+		if err := s.EmitTokenUsage("tid1", "turn1", last, total); err != nil {
+			t.Fatalf("EmitTokenUsage: %v", err)
+		}
+	})
+	if msg["method"] != codexschema.MethodThreadTokenUsageUpdated {
+		t.Fatalf("method = %v, want %v", msg["method"], codexschema.MethodThreadTokenUsageUpdated)
+	}
+}
+
+// --- client role functions ---
+
+// threadStartHandler responds to thread/start with a fixed thread id.
+type threadStartHandler struct{ conn *codexclient.Conn }
+
+func (h *threadStartHandler) OnNotification(_ string, _ json.RawMessage) {}
+func (h *threadStartHandler) OnServerRequest(id int64, method string, _ json.RawMessage) {
+	if method == codexschema.MethodThreadStart {
+		_ = h.conn.Reply(id, map[string]any{"thread": map[string]any{"id": "th-42"}})
+	} else {
+		_ = h.conn.Reply(id, map[string]any{})
+	}
+}
+
+func TestStartThread(t *testing.T) {
+	ta, tb := pipeTransport()
+	connA := codexclient.NewConn(ta, time.Second)
+	connB := codexclient.NewConn(tb, time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go connB.Run(ctx, &threadStartHandler{conn: connB}) //nolint:errcheck
+	go connA.Run(ctx, &noopHandler{})                   //nolint:errcheck
+
+	id, err := codexclient.StartThread(connA, "/work", nil, codexclient.ThreadOptions{})
+	if err != nil {
+		t.Fatalf("StartThread: %v", err)
+	}
+	if id != "th-42" {
+		t.Fatalf("got thread id %q, want th-42", id)
+	}
+}
+
+func TestStartThread_WithOptions(t *testing.T) {
+	ta, tb := pipeTransport()
+	connA := codexclient.NewConn(ta, time.Second)
+	connB := codexclient.NewConn(tb, time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go connB.Run(ctx, &threadStartHandler{conn: connB}) //nolint:errcheck
+	go connA.Run(ctx, &noopHandler{})                   //nolint:errcheck
+
+	opts := codexclient.ThreadOptions{ApprovalPolicy: "never", SandboxMode: "workspace-write", ServiceName: "test"}
+	id, err := codexclient.StartThread(connA, "/work", []any{"tool1"}, opts)
+	if err != nil {
+		t.Fatalf("StartThread with options: %v", err)
+	}
+	if id != "th-42" {
+		t.Fatalf("got thread id %q, want th-42", id)
+	}
+}
+
+func TestResumeThread(t *testing.T) {
+	ta, tb := pipeTransport()
+	connA := codexclient.NewConn(ta, time.Second)
+	connB := codexclient.NewConn(tb, time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go connB.Run(ctx, &echoHandler{conn: connB}) //nolint:errcheck
+	go connA.Run(ctx, &noopHandler{})            //nolint:errcheck
+
+	_, err := codexclient.ResumeThread(connA, "th-1", "/work")
+	if err != nil {
+		t.Fatalf("ResumeThread: %v", err)
+	}
+}
+
+func TestStartTurn(t *testing.T) {
+	ta, tb := pipeTransport()
+	connA := codexclient.NewConn(ta, time.Second)
+	connB := codexclient.NewConn(tb, time.Second)
+
+	recv := make(chan string, 1)
+	h := &notifyHandler{recv: recv}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go connB.Run(ctx, h) //nolint:errcheck
+
+	opts := codexclient.TurnOptions{ApprovalPolicy: "never", SandboxPolicy: "workspace-write"}
+	if err := codexclient.StartTurn(connA, "th-1", "/work", []byte("hello"), opts); err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	select {
+	case got := <-recv:
+		if got == "" {
+			t.Fatal("expected notification params")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for turn/start notification")
+	}
+}
+
+func TestConn_Close(t *testing.T) {
+	pr, pw := io.Pipe()
+	tr := codexclient.StdioTransport(pr, pw)
+	conn := codexclient.NewConn(tr, time.Second)
+	if err := conn.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
+
+func TestDefaultStdioTransport(t *testing.T) {
+	tr := codexclient.DefaultStdioTransport()
+	if tr == nil {
+		t.Fatal("DefaultStdioTransport returned nil")
+	}
+}
