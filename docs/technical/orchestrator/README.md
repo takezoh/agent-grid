@@ -30,7 +30,7 @@ The orchestrator is a **decision-loop layer**, so — like roost's `client/` —
 | `orchestrator/agent/` | §10 | Agent runner + event handler |
 | `orchestrator/prompt/` | §12 | Liquid-compatible prompt template renderer |
 | `orchestrator/httpserver/` | §13.7 | Observability HTTP — `/api/v1/state`, `/api/v1/refresh` |
-| `orchestrator/lineargql/` | §10.5 | `linear_graphql` client-side tool handler (advertise blocked) |
+| `orchestrator/lineargql/` | §10.5 | `linear_graphql` client-side tool handler (advertised via `thread/start` `dynamicTools`) |
 
 Full SPEC component ↔ package correspondence and the documented deviation posture: [symphony-conformance.md](symphony-conformance.md).
 

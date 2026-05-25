@@ -58,7 +58,7 @@ query Comments($id: String!) { issue(id: $id) { comments { nodes { body createdA
 
 `$id` is `{{ issue.id }}`; `$stateId` is the id of the destination state (resolve it with the `States` query first). Unknown mutations or input types can be discovered via introspection (`__type`).
 
-> Note on the tool's wire path: `linear_graphql` advertisement over the native Codex tool channel is currently blocked (pinned codex schema). Via `codex.command: claude-app-server` the call still reaches the handler through `item/tool/call`. See [symphony-conformance.md](../technical/orchestrator/symphony-conformance.md) and the orchestrator internals for details.
+> Note on the tool's wire path: `linear_graphql` is advertised via the `thread/start` `dynamicTools` entry and invoked over `item/tool/call`. It is advertised only when the Linear client (tracker `api_key` + `endpoint`) is configured. See [symphony-conformance.md](../technical/orchestrator/symphony-conformance.md) and the orchestrator internals for details.
 
 ## See also
 

@@ -1,10 +1,10 @@
 # 024: orchestrator — `linear_graphql` agent tool via codex native protocol (§10.5)
 
 - **Phase**: P8b ([plans/04-phases.md#p8-hot-reload--linear_graphql-tool](../plans/04-phases.md))
-- **Status**: Partial — handler + wiring Done。**advertise は pinned codex 0.133.0 では実装不能**（§B の調査結果参照）。実機 codex から到達可能になるのは schema bump 後
+- **Status**: Done — handler + wiring + advertise すべて実装済み
 - **Depends on**: 008 (merged; Linear adapter/auth)、P0c (merged; codexclient `item/tool/call`)
 - **並行可**: P5 と独立。agent 向けだが codex protocol native tool のため agent 種別（codex/claude）に依存しない
-- **Blocks**: なし。残件（advertise）は codex schema bump 待ちの外部要因で、M3/M4 は本 advertise 抜きで完了済
+- **Blocks**: なし
 
 ## Background
 
@@ -24,7 +24,7 @@ SPEC §10.5 は orchestrator が advertise する optional client-side tool `lin
 
 - [x] input shape: `query` + `variables`（§10.5）
 - [x] output: `success=true/false` + `data` + `errors` の判別を結果に反映
-- [ ] **tool 定義を codex に advertise する** — pinned codex 0.133.0 schema では**実装不能**。`DynamicToolSpec`（`name`/`description`/`inputSchema` を持つ宣言形）は schema に定義はあるが、`initialize`/`turn/start` 等の request params から `$ref` 参照が**ゼロ**の完全な orphan で、wire 経路が存在しない（`InitializeCapabilities` も `experimentalApi`+opt-out のみ、`ToolsV2` は組込みツール専用）。よって実機 codex は `linear_graphql` を discover できず `item/tool/call` を発火しない。handler 側は forward-compatible に実装済みで、(1) `DynamicToolSpec` を request に配線する codex schema bump、または (2) MCP 経路（本 issue で不採用）のいずれかが入った時点で到達可能になる
+- [x] **tool 定義を codex に advertise する** — `thread/start` の `dynamicTools` に `DynamicToolSpec`（`name`/`description`/`inputSchema`）を載せて宣言（`orchestrator/agent/dynamictools.go`）。Linear client（tracker api_key + endpoint）設定時のみ advertise し、agent は discover した `linear_graphql` を `item/tool/call` で発火できる
 
 ### C. テスト (§17.7 系)
 
@@ -35,11 +35,10 @@ SPEC §10.5 は orchestrator が advertise する optional client-side tool `lin
 
 ## Acceptance Criteria
 
-- agent が `item/tool/call` で `linear_graphql` を呼ぶと Linear GraphQL に転送される（handler 経路として ✅。ただし実機 codex は advertise 不能のため**現状この経路を発火できない** — §B 参照）
+- `thread/start` で `linear_graphql` を advertise し、agent が `item/tool/call` で呼ぶと Linear GraphQL に転送される ✅
 - input/output が §10.5 の形式（query+variables、success/errors 判別）✅
 - tracker 用 Linear（dispatch）と分離（2 系統）✅
 - `go test ./orchestrator/...` 緑、lint 緑 ✅
-- ⚠ end-to-end（実機 codex が自発的に tool を呼ぶ）は pinned schema の制約で**未達**。schema bump 待ち
 
 ## References
 

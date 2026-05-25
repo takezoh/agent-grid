@@ -3,19 +3,18 @@
 Symphony SPEC 実装の全体ロードマップと進捗。設計の詳細は [04-phases.md](04-phases.md)、
 個別の作業単位は [issues/](../issues/) を参照。
 
-更新日: 2026-05-21
+更新日: 2026-05-25
 
 ## 現在地
 
-**M0–M4 完了。SPEC §1–§17 を満たす実装が一通り揃った。唯一の残件は P8b の tool advertise（外部要因で blocked）。**
+**M0–M4 完了。SPEC §1–§17 を満たす実装が揃い、Symphony SPEC 範囲の作業は完了。**
 M2 で claude-app-server shim が完成し `codex.command` での agent 切替を実証。M3 で continuation loop (020)、
 metrics+stall (021)、observability HTTP server (022)、WORKFLOW.md hot reload (023) を実装・archive 済み。
 M4 (P9) で SPEC §17 conformance test 群（canonical `TestSPEC_*` マーカー + §17.8 実 Linear profile）と
 `docs/technical/orchestrator/symphony-conformance.md`（SPEC §17 ↔ test 対応表 + posture）、orchestrator サービスの
 位置付け doc（AGENTS.md / ARCHITECTURE.md）を整備（025/026、archive 済み）。
-**唯一の残件は P8b `linear_graphql` (024) の tool advertise**: handler + wiring は実装済だが、pinned codex 0.133.0 で
-`DynamicToolSpec` が schema 上 orphan（request からの `$ref` 参照ゼロ）のため宣言できず、実機 codex から到達不能。
-codex schema bump が入れば forward-compatible な handler がそのまま機能する（外部要因待ち）。
+P8b `linear_graphql` (024) は handler + wiring + advertise（`thread/start` の `dynamicTools` に `DynamicToolSpec` を宣言）まで
+実装・テスト済みで archive 済み。残るのは SPEC 範囲外の client-runtime follow-up（027 / 029）のみ。
 
 ## Phase 進捗
 
@@ -44,7 +43,7 @@ codex schema bump が入れば forward-compatible な handler がそのまま機
 | P6b | token/runtime 集計 + codex activity (stall) tracking | ✅ Done | [021](../issues/.archive/021-p6b-metrics.md) |
 | P7 | observability HTTP server (`/`, `/api/v1/*`) | ✅ Done | [022](../issues/.archive/022-p7-http-server.md) |
 | P8a | WORKFLOW.md hot reload (§6.2) | ✅ Done | [023](../issues/.archive/023-p8a-hot-reload.md) |
-| P8b | `linear_graphql` agent tool (native `item/tool/call`, §10.5) | ⚠ Partial — advertise が schema 制約で blocked | [024](../issues/024-p8b-linear-graphql-tool.md) |
+| P8b | `linear_graphql` agent tool (native `item/tool/call`, §10.5) | ✅ Done | [024](../issues/.archive/024-p8b-linear-graphql-tool.md) |
 | P9a | SPEC §17 conformance test 群 + conformance 表 | ✅ Done | [025](../issues/.archive/025-p9a-conformance-suite.md) |
 | P9b | orchestrator サービスの位置付け doc (AGENTS.md/ARCHITECTURE.md) | ✅ Done | [026](../issues/.archive/026-p9b-positioning-docs.md) |
 
@@ -55,7 +54,7 @@ codex schema bump が入れば forward-compatible な handler がそのまま機
 | **M0** 構造分離完了 | P0a–P0d | 後続の物理基盤確立 | ✅ Done |
 | **M1** 最小単線通電 | P1–P3 | 1 issue → codex app-server で 1 turn | ✅ Done |
 | **M2** 多 agent 対応 | P4–P5 | sandbox 配線 + claude / codex 切替 | ✅ Done |
-| **M3** SPEC 機能完成 | P6–P8 | SPEC §1–§16 を満たす | ✅ 実質完了（P8b advertise のみ codex schema 制約で blocked）|
+| **M3** SPEC 機能完成 | P6–P8 | SPEC §1–§16 を満たす | ✅ Done |
 | **M4** conformance 確認 | P9 | SPEC §17 test pass + 位置付け doc | ✅ Done |
 
 ## P0 で確立した基盤 (現状)

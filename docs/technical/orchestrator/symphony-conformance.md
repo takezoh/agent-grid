@@ -170,7 +170,7 @@ The complete list is in `plans/05-conformance.md`. Major deviations:
 | SPEC § | SPEC | Our Choice |
 |---|---|---|
 | §10 | Codex app-server only | stdio shim via `codex.command` supports multiple agents (`claude-app-server`) |
-| §10.5 `linear_graphql` | OPTIONAL extension | implemented in `orchestrator/lineargql/` via codex native `item/tool/call`; advertise blocked until pinned codex 0.133.0 bumps schema (→ [issues/024](../../../issues/024-p8b-linear-graphql-tool.md) §B) |
+| §10.5 `linear_graphql` | OPTIONAL extension | implemented in `orchestrator/lineargql/` via codex native `item/tool/call`; advertised through `thread/start` `dynamicTools` (`orchestrator/agent/dynamictools.go`) when the Linear client is configured (→ [issues/024](../../../issues/.archive/024-p8b-linear-graphql-tool.md)) |
 | §13.7 | HTTP server is OPTIONAL | **implemented as mandatory** — orchestrator has no TUI |
 | §3.3 | sandbox is impl-defined | devcontainer mode recommended as default |
 | §9.3 | workspace population is impl-defined | `after_create` hook strongly recommended to run `git worktree add` |
@@ -193,7 +193,3 @@ Turns that require user input are treated as **failures** (autonomous operation 
 ### harness hardening (§15.5)
 
 Applied by default: devcontainer isolation, credproxy, mcpproxy whitelist, hostexec allow-list, secret non-logging, hook script output truncation.
-
-### §10.5 `linear_graphql` advertise blocked (latest deviation)
-
-`DynamicToolSpec` is an orphan in the codex schema, so there is no wire path for tool declaration. The handler is implemented in `orchestrator/lineargql/`, but advertise is blocked until pinned codex 0.133.0 bumps the schema. Via `codex.command: claude-app-server`, calls reach the handler via `item/tool/call`, but the standard codex path is blocked. Details: [issues/024](../../../issues/024-p8b-linear-graphql-tool.md) §B.

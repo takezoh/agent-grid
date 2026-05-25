@@ -44,7 +44,7 @@
 | §9.5 | safety invariants (cwd == workspace, root prefix, regex sanitize) | 部分 | invariant チェック明示 |
 | §10.1-10.6 | agent runner (codex app-server, `bash -lc`, stdio framing, thread/turn 抽出, `session_id`) | **強い** (`runtime/subsystem/stream/`) | **`platform/agent/codexclient/` に抽出 + roost と orchestrator が共有** |
 | §10.5 | approval policy (実装依存、文書化必須) | sandbox/mcpproxy/credproxy で土台 | **roost 既存資産を活用** |
-| §10.5 | `linear_graphql` client-side tool | 無 | **新規** (codex native `item/tool/call`、advertise は schema 制約で blocked) |
+| §10.5 | `linear_graphql` client-side tool | 無 | **新規** (codex native `item/tool/call`、`thread/start` の `dynamicTools` で advertise) |
 | §11.1-11.4 | Linear adapter (GraphQL, pagination, normalize, error map) | 無 | **`platform/tracker/linear/` に新規実装** |
 | §12 | prompt construction (strict, issue+attempt 注入) | 無 | **新規** |
 | §13.1-13.5 | observability (structured log + token accounting + rate limits) | slog のみ | **新規 + `platform/metrics/` に共通化** |
