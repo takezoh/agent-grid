@@ -74,6 +74,45 @@ func sendHookEventToDaemon(token, hook string, ts time.Time, payload json.RawMes
 	if err != nil {
 		return err
 	}
+	return DeliverHookEvent(sockPath, token, hook, ts, payload)
+}
+
+// hookDeliverBudget bounds how long DeliverHookEvent retries while the daemon
+// brings up the per-frame container registration. Steady-state sends succeed on
+// the first attempt and never sleep; the budget only applies during the brief
+// window right after a frame is spawned.
+const (
+	hookDeliverBudget   = 2 * time.Second
+	hookDeliverInterval = 40 * time.Millisecond
+)
+
+// DeliverHookEvent dials the daemon's container endpoint and sends one
+// hook-event, retrying for a bounded window while the daemon finishes per-frame
+// registration. A containerized agent can launch and emit its first hooks (e.g.
+// SessionStart, which seeds transcript watching) before the endpoint is
+// listening or this frame's token is registered — registration happens on the
+// event loop after the agent process is spawned. The daemon registers the token
+// and mounts (atomically) before it starts the listener, so a successful
+// dial+send always implies the token and its mounts are present; retrying until
+// success is therefore safe and never delivers against a half-registered frame.
+func DeliverHookEvent(sockPath, token, hook string, ts time.Time, payload json.RawMessage) error {
+	deadline := time.Now().Add(hookDeliverBudget)
+	for attempt := 0; ; attempt++ {
+		err := deliverHookOnce(sockPath, token, hook, ts, payload)
+		if err == nil {
+			if attempt > 0 {
+				slog.Debug("event: hook delivered after retry", "hook", hook, "attempts", attempt+1)
+			}
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(hookDeliverInterval)
+	}
+}
+
+func deliverHookOnce(sockPath, token, hook string, ts time.Time, payload json.RawMessage) error {
 	client, err := proto.Dial(sockPath)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)

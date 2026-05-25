@@ -43,7 +43,7 @@ roost client runtime（session manager）の issue。Symphony SPEC 範囲外で 
 | ID | タイトル | Status | 概要 |
 |---|---|---|---|
 | [027](027-client-spawn-complete-resurrection.md) | spawn-complete が kill 済み frame を resurrect | Open | spawn 実行中に session 削除 → kill 先行（空 map）→ 後着 handleSpawnComplete が死んだ frame を登録し subsystem/container/endpoint/warm を leak |
-| [028](028-client-container-endpoint-registration-ordering.md) | container endpoint/token が agent spawn 後に登録 | Open | 登録が spawn 後（loop 上）に移動した結果、agent の最初の hook を取りこぼす窓。まず実機で実害判定 |
+| [028](028-client-container-endpoint-registration-ordering.md) | container endpoint/token が agent spawn 後に登録 | Resolved | 早期 hook 取りこぼしで container frame の status/要約/タグが出ない実害。`event.DeliverHookEvent` の bounded retry で解決 |
 | [029](029-client-warm-restart-registry-correctness.md) | warm-restart の registry 整合性 | Open | warm 復元で token 先行登録・mounts 後追いの窓（path 変換漏れ）。warm Save/Delete 競合・token 衝突非検出も併記 |
 
 ## 完了済み (archive)

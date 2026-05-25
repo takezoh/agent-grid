@@ -931,6 +931,43 @@ func TestClaudePrepareLaunchResume(t *testing.T) {
 	}
 }
 
+// TestClaudePrepareLaunchSandboxedResume pins the container-resume contract: on
+// a sandboxed cold start the transcript lives inside the container (not on the
+// host), so resume must be emitted from the persisted session ID alone, without
+// any host-side transcript file. This is the path that regressed when early
+// container hooks (which seed ClaudeSessionID) were dropped.
+func TestClaudePrepareLaunchSandboxedResume(t *testing.T) {
+	home := t.TempDir() // deliberately has no .claude/projects transcript on the host
+	d := NewClaudeDriver(home, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		CommonState:     CommonState{StartDir: "/repo"},
+		ClaudeSessionID: "uuid-X",
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if !strings.Contains(plan.Command, "--resume uuid-X") {
+		t.Errorf("sandboxed cold start must resume from session id without a host transcript; got %q", plan.Command)
+	}
+}
+
+// TestClaudePrepareLaunchSandboxedNoSessionNoResume documents the user-visible
+// failure mode: when hooks were never delivered (e.g. dropped during the
+// container registration window), ClaudeSessionID is empty and cold start must
+// launch fresh rather than emit a bogus --resume.
+func TestClaudePrepareLaunchSandboxedNoSessionNoResume(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{CommonState: CommonState{StartDir: "/repo"}}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if strings.Contains(plan.Command, "--resume") {
+		t.Errorf("empty session id must not resume; got %q", plan.Command)
+	}
+}
+
 func TestClaudePrepareLaunchNoSession(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{}

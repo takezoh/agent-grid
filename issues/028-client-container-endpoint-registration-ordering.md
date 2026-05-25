@@ -1,9 +1,17 @@
 # 028: client/runtime — container endpoint/token registered after agent spawn (early-hook loss window)
 
 - **Phase**: client-runtime follow-up（single-writer port 由来。Symphony SPEC 範囲外）
-- **Status**: Open
+- **Status**: Resolved — container 側 hook 送信に bounded retry を実装（`event.DeliverHookEvent`）。daemon 側の register-after-spawn 順序は据え置きだが、retry が窓を吸収するため correctness 影響は解消。daemon 側順序の tightening は任意の follow-up
 - **Depends on**: orchestrator-migration → main マージ（single-writer port）
-- **Blocks**: なし。まず**実機検証で実害の有無を判定**する investigate 系 issue
+- **Blocks**: なし
+
+## 解決 (client-side retry)
+
+実害: container agent の早期 hook（特に `SessionStart` = transcript watch の起点）が登録窓で落ち、container frame の status/要約/タグが出ない（実機で再現）。
+
+修正: `client/event` の `DeliverHookEvent` が dial 失敗・invalid-token の双方（`SendHookEvent` が両者を error で返す）に対し bounded retry（既定 2s / 40ms 間隔）する。`registerContainerFrame` は `RegisterWithMounts`(token+mounts) → listener 起動の順なので、**dial+send 成功 ⟹ token と mounts が揃っている**ことが保証され、half-registered frame に届かない。steady state は初回成功で遅延ゼロ。テスト: `client/runtime/container_hook_delivery_test.go`（endpoint 遅延起動 / token 遅延登録 / 即時、の 3 ケース、`-race` 込み）。
+
+daemon 側で register を spawn 前に戻す（窓自体を無くす）案は single-writer + off-loop SpawnWindow と両立させるのに 2-phase round-trip が要りリスクが高いため、本件では採らず retry で吸収した。必要なら別途。
 
 ## Background
 
