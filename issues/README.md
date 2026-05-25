@@ -1,6 +1,6 @@
 # Issues
 
-[plans/](../plans/) で定めた計画を実行可能な単位に分解した issue 群。
+[plans/](../plans/.archive/symphony-orchestrator/) で定めた計画を実行可能な単位に分解した issue 群。
 
 ## 表記規約
 
@@ -9,7 +9,7 @@
 ```markdown
 # <ID>: <タイトル>
 
-- **Phase**: P0a / P0b / ... ([plans/04-phases.md](../plans/04-phases.md))
+- **Phase**: P0a / P0b / ... ([plans/04-phases.md](../plans/.archive/symphony-orchestrator/04-phases.md))
 - **Status**: Open / In Progress / Blocked / Done
 - **Depends on**: 他 issue ID または PR
 - **Blocks**: 他 issue ID
@@ -22,7 +22,7 @@
 
 **SPEC 参照は必須**: 全 issue は `References` に該当する [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md) のセクション (§番号付き) を含める。SPEC が source of truth であり、実装判断はここに帰着させる。直接の SPEC 要件が無い基盤作業でも、それが実現する SPEC コンポーネント (例: §3 System Overview) を明示する。
 
-全体の進捗は [plans/roadmap.md](../plans/roadmap.md) を参照。
+全体の進捗は [plans/roadmap.md](../plans/.archive/symphony-orchestrator/roadmap.md) を参照。
 
 ## 直近 issue 一覧
 
@@ -53,7 +53,7 @@ roost client runtime（session manager）の issue。Symphony SPEC 範囲外で 
 - **M4 / P9 batch** (conformance + docs): [025](.archive/025-p9a-conformance-suite.md) SPEC §17 conformance 群 + 対応表 / [026](.archive/026-p9b-positioning-docs.md) orchestrator 位置付け doc
 - **client-runtime follow-up** (single-writer port 由来): [028](.archive/028-client-container-endpoint-registration-ordering.md) container hook 配送の bounded retry — container frame の status/要約/タグ + claude resume を復旧（fix aa1da86）
 
-詳細は [plans/04-phases.md](../plans/04-phases.md) / [plans/roadmap.md](../plans/roadmap.md) を参照。
+詳細は [plans/04-phases.md](../plans/.archive/symphony-orchestrator/04-phases.md) / [plans/roadmap.md](../plans/.archive/symphony-orchestrator/roadmap.md) を参照。
 
 ## ライフサイクル
 

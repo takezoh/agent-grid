@@ -1,14 +1,14 @@
 # Symphony SPEC Conformance
 
 Authoritative conformance document against Symphony SPEC v1 Draft.
-`plans/05-conformance.md` is the working doc; this file serves as the M4 snapshot.
+`plans/.archive/symphony-orchestrator/05-conformance.md` is the working doc; this file serves as the M4 snapshot.
 
 ---
 
 ## SPEC §17 ↔ Test Mapping
 
 Each §17.x check item is mapped to a canonical `TestSPEC_*` marker or a per-phase test.
-Naming convention: `TestSPEC_<section>_<short_name>` (see `plans/05-conformance.md#conformance-test-の整備-p9`).
+Naming convention: `TestSPEC_<section>_<short_name>` (see `plans/.archive/symphony-orchestrator/05-conformance.md#conformance-test-の整備-p9`).
 
 ### §17.1 Workflow and Config Parsing
 
@@ -133,7 +133,7 @@ Optional env: `LINEAR_TRACKER_ENDPOINT` (default: `https://api.linear.app/graphq
 
 ## SPEC §3.1 Component ↔ Go Package Mapping
 
-The authoritative source is [`plans/05-conformance.md#SPEC-用語と実装名の対応`](../../../plans/05-conformance.md). The following is a summary.
+The authoritative source is [`plans/.archive/symphony-orchestrator/05-conformance.md#SPEC-用語と実装名の対応`](../../../plans/.archive/symphony-orchestrator/05-conformance.md). The following is a summary.
 
 | SPEC §3.1 Component | Go package |
 |---|---|
@@ -146,13 +146,13 @@ The authoritative source is [`plans/05-conformance.md#SPEC-用語と実装名の
 | Status Surface (§3.1.7) | `orchestrator/httpserver/` |
 | Logging (§3.1.8) | `platform/logger/` |
 
-**Note**: The SPEC §3.1.4 component name "Orchestrator" conflicts with the overall service name, so the implementation renames it to `orchestrator/scheduler/`. See `plans/02-layout.md#naming`.
+**Note**: The SPEC §3.1.4 component name "Orchestrator" conflicts with the overall service name, so the implementation renames it to `orchestrator/scheduler/`. See `plans/.archive/symphony-orchestrator/02-layout.md#naming`.
 
 ---
 
 ## Mandatory Items (Excerpt)
 
-The complete list is in `plans/05-conformance.md`. Representative mandatory items:
+The complete list is in `plans/.archive/symphony-orchestrator/05-conformance.md`. Representative mandatory items:
 
 - **§4.2**: session_id = `<thread_id>-<turn_id>`; workspace key sanitize regex `[A-Za-z0-9._-]`
 - **§8.4**: continuation retry is fixed 1s; failure retry is `min(10000×2^(n-1), max)` ms
@@ -165,7 +165,7 @@ The complete list is in `plans/05-conformance.md`. Representative mandatory item
 
 ## Deviations / Extensions
 
-The complete list is in `plans/05-conformance.md`. Major deviations:
+The complete list is in `plans/.archive/symphony-orchestrator/05-conformance.md`. Major deviations:
 
 | SPEC § | SPEC | Our Choice |
 |---|---|---|
