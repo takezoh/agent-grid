@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -15,95 +16,218 @@ import (
 	"syscall"
 )
 
+// runSockBridge implements the "sockbridge" subcommand.
+// It supports two modes:
+//
+//   - Fixed-socket mode (-socket): forwards every TCP connection to one UDS.
+//   - Routing mode (-route-dir): routes each HTTP/WebSocket connection to a
+//     per-session UDS derived from the URL path token.
 func runSockBridge(args []string) error {
 	fs := flag.NewFlagSet("sockbridge", flag.ContinueOnError)
 	listen := fs.String("listen", "", "TCP address to listen on (required)")
-	routeDir := fs.String("route-dir", "", "directory with per-session unix sockets (required)")
-	routePrefix := fs.String("route-prefix", "", "socket filename prefix")
-	routeSuffix := fs.String("route-suffix", "", "socket filename suffix")
+	socket := fs.String("socket", "", "fixed unix socket path (fixed-socket mode)")
+	routeDir := fs.String("route-dir", "", "directory of per-session sockets (routing mode)")
+	routePrefix := fs.String("route-prefix", "codex-", "socket filename prefix (routing mode)")
+	routeSuffix := fs.String("route-suffix", ".sock", "socket filename suffix (routing mode)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *listen == "" {
 		return fmt.Errorf("sockbridge: -listen is required")
 	}
-	if *routeDir == "" {
-		return fmt.Errorf("sockbridge: -route-dir is required")
-	}
-
-	srv := &http.Server{
-		Addr:    *listen,
-		Handler: newBridgeHandler(*routeDir, *routePrefix, *routeSuffix),
+	if (*socket == "") == (*routeDir == "") {
+		return fmt.Errorf("sockbridge: exactly one of -socket or -route-dir is required")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if *routeDir != "" {
+		return bridgeRunRouter(ctx, *listen, *routeDir, *routePrefix, *routeSuffix)
+	}
+	return bridgeRun(ctx, *listen, *socket)
+}
+
+// bridgeRun listens on listenAddr (TCP) and forwards each connection to socketPath (unix).
+func bridgeRun(ctx context.Context, listenAddr, socketPath string) error {
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		return err
+	}
 	go func() {
 		<-ctx.Done()
-		srv.Close() //nolint:errcheck
+		ln.Close()
 	}()
-
-	slog.Info("sockbridge: listening", "addr", *listen, "route-dir", *routeDir)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("sockbridge: %w", err)
+	slog.Debug("sockbridge: listening", "tcp", listenAddr, "unix", socketPath)
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+		go bridgeForward(conn, socketPath)
 	}
-	return nil
 }
 
-// newBridgeHandler returns an HTTP handler that routes each incoming connection
-// (typically a WebSocket upgrade) to the unix socket at
-// routeDir/<prefix><sessionID><suffix>, where sessionID comes from the URL path.
-// After forwarding the HTTP request, bytes are copied bidirectionally between
-// the TCP frontend and the unix-socket backend.
-func newBridgeHandler(routeDir, prefix, suffix string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sessionID := strings.TrimPrefix(r.URL.Path, "/")
-		if sessionID == "" || strings.ContainsAny(sessionID, "/\\") {
-			http.Error(w, "invalid session ID", http.StatusBadRequest)
-			return
-		}
-
-		sockPath := filepath.Join(routeDir, prefix+sessionID+suffix)
-		backend, err := net.Dial("unix", sockPath)
+// bridgeRunRouter listens on listenAddr (TCP) and routes each HTTP/WebSocket
+// connection to routeDir/routePrefix+<token>+routeSuffix where token is the
+// first URL path segment (e.g. /abc123 → "abc123"). Path is rewritten to "/"
+// before forwarding. Tokens not matching [0-9a-zA-Z_-] receive a 502.
+func bridgeRunRouter(ctx context.Context, listenAddr, routeDir, routePrefix, routeSuffix string) error {
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		return err
+	}
+	go func() {
+		<-ctx.Done()
+		ln.Close()
+	}()
+	slog.Debug("sockbridge: routing listener", "tcp", listenAddr, "dir", routeDir)
+	for {
+		conn, err := ln.Accept()
 		if err != nil {
-			slog.Debug("sockbridge: backend unavailable", "session", sessionID, "sock", sockPath, "err", err)
-			http.Error(w, "backend unavailable", http.StatusServiceUnavailable)
-			return
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
 		}
-
-		if err := r.Write(backend); err != nil {
-			backend.Close()
-			return
-		}
-
-		hj, ok := w.(http.Hijacker)
-		if !ok {
-			backend.Close()
-			slog.Error("sockbridge: ResponseWriter does not support hijacking")
-			return
-		}
-		frontend, _, err := hj.Hijack()
-		if err != nil {
-			backend.Close()
-			slog.Error("sockbridge: hijack failed", "err", err)
-			return
-		}
-
-		bridgePipe(frontend, backend)
-	})
+		go bridgeRouteConn(conn, routeDir, routePrefix, routeSuffix)
+	}
 }
 
-// bridgePipe copies bytes bidirectionally between a and b until either
-// direction closes, then closes both connections.
-func bridgePipe(a, b net.Conn) {
-	defer a.Close()
-	defer b.Close()
+func bridgeForward(tcp net.Conn, socketPath string) {
+	defer tcp.Close()
+	unix, err := net.Dial("unix", socketPath)
+	if err != nil {
+		slog.Warn("sockbridge: dial unix failed", "socket", socketPath, "err", err)
+		return
+	}
+	bridgePump(tcp, unix)
+}
+
+func bridgeRouteConn(tcp net.Conn, routeDir, routePrefix, routeSuffix string) {
+	defer tcp.Close()
+
+	header, pending, err := bridgeReadHTTPHeader(tcp)
+	if err != nil {
+		return
+	}
+
+	lineEnd := bytes.IndexByte(header, '\n')
+	if lineEnd < 0 {
+		bridgeReply502(tcp)
+		return
+	}
+	firstLine := strings.TrimRight(string(header[:lineEnd]), "\r\n")
+	parts := strings.SplitN(firstLine, " ", 3)
+	if len(parts) != 3 {
+		bridgeReply502(tcp)
+		return
+	}
+	method, rawPath, proto := parts[0], parts[1], parts[2]
+
+	token := bridgeExtractToken(rawPath)
+	if token == "" {
+		slog.Warn("sockbridge: invalid or missing route token", "path", rawPath)
+		bridgeReply502(tcp)
+		return
+	}
+
+	sockPath := filepath.Join(routeDir, routePrefix+token+routeSuffix)
+	unix, err := net.Dial("unix", sockPath)
+	if err != nil {
+		slog.Warn("sockbridge: route dial failed", "token", token, "sock", sockPath, "err", err)
+		bridgeReply502(tcp)
+		return
+	}
+
+	// Rewrite path to "/" and replay headers to the unix conn.
+	rewrittenLine := method + " / " + proto + "\r\n"
+	rest := header[lineEnd+1:]
+	if _, err := io.WriteString(unix, rewrittenLine); err != nil {
+		unix.Close()
+		return
+	}
+	if _, err := unix.Write(rest); err != nil {
+		unix.Close()
+		return
+	}
+	if len(pending) > 0 {
+		if _, err := unix.Write(pending); err != nil {
+			unix.Close()
+			return
+		}
+	}
+
+	bridgePump(tcp, unix)
+}
+
+type halfCloser interface {
+	CloseWrite() error
+}
+
+func bridgePump(tcp, unix net.Conn) {
+	defer unix.Close()
 	done := make(chan struct{}, 2)
-	relay := func(dst, src net.Conn) {
-		defer func() { done <- struct{}{} }()
+	pipe := func(dst, src net.Conn) {
 		io.Copy(dst, src) //nolint:errcheck
+		if hc, ok := dst.(halfCloser); ok {
+			hc.CloseWrite() //nolint:errcheck
+		}
+		done <- struct{}{}
 	}
-	go relay(a, b)
-	go relay(b, a)
+	go pipe(tcp, unix)
+	go pipe(unix, tcp)
 	<-done
+	<-done
+}
+
+func bridgeReadHTTPHeader(conn net.Conn) (header, pending []byte, err error) {
+	buf := make([]byte, 0, 1024)
+	chunk := make([]byte, 512)
+	for len(buf) < 16384 {
+		n, e := conn.Read(chunk)
+		if n > 0 {
+			buf = append(buf, chunk[:n]...)
+			if idx := bridgeFindHeadersEnd(buf); idx >= 0 {
+				end := idx + 4
+				return buf[:end], buf[end:], nil
+			}
+		}
+		if e != nil {
+			return nil, nil, e
+		}
+	}
+	return nil, nil, errors.New("HTTP header too large")
+}
+
+func bridgeFindHeadersEnd(b []byte) int {
+	for i := 0; i+3 < len(b); i++ {
+		if b[i] == '\r' && b[i+1] == '\n' && b[i+2] == '\r' && b[i+3] == '\n' {
+			return i
+		}
+	}
+	return -1
+}
+
+func bridgeExtractToken(rawPath string) string {
+	seg := strings.TrimPrefix(rawPath, "/")
+	if idx := strings.IndexByte(seg, '/'); idx >= 0 {
+		seg = seg[:idx]
+	}
+	if seg == "" {
+		return ""
+	}
+	for _, c := range seg {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '_' && c != '-' {
+			return ""
+		}
+	}
+	return seg
+}
+
+func bridgeReply502(conn net.Conn) {
+	fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n") //nolint:errcheck
 }
