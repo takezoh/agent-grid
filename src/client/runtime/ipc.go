@@ -12,7 +12,9 @@ import (
 	"sync"
 
 	"github.com/takezoh/agent-roost/client/proto"
+	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/pathmap"
 )
 
 // ipcConn is one accepted client connection. The reader goroutine
@@ -144,6 +146,25 @@ type internalStartRestoredTaps struct{}
 
 func (internalStartRestoredTaps) isInternalEvent() {}
 
+// internalSpawnComplete is enqueued by the spawn goroutine after a window has
+// been launched. The goroutine performs all slow I/O and carries the resulting
+// per-frame handles back as data; the event loop is the sole writer that stores
+// them into loop-owned maps (handleSpawnComplete), keeping spawn off the
+// single-writer state without any direct map writes from the goroutine.
+type internalSpawnComplete struct {
+	effect           state.EffSpawnTmuxWindow
+	subsystemID      state.SubsystemID
+	sub              rsubsystem.Subsystem
+	cleanup          func() error
+	token            string         // empty for non-container frames
+	mounts           pathmap.Mounts // nil for non-container frames
+	containerSockDir string         // raw ContainerSockDir from WrappedLaunch; empty for non-container
+	paneID           string
+	bindResult       rsubsystem.BindResult
+}
+
+func (internalSpawnComplete) isInternalEvent() {}
+
 // dispatchInternal handles runtime-internal events.
 func (r *Runtime) dispatchInternal(ev internalEvent) {
 	switch e := ev.(type) {
@@ -159,6 +180,8 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 	case internalStartRestoredTaps:
 		_ = e
 		r.startRestoredTaps()
+	case internalSpawnComplete:
+		r.handleSpawnComplete(e)
 	}
 }
 
@@ -196,6 +219,19 @@ func (r *Runtime) enqueueInternal(ev internalEvent) {
 	case r.internalCh <- ev:
 	default:
 		slog.Warn("runtime: internal channel full, dropping")
+	}
+}
+
+// sendSpawnComplete delivers a spawn-completion event to the loop. Unlike
+// enqueueInternal it must NOT drop: handleSpawnComplete is the sole writer of
+// the subsystem/cleanup maps and container registry for the frame, so losing
+// this event would leak the already-launched subsystem, tmux pane, container
+// token and cleanup closure with no recovery path. Blocks until the loop
+// accepts it or the daemon shuts down (r.done), so it never leaks a goroutine.
+func (r *Runtime) sendSpawnComplete(ev internalEvent) {
+	select {
+	case r.internalCh <- ev:
+	case <-r.done:
 	}
 }
 

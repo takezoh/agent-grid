@@ -14,7 +14,7 @@ import (
 // WarmFrameState holds per-frame data that only survives warm restarts.
 // On cold start the entire warm/ directory is wiped. On warm start each
 // file is read back and its fields are re-registered with the in-memory
-// subsystems (tokenStore, container endpoint).
+// subsystems (framereg.Registry, container endpoint).
 type WarmFrameState struct {
 	FrameID        string `json:"frame_id"`
 	ContainerToken string `json:"container_token,omitempty"`

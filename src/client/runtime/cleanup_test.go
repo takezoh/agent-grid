@@ -87,9 +87,7 @@ func TestDrainFrameCleanups(t *testing.T) {
 	}
 
 	// Map must be empty after drain.
-	r.sandboxCleanupsMu.Lock()
 	remaining := len(r.sandboxCleanups)
-	r.sandboxCleanupsMu.Unlock()
 	if remaining != 0 {
 		t.Errorf("frameCleanups has %d entries after drain, want 0", remaining)
 	}

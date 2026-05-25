@@ -14,6 +14,21 @@ import (
 	"github.com/takezoh/agent-roost/client/uiproc"
 )
 
+// spawnDeps is the narrow set of capabilities given to the spawn goroutine.
+// It holds no *Runtime reference, so the goroutine cannot touch loop-owned
+// state (conns, sessionPanes, subsystems, …) directly. Results flow back to
+// the event loop via sendInternal (internalSpawnComplete) / sendEvent
+// (EvTmuxSpawnFailed), preserving the single-writer discipline.
+type spawnDeps struct {
+	tmux         TmuxBackend
+	launcher     AgentLauncher
+	factories    map[state.LaunchSubsystem]rsubsystem.Factory
+	sessionName  string
+	mainPaneSize func() paneSize
+	sendInternal func(internalEvent)
+	sendEvent    func(state.Event)
+}
+
 // execute is the side-effect interpreter. Each Effect type has a
 // dedicated case that performs the I/O on the appropriate backend.
 // Effects that produce events back into the loop (tmux spawn, pane
@@ -78,10 +93,9 @@ func (r *Runtime) executeMiscEffect(eff state.Effect) {
 
 	case state.EffReleaseFrameSandboxes:
 		ctx := context.Background()
-		r.subsystems.Range(func(_, v any) bool {
-			v.(rsubsystem.Subsystem).Stop(ctx)
-			return true
-		})
+		for _, sub := range r.subsystems {
+			sub.Stop(ctx)
+		}
 		// Drain sandbox (container/VM) cleanup closures in parallel.
 		r.drainFrameCleanups()
 
@@ -139,7 +153,7 @@ func (r *Runtime) executeInjectPrompt(e state.EffInjectPrompt) {
 func (r *Runtime) executeTmuxEffect(eff state.Effect) {
 	switch e := eff.(type) {
 	case state.EffSpawnTmuxWindow:
-		go r.spawnTmuxWindowAsync(e)
+		go spawnTmuxWindow(r.buildSpawnDeps(), e)
 	case state.EffKillSessionWindow:
 		r.executeKillSessionWindow(e)
 	case state.EffActivateSession:
@@ -187,15 +201,15 @@ func (r *Runtime) executeKillSessionWindow(e state.EffKillSessionWindow) {
 		}
 		delete(r.sessionPanes, e.FrameID)
 	}
-	r.containerTokens.Revoke(e.FrameID)
 	if r.warmFrames != nil {
 		if err := r.warmFrames.Delete(e.FrameID); err != nil {
 			slog.Warn("runtime: warm frame delete failed", "frame", e.FrameID, "err", err)
 		}
 	}
 	// Release subsystem resources (worktree removal, thread cleanup).
-	if v, ok := r.frameSubsystems.LoadAndDelete(e.FrameID); ok {
-		sub := v.(rsubsystem.Subsystem)
+	// The container token+mounts are removed by invokeFrameCleanup → frameReg.Delete.
+	if sub, ok := r.frameSubsystems[e.FrameID]; ok {
+		delete(r.frameSubsystems, e.FrameID)
 		sub.ReleaseFrame(e.FrameID)
 		r.reapSubsystemIfLast(sub, e.FrameID)
 	}
@@ -297,18 +311,34 @@ func (r *Runtime) executeFSEffect(eff state.Effect) {
 	}
 }
 
-// spawnTmuxWindowAsync runs a tmux new-window in a goroutine so the
-// event loop is not blocked on subprocess wait time. Posts back via
-// EvTmuxPaneSpawned / EvTmuxSpawnFailed.
-func (r *Runtime) enqueueSpawnFailed(e state.EffSpawnTmuxWindow, msg string) {
-	r.Enqueue(state.EvTmuxSpawnFailed{
-		SessionID: e.SessionID, FrameID: e.FrameID,
-		Err: msg, ReplyConn: e.ReplyConn, ReplyReqID: e.ReplyReqID,
-	})
+// buildSpawnDeps snapshots the dependencies needed by the spawn goroutine.
+// The goroutine holds no *Runtime reference so it cannot access loop-owned
+// state (conns, sessionPanes, subsystems, …) directly.
+func (r *Runtime) buildSpawnDeps() spawnDeps {
+	return spawnDeps{
+		tmux:         r.cfg.Tmux,
+		launcher:     launcher(r.cfg),
+		factories:    r.subsystemFactories,
+		sessionName:  r.cfg.SessionName,
+		mainPaneSize: r.mainPaneSize,
+		sendInternal: r.sendSpawnComplete,
+		sendEvent:    r.Enqueue,
+	}
 }
 
-func (r *Runtime) spawnTmuxWindowAsync(e state.EffSpawnTmuxWindow) {
-	ctx := r.baseContext()
+// spawnTmuxWindow runs in a goroutine, performs all slow I/O (subsystem
+// ensure, bind, launch wrap, tmux spawn), and posts results back via
+// internalSpawnComplete / EvTmuxSpawnFailed. It holds no *Runtime reference,
+// so every state mutation is deferred to the event loop in handleSpawnComplete.
+func spawnTmuxWindow(deps spawnDeps, e state.EffSpawnTmuxWindow) {
+	sendFailed := func(msg string) {
+		deps.sendEvent(state.EvTmuxSpawnFailed{
+			SessionID: e.SessionID, FrameID: e.FrameID,
+			Err: msg, ReplyConn: e.ReplyConn, ReplyReqID: e.ReplyReqID,
+		})
+	}
+
+	ctx := context.Background()
 	plan := state.LaunchPlan{
 		Command:   e.Command,
 		StartDir:  e.StartDir,
@@ -320,10 +350,10 @@ func (r *Runtime) spawnTmuxWindowAsync(e state.EffSpawnTmuxWindow) {
 		Stdin:     e.Stdin,
 	}
 
-	sub, subsystemID, err := r.ensureSubsystem(ctx, e.SessionID, e.Subsystem, e.Project, plan)
+	sub, subsystemID, err := ensureSubsystemOnce(ctx, deps.factories, e.SessionID, e.Subsystem, e.Project, plan)
 	if err != nil {
 		slog.Error("runtime: ensure subsystem failed", "frame", e.FrameID, "err", err)
-		r.enqueueSpawnFailed(e, err.Error())
+		sendFailed(err.Error())
 		return
 	}
 	bindResult, err := sub.BindFrame(ctx, rsubsystem.BindRequest{
@@ -334,83 +364,113 @@ func (r *Runtime) spawnTmuxWindowAsync(e state.EffSpawnTmuxWindow) {
 	})
 	if err != nil {
 		slog.Error("runtime: bind frame failed", "frame", e.FrameID, "err", err)
-		r.enqueueSpawnFailed(e, err.Error())
+		sendFailed(err.Error())
 		return
 	}
-	r.frameSubsystems.Store(e.FrameID, sub)
-	r.frameSubsystemIDs.Store(e.FrameID, subsystemID)
 	plan = bindResult.Plan
 
-	wrapped, err := r.wrapWithContainerToken(e.FrameID, e.Project, plan, e.Env)
+	wrapResult, err := wrapLaunchForSpawn(deps.launcher, e.FrameID, e.Project, plan, e.Env)
 	if err != nil {
 		slog.Error("runtime: wrap launch failed", "frame", e.FrameID, "err", err)
-		r.enqueueSpawnFailed(e, err.Error())
+		sendFailed(err.Error())
 		return
 	}
+	wrapped := wrapResult.wrapped
+
 	name := windowName(e.Project, string(e.FrameID))
 	spawnCmd := buildSpawnCommand(wrapped.Command, e.Stdin)
 	slog.Info("runtime: spawning window", "frame", e.FrameID, "cmd", spawnCmd)
-	size := r.mainPaneSize()
-	target, paneID, err := r.cfg.Tmux.SpawnWindow(name, spawnCmd, wrapped.StartDir, wrapped.Env)
+	size := deps.mainPaneSize()
+	target, paneID, err := deps.tmux.SpawnWindow(name, spawnCmd, wrapped.StartDir, wrapped.Env)
 	if err != nil {
-		r.enqueueSpawnFailed(e, err.Error())
+		// wrapLaunchForSpawn already acquired the sandbox/container; the pane never
+		// launched and no EvTmuxPaneSpawned/kill path will reach this frame, so
+		// release it here to avoid leaking the container ref + cleanup closure.
+		if wrapped.Cleanup != nil {
+			if cerr := wrapped.Cleanup(); cerr != nil {
+				slog.Warn("runtime: cleanup after spawn failure", "frame", e.FrameID, "err", cerr)
+			}
+		}
+		sendFailed(err.Error())
 		return
 	}
-	r.resizeWindowToMain(r.cfg.SessionName+":"+target, size)
-	if wrapped.Cleanup != nil {
-		r.storeFrameCleanup(e.FrameID, wrapped.Cleanup)
+	if size.width > 0 && size.height > 0 {
+		if rerr := deps.tmux.ResizeWindow(deps.sessionName+":"+target, size.width, size.height); rerr != nil {
+			slog.Debug("runtime: resize-window failed", "target", target, "err", rerr)
+		}
 	}
-	r.Enqueue(state.EvTmuxPaneSpawned{
-		SessionID:        e.SessionID,
-		FrameID:          e.FrameID,
-		SubsystemID:      subsystemID,
-		PaneTarget:       paneID,
-		WorktreeStartDir: bindResult.WorktreeStartDir,
-		WorktreeName:     bindResult.WorktreeName,
-		ReplyConn:        e.ReplyConn,
-		ReplyReqID:       e.ReplyReqID,
+
+	deps.sendInternal(internalSpawnComplete{
+		effect:           e,
+		subsystemID:      subsystemID,
+		sub:              sub,
+		cleanup:          wrapped.Cleanup,
+		token:            wrapResult.token,
+		mounts:           wrapped.Mounts,
+		containerSockDir: wrapped.ContainerSockDir,
+		paneID:           paneID,
+		bindResult:       bindResult,
 	})
 }
 
-// ensureSubsystem dispatches to the factory registered for the given kind,
-// caches the returned Subsystem in r.subsystems, and returns the resolved
-// SubsystemID. The factory itself decides how (sessionID, project, plan) maps
-// to an instance — runtime does not branch on kind beyond this lookup. An
-// empty kind is treated as CLI (the default for drivers that do not set
-// LaunchPlan.Subsystem explicitly).
-func (r *Runtime) ensureSubsystem(ctx context.Context, sessionID state.SessionID, kind state.LaunchSubsystem, project string, plan state.LaunchPlan) (rsubsystem.Subsystem, state.SubsystemID, error) {
+// handleSpawnComplete runs on the event loop. It stores the per-frame I/O
+// handles produced by spawnTmuxWindow into loop-owned maps (and the container
+// registry), then dispatches the pure EvTmuxPaneSpawned event.
+func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
+	r.subsystems[e.subsystemID] = e.sub
+	r.frameSubsystems[e.effect.FrameID] = e.sub
+	r.frameSubsystemIDs[e.effect.FrameID] = e.subsystemID
+	r.storeFrameCleanup(e.effect.FrameID, e.cleanup)
+
+	if e.token != "" {
+		r.registerContainerFrame(e.effect.FrameID, e.effect.Project, e.containerSockDir, e.token, e.mounts)
+	}
+
+	r.dispatch(state.EvTmuxPaneSpawned{
+		SessionID:        e.effect.SessionID,
+		FrameID:          e.effect.FrameID,
+		SubsystemID:      e.subsystemID,
+		PaneTarget:       e.paneID,
+		WorktreeStartDir: e.bindResult.WorktreeStartDir,
+		WorktreeName:     e.bindResult.WorktreeName,
+		ReplyConn:        e.effect.ReplyConn,
+		ReplyReqID:       e.effect.ReplyReqID,
+	})
+}
+
+// ensureSubsystemOnce dispatches to the factory registered for the given kind
+// and returns the Subsystem and its SubsystemID without storing into any
+// runtime map. Called from the spawn goroutine; the event loop stores the
+// result in handleSpawnComplete. An empty kind is treated as CLI (the default
+// for drivers that do not set LaunchPlan.Subsystem explicitly).
+func ensureSubsystemOnce(ctx context.Context, factories map[state.LaunchSubsystem]rsubsystem.Factory, sessionID state.SessionID, kind state.LaunchSubsystem, project string, plan state.LaunchPlan) (rsubsystem.Subsystem, state.SubsystemID, error) {
 	if kind == "" {
 		kind = state.LaunchSubsystemCLI
 	}
-	factory, ok := r.subsystemFactories[kind]
+	factory, ok := factories[kind]
 	if !ok {
 		return nil, "", fmt.Errorf("runtime: unknown subsystem kind %q", kind)
 	}
-	sub, id, err := factory.Ensure(ctx, sessionID, project, plan)
-	if err != nil {
-		return nil, "", err
-	}
-	r.subsystems.LoadOrStore(id, sub)
-	return sub, id, nil
+	return factory.Ensure(ctx, sessionID, project, plan)
 }
 
 // reapSubsystemIfLast removes and stops the backend for frameID if it was
-// the last frame using that backend. Call after ReleaseFrame.
+// the last frame using that backend. Call after ReleaseFrame. Runs on the
+// event loop, so frameSubsystemIDs is accessed as a plain loop-owned map.
 func (r *Runtime) reapSubsystemIfLast(sub rsubsystem.Subsystem, frameID state.FrameID) {
-	sidVal, ok := r.frameSubsystemIDs.LoadAndDelete(frameID)
+	subsystemID, ok := r.frameSubsystemIDs[frameID]
 	if !ok {
 		return
 	}
-	subsystemID := sidVal.(state.SubsystemID)
+	delete(r.frameSubsystemIDs, frameID)
 	// Check whether any other live frame still uses the same backend.
 	hasOther := false
-	r.frameSubsystemIDs.Range(func(_, v any) bool {
-		if v.(state.SubsystemID) == subsystemID {
+	for _, id := range r.frameSubsystemIDs {
+		if id == subsystemID {
 			hasOther = true
-			return false
+			break
 		}
-		return true
-	})
+	}
 	if hasOther {
 		return
 	}
@@ -420,8 +480,7 @@ func (r *Runtime) reapSubsystemIfLast(sub rsubsystem.Subsystem, frameID state.Fr
 	}
 	if reaper, ok := factory.(rsubsystem.Reaper); ok {
 		// Remove blocks until the backend process exits (up to stopGrace ≈ 6 s).
-		// Run in a goroutine to avoid stalling the event loop; consistent with
-		// spawnTmuxWindowAsync which is also non-blocking for the same reason.
+		// Run in a goroutine to avoid stalling the event loop.
 		go reaper.Remove(context.Background(), subsystemID)
 	}
 }

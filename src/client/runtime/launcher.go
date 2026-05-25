@@ -2,8 +2,9 @@ package runtime
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/takezoh/agent-roost/client/state"
@@ -218,39 +219,46 @@ func devcontainerLauncherFor(l AgentLauncher) *agentlaunch.DevcontainerLauncher 
 	return nil
 }
 
-// wrapWithContainerToken calls WrapLaunch, injecting ROOST_SOCKET_TOKEN only
-// when the launcher reports that the project runs inside a container.
-// For non-container launchers the token is never generated, eliminating the
-// previous "generate then revoke" pattern.
-func (r *Runtime) wrapWithContainerToken(frameID state.FrameID, project string, plan state.LaunchPlan, baseEnv map[string]string) (WrappedLaunch, error) {
-	l := launcher(r.cfg)
+// wrapLaunchResult holds the output of wrapLaunchForSpawn.
+type wrapLaunchResult struct {
+	wrapped WrappedLaunch
+	// token is non-empty only for container frames. The token string is
+	// generated here so it can be baked into the spawn env. Registration
+	// (token↔frame) happens on the event loop via internalSpawnComplete, so
+	// no runtime state is mutated from the spawn goroutine.
+	token string
+}
+
+// wrapLaunchForSpawn calls WrapLaunch and (for container launchers) generates a
+// bearer token to inject as ROOST_SOCKET_TOKEN. It has no side effects on
+// runtime state — token/mount registration and endpoint startup happen on the
+// event loop after the spawn goroutine completes (see registerContainerFrame).
+// For non-container launchers the token is never generated.
+func wrapLaunchForSpawn(l AgentLauncher, frameID state.FrameID, project string, plan state.LaunchPlan, baseEnv map[string]string) (wrapLaunchResult, error) {
 	if !l.IsContainer(project) {
-		return l.WrapLaunch(frameID, plan, baseEnv)
+		wrapped, err := l.WrapLaunch(frameID, plan, baseEnv)
+		return wrapLaunchResult{wrapped: wrapped}, err
 	}
 
-	token, err := r.containerTokens.Generate(frameID)
+	token, err := generateToken()
 	if err != nil {
-		return WrappedLaunch{}, fmt.Errorf("token generate: %w", err)
+		return wrapLaunchResult{}, fmt.Errorf("token generate: %w", err)
 	}
 	env := cloneAndSet(baseEnv, "ROOST_SOCKET_TOKEN", token)
 
 	wrapped, err := l.WrapLaunch(frameID, plan, env)
 	if err != nil {
-		r.containerTokens.Revoke(frameID)
-		return WrappedLaunch{}, fmt.Errorf("launcher wrap: %w", err)
+		return wrapLaunchResult{}, fmt.Errorf("launcher wrap: %w", err)
 	}
+	return wrapLaunchResult{wrapped: wrapped, token: token}, nil
+}
 
-	r.startContainerEndpointIfNeeded(project, ContainerSockPath(wrapped.ContainerSockDir))
-	if len(wrapped.Mounts) > 0 {
-		r.containerMounts.Store(frameID, wrapped.Mounts)
+// generateToken returns a random 32-byte hex-encoded bearer token.
+// Pure computation; safe to call from any goroutine.
+func generateToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
 	}
-	if r.warmFrames != nil {
-		if err := r.warmFrames.Save(WarmFrameState{
-			FrameID:        string(frameID),
-			ContainerToken: token,
-		}); err != nil {
-			slog.Warn("runtime: warm frame save failed", "frame", frameID, "err", err)
-		}
-	}
-	return wrapped, nil
+	return hex.EncodeToString(b), nil
 }

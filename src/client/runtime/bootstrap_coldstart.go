@@ -111,7 +111,7 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 	launch.Project = frame.Project
 
 	ctx := r.baseContext()
-	sub, _, err := r.ensureSubsystem(ctx, id, launch.Subsystem, frame.Project, launch)
+	sub, subsystemID, err := ensureSubsystemOnce(ctx, r.subsystemFactories, id, launch.Subsystem, frame.Project, launch)
 	if err != nil {
 		slog.Error("bootstrap: ensure subsystem failed", "id", id, "frame", frame.ID, "err", err)
 		return err
@@ -125,18 +125,22 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 		slog.Error("bootstrap: bind frame failed", "id", id, "frame", frame.ID, "err", err)
 		return err
 	}
-	r.frameSubsystems.Store(frame.ID, sub)
+	// Cold start runs serially before the event loop (rt.Run), so writing the
+	// loop-owned maps directly here is safe.
+	r.subsystems[subsystemID] = sub
+	r.frameSubsystems[frame.ID] = sub
 	launch = bindResult.Plan
 
 	baseEnv := map[string]string{
 		"ROOST_SESSION_ID": string(id),
 		"ROOST_FRAME_ID":   string(frame.ID),
 	}
-	wrapped, err := r.wrapWithContainerToken(frame.ID, frame.Project, launch, baseEnv)
+	wrapResult, err := wrapLaunchForSpawn(launcher(r.cfg), frame.ID, frame.Project, launch, baseEnv)
 	if err != nil {
 		slog.Error("bootstrap: wrap launch failed", "id", id, "frame", frame.ID, "err", err)
 		return err
 	}
+	wrapped := wrapResult.wrapped
 
 	paneID, err := r.spawnWrapped(frame.ID, frame.Project, wrapped, size)
 	if err != nil {
@@ -152,6 +156,9 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 	r.sessionPanes[frame.ID] = paneID
 	if wrapped.Cleanup != nil {
 		r.storeFrameCleanup(frame.ID, wrapped.Cleanup)
+	}
+	if wrapResult.token != "" {
+		r.registerContainerFrame(frame.ID, frame.Project, wrapped.ContainerSockDir, wrapResult.token, wrapped.Mounts)
 	}
 	envKey := sessionPaneEnvKey(frame.ID)
 	if err := r.cfg.Tmux.SetEnv(envKey, paneID); err != nil {
