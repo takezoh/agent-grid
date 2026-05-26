@@ -238,11 +238,21 @@ func (r *Runtime) executeCheckPaneAlive(e state.EffCheckPaneAlive) {
 	if e.Pane == "{sessionName}:0.1" && r.activeFrameID != "" {
 		if paneID := r.sessionPanes[r.activeFrameID]; paneID != "" {
 			alive, err := r.cfg.Tmux.PaneAlive(paneID)
+			if err != nil && !isMissingPaneErr(err) {
+				// A transient probe failure (e.g. "context deadline exceeded"
+				// when tmux is slow under load) is NOT death — re-probe on the
+				// next tick instead of evicting a live session.
+				slog.Warn("runtime: active frame pane probe transient error (ignored)",
+					"pane", e.Pane, "target", paneID, "owner", r.activeFrameID, "err", err)
+				return
+			}
 			if err == nil && alive {
 				return
 			}
+			// Genuine death: either err==nil && !alive (dead pane kept by
+			// remain-on-exit) or isMissingPaneErr(err) (pane_id vanished).
 			ev := state.EvPaneDied{Pane: e.Pane, OwnerFrameID: r.activeFrameID}
-			slog.Info("runtime: active frame pane alive check failed",
+			slog.Info("runtime: active frame pane died",
 				"pane", e.Pane, "target", paneID, "owner", ev.OwnerFrameID, "err", err)
 			r.Enqueue(ev)
 			return
@@ -406,8 +416,14 @@ func (r *Runtime) reconcileWindows() {
 		}
 		dead, code, err := r.cfg.Tmux.PaneExitStatus(target)
 		if err != nil {
-			slog.Debug("runtime: reconcile pane failed", "frame", frameID, "pane", target, "err", err)
-			r.Enqueue(state.EvTmuxWindowVanished{FrameID: frameID})
+			if isMissingPaneErr(err) {
+				slog.Debug("runtime: reconcile pane vanished", "frame", frameID, "pane", target, "err", err)
+				r.Enqueue(state.EvTmuxWindowVanished{FrameID: frameID})
+			} else {
+				// Transient query failure (timeout/busy): keep the frame and
+				// re-probe next reconcile rather than treating it as vanished.
+				slog.Warn("runtime: reconcile pane transient error (ignored)", "frame", frameID, "pane", target, "err", err)
+			}
 			continue
 		}
 		if !dead {

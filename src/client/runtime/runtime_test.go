@@ -58,7 +58,9 @@ type fakeTmuxBackend struct {
 	envs             map[string]string
 	popups           []string
 	alive            map[string]bool
-	exitStatus       map[string]int // pane target → exit code (when dead)
+	aliveErr         map[string]error // pane target → transient error from PaneAlive
+	exitStatusErr    map[string]error // pane target → error from PaneExitStatus
+	exitStatus       map[string]int   // pane target → exit code (when dead)
 	captured         string
 	spawnWID         string
 	spawnPane        string
@@ -73,15 +75,17 @@ type fakeTmuxBackend struct {
 
 func newFakeTmux() *fakeTmuxBackend {
 	return &fakeTmuxBackend{
-		alive:       map[string]bool{},
-		exitStatus:  map[string]int{},
-		envs:        map[string]string{},
-		paneIDs:     map[string]string{},
-		spawnWID:    "1",
-		spawnPane:   "%1",
-		breakNewWID: "9",
-		paneWidth:   120,
-		paneHeight:  40,
+		alive:         map[string]bool{},
+		aliveErr:      map[string]error{},
+		exitStatusErr: map[string]error{},
+		exitStatus:    map[string]int{},
+		envs:          map[string]string{},
+		paneIDs:       map[string]string{},
+		spawnWID:      "1",
+		spawnPane:     "%1",
+		breakNewWID:   "9",
+		paneWidth:     120,
+		paneHeight:    40,
 	}
 }
 
@@ -197,6 +201,9 @@ func (f *fakeTmuxBackend) UnsetEnv(k string) error {
 func (f *fakeTmuxBackend) PaneAlive(target string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err, ok := f.aliveErr[target]; ok {
+		return false, err
+	}
 	v, ok := f.alive[target]
 	if !ok {
 		return true, nil
@@ -206,6 +213,9 @@ func (f *fakeTmuxBackend) PaneAlive(target string) (bool, error) {
 func (f *fakeTmuxBackend) PaneExitStatus(target string) (bool, int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err, ok := f.exitStatusErr[target]; ok {
+		return false, -1, err
+	}
 	alive, known := f.alive[target]
 	if !known || alive {
 		return false, -1, nil
@@ -779,6 +789,119 @@ func TestExecuteCheckPaneAliveResolvesActiveFramePaneID(t *testing.T) {
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("expected EvPaneDied within 500ms")
+	}
+}
+
+// Repro for "Claude Driver session suddenly disappears": under load the tmux
+// `display-message` shell-out times out (context deadline exceeded). The active
+// frame probe at interpret.go:240-247 treats ANY PaneAlive error as death and
+// enqueues EvPaneDied, which evicts the still-alive session. A transient probe
+// error must NOT be interpreted as pane death.
+//
+// Observed in ~/.roost/roost.log:
+//
+//	msg="runtime: active frame pane alive check failed" target=%5
+//	  err="tmux display-message -t %5 -p #{pane_dead}: context deadline exceeded: "
+//	-> state: reducePaneDied entry -> evictFrame ok
+func TestExecuteCheckPaneAliveTransientErrorDoesNotKillActiveFrame(t *testing.T) {
+	tmux := newFakeTmux()
+	// The pane is actually alive, but the probe shell-out times out.
+	tmux.alive["%42"] = true
+	tmux.aliveErr["%42"] = fmt.Errorf("tmux display-message -t %%42 -p #{pane_dead}: %w", context.DeadlineExceeded)
+	r := New(Config{
+		SessionName: "roost-test",
+		Tmux:        tmux,
+	})
+	r.activeFrameID = "frame-1"
+	r.sessionPanes["frame-1"] = "%42"
+
+	r.executeCheckPaneAlive(state.EffCheckPaneAlive{Pane: "{sessionName}:0.1"})
+
+	select {
+	case ev := <-r.eventCh:
+		if pd, ok := ev.(state.EvPaneDied); ok {
+			t.Fatalf("transient PaneAlive timeout must not kill the active frame, "+
+				"but EvPaneDied was enqueued for owner %q", pd.OwnerFrameID)
+		}
+		t.Fatalf("unexpected event enqueued on transient probe error: %T", ev)
+	case <-time.After(200 * time.Millisecond):
+		// OK: a transient error is ignored; no eviction.
+	}
+}
+
+// Guards against over-suppression: a genuine "can't find pane" error (the
+// pane_id vanished with the process) must still be treated as death.
+func TestExecuteCheckPaneAliveMissingPaneKillsActiveFrame(t *testing.T) {
+	tmux := newFakeTmux()
+	tmux.aliveErr["%42"] = fmt.Errorf("tmux display-message -t %%42 -p #{pane_dead}: can't find pane: %%42")
+	r := New(Config{
+		SessionName: "roost-test",
+		Tmux:        tmux,
+	})
+	r.activeFrameID = "frame-1"
+	r.sessionPanes["frame-1"] = "%42"
+
+	r.executeCheckPaneAlive(state.EffCheckPaneAlive{Pane: "{sessionName}:0.1"})
+
+	select {
+	case ev := <-r.eventCh:
+		pd, ok := ev.(state.EvPaneDied)
+		if !ok {
+			t.Fatalf("expected EvPaneDied, got %T", ev)
+		}
+		if pd.OwnerFrameID != "frame-1" {
+			t.Errorf("OwnerFrameID = %q, want frame-1", pd.OwnerFrameID)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected EvPaneDied for a genuinely missing pane")
+	}
+}
+
+// reconcileWindows must distinguish a vanished pane from a transient query
+// failure: only "can't find pane" should evict an inactive frame.
+func TestReconcileWindowsTransientErrorKeepsFrame(t *testing.T) {
+	tmux := newFakeTmux()
+	tmux.exitStatusErr["%7"] = fmt.Errorf("tmux display-message -t %%7 -p ...: %w", context.DeadlineExceeded)
+	r := New(Config{
+		SessionName: "roost-test",
+		Tmux:        tmux,
+	})
+	r.activeFrameID = "active-frame"
+	r.sessionPanes["inactive-frame"] = "%7"
+
+	r.reconcileWindows()
+
+	select {
+	case ev := <-r.eventCh:
+		t.Fatalf("transient PaneExitStatus error must not vanish a frame, got %T", ev)
+	case <-time.After(200 * time.Millisecond):
+		// OK: transient error ignored.
+	}
+}
+
+func TestReconcileWindowsMissingPaneVanishesFrame(t *testing.T) {
+	tmux := newFakeTmux()
+	tmux.exitStatusErr["%7"] = fmt.Errorf("tmux display-message -t %%7 -p ...: can't find pane: %%7")
+	r := New(Config{
+		SessionName: "roost-test",
+		Tmux:        tmux,
+	})
+	r.activeFrameID = "active-frame"
+	r.sessionPanes["inactive-frame"] = "%7"
+
+	r.reconcileWindows()
+
+	select {
+	case ev := <-r.eventCh:
+		vanished, ok := ev.(state.EvTmuxWindowVanished)
+		if !ok {
+			t.Fatalf("expected EvTmuxWindowVanished, got %T", ev)
+		}
+		if vanished.FrameID != "inactive-frame" {
+			t.Errorf("FrameID = %q, want inactive-frame", vanished.FrameID)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected EvTmuxWindowVanished for a genuinely missing pane")
 	}
 }
 
