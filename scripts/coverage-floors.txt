@@ -37,6 +37,7 @@ github.com/takezoh/agent-roost/client/uiproc                       95
 
 # cmd/ — binary entry points
 github.com/takezoh/agent-roost/cmd/claude-app-server               60
+github.com/takezoh/agent-roost/cmd/credproxy-run                    0
 github.com/takezoh/agent-roost/cmd/linear-graphql-cli               0
 # cmd/orchestrator: buildDevcontainerLauncher (requires Docker) and main() are
 # structurally untestable in unit tests; floor reflects achievable non-Docker coverage.
@@ -85,3 +86,4 @@ github.com/takezoh/agent-roost/platform/metrics                    95
 github.com/takezoh/agent-roost/platform/pathmap                    95
 github.com/takezoh/agent-roost/platform/procgroup                  75
 github.com/takezoh/agent-roost/platform/sandbox/devcontainer       70
+github.com/takezoh/agent-roost/platform/secretenv                  34
