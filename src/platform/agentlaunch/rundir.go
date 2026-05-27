@@ -107,26 +107,41 @@ func installExecInRunDir(src, dst string) error {
 		dstInfo.ModTime().Equal(srcInfo.ModTime()) {
 		return nil
 	}
-	if err := copyFile(src, dst, 0o755); err != nil {
+	if err := copyFile(src, dst); err != nil {
 		return err
 	}
 	_ = os.Chtimes(dst, srcInfo.ModTime(), srcInfo.ModTime())
 	return nil
 }
 
-func copyFile(src, dst string, mode os.FileMode) error {
+func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("rundir: open binary: %w", err)
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	// Write to a temp file in the same directory then rename atomically.
+	// O_TRUNC on an in-use ELF binary fails with ETXTBSY on Linux;
+	// os.Rename replaces the directory entry without touching the running inode.
+	tmp, err := os.CreateTemp(filepath.Dir(dst), ".install-*.tmp")
 	if err != nil {
 		return fmt.Errorf("rundir: create %s: %w", dst, err)
 	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+	if err := tmp.Chmod(0o755); err != nil {
+		tmp.Close()
+		return fmt.Errorf("rundir: chmod %s: %w", dst, err)
+	}
+	if _, err := io.Copy(tmp, in); err != nil {
+		tmp.Close()
 		return fmt.Errorf("rundir: copy binary: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("rundir: close %s: %w", dst, err)
+	}
+	if err := os.Rename(tmpPath, dst); err != nil {
+		return fmt.Errorf("rundir: create %s: %w", dst, err)
 	}
 	return nil
 }

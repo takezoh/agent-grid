@@ -3,7 +3,6 @@ package runtime
 import (
 	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 )
@@ -42,27 +41,6 @@ func EnsureProjectRunDir(runBase, projectPath string) (string, error) {
 // container at ContainerSockFilePath via the run-dir bind mount.
 func ContainerSockPath(runDir string) string {
 	return filepath.Join(runDir, ContainerSockFileName)
-}
-
-// InstallBinaryInRunDir copies the roost-bridge binary into runDir as
-// "roost-bridge" (mode 0o755). The file is bind-mounted into the devcontainer
-// at ContainerRunDir, so the copy is accessible inside the container as
-// ContainerBinaryPath. Returns the container-internal path.
-func InstallBinaryInRunDir(runDir string) (string, error) {
-	src, err := findHelperBinary("roost-bridge")
-	if err != nil {
-		return "", err
-	}
-	return installBridgeInRunDir(src, runDir)
-}
-
-// installBridgeInRunDir copies src (roost-bridge) into runDir and returns the
-// container-internal path. Separated for testability.
-func installBridgeInRunDir(src, runDir string) (string, error) {
-	if err := installExecInRunDir(src, filepath.Join(runDir, "roost-bridge")); err != nil {
-		return "", err
-	}
-	return ContainerBinaryPath, nil
 }
 
 // FindHelperFile returns the absolute path to a helper file (binary, script,
@@ -107,39 +85,4 @@ func findHelperBinary(name string) (string, error) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-// installExecInRunDir copies src to dst (mode 0o755) with size+mtime short-circuit.
-func installExecInRunDir(src, dst string) error {
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("rundir: stat %s: %w", src, err)
-	}
-	if dstInfo, e := os.Stat(dst); e == nil &&
-		dstInfo.Size() == srcInfo.Size() &&
-		dstInfo.ModTime().Equal(srcInfo.ModTime()) {
-		return nil
-	}
-	if err := copyFile(src, dst, 0o755); err != nil {
-		return err
-	}
-	_ = os.Chtimes(dst, srcInfo.ModTime(), srcInfo.ModTime())
-	return nil
-}
-
-func copyFile(src, dst string, mode os.FileMode) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("rundir: open binary: %w", err)
-	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
-	if err != nil {
-		return fmt.Errorf("rundir: create %s: %w", dst, err)
-	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
-		return fmt.Errorf("rundir: copy binary: %w", err)
-	}
-	return nil
 }
