@@ -9,13 +9,17 @@ import (
 	"testing"
 )
 
-// writeFakeCredproxy writes a shell script that acts as a fake "credproxy resolve"
-// and returns its path. The script emits the given JSON response to stdout.
+// writeFakeCredproxy writes a fake "credproxy resolve" executable that emits
+// jsonResponse to stdout. The JSON is written to a separate file and cat'd by
+// the script to avoid any shell-quoting issues with the response content.
 func writeFakeCredproxy(t *testing.T, dir, jsonResponse string) string {
 	t.Helper()
+	jsonPath := filepath.Join(dir, "resolve-output.json")
+	if err := os.WriteFile(jsonPath, []byte(jsonResponse), 0o644); err != nil {
+		t.Fatalf("write fake JSON: %v", err)
+	}
 	path := filepath.Join(dir, "credproxy")
-	// The script accepts "resolve --env-file <path>" and emits fixed JSON.
-	script := "#!/bin/sh\nprintf '%s' '" + jsonResponse + "'\n"
+	script := "#!/bin/sh\ncat \"" + jsonPath + "\"\n"
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake credproxy: %v", err)
 	}

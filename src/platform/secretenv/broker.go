@@ -12,8 +12,10 @@ import (
 )
 
 // resolveTimeout is roost's safety bound on the credproxy resolve subprocess.
-// The actual hook timeout is credproxy's concern (credproxy config).
-const resolveTimeout = 30 * time.Second
+// It must exceed the total time credproxy may spend resolving all refs in the
+// env-file (N refs × hook_timeout_sec). The actual hook timeout per ref is
+// credproxy's concern (hook_timeout_sec in ~/.config/credproxy/config.toml).
+const resolveTimeout = 5 * time.Minute
 
 // broker is a per-project unix socket server that gates and resolves secret env-files.
 type broker struct {
@@ -90,7 +92,14 @@ func (b *broker) resolve(req Request) Response {
 
 	out, err := exec.CommandContext(ctx, bin, "resolve", "--env-file", req.EnvFilePath).Output()
 	if err != nil {
-		slog.Warn("secretenv: credproxy resolve failed", "project", b.project, "path", req.EnvFilePath, "err", err)
+		// Output() populates ExitError.Stderr when cmd.Stderr is nil, giving
+		// diagnostic detail (hook misconfiguration, auth errors, etc.) that
+		// err.Error() alone ("exit status N") does not convey.
+		var stderr string
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderr = string(exitErr.Stderr)
+		}
+		slog.Warn("secretenv: credproxy resolve failed", "project", b.project, "path", req.EnvFilePath, "err", err, "stderr", stderr)
 		return Response{Error: err.Error()}
 	}
 
