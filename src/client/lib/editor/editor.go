@@ -10,9 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 // ResolveTarget returns the best target to hand to the editor for dir.
@@ -46,24 +46,11 @@ func ResolveTarget(dir string, extensions []string) string {
 	return targets[0]
 }
 
-// wslDistro returns the WSL distribution name from the environment, or an
-// empty string when the process is not running inside WSL.
-func wslDistro() string {
-	return os.Getenv("WSL_DISTRO_NAME")
-}
-
-// hasRemoteFlag reports whether parts already contains a --remote flag,
-// so we never inject it twice when the user configures it explicitly.
-func hasRemoteFlag(parts []string) bool {
-	return slices.Contains(parts, "--remote")
-}
-
-// Launch starts the editor named by command on target and returns
-// without waiting for it to exit. command may include flags
-// (e.g. "code --reuse-window"); they are split on whitespace.
-// When running in WSL and --remote is not already in command,
-// --remote wsl+<distro> is injected automatically so the editor
-// opens the folder via Remote-WSL using the distro from WSL_DISTRO_NAME.
+// Launch starts the editor named by command on target and returns without
+// waiting for it to exit. command may include flags (e.g. "code
+// --reuse-window"); they are split on whitespace. Under WSL the launcher
+// (e.g. the `code` script) detects the distro itself and opens the folder via
+// Remote-WSL, so no --remote flag is added here.
 func Launch(command, target string) error {
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
@@ -74,14 +61,33 @@ func Launch(command, target string) error {
 	if err != nil {
 		return fmt.Errorf("editor: %q not found in PATH: %w", bin, err)
 	}
-	args := make([]string, 0, len(parts[1:])+3)
+	args := make([]string, 0, len(parts))
 	args = append(args, parts[1:]...)
-	if distro := wslDistro(); distro != "" && !hasRemoteFlag(parts) {
-		args = append(args, "--remote", "wsl+"+distro)
-	}
 	args = append(args, target)
 	slog.Info("editor: launching", "bin", resolved, "args", args)
 	cmd := exec.CommandContext(context.Background(), resolved, args...)
+	// The palette runs in a short-lived tmux popup process; when it exits the
+	// popup is torn down and any child sharing its session is killed by SIGHUP
+	// before the editor can open. Detach the child into its own session so it
+	// outlives the palette, and point its stdout/stderr at a regular file so it
+	// keeps a stable, writable target once the popup's terminal is gone (the
+	// Remote-WSL launcher relays that stdio to Windows Code.exe and the null
+	// device breaks the relay).
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	// Use a unique temp file (CreateTemp uses O_EXCL + a random name, so an
+	// attacker cannot pre-plant a symlink at a predictable path to redirect or
+	// truncate another file) and unlink it right after Start: the child keeps
+	// the inherited fd, so the name can go away leaving no litter.
+	if logf, ferr := os.CreateTemp("", "roost-editor-*.log"); ferr == nil {
+		cmd.Stdout = logf
+		cmd.Stderr = logf
+		defer func() {
+			_ = os.Remove(logf.Name())
+			_ = logf.Close()
+		}()
+	} else {
+		slog.Warn("editor: cannot open launch log; output discarded", "err", ferr)
+	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("editor: start %s: %w", resolved, err)
 	}

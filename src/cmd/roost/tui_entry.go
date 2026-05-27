@@ -225,11 +225,8 @@ func runPalette(args []string) error { //nolint:funlen
 			Projects:       cfg.ListProjects(),
 			ProjectRoots:   roots,
 			ActiveProject:  activeProjectPath,
-
 			Editor: tools.EditorConfig{
-
-				Command: cfg.Editor.Command,
-
+				Command:    cfg.Editor.Command,
 				Extensions: cfg.Editor.Extensions,
 			},
 		},
