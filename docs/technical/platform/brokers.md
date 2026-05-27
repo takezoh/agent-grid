@@ -9,6 +9,7 @@ Implementation deep dive of the three brokers that give an in-container agent **
 | `platform/credproxy/` | In-process credential server. Bundles providers and issues a per-project bearer token | token ↔ projectID verification |
 | `platform/hostexec/` | Runs allowlisted host binaries on behalf of the container (SCM_RIGHTS stdio forwarding) | deny-first allowlist (`Policy.Check`) |
 | `platform/mcpproxy/` | Runs MCP servers on the host and relays JSON-RPC stdio | per-tool policy (`Policy.CheckTool`) |
+| `platform/secretenv/` | Resolves secret references from an env-file on the host; injects into subprocess env | env-file path allowlist (`Gate.Check`, default-deny) |
 
 ## The big picture: credproxy bundles the providers
 
@@ -127,6 +128,48 @@ sequenceDiagram
 - `forwardRequests` (`relay.go:54`) intercepts `tools/call` and gates it with `policy.CheckTool(name)` (`policy.go:43`, deny-first). A rejected call is answered directly to the container with an error and never forwarded upstream.
 - `forwardResponses` (`relay.go:86`) filters `tools/list` results by policy so disallowed tools are never shown to the container.
 - `ContainerSpec` (`provider.go:61`) takes the project's `.mcp.json` as a base and generates an overlay pointing each alias at the roost shim (`writeMCPJSON`), then returns two bind mounts (broker socket + `.mcp.json` overlay) plus the `ROOST_MCP_SOCK` env. With no servers configured it returns an empty Spec.
+
+## secretenv — secret reference resolver
+
+`secretenv` resolves opaque references (e.g. `op://vault/item/field`) in an env-file and injects the real values into a single subprocess environment. Invoked ad-hoc within a running session — not at container startup.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SH as container shim<br/>(credproxy on PATH)
+    participant RB as roost-bridge secret-run
+    participant BR as host broker
+    participant GE as Gate
+    participant HK as hook (subprocess)
+
+    SH->>RB: exec with "run --env-file X -- cmd"
+    RB->>BR: connect (unix socket) + Request{env_file_path}
+    BR->>GE: Check(path)
+    alt denied (not in allowlist)
+        GE-->>BR: error
+        BR-->>RB: Response{error}
+        RB-->>SH: exit 1
+    else allowed
+        BR->>BR: read env-file on host
+        loop each ref in env-file
+            BR->>HK: stdin: {"ref":"..."}
+            HK-->>BR: stdout: {"value":"...","expires_in_sec":N}
+        end
+        BR-->>RB: Response{env: {K:V,...}}
+        RB->>RB: merge into os.Environ()
+        RB->>RB: syscall.Exec(cmd, args, merged_env)
+    end
+```
+
+**Container shim** (`secretenv-shims/credproxy`): a shell script that calls `roost-bridge secret-run "$@"`. It is written to `<projRunDir>/secretenv-shims/` and prepended to container `PATH`, so existing scripts that call `credproxy run` work without modification.
+
+**Broker** (`platform/secretenv/broker.go`): per-project Unix socket server (`<projRunDir>/secretenv.sock`, bind-mounted at `/opt/roost/run/secretenv.sock`). Each connection is handled in its own goroutine. `gate`, `hook`, and `timeout` fields are guarded by a `sync.RWMutex` so concurrent request handling during config reload is race-free.
+
+**Gate** (`platform/secretenv/gate.go`): `filepath.Match` allowlist, default-deny. `*` matches within a single path segment only — does not cross `/`. Patterns are evaluated against the raw container-supplied path.
+
+**Hook protocol** (same as `credproxy/cmd/credproxyd/providers/script`): `stdin: {"ref":"..."}`, `stdout: {"value":"...","expires_in_sec":N}`. Exit 0 = success; non-zero = error with stderr forwarded. Per-ref TTL cache with 30-second safety margin; singleflight dedup for concurrent identical refs.
+
+**Bare-host path**: the real `credproxy run` binary resolves locally with no gate. The shim/broker path is only active inside a devcontainer.
 
 ## Related documentation
 

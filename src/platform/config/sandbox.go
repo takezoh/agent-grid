@@ -64,11 +64,37 @@ type DevcontainerConfig struct {
 
 // ProxyConfig holds the in-process credential proxy provider settings.
 type ProxyConfig struct {
-	AWSProfiles []string       `toml:"aws_profiles"`
-	GCP         GCPConfig      `toml:"gcp"`
-	SSHAgent    SSHAgentConfig `toml:"ssh_agent"`
-	HostExec    HostExecConfig `toml:"host_exec"`
-	MCPProxy    MCPProxyConfig `toml:"mcp_proxy"`
+	AWSProfiles []string        `toml:"aws_profiles"`
+	GCP         GCPConfig       `toml:"gcp"`
+	SSHAgent    SSHAgentConfig  `toml:"ssh_agent"`
+	HostExec    HostExecConfig  `toml:"host_exec"`
+	MCPProxy    MCPProxyConfig  `toml:"mcp_proxy"`
+	SecretEnv   SecretEnvConfig `toml:"secret_env"`
+}
+
+// SecretEnvConfig configures the host-gated secret reference resolver.
+// When configured, a per-project Unix socket broker resolves opaque references
+// from an env-file via a pluggable host hook and injects real values into a
+// subprocess environment. Resolution is gated by an env-file path allowlist.
+//
+// This is an intentional exception to the "long-lived secrets stay on host"
+// invariant: the resolved value enters the subprocess env for its lifetime only.
+//
+// Bare-host users run the real `credproxy run` binary (no gate, no broker).
+// Container users run the roost-provided `credproxy` shim, which brokers to
+// this host-side resolver.
+type SecretEnvConfig struct {
+	// Hook is the command executed per secret reference resolution.
+	// Protocol: stdin={"ref":"..."}, stdout={"value":"...","expires_in_sec":N}.
+	// Exit 0 = success; non-zero = error (stderr forwarded).
+	Hook []string `toml:"hook"`
+	// HookTimeoutSec is the per-invocation timeout (default: 10).
+	HookTimeoutSec int `toml:"hook_timeout_sec"`
+	// Allow is the list of env-file path patterns the container may request.
+	// Uses filepath.Match glob syntax; default-deny when empty.
+	// '*' matches within a single path segment only — it does NOT cross '/'.
+	// Example: "/workspace/*.env" matches "/workspace/dev.env" but NOT "/workspace/sub/dev.env".
+	Allow []string `toml:"allow"`
 }
 
 // MCPProxyConfig lists MCP servers to run on the host with stdio proxied into the container.

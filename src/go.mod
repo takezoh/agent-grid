@@ -16,10 +16,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/osteele/liquid v1.8.1
+	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
-	github.com/takezoh/credproxy v0.0.0-20260524125243-1aa9888bce76
+	github.com/takezoh/credproxy v0.0.0-20260527011125-1c9fe1ac09f3
 	github.com/takezoh/fishpath-go v0.1.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.42.0
@@ -191,7 +192,6 @@ require (
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/quasilyte/go-ruleguard v0.4.5 // indirect
-	github.com/quasilyte/go-ruleguard/dsl v0.3.23 // indirect
 	github.com/quasilyte/gogrep v0.5.0 // indirect
 	github.com/quasilyte/regex/syntax v0.0.0-20210819130434-b3f0c404a727 // indirect
 	github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 // indirect

@@ -18,6 +18,7 @@ import (
 	"github.com/takezoh/agent-roost/platform/config"
 	"github.com/takezoh/agent-roost/platform/hostexec"
 	"github.com/takezoh/agent-roost/platform/mcpproxy"
+	"github.com/takezoh/agent-roost/platform/secretenv"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 	"github.com/takezoh/credproxy/providers/awssso"
@@ -206,7 +207,11 @@ func buildToolProviders(
 		mcpproxy.Config{RunBase: runBase, ContainerSockPath: paths.MCPSock, ContainerBinPath: paths.BinPath, WorkspaceFolderFor: wsFolderFor},
 		func(p string) config.MCPProxyConfig { return resolveSandbox(p).Proxy.MCPProxy },
 	)
-	return []container.Provider{he, mcp}
+	se := secretenv.NewSpecBuilder(ctx,
+		secretenv.Config{RunBase: runBase, ContainerRunDir: paths.RunDir, ContainerBinPath: paths.BinPath},
+		func(p string) config.SecretEnvConfig { return resolveSandbox(p).Proxy.SecretEnv },
+	)
+	return []container.Provider{he, mcp, se}
 }
 
 // ContainerSpec fans out to all providers and merges their Env, Mounts, and BridgeSpecs.

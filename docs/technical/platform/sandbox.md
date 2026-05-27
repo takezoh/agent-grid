@@ -121,7 +121,7 @@ Bind-mounts are declared in devcontainer.json `mounts`. `sandbox/` does not have
 
 In devcontainer mode roost always runs an in-process HTTP server backed by the `credproxy` library. The server listens on `<dataDir>/run/credproxy.sock` on the host and is bind-mounted per project into each container at `/opt/roost/run/credproxy.sock`. Its lifetime is tied to the roost process — no external daemon is needed. Each provider self-gates on its own configuration and contributes nothing to the container when its settings are empty.
 
-Providers come from two sources: the external `credproxy` library's `providers/<name>/` packages (AWS SSO, gcloud, ssh-agent) and the local `hostexec/` package (host-exec broker — not a credential, but uses the same `container.Provider` interface). Each provider contributes to the runtime by:
+Providers come from two sources: the external `credproxy` library's `providers/<name>/` packages (AWS SSO, gcloud, ssh-agent) and local packages — `hostexec/` (host-exec broker), `mcpproxy/` (MCP proxy), `secretenv/` (secret env resolver) — all using the same `container.Provider` interface. Each provider contributes to the runtime by:
 
 1. Building a `container.Spec` (env vars to inject, files to materialize under the per-project run dir, optional bind-mounts).
 2. Optionally registering an HTTP route on the proxy server (AWS SSO uses this; others rely on bind-mounts only).
@@ -180,6 +180,26 @@ The `mcpproxy` provider runs MCP server processes on the host and relays JSON-RP
 **Policy (deny-first, default-deny):** patterns match the tool name directly with `*` as wildcard. User-scope and project-scope server definitions are merged; project entries override user entries on the same alias.
 
 **Container env var:** `ROOST_MCP_SOCK=/opt/roost/run/mcp.sock` (set when any server is configured).
+
+### Secret env resolver
+
+`secretenv` lets an in-session command (`credproxy run --env-file X -- cmd`) resolve opaque references in an env-file and inject the real values into a **single subprocess** environment. The design follows the `op run --env-file` model.
+
+This is an **intentional exception** to the "long-lived secrets stay on host" invariant. The resolved value enters the subprocess env for its lifetime only and never persists in the container env, session env, or any file. The trade-off is explicit and scoped.
+
+**Bare-host** (no devcontainer, trusted user): the real `credproxy` binary resolves locally via the configured hook. No gate.
+
+**Container**: a shim script named `credproxy` (placed in `<projRunDir>/secretenv-shims/`, prepended to `PATH`) impersonates `credproxy run`. The shim calls `roost-bridge secret-run`, which connects to a per-project host broker socket. The broker:
+
+1. Gates the request by checking the env-file path against a per-project `filepath.Match` allowlist (default-deny, host config, container cannot modify).
+2. Reads the env-file on the host.
+3. Resolves each reference via the configured hook (`stdin: {"ref":"..."} → stdout: {"value":"...","expires_in_sec":N}`).
+4. Returns the resolved `{name: value}` map over the Unix socket.
+5. The shim merges resolved values into `os.Environ()` and `syscall.Exec`s the target command.
+
+The container sends only the env-file path. Vault credentials and hook configuration never leave the host.
+
+**Gate details:** `filepath.Match` glob patterns, single-level `*` only (does not cross `/`). Empty allowlist = default-deny. Patterns are evaluated against the raw path sent by the container — paths are not cleaned by the broker; callers should send canonical paths.
 
 ### Subscription credentials (interactive auth)
 

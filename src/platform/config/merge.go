@@ -13,6 +13,9 @@ package config
 //   - Proxy.HostExec.Allow/Deny: user + project concat
 //   - Proxy.HostExec.Overlay: user + project concat, duplicates removed
 //   - Proxy.MCPProxy.Servers: user + project concat; project server overrides user on same alias
+//   - Proxy.SecretEnv.Hook: user wins when non-empty, project fallback
+//   - Proxy.SecretEnv.HookTimeoutSec: user wins when non-zero, project fallback
+//   - Proxy.SecretEnv.Allow: user + project concat
 func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	if project == nil {
 		return user
@@ -39,6 +42,7 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 			MCPProxy: MCPProxyConfig{
 				Servers: mergeMCPServerMap(user.Proxy.MCPProxy.Servers, project.Proxy.MCPProxy.Servers),
 			},
+			SecretEnv: mergeSecretEnv(user.Proxy.SecretEnv, project.Proxy.SecretEnv),
 		},
 	}
 	if project.Mode != "" {
@@ -64,6 +68,21 @@ func MergeSandbox(user SandboxConfig, project *SandboxConfig) SandboxConfig {
 	}
 	if len(project.Proxy.SSHAgent.Keys) > 0 {
 		out.Proxy.SSHAgent.Keys = project.Proxy.SSHAgent.Keys
+	}
+	return out
+}
+
+func mergeSecretEnv(user, project SecretEnvConfig) SecretEnvConfig {
+	out := SecretEnvConfig{
+		Hook:           user.Hook,
+		HookTimeoutSec: user.HookTimeoutSec,
+		Allow:          appendSlice(user.Allow, project.Allow),
+	}
+	if len(out.Hook) == 0 {
+		out.Hook = project.Hook
+	}
+	if out.HookTimeoutSec == 0 {
+		out.HookTimeoutSec = project.HookTimeoutSec
 	}
 	return out
 }
