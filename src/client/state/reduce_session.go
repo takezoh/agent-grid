@@ -226,7 +226,7 @@ func reduceForkSession(s State, connID ConnID, reqID string, p ForkSessionParams
 	if !ok {
 		return s, errEff
 	}
-	return buildForkSession(s, connID, reqID, sess, sid, rootF, rootDrv, forkDrv, forkCommand)
+	return buildForkSession(s, connID, reqID, sess, rootF, rootDrv, forkDrv, forkCommand)
 }
 
 // resolveForkDrv looks up and validates drivers for a fork operation.
@@ -259,7 +259,7 @@ func resolveForkDrv(s State, connID ConnID, reqID string, rootF SessionFrame) (D
 // not forkCommand (the bootstrap invocation including --resume/--fork-session).
 // This ensures Cold Start calls PrepareLaunch with the base command and lets the driver
 // reconstruct the correct --resume <fork-id> command from persisted state.
-func buildForkSession(s State, connID ConnID, reqID string, sess Session, sid SessionID, rootF SessionFrame, rootDrv, forkDrv Driver, forkCommand string) (State, []Effect) {
+func buildForkSession(s State, connID ConnID, reqID string, sess Session, rootF SessionFrame, rootDrv, forkDrv Driver, forkCommand string) (State, []Effect) {
 	opts := LaunchOptions{Worktree: WorktreeOption{Enabled: false}}
 	forkable := rootDrv.(Forkable) // already validated in resolveForkDrv
 	driverState := forkable.ForkChildState(rootF.Driver, s.Now)

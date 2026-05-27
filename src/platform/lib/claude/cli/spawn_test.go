@@ -28,6 +28,30 @@ func TestResumeCommand(t *testing.T) {
 	}
 }
 
+func TestForkCommand(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     string
+		parentID string
+		want     string
+	}{
+		{"empty parent id returns base unchanged", "claude", "", "claude"},
+		{"non-empty appends --resume and --fork-session", "claude", "abc-123", "claude --resume abc-123 --fork-session"},
+		{"strips --worktree on fork", "claude --worktree", "abc", "claude --resume abc --fork-session"},
+		{"strips --worktree NAME on fork", "claude --worktree foo", "abc", "claude --resume abc --fork-session"},
+		{"strips --worktree=NAME on fork", "claude --worktree=foo", "abc", "claude --resume abc --fork-session"},
+		{"keeps subsequent flag after --worktree", "claude --worktree --verbose", "abc", "claude --verbose --resume abc --fork-session"},
+		{"empty base + empty parent stays empty", "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ForkCommand(tt.base, tt.parentID); got != tt.want {
+				t.Errorf("ForkCommand(%q, %q) = %q, want %q", tt.base, tt.parentID, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStripWorktreeFlag(t *testing.T) {
 	tests := []struct {
 		name string
