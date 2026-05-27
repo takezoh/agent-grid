@@ -45,9 +45,33 @@ func ResolveTarget(dir string, extensions []string) string {
 	return targets[0]
 }
 
+// wslDistro returns the WSL distribution name from the environment, or an
+// empty string when the process is not running inside WSL.
+func wslDistro() string {
+	return os.Getenv("WSL_DISTRO_NAME")
+}
+
+// toEditorTarget converts target to a Windows UNC path when running in WSL,
+// so Windows editors receive a path they can resolve to the correct WSL remote
+// (e.g. \\wsl.localhost\Ubuntu-22.04\workspace\project).
+// Falls back to the original target when not in WSL or when wslpath fails.
+func toEditorTarget(target string) string {
+	if wslDistro() == "" {
+		return target
+	}
+	out, err := exec.Command("wslpath", "-w", target).Output()
+	if err != nil {
+		slog.Warn("editor: wslpath failed; using original path", "err", err, "target", target)
+		return target
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // Launch starts the editor named by command on target and returns
 // without waiting for it to exit. command may include flags
 // (e.g. "code --reuse-window"); they are split on whitespace.
+// When running in WSL, target is automatically converted to a Windows UNC
+// path via wslpath so Windows editors open the folder via Remote-WSL.
 func Launch(command, target string) error {
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
@@ -58,10 +82,11 @@ func Launch(command, target string) error {
 	if err != nil {
 		return fmt.Errorf("editor: %q not found in PATH: %w", bin, err)
 	}
+	editorTarget := toEditorTarget(target)
 	args := make([]string, 0, len(parts[1:])+1)
 	args = append(args, parts[1:]...)
-	args = append(args, target)
-	slog.Info("editor: launching", "bin", resolved, "target", target)
+	args = append(args, editorTarget)
+	slog.Info("editor: launching", "bin", resolved, "target", editorTarget, "wsl", wslDistro())
 	cmd := exec.CommandContext(context.Background(), resolved, args...)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("editor: start %s: %w", resolved, err)
