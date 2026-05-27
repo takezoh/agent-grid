@@ -24,6 +24,17 @@ type Config struct {
 	Notifications NotificationsConfig           `toml:"notifications"`
 	Sandbox       platformconfig.SandboxConfig  `toml:"sandbox"`
 	Codex         CodexConfig                   `toml:"codex"`
+	Editor        EditorConfig                  `toml:"editor"`
+}
+
+// EditorConfig holds settings for opening projects in an editor.
+type EditorConfig struct {
+	// Command is the editor executable to launch (e.g. "code", "code-insiders",
+	// "cursor"). It may include flags: "code --reuse-window". Defaults to "code".
+	Command string `toml:"command"`
+	// Extensions is the list of file extensions that, if found in the project
+	// root, cause the editor to open that file instead of the directory.
+	Extensions []string `toml:"extensions"`
 }
 
 // CodexConfig holds settings for the Codex app-server integration.
@@ -131,6 +142,10 @@ func DefaultConfig() *Config {
 			DefaultCommand: "shell",
 			Commands:       []string{"shell"},
 			PushCommands:   []string{"shell"},
+		},
+		Editor: EditorConfig{
+			Command:    "code",                      // "code" is the VS Code CLI binary
+			Extensions: []string{".code-workspace"}, // VS Code workspace file extension
 		},
 		Projects: platformconfig.ProjectsConfig{},
 		Sandbox: platformconfig.SandboxConfig{

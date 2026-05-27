@@ -181,10 +181,12 @@ func runPalette(args []string) error { //nolint:funlen
 	mainHasDriver := activeID != "" && activeOccupant == proto.OccupantFrame
 	mainHasForkable := false
 	var activeProject string
+	var activeProjectPath string
 
 	if activeID != "" {
 		for _, s := range sessions {
 			if s.ID == activeID {
+				activeProjectPath = s.Project
 				if scopeProject {
 					activeProject = tools.ProjectDisplayName(s.Project)
 					prefill["project"] = s.Project
@@ -208,6 +210,7 @@ func runPalette(args []string) error { //nolint:funlen
 		MainHasDriverFrame:    mainHasDriver,
 		MainHasForkableDriver: mainHasForkable,
 		PushCommands:          cfg.Session.PushCommands,
+		HasActiveProject:      activeProjectPath != "",
 	})
 	roots := make([]string, len(cfg.Projects.ProjectRoots))
 	for i, r := range cfg.Projects.ProjectRoots {
@@ -221,6 +224,14 @@ func runPalette(args []string) error { //nolint:funlen
 			Commands:       cfg.Session.Commands,
 			Projects:       cfg.ListProjects(),
 			ProjectRoots:   roots,
+			ActiveProject:  activeProjectPath,
+
+			Editor: tools.EditorConfig{
+
+				Command: cfg.Editor.Command,
+
+				Extensions: cfg.Editor.Extensions,
+			},
 		},
 		Args:               prefill,
 		IsGitProject:       git.IsRepo,

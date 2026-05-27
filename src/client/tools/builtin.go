@@ -8,10 +8,13 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/takezoh/agent-roost/client/lib/editor"
 	"github.com/takezoh/agent-roost/client/proto"
 	"github.com/takezoh/agent-roost/client/state"
 	"github.com/takezoh/agent-roost/platform/features"
 )
+
+var editorLaunch = editor.Launch
 
 // PaletteScope controls which tool set DefaultRegistry registers.
 type PaletteScope int
@@ -36,6 +39,9 @@ type PaletteContext struct {
 	// PushCommands is the list from settings.toml [session].push_commands.
 	// Each entry becomes a separate palette item when MainHasDriverFrame is true.
 	PushCommands []string
+	// HasActiveProject is true when an active session's project path is known.
+	// Gates open-editor so the tool is hidden when no project is resolvable.
+	HasActiveProject bool
 }
 
 // DefaultRegistry returns the built-in palette tool set.
@@ -53,6 +59,9 @@ func DefaultRegistry(feats features.Set, pctx ...PaletteContext) *Registry {
 	}
 	if pc.Scope == ScopeProject {
 		registerProjectTools(r, pc)
+	}
+	if pc.HasActiveProject {
+		registerOpenInEditor(r)
 	}
 	return r
 }
@@ -239,4 +248,23 @@ func makeProjectDir(roots []string, root, name string) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+func registerOpenInEditor(r *Registry) {
+	r.Register(Tool{
+		Name:        "open-editor",
+		Description: "Open project in editor",
+		Run: func(ctx *ToolContext, _ map[string]string) (*ToolInvocation, error) {
+			path := ctx.Config.ActiveProject
+			if path == "" {
+				return nil, fmt.Errorf("no active project")
+			}
+			target := editor.ResolveTarget(path, ctx.Config.Editor.Extensions)
+			cmd := ctx.Config.Editor.Command
+			if cmd == "" {
+				cmd = "code"
+			}
+			return nil, editorLaunch(cmd, target)
+		},
+	})
 }

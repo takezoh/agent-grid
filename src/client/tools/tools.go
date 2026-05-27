@@ -50,11 +50,25 @@ type ToolContext struct {
 	IsSandboxedProject func(path string) bool // nil-safe; injected by main
 }
 
+// EditorConfig carries the editor launch settings sourced from the [editor]
+// section of settings.toml.
+type EditorConfig struct {
+	// Command is the editor executable, e.g. "code" (VS Code CLI), "cursor",
+	// "code-insiders". May include flags: "code --reuse-window".
+	Command string
+	// Extensions is the list of file suffixes (e.g. ".code-workspace") that,
+	// when found in the project root, cause the editor to open the file
+	// instead of the directory.
+	Extensions []string
+}
+
 type ToolConfig struct {
 	DefaultCommand string
 	Commands       []string
 	Projects       []string
 	ProjectRoots   []string
+	ActiveProject  string
+	Editor         EditorConfig
 }
 
 // Registry holds the tools available to the palette.

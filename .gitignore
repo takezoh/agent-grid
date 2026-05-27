@@ -13,6 +13,7 @@ src/claude-app-server
 # (trailing slash = dirs only) so their sources are tracked; the binaries, being
 # regular files, stay ignored.
 !src/orchestrator/
+!src/cmd/roost/
 !src/cmd/roost-bridge/
 notify.ps1
 roost.log

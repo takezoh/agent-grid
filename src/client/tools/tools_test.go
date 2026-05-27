@@ -1,6 +1,9 @@
 package tools
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -249,5 +252,109 @@ func TestMatchMultiToken(t *testing.T) {
 		if len(m.Indexes) != 0 {
 			t.Error("all-whitespace query should produce no match indexes")
 		}
+	}
+}
+
+var defaultEditorCfg = EditorConfig{
+	Command:    "code",
+	Extensions: []string{".code-workspace"},
+}
+
+func TestOpenEditorHiddenWithoutActiveProject(t *testing.T) {
+	for _, scope := range []PaletteScope{ScopeStandard, ScopeProject} {
+		r := DefaultRegistry(features.Set{}, PaletteContext{Scope: scope, HasActiveProject: false})
+		if r.Get("open-editor") != nil {
+			t.Errorf("scope %v: open-editor should not be registered when HasActiveProject=false", scope)
+		}
+	}
+}
+
+func TestOpenEditorVisibleWithActiveProject(t *testing.T) {
+	for _, scope := range []PaletteScope{ScopeStandard, ScopeProject} {
+		r := DefaultRegistry(features.Set{}, PaletteContext{Scope: scope, HasActiveProject: true})
+		if r.Get("open-editor") == nil {
+			t.Errorf("scope %v: open-editor should be registered when HasActiveProject=true", scope)
+		}
+	}
+}
+
+func TestOpenEditorRunOpensFolder(t *testing.T) {
+	dir := t.TempDir()
+	var gotCmd, gotTarget string
+	origLaunch := editorLaunch
+	editorLaunch = func(cmd, target string) error {
+		gotCmd, gotTarget = cmd, target
+		return nil
+	}
+	t.Cleanup(func() { editorLaunch = origLaunch })
+
+	r := DefaultRegistry(features.Set{}, PaletteContext{HasActiveProject: true})
+	tool := r.Get("open-editor")
+	if tool == nil {
+		t.Fatal("open-editor not found")
+	}
+	ctx := &ToolContext{Config: ToolConfig{ActiveProject: dir, Editor: defaultEditorCfg}}
+	if _, err := tool.Run(ctx, nil); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if gotCmd != "code" {
+		t.Errorf("command = %q, want code", gotCmd)
+	}
+	if gotTarget != dir {
+		t.Errorf("target = %q, want dir %q (no workspace file)", gotTarget, dir)
+	}
+}
+
+func TestOpenEditorRunOpensWorkspaceFile(t *testing.T) {
+	dir := t.TempDir()
+	ws := filepath.Join(dir, "myproject.code-workspace")
+	if err := os.WriteFile(ws, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var gotTarget string
+	origLaunch := editorLaunch
+	editorLaunch = func(_, target string) error { gotTarget = target; return nil }
+	t.Cleanup(func() { editorLaunch = origLaunch })
+
+	r := DefaultRegistry(features.Set{}, PaletteContext{HasActiveProject: true})
+	tool := r.Get("open-editor")
+	ctx := &ToolContext{Config: ToolConfig{ActiveProject: dir, Editor: defaultEditorCfg}}
+	if _, err := tool.Run(ctx, nil); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if gotTarget != ws {
+		t.Errorf("target = %q, want workspace file %q", gotTarget, ws)
+	}
+}
+
+func TestOpenEditorRunFallsBackToCodeWhenCommandEmpty(t *testing.T) {
+	dir := t.TempDir()
+	var gotCmd string
+	origLaunch := editorLaunch
+	editorLaunch = func(cmd, _ string) error { gotCmd = cmd; return nil }
+	t.Cleanup(func() { editorLaunch = origLaunch })
+
+	r := DefaultRegistry(features.Set{}, PaletteContext{HasActiveProject: true})
+	tool := r.Get("open-editor")
+	ctx := &ToolContext{Config: ToolConfig{ActiveProject: dir, Editor: EditorConfig{Extensions: []string{".code-workspace"}}}}
+	if _, err := tool.Run(ctx, nil); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if gotCmd != "code" {
+		t.Errorf("fallback command = %q, want code", gotCmd)
+	}
+}
+
+func TestOpenEditorRunErrorsWithNoActiveProject(t *testing.T) {
+	origLaunch := editorLaunch
+	editorLaunch = func(_, _ string) error { return fmt.Errorf("should not be called") }
+	t.Cleanup(func() { editorLaunch = origLaunch })
+
+	r := DefaultRegistry(features.Set{}, PaletteContext{HasActiveProject: true})
+	tool := r.Get("open-editor")
+	ctx := &ToolContext{Config: ToolConfig{ActiveProject: "", Editor: defaultEditorCfg}}
+	if _, err := tool.Run(ctx, nil); err == nil {
+		t.Error("Run with empty ActiveProject should return error")
 	}
 }
