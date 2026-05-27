@@ -3,16 +3,16 @@ package secretenv
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/takezoh/agent-roost/platform/config"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
-	"github.com/takezoh/credproxy/secretenv"
 )
 
 const (
@@ -28,7 +28,8 @@ type Config struct {
 }
 
 // SpecBuilder implements container.Provider for secret env-file resolution.
-// It starts a per-project Unix socket broker and injects a "credproxy" shim into PATH.
+// It starts a per-project Unix socket broker that gates requests by env-file
+// path allowlist and delegates resolution to the host `credproxy resolve` binary.
 type SpecBuilder struct {
 	ctx    context.Context
 	cfg    Config
@@ -60,10 +61,17 @@ func (b *SpecBuilder) Routes() []credproxylib.Route { return nil }
 
 // ContainerSpec starts (or reuses) the per-project broker, writes the credproxy shim,
 // and injects the shims directory into PATH.
-// Returns an empty Spec when no hook is configured for the project.
+// Returns an empty Spec when no allow patterns are configured for the project,
+// or when the host credproxy binary cannot be found.
 func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (container.Spec, error) {
 	cfg := b.cfgFor(projectPath)
-	if len(cfg.Hook) == 0 {
+	if len(cfg.Allow) == 0 {
+		return container.Spec{}, nil
+	}
+
+	credproxyBin, err := exec.LookPath("credproxy")
+	if err != nil {
+		slog.Warn("secretenv: credproxy not found on host PATH; feature inactive", "project", projectPath, "err", err)
 		return container.Spec{}, nil
 	}
 
@@ -72,10 +80,7 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 		return container.Spec{}, fmt.Errorf("secretenv: mkdir run dir: %w", err)
 	}
 
-	timeout := hookTimeout(cfg.HookTimeoutSec)
-	hook := secretenv.NewScriptHook(cfg.Hook, timeout)
-
-	if err := b.ensureBroker(projectPath, projRunDir, cfg.Allow, hook, timeout); err != nil {
+	if err := b.ensureBroker(projectPath, projRunDir, cfg.Allow, credproxyBin); err != nil {
 		return container.Spec{}, err
 	}
 
@@ -93,13 +98,13 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 	}, nil
 }
 
-func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, allow []string, hook secretenv.Hook, timeout time.Duration) error {
+func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, allow []string, credproxyBin string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if br, ok := b.brokers[projectPath]; ok {
-		// Update gate and hook on config change. setConfig uses broker's own
+		// Update gate and binary on config change. setConfig uses broker's own
 		// RWMutex so concurrent resolve() calls see a consistent update.
-		br.setConfig(NewGate(allow), hook, timeout)
+		br.setConfig(NewGate(allow), credproxyBin)
 		return nil
 	}
 
@@ -112,13 +117,12 @@ func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, allow []strin
 	}
 
 	br := &broker{
-		ctx:     b.ctx,
-		sock:    sockPath,
-		ln:      ln,
-		project: projectPath,
-		gate:    NewGate(allow),
-		hook:    hook,
-		timeout: timeout,
+		ctx:          b.ctx,
+		sock:         sockPath,
+		ln:           ln,
+		project:      projectPath,
+		gate:         NewGate(allow),
+		credproxyBin: credproxyBin,
 		onStop: func() {
 			b.mu.Lock()
 			delete(b.brokers, projectPath)
@@ -146,13 +150,6 @@ func writeShim(shimDir, containerBinPath string) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return os.Chmod(path, 0o755)
-}
-
-func hookTimeout(sec int) time.Duration {
-	if sec > 0 {
-		return time.Duration(sec) * time.Second
-	}
-	return 10 * time.Second
 }
 
 func (b *SpecBuilder) watchShutdown(ctx context.Context) {

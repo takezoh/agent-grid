@@ -192,12 +192,11 @@ This is an **intentional exception** to the "long-lived secrets stay on host" in
 **Container**: a shim script named `credproxy` (placed in `<projRunDir>/secretenv-shims/`, prepended to `PATH`) impersonates `credproxy run`. The shim calls `roost-bridge secret-run`, which connects to a per-project host broker socket. The broker:
 
 1. Gates the request by checking the env-file path against a per-project `filepath.Match` allowlist (default-deny, host config, container cannot modify).
-2. Reads the env-file on the host.
-3. Resolves each reference via the configured hook (`stdin: {"ref":"..."} → stdout: {"value":"...","expires_in_sec":N}`).
-4. Returns the resolved `{name: value}` map over the Unix socket.
-5. The shim merges resolved values into `os.Environ()` and `syscall.Exec`s the target command.
+2. Delegates resolution to the host `credproxy resolve --env-file <path>` binary.
+3. Returns the resolved `{name: value}` map over the Unix socket.
+4. The shim merges resolved values into `os.Environ()` and `syscall.Exec`s the target command.
 
-The container sends only the env-file path. Vault credentials and hook configuration never leave the host.
+The container sends only the env-file path. Hook backend (op/mise/vault) and its configuration live entirely in credproxy (`~/.config/credproxy/config.toml`); roost has no knowledge of it. The `credproxy resolve` output contains only env-file-declared secrets — host environment variables are never included.
 
 **Gate details:** `filepath.Match` glob patterns, single-level `*` only (does not cross `/`). Empty allowlist = default-deny. Patterns are evaluated against the raw path sent by the container — paths are not cleaned by the broker; callers should send canonical paths.
 

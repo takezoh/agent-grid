@@ -140,7 +140,7 @@ sequenceDiagram
     participant RB as roost-bridge secret-run
     participant BR as host broker
     participant GE as Gate
-    participant HK as hook (subprocess)
+    participant CP as credproxy resolve<br/>(host binary)
 
     SH->>RB: exec with "run --env-file X -- cmd"
     RB->>BR: connect (unix socket) + Request{env_file_path}
@@ -150,11 +150,8 @@ sequenceDiagram
         BR-->>RB: Response{error}
         RB-->>SH: exit 1
     else allowed
-        BR->>BR: read env-file on host
-        loop each ref in env-file
-            BR->>HK: stdin: {"ref":"..."}
-            HK-->>BR: stdout: {"value":"...","expires_in_sec":N}
-        end
+        BR->>CP: credproxy resolve --env-file <path>
+        CP-->>BR: stdout: {"env":{"K":"V",...}}
         BR-->>RB: Response{env: {K:V,...}}
         RB->>RB: merge into os.Environ()
         RB->>RB: syscall.Exec(cmd, args, merged_env)
@@ -163,11 +160,11 @@ sequenceDiagram
 
 **Container shim** (`secretenv-shims/credproxy`): a shell script that calls `roost-bridge secret-run "$@"`. It is written to `<projRunDir>/secretenv-shims/` and prepended to container `PATH`, so existing scripts that call `credproxy run` work without modification.
 
-**Broker** (`platform/secretenv/broker.go`): per-project Unix socket server (`<projRunDir>/secretenv.sock`, bind-mounted at `/opt/roost/run/secretenv.sock`). Each connection is handled in its own goroutine. `gate`, `hook`, and `timeout` fields are guarded by a `sync.RWMutex` so concurrent request handling during config reload is race-free.
+**Broker** (`platform/secretenv/broker.go`): per-project Unix socket server (`<projRunDir>/secretenv.sock`, bind-mounted at `/opt/roost/run/secretenv.sock`). Each connection is handled in its own goroutine. `gate` and `credproxyBin` are guarded by a `sync.RWMutex` so concurrent request handling during config reload is race-free. After the gate passes, the broker execs `credproxy resolve --env-file <path>` on the host and parses its JSON output.
 
 **Gate** (`platform/secretenv/gate.go`): `filepath.Match` allowlist, default-deny. `*` matches within a single path segment only — does not cross `/`. Patterns are evaluated against the raw container-supplied path.
 
-**Hook protocol** (same as `credproxy/cmd/credproxyd/providers/script`): `stdin: {"ref":"..."}`, `stdout: {"value":"...","expires_in_sec":N}`. Exit 0 = success; non-zero = error with stderr forwarded. Per-ref TTL cache with 30-second safety margin; singleflight dedup for concurrent identical refs.
+**Resolution**: entirely credproxy's concern. Hook backend (op/mise/vault) and its configuration (`~/.config/credproxy/config.toml`) are never known to roost. roost's role is gate + socket plumbing only. The `credproxy resolve` output contains only env-file-declared secrets; host environment variables are never included.
 
 **Bare-host path**: the real `credproxy run` binary resolves locally with no gate. The shim/broker path is only active inside a devcontainer.
 

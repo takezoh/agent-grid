@@ -6,11 +6,14 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
-
-	"github.com/takezoh/credproxy/secretenv"
 )
+
+// resolveTimeout is roost's safety bound on the credproxy resolve subprocess.
+// The actual hook timeout is credproxy's concern (credproxy config).
+const resolveTimeout = 30 * time.Second
 
 // broker is a per-project unix socket server that gates and resolves secret env-files.
 type broker struct {
@@ -20,21 +23,19 @@ type broker struct {
 	project string
 	onStop  func()
 
-	// mu guards gate, hook, and timeout. These fields may be updated by
-	// ensureBroker (under SpecBuilder.mu) while resolve() runs concurrently
-	// in connection-handler goroutines, so a broker-level RWMutex is required.
-	mu      sync.RWMutex
-	gate    *Gate
-	hook    secretenv.Hook
-	timeout time.Duration
+	// mu guards gate and credproxyBin. These fields may be updated by ensureBroker
+	// (under SpecBuilder.mu) while resolve() runs concurrently in connection-handler
+	// goroutines, so a broker-level RWMutex is required.
+	mu           sync.RWMutex
+	gate         *Gate
+	credproxyBin string
 }
 
-func (b *broker) setConfig(gate *Gate, hook secretenv.Hook, timeout time.Duration) {
+func (b *broker) setConfig(gate *Gate, credproxyBin string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.gate = gate
-	b.hook = hook
-	b.timeout = timeout
+	b.credproxyBin = credproxyBin
 }
 
 func (b *broker) serve() {
@@ -76,8 +77,7 @@ func (b *broker) handleConn(conn net.Conn) {
 func (b *broker) resolve(req Request) Response {
 	b.mu.RLock()
 	gate := b.gate
-	hook := b.hook
-	timeout := b.timeout
+	bin := b.credproxyBin
 	b.mu.RUnlock()
 
 	if err := gate.Check(req.EnvFilePath); err != nil {
@@ -85,16 +85,23 @@ func (b *broker) resolve(req Request) Response {
 		return Response{Error: err.Error()}
 	}
 
-	ctx, cancel := context.WithTimeout(b.ctx, timeout)
+	ctx, cancel := context.WithTimeout(b.ctx, resolveTimeout)
 	defer cancel()
 
-	resolver := secretenv.NewResolver(hook)
-	env, err := resolver.ResolveFile(ctx, req.EnvFilePath)
+	out, err := exec.CommandContext(ctx, bin, "resolve", "--env-file", req.EnvFilePath).Output()
 	if err != nil {
-		slog.Warn("secretenv: resolve failed", "project", b.project, "path", req.EnvFilePath, "err", err)
+		slog.Warn("secretenv: credproxy resolve failed", "project", b.project, "path", req.EnvFilePath, "err", err)
 		return Response{Error: err.Error()}
 	}
-	return Response{Env: env}
+
+	var result struct {
+		Env map[string]string `json:"env"`
+	}
+	if err := json.Unmarshal(out, &result); err != nil {
+		slog.Warn("secretenv: parse resolve output", "project", b.project, "err", err)
+		return Response{Error: "invalid resolve output"}
+	}
+	return Response{Env: result.Env}
 }
 
 func writeResponse(conn net.Conn, resp Response) {

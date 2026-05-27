@@ -227,3 +227,30 @@ func TestMergeMCPServers_nilProject(t *testing.T) {
 		t.Error("expected key 'obs' in result")
 	}
 }
+
+func TestMergeSecretEnv_allowConcat(t *testing.T) {
+	user := SecretEnvConfig{Allow: []string{"/home/user/*.env"}}
+	project := SecretEnvConfig{Allow: []string{"/workspace/*.env"}}
+	got := mergeSecretEnv(user, project)
+	if len(got.Allow) != 2 {
+		t.Errorf("Allow = %v, want 2 entries (user+project concat)", got.Allow)
+	}
+	if got.Allow[0] != "/home/user/*.env" || got.Allow[1] != "/workspace/*.env" {
+		t.Errorf("unexpected Allow order: %v", got.Allow)
+	}
+}
+
+func TestMergeSecretEnv_projectEmpty(t *testing.T) {
+	user := SecretEnvConfig{Allow: []string{"/home/user/*.env"}}
+	got := mergeSecretEnv(user, SecretEnvConfig{})
+	if len(got.Allow) != 1 || got.Allow[0] != "/home/user/*.env" {
+		t.Errorf("Allow = %v, want user allow unchanged", got.Allow)
+	}
+}
+
+func TestMergeSecretEnv_bothEmpty(t *testing.T) {
+	got := mergeSecretEnv(SecretEnvConfig{}, SecretEnvConfig{})
+	if len(got.Allow) != 0 {
+		t.Errorf("Allow = %v, want empty", got.Allow)
+	}
+}

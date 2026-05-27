@@ -222,33 +222,32 @@ TF_VAR_api_key=op://infra/api/key
 AWS_ACCESS_KEY_ID=AKIA...           # plain value, passed through
 ```
 
-Configure the hook and allowlist in `~/.roost/settings.toml` (user scope) or `<project>/.roost/settings.toml` (project scope):
+Configure the **allowlist** in `~/.roost/settings.toml` (user scope) or `<project>/.roost/settings.toml` (project scope):
 
 ```toml
 [sandbox.proxy.secret_env]
-# hook: command that resolves one reference per invocation.
-# stdin: {"ref":"..."} → stdout: {"value":"...","expires_in_sec":N}
-# Exit 0 = success; non-zero = error.
-hook = ["op", "run", "--no-masking", "--", "sh", "-c", "echo {\"value\":\"$OP_SESSION\"}"]
-
-# Alternatively, use a wrapper script:
-hook = ["/usr/local/bin/resolve-secret"]
-
-# hook_timeout_sec: per-call timeout (default: 10).
-hook_timeout_sec = 15
-
 # allow: env-file paths the container is permitted to request.
 # Uses filepath.Match — '*' matches within one path segment only, not recursively.
-# Default-deny when empty.
+# Default-deny when empty. Feature is inactive when no patterns are listed.
 allow = [
   "/workspace/myproject/*.env",
   "/home/user/.secrets/*.env",
 ]
 ```
 
-User-scope `hook` takes precedence over project-scope `hook`. `allow` lists are concatenated — project entries extend the user allowlist, never replace it.
+`allow` lists are concatenated across user and project scope — project entries extend the user allowlist, never replace it.
 
-**Bare-host** (no devcontainer, running directly on the host): the real `credproxy` binary is used and there is no gate — all env-files are accessible. Configure hook in `~/.config/credproxy/config.toml`.
+**Hook configuration** (which backend resolves the references: op/mise/vault) lives in credproxy's own config, not roost's. Configure it in `~/.config/credproxy/config.toml`:
+
+```toml
+# ~/.config/credproxy/config.toml
+hook = ["/usr/local/bin/resolve-secret"]
+hook_timeout_sec = 15
+```
+
+This config is shared by bare-host `credproxy run` and the container broker — a single source of truth.
+
+**Bare-host** (no devcontainer, running directly on the host): the real `credproxy` binary is used and there is no gate — all env-files are accessible.
 
 **Security note:** resolved secret values enter the subprocess environment for its lifetime only. They do not persist in the container env, session env, or any file. The hook binary and allowlist reside on the host and cannot be modified by container code.
 

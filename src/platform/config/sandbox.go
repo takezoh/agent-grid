@@ -73,9 +73,10 @@ type ProxyConfig struct {
 }
 
 // SecretEnvConfig configures the host-gated secret reference resolver.
-// When configured, a per-project Unix socket broker resolves opaque references
-// from an env-file via a pluggable host hook and injects real values into a
-// subprocess environment. Resolution is gated by an env-file path allowlist.
+// When configured, a per-project Unix socket broker gates container requests
+// by env-file path and delegates resolution to the host `credproxy resolve`
+// binary. The hook backend (op/mise/vault) is configured entirely in
+// credproxy's own config (~/.config/credproxy/config.toml).
 //
 // This is an intentional exception to the "long-lived secrets stay on host"
 // invariant: the resolved value enters the subprocess env for its lifetime only.
@@ -84,12 +85,6 @@ type ProxyConfig struct {
 // Container users run the roost-provided `credproxy` shim, which brokers to
 // this host-side resolver.
 type SecretEnvConfig struct {
-	// Hook is the command executed per secret reference resolution.
-	// Protocol: stdin={"ref":"..."}, stdout={"value":"...","expires_in_sec":N}.
-	// Exit 0 = success; non-zero = error (stderr forwarded).
-	Hook []string `toml:"hook"`
-	// HookTimeoutSec is the per-invocation timeout (default: 10).
-	HookTimeoutSec int `toml:"hook_timeout_sec"`
 	// Allow is the list of env-file path patterns the container may request.
 	// Uses filepath.Match glob syntax; default-deny when empty.
 	// '*' matches within a single path segment only — it does NOT cross '/'.
