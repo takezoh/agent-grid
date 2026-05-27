@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 
@@ -74,20 +73,10 @@ type MonitorConfig struct {
 }
 
 type SessionConfig struct {
-	AutoName       bool              `toml:"auto_name"`
-	DefaultCommand string            `toml:"default_command"`
-	Commands       []string          `toml:"commands"`
-	PushCommands   []string          `toml:"push_commands"`
-	Aliases        map[string]string `toml:"aliases"`
-}
-
-// ResolveAlias expands a command string through the alias map.
-func (s SessionConfig) ResolveAlias(command string) string {
-	command = strings.TrimSpace(command)
-	if expanded, ok := s.Aliases[command]; ok {
-		return expanded
-	}
-	return command
+	AutoName       bool     `toml:"auto_name"`
+	DefaultCommand string   `toml:"default_command"`
+	Commands       []string `toml:"commands"`
+	PushCommands   []string `toml:"push_commands"`
 }
 
 func LoadFrom(path string) (*Config, error) {

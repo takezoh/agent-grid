@@ -197,32 +197,6 @@ session_name = "custom"
 	}
 }
 
-func TestSessionAliases_LoadAndResolve(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "settings.toml")
-	os.WriteFile(path, []byte(`[session.aliases]
-clw = "claude --worktree"
-cw = "codex --workspace"
-`), 0o644)
-
-	cfg, err := LoadFrom(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := cfg.Session.Aliases["clw"]; got != "claude --worktree" {
-		t.Errorf("Aliases[clw] = %q, want %q", got, "claude --worktree")
-	}
-	if got := cfg.Session.ResolveAlias("clw"); got != "claude --worktree" {
-		t.Errorf("ResolveAlias(clw) = %q, want %q", got, "claude --worktree")
-	}
-	if got := cfg.Session.ResolveAlias("  clw  "); got != "claude --worktree" {
-		t.Errorf("ResolveAlias trims whitespace, got %q", got)
-	}
-	if got := cfg.Session.ResolveAlias("claude"); got != "claude" {
-		t.Errorf("unknown alias should pass through, got %q", got)
-	}
-}
-
 func TestLoadFrom_DriversSection(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.toml")

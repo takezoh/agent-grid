@@ -35,25 +35,21 @@ func TestNewAgentLauncher_devcontainer_missing(t *testing.T) {
 	}
 }
 
-func TestResolveShellDisplayFromValues(t *testing.T) {
+func TestShellDisplayName(t *testing.T) {
 	cases := []struct {
-		tmuxDefault string
-		envSHELL    string
-		want        string
+		shell string
+		want  string
 	}{
-		{"/usr/bin/zsh", "/bin/bash", "zsh"},
-		{"", "/bin/bash", "bash"},
-		{"", "/usr/bin/zsh", "zsh"},
-		{"", "", "shell"},
-		{".", "", "shell"},
-		{"", ".", "shell"},
-		{".", ".", "shell"},
+		{"/usr/bin/zsh", "zsh"},
+		{"/bin/bash", "bash"},
+		{"zsh", "zsh"},
+		{"", "shell"},
+		{".", "shell"},
+		{"/", "shell"},
 	}
 	for _, c := range cases {
-		got := resolveShellDisplayFromValues(c.tmuxDefault, c.envSHELL)
-		if got != c.want {
-			t.Errorf("resolveShellDisplayFromValues(%q, %q) = %q, want %q",
-				c.tmuxDefault, c.envSHELL, got, c.want)
+		if got := shellDisplayName(c.shell); got != c.want {
+			t.Errorf("shellDisplayName(%q) = %q, want %q", c.shell, got, c.want)
 		}
 	}
 }

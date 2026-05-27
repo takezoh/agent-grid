@@ -27,6 +27,7 @@ import (
 	"github.com/takezoh/agent-roost/platform/lib/tmux"
 	"github.com/takezoh/agent-roost/platform/logger"
 	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-roost/platform/shellalias"
 )
 
 func runCoordinator() error {
@@ -66,7 +67,14 @@ func runCoordinator() error {
 	idleThreshold := time.Duration(cfg.Monitor.IdleThresholdSec) * time.Second
 	registerDefaultDrivers(cfg, dataDir, idleThreshold)
 
-	rt, sockPath, exePath, err := buildRuntime(ctx, cfg, client, dataDir)
+	// Resolve the passwd login shell once: it drives both alias resolution and
+	// the shell driver's display name.
+	loginShell, err := shellalias.LoginShell(ctx, shellalias.RealRunner)
+	if err != nil {
+		slog.Warn("shellalias: login shell lookup failed; commands stay literal", "err", err)
+	}
+
+	rt, sockPath, exePath, err := buildRuntime(ctx, cfg, loginShell, client, dataDir)
 	if err != nil {
 		return err
 	}
@@ -78,7 +86,7 @@ func runCoordinator() error {
 	// new spawn so it only targets earlier boots' markers.
 	rt.PruneProcessGroups()
 
-	if err := startSession(ctx, rt, client, cfg, sessionName, exePath, idleThreshold); err != nil {
+	if err := startSession(ctx, rt, client, cfg, sessionName, exePath, loginShell, idleThreshold); err != nil {
 		return err
 	}
 
@@ -103,7 +111,7 @@ func registerDefaultDrivers(cfg *config.Config, dataDir string, idleThreshold ti
 
 // buildRuntime constructs and configures the Runtime. Returns the Runtime,
 // the socket path it will listen on, the resolved roost binary path, and any error.
-func buildRuntime(ctx context.Context, cfg *config.Config, client *tmux.Client, dataDir string) (*runtime.Runtime, string, string, error) {
+func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, client *tmux.Client, dataDir string) (*runtime.Runtime, string, string, error) {
 	tmuxBackend := runtime.NewRealTmuxBackend(client)
 	pollInterval := time.Duration(cfg.Monitor.PollIntervalMs) * time.Millisecond
 	fastPollInterval := time.Duration(cfg.Monitor.FastPollIntervalMs) * time.Millisecond
@@ -147,7 +155,11 @@ func buildRuntime(ctx context.Context, cfg *config.Config, client *tmux.Client, 
 		StreamDispatcher:  streamDispatcher,
 		StreamReadTimeout: time.Duration(cfg.Codex.ReadTimeoutMs) * time.Millisecond,
 	})
-	rt.SetAliases(cfg.Session.Aliases)
+	resolved, err := shellalias.Resolve(ctx, loginShell, cfg.Session.Commands, shellalias.RealRunner)
+	if err != nil {
+		slog.Warn("shellalias: resolve failed; commands stay literal", "err", err)
+	}
+	rt.SetAliases(resolved)
 	rt.SetDefaultCommand(cfg.Session.DefaultCommand)
 	rt.SetSandboxedProjectResolver(func(project string) bool {
 		return sbResolver.Resolve(project).IsSandboxed()
@@ -157,8 +169,8 @@ func buildRuntime(ctx context.Context, cfg *config.Config, client *tmux.Client, 
 
 // startSession performs warm or cold startup, registering the shell driver and
 // restoring (or creating) the tmux session and persisted frame stack.
-func startSession(ctx context.Context, rt *runtime.Runtime, client *tmux.Client, cfg *config.Config, sessionName, exePath string, idleThreshold time.Duration) error {
-	shellDriver := statedriver.NewShellDriver(statedriver.ShellDriverName, resolveShellDisplay(client), idleThreshold)
+func startSession(ctx context.Context, rt *runtime.Runtime, client *tmux.Client, cfg *config.Config, sessionName, exePath, loginShell string, idleThreshold time.Duration) error {
+	shellDriver := statedriver.NewShellDriver(statedriver.ShellDriverName, shellDisplayName(loginShell), idleThreshold)
 	if client.SessionExists() {
 		return warmStart(rt, client, cfg, sessionName, exePath, shellDriver)
 	}
@@ -403,20 +415,12 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 	return runtime.NewDispatcherAdapter(d), sd, nil
 }
 
-// resolveShellDisplayFromValues picks the display name (basename) for the
-// shell driver. Pure function — used directly by tests.
-func resolveShellDisplayFromValues(tmuxDefault, envSHELL string) string {
-	for _, raw := range []string{tmuxDefault, envSHELL} {
-		if name := filepath.Base(raw); name != "" && name != "." && name != "/" {
-			return name
-		}
+// shellDisplayName picks the display name (basename) for the shell driver from
+// the user's passwd login-shell path — the same shell roost launches for
+// `shell` sessions. It does not consult tmux's default-shell option or $SHELL.
+func shellDisplayName(shell string) string {
+	if name := filepath.Base(shell); name != "" && name != "." && name != "/" {
+		return name
 	}
 	return statedriver.ShellDriverName
-}
-
-// resolveShellDisplay queries tmux's default-shell option (the shell tmux
-// will actually spawn for login-shell panes) and falls back to $SHELL.
-func resolveShellDisplay(client *tmux.Client) string {
-	tmuxDefault, _ := client.ShowOption("default-shell")
-	return resolveShellDisplayFromValues(tmuxDefault, os.Getenv("SHELL"))
 }

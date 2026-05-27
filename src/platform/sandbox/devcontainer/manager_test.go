@@ -501,7 +501,7 @@ func TestBuildLaunchCommand_PreExec(t *testing.T) {
 	}
 	m := &Manager{}
 
-	t.Run("preExec wraps command with bash -lc", func(t *testing.T) {
+	t.Run("preExec wraps command with login shell, not bash", func(t *testing.T) {
 		spec := *base
 		spec.PreExec = "mise trust 2>/dev/null || true"
 		inst := &sandbox.Instance[*ContainerState]{
@@ -512,8 +512,14 @@ func TestBuildLaunchCommand_PreExec(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
-		if !strings.Contains(got, "bash -lc") {
-			t.Errorf("expected bash -lc wrapper, got: %s", got)
+		if strings.Contains(got, "bash -lc") {
+			t.Errorf("pre-exec wrapper must not hardcode bash -lc: %s", got)
+		}
+		if !strings.Contains(got, "getent passwd") {
+			t.Errorf("pre-exec wrapper must resolve login shell via getent passwd: %s", got)
+		}
+		if !strings.Contains(got, " -lc ") {
+			t.Errorf("expected login shell invoked with -lc: %s", got)
 		}
 		if !strings.Contains(got, "mise trust") {
 			t.Errorf("expected mise trust in command, got: %s", got)

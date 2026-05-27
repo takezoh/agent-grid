@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/takezoh/agent-roost/platform/sandbox"
+	"github.com/takezoh/agent-roost/platform/shellalias"
 )
 
 // SharedContainerKey is the containers map key used for shared-mode instances.
@@ -84,11 +85,11 @@ func (cs *ContainerState) ContainerID() string {
 }
 
 // PreExec returns the devcontainer.json `preExecCommand` (or the spec
-// fallback). Callers that build their own docker exec command (e.g. the
-// codex backend bypassing BuildLaunchCommand) need this to wrap their
-// command with the same `bash -lc 'preExec; exec ...'` envelope the pane
-// uses, otherwise binaries that depend on the shell init (mise shims,
-// tool-version managers, env loaders) won't see the expected setup.
+// fallback). Callers that build their own docker exec command (bypassing
+// BuildLaunchCommand) need this to wrap their command with the same
+// `<login-shell> -lc 'preExec; exec ...'` envelope the pane uses, otherwise
+// binaries that depend on the shell init (mise shims, tool-version managers,
+// env loaders) won't see the expected setup.
 func (cs *ContainerState) PreExec() string {
 	if cs == nil || cs.spec == nil {
 		return ""
@@ -439,10 +440,11 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], la
 
 	command := launchSpec.Command
 	if command == "shell" {
-		command = "sh -c " + shellEscape(`exec "$(getent passwd "$(id -un)" | cut -d: -f7)" -l`)
+		command = "sh -c " + shellEscape("exec "+shellalias.LoginShellCommand+" -l")
 	}
 	if spec.PreExec != "" {
-		command = "bash -lc " + shellEscape(spec.PreExec+"; exec "+command)
+		inner := shellEscape(spec.PreExec + "; exec " + command)
+		command = "sh -c " + shellEscape("exec "+shellalias.LoginShellCommand+" -lc "+inner)
 	}
 
 	var sb strings.Builder

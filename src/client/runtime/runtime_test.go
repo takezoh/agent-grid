@@ -917,7 +917,7 @@ func TestIsShellCommand(t *testing.T) {
 	}
 }
 
-func TestRuntimeShellSessionSpawnsWithoutCommand(t *testing.T) {
+func TestRuntimeShellSessionSpawnsLoginShell(t *testing.T) {
 	tmux := newFakeTmux()
 	persist := &recordingPersist{}
 	r := New(Config{
@@ -953,8 +953,8 @@ func TestRuntimeShellSessionSpawnsWithoutCommand(t *testing.T) {
 	if tmux.spawnCalls != 1 {
 		t.Fatalf("spawnCalls = %d, want 1", tmux.spawnCalls)
 	}
-	if tmux.spawnCmds[0] != "" {
-		t.Errorf("spawn command = %q, want empty (login shell)", tmux.spawnCmds[0])
+	if want := buildSpawnCommand("shell", nil); tmux.spawnCmds[0] != want {
+		t.Errorf("spawn command = %q, want %q (explicit passwd login shell)", tmux.spawnCmds[0], want)
 	}
 }
 

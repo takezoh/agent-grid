@@ -9,6 +9,7 @@ import (
 
 	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
 	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-roost/platform/shellalias"
 )
 
 // spawnDeps is the narrow set of capabilities given to the spawn goroutine.
@@ -201,10 +202,11 @@ func (r *Runtime) reapSubsystemIfLast(sub rsubsystem.Subsystem, frameID state.Fr
 }
 
 // buildSpawnCommand builds the tmux command string for a resolved wrapped.Command.
-// Returns empty for shell commands (tmux spawns a login shell with no command argument).
+// The bare shell command explicitly execs the user's passwd login shell rather
+// than relying on tmux's default-shell option.
 func buildSpawnCommand(command string, stdin []byte) string {
 	if isShellCommand(command) {
-		return ""
+		return "exec " + shellalias.LoginShellCommand + " -l"
 	}
 	if len(stdin) > 0 {
 		return wrapCommandWithStdin(command, stdin)
@@ -233,8 +235,8 @@ func substitutePlaceholdersString(s, sessionName, roostExe string) string {
 	return s
 }
 
-// isShellCommand returns true if the command should be spawned as a
-// login shell (i.e. tmux new-window with no command argument).
+// isShellCommand returns true if the command should be spawned as the user's
+// login shell.
 func isShellCommand(command string) bool {
 	return command == "shell"
 }
