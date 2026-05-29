@@ -306,6 +306,6 @@ Subcommands:
   mcp-exec <alias>           Relay stdio to a host MCP server via the mcpproxy broker
   secret-run run --env-file  Resolve secret env-file and exec command (credproxy shim)
   setup <agent>              Run agent integration setup (claude|codex|gemini)
-  sockbridge                 TCP↔unix socket bridge (fixed-socket or routing mode)
+  sockbridge                 TCP↔unix socket bridge (fixed-socket; credproxy broker)
 `)
 }

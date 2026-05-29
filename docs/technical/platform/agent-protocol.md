@@ -137,7 +137,7 @@ approval / sandbox policy hints are logged but not enforced by the shim — isol
 | `ParseCommand(argv []string)` (`:26`) | Parse `codex.command` into a `CommandConfig` |
 | `AppServerListenArgs(serverBin, sock, extra, sandboxExternal)` (`:54`) | listen-socket mode |
 | `AppServerStdioArgs(extra, sandboxExternal)` (`:64`) | stdio mode |
-| `RemoteAttachArgs(bridgePort, sessionID, threadID, startDir)` (`:78`) | remote attach |
+| `RemoteAttachArgs(sock, threadID, startDir)` (`:79`) | remote attach over the app-server UDS (`--remote unix://<sock>`) |
 | `ShellJoinArgv(args)` (`:93`) | shell-join argv for a tmux pane |
 
 `ShellJoinArgv` is what populates the `Command` form (tmux) in [spawn-and-launch.md](spawn-and-launch.md).

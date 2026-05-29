@@ -372,7 +372,7 @@ src/
 │   ├── types.go         LaunchPlan{Command,Argv,…} / WrappedLaunch{Command,Argv,…} — dual representation
 │   ├── devcontainer.go  DevcontainerLauncher — Wrap produces docker exec argv (TTY conditional on consumer)
 │   ├── direct.go        DirectDispatcher — pass-through (no-op wrapping)
-│   └── bridge.go        ContainerStreamBridgeCmd — sockbridge postCreate command
+│   └── mounts.go        WrappedLaunch.HostPath — container→host path translation via Mounts
 ├── platform/lib/
 │   ├── codex/
 │   │   └── argv.go      Per-agent argv builders: AppServerListenArgs / RemoteAttachArgs / ParseCommand([]string) / ShellJoinArgv / CommandConfig / driver constants
