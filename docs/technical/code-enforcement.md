@@ -87,14 +87,16 @@ Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code 
 
 ## 4. Feature flags
 
-`platform/features/features.go` has **two mechanisms that share no key space**.
+`platform/features/features.go` has **two mechanisms that share no key space** — pick one based on whether the experimental code should physically exist in the binary. The C analogue: runtime flag is `if () {}`, compile-time flag is `#if / #endif`.
 
-| Kind | Mechanism | How to add | Toggle | Stays in the binary? |
+| Kind | Mechanism | Toggle | Stays in the binary? | Use when |
 |---|---|---|---|---|
-| runtime | `Flag` constant + injected `Set` | add a `Flag` constant and list it in `All()` | `~/.roost/settings.toml` `[features.enabled]` | both branches compiled (C `if(){}` equivalent) |
-| compile-time | top-level `const` bool guarded by a build tag | create a `//go:build tag` / `!tag` file pair | `go build -tags <tag>` | off-side removed by dead-code elimination (C `#if` equivalent) |
+| runtime | `Flag` constant + injected `Set` | `~/.roost/settings.toml` `[features.enabled]` | both branches compiled | the user should opt in without rebuilding |
+| compile-time | top-level `const` bool guarded by a build tag | `go build -tags <tag>` (e.g. `make build-experimental`) | off-side removed by dead-code elimination | the code is unfinished / unsafe or must not enter release binaries |
 
-A runtime flag is read as `st.Features.On(features.Peers)` (`features.go:36`). `FromConfig` **silently ignores unknown keys** (`features.go:46`), so deleting a Flag constant never breaks config parsing on existing installations. When a flag stabilises, delete the constant and inline the enabled branch.
+**Runtime — add:** declare a `Flag` constant and list it in `All()`; read it as `st.Features.On(features.Peers)` (`features.go:36`). Gating is allowed in `state/`, `runtime/`, `tui/` — **not** in `driver/` or `connector/`, where driver-specific gating uses `config.Drivers[name]` instead. Users opt in under `[features.enabled]`. `FromConfig` **silently ignores unknown keys** (`features.go:46`), so when a flag stabilises you delete the constant and inline the enabled branch with no config migration.
+
+**Compile-time — add:** create a `//go:build <tag>` / `//go:build !<tag>` file pair exporting the same `const` bool, then gate code with `if features.MyFeat { ... }` — the off-side is removed because `MyFeat` is a `const`. For larger code, put the implementation behind the tag and provide a no-op stub on the `!tag` side so callers need no guarding. Add a Makefile target for first-class variants; CI builds both.
 
 ## 5. Wire format is stdlib-only (depguard)
 

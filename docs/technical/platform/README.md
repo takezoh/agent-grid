@@ -42,7 +42,7 @@ Because it sits below both services, `platform/` is where tool-specific knowledg
 
 ## Feature flags
 
-The `features/` mechanism lives here because it must be importable by the pure `state/` core without pulling in third-party packages. There are two independent flag mechanisms (runtime vs compile-time) — see [ARCHITECTURE.md → Feature Flags](../../../ARCHITECTURE.md) for how to add each.
+The `features/` mechanism lives here because it must be importable by the pure `state/` core without pulling in third-party packages — `features/` imports nothing outside the standard library. `state.State.Features` is set once at startup and never mutated (preserving `Reduce`'s purity); `tui/` receives the active flag list over `proto` (`EvtSessionsChanged.Features` as `[]string`) and rebuilds its own `features.Set`. There are two independent flag mechanisms (runtime vs compile-time); how to add each is in [code-enforcement.md → feature flags](../code-enforcement.md#4-feature-flags).
 
 ## Sandbox isolation and credential brokering
 

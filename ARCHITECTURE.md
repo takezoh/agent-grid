@@ -1,6 +1,6 @@
 # Architecture
 
-This is the canonical overview of the system: its vision, design principles, the three-layer structure, and the cross-cutting conventions (feature flags, side-effect naming, dependencies). **Per-layer deep dives** — terminology, package responsibilities, design decisions, and dependency graphs — live under [`docs/technical/`](docs/technical/README.md).
+This is the canonical overview of the system: its vision, design principles, the three-layer structure, and cross-cutting concerns (feature flags, dependencies). **Per-layer deep dives** — terminology, package responsibilities, design decisions, and dependency graphs — live under [`docs/technical/`](docs/technical/README.md); coding conventions are in [`docs/agent/contributing.md`](docs/agent/contributing.md).
 
 ## Vision
 
@@ -68,59 +68,7 @@ The daemon and TUI are separate processes communicating via typed IPC (`proto`) 
 
 ## Feature Flags
 
-Experimental features are gated by one of **two independent mechanisms**. They share no key space — pick one based on whether the experimental code should physically exist in the binary. ([code & architecture enforcement → feature flags](docs/technical/code-enforcement.md#4-feature-flags) has the step-by-step add procedure.)
-
-| Mechanism | Where defined | Toggle | Code in binary? | Use when |
-|---|---|---|---|---|
-| **Runtime flag** | `features.Flag` constant + `features.Set` injected into `state.State` | `~/.roost/settings.toml` `[features.enabled]` | Yes (both branches always compiled) | The user should be able to opt-in without rebuilding |
-| **Compile-time flag** | `features` package `const` guarded by `//go:build <tag>` | `go build -tags <tag>` (e.g. `make build-experimental`) | No (off-side is removed by dead code elimination) | The experimental code is unfinished, unsafe, or should not enter release binaries |
-
-The C analogue: runtime flag is `if () {}`, compile-time flag is `#if / #endif`.
-
-### Runtime flag — how to add
-
-1. Add a `Flag` constant in `features/features.go` and append it to `features.All()`.
-2. Reference it where needed: `if st.Features.On(features.MyFeature) { ... }`. Allowed in `state/`, `runtime/`, `tui/`. **Not** in `driver/` or `connector/` (driver-specific gating uses `config.Drivers[name]` instead).
-3. Users opt in via:
-   ```toml
-   [features.enabled]
-   my-feature = true
-   ```
-4. When the feature stabilises, delete the constant and inline the enabled branch. Unknown keys in user config are silently ignored, so no migration is needed.
-
-### Compile-time flag — how to add
-
-1. Create paired files in `features/` guarded by build tag:
-   ```go
-   //go:build my_feat
-   package features
-   const MyFeat = true
-   ```
-   ```go
-   //go:build !my_feat
-   package features
-   const MyFeat = false
-   ```
-2. Gate code with `if features.MyFeat { ... }`. Because `MyFeat` is a `const`, the off-side branch is eliminated entirely from the binary.
-3. For larger experimental code, put the implementation in a `//go:build my_feat` file and provide a no-op stub in `//go:build !my_feat`. Callers do not need to be guarded.
-4. Add a Makefile target for first-class build variants (e.g. `make build-experimental`). CI should build both variants.
-
-### What goes where
-
-- The `features/` package imports nothing outside the standard library — `state/` can depend on it without breaking the self-contained core.
-- `state.State.Features` is set once at startup and never mutated, preserving Reduce's purity.
-- `tui/` receives the active flag list over `proto` (daemon → tui via `EvtSessionsChanged.Features`) and rebuilds its own `features.Set`. `proto` carries it as `[]string`, matching the existing pattern of crossing the wire as primitives.
-
-## Side-Effect Naming Convention
-
-Distinguish path computation from side effects by function name.
-
-| Pattern | Side Effect | Example |
-|---------|-------------|---------|
-| `XxxPath()` | None (pure) | `LogDirPath`, `ConfigDirPath`, `LogPath` |
-| `EnsureXxx()` | Directory creation | `EnsureLogDir`, `EnsureConfigDir` |
-| `LoadFrom(path)` | File read only | `config.LoadFrom` |
-| `Load()` | Directory creation + file read | `config.Load` (convenience wrapper) |
+Experimental features are gated by one of **two independent mechanisms** with no shared key space: a **runtime flag** (`features.Flag` injected into `state.State`, toggled in `~/.roost/settings.toml`, both branches compiled) or a **compile-time flag** (a build-tag-guarded `const`, toggled with `go build -tags`, off-side removed by dead-code elimination). `features/` is stdlib-only so the self-contained `state/` core can depend on it. Mechanism details and the step-by-step add procedure: [code & architecture enforcement → feature flags](docs/technical/code-enforcement.md#4-feature-flags).
 
 ## Testing Strategy
 

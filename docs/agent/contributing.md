@@ -53,14 +53,14 @@ orchestrator/* does not import client/*
 
 ### Side-effect naming
 
-Distinguish path computation from side effects by function name (see [ARCHITECTURE.md → Side-Effect Naming](../../ARCHITECTURE.md)):
+Distinguish path computation from side effects by function name:
 
 | Pattern | Side effect | Example |
 |---|---|---|
-| `XxxPath()` | None (pure) | `LogDirPath`, `ConfigDirPath` |
-| `EnsureXxx()` | Directory creation | `EnsureLogDir` |
+| `XxxPath()` | None (pure) | `LogDirPath`, `ConfigDirPath`, `LogPath` |
+| `EnsureXxx()` | Directory creation | `EnsureLogDir`, `EnsureConfigDir` |
 | `LoadFrom(path)` | File read only | `config.LoadFrom` |
-| `Load()` | Directory creation + file read | `config.Load` |
+| `Load()` | Directory creation + file read | `config.Load` (convenience wrapper) |
 
 ## Library selection
 
