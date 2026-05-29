@@ -65,30 +65,45 @@ func (r *Runtime) RecreateAll() error {
 }
 
 func (r *Runtime) recreateSessionFrames(id state.SessionID, sess state.Session, size paneSize) error {
+	var firstErr error
 	for _, frame := range sess.Frames {
-		if isStoppedFrame(frame) {
+		if skipColdStartSpawn(frame) {
 			slog.Info("bootstrap: skipping spawn for stopped frame",
 				"session", id, "frame", frame.ID, "command", frame.Command)
 			continue
 		}
-		if err := r.spawnFrameWindow(id, sess.Sandbox, frame, size); err != nil {
-			return err
+		// One frame's spawn failure (e.g. a codex resume against a vanished
+		// thread) must not strand its healthy siblings — keep spawning the rest
+		// and report the first error so the caller logs the session as incomplete.
+		if err := r.spawnFrameWindow(id, sess.Sandbox, frame, size); err != nil && firstErr == nil {
+			firstErr = err
 		}
 	}
-	return nil
+	return firstErr
 }
 
-// isStoppedFrame returns true when the frame's driver reports
-// StatusStopped — the command exited abnormally in a prior session
-// and the frame is kept for inspection. Cold-start must not respawn
-// such frames: the command is gone, and resurrecting it as a fresh
-// process would destroy the very state the user wants to look at.
-func isStoppedFrame(frame state.SessionFrame) bool {
+// skipColdStartSpawn returns true when a stopped frame must not be respawned
+// on cold start. The command exited in a prior session and the frame is kept
+// for inspection; resurrecting it as a fresh process would destroy the very
+// state the user wants to look at. The exception is a driver whose durable
+// state survives the dead pane (codex resumes its thread) — such a frame is
+// relaunched, so it is not skipped.
+func skipColdStartSpawn(frame state.SessionFrame) bool {
 	drv := state.GetDriver(frame.Command)
 	if drv == nil || frame.Driver == nil {
 		return false
 	}
-	return drv.Status(frame.Driver) == state.StatusStopped
+	if drv.Status(frame.Driver) != state.StatusStopped {
+		return false
+	}
+	return !coldStartRecoverable(drv, frame.Driver)
+}
+
+// coldStartRecoverable reports whether a driver declares its stopped state
+// restorable across a cold start via the optional ColdStartRecoverer capability.
+func coldStartRecoverable(drv state.Driver, s state.DriverState) bool {
+	rec, ok := drv.(state.ColdStartRecoverer)
+	return ok && s != nil && rec.RecoverableOnColdStart(s)
 }
 
 // spawnFrameWindow prepares and spawns a single frame's tmux window during cold start.

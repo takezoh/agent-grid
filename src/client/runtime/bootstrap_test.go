@@ -337,9 +337,120 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 
 type snapLoader struct {
 	noopPersist
-	snaps []SessionSnapshot
+	snaps   []SessionSnapshot
+	deleted []string
 }
 
 func (s *snapLoader) Load() ([]SessionSnapshot, error) {
 	return s.snaps, nil
+}
+
+func (s *snapLoader) Delete(id string) error {
+	s.deleted = append(s.deleted, id)
+	return nil
+}
+
+// codexThreadID is a representative resumable thread id (alphanumeric+hyphen),
+// matching the format codex persists for a started/resumed thread.
+const codexThreadID = "019e727e-fde4-7432-9036-ae6604ce1b27"
+
+// TestLoadSnapshot_ColdStartKeepsRecoverableStoppedCodexFrame guards the cold
+// start regression where a stopped codex session was dropped (and deleted from
+// disk) even though its conversation lives in a host-mounted thread that can be
+// resumed against a fresh app-server. Codex implements ColdStartRecoverer, so a
+// stopped frame with a resumable thread must survive cold start.
+func TestLoadSnapshot_ColdStartKeepsRecoverableStoppedCodexFrame(t *testing.T) {
+	persist := &snapLoader{snaps: []SessionSnapshot{{
+		ID: "codex-sess",
+		Frames: []SessionFrameSnapshot{{
+			ID:      "f1",
+			Command: "codex",
+			DriverState: map[string]string{
+				"status":    "stopped",
+				"thread_id": codexThreadID,
+			},
+		}},
+	}}}
+	r := New(Config{SessionName: "roost-test", Persist: persist})
+
+	if err := r.LoadSnapshot(true); err != nil {
+		t.Fatalf("LoadSnapshot(true): %v", err)
+	}
+	sess, ok := r.state.Sessions["codex-sess"]
+	if !ok {
+		t.Fatal("recoverable stopped codex session dropped on cold start; want kept for thread resume")
+	}
+	if len(sess.Frames) != 1 {
+		t.Fatalf("frames = %d, want 1", len(sess.Frames))
+	}
+	for _, id := range persist.deleted {
+		if id == "codex-sess" {
+			t.Error("recoverable snapshot must not be deleted from disk")
+		}
+	}
+}
+
+// TestLoadSnapshot_ColdStartDropsStoppedCodexFrameWithoutThread ensures the
+// recovery is gated on an actual resumable thread: with no thread id there is
+// nothing to resume, so the stopped frame is dropped like any other.
+func TestLoadSnapshot_ColdStartDropsStoppedCodexFrameWithoutThread(t *testing.T) {
+	persist := &snapLoader{snaps: []SessionSnapshot{{
+		ID: "codex-nothread",
+		Frames: []SessionFrameSnapshot{{
+			ID:          "f1",
+			Command:     "codex",
+			DriverState: map[string]string{"status": "stopped"},
+		}},
+	}}}
+	r := New(Config{SessionName: "roost-test", Persist: persist})
+
+	if err := r.LoadSnapshot(true); err != nil {
+		t.Fatalf("LoadSnapshot(true): %v", err)
+	}
+	if _, ok := r.state.Sessions["codex-nothread"]; ok {
+		t.Error("stopped codex frame with no resumable thread should be dropped on cold start")
+	}
+}
+
+// TestLoadSnapshot_ColdStartDropsStoppedGenericFrame ensures the default policy
+// is unchanged for drivers without durable state: a stopped frame is dropped.
+func TestLoadSnapshot_ColdStartDropsStoppedGenericFrame(t *testing.T) {
+	persist := &snapLoader{snaps: []SessionSnapshot{{
+		ID: "generic-sess",
+		Frames: []SessionFrameSnapshot{{
+			ID:          "f1",
+			Command:     "generic",
+			DriverState: map[string]string{"status": "stopped"},
+		}},
+	}}}
+	r := New(Config{SessionName: "roost-test", Persist: persist})
+
+	if err := r.LoadSnapshot(true); err != nil {
+		t.Fatalf("LoadSnapshot(true): %v", err)
+	}
+	if _, ok := r.state.Sessions["generic-sess"]; ok {
+		t.Error("stopped generic frame (no durable state) must still be dropped on cold start")
+	}
+}
+
+// TestLoadSnapshot_WarmStartKeepsStoppedCodexFrame ensures warm start is
+// unaffected — it keeps every frame, recoverable or not, since the live tmux
+// pane is still attached for inspection.
+func TestLoadSnapshot_WarmStartKeepsStoppedCodexFrame(t *testing.T) {
+	persist := &snapLoader{snaps: []SessionSnapshot{{
+		ID: "codex-warm",
+		Frames: []SessionFrameSnapshot{{
+			ID:          "f1",
+			Command:     "codex",
+			DriverState: map[string]string{"status": "stopped"},
+		}},
+	}}}
+	r := New(Config{SessionName: "roost-test", Persist: persist})
+
+	if err := r.LoadSnapshot(false); err != nil {
+		t.Fatalf("LoadSnapshot(false): %v", err)
+	}
+	if _, ok := r.state.Sessions["codex-warm"]; !ok {
+		t.Error("warm start must keep stopped frames (dead pane still attached for inspection)")
+	}
 }

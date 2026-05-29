@@ -413,6 +413,18 @@ type WarmStartRecoverer interface {
 	WarmStartRecover(s DriverState, now time.Time) (DriverState, []Effect)
 }
 
+// ColdStartRecoverer is an optional driver extension for drivers whose
+// durable conversational state survives the loss of the tmux pane and the
+// backend process — e.g. codex, whose thread lives in a host-mounted session
+// store and can be resumed against a fresh app-server. Cold start discards
+// the old tmux server (and may recreate the sandbox), so by default a stopped
+// frame is unrecoverable and dropped: its state lived only in the dead pane.
+// A driver that returns true for a stopped state opts back in, so the runtime
+// keeps the frame and relaunches it (resuming the durable session) instead.
+type ColdStartRecoverer interface {
+	RecoverableOnColdStart(s DriverState) bool
+}
+
 // SessionBootstrapper is an optional driver capability for running
 // post-spawn initialization when a brand-new root frame has been
 // created, but the external agent has not yet emitted its own startup

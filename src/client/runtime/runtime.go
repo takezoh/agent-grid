@@ -11,10 +11,8 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"path/filepath"
 	"reflect"
 	"sync/atomic"
@@ -283,64 +281,19 @@ func (r *Runtime) registerSubsystemFactories() {
 	r.subsystemFactories = map[state.LaunchSubsystem]rsubsystem.Factory{
 		state.LaunchSubsystemCLI: clisubsystem.NewFactory(),
 		state.LaunchSubsystemStream: cstream.NewFactory(cstream.FactoryConfig{
-			Runtime:          r,
-			Dispatcher:       r.cfg.StreamDispatcher,
-			ResolveSockPaths: r.resolveStreamSockPaths,
-			IsContainer:      func(project string) bool { return launcher(r.cfg).IsContainer(project) },
-			ActiveFrameID:    func() state.FrameID { return r.activeFrameID },
-			ReadTimeout:      r.cfg.StreamReadTimeout,
-			Tracker:          r.pgidTracker,
+			Runtime:         r,
+			Dispatcher:      r.cfg.StreamDispatcher,
+			ResolveSockPath: r.resolveStreamListenPath,
+			IsContainer:     func(project string) bool { return launcher(r.cfg).IsContainer(project) },
+			ActiveFrameID:   func() state.FrameID { return r.activeFrameID },
+			ReadTimeout:     r.cfg.StreamReadTimeout,
+			Tracker:         r.pgidTracker,
 		}),
 	}
 }
 
 // Done signals when Run has fully exited.
 func (r *Runtime) Done() <-chan struct{} { return r.done }
-
-// runHostStreamBridge starts the host-mode routing bridge via "roost-bridge sockbridge".
-// One bridge per daemon handles all host sessions via URL path routing:
-// ws://127.0.0.1:8282/<sessionID> → <routeDir>/codex-<id>.sock.
-// No-op when the data directory is not configured or roost-bridge is not found.
-func (r *Runtime) runHostStreamBridge(ctx context.Context) {
-	if r.cfg.DataDir == "" {
-		return
-	}
-	bin := FindHelperFile("roost-bridge")
-	if bin == "" {
-		slog.Warn("runtime: roost-bridge not found, host stream routing unavailable")
-		return
-	}
-	routeDir := filepath.Join(r.cfg.DataDir, "run", cstream.RunDirName)
-	if err := os.MkdirAll(routeDir, 0o700); err != nil {
-		slog.Warn("runtime: cannot create stream run dir for host bridge", "dir", routeDir, "err", err)
-		return
-	}
-	cmd := procgroup.Command(procgroup.Spec{
-		Ctx: ctx,
-		Bin: bin,
-		Args: []string{
-			"sockbridge",
-			"-listen", fmt.Sprintf("127.0.0.1:%d", cstream.LoopbackPort),
-			"-route-dir", routeDir,
-			"-route-prefix", cstream.SockPrefix,
-			"-route-suffix", cstream.SockSuffix,
-		},
-	})
-	if err := cmd.Start(); err != nil {
-		slog.Warn("runtime: host stream bridge start failed", "err", err)
-		return
-	}
-	if cmd.Process != nil {
-		r.pgidTracker.Track(cmd.Process.Pid)
-	}
-	slog.Info("runtime: host stream bridge started", "pid", cmd.Process.Pid, "route-dir", routeDir)
-	if err := cmd.Wait(); err != nil {
-		slog.Debug("runtime: host stream bridge exited", "err", err)
-	}
-	if cmd.Process != nil {
-		r.pgidTracker.Untrack(cmd.Process.Pid)
-	}
-}
 
 // Launcher returns the resolved AgentLauncher (cfg.Launcher or DirectLauncher).
 // Used by the coordinator to opt-in to ColdStartAware capability outside the
@@ -449,8 +402,6 @@ func (r *Runtime) Run(ctx context.Context) error {
 
 	r.taps = newTapManager(ctx, r.cfg.Tap)
 	defer r.taps.stopAll()
-
-	go r.runHostStreamBridge(ctx)
 
 	ticker := time.NewTicker(r.cfg.TickInterval)
 	defer ticker.Stop()

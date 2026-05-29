@@ -8,10 +8,9 @@ import (
 
 // Re-exported from driver/ so callers need not import both packages.
 const (
-	DriverName   = driver.CodexDriverName
-	SockPrefix   = driver.CodexAppServerSockPrefix
-	SockSuffix   = driver.CodexAppServerSockSuffix
-	LoopbackPort = driver.CodexAppServerLoopbackPort
+	DriverName = driver.CodexDriverName
+	SockPrefix = driver.CodexAppServerSockPrefix
+	SockSuffix = driver.CodexAppServerSockSuffix
 	// RunDirName is the subdirectory under the daemon data dir that holds
 	// per-session codex app-server UDS files: <dataDir>/run/<RunDirName>/.
 	RunDirName = driver.CodexDriverName

@@ -7,10 +7,9 @@ import (
 
 // Driver-level constants shared by all layers.
 const (
-	DriverName   = "codex"
-	SockPrefix   = "codex-"
-	SockSuffix   = ".sock"
-	LoopbackPort = 8282
+	DriverName = "codex"
+	SockPrefix = "codex-"
+	SockSuffix = ".sock"
 )
 
 // CommandConfig is the parsed form of a codex launch command string.
@@ -70,18 +69,19 @@ func AppServerStdioArgs(extra []string, sandboxExternal bool) []string {
 	return args
 }
 
-// RemoteAttachArgs returns the argv for the TUI pane that attaches to the app-server
-// via the routing sockbridge listener at ws://127.0.0.1:<bridgePort>/<sessionID>.
+// RemoteAttachArgs returns the argv for the TUI pane that attaches to the
+// per-session app-server over its unix domain socket (`codex --remote unix://<sock>`).
+// sock is the container-absolute UDS path the app-server binds; the TUI runs in the
+// same sandbox, so it connects to that socket directly (no TCP routing bridge).
 //
 // Cold start (threadID == ""): `codex --remote ...` so the TUI creates the thread.
 // Warm start uses `codex resume <id> --remote ...`.
-func RemoteAttachArgs(bridgePort int, sessionID, threadID, startDir string) []string {
-	remote := fmt.Sprintf("ws://127.0.0.1:%d/%s", bridgePort, sessionID)
+func RemoteAttachArgs(sock, threadID, startDir string) []string {
 	args := []string{DriverName}
 	if threadID != "" {
 		args = append(args, "resume", threadID)
 	}
-	args = append(args, "--remote", remote, "--dangerously-bypass-approvals-and-sandbox")
+	args = append(args, "--remote", "unix://"+sock, "--dangerously-bypass-approvals-and-sandbox")
 	if startDir != "" {
 		args = append(args, "-C", startDir)
 	}

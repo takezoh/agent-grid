@@ -18,6 +18,7 @@ type mockMgr struct {
 	ensureErr         error
 	ensureCalls       int
 	buildErr          error
+	buildCmd          string // when set, BuildLaunchCommand returns it verbatim
 	buildSpec         sandbox.LaunchSpec
 	buildFrameCtx     sandbox.FrameContext
 	acquireCalls      int
@@ -45,6 +46,9 @@ func (m *mockMgr) BuildLaunchCommand(_ *sandbox.Instance[*sandboxdc.ContainerSta
 	m.buildFrameCtx = frameCtx
 	if m.buildErr != nil {
 		return "", nil, m.buildErr
+	}
+	if m.buildCmd != "" {
+		return m.buildCmd, map[string]string{"FOO": "bar"}, nil
 	}
 	return "docker exec ... " + frameCtx.WorkDir, map[string]string{"FOO": "bar"}, nil
 }

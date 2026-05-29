@@ -16,14 +16,6 @@ const (
 	CodexAppServerSockPrefix = "codex-"
 	CodexAppServerSockSuffix = ".sock"
 
-	// CodexAppServerLoopbackPort is the fixed loopback TCP port the routing
-	// sockbridge listens on. It routes ws://127.0.0.1:<port>/<sessionID>
-	// to the per-session UDS codex-<sessionID>.sock. Inside a devcontainer
-	// the network namespace is isolated so this port is collision-free across
-	// containers. One routing bridge per container/host daemon handles all
-	// sessions concurrently.
-	CodexAppServerLoopbackPort = 8282
-
 	codexKeyThreadID          = "thread_id"
 	codexKeyRequestedThreadID = "requested_thread_id"
 	codexKeyObservedThreadID  = "observed_thread_id"
@@ -204,6 +196,21 @@ func (d CodexDriver) Step(prev state.DriverState, ctx state.FrameContext, ev sta
 		return cs, nil, d.view(cs)
 	}
 	return cs, nil, d.view(cs)
+}
+
+// RecoverableOnColdStart reports whether a stopped codex frame can be restored
+// on cold start. The conversation lives in the codex thread (a host-mounted
+// session store that survives container recreation), not in the dead pane, so a
+// frame with a resumable thread is worth keeping and relaunching rather than
+// dropping. This is the keep/drop decision only; the actual resume vs. fresh
+// launch is decided by PrepareLaunch (which additionally declines to auto-resume
+// when the command itself carries a `resume` token).
+func (CodexDriver) RecoverableOnColdStart(s state.DriverState) bool {
+	cs, ok := s.(CodexState)
+	if !ok {
+		return false
+	}
+	return cs.ThreadID != "" && isAlphanumHyphen(cs.ThreadID)
 }
 
 func (d CodexDriver) WarmStartRecover(s state.DriverState, now time.Time) (state.DriverState, []state.Effect) {

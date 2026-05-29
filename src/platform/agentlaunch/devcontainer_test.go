@@ -44,6 +44,26 @@ func TestBuildMounts_RegistersWorkspaceAndRunDir(t *testing.T) {
 	}
 }
 
+func TestStreamSockListenPathMapsIntoRunDir(t *testing.T) {
+	// The codex app-server binds at ContainerRunDir/<sock> inside the container;
+	// the daemon dials the host path the run-dir bind mount exposes. Pin that the
+	// listen path resolves back into the bind-mounted run dir — the invariant
+	// e2ab83c established for proxy sockets, here for the stream socket.
+	const runDir = "/host/run/4342aed7adbf"
+	// toMounts(buildMounts(...)) mirrors exactly what Wrap stores in
+	// WrappedLaunch.Mounts, so this exercises the production conversion path.
+	w := WrappedLaunch{Mounts: toMounts(buildMounts("", "", runDir, nil))}
+
+	listen := ContainerRunDir + "/codex-sess1.sock"
+	got, ok := w.HostPath(listen)
+	if !ok {
+		t.Fatalf("HostPath(%q) not covered by the run-dir mount", listen)
+	}
+	if want := runDir + "/codex-sess1.sock"; got != want {
+		t.Errorf("dial path = %q, want %q (must live under the bind-mounted run dir)", got, want)
+	}
+}
+
 func TestBuildMounts_RejectsEmptyWorkspaceContainer(t *testing.T) {
 	ms := buildMounts("/host/myapp", "", "/host/run", nil)
 	for _, m := range ms {

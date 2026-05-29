@@ -23,11 +23,13 @@ type FactoryConfig struct {
 	// Dispatcher applies sandbox/container wrapping to each app-server launch.
 	// Nil falls back to a direct (no-op) dispatch.
 	Dispatcher agentlaunch.Dispatcher
-	// ResolveSockPaths returns the host-side and container-side sock paths for
-	// the given session and project. Paths are unique per session to allow
-	// multiple concurrent app-server processes. project is passed explicitly so
-	// that the callback need not access shared mutable state from a goroutine.
-	ResolveSockPaths func(sessionID state.SessionID, project string) (host string, container string, err error)
+	// ResolveSockPath returns the UDS path the per-session app-server binds for
+	// the given project. In container mode it is a container-absolute path under
+	// ContainerRunDir; the backend derives the host dial path from the launch's
+	// bind mounts. Paths are unique per session to allow multiple concurrent
+	// app-server processes. project is passed explicitly so that the callback
+	// need not access shared mutable state from a goroutine.
+	ResolveSockPath func(sessionID state.SessionID, project string) (listen string, err error)
 	// IsContainer reports whether the given project runs in a devcontainer.
 	IsContainer func(project string) bool
 	// ActiveFrameID returns the currently active FrameID; used by Backends
@@ -75,9 +77,9 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 	}
 	f.mu.Unlock()
 
-	host, container, err := f.cfg.ResolveSockPaths(sessionID, project)
+	listen, err := f.cfg.ResolveSockPath(sessionID, project)
 	if err != nil {
-		return nil, "", fmt.Errorf("stream factory: resolve sock paths: %w", err)
+		return nil, "", fmt.Errorf("stream factory: resolve sock path: %w", err)
 	}
 	b := New(
 		f.cfg.Runtime,
@@ -90,9 +92,7 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 		cmdCfg.Model,
 		plan.Stream.SandboxPolicy == state.StreamSandboxPolicyExternal,
 		plan.Stream.ApprovalPolicy == state.StreamApprovalPolicyAutoApprove,
-		host,
-		container,
-		LoopbackPort,
+		listen,
 		f.cfg.ActiveFrameID,
 		f.cfg.ReadTimeout,
 	)

@@ -9,6 +9,31 @@ import (
 	"github.com/takezoh/agent-roost/client/state"
 )
 
+func TestRecoverableOnColdStart(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	tests := []struct {
+		name     string
+		threadID string
+		want     bool
+	}{
+		{"resumable thread", "019e727e-fde4-7432-9036-ae6604ce1b27", true},
+		{"empty thread not recoverable", "", false},
+		{"non-resumable thread (path) not recoverable", "/tmp/not a thread", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cs.ThreadID = tt.threadID
+			if got := d.RecoverableOnColdStart(cs); got != tt.want {
+				t.Errorf("RecoverableOnColdStart(thread=%q) = %v, want %v", tt.threadID, got, tt.want)
+			}
+		})
+	}
+	// Wrong concrete type is never recoverable.
+	if d.RecoverableOnColdStart(state.DriverStateBase{}) {
+		t.Error("non-CodexState must not be recoverable")
+	}
+}
+
 func newCodex(t *testing.T) (CodexDriver, CodexState, time.Time) {
 	t.Helper()
 	now := time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC)

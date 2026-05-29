@@ -132,8 +132,7 @@ func TestAppServerListenArgs(t *testing.T) {
 func TestRemoteAttachArgs(t *testing.T) {
 	tests := []struct {
 		name         string
-		bridgePort   int
-		sessionID    string
+		sock         string
 		threadID     string
 		startDir     string
 		wantContains []string
@@ -141,35 +140,31 @@ func TestRemoteAttachArgs(t *testing.T) {
 	}{
 		{
 			name:         "cold start no thread",
-			bridgePort:   8282,
-			sessionID:    "sess1",
-			wantContains: []string{"codex", "--remote", "ws://127.0.0.1:8282/sess1"},
+			sock:         "/opt/roost/run/codex-sess1.sock",
+			wantContains: []string{"codex", "--remote", "unix:///opt/roost/run/codex-sess1.sock"},
 			wantAbsent:   []string{"resume"},
 		},
 		{
 			name:         "warm start with thread",
-			bridgePort:   8282,
-			sessionID:    "sess2",
+			sock:         "/opt/roost/run/codex-sess2.sock",
 			threadID:     "thread-abc",
 			wantContains: []string{"resume", "thread-abc", "--remote"},
 		},
 		{
 			name:         "with startDir",
-			bridgePort:   8282,
-			sessionID:    "sess3",
+			sock:         "/opt/roost/run/codex-sess3.sock",
 			startDir:     "/workspace/foo",
 			wantContains: []string{"-C", "/workspace/foo"},
 		},
 		{
 			name:       "no startDir omits -C",
-			bridgePort: 8282,
-			sessionID:  "sess4",
+			sock:       "/opt/roost/run/codex-sess4.sock",
 			wantAbsent: []string{"-C"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RemoteAttachArgs(tt.bridgePort, tt.sessionID, tt.threadID, tt.startDir)
+			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir)
 			for _, want := range tt.wantContains {
 				found := false
 				for _, g := range got {

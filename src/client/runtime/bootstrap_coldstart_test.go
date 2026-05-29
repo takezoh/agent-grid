@@ -259,6 +259,95 @@ func TestRecreateAll_SpawnFailureLeavesSessionInState(t *testing.T) {
 	}
 }
 
+func TestSkipColdStartSpawn(t *testing.T) {
+	now := time.Now()
+	codex := state.GetDriver("codex")
+	generic := state.GetDriver("generic")
+	if codex == nil || generic == nil {
+		t.Fatal("codex and generic drivers must be registered (see TestMain)")
+	}
+	mk := func(drv state.Driver, command string, bag map[string]string) state.SessionFrame {
+		return state.SessionFrame{ID: "f1", Command: command, Driver: drv.Restore(bag, now)}
+	}
+	const thread = "019e727e-fde4-7432-9036-ae6604ce1b27"
+	tests := []struct {
+		name     string
+		frame    state.SessionFrame
+		wantSkip bool
+	}{
+		{
+			name:     "stopped codex with resumable thread is relaunched",
+			frame:    mk(codex, "codex", map[string]string{"status": "stopped", "thread_id": thread}),
+			wantSkip: false,
+		},
+		{
+			name:     "stopped codex without thread is skipped",
+			frame:    mk(codex, "codex", map[string]string{"status": "stopped"}),
+			wantSkip: true,
+		},
+		{
+			name:     "idle codex is not skipped",
+			frame:    mk(codex, "codex", map[string]string{"status": "idle", "thread_id": thread}),
+			wantSkip: false,
+		},
+		{
+			name:     "stopped generic is skipped",
+			frame:    mk(generic, "generic", map[string]string{"status": "stopped"}),
+			wantSkip: true,
+		},
+		{
+			name:     "running generic is not skipped",
+			frame:    mk(generic, "generic", map[string]string{"status": "running"}),
+			wantSkip: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := skipColdStartSpawn(tt.frame); got != tt.wantSkip {
+				t.Errorf("skipColdStartSpawn() = %v, want %v", got, tt.wantSkip)
+			}
+		})
+	}
+}
+
+// TestRecreateAll_ContinuesPastFailingFrame guards the regression where one
+// frame's cold-start spawn failure (e.g. a codex resume against a vanished
+// thread) aborted the loop and stranded its healthy siblings. With two frames
+// and every spawn failing, both must still be attempted.
+func TestRecreateAll_ContinuesPastFailingFrame(t *testing.T) {
+	registerMinimalDriver(t)
+	tmux := newFakeTmux()
+	tmux.spawnErr = errors.New("injected spawn failure")
+	r := New(Config{
+		SessionName: "roost-test",
+		Tmux:        tmux,
+		Launcher:    &trackingLauncher{calls: make(map[string]int)},
+		Persist:     &recordingPersist{},
+	})
+	r.SetSandboxedProjectResolver(func(string) bool { return false })
+	r.state.Sessions["s1"] = state.Session{
+		ID:      "s1",
+		Project: "/proj/a",
+		Frames: []state.SessionFrame{
+			{ID: "f1", Project: "/proj/a", Command: "minimal-test", Driver: state.DriverStateBase{}},
+			{ID: "f2", Project: "/proj/a", Command: "minimal-test", Driver: state.DriverStateBase{}},
+		},
+	}
+
+	if err := r.RecreateAll(); err != nil {
+		t.Fatalf("RecreateAll: %v", err)
+	}
+	tmux.mu.Lock()
+	calls := tmux.spawnCalls
+	tmux.mu.Unlock()
+	if calls != 2 {
+		t.Errorf("SpawnWindow calls = %d, want 2 (a failed frame must not abort its siblings)", calls)
+	}
+	if _, ok := r.state.Sessions["s1"]; !ok {
+		t.Error("session s1 should be preserved after partial spawn failure")
+	}
+}
+
 func TestSpawnFrameWindow_StreamSubsystemInjectsEndpointDir(t *testing.T) {
 	t.Skip("endpoint-dir injection was removed with the codex helper")
 }

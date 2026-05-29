@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -43,30 +44,29 @@ type RuntimeHook interface {
 // roost Session. It manages the per-session app-server process, the
 // WebSocket-over-UDS connection, and per-frame thread bindings.
 type Backend struct {
-	runtime       RuntimeHook
-	dispatcher    agentlaunch.Dispatcher
-	subsystemID   state.SubsystemID
-	sessionID     state.SessionID
-	project       string
-	serverBin     string
-	serverArgs    []string
-	model         string
-	sandboxed     bool
-	autoApprove   bool
-	readTimeout   time.Duration
-	ctx           context.Context    // subsystem-scoped; child of the daemon ctx
-	cancel        context.CancelFunc // cancels ctx → reaps read loop + process group
-	done          chan struct{}      // closed when waitProcess returns (process reaped)
-	tracker       *procgroup.Tracker // records pgids for crash-path reaping; may be nil
-	spawnRes      agentlaunch.SpawnResult
-	conn          *codexclient.Conn
-	sockPath      string // UDS path dialed by daemon (host-side)
-	containerSock string // UDS path inside container
-	bridgePort    int
-	mu            sync.Mutex
-	frames        map[state.FrameID]*frameBinding
-	threads       map[string]state.FrameID
-	activeLookup  func() state.FrameID
+	runtime      RuntimeHook
+	dispatcher   agentlaunch.Dispatcher
+	subsystemID  state.SubsystemID
+	sessionID    state.SessionID
+	project      string
+	serverBin    string
+	serverArgs   []string
+	model        string
+	sandboxed    bool
+	autoApprove  bool
+	readTimeout  time.Duration
+	ctx          context.Context    // subsystem-scoped; child of the daemon ctx
+	cancel       context.CancelFunc // cancels ctx → reaps read loop + process group
+	done         chan struct{}      // closed when waitProcess returns (process reaped)
+	tracker      *procgroup.Tracker // records pgids for crash-path reaping; may be nil
+	spawnRes     agentlaunch.SpawnResult
+	conn         *codexclient.Conn
+	listenSock   string // UDS path the app-server binds (container-absolute under a devcontainer)
+	dialSock     string // host-side UDS path the daemon dials; resolved from listenSock + bind mounts in spawnServer
+	mu           sync.Mutex
+	frames       map[state.FrameID]*frameBinding
+	threads      map[string]state.FrameID
+	activeLookup func() state.FrameID
 }
 
 type frameBinding struct {
@@ -95,65 +95,65 @@ func New(
 	serverArgs []string,
 	model string,
 	sandboxed, autoApprove bool,
-	sockPath, containerSock string,
-	bridgePort int,
+	listenSock string,
 	activeLookup func() state.FrameID,
 	readTimeout time.Duration,
 ) *Backend {
 	return &Backend{
-		runtime:       rt,
-		dispatcher:    dispatcher,
-		subsystemID:   subsystemID,
-		sessionID:     sessionID,
-		project:       project,
-		serverBin:     serverBin,
-		serverArgs:    serverArgs,
-		model:         model,
-		sandboxed:     sandboxed,
-		autoApprove:   autoApprove,
-		readTimeout:   readTimeout,
-		sockPath:      sockPath,
-		containerSock: containerSock,
-		bridgePort:    bridgePort,
-		activeLookup:  activeLookup,
-		frames:        map[state.FrameID]*frameBinding{},
-		threads:       map[string]state.FrameID{},
+		runtime:      rt,
+		dispatcher:   dispatcher,
+		subsystemID:  subsystemID,
+		sessionID:    sessionID,
+		project:      project,
+		serverBin:    serverBin,
+		serverArgs:   serverArgs,
+		model:        model,
+		sandboxed:    sandboxed,
+		autoApprove:  autoApprove,
+		readTimeout:  readTimeout,
+		listenSock:   listenSock,
+		activeLookup: activeLookup,
+		frames:       map[state.FrameID]*frameBinding{},
+		threads:      map[string]state.FrameID{},
 	}
 }
 
 // Kind implements subsystem.Subsystem.
 func (b *Backend) Kind() state.LaunchSubsystem { return state.LaunchSubsystemStream }
 
-// BridgePort returns the loopback TCP port for the sockbridge TUI relay.
-func (b *Backend) BridgePort() int { return b.bridgePort }
-
 // Start launches the app-server process, dials the WebSocket, and begins
 // the read loop. On failure the caller must not call Start again — create
 // a new Backend instead.
 func (b *Backend) Start(ctx context.Context) error {
-	_ = os.Remove(b.sockPath)
 	// Derive a subsystem-scoped context from the daemon context. Cancelling it
 	// (via Stop, or daemon shutdown cascading from the parent) tears down the
 	// read loop and SIGKILLs the app-server process group.
 	b.ctx, b.cancel = context.WithCancel(ctx)
 	b.done = make(chan struct{})
 
-	res, serverErrBuf, err := b.spawnServer(ctx)
+	res, serverErr, err := b.spawnServer(ctx)
 	if err != nil {
 		b.cancel()
 		return err
 	}
 
-	t, err := codexclient.DialUDS(b.sockPath, serverDialTimeout)
+	t, err := codexclient.DialUDS(b.dialSock, serverDialTimeout)
 	if err != nil {
 		b.cancel()
+		// Reap the process first: cmd.Wait blocks until the stderr copier
+		// goroutine has flushed everything into serverErr, so the captured
+		// output reflects what the app-server printed before it died.
 		_ = res.Wait()
 		slog.Error("stream backend: app-server dial failed",
-			"subsystem", b.subsystemID, "sock", b.sockPath,
-			"stderr", strings.TrimSpace(serverErrBuf))
+			"subsystem", b.subsystemID, "sock", b.dialSock,
+			"stderr", strings.TrimSpace(serverErr.String()))
 		return err
 	}
 	b.spawnRes = res
+	// The app-server speaks JSON-RPC over the UDS; its stdout pipe is never
+	// read. Drain it to discard so a chatty app-server can't block on a full
+	// stdout pipe. Ends when the process exits and Wait closes the pipe.
+	go func() { _, _ = io.Copy(io.Discard, res.Stdout) }()
 	b.conn = codexclient.NewConn(t, b.readTimeout)
 	go func() {
 		if err := b.conn.Run(b.ctx, b); err != nil {
@@ -163,6 +163,10 @@ func (b *Backend) Start(ctx context.Context) error {
 	if err := codexclient.Initialize(b.conn); err != nil {
 		_ = b.conn.Close()
 		b.cancel()
+		// Reap the app-server we just SIGKILLed via cancel, mirroring the
+		// dial-failure path; otherwise the process is orphaned (waitProcess
+		// is not started on this path and the pgid was never tracked).
+		_ = res.Wait()
 		return err
 	}
 	b.trackProcessGroups()
@@ -170,19 +174,23 @@ func (b *Backend) Start(ctx context.Context) error {
 	return nil
 }
 
-// chooseSockPath returns the UDS socket path to pass to the app-server argv.
-// Container mode uses the in-container path; host mode uses the host path.
-func (b *Backend) chooseSockPath() string {
-	if b.dispatcher != nil && b.dispatcher.IsContainer(b.project) {
-		return b.containerSock
+// resolveDialSock returns the host-side path the daemon dials for an app-server
+// that binds listenSock. In container mode listenSock is container-absolute and
+// the launch's bind mounts expose it at a host path; in host mode there are no
+// mounts, so the dial path equals the listen path.
+func resolveDialSock(listenSock string, wrapped agentlaunch.WrappedLaunch) string {
+	if host, ok := wrapped.HostPath(listenSock); ok {
+		return host
 	}
-	return b.sockPath
+	return listenSock
 }
 
-// spawnServer wraps the app-server using the dispatcher and spawns the process.
-func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, string, error) {
-	sockPath := b.chooseSockPath()
-	argv := libcodex.AppServerListenArgs(b.serverBin, sockPath, b.serverArgs, b.sandboxed)
+// spawnServer wraps the app-server using the dispatcher, resolves the host dial
+// path from the launch's bind mounts, and spawns the process.
+// The returned *strings.Builder accumulates the app-server's stderr; read it
+// only after the process is reaped (res.Wait) so the copier goroutine is done.
+func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *strings.Builder, error) {
+	argv := libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.serverArgs, b.sandboxed)
 
 	plan := agentlaunch.LaunchPlan{
 		Command:  strings.Join(argv, " "),
@@ -191,23 +199,29 @@ func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, str
 		StartDir: "",
 	}
 
+	errBuf := &strings.Builder{}
 	var wrapped agentlaunch.WrappedLaunch
 	var err error
 	if b.dispatcher != nil {
 		wrapped, err = b.dispatcher.Wrap(ctx, string(b.subsystemID), plan)
 		if err != nil {
-			return agentlaunch.SpawnResult{}, "", fmt.Errorf("stream backend: dispatch wrap: %w", err)
+			return agentlaunch.SpawnResult{}, errBuf, fmt.Errorf("stream backend: dispatch wrap: %w", err)
 		}
 	} else {
 		wrapped = agentlaunch.WrappedLaunch{Argv: argv}
 	}
 
-	var errBuf strings.Builder
+	b.dialSock = resolveDialSock(b.listenSock, wrapped)
+	// Clear any stale socket before the app-server binds it (e.g. a crashed
+	// predecessor left the file behind). Removing the host path also clears the
+	// bind-mounted container path.
+	_ = os.Remove(b.dialSock)
+
 	res, err := agentlaunch.Spawn(b.ctx, wrapped, agentlaunch.SpawnOptions{
 		InheritEnv: true,
-		Stderr:     newPrefixWriter(&errBuf, 8192),
+		Stderr:     newPrefixWriter(errBuf, 8192),
 	})
-	return res, errBuf.String(), err
+	return res, errBuf, err
 }
 
 // trackProcessGroups records the app-server pgid so a future boot's
@@ -253,7 +267,7 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	if err != nil {
 		return subsystem.BindResult{}, err
 	}
-	result.Plan.Command = strings.Join(libcodex.RemoteAttachArgs(b.bridgePort, string(b.sessionID), threadID, startDir), " ")
+	result.Plan.Command = strings.Join(libcodex.RemoteAttachArgs(b.listenSock, threadID, startDir), " ")
 	result.Plan.Stdin = nil
 	result.Plan.Stream.ResumeThreadID = threadID
 	return result, nil

@@ -15,20 +15,6 @@ type fakeRuntime struct {
 
 func (f *fakeRuntime) Enqueue(e state.Event) { f.events = append(f.events, e) }
 
-// fakeDispatcher is a stub agentlaunch.Dispatcher for unit tests.
-type fakeDispatcher struct {
-	container bool
-}
-
-func (d *fakeDispatcher) IsContainer(_ string) bool { return d.container }
-func (d *fakeDispatcher) Wrap(_ context.Context, _ string, plan agentlaunch.LaunchPlan) (agentlaunch.WrappedLaunch, error) {
-	return agentlaunch.WrappedLaunch{Argv: plan.Argv}, nil
-}
-func (d *fakeDispatcher) AdoptFrame(_ context.Context, _, _ string) (func(context.Context) error, []agentlaunch.Mount, error) {
-	return nil, nil, nil
-}
-func (d *fakeDispatcher) EnsureProject(_ context.Context, _ string) error { return nil }
-
 func TestStopBeforeStartIsNoop(t *testing.T) {
 	b, _ := newTestBackend()
 	// Never Started: cancel and done are nil. Stop must not panic or block.
@@ -57,13 +43,10 @@ func TestStopCancelsAndWaitsForReap(t *testing.T) {
 	}
 }
 
-func TestBackendKindAndBridgePort(t *testing.T) {
-	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", "/csock", 1234, nil, 0)
+func TestBackendKind(t *testing.T) {
+	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", nil, 0)
 	if b.Kind() != state.LaunchSubsystemStream {
 		t.Errorf("Kind = %v", b.Kind())
-	}
-	if b.BridgePort() != 1234 {
-		t.Errorf("BridgePort = %d", b.BridgePort())
 	}
 }
 
@@ -97,28 +80,30 @@ func TestReleaseFrameAndLookup(t *testing.T) {
 	b.ReleaseFrame("nonexistent")
 }
 
-func TestChooseSockPath(t *testing.T) {
-	const hostSock = "/host/codex.sock"
-	const ctrSock = "/container/codex.sock"
-
-	t.Run("nil dispatcher uses host sock", func(t *testing.T) {
-		b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
-		if got := b.chooseSockPath(); got != hostSock {
-			t.Errorf("chooseSockPath() = %q, want host sock %q", got, hostSock)
+func TestResolveDialSock(t *testing.T) {
+	t.Run("host mode (no mounts) dials the listen path", func(t *testing.T) {
+		const listen = "/host/run/codex/codex-x.sock"
+		if got := resolveDialSock(listen, agentlaunch.WrappedLaunch{}); got != listen {
+			t.Errorf("resolveDialSock() = %q, want %q", got, listen)
 		}
 	})
 
-	t.Run("dispatcher IsContainer=false uses host sock", func(t *testing.T) {
-		b := New(&fakeRuntime{}, &fakeDispatcher{container: false}, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
-		if got := b.chooseSockPath(); got != hostSock {
-			t.Errorf("chooseSockPath() = %q, want host sock %q", got, hostSock)
+	t.Run("container mode maps the listen path to its bind-mount host path", func(t *testing.T) {
+		got := resolveDialSock("/opt/roost/run/codex-x.sock", agentlaunch.WrappedLaunch{
+			Mounts: []agentlaunch.Mount{{Host: "/home/u/.roost/run/4342aed7adbf", Container: "/opt/roost/run"}},
+		})
+		if want := "/home/u/.roost/run/4342aed7adbf/codex-x.sock"; got != want {
+			t.Errorf("resolveDialSock() = %q, want %q", got, want)
 		}
 	})
 
-	t.Run("dispatcher IsContainer=true uses container sock", func(t *testing.T) {
-		b := New(&fakeRuntime{}, &fakeDispatcher{container: true}, "sid", "sess1", "/p", "codex", nil, "", false, false, hostSock, ctrSock, 0, nil, 0)
-		if got := b.chooseSockPath(); got != ctrSock {
-			t.Errorf("chooseSockPath() = %q, want container sock %q", got, ctrSock)
+	t.Run("unmapped listen path falls back unchanged", func(t *testing.T) {
+		const listen = "/elsewhere/codex-x.sock"
+		got := resolveDialSock(listen, agentlaunch.WrappedLaunch{
+			Mounts: []agentlaunch.Mount{{Host: "/h/run", Container: "/opt/roost/run"}},
+		})
+		if got != listen {
+			t.Errorf("resolveDialSock() = %q, want %q", got, listen)
 		}
 	})
 }

@@ -26,7 +26,10 @@ import (
 // and cannot be respawned without overwriting the very state the
 // user wanted to keep. Those frames are dropped here, and snapshots
 // whose every frame was stopped are removed from disk so they do
-// not show up again on the next cold start.
+// not show up again on the next cold start. The exception is a driver
+// whose durable state outlives the pane (a ColdStartRecoverer such as
+// codex, which resumes its thread): its stopped frames are kept and
+// relaunched.
 //
 // Warm start keeps everything: stopped frames in a live tmux session
 // still have their dead panes attached for inspection.
@@ -66,16 +69,18 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 			slog.Warn("bootstrap: no driver for command, skipping frame", "command", fsnap.Command)
 			break
 		}
-		// Cold start has no live tmux pane to inherit the dead command's
-		// tail output, so a stopped frame turns into a zombie (no pane
-		// to display, no window to close). Drop it here instead. The
-		// frame's purpose — running a command — is gone, and the pane
-		// inspection state died with the old tmux server.
-		if coldStart && fsnap.DriverState["status"] == "stopped" {
-			continue
-		}
 		if coldStart && fsnap.DriverState["status"] == "running" {
 			fsnap.DriverState["status"] = "waiting"
+		}
+		driverState := drv.Restore(fsnap.DriverState, now)
+		// Cold start has no live tmux pane to inherit the dead command's
+		// tail output, so a stopped frame turns into a zombie (no pane
+		// to display, no window to close). Drop it here instead — unless
+		// the driver's durable state survives the pane (codex resumes its
+		// thread against a fresh app-server), in which case it is kept and
+		// relaunched by the cold-start spawn path.
+		if coldStart && drv.Status(driverState) == state.StatusStopped && !coldStartRecoverable(drv, driverState) {
+			continue
 		}
 		frameCreatedAt, _ := time.Parse(time.RFC3339, fsnap.CreatedAt)
 		if frameCreatedAt.IsZero() {
@@ -97,7 +102,7 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 			Command:       fsnap.Command,
 			LaunchOptions: fsnap.LaunchOptions,
 			CreatedAt:     frameCreatedAt,
-			Driver:        drv.Restore(fsnap.DriverState, now),
+			Driver:        driverState,
 		})
 	}
 	if len(sess.Frames) == 0 {

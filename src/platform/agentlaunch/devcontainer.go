@@ -104,16 +104,17 @@ func (l *DevcontainerLauncher) Wrap(ctx context.Context, frameID string, plan La
 		return WrappedLaunch{}, fmt.Errorf("devcontainer launcher: build command: %w", err)
 	}
 
-	// Tokenize the generated docker exec command string into argv for Spawn.
-	// BuildLaunchCommand produces well-formed single-quoted tokens that SplitArgs handles correctly.
-	argv, err := SplitArgs(cmd)
-	if err != nil {
-		return WrappedLaunch{}, fmt.Errorf("devcontainer launcher: tokenize command: %w", err)
-	}
-
+	// cmd is a shell command string: BuildLaunchCommand shell-quotes the user,
+	// workdir and env, and (for PreExec / shell launches) wraps the agent command
+	// in `sh -c 'exec <login-shell> -lc ...'`, whose login shell is an in-container
+	// $(...) substitution. Only a real shell can parse that — SplitArgs is not a
+	// shell lexer: it cannot reverse the '\'' single-quote escaping nor evaluate the
+	// substitution, and silently splits the agent command off into stray tokens that
+	// `sh -c` then ignores (the app-server never launches). Run cmd through `sh -c`
+	// so the same shell parsing the interactive (tmux) consumer relies on applies.
 	return WrappedLaunch{
 		Command:          cmd,
-		Argv:             argv,
+		Argv:             []string{"sh", "-c", cmd},
 		StartDir:         workDir,
 		Env:              outEnv,
 		Cleanup:          l.makeCleanup(frameID, inst),
@@ -288,7 +289,7 @@ func BuildContainerOverlay(
 			fmt.Sprintf("type=bind,source=%s,target=%s", runDir, ContainerRunDir),
 		}, proxySpec.Mounts...)
 
-		postCreate := buildPostCreate(binPath, postCreateSubcmds, proxySpec.BridgeSpecs, ContainerStreamBridgeCmd(ContainerRunDir))
+		postCreate := buildPostCreate(binPath, postCreateSubcmds, proxySpec.BridgeSpecs)
 
 		var extraWorkspaces []sandboxdc.BindMount
 		if instanceKey == sandboxdc.SharedContainerKey {
@@ -429,13 +430,11 @@ func buildOverlayEnv(scriptEnv map[string]string, proxySpec container.Spec) map[
 }
 
 // buildPostCreate assembles the postCreate shell script for the devcontainer.
-// extraBgCmds are run first as background processes (e.g. the stream routing
-// bridge). Each BridgeSpec from credproxy providers is started via
-// "roost-bridge sockbridge" in fixed-socket mode. postCreateSubcmds are run
+// Each BridgeSpec from credproxy providers is started as a background process
+// via "roost-bridge sockbridge" in fixed-socket mode. postCreateSubcmds are run
 // via the installed roost-bridge binary (setup hooks etc.).
-func buildPostCreate(binPath string, postCreateSubcmds []string, bridges []container.BridgeSpec, extraBgCmds ...string) []string {
+func buildPostCreate(binPath string, postCreateSubcmds []string, bridges []container.BridgeSpec) []string {
 	var parts []string
-	parts = append(parts, extraBgCmds...)
 	for _, bs := range bridges {
 		parts = append(parts, fmt.Sprintf("%s sockbridge -listen %s -socket %s &",
 			ContainerBinaryPath, bs.ListenAddr, bs.ContainerSocketPath))
