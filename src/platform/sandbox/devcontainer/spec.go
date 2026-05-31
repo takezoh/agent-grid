@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -139,9 +140,46 @@ func LoadSpec(projectPath, dcDir string) (*DevcontainerSpec, error) {
 		}
 		spec.Mounts = append(spec.Mounts, substituteVarsInStr(s, projectPath, ws))
 	}
+	// Drop devcontainer.json `mounts` whose bind source does not exist on this
+	// host. A single devcontainer.json is shared across machines (e.g. WSL and
+	// native Linux) via dotfiles, so OS-specific sources like /mnt/c/Obsidian or
+	// ${localEnv:USERPROFILE}/Downloads are absent on one side. docker --mount
+	// type=bind fails the whole create on any missing source (unlike -v, which
+	// auto-creates), so prune here — before MountConfigurationHash and
+	// BuildCreateArgs observe spec.Mounts. Scope is intentionally limited to the
+	// devcontainer.json mounts: roost's own socket/run-dir mounts are added later
+	// by Apply and must still fail loud if their source is missing.
+	spec.Mounts = pruneMissingBindSources(spec.Mounts)
 
 	spec.applySubstitution()
 	return spec, nil
+}
+
+// mountSourceExistsFn reports whether a bind-mount source path exists. It is a
+// package var so tests can stub host filesystem checks.
+var mountSourceExistsFn = func(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+// pruneMissingBindSources returns mounts with --mount-style bind entries whose
+// source path is absent removed (logged at WARN). Only long-form `--mount` specs
+// (see isLongFormMount) are eligible: short "host:container" specs go to
+// `docker -v`, which auto-creates a missing source, so pruning them would wrongly
+// drop a mount docker would have honored. Non-bind and unparseable mounts are
+// also kept — an unrecognised spec is never silently dropped.
+func pruneMissingBindSources(mounts []string) []string {
+	out := mounts[:0:0]
+	for _, m := range mounts {
+		if isLongFormMount(m) {
+			if src, _, ok := parseMountSpec(m); ok && !mountSourceExistsFn(src) {
+				slog.Warn("devcontainer: skip mount, source missing", "src", src, "mount", m)
+				continue
+			}
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // Apply merges roost overlay env and mounts on top of the base spec.
@@ -268,11 +306,22 @@ func (s *DevcontainerSpec) BindMounts() []BindMount {
 	return out
 }
 
+// isLongFormMount reports whether a mount spec is docker's long "--mount" form
+// (comma-separated key=value pairs) rather than the short "-v host:container[:ro]"
+// form. The presence of "=" is docker's own discriminator, and it drives three
+// coupled decisions that must agree: which flag BuildCreateArgs emits, whether
+// parseMountSpec reads key=value or host:container, and whether
+// pruneMissingBindSources may drop a missing source — only --mount sources are
+// fatal at create time, while -v auto-creates them.
+func isLongFormMount(m string) bool {
+	return strings.Contains(m, "=")
+}
+
 // parseMountSpec parses a `--mount` style spec ("type=bind,source=X,target=Y[,...]").
 // Falls back to the short "host:container[:ro]" form when no "=" is present.
 // Returns ok=false for non-bind types or missing fields.
 func parseMountSpec(spec string) (src, tgt string, ok bool) {
-	if !strings.Contains(spec, "=") {
+	if !isLongFormMount(spec) {
 		return parseShortMount(spec)
 	}
 	typ := "bind"
@@ -355,7 +404,7 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 	for _, m := range s.Mounts {
 		// devcontainer.json `mounts` values use --mount syntax (key=value pairs joined by ",").
 		// Short "host:container[:ro]" form has no "=" — route those to -v.
-		if strings.Contains(m, "=") {
+		if isLongFormMount(m) {
 			args = append(args, "--mount", m)
 		} else {
 			args = append(args, "-v", m)

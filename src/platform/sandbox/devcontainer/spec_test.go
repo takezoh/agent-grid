@@ -2,6 +2,8 @@ package devcontainer
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -102,6 +104,12 @@ func TestLoadSpec_FullDocumentParsed(t *testing.T) {
 	// Exercise the LoadSpec branches that string/array extractors and Mounts
 	// substitution touch — without this, LoadSpec coverage stops at ImageField
 	// happy path and misses everything else.
+	// This test asserts mount substitution, not source-existence pruning, so
+	// pin mountSourceExistsFn to true (the substituted source path is fictional).
+	origExists := mountSourceExistsFn
+	t.Cleanup(func() { mountSourceExistsFn = origExists })
+	mountSourceExistsFn = func(string) bool { return true }
+
 	const project = "/home/take/myapp"
 	dir := setupProjectDC(t, `{
 		"image": "myproject:dev",
@@ -337,5 +345,75 @@ func TestBindMounts_SkipsVolumes(t *testing.T) {
 		if b.Target == "/data" {
 			t.Errorf("volume mount leaked: %+v", got)
 		}
+	}
+}
+
+func TestPruneMissingBindSources(t *testing.T) {
+	// Only "/exists" is present on the (stubbed) host.
+	origExists := mountSourceExistsFn
+	t.Cleanup(func() { mountSourceExistsFn = origExists })
+	mountSourceExistsFn = func(p string) bool { return p == "/exists" }
+
+	const (
+		presentBind  = "source=/exists,target=/c,type=bind,consistency=cached"
+		missingBind  = "source=/missing,target=/c,type=bind"
+		volume       = "type=volume,source=myvol,target=/d" // non-bind: kept
+		shortMissing = "/missinghost:/c"                    // short -v: kept (docker -v auto-creates)
+		noSourceBind = "target=/c,type=bind"                // unparseable source: kept
+	)
+	in := []string{presentBind, missingBind, volume, shortMissing, noSourceBind}
+	got := pruneMissingBindSources(in)
+
+	want := []string{presentBind, volume, shortMissing, noSourceBind}
+	if len(got) != len(want) {
+		t.Fatalf("pruneMissingBindSources = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("pruned[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+	for _, m := range got {
+		if m == missingBind {
+			t.Errorf("missing-source bind mount was not pruned: %q", m)
+		}
+	}
+}
+
+func TestPruneMissingBindSources_Empty(t *testing.T) {
+	if got := pruneMissingBindSources(nil); got != nil {
+		t.Errorf("pruneMissingBindSources(nil) = %v, want nil", got)
+	}
+}
+
+func TestLoadSpec_PrunesMissingMountSources(t *testing.T) {
+	// End-to-end through the real os.Stat: a devcontainer.json mount whose source
+	// is absent on this host must be dropped, while a present source survives.
+	realSrc := t.TempDir()
+	missingSrc := filepath.Join(realSrc, "does-not-exist")
+	dir := setupProjectDC(t, fmt.Sprintf(`{
+		"image": "ubuntu",
+		"mounts": [
+			"source=%s,target=/real,type=bind,consistency=cached",
+			"source=%s,target=/missing,type=bind,consistency=cached"
+		]
+	}`, realSrc, missingSrc))
+
+	spec, err := LoadSpec(dir, filepath.Join(dir, ".devcontainer"))
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if len(spec.Mounts) != 1 {
+		t.Fatalf("Mounts = %v, want only the present-source mount", spec.Mounts)
+	}
+	if !strings.Contains(spec.Mounts[0], "source="+realSrc+",") {
+		t.Errorf("surviving mount = %q, want the one sourced at %q", spec.Mounts[0], realSrc)
+	}
+	if strings.Contains(spec.Mounts[0], missingSrc) {
+		t.Errorf("missing-source mount leaked: %q", spec.Mounts[0])
+	}
+	// The pruned spec is what MountConfigurationHash hashes.
+	if _, statErr := os.Stat(missingSrc); statErr == nil {
+		t.Fatalf("test precondition: %q should not exist", missingSrc)
 	}
 }
