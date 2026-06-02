@@ -2,7 +2,6 @@ package driver
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 
@@ -24,7 +23,6 @@ import (
 //     populated even on the first turn of a brand-new
 //     session before Claude has flushed anything to JSONL.
 //   - Tags     = [BranchTag?]
-//   - Indicators = derived from CurrentTool / SubagentCounts
 //
 // StatusLine: cached from the transcript parse result.
 func (d ClaudeDriver) view(cs ClaudeState) state.View {
@@ -52,7 +50,6 @@ func (d ClaudeDriver) view(cs ClaudeState) state.View {
 			Title:       cs.Title,
 			Subtitle:    firstNonEmpty(cs.Summary, cs.LastPrompt),
 			Tags:        tags,
-			Indicators:  claudeIndicators(cs),
 			BorderTitle: CommandTag(ClaudeDriverName),
 			BorderBadge: fishpath.Shorten(cs.StartDir, d.home),
 		},
@@ -63,21 +60,6 @@ func (d ClaudeDriver) view(cs ClaudeState) state.View {
 		Status:          cs.Status,
 		StatusChangedAt: cs.StatusChangedAt,
 	}
-}
-
-func claudeIndicators(cs ClaudeState) []string {
-	var out []string
-	if cs.CurrentTool != "" {
-		out = append(out, "▸ "+cs.CurrentTool)
-	}
-	subs := 0
-	for _, n := range cs.SubagentCounts {
-		subs += n
-	}
-	if subs > 0 {
-		out = append(out, fmt.Sprintf("%d subs", subs))
-	}
-	return out
 }
 
 func claudeInfoExtras(cs ClaudeState) []state.InfoLine {

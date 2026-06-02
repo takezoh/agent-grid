@@ -679,7 +679,6 @@ func TestCodexViewAddsTranscriptTab(t *testing.T) {
 	cs.TranscriptPath = "/tmp/t.jsonl"
 	cs.Title = "saved-session"
 	cs.Summary = "session summary"
-	cs.CurrentTool = "Bash"
 	v := d.view(cs)
 	if len(v.LogTabs) == 0 {
 		t.Fatal("expected tabs")
@@ -695,9 +694,6 @@ func TestCodexViewAddsTranscriptTab(t *testing.T) {
 	}
 	if v.Card.Subtitle != "session summary" {
 		t.Fatalf("subtitle = %q", v.Card.Subtitle)
-	}
-	if len(v.Card.Indicators) != 1 || v.Card.Indicators[0] != "▸ Bash" {
-		t.Fatalf("indicators = %#v", v.Card.Indicators)
 	}
 }
 

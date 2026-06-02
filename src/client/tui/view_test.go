@@ -348,8 +348,8 @@ func TestSessionCardLinesSubtitleClamp(t *testing.T) {
 			// First line is always the title row.
 			subtitleLines := lines[1:]
 			// Filter to only subtitle lines (muted style rendered).
-			// Indicators and tags may follow, but with no Tags/Indicators
-			// set, everything after the title is subtitle.
+			// Tags may follow, but with no Tags set, everything after
+			// the title is subtitle.
 			got := len(subtitleLines)
 			if got != tt.wantExactSubs {
 				t.Errorf("subtitle lines = %d, want %d\nlines: %s",

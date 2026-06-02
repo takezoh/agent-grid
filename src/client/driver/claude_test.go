@@ -1343,27 +1343,6 @@ func TestClaudeViewSubtitleFallsBackToLastPrompt(t *testing.T) {
 	}
 }
 
-func TestClaudeViewIndicatorsCurrentTool(t *testing.T) {
-	d, cs, _ := newClaude(t)
-	cs.CurrentTool = "Edit"
-	v := d.view(cs)
-	if len(v.Card.Indicators) != 1 || v.Card.Indicators[0] != "▸ Edit" {
-		t.Errorf("Indicators = %v", v.Card.Indicators)
-	}
-}
-
-func TestClaudeViewIndicatorsSubagents(t *testing.T) {
-	d, cs, _ := newClaude(t)
-	cs.SubagentCounts = map[string]int{"a": 2, "b": 1}
-	v := d.view(cs)
-	if len(v.Card.Indicators) == 0 {
-		t.Fatal("expected subagent indicator")
-	}
-	if v.Card.Indicators[0] != "3 subs" {
-		t.Errorf("indicator = %q, want %q", v.Card.Indicators[0], "3 subs")
-	}
-}
-
 func TestClaudeViewLogTabsTranscript(t *testing.T) {
 	d, cs, _ := newClaude(t)
 	cs.StartDir = "/work"

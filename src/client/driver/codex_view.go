@@ -30,7 +30,6 @@ func (d CodexDriver) view(cs CodexState) state.View {
 			Title:       cs.Title,
 			Subtitle:    firstNonEmpty(cs.Summary, cs.LastPrompt, cs.LastAssistantMessage),
 			Tags:        tags,
-			Indicators:  codexIndicators(cs),
 			BorderTitle: CodexCommandTag(),
 			BorderBadge: fishpath.Shorten(cs.StartDir, ""),
 		},
@@ -41,13 +40,6 @@ func (d CodexDriver) view(cs CodexState) state.View {
 		Status:          cs.Status,
 		StatusChangedAt: cs.StatusChangedAt,
 	}
-}
-
-func codexIndicators(cs CodexState) []string {
-	if cs.CurrentTool == "" {
-		return nil
-	}
-	return []string{"▸ " + cs.CurrentTool}
 }
 
 func codexInfoExtras(cs CodexState) []state.InfoLine {

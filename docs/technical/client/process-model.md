@@ -12,7 +12,6 @@ The driver returns `View(DriverState) state.View`. It is a pure function that pe
 - `Card.Subtitle`: Second line (e.g., most recent prompt)
 - `Card.Tags`: Identity chips. **The driver directly determines colors** (Tags carry `Foreground` / `Background`)
   - The command name is displayed via `View.DisplayName` and `Card.BorderTitle`. Tags contain only branch names, etc.
-- `Card.Indicators`: State chips (e.g., `▸ Edit`, `2 subs`, `3 err`)
 - `LogTabs`: Additional log tabs (label + absolute path + kind). kind is a TabKind constant defined by the driver (the generic `TabKindText` is provided by state; driver-specific kinds are defined in each driver package)
 - `InfoExtras`: Driver-specific lines in the INFO tab
 - `SuppressInfo`: Opt-out of the INFO tab (explicitly set by driver)
@@ -77,7 +76,7 @@ sequenceDiagram
         Client-->>Model: serverEventMsg
         Model->>Model: Build listItem in rebuildItems
         Model->>Render: View() rendering
-        Render->>Render: Render SessionInfo.View.Card.{Title, Subtitle, Tags, Indicators}<br/>SessionInfo.View.LogTabs / InfoExtras<br/>generically
+        Render->>Render: Render SessionInfo.View.Card.{Title, Subtitle, Tags}<br/>SessionInfo.View.LogTabs / InfoExtras<br/>generically
     end
 ```
 

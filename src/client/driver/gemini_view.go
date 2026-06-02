@@ -24,7 +24,6 @@ func (d GeminiDriver) view(gs GeminiState) state.View {
 		Card: state.Card{
 			Subtitle:    firstNonEmpty(gs.Summary, gs.LastPrompt, gs.LastAssistantMessage),
 			Tags:        tags,
-			Indicators:  geminiIndicators(gs),
 			BorderTitle: GeminiCommandTag(),
 			BorderBadge: fishpath.Shorten(gs.StartDir, ""),
 		},
@@ -35,13 +34,6 @@ func (d GeminiDriver) view(gs GeminiState) state.View {
 		Status:          gs.Status,
 		StatusChangedAt: gs.StatusChangedAt,
 	}
-}
-
-func geminiIndicators(gs GeminiState) []string {
-	if gs.CurrentTool == "" {
-		return nil
-	}
-	return []string{"▸ " + gs.CurrentTool}
 }
 
 func geminiInfoExtras(gs GeminiState) []state.InfoLine {

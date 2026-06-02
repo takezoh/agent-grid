@@ -282,9 +282,6 @@ func sessionCardLines(s *proto.SessionInfo, textWidth int, notifLine string) []s
 		}
 	}
 
-	if chips := renderIndicators(s); chips != "" {
-		lines = append(lines, chips)
-	}
 	if tagsLine := renderTags(s); tagsLine != "" {
 		lines = append(lines, tagsLine)
 	}
@@ -317,13 +314,6 @@ func renderTags(s *proto.SessionInfo) string {
 		parts = append(parts, renderTag(tag))
 	}
 	return strings.Join(parts, " ")
-}
-
-func renderIndicators(s *proto.SessionInfo) string {
-	if len(s.View.Card.Indicators) == 0 {
-		return ""
-	}
-	return mutedStyle.Render(strings.Join(s.View.Card.Indicators, "  "))
 }
 
 func renderTag(tag state.Tag) string {
