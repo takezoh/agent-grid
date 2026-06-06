@@ -69,9 +69,11 @@ func buildDevcontainerLauncher(
 		slog.Info("sandbox: using default docker socket (rootless not detected)")
 	}
 
-	runner, err := credproxy.Start(ctx, dataDir, func(project string) platformconfig.SandboxConfig {
-		return resolver.Resolve(project)
-	}, credproxy.Paths{
+	// Empty ProjectsConfig: the orchestrator launches one workspace per frame
+	// (non-shared isolation), so provider hooks only ever see real project paths
+	// and never the shared-container fan-out. Kept aligned with the empty
+	// ProjectsConfig passed to BuildContainerOverlay below.
+	runner, err := credproxy.Start(ctx, dataDir, resolver.Resolve, agentlaunch.BuildProviderHooks(resolver.Resolve, platformconfig.ProjectsConfig{}), credproxy.Paths{
 		RunDir:  agentlaunch.ContainerRunDir,
 		BinPath: agentlaunch.ContainerBinaryPath,
 		MCPSock: agentlaunch.ContainerMCPSockPath,

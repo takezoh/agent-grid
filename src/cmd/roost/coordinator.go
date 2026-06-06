@@ -378,9 +378,7 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 		} else if currentHost == "" {
 			slog.Info("sandbox: using default docker socket (rootless not detected)")
 		}
-		runner, err := credproxy.Start(ctx, dataDir, func(project string) platformconfig.SandboxConfig {
-			return resolver.Resolve(project)
-		}, credproxy.Paths{
+		runner, err := credproxy.Start(ctx, dataDir, resolver.Resolve, agentlaunch.BuildProviderHooks(resolver.Resolve, projects), credproxy.Paths{
 			RunDir:  agentlaunch.ContainerRunDir,
 			BinPath: agentlaunch.ContainerBinaryPath,
 			MCPSock: agentlaunch.ContainerMCPSockPath,

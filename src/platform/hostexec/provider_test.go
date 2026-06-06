@@ -173,6 +173,26 @@ func TestContainerSpec_OverlayRelative_NoWsDir_Skipped(t *testing.T) {
 	}
 }
 
+// TestContainerSpec_OverlayRelative_SharedSentinel_Skipped covers the shared
+// container: projectPath is the non-absolute "__shared__" sentinel, so a
+// relative overlay target must be skipped rather than producing a relative mount
+// target that docker create rejects.
+func TestContainerSpec_OverlayRelative_SharedSentinel_Skipped(t *testing.T) {
+	b, _ := newTestSpecBuilder(t, "__shared__")
+	cfg := config.HostExecConfig{
+		Overlay: []config.OverlayEntry{{Target: "bin/gcloud"}},
+	}
+	b.cfgFor = func(string) config.HostExecConfig { return cfg }
+
+	spec, err := b.ContainerSpec(context.Background(), "__shared__")
+	if err != nil {
+		t.Fatalf("ContainerSpec: %v", err)
+	}
+	if len(spec.Mounts) != 0 {
+		t.Errorf("Mounts = %v, want empty when wsDir is the non-absolute sentinel", spec.Mounts)
+	}
+}
+
 func TestContainerSpec_OverlayOnlyNoAllow(t *testing.T) {
 	b, _ := newTestSpecBuilder(t, "/workspace/proj")
 	cfg := config.HostExecConfig{

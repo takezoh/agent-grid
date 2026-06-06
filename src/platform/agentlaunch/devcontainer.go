@@ -12,6 +12,7 @@ import (
 
 	"github.com/takezoh/agent-roost/platform/config"
 	"github.com/takezoh/agent-roost/platform/credproxy"
+	"github.com/takezoh/agent-roost/platform/mcpproxy"
 	"github.com/takezoh/agent-roost/platform/pathmap"
 	"github.com/takezoh/agent-roost/platform/sandbox"
 	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
@@ -338,17 +339,20 @@ func workspaceFallbackProject(instanceKey, projectPath string) string {
 }
 
 func sharedWorkspaceBindMounts(projects config.ProjectsConfig, prefix string) []sandboxdc.BindMount {
+	// Dedup on the resolved container target, not the host source: docker rejects
+	// duplicate mount targets, and two host paths that differ only by a trailing
+	// slash (or otherwise collapse under path.Join with a prefix) resolve to the
+	// same target. Keying on the target also keeps the derived MCP overlay files
+	// (mcp-<hash(target)>.json) from colliding. First host path wins.
 	seen := map[string]struct{}{}
 	var out []sandboxdc.BindMount
 	for _, hostPath := range projects.ListProjects() {
-		if _, dup := seen[hostPath]; dup {
+		target := resolveWorkspaceFallback(hostPath, prefix)
+		if _, dup := seen[target]; dup {
 			continue
 		}
-		seen[hostPath] = struct{}{}
-		out = append(out, sandboxdc.BindMount{
-			Source: hostPath,
-			Target: resolveWorkspaceFallback(hostPath, prefix),
-		})
+		seen[target] = struct{}{}
+		out = append(out, sandboxdc.BindMount{Source: hostPath, Target: target})
 	}
 	return out
 }
@@ -358,6 +362,40 @@ func resolveWorkspaceFallback(projectPath, prefix string) string {
 		return projectPath
 	}
 	return path.Join(prefix, projectPath)
+}
+
+// BuildProviderHooks returns the credproxy.ProviderHooks that resolve a project
+// key — a real project path, or the shared-container sentinel — to the container
+// workspace paths the hostexec and MCP providers overlay into. This is the
+// devcontainer orchestration knowledge (shared vs project, the project list,
+// HostPathMountPrefix) that credproxy must not own; credproxy only threads these
+// functions into each provider's Config.
+func BuildProviderHooks(resolveSandbox func(string) config.SandboxConfig, projects config.ProjectsConfig) credproxy.ProviderHooks {
+	return credproxy.ProviderHooks{
+		HostExecWorkspaceFolder: func(projectKey string) string {
+			return resolveWorkspaceFallback(projectKey, resolveSandbox(projectKey).Devcontainer.HostPathMountPrefix)
+		},
+		MCPWorkspaceTargets: func(projectKey string) []mcpproxy.WorkspaceTarget {
+			prefix := resolveSandbox(projectKey).Devcontainer.HostPathMountPrefix
+			if projectKey != sandboxdc.SharedContainerKey {
+				return []mcpproxy.WorkspaceTarget{{HostRoot: projectKey, ContainerWS: resolveWorkspaceFallback(projectKey, prefix)}}
+			}
+			return sharedMCPTargets(projects, prefix)
+		},
+	}
+}
+
+// sharedMCPTargets maps every bound project's workspace bind mount to an MCP
+// overlay target, so each project in a shared container gets its own .mcp.json
+// at its container workspace root. Reusing sharedWorkspaceBindMounts keeps the
+// overlay targets identical to the workspace bind mounts (and shares its dedup).
+func sharedMCPTargets(projects config.ProjectsConfig, prefix string) []mcpproxy.WorkspaceTarget {
+	binds := sharedWorkspaceBindMounts(projects, prefix)
+	out := make([]mcpproxy.WorkspaceTarget, 0, len(binds))
+	for _, b := range binds {
+		out = append(out, mcpproxy.WorkspaceTarget{HostRoot: b.Source, ContainerWS: b.Target})
+	}
+	return out
 }
 
 // ResolveFrameContext computes per-frame env by invoking env-script and credproxy.

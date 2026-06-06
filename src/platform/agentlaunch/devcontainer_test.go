@@ -565,3 +565,104 @@ func TestBuildContainerOverlay_ProjectMode_WorkspaceFallbackUsesProject(t *testi
 			ov.WorkspaceFolderFallback)
 	}
 }
+
+func TestBuildProviderHooks_NonSharedProject(t *testing.T) {
+	resolve := func(string) config.SandboxConfig { return config.SandboxConfig{} }
+	hooks := BuildProviderHooks(resolve, config.ProjectsConfig{})
+
+	if got := hooks.HostExecWorkspaceFolder("/home/u/proj"); got != "/home/u/proj" {
+		t.Errorf("HostExecWorkspaceFolder = %q, want /home/u/proj", got)
+	}
+	targets := hooks.MCPWorkspaceTargets("/home/u/proj")
+	if len(targets) != 1 {
+		t.Fatalf("expected 1 target, got %d: %+v", len(targets), targets)
+	}
+	if targets[0].HostRoot != "/home/u/proj" || targets[0].ContainerWS != "/home/u/proj" {
+		t.Errorf("target = %+v, want {/home/u/proj /home/u/proj}", targets[0])
+	}
+}
+
+func TestBuildProviderHooks_WithPrefix(t *testing.T) {
+	resolve := func(string) config.SandboxConfig {
+		return config.SandboxConfig{Devcontainer: config.DevcontainerConfig{HostPathMountPrefix: "/mnt"}}
+	}
+	hooks := BuildProviderHooks(resolve, config.ProjectsConfig{})
+
+	if got := hooks.HostExecWorkspaceFolder("/home/u/proj"); got != "/mnt/home/u/proj" {
+		t.Errorf("HostExecWorkspaceFolder = %q, want /mnt/home/u/proj", got)
+	}
+	targets := hooks.MCPWorkspaceTargets("/home/u/proj")
+	if len(targets) != 1 || targets[0].ContainerWS != "/mnt/home/u/proj" {
+		t.Errorf("targets = %+v, want ContainerWS /mnt/home/u/proj", targets)
+	}
+}
+
+// TestBuildProviderHooks_SharedFansOut is the regression for the shared
+// container: the MCP overlay must produce one absolute target per bound project,
+// never a single relative sentinel target that Docker rejects.
+func TestBuildProviderHooks_SharedFansOut(t *testing.T) {
+	root := t.TempDir()
+	projA := filepath.Join(root, "proj-a")
+	projB := filepath.Join(root, "proj-b")
+	for _, d := range []string{projA, projB} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resolve := func(string) config.SandboxConfig { return config.SandboxConfig{} }
+	hooks := BuildProviderHooks(resolve, config.ProjectsConfig{ProjectRoots: []string{root}})
+
+	targets := hooks.MCPWorkspaceTargets(sandboxdc.SharedContainerKey)
+	got := map[string]string{}
+	for _, tg := range targets {
+		if !filepath.IsAbs(tg.ContainerWS) {
+			t.Errorf("shared target not absolute: %+v", tg)
+		}
+		got[tg.HostRoot] = tg.ContainerWS
+	}
+	if got[projA] != projA || got[projB] != projB {
+		t.Errorf("expected overlays for proj-a and proj-b, got %+v", targets)
+	}
+}
+
+// TestBuildProviderHooks_SharedWithPrefix covers the prefix-set shared case:
+// every overlay target must be an absolute, prefixed container path (a prefix
+// mis-join would yield a non-absolute target that overlayMounts silently drops).
+func TestBuildProviderHooks_SharedWithPrefix(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "app")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	resolve := func(string) config.SandboxConfig {
+		return config.SandboxConfig{Devcontainer: config.DevcontainerConfig{HostPathMountPrefix: "/mnt"}}
+	}
+	hooks := BuildProviderHooks(resolve, config.ProjectsConfig{ProjectRoots: []string{root}})
+
+	targets := hooks.MCPWorkspaceTargets(sandboxdc.SharedContainerKey)
+	if len(targets) != 1 {
+		t.Fatalf("expected 1 target, got %d: %+v", len(targets), targets)
+	}
+	if want := "/mnt" + proj; targets[0].ContainerWS != want {
+		t.Errorf("ContainerWS = %q, want %q", targets[0].ContainerWS, want)
+	}
+	if !filepath.IsAbs(targets[0].ContainerWS) {
+		t.Errorf("prefixed shared target must be absolute: %q", targets[0].ContainerWS)
+	}
+	if targets[0].HostRoot != proj {
+		t.Errorf("HostRoot = %q, want %q", targets[0].HostRoot, proj)
+	}
+}
+
+// TestSharedWorkspaceBindMounts_DedupsOnTarget verifies two project paths that
+// collapse to the same container target under a prefix (trailing-slash variant)
+// yield a single bind mount — docker rejects duplicate mount targets, and the
+// derived MCP overlay files must not collide.
+func TestSharedWorkspaceBindMounts_DedupsOnTarget(t *testing.T) {
+	dir := t.TempDir()
+	projects := config.ProjectsConfig{ProjectPaths: []string{dir, dir + "/"}}
+	binds := sharedWorkspaceBindMounts(projects, "/mnt")
+	if len(binds) != 1 {
+		t.Fatalf("expected 1 deduped bind, got %d: %+v", len(binds), binds)
+	}
+}

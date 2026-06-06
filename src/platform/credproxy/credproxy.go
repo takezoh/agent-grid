@@ -34,6 +34,21 @@ type Paths struct {
 	MCPSock string
 }
 
+// ProviderHooks carries the project→workspace resolution that the hostexec and
+// MCP providers need but that belongs to the devcontainer orchestration layer
+// (platform/agentlaunch), not to this neutral wiring package. credproxy knows
+// nothing about shared containers, the project list, or how .mcp.json is placed;
+// it only threads these injected functions into each provider's Config. Callers
+// build them via agentlaunch.BuildProviderHooks.
+type ProviderHooks struct {
+	// HostExecWorkspaceFolder returns the container-side workspace path for a
+	// project key (used to place hostexec overlay files).
+	HostExecWorkspaceFolder func(projectKey string) string
+	// MCPWorkspaceTargets returns the workspaces into which the .mcp.json overlay
+	// is projected for a project key (one per bound project for shared containers).
+	MCPWorkspaceTargets func(projectKey string) []mcpproxy.WorkspaceTarget
+}
+
 // Runner holds an in-process credential proxy server and provider SpecBuilders.
 type Runner struct {
 	srv       *credproxylib.Server
@@ -70,7 +85,7 @@ func (r *Runner) ProjectToken(projectPath string) (string, error) {
 // Start starts an in-process credential proxy and registers all built-in
 // providers. resolveSandbox provides per-project SandboxConfig; paths carries
 // the container-side paths the providers need.
-func Start(ctx context.Context, dataDir string, resolveSandbox func(string) config.SandboxConfig, paths Paths) (*Runner, error) {
+func Start(ctx context.Context, dataDir string, resolveSandbox func(string) config.SandboxConfig, hooks ProviderHooks, paths Paths) (*Runner, error) {
 	runBase := dataDir + "/run"
 	if err := os.MkdirAll(runBase, 0o700); err != nil {
 		return nil, fmt.Errorf("credproxy: create run dir: %w", err)
@@ -81,7 +96,7 @@ func Start(ctx context.Context, dataDir string, resolveSandbox func(string) conf
 	// ctx cancellation) tears down provider-managed processes such as ssh-agent.
 	srvCtx, srvCancel := context.WithCancel(ctx)
 	runner := &Runner{tokens: make(map[string]string), srvCancel: srvCancel, serverDone: make(chan struct{})}
-	providers := buildProviders(srvCtx, runBase, sockPath, resolveSandbox, runner.ProjectToken, paths)
+	providers := buildProviders(srvCtx, runBase, sockPath, resolveSandbox, runner.ProjectToken, hooks, paths)
 
 	var routes []credproxylib.Route
 	for _, p := range providers {
@@ -146,10 +161,11 @@ func buildProviders(
 	runBase, sockPath string,
 	resolveSandbox func(string) config.SandboxConfig,
 	tokenFor func(string) (string, error),
+	hooks ProviderHooks,
 	paths Paths,
 ) []container.Provider {
 	cred := buildCredProviders(ctx, runBase, sockPath, resolveSandbox, tokenFor, paths)
-	tool := buildToolProviders(ctx, runBase, resolveSandbox, paths)
+	tool := buildToolProviders(ctx, runBase, resolveSandbox, hooks, paths)
 	return append(cred, tool...)
 }
 
@@ -190,21 +206,15 @@ func buildToolProviders(
 	ctx context.Context,
 	runBase string,
 	resolveSandbox func(string) config.SandboxConfig,
+	hooks ProviderHooks,
 	paths Paths,
 ) []container.Provider {
-	wsFolderFor := func(p string) string {
-		dc := resolveSandbox(p).Devcontainer
-		if dc.HostPathMountPrefix == "" {
-			return p
-		}
-		return dc.HostPathMountPrefix + p
-	}
 	he := hostexec.NewSpecBuilder(ctx,
-		hostexec.Config{RunBase: runBase, ContainerRunDir: paths.RunDir, ContainerBinPath: paths.BinPath, WorkspaceFolderFor: wsFolderFor},
+		hostexec.Config{RunBase: runBase, ContainerRunDir: paths.RunDir, ContainerBinPath: paths.BinPath, WorkspaceFolderFor: hooks.HostExecWorkspaceFolder},
 		func(p string) config.HostExecConfig { return resolveSandbox(p).Proxy.HostExec },
 	)
 	mcp := mcpproxy.NewSpecBuilder(ctx,
-		mcpproxy.Config{RunBase: runBase, ContainerSockPath: paths.MCPSock, ContainerBinPath: paths.BinPath, WorkspaceFolderFor: wsFolderFor},
+		mcpproxy.Config{RunBase: runBase, ContainerSockPath: paths.MCPSock, ContainerBinPath: paths.BinPath, WorkspaceTargetsFor: hooks.MCPWorkspaceTargets},
 		func(p string) config.MCPProxyConfig { return resolveSandbox(p).Proxy.MCPProxy },
 	)
 	se := secretenv.NewSpecBuilder(ctx,

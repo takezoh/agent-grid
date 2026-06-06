@@ -150,8 +150,13 @@ func (b *SpecBuilder) buildOverlayMounts(projRunDir, projectPath string, overlay
 			dst = filepath.Clean(ov.Target)
 			hostExecPath = dst
 		} else {
-			if wsDir == "" {
-				slog.Warn("hostexec: workspace folder unknown, skipping relative overlay", "path", ov.Target, "project", projectPath)
+			// wsDir must be an absolute container path. A non-absolute value
+			// (empty, or the unresolved "__shared__" sentinel a shared container
+			// passes as projectPath) would make dst relative, which docker create
+			// rejects — skip rather than emit a broken mount. Symmetric to the
+			// mcpproxy overlay guard.
+			if !filepath.IsAbs(wsDir) {
+				slog.Warn("hostexec: workspace folder not absolute, skipping relative overlay", "path", ov.Target, "project", projectPath, "wsDir", wsDir)
 				continue
 			}
 			dst = filepath.Clean(filepath.Join(wsDir, ov.Target))
