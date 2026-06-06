@@ -86,6 +86,7 @@ github.com/takezoh/agent-roost/platform/mcpproxy                   50
 github.com/takezoh/agent-roost/platform/metrics                    95
 github.com/takezoh/agent-roost/platform/pathmap                    95
 github.com/takezoh/agent-roost/platform/procgroup                  75
+github.com/takezoh/agent-roost/platform/sandbox                    90
 github.com/takezoh/agent-roost/platform/sandbox/devcontainer       70
 github.com/takezoh/agent-roost/platform/secretenv                  34
 github.com/takezoh/agent-roost/platform/shellalias                  90
