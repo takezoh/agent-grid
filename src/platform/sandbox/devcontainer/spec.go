@@ -11,19 +11,24 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/takezoh/agent-roost/platform/sandbox"
 )
 
 // ErrMissingImage is returned when devcontainer.json has neither image nor build.name.
 var ErrMissingImage = errors.New("devcontainer.json: image or build.name is required (roost does not build images)")
 
 // Isolation controls container sharing behaviour for a DevcontainerSpec.
-type Isolation int
+// It aliases sandbox.IsolationKind so the spec and the launch-time IsolationPlan
+// share one underlying type — there is no second representation of shared vs
+// project to keep in sync.
+type Isolation = sandbox.IsolationKind
 
 const (
 	// IsolationProject gives each project its own container (default).
-	IsolationProject Isolation = iota
+	IsolationProject = sandbox.IsolationProject
 	// IsolationShared uses a single shared container for all projects.
-	IsolationShared
+	IsolationShared = sandbox.IsolationShared
 )
 
 var localEnvRe = regexp.MustCompile(`\$\{localEnv:([A-Za-z_][A-Za-z0-9_]*)\}`)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/takezoh/agent-roost/platform/sandbox"
 )
 
 const devcontainerSubdir = ".devcontainer"
@@ -16,10 +18,12 @@ var ErrNoProjectDevcontainer = errors.New("devcontainer: <project>/.devcontainer
 var ErrNoUserDevcontainer = errors.New("devcontainer: ~/.devcontainer/devcontainer.json not found")
 
 // OverlayFunc computes roost overlay (env + mounts) to apply at container creation time.
-// instanceKey is the Manager-internal key for the container (__shared__ for shared mode,
-// projectPath otherwise). projectPath is the actual project launching the frame.
-// dcDir is the resolved devcontainer config directory. Must not trigger image builds.
-type OverlayFunc func(instanceKey, projectPath, dcDir string) (SpecOverlay, error)
+// plan carries the shared-vs-project decision; the overlay derives the container
+// key, overlay project, and workspace fallback from it via plan.ContainerKey /
+// OverlayProject / WorkspaceFallbackProject (all keyed by projectPath, the actual
+// project launching the frame). dcDir is the resolved devcontainer config
+// directory. Must not trigger image builds.
+type OverlayFunc func(plan sandbox.IsolationPlan, projectPath, dcDir string) (SpecOverlay, error)
 
 // FindDevcontainerPath returns the devcontainer.json path for projectPath.
 // If override is non-empty it is used directly and must contain devcontainer.json

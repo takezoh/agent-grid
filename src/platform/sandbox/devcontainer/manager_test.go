@@ -1310,7 +1310,7 @@ func TestContainerState_Getters(t *testing.T) {
 
 func TestManager_New(t *testing.T) {
 	called := 0
-	overlay := func(string, string, string) (SpecOverlay, error) { called++; return SpecOverlay{}, nil }
+	overlay := func(sandbox.IsolationPlan, string, string) (SpecOverlay, error) { called++; return SpecOverlay{}, nil }
 	m := New(overlay)
 	if m == nil {
 		t.Fatalf("New returned nil")
@@ -1323,7 +1323,7 @@ func TestManager_New(t *testing.T) {
 	if m.overlayFn == nil {
 		t.Fatalf("overlayFn not stored")
 	}
-	if _, err := m.overlayFn("", "", ""); err != nil {
+	if _, err := m.overlayFn(sandbox.IsolationPlan{}, "", ""); err != nil {
 		t.Errorf("overlay invocation: %v", err)
 	}
 	if called != 1 {

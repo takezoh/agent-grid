@@ -82,12 +82,9 @@ func (l *DevcontainerLauncher) Wrap(ctx context.Context, frameID string, plan La
 	}
 
 	l.mgr.AcquireFrame(inst)
-	slog.Debug("devcontainer launcher: frame acquired", "frame", frameID, "project", plan.Project, "shared", opts.SharedMode)
+	slog.Debug("devcontainer launcher: frame acquired", "frame", frameID, "project", plan.Project, "shared", opts.Isolation.IsShared())
 
-	wsHost, wsContainer := plan.Project, inst.Internal.WorkspaceTarget()
-	if inst.Internal.IsShared() {
-		wsHost, wsContainer = "", ""
-	}
+	wsHost, wsContainer := opts.Isolation.FrameWorkspaceMount(plan.Project, inst.Internal.WorkspaceTarget())
 	pm := buildMounts(wsHost, wsContainer, runDir, inst.Internal.BindMounts())
 
 	workDir := plan.StartDir
@@ -126,10 +123,7 @@ func (l *DevcontainerLauncher) Wrap(ctx context.Context, frameID string, plan La
 
 // runDirKey returns the key for the per-container run directory.
 func (l *DevcontainerLauncher) runDirKey(projectPath string, opts sandbox.StartOptions) string {
-	if opts.SharedMode {
-		return sandboxdc.SharedContainerKey
-	}
-	return projectPath
+	return opts.Isolation.ContainerKey(projectPath)
 }
 
 // RunDirKey returns the run-dir key for projectPath (shared vs project isolation).
@@ -149,25 +143,25 @@ func (l *DevcontainerLauncher) resolveStartOptions(projectPath string) sandbox.S
 	return opts
 }
 
+// startOptionsForIsolation gathers the I/O-bound inputs (project-own devcontainer
+// stat, scope resolution, ~-expansion) and delegates the precedence decision to
+// the pure DecideIsolation. The shell/decision split keeps the decision ladder
+// table-testable without a filesystem.
 func (l *DevcontainerLauncher) startOptionsForIsolation(projectPath string) sandbox.StartOptions {
+	var in IsolationInputs
+	// A project's own .devcontainer wins outright, so the scope inputs are only
+	// gathered (and their I/O paid) when there is no project-own devcontainer.
 	if _, err := sandboxdc.ProjectBaseDC(projectPath); err == nil {
-		return sandbox.StartOptions{}
+		in.HasOwnDevcontainer = true
+	} else {
+		in.UserScope = l.resolveSandbox("")
+		in.UserDevcontainerDir = config.ExpandPath(in.UserScope.Devcontainer.Path)
+		in.ProjectScope = l.resolveProjectScope(projectPath)
+		if in.ProjectScope != nil {
+			in.ProjectDevcontainerDir = config.ExpandPath(in.ProjectScope.Devcontainer.Path)
+		}
 	}
-
-	projScope := l.resolveProjectScope(projectPath)
-	if projScope != nil && (projScope.Isolation == "project" || projScope.Devcontainer.Path != "") {
-		return sandbox.StartOptions{DevcontainerDir: config.ExpandPath(projScope.Devcontainer.Path)}
-	}
-
-	userSandbox := l.resolveSandbox("")
-	if userSandbox.Isolation != "shared" {
-		return sandbox.StartOptions{}
-	}
-
-	return sandbox.StartOptions{
-		SharedMode:      true,
-		DevcontainerDir: config.ExpandPath(userSandbox.Devcontainer.Path),
-	}
+	return sandbox.StartOptions{Isolation: DecideIsolation(in)}
 }
 
 func (l *DevcontainerLauncher) IsContainer(_ string) bool { return true }
@@ -231,13 +225,10 @@ func (l *DevcontainerLauncher) AdoptFrame(ctx context.Context, frameID, projectP
 		return nil, nil, fmt.Errorf("devcontainer launcher: adopt frame %s: %w", frameID, err)
 	}
 	l.mgr.AcquireFrame(inst)
-	slog.Debug("devcontainer launcher: frame adopted (warm start)", "frame", frameID, "project", projectPath, "shared", opts.SharedMode)
+	slog.Debug("devcontainer launcher: frame adopted (warm start)", "frame", frameID, "project", projectPath, "shared", opts.Isolation.IsShared())
 
 	runDir := ProjectRunDir(filepath.Join(l.dataDir, "run"), l.runDirKey(projectPath, opts))
-	wsHost, wsContainer := projectPath, inst.Internal.WorkspaceTarget()
-	if inst.Internal.IsShared() {
-		wsHost, wsContainer = "", ""
-	}
+	wsHost, wsContainer := opts.Isolation.FrameWorkspaceMount(projectPath, inst.Internal.WorkspaceTarget())
 	pm := buildMounts(wsHost, wsContainer, runDir, inst.Internal.BindMounts())
 	return l.makeCleanup(frameID, inst), toMounts(pm), nil
 }
@@ -266,8 +257,8 @@ func BuildContainerOverlay(
 	dataDir string,
 	postCreateSubcmds []string,
 ) sandboxdc.OverlayFunc {
-	return func(instanceKey, projectPath, dcDir string) (sandboxdc.SpecOverlay, error) {
-		overlayProject := effectiveOverlayProject(instanceKey, projectPath)
+	return func(plan sandbox.IsolationPlan, projectPath, dcDir string) (sandboxdc.SpecOverlay, error) {
+		overlayProject := plan.OverlayProject(projectPath)
 		sb := resolveSandbox(overlayProject)
 		dc := sb.Devcontainer
 
@@ -276,7 +267,7 @@ func BuildContainerOverlay(
 			return sandboxdc.SpecOverlay{}, err
 		}
 
-		runDir, err := EnsureProjectRunDir(filepath.Join(dataDir, "run"), instanceKey)
+		runDir, err := EnsureProjectRunDir(filepath.Join(dataDir, "run"), plan.ContainerKey(projectPath))
 		if err != nil {
 			return sandboxdc.SpecOverlay{}, fmt.Errorf("devcontainer: ensure run dir: %w", err)
 		}
@@ -293,7 +284,7 @@ func BuildContainerOverlay(
 		postCreate := buildPostCreate(binPath, postCreateSubcmds, proxySpec.BridgeSpecs)
 
 		var extraWorkspaces []sandboxdc.BindMount
-		if instanceKey == sandboxdc.SharedContainerKey {
+		if plan.IsShared() {
 			extraWorkspaces = sharedWorkspaceBindMounts(projects, dc.HostPathMountPrefix)
 		}
 
@@ -303,40 +294,13 @@ func BuildContainerOverlay(
 			ExtraWorkspaces:         extraWorkspaces,
 			ExtraCreateArgs:         dc.ExtraCreateArgs,
 			PostCreate:              postCreate,
-			WorkspaceFolderFallback: resolveWorkspaceFallback(workspaceFallbackProject(instanceKey, projectPath), dc.HostPathMountPrefix),
+			WorkspaceFolderFallback: resolveWorkspaceFallback(plan.WorkspaceFallbackProject(projectPath), dc.HostPathMountPrefix),
 		}, nil
 	}
 }
 
-// effectiveOverlayProject returns the project key used to resolve the proxy
-// ContainerSpec for an instance. For shared containers it returns the
-// SharedContainerKey (not ""): credproxy providers derive their per-project
-// socket directory from this key via container.ProjectRunHash, and that
-// directory MUST equal the run-dir that the overlay bind-mounts to
-// ContainerRunDir (EnsureProjectRunDir keys off the same instanceKey).
-// Returning "" placed the sockets under hash("") while the bind used
-// hash(SharedContainerKey), so hostexec/ssh sockets never appeared under
-// /opt/roost/run inside the shared container. Config stays user-scope because
-// SandboxResolver.Resolve maps non-absolute keys (including this sentinel) to
-// the user config.
-func effectiveOverlayProject(instanceKey, projectPath string) string {
-	if instanceKey == sandboxdc.SharedContainerKey {
-		return instanceKey
-	}
-	return projectPath
-}
-
-// workspaceFallbackProject returns the project whose path seeds the container's
-// default workspace folder. A shared container has no single project — it binds
-// every project via ExtraWorkspaces (sharedWorkspaceBindMounts) and sets -w per
-// frame — so the single fallback is erased. Distinct from
-// effectiveOverlayProject, which must stay aligned with the run-dir key.
-func workspaceFallbackProject(instanceKey, projectPath string) string {
-	if instanceKey == sandboxdc.SharedContainerKey {
-		return ""
-	}
-	return projectPath
-}
+// Overlay project, container key, and workspace-fallback project are derived
+// from IsolationPlan — see platform/sandbox/isolation.go.
 
 func sharedWorkspaceBindMounts(projects config.ProjectsConfig, prefix string) []sandboxdc.BindMount {
 	// Dedup on the resolved container target, not the host source: docker rejects
@@ -377,7 +341,7 @@ func BuildProviderHooks(resolveSandbox func(string) config.SandboxConfig, projec
 		},
 		MCPWorkspaceTargets: func(projectKey string) []mcpproxy.WorkspaceTarget {
 			prefix := resolveSandbox(projectKey).Devcontainer.HostPathMountPrefix
-			if projectKey != sandboxdc.SharedContainerKey {
+			if !sandbox.IsSharedKey(projectKey) {
 				return []mcpproxy.WorkspaceTarget{{HostRoot: projectKey, ContainerWS: resolveWorkspaceFallback(projectKey, prefix)}}
 			}
 			return sharedMCPTargets(projects, prefix)
@@ -402,7 +366,7 @@ func sharedMCPTargets(projects config.ProjectsConfig, prefix string) []mcpproxy.
 // frameID is plain string; callers that hold a typed FrameID should convert with string().
 func (l *DevcontainerLauncher) ResolveFrameContext(ctx context.Context, projectPath string, frameID string) (sandbox.FrameContext, error) {
 	opts := l.resolveStartOptions(projectPath)
-	effectiveProject := effectiveOverlayProject(l.runDirKey(projectPath, opts), projectPath)
+	effectiveProject := opts.Isolation.OverlayProject(projectPath)
 	dc := l.resolveSandbox(effectiveProject).Devcontainer
 
 	proxySpec, _, err := resolveOverlaySpecs(l.proxy, effectiveProject, dc)

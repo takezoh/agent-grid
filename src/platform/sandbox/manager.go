@@ -37,10 +37,12 @@ type Instance[I any] struct {
 // instance. Options are only applied when the instance is freshly created; a
 // cached (running) instance ignores them.
 type StartOptions struct {
-	Env             map[string]string // fixed env vars to set in the container
-	ForwardEnv      []string          // host env var names to pass through if set on the host
-	DevcontainerDir string            // devcontainer.json directory override; empty = auto-discover
-	SharedMode      bool              // use shared container (isolation=shared) instead of per-project
+	Env        map[string]string // fixed env vars to set in the container
+	ForwardEnv []string          // host env var names to pass through if set on the host
+	// Isolation is the single source of truth for shared-vs-project isolation
+	// and the devcontainer.json directory override. Its zero value is per-project
+	// isolation with auto-discovery. See IsolationPlan.
+	Isolation IsolationPlan
 	// ColdStart asks EnsureInstance to discard any existing container before
 	// provisioning a fresh one. Set by the coordinator's cold-start path so
 	// that a daemon SIGKILL (no graceful DestroyInstance) cannot leak stale

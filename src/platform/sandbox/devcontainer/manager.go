@@ -19,8 +19,10 @@ import (
 )
 
 // SharedContainerKey is the containers map key used for shared-mode instances.
-// Overlay functions compare against this to detect shared vs project context.
-const SharedContainerKey = "__shared__"
+// It aliases sandbox.SharedInstanceKey, the canonical reserved key produced by
+// IsolationPlan.ContainerKey, so this package and the generic key derivation
+// agree by construction.
+const SharedContainerKey = sandbox.SharedInstanceKey
 
 // Docker call indirections. Tests override these to drive Manager scenarios
 // that would otherwise require a real docker daemon (the stale-bind-mount
@@ -75,6 +77,17 @@ func (cs *ContainerState) IsShared() bool {
 	return cs != nil && cs.spec != nil && cs.spec.Isolation == IsolationShared
 }
 
+// isolation reconstructs the IsolationPlan from the materialized spec, whose
+// Isolation is stamped from opts.Isolation.Kind at create time. It lets teardown
+// route its containers-map key through the same IsolationPlan.ContainerKey the
+// create path used, instead of re-deriving the shared sentinel by hand.
+func (cs *ContainerState) isolation() sandbox.IsolationPlan {
+	if cs == nil || cs.spec == nil {
+		return sandbox.IsolationPlan{}
+	}
+	return sandbox.IsolationPlan{Kind: cs.spec.Isolation}
+}
+
 func (cs *ContainerState) ContainerID() string {
 	if cs == nil {
 		return ""
@@ -124,13 +137,10 @@ func New(overlayFn OverlayFunc) *Manager {
 }
 
 // EnsureInstance ensures the devcontainer for projectPath is running.
-// When opts.SharedMode is true, a single shared container is used across projects.
+// When opts.Isolation is shared, a single shared container is used across projects.
 // Returns an error if the image declared in devcontainer.json does not exist locally.
 func (m *Manager) EnsureInstance(ctx context.Context, projectPath, _ string, opts sandbox.StartOptions) (*sandbox.Instance[*ContainerState], error) {
-	instanceKey := projectPath
-	if opts.SharedMode {
-		instanceKey = SharedContainerKey
-	}
+	instanceKey := opts.Isolation.ContainerKey(projectPath)
 	_, err, _ := m.inflight.Do(instanceKey, func() (any, error) {
 		return nil, m.ensureContainer(ctx, instanceKey, projectPath, opts)
 	})
@@ -168,13 +178,13 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 
 	t := time.Now()
 	findCtx, findCancel := context.WithTimeout(ctx, 5*time.Second)
-	if opts.SharedMode {
+	if opts.Isolation.IsShared() {
 		ctr, err = findSharedContainerFn(findCtx)
 	} else {
 		ctr, err = findContainerFn(findCtx, projectPath)
 	}
 	findCancel()
-	slog.Info("devcontainer: stage", "name", "find", "elapsed", time.Since(t), "project", projectPath, "shared", opts.SharedMode)
+	slog.Info("devcontainer: stage", "name", "find", "elapsed", time.Since(t), "project", projectPath, "shared", opts.Isolation.IsShared())
 	if err != nil {
 		return fmt.Errorf("devcontainer: find container: %w", err)
 	}
@@ -185,13 +195,11 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	}
 
 	t = time.Now()
-	spec, err := m.loadSpec(instanceKey, projectPath, filepath.Dir(dcPath))
+	spec, err := m.loadSpec(opts.Isolation, projectPath, filepath.Dir(dcPath))
 	if err != nil {
 		return err
 	}
-	if opts.SharedMode {
-		spec.Isolation = IsolationShared
-	}
+	spec.Isolation = opts.Isolation.Kind
 	slog.Info("devcontainer: stage", "name", "load_spec", "image", spec.Image, "elapsed", time.Since(t), "project", projectPath)
 
 	image := spec.Image
@@ -235,7 +243,7 @@ func discardContainerIfStale(ctx context.Context, ctr *ContainerInfo, instanceKe
 		}
 		return nil, nil
 	}
-	if ctr != nil && opts.SharedMode {
+	if ctr != nil && opts.Isolation.IsShared() {
 		expected := spec.MountConfigurationHash()
 		if ctr.MountHash != expected {
 			slog.Info("devcontainer: mount mismatch, recreating shared container",
@@ -254,11 +262,12 @@ func discardContainerIfStale(ctx context.Context, ctr *ContainerInfo, instanceKe
 
 // resolveDCPath returns the path to devcontainer.json for the given project and options.
 func resolveDCPath(projectPath string, opts sandbox.StartOptions) (string, error) {
-	if opts.SharedMode {
-		if opts.DevcontainerDir != "" {
-			p := filepath.Join(opts.DevcontainerDir, "devcontainer.json")
+	dcDir := opts.Isolation.DevcontainerDir
+	if opts.Isolation.IsShared() {
+		if dcDir != "" {
+			p := filepath.Join(dcDir, "devcontainer.json")
 			if _, statErr := os.Stat(p); statErr != nil {
-				return "", fmt.Errorf("devcontainer: shared devcontainer path %q: devcontainer.json not found", opts.DevcontainerDir)
+				return "", fmt.Errorf("devcontainer: shared devcontainer path %q: devcontainer.json not found", dcDir)
 			}
 			return p, nil
 		}
@@ -268,7 +277,7 @@ func resolveDCPath(projectPath string, opts sandbox.StartOptions) (string, error
 		}
 		return dcPath, nil
 	}
-	dcPath, err := FindDevcontainerPath(projectPath, opts.DevcontainerDir)
+	dcPath, err := FindDevcontainerPath(projectPath, dcDir)
 	if err != nil {
 		return "", fmt.Errorf("devcontainer: %w", err)
 	}
@@ -322,14 +331,14 @@ func isStaleBindMountError(err error) bool {
 		strings.Contains(msg, "no such file or directory")
 }
 
-func (m *Manager) loadSpec(instanceKey, projectPath, dcDir string) (*DevcontainerSpec, error) {
+func (m *Manager) loadSpec(plan sandbox.IsolationPlan, projectPath, dcDir string) (*DevcontainerSpec, error) {
 	spec, err := LoadSpec(projectPath, dcDir)
 	if err != nil {
 		return nil, fmt.Errorf("devcontainer: load spec: %w", err)
 	}
 
 	if m.overlayFn != nil {
-		overlay, err := m.overlayFn(instanceKey, projectPath, dcDir)
+		overlay, err := m.overlayFn(plan, projectPath, dcDir)
 		if err != nil {
 			return nil, fmt.Errorf("devcontainer: overlay: %w", err)
 		}
@@ -515,10 +524,7 @@ func (m *Manager) ReleaseFrame(inst *sandbox.Instance[*ContainerState]) bool {
 func (m *Manager) DestroyInstance(ctx context.Context, inst *sandbox.Instance[*ContainerState]) error {
 	cs := inst.Internal
 
-	instanceKey := inst.ProjectPath
-	if cs.IsShared() {
-		instanceKey = SharedContainerKey
-	}
+	instanceKey := cs.isolation().ContainerKey(inst.ProjectPath)
 
 	m.mu.Lock()
 	delete(m.containers, instanceKey)

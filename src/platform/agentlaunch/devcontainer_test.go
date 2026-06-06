@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/takezoh/agent-roost/platform/config"
+	"github.com/takezoh/agent-roost/platform/sandbox"
 	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
 	"github.com/takezoh/credproxy/container"
 )
@@ -219,45 +220,21 @@ func TestSharedWorkspaceBindMounts_ProjectMode_ReturnsNothing(t *testing.T) {
 	}
 }
 
-func TestEffectiveOverlayProject(t *testing.T) {
-	cases := []struct {
-		name        string
-		instanceKey string
-		projectPath string
-		want        string
-	}{
-		{"project mode passes project through", "/workspace/myapp", "/workspace/myapp", "/workspace/myapp"},
-		{"shared mode keys proxy by SharedContainerKey", sandboxdc.SharedContainerKey, "/workspace/fintech", sandboxdc.SharedContainerKey},
-		{"shared mode keys proxy by SharedContainerKey (empty project)", sandboxdc.SharedContainerKey, "", sandboxdc.SharedContainerKey},
-		{"project mode with empty project", "", "", ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := effectiveOverlayProject(tc.instanceKey, tc.projectPath)
-			if got != tc.want {
-				t.Errorf("effectiveOverlayProject(%q, %q) = %q, want %q",
-					tc.instanceKey, tc.projectPath, got, tc.want)
-			}
-		})
-	}
-}
-
 // TestSharedOverlay_ProxyDirMatchesRunDir pins the invariant whose violation
 // broke gh/ssh inside shared containers. credproxy providers create their
 // per-project sockets (hostexec.sock, agent.sock, hostexec-shims/) under
-// runBase/container.ProjectRunHash(effectiveProject); the overlay bind-mounts
-// ProjectRunDir(runBase, runDirKey) to ContainerRunDir. For the shared
+// runBase/container.ProjectRunHash(OverlayProject); the overlay bind-mounts
+// ProjectRunDir(runBase, ContainerKey) to ContainerRunDir. For the shared
 // container these MUST resolve to the same host directory, or the proxy
-// sockets never appear under /opt/roost/run and gh/ssh fail. Before the fix
-// effectiveOverlayProject returned "" (hash("")), diverging from the
-// SharedContainerKey-based run-dir bind.
+// sockets never appear under /opt/roost/run and gh/ssh fail. IsolationPlan
+// defines OverlayProject as ContainerKey, so the two can no longer diverge;
+// this guards a future refactor that re-splits them.
 func TestSharedOverlay_ProxyDirMatchesRunDir(t *testing.T) {
 	const runBase = "/data/run"
-	runDirKey := sandboxdc.SharedContainerKey // see DevcontainerLauncher.runDirKey
-	proxyKey := effectiveOverlayProject(sandboxdc.SharedContainerKey, "/workspace/fintech")
+	plan := sandbox.IsolationPlan{Kind: sandbox.IsolationShared}
 
-	bindDir := ProjectRunDir(runBase, runDirKey)
-	proxyDir := filepath.Join(runBase, container.ProjectRunHash(proxyKey))
+	bindDir := ProjectRunDir(runBase, plan.ContainerKey("/workspace/fintech"))
+	proxyDir := filepath.Join(runBase, container.ProjectRunHash(plan.OverlayProject("/workspace/fintech")))
 
 	if proxyDir != bindDir {
 		t.Errorf("shared proxy socket dir %q != run-dir bind %q; gh/ssh sockets unreachable in container",
@@ -314,14 +291,14 @@ func TestStartOptionsFor_PropagatesIsolation(t *testing.T) {
 		resolveProjectScope: func(string) *config.SandboxConfig { return nil },
 	}
 	opts := l.StartOptionsFor("/workspace/agent-roost")
-	if !opts.SharedMode {
-		t.Errorf("shared isolation must produce SharedMode=true, got %+v", opts)
+	if !opts.Isolation.IsShared() {
+		t.Errorf("shared isolation must produce a shared plan, got %+v", opts)
 	}
 
 	l.resolveSandbox = func(string) config.SandboxConfig { return config.SandboxConfig{} }
 	opts = l.StartOptionsFor("/workspace/agent-roost")
-	if opts.SharedMode {
-		t.Errorf("empty isolation must produce SharedMode=false (project default), got %+v", opts)
+	if opts.Isolation.IsShared() {
+		t.Errorf("empty isolation must produce a project plan (default), got %+v", opts)
 	}
 }
 
@@ -365,8 +342,8 @@ func TestResolveStartOptions_ProjectScopeForcesProject(t *testing.T) {
 		},
 	}
 	opts := l.resolveStartOptions("/workspace/myapp")
-	if opts.SharedMode {
-		t.Errorf("project-scope isolation=project must win; got SharedMode=true")
+	if opts.Isolation.IsShared() {
+		t.Errorf("project-scope isolation=project must win; got a shared plan")
 	}
 }
 
@@ -382,10 +359,10 @@ func TestResolveStartOptions_ProjectScopeDevcontainerPath(t *testing.T) {
 		},
 	}
 	opts := l.resolveStartOptions("/workspace/myapp")
-	if opts.SharedMode {
-		t.Errorf("project-scope devcontainer path must force project-mode; got SharedMode=true")
+	if opts.Isolation.IsShared() {
+		t.Errorf("project-scope devcontainer path must force project-mode; got a shared plan")
 	}
-	if opts.DevcontainerDir == "" {
+	if opts.Isolation.DevcontainerDir == "" {
 		t.Errorf("expected DevcontainerDir to be propagated from project scope")
 	}
 }
@@ -512,14 +489,17 @@ func TestBuildContainerOverlay_SharedMode_UsesUserScope(t *testing.T) {
 	dataDir := t.TempDir()
 	overlay := BuildContainerOverlay(resolveSandbox, config.ProjectsConfig{}, nil, dataDir, nil)
 
-	if _, err := overlay(sandboxdc.SharedContainerKey, "/workspace/fintech", "/tmp/dc"); err != nil {
+	sharedPlan := sandbox.IsolationPlan{Kind: sandbox.IsolationShared}
+	projectPlan := sandbox.IsolationPlan{Kind: sandbox.IsolationProject}
+
+	if _, err := overlay(sharedPlan, "/workspace/fintech", "/tmp/dc"); err != nil {
 		t.Fatalf("shared overlay: %v", err)
 	}
 	if lastConfigKey != sandboxdc.SharedContainerKey {
 		t.Errorf("shared mode: resolveSandbox got %q, want %q (user scope via non-abs sentinel)", lastConfigKey, sandboxdc.SharedContainerKey)
 	}
 
-	if _, err := overlay("/workspace/myapp", "/workspace/myapp", "/tmp/dc"); err != nil {
+	if _, err := overlay(projectPlan, "/workspace/myapp", "/tmp/dc"); err != nil {
 		t.Fatalf("project overlay: %v", err)
 	}
 	if lastConfigKey != "/workspace/myapp" {
@@ -537,7 +517,7 @@ func TestBuildContainerOverlay_SharedMode_WorkspaceFallbackIsEmpty(t *testing.T)
 	dataDir := t.TempDir()
 	overlay := BuildContainerOverlay(resolveSandbox, config.ProjectsConfig{}, nil, dataDir, nil)
 
-	ov, err := overlay(sandboxdc.SharedContainerKey, "/workspace/fintech", "/tmp/dc")
+	ov, err := overlay(sandbox.IsolationPlan{Kind: sandbox.IsolationShared}, "/workspace/fintech", "/tmp/dc")
 	if err != nil {
 		t.Fatalf("overlay: %v", err)
 	}
@@ -556,7 +536,7 @@ func TestBuildContainerOverlay_ProjectMode_WorkspaceFallbackUsesProject(t *testi
 	dataDir := t.TempDir()
 	overlay := BuildContainerOverlay(resolveSandbox, config.ProjectsConfig{}, nil, dataDir, nil)
 
-	ov, err := overlay("/workspace/myapp", "/workspace/myapp", "/tmp/dc")
+	ov, err := overlay(sandbox.IsolationPlan{Kind: sandbox.IsolationProject}, "/workspace/myapp", "/tmp/dc")
 	if err != nil {
 		t.Fatalf("overlay: %v", err)
 	}
