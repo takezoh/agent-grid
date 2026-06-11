@@ -9,7 +9,8 @@ import (
 	"time"
 
 	petname "github.com/dustinkirkland/golang-petname"
-	roostgit "github.com/takezoh/agent-roost/platform/lib/git"
+	"github.com/takezoh/agent-reactor/platform/appid"
+	roostgit "github.com/takezoh/agent-reactor/platform/lib/git"
 )
 
 const WorktreeNameAttempts = 5
@@ -37,7 +38,7 @@ func CreateWorktree(ctx context.Context, in WorktreeInput) (WorktreeResult, erro
 		if name == "" {
 			continue
 		}
-		path := filepath.Join(root, ".roost", "worktrees", name)
+		path := filepath.Join(root, appid.DotDir, "worktrees", name)
 		if _, err := os.Stat(path); err == nil {
 			return WorktreeResult{StartDir: path, Name: name}, nil
 		}
@@ -60,11 +61,11 @@ func RemoveWorktree(path string) {
 	}()
 }
 
-// CleanupUntracked removes worktrees under <project>/.roost/worktrees/
+// CleanupUntracked removes worktrees under <project>/.agent-reactor/worktrees/
 // that are not present in the tracked set.
 func CleanupUntracked(ctx context.Context, projects []string, tracked map[string]struct{}) {
 	for _, project := range projects {
-		worktreesDir := filepath.Join(project, ".roost", "worktrees")
+		worktreesDir := filepath.Join(project, appid.DotDir, "worktrees")
 		entries, err := os.ReadDir(worktreesDir)
 		if err != nil {
 			continue
@@ -95,10 +96,10 @@ func GenerateWorktreeNames(n int) []string {
 	return names
 }
 
-// IsManagedWorktreePath returns true if the path looks like a roost-managed worktree.
+// IsManagedWorktreePath returns true if the path looks like a reactor-managed worktree.
 func IsManagedWorktreePath(path string) bool {
 	clean := filepath.Clean(path)
 	parent := filepath.Base(filepath.Dir(clean))
 	grand := filepath.Base(filepath.Dir(filepath.Dir(clean)))
-	return parent == "worktrees" && grand == ".roost"
+	return parent == "worktrees" && grand == appid.DotDir
 }

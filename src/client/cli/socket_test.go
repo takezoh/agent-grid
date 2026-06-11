@@ -23,8 +23,8 @@ func TestResolveSocketPath_fallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveSocketPath: %v", err)
 	}
-	if !strings.HasSuffix(got, "roost.sock") {
-		t.Errorf("got %q, want suffix \"roost.sock\" (fallback path must end in roost.sock)", got)
+	if !strings.HasSuffix(got, "arc.sock") {
+		t.Errorf("got %q, want suffix \"arc.sock\" (fallback path must end in arc.sock)", got)
 	}
 	if filepath.IsAbs(got) == false {
 		t.Errorf("fallback path %q should be absolute", got)

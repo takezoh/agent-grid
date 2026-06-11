@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/driver/vt"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/driver/vt"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // fakePaneTap records Start/Stop calls for assertions.
@@ -235,7 +235,7 @@ func TestReadTap_SurvivesVTPanic(t *testing.T) {
 func TestStartRestoredTaps_StartsOnlyRootFrames(t *testing.T) {
 	tap := &fakePaneTap{}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tap:          tap,
 	})
@@ -278,7 +278,7 @@ func TestStartRestoredTaps_StartsOnlyRootFrames(t *testing.T) {
 func TestStartRestoredTaps_NoTapsWhenNilManager(t *testing.T) {
 	tap := &fakePaneTap{}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tap:          tap,
 	})
@@ -295,7 +295,7 @@ func TestStartRestoredTaps_NoTapsWhenNilManager(t *testing.T) {
 func TestStartTapsForRestoredFrames_DispatchesViaEventLoop(t *testing.T) {
 	tap := &fakePaneTap{}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Millisecond,
 		Tap:          tap,
 		Tmux:         noopTmux{},

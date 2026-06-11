@@ -9,10 +9,11 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	platformconfig "github.com/takezoh/agent-roost/platform/config"
+	"github.com/takezoh/agent-reactor/platform/appid"
+	platformconfig "github.com/takezoh/agent-reactor/platform/config"
 )
 
-// ProjectConfig holds the contents of a project-level .roost/settings.toml.
+// ProjectConfig holds the contents of a project-level .agent-reactor/settings.toml.
 type ProjectConfig struct {
 	Workspace ProjectWorkspaceConfig        `toml:"workspace"`
 	Sandbox   *platformconfig.SandboxConfig `toml:"sandbox"`
@@ -84,11 +85,11 @@ func (pc *ProjectConfig) Validate() error {
 	return nil
 }
 
-// findProjectSettings walks up from dir searching for .roost/settings.toml.
+// findProjectSettings walks up from dir searching for .agent-reactor/settings.toml.
 func findProjectSettings(dir string) string {
 	dir = filepath.Clean(dir)
 	for {
-		candidate := filepath.Join(dir, ".roost", "settings.toml")
+		candidate := filepath.Join(dir, appid.DotDir, "settings.toml")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
 		}

@@ -2,13 +2,13 @@
 
 The orchestrator is a **TUI-less**, **single-authority** background service that implements the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md). It polls a Linear tracker, dispatches coding agents to per-issue workspaces, reconciles running/stalled sessions, and exposes a read-only observability HTTP server (§13.7 — mandatory in our implementation).
 
-It lives entirely inside `orchestrator/`, does **not** import `client/`, and shares `platform/` (logger, metrics, tracker/linear, agent/codexclient, agentlaunch, lib/codex, sandbox) with roost. The boundary is enforced by the `depguard` rule `client-no-orchestrator` and its converse.
+It lives entirely inside `orchestrator/`, does **not** import `client/`, and shares `platform/` (logger, metrics, tracker/linear, agent/codexclient, agentlaunch, lib/codex, sandbox) with the client. The boundary is enforced by the `depguard` rule `client-no-orchestrator` and its converse.
 
 User-facing operation (running it, the `WORKFLOW.md` config, agent selection) is in the [orchestrator user guide](../../user/orchestrator.md). Authoring the driving prompt is in [WORKFLOW.md authoring](../../agent/workflow-authoring.md).
 
 ## Design principles (orchestrator realization)
 
-The orchestrator is a **decision-loop layer**, so — like roost's `client/` — it realizes the cross-layer [core principles](../../../ARCHITECTURE.md#core-principles-all-layers) as **strict Functional Core / Imperative Shell**: a pure reducer over an immutable, mutex-free `State`, interpreted by a single event-loop shell that owns all I/O and live handles.
+The orchestrator is a **decision-loop layer**, so — like the `client/` layer — it realizes the cross-layer [core principles](../../../ARCHITECTURE.md#core-principles-all-layers) as **strict Functional Core / Imperative Shell**: a pure reducer over an immutable, mutex-free `State`, interpreted by a single event-loop shell that owns all I/O and live handles.
 
 - **Pure functional core** — `scheduler.Reduce(state, event, cfg, now) → (state', []Effect)` (`scheduler/reduce.go` and the `reduce_*.go` files) is the entire decision surface: eligibility, slot allocation, stall detection, reconcile transitions, retry/backoff. It performs no I/O, holds no mutex, spawns no goroutine, and reads no wall clock (time enters as `now`). `State` (`scheduler/state.go`) is an immutable value folded copy-on-write by the pure transition helpers in `scheduler/transitions.go`. The no-mutex rule is enforced by `forbidigo`.
 - **Single-writer event loop** — `scheduler.Run` (`scheduler/scheduler.go`) is one `for { select {} }`. The agent runner, retry timers, and the fsnotify watcher only *emit* on channels (`workerDone`, `codexActivity`, `retryFire`, `reloadCh`); they never touch state. Each event is folded by `Reduce`; the loop is the only writer.

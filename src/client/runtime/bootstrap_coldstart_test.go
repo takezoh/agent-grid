@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
 )
 
 type trackingLauncher struct {
@@ -49,7 +49,7 @@ func (l *trackingLauncher) EnsureProject(_ context.Context, projectPath string) 
 
 func makeRuntimeWithProjects(projects []string, launcher AgentLauncher) *Runtime {
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         noopTmux{},
 		Launcher:     launcher,
@@ -100,7 +100,7 @@ func TestPrewarmContainers_DeduplicatesProject(t *testing.T) {
 	project := "/proj/shared"
 	l := &trackingLauncher{calls: make(map[string]int)}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         noopTmux{},
 		Launcher:     l,
@@ -144,7 +144,7 @@ func TestPrewarmContainers_FailureDoesNotAbort(t *testing.T) {
 func TestPrewarmContainers_SkipsNonSandboxed(t *testing.T) {
 	l := &trackingLauncher{calls: make(map[string]int)}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         noopTmux{},
 		Launcher:     l,
@@ -167,7 +167,7 @@ func TestPrewarmContainers_SkipsNonSandboxed(t *testing.T) {
 func TestPrewarmContainers_NoSessionsIsNoop(t *testing.T) {
 	l := &trackingLauncher{calls: make(map[string]int)}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         noopTmux{},
 		Launcher:     l,
@@ -186,7 +186,7 @@ func TestPrewarmContainers_NoSessionsIsNoop(t *testing.T) {
 func TestPrewarmContainers_SkipsHostOnlyProject(t *testing.T) {
 	l := &trackingLauncher{calls: make(map[string]int)}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         noopTmux{},
 		Launcher:     l,
@@ -230,7 +230,7 @@ func TestRecreateAll_SpawnFailureLeavesSessionInState(t *testing.T) {
 	tmux.spawnErr = errors.New("injected spawn failure")
 	persist := &recordingPersist{}
 	r := New(Config{
-		SessionName: "roost-test",
+		SessionName: "reactor-test",
 		Tmux:        tmux,
 		Launcher:    &trackingLauncher{calls: make(map[string]int)},
 		Persist:     persist,
@@ -319,7 +319,7 @@ func TestRecreateAll_ContinuesPastFailingFrame(t *testing.T) {
 	tmux := newFakeTmux()
 	tmux.spawnErr = errors.New("injected spawn failure")
 	r := New(Config{
-		SessionName: "roost-test",
+		SessionName: "reactor-test",
 		Tmux:        tmux,
 		Launcher:    &trackingLauncher{calls: make(map[string]int)},
 		Persist:     &recordingPersist{},
@@ -366,7 +366,7 @@ func TestSpawnFrameWindow_SandboxOptionOnColdStart(t *testing.T) {
 			registerMinimalDriver(t)
 			l := &trackingLauncher{calls: make(map[string]int)}
 			r := New(Config{
-				SessionName: "roost-test",
+				SessionName: "reactor-test",
 				Tmux:        newFakeTmux(),
 				Launcher:    l,
 			})

@@ -45,7 +45,7 @@ jobs:
                - Apply fixes directly via Edit/Write.
 
             3. Verify nothing regressed:
-               cd src && go vet ./... && go test ./... && go build -o ../roost .
+               cd src && go vet ./... && go test ./... && go build -o ../arc .
                cd .. && scripts/check-coverage.sh
                cd src && go tool golangci-lint run ./...
 

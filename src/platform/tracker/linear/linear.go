@@ -9,7 +9,7 @@ import (
 
 	"context"
 
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 var _ tracker.Adapter = (*Client)(nil)

@@ -1,9 +1,9 @@
-# roost TUI
+# client TUI
 
-`roost` is the interactive tmux control surface — the user-facing side of the [`client` layer](../technical/client/README.md). It launches agent sessions, shows their status at a glance, and lets you jump into any of them instantly. Sessions are built on tmux, so closing the UI or dropping the connection does not stop the work.
+`arc` is the interactive tmux control surface — the user-facing side of the [`client` layer](../technical/client/README.md). It launches agent sessions, shows their status at a glance, and lets you jump into any of them instantly. Sessions are built on tmux, so closing the UI or dropping the connection does not stop the work.
 
 ```bash
-roost
+arc
 ```
 
 Creates a tmux session (or attaches to an existing one) and launches a 3-pane layout: a MAIN pane (the active session), a SESSIONS pane (the list of all sessions), and a LOG pane.
@@ -21,7 +21,7 @@ Default prefix: `Ctrl+b` (same as tmux default). Configurable via `[tmux] prefix
 | `prefix Space` | Toggle MAIN ↔ SESSIONS pane |
 | `prefix Escape` | Preview project |
 | `prefix z` | Zoom MAIN pane |
-| `prefix d` | Detach (tmux stays alive; re-run `roost` to resume) |
+| `prefix d` | Detach (tmux stays alive; re-run `arc` to resume) |
 | `prefix q` | Quit all (tmux session is destroyed) |
 | `prefix p` | Command palette |
 | `prefix C-p` | Push-driver palette (overlay a new agent onto the current session) |
@@ -75,24 +75,24 @@ How these states are detected (driver plugins, the polling pipeline, hook events
 
 ### Codex notes
 
-- `roost codex setup` only registers MCP config.
+- `arc codex setup` only registers MCP config.
 - Codex status and approvals work without hook registration.
-- Codex transcripts are display-only; session state is managed by roost.
+- Codex transcripts are display-only; session state is managed by arc.
 
 ## Configuration
 
-roost works with default values even without a config file. To customize, create `~/.roost/settings.toml`:
+arc works with default values even without a config file. To customize, create `~/.agent-reactor/settings.toml`:
 
 ```toml
-# ~/.roost/settings.toml
+# ~/.agent-reactor/settings.toml
 
-# data_dir = ""                 # Override config/data directory (default: ~/.roost)
+# data_dir = ""                 # Override config/data directory (default: ~/.agent-reactor)
 
 [log]
 level = "info"                  # "debug" | "info" | "warn" | "error"
 
 [tmux]
-session_name = "roost"
+session_name = "arc"
 prefix = "C-b"                  # Prefix key
 pane_ratio_horizontal = 75      # Main pane width % (1-99)
 pane_ratio_vertical = 75        # Main pane height % (1-99)
@@ -148,10 +148,10 @@ Sandbox-related keys (`[sandbox]`, `[sandbox.devcontainer]`, `[sandbox.proxy]`) 
 
 ### Per-project configuration
 
-Each project directory can have its own `.roost/settings.toml`:
+Each project directory can have its own `.agent-reactor/settings.toml`:
 
 ```toml
-# <project-dir>/.roost/settings.toml
+# <project-dir>/.agent-reactor/settings.toml
 
 [workspace]
 name = "work"    # Group this project under a named workspace

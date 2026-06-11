@@ -20,7 +20,7 @@ flowchart LR
     subgraph container["container (agent process)"]
         AGENT["codex / claude agent"]
         SHIM_GH["shim: gh / aws …<br/>(injected into PATH)"]
-        MCPJSON[".mcp.json overlay<br/>(alias → roost shim)"]
+        MCPJSON[".mcp.json overlay<br/>(alias → client shim)"]
     end
 
     subgraph host["host"]
@@ -127,7 +127,7 @@ sequenceDiagram
 
 - `forwardRequests` (`relay.go:54`) intercepts `tools/call` and gates it with `policy.CheckTool(name)` (`policy.go:43`, deny-first). A rejected call is answered directly to the container with an error and never forwarded upstream.
 - `forwardResponses` (`relay.go:86`) filters `tools/list` results by policy so disallowed tools are never shown to the container.
-- `ContainerSpec` (`provider.go:61`) takes the project's `.mcp.json` as a base and generates an overlay pointing each alias at the roost shim (`writeMCPJSON`), then returns two bind mounts (broker socket + `.mcp.json` overlay) plus the `ROOST_MCP_SOCK` env. With no servers configured it returns an empty Spec.
+- `ContainerSpec` (`provider.go:61`) takes the project's `.mcp.json` as a base and generates an overlay pointing each alias at the client shim (`writeMCPJSON`), then returns two bind mounts (broker socket + `.mcp.json` overlay) plus the `ROOST_MCP_SOCK` env. With no servers configured it returns an empty Spec.
 
 ## secretenv — secret reference resolver
 
@@ -137,7 +137,7 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant SH as container shim<br/>(credproxy on PATH)
-    participant RB as roost-bridge secret-run
+    participant RB as reactor-bridge secret-run
     participant BR as host broker
     participant GE as Gate
     participant CP as credproxy resolve<br/>(host binary)
@@ -158,9 +158,9 @@ sequenceDiagram
     end
 ```
 
-**Container shim** (`secretenv-shims/credproxy`): a shell script that calls `roost-bridge secret-run "$@"`. It is written to `<projRunDir>/secretenv-shims/` and prepended to container `PATH`, so existing scripts that call `credproxy run` work without modification.
+**Container shim** (`secretenv-shims/credproxy`): a shell script that calls `reactor-bridge secret-run "$@"`. It is written to `<projRunDir>/secretenv-shims/` and prepended to container `PATH`, so existing scripts that call `credproxy run` work without modification.
 
-**Broker** (`platform/secretenv/broker.go`): per-project Unix socket server (`<projRunDir>/secretenv.sock`, bind-mounted at `/opt/roost/run/secretenv.sock`). Each connection is handled in its own goroutine. `gate`, `credproxyBin`, and `hostPathMountPrefix` are guarded by a `sync.RWMutex` so concurrent request handling during config reload is race-free.
+**Broker** (`platform/secretenv/broker.go`): per-project Unix socket server (`<projRunDir>/secretenv.sock`, bind-mounted at `/opt/agent-reactor/run/secretenv.sock`). Each connection is handled in its own goroutine. `gate`, `credproxyBin`, and `hostPathMountPrefix` are guarded by a `sync.RWMutex` so concurrent request handling during config reload is race-free.
 
 Before the gate is checked, the broker applies path canonicalization in order:
 1. Reject non-absolute paths — the container shim performs `filepath.Abs` (container CWD); a relative path arriving at the broker means a shim bug or a direct socket attempt.
@@ -171,7 +171,7 @@ After canonicalization, `gate.Check(hostPath)` runs against the resulting **host
 
 **Gate** (`platform/secretenv/gate.go`): `filepath.Match` allowlist, default-deny. `*` matches within a single path segment only — does not cross `/`. Patterns are matched against the **host absolute path** (after `HostPathMountPrefix` is stripped). `allow` values in `settings.toml` should use host paths.
 
-**Resolution**: entirely credproxy's concern. Hook backend (op/mise/vault) and its configuration (`~/.config/credproxy/config.toml`) are never known to roost. roost's role is gate + socket plumbing only. The `credproxy resolve` output contains only env-file-declared secrets; host environment variables are never included.
+**Resolution**: entirely credproxy's concern. Hook backend (op/mise/vault) and its configuration (`~/.config/credproxy/config.toml`) are never known to the client. the client's role is gate + socket plumbing only. The `credproxy resolve` output contains only env-file-declared secrets; host environment variables are never included.
 
 **Bare-host path**: the real `credproxy run` binary resolves locally with no gate. The shim/broker path is only active inside a devcontainer.
 

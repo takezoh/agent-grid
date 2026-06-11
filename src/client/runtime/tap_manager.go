@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/driver/vt"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/driver/vt"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // tapEntry holds the cancel function and pane identifier for one running tap.

@@ -19,22 +19,22 @@ func Run(args []string) error {
 		printHelp()
 		return nil
 	default:
-		fmt.Fprintf(os.Stderr, "roost codex: unknown subcommand: %s\n", args[0])
+		fmt.Fprintf(os.Stderr, "arc codex: unknown subcommand: %s\n", args[0])
 		printHelp()
 		return fmt.Errorf("codex: unknown subcommand: %s", args[0])
 	}
 }
 
 func printHelp() {
-	fmt.Print(`Usage: roost codex <command>
+	fmt.Print(`Usage: arc codex <command>
 
 Commands:
-  setup    Register roost MCP server in ~/.codex/mcp.json
+  setup    Register arc MCP server in ~/.codex/mcp.json
   help     Show this help message
 `)
 }
 
-// RunSetup registers roost MCP server in Codex's config file.
+// RunSetup registers arc MCP server in Codex's config file.
 func RunSetup() error {
 	configDir, err := getConfigDir()
 	if err != nil {
@@ -51,10 +51,10 @@ func RunSetup() error {
 		return err
 	}
 	if added {
-		fmt.Printf("Registered MCP server: roost-peers\n")
+		fmt.Printf("Registered MCP server: reactor-peers\n")
 		fmt.Printf("  MCP:    %s\n", mcpPath)
 	} else {
-		fmt.Println("MCP server roost-peers already registered")
+		fmt.Println("MCP server reactor-peers already registered")
 	}
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// UIProcess identifies a roost UI subprocess and its launch parameters.
+// UIProcess identifies a client UI subprocess and its launch parameters.
 // ExtraArgs are pre-shell-quoted because every spawn path (tmux
 // send-keys, respawn-pane, display-popup) feeds the string to a shell.
 type UIProcess struct {
@@ -83,7 +83,7 @@ func RespawnTarget(pane string) (UIProcess, bool) {
 }
 
 // Command returns the full shell command to spawn this process.
-// roostExe is the path to the roost executable (will be shell-quoted).
+// roostExe is the path to the client executable (will be shell-quoted).
 func (p UIProcess) Command(roostExe string) string {
 	cmd := shellQuote(roostExe) + " --tui " + p.Subcommand
 	for _, a := range p.ExtraArgs {

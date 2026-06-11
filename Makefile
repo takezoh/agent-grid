@@ -1,11 +1,11 @@
-BINARY           := roost
-BRIDGE           := roost-bridge
+BINARY           := arc
+BRIDGE           := reactor-bridge
 ORCHESTRATOR     := orchestrator
 CLAUDE_APP_SERVER := claude-app-server
 NOTIFY_PS1  := notify.ps1
 SRC_DIR     := src
 INSTALL_DIR    := $(HOME)/.local/bin
-LIBEXEC_DIR    := $(HOME)/.local/lib/roost
+LIBEXEC_DIR    := $(HOME)/.local/lib/agent-reactor
 
 CODEX_SCHEMA_DIR := $(SRC_DIR)/platform/agent/codexschema
 CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
@@ -15,8 +15,8 @@ CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
         codex-schema-update codex-schema-check
 
 build:
-	cd $(SRC_DIR) && go build -o ../$(BINARY) ./cmd/roost
-	cd $(SRC_DIR) && go build -o ../$(BRIDGE) ./cmd/roost-bridge
+	cd $(SRC_DIR) && go build -o ../$(BINARY) ./cmd/arc
+	cd $(SRC_DIR) && go build -o ../$(BRIDGE) ./cmd/reactor-bridge
 	cp $(SRC_DIR)/platform/lib/notify/notify.ps1 ./$(NOTIFY_PS1)
 
 build-orchestrator:
@@ -28,7 +28,7 @@ build-claude-app-server:
 build-all: build build-orchestrator build-claude-app-server
 
 build-experimental:
-	cd $(SRC_DIR) && go build -tags experimental -o ../$(BINARY) ./cmd/roost
+	cd $(SRC_DIR) && go build -tags experimental -o ../$(BINARY) ./cmd/arc
 
 install: build
 	install -d $(INSTALL_DIR) $(LIBEXEC_DIR)
@@ -46,8 +46,8 @@ lint:
 	cd $(SRC_DIR) && go tool golangci-lint run ./...
 
 verify-bridge-deps:
-	@echo "Checking that roost-bridge does not import client/state, client/uiproc, or platform/features..."
-	@cd $(SRC_DIR) && go list -deps ./cmd/roost-bridge | grep -E 'takezoh/agent-roost/(client/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
+	@echo "Checking that reactor-bridge does not import client/state, client/uiproc, or platform/features..."
+	@cd $(SRC_DIR) && go list -deps ./cmd/reactor-bridge | grep -E 'takezoh/agent-reactor/(client/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
 
 clean:
 	rm -f $(BINARY) $(BRIDGE) $(ORCHESTRATOR) $(CLAUDE_APP_SERVER) $(NOTIFY_PS1)

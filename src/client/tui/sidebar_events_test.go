@@ -3,9 +3,9 @@ package tui
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func TestHandleServerEventFollowsWorkspaceOnActiveChange(t *testing.T) {

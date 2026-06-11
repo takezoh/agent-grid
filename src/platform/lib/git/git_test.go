@@ -207,7 +207,7 @@ func TestCreateWorktree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateWorktree error: %v", err)
 	}
-	want := filepath.Join(dir, ".roost", "worktrees", "feature-test")
+	want := filepath.Join(dir, ".agent-reactor", "worktrees", "feature-test")
 	if wtDir != want {
 		t.Fatalf("CreateWorktree path = %q, want %q", wtDir, want)
 	}

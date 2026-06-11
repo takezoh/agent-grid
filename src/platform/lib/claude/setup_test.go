@@ -41,11 +41,11 @@ func TestRegisterHooks_NewFile(t *testing.T) {
 }
 
 func TestRegisterHooks_CommandIgnoresRoostSocket(t *testing.T) {
-	t.Setenv("ROOST_SOCKET", "/opt/roost/run/roost.sock")
+	t.Setenv("ROOST_SOCKET", "/opt/agent-reactor/run/arc.sock")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 
-	_, err := RegisterHooks(path, "/opt/roost/run/roost")
+	_, err := RegisterHooks(path, "/opt/agent-reactor/run/roost")
 	if err != nil {
 		t.Fatalf("RegisterHooks: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestRegisterHooks_CommandIgnoresRoostSocket(t *testing.T) {
 	entry := entries[0].(map[string]any)
 	hookArr := entry["hooks"].([]any)
 	hook := hookArr[0].(map[string]any)
-	want := "/opt/roost/run/roost event claude"
+	want := "/opt/agent-reactor/run/roost event claude"
 	if hook["command"] != want {
 		t.Errorf("command = %v, want %v", hook["command"], want)
 	}
@@ -76,7 +76,7 @@ func TestRegisterHooks_ReplacesStaleRoostEntry(t *testing.T) {
 	}
 
 	// Second setup with a different binary path (simulates re-deploy).
-	_, err = RegisterHooks(path, "/opt/roost/run/roost")
+	_, err = RegisterHooks(path, "/opt/agent-reactor/run/roost")
 	if err != nil {
 		t.Fatalf("second RegisterHooks: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestRegisterHooks_ReplacesStaleRoostEntry(t *testing.T) {
 	entry := entries[0].(map[string]any)
 	hookArr := entry["hooks"].([]any)
 	hook := hookArr[0].(map[string]any)
-	want := "/opt/roost/run/roost event claude"
+	want := "/opt/agent-reactor/run/roost event claude"
 	if hook["command"] != want {
 		t.Errorf("command = %v, want %v", hook["command"], want)
 	}
@@ -155,9 +155,9 @@ func TestRegisterMCPServer_NewFile(t *testing.T) {
 	if !ok {
 		t.Fatal("mcpServers key missing or wrong type")
 	}
-	entry, ok := mcpServers["roost-peers"].(map[string]any)
+	entry, ok := mcpServers["reactor-peers"].(map[string]any)
 	if !ok {
-		t.Fatal("roost-peers entry missing")
+		t.Fatal("reactor-peers entry missing")
 	}
 	if entry["command"] != "/usr/local/bin/roost" {
 		t.Errorf("command = %v, want /usr/local/bin/roost", entry["command"])

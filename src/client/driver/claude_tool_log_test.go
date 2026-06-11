@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // hookEventAny builds a DEvHook whose payload is marshalled from an

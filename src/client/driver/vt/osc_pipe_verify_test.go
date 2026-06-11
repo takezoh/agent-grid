@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/driver/vt"
+	"github.com/takezoh/agent-reactor/client/driver/vt"
 )
 
 func TestOscPipeVsVtEmulator(t *testing.T) {
@@ -23,7 +23,7 @@ func TestOscPipeVsVtEmulator(t *testing.T) {
 		t.Skip("tmux not found in PATH")
 	}
 
-	session := "roost-pipe-osc-verify"
+	session := "reactor-pipe-osc-verify"
 	bufPath := t.TempDir() + "/pipe.buf"
 
 	cleanup := func() { exec.Command("tmux", "kill-session", "-t", session).Run() } //nolint:errcheck

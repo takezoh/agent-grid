@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-reactor/client/proto"
 )
 
 func TestFrameTabLayoutFrameFocusedHighlightsActive(t *testing.T) {

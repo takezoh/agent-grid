@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agentlaunch"
-	platformconfig "github.com/takezoh/agent-roost/platform/config"
-	"github.com/takezoh/agent-roost/platform/sandbox"
-	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
+	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	platformconfig "github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
+	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
 )
 
 // Frame-launch matrix driven through the REAL launcher stack
@@ -38,7 +38,7 @@ import (
 //
 // The subsystem backends are faked (recSubsysFactory) so no real codex
 // app-server starts here; the codex command/socket rewrite is covered at the
-// stream-package altitude. The roost-bridge binary copy and the container
+// stream-package altitude. The reactor-bridge binary copy and the container
 // workspace bind-mount are covered by platform/agentlaunch tests — here the
 // faked Manager returns a nil ContainerState (all its methods are nil-safe).
 
@@ -218,7 +218,7 @@ func buildLaunchHarness(t *testing.T, env envKind, persistWarm bool) *launchHarn
 	kinds := &kindCounter{m: map[state.LaunchSubsystem]int{}}
 	mgr := &fakeSandboxManager{rec: rec}
 	dataDir := t.TempDir()
-	sockPath := filepath.Join(dataDir, "roost.sock")
+	sockPath := filepath.Join(dataDir, "arc.sock")
 
 	var user platformconfig.SandboxConfig
 	switch env {
@@ -242,7 +242,7 @@ func buildLaunchHarness(t *testing.T, env envKind, persistWarm bool) *launchHarn
 
 	base := newFakeTmux()
 	cfg := Config{
-		SessionName: "roost-test",
+		SessionName: "reactor-test",
 		Tmux:        &recordingTmux{fakeTmuxBackend: base, rec: rec},
 		Launcher:    NewDispatcherAdapter(disp),
 		Persist:     &recordingPersist{},

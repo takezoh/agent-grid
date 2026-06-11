@@ -3,7 +3,7 @@ package driver
 import (
 	"fmt"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func (d ShellDriver) view(ss ShellState) state.View {

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/orchestrator/httpserver"
-	"github.com/takezoh/agent-roost/orchestrator/scheduler"
-	"github.com/takezoh/agent-roost/platform/metrics"
-	ptrackerv "github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/orchestrator/httpserver"
+	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
+	"github.com/takezoh/agent-reactor/platform/metrics"
+	ptrackerv "github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 // fakeScheduler implements SchedulerReader for tests.

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 func agentCfg(global int, byState map[string]int) wfconfig.Config {

@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 // filterEligible returns the subset of cands eligible for dispatch per SPEC §8.2.

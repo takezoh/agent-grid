@@ -82,7 +82,7 @@ type ProxyConfig struct {
 // invariant: the resolved value enters the subprocess env for its lifetime only.
 //
 // Bare-host users run the real `credproxy run` binary (no gate, no broker).
-// Container users run the roost-provided `credproxy` shim, which brokers to
+// Container users run the client-provided `credproxy` shim, which brokers to
 // this host-side resolver.
 type SecretEnvConfig struct {
 	// Allow is the list of env-file path patterns the container may request.

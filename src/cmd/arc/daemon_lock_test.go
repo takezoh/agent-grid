@@ -11,9 +11,9 @@ import (
 // TestAcquireDaemonLock_RefusesSecond reproduces the multi-daemon bug:
 // two coordinators against the same data dir must not both start. The
 // first acquirer holds an exclusive lock; the second must fail rather
-// than proceed (which is what let two daemons fight over ~/.roost/sessions).
+// than proceed (which is what let two daemons fight over ~/.agent-reactor/sessions).
 func TestAcquireDaemonLock_RefusesSecond(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "roost.pid")
+	path := filepath.Join(t.TempDir(), "arc.pid")
 
 	l1, err := acquireDaemonLock(path)
 	if err != nil {
@@ -31,7 +31,7 @@ func TestAcquireDaemonLock_RefusesSecond(t *testing.T) {
 // TestAcquireDaemonLock_ReleaseAllowsReacquire ensures a clean shutdown
 // frees the lock so the next daemon can start.
 func TestAcquireDaemonLock_ReleaseAllowsReacquire(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "roost.pid")
+	path := filepath.Join(t.TempDir(), "arc.pid")
 
 	l1, err := acquireDaemonLock(path)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestAcquireDaemonLock_ReleaseAllowsReacquire(t *testing.T) {
 // TestAcquireDaemonLock_WritesPid verifies the lock file records the
 // owner's pid so an operator can identify the running daemon.
 func TestAcquireDaemonLock_WritesPid(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "roost.pid")
+	path := filepath.Join(t.TempDir(), "arc.pid")
 
 	l, err := acquireDaemonLock(path)
 	if err != nil {
@@ -70,7 +70,7 @@ func TestAcquireDaemonLock_WritesPid(t *testing.T) {
 // TestAcquireDaemonLock_ErrorNamesExistingPid checks the refusal error
 // surfaces the holder's pid, so the user knows which process to kill.
 func TestAcquireDaemonLock_ErrorNamesExistingPid(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "roost.pid")
+	path := filepath.Join(t.TempDir(), "arc.pid")
 
 	l1, err := acquireDaemonLock(path)
 	if err != nil {

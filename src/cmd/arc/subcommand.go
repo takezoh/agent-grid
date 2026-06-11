@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/takezoh/agent-roost/client/cli"
+	"github.com/takezoh/agent-reactor/client/cli"
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
 type commandKind int
@@ -47,7 +48,7 @@ func runCommand(args []string, stdout io.Writer) error {
 	if handled {
 		return err
 	}
-	return fmt.Errorf("unknown command: %s (run `roost help` for usage)", args[0])
+	return fmt.Errorf("unknown command: %s (run `%s help` for usage)", args[0], appid.ClientBin)
 }
 
 var tuiHandlers = map[string]func([]string) error{
@@ -70,14 +71,14 @@ func runTUI(args []string) error {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "roost - AI agent session manager on tmux")
+	fmt.Fprintf(w, "%s - AI agent session manager on tmux\n", appid.ClientBin)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  roost          Start or attach to the roost tmux session")
+	fmt.Fprintf(w, "  %s          Start or attach to the %s tmux session\n", appid.ClientBin, appid.ClientBin)
 	for _, pair := range cli.RegisteredHelp() {
-		fmt.Fprintf(w, "  roost %-8s %s\n", pair[0], pair[1])
+		fmt.Fprintf(w, "  %s %-8s %s\n", appid.ClientBin, pair[0], pair[1])
 	}
-	fmt.Fprintln(w, "  roost help     Show this help message")
+	fmt.Fprintf(w, "  %s help     Show this help message\n", appid.ClientBin)
 }
 
 func isHelpCommand(arg string) bool {

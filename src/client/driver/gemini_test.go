@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func geminiHook(fields map[string]string, ts time.Time) state.DEvHook {
@@ -63,7 +63,7 @@ func TestGeminiPrepareCreateWithWorkspaceAlias(t *testing.T) {
 
 func TestGeminiPrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	d, gs, _ := newGemini(t)
-	gs.StartDir = "/repo/.roost/worktrees/feature"
+	gs.StartDir = "/repo/.agent-reactor/worktrees/feature"
 	plan, err := d.PrepareLaunch(gs, state.LaunchModeCreate, "/repo", "gemini", state.LaunchOptions{
 		Worktree: state.WorktreeOption{Enabled: true},
 	}, false)
@@ -73,7 +73,7 @@ func TestGeminiPrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	if plan.Command != "gemini" {
 		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, "gemini")
 	}
-	if plan.StartDir != "/repo/.roost/worktrees/feature" {
+	if plan.StartDir != "/repo/.agent-reactor/worktrees/feature" {
 		t.Errorf("StartDir = %q", plan.StartDir)
 	}
 }

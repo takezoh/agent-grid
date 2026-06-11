@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // testKindTranscript is a test-local TabKind matching what the Claude
@@ -152,7 +152,7 @@ func sessionWithTranscript(t *testing.T) proto.SessionInfo {
 }
 
 func TestHandleLogEvent_PreviewActivatesInfoTab(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	sess := sessionWithTranscript(t)
 
 	model, _ := m.handleLogEvent(proto.EvtSessionsChanged{
@@ -167,7 +167,7 @@ func TestHandleLogEvent_PreviewActivatesInfoTab(t *testing.T) {
 }
 
 func TestHandleLogEvent_PaneFocusedActivatesTranscript(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	sess := sessionWithTranscript(t)
 
 	// Step 1: preview → INFO becomes active.
@@ -192,7 +192,7 @@ func TestHandleLogEvent_PaneFocusedActivatesTranscript(t *testing.T) {
 }
 
 func TestHandleLogEvent_PaneFocusedWithoutTranscriptKeepsInfo(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	// Session with no driver-provided log tabs (only INFO + LOG will be built).
 	sess := proto.SessionInfo{ID: "s1"}
 
@@ -221,7 +221,7 @@ func TestHandleLogEvent_PaneFocusedWithoutTranscriptKeepsInfo(t *testing.T) {
 // every poll interval. That must NOT clobber whichever tab the user is
 // currently looking at, otherwise INFO/LOG/etc become unviewable.
 func TestHandleLogEvent_NonPreviewSessionsChangedKeepsCurrentTab(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	sess := sessionWithTranscript(t)
 
 	// Preview → INFO is active.
@@ -248,7 +248,7 @@ func TestHandleLogEvent_NonPreviewSessionsChangedKeepsCurrentTab(t *testing.T) {
 }
 
 func TestHandleLogEvent_PaneFocusedNonMainPaneIgnored(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	sess := sessionWithTranscript(t)
 
 	// Preview → INFO active.
@@ -276,7 +276,7 @@ func TestHandleLogEvent_PaneFocusedNonMainPaneIgnored(t *testing.T) {
 // the LogModel must terminate so the tmux pane process exits instead of
 // lingering as a zombie. main_model and sessions model already do this.
 func TestHandleLogDisconnect_ReturnsQuit(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	_, cmd := m.Update(logDisconnectMsg{})
 	if cmd == nil {
 		t.Fatal("expected tea.Quit cmd, got nil")
@@ -287,7 +287,7 @@ func TestHandleLogDisconnect_ReturnsQuit(t *testing.T) {
 }
 
 func TestSwitchToTab_RebuildRendererOnTabChange(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	sess := sessionWithTranscript(t)
 
 	// Set the active session → TRANSCRIPT tab active, renderer is set.
@@ -322,7 +322,7 @@ func TestSwitchToTab_RebuildRendererOnTabChange(t *testing.T) {
 }
 
 func TestAppendContent_PlainTextWhenNoRenderer(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	sess := sessionWithTranscript(t)
 
 	model, _ := m.handleLogEvent(proto.EvtSessionsChanged{
@@ -355,7 +355,7 @@ func TestAppendContent_PlainTextWhenNoRenderer(t *testing.T) {
 // swap-pane success — ActiveSessionID arrived empty, pickActiveSession
 // returned nil, and all streaming was silently dropped.
 func TestHandleLogEvent_SessionFileLineStreams(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	sess := sessionWithTranscript(t)
 
 	// Simulate the non-preview sessions-changed event with ActiveSessionID set
@@ -393,7 +393,7 @@ func TestHandleLogEvent_SessionFileLineStreams(t *testing.T) {
 }
 
 func TestHandleLogEvent_SessionFileLineDroppedWhenNoActiveSession(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 
 	// No sessions-changed event → currentSession is nil.
 	model, _ := m.handleLogEvent(proto.EvtSessionFileLine{
@@ -409,7 +409,7 @@ func TestHandleLogEvent_SessionFileLineDroppedWhenNoActiveSession(t *testing.T) 
 }
 
 func TestHandleLogEvent_ClearsTabsWhenActiveSessionDisappears(t *testing.T) {
-	m := NewLogModel("/var/log/roost.log", nil)
+	m := NewLogModel("/var/log/arc.log", nil)
 	sess := sessionWithTranscript(t)
 
 	model, _ := m.handleLogEvent(proto.EvtSessionsChanged{

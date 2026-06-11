@@ -5,13 +5,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	platformconfig "github.com/takezoh/agent-roost/platform/config"
+	platformconfig "github.com/takezoh/agent-reactor/platform/config"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.Tmux.SessionName != "roost" {
-		t.Errorf("SessionName = %q, want %q", cfg.Tmux.SessionName, "roost")
+	if cfg.Tmux.SessionName != "arc" {
+		t.Errorf("SessionName = %q, want %q", cfg.Tmux.SessionName, "arc")
 	}
 	if cfg.Monitor.PollIntervalMs != 1000 {
 		t.Errorf("PollIntervalMs = %d, want 1000", cfg.Monitor.PollIntervalMs)
@@ -173,7 +173,7 @@ func TestLoadFrom_Missing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Tmux.SessionName != "roost" {
+	if cfg.Tmux.SessionName != "arc" {
 		t.Fatalf("expected defaults, got session_name=%s", cfg.Tmux.SessionName)
 	}
 }

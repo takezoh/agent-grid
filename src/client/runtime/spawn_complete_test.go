@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/pathmap"
+	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
 )
 
 // TestHandleSpawnComplete_storesHandlesNonContainer verifies the event loop

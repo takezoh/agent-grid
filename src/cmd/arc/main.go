@@ -7,9 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/procio"
-	"github.com/takezoh/agent-roost/platform/logger"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/procio"
+	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-reactor/platform/logger"
 )
 
 var (
@@ -76,10 +77,10 @@ func runMain(args []string, stdout, stderr io.Writer) (code int) {
 func finishMain(kind commandKind, err error, loggerReady bool, loggerErr error, stdout, stderr io.Writer) int {
 	if kind == commandKindRoost {
 		if err != nil {
-			fmt.Fprintf(stderr, "roost: %v\n", err)
+			fmt.Fprintf(stderr, "%s: %v\n", appid.ClientBin, err)
 			return 1
 		}
-		fmt.Fprintln(stdout, "roost: exited")
+		fmt.Fprintf(stdout, "%s: exited\n", appid.ClientBin)
 		return 0
 	}
 	if !loggerReady && loggerErr != nil {

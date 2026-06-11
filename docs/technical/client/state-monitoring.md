@@ -64,7 +64,7 @@ Hook event → driver.Status mapping:
 | SessionStart | Idle |
 | SessionEnd | Stopped |
 
-The `roost event <eventType>` subcommand repackages the Claude hook payload into `proto.CmdEvent` and sends it via IPC. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions using the frame id it received as `SenderID`, and calls `Driver.Step(frame.Driver, DEvHook{...})`. Neither the state layer nor the runtime layer holds any Claude-specific state logic.
+The `arc event <eventType>` subcommand repackages the Claude hook payload into `proto.CmdEvent` and sends it via IPC. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions using the frame id it received as `SenderID`, and calls `Driver.Step(frame.Driver, DEvHook{...})`. Neither the state layer nor the runtime layer holds any Claude-specific state logic.
 
 ### Codex driver (App Server stream + display-only transcript)
 
@@ -79,7 +79,7 @@ For Codex, transcript files are display-only. The source of truth for status, ap
 
 ### Hook event routing and race-free identification
 
-A mechanism for the hook subprocess to identify its owning roost frame in a race-free manner.
+A mechanism for the hook subprocess to identify its owning client frame in a race-free manner.
 
 **Problem**: There is a window after `tmux new-window` where any pane-scoped tmux option written by the daemon is not yet visible to processes inside the pane. If a hook fires during this window, the option-based owner marker is unset and the event is discarded.
 

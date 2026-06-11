@@ -5,11 +5,11 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/proto"
-	psess "github.com/takezoh/agent-roost/client/proto/sessions"
-	"github.com/takezoh/agent-roost/client/tools"
-	"github.com/takezoh/agent-roost/platform/features"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/proto"
+	psess "github.com/takezoh/agent-reactor/client/proto/sessions"
+	"github.com/takezoh/agent-reactor/client/tools"
+	"github.com/takezoh/agent-reactor/platform/features"
 )
 
 type Model struct {

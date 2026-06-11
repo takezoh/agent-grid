@@ -18,16 +18,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/runtime/framereg"
-	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
-	clisubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem/cli"
-	cstream "github.com/takezoh/agent-roost/client/runtime/subsystem/stream"
-	"github.com/takezoh/agent-roost/client/runtime/worker"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agentlaunch"
-	"github.com/takezoh/agent-roost/platform/features"
-	"github.com/takezoh/agent-roost/platform/procgroup"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/runtime/framereg"
+	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	clisubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem/cli"
+	cstream "github.com/takezoh/agent-reactor/client/runtime/subsystem/stream"
+	"github.com/takezoh/agent-reactor/client/runtime/worker"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	"github.com/takezoh/agent-reactor/platform/features"
+	"github.com/takezoh/agent-reactor/platform/procgroup"
 )
 
 // sameSessionMap returns true when the two maps refer to the same
@@ -128,7 +128,7 @@ type Runtime struct {
 	// as EvTick.N so reducers and drivers can gate work to every N-th tick.
 	tickN uint64
 	// workspaceResolver resolves the workspace name for each session's
-	// project directory, with mtime-based caching of .roost/settings.toml.
+	// project directory, with mtime-based caching of .agent-reactor/settings.toml.
 	workspaceResolver *config.WorkspaceResolver
 
 	// sandboxCleanups holds WrappedLaunch.Cleanup callbacks keyed by FrameID.

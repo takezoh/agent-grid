@@ -8,10 +8,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/takezoh/agent-roost/client/lib/editor"
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/features"
+	"github.com/takezoh/agent-reactor/client/lib/editor"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/features"
 )
 
 var editorLaunch = editor.Launch

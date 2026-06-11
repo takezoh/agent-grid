@@ -1,4 +1,4 @@
-// Package state holds the pure functional core of roost. State is a plain
+// Package state holds the pure functional core of the client. State is a plain
 // data type, Reduce is a pure function, Event and Effect are closed sum
 // types. No goroutines, no I/O, no globals (except the driver registry and
 // the default-driver factory, both set once at init time).
@@ -10,7 +10,7 @@ package state
 import (
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/features"
+	"github.com/takezoh/agent-reactor/platform/features"
 )
 
 // Identifier types. Distinct named types prevent accidental mix-up at the
@@ -33,7 +33,7 @@ const (
 	OccupantFrame OccupantKind = "frame"
 )
 
-// State is the entire roost domain state at one point in time. Reduce
+// State is the entire client domain state at one point in time. Reduce
 // produces a new State value from an existing State + an Event; the
 // runtime swaps its single in-memory copy each tick of the event loop.
 //
@@ -75,7 +75,7 @@ type State struct {
 	ActiveSession SessionID
 }
 
-// Session is the static metadata + driver state of one roost session.
+// Session is the static metadata + driver state of one client session.
 // All dynamic per-session data lives in Driver (a sum-typed value), which
 // each driver impl returns from its Step method.
 type Session struct {

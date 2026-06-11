@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/takezoh/agent-roost/platform/sandbox"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
 )
 
 const devcontainerSubdir = ".devcontainer"
@@ -17,7 +17,7 @@ var ErrNoProjectDevcontainer = errors.New("devcontainer: <project>/.devcontainer
 // ErrNoUserDevcontainer is returned when ~/.devcontainer/devcontainer.json is not found.
 var ErrNoUserDevcontainer = errors.New("devcontainer: ~/.devcontainer/devcontainer.json not found")
 
-// OverlayFunc computes roost overlay (env + mounts) to apply at container creation time.
+// OverlayFunc computes client overlay (env + mounts) to apply at container creation time.
 // plan carries the shared-vs-project decision; the overlay derives the container
 // key, overlay project, and workspace fallback from it via plan.ContainerKey /
 // OverlayProject / WorkspaceFallbackProject (all keyed by projectPath, the actual

@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/procgroup"
+	"github.com/takezoh/agent-reactor/platform/procgroup"
 )
 
 // SpawnResult holds the stdio handles and lifecycle hooks for a spawned agent process.

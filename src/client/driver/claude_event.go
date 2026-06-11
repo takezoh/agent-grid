@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // Hook event handling for the Claude driver. The hook bridge sends the
@@ -37,7 +37,7 @@ type hookPayload struct {
 	IsInterrupt    bool   `json:"is_interrupt"`
 }
 
-// deriveState maps the hook_event_name to a roost status string.
+// deriveState maps the hook_event_name to a client status string.
 // Must stay in sync with lib/claude/hookevent.HookEvent.DeriveState.
 func (hp hookPayload) deriveState() string {
 	switch hp.HookEventName {

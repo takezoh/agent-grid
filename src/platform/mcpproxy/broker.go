@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/takezoh/agent-roost/platform/procgroup"
+	"github.com/takezoh/agent-reactor/platform/procgroup"
 )
 
 type serverEntry struct {

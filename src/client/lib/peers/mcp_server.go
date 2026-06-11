@@ -6,12 +6,13 @@ import (
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
-// runMCPServer starts the roost-peers MCP stdio server.
+// runMCPServer starts the reactor-peers MCP stdio server.
 func runMCPServer() error {
-	server := mcp.NewServer(&mcp.Implementation{Name: "roost-peers", Version: "1.0"}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: appid.PeersServer, Version: "1.0"}, nil)
 	dial := defaultDialer()
 
 	registerListPeers(server, dial)

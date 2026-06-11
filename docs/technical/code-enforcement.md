@@ -56,7 +56,7 @@ Key intents:
 - **Layer direction**: platform is the base and knows nothing above it; client does not know orchestrator (the converse is guaranteed by `platform-no-...`).
 - **`state/` purity**: the state machine has no I/O and no side effects — a pure functional core. It cannot import driver/runtime/tui at all.
 - **`runtime-no-driver`**: only the runtime **root** is forbidden from importing driver. Tool-specific backends move to `runtime/subsystem/<kind>/`. Exception: `client/driver/vt` is explicitly allowed in `exclusions.rules`.
-- **`codexclient` reusability**: a shared protocol transport, so it knows nothing of agent-roost internals.
+- **`codexclient` reusability**: a shared protocol transport, so it knows nothing of agent-reactor internals.
 
 ## 2. Pure-core purity (forbidigo + ruleguard)
 
@@ -91,7 +91,7 @@ Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code 
 
 | Kind | Mechanism | Toggle | Stays in the binary? | Use when |
 |---|---|---|---|---|
-| runtime | `Flag` constant + injected `Set` | `~/.roost/settings.toml` `[features.enabled]` | both branches compiled | the user should opt in without rebuilding |
+| runtime | `Flag` constant + injected `Set` | `~/.agent-reactor/settings.toml` `[features.enabled]` | both branches compiled | the user should opt in without rebuilding |
 | compile-time | top-level `const` bool guarded by a build tag | `go build -tags <tag>` (e.g. `make build-experimental`) | off-side removed by dead-code elimination | the code is unfinished / unsafe or must not enter release binaries |
 
 **Runtime — add:** declare a `Flag` constant and list it in `All()`; read it as `st.Features.On(features.Peers)` (`features.go:36`). Gating is allowed in `state/`, `runtime/`, `tui/` — **not** in `driver/` or `connector/`, where driver-specific gating uses `config.Drivers[name]` instead. Users opt in under `[features.enabled]`. `FromConfig` **silently ignores unknown keys** (`features.go:46`), so when a flag stabilises you delete the constant and inline the enabled branch with no config migration.

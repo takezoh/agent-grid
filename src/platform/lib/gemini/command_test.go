@@ -57,8 +57,8 @@ func TestRunSetupRegistersHooksAndMCP(t *testing.T) {
 		t.Errorf("hooks missing: %v", s)
 	}
 	mcp, _ := s["mcpServers"].(map[string]any)
-	if _, ok := mcp["roost-peers"]; !ok {
-		t.Errorf("mcpServers.roost-peers missing: %v", s)
+	if _, ok := mcp["reactor-peers"]; !ok {
+		t.Errorf("mcpServers.reactor-peers missing: %v", s)
 	}
 	// Idempotent
 	if err := RunSetup(); err != nil {

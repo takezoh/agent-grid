@@ -13,7 +13,7 @@
 
 ## Integration points
 
-- [ ] vsock IPC: `roost event` in guest → host daemon socket
+- [ ] vsock IPC: `arc event` in guest → host daemon socket
 - [ ] virtio-blk worktree FS share: host write, guest read
 - [ ] transcript fsnotify: guest write, host fsnotify fires
 - [ ] tmux attach: serial pty bridge to pane

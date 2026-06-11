@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
-// RegisterHooks registers roost hooks in Gemini's settings.json.
+// RegisterHooks registers arc hooks in Gemini's settings.json.
 // Returns the list of registered event names.
 func RegisterHooks(settingsPath, roostBinary string) ([]string, error) {
 	settings, err := readSettings(settingsPath)
@@ -84,7 +86,7 @@ func hasCommand(entry any, command string) bool {
 	return false
 }
 
-// RegisterMCPServer writes mcpServers.roost-peers to settings.json.
+// RegisterMCPServer writes mcpServers.<client>-peers (e.g. reactor-peers) to settings.json.
 // Returns true if the entry was newly written, false if already present.
 func RegisterMCPServer(settingsPath, roostBinary string) (bool, error) {
 	settings, err := readSettings(settingsPath)
@@ -95,10 +97,11 @@ func RegisterMCPServer(settingsPath, roostBinary string) (bool, error) {
 	if mcpServers == nil {
 		mcpServers = make(map[string]any)
 	}
-	if _, exists := mcpServers["roost-peers"]; exists {
+	peersServer := appid.PeersServer
+	if _, exists := mcpServers[peersServer]; exists {
 		return false, nil
 	}
-	mcpServers["roost-peers"] = map[string]any{
+	mcpServers[peersServer] = map[string]any{
 		"command": roostBinary,
 		"args":    []any{"peers-mcp"},
 	}

@@ -1,8 +1,8 @@
 package agentlaunch
 
 import (
-	"github.com/takezoh/agent-roost/platform/config"
-	"github.com/takezoh/agent-roost/platform/sandbox"
+	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
 )
 
 // IsolationInputs are the resolved, side-effect-free inputs to the shared-vs-

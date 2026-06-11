@@ -78,7 +78,7 @@ func Launch(command, target string) error {
 	// attacker cannot pre-plant a symlink at a predictable path to redirect or
 	// truncate another file) and unlink it right after Start: the child keeps
 	// the inherited fd, so the name can go away leaving no litter.
-	if logf, ferr := os.CreateTemp("", "roost-editor-*.log"); ferr == nil {
+	if logf, ferr := os.CreateTemp("", "reactor-editor-*.log"); ferr == nil {
 		cmd.Stdout = logf
 		cmd.Stderr = logf
 		defer func() {

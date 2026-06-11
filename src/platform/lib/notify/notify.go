@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
 // Notifier sends desktop toast notifications.
@@ -61,8 +63,8 @@ func (n *Notifier) HasBackend() bool {
 func notifySendArgs(title, body string) []string {
 	return []string{
 		"--urgency=normal",
-		"--app-name=roost",
-		"--icon=agent-roost",
+		"--app-name=" + appid.ClientBin,
+		"--icon=" + appid.Name,
 		"--category=im.received",
 		title,
 		body,

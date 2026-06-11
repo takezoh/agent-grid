@@ -53,8 +53,8 @@ func TestNotifier_Send_NoPowerShell(t *testing.T) {
 func TestNotifySendArgs(t *testing.T) {
 	args := notifySendArgs("My Title", "Some body")
 	wants := map[string]bool{
-		"--app-name=roost":       false,
-		"--icon=agent-roost":     false,
+		"--app-name=arc":         false,
+		"--icon=agent-reactor":   false,
 		"--category=im.received": false,
 	}
 	for _, a := range args {
@@ -106,7 +106,7 @@ func TestNotifyScriptFileExists(t *testing.T) {
 	if !strings.Contains(s, "ToastNotificationManager") {
 		t.Error("notify.ps1 should call ToastNotificationManager")
 	}
-	if !strings.Contains(s, `"Roost"`) {
-		t.Error(`notify.ps1 should use "Roost" as notifier ID`)
+	if !strings.Contains(s, `"Arc"`) {
+		t.Error(`notify.ps1 should use "Arc" as notifier ID`)
 	}
 }

@@ -5,11 +5,13 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
-// UserSettings holds the subset of ~/.roost/settings.toml shared between the
-// roost client and the orchestrator: sandbox posture, project scoping, and the
-// data directory. The roost client decodes a richer superset in client/config;
+// UserSettings holds the subset of ~/.agent-reactor/settings.toml shared between the
+// client and the orchestrator: sandbox posture, project scoping, and the
+// data directory. The client decodes a richer superset in client/config;
 // both read the same file into the same platform types, so the shared sections
 // stay consistent. This keeps the orchestrator from importing client/.
 type UserSettings struct {
@@ -18,12 +20,12 @@ type UserSettings struct {
 	Projects ProjectsConfig `toml:"projects"`
 }
 
-// ConfigDir returns the ~/.roost configuration directory.
+// ConfigDir returns the ~/.agent-reactor configuration directory.
 func ConfigDir() string {
-	return filepath.Join(ExpandPath("~"), ".roost")
+	return filepath.Join(ExpandPath("~"), appid.DotDir)
 }
 
-// LoadUserSettings reads the shared subset of ~/.roost/settings.toml. A missing
+// LoadUserSettings reads the shared subset of ~/.agent-reactor/settings.toml. A missing
 // file yields defaults (direct sandbox mode); a parse or validation error is returned.
 func LoadUserSettings() (UserSettings, error) {
 	s := UserSettings{Sandbox: SandboxConfig{Mode: "direct"}}
@@ -41,7 +43,7 @@ func LoadUserSettings() (UserSettings, error) {
 }
 
 // ResolveDataDir resolves the data directory: ROOST_DATA_DIR env, else the
-// configured data_dir, else ~/.roost.
+// configured data_dir, else ~/.agent-reactor.
 func (s UserSettings) ResolveDataDir() string {
 	if v := os.Getenv("ROOST_DATA_DIR"); v != "" {
 		return ExpandPath(v)

@@ -2,7 +2,7 @@
 
 ## Rendering Responsibilities
 
-The agent-roost TUI rendering divides responsibilities between the driver and TUI at the following boundaries. **When adding a new driver, you do not need to touch the runtime or TUI code**. A driver only needs to implement `View(DriverState) state.View`.
+The agent-reactor TUI rendering divides responsibilities between the driver and TUI at the following boundaries. **When adding a new driver, you do not need to touch the runtime or TUI code**. A driver only needs to implement `View(DriverState) state.View`.
 
 ### Driver-Owned (`SessionView`)
 
@@ -26,7 +26,7 @@ The TUI acts as a driver-agnostic generic renderer.
 - Elapsed time formatting (relative notation like `5m ago`)
 - Card layout (ordering of each slot / margins / wrap / truncate)
 - INFO tab generic header (auto-generated from SessionInfo generic fields in `renderInfoContent` → driver's `InfoExtras` appended at the end)
-- LOG tab (always tails `~/.roost/roost.log`)
+- LOG tab (always tails `~/.agent-reactor/arc.log`)
 - Filter / fold / cursor restoration
 
 ### Prohibitions
@@ -89,14 +89,14 @@ Key points:
 Three execution modes are provided in a single binary. The pane IDs (`0.0`, `0.1`, `0.2`) layout is described in [tmux Layout](#tmux-layout).
 
 ```
-roost                       → Daemon (parent process: Runtime event loop + IPC server)
-roost --tui main            → Main TUI (Pane 0.0)
-roost --tui sessions        → Session list server (Pane 0.2)
-roost --tui palette [flags] → Command palette (tmux popup)
-roost --tui log             → Log TUI (Pane 0.1)
-roost event <eventType>     → Hook event receiver (short-lived process invoked by hook)
-roost claude setup          → Claude hook registration (writes to ~/.claude/settings.json)
-roost codex setup           → Codex MCP registration (writes ~/.codex/mcp.json)
+arc                       → Daemon (parent process: Runtime event loop + IPC server)
+arc --tui main            → Main TUI (Pane 0.0)
+arc --tui sessions        → Session list server (Pane 0.2)
+arc --tui palette [flags] → Command palette (tmux popup)
+arc --tui log             → Log TUI (Pane 0.1)
+arc event <eventType>     → Hook event receiver (short-lived process invoked by hook)
+arc claude setup          → Claude hook registration (writes to ~/.claude/settings.json)
+arc codex setup           → Codex MCP registration (writes ~/.codex/mcp.json)
 ```
 
 ### Daemon (Runtime)
@@ -136,7 +136,7 @@ runDaemon()
 
 **The difference between warm start and cold start is only the bootstrap path**. Both use sessions.json as the source of truth, and both restore the same frame stack per session. The driver's PersistedState (status / title / summary / branch, etc.) is included in each frame's `driver_state` bag, and each frame's normalized `LaunchOptions` is persisted alongside it so cold start can respawn with the same launch flavor.
 
-For Codex, the daemon starts **one `codex app-server` per roost Session** (keyed by `stream:session:<sessionID>`). All frames within the same Session (root + peers) share one app-server; different Sessions get separate processes. The app-server is launched via `agentlaunch.Dispatcher.Wrap` + `agentlaunch.Spawn` (argv-direct, no host shell); the listen argv is built by `libcodex.AppServerListenArgs`, binding a per-session UDS `codex-<sessionID>.sock`. The path the app-server binds comes from `Factory.ResolveSockPath` (container-absolute under the run dir in container mode); the host-side path the daemon dials is derived from that path plus the launch's bind mounts (`resolveDialSock` → `WrappedLaunch.HostPath`). The stream daemon uses a dedicated non-TTY `DevcontainerLauncher` (`docker exec -i`) that shares the same `sandbox.Manager` as the TUI pane launcher. The daemon connects via **WebSocket-over-UDS** (HTTP Upgrade — the transport codex app-server speaks). Structured RPC events are converted to `DEvSubsystem` and dispatched to the owning frame. Each frame's pane TUI runs in the same sandbox as the app-server and attaches to that UDS directly with `codex --remote unix://<sock>` (cold start) or `codex resume <id> --remote unix://<sock>` (warm start); these remote-attach strings are built by `libcodex.RemoteAttachArgs`. There is no TCP routing bridge. Codex state is not driven by hooks. When a session's last frame is released, `Factory.Remove` stops the corresponding app-server process (reap on exit).
+For Codex, the daemon starts **one `codex app-server` per session managed by the client** (keyed by `stream:session:<sessionID>`). All frames within the same Session (root + peers) share one app-server; different Sessions get separate processes. The app-server is launched via `agentlaunch.Dispatcher.Wrap` + `agentlaunch.Spawn` (argv-direct, no host shell); the listen argv is built by `libcodex.AppServerListenArgs`, binding a per-session UDS `codex-<sessionID>.sock`. The path the app-server binds comes from `Factory.ResolveSockPath` (container-absolute under the run dir in container mode); the host-side path the daemon dials is derived from that path plus the launch's bind mounts (`resolveDialSock` → `WrappedLaunch.HostPath`). The stream daemon uses a dedicated non-TTY `DevcontainerLauncher` (`docker exec -i`) that shares the same `sandbox.Manager` as the TUI pane launcher. The daemon connects via **WebSocket-over-UDS** (HTTP Upgrade — the transport codex app-server speaks). Structured RPC events are converted to `DEvSubsystem` and dispatched to the owning frame. Each frame's pane TUI runs in the same sandbox as the app-server and attaches to that UDS directly with `codex --remote unix://<sock>` (cold start) or `codex resume <id> --remote unix://<sock>` (warm start); these remote-attach strings are built by `libcodex.RemoteAttachArgs`. There is no TCP routing bridge. Codex state is not driven by hooks. When a session's last frame is released, `Factory.Remove` stops the corresponding app-server process (reap on exit).
 
 #### Detach vs Shutdown
 
@@ -148,7 +148,7 @@ Both operations first write sessions.json (`EffPersistSnapshot`), then exit — 
 | claude/agent panes | Continue running | Killed via SIGHUP |
 | Docker / sandbox | Containers **preserved** (`EffReleaseFrameSandboxes` not emitted) | Containers **destroyed** (`EffReleaseFrameSandboxes` drains all frame cleanups before tmux kill) |
 | sessions.json | Saved (not cleared) | Saved (not cleared) |
-| Next `roost` launch | **Warm start** — rebind live panes, adopt existing containers | **Cold start** — `RecreateAll` respawns panes and creates new containers from sessions.json |
+| Next `arc` launch | **Warm start** — rebind live panes, adopt existing containers | **Cold start** — `RecreateAll` respawns panes and creates new containers from sessions.json |
 
 sessions.json is **always preserved** — it is the restoration source. Shutdown does not discard sessions; it stops tmux now and defers restoration to the next cold start.
 
@@ -214,10 +214,10 @@ runTUI("palette")
 
 - **TUI socket disconnection**: The TUI process exits. The daemon detects this and recovers via `respawn-pane`
 - **External kill of parked session pane / agent process exit**: Parked frame panes live in background windows with `remain-on-exit off`, so tmux automatically destroys the pane. `reduceTick` emits `EffReconcileWindows`, and runtime reconciles tracked frame pane ids. The reducer truncates the owning session at the dead frame's index — if it was the root frame, the whole session is deleted; otherwise the remaining lower frames stay and the new tail becomes the active frame. State is updated, the snapshot is rewritten, and `sessions-changed` is broadcast
-- **Active session agent process exit (e.g., C-c)**: The active frame's pane is swapped into `roost:0.1`; window 0 has `remain-on-exit on`, so the dead pane lingers as `[exited]` rather than being collapsed. Pane liveness is probed by **`pane_id` rather than positional target** — the active-frame fast probe (`scheduleActiveFramePaneProbe`) and `executeCheckPaneAlive` both look up `r.sessionPanes[r.activeFrameID]` and call `display-message -t %N -p '#{pane_dead}'`. `PaneAlive` treats a non-nil error (pane vanished) as dead. Positional probing would resolve to a sibling pane after a layout collapse and silently report "alive". On detection, runtime emits `EvPaneDied{Pane:"{sessionName}:0.1", OwnerFrameID:<active>}`; the reducer truncates the session from that frame onward, applying the same root-vs-non-root rule above
+- **Active session agent process exit (e.g., C-c)**: The active frame's pane is swapped into `arc:0.1`; window 0 has `remain-on-exit on`, so the dead pane lingers as `[exited]` rather than being collapsed. Pane liveness is probed by **`pane_id` rather than positional target** — the active-frame fast probe (`scheduleActiveFramePaneProbe`) and `executeCheckPaneAlive` both look up `r.sessionPanes[r.activeFrameID]` and call `display-message -t %N -p '#{pane_dead}'`. `PaneAlive` treats a non-nil error (pane vanished) as dead. Positional probing would resolve to a sibling pane after a layout collapse and silently report "alive". On detection, runtime emits `EvPaneDied{Pane:"{sessionName}:0.1", OwnerFrameID:<active>}`; the reducer truncates the session from that frame onward, applying the same root-vs-non-root rule above
 - **Consecutive `respawn-pane` failures**: respawn-pane normally does not fail since tmux recreates the pane (however, startup may fail in cases of environmental anomalies such as binary deletion or permission changes). When the tmux session is destroyed, the daemon's attach also exits, so everything shuts down
 - **Startup consistency**: `sessions.json` and tmux session-level frame-scoped env vars are the two sources of truth. On warm start the bootstrap cross-checks the frame stack against the live pane map and truncates any session at the first missing frame
-- **IPC errors**: When an IPC command returns an error on the TUI side, it logs to slog and does not change UI state. No timeout is configured (local communication over Unix socket). If the server deadlocks, the client risks blocking indefinitely. Recovery means externally running `tmux kill-session -t roost` or killing the daemon process
+- **IPC errors**: When an IPC command returns an error on the TUI side, it logs to slog and does not change UI state. No timeout is configured (local communication over Unix socket). If the server deadlocks, the client risks blocking indefinitely. Recovery means externally running `tmux kill-session -t arc` or killing the daemon process
 
 ## tmux Layout
 
@@ -237,7 +237,7 @@ Window 1+: Sessions/Main TUI parking windows (background, displayed in Pane 0.0 
 
 - Window 0 only has `remain-on-exit on`: to maintain layout even when log / sessions panes crash, allowing daemon to revive them via `respawn-pane`
 - Session parking windows (Window 1+) have `remain-on-exit off`: agent process exit causes automatic pane destruction, and `reduceTick` → `EffReconcileWindows` cleans up State
-- `mouse on` enables mouse wheel scrolling and pane border detection. Explicitly set by roost, not dependent on the user's tmux.conf
+- `mouse on` enables mouse wheel scrolling and pane border detection. Explicitly set by the client, not dependent on the user's tmux.conf
 - Terminal size is obtained via `term.GetSize()` and passed to `new-session -x -y`
 - All default keys in the prefix table are disabled; only Space/d/q/p are registered
 

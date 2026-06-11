@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
+	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // fakeSubsystem records lifecycle calls for assertions.

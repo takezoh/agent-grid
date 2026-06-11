@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // RegisterOptions carries startup parameters for all built-in drivers.

@@ -3,7 +3,7 @@ package runtime
 import (
 	"fmt"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // RuntimeTmuxInjector implements TmuxInjector backed by the
@@ -28,7 +28,7 @@ func (inj *RuntimeTmuxInjector) ResolveFramePane(frameID state.FrameID) (string,
 
 // PastePrompt loads text into a named buffer then pastes it into target.
 func (inj *RuntimeTmuxInjector) PastePrompt(target, text string) error {
-	bufName := fmt.Sprintf("roost-peer-%s", target)
+	bufName := fmt.Sprintf("reactor-peer-%s", target)
 	if err := inj.tmux.LoadBuffer(bufName, text); err != nil {
 		return err
 	}

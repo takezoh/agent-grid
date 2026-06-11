@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
 var (
@@ -22,33 +24,33 @@ var (
 // LogFilePath returns the on-disk path of the global daemon log file.
 // After Init(level) or InitWithDataDir(level, dataDir) has been called,
 // this returns the resolved path. Before Init it returns the default
-// (~/.roost/roost.log).
+// (~/.agent-reactor/arc.log).
 func LogFilePath() string {
 	if logPath != "" {
 		return logPath
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".roost", "roost.log")
+	return filepath.Join(home, appid.DotDir, appid.LogFileName)
 }
 
 // Init opens the log file under the default data directory
-// (~/.roost/) and installs a slog text handler at the given level.
+// (~/.agent-reactor/) and installs a slog text handler at the given level.
 func Init(level string) error {
 	return InitWithDataDir(level, "")
 }
 
 // Rotate shifts existing log files under dir at process startup:
-// roost.log → roost.log.1, …, up to maxRotations. Must be called
+// arc.log → arc.log.1, …, up to maxRotations. Must be called
 // before InitWithDataDir so that the file handle opened by Init always
-// points at the freshly-created roost.log inode. Only the coordinator
+// points at the freshly-created arc.log inode. Only the coordinator
 // process should call this; subprocess calls to InitWithDataDir append
 // to the coordinator's log file without rotating.
 func Rotate(dir string) {
 	if dir == "" {
 		home, _ := os.UserHomeDir()
-		dir = filepath.Join(home, ".roost")
+		dir = filepath.Join(home, appid.DotDir)
 	}
-	rotateLogs(filepath.Join(dir, "roost.log"))
+	rotateLogs(filepath.Join(dir, appid.LogFileName))
 }
 
 // InitWithDataDir opens the log file under the given data directory
@@ -58,12 +60,12 @@ func Rotate(dir string) {
 func InitWithDataDir(level, dir string) error {
 	if dir == "" {
 		home, _ := os.UserHomeDir()
-		dir = filepath.Join(home, ".roost")
+		dir = filepath.Join(home, appid.DotDir)
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	logPath = filepath.Join(dir, "roost.log")
+	logPath = filepath.Join(dir, appid.LogFileName)
 
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -78,7 +80,7 @@ func InitWithDataDir(level, dir string) error {
 const maxRotations = 5
 
 // rotateLogs shifts existing log files at startup:
-// roost.log → roost.log.1, roost.log.1 → roost.log.2, … up to maxRotations.
+// arc.log → arc.log.1, arc.log.1 → arc.log.2, … up to maxRotations.
 // Errors are silently ignored; missing files are not an error.
 func rotateLogs(logPath string) {
 	_ = os.Remove(fmt.Sprintf("%s.%d", logPath, maxRotations))

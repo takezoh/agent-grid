@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
 )
 
 func newTestManager(t *testing.T) *Manager {

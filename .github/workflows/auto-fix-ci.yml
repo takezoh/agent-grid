@@ -63,6 +63,6 @@ jobs:
                tests are required for any new or changed behavior.
 
             3. Verify all checks pass:
-               cd src && go vet ./... && go test ./... && go build -o ../roost . && go tool golangci-lint run ./...
+               cd src && go vet ./... && go test ./... && go build -o ../arc . && go tool golangci-lint run ./...
 
             4. Commit and push the fix to main with a descriptive commit message.

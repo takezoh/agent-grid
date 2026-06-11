@@ -27,9 +27,9 @@ func TestRegisterMCPServer_NewFile(t *testing.T) {
 	if !ok {
 		t.Fatal("mcpServers key missing or wrong type")
 	}
-	entry, ok := mcpServers["roost-peers"].(map[string]any)
+	entry, ok := mcpServers["reactor-peers"].(map[string]any)
 	if !ok {
-		t.Fatal("roost-peers entry missing")
+		t.Fatal("reactor-peers entry missing")
 	}
 	if entry["command"] != "/usr/local/bin/roost" {
 		t.Errorf("command = %v, want /usr/local/bin/roost", entry["command"])

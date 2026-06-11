@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/client/uiproc"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/client/uiproc"
 )
 
 // Bootstrap helpers used at startup before the event loop starts.
@@ -220,7 +220,7 @@ func (r *Runtime) RecoverActivePaneAtMain() {
 	if paneAtZero == "" {
 		return
 	}
-	// Detect if the log TUI ended up at 0.1 (roost crashed while log was visible).
+	// Detect if the log TUI ended up at 0.1 (the client crashed while log was visible).
 	if r.sessionPanes["_log"] != "" && r.sessionPanes["_log"] == paneAtZero {
 		r.state.ActiveOccupant = state.OccupantLog
 		slog.Info("bootstrap: log TUI detected at 0.1; setting ActiveOccupant=log", "pane", paneAtZero)

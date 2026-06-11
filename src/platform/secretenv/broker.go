@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// resolveTimeout is roost's safety bound on the credproxy resolve subprocess.
+// resolveTimeout is the client's safety bound on the credproxy resolve subprocess.
 // It must exceed the total time credproxy may spend resolving all refs in the
 // env-file (N refs × hook_timeout_sec). The actual hook timeout per ref is
 // credproxy's concern (hook_timeout_sec in ~/.config/credproxy/config.toml).

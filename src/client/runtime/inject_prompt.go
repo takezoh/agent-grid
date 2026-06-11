@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // TmuxInjector abstracts the minimal tmux operations InjectPrompt needs.

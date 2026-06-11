@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/platform/shellalias"
+	"github.com/takezoh/agent-reactor/platform/shellalias"
 )
 
 func TestBuildSpawnCommand(t *testing.T) {

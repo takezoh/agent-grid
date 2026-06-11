@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/config"
+	"github.com/takezoh/agent-reactor/platform/config"
 )
 
 func TestNewAgentLauncher_direct(t *testing.T) {

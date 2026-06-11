@@ -32,11 +32,11 @@ unknown=0
 checked=0
 
 while IFS= read -r line; do
-    if [[ $line =~ ^(ok|---FAIL).*"github.com/takezoh/agent-roost"[^[:space:]]*.*coverage:\ ([0-9.]+)% ]]; then
+    if [[ $line =~ ^(ok|---FAIL).*"github.com/takezoh/agent-reactor"[^[:space:]]*.*coverage:\ ([0-9.]+)% ]]; then
         # parse "ok  <pkg> <time>  coverage: NN.N% of statements"
         pkg=$(awk '{print $2}' <<<"$line")
         pct="${BASH_REMATCH[2]}"
-    elif [[ $line =~ ^[[:space:]]+(github.com/takezoh/agent-roost[^[:space:]]*).*coverage:\ ([0-9.]+)% ]]; then
+    elif [[ $line =~ ^[[:space:]]+(github.com/takezoh/agent-reactor[^[:space:]]*).*coverage:\ ([0-9.]+)% ]]; then
         # "<tab>github.com/.../pkg<tab><tab>coverage: 0.0% of statements"
         pkg="${BASH_REMATCH[1]}"
         pct="${BASH_REMATCH[2]}"

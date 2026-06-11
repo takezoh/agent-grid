@@ -11,8 +11,8 @@ package framereg
 import (
 	"sync"
 
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
 )
 
 // Registry maps container bearer tokens to frame IDs and holds per-frame

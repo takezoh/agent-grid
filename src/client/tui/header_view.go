@@ -6,7 +6,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
 // frameTabLayout renders a row of frame tab chips for the active session
@@ -74,7 +75,7 @@ func (m HeaderModel) renderTabLine() string {
 		}
 	}
 	if active == nil {
-		return mutedStyle.Render("roost")
+		return mutedStyle.Render(appid.ClientBin)
 	}
 	line, _ := frameTabLayout(*active, m.activeOccupant == proto.OccupantFrame)
 	return line

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-roost/platform/logger"
+	"github.com/takezoh/agent-reactor/platform/logger"
 )
 
 // SPEC §17.1 — explicit --workflow path is used when provided; the cwd default
@@ -57,7 +57,7 @@ func TestSPEC_17_1_WorkflowFilePathPrecedence(t *testing.T) {
 func TestSPEC_17_7_SecretNeverLogged(t *testing.T) {
 	isolateHome(t)
 
-	const sentinel = "roost-secret-sentinel-XYZABC"
+	const sentinel = "reactor-secret-sentinel-XYZABC"
 	t.Setenv("CONF_TEST_SENTINEL_KEY", sentinel)
 
 	wf := writeWorkflow(t, `---

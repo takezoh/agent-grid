@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/shellalias"
+	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/shellalias"
 )
 
 // spawnDeps is the narrow set of capabilities given to the spawn goroutine.
@@ -244,7 +244,7 @@ func isShellCommand(command string) bool {
 // wrapCommandWithStdin writes input to a temp file and returns a shell
 // command that feeds the file to command on stdin, then deletes it.
 func wrapCommandWithStdin(command string, input []byte) string {
-	f, err := os.CreateTemp("", "roost-push-*.in")
+	f, err := os.CreateTemp("", "reactor-push-*.in")
 	if err != nil {
 		slog.Warn("buildStdinCommand: could not create temp file, stdin ignored",
 			"err", err)

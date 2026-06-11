@@ -3,8 +3,8 @@ package tui
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func TestBuildTabList_DriverProvidedTabsThenInfoThenLog(t *testing.T) {
@@ -18,7 +18,7 @@ func TestBuildTabList_DriverProvidedTabsThenInfoThenLog(t *testing.T) {
 			InfoExtras: []state.InfoLine{{Label: "k", Value: "v"}},
 		},
 	}
-	tabs := buildTabList(map[string]*tabState{}, current, "/var/log/roost.log")
+	tabs := buildTabList(map[string]*tabState{}, current, "/var/log/arc.log")
 
 	wantLabels := []string{"TRANSCRIPT", "EVENTS", "INFO", "LOG"}
 	if len(tabs) != len(wantLabels) {
@@ -42,7 +42,7 @@ func TestBuildTabList_DriverProvidedTabsThenInfoThenLog(t *testing.T) {
 
 func TestBuildTabList_NoDriverTabsStillShowsInfoAndLog(t *testing.T) {
 	current := &proto.SessionInfo{ID: "s1"} // empty View
-	tabs := buildTabList(map[string]*tabState{}, current, "/var/log/roost.log")
+	tabs := buildTabList(map[string]*tabState{}, current, "/var/log/arc.log")
 
 	if len(tabs) != 2 {
 		t.Fatalf("tabs = %d, want 2 (INFO + LOG)", len(tabs))
@@ -59,7 +59,7 @@ func TestBuildTabList_SuppressInfoHidesInfoTab(t *testing.T) {
 			SuppressInfo: true,
 		},
 	}
-	tabs := buildTabList(map[string]*tabState{}, current, "/var/log/roost.log")
+	tabs := buildTabList(map[string]*tabState{}, current, "/var/log/arc.log")
 
 	if len(tabs) != 1 {
 		t.Fatalf("tabs = %d, want 1 (LOG only)", len(tabs))
@@ -70,7 +70,7 @@ func TestBuildTabList_SuppressInfoHidesInfoTab(t *testing.T) {
 }
 
 func TestBuildTabList_NoCurrentSessionShowsLogOnly(t *testing.T) {
-	tabs := buildTabList(map[string]*tabState{}, nil, "/var/log/roost.log")
+	tabs := buildTabList(map[string]*tabState{}, nil, "/var/log/arc.log")
 	if len(tabs) != 1 || tabs[0].label != "LOG" {
 		t.Errorf("tabs = %+v, want [LOG]", tabLabels(tabs))
 	}
@@ -87,7 +87,7 @@ func TestBuildTabList_ReusesTabStateOnSameLabelPathKind(t *testing.T) {
 		},
 	}
 	prevMap := map[string]*tabState{"EVENTS": prev}
-	tabs := buildTabList(prevMap, current, "/var/log/roost.log")
+	tabs := buildTabList(prevMap, current, "/var/log/arc.log")
 
 	// Find the EVENTS tab and confirm it is the same instance.
 	var got *tabState

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/takezoh/agent-roost/platform/config"
+	"github.com/takezoh/agent-reactor/platform/config"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 )
@@ -32,7 +32,7 @@ type SpecBuilder struct {
 type Config struct {
 	RunBase           string // parent of per-project run directories on the host
 	ContainerSockPath string // mcp.sock path inside the container
-	ContainerBinPath  string // roost binary path inside the container
+	ContainerBinPath  string // client binary path inside the container
 	// WorkspaceTargetsFor returns the workspaces into which the .mcp.json
 	// overlay must be projected for a project key. A single-project container
 	// yields one target; a shared container yields one per bound project.

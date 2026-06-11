@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/metrics"
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/metrics"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 func testIssue(id, identifier string) tracker.Issue {

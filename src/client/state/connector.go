@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	v "github.com/takezoh/agent-roost/client/state/view"
+	v "github.com/takezoh/agent-reactor/client/state/view"
 )
 
 // ConnectorState is the per-connector private state value. Each

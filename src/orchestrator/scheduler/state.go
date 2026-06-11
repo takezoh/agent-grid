@@ -4,8 +4,8 @@ import (
 	"maps"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/metrics"
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/metrics"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 // ClaimState represents the orchestration claim state of an issue (SPEC §7.1).

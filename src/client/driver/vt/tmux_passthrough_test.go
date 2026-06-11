@@ -23,7 +23,7 @@ func TestTmuxOscPassthrough(t *testing.T) {
 		t.Skip("tmux not found in PATH")
 	}
 
-	session := "roost-osc-test"
+	session := "reactor-osc-test"
 	cleanup := func() { exec.Command("tmux", "kill-session", "-t", session).Run() } //nolint:errcheck
 	cleanup()
 	t.Cleanup(cleanup)

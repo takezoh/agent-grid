@@ -18,15 +18,15 @@ func TestParseRoostWindows(t *testing.T) {
 		},
 		{
 			name: "single",
-			in:   "@5\troost-1\n",
-			want: []RoostWindow{{WindowID: "@5", ID: "roost-1"}},
+			in:   "@5\treactor-1\n",
+			want: []RoostWindow{{WindowID: "@5", ID: "reactor-1"}},
 		},
 		{
 			name: "multiple with blanks and untagged",
-			in:   "@5\troost-1\n@7\t\n\n@9\troost-2\n",
+			in:   "@5\treactor-1\n@7\t\n\n@9\treactor-2\n",
 			want: []RoostWindow{
-				{WindowID: "@5", ID: "roost-1"},
-				{WindowID: "@9", ID: "roost-2"},
+				{WindowID: "@5", ID: "reactor-1"},
+				{WindowID: "@9", ID: "reactor-2"},
 			},
 		},
 	}

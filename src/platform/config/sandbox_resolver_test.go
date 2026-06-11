@@ -18,7 +18,7 @@ func TestSandboxResolver_EmptyProject(t *testing.T) {
 func TestSandboxResolver_NoSettingsFile(t *testing.T) {
 	user := SandboxConfig{Mode: "devcontainer"}
 	r := NewSandboxResolver(user)
-	got := r.Resolve(t.TempDir()) // no .roost/settings.toml
+	got := r.Resolve(t.TempDir()) // no .agent-reactor/settings.toml
 	if got.Mode != "devcontainer" {
 		t.Errorf("Mode = %q, want devcontainer (absent settings returns user config)", got.Mode)
 	}
@@ -27,7 +27,7 @@ func TestSandboxResolver_NoSettingsFile(t *testing.T) {
 func TestSandboxResolver_ProjectOverridesMode(t *testing.T) {
 	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[sandbox]
 mode = "direct"
@@ -43,7 +43,7 @@ mode = "direct"
 func TestSandboxResolver_ProjectNoSandboxSection(t *testing.T) {
 	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[workspace]
 name = "myproject"
@@ -59,7 +59,7 @@ name = "myproject"
 func TestSandboxResolver_CacheHit(t *testing.T) {
 	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	path := filepath.Join(roostDir, "settings.toml")
 	os.WriteFile(path, []byte(`[sandbox]
@@ -77,7 +77,7 @@ mode = "direct"
 func TestSandboxResolver_ParseError_FallsBackToUser(t *testing.T) {
 	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte("invalid toml :::"), 0o644)
 
@@ -95,7 +95,7 @@ func TestSandboxResolver_SSHAgentKeysProjectOverride(t *testing.T) {
 		},
 	}
 	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[sandbox.proxy.ssh_agent]
 keys = ["~/.ssh/id_ed25519_project"]
@@ -120,7 +120,7 @@ func TestSandboxResolver_SettingsFileCreatedAfterFirstResolve(t *testing.T) {
 	}
 
 	// Create the settings file after first resolve
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[sandbox]
 mode = "direct"
@@ -136,7 +136,7 @@ mode = "direct"
 func TestSandboxResolver_HostPathMountPrefixFromTOML(t *testing.T) {
 	user := SandboxConfig{Mode: "devcontainer"}
 	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte(`[sandbox.devcontainer]
 host_path_mount_prefix = "/mnt"

@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
-	ptracker "github.com/takezoh/agent-roost/platform/tracker"
-	"github.com/takezoh/agent-roost/platform/tracker/linear"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	ptracker "github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/tracker/linear"
 )
 
 // Tracker is the orchestrator-side config-driven tracker, exposing the three business operations.

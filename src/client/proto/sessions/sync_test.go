@@ -3,8 +3,8 @@ package sessions_test
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // TestPeerCommandNamesSyncWithState verifies that the proto peer command name

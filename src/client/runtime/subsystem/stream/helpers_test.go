@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func TestExtractThreadID(t *testing.T) {

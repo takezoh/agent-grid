@@ -12,12 +12,12 @@ import (
 // extracted from spec.go to keep file sizes within the 500-line limit.
 
 // buildDoc holds the build object in devcontainer.json.
-// Name is a roost extension: the image tag the user assigns when building externally.
+// Name is a client extension: the image tag the user assigns when building externally.
 type buildDoc struct {
 	Name string `json:"name"`
 }
 
-// devcontainerDoc is the subset of devcontainer.json that roost parses.
+// devcontainerDoc is the subset of devcontainer.json that the client parses.
 // All other keys are captured in Extra and round-tripped verbatim.
 type devcontainerDoc struct {
 	Image        string                     `json:"image,omitempty"`

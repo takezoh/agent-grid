@@ -24,7 +24,7 @@ type Mount struct {
 
 // WrappedLaunch is the resolved launch specification after sandboxing has been
 // applied. Command/StartDir/Env are handed to the caller's spawn layer (a tmux
-// backend for roost, a direct stdio exec for the orchestrator);
+// backend for the client, a direct stdio exec for the orchestrator);
 // Cleanup is called when the launch is torn down.
 //
 // Argv, when non-nil, is the argv for Spawn (no host-side shell). Command is the

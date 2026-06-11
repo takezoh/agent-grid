@@ -1,7 +1,7 @@
 package codexclient
 
 import (
-	"github.com/takezoh/agent-roost/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 )
 
 // Server wraps a Conn for the server role (e.g. claude-app-server shim).

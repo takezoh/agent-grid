@@ -3,7 +3,7 @@ package driver
 import (
 	"strings"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func enqueueSummaryJob(

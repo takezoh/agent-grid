@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // startRuntimeWithIPC spins up a Runtime, opens a Unix socket in a
@@ -19,9 +19,9 @@ import (
 func startRuntimeWithIPC(t *testing.T, ctx context.Context) (*Runtime, string) { //nolint:unparam
 	t.Helper()
 	dir := t.TempDir()
-	sock := filepath.Join(dir, "roost.sock")
+	sock := filepath.Join(dir, "arc.sock")
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		RoostExe:     "/usr/bin/roost",
 		DataDir:      dir,
 		TickInterval: 10 * time.Second,

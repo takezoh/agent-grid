@@ -1,7 +1,10 @@
 package cli
 
-import "github.com/takezoh/agent-roost/client/lib/peers"
+import (
+	"github.com/takezoh/agent-reactor/client/lib/peers"
+	"github.com/takezoh/agent-reactor/platform/appid"
+)
 
 func init() {
-	Register("peers-mcp", "roost-peers MCP server (stdio)", peers.Run)
+	Register("peers-mcp", appid.PeersServer+" MCP server (stdio)", peers.Run)
 }

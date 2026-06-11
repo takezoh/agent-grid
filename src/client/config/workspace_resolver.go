@@ -10,7 +10,7 @@ import (
 // workspaceCacheEntry caches the resolved workspace name for one project path.
 type workspaceCacheEntry struct {
 	workspace    string
-	settingsPath string // "" when no .roost/settings.toml was found
+	settingsPath string // "" when no .agent-reactor/settings.toml was found
 	mtime        time.Time
 }
 

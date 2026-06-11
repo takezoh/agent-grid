@@ -52,7 +52,7 @@ func TestMergeSandbox_ExtraCreateArgs_ProjectEmpty(t *testing.T) {
 }
 
 func TestMergeSandbox_EnvScriptOverride(t *testing.T) {
-	user := SandboxConfig{Devcontainer: DevcontainerConfig{EnvScript: "~/bin/roost-env.sh"}}
+	user := SandboxConfig{Devcontainer: DevcontainerConfig{EnvScript: "~/bin/reactor-env.sh"}}
 	project := &SandboxConfig{Devcontainer: DevcontainerConfig{EnvScript: "./local-env.sh"}}
 	got := MergeSandbox(user, project)
 	if got.Devcontainer.EnvScript != "./local-env.sh" {

@@ -217,7 +217,7 @@ type CmdEvent struct {
 }
 ```
 
-Hook-driven agents pass their payloads through typed IPC as `proto.CmdEvent{Event, Timestamp, SenderID, Payload}`. Each hook bridge subcommand (e.g., `roost event <eventType>`) reads the frame id from its pane environment, packs its hook payload into `CmdEvent` with `SenderID = frameID`, and sends it. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions and calls `Driver.Step(frame.Driver, DEvHook{...})`. Hooks whose target frame has already been truncated off the stack are silently dropped.
+Hook-driven agents pass their payloads through typed IPC as `proto.CmdEvent{Event, Timestamp, SenderID, Payload}`. Each hook bridge subcommand (e.g., `arc event <eventType>`) reads the frame id from its pane environment, packs its hook payload into `CmdEvent` with `SenderID = frameID`, and sends it. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions and calls `Driver.Step(frame.Driver, DEvHook{...})`. Hooks whose target frame has already been truncated off the stack are silently dropped.
 
 Structured backends such as Codex App Server use `proto.CmdSubsystemEvent{Source, Kind, Payload}` instead. The runtime converts this to `EvSubsystem`, updates the frame's `TargetID` when present, and calls `Driver.Step(frame.Driver, DEvSubsystem{...})`.
 
@@ -227,28 +227,28 @@ On cold start, the bootstrap walks each session's frames in root-to-tail order a
 
 | Path | Format | Contents | Lifecycle |
 |------|--------|----------|-----------|
-| `~/.roost/config.toml` | TOML | User settings (see below) | Created by user. Falls back to default values if absent |
-| `~/.roost/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, `subsystem_id`, `target_id`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / hook / subsystem event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
-| `~/.roost/events/{frameID}.log` | Text | Per-frame agent hook event log | Appended via `EffEventLogAppend`. The runtime's EventLogBackend manages file handles with lazy-open |
-| `~/.roost/roost.log` | slog | Application log | Created/appended at daemon startup |
-| `~/.roost/roost.sock` | Unix socket | Host IPC endpoint (SO_PEERCRED auth) — TUI / CLI / palette clients | Created at daemon startup. Deleted on exit |
-| `~/.roost/run/<project-hash>/roost.sock` | Unix socket | Container IPC endpoint (bearer-token auth) — sandboxed agents only; implements `hook-event` and `subsystem-event` | Started on first container spawn for a project. Bind-mounted into the container as `/opt/roost/run/roost.sock` |
-| `~/.roost/run/credproxy.sock` | Unix socket | Credential proxy endpoint (single instance per daemon; bearer token per project) | Listens whenever sandbox mode is `devcontainer`. Bind-mounted per project into the container as `/opt/roost/run/credproxy.sock` |
-| `~/.roost/warm/<frameID>.json` | JSON | Per-frame container bearer token (atomic, `0o600`) | Written when a sandboxed frame is launched; replayed by `RecoverSandboxFrames` on warm restart. Wiped at cold start |
+| `~/.agent-reactor/config.toml` | TOML | User settings (see below) | Created by user. Falls back to default values if absent |
+| `~/.agent-reactor/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, `subsystem_id`, `target_id`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / hook / subsystem event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
+| `~/.agent-reactor/events/{frameID}.log` | Text | Per-frame agent hook event log | Appended via `EffEventLogAppend`. The runtime's EventLogBackend manages file handles with lazy-open |
+| `~/.agent-reactor/arc.log` | slog | Application log | Created/appended at daemon startup |
+| `~/.agent-reactor/arc.sock` | Unix socket | Host IPC endpoint (SO_PEERCRED auth) — TUI / CLI / palette clients | Created at daemon startup. Deleted on exit |
+| `~/.agent-reactor/run/<project-hash>/arc.sock` | Unix socket | Container IPC endpoint (bearer-token auth) — sandboxed agents only; implements `hook-event` and `subsystem-event` | Started on first container spawn for a project. Bind-mounted into the container as `/opt/agent-reactor/run/arc.sock` |
+| `~/.agent-reactor/run/credproxy.sock` | Unix socket | Credential proxy endpoint (single instance per daemon; bearer token per project) | Listens whenever sandbox mode is `devcontainer`. Bind-mounted per project into the container as `/opt/agent-reactor/run/credproxy.sock` |
+| `~/.agent-reactor/warm/<frameID>.json` | JSON | Per-frame container bearer token (atomic, `0o600`) | Written when a sandboxed frame is launched; replayed by `RecoverSandboxFrames` on warm restart. Wiped at cold start |
 
 Base path can be changed via `Config.DataDir` (set to TempDir during tests).
 
-User-facing `settings.toml` fields and defaults are documented in the [roost TUI user guide](../../user/roost-tui.md#configuration).
+User-facing `settings.toml` fields and defaults are documented in the [client TUI user guide](../../user/reactor-tui.md#configuration).
 
 ## File Structure
 
 Source tree is split into three top-level trees under `src/` — see ARCHITECTURE.md "Layer Structure".
-`src/platform/` holds shared infrastructure, `src/client/` holds roost-specific code, `src/cmd/` holds binary entry points.
+`src/platform/` holds shared infrastructure, `src/client/` holds client-specific code, `src/cmd/` holds binary entry points.
 
 ```
 src/
-├── cmd/roost/           Daemon / TUI binary (main.go + coordinator.go + subcommand.go + tui_entry.go)
-├── cmd/roost-bridge/    Bridge binary (thin container-side client)
+├── cmd/arc/           Daemon / TUI binary (main.go + coordinator.go + subcommand.go + tui_entry.go)
+├── cmd/reactor-bridge/    Bridge binary (thin container-side client)
 ├── client/cli/
 │   └── subcommand.go    Subcommand registry (Register, Dispatch)
 ├── client/event/
@@ -277,7 +277,7 @@ src/
 │   ├── view.go          Re-exports state/view.View, Card, Tag, LogTab, InfoLine as type aliases
 │   ├── connector.go     Re-exports state/view.ConnectorSection, ConnectorItem as type aliases
 │   ├── clone.go         Copy-on-write helpers for State
-│   └── view/            Wire-safe view types (stdlib-only; no state import; safe for proto and roost-bridge)
+│   └── view/            Wire-safe view types (stdlib-only; no state import; safe for proto and reactor-bridge)
 │       ├── status.go    Status enum + StatusInfo — canonical definition (Running/Waiting/Idle/Stopped/Pending)
 │       ├── view.go      View / Card / Tag / LogTab / TabKind / InfoLine
 │       └── connector.go ConnectorSection / ConnectorItem
@@ -309,7 +309,7 @@ src/
 │   ├── ipc_container.go Container IPC endpoint (per-project Unix socket; `hook-event` / `subsystem-event`)
 │   ├── frame_token.go   Per-frame bearer-token registry (`ROOST_SOCKET_TOKEN` → frame id)
 │   ├── warm_state.go    Persists / replays container tokens across daemon warm-restart (`<dataDir>/warm/`)
-│   ├── rundir.go        Per-project run directory (host-side dir bind-mounted as `/opt/roost/run`)
+│   ├── rundir.go        Per-project run directory (host-side dir bind-mounted as `/opt/agent-reactor/run`)
 │   ├── launcher.go      AgentLauncher interface + DirectLauncher + WrappedLaunch + container-token wrap
 │   ├── sandbox_dispatcher.go SandboxDispatcher: per-project mode resolution (direct / devcontainer)
 │   ├── devcontainer_launcher.go DevcontainerLauncher: adapts sandbox/devcontainer.Manager to AgentLauncher
@@ -348,7 +348,7 @@ src/
 │       └── envscript.go Resolves `${localEnv:VAR}` / `${localWorkspaceFolder*}` / `${containerWorkspaceFolder}` placeholders
 ├── platform/hostexec/            Host-exec broker (`container.Provider` impl): per-project Unix socket server that runs allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding; deny/allow glob policy with env-assignment prefix stripping
 │                        Credential providers (awssso / gcloudcli / sshagent) live in the external `credproxy` library under `providers/<name>/`
-├── client/proto/               Typed IPC wire layer — imports state/view only (safe for roost-bridge)
+├── client/proto/               Typed IPC wire layer — imports state/view only (safe for reactor-bridge)
 │   ├── envelope.go      Envelope wire format ({type, req_id, cmd|name, data})
 │   ├── command.go       Command closed sum type (CmdSubscribe, CmdUnsubscribe, CmdEvent, CmdHookEvent (container-only), CmdSurface*, CmdDriverList, CmdPeer*)
 │   ├── response.go      Response closed sum type (RespOK, RespSurfaceText, RespDriverList, RespPeerList, RespPeerDrainInbox). Session-related types live in proto/sessions
@@ -358,7 +358,7 @@ src/
 │   ├── client_helpers.go  Peer helpers (PeerSend/List/SetSummary/DrainInbox), SendEvent, SendHookEvent
 │   ├── reqid.go         Request ID generation
 │   └── errors.go        ErrCode enum
-├── client/proto/sessions/      Session management layer — imports proto + state (NOT used by roost-bridge)
+├── client/proto/sessions/      Session management layer — imports proto + state (NOT used by reactor-bridge)
 │   ├── client.go        sessions.Client wraps *proto.Client; session helpers (CreateSession, StopSession, ListSessions, PushDriver, ActivateFrame, ...)
 │   ├── helpers.go       sendJSONEvent / sendJSONEventTimeout helpers; timeout constants
 │   ├── client_test.go   External tests (TestCreateSessionUsesLongTimeout, TestPushDriverDecodesCreateSessionReply, ...)
@@ -396,7 +396,7 @@ src/
 │   ├── merge.go         MergeSandbox — user-scope settings merged into per-project overrides
 │   ├── sandbox_resolver.go SandboxResolver — resolves effective sandbox mode per project (mtime-cached)
 │   ├── project.go       Project enumeration from `project_roots` / `project_paths`
-│   ├── workspace_resolver.go Reads each project's `.roost/settings.toml` for workspace grouping
+│   ├── workspace_resolver.go Reads each project's `.agent-reactor/settings.toml` for workspace grouping
 │   └── notify.go        Notification rule matching
 ├── tmux/
 │   ├── interfaces.go    PaneOperator

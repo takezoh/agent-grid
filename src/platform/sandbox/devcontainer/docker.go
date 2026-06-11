@@ -15,10 +15,10 @@ import (
 type ContainerInfo struct {
 	ID        string
 	State     string // "running", "exited", "created", etc.
-	MountHash string // roost-mount-hash label; empty for project-mode containers
+	MountHash string // reactor-mount-hash label; empty for project-mode containers
 }
 
-const psFormat = "{{.ID}}\t{{.State}}\t{{.Label \"roost-mount-hash\"}}"
+const psFormat = "{{.ID}}\t{{.State}}\t{{.Label \"reactor-mount-hash\"}}"
 
 // parsePsLine parses one line of "docker ps" output in psFormat.
 func parsePsLine(line string) (*ContainerInfo, error) {
@@ -33,11 +33,11 @@ func parsePsLine(line string) (*ContainerInfo, error) {
 	return info, nil
 }
 
-// FindSharedContainer returns the roost-shared container, or nil if not found.
+// FindSharedContainer returns the reactor-shared container, or nil if not found.
 func FindSharedContainer(ctx context.Context) (*ContainerInfo, error) {
 	out, err := exec.CommandContext(ctx, "docker", "ps", "-a",
-		"--filter", "label=roost-managed=1",
-		"--filter", "label=roost-isolation=shared",
+		"--filter", "label=reactor-managed=1",
+		"--filter", "label=reactor-isolation=shared",
 		"--format", psFormat,
 	).Output()
 	if err != nil {
@@ -54,11 +54,11 @@ func FindSharedContainer(ctx context.Context) (*ContainerInfo, error) {
 	return info, nil
 }
 
-// FindContainer returns the first roost-managed container for projectPath, or nil.
+// FindContainer returns the first reactor-managed container for projectPath, or nil.
 func FindContainer(ctx context.Context, projectPath string) (*ContainerInfo, error) {
 	out, err := exec.CommandContext(ctx, "docker", "ps", "-a",
-		"--filter", "label=roost-managed=1",
-		"--filter", "label=roost-project="+projectPath,
+		"--filter", "label=reactor-managed=1",
+		"--filter", "label=reactor-project="+projectPath,
 		"--format", psFormat,
 	).Output()
 	if err != nil {

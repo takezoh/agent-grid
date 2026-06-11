@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
 )
 
 const continuationDelay = 1000 * time.Millisecond

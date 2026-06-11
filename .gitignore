@@ -1,24 +1,24 @@
-roost
-roost-bridge
+arc
+reactor-bridge
 sockbridge
 /orchestrator
 /claude-app-server
-src/roost
-src/roost-bridge
+src/arc
+src/reactor-bridge
 src/orchestrator
 src/claude-app-server
 # The patterns above ignore the built binaries (e.g. `src/orchestrator`), but
 # `src/orchestrator` also matches the orchestrator source package directory, and
-# `roost-bridge` matches `src/cmd/roost-bridge/`. Re-include the directories
+# `reactor-bridge` matches `src/cmd/reactor-bridge/`. Re-include the directories
 # (trailing slash = dirs only) so their sources are tracked; the binaries, being
 # regular files, stay ignored.
 !src/orchestrator/
-!src/cmd/roost/
-!src/cmd/roost-bridge/
+!src/cmd/arc/
+!src/cmd/reactor-bridge/
 notify.ps1
-roost.log
-.roost/worktrees/
-.roost/settings.toml
+arc.log
+.agent-reactor/worktrees/
+.agent-reactor/settings.toml
 go.work
 go.work.sum
 

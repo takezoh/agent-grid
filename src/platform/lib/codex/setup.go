@@ -4,19 +4,22 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
-// RegisterMCPServer writes the roost-peers entry to ~/.codex/mcp.json.
+// RegisterMCPServer writes the <client>-peers (e.g. reactor-peers) entry to ~/.codex/mcp.json.
 // Returns true if the entry was newly written, false if already present.
 func RegisterMCPServer(mcpPath, roostBinary string) (bool, error) {
 	servers, err := readMCPServers(mcpPath)
 	if err != nil {
 		return false, err
 	}
-	if _, exists := servers["roost-peers"]; exists {
+	peersServer := appid.PeersServer
+	if _, exists := servers[peersServer]; exists {
 		return false, nil
 	}
-	servers["roost-peers"] = map[string]any{
+	servers[peersServer] = map[string]any{
 		"command": roostBinary,
 		"args":    []any{"peers-mcp"},
 	}

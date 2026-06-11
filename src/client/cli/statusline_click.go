@@ -3,18 +3,18 @@ package cli
 import (
 	"fmt"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	psess "github.com/takezoh/agent-roost/client/proto/sessions"
+	"github.com/takezoh/agent-reactor/client/proto"
+	psess "github.com/takezoh/agent-reactor/client/proto/sessions"
 )
 
 func init() {
 	Register("statusline-click", "Notify daemon of a status-bar click (internal tmux binding)", runStatusLineClick)
 }
 
-// runStatusLineClick implements `roost statusline-click [range_name]`.
+// runStatusLineClick implements `client statusline-click [range_name]`.
 // Called by the tmux MouseDown1Status binding:
 //
-//	roost statusline-click #{mouse_status_range}
+//	client statusline-click #{mouse_status_range}
 //
 // range_name is the tmux mouse_status_range value; empty means no named region was hit.
 func runStatusLineClick(args []string) error {

@@ -23,9 +23,9 @@ func TestRegisterMCPServer_NewFile(t *testing.T) {
 	var servers map[string]any
 	json.Unmarshal(data, &servers)
 
-	entry, ok := servers["roost-peers"].(map[string]any)
+	entry, ok := servers["reactor-peers"].(map[string]any)
 	if !ok {
-		t.Fatal("roost-peers entry missing")
+		t.Fatal("reactor-peers entry missing")
 	}
 	if entry["command"] != "/usr/local/bin/roost" {
 		t.Errorf("command = %v, want /usr/local/bin/roost", entry["command"])
@@ -74,7 +74,7 @@ func TestRegisterMCPServer_PreservesExistingKeys(t *testing.T) {
 	if _, ok := servers["other-tool"]; !ok {
 		t.Error("existing other-tool entry was removed")
 	}
-	if _, ok := servers["roost-peers"]; !ok {
-		t.Error("roost-peers was not written")
+	if _, ok := servers["reactor-peers"]; !ok {
+		t.Error("reactor-peers was not written")
 	}
 }

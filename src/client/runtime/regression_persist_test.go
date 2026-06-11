@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // regression_persist_test.go pins persistence properties that the current
@@ -114,7 +114,7 @@ func TestRegressionColdStartDropsStoppedFrames(t *testing.T) {
 	tmux := newFakeTmux()
 	l := &trackingLauncher{calls: map[string]int{}}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         tmux,
 		Persist:      p,
@@ -159,7 +159,7 @@ func TestRegressionCreateSessionReachesDisk(t *testing.T) {
 	tmux := newFakeTmux()
 	persist := &recordingPersist{}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         tmux,
 		Persist:      persist,
@@ -196,7 +196,7 @@ func TestRegressionSpawnFailureReachesDiskAsDelete(t *testing.T) {
 	tmux := newFakeTmux()
 	persist := &recordingPersist{}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         tmux,
 		Persist:      persist,
@@ -293,7 +293,7 @@ func TestRegressionRunFlushesPendingMutationsOnCancel(t *testing.T) {
 	tmux := newFakeTmux()
 	persist := &recordingPersist{}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second, // suppress periodic ticks that would mask the bug
 		Tmux:         tmux,
 		Persist:      persist,
@@ -400,7 +400,7 @@ func TestRegressionEvictedSessionStaysEvictedAfterPaneEvents(t *testing.T) {
 	tmux := newFakeTmux()
 	persist := &recordingPersist{}
 	r := New(Config{
-		SessionName:      "roost-test",
+		SessionName:      "reactor-test",
 		TickInterval:     50 * time.Millisecond,
 		FastTickInterval: 25 * time.Millisecond,
 		Tmux:             tmux,

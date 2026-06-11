@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/lib/claude/transcript"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/lib/claude/transcript"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 const testHome = "/home/test"
@@ -169,10 +169,10 @@ func TestClaudeSessionStartAbsorbsRoostSessionID(t *testing.T) {
 		"session_id":      "claude-uuid",
 		"hook_event_name": "SessionStart",
 	}, now)
-	ev.RoostSessionID = "roost-abc"
+	ev.RoostSessionID = "reactor-abc"
 	next, _ := d.handleHook(cs, state.FrameContext{IsRoot: true}, ev)
-	if next.RoostSessionID != "roost-abc" {
-		t.Errorf("RoostSessionID = %q, want roost-abc", next.RoostSessionID)
+	if next.RoostSessionID != "reactor-abc" {
+		t.Errorf("RoostSessionID = %q, want reactor-abc", next.RoostSessionID)
 	}
 }
 
@@ -825,7 +825,7 @@ func TestClaudePersistRoundTrip(t *testing.T) {
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	cs := ClaudeState{
 		CommonState: CommonState{
-			RoostSessionID:     "roost-1",
+			RoostSessionID:     "reactor-1",
 			StartDir:           "/work",
 			TranscriptPath:     "/tmp/x.jsonl",
 			Status:             state.StatusRunning,
@@ -844,7 +844,7 @@ func TestClaudePersistRoundTrip(t *testing.T) {
 		ClaudeSessionID: "uuid-1",
 	}
 	bag := d.Persist(cs)
-	if bag[keyRoostSessionID] != "roost-1" {
+	if bag[keyRoostSessionID] != "reactor-1" {
 		t.Errorf("persist roost_session_id = %q", bag[keyRoostSessionID])
 	}
 	if bag[claudeKeyClaudeSessionID] != "uuid-1" {
@@ -854,7 +854,7 @@ func TestClaudePersistRoundTrip(t *testing.T) {
 		t.Errorf("persist status = %q", bag[keyStatus])
 	}
 	restored := d.Restore(bag, time.Now()).(ClaudeState)
-	if restored.RoostSessionID != "roost-1" {
+	if restored.RoostSessionID != "reactor-1" {
 		t.Errorf("restored RoostSessionID = %q", restored.RoostSessionID)
 	}
 	if restored.ClaudeSessionID != cs.ClaudeSessionID {
@@ -1086,7 +1086,7 @@ func TestClaudePrepareCreateWithWorktree(t *testing.T) {
 
 func TestClaudePrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	cs.StartDir = "/repo/.roost/worktrees/feature"
+	cs.StartDir = "/repo/.agent-reactor/worktrees/feature"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{
 		Worktree: state.WorktreeOption{Enabled: true},
 	}, false)
@@ -1096,14 +1096,14 @@ func TestClaudePrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	if plan.Command != "claude" {
 		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, "claude")
 	}
-	if plan.StartDir != "/repo/.roost/worktrees/feature" {
+	if plan.StartDir != "/repo/.agent-reactor/worktrees/feature" {
 		t.Errorf("StartDir = %q", plan.StartDir)
 	}
 }
 
 func TestClaudeWorktreeLaunchAddsSandboxFlag(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	cs.StartDir = "/repo/.roost/worktrees/feature"
+	cs.StartDir = "/repo/.agent-reactor/worktrees/feature"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{}, true)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
@@ -1112,7 +1112,7 @@ func TestClaudeWorktreeLaunchAddsSandboxFlag(t *testing.T) {
 	if plan.Command != want {
 		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
 	}
-	if plan.StartDir != "/repo/.roost/worktrees/feature" {
+	if plan.StartDir != "/repo/.agent-reactor/worktrees/feature" {
 		t.Errorf("StartDir = %q, want worktree dir", plan.StartDir)
 	}
 }

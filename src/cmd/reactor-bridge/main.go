@@ -1,5 +1,5 @@
-// roost-bridge is the thin client binary deployed inside devcontainers.
-// It handles the container-side roles that need to reach the host roost daemon:
+// reactor-bridge is the thin client binary deployed inside devcontainers.
+// It handles the container-side roles that need to reach the host client daemon:
 //
 //	event <type>          – agent hook (forwards CmdEvent / CmdHookEvent to daemon)
 //	host-exec <bin>       – PATH shim target (proxies stdio to host via SCM_RIGHTS)
@@ -17,27 +17,25 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/takezoh/agent-roost/client/event"
-	"github.com/takezoh/agent-roost/platform/hostexec"
-	"github.com/takezoh/agent-roost/platform/lib/claude"
-	"github.com/takezoh/agent-roost/platform/lib/codex"
-	"github.com/takezoh/agent-roost/platform/lib/gemini"
-	"github.com/takezoh/agent-roost/platform/mcpproxy"
-	"github.com/takezoh/agent-roost/platform/secretenv"
+	"github.com/takezoh/agent-reactor/client/event"
+	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-reactor/platform/hostexec"
+	"github.com/takezoh/agent-reactor/platform/lib/claude"
+	"github.com/takezoh/agent-reactor/platform/lib/codex"
+	"github.com/takezoh/agent-reactor/platform/lib/gemini"
+	"github.com/takezoh/agent-reactor/platform/mcpproxy"
+	"github.com/takezoh/agent-reactor/platform/secretenv"
 )
 
 // hostExecSockPath is the Unix socket for the host-exec broker inside the container.
-// This matches runtime.ContainerHostExecSockPath; duplicated here to avoid importing
-// the full runtime package (which would pull in tmux, TUI, and other host-only deps).
-const hostExecSockPath = "/opt/roost/run/hostexec.sock"
+const hostExecSockPath = appid.ContainerHostExecSockPath
 
 // mcpSockPath is the Unix socket for the MCP proxy broker inside the container.
-// Matches runtime.ContainerMCPSockPath; duplicated here to avoid importing the runtime package.
-const mcpSockPath = "/opt/roost/run/mcp.sock"
+const mcpSockPath = appid.ContainerMCPSockPath
 
 // secretEnvSockPath is the Unix socket for the secretenv broker inside the container.
 // Uses secretenv.ContainerSockName so it stays in sync with provider.go's mount target.
-const secretEnvSockPath = "/opt/roost/run/" + secretenv.ContainerSockName
+const secretEnvSockPath = appid.ContainerRunDir + "/" + secretenv.ContainerSockName
 
 func main() {
 	if len(os.Args) < 2 {
@@ -62,12 +60,12 @@ func main() {
 	case "sockbridge":
 		err = runSockBridge(rest)
 	default:
-		fmt.Fprintf(os.Stderr, "roost-bridge: unknown subcommand: %s\n", sub)
+		fmt.Fprintf(os.Stderr, "%s: unknown subcommand: %s\n", appid.BridgeBin, sub)
 		usage()
 		os.Exit(1)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "roost-bridge: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s: %v\n", appid.BridgeBin, err)
 		os.Exit(1)
 	}
 }
@@ -298,10 +296,10 @@ func runSetup(args []string) error {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `Usage: roost-bridge <subcommand> [args...]
+	fmt.Fprint(os.Stderr, `Usage: reactor-bridge <subcommand> [args...]
 
 Subcommands:
-  event <type>               Send an event to the roost daemon
+  event <type>               Send an event to the client daemon
   host-exec <bin>            Execute a host binary via the hostexec broker
   mcp-exec <alias>           Relay stdio to a host MCP server via the mcpproxy broker
   secret-run run --env-file  Resolve secret env-file and exec command (credproxy shim)

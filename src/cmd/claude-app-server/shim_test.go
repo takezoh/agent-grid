@@ -17,9 +17,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/takezoh/agent-roost/platform/agent/codexclient"
-	"github.com/takezoh/agent-roost/platform/agent/codexschema"
-	"github.com/takezoh/agent-roost/platform/lib/claude/streamjson"
+	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
 )
 
 // pipeShim wires the shim server to a client Conn via two io.Pipe pairs.

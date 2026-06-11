@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agentlaunch"
-	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
 )
 
 // WrappedLaunch is the resolved launch specification after the launcher
@@ -22,7 +22,7 @@ type WrappedLaunch struct {
 	Env      map[string]string
 	Cleanup  func() error
 	// ContainerSockDir is set by devcontainer sandbox launchers to the host-side
-	// run directory that is bind-mounted into the container as /opt/roost/run.
+	// run directory that is bind-mounted into the container as /opt/agent-reactor/run.
 	// When non-empty, the runtime starts the container endpoint for this project.
 	ContainerSockDir string
 	// Mounts is the set of bind mounts for the container instance.

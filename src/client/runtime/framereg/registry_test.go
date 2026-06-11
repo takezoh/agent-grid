@@ -4,9 +4,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/runtime/framereg"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-reactor/client/runtime/framereg"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
 )
 
 func TestRegisterAndLookup(t *testing.T) {

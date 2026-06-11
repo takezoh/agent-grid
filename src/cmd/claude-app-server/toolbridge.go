@@ -8,8 +8,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/takezoh/agent-roost/platform/agent/codexclient"
-	"github.com/takezoh/agent-roost/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 )
 
 // bridgeReq is the request sent by the CLI to the tool bridge socket.

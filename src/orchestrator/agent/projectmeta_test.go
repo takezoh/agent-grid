@@ -3,7 +3,7 @@ package agent
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 func TestResolveProjectMeta_FrontMatterAndBody(t *testing.T) {

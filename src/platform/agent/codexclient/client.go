@@ -3,14 +3,14 @@ package codexclient
 import (
 	"encoding/json"
 
-	"github.com/takezoh/agent-roost/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 )
 
 // Initialize performs the JSON-RPC handshake: `initialize` request followed by
 // an `initialized` notification.
 func Initialize(c *Conn) error {
 	if _, err := c.Request(codexschema.MethodInitialize, map[string]any{
-		"clientInfo":   map[string]any{"name": "roost", "version": "0"},
+		"clientInfo":   map[string]any{"name": "agent-reactor", "version": "0"},
 		"capabilities": map[string]any{"experimentalApi": true},
 	}); err != nil {
 		return err

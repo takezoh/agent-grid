@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 )
 
 func (b *Backend) handleNotification(method string, params json.RawMessage) {
@@ -66,7 +66,7 @@ func (b *Backend) handleRequest(id int64, method string, params json.RawMessage)
 	default:
 		slog.Warn("stream backend: rejecting unhandled server request",
 			"method", method, "subsystem", b.subsystemID)
-		_ = b.conn.ReplyError(id, "method not supported by roost")
+		_ = b.conn.ReplyError(id, "method not supported by client")
 	}
 }
 

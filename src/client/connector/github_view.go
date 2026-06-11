@@ -3,7 +3,7 @@ package connector
 import (
 	"fmt"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func (GitHubConnector) View(s state.ConnectorState) state.ConnectorView {

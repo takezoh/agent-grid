@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 // normalizeIssue converts a raw API node to a tracker.Issue.

@@ -1,7 +1,7 @@
 package runtime
 
 import (
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // Backend interfaces. The runtime depends on these abstractions, not
@@ -96,7 +96,7 @@ type TmuxControl interface {
 	SetStatusLine(line string) error
 	// DetachClient detaches the current tmux client.
 	DetachClient() error
-	// KillSession destroys the roost tmux session.
+	// KillSession destroys the client tmux session.
 	KillSession() error
 	// DisplayPopup runs `tmux display-popup`.
 	DisplayPopup(width, height, cmd string) error
@@ -170,7 +170,7 @@ type EventLogBackend interface {
 
 // ToolLogBackend writes per-project tool-use JSONL lines. Namespace
 // identifies the driver (opaque to the runtime). Project is the
-// projectDir() slug (e.g. "-workspace-agent-roost"). Files are kept open
+// projectDir() slug (e.g. "-workspace-agent-reactor"). Files are kept open
 // and flushed lazily; CloseAll must be called on shutdown.
 type ToolLogBackend interface {
 	Append(namespace, project, line string) error

@@ -89,8 +89,8 @@ func run(cfg *Config) (Result, error) {
 						// Move snapshot files to a fixed location before Stop()
 						// deletes the VM's temp dir (which contains them).
 						// os.Rename is a fast rename on the same filesystem.
-						globalSnap := filepath.Join(os.TempDir(), "roost-poc-snap.vmstate")
-						globalMem := filepath.Join(os.TempDir(), "roost-poc-snap.mem")
+						globalSnap := filepath.Join(os.TempDir(), "reactor-poc-snap.vmstate")
+						globalMem := filepath.Join(os.TempDir(), "reactor-poc-snap.mem")
 						if err := os.Rename(vm.snapPath, globalSnap); err != nil {
 							fmt.Printf("  snapshot mv failed: %v\n", err)
 							cfg.snapPath = ""

@@ -15,11 +15,11 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agent/codexclient"
-	"github.com/takezoh/agent-roost/platform/agent/codexschema"
-	libcodex "github.com/takezoh/agent-roost/platform/lib/codex"
+	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
 )
 
 // Stream subsystem launch-flow tests: the codex app-server is faked so no real
@@ -148,7 +148,7 @@ func newBoundBackend(t *testing.T, listenSock string) (*Backend, *bindServer) {
 }
 
 func TestBackendBindFrameColdStartRemoteCommand(t *testing.T) {
-	const listen = "/opt/roost/run/codex-sess1.sock"
+	const listen = "/opt/agent-reactor/run/codex-sess1.sock"
 	b, srv := newBoundBackend(t, listen)
 
 	res, err := b.BindFrame(context.Background(), subsystem.BindRequest{
@@ -187,7 +187,7 @@ func TestBackendBindFrameColdStartRemoteCommand(t *testing.T) {
 }
 
 func TestBackendBindFrameResumeRemoteCommand(t *testing.T) {
-	const listen = "/opt/roost/run/codex-sess2.sock"
+	const listen = "/opt/agent-reactor/run/codex-sess2.sock"
 	const thread = "thread-abc"
 	b, _ := newBoundBackend(t, listen)
 

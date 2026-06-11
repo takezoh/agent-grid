@@ -3,8 +3,8 @@ package tui
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/proto"
 )
 
 // --- collectWorkspaces ---

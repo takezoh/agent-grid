@@ -8,15 +8,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/runtime"
-	libnotify "github.com/takezoh/agent-roost/platform/lib/notify"
+	"github.com/takezoh/agent-reactor/client/runtime"
+	"github.com/takezoh/agent-reactor/platform/appid"
+	libnotify "github.com/takezoh/agent-reactor/platform/lib/notify"
 )
 
 func init() {
 	Register("notify", "Send a desktop notification", RunNotify)
 }
 
-// RunNotify implements `roost notify --title <t> --body <b>`.
+// RunNotify implements `arc notify --title <t> --body <b>`.
 // Dispatches an OS desktop notification using the available backend
 // (PowerShell, notify-send, or osascript). Falls back to stdout JSON
 // when no notification backend is available.
@@ -30,7 +31,7 @@ func RunNotify(args []string) error {
 	}
 
 	if *title == "" && *body == "" {
-		fmt.Fprintln(os.Stderr, "usage: roost notify --title <title> [--body <body>]")
+		fmt.Fprintf(os.Stderr, "usage: %s notify --title <title> [--body <body>]\n", appid.ClientBin)
 		return fmt.Errorf("notify: --title or --body required")
 	}
 

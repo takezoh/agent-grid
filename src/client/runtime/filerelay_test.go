@@ -11,8 +11,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func newTestFileRelay(t *testing.T) *FileRelay {
@@ -107,7 +107,7 @@ func TestWatchFileIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	fr := newTestFileRelay(t)
 
-	path := filepath.Join(dir, "roost.log")
+	path := filepath.Join(dir, "arc.log")
 	if err := os.WriteFile(path, []byte("line\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestBroadcastRaceWithConnChurn(t *testing.T) {
 	}
 
 	r := New(Config{
-		SessionName: "roost-test",
+		SessionName: "reactor-test",
 		RoostExe:    "/usr/bin/roost",
 		Tmux:        newFakeTmux(),
 	})

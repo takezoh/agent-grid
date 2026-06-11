@@ -5,10 +5,10 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	psess "github.com/takezoh/agent-roost/client/proto/sessions"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/client/tui/glyphs"
+	"github.com/takezoh/agent-reactor/client/proto"
+	psess "github.com/takezoh/agent-reactor/client/proto/sessions"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/client/tui/glyphs"
 )
 
 type MainModel struct {

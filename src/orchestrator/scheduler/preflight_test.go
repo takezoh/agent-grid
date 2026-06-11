@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
 )
 
 func validCfg() wfconfig.Config {

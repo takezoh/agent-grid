@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 // TestWorkerExit_Normal_ReleasesSlotAndSchedulesContinuation verifies that a clean worker

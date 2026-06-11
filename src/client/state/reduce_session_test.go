@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/uiproc"
+	"github.com/takezoh/agent-reactor/client/uiproc"
 )
 
 // === Test driver registration ===
@@ -1121,7 +1121,7 @@ func TestReduceHookRoutes(t *testing.T) {
 
 func TestReduceHookInjectsRoostSessionID(t *testing.T) {
 	s := New()
-	id := SessionID("roost-xyz")
+	id := SessionID("reactor-xyz")
 	s.Sessions[id] = stubSession(id)
 	_, effs := Reduce(s, EvDriverEvent{
 		ConnID: 1, ReqID: "r", SenderID: FrameID(id), Event: "test",

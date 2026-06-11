@@ -3,7 +3,7 @@ package connector
 import (
 	"sync"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 var registerOnce sync.Once

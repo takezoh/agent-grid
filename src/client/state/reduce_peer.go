@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/takezoh/agent-roost/platform/features"
+	"github.com/takezoh/agent-reactor/platform/features"
 )
 
 // Event names for peer operations.

@@ -88,7 +88,7 @@ type EvCmdDriverList struct {
 }
 
 // EvDriverEvent is a driver hook event from the agent process via
-// `roost event <eventType>`. Routed to the session's driver.
+// `arc event <eventType>`. Routed to the session's driver.
 type EvDriverEvent struct {
 	ConnID    ConnID
 	ReqID     string

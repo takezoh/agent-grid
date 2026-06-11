@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/agent/codexclient"
-	"github.com/takezoh/agent-roost/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 )
 
 // emitAndCapture is a helper that creates a Server backed by a write pipe

@@ -10,17 +10,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/platform/appid"
 	"golang.org/x/term"
 )
 
-// Run implements `roost event <eventType>`.
+// Run implements `arc event <eventType>`.
 // Reads stdin (if piped), captures ROOST_FRAME_ID and a timestamp,
 // then sends a CmdEvent (host) or CmdHookEvent (container) to the daemon.
 func Run(args []string) error {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: roost event <event-type>")
+		fmt.Fprintf(os.Stderr, "usage: %s event <event-type>\n", appid.ClientBin)
 		return errors.New("event: missing event type")
 	}
 	eventType := args[0]
@@ -56,7 +57,7 @@ func Run(args []string) error {
 	return nil
 }
 
-// ResolveSocketPath returns the roost daemon UDS path, preferring the
+// ResolveSocketPath returns the client daemon UDS path, preferring the
 // ROOST_SOCKET env var when set.
 func ResolveSocketPath() (string, error) {
 	if s := os.Getenv("ROOST_SOCKET"); s != "" {
@@ -66,7 +67,7 @@ func ResolveSocketPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("config load: %w", err)
 	}
-	return filepath.Join(cfg.ResolveDataDir(), "roost.sock"), nil
+	return filepath.Join(cfg.ResolveDataDir(), appid.SocketFileName), nil
 }
 
 func sendHookEventToDaemon(token, hook string, ts time.Time, payload json.RawMessage) error {

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/takezoh/agent-roost/orchestrator/scheduler"
+	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
 )
 
 // SPEC §17.6/§13.3 — orchestrator_unavailable returns 503 with the correct error envelope.

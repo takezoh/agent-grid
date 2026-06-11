@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/takezoh/agent-roost/platform/agent/codexclient"
-	"github.com/takezoh/agent-roost/platform/agent/codexschema"
-	"github.com/takezoh/agent-roost/platform/lib/claude/streamjson"
+	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
 )
 
 // turnReq carries a decoded turn/start notification payload.

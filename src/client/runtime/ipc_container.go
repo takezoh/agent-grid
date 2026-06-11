@@ -9,10 +9,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/runtime/framereg"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/runtime/framereg"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 )
 
 // containerEndpoint listens on the per-project Unix socket that is
-// bind-mounted into the devcontainer at /opt/roost/run/roost.sock.
+// bind-mounted into the devcontainer at /opt/agent-reactor/run/arc.sock.
 // It accepts hook-event and subsystem-event commands.
 //
 // Authentication is via a bearer token (ROOST_SOCKET_TOKEN) carried

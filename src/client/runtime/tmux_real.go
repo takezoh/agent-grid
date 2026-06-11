@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/lib/tmux"
+	"github.com/takezoh/agent-reactor/platform/lib/tmux"
 )
 
 // RealTmuxBackend wraps a *tmux.Client into the runtime's TmuxBackend
@@ -76,7 +76,7 @@ func (b *RealTmuxBackend) KillPaneWindow(target string) error {
 }
 
 // guardNotMainWindow returns an error if target is in tmux window index 0.
-// roost invariant: window index 0 is the main layout (0.0/0.1/0.2) and must
+// client invariant: window index 0 is the main layout (0.0/0.1/0.2) and must
 // never be destroyed except during daemon shutdown.
 func guardNotMainWindow(target string, displayFn func(string, string) (string, error)) error {
 	windowIdx, err := displayFn(target, "#{window_index}")

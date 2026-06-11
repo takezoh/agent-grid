@@ -14,7 +14,7 @@ User-facing sandbox configuration is in the [sandbox setup guide](../../user/san
 
 A launch spec carries **two forms at once** (`agentlaunch/types.go`).
 
-- `Command string` — a shell-joined string. Used by the **tmux pane** launcher (roost).
+- `Command string` — a shell-joined string. Used by the **tmux pane** launcher (arc).
 - `Argv []string` — pre-tokenized argv. Used by **argv-direct exec** (orchestrator). Because **no `/bin/sh -c` is interposed on the host**, shell-metacharacter injection cannot occur by construction.
 
 Per-agent lib builders (`lib/codex`, `lib/claude/cli` — see [agent-protocol.md](agent-protocol.md)) populate both; the caller chooses which to use.
@@ -136,5 +136,5 @@ stateDiagram-v2
 | Layer | Launch form | Path |
 |---|---|---|
 | orchestrator | `Argv` (argv-direct) | `agent/runner.go:launchConn` → `SplitArgs` → `Wrap` → `Spawn` |
-| client (roost) | `Command` (tmux) | via the tmux backend; does not use `Spawn`, hands the command string to a pane |
+| client (arc) | `Command` (tmux) | via the tmux backend; does not use `Spawn`, hands the command string to a pane |
 | claude-app-server | `Argv` | same lineage as the orchestrator's stdio shim (see [agent-protocol.md](agent-protocol.md)) |

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/takezoh/agent-roost/platform/config"
+	"github.com/takezoh/agent-reactor/platform/config"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 )
@@ -19,9 +19,9 @@ import (
 type Config struct {
 	// RunBase is the parent of per-project run directories on the host.
 	RunBase string
-	// ContainerRunDir is the mount target inside the container (e.g. /opt/roost/run).
+	// ContainerRunDir is the mount target inside the container (e.g. /opt/agent-reactor/run).
 	ContainerRunDir string
-	// ContainerBinPath is the roost binary path inside the container.
+	// ContainerBinPath is the client binary path inside the container.
 	ContainerBinPath string
 	// WorkspaceFolderFor returns the container-side workspace path for a host project path.
 	// Used to resolve overlay bind mount targets. When nil, the project path is used as-is.

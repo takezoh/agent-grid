@@ -19,7 +19,7 @@ func TestRunContextTimeout(t *testing.T) {
 	start := time.Now()
 	// list-sessions on a non-existent socket exits immediately with an error,
 	// but the test demonstrates that Run respects the bounded context.
-	_, err := c.Run("-L", "roost-test-nonexistent-socket-xyz", "list-sessions")
+	_, err := c.Run("-L", "reactor-test-nonexistent-socket-xyz", "list-sessions")
 	elapsed := time.Since(start)
 
 	if err == nil {

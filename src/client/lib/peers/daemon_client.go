@@ -3,8 +3,8 @@ package peers
 import (
 	"os"
 
-	"github.com/takezoh/agent-roost/client/event"
-	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-reactor/client/event"
+	"github.com/takezoh/agent-reactor/client/proto"
 )
 
 // peerClient is the minimal proto.Client surface the MCP handlers need.
@@ -17,7 +17,7 @@ type peerClient interface {
 	Close() error
 }
 
-// dialer opens a peerClient to the roost daemon.
+// dialer opens a peerClient to the client daemon.
 type dialer func() (peerClient, error)
 
 // defaultDialer returns a dialer backed by the real daemon socket.
@@ -27,7 +27,7 @@ func defaultDialer() dialer {
 	}
 }
 
-// dialDaemon opens a proto.Client to the roost daemon socket.
+// dialDaemon opens a proto.Client to the client daemon socket.
 // Honors ROOST_SOCKET, falling back to the configured data dir.
 func dialDaemon() (*proto.Client, error) {
 	socketPath, err := event.ResolveSocketPath()

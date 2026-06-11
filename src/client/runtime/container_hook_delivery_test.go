@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/event"
-	"github.com/takezoh/agent-roost/client/runtime/framereg"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/event"
+	"github.com/takezoh/agent-reactor/client/runtime/framereg"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // These tests pin the container hook-delivery contract across the per-frame

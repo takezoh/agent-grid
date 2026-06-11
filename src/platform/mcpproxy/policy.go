@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/takezoh/agent-roost/platform/internal/globutil"
+	"github.com/takezoh/agent-reactor/platform/internal/globutil"
 )
 
 // Policy enforces deny-first, allow-second tool filtering.

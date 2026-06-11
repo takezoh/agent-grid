@@ -7,9 +7,9 @@ func TestIsManagedWorktreePath(t *testing.T) {
 		path string
 		want bool
 	}{
-		{"/some/proj/.roost/worktrees/foo", true},
-		{"/some/proj/.roost/worktrees/foo/", true},
-		{"/some/proj/.roost/sessions/foo", false},
+		{"/some/proj/.agent-reactor/worktrees/foo", true},
+		{"/some/proj/.agent-reactor/worktrees/foo/", true},
+		{"/some/proj/.agent-reactor/sessions/foo", false},
 		{"/some/proj/worktrees/foo", false},
 		{"/just/a/path", false},
 		{"", false},

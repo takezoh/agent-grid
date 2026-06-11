@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
 )
 
 // pipeTransport wires two StdioTransports back-to-back for in-process tests.

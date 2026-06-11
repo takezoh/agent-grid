@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
-	claudecli "github.com/takezoh/agent-roost/platform/lib/claude/cli"
+	"github.com/takezoh/agent-reactor/client/state"
+	claudecli "github.com/takezoh/agent-reactor/platform/lib/claude/cli"
 )
 
 // Claude driver: event-driven status producer for the Claude Code CLI.
@@ -48,7 +48,7 @@ type ClaudeState struct {
 	CommonState
 
 	// Identity (set via Restore or DEvHook session-start payload).
-	ClaudeSessionID string // distinct from roost session id; the *Claude* conversation id
+	ClaudeSessionID string // distinct from client session id; the *Claude* conversation id
 	// ForkParentID is the ClaudeSessionID of the session this was forked from.
 	// It is used to reject the parent id arriving in the first hook after
 	// `--fork-session` launch, so the parent id never poisons ClaudeSessionID.

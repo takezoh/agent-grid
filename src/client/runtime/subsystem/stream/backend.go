@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agent/codexclient"
-	"github.com/takezoh/agent-roost/platform/agentlaunch"
-	libcodex "github.com/takezoh/agent-roost/platform/lib/codex"
-	"github.com/takezoh/agent-roost/platform/procgroup"
+	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
+	"github.com/takezoh/agent-reactor/platform/procgroup"
 )
 
 const (
@@ -41,7 +41,7 @@ type RuntimeHook interface {
 }
 
 // Backend is the codex app-server stream subsystem. One instance exists per
-// roost Session. It manages the per-session app-server process, the
+// client Session. It manages the per-session app-server process, the
 // WebSocket-over-UDS connection, and per-frame thread bindings.
 type Backend struct {
 	runtime      RuntimeHook

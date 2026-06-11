@@ -6,7 +6,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	platformconfig "github.com/takezoh/agent-roost/platform/config"
+	"github.com/takezoh/agent-reactor/platform/appid"
+	platformconfig "github.com/takezoh/agent-reactor/platform/config"
 )
 
 type Config struct {
@@ -116,7 +117,7 @@ func DefaultConfig() *Config {
 		Theme: "default",
 		Log:   LogConfig{Level: "info"},
 		Tmux: TmuxConfig{
-			SessionName:         "roost",
+			SessionName:         appid.SessionName,
 			Prefix:              "C-b",
 			PaneRatioHorizontal: 75,
 			PaneRatioVertical:   75,
@@ -144,7 +145,7 @@ func DefaultConfig() *Config {
 }
 
 func ConfigDirPath() string {
-	return filepath.Join(platformconfig.ExpandPath("~"), ".roost")
+	return filepath.Join(platformconfig.ExpandPath("~"), appid.DotDir)
 }
 
 func EnsureConfigDir() string {

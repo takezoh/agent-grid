@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // spyEventLog captures Append calls for assertion.

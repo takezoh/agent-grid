@@ -1,6 +1,6 @@
 // Package glyphs manages the active glyph set for the TUI.
 // Two built-in sets ("nerd" and "ascii") are embedded at build time.
-// A user-defined partial override can be loaded from ~/.roost/glyphs.json.
+// A user-defined partial override can be loaded from ~/.agent-reactor/glyphs.json.
 // The active set is selected via ROOST_GLYPHS env var (default: "nerd").
 package glyphs
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func TestGitHubStepTickEmitsJobWhenStale(t *testing.T) {

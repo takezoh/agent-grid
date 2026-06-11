@@ -6,8 +6,8 @@ JSON messaging over Unix domain sockets. Two physical endpoints serve different 
 
 | Endpoint | Path | Auth | Clients |
 |---|---|---|---|
-| **Host** | `<dataDir>/roost.sock` | SO_PEERCRED UID check | TUI, CLI, palette popups |
-| **Container** | `<dataDir>/run/<project-hash>/roost.sock` | Bearer token (`ROOST_SOCKET_TOKEN`) | Sandboxed agent processes inside devcontainers |
+| **Host** | `<dataDir>/arc.sock` | SO_PEERCRED UID check | TUI, CLI, palette popups |
+| **Container** | `<dataDir>/run/<project-hash>/arc.sock` | Bearer token (`ROOST_SOCKET_TOKEN`) | Sandboxed agent processes inside devcontainers |
 
 The host endpoint exposes the full command surface. The container endpoint accepts `hook-event` and `subsystem-event`; all other commands are structurally absent (no handler registered, not a filter). See [Sandbox Backends](../platform/sandbox.md#container-ipc-endpoint) for security properties.
 
@@ -121,7 +121,7 @@ flowchart LR
 
 ### Concurrency Model — Single Event Loop + Worker Pool
 
-The server side of agent-roost is composed of a **single event loop + fixed-size worker pool**. All domain state (`state.State`) is solely owned by the event loop goroutine, and state transitions are expressed as the pure function `state.Reduce(state, event) → (state', []Effect)`. No `sync.Mutex` exists in the domain layer (except inside the worker pool).
+The server side of the client is composed of a **single event loop + fixed-size worker pool**. All domain state (`state.State`) is solely owned by the event loop goroutine, and state transitions are expressed as the pure function `state.Reduce(state, event) → (state', []Effect)`. No `sync.Mutex` exists in the domain layer (except inside the worker pool).
 
 #### Event Loop and State Ownership
 
@@ -250,8 +250,8 @@ Hook-driven agents converge at `EvDriverEvent`; structured backends converge at 
 | Goroutine | Count | Role |
 |-----------|-------|------|
 | `Runtime.Run` (event loop) | 1 | State ownership + Reduce + Effect interpretation |
-| `acceptLoop` (host) | 1 | Accepts new connections on `roost.sock`; performs SO_PEERCRED uid check before admitting |
-| container endpoint accept | 1 per active project | Accepts connections on per-project `<run-hash>/roost.sock`; bearer token is validated per-message |
+| `acceptLoop` (host) | 1 | Accepts new connections on `arc.sock`; performs SO_PEERCRED uid check before admitting |
+| container endpoint accept | 1 per active project | Accepts connections on per-project `<run-hash>/arc.sock`; bearer token is validated per-message |
 | `ipcConn.readLoop` | M (1 / client) | IPC reader. Converts Commands to Events and submits to eventCh |
 | `ipcConn.writeLoop` | M (1 / client) | IPC writer. Drains outbox and writes to socket |
 | `worker.Pool.run` | 4 (fixed) | Worker pool goroutines |
@@ -263,7 +263,7 @@ IPC reader/writer scales with client count; tap readers scale with live frame co
 
 ```mermaid
 sequenceDiagram
-    participant Bridge as roost event <eventType><br/>(hook bridge)
+    participant Bridge as arc event <eventType><br/>(hook bridge)
     participant Reader as IPC reader goroutine
     participant EL as Event loop
     participant Red as state.Reduce

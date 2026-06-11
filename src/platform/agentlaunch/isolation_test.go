@@ -3,8 +3,8 @@ package agentlaunch
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/platform/config"
-	"github.com/takezoh/agent-roost/platform/sandbox"
+	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
 )
 
 func TestDecideIsolation(t *testing.T) {

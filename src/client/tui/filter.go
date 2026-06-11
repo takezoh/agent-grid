@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/client/tui/glyphs"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/client/tui/glyphs"
 )
 
 // statusFilter tracks which session statuses are currently visible in the

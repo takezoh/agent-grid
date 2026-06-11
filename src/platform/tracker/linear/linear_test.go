@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/tracker"
-	"github.com/takezoh/agent-roost/platform/tracker/linear"
+	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/tracker/linear"
 )
 
 // issuesResp builds a minimal valid "issues" GraphQL response body.

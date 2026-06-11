@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // Generic driver: polling-driven status producer for arbitrary terminal panes

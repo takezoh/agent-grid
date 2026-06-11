@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/takezoh/agent-roost/platform/internal/globutil"
+	"github.com/takezoh/agent-reactor/platform/internal/globutil"
 )
 
 // envAssignRe matches a shell-style env assignment token (KEY=...).

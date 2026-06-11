@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/client/tools"
+	"github.com/takezoh/agent-reactor/client/tools"
 )
 
 // TestHandleParamSelectNoPanicAfterRunError verifies that pressing Enter after

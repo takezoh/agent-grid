@@ -54,7 +54,7 @@ type CmdUnsubscribe struct{}
 func (CmdUnsubscribe) isCommand()          {}
 func (CmdUnsubscribe) CommandName() string { return CmdNameUnsubscribe }
 
-// CmdEvent is the generic event envelope sent by the `roost event` CLI.
+// CmdEvent is the generic event envelope sent by the `arc event` CLI.
 type CmdEvent struct {
 	Event     string          `json:"event"`
 	Timestamp time.Time       `json:"timestamp"`

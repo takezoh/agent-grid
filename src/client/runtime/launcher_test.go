@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func TestDirectLauncher_passthrough(t *testing.T) {
@@ -33,7 +33,7 @@ func TestDirectLauncher_passthrough(t *testing.T) {
 }
 
 func TestDirectLauncher_injectsROOST_SOCKET(t *testing.T) {
-	l := DirectLauncher{SockPath: "/opt/roost/run/roost.sock"}
+	l := DirectLauncher{SockPath: "/opt/agent-reactor/run/arc.sock"}
 	plan := state.LaunchPlan{Command: "claude", StartDir: "/work"}
 	env := map[string]string{"ROOST_FRAME_ID": "f1"}
 
@@ -41,8 +41,8 @@ func TestDirectLauncher_injectsROOST_SOCKET(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WrapLaunch returned error: %v", err)
 	}
-	if got.Env["ROOST_SOCKET"] != "/opt/roost/run/roost.sock" {
-		t.Errorf("ROOST_SOCKET = %q, want /opt/roost/run/roost.sock", got.Env["ROOST_SOCKET"])
+	if got.Env["ROOST_SOCKET"] != "/opt/agent-reactor/run/arc.sock" {
+		t.Errorf("ROOST_SOCKET = %q, want /opt/agent-reactor/run/arc.sock", got.Env["ROOST_SOCKET"])
 	}
 	if got.Env["ROOST_FRAME_ID"] != "f1" {
 		t.Errorf("ROOST_FRAME_ID lost, got %v", got.Env)
@@ -88,7 +88,7 @@ func TestDirectLauncher_stripsContainerToken(t *testing.T) {
 func TestDirectLauncher_keepsDirectStreamCommand(t *testing.T) {
 	l := DirectLauncher{}
 	plan := state.LaunchPlan{
-		Command: "codex resume thr_123 --remote unix:///opt/roost/run/codex-foo.sock",
+		Command: "codex resume thr_123 --remote unix:///opt/agent-reactor/run/codex-foo.sock",
 	}
 	got, err := l.WrapLaunch("f1", plan, nil)
 	if err != nil {

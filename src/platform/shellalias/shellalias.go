@@ -1,6 +1,6 @@
 // Package shellalias resolves a user's interactive shell aliases on the host.
 //
-// roost lets users list shell aliases (e.g. "sonnet-medium") as session
+// the client lets users list shell aliases (e.g. "sonnet-medium") as session
 // commands. Such aliases live only in the login shell's interactive rc files
 // and cannot be expanded by a plain exec. Resolve launches the login shell
 // once at startup (interactive) and asks it to expand each name, yielding a

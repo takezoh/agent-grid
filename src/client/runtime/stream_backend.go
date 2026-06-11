@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	cstream "github.com/takezoh/agent-roost/client/runtime/subsystem/stream"
-	"github.com/takezoh/agent-roost/client/state"
+	cstream "github.com/takezoh/agent-reactor/client/runtime/subsystem/stream"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // resolveStreamListenPath returns the UDS path the per-session app-server binds.

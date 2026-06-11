@@ -12,11 +12,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/takezoh/agent-roost/platform/sandbox"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
 )
 
 // ErrMissingImage is returned when devcontainer.json has neither image nor build.name.
-var ErrMissingImage = errors.New("devcontainer.json: image or build.name is required (roost does not build images)")
+var ErrMissingImage = errors.New("devcontainer.json: image or build.name is required (Reactor does not build images)")
 
 // Isolation controls container sharing behaviour for a DevcontainerSpec.
 // It aliases sandbox.IsolationKind so the spec and the launch-time IsolationPlan
@@ -55,11 +55,11 @@ type DevcontainerSpec struct {
 	RunArgs                 []string          // extra docker create args from runArgs field
 	ExtraCreateArgs         []string          // extra docker create args from settings (injected before image)
 	PostCreate              []string          // nil = no postCreateCommand; else exec argv
-	ExtraPostCreate         [][]string        // roost-injected extra postCreateCommands, run after PostCreate
+	ExtraPostCreate         [][]string        // reactor-injected extra postCreateCommands, run after PostCreate
 	PreExec                 string            // roost extension: shell command run before each docker exec (preExecCommand)
 }
 
-// SpecOverlay carries roost-injected env/mounts merged on top of base devcontainer.json.
+// SpecOverlay carries reactor-injected env/mounts merged on top of base devcontainer.json.
 type SpecOverlay struct {
 	Env                     map[string]string
 	Mounts                  []string
@@ -82,16 +82,16 @@ func projectHash(projectPath string) string {
 }
 
 // MountConfigurationHash is the deterministic short hash stamped onto the
-// roost-mount-hash container label. It covers every bind-mount the container
+// reactor-mount-hash container label. It covers every bind-mount the container
 // is created with — workspace mounts plus spec.Mounts (run-dir bind, proxy
 // sockets, devcontainer.json `mounts`) — so any drift between the spec and a
 // live container forces an auto-recreate in ensureContainer.
 //
 // Earlier this only hashed ExtraWorkspaces, which missed run-dir source path
 // changes after the SharedContainerKey unification: a container created with
-// /opt/roost/run -> /home/take/.roost/run/<random-hash> was happily reused
+// /opt/agent-reactor/run -> /home/take/.agent-reactor/run/<random-hash> was happily reused
 // by a binary that now writes the codex socket under
-// /home/take/.roost/run/__shared__, and codex frames failed to reach the
+// /home/take/.agent-reactor/run/__shared__, and codex frames failed to reach the
 // in-container sockbridge.
 func (s *DevcontainerSpec) MountConfigurationHash() string {
 	entries := make([]string, 0, len(s.ExtraWorkspaces)+len(s.Mounts))
@@ -110,7 +110,7 @@ func (s *DevcontainerSpec) MountConfigurationHash() string {
 
 // LoadSpec reads devcontainer.json from dcDir for projectPath.
 // dcDir is <project>/.devcontainer or ~/.devcontainer.
-// Call Apply to merge roost-specific overlay before using the spec.
+// Call Apply to merge reactor-specific overlay before using the spec.
 func LoadSpec(projectPath, dcDir string) (*DevcontainerSpec, error) {
 	dcPath := filepath.Join(dcDir, "devcontainer.json")
 	doc, err := readDC(dcPath)
@@ -368,12 +368,12 @@ func (s *DevcontainerSpec) EffectiveUser() string {
 }
 
 // ContainerName returns the stable docker container name.
-// In shared mode returns the fixed name "roost-shared"; otherwise a per-project hash.
+// In shared mode returns the fixed name "reactor-shared"; otherwise a per-project hash.
 func (s *DevcontainerSpec) ContainerName() string {
 	if s.Isolation == IsolationShared {
-		return "roost-shared"
+		return "reactor-shared"
 	}
-	return "roost-" + projectHash(s.ProjectPath)
+	return "reactor-" + projectHash(s.ProjectPath)
 }
 
 // BuildCreateArgs returns the argument list for "docker create <args>".
@@ -381,13 +381,13 @@ func (s *DevcontainerSpec) ContainerName() string {
 func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 	args := []string{
 		"--name", s.ContainerName(),
-		"--label", "roost-managed=1",
+		"--label", "reactor-managed=1",
 	}
 	if s.Isolation == IsolationShared {
-		args = append(args, "--label", "roost-isolation=shared")
-		args = append(args, "--label", "roost-mount-hash="+s.MountConfigurationHash())
+		args = append(args, "--label", "reactor-isolation=shared")
+		args = append(args, "--label", "reactor-mount-hash="+s.MountConfigurationHash())
 	} else {
-		args = append(args, "--label", "roost-project="+s.ProjectPath)
+		args = append(args, "--label", "reactor-project="+s.ProjectPath)
 	}
 	if s.ContainerUser != "" {
 		args = append(args, "-u", s.ContainerUser)

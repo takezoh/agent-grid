@@ -6,8 +6,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/takezoh/agent-roost/client/runtime"
-	"github.com/takezoh/agent-roost/platform/hostexec"
+	"github.com/takezoh/agent-reactor/client/runtime"
+	"github.com/takezoh/agent-reactor/platform/hostexec"
 )
 
 func init() {

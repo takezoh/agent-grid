@@ -4,7 +4,7 @@ This is the canonical overview of the system: its scope, design principles, and 
 
 ## Scope
 
-roost is a **session lifecycle manager — not an agent orchestrator**. It does not control what agents do; it gives you visibility and fast access to every agent session from a single tmux-based TUI. The separate `orchestrator` binary *does* drive agents autonomously against an issue tracker — a different concern in a different layer. This split is the top-level boundary the layer structure below enforces.
+agent-reactor's client (run via the `arc` command) is a **session lifecycle manager — not an agent orchestrator**. It does not control what agents do; it gives you visibility and fast access to every agent session from a single tmux-based TUI. The separate `orchestrator` binary *does* drive agents autonomously against an issue tracker — a different concern in a different layer. This split is the top-level boundary the layer structure below enforces.
 
 ## Design Principles
 
@@ -13,9 +13,9 @@ The **core principles** below are normative for every layer that owns a decision
 ### Core principles (all layers)
 
 - **Testability is the primary design constraint**: decision logic is a pure function of its inputs, so it can be exercised by feeding inputs and asserting outputs/state. "We can't test it" is a design defect, not a justification. This is the *why* behind the next two principles. Per-layer test patterns and the Coverage Tier scheme: [docs/agent/testing.md](docs/agent/testing.md)
-- **Single-writer event loop**: state mutation is owned by one loop. Long-lived I/O sources (worker pool, stream readers, retry timers, file watchers) may only *emit events* to that loop — they never mutate state themselves. The roost `runtime` loop and the orchestrator's `scheduler.Run` (`src/orchestrator/scheduler/scheduler.go`, one `for { select {} }`) are both instances of this.
+- **Single-writer event loop**: state mutation is owned by one loop. Long-lived I/O sources (worker pool, stream readers, retry timers, file watchers) may only *emit events* to that loop — they never mutate state themselves. The client `runtime` loop and the orchestrator's `scheduler.Run` (`src/orchestrator/scheduler/scheduler.go`, one `for { select {} }`) are both instances of this.
 - **Decisions separated from I/O**: the code that decides *what should happen* is a pure function; I/O, concurrency, and live handles live in a thin imperative shell. The shell performs the I/O and feeds the result back to the core as the next event — it never lets I/O leak into the decision.
-- **No fabricated fallbacks**: do not synthesize "if source A is unavailable, use B" in a way that invents truth. In roost the status does not change until `Driver.Step` updates it; in the orchestrator issue truth comes from the tracker via reconcile and is never faked (a failed workflow reload keeps last-known-good config but *gates* dispatch rather than fabricating issue state).
+- **No fabricated fallbacks**: do not synthesize "if source A is unavailable, use B" in a way that invents truth. In the client the status does not change until `Driver.Step` updates it; in the orchestrator issue truth comes from the tracker via reconcile and is never faked (a failed workflow reload keeps last-known-good config but *gates* dispatch rather than fabricating issue state).
 
 ### Per-layer realizations
 
@@ -35,10 +35,10 @@ All documentation is organized by **audience × architecture layer** under [`doc
 Three top-level trees under `src/`:
 
 ```
-platform/      Shared infrastructure — roost and orchestrator both depend on this
-client/        roost-specific code — TUI, state machine, runtime, drivers, connectors
+platform/      Shared infrastructure — the client and orchestrator both depend on this
+client/        client-specific code — TUI, state machine, runtime, drivers, connectors
 orchestrator/  Symphony SPEC implementation — poll/dispatch/reconcile + observability HTTP
-cmd/           Binary entry points — cmd/roost/, cmd/roost-bridge/, cmd/orchestrator/, cmd/claude-app-server/
+cmd/           Binary entry points — cmd/arc/, cmd/reactor-bridge/, cmd/orchestrator/, cmd/claude-app-server/
 ```
 
 **Import direction**: `cmd/*` → `client/*` + `orchestrator/*` + `platform/*` → (no reverse). The three-layer boundary is enforced by `depguard` (see `src/.golangci.yml`, rules `platform-no-client-or-orchestrator` and `client-no-orchestrator`):
@@ -52,8 +52,8 @@ The full set of `depguard` rules (including the intra-`client/` isolation rules)
 ### The layers at a glance
 
 - **[`platform/`](docs/technical/platform/README.md)** — shared base: the agent-launch primitive (`agentlaunch`: argv-based `Spawn` + `SplitArgs`, host/container `Dispatcher`, on `procgroup`), sandbox backends, host-exec and MCP-proxy brokers, path translation, logger, tool wrappers (`lib/<tool>`), trackers, metrics, credential providers. Tool-specific knowledge is allowed here so it stays out of the generic layers above. Agent-agnostic launch lives here; per-agent command construction stays in `lib/<tool>`, while transport, `codexclient.Conn`, and `Handler` remain per-layer.
-- **[`client/`](docs/technical/client/README.md)** — all of roost: the pure `state/` domain core, `runtime/` imperative shell, value-type `driver/` and `connector/` plugins, `runtime/subsystem/` (`cli` and `stream`), the `proto/` IPC wire layer, and the Bubbletea `tui/`. Terminology, the design-decision log, and the full dependency graph are documented there.
-- **[`orchestrator/`](docs/technical/orchestrator/README.md)** — a TUI-less, single-authority service implementing the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md): `workflowfile/`, `wfconfig/`, `scheduler/` (poll/dispatch/reconcile), `workspace/`, `agent/`, `prompt/`, `httpserver/`, `lineargql/`. It shares `platform/` with roost but does not import `client/`. SPEC ↔ package correspondence and deviation posture: [`docs/technical/orchestrator/symphony-conformance.md`](docs/technical/orchestrator/symphony-conformance.md) and [`plans/05-conformance.md`](plans/.archive/symphony-orchestrator/05-conformance.md).
+- **[`client/`](docs/technical/client/README.md)** — all of the client: the pure `state/` domain core, `runtime/` imperative shell, value-type `driver/` and `connector/` plugins, `runtime/subsystem/` (`cli` and `stream`), the `proto/` IPC wire layer, and the Bubbletea `tui/`. Terminology, the design-decision log, and the full dependency graph are documented there.
+- **[`orchestrator/`](docs/technical/orchestrator/README.md)** — a TUI-less, single-authority service implementing the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md): `workflowfile/`, `wfconfig/`, `scheduler/` (poll/dispatch/reconcile), `workspace/`, `agent/`, `prompt/`, `httpserver/`, `lineargql/`. It shares `platform/` with the client but does not import `client/`. Per-issue workspaces are local git clones of the source repo (GitHub); issue state lives in the tracker (Linear or GitHub). SPEC ↔ package correspondence and deviation posture: [`docs/technical/orchestrator/symphony-conformance.md`](docs/technical/orchestrator/symphony-conformance.md).
 
 Files matching `client/state/reduce_*.go` host state-machine dispatch tables. They are exempt from the 80-line function limit (see [AGENTS.md](AGENTS.md)) because forced extraction of dispatch arms fragments the state machine without adding clarity. File-length (500 lines) and naming rules still apply.
 

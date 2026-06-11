@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-roost/platform/config"
-	"github.com/takezoh/agent-roost/platform/sandbox"
-	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
+	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
 	"github.com/takezoh/credproxy/container"
 )
 
@@ -119,7 +119,7 @@ func TestBuildMounts_OmitsRunDirWhenEmpty(t *testing.T) {
 }
 
 func TestBuildPostCreate_MultipleSubcmds(t *testing.T) {
-	bin := "/opt/roost/run/roost-bridge"
+	bin := "/opt/agent-reactor/run/reactor-bridge"
 	subcmds := []string{"setup claude", "setup codex", "setup gemini"}
 	got := buildPostCreate(bin, subcmds, nil)
 	if len(got) != 3 || got[0] != "bash" || got[1] != "-lc" {
@@ -132,7 +132,7 @@ func TestBuildPostCreate_MultipleSubcmds(t *testing.T) {
 }
 
 func TestBuildPostCreate_EmptySubcmds(t *testing.T) {
-	got := buildPostCreate("/opt/roost/run/roost-bridge", nil, nil)
+	got := buildPostCreate("/opt/agent-reactor/run/reactor-bridge", nil, nil)
 	if got != nil {
 		t.Errorf("expected nil for empty input, got %v", got)
 	}
@@ -226,7 +226,7 @@ func TestSharedWorkspaceBindMounts_ProjectMode_ReturnsNothing(t *testing.T) {
 // runBase/container.ProjectRunHash(OverlayProject); the overlay bind-mounts
 // ProjectRunDir(runBase, ContainerKey) to ContainerRunDir. For the shared
 // container these MUST resolve to the same host directory, or the proxy
-// sockets never appear under /opt/roost/run and gh/ssh fail. IsolationPlan
+// sockets never appear under /opt/agent-reactor/run and gh/ssh fail. IsolationPlan
 // defines OverlayProject as ContainerKey, so the two can no longer diverge;
 // this guards a future refactor that re-splits them.
 func TestSharedOverlay_ProxyDirMatchesRunDir(t *testing.T) {
@@ -374,7 +374,7 @@ func stubHelperBinaries(t *testing.T) {
 		t.Skipf("os.Executable: %v", err)
 	}
 	dir := filepath.Dir(exe)
-	for _, name := range []string{"roost-bridge"} {
+	for _, name := range []string{"reactor-bridge"} {
 		p := filepath.Join(dir, name)
 		if _, err := os.Stat(p); err == nil {
 			continue
@@ -423,10 +423,10 @@ func TestResolveFrameContext_SharedMode_DropsProject(t *testing.T) {
 
 func TestFrameScopeEnv_DropsContainerScopeAndPlaceholders(t *testing.T) {
 	in := map[string]string{
-		"PATH":               "/opt/roost/run/hostexec-shims:$PATH",
-		"ROOST_SOCKET":       "/opt/roost/run/roost.sock",
-		"ROOST_DATA_DIR":     "/opt/roost/run",
-		"SSH_AUTH_SOCK":      "/opt/roost/run/agent.sock",
+		"PATH":               "/opt/agent-reactor/run/hostexec-shims:$PATH",
+		"ROOST_SOCKET":       "/opt/agent-reactor/run/arc.sock",
+		"ROOST_DATA_DIR":     "/opt/agent-reactor/run",
+		"SSH_AUTH_SOCK":      "/opt/agent-reactor/run/agent.sock",
 		"AWS_PROFILE":        "prod",
 		"GCP_PROJECT":        "my-proj",
 		"NESTED_PLACEHOLDER": "${SOME_OTHER}/bin:/usr/bin",

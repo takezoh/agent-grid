@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/proto/sessions"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/proto/sessions"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 type fakeServer struct {

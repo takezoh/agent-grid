@@ -19,7 +19,7 @@ func TestCallerFrameID_Unset(t *testing.T) {
 }
 
 func TestDialDaemon_CustomSocket(t *testing.T) {
-	t.Setenv("ROOST_SOCKET", "/nonexistent/roost.sock")
+	t.Setenv("ROOST_SOCKET", "/nonexistent/arc.sock")
 	_, err := dialDaemon()
 	if err == nil {
 		t.Fatal("expected error for nonexistent socket, got nil")

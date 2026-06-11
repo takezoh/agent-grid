@@ -1,4 +1,4 @@
-// Package proto holds the typed wire format for roost IPC. Three
+// Package proto holds the typed wire format for client IPC. Three
 // envelope kinds (cmd / resp / evt) carry typed Command, Response,
 // and ServerEvent values respectively. The wire is line-delimited
 // JSON; encoding/decoding is two-stage so the typed values can stay
@@ -29,7 +29,7 @@ type Envelope struct {
 }
 
 // Envelope type discriminator constants. Stringly-typed in JSON for
-// interoperability with non-Go clients (although roost only ships its
+// interoperability with non-Go clients (although the client only ships its
 // own client today).
 const (
 	TypeCommand  = "cmd"

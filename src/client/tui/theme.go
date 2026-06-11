@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // Theme holds the colors and rendering toggles used across every TUI screen.
@@ -67,7 +67,7 @@ func newBaseTheme() Theme {
 
 // Themes is the registry of selectable themes. Populated at init time by
 // theme_loader.go from embedded JSON; users can extend it via
-// ~/.roost/themes/*.json or RegisterTheme.
+// ~/.agent-reactor/themes/*.json or RegisterTheme.
 var Themes = map[string]Theme{}
 
 // Active is the currently applied theme. Set by ApplyTheme; theme_loader's

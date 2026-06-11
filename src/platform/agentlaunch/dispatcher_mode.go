@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	platformconfig "github.com/takezoh/agent-roost/platform/config"
+	platformconfig "github.com/takezoh/agent-reactor/platform/config"
 )
 
 // SandboxDispatcher implements Dispatcher by selecting the correct backend

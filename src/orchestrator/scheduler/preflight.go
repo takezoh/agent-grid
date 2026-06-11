@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
 )
 
 var ErrPreflight = errors.New("scheduler: preflight")

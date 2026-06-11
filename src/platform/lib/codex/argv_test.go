@@ -140,25 +140,25 @@ func TestRemoteAttachArgs(t *testing.T) {
 	}{
 		{
 			name:         "cold start no thread",
-			sock:         "/opt/roost/run/codex-sess1.sock",
-			wantContains: []string{"codex", "--remote", "unix:///opt/roost/run/codex-sess1.sock"},
+			sock:         "/opt/agent-reactor/run/codex-sess1.sock",
+			wantContains: []string{"codex", "--remote", "unix:///opt/agent-reactor/run/codex-sess1.sock"},
 			wantAbsent:   []string{"resume"},
 		},
 		{
 			name:         "warm start with thread",
-			sock:         "/opt/roost/run/codex-sess2.sock",
+			sock:         "/opt/agent-reactor/run/codex-sess2.sock",
 			threadID:     "thread-abc",
 			wantContains: []string{"resume", "thread-abc", "--remote"},
 		},
 		{
 			name:         "with startDir",
-			sock:         "/opt/roost/run/codex-sess3.sock",
+			sock:         "/opt/agent-reactor/run/codex-sess3.sock",
 			startDir:     "/workspace/foo",
 			wantContains: []string{"-C", "/workspace/foo"},
 		},
 		{
 			name:       "no startDir omits -C",
-			sock:       "/opt/roost/run/codex-sess4.sock",
+			sock:       "/opt/agent-reactor/run/codex-sess4.sock",
 			wantAbsent: []string{"-C"},
 		},
 	}

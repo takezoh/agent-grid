@@ -1,7 +1,7 @@
 // Package openurl launches the host's default handler for a URL or
 // local path. It is a thin wrapper over xdg-open / open / explorer.exe
 // with a WSL-aware fallback that hands paths to Windows explorer so the
-// user sees a native file manager even when roost runs inside WSL.
+// user sees a native file manager even when the client runs inside WSL.
 package openurl
 
 import (
@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/takezoh/agent-roost/platform/lib/wsl"
+	"github.com/takezoh/agent-reactor/platform/lib/wsl"
 )
 
 // Open launches the host handler for target (file path or URL) and

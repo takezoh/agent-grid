@@ -6,12 +6,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/takezoh/agent-reactor/platform/appid"
 	"golang.org/x/sys/unix"
 )
 
 // daemonLock is an exclusive advisory lock over the daemon's data
 // directory, backed by flock(2) on a pid file. It prevents two
-// coordinators from running against the same ~/.roost concurrently:
+// coordinators from running against the same ~/.agent-reactor concurrently:
 // two daemons share the sessions directory and fight over persistence —
 // one rewrites session files the other has just deleted, so terminated
 // sessions resurrect on every cold start.
@@ -35,9 +36,9 @@ func acquireDaemonLock(path string) (*daemonLock, error) {
 		holder := readPid(f)
 		_ = f.Close()
 		if holder != "" {
-			return nil, fmt.Errorf("daemon lock: another roost daemon is already running (pid %s); refusing to start", holder)
+			return nil, fmt.Errorf("daemon lock: another %s daemon is already running (pid %s); refusing to start", appid.ClientBin, holder)
 		}
-		return nil, fmt.Errorf("daemon lock: another roost daemon is already running; refusing to start")
+		return nil, fmt.Errorf("daemon lock: another %s daemon is already running; refusing to start", appid.ClientBin)
 	}
 	if err := f.Truncate(0); err != nil {
 		releaseLocked(f)

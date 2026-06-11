@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/takezoh/agent-roost/orchestrator/prompt"
-	ptrackerv "github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/orchestrator/prompt"
+	ptrackerv "github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 // SPEC §17.1 — prompt rendering fails on unknown variables (strict mode / §5.4).

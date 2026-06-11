@@ -6,8 +6,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
+	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 const coldStartContainerConcurrency = 4
@@ -50,7 +50,7 @@ func (r *Runtime) PrewarmContainers(ctx context.Context) {
 
 // RecreateAll spawns fresh tmux windows for every session in r.state.
 // Used during cold-start (the tmux session was just created and
-// contains no roost windows yet). Populates r.sessionPanes.
+// contains no client windows yet). Populates r.sessionPanes.
 // Spawn failures are logged but do not remove the session: a transient
 // error is not evidence that the user intended to delete the session.
 func (r *Runtime) RecreateAll() error {

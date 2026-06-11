@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/platform/config"
+	"github.com/takezoh/agent-reactor/platform/config"
 )
 
 func TestSpecBuilderBasics(t *testing.T) {
@@ -96,7 +96,7 @@ func TestSpecBuilderSharedWorkspaces(t *testing.T) {
 	runBase := t.TempDir()
 	cfg := Config{
 		RunBase:           runBase,
-		ContainerSockPath: "/opt/roost/run/mcp.sock",
+		ContainerSockPath: "/opt/agent-reactor/run/mcp.sock",
 		ContainerBinPath:  "/bin/roost",
 		WorkspaceTargetsFor: func(string) []WorkspaceTarget {
 			return []WorkspaceTarget{
@@ -135,7 +135,7 @@ func TestSpecBuilderSkipsNonAbsoluteTarget(t *testing.T) {
 	runBase := t.TempDir()
 	cfg := Config{
 		RunBase:           runBase,
-		ContainerSockPath: "/opt/roost/run/mcp.sock",
+		ContainerSockPath: "/opt/agent-reactor/run/mcp.sock",
 		ContainerBinPath:  "/bin/roost",
 		WorkspaceTargetsFor: func(string) []WorkspaceTarget {
 			return []WorkspaceTarget{{HostRoot: "/host/x", ContainerWS: "__shared__"}}
@@ -164,7 +164,7 @@ func TestSpecBuilderDefaultsToProjectPath(t *testing.T) {
 	runBase := t.TempDir()
 	cfg := Config{
 		RunBase:           runBase,
-		ContainerSockPath: "/opt/roost/run/mcp.sock",
+		ContainerSockPath: "/opt/agent-reactor/run/mcp.sock",
 		ContainerBinPath:  "/bin/roost",
 	}
 	b := NewSpecBuilder(ctx, cfg, func(string) config.MCPProxyConfig {
@@ -195,7 +195,7 @@ func TestSpecBuilder_MergesProjectMCPJSON(t *testing.T) {
 	}
 	cfg := Config{
 		RunBase:           runBase,
-		ContainerSockPath: "/opt/roost/run/mcp.sock",
+		ContainerSockPath: "/opt/agent-reactor/run/mcp.sock",
 		ContainerBinPath:  "/bin/roost",
 		WorkspaceTargetsFor: func(string) []WorkspaceTarget {
 			return []WorkspaceTarget{{HostRoot: hostRoot, ContainerWS: "/workspace/app"}}

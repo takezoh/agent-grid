@@ -11,10 +11,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	rsubsystem "github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-reactor/client/proto"
+	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
 )
 
 // ipcConn is one accepted client connection. The reader goroutine
@@ -61,7 +61,7 @@ func (r *Runtime) StartIPC(sockPath string) error {
 	if err != nil {
 		return fmt.Errorf("runtime: listen %s: %w", sockPath, err)
 	}
-	// Restrict socket to owner only — roost controls tmux session
+	// Restrict socket to owner only — the client controls tmux session
 	// lifecycle, so unauthenticated local access = arbitrary command
 	// execution.
 	if err := os.Chmod(sockPath, 0o600); err != nil {

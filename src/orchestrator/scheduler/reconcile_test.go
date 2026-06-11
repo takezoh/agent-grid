@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
-	ptrackerv "github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	ptrackerv "github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 // fakeWorker records Kill calls and implements Worker.

@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
-// RegisterHooks registers roost hooks in Claude's settings.json.
+// RegisterHooks registers arc hooks in Claude's settings.json.
 // Returns the list of registered event names.
 func RegisterHooks(settingsPath, roostBinary string) ([]string, error) {
 	settings, err := readSettings(settingsPath)
@@ -54,9 +56,9 @@ func RegisterHooks(settingsPath, roostBinary string) ([]string, error) {
 	return registered, writeSettings(settingsPath, settings)
 }
 
-// addHookEntry upserts a roost hook entry for the given event.
+// addHookEntry upserts a arc hook entry for the given event.
 // If an existing entry already contains the exact command, it returns false (no-op).
-// If an existing entry contains a stale roost command (ends with " event claude"),
+// If an existing entry contains a stale arc command (ends with " event claude"),
 // it is replaced in-place. Otherwise a new entry is appended.
 func addHookEntry(hooks map[string]any, event, command string) bool {
 	entries, _ := hooks[event].([]any)
@@ -66,7 +68,7 @@ func addHookEntry(hooks map[string]any, event, command string) bool {
 			return false // already up to date
 		}
 		if hasRoostEventCommand(e) {
-			// Replace stale roost hook entry with the current command.
+			// Replace stale arc hook entry with the current command.
 			entries[i] = map[string]any{
 				"hooks": []any{
 					map[string]any{"type": "command", "command": command},
@@ -104,7 +106,7 @@ func hasCommand(entry any, command string) bool {
 }
 
 // hasRoostEventCommand reports whether entry contains a hook command that ends
-// with " event claude", identifying it as a (possibly stale) roost hook.
+// with " event claude", identifying it as a (possibly stale) arc hook.
 func hasRoostEventCommand(entry any) bool {
 	m, ok := entry.(map[string]any)
 	if !ok {
@@ -124,7 +126,7 @@ func hasRoostEventCommand(entry any) bool {
 	return false
 }
 
-// RegisterMCPServer writes mcpServers.roost-peers to settings.json.
+// RegisterMCPServer writes mcpServers.<client>-peers (e.g. reactor-peers) to settings.json.
 // Returns true if the entry was newly written, false if already present.
 func RegisterMCPServer(settingsPath, roostBinary string) (bool, error) {
 	settings, err := readSettings(settingsPath)
@@ -135,10 +137,11 @@ func RegisterMCPServer(settingsPath, roostBinary string) (bool, error) {
 	if mcpServers == nil {
 		mcpServers = make(map[string]any)
 	}
-	if _, exists := mcpServers["roost-peers"]; exists {
+	peersServer := appid.PeersServer
+	if _, exists := mcpServers[peersServer]; exists {
 		return false, nil
 	}
-	mcpServers["roost-peers"] = map[string]any{
+	mcpServers[peersServer] = map[string]any{
 		"command": roostBinary,
 		"args":    []any{"peers-mcp"},
 	}

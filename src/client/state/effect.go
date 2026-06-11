@@ -1,6 +1,6 @@
 package state
 
-import "github.com/takezoh/agent-roost/client/uiproc"
+import "github.com/takezoh/agent-reactor/client/uiproc"
 
 // Effect is the closed sum type of every side effect the reducer can
 // request. The runtime's effect interpreter (runtime.execute) is the
@@ -121,7 +121,7 @@ type EffDisplayPopup struct {
 	Args   map[string]string
 }
 
-// EffKillSession destroys the roost tmux session.
+// EffKillSession destroys the client tmux session.
 type EffKillSession struct{}
 
 // === IPC operations ===
@@ -214,7 +214,7 @@ type EffEventLogAppend struct {
 // EffToolLogAppend appends a pre-marshalled JSONL line to the
 // per-project tool log at <dataDir>/<namespace>/tool-logs/<project>.jsonl.
 // Namespace is an opaque driver-supplied token; the runtime must not branch on its value.
-// Project is the projectDir() slug (e.g. "-workspace-agent-roost").
+// Project is the projectDir() slug (e.g. "-workspace-agent-reactor").
 // Line must not contain a trailing newline; the backend adds it.
 type EffToolLogAppend struct {
 	Namespace string

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
 var (
@@ -163,7 +165,7 @@ func commonGitRoot(ctx context.Context, dir string) (string, error) {
 }
 
 // CreateWorktree creates a new linked git worktree under
-// <repo>/.roost/worktrees/<name> and returns that path.
+// <repo>/.agent-reactor/worktrees/<name> and returns that path.
 func CreateWorktree(ctx context.Context, dir, name string) (string, error) {
 	root, err := RepoRoot(ctx, dir)
 	if err != nil {
@@ -172,7 +174,7 @@ func CreateWorktree(ctx context.Context, dir, name string) (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("worktree name required")
 	}
-	worktreeDir := filepath.Join(root, ".roost", "worktrees", name)
+	worktreeDir := filepath.Join(root, appid.DotDir, "worktrees", name)
 	if _, err := os.Stat(worktreeDir); err == nil {
 		return "", fmt.Errorf("worktree already exists: %s", worktreeDir)
 	}
@@ -186,15 +188,15 @@ func CreateWorktree(ctx context.Context, dir, name string) (string, error) {
 	return worktreeDir, nil
 }
 
-// RemoveWorktree removes a roost-managed git worktree created under
-// <repo>/.roost/worktrees/<name>.
+// RemoveWorktree removes a reactor-managed git worktree created under
+// <repo>/.agent-reactor/worktrees/<name>.
 func RemoveWorktree(ctx context.Context, path string) error {
 	clean := filepath.Clean(path)
 	root, err := commonGitRoot(ctx, clean)
 	if err != nil {
 		return err
 	}
-	if filepath.Dir(clean) != filepath.Join(root, ".roost", "worktrees") {
+	if filepath.Dir(clean) != filepath.Join(root, appid.DotDir, "worktrees") {
 		return fmt.Errorf("not a managed worktree path: %s", clean)
 	}
 	out, err := exec.CommandContext(ctx, "git", "-C", root, "worktree", "remove", "--force", clean).CombinedOutput()

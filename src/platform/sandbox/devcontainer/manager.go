@@ -14,8 +14,8 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/takezoh/agent-roost/platform/sandbox"
-	"github.com/takezoh/agent-roost/platform/shellalias"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
+	"github.com/takezoh/agent-reactor/platform/shellalias"
 )
 
 // SharedContainerKey is the containers map key used for shared-mode instances.
@@ -120,7 +120,7 @@ func (cs *ContainerState) EffectiveUser() string {
 }
 
 // Manager implements sandbox.Manager[*ContainerState] using direct docker commands.
-// Roost does not build images; the image name is read from devcontainer.json (image: or build.name).
+// Reactor does not build images; the image name is read from devcontainer.json (image: or build.name).
 type Manager struct {
 	overlayFn  OverlayFunc
 	mu         sync.Mutex
@@ -358,7 +358,7 @@ func (m *Manager) reuseContainer(ctx context.Context, instanceKey string, ctr *C
 		if err != nil {
 			slog.Error("devcontainer: container start failed, manual recovery required",
 				"id", shortID(ctr.ID), "key", instanceKey,
-				"hint", "if Docker Desktop bind-mount cache is stale, run `docker rm -f "+ctr.ID+"` and restart roost",
+				"hint", "if Docker Desktop bind-mount cache is stale, run `docker rm -f "+ctr.ID+"` and restart arc",
 				"err", err)
 			return fmt.Errorf("devcontainer: %w", err)
 		}

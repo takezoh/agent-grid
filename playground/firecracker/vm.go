@@ -35,7 +35,7 @@ type VM struct {
 // the correct way to prepare for snapshot/load: configuring boot resources
 // before loading a snapshot is an error in Firecracker.
 func startVMForSnap(id string, cfg *Config, snapPath, memPath string) (*VM, error) {
-	dir := filepath.Join(os.TempDir(), "roost-poc-"+id)
+	dir := filepath.Join(os.TempDir(), "reactor-poc-"+id)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -86,14 +86,14 @@ func startVMForSnap(id string, cfg *Config, snapPath, memPath string) (*VM, erro
 // startVM launches the firecracker process and configures it via API.
 // It does NOT send InstanceStart; call Boot() for that.
 func startVM(id string, cfg *Config) (*VM, error) {
-	dir := filepath.Join(os.TempDir(), "roost-poc-"+id)
+	dir := filepath.Join(os.TempDir(), "reactor-poc-"+id)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
 	apiSock := filepath.Join(dir, "api.sock")
 	// vsock path must be outside the VM's temp dir so it survives Stop()'s
 	// RemoveAll — the snapshot records this path and restore needs to bind to it.
-	vsockPath := filepath.Join(os.TempDir(), "roost-poc-vsock-"+id+".sock")
+	vsockPath := filepath.Join(os.TempDir(), "reactor-poc-vsock-"+id+".sock")
 	snapPath := filepath.Join(dir, "snap.vmstate")
 	memPath := filepath.Join(dir, "snap.mem")
 

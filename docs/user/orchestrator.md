@@ -2,7 +2,7 @@
 
 `orchestrator` is the unattended, TUI-less scheduler — the user-facing side of the [`orchestrator` layer](../technical/orchestrator/README.md). It reads a `WORKFLOW.md`, polls an issue tracker, dispatches a coding agent into a per-issue workspace, reconciles running/stalled sessions, and exposes a read-only observability HTTP server. It implements the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md).
 
-> Unlike `roost`, the orchestrator runs autonomously: agents advance issues by transitioning tracker states, and the scheduler detects progress by polling. There is no human in the loop during a run — see [WORKFLOW.md authoring](../agent/workflow-authoring.md) for how the driving prompt is written.
+> Unlike `arc`, the orchestrator runs autonomously: agents advance issues by transitioning tracker states, and the scheduler detects progress by polling. There is no human in the loop during a run — see [WORKFLOW.md authoring](../agent/workflow-authoring.md) for how the driving prompt is written.
 
 ## Run
 
@@ -41,7 +41,7 @@ tracker:
 polling:
   interval_ms: 30000            # poll cadence
 workspace:
-  root: /path/to/.roost/worktrees   # per-issue workspace root
+  root: /path/to/.agent-reactor/worktrees   # per-issue workspace root
 hooks:
   timeout_ms: 120000
   after_create: |               # initialization run after a workspace is created

@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/runtime/worker"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/client/uiproc"
+	"github.com/takezoh/agent-reactor/client/runtime/worker"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/client/uiproc"
 )
 
 // execute is the side-effect interpreter. Each Effect type has a
@@ -405,7 +405,7 @@ func (r *Runtime) activeStatusLine() string {
 //     Emit EvTmuxWindowVanished to evict unconditionally — there is
 //     nothing left to inspect.
 //
-// The active frame is skipped because it is swap-paned into roost:0.1
+// The active frame is skipped because it is swap-paned into arc:0.1
 // and detected reactively via swapSessionIntoMain returning
 // isMissingPaneErr.
 func (r *Runtime) reconcileWindows() {

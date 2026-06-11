@@ -9,17 +9,18 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/proto"
-	psess "github.com/takezoh/agent-roost/client/proto/sessions"
-	"github.com/takezoh/agent-roost/client/tools"
-	"github.com/takezoh/agent-roost/client/tui"
-	"github.com/takezoh/agent-roost/client/tui/glyphs"
-	platformconfig "github.com/takezoh/agent-roost/platform/config"
-	"github.com/takezoh/agent-roost/platform/features"
-	"github.com/takezoh/agent-roost/platform/lib/git"
-	"github.com/takezoh/agent-roost/platform/lib/openurl"
-	"github.com/takezoh/agent-roost/platform/logger"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/proto"
+	psess "github.com/takezoh/agent-reactor/client/proto/sessions"
+	"github.com/takezoh/agent-reactor/client/tools"
+	"github.com/takezoh/agent-reactor/client/tui"
+	"github.com/takezoh/agent-reactor/client/tui/glyphs"
+	"github.com/takezoh/agent-reactor/platform/appid"
+	platformconfig "github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-reactor/platform/features"
+	"github.com/takezoh/agent-reactor/platform/lib/git"
+	"github.com/takezoh/agent-reactor/platform/lib/openurl"
+	"github.com/takezoh/agent-reactor/platform/logger"
 )
 
 type tuiBootstrapOpts struct {
@@ -38,7 +39,7 @@ func tuiBootstrap(opts tuiBootstrapOpts) (*config.Config, *psess.Client, error) 
 	}
 	initThemes(cfg.Theme)
 	initGlyphs()
-	sockPath := filepath.Join(cfg.ResolveDataDir(), "roost.sock")
+	sockPath := filepath.Join(cfg.ResolveDataDir(), appid.SocketFileName)
 
 	raw, err := proto.Dial(sockPath)
 	if err != nil {
@@ -55,11 +56,11 @@ func tuiBootstrap(opts tuiBootstrapOpts) (*config.Config, *psess.Client, error) 
 	return cfg, client, nil
 }
 
-// initThemes loads user themes from ~/.roost/themes/ then selects the active
+// initThemes loads user themes from ~/.agent-reactor/themes/ then selects the active
 // theme from ROOST_THEME env (highest priority), the config value, or "default".
 func initThemes(cfgTheme string) {
 	if home, err := os.UserHomeDir(); err == nil {
-		tui.LoadThemesFromDir(filepath.Join(home, ".roost", "themes"))
+		tui.LoadThemesFromDir(filepath.Join(home, appid.DotDir, "themes"))
 	}
 	name := cfgTheme
 	if env := os.Getenv("ROOST_THEME"); env != "" {
@@ -73,7 +74,7 @@ func initThemes(cfgTheme string) {
 func initGlyphs() {
 	home, err := os.UserHomeDir()
 	if err == nil {
-		if err := glyphs.Load(filepath.Join(home, ".roost", "glyphs.json")); err != nil {
+		if err := glyphs.Load(filepath.Join(home, appid.DotDir, "glyphs.json")); err != nil {
 			slog.Warn("glyphs: load error", "err", err)
 		}
 	}

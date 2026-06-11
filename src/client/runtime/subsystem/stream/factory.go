@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/runtime/subsystem"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agentlaunch"
-	libcodex "github.com/takezoh/agent-roost/platform/lib/codex"
-	"github.com/takezoh/agent-roost/platform/procgroup"
+	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
+	"github.com/takezoh/agent-reactor/platform/procgroup"
 )
 
 // FactoryConfig holds runtime-supplied dependencies the Stream Factory needs
@@ -45,7 +45,7 @@ type FactoryConfig struct {
 }
 
 // Factory creates Stream Backends keyed by session. One Backend (= one
-// app-server process) exists per roost Session. All frames (root + peers) in
+// app-server process) exists per client Session. All frames (root + peers) in
 // the same Session share one Backend; different Sessions get separate Backends.
 type Factory struct {
 	cfg      FactoryConfig
@@ -146,7 +146,7 @@ func (f *Factory) Range(fn func(*Backend) bool) {
 }
 
 // makeID derives the SubsystemID from the session identifier.
-// Every roost Session gets its own app-server, so the ID is keyed purely on
+// Every client Session gets its own app-server, so the ID is keyed purely on
 // sessionID. All frames (root + peers) within the same session share the
 // same ID and therefore the same Backend.
 func (f *Factory) makeID(sessionID state.SessionID) state.SubsystemID {

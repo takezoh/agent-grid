@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// RoostWindow is a minimal snapshot of a roost-managed tmux window.
+// RoostWindow is a minimal snapshot of a reactor-managed tmux window.
 // Only WindowID and ID are populated by ListRoostWindows. All other
 // session state lives in sessions.json.
 type RoostWindow struct {
 	WindowID string // tmux window id, e.g. "@5"
-	ID       string // roost session id (from @roost_id user option)
+	ID       string // client session id (from @roost_id user option)
 }
 
 type Client struct {
@@ -236,7 +236,7 @@ func (c *Client) SetWindowUserOptions(windowID string, kv map[string]string) err
 }
 
 // ListRoostWindows returns all windows that carry the @roost_id user option.
-// After Phase 8, @roost_id is the ONLY roost user option — all other state
+// After Phase 8, @roost_id is the ONLY client user option — all other state
 // lives in sessions.json. The returned RoostWindow only has WindowID and ID
 // populated; other fields are empty.
 func (c *Client) ListRoostWindows() ([]RoostWindow, error) {

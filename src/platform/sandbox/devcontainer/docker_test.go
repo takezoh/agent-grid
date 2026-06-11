@@ -69,7 +69,7 @@ func TestParsePsLine(t *testing.T) {
 // psFormat is the --format string we hand to "docker ps". Drift would silently
 // break parsePsLine; pin it so a re-order shows up in review.
 func TestPsFormat_StableContract(t *testing.T) {
-	want := "{{.ID}}\t{{.State}}\t{{.Label \"roost-mount-hash\"}}"
+	want := "{{.ID}}\t{{.State}}\t{{.Label \"reactor-mount-hash\"}}"
 	if psFormat != want {
 		t.Errorf("psFormat = %q\nwant      %q\n(parsePsLine assumes this exact column order)", psFormat, want)
 	}

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/takezoh/agent-roost/client/driver"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/driver"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // newTestRelayAttached builds a Runtime with a standalone FileRelay
@@ -25,7 +25,7 @@ func newTestRelayAttached(t *testing.T) (*Runtime, *FileRelay) {
 		files:   map[string]*relayFile{},
 	}
 	r := New(Config{
-		SessionName: "roost-test",
+		SessionName: "reactor-test",
 		RoostExe:    "/usr/bin/roost",
 		Tmux:        newFakeTmux(),
 	})
@@ -70,7 +70,7 @@ func TestSyncRelayWatchesRegistersNewSessionLogTabs(t *testing.T) {
 // safe to call when no FileRelay has been attached.
 func TestSyncRelayWatchesNoRelayIsNoop(t *testing.T) {
 	r := New(Config{
-		SessionName: "roost-test",
+		SessionName: "reactor-test",
 		RoostExe:    "/usr/bin/roost",
 		Tmux:        newFakeTmux(),
 	})

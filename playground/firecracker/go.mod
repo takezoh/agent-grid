@@ -1,3 +1,3 @@
-module github.com/takezoh/agent-roost/playground/firecracker
+module github.com/takezoh/agent-reactor/playground/firecracker
 
 go 1.22

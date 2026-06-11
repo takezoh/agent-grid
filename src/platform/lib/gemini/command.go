@@ -19,7 +19,7 @@ func Run(args []string) error {
 		printHelp()
 		return nil
 	default:
-		fmt.Fprintf(os.Stderr, "roost gemini: unknown subcommand: %s\n", args[0])
+		fmt.Fprintf(os.Stderr, "arc gemini: unknown subcommand: %s\n", args[0])
 		printHelp()
 		return fmt.Errorf("gemini: unknown subcommand: %s", args[0])
 	}
@@ -37,15 +37,15 @@ func resolveSettingsPath() (string, error) {
 }
 
 func printHelp() {
-	fmt.Print(`Usage: roost gemini <command>
+	fmt.Print(`Usage: arc gemini <command>
 
 Commands:
-  setup    Register roost hooks in ~/.gemini/settings.json
+  setup    Register arc hooks in ~/.gemini/settings.json
   help     Show this help message
 `)
 }
 
-// RunSetup registers roost hooks and MCP server in Gemini's settings.
+// RunSetup registers arc hooks and MCP server in Gemini's settings.
 func RunSetup() error {
 	settingsPath, err := resolveSettingsPath()
 	if err != nil {
@@ -70,10 +70,10 @@ func RunSetup() error {
 		return err
 	}
 	if added {
-		fmt.Printf("Registered MCP server: roost-peers\n")
+		fmt.Printf("Registered MCP server: reactor-peers\n")
 		fmt.Printf("  Settings: %s\n", settingsPath)
 	} else {
-		fmt.Println("MCP server roost-peers already registered")
+		fmt.Println("MCP server reactor-peers already registered")
 	}
 	return nil
 }

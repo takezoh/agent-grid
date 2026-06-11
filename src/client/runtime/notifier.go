@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/state"
-	libnotify "github.com/takezoh/agent-roost/platform/lib/notify"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/state"
+	libnotify "github.com/takezoh/agent-reactor/platform/lib/notify"
 )
 
 // Notifier dispatches desktop notifications when a state transition

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/lib/editor"
+	"github.com/takezoh/agent-reactor/client/lib/editor"
 )
 
 var defaultExts = []string{".code-workspace"}

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/platform/sandbox"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
 )
 
 func TestBuildLaunchCommand_subdir(t *testing.T) {
@@ -108,7 +108,7 @@ func TestDevcontainerSpec_buildCreateArgs_defaults(t *testing.T) {
 		ProjectPath:  "/workspace/myapp",
 		ContainerEnv: map[string]string{"FOO": "bar"},
 	}
-	args := spec.BuildCreateArgs("roost-abc123:latest")
+	args := spec.BuildCreateArgs("reactor-abc123:latest")
 
 	mustContain := func(needle string) {
 		t.Helper()
@@ -120,9 +120,9 @@ func TestDevcontainerSpec_buildCreateArgs_defaults(t *testing.T) {
 		t.Errorf("args missing %q: %v", needle, args)
 	}
 
-	mustContain("roost-abc123:latest")
-	mustContain("roost-managed=1")
-	mustContain("roost-project=/workspace/myapp")
+	mustContain("reactor-abc123:latest")
+	mustContain("reactor-managed=1")
+	mustContain("reactor-project=/workspace/myapp")
 	mustContain("FOO=bar")
 	// -w should set the workspace target as default cwd (replaces Dockerfile WORKDIR).
 	mustContain("-w")
@@ -159,11 +159,11 @@ func TestDevcontainerSpec_buildCreateArgs_extraCreateArgsBeforeImage(t *testing.
 	spec := &DevcontainerSpec{
 		ProjectPath:     "/workspace/myapp",
 		ContainerEnv:    map[string]string{},
-		ExtraCreateArgs: []string{"--mount", "type=bind,source=/home/take/.roost,target=/home/ubuntu/.roost,readonly"},
+		ExtraCreateArgs: []string{"--mount", "type=bind,source=/home/take/.agent-reactor,target=/home/ubuntu/.agent-reactor,readonly"},
 	}
 	args := spec.BuildCreateArgs("myimage:latest")
 	assertArgBeforeImage(t, args, "myimage:latest", func(a string) bool {
-		return strings.Contains(a, ".roost")
+		return strings.Contains(a, ".agent-reactor")
 	})
 }
 
@@ -194,14 +194,14 @@ func TestBuildLaunchCommand_streamDirectCommand(t *testing.T) {
 	m := &Manager{}
 	plan := sandbox.LaunchSpec{
 		StartDir: project,
-		Command:  "codex resume thr_123 --remote unix:///opt/roost/run/codex-foo.sock",
+		Command:  "codex resume thr_123 --remote unix:///opt/agent-reactor/run/codex-foo.sock",
 	}
 
 	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
-	if !strings.Contains(got, "codex resume thr_123 --remote unix:///opt/roost/run/codex-foo.sock") {
+	if !strings.Contains(got, "codex resume thr_123 --remote unix:///opt/agent-reactor/run/codex-foo.sock") {
 		t.Errorf("expected direct codex remote command, got: %s", got)
 	}
 }
@@ -635,7 +635,7 @@ func TestApplyPathOverlayPrependsToUserPath(t *testing.T) {
 		ContainerEnv: map[string]string{"PATH": userPath},
 		RemoteEnv:    map[string]string{"PATH": remotePath},
 	}
-	shimsDir := "/opt/roost/run/hostexec-shims"
+	shimsDir := "/opt/agent-reactor/run/hostexec-shims"
 	s.Apply(SpecOverlay{Env: map[string]string{"PATH": shimsDir + ":$PATH"}})
 
 	if got := s.ContainerEnv["PATH"]; got != shimsDir+":"+userPath {
@@ -664,11 +664,11 @@ func TestApplyNonPathOverlayOverridesExisting(t *testing.T) {
 		ContainerEnv: map[string]string{"SSH_AUTH_SOCK": "/old/agent.sock"},
 		RemoteEnv:    map[string]string{"SSH_AUTH_SOCK": "/old/agent.sock"},
 	}
-	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/roost/run/agent.sock"}})
-	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/roost/run/agent.sock" {
+	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-reactor/run/agent.sock"}})
+	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-reactor/run/agent.sock" {
 		t.Errorf("ContainerEnv[SSH_AUTH_SOCK] = %q, want override", got)
 	}
-	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/roost/run/agent.sock" {
+	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-reactor/run/agent.sock" {
 		t.Errorf("RemoteEnv[SSH_AUTH_SOCK] = %q, want override", got)
 	}
 }
@@ -678,16 +678,16 @@ func TestApplyMergesOverlayEnvIntoBothContainerAndRemoteEnv(t *testing.T) {
 		ContainerEnv: map[string]string{"EXISTING": "yes"},
 		RemoteEnv:    map[string]string{"USER_VAR": "from-dc-json"},
 	}
-	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/roost/run/agent.sock", "FOO": "bar"}})
+	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-reactor/run/agent.sock", "FOO": "bar"}})
 
-	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/roost/run/agent.sock" {
-		t.Errorf("ContainerEnv[SSH_AUTH_SOCK] = %q, want /opt/roost/run/agent.sock", got)
+	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-reactor/run/agent.sock" {
+		t.Errorf("ContainerEnv[SSH_AUTH_SOCK] = %q, want /opt/agent-reactor/run/agent.sock", got)
 	}
 	if got := s.ContainerEnv["FOO"]; got != "bar" {
 		t.Errorf("ContainerEnv[FOO] = %q, want bar", got)
 	}
-	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/roost/run/agent.sock" {
-		t.Errorf("RemoteEnv[SSH_AUTH_SOCK] = %q, want /opt/roost/run/agent.sock", got)
+	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-reactor/run/agent.sock" {
+		t.Errorf("RemoteEnv[SSH_AUTH_SOCK] = %q, want /opt/agent-reactor/run/agent.sock", got)
 	}
 	if got := s.RemoteEnv["FOO"]; got != "bar" {
 		t.Errorf("RemoteEnv[FOO] = %q, want bar", got)
@@ -709,7 +709,7 @@ func TestApplyOverlayEnvAppearsInBuildLaunchCommand(t *testing.T) {
 		RemoteEnv:       map[string]string{},
 		WorkspaceFolder: "/workspaces/myapp",
 	}
-	spec.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/roost/run/agent.sock"}})
+	spec.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-reactor/run/agent.sock"}})
 
 	inst := &sandbox.Instance[*ContainerState]{
 		ProjectPath: project,
@@ -722,7 +722,7 @@ func TestApplyOverlayEnvAppearsInBuildLaunchCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
-	if !strings.Contains(got, "SSH_AUTH_SOCK=/opt/roost/run/agent.sock") {
+	if !strings.Contains(got, "SSH_AUTH_SOCK=/opt/agent-reactor/run/agent.sock") {
 		t.Errorf("docker exec command missing SSH_AUTH_SOCK: %s", got)
 	}
 }
@@ -768,10 +768,10 @@ func TestResolveContainerEnvPlaceholders_DeduplicatesPath(t *testing.T) {
 	}
 	spec := &DevcontainerSpec{
 		ContainerEnv: map[string]string{
-			"PATH": "/opt/roost/run/hostexec-shims:/home/ubuntu/.local/bin:/home/ubuntu/.local/share/mise/shims:/home/ubuntu/.local/share/google-cloud-sdk/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${containerEnv:PATH}",
+			"PATH": "/opt/agent-reactor/run/hostexec-shims:/home/ubuntu/.local/bin:/home/ubuntu/.local/share/mise/shims:/home/ubuntu/.local/share/google-cloud-sdk/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${containerEnv:PATH}",
 		},
 		RemoteEnv: map[string]string{
-			"PATH": "/opt/roost/run/hostexec-shims:/home/ubuntu/.local/share/mise/shims:${containerEnv:PATH}",
+			"PATH": "/opt/agent-reactor/run/hostexec-shims:/home/ubuntu/.local/share/mise/shims:${containerEnv:PATH}",
 		},
 	}
 	spec.ResolveContainerEnvPlaceholders(imageEnv)
@@ -799,18 +799,18 @@ func TestResolveContainerEnvPlaceholders_DeduplicatesPath(t *testing.T) {
 func TestContainerName_project(t *testing.T) {
 	s := &DevcontainerSpec{ProjectPath: "/workspace/myapp", Isolation: IsolationProject}
 	name := s.ContainerName()
-	if name == "roost-shared" {
-		t.Errorf("ContainerName for project isolation must not be roost-shared")
+	if name == "reactor-shared" {
+		t.Errorf("ContainerName for project isolation must not be reactor-shared")
 	}
-	if name[:6] != "roost-" {
-		t.Errorf("ContainerName = %q, want roost-<hash>", name)
+	if name[:8] != "reactor-" {
+		t.Errorf("ContainerName = %q, want reactor-<hash>", name)
 	}
 }
 
 func TestContainerName_shared(t *testing.T) {
 	s := &DevcontainerSpec{ProjectPath: "/workspace/myapp", Isolation: IsolationShared}
-	if got := s.ContainerName(); got != "roost-shared" {
-		t.Errorf("ContainerName = %q, want roost-shared", got)
+	if got := s.ContainerName(); got != "reactor-shared" {
+		t.Errorf("ContainerName = %q, want reactor-shared", got)
 	}
 }
 
@@ -1260,7 +1260,7 @@ func withMockDockerFns(t *testing.T, start func(ctx context.Context, id string) 
 }
 
 // Reproduces the user's "frame won't start after roost restart" bug:
-// after a clean shutdown, docker start of the existing roost-shared fails
+// after a clean shutdown, docker start of the existing reactor-shared fails
 // with an OCI mount error because Docker Desktop's WSL bind-mount cache lost
 // the source path for ~/.claude.json. tryReuseElseRecreate must catch that
 // specific failure, remove the broken container, and tell ensureContainer to
@@ -1554,9 +1554,9 @@ func TestMountConfigurationHash_DifferentSets(t *testing.T) {
 
 // Regression for "codex frame fails to connect to remote app server after a
 // roost binary upgrade": the host-side stream backend now writes its socket
-// under ~/.roost/run/__shared__/ while a pre-existing roost-shared container
-// still has /opt/roost/run bind-mounted to the older random-hash directory
-// (~/.roost/run/<hash>/). The Manager's mount-hash label hasn't changed —
+// under ~/.agent-reactor/run/__shared__/ while a pre-existing reactor-shared container
+// still has /opt/agent-reactor/run bind-mounted to the older random-hash directory
+// (~/.agent-reactor/run/<hash>/). The Manager's mount-hash label hasn't changed —
 // because it only covered ExtraWorkspaces — so the stale container is
 // reused, the in-container sockbridge talks to the old host path, and codex
 // CLI gets "failed to connect to remote app server".
@@ -1570,7 +1570,7 @@ func TestMountConfigurationHash_DetectsRunDirMountChange(t *testing.T) {
 			{Source: "/workspace/a", Target: "/workspace/a"},
 		},
 		Mounts: []string{
-			"type=bind,source=/home/take/.roost/run/4342aed7adbf,target=/opt/roost/run",
+			"type=bind,source=/home/take/.agent-reactor/run/4342aed7adbf,target=/opt/agent-reactor/run",
 		},
 	}
 	specNew := &DevcontainerSpec{
@@ -1578,7 +1578,7 @@ func TestMountConfigurationHash_DetectsRunDirMountChange(t *testing.T) {
 			{Source: "/workspace/a", Target: "/workspace/a"},
 		},
 		Mounts: []string{
-			"type=bind,source=/home/take/.roost/run/__shared__,target=/opt/roost/run",
+			"type=bind,source=/home/take/.agent-reactor/run/__shared__,target=/opt/agent-reactor/run",
 		},
 	}
 	if got := specOld.MountConfigurationHash(); got == specNew.MountConfigurationHash() {
@@ -1589,7 +1589,7 @@ func TestMountConfigurationHash_DetectsRunDirMountChange(t *testing.T) {
 // Adding an arbitrary mount (e.g. credproxy AWS sock) must also change the
 // hash so an upgrade that introduces a new bind-mount triggers recreate.
 func TestMountConfigurationHash_DetectsAddedMount(t *testing.T) {
-	baseMounts := []string{"type=bind,source=/host/run,target=/opt/roost/run"}
+	baseMounts := []string{"type=bind,source=/host/run,target=/opt/agent-reactor/run"}
 	specOld := &DevcontainerSpec{Mounts: baseMounts}
 	specNew := &DevcontainerSpec{Mounts: append(
 		append([]string{}, baseMounts...),
@@ -1649,7 +1649,7 @@ func TestBuildCreateArgs_shared_includes_mount_hash_label(t *testing.T) {
 		},
 	}
 	args := spec.BuildCreateArgs("img:latest")
-	want := "roost-mount-hash=" + spec.MountConfigurationHash()
+	want := "reactor-mount-hash=" + spec.MountConfigurationHash()
 	for _, a := range args {
 		if a == want {
 			return
@@ -1666,8 +1666,8 @@ func TestBuildCreateArgs_project_omits_mount_hash_label(t *testing.T) {
 	}
 	args := spec.BuildCreateArgs("img:latest")
 	for _, a := range args {
-		if strings.HasPrefix(a, "roost-mount-hash=") {
-			t.Errorf("project mode must not emit roost-mount-hash label: %v", args)
+		if strings.HasPrefix(a, "reactor-mount-hash=") {
+			t.Errorf("project mode must not emit reactor-mount-hash label: %v", args)
 		}
 	}
 }
@@ -1703,10 +1703,10 @@ func TestBuildCreateArgs_shared_labels(t *testing.T) {
 		}
 	}
 
-	mustContain("roost-shared")
-	mustContain("roost-managed=1")
-	mustContain("roost-isolation=shared")
-	mustNotContain("roost-project=/workspace/myapp")
+	mustContain("reactor-shared")
+	mustContain("reactor-managed=1")
+	mustContain("reactor-isolation=shared")
+	mustNotContain("reactor-project=/workspace/myapp")
 
 	// ExtraWorkspaces should appear as --mount args.
 	found := 0

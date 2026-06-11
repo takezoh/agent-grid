@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/config"
+	"github.com/takezoh/agent-reactor/client/config"
 )
 
 func TestRunMainRoostSuccess(t *testing.T) {
@@ -29,7 +29,7 @@ func TestRunMainRoostSuccess(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if got := stdout.String(); got != "roost: exited\n" {
+	if got := stdout.String(); got != "arc: exited\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 	if stderr.Len() != 0 {
@@ -59,11 +59,11 @@ func TestRunMainRoostErrorLogsAndPrints(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if got := stderr.String(); got != "roost: boom\n" {
+	if got := stderr.String(); got != "arc: boom\n" {
 		t.Fatalf("stderr = %q", got)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "roost.log"))
+	data, err := os.ReadFile(filepath.Join(dir, "arc.log"))
 	if err != nil {
 		t.Fatal(err)
 	}

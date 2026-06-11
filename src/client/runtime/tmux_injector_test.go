@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // fakeTmux is a recording TmuxBackend for injector tests.
@@ -79,7 +79,7 @@ func TestRuntimeTmuxInjector_PastePrompt(t *testing.T) {
 		if len(ft.loadBufferCalls) != 1 {
 			t.Fatalf("expected 1 LoadBuffer call, got %d", len(ft.loadBufferCalls))
 		}
-		if ft.loadBufferCalls[0].name != "roost-peer-%5" {
+		if ft.loadBufferCalls[0].name != "reactor-peer-%5" {
 			t.Errorf("unexpected buffer name: %q", ft.loadBufferCalls[0].name)
 		}
 		if ft.loadBufferCalls[0].text != "hello world" {
@@ -88,7 +88,7 @@ func TestRuntimeTmuxInjector_PastePrompt(t *testing.T) {
 		if len(ft.pasteBufferCalls) != 1 {
 			t.Fatalf("expected 1 PasteBuffer call, got %d", len(ft.pasteBufferCalls))
 		}
-		if ft.pasteBufferCalls[0].name != "roost-peer-%5" {
+		if ft.pasteBufferCalls[0].name != "reactor-peer-%5" {
 			t.Errorf("unexpected paste buffer name: %q", ft.pasteBufferCalls[0].name)
 		}
 		if ft.pasteBufferCalls[0].target != "%5" {

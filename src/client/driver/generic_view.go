@@ -1,6 +1,6 @@
 package driver
 
-import "github.com/takezoh/agent-roost/client/state"
+import "github.com/takezoh/agent-reactor/client/state"
 
 // view returns the minimal View for a generic session. DisplayName and
 // BorderTitle are driven solely by d.displayName — for the built-in

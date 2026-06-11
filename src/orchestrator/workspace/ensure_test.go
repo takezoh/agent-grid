@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-roost/orchestrator/wfconfig"
+	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
 )
 
 // §17.2: missing directory is created; path returned.

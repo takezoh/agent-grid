@@ -3,7 +3,7 @@ package driver
 import (
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func (GeminiDriver) Persist(s state.DriverState) map[string]string {

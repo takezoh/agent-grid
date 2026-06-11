@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/driver/vt"
+	"github.com/takezoh/agent-reactor/client/driver/vt"
 )
 
 type oscCase struct {
@@ -28,7 +28,7 @@ func TestOscCapturePaneVsVtEmulator(t *testing.T) {
 		t.Skip("tmux not found in PATH")
 	}
 
-	session := "roost-osc-verify"
+	session := "reactor-osc-verify"
 	cleanup := func() { exec.Command("tmux", "kill-session", "-t", session).Run() } //nolint:errcheck
 	cleanup()
 	t.Cleanup(cleanup)

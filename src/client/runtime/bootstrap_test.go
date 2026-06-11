@@ -4,15 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/driver"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/driver"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func TestLoadSessionPanes_ParsesEnvVars(t *testing.T) {
 	ftmux := newFakeTmux()
 	ftmux.envOutput = "ROOST_FRAME_frame_abc=%11\nROOST_FRAME_frame_def=%12\nSOME_OTHER=value\n"
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -36,7 +36,7 @@ func TestLoadSessionPanes_ParsesEnvVars(t *testing.T) {
 func TestLoadSessionPanes_NoEnvSupport(t *testing.T) {
 	tmux := noopTmux{}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         tmux,
 	})
@@ -49,7 +49,7 @@ func TestLoadSessionPanes_NoEnvSupport(t *testing.T) {
 func TestReconcileOrphans_DropsSessionWithoutPane(t *testing.T) {
 	ftmux := newFakeTmux()
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -70,7 +70,7 @@ func TestReconcileOrphans_DropsSessionWithoutPane(t *testing.T) {
 func TestReconcileOrphans_RemovesStalePaneEntry(t *testing.T) {
 	ftmux := newFakeTmux()
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -93,7 +93,7 @@ func TestReconcileOrphans_RemovesStalePaneEntry(t *testing.T) {
 func TestDeactivateBeforeExit_SwapsBack(t *testing.T) {
 	ftmux := newFakeTmux()
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -118,7 +118,7 @@ func TestDeactivateBeforeExit_SwapsBack(t *testing.T) {
 func TestDeactivateBeforeExit_NoActive(t *testing.T) {
 	ftmux := newFakeTmux()
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -137,7 +137,7 @@ func TestRecoverWarmStartSessions_ReinstallsTranscriptWatch(t *testing.T) {
 	watcher := &recordingWatcher{}
 	persist := &recordingPersist{}
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         newFakeTmux(),
 		Watcher:      watcher,
@@ -188,7 +188,7 @@ func TestRecoverActivePaneAtMain_RestoresMainTUIWhenSessionActive(t *testing.T) 
 	ftmux.mu.Unlock()
 
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -209,8 +209,8 @@ func TestRecoverActivePaneAtMain_RestoresMainTUIWhenSessionActive(t *testing.T) 
 	if ftmux.swapCalls != 1 {
 		t.Fatalf("swapCalls = %d, want 1", ftmux.swapCalls)
 	}
-	if ftmux.swapSources[0] != "%1" || ftmux.swapTargets[0] != "roost-test:0.1" {
-		t.Fatalf("swap = %q -> %q, want %%1 -> roost-test:0.1", ftmux.swapSources[0], ftmux.swapTargets[0])
+	if ftmux.swapSources[0] != "%1" || ftmux.swapTargets[0] != "reactor-test:0.1" {
+		t.Fatalf("swap = %q -> %q, want %%1 -> reactor-test:0.1", ftmux.swapSources[0], ftmux.swapTargets[0])
 	}
 }
 
@@ -221,7 +221,7 @@ func TestRecoverActivePaneAtMain_IdentifiesMainTUIActive(t *testing.T) {
 	ftmux.spawnPane = "%1"
 	ftmux.mu.Unlock()
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -243,7 +243,7 @@ func TestRecoverActivePaneAtMain_RewritesStaleMainPaneEnv(t *testing.T) {
 	ftmux.envs["ROOST_FRAME__main"] = "%0"
 	ftmux.mu.Unlock()
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -269,7 +269,7 @@ func TestRecoverActivePaneAtMain_LeavesSessionActiveWhenMainPaneUnknown(t *testi
 	ftmux.spawnPane = "%2"
 	ftmux.mu.Unlock()
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         ftmux,
 	})
@@ -298,7 +298,7 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 	}
 	persist := &snapLoader{snaps: snaps}
 	r := New(Config{
-		SessionName: "roost-test",
+		SessionName: "reactor-test",
 		Persist:     persist,
 	})
 
@@ -371,7 +371,7 @@ func TestLoadSnapshot_ColdStartKeepsRecoverableStoppedCodexFrame(t *testing.T) {
 			},
 		}},
 	}}}
-	r := New(Config{SessionName: "roost-test", Persist: persist})
+	r := New(Config{SessionName: "reactor-test", Persist: persist})
 
 	if err := r.LoadSnapshot(true); err != nil {
 		t.Fatalf("LoadSnapshot(true): %v", err)
@@ -402,7 +402,7 @@ func TestLoadSnapshot_ColdStartDropsStoppedCodexFrameWithoutThread(t *testing.T)
 			DriverState: map[string]string{"status": "stopped"},
 		}},
 	}}}
-	r := New(Config{SessionName: "roost-test", Persist: persist})
+	r := New(Config{SessionName: "reactor-test", Persist: persist})
 
 	if err := r.LoadSnapshot(true); err != nil {
 		t.Fatalf("LoadSnapshot(true): %v", err)
@@ -423,7 +423,7 @@ func TestLoadSnapshot_ColdStartDropsStoppedGenericFrame(t *testing.T) {
 			DriverState: map[string]string{"status": "stopped"},
 		}},
 	}}}
-	r := New(Config{SessionName: "roost-test", Persist: persist})
+	r := New(Config{SessionName: "reactor-test", Persist: persist})
 
 	if err := r.LoadSnapshot(true); err != nil {
 		t.Fatalf("LoadSnapshot(true): %v", err)
@@ -445,7 +445,7 @@ func TestLoadSnapshot_WarmStartKeepsStoppedCodexFrame(t *testing.T) {
 			DriverState: map[string]string{"status": "stopped"},
 		}},
 	}}}
-	r := New(Config{SessionName: "roost-test", Persist: persist})
+	r := New(Config{SessionName: "reactor-test", Persist: persist})
 
 	if err := r.LoadSnapshot(false); err != nil {
 		t.Fatalf("LoadSnapshot(false): %v", err)

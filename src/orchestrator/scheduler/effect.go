@@ -3,7 +3,7 @@ package scheduler
 import (
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/tracker"
+	"github.com/takezoh/agent-reactor/platform/tracker"
 )
 
 // Effect is a descriptor of I/O the shell must perform on behalf of the pure core.

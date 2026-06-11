@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	"github.com/takezoh/agent-roost/client/runtime/framereg"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/pathmap"
+	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-reactor/client/runtime/framereg"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
 )
 
 func sendRawCommand(t *testing.T, sockPath string, cmd proto.Command) (proto.Envelope, error) {
@@ -41,7 +41,7 @@ func sendRawCommand(t *testing.T, sockPath string, cmd proto.Command) (proto.Env
 
 func TestContainerEndpointAcceptsHookEvent(t *testing.T) {
 	dir := t.TempDir()
-	sp := filepath.Join(dir, "roost.sock")
+	sp := filepath.Join(dir, "arc.sock")
 	reg := framereg.New()
 	fid := state.FrameID("frame-hook")
 	tok := "tok-frame-hook"
@@ -102,7 +102,7 @@ func TestContainerEndpointRejectsUnknownCommands(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	sp := filepath.Join(dir, "roost.sock")
+	sp := filepath.Join(dir, "arc.sock")
 	reg := framereg.New()
 	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {})
 	if err != nil {
@@ -128,7 +128,7 @@ func TestContainerEndpointRejectsUnknownCommands(t *testing.T) {
 
 func TestContainerEndpointRejectsInvalidToken(t *testing.T) {
 	dir := t.TempDir()
-	sp := filepath.Join(dir, "roost.sock")
+	sp := filepath.Join(dir, "arc.sock")
 	reg := framereg.New()
 	reg.Register(state.FrameID("f1"), "tok-f1")
 	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {})
@@ -154,7 +154,7 @@ func TestContainerEndpointRejectsInvalidToken(t *testing.T) {
 
 func TestContainerEndpointRejectsRevokedToken(t *testing.T) {
 	dir := t.TempDir()
-	sp := filepath.Join(dir, "roost.sock")
+	sp := filepath.Join(dir, "arc.sock")
 	reg := framereg.New()
 	fid := state.FrameID("frame-revoked")
 	tok := "tok-revoked"
@@ -276,7 +276,7 @@ func TestTranslatePayloadPaths(t *testing.T) {
 // with a container-absolute cwd is enqueued with the host-absolute path.
 func TestContainerEndpointTranslatesCwd(t *testing.T) {
 	dir := t.TempDir()
-	sp := filepath.Join(dir, "roost.sock")
+	sp := filepath.Join(dir, "arc.sock")
 
 	reg := framereg.New()
 	frameID := state.FrameID("frame-translate")
@@ -323,7 +323,7 @@ func TestContainerEndpointTranslatesCwd(t *testing.T) {
 
 func TestContainerEndpointSocketPermissions(t *testing.T) {
 	dir := t.TempDir()
-	sp := filepath.Join(dir, "roost.sock")
+	sp := filepath.Join(dir, "arc.sock")
 	reg := framereg.New()
 	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {})
 	if err != nil {

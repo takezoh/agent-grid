@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/driver"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/driver"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // These tests use drivers registered in TestMain (runtime_test.go):
@@ -21,7 +21,7 @@ func TestCollectTrackedWorktreesEmpty(t *testing.T) {
 
 func TestCollectTrackedWorktreesCodex(t *testing.T) {
 	// Codex frame with a managed worktree path stored in driver state.
-	worktreePath := "/repo/.roost/worktrees/alpha-beta"
+	worktreePath := "/repo/.agent-reactor/worktrees/alpha-beta"
 	codexDrv := driver.NewCodexDriver("")
 	ds := codexDrv.WithStartDir(codexDrv.NewState(time.Now()), worktreePath)
 
@@ -66,10 +66,10 @@ func TestCollectTrackedWorktreesNonWorktreeExcluded(t *testing.T) {
 func TestCollectTrackedWorktreesMultipleFrames(t *testing.T) {
 	// shell frame (generic driver) + codex frame, each with a managed worktree.
 	shellDrv := driver.NewGenericDriver("shell", "shell", 0)
-	shellDS := shellDrv.WithStartDir(shellDrv.NewState(time.Now()), "/repo/.roost/worktrees/shell-wt")
+	shellDS := shellDrv.WithStartDir(shellDrv.NewState(time.Now()), "/repo/.agent-reactor/worktrees/shell-wt")
 
 	codexDrv := driver.NewCodexDriver("")
-	codexDS := codexDrv.WithStartDir(codexDrv.NewState(time.Now()), "/repo/.roost/worktrees/codex-wt")
+	codexDS := codexDrv.WithStartDir(codexDrv.NewState(time.Now()), "/repo/.agent-reactor/worktrees/codex-wt")
 
 	s := state.State{
 		Sessions: map[state.SessionID]state.Session{
@@ -86,7 +86,7 @@ func TestCollectTrackedWorktreesMultipleFrames(t *testing.T) {
 	if len(tracked) != 2 {
 		t.Fatalf("len(tracked) = %d, want 2", len(tracked))
 	}
-	for _, p := range []string{"/repo/.roost/worktrees/shell-wt", "/repo/.roost/worktrees/codex-wt"} {
+	for _, p := range []string{"/repo/.agent-reactor/worktrees/shell-wt", "/repo/.agent-reactor/worktrees/codex-wt"} {
 		if _, ok := tracked[p]; !ok {
 			t.Errorf("missing %q in tracked %v", p, tracked)
 		}

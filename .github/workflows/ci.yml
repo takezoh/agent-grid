@@ -31,7 +31,7 @@ jobs:
         run: scripts/check-coverage.sh
 
       - name: build
-        run: go build -o ../roost ./cmd/roost
+        run: go build -o ../arc ./cmd/arc
 
       - name: build orchestrator + claude-app-server
         run: |

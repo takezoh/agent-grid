@@ -5,19 +5,20 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/takezoh/agent-roost/client/proto"
-	psess "github.com/takezoh/agent-roost/client/proto/sessions"
+	"github.com/takezoh/agent-reactor/client/proto"
+	psess "github.com/takezoh/agent-reactor/client/proto/sessions"
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
 func init() {
 	Register("activate-occupant", "Switch the main pane occupant (main|log)", runActivateOccupant)
 }
 
-// runActivateOccupant implements `roost activate-occupant <kind>`.
+// runActivateOccupant implements `arc activate-occupant <kind>`.
 // kind must be "main" or "log". Called by the prefix+l tmux keybinding.
 func runActivateOccupant(args []string) error {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: roost activate-occupant <main|log>")
+		fmt.Fprintf(os.Stderr, "usage: %s activate-occupant <main|log>\n", appid.ClientBin)
 		return errors.New("activate-occupant: missing kind")
 	}
 	kind := args[0]

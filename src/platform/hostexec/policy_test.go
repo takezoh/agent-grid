@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/platform/config"
-	"github.com/takezoh/agent-roost/platform/internal/globutil"
+	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-reactor/platform/internal/globutil"
 )
 
 // binaryName extracts and validates the binary name from allow patterns.

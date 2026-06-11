@@ -10,7 +10,7 @@ import (
 )
 
 // TestInstallExecInRunDir_OverRunningBinary reproduces the ETXTBSY incident:
-// the rundir roost-bridge is bind-mounted into a live container and currently
+// the rundir reactor-bridge is bind-mounted into a live container and currently
 // executing, while a daemon rebuild leaves the source binary with the same
 // bytes but a newer mtime. The size+mtime short-circuit misses on mtime, so a
 // reinstall is attempted over the in-use inode. A naive O_TRUNC copy fails with
@@ -20,14 +20,14 @@ func TestInstallExecInRunDir_OverRunningBinary(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("ETXTBSY is Linux-specific")
 	}
-	// Any small ELF binary works as a stand-in for roost-bridge.
+	// Any small ELF binary works as a stand-in for reactor-bridge.
 	sleepBin, err := exec.LookPath("sleep")
 	if err != nil {
 		t.Skip("sleep not found:", err)
 	}
 
 	runDir := t.TempDir()
-	dst := filepath.Join(runDir, "roost-bridge")
+	dst := filepath.Join(runDir, "reactor-bridge")
 
 	// Install once, then launch it so dst's inode is an in-use ELF text segment.
 	if err := installExecInRunDir(sleepBin, dst); err != nil {

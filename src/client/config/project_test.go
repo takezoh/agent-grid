@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-// writeProjectSettings creates <dir>/.roost/settings.toml with the given
+// writeProjectSettings creates <dir>/.agent-reactor/settings.toml with the given
 // content and returns the path.
 func writeProjectSettings(t *testing.T, dir, content string) string {
 	t.Helper()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	if err := os.MkdirAll(roostDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestLoadProjectFrom_Valid(t *testing.T) {
 
 func TestLoadProjectFrom_InvalidTOML(t *testing.T) {
 	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	path := filepath.Join(roostDir, "settings.toml")
 	os.WriteFile(path, []byte("[[[[bad toml"), 0o644)
@@ -190,7 +190,7 @@ func TestWorkspaceResolver_ReloadsOnFileChange(t *testing.T) {
 
 func TestWorkspaceResolver_HandlesInvalidTomlAsDefault(t *testing.T) {
 	dir := t.TempDir()
-	roostDir := filepath.Join(dir, ".roost")
+	roostDir := filepath.Join(dir, ".agent-reactor")
 	os.MkdirAll(roostDir, 0o755)
 	os.WriteFile(filepath.Join(roostDir, "settings.toml"), []byte("[[[[bad"), 0o644)
 

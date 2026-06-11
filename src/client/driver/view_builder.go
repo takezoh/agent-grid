@@ -3,7 +3,7 @@ package driver
 import (
 	"path/filepath"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 // CommonTags returns the shared UI tags (e.g. Git branch) for the driver.

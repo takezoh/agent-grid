@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path"
 
-	platformconfig "github.com/takezoh/agent-roost/platform/config"
+	platformconfig "github.com/takezoh/agent-reactor/platform/config"
 )
 
 // NotificationsConfig is the [notifications] table from settings.toml.

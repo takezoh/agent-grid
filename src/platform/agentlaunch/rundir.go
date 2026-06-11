@@ -6,16 +6,18 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/takezoh/agent-reactor/platform/appid"
 )
 
 // Container-side paths for files bind-mounted from the per-project run dir.
 const (
-	ContainerRunDir           = "/opt/roost/run"
-	ContainerBinaryPath       = ContainerRunDir + "/roost-bridge"
-	ContainerSockFileName     = "roost.sock"
-	ContainerSockFilePath     = ContainerRunDir + "/" + ContainerSockFileName
-	ContainerHostExecSockPath = ContainerRunDir + "/hostexec.sock"
-	ContainerMCPSockPath      = ContainerRunDir + "/mcp.sock"
+	ContainerRunDir           = appid.ContainerRunDir
+	ContainerBinaryPath       = appid.ContainerBinaryPath
+	ContainerSockFileName     = appid.ContainerSockFileName
+	ContainerSockFilePath     = appid.ContainerSockFilePath
+	ContainerHostExecSockPath = appid.ContainerHostExecSockPath
+	ContainerMCPSockPath      = appid.ContainerMCPSockPath
 )
 
 // ProjectRunDir returns the per-project ephemeral run directory path.
@@ -40,10 +42,10 @@ func ContainerSockPath(runDir string) string {
 	return filepath.Join(runDir, ContainerSockFileName)
 }
 
-// InstallBinaryInRunDir copies the roost-bridge binary into runDir as
-// "roost-bridge" (mode 0o755).
+// InstallBinaryInRunDir copies the reactor-bridge binary into runDir as
+// the bridge binary (mode 0o755).
 func InstallBinaryInRunDir(runDir string) (string, error) {
-	src, err := findHelperBinary("roost-bridge")
+	src, err := findHelperBinary(appid.BridgeBin)
 	if err != nil {
 		return "", err
 	}
@@ -51,14 +53,14 @@ func InstallBinaryInRunDir(runDir string) (string, error) {
 }
 
 func installBridgeInRunDir(src, runDir string) (string, error) {
-	if err := installExecInRunDir(src, filepath.Join(runDir, "roost-bridge")); err != nil {
+	if err := installExecInRunDir(src, filepath.Join(runDir, appid.BridgeBin)); err != nil {
 		return "", err
 	}
 	return ContainerBinaryPath, nil
 }
 
 // FindHelperFile returns the absolute path to a helper file if located
-// alongside the executable or in ~/.local/lib/roost/. Returns "" when not found.
+// alongside the executable or in ~/.local/lib/agent-reactor/. Returns "" when not found.
 func FindHelperFile(name string) string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -74,7 +76,7 @@ func FindHelperFile(name string) string {
 	if err != nil {
 		return ""
 	}
-	candidate := filepath.Join(home, ".local", "lib", "roost", name)
+	candidate := filepath.Join(home, ".local", "lib", appid.LibDirName, name)
 	if fileExists(candidate) {
 		return candidate
 	}
@@ -89,7 +91,7 @@ func findHelperBinary(name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("rundir: home dir: %w", err)
 	}
-	return filepath.Join(home, ".local", "lib", "roost", name), nil
+	return filepath.Join(home, ".local", "lib", appid.LibDirName, name), nil
 }
 
 func fileExists(path string) bool {

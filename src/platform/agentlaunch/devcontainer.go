@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/takezoh/agent-roost/platform/config"
-	"github.com/takezoh/agent-roost/platform/credproxy"
-	"github.com/takezoh/agent-roost/platform/mcpproxy"
-	"github.com/takezoh/agent-roost/platform/pathmap"
-	"github.com/takezoh/agent-roost/platform/sandbox"
-	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-reactor/platform/credproxy"
+	"github.com/takezoh/agent-reactor/platform/mcpproxy"
+	"github.com/takezoh/agent-reactor/platform/pathmap"
+	"github.com/takezoh/agent-reactor/platform/sandbox"
+	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
 	"github.com/takezoh/credproxy/container"
 )
 
@@ -433,8 +433,8 @@ func buildOverlayEnv(scriptEnv map[string]string, proxySpec container.Spec) map[
 
 // buildPostCreate assembles the postCreate shell script for the devcontainer.
 // Each BridgeSpec from credproxy providers is started as a background process
-// via "roost-bridge sockbridge" in fixed-socket mode. postCreateSubcmds are run
-// via the installed roost-bridge binary (setup hooks etc.).
+// via "reactor-bridge sockbridge" in fixed-socket mode. postCreateSubcmds are run
+// via the installed reactor-bridge binary (setup hooks etc.).
 func buildPostCreate(binPath string, postCreateSubcmds []string, bridges []container.BridgeSpec) []string {
 	var parts []string
 	for _, bs := range bridges {

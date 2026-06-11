@@ -13,26 +13,27 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/config"
-	"github.com/takezoh/agent-roost/client/connector"
-	statedriver "github.com/takezoh/agent-roost/client/driver"
-	"github.com/takezoh/agent-roost/client/runtime"
-	"github.com/takezoh/agent-roost/client/runtime/worker"
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agentlaunch"
-	platformconfig "github.com/takezoh/agent-roost/platform/config"
-	"github.com/takezoh/agent-roost/platform/credproxy"
-	"github.com/takezoh/agent-roost/platform/features"
-	libnotify "github.com/takezoh/agent-roost/platform/lib/notify"
-	"github.com/takezoh/agent-roost/platform/lib/tmux"
-	"github.com/takezoh/agent-roost/platform/logger"
-	sandboxdc "github.com/takezoh/agent-roost/platform/sandbox/devcontainer"
-	"github.com/takezoh/agent-roost/platform/shellalias"
+	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-reactor/client/connector"
+	statedriver "github.com/takezoh/agent-reactor/client/driver"
+	"github.com/takezoh/agent-reactor/client/runtime"
+	"github.com/takezoh/agent-reactor/client/runtime/worker"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	"github.com/takezoh/agent-reactor/platform/appid"
+	platformconfig "github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-reactor/platform/credproxy"
+	"github.com/takezoh/agent-reactor/platform/features"
+	libnotify "github.com/takezoh/agent-reactor/platform/lib/notify"
+	"github.com/takezoh/agent-reactor/platform/lib/tmux"
+	"github.com/takezoh/agent-reactor/platform/logger"
+	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-reactor/platform/shellalias"
 )
 
 func runCoordinator() error {
 	if v := os.Getenv("TMUX"); v != "" {
-		return fmt.Errorf("refusing to start coordinator inside an existing tmux session ($TMUX is set); run `roost` outside tmux or detach first")
+		return fmt.Errorf("refusing to start coordinator inside an existing tmux session ($TMUX is set); run `%s` outside tmux or detach first", appid.ClientBin)
 	}
 	cfg, err := loadConfig()
 	if err != nil {
@@ -52,10 +53,10 @@ func runCoordinator() error {
 
 	// Take the single-daemon lock before touching tmux or the sessions
 	// directory. Two coordinators against the same data dir each run their
-	// own event loop and persistence pass, fighting over ~/.roost/sessions
+	// own event loop and persistence pass, fighting over ~/.agent-reactor/sessions
 	// (one rewrites session files the other has just deleted), which makes
 	// terminated sessions resurrect on every cold start.
-	lock, err := acquireDaemonLock(filepath.Join(dataDir, "roost.pid"))
+	lock, err := acquireDaemonLock(filepath.Join(dataDir, appid.PidFileName))
 	if err != nil {
 		return err
 	}
@@ -110,12 +111,12 @@ func registerDefaultDrivers(cfg *config.Config, dataDir string, idleThreshold ti
 }
 
 // buildRuntime constructs and configures the Runtime. Returns the Runtime,
-// the socket path it will listen on, the resolved roost binary path, and any error.
+// the socket path it will listen on, the resolved client binary path, and any error.
 func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, client *tmux.Client, dataDir string) (*runtime.Runtime, string, string, error) {
 	tmuxBackend := runtime.NewRealTmuxBackend(client)
 	pollInterval := time.Duration(cfg.Monitor.PollIntervalMs) * time.Millisecond
 	fastPollInterval := time.Duration(cfg.Monitor.FastPollIntervalMs) * time.Millisecond
-	sockPath := filepath.Join(dataDir, "roost.sock")
+	sockPath := filepath.Join(dataDir, appid.SocketFileName)
 
 	pool := worker.NewPool(ctx, 4)
 	ln, err := libnotify.New(ctx, runtime.FindHelperFile("notify.ps1"))
@@ -414,7 +415,7 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 }
 
 // shellDisplayName picks the display name (basename) for the shell driver from
-// the user's passwd login-shell path — the same shell roost launches for
+// the user's passwd login-shell path — the same shell the client launches for
 // `shell` sessions. It does not consult tmux's default-shell option or $SHELL.
 func shellDisplayName(shell string) string {
 	if name := filepath.Base(shell); name != "" && name != "." && name != "/" {

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/driver"
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/driver"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 func TestWrapCommandWithStdinProducesBashC(t *testing.T) {
@@ -30,7 +30,7 @@ func TestWrapCommandWithStdinProducesBashC(t *testing.T) {
 // is never persisted.
 func TestSnapshotSessionsStripsInitialInput(t *testing.T) {
 	r := New(Config{
-		SessionName:  "roost-test",
+		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
 		Tmux:         newFakeTmux(),
 		Persist:      noopPersist{},

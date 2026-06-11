@@ -1,5 +1,5 @@
 param(
-    [string]$Title = "roost",
+    [string]$Title = "arc",
     [string]$Body = "Notification"
 )
 
@@ -21,5 +21,5 @@ $xml.LoadXml(@"
 "@)
 
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Roost").Show($toast)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Arc").Show($toast)
 Write-Output "sent"

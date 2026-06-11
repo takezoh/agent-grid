@@ -3,7 +3,7 @@ package driver
 import (
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
+	"github.com/takezoh/agent-reactor/client/state"
 )
 
 const claudeKeyForkParentID = "fork_parent_id"

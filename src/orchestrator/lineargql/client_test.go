@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/takezoh/agent-roost/orchestrator/lineargql"
+	"github.com/takezoh/agent-reactor/orchestrator/lineargql"
 )
 
 // captureServer starts an httptest server that captures the last request and

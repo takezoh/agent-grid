@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-roost/client/state"
-	"github.com/takezoh/agent-roost/platform/agentlaunch"
+	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
 )
 
 type fakeRuntime struct {
@@ -89,10 +89,10 @@ func TestResolveDialSock(t *testing.T) {
 	})
 
 	t.Run("container mode maps the listen path to its bind-mount host path", func(t *testing.T) {
-		got := resolveDialSock("/opt/roost/run/codex-x.sock", agentlaunch.WrappedLaunch{
-			Mounts: []agentlaunch.Mount{{Host: "/home/u/.roost/run/4342aed7adbf", Container: "/opt/roost/run"}},
+		got := resolveDialSock("/opt/agent-reactor/run/codex-x.sock", agentlaunch.WrappedLaunch{
+			Mounts: []agentlaunch.Mount{{Host: "/home/u/.agent-reactor/run/4342aed7adbf", Container: "/opt/agent-reactor/run"}},
 		})
-		if want := "/home/u/.roost/run/4342aed7adbf/codex-x.sock"; got != want {
+		if want := "/home/u/.agent-reactor/run/4342aed7adbf/codex-x.sock"; got != want {
 			t.Errorf("resolveDialSock() = %q, want %q", got, want)
 		}
 	})
@@ -100,7 +100,7 @@ func TestResolveDialSock(t *testing.T) {
 	t.Run("unmapped listen path falls back unchanged", func(t *testing.T) {
 		const listen = "/elsewhere/codex-x.sock"
 		got := resolveDialSock(listen, agentlaunch.WrappedLaunch{
-			Mounts: []agentlaunch.Mount{{Host: "/h/run", Container: "/opt/roost/run"}},
+			Mounts: []agentlaunch.Mount{{Host: "/h/run", Container: "/opt/agent-reactor/run"}},
 		})
 		if got != listen {
 			t.Errorf("resolveDialSock() = %q, want %q", got, listen)

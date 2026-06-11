@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-roost/client/proto"
+	"github.com/takezoh/agent-reactor/client/proto"
 )
 
 func TestRenderInfoContentEmitsOSC8ForProject(t *testing.T) {
