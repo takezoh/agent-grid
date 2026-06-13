@@ -82,9 +82,10 @@ func projectHash(projectPath string) string {
 }
 
 // MountConfigurationHash is the deterministic short hash stamped onto the
-// reactor-mount-hash container label. It covers every bind-mount the container
-// is created with — workspace mounts plus spec.Mounts (run-dir bind, proxy
-// sockets, devcontainer.json `mounts`) — so any drift between the spec and a
+// reactor-mount-hash container label of EVERY reactor container (both shared and
+// per-project). It covers every bind-mount the container is created with —
+// workspace mounts plus spec.Mounts (run-dir bind, proxy sockets, host_exec
+// overlays, devcontainer.json `mounts`) — so any drift between the spec and a
 // live container forces an auto-recreate in ensureContainer.
 //
 // Earlier this only hashed ExtraWorkspaces, which missed run-dir source path
@@ -382,10 +383,14 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 	args := []string{
 		"--name", s.ContainerName(),
 		"--label", "reactor-managed=1",
+		// reactor-mount-hash is stamped for BOTH isolation kinds so ensureContainer
+		// can detect mount drift and auto-recreate. Project containers historically
+		// omitted it, which silently stranded project-scope sandbox changes (e.g. a
+		// newly added host_exec overlay mount) on a reused pre-change container.
+		"--label", "reactor-mount-hash=" + s.MountConfigurationHash(),
 	}
 	if s.Isolation == IsolationShared {
 		args = append(args, "--label", "reactor-isolation=shared")
-		args = append(args, "--label", "reactor-mount-hash="+s.MountConfigurationHash())
 	} else {
 		args = append(args, "--label", "reactor-project="+s.ProjectPath)
 	}

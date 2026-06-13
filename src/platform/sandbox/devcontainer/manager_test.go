@@ -956,7 +956,9 @@ func TestEnsureInstance_ReuseExisting_ProjectMode(t *testing.T) {
 	startCalled := false
 	withMockDockerStack(t, dockerStackMocks{
 		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
-			return &ContainerInfo{ID: "existing", State: "exited"}, nil
+			// MountHash "none" matches a nil-overlay spec (no mounts) so the
+			// mount-drift check passes and the container is reused.
+			return &ContainerInfo{ID: "existing", State: "exited", MountHash: "none"}, nil
 		},
 		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
 			return map[string]string{}, nil
@@ -1058,7 +1060,9 @@ func TestEnsureInstance_WarmStartReusesExistingContainer(t *testing.T) {
 	var removeCalled, createCalled bool
 	withMockDockerStack(t, dockerStackMocks{
 		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
-			return &ContainerInfo{ID: "warm-ctr", State: "running"}, nil
+			// MountHash "none" matches a nil-overlay spec, so warm reuse is not
+			// blocked by the mount-drift check.
+			return &ContainerInfo{ID: "warm-ctr", State: "running", MountHash: "none"}, nil
 		},
 		imageEnv: func(_ context.Context, _ string) (map[string]string, error) {
 			return map[string]string{}, nil
@@ -1079,6 +1083,86 @@ func TestEnsureInstance_WarmStartReusesExistingContainer(t *testing.T) {
 	}
 	if createCalled {
 		t.Errorf("warm start must not create a fresh container; existing was usable")
+	}
+}
+
+// Reproduces "arc 起動中に shared→project へ変更し project config を設置したが
+// host_exec がマージされない": a project container created before the host_exec
+// overlay was configured carries a stale mount-hash, so its mounts drift from the
+// freshly-resolved spec. ensureContainer must discard it and recreate so the new
+// host_exec overlay mount actually lands in the container.
+func TestEnsureInstance_ProjectMode_MountDriftRecreates(t *testing.T) {
+	project := setupTestSpec(t)
+	overlay := func(sandbox.IsolationPlan, string, string) (SpecOverlay, error) {
+		// Simulates the credproxy/hostexec overlay adding a bind mount once
+		// project-scope host_exec is resolved.
+		return SpecOverlay{Mounts: []string{
+			"type=bind,source=/host/run/hostexec/op,target=/opt/agent-reactor/run/hostexec-shims/op,readonly",
+		}}, nil
+	}
+	var removed, created bool
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			// Leftover project container from before host_exec existed: its
+			// mount-hash predates the overlay mount (here "" — a pre-label container).
+			return &ContainerInfo{ID: "stale-proj", State: "running", MountHash: ""}, nil
+		},
+		imageEnv:   func(_ context.Context, _ string) (map[string]string, error) { return map[string]string{}, nil },
+		remove:     func(_ context.Context, id string) error { removed = true; return nil },
+		create:     func(_ context.Context, _ []string) (string, error) { created = true; return "fresh-proj", nil },
+		start:      func(_ context.Context, _ string) error { return nil },
+		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+	})
+	m := New(overlay)
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if !removed {
+		t.Errorf("stale project container with drifted mount-hash must be removed")
+	}
+	if !created {
+		t.Errorf("a fresh project container must be created so the new overlay mount applies")
+	}
+}
+
+// Counterpart to the drift test: when the existing project container's mount-hash
+// already matches the resolved spec, it must be reused (no spurious recreate).
+func TestEnsureInstance_ProjectMode_MountMatchReuses(t *testing.T) {
+	project := setupTestSpec(t)
+	theMount := "type=bind,source=/host/run/hostexec/op,target=/opt/agent-reactor/run/hostexec-shims/op,readonly"
+	overlay := func(sandbox.IsolationPlan, string, string) (SpecOverlay, error) {
+		return SpecOverlay{Mounts: []string{theMount}}, nil
+	}
+	// Compute the hash ensureContainer will expect for this project + overlay.
+	base, err := LoadSpec(project, filepath.Join(project, ".devcontainer"))
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	base.Apply(SpecOverlay{Mounts: []string{theMount}})
+	expected := base.MountConfigurationHash()
+
+	var createCalled, startCalled bool
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _ string) (*ContainerInfo, error) {
+			return &ContainerInfo{ID: "warm-proj", State: "exited", MountHash: expected}, nil
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) { return map[string]string{}, nil },
+		create:   func(_ context.Context, _ []string) (string, error) { createCalled = true; return "", nil },
+		start:    func(_ context.Context, _ string) error { startCalled = true; return nil },
+		remove: func(_ context.Context, _ string) error {
+			t.Errorf("must not remove a project container whose mount-hash matches")
+			return nil
+		},
+	})
+	m := New(overlay)
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if createCalled {
+		t.Errorf("must not recreate a project container whose mount-hash matches")
+	}
+	if !startCalled {
+		t.Errorf("matching project container must be reused (started)")
 	}
 }
 
@@ -1658,17 +1742,37 @@ func TestBuildCreateArgs_shared_includes_mount_hash_label(t *testing.T) {
 	t.Errorf("args missing %q: %v", want, args)
 }
 
-func TestBuildCreateArgs_project_omits_mount_hash_label(t *testing.T) {
+func TestBuildCreateArgs_project_includes_mount_hash_label(t *testing.T) {
+	// Project containers carry reactor-mount-hash too so ensureContainer can detect
+	// mount drift and auto-recreate (e.g. a host_exec overlay mount added via
+	// project config). Regression guard for "project config host_exec not reflected
+	// on a reused container".
 	spec := &DevcontainerSpec{
 		ProjectPath:  "/workspace/myapp",
 		Isolation:    IsolationProject,
 		ContainerEnv: map[string]string{},
+		Mounts:       []string{"type=bind,source=/host/run,target=/opt/agent-reactor/run"},
 	}
 	args := spec.BuildCreateArgs("img:latest")
+	want := "reactor-mount-hash=" + spec.MountConfigurationHash()
+	found := false
 	for _, a := range args {
-		if strings.HasPrefix(a, "reactor-mount-hash=") {
-			t.Errorf("project mode must not emit reactor-mount-hash label: %v", args)
+		if a == want {
+			found = true
 		}
+	}
+	if !found {
+		t.Errorf("project mode must emit %q: %v", want, args)
+	}
+	// reactor-project must still be present (label coexists, not a replacement).
+	foundProject := false
+	for _, a := range args {
+		if a == "reactor-project=/workspace/myapp" {
+			foundProject = true
+		}
+	}
+	if !foundProject {
+		t.Errorf("project mode must still emit reactor-project label: %v", args)
 	}
 }
 

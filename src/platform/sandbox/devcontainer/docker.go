@@ -15,7 +15,7 @@ import (
 type ContainerInfo struct {
 	ID        string
 	State     string // "running", "exited", "created", etc.
-	MountHash string // reactor-mount-hash label; empty for project-mode containers
+	MountHash string // reactor-mount-hash label; "" for containers created before the label existed
 }
 
 const psFormat = "{{.ID}}\t{{.State}}\t{{.Label \"reactor-mount-hash\"}}"

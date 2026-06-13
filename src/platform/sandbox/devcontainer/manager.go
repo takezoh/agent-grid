@@ -243,16 +243,22 @@ func discardContainerIfStale(ctx context.Context, ctr *ContainerInfo, instanceKe
 		}
 		return nil, nil
 	}
-	if ctr != nil && opts.Isolation.IsShared() {
+	// Mount drift recreate applies to BOTH isolation kinds. A project container
+	// created before a project-scope sandbox change (e.g. a host_exec overlay
+	// mount added when switching shared→project) carries a stale mount-hash label,
+	// so reusing it would silently drop the new mounts. A pre-label container
+	// reports MountHash "" which mismatches any real hash and recreates once.
+	if ctr != nil {
 		expected := spec.MountConfigurationHash()
 		if ctr.MountHash != expected {
-			slog.Info("devcontainer: mount mismatch, recreating shared container",
-				"id", shortID(ctr.ID), "old", ctr.MountHash, "new", expected)
+			slog.Info("devcontainer: mount mismatch, recreating container",
+				"id", shortID(ctr.ID), "old", ctr.MountHash, "new", expected,
+				"key", instanceKey, "shared", opts.Isolation.IsShared())
 			rmCtx, rmCancel := context.WithTimeout(ctx, 30*time.Second)
 			rmErr := removeContainerFn(rmCtx, ctr.ID)
 			rmCancel()
 			if rmErr != nil {
-				return nil, fmt.Errorf("devcontainer: remove stale shared container: %w", rmErr)
+				return nil, fmt.Errorf("devcontainer: remove stale container: %w", rmErr)
 			}
 			return nil, nil
 		}
