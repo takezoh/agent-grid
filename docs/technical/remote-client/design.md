@@ -1,9 +1,11 @@
 # Remote client-server architecture (tmux 全廃 + pty multiplexer + Web client)
 
-> Status: **Design / RFC**. Locks the decisions taken in the planning thread and
+> Status: **In progress**. Locks the decisions taken in the planning thread and
 > defines the target architecture for splitting `arc` into a standalone server
-> and a remote (Web-first) client. Tracks a runnable PoC under
-> [`playground/webterm/`](../../../playground/webterm/).
+> and a remote (Web-first) client. The tmux-free web client⇄server is implemented
+> under `src/` (`platform/termvt`, `server/*`, `client/web`, `cmd/server`); see
+> §9 for status. Legacy tmux `arc` removal and pure-core reuse are the remaining
+> work.
 
 ## 1. Goal
 
@@ -174,15 +176,25 @@ WebSocket and the server’s IPC.
 - **Process supervision** — re-implement tmux’s `remain-on-exit`/liveness as pty
   EOF/exit → events (maps onto existing `EvPaneDied` semantics).
 
-## 9. PoC
+## 9. Implementation status
 
-[`playground/webterm/`](../../../playground/webterm/) is an isolated nested module
-(keeps the production `go.mod`/lint clean) proving the Phase-2 core headlessly:
+The tmux-free web client⇄server now lives in `src/` (the original
+`playground/webterm/` PoC has been ported and removed):
 
-- pty (`creack/pty`) → server-side VT (`charmbracelet/x/vt`) tee,
-- asciicast v2 output frames + structured control events over WebSocket,
-- **server-side OSC 9 / OSC 133 / title capture → control events**,
-- reattach snapshot via `Render()`, input + resize, multi-client fan-out,
-- `xterm.js` web client; Go tests cover the session core and the http→ws→pty path.
+- `platform/termvt/` — pty (`creack/pty`) → server-side VT (`charmbracelet/x/vt`)
+  tee + multi-session Manager; emits typed events (OSC 9/133/title captured as
+  Control), reattach snapshot via `Render()`, resize, multi-subscriber fan-out.
+- `server/web/` — WebSocket↔termvt attach (asciicast v2 output + control frames),
+  bearer-token auth, REST `/api/sessions`, static-client mux.
+- `server/session/` — session lifecycle over `termvt.Manager`; launch wrapping via
+  `agentlaunch.Dispatcher` (Direct now; `SandboxDispatcher`/devcontainer drop-in).
+- `client/web/` — embedded `xterm.js` single-page client.
+- `cmd/server/` — composition + TLS (self-signed default) + token + graceful stop.
 
-See [`playground/webterm/README.md`](../../../playground/webterm/README.md).
+Run: `make build-server && ./server -insecure -token <tok> -addr :8443`, then open
+`/?token=<tok>`. Go tests cover termvt, the session service, the REST mux + auth,
+and the http→ws→pty attach path; `go test -race` green.
+
+**Remaining (large, incremental):** reuse the pure core (`state.Reduce`/`Driver`)
+for status detection / view / persistence per §“C”, and remove the legacy tmux
+`arc` (`cmd/arc`, `client/runtime` tmux, `client/tui`) so `grep -ri tmux src/` is 0.
