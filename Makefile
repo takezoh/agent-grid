@@ -2,6 +2,7 @@ BINARY           := arc
 BRIDGE           := reactor-bridge
 ORCHESTRATOR     := orchestrator
 CLAUDE_APP_SERVER := claude-app-server
+SERVER           := server
 NOTIFY_PS1  := notify.ps1
 SRC_DIR     := src
 INSTALL_DIR    := $(HOME)/.local/bin
@@ -10,7 +11,7 @@ LIBEXEC_DIR    := $(HOME)/.local/lib/agent-reactor
 CODEX_SCHEMA_DIR := $(SRC_DIR)/platform/agent/codexschema
 CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
-.PHONY: build build-orchestrator build-claude-app-server build-all \
+.PHONY: build build-orchestrator build-claude-app-server build-server build-all \
         build-experimental install clean test vet lint verify-bridge-deps \
         codex-schema-update codex-schema-check
 
@@ -25,7 +26,12 @@ build-orchestrator:
 build-claude-app-server:
 	cd $(SRC_DIR) && go build -o ../$(CLAUDE_APP_SERVER) ./cmd/claude-app-server
 
-build-all: build build-orchestrator build-claude-app-server
+# build-server builds the tmux-free web client⇄server (cmd/server). It manages
+# agent sessions over pty and serves the embedded web client over WebSocket.
+build-server:
+	cd $(SRC_DIR) && go build -o ../$(SERVER) ./cmd/server
+
+build-all: build build-orchestrator build-claude-app-server build-server
 
 build-experimental:
 	cd $(SRC_DIR) && go build -tags experimental -o ../$(BINARY) ./cmd/arc
