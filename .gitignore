@@ -3,6 +3,8 @@ reactor-bridge
 sockbridge
 /orchestrator
 /claude-app-server
+/server
+/web
 src/arc
 src/reactor-bridge
 src/orchestrator
