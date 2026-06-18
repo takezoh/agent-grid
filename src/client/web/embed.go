@@ -1,6 +1,8 @@
-// Package web holds the embedded browser client (xterm.js) served by the
-// server. It is a client implementation; the server serializes the wire format
-// and this package only ships the static assets that render it.
+// Package web is the web-client host for the tmux-free server: it embeds the
+// browser client (xterm.js UI) and provides Handler, which serves that UI under
+// a strict Content-Security-Policy and reverse-proxies the data plane (/api,
+// /ws) to the headless backend (cmd/server). The browser talks only to this
+// origin; the backend serves no HTML. Wired up by cmd/web.
 package web
 
 import "embed"

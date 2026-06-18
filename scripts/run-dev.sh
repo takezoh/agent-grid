@@ -38,4 +38,6 @@ agent-reactor dev up:
 Ctrl-C to stop both.
 EOF
 
-wait
+# Exit as soon as EITHER process dies (e.g. the backend fails to bind a port) so
+# the EXIT trap tears the other down, instead of hanging behind the banner.
+wait -n

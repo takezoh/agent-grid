@@ -32,7 +32,7 @@ func main() {
 	}
 }
 
-// run wires and serves the web server. It returns an error rather than calling
+// run wires and serves the backend. It returns an error rather than calling
 // log.Fatal so its deferred cleanup (signal-context stop) always runs; main
 // turns a non-nil error into the fatal exit.
 func run() error {

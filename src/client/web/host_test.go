@@ -1,11 +1,15 @@
 package web
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/coder/websocket"
 )
 
 func TestSecurityHeaders(t *testing.T) {
@@ -16,20 +20,50 @@ func TestSecurityHeaders(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
-	want := map[string]string{
+	wantHdr := map[string]string{
 		"Referrer-Policy":        "no-referrer",
 		"X-Content-Type-Options": "nosniff",
 		"X-Frame-Options":        "DENY",
 	}
-	for k, v := range want {
+	for k, v := range wantHdr {
 		if got := w.Header().Get(k); got != v {
 			t.Errorf("%s = %q, want %q", k, got, v)
 		}
 	}
-	csp := w.Header().Get("Content-Security-Policy")
-	if !strings.Contains(csp, "script-src 'self'") || strings.Contains(csp, "cdn.") {
-		t.Errorf("CSP must pin scripts to 'self' with no CDN: %q", csp)
+	// Pin each load-bearing CSP directive EXACTLY: a regression that loosens
+	// script-src/connect-src/default-src (adds a host or 'unsafe-inline'/
+	// 'unsafe-eval') must fail. A brittle substring check would let
+	// `script-src 'self' https://x` slip by.
+	dirs := cspDirectives(w.Header().Get("Content-Security-Policy"))
+	wantCSP := map[string]string{
+		"default-src":     "'none'",
+		"script-src":      "'self'",
+		"style-src":       "'self' 'unsafe-inline'",
+		"connect-src":     "'self'",
+		"base-uri":        "'none'",
+		"form-action":     "'none'",
+		"frame-ancestors": "'none'",
 	}
+	for name, val := range wantCSP {
+		if dirs[name] != val {
+			t.Errorf("CSP %s = %q, want %q (full: %q)",
+				name, dirs[name], val, w.Header().Get("Content-Security-Policy"))
+		}
+	}
+}
+
+// cspDirectives parses a CSP header into directive-name → space-joined sources.
+func cspDirectives(csp string) map[string]string {
+	out := map[string]string{}
+	for _, d := range strings.Split(csp, ";") {
+		d = strings.TrimSpace(d)
+		if d == "" {
+			continue
+		}
+		name, val, _ := strings.Cut(d, " ")
+		out[name] = strings.TrimSpace(val)
+	}
+	return out
 }
 
 // TestStaticServesShellHidesListing checks the embedded UI is served and the
@@ -89,6 +123,58 @@ func TestProxyForwardsAPI(t *testing.T) {
 	}
 	if gotOrigin != "" {
 		t.Errorf("backend Origin = %q, want stripped", gotOrigin)
+	}
+	// The host wraps every route (including the proxied API) in SecurityHeaders.
+	if resp.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("proxied /api response missing X-Content-Type-Options: nosniff")
+	}
+}
+
+// TestWSProxyHandshake drives a real WebSocket upgrade through the host proxy to
+// a backend ws endpoint and back — proving the core attach path survives the
+// proxy hop (the Origin-stripping + Rewrite must not break the upgrade).
+func TestWSProxyHandshake(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil) // Origin stripped by the proxy → allowed
+		if err != nil {
+			return
+		}
+		defer func() { _ = c.CloseNow() }()
+		_, data, err := c.Read(r.Context())
+		if err != nil {
+			return
+		}
+		_ = c.Write(r.Context(), websocket.MessageText, data) // echo
+	}))
+	defer backend.Close()
+
+	h, err := Handler(backend.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?session=x"
+	c, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Origin": {srv.URL}}, // same-origin → passes the host gate
+	})
+	if err != nil {
+		t.Fatalf("ws dial through proxy: %v", err)
+	}
+	defer func() { _ = c.CloseNow() }()
+
+	if err := c.Write(ctx, websocket.MessageText, []byte("ping-proxy")); err != nil {
+		t.Fatal(err)
+	}
+	_, got, err := c.Read(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "ping-proxy" {
+		t.Fatalf("echo through proxy = %q, want ping-proxy", got)
 	}
 }
 

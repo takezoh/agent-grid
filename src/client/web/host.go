@@ -19,23 +19,29 @@ func Handler(backendURL string) (http.Handler, error) {
 	if err != nil || target.Host == "" {
 		return nil, fmt.Errorf("web: invalid backend URL %q: %w", backendURL, err)
 	}
+	if p := target.Path; p != "" && p != "/" {
+		// SetURL would prefix this path onto every proxied request, 404-ing the
+		// whole API silently; reject it at startup instead.
+		return nil, fmt.Errorf("web: backend URL must not include a path: %q", backendURL)
+	}
 	proxy := backendProxy(target)
 
 	mux := http.NewServeMux()
-	// Static UI shell (HTML/JS/vendored xterm), served with the page CSP.
-	mux.Handle("/", SecurityHeaders(staticHandler(Assets)))
-	// REST API: forwarded as-is; the backend authenticates the bearer token.
-	mux.Handle("/api/", proxy)
-	// WebSocket attach: enforce same-origin here (the browser-facing CSWSH
-	// guard) before proxying — the backend sees a header-less, trusted hop.
+	mux.Handle("/", staticHandler(Assets)) // static UI shell
+	mux.Handle("/api/", proxy)             // REST: the backend authenticates the bearer token
 	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+		// This host is the browser-facing CSWSH gate: enforce same-origin before
+		// proxying. The backend then sees a header-less, trusted hop (backendProxy
+		// strips Origin), so this check is the effective anti-CSWSH defense.
 		if !sameOrigin(r) {
 			http.Error(w, "forbidden origin", http.StatusForbidden)
 			return
 		}
 		proxy.ServeHTTP(w, r)
 	})
-	return mux, nil
+	// Defensive headers on every response: the page needs the CSP, and the
+	// proxied /api responses still want X-Content-Type-Options / Referrer-Policy.
+	return SecurityHeaders(mux), nil
 }
 
 // backendProxy reverse-proxies to target. It routes to the backend host and
@@ -53,7 +59,8 @@ func backendProxy(target *url.URL) *httputil.ReverseProxy {
 
 // sameOrigin reports whether r may open a WebSocket: a browser request must
 // carry an Origin whose host equals this host; a non-browser client (no Origin)
-// is allowed. Mirrors the backend's coder/websocket origin check.
+// is allowed (it still faces the backend's ticket gate). Same rule the backend's
+// coder/websocket check uses, applied here because this host fronts the browser.
 func sameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
@@ -64,7 +71,9 @@ func sameOrigin(r *http.Request) bool {
 }
 
 // staticHandler serves the embedded UI assets but suppresses directory autoindex
-// listings (e.g. /vendor/): only files are served, directory paths 404.
+// listings (e.g. /vendor/): a bare http.FileServer would list the embedded
+// directory, which is needless attack surface, so directory paths 404 and only
+// files are served. The trailing-slash branch is the deliberate guard, not boilerplate.
 func staticHandler(assets fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(assets))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
