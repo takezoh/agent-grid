@@ -11,7 +11,7 @@ The tmux-free system is split into two processes:
   reverse-proxies `/api` and `/ws` to the backend, so the browser talks only to
   this one origin. Future native clients connect to the backend directly instead.
 
-Architecture: [remote-client design](../technical/remote-client/design.md).
+Architecture: [remote-client design](../../plans/remote-client-design.md).
 
 ## Build & run
 

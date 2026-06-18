@@ -1,11 +1,10 @@
 # Remote client-server architecture (tmux 全廃 + pty multiplexer + Web client)
 
-> Status: **In progress**. Locks the decisions taken in the planning thread and
-> defines the target architecture for splitting `arc` into a standalone server
-> and a remote (Web-first) client. The tmux-free web client⇄server is implemented
-> under `src/` (`platform/termvt`, `server/*`, `client/web`, `cmd/server`); see
-> §9 for status. Legacy tmux `arc` removal and pure-core reuse are the remaining
-> work.
+> **Provisional / target design** for splitting `arc` into a standalone server and
+> a remote (Web-first) client, plus the locked decisions and library choices behind
+> it. This is design rationale, not as-built reference; the execution plan, current
+> status, and remaining work live in
+> [arc-server-client-split.md](arc-server-client-split.md).
 
 ## 1. Goal
 
@@ -146,23 +145,7 @@ The Web gateway follows the **Zellij web-client pattern**: a thin layer that
 reuses the client protocol as a translation bridge between the browser’s
 WebSocket and the server’s IPC.
 
-## 7. Phased plan
-
-0. **Transport abstraction** — `Authenticator` seam + `StartIPCNet` (TCP+TLS+token);
-   `proto` TLS dialer. Yields remote *control + observability* (no interactivity).
-1. **Observation completeness** — replace TUI’s direct local-file reads
-   (`arc.log`, transcripts) with `FileRelay`-over-wire so a remote client needs no
-   disk access.
-2. **Full pty interactivity (the core)** — `PtyBackend` (creack/pty + x/vt),
-   pane-stream subsystem, asciicast frames + input/resize control, **Web gateway +
-   xterm.js client**, server-side OSC tee. Replace `swap-pane` rendering.
-3. **tmux removal** — delete the tmux backend; local == remote (transport only
-   differs); client-side layout composition replaces the tmux 3-pane control screen.
-4. **(optional) orchestrator control API / unified client** — add control
-   endpoints (pause/resume/cancel/requeue) + TLS/token; optionally let `arc`’s
-   client speak to the orchestrator too.
-
-## 8. Risks
+## 7. Risks
 
 - **VT fidelity** — `x/vt` must hold up vs tmux’s mature handling (copy-mode,
   truecolor, terminfo edge cases). Mitigate: raw passthrough in v1 (the client’s
@@ -175,42 +158,3 @@ WebSocket and the server’s IPC.
   needs bounded buffering with disconnect-on-overflow, not frame-dropping.
 - **Process supervision** — re-implement tmux’s `remain-on-exit`/liveness as pty
   EOF/exit → events (maps onto existing `EvPaneDied` semantics).
-
-## 9. Implementation status
-
-The tmux-free web client⇄server now lives in `src/` (the original
-`playground/webterm/` PoC has been ported and removed):
-
-- `platform/termvt/` — pty (`creack/pty`) → server-side VT (`charmbracelet/x/vt`)
-  tee + multi-session Manager; emits typed events (OSC 9/133/title captured as
-  Control), reattach snapshot via `Render()`, resize, multi-subscriber fan-out.
-- `server/web/` — the **headless backend** API: WebSocket↔termvt attach (asciicast
-  v2 output + control frames) + REST `/api/sessions`. Auth: bearer token via
-  `Authorization` header (never a query param); WebSocket connections use a
-  short-lived single-use ticket minted over that API plus the default same-origin
-  check (anti-CSWSH). It serves no HTML — any client connects here.
-- `server/session/` — session lifecycle over `termvt.Manager`; launch wrapping via
-  `agentlaunch.Dispatcher` (Direct now; `SandboxDispatcher`/devcontainer drop-in).
-  Sessions are host-owned: they survive client disconnect and are shared across
-  attaching clients (multi-subscriber fan-out).
-- `client/web/` — the **web-client host**: the embedded `xterm.js` UI plus
-  `Handler` (serves the UI under a strict CSP — `script-src 'self'`, vendored
-  xterm.js — and reverse-proxies `/api`/`/ws` to the backend, enforcing the
-  browser-facing origin check). The browser is same-origin with this host.
-- `platform/lib/tlsdev/` — shared dev TLS serving (self-signed default / supplied
-  cert / `-insecure`) used by both binaries.
-- `cmd/server/` — backend composition + TLS + token + graceful stop.
-- `cmd/web/` — web-client host composition + TLS + graceful stop.
-
-Run: `make run-dev` (builds + launches backend `./server` and web host `./web`
-on localhost, prints `http://127.0.0.1:8080/#token=<tok>`); or run them
-separately (`./server -insecure …` + `./web -server http://… -insecure …`).
-Future native clients connect to the backend directly. Go tests cover termvt
-(fan-out isolation), the session service, the backend REST mux + header auth +
-ticket store + http→ws→pty attach (ticket gating + cross-origin rejection), the
-web host's static serving / CSP / proxy / origin check, and `tlsdev`;
-`go test -race` green.
-
-**Remaining (large, incremental):** reuse the pure core (`state.Reduce`/`Driver`)
-for status detection / view / persistence per §“C”, and remove the legacy tmux
-`arc` (`cmd/arc`, `client/runtime` tmux, `client/tui`) so `grep -ri tmux src/` is 0.
