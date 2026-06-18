@@ -18,24 +18,24 @@ import (
 // client-side in the tmux-removal phase.
 //
 // Targets are synthetic pane ids ("%1", "%2", …) that PtyBackend allocates and
-// maps to live termvt sessions. The unchanged runtime/reducer/driver address
-// panes by these ids exactly as they addressed tmux pane ids.
+// uses as the termvt.Manager session id, so the live session is always resolved
+// via mgr.Get(target) — the Manager is the single owner of the id→Session map.
+// The unchanged runtime/reducer/driver address panes by these ids exactly as
+// they addressed tmux pane ids.
 type PtyBackend struct {
 	mgr *termvt.Manager
 
 	mu      sync.Mutex
-	panes   map[string]*termvt.Session // target (paneID) → session
-	buffers map[string]string          // named tmux-style paste buffers
-	env     map[string]string          // session-level env (tmux session env stand-in)
-	paneSeq int                        // last allocated pane number
-	winSeq  int                        // last allocated window index
+	buffers map[string]string // named tmux-style paste buffers
+	env     map[string]string // session-level env (tmux session env stand-in)
+	paneSeq int               // last allocated pane number
+	winSeq  int               // last allocated window index
 }
 
 // NewPtyBackend returns a PtyBackend with its own termvt.Manager.
 func NewPtyBackend() *PtyBackend {
 	return &PtyBackend{
 		mgr:     termvt.NewManager(),
-		panes:   map[string]*termvt.Session{},
 		buffers: map[string]string{},
 		env:     map[string]string{},
 	}
@@ -55,37 +55,30 @@ func (p *PtyBackend) SpawnWindow(name, command, startDir string, env map[string]
 		return "", "", fmt.Errorf("runtime: empty command for window %q", name)
 	}
 
+	// Hold mu across counter bump and Create so the synthetic ids stay unique and
+	// no concurrent SpawnWindow can interleave between the bump and the Create.
+	// mgr has its own mutex, so calling it under mu does not deadlock.
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.paneSeq++
 	p.winSeq++
-	paneID := "%" + strconv.Itoa(p.paneSeq)
-	winIdx := strconv.Itoa(p.winSeq)
-	p.mu.Unlock()
+	paneID := newPaneID(p.paneSeq)
+	winIdx := newWindowIndex(p.winSeq)
 
-	sess, err := p.mgr.Create(paneID, termvt.Spec{Argv: argv, Env: envSlice(env)})
-	if err != nil {
+	if _, err := p.mgr.Create(paneID, termvt.Spec{Argv: argv, Env: envSlice(env)}); err != nil {
 		return "", "", err
 	}
-
-	p.mu.Lock()
-	p.panes[paneID] = sess
-	p.mu.Unlock()
 	return winIdx, paneID, nil
 }
 
 // KillPaneWindow closes the session for target and forgets it.
 func (p *PtyBackend) KillPaneWindow(target string) error {
-	p.mu.Lock()
-	_, ok := p.panes[target]
-	delete(p.panes, target)
-	p.mu.Unlock()
-	if !ok {
-		return fmt.Errorf("runtime: unknown pane %q", target)
-	}
 	return p.mgr.Remove(target)
 }
 
-// RespawnPane closes the dead pane and re-creates a session under the same target.
+// RespawnPane tears the dead pane down and re-creates a session under the same
+// target. It does NOT carry over the session-env store or the original spawn
+// env — respawn launches a fresh process with the default environment.
 func (p *PtyBackend) RespawnPane(target, command string) error {
 	argv, err := agentlaunch.SplitArgs(command)
 	if err != nil {
@@ -94,28 +87,27 @@ func (p *PtyBackend) RespawnPane(target, command string) error {
 	if len(argv) == 0 {
 		return fmt.Errorf("runtime: empty respawn command for %q", target)
 	}
-	// Tear down the old session if present.
+
 	p.mu.Lock()
-	_, known := p.panes[target]
-	delete(p.panes, target)
-	p.mu.Unlock()
-	if known {
-		_ = p.mgr.Remove(target)
+	defer p.mu.Unlock()
+	// Tear down the old session if present. If teardown fails, abort: do not
+	// stack a new session on top of a pane we could not cleanly remove.
+	if _, known := p.mgr.Get(target); known {
+		if err := p.mgr.Remove(target); err != nil {
+			return fmt.Errorf("runtime: respawn %q: %w", target, err)
+		}
 	}
 
-	sess, err := p.mgr.Create(target, termvt.Spec{Argv: argv})
-	if err != nil {
+	if _, err := p.mgr.Create(target, termvt.Spec{Argv: argv}); err != nil {
 		return err
 	}
-	p.mu.Lock()
-	p.panes[target] = sess
-	p.mu.Unlock()
 	return nil
 }
 
-// PaneAlive reports whether the session is still running (not closed, not exited).
+// PaneAlive reports whether the session is still running (known to the Manager
+// and not yet reaped, i.e. ExitCode reports not-exited).
 func (p *PtyBackend) PaneAlive(target string) (bool, error) {
-	sess, ok := p.session(target)
+	sess, ok := p.mgr.Get(target)
 	if !ok {
 		return false, nil
 	}
@@ -125,9 +117,9 @@ func (p *PtyBackend) PaneAlive(target string) (bool, error) {
 
 // PaneExitStatus reports the exit code once the process has been reaped.
 func (p *PtyBackend) PaneExitStatus(target string) (bool, int, error) {
-	sess, ok := p.session(target)
+	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return false, -1, nil
+		return false, -1, fmt.Errorf("runtime: unknown pane %q", target)
 	}
 	code, exited := sess.ExitCode()
 	if !exited {
@@ -177,14 +169,16 @@ func (p *PtyBackend) PasteBuffer(name, target string) error {
 
 // PipePane is a no-op: output taps are served by termvt.Subscribe in a separate
 // task, not by re-piping pane output through a shell command.
-// TODO(B1): wire the output tap via Session.Subscribe in the pty_tap task.
+// TODO(B1): wire the output tap via Session.Subscribe in the pty_tap task, and
+// honor the empty-command contract (tmux pipe-pane with no command stops the
+// running tap) once the tap is live.
 func (p *PtyBackend) PipePane(target, command string) error { return nil }
 
 // === PaneInspect ===
 
 // PaneID echoes the synthetic pane id back when the pane is known.
 func (p *PtyBackend) PaneID(target string) (string, error) {
-	if _, ok := p.session(target); !ok {
+	if _, ok := p.mgr.Get(target); !ok {
 		return "", fmt.Errorf("runtime: unknown pane %q", target)
 	}
 	return target, nil
@@ -192,7 +186,7 @@ func (p *PtyBackend) PaneID(target string) (string, error) {
 
 // PaneSize returns the session's current terminal dimensions.
 func (p *PtyBackend) PaneSize(target string) (int, int, error) {
-	sess, ok := p.session(target)
+	sess, ok := p.mgr.Get(target)
 	if !ok {
 		return 0, 0, fmt.Errorf("runtime: unknown pane %q", target)
 	}
@@ -203,7 +197,7 @@ func (p *PtyBackend) PaneSize(target string) (int, int, error) {
 // CapturePane returns the trailing nLines of the pane's rendered screen with SGR
 // escapes stripped.
 func (p *PtyBackend) CapturePane(target string, nLines int) (string, error) {
-	sess, ok := p.session(target)
+	sess, ok := p.mgr.Get(target)
 	if !ok {
 		return "", fmt.Errorf("runtime: unknown pane %q", target)
 	}
@@ -256,7 +250,7 @@ func (p *PtyBackend) ShowEnvironment() (string, error) {
 
 // ResizeWindow resizes the session's pty/grid. The other layout ops are stubbed.
 func (p *PtyBackend) ResizeWindow(target string, width, height int) error {
-	sess, ok := p.session(target)
+	sess, ok := p.mgr.Get(target)
 	if !ok {
 		return fmt.Errorf("runtime: unknown pane %q", target)
 	}
@@ -285,21 +279,19 @@ func (p *PtyBackend) DisplayPopup(width, height, cmd string) error { return nil 
 
 // === helpers ===
 
-func (p *PtyBackend) session(target string) (*termvt.Session, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	sess, ok := p.panes[target]
-	return sess, ok
-}
-
 func (p *PtyBackend) write(target string, b []byte) error {
-	sess, ok := p.session(target)
+	sess, ok := p.mgr.Get(target)
 	if !ok {
 		return fmt.Errorf("runtime: unknown pane %q", target)
 	}
-	sess.WriteInput(b)
-	return nil
+	return sess.WriteInput(b)
 }
+
+// newPaneID formats a synthetic tmux-style pane id ("%1", "%2", …).
+func newPaneID(n int) string { return "%" + strconv.Itoa(n) }
+
+// newWindowIndex formats a synthetic tmux-style window index ("1", "2", …).
+func newWindowIndex(n int) string { return strconv.Itoa(n) }
 
 // envSlice converts a KEY→VALUE map into the KEY=VALUE slice termvt.Spec wants.
 // A nil/empty map yields nil so the session inherits os.Environ().

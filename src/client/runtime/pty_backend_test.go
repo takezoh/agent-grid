@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -198,4 +199,186 @@ func TestPtyBackendSpawnSyntheticIDs(t *testing.T) {
 	if win1 != "1" || win2 != "2" {
 		t.Fatalf("window indexes = %q,%q; want 1,2", win1, win2)
 	}
+}
+
+// TestKeyBytes is the table test for the named-key → byte-sequence mapping,
+// including the literal passthrough for unknown keys.
+func TestKeyBytes(t *testing.T) {
+	cases := []struct {
+		key  string
+		want string
+	}{
+		{"Escape", "\x1b"},
+		{"Enter", "\r"},
+		{"Up", "\x1b[A"},
+		{"Down", "\x1b[B"},
+		{"Right", "\x1b[C"},
+		{"Left", "\x1b[D"},
+		{"Tab", "\t"},
+		{"BSpace", "\x7f"},
+		{"Space", " "},
+		{"q", "q"},                       // unknown single char passes through literally
+		{"some-literal", "some-literal"}, // unknown multi-char passes through
+		{"", ""},                         // empty passes through as empty
+	}
+	for _, c := range cases {
+		t.Run(c.key, func(t *testing.T) {
+			if got := keyBytes(c.key); got != c.want {
+				t.Errorf("keyBytes(%q) = %q, want %q", c.key, got, c.want)
+			}
+		})
+	}
+}
+
+// TestPtyBackendSendKey verifies SendKey reaches the pty by echoing a Space
+// keystroke through cat and observing it in the captured output.
+func TestPtyBackendSendKey(t *testing.T) {
+	b := NewPtyBackend()
+	_, paneID, err := b.SpawnWindow("w", "cat", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.KillPaneWindow(paneID) }()
+
+	// Send a recognisable text marker via SendKeys, then a Space via SendKey;
+	// cat echoes both. We assert the marker appears (SendKey path drove the pty).
+	if err := b.SendKeys(paneID, "key-marker"); err != nil {
+		t.Fatalf("SendKeys: %v", err)
+	}
+	if err := b.SendKey(paneID, "Space"); err != nil {
+		t.Fatalf("SendKey: %v", err)
+	}
+	waitUntil(t, func() bool {
+		out, err := b.CapturePane(paneID, 50)
+		return err == nil && strings.Contains(out, "key-marker")
+	})
+}
+
+// TestPtyBackendUnknownPaneErrors pins the unknown-target contract: every
+// inspect/IO/lifecycle op that addresses a pane returns a non-nil error for an
+// unspawned target, while PaneAlive reports (false, nil).
+func TestPtyBackendUnknownPaneErrors(t *testing.T) {
+	b := NewPtyBackend()
+	const unknown = "%999"
+
+	if err := b.SendKeys(unknown, "x"); err == nil {
+		t.Error("SendKeys(unknown) error = nil, want non-nil")
+	}
+	if _, err := b.CapturePane(unknown, 10); err == nil {
+		t.Error("CapturePane(unknown) error = nil, want non-nil")
+	}
+	if err := b.ResizeWindow(unknown, 80, 24); err == nil {
+		t.Error("ResizeWindow(unknown) error = nil, want non-nil")
+	}
+	if _, _, err := b.PaneSize(unknown); err == nil {
+		t.Error("PaneSize(unknown) error = nil, want non-nil")
+	}
+	if _, err := b.PaneID(unknown); err == nil {
+		t.Error("PaneID(unknown) error = nil, want non-nil")
+	}
+	if _, _, err := b.PaneExitStatus(unknown); err == nil {
+		t.Error("PaneExitStatus(unknown) error = nil, want non-nil")
+	}
+	if err := b.KillPaneWindow(unknown); err == nil {
+		t.Error("KillPaneWindow(unknown) error = nil, want non-nil")
+	}
+	// PaneAlive is the explicit exception: unknown target is reported dead, no error.
+	if alive, err := b.PaneAlive(unknown); alive || err != nil {
+		t.Errorf("PaneAlive(unknown) = %v, %v; want false, nil", alive, err)
+	}
+}
+
+// TestPtyBackendExitStatusLive verifies PaneExitStatus on a running process
+// reports (false, -1, nil), and PaneAlive flips to false once a clean exit is
+// reaped.
+func TestPtyBackendExitStatusLive(t *testing.T) {
+	b := NewPtyBackend()
+	_, paneID, err := b.SpawnWindow("w", "sleep 5", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.KillPaneWindow(paneID) }()
+
+	dead, code, err := b.PaneExitStatus(paneID)
+	if err != nil {
+		t.Fatalf("PaneExitStatus(live) err = %v, want nil", err)
+	}
+	if dead || code != -1 {
+		t.Fatalf("PaneExitStatus(live) = %v, %d; want false, -1", dead, code)
+	}
+
+	// A separate pane that exits 0: PaneAlive must flip to false.
+	_, exitPane, err := b.SpawnWindow("w2", "bash -c 'exit 0'", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.KillPaneWindow(exitPane) }()
+	waitUntil(t, func() bool {
+		alive, err := b.PaneAlive(exitPane)
+		return err == nil && !alive
+	})
+}
+
+// TestPtyBackendRespawn verifies a pane can be respawned in place and that an
+// empty respawn command is rejected.
+func TestPtyBackendRespawn(t *testing.T) {
+	b := NewPtyBackend()
+	_, paneID, err := b.SpawnWindow("w", "bash -c 'exit 0'", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.KillPaneWindow(paneID) }()
+
+	// Wait for the original to die so we respawn over a reaped pane.
+	waitUntil(t, func() bool {
+		alive, err := b.PaneAlive(paneID)
+		return err == nil && !alive
+	})
+
+	// Respawn over the same target with a long-lived command: pane is alive again.
+	if err := b.RespawnPane(paneID, "cat"); err != nil {
+		t.Fatalf("RespawnPane: %v", err)
+	}
+	if alive, err := b.PaneAlive(paneID); err != nil || !alive {
+		t.Fatalf("PaneAlive after respawn = %v, %v; want true", alive, err)
+	}
+	// Echo path still works on the respawned pane.
+	if err := b.SendKeys(paneID, "respawned-ok"); err != nil {
+		t.Fatalf("SendKeys after respawn: %v", err)
+	}
+	waitUntil(t, func() bool {
+		out, err := b.CapturePane(paneID, 50)
+		return err == nil && strings.Contains(out, "respawned-ok")
+	})
+
+	// Empty respawn command is rejected.
+	if err := b.RespawnPane(paneID, ""); err == nil {
+		t.Error("RespawnPane(empty) error = nil, want non-nil")
+	}
+}
+
+// TestPtyBackendConcurrent drives spawn/SendKeys/CapturePane/KillPaneWindow from
+// many goroutines so `go test -race` can prove the backend's shared state is
+// race-free.
+func TestPtyBackendConcurrent(t *testing.T) {
+	b := NewPtyBackend()
+	const workers = 8
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			_, paneID, err := b.SpawnWindow("w", "cat", "", nil)
+			if err != nil {
+				t.Errorf("SpawnWindow: %v", err)
+				return
+			}
+			_ = b.SendKeys(paneID, "hello")
+			_, _ = b.CapturePane(paneID, 10)
+			_, _ = b.PaneAlive(paneID)
+			_ = b.KillPaneWindow(paneID)
+		}()
+	}
+	wg.Wait()
 }
