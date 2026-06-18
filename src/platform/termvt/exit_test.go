@@ -91,6 +91,18 @@ func TestStripSGRTail(t *testing.T) {
 			want: "green\nyellow",
 		},
 		{
+			name: "strips 256-colour SGR",
+			in:   "\x1b[38;5;1mred256\x1b[0m",
+			n:    1,
+			want: "red256",
+		},
+		{
+			name: "strips truecolor SGR",
+			in:   "\x1b[48;2;0;0;0mblackbg\x1b[0m",
+			n:    1,
+			want: "blackbg",
+		},
+		{
 			name: "non-positive n returns empty",
 			in:   "a\nb\nc",
 			n:    0,
