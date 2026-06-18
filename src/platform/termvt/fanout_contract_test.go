@@ -55,7 +55,9 @@ func TestFanoutDeliversToEverySubscriber(t *testing.T) {
 
 	_, a := s.Subscribe()
 	_, b := s.Subscribe()
-	s.WriteInput([]byte("MARK-XYZ\n"))
+	if err := s.WriteInput([]byte("MARK-XYZ\n")); err != nil {
+		t.Fatalf("WriteInput: %v", err)
+	}
 
 	waitFor(t, a, func(ev Event) bool { return outputContains(ev, "MARK-XYZ") })
 	waitFor(t, b, func(ev Event) bool { return outputContains(ev, "MARK-XYZ") })
@@ -79,8 +81,12 @@ func TestManagerSessionsDoNotCrossTalk(t *testing.T) {
 
 	_, ca := sa.Subscribe()
 	_, cb := sb.Subscribe()
-	sa.WriteInput([]byte("AAA-MARK\n"))
-	sb.WriteInput([]byte("BBB-MARK\n"))
+	if err := sa.WriteInput([]byte("AAA-MARK\n")); err != nil {
+		t.Fatalf("WriteInput A: %v", err)
+	}
+	if err := sb.WriteInput([]byte("BBB-MARK\n")); err != nil {
+		t.Fatalf("WriteInput B: %v", err)
+	}
 
 	// Each subscriber receives its own session's marker …
 	waitFor(t, ca, func(ev Event) bool { return outputContains(ev, "AAA-MARK") })

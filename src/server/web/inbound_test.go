@@ -15,7 +15,7 @@ type fakeAttacher struct {
 
 func (f *fakeAttacher) Subscribe() (int, <-chan termvt.Event) { return 0, nil }
 func (f *fakeAttacher) Unsubscribe(int)                       {}
-func (f *fakeAttacher) WriteInput(b []byte)                   { f.input = append(f.input, b...) }
+func (f *fakeAttacher) WriteInput(b []byte) error             { f.input = append(f.input, b...); return nil }
 func (f *fakeAttacher) Resize(cols, rows int) error {
 	f.resizes = append(f.resizes, [2]int{cols, rows})
 	return nil

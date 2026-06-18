@@ -55,7 +55,9 @@ func TestServiceCreateRunsCommand(t *testing.T) {
 		t.Fatal("no session")
 	}
 	_, ch := sess.Subscribe()
-	sess.WriteInput([]byte("echo-back\n"))
+	if err := sess.WriteInput([]byte("echo-back\n")); err != nil {
+		t.Fatalf("WriteInput: %v", err)
+	}
 
 	deadline := time.After(3 * time.Second)
 	for {

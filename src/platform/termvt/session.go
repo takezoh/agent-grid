@@ -3,6 +3,7 @@ package termvt
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -104,7 +105,12 @@ func (s *Session) readLoop() {
 			chunk := append([]byte(nil), buf[:n]...)
 			s.mu.Lock()
 			s.pending = s.pending[:0]
-			_, _ = s.em.Write(chunk) // fires OSC handlers → append to pending
+			// em.Write fires OSC handlers → append to pending. The emulator does
+			// not fail in practice, but a non-nil error means the parsed screen
+			// may be incomplete, so log rather than swallow it.
+			if _, werr := s.em.Write(chunk); werr != nil {
+				slog.Warn("termvt: emulator write error", "err", werr)
+			}
 			for _, c := range s.pending {
 				s.fanout(Event{Kind: EventControl, Ctl: c})
 			}
@@ -112,6 +118,12 @@ func (s *Session) readLoop() {
 			s.mu.Unlock()
 		}
 		if err != nil {
+			// io.EOF / os.ErrClosed are the normal end of a pty read (the child
+			// closed the slave or Close() shut the master). Anything else is a
+			// real I/O fault worth surfacing before we stop reading.
+			if !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+				slog.Warn("termvt: pty read error", "err", err)
+			}
 			break
 		}
 	}
@@ -168,9 +180,12 @@ func (s *Session) Unsubscribe(id int) {
 	}
 }
 
-// WriteInput forwards client keystrokes to the pty.
-func (s *Session) WriteInput(b []byte) {
-	_, _ = s.ptmx.Write(b)
+// WriteInput forwards client keystrokes to the pty. It returns the underlying
+// write error so callers that drive the pty programmatically (PtyBackend) can
+// fail loudly; interactive bridges may log and continue.
+func (s *Session) WriteInput(b []byte) error {
+	_, err := s.ptmx.Write(b)
+	return err
 }
 
 // Resize updates the pty window size and the emulator grid.
@@ -191,8 +206,8 @@ func (s *Session) Snapshot() []byte {
 }
 
 // CaptureTail returns the trailing n rendered lines of the session's screen
-// with SGR escapes stripped. It is the adapter CapturePane-style callers use to
-// read plain text out of the emulator grid.
+// with SGR escapes stripped. PtyBackend.CapturePane uses this to read plain
+// text out of the emulator grid.
 func CaptureTail(s *Session, n int) string {
 	return stripSGRTail(string(s.Snapshot()), n)
 }
@@ -216,7 +231,11 @@ func (s *Session) ExitCode() (code int, exited bool) {
 // closes subscriber channels.
 func (s *Session) Close() error {
 	if s.cmd.Process != nil {
-		_ = s.cmd.Process.Kill()
+		// The process may already have exited (readLoop reaped it); ErrProcessDone
+		// is expected and uninteresting. Surface anything else.
+		if err := s.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			slog.Warn("termvt: kill process", "err", err)
+		}
 	}
 	return s.ptmx.Close()
 }
@@ -281,8 +300,9 @@ func exitCodeFromWait(err error) int {
 
 // sgrPattern matches CSI ... m (SGR / Select Graphic Rendition) sequences. The
 // emulator's Render encodes colours and styles as these escapes; CapturePane
-// callers want the plain text. Other CSI sequences (cursor moves, etc.) are not
-// present in a rendered snapshot, so stripping SGR alone suffices.
+// callers want the plain text. This relies on vt.Emulator.Render emitting only
+// SGR escapes — other CSI sequences (cursor moves, etc.) are not present in a
+// rendered snapshot, so stripping SGR alone suffices.
 var sgrPattern = regexp.MustCompile("\x1b\\[[0-9;:]*m")
 
 // stripSGRTail returns the trailing n lines of s with SGR escape sequences

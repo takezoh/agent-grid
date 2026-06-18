@@ -45,7 +45,9 @@ func TestSessionEchoesInput(t *testing.T) {
 	defer func() { _ = s.Close() }()
 
 	_, ch := s.Subscribe()
-	s.WriteInput([]byte("ping-123\n"))
+	if err := s.WriteInput([]byte("ping-123\n")); err != nil {
+		t.Fatalf("WriteInput: %v", err)
+	}
 	waitFor(t, ch, func(ev Event) bool { return outputContains(ev, "ping-123") })
 }
 
@@ -160,6 +162,31 @@ func TestNormalizeSizeClamp(t *testing.T) {
 			t.Errorf("normalizeSize(%d,%d) = %dx%d, want %dx%d",
 				c.inC, c.inR, gotC, gotR, c.wantC, c.wantR)
 		}
+	}
+}
+
+// TestClampDim pins the per-dimension clamp helper directly, exercising the def
+// parameter (which normalizeSize hard-codes to 80/24) and the exact maxDim edge.
+func TestClampDim(t *testing.T) {
+	cases := []struct {
+		name string
+		d    int
+		def  int
+		want int
+	}{
+		{"zero floors to def", 0, 80, 80},
+		{"negative floors to def", -10, 24, 24},
+		{"in range passes through", 100, 80, 100},
+		{"exactly maxDim passes through", maxDim, 80, maxDim},
+		{"above maxDim caps", maxDim + 1, 80, maxDim},
+		{"far above maxDim caps", 100000, 24, maxDim},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := clampDim(c.d, c.def); got != c.want {
+				t.Errorf("clampDim(%d, %d) = %d, want %d", c.d, c.def, got, c.want)
+			}
+		})
 	}
 }
 

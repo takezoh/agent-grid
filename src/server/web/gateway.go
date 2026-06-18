@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/coder/websocket"
@@ -15,7 +16,7 @@ import (
 type Attacher interface {
 	Subscribe() (int, <-chan termvt.Event)
 	Unsubscribe(id int)
-	WriteInput(b []byte)
+	WriteInput(b []byte) error
 	Resize(cols, rows int) error
 }
 
@@ -76,7 +77,12 @@ func applyInbound(sess Attacher, data []byte) bool {
 	}
 	switch in.K {
 	case "i":
-		sess.WriteInput([]byte(in.D))
+		// Best-effort: a failed write (closed pty) is logged but does not change
+		// the inbound-frame disposition — the session teardown path handles the
+		// closed pty, and the WebSocket reader will see its own error next read.
+		if err := sess.WriteInput([]byte(in.D)); err != nil {
+			slog.Warn("web: write input to session", "err", err)
+		}
 		return true
 	case "r":
 		if in.Cols > 0 && in.Rows > 0 {
