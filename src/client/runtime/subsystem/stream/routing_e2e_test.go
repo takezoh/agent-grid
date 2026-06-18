@@ -79,7 +79,7 @@ func runE2EIsolation(t *testing.T, be e2eBackend) {
 	rt := &recordingRuntime{}
 	listen := filepath.Join(t.TempDir(), "appserver-e2e.sock")
 	b := New(rt, nil, "sid", "e2e", "/p", be.bin, be.args, "", false, true,
-		listen, func() state.FrameID { return "" }, 30*time.Second)
+		listen, 30*time.Second)
 
 	ctx := context.Background()
 	if err := b.Start(ctx); err != nil {

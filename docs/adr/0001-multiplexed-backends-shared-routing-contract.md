@@ -70,3 +70,17 @@ per-backend assertions.
   — see [ADR 0002](0002-optin-appserver-e2e-validates-fakes.md).
 - The enforcement is **test-pinned** (not statically lint-able); it is catalogued
   in [code-enforcement.md](../technical/code-enforcement.md).
+
+## Update — fix landed
+
+The demux fix is implemented: `bindThread` creates the cold-start thread
+synchronously via a `thread/start` request and binds the returned id (mirroring
+resume), so binding no longer depends on an async `thread.started` or the start
+cwd. `resolveFrameForStartedThread` and the `activeLookup` fallback are removed;
+`handleThreadStarted` only confirms an already-bound thread and drops unknown
+ones. The `REACTOR_ROUTING_PINS` gate is gone — the cases are now permanent
+regression guards (same-cwd frames get distinct ids and cannot cross-talk).
+Because the spawned pane now resumes the daemon-created thread (cold start uses
+`codex resume <id> --remote`), this change to the spawn/attach contract must be
+verified against a real app-server via the opt-in e2e
+([stream-backend-e2e.md](../technical/client/stream-backend-e2e.md)).

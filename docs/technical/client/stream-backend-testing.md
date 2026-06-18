@@ -2,7 +2,7 @@
 
 The stream subsystem backend multiplexes many frames (agents) over a single
 codex app-server connection. Its one safety-critical property is **routing
-isolation**: an event from a thread must reach only the frame that started that
+isolation**: an event from a thread must reach only the frame that owns that
 thread. A leak is *cross-talk* — one agent's output (including tool results)
 surfacing in another agent's session. This page documents the harness that pins
 that property. Rationale lives in
@@ -15,8 +15,19 @@ real-server backstop: [stream-backend-e2e.md](stream-backend-e2e.md).
 > Every `state.EvSubsystem` emitted from a thread T carries `FrameID == owner(T)`,
 > where `owner(T)` is the frame whose `BindFrame` started/resumed T.
 
-Corollary: thread→frame binding must derive from the **initiating request**,
-never from ambient state such as the active frame (a "fabricated fallback").
+Corollary: thread→frame binding derives from the **initiating request**, never
+from ambient state such as the active frame (a "fabricated fallback").
+
+## How the fix makes cross-talk impossible
+
+`bindThread` creates each thread **synchronously** — cold start issues a
+`thread/start` request and binds the returned id; resume binds the resumed id —
+so the frame→thread mapping is established before any event arrives. Two frames
+sharing a cwd therefore get **distinct thread ids**, and every server event
+routes by exact thread id (`frameForThread`). A `thread.started` for an unknown
+thread is dropped, never adopted by a cwd or active-frame heuristic. (Before the
+fix, cold threads were bound asynchronously by matching the start cwd, falling
+back to the active frame — the cross-talk bug; see ADR 0001.)
 
 ## Files
 
@@ -24,7 +35,7 @@ never from ambient state such as the active frame (a "fabricated fallback").
 |---|---|
 | `routing_contract_test.go` | `recordingRuntime`, `assertMarkerFrames`, the direct-drive `inProc` harness, and `TestStreamRoutingContract` (the case table). |
 | `routing_wired_test.go` | the `wired` harness driving the real `codexclient.Conn` against a fake app-server (reuses `bindServer` + `codexclient.Server`); async, run under `-race`. |
-| `routing_fuzz_test.go` | `FuzzStreamRouting` (stdlib `testing.F`) over random interleavings. |
+| `routing_fuzz_test.go` | `FuzzStreamRouting` (stdlib `testing.F`) over random message/release interleavings. |
 | `routing_e2e_test.go` | `//go:build e2e` real **app-server** fidelity backstop (any conforming server, not just codex); skips when no backend env is set. See [stream-backend-e2e.md](stream-backend-e2e.md). |
 
 `recordingRuntime` is the shared observation point: it records each emitted
@@ -33,39 +44,33 @@ so `framesWithMarker` answers "which frames received this thread's output".
 
 ## How a case is built
 
-The contract drives the backend the way `BindFrame` would, then feeds server
-events:
+The direct-drive contract binds frames the way `bindThread` leaves them (each to
+a distinct thread id), then feeds server events into the handlers:
 
 ```go
 h := newInProc(t)
-h.bindCold("A", "/work")     // unbound frame awaiting its thread
-h.bindCold("B", "/work")     // same cwd — the shared-container case
-h.setActive("B")             // B is foregrounded
-h.started("tA", "/work")     // ground truth: tA is A's thread
+h.bind("A", "tA", "/work") // distinct thread id, even with a shared cwd
+h.bind("B", "tB", "/work")
 h.message("tA", "MARK_A")
-h.wantMarkerFrames("MARK_A", "A")   // isolation: only A may receive it
+h.message("tB", "MARK_B")
+h.wantMarkerFrames("MARK_A", "A") // isolation: only A
+h.wantMarkerFrames("MARK_B", "B")
 ```
 
-The GREEN cases (distinct-cwd routing, reverse-order completion, resume + cold
-mix, release cleanup) run in CI as regression guards. The cross-talk pins
-(`crosstalk_ambiguous_cwd`, `crosstalk_zero_candidates_binds_active`, the wired
-sibling, and the fuzz isolation check) are **RED on the current demux** and gated
-behind `REACTOR_ROUTING_PINS` so CI stays green until the fix. When the demux is
-fixed to bind by initiating request, the pins flip GREEN and the gate is removed.
+The wired harness exercises the real path end-to-end: a cold `BindFrame` issues
+`thread/start`, binds the returned id, and `TestStreamRoutingWiredIsolation`
+asserts two same-cwd frames get distinct ids and never cross-talk — under
+`-race`.
 
 ## Running
 
 ```sh
-# GREEN regression guards + structural fuzz seeds (the ci job's test step;
+# regression guards + structural fuzz seeds (the ci job's test step;
 # a separate `fuzz` CI job also actively fuzzes — see .github/workflows/ci.yml)
 cd src && TMPDIR=/tmp go test ./client/runtime/subsystem/stream/
 
 # concurrency check
 cd src && go test -race ./client/runtime/subsystem/stream/
-
-# demonstrate the cross-talk pins (RED until the fix lands)
-cd src && REACTOR_ROUTING_PINS=1 go test ./client/runtime/subsystem/stream/ \
-  -run 'TestStreamRoutingContract/crosstalk|TestStreamRoutingWiredCrosstalk'
 
 # active fuzzing
 cd src && go test -run x -fuzz 'FuzzStreamRouting$' -fuzztime=30s \
@@ -78,15 +83,13 @@ REACTOR_E2E_CODEX_BIN=$(which codex) \
 
 ## Invariant ↔ pinning tests
 
-| Behaviour | Pinned by | Status on current demux |
-|---|---|---|
-| Distinct-cwd threads route per frame | `TestStreamRoutingContract/two_frames_distinct_cwd`, `interleaved_starts_distinct_cwd` | GREEN |
-| Completion routes by exact thread id | `.../completion_reverse_order` | GREEN |
-| Resume + cold-start coexist | `.../resume_then_coldstart_same_backend` | GREEN |
-| Released frame drops stray events | `.../release_drops_stray_events` | GREEN |
-| Wired path routes & is race-clean | `TestStreamRoutingWiredHappyPath` | GREEN |
-| Ambiguous-cwd start ≠ active-frame steal | `.../crosstalk_ambiguous_cwd`, `TestStreamRoutingWiredCrosstalk` | RED (gated) |
-| Foreign thread not adopted by active frame | `.../crosstalk_zero_candidates_binds_active` | RED (gated) |
-| Random interleavings preserve isolation | `FuzzStreamRouting` (isolation tier) | RED (gated) |
-| No duplication / garbage-frame / panic | `FuzzStreamRouting` (structural tier) | GREEN |
-| Fake matches real app-server wire behaviour | `TestStreamRoutingE2EIsolation` (opt-in, per backend) | n/a |
+| Behaviour | Pinned by |
+|---|---|
+| Same-cwd frames (distinct ids) never cross-talk | `TestStreamRoutingContract/two_frames_same_cwd_distinct_threads`, `TestStreamRoutingWiredIsolation` |
+| Completion routes by exact thread id | `.../completion_reverse_order` |
+| `thread.started` confirms an already-bound thread | `.../thread_started_confirms_bound` |
+| Unknown `thread.started` is dropped (no cwd/active adoption) | `.../thread_started_for_unknown_thread_drops`, `TestHandleThreadStartedUnknownThreadDrops` |
+| Released frame drops stray events | `.../release_drops_stray_events` |
+| Random interleavings preserve by-id isolation | `FuzzStreamRouting` |
+| No duplication / garbage-frame / panic | `FuzzStreamRouting` (structural checks) |
+| Fake matches real app-server wire behaviour | `TestStreamRoutingE2EIsolation` (opt-in, per backend) |
