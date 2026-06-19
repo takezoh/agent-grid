@@ -7,7 +7,9 @@
 > 残作業に落とした実行計画。設計判断 (B) は確定(= (i) PtyBackend、ADR 0004)。
 > **B1b 完了**(2026-06-19): coordinator は PtyBackend に置換、tmux ライフサイクル
 > 撤去、配線前提 6 件のうち #1/#2/#3 を解消(#4/#5/#6 は moot)。
-> 次は A → C。
+> **A0 完了**(2026-06-19): `PtyPaneTap` 新設 + `Config.Tap` 配線。driver run-state
+> 検出が PtyBackend 上で復活(Claude title prefix と Shell OSC 133)。
+> 次は A1(web 側で pure core を経由した view / persist / connector)→ C。
 
 ## 1. ゴール(remote-client-design.md より)
 
@@ -22,7 +24,7 @@
 |---|---|---|
 | 0. transport 抽象 | arc proto を TCP+TLS+token 化(`StartIPCNet` + `Authenticator`) | ❌ 未着手。IPC は unix socket + peercred のみ(`client/runtime/ipc.go`, `peercred_*.go`)。TLS/token は web 用の別スタックにのみ存在 |
 | 1. observation 完全化 | `FileRelay`-over-wire | ✅ 実装済み(`client/runtime/filerelay.go`, ipc.go, `cmd/arc/coordinator.go`) |
-| 2. pty 対話(核心) | TmuxBackend → **PtyBackend** 差し替え、pure core 無改造 | ✅ **配線完了**(B1b)。coordinator は `runtime.NewPtyBackend()` で起動し、tmux ライフサイクル(`tmux.NewClient`/`setupNewSession`/`ensureHiddenWindow`/`restoreSession`/`SessionExists`/`$TMUX` チェック)は撤去。`Config.Tap=nil` で `tap_manager` を no-op に倒す。`cmd/arc/tmux_layout.go` は削除済み(coordinator が呼ばなくなったため一部 phase C を前倒し)。残り tmux 本体撤去は phase C |
+| 2. pty 対話(核心) | TmuxBackend → **PtyBackend** 差し替え、pure core 無改造 | ✅ **配線完了**(B1b + A0)。coordinator は `runtime.NewPtyBackend()` で起動し、tmux ライフサイクル(`tmux.NewClient`/`setupNewSession`/`ensureHiddenWindow`/`restoreSession`/`SessionExists`/`$TMUX` チェック)は撤去。`Config.Tap` は `runtime.NewPtyPaneTap(ptyBackend)` で配線済み(A0、2026-06-19)— `termvt.Session.Subscribe` の EventOutput を raw passthrough し、`tap_manager` の `vt.Terminal` 経由で OSC 0/9/133 が `EvPaneOsc`/`EvPanePrompt` として復活、driver run-state(Claude title prefix / Shell OSC 133)が PtyBackend 上で動く。`cmd/arc/tmux_layout.go` は削除済み(coordinator が呼ばなくなったため一部 phase C を前倒し)。残り tmux 本体撤去は phase C |
 | 3. tmux 削除 | tmux backend 削除 | 🟡 一部前倒し(coordinator 周辺)。残りは `client/runtime/tmux_real.go`/`tmux_pipe_tap.go`/`tmux_injector.go`/`panetap.go` ほか |
 | 4. orchestrator 統合 | 任意 | ❌ 未着手(optional) |
 
@@ -81,9 +83,21 @@ phase 2 web スタック = 動くが pure core 非接続の並行実装(完成)
   │                  • #4 session-env / #5 PipePane / #6 main guard は moot
   │                  • cmd/arc/tmux_layout.go 削除
   │                 │
-  │                 └─ A. web 経路で pure core 再利用                ← 次
+  │                 └─ A. web 経路で pure core 再利用
   │                       (run-state / driver view / persist / connector /
   │                        termvt.Session.Subscribe を消費する pty_tap)
+  │                       │
+  │                       ├─ A0. pty_tap 新設 + Config.Tap 配線      [済 · 2026-06-19]
+  │                       │     • `client/runtime/pty_tap.go` 新設(`PtyPaneTap`)
+  │                       │     • coordinator で `Tap: NewPtyPaneTap(ptyBackend)` 配線
+  │                       │     • EventOutput を raw passthrough、EventControl は
+  │                       │       tap_manager の vt.Terminal で再 parse(structured
+  │                       │       経路化は A1 のリファクタ範疇)
+  │                       │     • Claude title prefix / Shell OSC 133 経由の
+  │                       │       run-state 遷移を test で検証(单体 7 / 配線 2)
+  │                       │
+  │                       └─ A1. web から pure core を経由した view / persist /  ← 次
+  │                             connector
   │                       │
   │                       └─ C. tmux 実装ファイル群の削除
   │                             (`grep -ri tmux src/` = 0 を目標、
@@ -141,6 +155,38 @@ PtyBackend を runtime に挿す上で出ていた 6 件:
   `client/web/app.js`(view 描画), pure core への bridge 層(新規)。
 - **完了条件**: web で run-state 表示・tool log・status が TUI と同等に出る。
 
+#### A0. pty_tap 新設 + Config.Tap 配線 — **済**(2026-06-19)
+- **What**: `platform/termvt.Session.Subscribe` を `client/runtime.PaneTap` に
+  包む `PtyPaneTap` を新設し、`Config.Tap` に配線。tap_manager → vt.Terminal の
+  既存 OSC 経路がそのまま生き、`EvPaneOsc` / `EvPanePrompt` が再び流れる。
+- **Why**: B1b 完了直後の状態では `Config.Tap=nil` のため、driver の run-state
+  検出(Claude title prefix / Shell OSC 133)が無効化されていた。
+- **設計判断**(本サブ計画の根拠):
+  - **案 A(raw passthrough)** 採用 — `Event.Kind == EventOutput` のみ抽出して
+    `Data` を chunk 配信、`EventControl` は破棄(tap_manager の `vt.Terminal` が
+    raw bytes 経由で同じ OSC を再 parse)。`EventExit` / slow disconnect は termvt
+    側の `close(ch)` を `readTap` の `!ok` が自然に拾う。
+  - **案 T(独立した `PtyPaneTap` 型)** 採用 — `PtyBackend`(474 行)に混ぜると
+    500 行制限を超過、責務分離も損なう。`NewPtyPaneTap(b *PtyBackend)` が
+    同パッケージから `b.mgr` を共有する。
+  - structured 経路化(termvt の `EventControl` を直接消費)は A1 のリファクタ
+    範疇として明示的に持ち越し。
+- **触った所**: `client/runtime/pty_tap.go`(新規)、`cmd/arc/coordinator.go`
+  (`Tap: runtime.NewPtyPaneTap(ptyBackend)`)、`client/runtime/pty_backend.go`
+  (`PipePane` TODO を pty_tap 代替済み表現に更新)。
+- **完了条件**: ✅ 单体 7 ケース(`pty_tap_test.go`) + 配線 2 ケース
+  (`pty_tap_wire_test.go`)で `EvPaneOsc{Cmd:0, Title:"Braille"}` /
+  `EvPanePrompt{Phase: Command/Complete, ExitCode: 0}` の enqueue を確認 /
+  ✅ `go test -race ./client/runtime/... ./platform/termvt/...` green /
+  ✅ `make build-all` / ✅ `golangci-lint run ./...` 0 issues。
+- **注意**: 本 A0 PR でも **arc TUI は動かない**(表示面なし)。表示面の復活は
+  A1(web 経由)で扱う。
+
+#### A1. web から pure core を経由した view / persist / connector — **次**
+- A0 で pure core まで OSC が届くようになったので、A1 は web 側(`server/web` /
+  `client/web`)を pure core consumer に書き換える作業。実装計画は別 plan ファイル
+  で切り出す予定。
+
 ### C. tmux 全削除(phase 3)
 - **What**: tmux backend と関連を削除。`cmd/arc/tmux_layout.go`, `client/runtime` の
   tmux 実装(tmux_real / tmux_injector / tmux_pipe_tap / panetap)を撤去し、
@@ -174,7 +220,7 @@ PtyBackend を runtime に挿す上で出ていた 6 件:
 - [x] **再起動越し reattach** → 決定2(B1 ではしない、§3.1 / ADR 0004)
 - [x] **B1 配線前提 6 件**(§B1 "B1-wiring の前提条件")— #1/#2/#3 解消、#4/#5/#6 は moot
 - [ ] web で複数ペイン同時表示(layout)をどの phase で入れるか(C 後の client-side layout 想定)
-- [ ] **A の最初の課題**: `termvt.Session.Subscribe` を読む `pty_tap` (PaneTap 実装)を新設し、`Config.Tap` に挿す。これが入ると driver run-state 検出が pty backend 上で復活する
+- [x] **A の最初の課題**: `termvt.Session.Subscribe` を読む `pty_tap` (PaneTap 実装)を新設し、`Config.Tap` に挿す → A0 として完了(2026-06-19、`client/runtime/pty_tap.go`)。driver run-state 検出が pty backend 上で復活
 - [ ] **B1b で coordinator から外した warm-recovery hooks**(documented divergence):
   - `RecoverSandboxFrames` — 持続コンテナを再 Adopt する `AdoptFrame` 経路。
     daemon 再起動でコンテナが孤児化しうる(devcontainer 利用時の実害)。plan A
@@ -194,8 +240,17 @@ PtyBackend を runtime に挿す上で出ていた 6 件:
 4. ~~B1b: 配線 + 前提解消~~ → 2026-06-19 完了。coordinator は PtyBackend で起動、
    tmux ライフサイクル撤去、`Config.Tap=nil`、#1/#2/#3 解消、
    `cmd/arc/tmux_layout.go` 削除
-5. **A: web で pure core 再利用** ← 次。
-   - 5a. `pty_tap` 新設(`termvt.Session.Subscribe` を `PaneTap` インターフェースに包む)
-   - 5b. `Config.Tap` に pty_tap を挿し、driver run-state 検出を復活
-   - 5c. web から pure core を経由した view / persist / connector に
-6. C: tmux 実装の残りを削除(56 ファイルから漸減 — `cmd/arc/tmux_layout.go` は B1b で削除済み)
+5. ~~A0: pty_tap 新設 + Config.Tap 配線~~ → 2026-06-19 完了。
+   - `client/runtime/pty_tap.go` で `PtyPaneTap` を新設(案 A:raw passthrough、
+     案 T:独立型 + 同パッケージから `PtyBackend.mgr` 共有)
+   - coordinator(`cmd/arc/coordinator.go:148`)で
+     `Tap: runtime.NewPtyPaneTap(ptyBackend)` を配線
+   - `pty_backend.go` の `PipePane` TODO を pty_tap で代替済みの表現に書き換え
+   - 単体 7 ケース(`pty_tap_test.go`)+ 配線 2 ケース(`pty_tap_wire_test.go`)で
+     `EvPaneOsc{Cmd:0, Title:"Braille"}` / `EvPanePrompt{Phase: Command/Complete}`
+     が enqueue されることを確認
+6. **A1: web から pure core を経由した view / persist / connector** ← 次。
+   - termvt の Control 経路を web 描画(現状の `server/web` スタック)に統合し、
+     pure core の view と一致させる。実装計画は別途切り出し
+7. C: tmux 実装の残りを削除(56 ファイルから漸減 — `cmd/arc/tmux_layout.go` は B1b で削除済み、
+   `tmux_pipe_tap.go` / `panetap.go` の旧 PaneTap 実装は A1 完了後に整理)

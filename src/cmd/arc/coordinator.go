@@ -110,11 +110,13 @@ func registerDefaultDrivers(cfg *config.Config, dataDir string, idleThreshold ti
 //
 // Backend is hard-wired to PtyBackend (ADR 0004 / B1b). The runtime drives a
 // private termvt.Manager directly; tmux is no longer involved in coordinator
-// startup. Config.Tap is nil — the legacy TmuxPipePaneTap is gone, and a
-// termvt.Session.Subscribe-based pty_tap lands in plan A together with the web
-// display surface that will consume it.
+// startup. Config.Tap is a PtyPaneTap (plan A 5a/5b) that wraps the same
+// Manager's Session.Subscribe stream, so the existing tap_manager + vt.Terminal
+// pipeline parses OSC 0/9/133 back into EvPaneOsc/EvPanePrompt — restoring
+// driver run-state detection on top of the pty backend.
 func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, dataDir string) (*runtime.Runtime, string, string, error) {
 	ptyBackend := runtime.NewPtyBackend()
+	ptyTap := runtime.NewPtyPaneTap(ptyBackend)
 	pollInterval := time.Duration(cfg.Monitor.PollIntervalMs) * time.Millisecond
 	fastPollInterval := time.Duration(cfg.Monitor.FastPollIntervalMs) * time.Millisecond
 	sockPath := filepath.Join(dataDir, appid.SocketFileName)
@@ -145,7 +147,7 @@ func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, da
 		ToolLog:           runtime.NewFileToolLog(dataDir),
 		Pool:              pool,
 		Notifier:          runtime.NewNotifier(&cfg.Notifications, ln),
-		Tap:               nil,
+		Tap:               ptyTap,
 		Features:          featureSet,
 		Launcher:          agentLauncher,
 		StreamDispatcher:  streamDispatcher,
@@ -272,10 +274,12 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 	defer stopSignals()
 	runErrCh := make(chan error, 1)
 	go superviseRun(cancel, runErrCh, func() error { return rt.Run(ctx) })
-	// StartTapsForRestoredFrames is intentionally not called here: with
-	// Config.Tap=nil the tap_manager early-returns and the bootstrap event
-	// would be a no-op (B1b / ADR 0004). Plan A reinstates the call once a
-	// termvt.Session.Subscribe-backed pty_tap lands.
+	// Cold-start path: LoadSnapshot → RecreateAll populates sessionPanes
+	// directly without emitting EffRegisterPane, so root frames restored
+	// from sessions.json never reach tap_manager.start through the reducer.
+	// With Config.Tap now wired to PtyPaneTap (plan A0), reinstate the
+	// bootstrap call so restored frames get an OSC tap.
+	rt.StartTapsForRestoredFrames()
 	if err := rt.StartIPC(sockPath); err != nil {
 		return fmt.Errorf("ipc: %w", err)
 	}

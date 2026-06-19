@@ -367,7 +367,10 @@ func (r *Runtime) SetRelay(fr *FileRelay) {
 // EvTmuxPaneSpawned → EffRegisterPane → tapManager.start, but bootstrap
 // paths (warm restart, cold-start RecreateAll) populate sessionPanes
 // directly without emitting that effect, leaving restored frames
-// without a tap.  Call once from main.go after Run has been started.
+// without a tap.  Call once from the coordinator (see cmd/arc/coordinator.go
+// runAndWait) immediately after Run has been started, so internalCh is
+// empty and the bootstrap event cannot be silently dropped by the
+// enqueueInternal non-blocking send.
 func (r *Runtime) StartTapsForRestoredFrames() {
 	r.enqueueInternal(internalStartRestoredTaps{})
 }

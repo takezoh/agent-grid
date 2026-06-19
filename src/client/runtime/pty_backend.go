@@ -200,11 +200,14 @@ func (p *PtyBackend) PasteBuffer(name, target string) error {
 	return p.write(target, []byte(text))
 }
 
-// PipePane is a no-op: output taps are served by termvt.Subscribe in a separate
-// task, not by re-piping pane output through a shell command.
-// TODO(B1): wire the output tap via Session.Subscribe in the pty_tap task, and
-// honor the empty-command contract (tmux pipe-pane with no command stops the
-// running tap) once the tap is live.
+// PipePane is a no-op: output taps are served by PtyPaneTap (see pty_tap.go),
+// which subscribes directly to the termvt.Session and bypasses the legacy tmux
+// pipe-pane bridge. Tap teardown is driven by tap_manager.stop, which cancels
+// its own per-frame tapCtx (propagating to the forwarder via the context
+// chain) and then calls PtyPaneTap.Stop to cancel the inner sub-ctx; whichever
+// fires first triggers the forwarder's ctx.Done branch and Session.Unsubscribe.
+// The empty-command "stop the tap" contract collapses to a no-op here without
+// losing functionality.
 func (p *PtyBackend) PipePane(target, command string) error { return nil }
 
 // === PaneInspect ===
