@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -260,35 +261,242 @@ func TestPtyBackendSendKey(t *testing.T) {
 
 // TestPtyBackendUnknownPaneErrors pins the unknown-target contract: every
 // inspect/IO/lifecycle op that addresses a pane returns a non-nil error for an
-// unspawned target, while PaneAlive reports (false, nil).
+// unspawned target, while PaneAlive reports (false, nil). The errors that flow
+// out of the runtime-internal "unknown pane" path must wrap ErrPaneMissing so
+// callers like resident.isMissingPaneErr can distinguish vanished panes from
+// transient failures.
 func TestPtyBackendUnknownPaneErrors(t *testing.T) {
 	b := NewPtyBackend()
 	const unknown = "%999"
 
-	if err := b.SendKeys(unknown, "x"); err == nil {
+	wantSentinel := func(name string, err error) {
+		t.Helper()
+		if err == nil {
+			t.Errorf("%s(unknown) error = nil, want non-nil", name)
+			return
+		}
+		if !errors.Is(err, ErrPaneMissing) {
+			t.Errorf("%s(unknown) error = %v, does not wrap ErrPaneMissing", name, err)
+		}
+	}
+
+	if err := b.SendKeys(unknown, "x"); err != nil {
+		wantSentinel("SendKeys", err)
+	} else {
 		t.Error("SendKeys(unknown) error = nil, want non-nil")
 	}
-	if _, err := b.CapturePane(unknown, 10); err == nil {
+	if _, err := b.CapturePane(unknown, 10); err != nil {
+		wantSentinel("CapturePane", err)
+	} else {
 		t.Error("CapturePane(unknown) error = nil, want non-nil")
 	}
-	if err := b.ResizeWindow(unknown, 80, 24); err == nil {
+	if err := b.ResizeWindow(unknown, 80, 24); err != nil {
+		wantSentinel("ResizeWindow", err)
+	} else {
 		t.Error("ResizeWindow(unknown) error = nil, want non-nil")
 	}
-	if _, _, err := b.PaneSize(unknown); err == nil {
+	if _, _, err := b.PaneSize(unknown); err != nil {
+		wantSentinel("PaneSize", err)
+	} else {
 		t.Error("PaneSize(unknown) error = nil, want non-nil")
 	}
-	if _, err := b.PaneID(unknown); err == nil {
+	if _, err := b.PaneID(unknown); err != nil {
+		wantSentinel("PaneID", err)
+	} else {
 		t.Error("PaneID(unknown) error = nil, want non-nil")
 	}
-	if _, _, err := b.PaneExitStatus(unknown); err == nil {
+	if _, _, err := b.PaneExitStatus(unknown); err != nil {
+		wantSentinel("PaneExitStatus", err)
+	} else {
 		t.Error("PaneExitStatus(unknown) error = nil, want non-nil")
 	}
+	// KillPaneWindow is the Manager-level error path: it surfaces termvt.Manager's
+	// "not found" rather than our wrapped sentinel. Just require it is non-nil.
 	if err := b.KillPaneWindow(unknown); err == nil {
 		t.Error("KillPaneWindow(unknown) error = nil, want non-nil")
 	}
 	// PaneAlive is the explicit exception: unknown target is reported dead, no error.
 	if alive, err := b.PaneAlive(unknown); alive || err != nil {
 		t.Errorf("PaneAlive(unknown) = %v, %v; want false, nil", alive, err)
+	}
+}
+
+// TestPtyBackendResizeByWindowIndex verifies ResizeWindow can be addressed by
+// the windowIndex form SpawnWindow returns (e.g. "1") — interpret_spawn calls
+// it that way (via the sessionName:windowIndex form, see other test) for the
+// post-spawn fit-to-main resize.
+func TestPtyBackendResizeByWindowIndex(t *testing.T) {
+	b := NewPtyBackend()
+	winIdx, paneID, err := b.SpawnWindow("w", "sleep 5", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.KillPaneWindow(paneID) }()
+
+	if err := b.ResizeWindow(winIdx, 100, 30); err != nil {
+		t.Fatalf("ResizeWindow(%q) = %v, want nil", winIdx, err)
+	}
+	w, h, err := b.PaneSize(paneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w != 100 || h != 30 {
+		t.Fatalf("PaneSize = %dx%d, want 100x30", w, h)
+	}
+}
+
+// TestPtyBackendResizeBySessionScopedTarget verifies that the sessionName-
+// scoped form interpret_spawn emits (e.g. "arc:1") is normalised — the prefix
+// is stripped and the windowIndex path runs.
+func TestPtyBackendResizeBySessionScopedTarget(t *testing.T) {
+	b := NewPtyBackend()
+	winIdx, paneID, err := b.SpawnWindow("w", "sleep 5", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.KillPaneWindow(paneID) }()
+
+	target := "arc:" + winIdx
+	if err := b.ResizeWindow(target, 90, 25); err != nil {
+		t.Fatalf("ResizeWindow(%q) = %v, want nil", target, err)
+	}
+	w, h, err := b.PaneSize(paneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w != 90 || h != 25 {
+		t.Fatalf("PaneSize = %dx%d, want 90x25", w, h)
+	}
+}
+
+// TestPtyBackendKillForgetsWindowIndex verifies the windowIndex→paneID entry is
+// dropped after KillPaneWindow so a stale windowIndex no longer routes anywhere.
+func TestPtyBackendKillForgetsWindowIndex(t *testing.T) {
+	b := NewPtyBackend()
+	winIdx, paneID, err := b.SpawnWindow("w", "sleep 5", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.KillPaneWindow(paneID); err != nil {
+		t.Fatal(err)
+	}
+	// After kill the windowIndex must not resolve to a live pane id.
+	if err := b.ResizeWindow(winIdx, 80, 24); err == nil {
+		t.Error("ResizeWindow(stale winIdx) = nil, want non-nil after KillPaneWindow")
+	}
+}
+
+// TestPtyBackendKillPaneWindowWrapsSentinel verifies that KillPaneWindow's
+// "pane not found" error path is recognised by isMissingPaneErr: the second
+// kill on the same target must wrap ErrPaneMissing so reconcileWindows can
+// evict the vanished frame instead of treating the error as transient.
+func TestPtyBackendKillPaneWindowWrapsSentinel(t *testing.T) {
+	b := NewPtyBackend()
+	_, paneID, err := b.SpawnWindow("w", "sleep 5", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.KillPaneWindow(paneID); err != nil {
+		t.Fatal(err)
+	}
+	// Second kill: pane already gone. Error must wrap ErrPaneMissing.
+	err = b.KillPaneWindow(paneID)
+	if err == nil {
+		t.Fatal("second KillPaneWindow(pane) = nil, want non-nil")
+	}
+	if !errors.Is(err, ErrPaneMissing) {
+		t.Fatalf("second KillPaneWindow(pane) = %v, does not wrap ErrPaneMissing", err)
+	}
+	// And the runtime's resident.isMissingPaneErr must classify it as missing.
+	if !isMissingPaneErr(err) {
+		t.Fatalf("isMissingPaneErr(%v) = false, want true", err)
+	}
+}
+
+// TestIsPaneIDForm pins the "%<digits>" recogniser: plain "%", "%abc", and the
+// empty string are not pane-id shaped, while every id newPaneID can produce
+// is.
+func TestIsPaneIDForm(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"%1", true},
+		{"%99", true},
+		{"%", false},
+		{"%a", false},
+		{"%1a", false},
+		{"", false},
+		{"1", false},
+		{"arc:1", false},
+	}
+	for _, c := range cases {
+		if got := isPaneIDForm(c.in); got != c.want {
+			t.Errorf("isPaneIDForm(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+// TestPtyBackendResolveTargetWithBogusPanePrefix verifies a target shaped like
+// "%abc" (which only superficially resembles a pane id) is NOT short-circuited
+// as a pane id; the windows-map lookup runs and returns the original target
+// when nothing matches, so the caller's mgr.Get reports ErrPaneMissing.
+func TestPtyBackendResolveTargetWithBogusPanePrefix(t *testing.T) {
+	b := NewPtyBackend()
+	// "%abc" is not "%<digits>"; resolvePaneTarget falls through to the
+	// windows-map lookup, which has no entry → returned as-is → mgr.Get
+	// reports missing.
+	if got := b.resolvePaneTarget("%abc"); got != "%abc" {
+		t.Fatalf("resolvePaneTarget(%q) = %q, want %q", "%abc", got, "%abc")
+	}
+}
+
+// TestPtyBackendKillPaneWindowPreservesCallerTarget verifies the error message
+// quotes the ORIGINAL caller-supplied target, not the resolved paneID, so
+// log lines stay readable in the runtime's session-prefixed shape.
+func TestPtyBackendKillPaneWindowPreservesCallerTarget(t *testing.T) {
+	b := NewPtyBackend()
+	_, paneID, err := b.SpawnWindow("w", "sleep 5", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.KillPaneWindow(paneID); err != nil {
+		t.Fatal(err)
+	}
+	// Second kill via the session-prefixed form. The pane is gone; the error
+	// message must quote the original "arc:<paneID>" target, not just paneID.
+	target := "arc:" + paneID
+	err = b.KillPaneWindow(target)
+	if err == nil {
+		t.Fatal("second KillPaneWindow = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), target) {
+		t.Fatalf("error %q does not quote caller target %q", err.Error(), target)
+	}
+}
+
+// TestPtyBackendSpawnRunsShellStrings verifies the runtime's shell-string spawn
+// inputs (with the "exec " prefix and embedded quoting) survive PtyBackend's
+// sh -c wrapping. interpret_spawn.buildSpawnCommand emits "exec <cmd>"; the
+// shell must honour exec semantics so the user's process replaces sh.
+func TestPtyBackendSpawnRunsShellStrings(t *testing.T) {
+	b := NewPtyBackend()
+	_, paneID, err := b.SpawnWindow("w", "exec bash -c 'exit 9'", "", nil)
+	if err != nil {
+		t.Fatalf("SpawnWindow: %v", err)
+	}
+
+	var code int
+	waitUntil(t, func() bool {
+		dead, c, err := b.PaneExitStatus(paneID)
+		if err != nil || !dead {
+			return false
+		}
+		code = c
+		return true
+	})
+	if code != 9 {
+		t.Fatalf("PaneExitStatus code = %d, want 9 (exec bash -c 'exit 9')", code)
 	}
 }
 

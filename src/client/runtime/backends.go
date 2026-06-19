@@ -1,8 +1,17 @@
 package runtime
 
 import (
+	"errors"
+
 	"github.com/takezoh/agent-reactor/client/state"
 )
+
+// ErrPaneMissing reports that the requested pane is not known to the backend.
+// RealTmuxBackend surfaces tmux's "can't find pane" responses; PtyBackend
+// returns errors that wrap this sentinel when the termvt.Manager has no
+// session under target. The runtime distinguishes vanished panes from
+// transient failures via errors.Is(err, ErrPaneMissing).
+var ErrPaneMissing = errors.New("pane missing")
 
 // Backend interfaces. The runtime depends on these abstractions, not
 // on concrete tmux/persistence/fs/log libraries, so tests can plug in

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
 	"github.com/takezoh/agent-reactor/platform/termvt"
 )
 
@@ -22,12 +22,18 @@ import (
 // via mgr.Get(target) — the Manager is the single owner of the id→Session map.
 // The unchanged runtime/reducer/driver address panes by these ids exactly as
 // they addressed tmux pane ids.
+//
+// Targets passed in from the runtime are normalised by resolvePaneTarget before
+// the Manager is consulted: a "sessionName:windowIndex" form (e.g. "arc:1",
+// emitted by interpret_spawn.ResizeWindow) is stripped to its windowIndex and
+// then looked up in the windowIndex→paneID map populated at spawn.
 type PtyBackend struct {
 	mgr *termvt.Manager
 
 	mu      sync.Mutex
 	buffers map[string]string // named tmux-style paste buffers
 	env     map[string]string // session-level env (tmux session env stand-in)
+	windows map[string]string // windowIndex -> paneID (filled by SpawnWindow)
 	paneSeq int               // last allocated pane number
 	winSeq  int               // last allocated window index
 }
@@ -38,60 +44,79 @@ func NewPtyBackend() *PtyBackend {
 		mgr:     termvt.NewManager(),
 		buffers: map[string]string{},
 		env:     map[string]string{},
+		windows: map[string]string{},
 	}
 }
 
 // === PaneLifecycle ===
 
-// SpawnWindow starts command in a new pty and returns synthetic window/pane ids.
-// startDir is currently unused: termvt.Spec has no working-directory field.
+// SpawnWindow starts command in a new pty and returns synthetic window/pane
+// ids. The command is always invoked via the user's POSIX shell so that the
+// shell strings the runtime emits (login-shell exec, stdin-wrapped bash -c,
+// driver-launch lines — see interpret_spawn.buildSpawnCommand) keep their
+// shell semantics; PtyBackend stays a thin shell host. startDir is currently
+// unused: termvt.Spec has no working-directory field.
 // TODO(B1): thread startDir once termvt.Spec gains a Dir field.
 func (p *PtyBackend) SpawnWindow(name, command, startDir string, env map[string]string) (string, string, error) {
-	argv, err := agentlaunch.SplitArgs(command)
-	if err != nil {
-		return "", "", err
-	}
-	if len(argv) == 0 {
+	if strings.TrimSpace(command) == "" {
 		return "", "", fmt.Errorf("runtime: empty command for window %q", name)
 	}
 
-	// mu protects only the id counters; the ids it yields are unique, so release
-	// it before Create rather than holding it across the fork/exec in
-	// pty.StartWithSize (which would serialise every other backend op behind a
-	// spawn). The Manager has its own mutex and rejects duplicate ids.
+	// mu protects only the id counters and the windows map; the ids it yields
+	// are unique, so release it before Create rather than holding it across the
+	// fork/exec in pty.StartWithSize (which would serialise every other backend
+	// op behind a spawn). The Manager has its own mutex and rejects duplicate ids.
 	p.mu.Lock()
 	p.paneSeq++
 	p.winSeq++
 	paneID := newPaneID(p.paneSeq)
 	winIdx := newWindowIndex(p.winSeq)
+	p.windows[winIdx] = paneID
 	p.mu.Unlock()
 
-	if _, err := p.mgr.Create(paneID, termvt.Spec{Argv: argv, Env: envSlice(env)}); err != nil {
+	if _, err := p.mgr.Create(paneID, termvt.Spec{Argv: shellArgv(command), Env: envSlice(env)}); err != nil {
+		p.mu.Lock()
+		delete(p.windows, winIdx)
+		p.mu.Unlock()
 		return "", "", err
 	}
 	return winIdx, paneID, nil
 }
 
 // KillPaneWindow closes the session for target and forgets it.
+//
+// forgetWindowFor runs unconditionally so a stale windowIndex→paneID entry is
+// cleaned up even when the Manager already lost the session (e.g. it was
+// reaped concurrently). When the Manager reports the session missing, the
+// error is wrapped with ErrPaneMissing so isMissingPaneErr can recognise it
+// alongside SendKeys/CapturePane/ResizeWindow et al. The error message keeps
+// the caller's original target shape — runtime debugging stays readable when
+// the call site passed "arc:1" rather than the resolved "%1".
 func (p *PtyBackend) KillPaneWindow(target string) error {
-	return p.mgr.Remove(target)
+	resolved := p.resolvePaneTarget(target)
+	err := p.mgr.Remove(resolved)
+	p.forgetWindowFor(resolved)
+	if err != nil && strings.Contains(err.Error(), "not found") {
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+	}
+	return err
 }
 
 // RespawnPane tears the dead pane down and re-creates a session under the same
 // target. It does NOT carry over the session-env store or the original spawn
 // env — respawn launches a fresh process with the default environment — and the
 // new session starts at the default terminal size until the next ResizeWindow.
+//
+// The Manager owns the id→Session map and its own mutex, so we never hold
+// p.mu across mgr.Remove / mgr.Create — that would serialise every other
+// backend op (SendKeys, CapturePane, etc.) behind the respawn's fork/exec, in
+// violation of the lock-discipline SpawnWindow's comment already documents.
 func (p *PtyBackend) RespawnPane(target, command string) error {
-	argv, err := agentlaunch.SplitArgs(command)
-	if err != nil {
-		return err
-	}
-	if len(argv) == 0 {
+	if strings.TrimSpace(command) == "" {
 		return fmt.Errorf("runtime: empty respawn command for %q", target)
 	}
+	target = p.resolvePaneTarget(target)
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	// Tear down the old session if present. If teardown fails, abort: do not
 	// stack a new session on top of a pane we could not cleanly remove.
 	if _, known := p.mgr.Get(target); known {
@@ -100,7 +125,11 @@ func (p *PtyBackend) RespawnPane(target, command string) error {
 		}
 	}
 
-	if _, err := p.mgr.Create(target, termvt.Spec{Argv: argv}); err != nil {
+	if _, err := p.mgr.Create(target, termvt.Spec{Argv: shellArgv(command)}); err != nil {
+		// Manager.Remove already dropped the session; with Create failing too,
+		// any windows-map entry that pointed at this paneID is now stale —
+		// drop it so a stale windowIndex never resolves to a dead pane id.
+		p.forgetWindowFor(target)
 		return err
 	}
 	return nil
@@ -109,6 +138,7 @@ func (p *PtyBackend) RespawnPane(target, command string) error {
 // PaneAlive reports whether the session is still running (known to the Manager
 // and not yet reaped, i.e. ExitCode reports not-exited).
 func (p *PtyBackend) PaneAlive(target string) (bool, error) {
+	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
 		return false, nil
@@ -119,9 +149,10 @@ func (p *PtyBackend) PaneAlive(target string) (bool, error) {
 
 // PaneExitStatus reports the exit code once the process has been reaped.
 func (p *PtyBackend) PaneExitStatus(target string) (bool, int, error) {
+	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return false, -1, fmt.Errorf("runtime: unknown pane %q", target)
+		return false, -1, fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
 	}
 	code, exited := sess.ExitCode()
 	if !exited {
@@ -180,17 +211,19 @@ func (p *PtyBackend) PipePane(target, command string) error { return nil }
 
 // PaneID echoes the synthetic pane id back when the pane is known.
 func (p *PtyBackend) PaneID(target string) (string, error) {
+	target = p.resolvePaneTarget(target)
 	if _, ok := p.mgr.Get(target); !ok {
-		return "", fmt.Errorf("runtime: unknown pane %q", target)
+		return "", fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
 	}
 	return target, nil
 }
 
 // PaneSize returns the session's current terminal dimensions.
 func (p *PtyBackend) PaneSize(target string) (int, int, error) {
+	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return 0, 0, fmt.Errorf("runtime: unknown pane %q", target)
+		return 0, 0, fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
 	}
 	cols, rows := sess.Size()
 	return cols, rows, nil
@@ -199,9 +232,10 @@ func (p *PtyBackend) PaneSize(target string) (int, int, error) {
 // CapturePane returns the trailing nLines of the pane's rendered screen with SGR
 // escapes stripped.
 func (p *PtyBackend) CapturePane(target string, nLines int) (string, error) {
+	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return "", fmt.Errorf("runtime: unknown pane %q", target)
+		return "", fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
 	}
 	return termvt.CaptureTail(sess, nLines), nil
 }
@@ -252,10 +286,16 @@ func (p *PtyBackend) ShowEnvironment() (string, error) {
 // === WindowLayout ===
 
 // ResizeWindow resizes the session's pty/grid. The other layout ops are stubbed.
+//
+// target accepts the windowIndex form ("1") produced by SpawnWindow, the
+// sessionName:windowIndex form ("arc:1") that interpret_spawn emits, and the
+// raw pane id form ("%1"). resolvePaneTarget normalises any of them to the
+// pane id the Manager indexes on.
 func (p *PtyBackend) ResizeWindow(target string, width, height int) error {
+	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return fmt.Errorf("runtime: unknown pane %q", target)
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
 	}
 	return sess.Resize(width, height)
 }
@@ -283,11 +323,84 @@ func (p *PtyBackend) DisplayPopup(width, height, cmd string) error { return nil 
 // === helpers ===
 
 func (p *PtyBackend) write(target string, b []byte) error {
+	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return fmt.Errorf("runtime: unknown pane %q", target)
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
 	}
 	return sess.WriteInput(b)
+}
+
+// resolvePaneTarget normalises target into the pane id the Manager indexes on.
+// It accepts three shapes the runtime emits today:
+//   - paneID ("%1") — used as-is (newPaneID always emits "%<digits>", so the
+//     numeric suffix check protects against a malformed target sneaking through
+//     the windows-map lookup as a bogus "windowIndex").
+//   - windowIndex ("1") — translated via the windows map populated at spawn.
+//   - sessionName:windowIndex ("arc:1", emitted by interpret_spawn after the
+//     SpawnWindow→ResizeWindow handoff) — the prefix is stripped, then the
+//     windowIndex path runs.
+//
+// If no translation matches (e.g. the runtime is probing a pane id we never
+// minted) the original target falls through so the caller's mgr.Get reports
+// ErrPaneMissing with the same target the runtime asked about.
+func (p *PtyBackend) resolvePaneTarget(target string) string {
+	if target == "" {
+		return target
+	}
+	if isPaneIDForm(target) {
+		return target
+	}
+	if i := strings.LastIndex(target, ":"); i >= 0 {
+		target = target[i+1:]
+	}
+	p.mu.Lock()
+	paneID, ok := p.windows[target]
+	p.mu.Unlock()
+	if ok {
+		return paneID
+	}
+	return target
+}
+
+// isPaneIDForm reports whether target is in PtyBackend's own "%<digits>" pane
+// id form (the shape newPaneID emits). Plain "%" or "%abc" do not qualify.
+func isPaneIDForm(target string) bool {
+	if len(target) < 2 || target[0] != '%' {
+		return false
+	}
+	for i := 1; i < len(target); i++ {
+		if target[i] < '0' || target[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// forgetWindowFor removes the windowIndex→paneID entry for paneID. Called on
+// teardown so that a window index does not survive the pane that backed it.
+// Each paneID appears at most once as a value (SpawnWindow allocates fresh,
+// unique paneIDs; KillPaneWindow drops the entry; RespawnPane reuses the
+// same paneID without adding a new windows entry), so we stop after the
+// first hit — both a slight speed-up and a clearer expression of the
+// invariant.
+func (p *PtyBackend) forgetWindowFor(paneID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for idx, id := range p.windows {
+		if id == paneID {
+			delete(p.windows, idx)
+			return
+		}
+	}
+}
+
+// shellArgv wraps a command string in the POSIX shell so the runtime's emitted
+// shell strings keep their shell semantics (exec prefixes, bash -c stdin
+// wrappers, driver-launch lines) — PtyBackend stays a thin shell host and
+// defers command shape to interpret_spawn.buildSpawnCommand.
+func shellArgv(command string) []string {
+	return []string{"/bin/sh", "-c", command}
 }
 
 // newPaneID formats a synthetic tmux-style pane id ("%1", "%2", …).
