@@ -13,6 +13,9 @@ func TestNewReturnsInitializedMaps(t *testing.T) {
 	if s.Subscribers == nil {
 		t.Error("Subscribers map should be initialized")
 	}
+	if s.SurfaceSubs == nil {
+		t.Error("SurfaceSubs map should be initialized")
+	}
 	if s.Jobs == nil {
 		t.Error("Jobs map should be initialized")
 	}
