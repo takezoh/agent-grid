@@ -55,15 +55,16 @@ func (p *PtyBackend) SpawnWindow(name, command, startDir string, env map[string]
 		return "", "", fmt.Errorf("runtime: empty command for window %q", name)
 	}
 
-	// Hold mu across counter bump and Create so the synthetic ids stay unique and
-	// no concurrent SpawnWindow can interleave between the bump and the Create.
-	// mgr has its own mutex, so calling it under mu does not deadlock.
+	// mu protects only the id counters; the ids it yields are unique, so release
+	// it before Create rather than holding it across the fork/exec in
+	// pty.StartWithSize (which would serialise every other backend op behind a
+	// spawn). The Manager has its own mutex and rejects duplicate ids.
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.paneSeq++
 	p.winSeq++
 	paneID := newPaneID(p.paneSeq)
 	winIdx := newWindowIndex(p.winSeq)
+	p.mu.Unlock()
 
 	if _, err := p.mgr.Create(paneID, termvt.Spec{Argv: argv, Env: envSlice(env)}); err != nil {
 		return "", "", err
@@ -78,7 +79,8 @@ func (p *PtyBackend) KillPaneWindow(target string) error {
 
 // RespawnPane tears the dead pane down and re-creates a session under the same
 // target. It does NOT carry over the session-env store or the original spawn
-// env — respawn launches a fresh process with the default environment.
+// env — respawn launches a fresh process with the default environment — and the
+// new session starts at the default terminal size until the next ResizeWindow.
 func (p *PtyBackend) RespawnPane(target, command string) error {
 	argv, err := agentlaunch.SplitArgs(command)
 	if err != nil {
@@ -205,6 +207,11 @@ func (p *PtyBackend) CapturePane(target string, nLines int) (string, error) {
 }
 
 // === SessionEnv ===
+//
+// The session-env store is in-process only: it lives in p.env and dies with the
+// process. It is NOT a persistence layer — values do not survive a daemon
+// restart and are not injected into spawned children. Cross-restart pane
+// recovery is out of scope for B1 (ADR 0004) and belongs to a later phase.
 
 // SetEnv writes a session-level env var into the in-process store.
 func (p *PtyBackend) SetEnv(key, value string) error {
@@ -225,22 +232,18 @@ func (p *PtyBackend) UnsetEnv(key string) error {
 // ShowEnvironment returns the session env as KEY=VALUE lines sorted by key.
 func (p *PtyBackend) ShowEnvironment() (string, error) {
 	p.mu.Lock()
-	keys := make([]string, 0, len(p.env))
-	for k := range p.env {
-		keys = append(keys, k)
-	}
-	vals := make(map[string]string, len(p.env))
+	pairs := make([][2]string, 0, len(p.env))
 	for k, v := range p.env {
-		vals[k] = v
+		pairs = append(pairs, [2]string{k, v})
 	}
 	p.mu.Unlock()
 
-	sort.Strings(keys)
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i][0] < pairs[j][0] })
 	var b []byte
-	for _, k := range keys {
-		b = append(b, k...)
+	for _, kv := range pairs {
+		b = append(b, kv[0]...)
 		b = append(b, '=')
-		b = append(b, vals[k]...)
+		b = append(b, kv[1]...)
 		b = append(b, '\n')
 	}
 	return string(b), nil
@@ -306,8 +309,9 @@ func envSlice(env map[string]string) []string {
 	return out
 }
 
-// keyBytes maps the common named keys the runtime sends to their byte sequence.
-// Unknown keys pass through literally.
+// keyBytes maps the named keys the runtime sends to their byte sequence.
+// Control chords ("C-c") and meta chords ("M-x") are decoded generically;
+// remaining unknown keys pass through literally.
 // TODO(B1): extend coverage to the full tmux key-name table as drivers need it.
 func keyBytes(key string) string {
 	switch key {
@@ -329,7 +333,28 @@ func keyBytes(key string) string {
 		return "\x7f"
 	case "Space":
 		return " "
+	}
+	if b, ok := chordBytes(key); ok {
+		return b
+	}
+	return key
+}
+
+// chordBytes decodes a single-character control or meta chord. "C-<ch>" maps to
+// the control byte (ch & 0x1f), so "C-c" → 0x03 (SIGINT). "M-<ch>" maps to ESC
+// followed by ch. It reports ok=false for anything that is not a recognised
+// single-character chord so the caller can fall back to literal passthrough.
+func chordBytes(key string) (string, bool) {
+	if len(key) != 3 || key[1] != '-' {
+		return "", false
+	}
+	ch := key[2]
+	switch key[0] {
+	case 'C':
+		return string([]byte{ch & 0x1f}), true
+	case 'M':
+		return string([]byte{0x1b, ch}), true
 	default:
-		return key
+		return "", false
 	}
 }

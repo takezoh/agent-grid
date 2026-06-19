@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"sync"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
@@ -206,8 +206,8 @@ func (s *Session) Snapshot() []byte {
 }
 
 // CaptureTail returns the trailing n rendered lines of the session's screen
-// with SGR escapes stripped. PtyBackend.CapturePane uses this to read plain
-// text out of the emulator grid.
+// with terminal escape sequences stripped. PtyBackend.CapturePane uses this to
+// read plain text out of the emulator grid.
 func CaptureTail(s *Session, n int) string {
 	return stripSGRTail(string(s.Snapshot()), n)
 }
@@ -298,21 +298,16 @@ func exitCodeFromWait(err error) int {
 	return -1
 }
 
-// sgrPattern matches CSI ... m (SGR / Select Graphic Rendition) sequences. The
-// emulator's Render encodes colours and styles as these escapes; CapturePane
-// callers want the plain text. This relies on vt.Emulator.Render emitting only
-// SGR escapes — other CSI sequences (cursor moves, etc.) are not present in a
-// rendered snapshot, so stripping SGR alone suffices.
-var sgrPattern = regexp.MustCompile("\x1b\\[[0-9;:]*m")
-
-// stripSGRTail returns the trailing n lines of s with SGR escape sequences
-// removed. n <= 0 returns the empty string; n larger than the line count
-// returns all lines.
+// stripSGRTail returns the trailing n lines of s with terminal escape sequences
+// removed. n <= 0 returns the empty string; n larger than the line count returns
+// all lines. ansi.Strip removes every escape class (SGR colours/styles, OSC 8
+// hyperlinks, cursor moves, …) rather than SGR alone, so the result is plain
+// text regardless of what vt.Emulator.Render emits.
 func stripSGRTail(s string, n int) string {
 	if n <= 0 {
 		return ""
 	}
-	clean := sgrPattern.ReplaceAllString(s, "")
+	clean := ansi.Strip(s)
 	lines := strings.Split(clean, "\n")
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]

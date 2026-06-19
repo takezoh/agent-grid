@@ -220,6 +220,10 @@ func TestKeyBytes(t *testing.T) {
 		{"q", "q"},                       // unknown single char passes through literally
 		{"some-literal", "some-literal"}, // unknown multi-char passes through
 		{"", ""},                         // empty passes through as empty
+		{"C-c", "\x03"},                  // control chord → SIGINT byte
+		{"C-a", "\x01"},                  // control chord → SOH
+		{"M-x", "\x1bx"},                 // meta chord → ESC + char
+		{"X-y", "X-y"},                   // unknown chord prefix passes through
 	}
 	for _, c := range cases {
 		t.Run(c.key, func(t *testing.T) {
