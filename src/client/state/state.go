@@ -53,8 +53,8 @@ type State struct {
 	//
 	// Per-ConnID cap: the reducer enforces len(SurfaceSubs[ConnID]) <= 8
 	// (ADR 0007); excess subscribe attempts get RespErr(resource_exhausted).
-	SurfaceSubs map[ConnID]map[SessionID]struct{}
-	Jobs        map[JobID]JobMeta
+	SurfaceSubs      map[ConnID]map[SessionID]struct{}
+	Jobs             map[JobID]JobMeta
 	NextJobID        JobID
 	NextConnID       ConnID
 	Now              time.Time         // last tick timestamp; deterministic in tests
@@ -138,10 +138,10 @@ type JobMeta struct {
 // are initialised so callers can write into them without nil checks.
 func New() State {
 	return State{
-		Sessions:    map[SessionID]Session{},
-		Subscribers: map[ConnID]Subscriber{},
-		SurfaceSubs: map[ConnID]map[SessionID]struct{}{},
-		Jobs:        map[JobID]JobMeta{},
+		Sessions:       map[SessionID]Session{},
+		Subscribers:    map[ConnID]Subscriber{},
+		SurfaceSubs:    map[ConnID]map[SessionID]struct{}{},
+		Jobs:           map[JobID]JobMeta{},
 		Connectors:     map[string]ConnectorState{},
 		ActiveOccupant: OccupantMain,
 	}
