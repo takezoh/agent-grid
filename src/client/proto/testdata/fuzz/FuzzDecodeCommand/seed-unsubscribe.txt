@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"type\":\"cmd\",\"req_id\":\"r2\",\"cmd\":\"surface.unsubscribe\",\"data\":{\"session_id\":\"s1\"}}")
