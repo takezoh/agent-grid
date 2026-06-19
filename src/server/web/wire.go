@@ -27,6 +27,12 @@ type controlMsg struct {
 	Data string `json:"data,omitempty"`
 }
 
+// controlFrame encodes a controlMsg as a JSON text frame.
+func controlFrame(kind string, code int, data string) []byte {
+	b, _ := json.Marshal(controlMsg{K: kind, Code: code, Data: data})
+	return b
+}
+
 // controlFrameFromNotification encodes EvtAgentNotification as
 // {"k":"osc","code":<Cmd>,"data":"<Title>|<Body>"} (existing UI 互換).
 func controlFrameFromNotification(e proto.EvtAgentNotification) []byte {
