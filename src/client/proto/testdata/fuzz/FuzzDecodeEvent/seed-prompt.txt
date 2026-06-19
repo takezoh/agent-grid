@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"type\":\"evt\",\"name\":\"prompt-event\",\"data\":{\"frame_id\":\"f1\",\"phase\":\"start\",\"now_rfc\":\"2026-06-19T00:00:00Z\"}}")

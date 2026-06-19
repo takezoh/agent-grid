@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"type\":\"cmd\",\"req_id\":\"r3\",\"cmd\":\"surface.resize\",\"data\":{\"session_id\":\"s1\",\"cols\":80,\"rows\":24}}")

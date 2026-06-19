@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"type\":\"cmd\",\"req_id\":\"r4\",\"cmd\":\"surface.write_raw\",\"data\":{\"session_id\":\"s1\",\"data\":\"G1tB\"}}")

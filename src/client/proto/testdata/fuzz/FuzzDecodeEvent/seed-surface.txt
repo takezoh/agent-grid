@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"type\":\"evt\",\"name\":\"surface-output\",\"data\":{\"session_id\":\"s1\",\"time_sec\":1.5,\"data_b64\":\"YWJj\",\"sequence\":1}}")
