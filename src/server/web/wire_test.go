@@ -53,13 +53,27 @@ func TestWireEncodeServerEvent_AgentNotification(t *testing.T) {
 		t.Fatal("expected non-nil frame for EvtAgentNotification")
 	}
 
-	var msg controlMsg
-	if err := json.Unmarshal(got, &msg); err != nil {
+	var m map[string]any
+	if err := json.Unmarshal(got, &m); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	want := controlMsg{K: "osc", Code: 9, Data: "t | b"}
-	if msg != want {
-		t.Errorf("got %+v, want %+v", msg, want)
+	if m["k"] != "n" {
+		t.Errorf("k: got %v, want \"n\"", m["k"])
+	}
+	if m["sessionId"] != "s1" {
+		t.Errorf("sessionId: got %v, want \"s1\"", m["sessionId"])
+	}
+	if m["cmd"].(float64) != 9 {
+		t.Errorf("cmd: got %v, want 9", m["cmd"])
+	}
+	if m["title"] != "t" {
+		t.Errorf("title: got %v, want \"t\"", m["title"])
+	}
+	if m["body"] != "b" {
+		t.Errorf("body: got %v, want \"b\"", m["body"])
+	}
+	if m["nowMs"].(float64) <= 0 {
+		t.Errorf("nowMs: expected > 0, got %v", m["nowMs"])
 	}
 }
 
@@ -75,12 +89,15 @@ func TestWireEncodeServerEvent_NotificationTitleOnly(t *testing.T) {
 		t.Fatal("expected non-nil frame")
 	}
 
-	var msg controlMsg
-	if err := json.Unmarshal(got, &msg); err != nil {
+	var m map[string]any
+	if err := json.Unmarshal(got, &m); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if msg.Data != "t" {
-		t.Errorf("got Data=%q, want %q", msg.Data, "t")
+	if m["title"] != "t" {
+		t.Errorf("title: got %v, want \"t\"", m["title"])
+	}
+	if _, hasBody := m["body"]; hasBody {
+		t.Errorf("body should be omitted when empty")
 	}
 }
 
@@ -157,6 +174,117 @@ func TestWireEncodeServerEvent_SessionsChanged_OmitsEmptyActiveID(t *testing.T) 
 	}
 	if strings.Contains(string(got), "activeSessionID") {
 		t.Errorf("expected activeSessionID to be omitted when empty, got: %s", got)
+	}
+}
+
+func TestWireEncodeTranscriptTail(t *testing.T) {
+	ev := proto.EvtSessionFileLine{SessionID: "s1", Kind: "transcript", Line: "hello"}
+	got := encodeFromSessionFileLine(ev)
+	if got == nil {
+		t.Fatal("expected non-nil frame for transcript kind")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(got, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m["k"] != "tt" {
+		t.Errorf("k: got %v, want \"tt\"", m["k"])
+	}
+	if m["sessionId"] != "s1" {
+		t.Errorf("sessionId: got %v, want \"s1\"", m["sessionId"])
+	}
+	if m["line"] != "hello" {
+		t.Errorf("line: got %v, want \"hello\"", m["line"])
+	}
+}
+
+func TestWireEncodeEventLogTail(t *testing.T) {
+	ev := proto.EvtSessionFileLine{SessionID: "s2", Kind: "event-log", Line: "world"}
+	got := encodeFromSessionFileLine(ev)
+	if got == nil {
+		t.Fatal("expected non-nil frame for event-log kind")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(got, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m["k"] != "et" {
+		t.Errorf("k: got %v, want \"et\"", m["k"])
+	}
+	if m["sessionId"] != "s2" {
+		t.Errorf("sessionId: got %v, want \"s2\"", m["sessionId"])
+	}
+	if m["line"] != "world" {
+		t.Errorf("line: got %v, want \"world\"", m["line"])
+	}
+}
+
+func TestWireEncodeTranscriptTail_UnknownKindSkipped(t *testing.T) {
+	ev := proto.EvtSessionFileLine{SessionID: "s1", Kind: "other", Line: "data"}
+	got := encodeFromSessionFileLine(ev)
+	if got != nil {
+		t.Errorf("expected nil for unknown Kind, got %s", got)
+	}
+}
+
+func TestWireEncodeNotification(t *testing.T) {
+	before := time.Now().UnixMilli()
+	ev := proto.EvtAgentNotification{SessionID: "s1", Cmd: 9, Title: "t", Body: "b"}
+	got := encodeFromAgentNotification(ev)
+	after := time.Now().UnixMilli()
+	if got == nil {
+		t.Fatal("expected non-nil frame for EvtAgentNotification")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(got, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m["k"] != "n" {
+		t.Errorf("k: got %v, want \"n\"", m["k"])
+	}
+	if m["cmd"].(float64) != 9 {
+		t.Errorf("cmd: got %v, want 9", m["cmd"])
+	}
+	if m["title"] != "t" {
+		t.Errorf("title: got %v, want \"t\"", m["title"])
+	}
+	if m["body"] != "b" {
+		t.Errorf("body: got %v, want \"b\"", m["body"])
+	}
+	nowMs := int64(m["nowMs"].(float64))
+	if nowMs < before || nowMs > after {
+		t.Errorf("nowMs %d not in range [%d, %d]", nowMs, before, after)
+	}
+}
+
+func TestWireControlFrameFromNotification_StillWorks(t *testing.T) {
+	ev := proto.EvtAgentNotification{SessionID: "s1", Cmd: 9, Title: "t", Body: "b"}
+	got := controlFrameFromNotification(ev)
+	if got == nil {
+		t.Fatal("expected non-nil frame from controlFrameFromNotification")
+	}
+	var msg controlMsg
+	if err := json.Unmarshal(got, &msg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	want := controlMsg{K: "osc", Code: 9, Data: "t | b"}
+	if msg != want {
+		t.Errorf("got %+v, want %+v", msg, want)
+	}
+}
+
+func TestWireEncodeServerEvent_SessionFileLine_Transcript(t *testing.T) {
+	ev := proto.EvtSessionFileLine{SessionID: "s1", Kind: "transcript", Line: "line1"}
+	got := encodeServerEvent(ev)
+	if got == nil {
+		t.Fatal("expected non-nil frame for EvtSessionFileLine transcript")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(got, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m["k"] != "tt" {
+		t.Errorf("k: got %v, want \"tt\"", m["k"])
 	}
 }
 
