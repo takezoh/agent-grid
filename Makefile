@@ -13,6 +13,7 @@ CODEX_SCHEMA_DIR := $(SRC_DIR)/platform/agent/codexschema
 CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
 .PHONY: build build-orchestrator build-claude-app-server build-server build-web build-all \
+        build-web-frontend \
         run-dev build-experimental install clean test vet lint verify-bridge-deps \
         codex-schema-update codex-schema-check
 
@@ -37,7 +38,10 @@ build-server:
 build-web:
 	cd $(SRC_DIR) && go build -o ../$(WEB) ./cmd/web
 
-build-all: build build-orchestrator build-claude-app-server build-server build-web
+build-web-frontend:
+	cd src/client/web && npm ci && npm run build
+
+build-all: build-web-frontend build build-orchestrator build-claude-app-server build-server build-web
 
 # run-dev builds and launches the backend + web-client together for local dev.
 run-dev: build-server build-web
