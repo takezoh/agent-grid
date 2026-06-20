@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/takezoh/agent-reactor/client/proto"
 	stateview "github.com/takezoh/agent-reactor/client/state/view"
@@ -218,7 +219,7 @@ func TestTranscript_404WhenLogTabMissing(t *testing.T) {
 // --- TestEventLog_Basic ---
 
 // TestEventLog_Basic is a smoke test verifying that the event-log endpoint
-// serves a .jsonl file correctly.
+// serves a .jsonl file correctly with application/x-ndjson Content-Type.
 func TestEventLog_Basic(t *testing.T) {
 	t.Parallel()
 	d, fd := newDaemonPair(t)
@@ -238,6 +239,110 @@ func TestEventLog_Basic(t *testing.T) {
 	}
 	if w.Body.String() != content {
 		t.Errorf("body = %q, want %q", w.Body.String(), content)
+	}
+	ct := w.Header().Get("Content-Type")
+	if ct != "application/x-ndjson" {
+		t.Errorf("Content-Type = %q, want application/x-ndjson", ct)
+	}
+}
+
+// --- TestTranscript_ContentTypePlain ---
+
+// TestTranscript_ContentTypePlain verifies that the transcript endpoint uses
+// text/plain; charset=utf-8 (not the JSONL type used for event-log).
+func TestTranscript_ContentTypePlain(t *testing.T) {
+	t.Parallel()
+	d, fd := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+
+	content := "line1\nline2\n"
+	path := makeTranscriptFile(t, "foo.transcript", content)
+
+	sendFakeResponse(t, fd, sessionRespWithTab("TRANSCRIPT", path))
+
+	r := authedGet("/api/sessions/abc/transcript?offset=0")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	ct := w.Header().Get("Content-Type")
+	if ct != "text/plain; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/plain; charset=utf-8", ct)
+	}
+}
+
+// --- TestTranscript_503WhenDaemonDown ---
+
+// TestTranscript_503WhenDaemonDown verifies that the transcript endpoint returns
+// 503 Service Unavailable when the daemon is not reachable, matching the
+// contract of the other REST handlers (list/create/delete).
+func TestTranscript_503WhenDaemonDown(t *testing.T) {
+	t.Parallel()
+	d := NewDaemonClientWithDialer(
+		func() (*proto.Client, error) { return nil, fmt.Errorf("no daemon") },
+		time.Millisecond, 2*time.Millisecond,
+	)
+	defer d.Close()
+	if waitHealth(d, true, 50*time.Millisecond) {
+		t.Skip("daemon became healthy unexpectedly")
+	}
+
+	mux := NewMux(d, "tok")
+	r := authedGet("/api/sessions/abc/transcript")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("want 503 when daemon is down, got %d (body %q)", w.Code, w.Body.String())
+	}
+}
+
+// --- TestTranscript_ProtoErrNotFoundMaps404 ---
+
+// TestTranscript_ProtoErrNotFoundMaps404 verifies that a proto ErrNotFound
+// from the daemon maps to 404 (not to a generic 500), consistent with other
+// REST handlers that pipe errors through handleProtoError.
+func TestTranscript_ProtoErrNotFoundMaps404(t *testing.T) {
+	t.Parallel()
+	d, fd := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+
+	go func() {
+		env := fd.recv()
+		fd.sendErr(env.ReqID, proto.ErrNotFound, "session not found")
+	}()
+
+	r := authedGet("/api/sessions/abc/transcript")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404 for proto ErrNotFound, got %d (body %q)", w.Code, w.Body.String())
+	}
+}
+
+// --- TestTranscript_ProtoErrInvalidArgumentMaps400 ---
+
+// TestTranscript_ProtoErrInvalidArgumentMaps400 verifies that a proto
+// ErrInvalidArgument from the daemon maps to 400, consistent with handleProtoError.
+func TestTranscript_ProtoErrInvalidArgumentMaps400(t *testing.T) {
+	t.Parallel()
+	d, fd := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+
+	go func() {
+		env := fd.recv()
+		fd.sendErr(env.ReqID, proto.ErrInvalidArgument, "bad argument")
+	}()
+
+	r := authedGet("/api/sessions/abc/transcript")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 for proto ErrInvalidArgument, got %d (body %q)", w.Code, w.Body.String())
 	}
 }
 
