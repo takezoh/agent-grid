@@ -8,10 +8,10 @@ export function parseServerFrame(raw: string): ServerFrame | null {
   } catch {
     return null;
   }
-  // asciicast v2 配列: ["o", number, string]
+  // asciicast v2 配列: [number, "o", string] — Go wire.go:18 と同順
   if (Array.isArray(v)) {
-    if (v.length === 3 && v[0] === "o" && typeof v[1] === "number" && typeof v[2] === "string") {
-      return ["o", v[1], v[2]];
+    if (v.length === 3 && typeof v[0] === "number" && v[1] === "o" && typeof v[2] === "string") {
+      return [v[0], "o", v[2]];
     }
     return null;
   }
@@ -21,13 +21,17 @@ export function parseServerFrame(raw: string): ServerFrame | null {
   const obj = v as Record<string, unknown>;
   const k = obj.k;
   switch (k) {
-    case "c":
-      if (typeof obj.code !== "string") return null;
+    case "c": {
+      // Go: code is int omitempty (absent when 0), data is string omitempty.
+      if (obj.code !== undefined && typeof obj.code !== "number") return null;
+      // Shallow validate data: must be string or absent (Go only emits string).
+      if (obj.data !== undefined && typeof obj.data !== "string") return null;
       return {
-        k: "c",
-        code: obj.code,
-        data: obj.data as string | string[] | undefined,
+        k: "c" as const,
+        ...(typeof obj.code === "number" ? { code: obj.code } : {}),
+        ...(typeof obj.data === "string" ? { data: obj.data } : {}),
       };
+    }
     case "h":
       if (
         !Array.isArray(obj.sessions) ||

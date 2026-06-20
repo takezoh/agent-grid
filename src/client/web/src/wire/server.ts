@@ -1,5 +1,5 @@
 // Server → browser wire frames. Mirror of Go side (do not change wire shape).
-// Surface output uses asciicast v2 tuple form: [eventCode, timeSec, dataB64].
+// Surface output uses asciicast v2 tuple form: [timeSec, "o", data].
 // Control / hello / view-update / resp use JSON object form with discriminator `k`.
 
 export type SessionInfo = {
@@ -9,14 +9,17 @@ export type SessionInfo = {
   createdAt: number;
 };
 
-// asciicast v2: 配列形式 [eventCode, timeSec, dataB64]
-// eventCode は現状 "o"(output)のみ使用。"i"(input)は将来予約。
-export type OutputFrame = ["o", number, string];
+// asciicast v2: 配列形式 [timeSec, type, data] — Go wire.go:18 と同順。
+// type は現状 "o"(output)のみ使用。
+export type OutputFrame = [number, "o", string];
 
+// ControlFrame mirrors Go controlMsg{K,Code int omitempty,Data string omitempty}.
+// code=0 is omitted by Go's omitempty, so code is optional here.
+// data carries event-specific payload (e.g. "daemon-disconnected").
 export type ControlFrame = {
   k: "c";
-  code: string; // "daemon-disconnected" | "slow-subscriber" など
-  data?: string | string[];
+  code?: number; // int, omitempty — absent when 0
+  data?: string; // omitempty
 };
 
 export type HelloFrame = {

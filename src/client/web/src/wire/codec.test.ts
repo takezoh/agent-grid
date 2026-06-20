@@ -25,8 +25,12 @@ describe("parseServerFrame", () => {
   });
 
   it("returns null for malformed output array", () => {
-    expect(parseServerFrame('["o",1.0]')).toBeNull();
-    expect(parseServerFrame('["o","not-number","data"]')).toBeNull();
+    // [timeSec, "o", data] order — too short
+    expect(parseServerFrame('[1.0,"o"]')).toBeNull();
+    // timeSec must be number
+    expect(parseServerFrame('["not-number","o","data"]')).toBeNull();
+    // old wrong order ["o", number, string] must also return null
+    expect(parseServerFrame('["o",1.0,"data"]')).toBeNull();
   });
 });
 
