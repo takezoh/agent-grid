@@ -12,8 +12,9 @@ import (
 	"github.com/takezoh/agent-reactor/client/state"
 )
 
-// apiSessionInfo is the REST wire shape for one session. It mirrors the
-// former server/session.Info JSON shape so existing browser UI keeps working.
+// apiSessionInfo is the REST wire shape for one session returned by
+// GET /api/sessions and POST /api/sessions. Fields: id, project (optional),
+// command, created_at (RFC3339 UTC).
 type apiSessionInfo struct {
 	ID        string `json:"id"`
 	Project   string `json:"project,omitempty"`
@@ -21,7 +22,8 @@ type apiSessionInfo struct {
 	CreatedAt string `json:"created_at"`
 }
 
-// apiCreateReq is the POST /api/sessions body (mirrors old server/session.Spec).
+// apiCreateReq is the POST /api/sessions body: project (optional), command,
+// and optional terminal cols/rows packed into state.LaunchOptions.
 type apiCreateReq struct {
 	Project string `json:"project"`
 	Command string `json:"command"`

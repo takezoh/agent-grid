@@ -257,22 +257,6 @@ func TestWireEncodeNotification(t *testing.T) {
 	}
 }
 
-func TestWireControlFrameFromNotification_StillWorks(t *testing.T) {
-	ev := proto.EvtAgentNotification{SessionID: "s1", Cmd: 9, Title: "t", Body: "b"}
-	got := controlFrameFromNotification(ev)
-	if got == nil {
-		t.Fatal("expected non-nil frame from controlFrameFromNotification")
-	}
-	var msg controlMsg
-	if err := json.Unmarshal(got, &msg); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	want := controlMsg{K: "osc", Code: 9, Data: "t | b"}
-	if msg != want {
-		t.Errorf("got %+v, want %+v", msg, want)
-	}
-}
-
 func TestWireEncodeServerEvent_SessionFileLine_Transcript(t *testing.T) {
 	ev := proto.EvtSessionFileLine{SessionID: "s1", Kind: "transcript", Line: "line1"}
 	got := encodeServerEvent(ev)

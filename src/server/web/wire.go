@@ -35,20 +35,6 @@ func controlFrame(kind string, code int, data string) []byte {
 	return b
 }
 
-// controlFrameFromNotification encodes EvtAgentNotification as
-// {"k":"osc","code":<Cmd>,"data":"<Title>|<Body>"} (existing UI 互換).
-func controlFrameFromNotification(e proto.EvtAgentNotification) []byte {
-	data := e.Title
-	if e.Body != "" {
-		if data != "" {
-			data += " | "
-		}
-		data += e.Body
-	}
-	b, _ := json.Marshal(controlMsg{K: "osc", Code: e.Cmd, Data: data})
-	return b
-}
-
 // viewUpdateFrame is the server→browser frame derived from
 // proto.EvtSessionsChanged. ADR 0023: 1:1 mirror.
 type viewUpdateFrame struct {
