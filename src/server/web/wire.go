@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"log/slog"
+	"time"
 
 	"github.com/takezoh/agent-reactor/client/proto"
 )
@@ -79,12 +80,82 @@ func encodeServerEvent(ev proto.ServerEvent) []byte {
 	switch e := ev.(type) {
 	case proto.EvtSurfaceOutput:
 		return outputFrameFromSurface(e)
+	case proto.EvtSessionFileLine:
+		return encodeFromSessionFileLine(e)
 	case proto.EvtAgentNotification:
-		return controlFrameFromNotification(e)
+		return encodeFromAgentNotification(e)
 	case proto.EvtSessionsChanged:
 		return encodeFromSessionsChanged(e)
 	}
 	return nil
+}
+
+// transcriptTailFrame is the server→browser frame for a transcript tail line.
+type transcriptTailFrame struct {
+	K         string `json:"k"`
+	SessionID string `json:"sessionId"`
+	Line      string `json:"line"`
+}
+
+// eventLogTailFrame is the server→browser frame for an event-log tail line.
+type eventLogTailFrame struct {
+	K         string `json:"k"`
+	SessionID string `json:"sessionId"`
+	Line      string `json:"line"`
+}
+
+// encodeFromSessionFileLine encodes EvtSessionFileLine as a tail frame.
+// Kind "transcript" → {"k":"tt",...}; Kind "event-log" → {"k":"et",...}.
+// Unknown Kind returns nil (gateway drops nil frames).
+// JSON marshal failure logs an error and returns nil.
+func encodeFromSessionFileLine(e proto.EvtSessionFileLine) []byte {
+	switch e.Kind {
+	case "transcript":
+		b, err := json.Marshal(transcriptTailFrame{K: "tt", SessionID: e.SessionID, Line: e.Line})
+		if err != nil {
+			slog.Error("wire: failed to encode transcript-tail frame", "err", err)
+			return nil
+		}
+		return b
+	case "event-log":
+		b, err := json.Marshal(eventLogTailFrame{K: "et", SessionID: e.SessionID, Line: e.Line})
+		if err != nil {
+			slog.Error("wire: failed to encode event-log-tail frame", "err", err)
+			return nil
+		}
+		return b
+	default:
+		return nil
+	}
+}
+
+// notificationFrame is the server→browser frame for an agent notification.
+type notificationFrame struct {
+	K         string `json:"k"`
+	SessionID string `json:"sessionId"`
+	Cmd       int    `json:"cmd"`
+	Title     string `json:"title,omitempty"`
+	Body      string `json:"body,omitempty"`
+	NowMs     int64  `json:"nowMs"`
+}
+
+// encodeFromAgentNotification encodes EvtAgentNotification as
+// {"k":"n","sessionId":...,"cmd":...,"title":...,"body":...,"nowMs":...}.
+// JSON marshal failure logs an error and returns nil.
+func encodeFromAgentNotification(e proto.EvtAgentNotification) []byte {
+	b, err := json.Marshal(notificationFrame{
+		K:         "n",
+		SessionID: e.SessionID,
+		Cmd:       e.Cmd,
+		Title:     e.Title,
+		Body:      e.Body,
+		NowMs:     time.Now().UnixMilli(),
+	})
+	if err != nil {
+		slog.Error("wire: failed to encode notification frame", "err", err)
+		return nil
+	}
+	return b
 }
 
 // inbound is a browser→server message (always a JSON object).
