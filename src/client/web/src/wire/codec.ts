@@ -1,6 +1,18 @@
 import type { ClientFrame } from "./client";
 import type { ServerFrame, SessionInfo } from "./server";
 
+// parseSessionInfoLoose validates that an object has at minimum the fields
+// required for a valid SessionInfo wire value: id string, view object with card object.
+function parseSessionInfoLoose(obj: unknown): obj is SessionInfo {
+  if (typeof obj !== "object" || obj === null) return false;
+  const sess = obj as Record<string, unknown>;
+  if (typeof sess.id !== "string") return false;
+  if (typeof sess.view !== "object" || sess.view === null) return false;
+  const view = sess.view as Record<string, unknown>;
+  if (typeof view.card !== "object" || view.card === null) return false;
+  return true;
+}
+
 export function parseServerFrame(raw: string): ServerFrame | null {
   let v: unknown;
   try {
@@ -32,7 +44,7 @@ export function parseServerFrame(raw: string): ServerFrame | null {
         ...(typeof obj.data === "string" ? { data: obj.data } : {}),
       };
     }
-    case "h":
+    case "h": {
       if (
         !Array.isArray(obj.sessions) ||
         !Array.isArray(obj.features) ||
@@ -40,6 +52,7 @@ export function parseServerFrame(raw: string): ServerFrame | null {
       ) {
         return null;
       }
+      if (!obj.sessions.every(parseSessionInfoLoose)) return null;
       return {
         k: "h",
         sessions: obj.sessions as SessionInfo[],
@@ -47,13 +60,16 @@ export function parseServerFrame(raw: string): ServerFrame | null {
         features: obj.features as string[],
         serverTime: obj.serverTime,
       };
-    case "v":
+    }
+    case "v": {
       if (!Array.isArray(obj.sessions)) return null;
+      if (!obj.sessions.every(parseSessionInfoLoose)) return null;
       return {
         k: "v",
         sessions: obj.sessions as SessionInfo[],
         activeSessionID: (obj.activeSessionID as string | null | undefined) ?? null,
       };
+    }
     case "r":
       if (typeof obj.reqId !== "string") return null;
       return { k: "r", reqId: obj.reqId, body: obj.body };

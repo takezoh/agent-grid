@@ -2,11 +2,62 @@
 // Surface output uses asciicast v2 tuple form: [timeSec, "o", data].
 // Control / hello / view-update / resp use JSON object form with discriminator `k`.
 
+// Tag mirrors view.Tag — colored chip in session card.
+export type Tag = {
+  text: string;
+  fg?: string;
+  bg?: string;
+};
+
+// Card mirrors view.Card — driver-specific portion of the session list card.
+export type Card = {
+  title?: string;
+  subtitle?: string;
+  tags?: Tag[];
+  border_title?: Tag;
+  border_title_secondary?: Tag;
+  border_badge?: string;
+};
+
+// LogTab mirrors view.LogTab — additional log tab declared by the driver.
+export type LogTab = {
+  label: string;
+  path: string;
+  kind: string; // "text" etc. — Go's TabKind is a string alias
+  renderer_cfg?: unknown; // json.RawMessage
+};
+
+// InfoLine mirrors view.InfoLine — one entry in the INFO tab body.
+export type InfoLine = {
+  label: string;
+  value: string;
+};
+
+// View mirrors view.View — complete TUI payload for one session.
+export type View = {
+  card: Card;
+  display_name?: string;
+  log_tabs?: LogTab[];
+  info_extras?: InfoLine[];
+  suppress_info?: boolean;
+  status_line?: string;
+  status?: string; // "running" | "waiting" | "idle" | "stopped" | "pending"
+  status_changed_at?: string; // RFC3339
+};
+
+// SessionInfo mirrors proto.SessionInfo — Go JSON tags used as-is (snake_case).
 export type SessionInfo = {
   id: string;
-  title: string;
-  status: string; // "running" | "stopped" | "errored" など server 側 string をそのまま保持
-  createdAt: number;
+  project: string;
+  workspace?: string;
+  command: string;
+  root_driver?: string;
+  root_driver_forkable?: boolean;
+  created_at: string; // RFC3339 string (Go: time.Time formatted)
+  state?: string;
+  state_changed_at?: string;
+  view: View;
+  is_active?: boolean;
 };
 
 // asciicast v2: 配列形式 [timeSec, type, data] — Go wire.go:18 と同順。

@@ -13,8 +13,20 @@ describe("SessionList", () => {
     useDaemonStore.getState().reset();
     useDaemonStore.setState({
       sessions: [
-        { id: "s1", title: "alpha", status: "running", createdAt: 1 },
-        { id: "s2", title: "beta", status: "stopped", createdAt: 2 },
+        {
+          id: "s1",
+          project: "proj",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: { title: "alpha" }, status: "running" },
+        },
+        {
+          id: "s2",
+          project: "proj",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: { title: "beta" }, status: "stopped" },
+        },
       ],
     });
   });

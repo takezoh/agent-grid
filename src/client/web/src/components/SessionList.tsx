@@ -21,8 +21,8 @@ export function SessionList({ conn }: { conn: Connection }) {
               await conn.subscribe(s.id);
             }}
           >
-            <span className="title">{s.title}</span>
-            <span className="status">{s.status}</span>
+            <span className="title">{s.view.card.title ?? s.id}</span>
+            <span className="status">{s.view.status ?? ""}</span>
           </button>
         </li>
       ))}
