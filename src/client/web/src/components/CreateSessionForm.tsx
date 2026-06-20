@@ -17,7 +17,7 @@ export function CreateSessionForm({ conn }: { conn: Connection }) {
       const resp = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim() }),
+        body: JSON.stringify({ project: title.trim(), command: "claude" }),
       });
       if (!resp.ok) throw new Error(`POST /api/sessions failed: ${resp.status}`);
       const body = (await resp.json()) as { id: string };

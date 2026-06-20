@@ -10,7 +10,15 @@ describe("daemonStore", () => {
   it("seedHello populates sessions/features/serverTime/activeSessionID", () => {
     const frame: HelloFrame = {
       k: "h",
-      sessions: [{ id: "s1", title: "t", status: "running", createdAt: 100 }],
+      sessions: [
+        {
+          id: "s1",
+          project: "p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: { title: "t" }, status: "running" },
+        },
+      ],
       activeSessionID: "s1",
       features: ["surface"],
       serverTime: 12345,
@@ -27,7 +35,15 @@ describe("daemonStore", () => {
     useDaemonStore.setState({ activeSessionID: "preserved" });
     const frame: ViewUpdateFrame = {
       k: "v",
-      sessions: [{ id: "s2", title: "t2", status: "stopped", createdAt: 200 }],
+      sessions: [
+        {
+          id: "s2",
+          project: "p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: { title: "t2" }, status: "stopped" },
+        },
+      ],
     };
     useDaemonStore.getState().applyViewUpdate(frame);
     expect(useDaemonStore.getState().activeSessionID).toBe("preserved");
