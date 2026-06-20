@@ -27,6 +27,7 @@ export class Connection {
   private pending = new Map<string, Pending>();
   private reconnectAttempt = 0;
   private closedByUser = false;
+  private reconnecting = false;
   private reqIdCounter = 0;
 
   constructor(cfg: ConnectionConfig) {
@@ -40,6 +41,7 @@ export class Connection {
 
   close(): void {
     this.closedByUser = true;
+    this.drainPending();
     this.ws?.close();
     this.ws = null;
     this.registry.clear();
@@ -92,7 +94,9 @@ export class Connection {
     this.ws.onopen = () => this.handleOpen();
     this.ws.onmessage = (ev) => this.handleMessage(String(ev.data));
     this.ws.onclose = () => this.handleClose();
-    this.ws.onerror = () => this.handleClose();
+    // onerror is intentionally a noop: browsers always fire onclose after onerror,
+    // so letting onerror also call handleClose would trigger reconnect twice.
+    this.ws.onerror = () => {};
   }
 
   private handleOpen(): void {
@@ -141,17 +145,32 @@ export class Connection {
     }
   }
 
+  private drainPending(): void {
+    // Resolve all in-flight pending promises with a synthetic non-retryable error so
+    // that awaiters (subscribeWithRetry) return immediately instead of hanging forever.
+    for (const [reqId, p] of this.pending) {
+      p.resolve({ k: "e", reqId, code: "connection-closed", message: "WebSocket closed" });
+    }
+    this.pending.clear();
+  }
+
   private handleClose(): void {
     if (this.closedByUser) return;
+    // Guard: onerror + onclose both fire in real browsers. Only run once.
+    if (this.reconnecting) return;
+    this.reconnecting = true;
+    this.drainPending();
     useDaemonStore.getState().setStatus("reconnecting");
     if (exceededAttempts(this.reconnectAttempt)) {
       useDaemonStore.getState().setStatus("closed");
+      this.reconnecting = false;
       return;
     }
     const delay = backoffDelay(this.reconnectAttempt);
     this.reconnectAttempt += 1;
     const sleep = this.cfg.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     void sleep(delay).then(() => {
+      this.reconnecting = false;
       if (!this.closedByUser) {
         this.connect().catch(() => {
           this.handleClose();

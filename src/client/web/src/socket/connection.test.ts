@@ -142,4 +142,76 @@ describe("Connection", () => {
     await Promise.resolve();
     expect(FakeWS.instances.length).toBe(countBefore);
   });
+
+  it("onerror followed by onclose fires reconnect only once (not twice)", async () => {
+    // Real browsers fire onerror → onclose sequentially. Reconnect must not double-trigger.
+    let fetchCallCount = 0;
+    const fetchFn = vi.fn(async () => {
+      fetchCallCount += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ticket: "tkt" }),
+      };
+    }) as unknown as typeof fetch;
+    const conn = new Connection({
+      ticketEndpoint: "/api/ws-ticket",
+      wsUrl: (t) => `ws://h/ws?ticket=${t}`,
+      bearerToken: "tok",
+      wsFactory: (u) => new FakeWS(u) as unknown as WebSocket,
+      sleep: async () => {},
+      fetchFn,
+    });
+    await conn.start();
+    const ws1 = FakeWS.instances[0];
+    if (!ws1) throw new Error("expected ws1");
+    ws1.open();
+    // reset count after initial connect
+    fetchCallCount = 0;
+
+    // Simulate browser firing onerror then onclose in sequence
+    ws1.onerror?.();
+    ws1.onclose?.();
+
+    // Allow microtasks (sleep is noop, so reconnect happens in next microtask tick)
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // fetchFn should have been called exactly once for the reconnect attempt
+    expect(fetchCallCount).toBe(1);
+    // Only one new WebSocket instance created
+    expect(FakeWS.instances.length).toBe(2);
+  });
+
+  it("pending subscribe promise resolves (not hangs) when WS closes mid-flight", async () => {
+    const fetchFn = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ticket: "tkt" }),
+    })) as unknown as typeof fetch;
+    const conn = new Connection({
+      ticketEndpoint: "/api/ws-ticket",
+      wsUrl: (t) => `ws://h/ws?ticket=${t}`,
+      bearerToken: "tok",
+      wsFactory: (u) => new FakeWS(u) as unknown as WebSocket,
+      sleep: async () => {},
+      fetchFn,
+    });
+    await conn.start();
+    const ws1 = FakeWS.instances[0];
+    if (!ws1) throw new Error("expected ws1");
+    ws1.open();
+
+    // Start subscribe — server never responds, so awaitResponse hangs unless drained
+    const subPromise = conn.subscribe("s1");
+
+    // Close the WS before server responds — pending promise must resolve, not hang
+    ws1.onclose?.();
+
+    // subPromise should settle rather than hanging forever.
+    // subscribe() returns void; internally subscribeWithRetry returns exhausted.
+    // We just verify it settled within the test (no timeout = success).
+    await subPromise;
+  });
 });
