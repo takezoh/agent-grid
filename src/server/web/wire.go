@@ -12,8 +12,18 @@ import (
 	"github.com/takezoh/agent-reactor/client/proto"
 )
 
-// outputFrameFromSurface encodes EvtSurfaceOutput as the asciicast-style
-// output array: [TimeSec, "o", DataB64].
+// outputFrameFromSurface encodes EvtSurfaceOutput as an asciicast-style
+// output array extended with the originating SessionID:
+// [TimeSec, "o", DataB64, SessionID].
+//
+// SessionID routing: AttachLifecycleWS multiplexes surface output for every
+// session the browser has subscribed to, so the browser cannot tell which
+// session each output frame belongs to from element [0..2] alone. The 4th
+// element carries the daemon-side SessionID; TerminalPane drops frames
+// whose SessionID does not match its active session. Without this, the
+// brief overlap during a session switch (subscribe is async, unsubscribe
+// is fire-and-forget) leaks output from the previous session into the
+// newly-mounted terminal — see round-4 code-review finding.
 //
 // Wire-binary safety: the third element is the daemon-side base64 STRING
 // (NOT the decoded bytes). Decoding to a Go string and JSON-marshalling
@@ -25,7 +35,7 @@ import (
 // Also avoids the prior encode→decode→encode round-trip from the daemon
 // runtime down to the browser (round-3 finding: gratuitous base64 churn).
 func outputFrameFromSurface(e proto.EvtSurfaceOutput) []byte {
-	b, _ := json.Marshal([]any{e.TimeSec, "o", e.DataB64})
+	b, _ := json.Marshal([]any{e.TimeSec, "o", e.DataB64, e.SessionID})
 	return b
 }
 

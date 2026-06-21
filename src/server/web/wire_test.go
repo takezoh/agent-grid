@@ -31,8 +31,8 @@ func TestWireEncodeServerEvent_SurfaceOutput(t *testing.T) {
 	if err := json.Unmarshal(got, &arr); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(arr) != 3 {
-		t.Fatalf("expected 3-element array, got %d", len(arr))
+	if len(arr) != 4 {
+		t.Fatalf("expected 4-element array, got %d", len(arr))
 	}
 	if arr[0].(float64) != 1.5 {
 		t.Errorf("time: got %v, want 1.5", arr[0])
@@ -42,6 +42,9 @@ func TestWireEncodeServerEvent_SurfaceOutput(t *testing.T) {
 	}
 	if arr[2].(string) != encoded {
 		t.Errorf("data: got %q, want %q (base64-encoded)", arr[2], encoded)
+	}
+	if arr[3].(string) != "s1" {
+		t.Errorf("sessionID: got %v, want \"s1\" (multiplex routing element)", arr[3])
 	}
 }
 

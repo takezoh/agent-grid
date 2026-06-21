@@ -158,7 +158,7 @@ func TestGatewayAttachWS_SubscribeOutput(t *testing.T) {
 	if err := json.Unmarshal(data, &arr); err != nil {
 		t.Fatalf("unmarshal frame: %v", err)
 	}
-	if len(arr) != 3 || arr[1] != "o" {
+	if len(arr) != 4 || arr[1] != "o" {
 		t.Fatalf("unexpected frame: %s", data)
 	}
 	if arr[0].(float64) != 0.5 {
@@ -170,6 +170,12 @@ func TestGatewayAttachWS_SubscribeOutput(t *testing.T) {
 	// for the rationale.
 	if arr[2].(string) != encoded {
 		t.Errorf("data = %q, want %q (base64-encoded)", arr[2], encoded)
+	}
+	// SessionID routing: 4th element carries the daemon-side SessionID so
+	// the browser (TerminalPane) can drop output frames whose SessionID does
+	// not match its active session — see wire.go::outputFrameFromSurface.
+	if arr[3].(string) != "s1" {
+		t.Errorf("sessionID = %v, want \"s1\"", arr[3])
 	}
 }
 

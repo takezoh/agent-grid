@@ -31,10 +31,16 @@ export function parseServerFrame(raw: string): ServerFrame | null {
   } catch {
     return null;
   }
-  // asciicast v2 配列: [number, "o", string] — Go wire.go:18 と同順
+  // asciicast v2 配列 + sessionId: [number, "o", string, string] — Go wire.go と同順
   if (Array.isArray(v)) {
-    if (v.length === 3 && typeof v[0] === "number" && v[1] === "o" && typeof v[2] === "string") {
-      return [v[0], "o", v[2]];
+    if (
+      v.length === 4 &&
+      typeof v[0] === "number" &&
+      v[1] === "o" &&
+      typeof v[2] === "string" &&
+      typeof v[3] === "string"
+    ) {
+      return [v[0], "o", v[2], v[3]];
     }
     return null;
   }

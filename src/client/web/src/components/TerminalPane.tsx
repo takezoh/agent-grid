@@ -53,11 +53,18 @@ export function TerminalPane({
 
     conn.onOutput = (frame) => {
       // The Go wire (server/web/wire.go:outputFrameFromSurface) sends
-      // [TimeSec, "o", DataB64] where the third element is the base64
-      // STRING (NOT the decoded bytes). Decoding to a Go string and
-      // JSON-marshalling raw PTY bytes is unsafe — encoding/json silently
-      // replaces non-UTF-8 bytes with U+FFFD, garbling 256-color sequences
-      // and any non-ASCII output. atob → Uint8Array preserves every byte.
+      // [TimeSec, "o", DataB64, SessionID]. DataB64 is the base64 STRING
+      // (NOT the decoded bytes). Decoding to a Go string and JSON-marshalling
+      // raw PTY bytes is unsafe — encoding/json silently replaces non-UTF-8
+      // bytes with U+FFFD, garbling 256-color sequences and any non-ASCII
+      // output. atob → Uint8Array preserves every byte.
+      //
+      // Filter by sessionId: AttachLifecycleWS multiplexes surface output
+      // for every subscribed session. During session switch the unsubscribe
+      // for the previous session is fire-and-forget, so its output may keep
+      // arriving briefly after the new session subscribe lands. Without the
+      // sessionId filter that stale output bleeds into the new terminal.
+      if (frame[3] !== sessionRef.current) return;
       term.write(b64ToBytes(frame[2]));
     };
 

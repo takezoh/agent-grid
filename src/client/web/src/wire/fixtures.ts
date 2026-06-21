@@ -1,10 +1,10 @@
 // Canonical JSON fixtures matching Go wire_test.go byte-for-byte where applicable.
-// OutputFrame: [timeSec, "o", data] — Go wire.go:18 json.Marshal([]any{e.TimeSec,"o",string(data)})
+// OutputFrame: [timeSec, "o", dataB64, sessionId] — Go wire.go outputFrameFromSurface
 // ControlFrame: {"k":"c","code":<int omitempty>,"data":<string omitempty>}
 //   code=0 is omitted by omitempty (see gateway.go:104: controlFrame("c",0,"daemon-disconnected"))
 //   code≠0 appears as integer (see wire_test.go:57: Code:9)
 export const fixtures = {
-  output: '[1.5,"o","hi"]',
+  output: '[1.5,"o","hi","s1"]',
   control: '{"k":"c","data":"daemon-disconnected"}',
   controlWithCode: '{"k":"c","code":9,"data":"t | b"}',
   hello:

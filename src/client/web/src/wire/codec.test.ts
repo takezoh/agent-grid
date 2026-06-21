@@ -25,12 +25,17 @@ describe("parseServerFrame", () => {
   });
 
   it("returns null for malformed output array", () => {
-    // [timeSec, "o", data] order — too short
+    // [timeSec, "o", dataB64, sessionId] order — too short (length 3 is the
+    // pre-round-4 wire and must be rejected to surface mismatch loudly)
+    expect(parseServerFrame('[1.0,"o","data"]')).toBeNull();
+    // length-2 also rejected
     expect(parseServerFrame('[1.0,"o"]')).toBeNull();
     // timeSec must be number
-    expect(parseServerFrame('["not-number","o","data"]')).toBeNull();
-    // old wrong order ["o", number, string] must also return null
-    expect(parseServerFrame('["o",1.0,"data"]')).toBeNull();
+    expect(parseServerFrame('["not-number","o","data","s1"]')).toBeNull();
+    // sessionId must be string (not number)
+    expect(parseServerFrame('[1.0,"o","data",42]')).toBeNull();
+    // old wrong order ["o", number, string, string] must also return null
+    expect(parseServerFrame('["o",1.0,"data","s1"]')).toBeNull();
   });
 
   it("parses view-update with full View payload", () => {
