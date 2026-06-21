@@ -21,9 +21,19 @@ Two cross-talk shapes this rules out:
   terminal. Prevented structurally: each `Session` owns its own subscriber set;
   the `Manager` only routes by exact id.
 - **Back-pressure cross-talk** — a slow client wedging or corrupting a healthy
-  one. Prevented by single-writer fan-out: `fanout` (holding `mu`) does a
-  non-blocking send per subscriber and closes any whose buffer is full, so one
-  slow consumer can neither stall the read loop nor steal another's stream.
+  one. Prevented by single-writer fan-out: `fanout` runs inside the Session's
+  sole-owner `mainLoop` and does a non-blocking send per subscriber, closing
+  any whose buffer is full, so one slow consumer can neither stall the read
+  loop nor steal another's stream.
+
+The single-writer discipline is structural rather than mutex-based: `Session`
+is an actor (one `mainLoop` goroutine owns the emulator, subscriber map,
+pending control buffer, and dimensions; public methods reach them via `cmdCh`
+RPC, all routed through a single `call[R]` helper that pins the shutdown
+branch). `ExitCode` is the one exception — it reads `atomic.Bool` +
+`atomic.Int32` directly so the runtime's per-tick poll cannot freeze the IPC
+under a slow chunk parse. See [ADR 0028](../../adr/0028-termvt-session-actor-model.md)
+for the rationale and the deadlock that drove the refactor.
 
 ## Why there is no in-process fake (and no opt-in e2e tier)
 
@@ -39,8 +49,12 @@ behind a build tag.
 
 | File | Role |
 |---|---|
+| `session.go` | actor public API: `Session` struct, `NewSession` (real pty) + `NewSessionWithDeps` (fake-injection seam), `Subscribe`/`Unsubscribe`/`Resize`/`Snapshot`/`Size`/`ExitCode`/`Close`, plus the generic `call[R]` RPC helper. |
+| `session_actor.go` | actor internals: `mainLoop`, `readerLoop`, `responseLoop`, command types (`subscribeCmd` etc.), `fanout`, `registerOSC`, `handleExit`, `processChunk`. |
+| `session_deps.go` | `Emulator` and `PTY` interfaces + the production wrappers (`realEmulator`, `realPTY`). The interfaces are the test seam. |
 | `fanout_contract_test.go` | the isolation contract: multi-subscriber delivery, `Manager` cross-talk, slow-subscriber containment, control-before-output ordering. |
-| `session_test.go` | wired single-session behaviour against a real pty: input echo, OSC 9/133/title capture, reattach-snapshot-first, resize, exit-on-close, default size, slow-subscriber sever. |
+| `session_test.go` | wired single-session behaviour against a real pty: input echo, OSC 9/133/title capture, reattach-snapshot-first, resize, exit-on-close, default size, slow-subscriber sever, and the CSI-Report-Mode deadlock regression (`TestSessionExitCodeNeverBlocksDuringCSIReportMode`). |
+| `session_actor_test.go` | actor-shape tests against a fake emulator + fake pty: chunk-vs-RPC ordering, post-shutdown Subscribe contract, lock-free ExitCode latency, unique non-zero subscriber ids. |
 | `manager_test.go` | wired multi-session lifecycle: create/get/list, duplicate-id rejection, remove closing subscribers. |
 
 `waitFor` / `assertNoOutput` are the shared observation helpers;
@@ -54,8 +68,9 @@ markers travel as ordinary pty output (`cat` echoes a written marker), so
 cd src && TMPDIR=/tmp go test ./platform/termvt/
 
 # concurrency check — guards the single-writer fan-out under concurrent
-# subscribe/drain (the slow-vs-fast case races fan-out against a draining reader)
-cd src && go test -race ./platform/termvt/
+# subscribe/drain. Use the project-level target so the audited subtree stays
+# in one place; see docs/agent/testing.md.
+make test-race
 ```
 
 The untrusted client→server decode for the web gateway is fuzzed separately in
@@ -76,3 +91,8 @@ and must never drive the pty to a non-positive size. See
 | Process exit fans out EventExit then closes channels | `TestSessionEmitsExitOnClose`, `TestManagerRemove` |
 | Resize dimensions are floored/capped (no uint16 overflow or OOM grid) | `TestNormalizeSizeClamp` |
 | Malformed or out-of-range client frames can't panic or mis-resize | `server/web` `TestApplyInbound`, `FuzzInbound` |
+| CSI Report Mode (DECRQM) reply cannot deadlock `ExitCode` | `TestSessionExitCodeNeverBlocksDuringCSIReportMode` |
+| `Subscribe`/`Resize`/`Snapshot`/`Size` complete in deterministic order vs chunks | `TestActor_SubscribeReceivesSnapshotThenChunk` |
+| `ExitCode` stays lock-free even while `mainLoop` is parked in a slow chunk | `TestActor_ExitCodeNeverGoesThroughMainLoop` |
+| Subscriber ids never collide with the post-shutdown sentinel | `TestActor_SubscribeIDsAreUniqueAndNonZero` |
+| Post-shutdown `Subscribe` returns a closed channel, no goroutine leak | `TestActor_SubscribeAfterShutdownReturnsClosedChannel` |

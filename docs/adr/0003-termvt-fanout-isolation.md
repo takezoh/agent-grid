@@ -38,15 +38,20 @@ subsystem's routing-isolation contract:
 
 Mechanics (all in `platform/termvt`):
 
-- **`fanout` holds the single-writer lock** and does a non-blocking send per
-  subscriber, closing any whose buffer is full. A slow consumer is severed by
-  construction; it cannot stall `readLoop` or steal another subscriber's stream.
+- **`fanout` runs inside the sole owner of session state** and does a
+  non-blocking send per subscriber, closing any whose buffer is full. A slow
+  consumer is severed by construction; it cannot stall the loop or steal
+  another subscriber's stream. (Originally this was "fanout holds the
+  single-writer lock"; [ADR 0028](0028-termvt-session-actor-model.md) upgraded
+  the discipline from a mutex to single-goroutine ownership when the
+  mutex-based design deadlocked on undrained VT reply pipes — the contract is
+  unchanged, the property is now structural.)
 - **`fanout_contract_test.go`** drives a real pty (markers via `cat` echo) and
   asserts: every subscriber receives the output; `Manager` sessions never
   cross-talk; a slow subscriber is severed while a fast one runs to `EventExit`;
   control events precede the chunk's output.
-- The **`-race`** job guards the single-writer discipline against a stray
-  goroutine touching session state.
+- The **`make test-race`** target guards the single-writer discipline against a
+  stray goroutine touching session state.
 
 ### No in-process fake; no opt-in e2e tier
 

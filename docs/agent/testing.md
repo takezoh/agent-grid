@@ -50,6 +50,27 @@ a real pty — so there is no opt-in e2e tier. Full guide:
 rationale: [ADR 0003](../adr/0003-termvt-fanout-isolation.md);
 enforcement: [code-enforcement.md §7](../technical/code-enforcement.md).
 
+## Race detector
+
+`make test` runs without `-race` because some legacy packages have not been
+audited under the detector yet and would surface noise unrelated to the change
+in flight. The concurrency-sensitive subtrees are instead validated via an
+opt-in target:
+
+```sh
+make test-race
+# → cd src && go test -race -count=1 ./platform/termvt/... ./client/runtime/...
+```
+
+This is the canonical "did my concurrency refactor regress something" smoke
+test. `platform/termvt` is on the list because the Session actor (single
+mainLoop owner + atomic exit state) and the fanout-isolation contract live
+there; `client/runtime` is on the list because the single dispatch goroutine
+must remain race-free under IPC fan-out.
+
+Adding a subtree: audit it under `-race` locally, fix anything that surfaces,
+then append it to the `test-race` recipe in the Makefile in the same PR.
+
 ## Coverage Tiers
 
 Coverage targets are tiered by architectural blast radius. A regression in `state` corrupts every session; a regression in `lib/tmux` typically surfaces as one broken pane.

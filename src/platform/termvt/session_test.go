@@ -190,6 +190,39 @@ func TestClampDim(t *testing.T) {
 	}
 }
 
+// TestSessionExitCodeNeverBlocksDuringCSIReportMode reproduces a deadlock:
+// the shell emits CSI Report Mode (DECRQM, "\033[?1$p"), the VT emulator's
+// handleRequestMode writes the reply to its internal io.Pipe synchronously,
+// and nothing drains the read end — em.Write blocks forever, holding s.mu,
+// and every ExitCode call (which the runtime dispatch loop fires every tick
+// via PaneAlive) hangs in turn. Bug surfaces as the whole daemon's IPC
+// freezing under any tty client that ever queries terminal modes.
+//
+// Skipped pre-fix; the responseLoop drain in step 3 makes it pass. Step 4's
+// atomic ExitCode makes ExitCode robust even if mainLoop is busy.
+func TestSessionExitCodeNeverBlocksDuringCSIReportMode(t *testing.T) {
+	s, err := NewSession(Spec{Argv: []string{"bash", "-c",
+		`printf '\033[?1$p'; sleep 0.2; exit 0`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 50; i++ {
+			_, _ = s.ExitCode()
+			time.Sleep(10 * time.Millisecond)
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ExitCode blocked — readLoop deadlock on CSI Report Mode")
+	}
+}
+
 // TestSessionDisconnectsSlowSubscriber verifies that a subscriber which does not
 // drain its channel is disconnected (channel closed) once its buffer overflows,
 // rather than having events silently dropped. A 20MB output stream yields far

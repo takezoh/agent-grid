@@ -14,7 +14,7 @@ CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
 .PHONY: build build-orchestrator build-claude-app-server build-server build-web build-all \
         build-web-frontend \
-        run-dev build-experimental install clean test vet lint verify-bridge-deps \
+        run-dev build-experimental install clean test test-race vet lint verify-bridge-deps \
         codex-schema-update codex-schema-check
 
 build:
@@ -58,6 +58,15 @@ install: build
 
 test:
 	cd $(SRC_DIR) && go test ./...
+
+# test-race runs the concurrency-sensitive subtrees under the race detector.
+# Scoped to platform/termvt (Session actor model + emulator drain) and
+# client/runtime (single-dispatcher event loop + ipc fan-out) because the
+# rest of the tree adds noise (third-party stubs, large startup paths) we
+# haven't validated under -race yet. Add subtrees here as they're audited.
+# See docs/agent/testing.md for the rollout plan.
+test-race:
+	cd $(SRC_DIR) && go test -race -count=1 ./platform/termvt/... ./client/runtime/...
 
 vet:
 	cd $(SRC_DIR) && go vet ./...

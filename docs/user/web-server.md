@@ -20,24 +20,36 @@ Wire-level detail and the full REST + WebSocket vocabulary live in
 
 ## Build & run
 
-The fastest path for local dev launches both processes together:
+The fastest path for local dev launches the **entire** stack — an isolated
+arc daemon plus the gateway and web host — together:
 
 ```sh
 make run-dev
-#   → backend  : http://127.0.0.1:8443
-#     web      : http://127.0.0.1:8080
+#   → daemon  : $ROOT/.run-dev/arc/arc.sock  (scratch dir, removed on Ctrl-C)
+#     backend : http://127.0.0.1:8443
+#     web     : http://127.0.0.1:8080
 #     Open →   http://127.0.0.1:8080/#token=<generated>
-#   Ctrl-C stops both. (scripts/run-dev.sh; override BACKEND_ADDR/WEB_ADDR/TOKEN.)
+#   Ctrl-C stops all three processes and removes the scratch dir.
 ```
 
-Or run them separately:
+The scratch data dir means `make run-dev` never collides with the user's
+production `arc` daemon (`~/.agent-reactor/`); the two can run side by side.
+Overrides: `BACKEND_ADDR`, `WEB_ADDR`, `TOKEN`, `ARC_DATA_DIR` (custom
+isolated dir), `KEEP_DATA_DIR=1` (preserve the scratch dir for post-mortem,
+including the daemon log at `<ARC_DATA_DIR>/arc.log`).
+
+Or run the three processes separately (e.g. to point the gateway at a
+long-running production daemon):
 
 ```sh
-make build-server build-web           # → ./server  ./web
+make build build-server build-web      # → ./arc ./server ./web
+
+# Daemon (holds the sessions; binds $HOME/.agent-reactor/arc.sock):
+./arc &
 
 # Backend (clients connect here). TLS self-signed by default; token generated if unset:
 ./server -addr :8443
-#   → "agent-reactor backend on https://:8443  token=<generated>"
+#   → "agent-reactor backend on https://:8443  arc-sock=$HOME/.agent-reactor/arc.sock  token=<generated>"
 
 # Web-client host, pointed at the backend:
 ./web -addr :8080 -server https://127.0.0.1:8443
