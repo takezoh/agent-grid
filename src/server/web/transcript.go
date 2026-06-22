@@ -49,7 +49,8 @@ func serveSessionFile(d *DaemonClient, w http.ResponseWriter, r *http.Request, k
 	// a. Validate session ID via allowlist (ADR 0026).
 	id := r.PathValue("id")
 	if !sessionIDPattern.MatchString(id) {
-		http.Error(w, "invalid session id", http.StatusBadRequest)
+		gatewayError(w, r, http.StatusBadRequest, "invalid_session_id",
+			"invalid session id", "id", id)
 		return
 	}
 
@@ -58,7 +59,8 @@ func serveSessionFile(d *DaemonClient, w http.ResponseWriter, r *http.Request, k
 	if s := r.URL.Query().Get("offset"); s != "" {
 		n, err := strconv.ParseInt(s, 10, 64)
 		if err != nil || n < 0 {
-			http.Error(w, "invalid offset", http.StatusBadRequest)
+			gatewayError(w, r, http.StatusBadRequest, "invalid_offset",
+				"invalid offset", "offset", s, "err", err)
 			return
 		}
 		offset = n
@@ -66,7 +68,8 @@ func serveSessionFile(d *DaemonClient, w http.ResponseWriter, r *http.Request, k
 
 	// c. Check daemon availability before querying.
 	if !d.Health() {
-		http.Error(w, "daemon unavailable", http.StatusServiceUnavailable)
+		gatewayError(w, r, http.StatusServiceUnavailable, "daemon_unavailable",
+			"daemon unavailable")
 		return
 	}
 
@@ -78,11 +81,11 @@ func serveSessionFile(d *DaemonClient, w http.ResponseWriter, r *http.Request, k
 	if err != nil {
 		switch {
 		case errors.Is(err, errSessionNotFound), errors.Is(err, errNoTab):
-			http.Error(w, "transcript not found", http.StatusNotFound)
+			gatewayError(w, r, http.StatusNotFound, "transcript_not_found",
+				"transcript not found", "id", id, "kind", kindMatch)
 		default:
-			// Proto errors (ErrNotFound → 404, ErrInvalidArgument → 400,
-			// others → 500) and unexpected internal errors.
-			handleProtoError(w, err)
+			// Proto / unexpected errors mapped per handleProtoError.
+			handleProtoError(w, r, err)
 		}
 		return
 	}
@@ -90,7 +93,8 @@ func serveSessionFile(d *DaemonClient, w http.ResponseWriter, r *http.Request, k
 	// e. Stat the file to get size.
 	fi, err := os.Stat(path)
 	if err != nil {
-		http.Error(w, "transcript not found", http.StatusNotFound)
+		gatewayError(w, r, http.StatusNotFound, "transcript_file_missing",
+			"transcript not found", "id", id, "kind", kindMatch, "path", path, "err", err)
 		return
 	}
 
@@ -103,6 +107,7 @@ func serveSessionFile(d *DaemonClient, w http.ResponseWriter, r *http.Request, k
 
 	// g. Empty range: offset at or past EOF → 204 No Content.
 	if offset >= fi.Size() {
+		_ = requestID(w, r)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -110,14 +115,16 @@ func serveSessionFile(d *DaemonClient, w http.ResponseWriter, r *http.Request, k
 	// h. Open, seek, and stream.
 	f, err := os.Open(path) //nolint:gosec // path is resolved from daemon-controlled LogTabs, not user input
 	if err != nil {
-		http.Error(w, "transcript not found", http.StatusNotFound)
+		gatewayError(w, r, http.StatusNotFound, "transcript_open_failed",
+			"transcript not found", "id", id, "path", path, "err", err)
 		return
 	}
 	// i. Close file on exit.
 	defer func() { _ = f.Close() }()
 
 	if _, err = f.Seek(offset, io.SeekStart); err != nil {
-		http.Error(w, "seek error", http.StatusInternalServerError)
+		gatewayError(w, r, http.StatusInternalServerError, "transcript_seek_failed",
+			"seek error", "id", id, "path", path, "offset", offset, "err", err)
 		return
 	}
 
@@ -142,7 +149,9 @@ func serveSessionFile(d *DaemonClient, w http.ResponseWriter, r *http.Request, k
 // TODO(future-pr): improve tab matching beyond label/path heuristics once the
 // proto layer exposes a dedicated tab-kind field.
 func resolveSessionFilePath(d *DaemonClient, r *http.Request, id, kindMatch string) (string, error) {
-	resp, err := d.SendCommand(r.Context(), proto.CmdEvent{
+	ctx, cancel := rpcContext(r)
+	defer cancel()
+	resp, err := d.SendCommand(ctx, proto.CmdEvent{
 		Event:   state.EventListSessions,
 		Payload: json.RawMessage("{}"),
 	})

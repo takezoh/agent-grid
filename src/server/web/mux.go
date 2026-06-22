@@ -1,9 +1,17 @@
 package web
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
+	"path/filepath"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -11,6 +19,52 @@ import (
 	"github.com/takezoh/agent-reactor/client/proto"
 	"github.com/takezoh/agent-reactor/client/state"
 )
+
+// isAbsoluteProjectPath reports whether p is suitable as a session project
+// directory. The daemon and its downstream launchers (devcontainer, direct
+// fork) treat req.Project as the working directory; a non-absolute value
+// reaches docker create as workdir and fails with a confusing message
+// ("the working directory 'foo' is invalid, it needs to be an absolute
+// path") that surfaces as an opaque 502 from inside the launcher chain.
+// Guard at the gateway boundary so the operator sees a 400 stating the
+// rule, not a 502 mentioning docker internals.
+//
+// Empty is rejected (project is required); the daemon also enforces this,
+// but rejecting earlier keeps the error closer to the input.
+func isAbsoluteProjectPath(p string) bool {
+	if p == "" {
+		return false
+	}
+	return filepath.IsAbs(p)
+}
+
+// daemonRPCTimeout caps how long an /api/* request waits on the daemon. A
+// wedged daemon (e.g. event loop stuck) would otherwise hang the HTTP request
+// forever, exhausting the gateway's worker pool and propagating the wedge to
+// every browser tab. With a bound, the gateway returns 504 quickly and the
+// browser can recover; without one, a single wedged daemon takes down the
+// gateway too. 10s is generous for normal RPC (single-digit ms) but short
+// enough that users notice and can recover.
+const daemonRPCTimeout = 10 * time.Second
+
+// rpcTimeoutOverride is set ONLY by tests (via withShortRPCTimeout) so the
+// timeout assertions don't pay 10s × N wall clock. Zero means "use the const
+// above". Production must never write this — there is no flag wiring.
+//
+// atomic.Int64 (not a plain time.Duration) because parallel timeout tests
+// write to it from one goroutine while concurrent request goroutines read
+// it from rpcContext on the parallel-running unit tests in the same package.
+var rpcTimeoutOverride atomic.Int64
+
+// rpcContext returns a context derived from r.Context() with daemonRPCTimeout
+// applied. Callers must defer cancel().
+func rpcContext(r *http.Request) (context.Context, context.CancelFunc) {
+	d := daemonRPCTimeout
+	if override := time.Duration(rpcTimeoutOverride.Load()); override > 0 {
+		d = override
+	}
+	return context.WithTimeout(r.Context(), d)
+}
 
 // apiSessionInfo is the REST wire shape for one session returned by
 // GET /api/sessions and POST /api/sessions. Fields: id, project (optional),
@@ -81,20 +135,24 @@ func apiHandler(d *DaemonClient, tickets *ticketStore) http.Handler {
 func handleListSessions(d *DaemonClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !d.Health() {
-			http.Error(w, "daemon unavailable", http.StatusServiceUnavailable)
+			gatewayError(w, r, http.StatusServiceUnavailable, "daemon_unavailable",
+				"daemon unavailable")
 			return
 		}
-		resp, err := d.SendCommand(r.Context(), proto.CmdEvent{
+		ctx, cancel := rpcContext(r)
+		defer cancel()
+		resp, err := d.SendCommand(ctx, proto.CmdEvent{
 			Event:   state.EventListSessions,
 			Payload: json.RawMessage("{}"),
 		})
 		if err != nil {
-			handleProtoError(w, err)
+			handleProtoError(w, r, err)
 			return
 		}
 		rs, ok := resp.(proto.RespSessions)
 		if !ok {
-			http.Error(w, "unexpected response type", http.StatusInternalServerError)
+			gatewayError(w, r, http.StatusInternalServerError, "response_type_mismatch",
+				"unexpected response type", "got_type", typeName(resp))
 			return
 		}
 		out := make([]apiSessionInfo, len(rs.Sessions))
@@ -113,12 +171,27 @@ func handleListSessions(d *DaemonClient) http.HandlerFunc {
 func handleCreateSession(d *DaemonClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !d.Health() {
-			http.Error(w, "daemon unavailable", http.StatusServiceUnavailable)
+			gatewayError(w, r, http.StatusServiceUnavailable, "daemon_unavailable",
+				"daemon unavailable")
 			return
 		}
 		var req apiCreateReq
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "bad request", http.StatusBadRequest)
+			gatewayError(w, r, http.StatusBadRequest, "bad_request",
+				"bad request body", "err", err)
+			return
+		}
+		// Reject relative-path "projects" at the gateway boundary. The daemon
+		// hands req.Project straight to drivers / devcontainer launchers as
+		// the working directory; docker create rejects non-absolute workdirs
+		// with "the working directory 'X' is invalid, it needs to be an
+		// absolute path", which used to surface as an opaque 502 from deep
+		// inside the launcher chain. Catching it here turns the operator
+		// mistake into a clean 400 with the actual rule stated.
+		if !isAbsoluteProjectPath(req.Project) {
+			gatewayError(w, r, http.StatusBadRequest, "project_not_absolute",
+				"project must be an absolute path (e.g. /home/me/myrepo); got "+strconv.Quote(req.Project),
+				"project", req.Project)
 			return
 		}
 		params := state.CreateSessionParams{
@@ -131,20 +204,27 @@ func handleCreateSession(d *DaemonClient) http.HandlerFunc {
 		}
 		payload, err := json.Marshal(params)
 		if err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			// json.Marshal of a struct of primitives cannot fail — this is
+			// defensive only. Surface as 500 with the err so a future
+			// type-change that breaks marshalling is visible.
+			gatewayError(w, r, http.StatusInternalServerError, "marshal_error",
+				"internal error", "err", err)
 			return
 		}
-		resp, err := d.SendCommand(r.Context(), proto.CmdEvent{
+		ctx, cancel := rpcContext(r)
+		defer cancel()
+		resp, err := d.SendCommand(ctx, proto.CmdEvent{
 			Event:   state.EventCreateSession,
 			Payload: json.RawMessage(payload),
 		})
 		if err != nil {
-			handleProtoError(w, err)
+			handleProtoError(w, r, err)
 			return
 		}
 		rc, ok := resp.(proto.RespCreateSession)
 		if !ok {
-			http.Error(w, "unexpected response type", http.StatusInternalServerError)
+			gatewayError(w, r, http.StatusInternalServerError, "response_type_mismatch",
+				"unexpected response type", "got_type", typeName(resp))
 			return
 		}
 		info := apiSessionInfo{
@@ -160,7 +240,8 @@ func handleCreateSession(d *DaemonClient) http.HandlerFunc {
 func handleDeleteSession(d *DaemonClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !d.Health() {
-			http.Error(w, "daemon unavailable", http.StatusServiceUnavailable)
+			gatewayError(w, r, http.StatusServiceUnavailable, "daemon_unavailable",
+				"daemon unavailable")
 			return
 		}
 		id := r.PathValue("id")
@@ -168,37 +249,179 @@ func handleDeleteSession(d *DaemonClient) http.HandlerFunc {
 		// session ID. Reject anything outside the daemon's
 		// alphanumeric/underscore/hyphen vocabulary before the daemon RPC.
 		if !sessionIDPattern.MatchString(id) {
-			http.Error(w, "invalid session id", http.StatusBadRequest)
+			gatewayError(w, r, http.StatusBadRequest, "invalid_session_id",
+				"invalid session id", "id", id)
 			return
 		}
 		payload, _ := json.Marshal(state.StopSessionParams{SessionID: id})
-		_, err := d.SendCommand(r.Context(), proto.CmdEvent{
+		ctx, cancel := rpcContext(r)
+		defer cancel()
+		_, err := d.SendCommand(ctx, proto.CmdEvent{
 			Event:   state.EventStopSession,
 			Payload: json.RawMessage(payload),
 		})
 		if err != nil {
-			handleProtoError(w, err)
+			handleProtoError(w, r, err)
 			return
 		}
+		_ = requestID(w, r) // set X-Request-Id on the 204 too
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
-// handleProtoError maps proto.ErrorBody codes to HTTP status codes.
-func handleProtoError(w http.ResponseWriter, err error) {
-	var eb *proto.ErrorBody
-	if errors.As(err, &eb) {
-		switch eb.Code {
-		case proto.ErrNotFound:
-			http.Error(w, eb.Message, http.StatusNotFound)
-		case proto.ErrInvalidArgument:
-			http.Error(w, eb.Message, http.StatusBadRequest)
-		default:
-			http.Error(w, eb.Message, http.StatusInternalServerError)
-		}
+// typeName returns the Go type name of v as a string, used for diagnostic
+// logging when a response type assertion fails (so we can see what the
+// daemon actually returned without dumping the full payload).
+func typeName(v any) string {
+	if v == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%T", v)
+}
+
+// requestID returns the X-Request-Id from the request if the client supplied
+// one (browsers don't, but proxies and tests might); otherwise generates a new
+// 16-hex-char id. The returned id is also written into the response header so
+// the client sees the value that the server-side slog lines use.
+func requestID(w http.ResponseWriter, r *http.Request) string {
+	id := r.Header.Get("X-Request-Id")
+	if id == "" {
+		var b [8]byte
+		_, _ = rand.Read(b[:])
+		id = hex.EncodeToString(b[:])
+	}
+	w.Header().Set("X-Request-Id", id)
+	return id
+}
+
+// gatewayError is the single 4xx/5xx exit for every gateway handler. It
+// writes the response, logs context, and embeds the request-id in the
+// response body so a screenshot of the browser response is enough to grep
+// the server log.
+//
+// status: the HTTP status to return.
+// reason: a short stable token used for log grouping ("daemon_timeout",
+//
+//	"spawn_failed", "auth_missing", …). Goes into slog as `reason=...`.
+//
+// detail: human-readable explanation; written to the response body, NOT
+//
+//	the slog message (to keep the log line short).
+//
+// fields: additional slog key/value pairs. Always include "err" when the
+//
+//	error came from upstream / SDK.
+//
+// 4xx is logged at Info; 5xx at Error. 5xx is what the user grep'd for in
+// the original "/api/sessions returned 500" complaint — every such 500 is
+// now identifiable by its (request_id, reason) tuple in server.log.
+func gatewayError(w http.ResponseWriter, r *http.Request, status int, reason, detail string, fields ...any) {
+	rid := requestID(w, r)
+	level := slog.LevelInfo
+	if status >= 500 {
+		level = slog.LevelError
+	}
+	attrs := []any{
+		"request_id", rid,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"status", status,
+		"reason", reason,
+	}
+	attrs = append(attrs, fields...)
+	slog.Log(r.Context(), level, "gateway: response", attrs...)
+	body := detail + " (request_id=" + rid + ")"
+	http.Error(w, body, status)
+}
+
+// handleProtoError translates a daemon RPC error into an HTTP response.
+// Every proto.ErrCode is mapped explicitly; an unknown code logs at Error
+// and returns 500 so a daemon-side code we forgot to handle is visibly
+// failing rather than silently surfacing as a generic 500.
+//
+// Mapping rationale:
+//   - context.DeadlineExceeded → 504: a wedged daemon would otherwise hang
+//     the request forever. The 504 is recoverable; the browser can retry.
+//   - context.Canceled → 504: client gave up, same shape for callers.
+//   - ErrDaemonUnavailable → 503: socket disconnected mid-request; transient.
+//   - proto.ErrNotFound → 404: the resource didn't exist on the daemon.
+//   - proto.ErrInvalidArgument → 400: client sent bad data.
+//   - proto.ErrUnsupported → 422: the request is structurally valid but the
+//     daemon can't satisfy it (e.g. no driver registered for the command).
+//     422 (Unprocessable Entity) distinguishes "wrong shape" (400) from
+//     "right shape, wrong target".
+//   - proto.ErrAlreadyExists → 409: standard idempotency-conflict status.
+//   - proto.ErrSessionStopped → 410 Gone: the session existed but has shut
+//     down; the resource is permanently unavailable in its previous form.
+//   - proto.ErrFrameNotReady → 503: the surface isn't ready yet; the
+//     React store retries on 503 with backoff (ADR 0018).
+//   - proto.ErrInternal → 502 Bad Gateway: this is an upstream daemon
+//     failure (the daemon ran but its operation failed — typically a
+//     spawn failure). 502 is the precise gateway-pattern status; 500
+//     would be wrong because the gateway itself didn't fail.
+//   - proto.ErrUnknown → 502: unrecognized but proto-typed; still
+//     upstream-attributed.
+//   - non-proto, non-context error → 502 with the underlying error
+//     surfaced in the body. This is also typically a transport error
+//     (e.g. socket write failure mid-RPC), still upstream-attributable.
+//
+// reason= tokens are stable for log grouping. Do not rename them without
+// updating any external log alerts that depend on them.
+func handleProtoError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		gatewayError(w, r, http.StatusGatewayTimeout, "daemon_timeout",
+			"daemon timeout", "err", err)
+		return
+	case errors.Is(err, context.Canceled):
+		gatewayError(w, r, http.StatusGatewayTimeout, "client_cancelled",
+			"client cancelled", "err", err)
+		return
+	case errors.Is(err, ErrDaemonUnavailable):
+		gatewayError(w, r, http.StatusServiceUnavailable, "daemon_unavailable",
+			"daemon unavailable", "err", err)
 		return
 	}
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	var eb *proto.ErrorBody
+	if errors.As(err, &eb) {
+		status, reason := protoCodeToHTTP(eb.Code)
+		gatewayError(w, r, status, reason, eb.Message, "err_code", string(eb.Code), "err_msg", eb.Message)
+		return
+	}
+	gatewayError(w, r, http.StatusBadGateway, "upstream_error",
+		"upstream error: "+err.Error(), "err", err)
+}
+
+// protoCodeToHTTP is the exhaustive code → (status, reason) mapping.
+// Keeping it pure makes it trivially unit-testable; new ErrCode values
+// require an entry here so a `default` 500 never silently swallows them.
+func protoCodeToHTTP(code proto.ErrCode) (int, string) {
+	switch code {
+	case proto.ErrNotFound:
+		return http.StatusNotFound, "not_found"
+	case proto.ErrInvalidArgument:
+		return http.StatusBadRequest, "invalid_argument"
+	case proto.ErrUnsupported:
+		return http.StatusUnprocessableEntity, "unsupported"
+	case proto.ErrAlreadyExists:
+		return http.StatusConflict, "already_exists"
+	case proto.ErrSessionStopped:
+		return http.StatusGone, "session_stopped"
+	case proto.ErrFrameNotReady:
+		return http.StatusServiceUnavailable, "frame_not_ready"
+	case proto.ErrInternal:
+		// Upstream daemon error (typically "tmux spawn failed: …").
+		// 502 Bad Gateway is the precise status — the gateway is healthy,
+		// the upstream daemon's operation failed. The user's original
+		// "POST /api/sessions returned 500" complaint was this code: a
+		// daemon-side spawn failure being miscategorized as a gateway bug.
+		return http.StatusBadGateway, "daemon_internal"
+	case proto.ErrUnknown:
+		return http.StatusBadGateway, "daemon_unknown"
+	}
+	// New ErrCode added in proto but not mapped here — surface it as 500
+	// (gateway bug, not upstream) so the omission is visible in logs.
+	return http.StatusInternalServerError, "unmapped_code"
 }
 
 func serveAttach(d *DaemonClient, w http.ResponseWriter, r *http.Request) {

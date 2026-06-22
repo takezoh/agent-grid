@@ -38,22 +38,29 @@ Overrides: `BACKEND_ADDR`, `WEB_ADDR`, `TOKEN`, `ARC_DATA_DIR` (custom
 isolated dir), `KEEP_DATA_DIR=1` (preserve the scratch dir for post-mortem,
 including the daemon log at `<ARC_DATA_DIR>/arc.log`).
 
-Or run the three processes separately (e.g. to point the gateway at a
-long-running production daemon):
+Or run the gateway standalone with its own isolated arc daemon:
 
 ```sh
 make build build-server build-web      # → ./arc ./server ./web
 
-# Daemon (holds the sessions; binds $HOME/.agent-reactor/arc.sock):
-./arc &
-
-# Backend (clients connect here). TLS self-signed by default; token generated if unset:
-./server -addr :8443
-#   → "agent-reactor backend on https://:8443  arc-sock=$HOME/.agent-reactor/arc.sock  token=<generated>"
+# Spawn mode (RECOMMENDED): the gateway forks and owns its own arc daemon
+# under -data-dir. SIGTERM the gateway and the daemon dies with it. The TUI
+# daemon at $HOME/.agent-reactor (if any) is completely untouched.
+# Pick any writable path; the example uses an XDG-style cache dir so the
+# command works for non-root users out of the box.
+./server -addr :8443 -data-dir "$HOME/.cache/agent-reactor-web"
+#   → "agent-reactor backend on https://:8443  arc-sock=…/arc.sock  mode=spawn"
 
 # Web-client host, pointed at the backend:
 ./web -addr :8080 -server https://127.0.0.1:8443
 ```
+
+The gateway requires explicit daemon configuration (no implicit fallback): pass
+either `-data-dir` (recommended, spawn mode) or `-arc-sock <path>` (attach mode,
+for an externally-managed daemon — e.g. when orchestrating arc with systemd).
+Attaching to `$HOME/.agent-reactor/arc.sock` (the TUI default) is refused unless
+`ARC_ALLOW_SHARED_DAEMON=1` is set, because a gateway-induced wedge there would
+cascade to every TUI session.
 
 Open `http://<web-host>:8080/#token=<token>` in a browser. The token goes in the
 URL **fragment** (`#…`), not the query string, so it is never sent to a server,

@@ -219,13 +219,48 @@ func (r *Runtime) startRestoredTaps() {
 }
 
 // enqueueInternal posts an internal event onto the runtime's
-// internal channel. Non-blocking; drops with a warning on a full
-// channel.
+// internal channel. Non-blocking; drops silently on a full channel.
+//
+// Drops are logged at Debug (not Warn) because the daemon's own log file is
+// streamed back to clients via FileRelay. Every Warn would be written to
+// arc.log, the FileRelay watcher would observe the write, the sweep would
+// enqueue an internalBroadcastWire, and if internalCh is already saturated
+// the enqueue would drop and emit ANOTHER Warn — a self-sustaining feedback
+// loop that wedges the daemon (observed: 39MB of identical lines at 10/s).
+// Debug-level drop messages stay out of the default log stream and break the
+// cycle. Callers that genuinely cannot tolerate a drop (e.g. spawn completion)
+// use sendSpawnComplete, which blocks rather than dropping.
 func (r *Runtime) enqueueInternal(ev internalEvent) {
 	select {
 	case r.internalCh <- ev:
 	default:
-		slog.Warn("runtime: internal channel full, dropping")
+		slog.Debug("runtime: internal channel full, dropping",
+			"type", internalEventName(ev))
+	}
+}
+
+// internalEventName returns a short identifier for an internal event, used
+// only for diagnostic logs (Debug level).
+func internalEventName(ev internalEvent) string {
+	switch ev.(type) {
+	case connOpen:
+		return "conn-open"
+	case connClose:
+		return "conn-close"
+	case internalBroadcastWire:
+		return "broadcast-wire"
+	case internalBroadcastSurface:
+		return "broadcast-surface"
+	case internalSurfaceClosed:
+		return "surface-closed"
+	case internalSetRelay:
+		return "set-relay"
+	case internalStartRestoredTaps:
+		return "start-restored-taps"
+	case internalSpawnComplete:
+		return "spawn-complete"
+	default:
+		return "unknown"
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
@@ -46,6 +47,14 @@ func (r *Runtime) buildSpawnDeps() spawnDeps {
 // ensure, bind, launch wrap, tmux spawn), and posts results back via
 // internalSpawnComplete / EvTmuxSpawnFailed. It holds no *Runtime reference,
 // so every state mutation is deferred to the event loop in handleSpawnComplete.
+//
+// The deferred panic recovery (recoverSpawnPanic) is load-bearing: a panic
+// inside the spawn pipeline (devcontainer manager, subsystem factory,
+// launcher wrapper, …) would otherwise propagate out of this goroutine and
+// crash the entire daemon — killing every session inside it, including the
+// agent session that issued the POST /api/sessions that triggered the
+// spawn. Converting a panic into EvTmuxSpawnFailed keeps the failure scoped
+// to the one session being created; the rest of the daemon continues serving.
 func spawnTmuxWindow(deps spawnDeps, e state.EffSpawnTmuxWindow) {
 	sendFailed := func(msg string) {
 		deps.sendEvent(state.EvTmuxSpawnFailed{
@@ -53,6 +62,7 @@ func spawnTmuxWindow(deps spawnDeps, e state.EffSpawnTmuxWindow) {
 			Err: msg, ReplyConn: e.ReplyConn, ReplyReqID: e.ReplyReqID,
 		})
 	}
+	defer recoverSpawnPanic(e, sendFailed)
 
 	ctx := context.Background()
 	plan := state.LaunchPlan{
@@ -127,6 +137,28 @@ func spawnTmuxWindow(deps spawnDeps, e state.EffSpawnTmuxWindow) {
 		paneID:           paneID,
 		bindResult:       bindResult,
 	})
+}
+
+// recoverSpawnPanic is the deferred panic handler for spawnTmuxWindow. Logs
+// the panic at Error with a full stack so an operator can trace the root
+// cause, then surfaces the failure on the spawn reply channel via sendFailed
+// so the HTTP POST that triggered the spawn gets a clean 502 instead of
+// dropping its reply when the daemon crashes.
+//
+// Kept out of spawnTmuxWindow's body so spawnTmuxWindow stays under the
+// project-wide 80-line function cap (funlen lint).
+func recoverSpawnPanic(e state.EffSpawnTmuxWindow, sendFailed func(string)) {
+	rec := recover()
+	if rec == nil {
+		return
+	}
+	slog.Error("runtime: spawn goroutine panicked — daemon survives, session fails",
+		"frame", e.FrameID,
+		"session", e.SessionID,
+		"panic", fmt.Sprintf("%v", rec),
+		"stack", string(debug.Stack()),
+	)
+	sendFailed(fmt.Sprintf("spawn panicked: %v", rec))
 }
 
 // handleSpawnComplete runs on the event loop. It stores the per-frame I/O
