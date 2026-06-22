@@ -71,20 +71,94 @@ body {
   opacity: 0.6;
   font-size: 0.85em;
 }
+.create-session-trigger {
+  margin-bottom: 8px;
+}
+.create-session-trigger > button {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+.create-session-trigger > button:hover {
+  filter: brightness(1.1);
+}
+
+.create-session-dialog {
+  width: min(520px, 90vw);
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.create-session-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
 .create-session {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  margin: 0;
+}
+.create-session h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.create-session label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85em;
+  opacity: 0.85;
 }
 .create-session input {
-  flex: 1;
-  padding: 4px 6px;
+  padding: 6px 8px;
   background: #2a2a2a;
   color: var(--fg);
   border: 1px solid #444;
+  border-radius: 3px;
+  font-family: inherit;
 }
-.create-session button {
-  padding: 4px 10px;
+.create-session input:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+.create-session input:disabled {
+  opacity: 0.5;
 }
 .create-session .error {
   color: #ff6b6b;
+  font-size: 0.85em;
+}
+.create-session-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.create-session-actions button {
+  padding: 6px 14px;
+  background: #2a2a2a;
+  color: var(--fg);
+  border: 1px solid #444;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.create-session-actions button[type="submit"] {
+  background: var(--accent);
+  color: #0a0a0a;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.create-session-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
