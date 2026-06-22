@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/takezoh/agent-reactor/client/config"
 	"github.com/takezoh/agent-reactor/client/proto"
 	"github.com/takezoh/agent-reactor/client/state"
 )
@@ -384,6 +385,91 @@ func TestMux_DeleteMapsErrorToHTTPCode(t *testing.T) {
 				t.Fatalf("status = %d, want %d (body %q)", w.Code, tc.wantHTTP, w.Body.String())
 			}
 		})
+	}
+}
+
+// --- session config ---
+
+// TestMux_SessionConfigSurfacesConfigFields verifies that GET /api/session-config
+// surfaces default_command / commands / projects sourced from settings.toml.
+// The loader is stubbed so the test doesn't depend on the developer's
+// ~/.agent-reactor/settings.toml.
+// Not t.Parallel(): handleSessionConfig swaps a package-level loader via
+// withSessionConfigLoader; two concurrent overrides would race the way they
+// did when both this test and TestMux_SessionConfigSurfacesLoadError ran
+// in parallel.
+func TestMux_SessionConfigSurfacesConfigFields(t *testing.T) {
+	d := NewDaemonClientWithDialer(
+		func() (*proto.Client, error) { return nil, errors.New("unused") },
+		time.Millisecond, 2*time.Millisecond,
+	)
+	defer d.Close()
+
+	restore := withSessionConfigLoader(func() (*config.Config, error) {
+		cfg := config.DefaultConfig()
+		cfg.Session.DefaultCommand = "claude"
+		cfg.Session.Commands = []string{"claude", "shell", "npm run dev"}
+		cfg.Projects.ProjectPaths = []string{"/home/me/repo-a", "/home/me/repo-b"}
+		return cfg, nil
+	})
+	defer restore()
+
+	mux := NewMux(d, "tok")
+	r := httptest.NewRequest(http.MethodGet, "/api/session-config", nil)
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %q)", w.Code, w.Body.String())
+	}
+	var got apiSessionConfig
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.DefaultCommand != "claude" {
+		t.Errorf("DefaultCommand = %q, want claude", got.DefaultCommand)
+	}
+	if len(got.Commands) != 3 || got.Commands[0] != "claude" {
+		t.Errorf("Commands = %v, want [claude shell npm run dev]", got.Commands)
+	}
+	// ProjectPaths only land if the referenced dirs exist (listProjectsFrom
+	// stats them); since the test paths are fake, expect an empty list rather
+	// than the raw config values. The point of this assertion is that the
+	// field is JSON-encoded as an array (not null) so the UI's
+	// projects.map(...) doesn't blow up.
+	if got.Projects == nil {
+		t.Errorf("Projects = nil, want non-nil array")
+	}
+}
+
+// TestMux_SessionConfigSurfacesLoadError verifies that a malformed settings.toml
+// surfaces as 500 with a grep-able reason, not a silent empty response.
+//
+// Not t.Parallel(): see the comment on TestMux_SessionConfigSurfacesConfigFields.
+func TestMux_SessionConfigSurfacesLoadError(t *testing.T) {
+	d := NewDaemonClientWithDialer(
+		func() (*proto.Client, error) { return nil, errors.New("unused") },
+		time.Millisecond, 2*time.Millisecond,
+	)
+	defer d.Close()
+
+	restore := withSessionConfigLoader(func() (*config.Config, error) {
+		return nil, errors.New("bad toml")
+	})
+	defer restore()
+
+	mux := NewMux(d, "tok")
+	r := httptest.NewRequest(http.MethodGet, "/api/session-config", nil)
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 (body %q)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "settings.toml load failed") {
+		t.Errorf("body = %q, want it to contain 'settings.toml load failed'", w.Body.String())
 	}
 }
 

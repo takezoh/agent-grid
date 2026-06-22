@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/takezoh/agent-reactor/client/config"
 	"github.com/takezoh/agent-reactor/client/proto"
 	"github.com/takezoh/agent-reactor/client/state"
 )
@@ -76,6 +77,20 @@ type apiSessionInfo struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// apiSessionConfig is the REST wire shape for GET /api/session-config. It
+// surfaces the subset of the user's settings.toml the create-session form
+// needs to render: the curated [session].commands list (the same picker the
+// TUI palette uses), the [session].default_command, and the resolved
+// [projects] list (project_roots fan-out + project_paths). Sourcing these
+// from config rather than hardcoding driver names in the UI keeps web and
+// TUI on the same source of truth and lets the user customize both without
+// rebuilding.
+type apiSessionConfig struct {
+	DefaultCommand string   `json:"default_command"`
+	Commands       []string `json:"commands"`
+	Projects       []string `json:"projects"`
+}
+
 // apiCreateReq is the POST /api/sessions body: project (optional), command,
 // and optional terminal cols/rows packed into state.LaunchOptions.
 type apiCreateReq struct {
@@ -126,10 +141,69 @@ func apiHandler(d *DaemonClient, tickets *ticketStore) http.Handler {
 	mux.HandleFunc("DELETE /api/sessions/{id}", handleDeleteSession(d))
 	mux.HandleFunc("GET /api/sessions/{id}/transcript", handleGetTranscript(d))
 	mux.HandleFunc("GET /api/sessions/{id}/event-log", handleGetEventLog(d))
+	mux.HandleFunc("GET /api/session-config", handleSessionConfig())
 	mux.HandleFunc("POST /api/ws-ticket", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"ticket": tickets.mint()})
 	})
 	return mux
+}
+
+// loadSessionConfig is the package-level hook used by handleSessionConfig.
+// Tests swap it via withSessionConfigLoader so they don't have to lay down a
+// real ~/.agent-reactor/settings.toml on disk. Production uses config.Load,
+// which reads from $HOME/.agent-reactor/settings.toml (same file the daemon
+// reads — see client/config.ConfigDirPath); missing-file is non-fatal and
+// returns DefaultConfig().
+var loadSessionConfig = config.Load
+
+// withSessionConfigLoader installs a test-only loader and returns a restore
+// func. Production code never touches this; declared in mux.go (not _test.go)
+// because var assignment from _test.go can race the production reader on
+// parallel tests when init order is non-deterministic.
+func withSessionConfigLoader(loader func() (*config.Config, error)) func() {
+	prev := loadSessionConfig
+	loadSessionConfig = loader
+	return func() { loadSessionConfig = prev }
+}
+
+// handleSessionConfig exposes the config-derived inputs the create-session
+// form needs: default_command (initial select value), commands (the
+// [session].commands picker entries — same source the TUI palette uses), and
+// projects (the resolved [projects] list for the project directory datalist).
+//
+// Reads config on every request so the user can edit settings.toml and see
+// updates without restarting either the daemon or the gateway. The config
+// file is read by the gateway directly because (a) it's a static user-level
+// file at a stable path, not daemon-managed state, and (b) sending the same
+// data through the daemon RPC would duplicate work the gateway already has
+// filesystem access to. The daemon-RPC boundary (ADR 0016) is about session
+// state, not user config.
+//
+// On config-load error, returns 500 so a malformed settings.toml is visibly
+// failing rather than silently surfacing as an empty form. A missing config
+// file is NOT an error (LoadFrom treats it as DefaultConfig).
+func handleSessionConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cfg, err := loadSessionConfig()
+		if err != nil {
+			gatewayError(w, r, http.StatusInternalServerError, "config_load_failed",
+				"settings.toml load failed", "err", err)
+			return
+		}
+		commands := cfg.Session.Commands
+		if commands == nil {
+			commands = []string{}
+		}
+		projects := cfg.ListProjects()
+		if projects == nil {
+			projects = []string{}
+		}
+		writeJSON(w, http.StatusOK, apiSessionConfig{
+			DefaultCommand: cfg.Session.DefaultCommand,
+			Commands:       commands,
+			Projects:       projects,
+		})
+	}
 }
 
 func handleListSessions(d *DaemonClient) http.HandlerFunc {
