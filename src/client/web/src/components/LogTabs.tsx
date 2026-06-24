@@ -22,22 +22,25 @@ export type LogTabsProps = {
  * kindOfTab resolves the TranscriptKindParam for a given LogTab, or null if the
  * tab does not map to a known transcript kind.
  *
- * Detection order: path suffix wins over label, so drivers can set an explicit
- * path extension regardless of label capitalisation.
+ * Detection order: label first, path second — symmetric with server
+ * matchLogTab (src/server/web/transcript.go), which scans labelTokens before
+ * pathSuffixes. Label priority matters because Claude/Codex TRANSCRIPT tabs
+ * ship a `.jsonl` path that would otherwise collide with the `.jsonl`
+ * event-log fallback and resolve both TRANSCRIPT and EVENTS to event-log.
  *
- * Symmetric with server matchLogTab (src/server/web/transcript.go):
- *   pathSuffixes=[.log, .jsonl] + labelTokens=[events, event-log]
+ * Symmetric with server matchLogTab:
+ *   labelTokens=[transcript], [events, event-log]
+ *   pathSuffixes=[.transcript], [.log, .jsonl, .event-log]
  */
 export function kindOfTab(tab: LogTab): TranscriptKindParam | null {
+  const l = tab.label.toLowerCase();
+  if (l.includes("transcript")) return "transcript";
+  if (l.includes("events") || l.includes("event-log")) return "event-log";
+
   const p = tab.path.toLowerCase();
   if (p.endsWith(".transcript") || p.endsWith("/transcript")) return "transcript";
   if (p.endsWith(".event-log") || p.endsWith("/event-log")) return "event-log";
   if (p.endsWith(".log") || p.endsWith(".jsonl")) return "event-log";
-
-  const l = tab.label.toLowerCase();
-  if (l === "transcript") return "transcript";
-  if (l === "event-log") return "event-log";
-  if (l.includes("events") || l.includes("event-log")) return "event-log";
 
   return null;
 }

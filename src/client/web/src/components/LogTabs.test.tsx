@@ -206,4 +206,30 @@ describe("kindOfTab", () => {
       kindOfTab({ label: "EVENTS", path: "/sessions/sess-123/sess-123.log", kind: "text" }),
     ).toBe("event-log");
   });
+
+  // Regression 2026-06-24: Claude/Codex TRANSCRIPT tabs ship a `.jsonl` path
+  // (Claude: ~/.claude/projects/<dir>/<sid>.jsonl, Codex: rollout JSONL).
+  // Path-first detection would have matched `.jsonl → event-log` and made the
+  // TRANSCRIPT tab fetch the event-log REST endpoint, so both TRANSCRIPT and
+  // EVENTS rendered the same content. Label-first detection (symmetric with
+  // server matchLogTab) is what keeps TRANSCRIPT → "transcript" here.
+  it("TestKindOfTabHelper: real driver Claude TRANSCRIPT tab (.jsonl path) resolves to transcript", () => {
+    expect(
+      kindOfTab({
+        label: "TRANSCRIPT",
+        path: "/home/u/.claude/projects/-tmp-x/sess-abc.jsonl",
+        kind: "transcript",
+      }),
+    ).toBe("transcript");
+  });
+
+  it("TestKindOfTabHelper: real driver Codex TRANSCRIPT tab (.jsonl path) resolves to transcript", () => {
+    expect(
+      kindOfTab({
+        label: "TRANSCRIPT",
+        path: "/home/u/.codex/sessions/2026/06/24/rollout-sess-xyz.jsonl",
+        kind: "codex_transcript",
+      }),
+    ).toBe("transcript");
+  });
 });
