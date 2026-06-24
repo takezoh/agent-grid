@@ -169,7 +169,7 @@ func runPalette(args []string) error { //nolint:funlen
 		}
 	}
 
-	sessions, activeID, activeOccupant, _, _, err := client.ListSessions()
+	sessions, activeID, activeOccupant, _, err := client.ListSessions()
 	if err != nil {
 		slog.Warn("palette: ListSessions failed", "err", err)
 	}
