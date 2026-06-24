@@ -152,9 +152,6 @@ func TestWireEncodeServerEvent_SessionsChanged_ViewUpdate(t *testing.T) {
 	if m["k"] != "v" {
 		t.Errorf("k: got %v, want \"v\"", m["k"])
 	}
-	if m["activeSessionID"] != "s1" {
-		t.Errorf("activeSessionID: got %v, want \"s1\"", m["activeSessionID"])
-	}
 	sessions, ok := m["sessions"].([]any)
 	if !ok || len(sessions) != 1 {
 		t.Fatalf("sessions: expected []any of len 1, got %T %v", m["sessions"], m["sessions"])
@@ -170,17 +167,26 @@ func TestWireEncodeServerEvent_SessionsChanged_ViewUpdate(t *testing.T) {
 	}
 }
 
-func TestWireEncodeServerEvent_SessionsChanged_OmitsEmptyActiveID(t *testing.T) {
+// TestWireEncodeServerEvent_SessionsChanged_DropsActiveID guards the bug
+// where a non-empty daemon-side ActiveSessionID leaked into every web
+// client's view-update frame and clobbered their locally-tracked
+// selection. Each new session spawn (reduceTmuxPaneSpawned) and many
+// other reducers mutate state.ActiveSession, and EffBroadcastSessionsChanged
+// fan-outs reach every connected browser — so even with a single web user
+// open, a background session creation or driver frame push would yank
+// their active tab away. The wire must NOT carry activeSessionID on
+// view-update frames; web selection is per-client and managed locally.
+func TestWireEncodeServerEvent_SessionsChanged_DropsActiveID(t *testing.T) {
 	ev := proto.EvtSessionsChanged{
 		Sessions:        []proto.SessionInfo{{ID: "s1", CreatedAt: "2026-06-20T00:00:00Z"}},
-		ActiveSessionID: "",
+		ActiveSessionID: "s1",
 	}
 	got := encodeServerEvent(ev)
 	if got == nil {
 		t.Fatal("expected non-nil frame")
 	}
 	if strings.Contains(string(got), "activeSessionID") {
-		t.Errorf("expected activeSessionID to be omitted when empty, got: %s", got)
+		t.Errorf("activeSessionID must not appear on view-update frames; got: %s", got)
 	}
 }
 

@@ -54,7 +54,19 @@ func controlFrame(kind string, code int, data string) []byte {
 }
 
 // viewUpdateFrame is the server→browser frame derived from
-// proto.EvtSessionsChanged. ADR 0023: 1:1 mirror.
+// proto.EvtSessionsChanged.
+//
+// ActiveSessionID is deliberately NOT mirrored on view-update frames (cf.
+// ADR 0023 which described an early 1:1 mirror). The daemon's ActiveSession
+// is mutated whenever a frame is spawned or pushed (reduceTmuxPaneSpawned
+// and friends) and is broadcast to every connected web client; passing it
+// through here would clobber each browser's locally-tracked selection
+// every time another session in the same daemon emits an event — a
+// background session creation or driver frame push would yank the active
+// tab away from the user. Web clients own their own selection (SessionList
+// click + CreateSessionForm post-create selectSession) and only need the
+// daemon's notion of activeSessionID as an initial seed via the hello
+// frame.
 //
 // Connectors deliberately has NO omitempty: an empty/nil slice must still
 // reach the wire as `"connectors":[]` so that the browser can observe
@@ -62,18 +74,19 @@ func controlFrame(kind string, code int, data string) []byte {
 // only fires when the field is present, so omitempty would leave a stale
 // connector visible after the daemon has cleared it.
 type viewUpdateFrame struct {
-	K               string                `json:"k"` // always "v"
-	Sessions        []proto.SessionInfo   `json:"sessions"`
-	ActiveSessionID string                `json:"activeSessionID,omitempty"`
-	Connectors      []proto.ConnectorInfo `json:"connectors"`
+	K          string                `json:"k"` // always "v"
+	Sessions   []proto.SessionInfo   `json:"sessions"`
+	Connectors []proto.ConnectorInfo `json:"connectors"`
 }
 
 // encodeFromSessionsChanged encodes EvtSessionsChanged as a view-update
-// frame {"k":"v","sessions":[…],"activeSessionID":"…","connectors":[…]}.
+// frame {"k":"v","sessions":[…],"connectors":[…]}.
 // Returns nil on marshal error (gateway drops nil frames).
 // nil slices are normalised to empty arrays so the browser codec, which
 // requires `sessions` / `connectors` to be arrays, never receives
 // `"sessions":null` / `"connectors":null`.
+//
+// ev.ActiveSessionID is intentionally dropped — see viewUpdateFrame doc.
 func encodeFromSessionsChanged(ev proto.EvtSessionsChanged) []byte {
 	sessions := ev.Sessions
 	if sessions == nil {
@@ -84,10 +97,9 @@ func encodeFromSessionsChanged(ev proto.EvtSessionsChanged) []byte {
 		connectors = []proto.ConnectorInfo{}
 	}
 	f := viewUpdateFrame{
-		K:               "v",
-		Sessions:        sessions,
-		ActiveSessionID: ev.ActiveSessionID,
-		Connectors:      connectors,
+		K:          "v",
+		Sessions:   sessions,
+		Connectors: connectors,
 	}
 	b, err := json.Marshal(f)
 	if err != nil {

@@ -176,7 +176,9 @@ func TestGatewayLifecycle_BroadcastsViewUpdate(t *testing.T) {
 		t.Fatalf("expected hello frame, got k=%q", hello["k"])
 	}
 
-	// Second event → view-update frame.
+	// Second event → view-update frame. The daemon-side ActiveSessionID is
+	// intentionally NOT mirrored on view-update frames (see wire.go) — web
+	// clients own their own selection. Assert absence to lock the contract.
 	fake.events <- proto.EvtSessionsChanged{
 		Sessions:        []proto.SessionInfo{sampleSession("s2", "U", stateview.StatusIdle)},
 		ActiveSessionID: "s2",
@@ -186,8 +188,8 @@ func TestGatewayLifecycle_BroadcastsViewUpdate(t *testing.T) {
 	if m["k"] != "v" {
 		t.Errorf("second frame k = %q, want \"v\"", m["k"])
 	}
-	if m["activeSessionID"] != "s2" {
-		t.Errorf("activeSessionID = %q, want \"s2\"", m["activeSessionID"])
+	if _, has := m["activeSessionID"]; has {
+		t.Errorf("view-update frame must not carry activeSessionID; got: %v", m["activeSessionID"])
 	}
 	sessions, ok := m["sessions"].([]any)
 	if !ok || len(sessions) == 0 {

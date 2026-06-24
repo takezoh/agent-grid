@@ -9,8 +9,12 @@ export const fixtures = {
   controlWithCode: '{"k":"c","code":9,"data":"t | b"}',
   hello:
     '{"k":"h","sessions":[{"id":"s1","project":"p","command":"claude","created_at":"2026-06-20T00:00:00Z","view":{"card":{"title":"T","subtitle":"S","tags":[{"text":"tag"}]},"status":"running","status_changed_at":"2026-06-20T00:00:00Z","status_line":"thinking","log_tabs":[{"label":"events","path":"/tmp/x","kind":"text"}]}}],"activeSessionID":"s1","features":["surface"],"serverTime":1700000001}',
+  // activeSessionID is intentionally absent from view-update fixtures —
+  // the Go gateway drops it from the wire so that daemon-side ActiveSession
+  // mutations (every spawn / frame push) do not clobber each browser's
+  // locally-tracked selection. See server/web/wire.go viewUpdateFrame doc.
   viewUpdate:
-    '{"k":"v","sessions":[{"id":"s1","project":"p","command":"claude","created_at":"2026-06-20T00:00:00Z","view":{"card":{"title":"T2"},"status":"idle"}}],"activeSessionID":"s1"}',
+    '{"k":"v","sessions":[{"id":"s1","project":"p","command":"claude","created_at":"2026-06-20T00:00:00Z","view":{"card":{"title":"T2"},"status":"idle"}}]}',
   respOK: '{"k":"r","reqId":"req-1","body":{"ok":true}}',
   respErr: '{"k":"e","reqId":"req-2","code":"frame-not-ready","message":"not yet"}',
   logTabsTranscriptFrame: '{"k":"tt","sessionId":"s1","line":"[claude] hello world"}',
