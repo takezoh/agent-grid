@@ -37,7 +37,7 @@ export function CreateSessionForm({
 }
 
 function CreateSessionDialog({
-  conn,
+  conn: _conn,
   bearerToken,
   onClose,
 }: {
@@ -151,8 +151,12 @@ function CreateSessionDialog({
         throw new Error(detail.trim() || `POST /api/sessions failed: ${resp.status}`);
       }
       const body = (await resp.json()) as { id: string };
+      // ADR 0030: TerminalPane (keyed remount) is the SOLE owner of
+      // subscribe/unsubscribe for the active session. Selecting the new
+      // session id flips `activeSessionID` → App re-renders → the keyed
+      // TerminalPane mount subscribes. Calling conn.subscribe here would
+      // double-subscribe on every create-session path.
       selectSession(body.id);
-      await conn.subscribe(body.id);
       onClose();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : String(e2));

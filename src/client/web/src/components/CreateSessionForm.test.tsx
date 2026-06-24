@@ -64,6 +64,9 @@ describe("CreateSessionForm", () => {
   beforeEach(() => {
     useDaemonStore.getState().reset();
     vi.restoreAllMocks();
+    // fakeConn is module-scoped, so clear its vi.fn() call records between
+    // tests to keep "not.toHaveBeenCalled()" assertions hermetic.
+    (fakeConn.subscribe as ReturnType<typeof vi.fn>).mockClear();
   });
 
   it("renders only a trigger button until clicked", () => {
@@ -113,6 +116,11 @@ describe("CreateSessionForm", () => {
       project: "/home/me/repo-a",
       command: "npm run dev",
     });
+
+    // ADR 0030: subscribe ownership lives on TerminalPane's keyed remount.
+    // CreateSessionForm must NOT subscribe — doing so would double-subscribe
+    // (this form + the new keyed TerminalPane mount that follows selectSession).
+    expect(fakeConn.subscribe).not.toHaveBeenCalled();
   });
 
   it("populates both datalists (projects + commands) so the inputs are filterable", async () => {

@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { Connection } from "./socket/connection";
 import { useDaemonStore } from "./store/daemon";
 import { useNotificationsStore } from "./store/notifications";
 
@@ -87,5 +88,97 @@ describe("App", () => {
     useDaemonStore.setState({ sessions: [], activeSessionID: null });
     render(<App />);
     expect(screen.getByLabelText("notifications")).toBeTruthy();
+  });
+
+  it("keyed remount: switching activeSessionID causes TerminalPane to remount", () => {
+    // Start with session s1 active
+    useDaemonStore.setState({
+      sessions: [
+        {
+          id: "s1",
+          project: "p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: {}, status: "running" },
+        },
+        {
+          id: "s2",
+          project: "p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: {}, status: "running" },
+        },
+      ],
+      activeSessionID: "s1",
+    });
+    const { rerender } = render(<App />);
+
+    // Capture the terminal-host element from first render
+    const hostBefore = document.querySelector(".terminal-host");
+    expect(hostBefore).not.toBeNull();
+
+    // Switch to s2 — this changes the key prop on TerminalPane, forcing remount
+    act(() => {
+      useDaemonStore.setState({ activeSessionID: "s2" });
+    });
+    rerender(<App />);
+
+    // After remount the .terminal-host element is a fresh DOM node
+    const hostAfter = document.querySelector(".terminal-host");
+    expect(hostAfter).not.toBeNull();
+    // The key change means React unmounts old and mounts new — DOM node differs
+    expect(hostAfter).not.toBe(hostBefore);
+  });
+
+  it("ADR 0030: keyed remount unsubscribes old session and subscribes new one", () => {
+    // Spy on the Connection prototype so we capture calls made by whatever
+    // Connection instance App's useMemo allocates internally. unsubscribe is
+    // stubbed to a no-op resolved promise; subscribe is stubbed to never
+    // resolve so the awaited retry loop inside the real implementation does
+    // not run (we only need to observe that the method was invoked with the
+    // expected sessionId).
+    const subscribeSpy = vi
+      .spyOn(Connection.prototype, "subscribe")
+      .mockImplementation(() => new Promise<void>(() => {}));
+    const unsubscribeSpy = vi
+      .spyOn(Connection.prototype, "unsubscribe")
+      .mockImplementation(async () => {});
+
+    useDaemonStore.setState({
+      sessions: [
+        {
+          id: "s1",
+          project: "p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: {}, status: "running" },
+        },
+        {
+          id: "s2",
+          project: "p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: {}, status: "running" },
+        },
+      ],
+      activeSessionID: "s1",
+    });
+    const { rerender } = render(<App />);
+
+    // Initial mount: keyed TerminalPane subscribes to s1; nothing to unsubscribe.
+    expect(subscribeSpy).toHaveBeenCalledWith("s1");
+    expect(unsubscribeSpy).not.toHaveBeenCalled();
+
+    subscribeSpy.mockClear();
+
+    // Switch active session — old TerminalPane unmounts (→ unsubscribe('s1')),
+    // new TerminalPane mounts under the new key (→ subscribe('s2')).
+    act(() => {
+      useDaemonStore.setState({ activeSessionID: "s2" });
+    });
+    rerender(<App />);
+
+    expect(unsubscribeSpy).toHaveBeenCalledWith("s1");
+    expect(subscribeSpy).toHaveBeenCalledWith("s2");
   });
 });

@@ -23,7 +23,6 @@ export function TerminalPane({
   sessionId: string | null;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const termRef = useRef<Terminal | null>(null);
 
   // Keep the latest sessionId in a ref so the xterm.js onData / onResize
   // handlers always read the current active session without re-binding (the
@@ -31,18 +30,39 @@ export function TerminalPane({
   const sessionRef = useRef<string | null>(sessionId);
   sessionRef.current = sessionId;
 
+  // Main lifecycle: create terminal, attach to host, wire conn.onOutput,
+  // window resize, and ResizeObserver. Runs once per (conn) mount.
+  // ADR 0030: keyed remount via <TerminalPane key={activeSessionID}> in
+  // App.tsx ensures a fresh TerminalPane instance for each session switch —
+  // no session-clear effect is needed here.
   useEffect(() => {
     if (!hostRef.current) return;
+    const host = hostRef.current;
     const term = new Terminal({ convertEol: true, scrollback: 5000 });
     const fit = new FitAddon();
     term.loadAddon(fit);
-    term.open(hostRef.current);
-    fit.fit();
-    termRef.current = term;
+    term.open(host);
+
+    // ADR 0034: scheduleFit coalesces rapid resize events into a single rAF
+    // tick. A pending flag ensures at most one rAF is queued at a time so
+    // consecutive ResizeObserver / window-resize firings do not fan out.
+    let rafPending = false;
+    function scheduleFit() {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        fit.fit();
+      });
+    }
+
+    // Initial fit via scheduleFit so the first fit also runs in a rAF tick
+    // (avoids 0-size measurement on initial paint, satisfies FR-008).
+    scheduleFit();
 
     const onData = term.onData((d) => {
       const sid = sessionRef.current;
-      if (!sid) return; // no session selected → drop, do not send empty sessionId
+      if (!sid) return; // no session selected → drop
       conn.send({ k: "i", d, sessionId: sid });
     });
     const onResize = term.onResize(({ cols, rows }) => {
@@ -68,21 +88,29 @@ export function TerminalPane({
       term.write(b64ToBytes(frame[2]));
     };
 
-    const handleResize = () => fit.fit();
-    window.addEventListener("resize", handleResize);
+    // window resize → scheduleFit
+    const handleWindowResize = () => scheduleFit();
+    window.addEventListener("resize", handleWindowResize);
+
+    // ResizeObserver on host element → scheduleFit (ADR 0034, FR-006/007)
+    const ro = new ResizeObserver(() => scheduleFit());
+    ro.observe(host);
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", handleWindowResize);
+      ro.disconnect();
       onData.dispose();
       onResize.dispose();
       conn.onOutput = undefined;
       term.dispose();
-      termRef.current = null;
     };
   }, [conn]);
 
-  // when sessionId changes, we don't reset xterm — TerminalPane is keyed on
-  // sessionId by parent if a full reset is desired. β: single shared term.
+  // Subscribe ownership: TerminalPane is the sole owner of subscribe/unsubscribe
+  // for sessionId. keyed remount via App.tsx means each session gets a fresh
+  // instance; the cleanup here unsubscribes when the component unmounts.
+  // (ADR 0030: SessionList.tsx must not call subscribe/unsubscribe — see
+  // session-list-label-and-subscribe task.)
   useEffect(() => {
     if (!sessionId) return;
     void conn.subscribe(sessionId);

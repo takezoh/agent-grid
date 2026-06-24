@@ -1,6 +1,23 @@
 /* view.css — component styles for RunStateBadge, DriverViewPanel, LogTabSelector */
 
 /* ─── RunStateBadge ─────────────────────────────────────────────────────── */
+.run-state-spinner {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: run-state-spin 0.8s linear infinite;
+  margin-right: 4px;
+}
+
+@keyframes run-state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .run-state-badge {
   display: inline-block;
   padding: 2px 8px;

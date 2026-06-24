@@ -24,15 +24,20 @@ export type LogTabsProps = {
  *
  * Detection order: path suffix wins over label, so drivers can set an explicit
  * path extension regardless of label capitalisation.
+ *
+ * Symmetric with server matchLogTab (src/server/web/transcript.go):
+ *   pathSuffixes=[.log, .jsonl] + labelTokens=[events, event-log]
  */
 export function kindOfTab(tab: LogTab): TranscriptKindParam | null {
   const p = tab.path.toLowerCase();
   if (p.endsWith(".transcript") || p.endsWith("/transcript")) return "transcript";
   if (p.endsWith(".event-log") || p.endsWith("/event-log")) return "event-log";
+  if (p.endsWith(".log") || p.endsWith(".jsonl")) return "event-log";
 
   const l = tab.label.toLowerCase();
   if (l === "transcript") return "transcript";
   if (l === "event-log") return "event-log";
+  if (l.includes("events") || l.includes("event-log")) return "event-log";
 
   return null;
 }

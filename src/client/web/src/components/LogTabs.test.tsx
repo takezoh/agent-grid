@@ -136,25 +136,58 @@ describe("LogTabs", () => {
 });
 
 describe("kindOfTab", () => {
+  // FR-004 regression: existing path-suffix cases must remain unchanged
   it("TestKindOfTabHelper: detects transcript by path suffix", () => {
     expect(kindOfTab({ label: "TRANSCRIPT", path: "/x.transcript", kind: "text" })).toBe(
       "transcript",
     );
   });
 
-  it("TestKindOfTabHelper: detects event-log by path suffix", () => {
+  it("TestKindOfTabHelper: detects event-log by .event-log path suffix (FR-004)", () => {
     expect(kindOfTab({ label: "LOGS", path: "/x.event-log", kind: "text" })).toBe("event-log");
   });
 
-  it("TestKindOfTabHelper: detects transcript by label fallback", () => {
+  // FR-004 regression: existing label-fallback cases must remain unchanged
+  it("TestKindOfTabHelper: detects transcript by label fallback (FR-004)", () => {
     expect(kindOfTab({ label: "transcript", path: "/x.txt", kind: "text" })).toBe("transcript");
   });
 
-  it("TestKindOfTabHelper: detects event-log by label fallback", () => {
+  it("TestKindOfTabHelper: detects event-log by exact label fallback (FR-004)", () => {
     expect(kindOfTab({ label: "event-log", path: "/x.txt", kind: "text" })).toBe("event-log");
   });
 
   it("TestKindOfTabHelper: returns null for unknown kind", () => {
     expect(kindOfTab({ label: "INFO", path: "/x.json", kind: "text" })).toBeNull();
+  });
+
+  // FR-001: path ending in .log or .jsonl → event-log
+  it("TestKindOfTabHelper: detects event-log by .log path suffix (FR-001)", () => {
+    expect(kindOfTab({ label: "ANYTHING", path: "/sessions/abc/abc.log", kind: "text" })).toBe(
+      "event-log",
+    );
+  });
+
+  it("TestKindOfTabHelper: detects event-log by .jsonl path suffix (FR-001)", () => {
+    expect(kindOfTab({ label: "ANYTHING", path: "/sessions/abc/abc.jsonl", kind: "text" })).toBe(
+      "event-log",
+    );
+  });
+
+  // FR-002: label lowercased includes "events" or "event-log" → event-log
+  it("TestKindOfTabHelper: detects event-log when label includes events (FR-002)", () => {
+    expect(kindOfTab({ label: "EVENTS", path: "/x.txt", kind: "text" })).toBe("event-log");
+  });
+
+  it("TestKindOfTabHelper: detects event-log when label includes event-log substring (FR-002)", () => {
+    expect(kindOfTab({ label: "My-event-log-tab", path: "/x.txt", kind: "text" })).toBe(
+      "event-log",
+    );
+  });
+
+  // FR-003: real driver EVENTS tab (label=EVENTS, path=<sid>.log) → event-log
+  it("TestKindOfTabHelper: real driver EVENTS tab resolves to event-log (FR-003)", () => {
+    expect(
+      kindOfTab({ label: "EVENTS", path: "/sessions/sess-123/sess-123.log", kind: "text" }),
+    ).toBe("event-log");
   });
 });

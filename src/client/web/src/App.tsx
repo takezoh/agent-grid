@@ -57,7 +57,7 @@ export function App() {
             )}
           </>
         )}
-        <TerminalPane conn={conn} sessionId={activeSessionID} />
+        <TerminalPane key={activeSessionID ?? "__none__"} conn={conn} sessionId={activeSessionID} />
       </main>
       <ConnectorPanel />
     </div>
