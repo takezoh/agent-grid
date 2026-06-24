@@ -15,7 +15,10 @@ type View struct {
 	InfoExtras      []InfoLine `json:"info_extras,omitempty"`
 	SuppressInfo    bool       `json:"suppress_info,omitempty"`
 	StatusLine      string     `json:"status_line,omitempty"`
-	Status          Status     `json:"status,omitempty"`
+	// Status: NO omitempty. Status is `int` (iota) and StatusRunning == 0,
+	// so omitempty would drop the field for every running session and the
+	// web client would fall back to "unknown" (RunStateBadge).
+	Status          Status     `json:"status"`
 	StatusChangedAt time.Time  `json:"status_changed_at,omitempty"`
 }
 
