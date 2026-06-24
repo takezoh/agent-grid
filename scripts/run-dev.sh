@@ -7,13 +7,17 @@
 # The daemon owns all pty sessions and exposes them over its Unix socket; the
 # gateway translates browser REST/WS traffic into daemon proto calls; the web
 # host serves the UI and reverse-proxies /api and /ws to the gateway. Ctrl-C
-# stops every process this script started and removes the scratch data dir.
+# stops every process this script started and tears down the docker
+# containers the daemon spawned; the scratch data dir is preserved so the
+# next run restores the same sessions (set CLEAN_DATA_DIR=1 to wipe it).
 #
 # Env overrides:
 #   BACKEND_ADDR              gateway listen addr        (default 127.0.0.1:8443)
 #   WEB_ADDR                  web host listen addr       (default 127.0.0.1:8080)
 #   ARC_DATA_DIR              scratch dir for daemon     (default $ROOT/.run-dev/arc)
-#   KEEP_DATA_DIR             1 = preserve ARC_DATA_DIR on exit (default: remove)
+#   CLEAN_DATA_DIR            1 = wipe ARC_DATA_DIR on exit (default: preserve,
+#                             so sessions/ persists across restarts and the
+#                             next run restores the same session list)
 #   ROOST_DEVCONTAINER_PREFIX docker container/label prefix this daemon owns
 #                             (default: reactor-dev — distinct from the TUI
 #                             daemon's "reactor" so the two never compete for
@@ -32,7 +36,7 @@ cd "$ROOT"
 BACKEND_ADDR="${BACKEND_ADDR:-127.0.0.1:8443}"
 WEB_ADDR="${WEB_ADDR:-127.0.0.1:8080}"
 ARC_DATA_DIR="${ARC_DATA_DIR:-$ROOT/.run-dev/arc}"
-KEEP_DATA_DIR="${KEEP_DATA_DIR:-0}"
+CLEAN_DATA_DIR="${CLEAN_DATA_DIR:-0}"
 ROOST_DEVCONTAINER_PREFIX="${ROOST_DEVCONTAINER_PREFIX:-reactor-dev}"
 ARC_SOCKET="$ARC_DATA_DIR/arc.sock"
 ARC_LOG="$ARC_DATA_DIR/arc.log"
@@ -50,22 +54,23 @@ mkdir -p "$ARC_DATA_DIR"
 pids=()
 cleanup() {
   kill "${pids[@]}" 2>/dev/null || true
-  if [ "$KEEP_DATA_DIR" != "1" ]; then
-    # Remove docker containers this daemon spawned BEFORE deleting the data
-    # dir. Otherwise the container outlives the daemon with a bind mount
-    # pointing at the now-deleted $ARC_DATA_DIR/run/<projectHash>/, and any
-    # Claude session re-attached to it sees an empty /opt/agent-reactor/run/
-    # (no reactor-bridge, no arc.sock) — every hook → bridge call then dies
-    # with `/bin/sh: ... reactor-bridge: not found`.
-    #
-    # Label filter is prefix-scoped (see platform/sandbox/devcontainer/
-    # docker.go), so peer daemons under a different ROOST_DEVCONTAINER_PREFIX
-    # — including the user's TUI daemon at prefix `reactor` — are invisible.
-    local containers
-    containers=$(docker ps -aq --filter "label=${ROOST_DEVCONTAINER_PREFIX}-managed=1" 2>/dev/null || true)
-    if [ -n "$containers" ]; then
-      docker rm -f $containers >/dev/null 2>&1 || true
-    fi
+  # Always remove docker containers this daemon spawned. Otherwise the
+  # container outlives the daemon with a bind mount pointing at the
+  # previous $ARC_DATA_DIR/run/<projectHash>/, and any Claude session
+  # re-attached to it on the next run sees a stale reactor-bridge — every
+  # hook → bridge call would dial the dead socket.
+  #
+  # Label filter is prefix-scoped (see platform/sandbox/devcontainer/
+  # docker.go), so peer daemons under a different ROOST_DEVCONTAINER_PREFIX
+  # — including the user's TUI daemon at prefix `reactor` — are invisible.
+  # Killing the containers does NOT touch $ARC_DATA_DIR/sessions/, which is
+  # what we want to keep so the next run-dev.sh restores the same sessions.
+  local containers
+  containers=$(docker ps -aq --filter "label=${ROOST_DEVCONTAINER_PREFIX}-managed=1" 2>/dev/null || true)
+  if [ -n "$containers" ]; then
+    docker rm -f $containers >/dev/null 2>&1 || true
+  fi
+  if [ "$CLEAN_DATA_DIR" = "1" ]; then
     rm -rf "$ARC_DATA_DIR"
   fi
 }
@@ -113,7 +118,8 @@ agent-reactor dev up (isolated from ~/.agent-reactor):
   Open →   http://$WEB_ADDR/
 
   Daemon log: tail -f $ARC_LOG
-  Set KEEP_DATA_DIR=1 to preserve $ARC_DATA_DIR across runs.
+  Sessions persist across restarts under $ARC_DATA_DIR/sessions/.
+  Set CLEAN_DATA_DIR=1 to wipe $ARC_DATA_DIR on exit (fresh start).
 
 Ctrl-C to stop everything.
 EOF
