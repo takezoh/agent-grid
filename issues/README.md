@@ -39,6 +39,15 @@ roost client runtime（session manager）の issue。Symphony SPEC 範囲外で 
 
 028（container endpoint/token が agent spawn 後に登録 → 早期 hook 取りこぼし）は解決済みで archive へ移動（下記）。
 
+### client-runtime フォローアップ（2026-06-22 web-gateway-isolation インシデント由来）
+
+`feat/tmux-free-web-server` 上の wedge インシデント残課題。直接の wedge は `slog.Warn`→`Debug` 降格と process isolation で塞いだが、daemon 内部のロバスト性に残った窪み 2 件。daemon が wedge する経路ではなく、UX レベルの単発 event ロスとして残る。
+
+| ID | タイトル | Status | 概要 |
+|---|---|---|---|
+| [030](030-runtime-internalch-saturation-diagnosis.md) | internalCh の初回 saturation 発生源を診断 | Open | drop はもう自己増幅しないが、誰が最初に cap 64 を埋めるか未診断。`internalBroadcastSurface` / `internalBroadcastWire` / `connOpen|Close` を計装し主犯を特定 |
+| [031](031-filerelay-drop-dirty-restore.md) | FileRelay sweep が broadcast drop 時に dirty/offset を戻さない | Open | sweep が dirty を先に落とし offset を進めた後で internalCh drop が起きると、読まれたログ行が永久に失われる。Web UI Log タブの瞬間的な行抜けに対応 |
+
 ## 完了済み (archive)
 
 完了 issue は [.archive/](.archive/) に移動（記録として保持）:
