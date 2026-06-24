@@ -41,6 +41,22 @@ describe("LogTabs", () => {
     expect(buttons[1]?.textContent).toBe("EVENT-LOG");
   });
 
+  // Regression 2026-06-24: real-driver shaped tabs (TRANSCRIPT + EVENTS = label
+  // "EVENTS" / path "<sid>.log") must render both buttons even though only the
+  // EVENTS path uses the .log suffix that kindOfTab newly resolves. This pins
+  // the "tabs disappear from the UI" regression at the component layer.
+  it("TestRendersRealDriverEventsAndTranscriptTabs: TRANSCRIPT + EVENTS (real driver shape) both render", () => {
+    const realDriverTabs: LogTab[] = [
+      { label: "TRANSCRIPT", path: "/sessions/s1/x.transcript", kind: "text" },
+      { label: "EVENTS", path: "/var/log/agent-reactor/s1.log", kind: "text" },
+    ];
+    render(<LogTabs tabs={realDriverTabs} sessionId="s1" bearerToken="tok" fetchFn={nopFetch} />);
+    const buttons = screen.getAllByRole("tab");
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.textContent).toBe("TRANSCRIPT");
+    expect(buttons[1]?.textContent).toBe("EVENTS");
+  });
+
   it("TestShowsBufferLines: lines in store appear inside <pre>", async () => {
     useTranscriptStore.getState().appendBackfill("s1", "transcript", ["alpha", "beta"], 10);
 

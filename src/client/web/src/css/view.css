@@ -52,11 +52,14 @@
 }
 
 /* ─── DriverViewPanel ───────────────────────────────────────────────────── */
+/* flex-shrink: 0 同じ理由: .terminal-host (flex:1 1 0) と並ぶ flex 兄弟が
+   潰されないよう content height を保証する。詳細は .log-tab-selector のコメント参照。 */
 .driver-view-panel {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 8px 0;
+  flex-shrink: 0;
 }
 .driver-view-header {
   display: flex;
@@ -124,10 +127,15 @@
 }
 
 /* ─── LogTabSelector ────────────────────────────────────────────────────── */
+/* flex-shrink: 0 を入れないと、兄弟の .terminal-host (flex:1 1 0, ADR 0029)
+   が flex 残余を貪欲に取った結果、basis:auto のこの要素が 0 高さに潰され
+   タブボタン (TRANSCRIPT/EVENTS) が視覚的に消える(regression 2026-06-24)。
+   このセレクタは自分の content height を確保し、残余を terminal-host に渡す。 */
 .log-tab-selector {
   display: flex;
   flex-direction: column;
   gap: 0;
+  flex-shrink: 0;
 }
 .log-tab-row {
   display: flex;
