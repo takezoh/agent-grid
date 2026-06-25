@@ -245,6 +245,65 @@ describe("ToolSelectPhase", () => {
     expect(screen.getByRole("listbox").getAttribute("aria-activedescendant")).toBe("palette-opt-0");
   });
 
+  it("mousedown on an option calls confirmTool (pointer parity with Enter)", () => {
+    renderToolSelectPhase();
+    const spy = vi.spyOn(usePaletteStore.getState(), "confirmTool");
+    usePaletteStore.setState({
+      confirmTool: spy as unknown as ReturnType<typeof usePaletteStore.getState>["confirmTool"],
+    });
+
+    // mousedown (not click): preventDefault keeps focus on the combobox input
+    // per the WAI-ARIA listbox pattern. fireEvent.mouseDown invokes the
+    // handler with a synthetic event that honors preventDefault.
+    const opt = options()[0];
+    expect(opt).toBeDefined();
+    if (!opt) return;
+    fireEvent.mouseDown(opt);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe("new-session");
+    // Same ctx shape contract as the Enter path.
+    const ctx = spy.mock.calls[0]?.[1] as Record<string, unknown> | undefined;
+    expect(ctx).toBeDefined();
+    expect(ctx?.http).toBeDefined();
+    expect(ctx?.daemon).toBeDefined();
+  });
+
+  it("mousedown is a no-op while submitting=true (mirrors input readOnly + listbox aria-disabled)", () => {
+    renderToolSelectPhase();
+    const spy = vi.spyOn(usePaletteStore.getState(), "confirmTool");
+    act(() => {
+      usePaletteStore.setState({
+        confirmTool: spy as unknown as ReturnType<typeof usePaletteStore.getState>["confirmTool"],
+        submitting: true,
+      });
+    });
+
+    const opt = options()[0];
+    expect(opt).toBeDefined();
+    if (!opt) return;
+    fireEvent.mouseDown(opt);
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("mousedown is a no-op while composing=true (mirrors FR-019 IME guard)", () => {
+    renderToolSelectPhase();
+    const spy = vi.spyOn(usePaletteStore.getState(), "confirmTool");
+    usePaletteStore.setState({
+      confirmTool: spy as unknown as ReturnType<typeof usePaletteStore.getState>["confirmTool"],
+    });
+    fireEvent.compositionStart(input());
+    expect(usePaletteStore.getState().composing).toBe(true);
+
+    const opt = options()[0];
+    expect(opt).toBeDefined();
+    if (!opt) return;
+    fireEvent.mouseDown(opt);
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it("scope='push' with no push tools renders an empty listbox without crashing", () => {
     usePaletteStore.setState({ scope: "push" });
     renderToolSelectPhase();

@@ -256,6 +256,20 @@ export function ToolSelectPhase(props: ToolSelectPhaseProps = {}) {
               aria-selected={i === cursor}
               data-tool-id={hit.item.id}
               data-cursor={i === cursor ? "true" : "false"}
+              // Pointer parity for FR-009 / FR-010 Enter path. Mirrors
+              // ParamListbox option semantics: mousedown + preventDefault
+              // keeps focus on the combobox <input> (a plain click would
+              // blur it, defeating the managed-focus listbox pattern and
+              // surfacing the underlying TerminalPane to keystrokes again).
+              // composing / submitting guards mirror onKeyDown so pointer
+              // and keyboard share one gate.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const state = usePaletteStore.getState();
+                if (state.composing) return;
+                if (state.submitting) return;
+                void state.confirmTool(hit.item.id, ctx);
+              }}
             >
               {renderWithRanges(label, hit.ranges)}
             </div>
