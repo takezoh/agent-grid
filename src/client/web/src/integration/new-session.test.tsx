@@ -151,24 +151,31 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
 
     render(<App />);
 
-    // Capture the New Session button so we can (a) click it to open the
-    // palette and (b) override its .focus() to record the timeline entry.
-    const newBtn = screen.getByLabelText("New Session") as HTMLButtonElement;
-    // 5. opener.focus spy — overriding the button's focus method captures
+    // B3 / ADR-0062: the legacy "New Session" header button has been
+    // absorbed into CommandSearchTrigger; new-session is surfaced inside
+    // the palette's tool list instead. We open the palette via the
+    // CommandSearchTrigger as the production opener (focus restore target)
+    // and then jump to the new-session paramSelect phase by calling
+    // openPalette({preselectToolId:'new-session'}) — same semantics the
+    // palette uses internally when a preselect resolves.
+    const trigger = screen.getByLabelText("Open command menu") as HTMLButtonElement;
+    // 5. opener.focus spy — overriding the trigger's focus method captures
     //    the CommandPalette cleanup-effect call without us needing to spy
     //    on every HTMLElement.prototype.focus invocation (which would
     //    also catch ParamSelectPhase's internal focus moves).
-    const realFocus = newBtn.focus.bind(newBtn);
-    newBtn.focus = function focusOverride(): void {
+    const realFocus = trigger.focus.bind(trigger);
+    trigger.focus = function focusOverride(): void {
       calls.push("opener.focus");
       realFocus();
     };
 
-    // Open the palette via the Header CTA. This lands us at
-    // phase='paramSelect', selectedToolId='new-session', cursor=0,
-    // project listbox preselected to the single seeded project.
+    // Open the palette pinned to new-session. opener=trigger so the
+    // cleanup-effect focus restore lands on it, matching production.
     act(() => {
-      fireEvent.click(newBtn);
+      usePaletteStore.getState().openPalette({
+        opener: trigger,
+        preselectToolId: "new-session",
+      });
     });
 
     expect(usePaletteStore.getState().phase).toBe("paramSelect");

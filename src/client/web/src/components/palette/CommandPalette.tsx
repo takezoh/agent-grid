@@ -190,68 +190,73 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
 
   return createPortal(
     <div className="palette-overlay" data-testid="palette-overlay" onMouseDown={onOverlayMouseDown}>
-      <div
-        ref={dialogRef}
-        // biome-ignore lint/a11y/useSemanticElements: native <dialog> requires
-        // showModal()/HTMLDialogElement APIs that don't compose with our
-        // store-driven open state; the WAI-ARIA dialog role on a generic
-        // container is the documented alternative.
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="palette-title"
-        className="palette-dialog"
-        onKeyDown={onDialogKeyDown}
-      >
-        <header className="palette-header">
-          <button
-            type="button"
-            aria-label="Back"
-            className="palette-header__back"
-            onClick={() => usePaletteStore.getState().back()}
-            data-testid="palette-back"
-          >
-            ←
-          </button>
-          <h2 id="palette-title" className="palette-header__title">
-            Command Palette
-          </h2>
-          <button
-            type="button"
-            aria-label="Close"
-            className="palette-header__close"
-            onClick={() => usePaletteStore.getState().close()}
-            data-testid="palette-close"
-          >
-            ×
-          </button>
-        </header>
-        {ctx !== null && (
-          <ActiveContextHeader snapshot={frozenHeaderSnapshot} flashSeq={headerFlashSeq} />
-        )}
-        <InlineStatus announce={announceRef.current} />
-        {ctx === null ? (
-          <StatusBadge text="Unavailable" />
-        ) : (
-          <StatusBadge text={statusBadgeText} submitting={submitting} />
-        )}
-        {phase === "toolSelect" ? (
-          <ToolSelectPhase
-            inputRef={inputRef}
-            httpFactory={props.httpFactory}
-            {...frozenListProps}
-          />
-        ) : ctx !== null ? (
-          <ParamSelectPhase ctx={ctx} />
-        ) : (
-          <div role="alert" className="palette-error" data-testid="palette-ctx-error">
-            Command palette unavailable (http client invalid)
-          </div>
-        )}
-        {error !== null && (
-          <div role="alert" className="palette-error" data-testid="palette-error">
-            {error}
-          </div>
-        )}
+      {/* B3 / FR-PALETTE-TRIGGER-001: data-role='palette-sheet' container so
+          AppShell integration tests can assert the sheet stays inside 16px
+          horizontal margins on a 375px viewport (UAC-008 counterexample). */}
+      <div className="palette-sheet" data-role="palette-sheet">
+        <div
+          ref={dialogRef}
+          // biome-ignore lint/a11y/useSemanticElements: native <dialog> requires
+          // showModal()/HTMLDialogElement APIs that don't compose with our
+          // store-driven open state; the WAI-ARIA dialog role on a generic
+          // container is the documented alternative.
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="palette-title"
+          className="palette-dialog"
+          onKeyDown={onDialogKeyDown}
+        >
+          <header className="palette-header">
+            <button
+              type="button"
+              aria-label="Back"
+              className="palette-header__back"
+              onClick={() => usePaletteStore.getState().back()}
+              data-testid="palette-back"
+            >
+              ←
+            </button>
+            <h2 id="palette-title" className="palette-header__title">
+              Command Palette
+            </h2>
+            <button
+              type="button"
+              aria-label="Close"
+              className="palette-header__close"
+              onClick={() => usePaletteStore.getState().close()}
+              data-testid="palette-close"
+            >
+              ×
+            </button>
+          </header>
+          {ctx !== null && (
+            <ActiveContextHeader snapshot={frozenHeaderSnapshot} flashSeq={headerFlashSeq} />
+          )}
+          <InlineStatus announce={announceRef.current} />
+          {ctx === null ? (
+            <StatusBadge text="Unavailable" />
+          ) : (
+            <StatusBadge text={statusBadgeText} submitting={submitting} />
+          )}
+          {phase === "toolSelect" ? (
+            <ToolSelectPhase
+              inputRef={inputRef}
+              httpFactory={props.httpFactory}
+              {...frozenListProps}
+            />
+          ) : ctx !== null ? (
+            <ParamSelectPhase ctx={ctx} />
+          ) : (
+            <div role="alert" className="palette-error" data-testid="palette-ctx-error">
+              Command palette unavailable (http client invalid)
+            </div>
+          )}
+          {error !== null && (
+            <div role="alert" className="palette-error" data-testid="palette-error">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
     </div>,
     document.body,

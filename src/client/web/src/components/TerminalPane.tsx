@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import type { Connection } from "../socket/connection";
+import { useXtermTheme } from "./ThemeProvider";
 
 // b64ToBytes decodes a base64 string into a Uint8Array. atob() returns a
 // binary string whose char codes are the raw byte values; copying them into
@@ -30,6 +31,33 @@ export function TerminalPane({
   const sessionRef = useRef<string | null>(sessionId);
   sessionRef.current = sessionId;
 
+  // FR-THEME-003 (ADR-0059): ITheme derived from CSS tokens via ThemeProvider.
+  // Rebuilds whenever data-theme changes (1 rAF guard inside useXtermTheme).
+  const xtermTheme = useXtermTheme();
+
+  // Ref to the live Terminal instance so the theme effect can reach it without
+  // being included in the main lifecycle dependency array.
+  const termRef = useRef<Terminal | null>(null);
+
+  // Stable ref to the latest xtermTheme so the main lifecycle effect can read
+  // the current value at construction time without xtermTheme appearing in its
+  // dependency array (which would re-run the heavy setup on every theme change).
+  const xtermThemeRef = useRef(xtermTheme);
+  xtermThemeRef.current = xtermTheme;
+
+  // FR-THEME-002: apply new ITheme to the live terminal on every theme rebuild.
+  // termRef.current is null until the main lifecycle effect mounts the terminal.
+  // Initial ITheme application is guaranteed by the main lifecycle effect below,
+  // which passes xtermTheme directly to new Terminal({ theme }) and also assigns
+  // term.options.theme immediately after term.open(host). This effect handles
+  // subsequent data-theme changes after mount; the early-out here is the normal
+  // pre-mount no-op (not a silent fallback — initial application is explicit).
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return; // pre-mount: initial theme applied in main lifecycle below
+    term.options.theme = xtermTheme;
+  }, [xtermTheme]);
+
   // Main lifecycle: create terminal, attach to host, wire conn.onOutput,
   // window resize, and ResizeObserver. Runs once per (conn) mount.
   // ADR 0030: keyed remount via <TerminalPane key={activeSessionID}> in
@@ -38,7 +66,14 @@ export function TerminalPane({
   useEffect(() => {
     if (!hostRef.current) return;
     const host = hostRef.current;
-    const term = new Terminal({ convertEol: true, scrollback: 5000 });
+    // Pass xtermThemeRef.current at construction time so the very first painted
+    // frame uses the correct token-derived palette. Without this, xterm adopts
+    // its built-in white-background defaults for the first render cycle before
+    // the theme-apply effect above runs (FR-THEME-002 / ADR-0059).
+    // We use the ref rather than the reactive value to keep [conn] as the sole
+    // dependency — re-creating the terminal on every theme change would be wrong.
+    const term = new Terminal({ convertEol: true, scrollback: 5000, theme: xtermThemeRef.current });
+    termRef.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(host);
@@ -103,6 +138,7 @@ export function TerminalPane({
       onResize.dispose();
       conn.onOutput = undefined;
       term.dispose();
+      termRef.current = null;
     };
   }, [conn]);
 

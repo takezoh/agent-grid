@@ -1,11 +1,27 @@
+/**
+ * NotificationToast — FR-TOAST-001 / FR-TOAST-002 / FR-TOAST-003 / ADR-0063
+ *
+ * Responsibilities:
+ *  - Single aria-live='polite' role='status' on the container (not per-item).
+ *  - Each toast item uses CSS class for type-based bg color (no inline style).
+ *  - Mobile (<768px): position:fixed, bottom-aligned with safe-area inset.
+ *  - Desktop (>=768px): position:fixed, top-right.
+ *  - Max 3 visible items; auto-dismiss in 5s; tap to dismiss.
+ *  - notification-toast__undosnackbar-slot: reserved for UndoSnackbar (FR-TOAST-003).
+ */
+
 import { useEffect } from "react";
 import type { Notification } from "../store/notifications";
 import { useNotificationsStore } from "../store/notifications";
+
+// ─── types ─────────────────────────────────────────────────────────────────────
 
 type ToastItemProps = {
   item: Notification;
   onDismiss: (id: number) => void;
 };
+
+// ─── ToastItem ─────────────────────────────────────────────────────────────────
 
 function ToastItem({ item, onDismiss }: ToastItemProps): JSX.Element {
   useEffect(() => {
@@ -13,40 +29,32 @@ function ToastItem({ item, onDismiss }: ToastItemProps): JSX.Element {
     return () => clearTimeout(t);
   }, [item.id, onDismiss]);
 
+  const typeClass = `notification-toast__item--${item.level}`;
+
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: toast is supplemental UI; keyboard users rely on auto-dismiss
-    <output
-      aria-live="polite"
-      onClick={() => onDismiss(item.id)}
-      style={{
-        display: "block",
-        background: "#1e1e2e",
-        color: "#cdd6f4",
-        border: "1px solid #45475a",
-        borderRadius: "6px",
-        padding: "10px 14px",
-        marginBottom: "8px",
-        cursor: "pointer",
-        minWidth: "240px",
-        maxWidth: "360px",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-        wordBreak: "break-word",
-      }}
-    >
+    <div className={`notification-toast__item ${typeClass}`} onClick={() => onDismiss(item.id)}>
       {item.title != null && item.title !== "" ? (
         <>
-          <div style={{ fontWeight: 600, marginBottom: "2px" }}>{item.title}</div>
+          <div className="notification-toast__item-title">{item.title}</div>
           {item.body != null && item.body !== "" && (
-            <div style={{ fontSize: "0.875em", opacity: 0.8 }}>{item.body}</div>
+            <div className="notification-toast__item-body">{item.body}</div>
           )}
         </>
       ) : (
         <div>{item.message}</div>
       )}
-    </output>
+    </div>
   );
 }
 
+// ─── NotificationToast ─────────────────────────────────────────────────────────
+
+/**
+ * Renders a single aria-live container with up to 3 toast items.
+ * The UndoSnackbar slot is a sibling within the same container for
+ * 3-stream isolation (FR-TOAST-003): passive toasts | undo snackbar | palette.
+ */
 export function NotificationToast(): JSX.Element {
   const items = useNotificationsStore((s) => s.items);
   const dismiss = useNotificationsStore((s) => s.dismiss);
@@ -55,22 +63,16 @@ export function NotificationToast(): JSX.Element {
   const visible = items.slice(-3);
 
   return (
-    <div
-      className="notification-toast-stack"
-      aria-label="notifications"
-      style={{
-        position: "fixed",
-        top: "16px",
-        right: "16px",
-        zIndex: 9999,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "flex-end",
-      }}
-    >
+    // biome-ignore lint/a11y/useSemanticElements: spec requires explicit role='status' aria-live='polite' on a div container (FR-TOAST-001); <output> does not support child slot for UndoSnackbar
+    <div className="notification-toast" aria-live="polite" role="status" aria-label="notifications">
+      {/* Passive notification items — no individual aria-live (FR-TOAST-001) */}
       {visible.map((item) => (
         <ToastItem key={item.id} item={item} onDismiss={dismiss} />
       ))}
+
+      {/* UndoSnackbar slot — independent aria-live region (FR-TOAST-003) */}
+      {/* AppShell renders UndoSnackbar inside this slot via overlays prop */}
+      <div className="notification-toast__undosnackbar-slot" />
     </div>
   );
 }

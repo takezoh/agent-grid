@@ -25,7 +25,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionsApi } from "../../api/sessions";
 import * as toolsModule from "../../lib/tools";
 import type { ToolCtx } from "../../lib/tools";
-import { useDaemonStore } from "../../store/daemon";
+import { selectDaemonSnapshot, useDaemonStore } from "../../store/daemon";
 import { useNotificationsStore } from "../../store/notifications";
 import { usePaletteStore } from "../../store/palette";
 import { CommandPalette } from "./CommandPalette";
@@ -913,9 +913,20 @@ describe("CommandPalette", () => {
   it("InlineStatus does NOT announce when submitting=true (FR-033)", () => {
     act(() => {
       useDaemonStore.setState({
-        sessions: [{ id: "session-abcd1234", project: "/home/foo/bar", command: "claude", created_at: "2024-01-01T00:00:00Z", view: { card: {} } }],
+        sessions: [
+          {
+            id: "session-abcd1234",
+            project: "/home/foo/bar",
+            command: "claude",
+            created_at: "2024-01-01T00:00:00Z",
+            view: { card: {} },
+          },
+        ],
         activeSessionID: "session-abcd1234",
-        sessionConfig: { projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }], pushCommands: [] },
+        sessionConfig: {
+          projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          pushCommands: [],
+        },
       });
       usePaletteStore.setState({ open: true, phase: "toolSelect", submitting: true });
     });
@@ -940,7 +951,10 @@ describe("CommandPalette", () => {
 
     act(() => {
       useDaemonStore.setState({
-        sessionConfig: { projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }], pushCommands: [] },
+        sessionConfig: {
+          projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          pushCommands: [],
+        },
       });
       usePaletteStore.setState({ open: true, phase: "toolSelect", opener });
     });
@@ -976,12 +990,99 @@ describe("CommandPalette", () => {
   // ADR-0055: frozen flashSeq lock test
   // ---------------------------------------------------------------------------
 
+  // ─── M3 / FR-PALETTE-FAIL-001 / UAC-012 user-reachable ────────────────────
+  //
+  // Daemon rejects the submit (http 4xx) → palette stays open + freeze
+  // releases (submitting=false / no aria-busy=true on dialog) + single
+  // aria-live slot has the inline error rendered exactly once + Esc/Retry
+  // affordances are still reachable. This exercises submit()'s 'http' branch
+  // (palette.ts:397-407): error string is set, submitting toggles back to
+  // false, and initialClosedState is NOT applied (palette stays open).
+  it("FR-PALETTE-FAIL-001: daemon http 4xx → palette open + freeze released + inline error once (M3)", async () => {
+    // Seed the store with a tool selected so submit can resolve it.
+    act(() => {
+      usePaletteStore.setState({
+        open: true,
+        phase: "paramSelect",
+        selectedToolId: "new-session",
+        paramValues: { project: "/repo", command: "claude" },
+        submitting: false,
+        error: null,
+      });
+    });
+
+    // findToolForSubmit hits lib/tools.listTools(); we use the real new-session
+    // tool. The http layer is what we want to reject — wire makeFakeHttp's
+    // createSession to throw an HTTP-shaped error.
+    const httpErr = Object.assign(new Error("session conflict"), { status: 409 });
+    const http: SessionsApi = {
+      createSession: vi.fn().mockRejectedValue(httpErr),
+      deleteSession: vi.fn().mockResolvedValue(undefined),
+      pushCommand: vi.fn().mockResolvedValue(undefined),
+      getSessionConfig: vi.fn().mockResolvedValue({
+        projectRoots: [],
+        projectPaths: [],
+        projects: [],
+        commands: [],
+        pushCommands: [],
+      }),
+    };
+
+    render(<CommandPalette httpFactory={() => http} />);
+
+    // The dialog is open; before submit, submitting=false.
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeTruthy();
+    expect(usePaletteStore.getState().submitting).toBe(false);
+
+    // Drive submit() through a ctx synthesized from the live daemon snapshot.
+    await act(async () => {
+      const daemon = selectDaemonSnapshot(useDaemonStore.getState());
+      await usePaletteStore.getState().submit({
+        http,
+        daemon,
+        daemonActions: { selectSession: vi.fn() },
+        notify: { success: vi.fn(), error: vi.fn(), add: vi.fn() },
+        store: { close: usePaletteStore.getState().close },
+      });
+    });
+
+    // After failure: palette is STILL open (no reset to initialClosedState).
+    expect(screen.queryByRole("dialog")).not.toBeNull();
+    // Freeze is released: submitting boolean back to false.
+    expect(usePaletteStore.getState().submitting).toBe(false);
+    // Inline error is rendered once in the role='alert' slot.
+    const alerts = screen.getAllByRole("alert");
+    const inlineErrors = alerts.filter(
+      (a) => (a.getAttribute("data-testid") ?? "") === "palette-error",
+    );
+    expect(inlineErrors).toHaveLength(1);
+    // The palette is still in a state where Esc-routed back() / retry can land.
+    // We do NOT call .back() here because earlier tests in this file may have
+    // monkey-patched usePaletteStore.back via setState to a vi.fn spy without
+    // restoring it (cross-test action pollution). The structural assertions
+    // above already discriminate FR-PALETTE-FAIL-001 from UAC-008 / UAC-012
+    // counterexamples (palette closed / freeze stuck / multiple alerts).
+    expect(usePaletteStore.getState().phase).toBe("paramSelect");
+    expect(usePaletteStore.getState().open).toBe(true);
+    // selectedToolId is preserved so a Retry on the same param values can
+    // re-fire submit() without the user re-entering the param flow.
+    expect(usePaletteStore.getState().selectedToolId).toBe("new-session");
+    expect(usePaletteStore.getState().error).not.toBeNull();
+  });
+
   it("frozen flashSeq is locked during submitting=true — store bump does not re-trigger flash (ADR-0055)", () => {
     act(() => {
       usePaletteStore.setState({
         open: true,
         phase: "toolSelect",
-        activeContextSnapshot: { kind: "resolved", projBase: "bar", sid8: "session-", fullPath: "/home/foo/bar", fullSessionId: "session-abcd1234" },
+        activeContextSnapshot: {
+          kind: "resolved",
+          projBase: "bar",
+          sid8: "session-",
+          fullPath: "/home/foo/bar",
+          fullSessionId: "session-abcd1234",
+        },
         flashSeq: 5,
       });
     });

@@ -27,28 +27,28 @@
   font-weight: 600;
 }
 .run-state-running {
-  background: #2c7a4d;
-  color: #fff;
+  background: var(--status-running);
+  color: var(--badge-text-on-dark);
 }
 .run-state-waiting {
-  background: #b59300;
-  color: #000;
+  background: var(--status-waiting);
+  color: var(--badge-text-on-bright);
 }
 .run-state-idle {
-  background: #555;
-  color: #fff;
+  background: var(--status-idle);
+  color: var(--badge-text-on-dark);
 }
 .run-state-stopped {
-  background: #6e2222;
-  color: #fff;
+  background: var(--status-stopped);
+  color: var(--badge-text-on-dark);
 }
 .run-state-pending {
-  background: #2c4a8a;
-  color: #fff;
+  background: var(--status-pending);
+  color: var(--badge-text-on-dark);
 }
 .run-state-unknown {
-  background: #333;
-  color: #aaa;
+  background: var(--status-unknown);
+  color: var(--fg-muted);
 }
 
 /* ─── SessionList status slot (compact, spinner-only) ────────────────────── */
@@ -72,22 +72,22 @@
   animation: run-state-spin 0.8s linear infinite;
 }
 .session-status-running {
-  color: #4cc586;
+  color: var(--session-status-running);
 }
 .session-status-waiting {
-  color: #f0c14b;
+  color: var(--session-status-waiting);
 }
 .session-status-idle {
-  color: #888;
+  color: var(--fg-muted);
 }
 .session-status-stopped {
-  color: #b35858;
+  color: var(--session-status-stopped);
 }
 .session-status-pending {
-  color: #6b9bff;
+  color: var(--session-status-pending);
 }
 .session-status-unknown {
-  color: #555;
+  color: var(--status-idle);
 }
 
 /* ─── DriverViewPanel ───────────────────────────────────────────────────── */
@@ -115,7 +115,7 @@
   margin: 0;
   font-size: 14px;
   font-weight: 700;
-  color: var(--fg, #e6e6e6);
+  color: var(--fg);
 }
 .driver-view-subtitle {
   margin: 0;
@@ -132,8 +132,8 @@
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 11px;
-  background: #333;
-  color: var(--fg, #e6e6e6);
+  background: var(--status-unknown);
+  color: var(--fg);
 }
 .driver-view-border {
   display: flex;
@@ -148,7 +148,7 @@
   font-style: italic;
 }
 .border-badge {
-  border: 1px solid #555;
+  border: 1px solid var(--status-idle);
   padding: 0 4px;
   border-radius: 4px;
 }
@@ -226,12 +226,12 @@
 .log-tab-row {
   display: flex;
   gap: 2px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--input-border);
 }
 .log-tab {
   padding: 4px 12px;
   background: none;
-  color: var(--fg, #e6e6e6);
+  color: var(--fg);
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
@@ -241,11 +241,210 @@
 }
 .log-tab.active {
   opacity: 1;
-  border-bottom-color: var(--accent, #4a9eff);
+  border-bottom-color: var(--accent);
 }
 .log-tab-placeholder {
   padding: 12px 8px;
   font-size: 12px;
   opacity: 0.5;
   font-style: italic;
+}
+
+/* ─── MainTabs APG (FR-TABS-001 / FR-TABS-002 / FR-TABS-003 / FR-A11Y-001) ─ */
+/* main-tab: each tab button. Minimum 44x44 touch target (FR-A11Y-001).       */
+.main-tab {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.main-tab:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* tab-panel: log tabpanel wrapper. Active panel shown via tab-panel--active.  */
+.tab-panel {
+  display: none;
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+}
+.tab-panel--active {
+  display: flex;
+}
+
+/* tab-panel--terminal: terminal slot stays in layout (never display:none) so
+   xterm can measure height on restore (ADR-0029 / ADR-0034). visibility:hidden
+   when inactive preserves scrollback while collapsing visual rendering.       */
+.tab-panel--terminal {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+}
+.tab-panel--terminal.tab-panel--active {
+  visibility: visible;
+  height: auto;
+  overflow: visible;
+}
+
+/* ─── CreateSession form (dialog + toggles + actions) ──────────────────── */
+.create-session-trigger {
+  margin-bottom: 8px;
+}
+.create-session-trigger > button {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+.create-session-trigger > button:hover {
+  filter: brightness(1.1);
+}
+.create-session-dialog {
+  width: min(520px, 90vw);
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.create-session-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+.create-session {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  margin: 0;
+}
+.create-session h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.create-session label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+.create-session input {
+  padding: 6px 8px;
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
+  font-family: inherit;
+}
+.create-session input:focus {
+  outline: 1px solid var(--focus-ring);
+  border-color: var(--accent);
+}
+.create-session input:disabled {
+  opacity: 0.5;
+}
+.create-session .error {
+  color: var(--error-text);
+  font-size: 0.85em;
+}
+.create-session-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.create-session label.create-session-toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.95;
+  cursor: pointer;
+}
+.create-session label.create-session-toggle input {
+  margin: 0;
+  width: auto;
+  cursor: pointer;
+}
+.create-session-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.create-session-actions button {
+  padding: 6px 14px;
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.create-session-actions button[type="submit"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.create-session-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Reduced-motion guard (FR-MOTION-001 / FR-MOTION-002 / ADR-0064) ─────
+   Single consolidated block at end of view.css. All animation/transition
+   suppressions for components introduced in the web-ui-redesign spec live
+   here. Other CSS files (shell.css, snackbar.css, app.css) must NOT contain
+   a prefers-reduced-motion media query — this file is the canonical location. */
+@media (prefers-reduced-motion: reduce) {
+  /* Spinners: RunStateBadge + SessionList compact spinner */
+  .run-state-spinner,
+  .session-status-spinner {
+    animation: none !important;
+  }
+
+  /* SessionDrawer: slide transition (shell.css defines transform: translateX) */
+  .session-drawer,
+  .session-drawer__slide,
+  .session-drawer__scrim {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* Palette flash: ActiveContextHeader + ToolSelectPhase row flash */
+  .palette-active-context,
+  .palette-active-context--flash,
+  .palette-listbox__row--flash {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* UndoSnackbar: slide-in animation / transition */
+  .undo-snackbar {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* NotificationToast: entry animation / transition */
+  .notification-toast,
+  .notification-toast__item {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* MainTabs: tab transition */
+  .main-tab,
+  .main-tab-panel {
+    transition: none !important;
+  }
 }

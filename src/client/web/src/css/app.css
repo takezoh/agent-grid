@@ -1,9 +1,6 @@
-:root {
-  --bg: #1e1e1e;
-  --fg: #e6e6e6;
-  --accent: #4a9eff;
-  --warn: #f0ad4e;
-}
+/* app.css — layout and component styles.
+   Import order: tokens.css → app.css → view.css                           */
+
 html,
 body,
 #root {
@@ -14,7 +11,11 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: ui-monospace, monospace;
+  /* FR-TERMINAL-002 prep: prevent double-scroll at body level */
+  overflow: hidden;
 }
+
+/* ─── Legacy .app class (kept for backward compat while App.tsx exists) ──── */
 .app {
   display: grid;
   grid-template-columns: 280px 1fr auto;
@@ -25,11 +26,11 @@ body {
   grid-column: 1 / -1;
   padding: 6px 12px;
   background: var(--warn);
-  color: #000;
+  color: var(--on-accent);
 }
 .sidebar {
   grid-row: 2;
-  border-right: 1px solid #333;
+  border-right: 1px solid var(--input-border);
   padding: 8px;
   overflow-y: auto;
 }
@@ -40,149 +41,100 @@ body {
   flex-direction: column;
   min-height: 0;
 }
-/* ADR 0029: flex: 1 1 0 + min-height: 0 lets the flex parent distribute the
-   remaining height to the terminal host. Without min-height: 0 the flex item
-   defaults to min-height: auto which can cause the item to overflow its
-   container, making fit.fit() return 0 rows. */
+
+/* AppShell grid layout is in shell.css (imported separately to keep
+   app.css under the 500-line limit).                                      */
+/* ADR-0029: flex:1 1 0 + min-height:0 distributes remaining height to terminal.
+   ADR-0060: height:var(--dvh) (100dvh, 100vh @supports fallback in tokens.css).
+   FR-LAYOUT-004 safe-area: applied once by .app-shell in shell.css; do NOT
+   repeat env(safe-area-inset-bottom) here — would double it on notched devices. */
 .terminal-host {
   flex: 1 1 0;
   min-height: 0;
   width: 100%;
+  height: var(--dvh);
+  box-sizing: border-box;
 }
+
+/* FR-THEME-003 (ADR-0059): hybrid bridge — CSS token controls the DOM
+   background so data-theme switches take effect immediately via the cascade.
+   xterm.js occasionally writes inline background via its internal renderer;
+   !important ensures the CSS token always wins without adding specificity
+   hacks to xterm internals. */
+.terminal-host,
+.terminal-host .xterm,
+.terminal-host .xterm-screen,
+.terminal-host .xterm-viewport {
+  background: var(--bg) !important;
+}
+/* ─── Unified listbox option (FR-TOKEN-001) ─────────────────────────────── */
+/* Shared row sizing for SessionList and palette listbox. Both consume the   */
+/* same --row-* tokens from tokens.css so computed pixel values are equal.   */
+.unified-listbox__option {
+  border-radius: var(--row-radius);
+  padding-top: var(--row-padding-y);
+  padding-bottom: var(--row-padding-y);
+  padding-left: var(--row-padding-x);
+  padding-right: var(--row-padding-x);
+  font-size: var(--row-font-size);
+  line-height: var(--row-line-height);
+  min-height: var(--row-min-height);
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+}
+.unified-listbox__option--disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.unified-listbox__option[aria-selected="true"] {
+  outline: 1px solid var(--accent);
+}
+.unified-listbox__option-reason {
+  font-size: 0.8em;
+  opacity: 0.75;
+  margin-left: 4px;
+}
+
+/* ─── SessionList container ─────────────────────────────────────────────── */
 .session-list {
-  list-style: none;
   padding: 0;
   margin: 8px 0;
 }
-.session-list button {
+.session-list .unified-listbox {
+  outline: none;
+}
+/* FR-A11Y-001: SessionList rows must meet the 44×44px minimum touch target.
+   The shared --row-min-height token (2rem = 32px) is intentionally compact for
+   the command palette; the SessionList overrides to 44px so the sidebar rows
+   satisfy the touch-target floor without changing the palette. */
+.session-list .unified-listbox__option {
+  min-height: 44px;
+}
+
+/* ─── SessionList row — derived from .unified-listbox__option ───────────── */
+/* session-list__row is the inner content div of each UnifiedListbox option. */
+.session-list__row {
   width: 100%;
-  text-align: left;
-  padding: 6px 8px;
-  background: none;
-  color: var(--fg);
-  border: 1px solid transparent;
-  cursor: pointer;
   display: flex;
   align-items: flex-start;
   gap: 6px;
 }
-.session-list button.active {
-  border-color: var(--accent);
+.session-list__row--active .session-list__label--clamped {
+  color: var(--accent);
 }
-.session-list .title {
+
+/* ─── 2-line ellipsis for long displayLabel (ADR-0033 / FR-A11Y-001) ────── */
+.session-list__label--clamped {
   flex: 1 1 auto;
   min-width: 0;
-  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: normal;
 }
-.create-session-trigger {
-  margin-bottom: 8px;
-}
-.create-session-trigger > button {
-  width: 100%;
-  padding: 6px 10px;
-  background: var(--accent);
-  color: #0a0a0a;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-}
-.create-session-trigger > button:hover {
-  filter: brightness(1.1);
-}
-
-.create-session-dialog {
-  width: min(520px, 90vw);
-  padding: 0;
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid #444;
-  border-radius: 6px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-}
-.create-session-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.6);
-}
-
-.create-session {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 18px;
-  margin: 0;
-}
-.create-session h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-.create-session label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.85em;
-  opacity: 0.85;
-}
-.create-session input {
-  padding: 6px 8px;
-  background: #2a2a2a;
-  color: var(--fg);
-  border: 1px solid #444;
-  border-radius: 3px;
-  font-family: inherit;
-}
-.create-session input:focus {
-  outline: 1px solid var(--accent);
-  border-color: var(--accent);
-}
-.create-session input:disabled {
-  opacity: 0.5;
-}
-.create-session .error {
-  color: #ff6b6b;
-  font-size: 0.85em;
-}
-.create-session-toggles {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.create-session label.create-session-toggle {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  opacity: 0.95;
-  cursor: pointer;
-}
-.create-session label.create-session-toggle input {
-  margin: 0;
-  width: auto;
-  cursor: pointer;
-}
-.create-session-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-.create-session-actions button {
-  padding: 6px 14px;
-  background: #2a2a2a;
-  color: var(--fg);
-  border: 1px solid #444;
-  border-radius: 3px;
-  cursor: pointer;
-}
-.create-session-actions button[type="submit"] {
-  background: var(--accent);
-  color: #0a0a0a;
-  border-color: var(--accent);
-  font-weight: 600;
-}
-.create-session-actions button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* Command palette overlay (ADR-0036). */
 .palette-overlay {
   position: fixed;
@@ -194,18 +146,20 @@ body {
   justify-content: center;
 }
 .palette-dialog {
-  max-width: 600px;
-  width: 90%;
-  margin: 10vh auto 0;
-  background: #1e1e2e;
+  /* B3: dimensions / margin are now owned by .palette-sheet so the dialog
+     itself fills its sheet container. The sheet enforces 16px horizontal
+     margin on viewport widths <768px (UAC-008). */
+  width: 100%;
+  background: var(--palette-bg);
   color: var(--fg);
-  border: 1px solid #45475a;
+  border: 1px solid var(--palette-border);
   border-radius: 8px;
   padding: 1rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-sizing: border-box;
 }
 .palette-header {
   display: flex;
@@ -222,7 +176,7 @@ body {
 .palette-header__close {
   background: transparent;
   color: var(--fg);
-  border: 1px solid #45475a;
+  border: 1px solid var(--palette-border);
   border-radius: 4px;
   cursor: pointer;
   padding: 2px 8px;
@@ -236,7 +190,7 @@ body {
   opacity: 0.8;
 }
 .palette-error {
-  color: #f38ba8;
+  color: var(--error-text);
   font-size: 0.9em;
   background: rgba(243, 139, 168, 0.1);
   border: 1px solid rgba(243, 139, 168, 0.3);
@@ -246,16 +200,16 @@ body {
 .palette-tool-select input,
 .palette-param-select input {
   width: 100%;
-  padding: 6px 8px;
-  background: #11111b;
+  padding: var(--row-padding-y) var(--row-padding-x);
+  background: var(--palette-input-bg);
   color: var(--fg);
-  border: 1px solid #45475a;
-  border-radius: 4px;
+  border: 1px solid var(--palette-border);
+  border-radius: var(--row-radius);
   box-sizing: border-box;
 }
 .palette-tool-select mark {
   background: var(--accent);
-  color: #0a0a0a;
+  color: var(--on-accent);
   border-radius: 2px;
 }
 .palette-scope-segment {
@@ -266,14 +220,14 @@ body {
   flex: 1;
   background: transparent;
   color: var(--fg);
-  border: 1px solid #45475a;
-  border-radius: 4px;
+  border: 1px solid var(--palette-border);
+  border-radius: var(--row-radius);
   cursor: pointer;
   padding: 4px 8px;
 }
 .palette-scope-segment__tab[data-active="true"] {
   background: var(--accent);
-  color: #0a0a0a;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 .palette-scope-segment__tab:disabled {
@@ -306,62 +260,26 @@ body {
   opacity: 0.8;
 }
 
-/* ─── ChipSwitch (FR-016 / FR-029) ─────────────────────────────────────── */
-.palette-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  color: var(--fg);
-  border: 1px solid #45475a;
-  border-radius: 4px;
-  cursor: pointer;
-  padding: 2px 8px;
-  font-family: inherit;
-  font-size: 0.85em;
-}
-.palette-chip--on {
-  background: var(--accent);
-  color: #0a0a0a;
-  border-color: var(--accent);
-}
-.palette-chip--off {
-  opacity: 0.75;
-}
-.palette-chip:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.palette-chip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.palette-chip__hint {
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-.palette-chip__state {
-  font-size: 0.8em;
-  font-weight: 700;
-  letter-spacing: 0.08em;
 /* InlineStatus — single aria-live announce slot (ADR-0057 / FR-029). */
 .palette-inline-status {
   min-height: 1.4em;
   font-size: 0.85em;
 }
 .palette-inline-status__text--warning {
-  color: #fab387;
+  color: var(--status-warn-text);
 }
 .palette-inline-status__text--info {
-  color: #89dceb;
+  color: var(--status-info-text);
 }
 .palette-inline-status__icon {
   margin-right: 4px;
   font-weight: bold;
+}
+
 /* Unified listbox: separator, disabled row, flash (FR-001/FR-002/FR-003/FR-029) */
 .palette-listbox__separator {
   height: 1px;
-  background: #45475a;
+  background: var(--listbox-separator);
   margin: 4px 0;
 }
 .palette-listbox__row--disabled {
@@ -384,48 +302,43 @@ body {
   margin-left: 4px;
 }
 .palette-listbox__row--flash {
-  background: rgba(243, 139, 168, 0.15);
+  background: var(--listbox-flash-bg);
 }
 
-/* ActiveContextHeader (FR-009 / FR-010 / FR-029 / FR-032) */
-.palette-active-context {
-  display: flex;
-  align-items: center;
+/* ─── SegmentedControl primitive (FR-THEME-007 / FR-A11Y-001) ──────────── */
+.segmented-control {
+  display: inline-flex;
+  border-radius: var(--row-radius);
   gap: 4px;
-  font-size: 0.85em;
-  opacity: 0.9;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: background-color 150ms ease-in-out;
-  border-radius: 3px;
-  padding: 2px 4px;
 }
-.palette-active-context--flash {
-  background-color: rgba(74, 158, 255, 0.2);
+.segmented-control__segment {
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--row-padding-y) var(--row-padding-x);
+  border-radius: var(--row-radius);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--row-font-size);
+  line-height: var(--row-line-height);
 }
-.palette-active-context__icon {
-  font-family: var(--mono, ui-monospace, monospace);
+.segmented-control__segment[aria-checked="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }
-.palette-active-context__sid {
-  font-family: var(--mono, ui-monospace, monospace);
-  opacity: 0.8;
+.segmented-control__segment:hover:not([disabled]) {
+  filter: brightness(1.1);
 }
-
-/* InlineStatus — single aria-live announce slot (ADR-0057 / FR-029). */
-.palette-inline-status {
-  min-height: 1.4em;
-  font-size: 0.85em;
+.segmented-control__segment:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
-.palette-inline-status__text--warning {
-  color: #fab387;
-}
-.palette-inline-status__text--info {
-  color: #89dceb;
-}
-.palette-inline-status__icon {
-  margin-right: 4px;
-  font-weight: bold;
+.segmented-control__segment:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 /* ─── ChipSwitch (FR-016 / FR-029) ─────────────────────────────────────── */
@@ -435,8 +348,8 @@ body {
   gap: 4px;
   background: transparent;
   color: var(--fg);
-  border: 1px solid #45475a;
-  border-radius: 4px;
+  border: 1px solid var(--palette-border);
+  border-radius: var(--row-radius);
   cursor: pointer;
   padding: 2px 8px;
   font-family: inherit;
@@ -444,7 +357,7 @@ body {
 }
 .palette-chip--on {
   background: var(--accent);
-  color: #0a0a0a;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 .palette-chip--off {
@@ -455,7 +368,7 @@ body {
   cursor: not-allowed;
 }
 .palette-chip:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .palette-chip__hint {
@@ -466,4 +379,108 @@ body {
   font-size: 0.8em;
   font-weight: 700;
   letter-spacing: 0.08em;
+}
+
+/* ─── ThemeSegmentedControl (FR-THEME-007 / ADR-0062) ──────────────────── */
+/* Wrapper ensures the control meets the 44px minimum touch target height.  */
+/* ADR-0062: hidden on narrow viewports — palette suggested-action absorbs  */
+/* the theme entry point on mobile (< 768px).                               */
+.theme-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+@media (max-width: 767px) {
+  .theme-segmented-control {
+    display: none;
+  }
+}
+
+/* ─── NotificationToast (FR-TOAST-001 / FR-TOAST-002 / FR-TOAST-003) ───── */
+
+/* Desktop (>=768px): top-right fixed — legacy layout preserved */
+@media (min-width: 768px) {
+  .notification-toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+}
+
+/* Mobile (<768px): bottom-aligned with safe-area inset (FR-TOAST-002) */
+@media (max-width: 767px) {
+  .notification-toast {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom) + 16px);
+    left: 16px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* UndoSnackbar slot: no visual output — purely a DOM landmark for FR-TOAST-003 */
+.notification-toast__undosnackbar-slot {
+  display: contents;
+}
+
+/* Toast item base styles — background set by type modifier (no inline color) */
+.notification-toast__item {
+  display: block;
+  color: var(--fg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  min-width: 240px;
+  max-width: 360px;
+  /* FR-A11Y-001 (m1): each toast item is the dismiss target on tap, so it
+     must meet WCAG 2.5.5 (44x44 minimum) — the existing 240px width already
+     satisfies width, but height needs an explicit floor for short messages. */
+  min-height: 44px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  word-break: break-word;
+}
+
+/* Type modifiers: background from --toast-bg-* tokens (FR-TOAST-002) */
+.notification-toast__item--info {
+  background: var(--toast-bg-info);
+}
+.notification-toast__item--success {
+  background: var(--toast-bg-success);
+}
+.notification-toast__item--warn {
+  background: var(--toast-bg-warn);
+}
+.notification-toast__item--error {
+  background: var(--toast-bg-error);
+}
+
+.notification-toast__item-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.notification-toast__item-body {
+  font-size: 0.875em;
+  opacity: 0.8;
+}
+
+/* UndoSnackbar styles are in snackbar.css (imported separately to keep
+   app.css under the 500-line limit).                                      */
+
+/* ─── TagPill (FR-TAGPILL-001) ──────────────────────────────────────────── */
+/* Display-only chip; min-height 44px touch target exempted per FR-A11Y-001. */
+.driver-tag-pill {
+  padding: var(--row-padding-y) var(--row-padding-x);
+  border-radius: var(--row-radius);
+  font-size: var(--row-font-size);
+  line-height: var(--row-line-height);
+  box-sizing: border-box;
 }

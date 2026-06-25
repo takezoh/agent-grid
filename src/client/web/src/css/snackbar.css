@@ -1,0 +1,59 @@
+/* snackbar.css — UndoSnackbar styles (FR-TOAST-001 / FR-TOAST-003 / ADR-0063)
+   Import order: tokens.css → app.css → snackbar.css → shell.css → view.css  */
+
+/* ─── UndoSnackbar ────────────────────────────────────────────────────────── */
+/* Container: floats as sibling of the NotificationToast stack. */
+.undo-snackbar {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--toast-bg-info);
+  color: var(--fg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: var(--row-padding-y) var(--row-padding-x);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  min-width: 240px;
+  max-width: 400px;
+}
+
+/* Live region: passive announce slot — FR-TOAST-001 */
+.undo-snackbar__status {
+  flex: 1 1 auto;
+  font-size: var(--row-font-size);
+  line-height: var(--row-line-height);
+}
+
+/* Actions: interactive area outside live region — FR-TOAST-001 */
+.undo-snackbar__actions {
+  flex: 0 0 auto;
+}
+
+/* Undo button: 44x44px touch target — FR-A11Y-001 */
+.undo-snackbar__undo-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--row-padding-y) var(--row-padding-x);
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: var(--row-radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--row-font-size);
+  font-weight: 600;
+  line-height: var(--row-line-height);
+}
+
+.undo-snackbar__undo-btn:hover {
+  filter: brightness(1.1);
+}
+
+.undo-snackbar__undo-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

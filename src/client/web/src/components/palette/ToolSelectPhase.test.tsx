@@ -695,7 +695,11 @@ describe("ToolSelectPhase — disabled→enabled row flash (FR-011 / UAC-014)", 
 
     // Transition: give activeSessionID → push:save becomes enabled
     act(() => {
-      setDaemonWithPush({ activeSessionID: "sess-1", activeOccupant: "frame", pushCommands: ["save"] });
+      setDaemonWithPush({
+        activeSessionID: "sess-1",
+        activeOccupant: "frame",
+        pushCommands: ["save"],
+      });
     });
 
     // push:save should now be in enabled group
