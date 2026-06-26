@@ -186,8 +186,11 @@
 }
 
 /* ─── input ─────────────────────────────────────────────────────────────── */
-.palette-tool-select input,
-.palette-param-select input {
+/* toolSelect's combobox input keeps its own caret-rail-on-bottom signature.
+   paramSelect inputs (filter combobox + bare text variants) are styled by
+   the .palette-param-filter / .palette-param-input rules below — those
+   ride the card surface that the .palette-param fieldset already paints. */
+.palette-tool-select input {
   width: 100%;
   padding: 10px 12px;
   background: var(--surface-input);
@@ -200,14 +203,12 @@
   font-size: 13px;
   transition: border-color 120ms ease-out, background-color 120ms ease-out;
 }
-.palette-tool-select input:focus,
-.palette-param-select input:focus {
+.palette-tool-select input:focus {
   outline: none;
   border-bottom-color: var(--rail-accent);
   border-bottom-width: 2px;
 }
-.palette-tool-select input::placeholder,
-.palette-param-select input::placeholder {
+.palette-tool-select input::placeholder {
   color: var(--fg-muted);
   opacity: 0.75;
 }
@@ -446,4 +447,161 @@
   padding-left: 4px;
   border-left: 1px solid currentColor;
   opacity: 0.9;
+}
+
+/* ─── ParamSelectPhase (New Session) ────────────────────────────────────── */
+/* Modernization parity with toolSelect: each param fieldset is a "card" with
+   a left caret rail that lights up when focused, a tokenized label, and a
+   filterable listbox surface that mirrors palette-listbox row mechanics. */
+.palette-param-select {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+.palette-param {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface-input);
+  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+}
+.palette-param.focused {
+  border-color: color-mix(in srgb, var(--rail-accent) 50%, var(--hairline));
+  background: color-mix(in srgb, var(--surface-input) 92%, var(--rail-accent));
+}
+.palette-param.focused::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--rail-accent);
+  border-radius: 0 2px 2px 0;
+  transform-origin: top;
+  animation: palette-rail-in 200ms ease-out;
+  pointer-events: none;
+}
+.palette-param-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.palette-param.focused .palette-param-label {
+  color: var(--rail-accent);
+}
+
+/* Filter combobox input — same visual language as the toolSelect input,
+   slightly slimmer to fit inside the card. */
+.palette-param-filter,
+.palette-param-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface-canvas);
+  color: var(--fg);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+}
+.palette-param-filter:focus,
+.palette-param-input:focus {
+  outline: none;
+  border-color: var(--rail-accent);
+  background: var(--surface-canvas);
+}
+.palette-param-filter::placeholder,
+.palette-param-input::placeholder {
+  color: var(--fg-muted);
+  opacity: 0.65;
+}
+.palette-param-filter:disabled,
+.palette-param-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Listbox surface inside a param. Caps at ~9 rows so a 50-project tree
+   doesn't shove the dialog past the viewport; rows scroll inside. */
+.palette-param-listbox {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: calc(9 * 30px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+  border-radius: 6px;
+}
+.palette-param-listbox[aria-disabled="true"] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.palette-param-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px 6px 14px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--fg);
+  transition: background-color 80ms ease-out;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+.palette-param-option:hover {
+  background: var(--surface-row-hover);
+}
+.palette-param-option.selected,
+.palette-param-option[aria-selected="true"] {
+  background: var(--surface-row-selected);
+  color: var(--fg);
+}
+.palette-param-option.selected::before,
+.palette-param-option[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--rail-accent);
+  border-radius: 2px;
+  transform-origin: center;
+  animation: palette-row-caret-in 80ms ease-out;
+}
+.palette-param-listbox__empty {
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  padding: 8px 12px;
+  font-style: italic;
+}
+
+/* Text-input variant + chip toggles row layout for the command param. */
+.palette-param-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.palette-param-command-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }

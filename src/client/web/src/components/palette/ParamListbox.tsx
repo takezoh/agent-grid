@@ -1,12 +1,24 @@
-// ParamListbox — the listbox variant rendered by ParamSelectPhase for
+// ParamListbox — listbox variant rendered by ParamSelectPhase for
 // kind: 'static-options' and kind: 'dynamic-options' (N>=1) ParamDefs.
 //
-// Split out of ParamSelectPhase.tsx for the file-size budget: keeping the
-// orchestrator (ParamSelectPhase) under 500 lines required moving the
-// two leaf renderers (this file + ParamTextInput.tsx) to siblings. The
-// behavior is unchanged; ParamSelectPhase still owns option
-// materialization, empty-state handling, and the form-level submit flow.
+// Filter-as-you-type (web-ui-fixes 2026-06-24): each listbox carries its
+// own combobox input that filters options by case-insensitive substring
+// match. The input gets focus when `focused` is true so a user landing on
+// the Project / Command param can immediately start typing to narrow the
+// picker, then press Enter to commit. ArrowUp / ArrowDown navigate the
+// VISIBLE list, so navigation never lands on a hidden row.
+//
+// Selection model:
+//   - `value` is the persisted store value (param.id).
+//   - currentIdx is the visible-list index of `value`. When the filter
+//     hides the selected option it's -1; Enter then auto-promotes the
+//     first visible option before calling onEnter (matches the user's
+//     expectation: "type to filter, press Enter to take the obvious row").
+//   - mousedown commits the clicked option AND triggers onEnter (mouse
+//     click is the user saying "this one, advance"). preventDefault keeps
+//     the combobox input from losing focus.
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import type { ParamOption } from "../../lib/tools";
 
@@ -22,10 +34,12 @@ export interface ParamListboxProps {
   onEnter: () => void;
   onCompositionStart: () => void;
   onCompositionEnd: () => void;
+  // inputRef: ParamSelectPhase passes its commandInputRef here for the
+  // command listbox so the chip-visibility focus fallback (FR-022) can
+  // .focus() the filter input when a chip's visibility flips off.
+  inputRef?: React.Ref<HTMLInputElement>;
 }
 
-// optionIndexOf returns the index of `value` in `options`, or -1 when
-// not found. Pure helper colocated with the only call site.
 function optionIndexOf(options: ReadonlyArray<ParamOption>, value: unknown): number {
   if (value === undefined) return -1;
   for (let i = 0; i < options.length; i++) {
@@ -33,6 +47,15 @@ function optionIndexOf(options: ReadonlyArray<ParamOption>, value: unknown): num
     if (opt !== undefined && opt.value === value) return i;
   }
   return -1;
+}
+
+function filterOptions(
+  options: ReadonlyArray<ParamOption>,
+  filter: string,
+): ReadonlyArray<ParamOption> {
+  const q = filter.trim().toLowerCase();
+  if (q === "") return options;
+  return options.filter((o) => o.label.toLowerCase().includes(q));
 }
 
 export function ParamListbox(props: ParamListboxProps): JSX.Element {
@@ -50,39 +73,67 @@ export function ParamListbox(props: ParamListboxProps): JSX.Element {
     onCompositionEnd,
   } = props;
 
-  const currentIdx = optionIndexOf(options, value);
+  const localInputRef = useRef<HTMLInputElement | null>(null);
+  const [filter, setFilter] = useState("");
+  const filterInputId = `palette-param-${paramId}-input`;
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // FR-IME: composing pre-empts every navigation/commit key so the
-    // IME can resolve the composition. Both the store flag and the
-    // native event are checked — belt-and-suspenders against missed
-    // compositionstart events.
+  // Compose localInputRef with the optional external inputRef so both the
+  // internal focused-effect and the caller's ref (e.g. ParamSelectPhase's
+  // commandInputRef for FR-022 chip-visibility focus fallback) land on the
+  // same input element. We use a callback ref so React can clean up
+  // gracefully across mount/unmount cycles.
+  const setInputRef = (el: HTMLInputElement | null) => {
+    localInputRef.current = el;
+    const ext = props.inputRef;
+    if (typeof ext === "function") ext(el);
+    else if (ext && typeof ext === "object")
+      (ext as React.MutableRefObject<HTMLInputElement | null>).current = el;
+  };
+
+  const visible = useMemo(() => filterOptions(options, filter), [options, filter]);
+  const currentIdx = optionIndexOf(visible, value);
+
+  // FR-029-style focus: when this param becomes the focused row, drop focus
+  // into the filter input so the user can type immediately. Without this,
+  // the listbox sits passive and selection looks broken — the visible
+  // motivation behind the "project list not selectable" bug report.
+  useEffect(() => {
+    if (!focused) return;
+    if (disabled) return;
+    const el = localInputRef.current;
+    if (el !== null) el.focus();
+  }, [focused, disabled]);
+
+  // Reset the filter when the param loses focus so re-entering doesn't
+  // surprise the user with a stale narrow set.
+  useEffect(() => {
+    if (!focused) setFilter("");
+  }, [focused]);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (composing) return;
     if (e.nativeEvent.isComposing) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      if (options.length === 0) return;
-      const nextIdx = currentIdx + 1 >= options.length ? 0 : currentIdx + 1;
-      const nextOpt = options[nextIdx];
+      if (visible.length === 0) return;
+      const nextIdx = currentIdx + 1 >= visible.length ? 0 : currentIdx + 1;
+      const nextOpt = visible[nextIdx];
       if (nextOpt !== undefined) onSelect(nextOpt.value);
       return;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (options.length === 0) return;
-      const nextIdx = currentIdx <= 0 ? options.length - 1 : currentIdx - 1;
-      const nextOpt = options[nextIdx];
+      if (visible.length === 0) return;
+      const nextIdx = currentIdx <= 0 ? visible.length - 1 : currentIdx - 1;
+      const nextOpt = visible[nextIdx];
       if (nextOpt !== undefined) onSelect(nextOpt.value);
       return;
     }
     if (e.key === "Enter") {
       e.preventDefault();
-      // Empty listbox structurally cannot commit (no candidate). N=0
-      // dynamic-options is handled upstream by ParamEmptyState (FR-A4);
-      // static-options declaring an empty array still lands here.
-      if (options.length === 0) return;
+      if (visible.length === 0) return;
       if (currentIdx < 0) {
-        const first = options[0];
+        const first = visible[0];
         if (first !== undefined) onSelect(first.value);
       }
       onEnter();
@@ -96,45 +147,73 @@ export function ParamListbox(props: ParamListboxProps): JSX.Element {
       data-param-id={paramId}
       aria-label={label}
     >
-      <label className="palette-param-label" htmlFor={`palette-param-${paramId}`}>
+      <label className="palette-param-label" htmlFor={filterInputId}>
         {label}
       </label>
+      <input
+        ref={setInputRef}
+        id={filterInputId}
+        className="palette-param-filter"
+        type="text"
+        role="combobox"
+        aria-controls={`palette-param-${paramId}`}
+        aria-expanded="true"
+        aria-autocomplete="list"
+        aria-activedescendant={
+          currentIdx >= 0 ? `palette-param-${paramId}-opt-${currentIdx}` : undefined
+        }
+        value={filter}
+        disabled={disabled}
+        placeholder={`Filter ${label.toLowerCase()}...`}
+        onChange={(e) => {
+          if (composing) return;
+          setFilter(e.target.value);
+        }}
+        onKeyDown={onKeyDown}
+        onCompositionStart={onCompositionStart}
+        onCompositionEnd={onCompositionEnd}
+        data-testid={`palette-param-${paramId}-filter`}
+      />
       <div
         id={`palette-param-${paramId}`}
         className="palette-param-listbox"
         // biome-ignore lint/a11y/useSemanticElements: ARIA listbox pattern uses div+role=listbox; <select> cannot host aria-activedescendant
         role="listbox"
-        tabIndex={disabled ? -1 : 0}
+        tabIndex={-1}
         aria-activedescendant={
           currentIdx >= 0 ? `palette-param-${paramId}-opt-${currentIdx}` : undefined
         }
         aria-disabled={disabled || undefined}
-        onKeyDown={onKeyDown}
-        onCompositionStart={onCompositionStart}
-        onCompositionEnd={onCompositionEnd}
       >
-        {options.map((opt, i) => {
-          const selected = i === currentIdx;
-          const optKey = `${paramId}-${opt.label}-${i}`;
-          return (
-            // biome-ignore lint/a11y/useFocusableInteractive: focus stays on parent listbox via aria-activedescendant; options are not individually tabbable
-            <div
-              key={optKey}
-              id={`palette-param-${paramId}-opt-${i}`}
-              // biome-ignore lint/a11y/useSemanticElements: ARIA listbox uses div+role=option; <option> only works inside <select>
-              role="option"
-              aria-selected={selected}
-              className={`palette-param-option ${selected ? "selected" : ""}`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                if (disabled) return;
-                onSelect(opt.value);
-              }}
-            >
-              {opt.label}
-            </div>
-          );
-        })}
+        {visible.length === 0 ? (
+          <div className="palette-param-listbox__empty" role="presentation">
+            No matches
+          </div>
+        ) : (
+          visible.map((opt, i) => {
+            const selected = i === currentIdx;
+            const optKey = `${paramId}-${opt.label}-${i}`;
+            return (
+              // biome-ignore lint/a11y/useFocusableInteractive: focus stays on the combobox input via aria-activedescendant; options are not individually tabbable
+              <div
+                key={optKey}
+                id={`palette-param-${paramId}-opt-${i}`}
+                // biome-ignore lint/a11y/useSemanticElements: ARIA listbox uses div+role=option; <option> only works inside <select>
+                role="option"
+                aria-selected={selected}
+                className={`palette-param-option ${selected ? "selected" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (disabled) return;
+                  onSelect(opt.value);
+                  onEnter();
+                }}
+              >
+                {opt.label}
+              </div>
+            );
+          })
+        )}
       </div>
     </fieldset>
   );

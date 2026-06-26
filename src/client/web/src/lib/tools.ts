@@ -72,7 +72,11 @@ export type ParamDef =
       id: string;
       kind: "dynamic-options";
       label: string;
-      materializeKey: "projects";
+      // 'projects' → daemon.projects (path listing for new-session "Project").
+      // 'commands' → daemon.commands (curated [session].commands list for the
+      // new-session "Command" picker; sourced from /api/session-config so the
+      // web UI and TUI share the same picker entries — see ADR-0041).
+      materializeKey: "projects" | "commands";
       required?: boolean;
     };
 
@@ -99,6 +103,10 @@ export interface DaemonSnapshot {
   activeSessionID: string | null;
   activeOccupant?: DaemonOccupant;
   projects: SessionConfigProject[];
+  // Curated [session].commands list from /api/session-config — the same
+  // picker the TUI palette uses. new-session's "Command" param materializes
+  // its dynamic-options listbox from this field via materializeKey:'commands'.
+  commands: string[];
   pushCommands: string[];
 }
 
@@ -237,7 +245,8 @@ const newSessionTool: ToolDef = {
     },
     {
       id: "command",
-      kind: "text",
+      kind: "dynamic-options",
+      materializeKey: "commands",
       label: "Command",
       required: true,
     },
@@ -290,6 +299,19 @@ export function projectOptions(daemon: DaemonSnapshot): ParamOption[] {
   return daemon.projects.map((p) => ({
     value: p.path,
     label: p.path,
+  }));
+}
+
+// commandOptions is the materialize implementation for
+// `materializeKey === 'commands'`. The curated [session].commands list lives
+// on the daemon snapshot (sourced from /api/session-config — same picker the
+// TUI palette uses). value === label since the command string IS what we
+// send on the wire AND what we show to the user (FR/UAC for new-session
+// "Command" picker, web-ui-fixes 2026-06-24).
+export function commandOptions(daemon: DaemonSnapshot): ParamOption[] {
+  return daemon.commands.map((c) => ({
+    value: c,
+    label: c,
   }));
 }
 

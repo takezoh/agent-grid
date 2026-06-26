@@ -86,8 +86,8 @@ function makeCtx(overrides: Partial<ToolCtx> = {}): ToolCtx {
 
 // setDaemonSnapshot pushes a mkSnapshot()-shaped DaemonSnapshot into the
 // useDaemonStore so selectDaemonSnapshot() inside ParamSelectPhase sees
-// the test's intent. projects/pushCommands live under sessionConfig in
-// the store, so we rewrite them onto that slice instead of the flat
+// the test's intent. projects/commands/pushCommands live under sessionConfig
+// in the store, so we rewrite them onto that slice instead of the flat
 // top-level fields the snapshot itself exposes.
 function setDaemonSnapshot(snap: DaemonSnapshot): void {
   useDaemonStore.setState({
@@ -96,6 +96,7 @@ function setDaemonSnapshot(snap: DaemonSnapshot): void {
     activeOccupant: snap.activeOccupant,
     sessionConfig: {
       projects: snap.projects,
+      commands: snap.commands,
       pushCommands: snap.pushCommands,
     },
   });
@@ -135,11 +136,18 @@ function makeHttpError(status: number, message = `HTTP ${status}`): ApiHttpError
   return err;
 }
 
-// commandInput grabs the new-session command field by id. We pull by id
-// rather than label so the test stays decoupled from the (eventually
-// English-only) label string.
+// commandInput grabs the new-session command filter input by id. The
+// command param is now a dynamic-options listbox (web-ui-fixes 2026-06-24)
+// fronted by a combobox filter input — that input is what receives the
+// keyboard events the tests fire (Enter to advance/submit, ArrowDown to
+// navigate, composing-aware Enter dropping). Pulling by id keeps the test
+// decoupled from the (eventually English-only) label string.
 function commandInput(): HTMLInputElement {
-  return document.getElementById("palette-param-command") as HTMLInputElement;
+  return document.getElementById("palette-param-command-input") as HTMLInputElement;
+}
+
+function projectFilterInput(): HTMLInputElement {
+  return document.getElementById("palette-param-project-input") as HTMLInputElement;
 }
 
 function projectListbox(): HTMLElement {
@@ -207,26 +215,29 @@ describe("ParamSelectPhase", () => {
   // FR-011 / FR-012 layout
   // -------------------------------------------------------------------------
 
-  it("renders new-session with project listbox + command text input", () => {
+  it("renders new-session with project listbox + command listbox + filter combobox inputs", () => {
+    // web-ui-fixes 2026-06-24: both params are now ParamListbox (project +
+    // command). Each carries a combobox filter input fronting the listbox
+    // surface so the user can type to narrow the picker.
     setDaemonSnapshot(
       mkSnapshot({
         projects: [
           { path: "/repo/a", isGit: true },
           { path: "/repo/b", isSandboxed: true },
         ],
+        commands: ["claude", "codex"],
       }),
     );
     seedPalette("new-session");
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    // At least the project fieldset (listbox) and command fieldset (text input)
-    // must be present. When a git project is selected (e.g. after preset fires)
-    // an additional chip-toggles group may appear — that is expected behavior.
     const projectGroup = screen.getByRole("group", { name: "Project" });
     const commandGroup = screen.getByRole("group", { name: "Command" });
     expect(projectGroup.querySelector("[role=listbox]")).not.toBeNull();
-    expect(commandGroup.querySelector("input[type=text]")).not.toBeNull();
+    expect(commandGroup.querySelector("[role=listbox]")).not.toBeNull();
+    expect(projectGroup.querySelector("input[role=combobox]")).not.toBeNull();
+    expect(commandGroup.querySelector("input[role=combobox]")).not.toBeNull();
   });
 
   // -------------------------------------------------------------------------
@@ -429,6 +440,104 @@ describe("ParamSelectPhase", () => {
   });
 
   // -------------------------------------------------------------------------
+  // web-ui-fixes 2026-06-24: ParamListbox filter combobox
+  //
+  // The Project / Command listboxes are now fronted by a combobox filter
+  // input that narrows the visible options by case-insensitive substring.
+  // These tests pin down the four contracts the redesign promises:
+  //   1. typing into the filter limits the rendered options
+  //   2. an empty filtered list renders the "No matches" affordance
+  //   3. the filter resets when the param loses focus (paramCursor moves)
+  //   4. mousedown on a visible option commits AND advances (UX shorthand
+  //      for "I want this one, move me to the next field")
+  // -------------------------------------------------------------------------
+
+  it("typing into the project filter narrows visible options (substring match)", async () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [{ path: "/repo/alpha" }, { path: "/repo/beta" }, { path: "/work/gamma" }],
+        commands: ["claude"],
+      }),
+    );
+    seedPalette("new-session");
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    const filter = projectFilterInput();
+    act(() => {
+      fireEvent.change(filter, { target: { value: "work" } });
+    });
+
+    const opts = projectListbox().querySelectorAll("[role=option]");
+    expect(Array.from(opts).map((o) => o.textContent ?? "")).toEqual(["/work/gamma"]);
+  });
+
+  it("filter with no matches renders the empty-state row", () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [{ path: "/repo/a" }, { path: "/repo/b" }],
+        commands: ["claude"],
+      }),
+    );
+    seedPalette("new-session");
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    const filter = projectFilterInput();
+    act(() => {
+      fireEvent.change(filter, { target: { value: "nonsense-xyz" } });
+    });
+
+    expect(projectListbox().querySelectorAll("[role=option]")).toHaveLength(0);
+    expect(projectListbox().textContent).toContain("No matches");
+  });
+
+  it("mousedown on a visible option commits the value AND advances the cursor", () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [{ path: "/repo/a" }, { path: "/repo/b" }],
+        commands: ["claude"],
+      }),
+    );
+    seedPalette("new-session", { project: "/repo/a" }, 0);
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    // Click the second project option. mousedown is what the listbox
+    // listens for (so the combobox input keeps focus).
+    const opts = projectListbox().querySelectorAll("[role=option]");
+    const second = opts[1] as HTMLElement;
+    expect(second).not.toBeUndefined();
+    fireEvent.mouseDown(second);
+
+    const s = usePaletteStore.getState();
+    expect(s.paramValues.project).toBe("/repo/b");
+    // mousedown also advances paramCursor (UX: "this one, next field").
+    expect(s.paramCursor).toBe(1);
+  });
+
+  it("auto-focuses the filter combobox when its param becomes focused", async () => {
+    // ParamListbox watches its `focused` prop; when the param is the
+    // currently-focused row, the combobox input gets DOM focus so a user
+    // arriving at the row can type immediately. This is the affordance the
+    // "project list not selectable" bug report was actually about — the
+    // listbox is now visibly interactive instead of looking inert.
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [{ path: "/repo/a" }, { path: "/repo/b" }],
+        commands: ["claude"],
+      }),
+    );
+    seedPalette("new-session", {}, 0);
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(projectFilterInput());
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // FR-013/014/015 command-field worktree/host toggles (visibility)
   // ADR-0053: Tab hijack removed — Tab now performs natural focus traversal.
   // Inline chip display (worktree: ON/OFF / sandbox=host: ON/OFF hint texts)
@@ -443,6 +552,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 0);
@@ -459,6 +569,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
+        commands: ["echo hi"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a", command: "echo hi" }, 1);
@@ -487,6 +598,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
+        commands: ["x"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a", command: "x" }, 1);
@@ -508,6 +620,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
+        commands: ["x"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a", command: "x" }, 1);
@@ -543,7 +656,7 @@ describe("ParamSelectPhase", () => {
     act(() => {
       usePaletteStore.setState({ composing: true });
     });
-    fireEvent.keyDown(projectListbox(), { key: "ArrowDown" });
+    fireEvent.keyDown(projectFilterInput(), { key: "ArrowDown" });
     // Selection remains on /repo/a — ArrowDown was dropped by the
     // composing gate.
     expect(usePaletteStore.getState().paramValues.project).toBe("/repo/a");
@@ -561,7 +674,7 @@ describe("ParamSelectPhase", () => {
     await waitFor(() => {
       expect(usePaletteStore.getState().paramValues.project).toBe("/repo/a");
     });
-    fireEvent.keyDown(projectListbox(), { key: "ArrowUp", isComposing: true });
+    fireEvent.keyDown(projectFilterInput(), { key: "ArrowUp", isComposing: true });
     // ArrowUp with isComposing=true is dropped; selection stays at the
     // preset /repo/a (not wrapped to /repo/b).
     expect(usePaletteStore.getState().paramValues.project).toBe("/repo/a");
@@ -575,6 +688,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -597,6 +711,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -614,6 +729,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/plain", isGit: false, isSandboxed: false }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/plain" }, 1);
@@ -629,6 +745,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/git", isGit: true, isSandboxed: false }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/git" }, 1);
@@ -648,6 +765,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true, isSandboxed: false }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -673,6 +791,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -696,6 +815,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -716,6 +836,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -746,6 +867,7 @@ describe("ParamSelectPhase", () => {
           { path: "/repo/git", isGit: true, isSandboxed: false },
           { path: "/repo/plain", isGit: false, isSandboxed: false },
         ],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/git" }, 1);
@@ -772,6 +894,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/git", isGit: true }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/git" }, 1);
@@ -799,6 +922,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/git", isGit: true }],
+        commands: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/git" }, 1);
@@ -821,6 +945,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
+        commands: ["echo hi"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a", command: "echo hi" }, 1);

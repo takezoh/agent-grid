@@ -28,6 +28,7 @@ import {
   type ParamOption,
   type ToolCtx,
   type ToolDef,
+  commandOptions,
   listTools,
   projectOptions,
 } from "../../lib/tools";
@@ -76,6 +77,8 @@ export function materializeOptions(
       switch (param.materializeKey) {
         case "projects":
           return projectOptions(snapshot);
+        case "commands":
+          return commandOptions(snapshot);
         default: {
           const _exhaustive: never = param.materializeKey;
           return _exhaustive;
@@ -267,8 +270,14 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
 
         // FR-A4: dynamic-options with zero materialized options renders
         // the empty-state body. ParamEmptyState carries no key handlers
-        // so Esc still bubbles to the palette shell.
+        // so Esc still bubbles to the palette shell. The message is
+        // materializeKey-specific so the user sees "add a project" vs.
+        // "configure commands" instead of one misleading line.
         if (param.kind === "dynamic-options" && options !== null && options.length === 0) {
+          const emptyMessage =
+            param.materializeKey === "commands"
+              ? "No commands configured - add [session].commands in settings.toml"
+              : "No projects available - add a project first";
           return (
             <fieldset
               key={param.id}
@@ -277,35 +286,66 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
               aria-label={param.label}
             >
               <div className="palette-param-label">{param.label}</div>
-              <ParamEmptyState message="No projects available - add a project first" />
+              <ParamEmptyState message={emptyMessage} />
             </fieldset>
           );
         }
 
+        const isCommand = param.id === "command";
+        const chips = isCommand && (showWorktreeToggle || showHostToggle) && (
+          <fieldset className="palette-param-command-toggles" aria-label="command toggles">
+            {showWorktreeToggle && (
+              <ChipSwitch
+                hintKey="W"
+                label="Worktree"
+                checked={worktreeOn}
+                onToggle={toggleWorktree}
+                disabled={submitting}
+                composing={composing}
+                testId="worktree"
+              />
+            )}
+            {showHostToggle && (
+              <ChipSwitch
+                hintKey="H"
+                label="Host (sandbox)"
+                checked={hostOn}
+                onToggle={toggleHost}
+                disabled={submitting}
+                composing={composing}
+                testId="host"
+              />
+            )}
+          </fieldset>
+        );
+
         if (options !== null) {
           // Listbox (static-options / dynamic-options with N>=1).
           return (
-            <ParamListbox
-              key={param.id}
-              paramId={param.id}
-              label={param.label}
-              options={options}
-              value={value}
-              focused={isCurrent}
-              disabled={submitting}
-              composing={composing}
-              onSelect={(v: unknown) => setParam(param.id, v)}
-              onEnter={advanceOrSubmit}
-              onCompositionStart={() => setComposing(true)}
-              onCompositionEnd={() => setComposing(false)}
-            />
+            <div key={param.id} className="palette-param-text-group">
+              <ParamListbox
+                paramId={param.id}
+                label={param.label}
+                options={options}
+                value={value}
+                focused={isCurrent}
+                disabled={submitting}
+                composing={composing}
+                onSelect={(v: unknown) => setParam(param.id, v)}
+                onEnter={advanceOrSubmit}
+                onCompositionStart={() => setComposing(true)}
+                onCompositionEnd={() => setComposing(false)}
+                inputRef={isCommand ? commandInputRef : undefined}
+              />
+              {chips}
+            </div>
           );
         }
         // Free-form text input (param.kind === 'text').
         return (
           <div key={param.id} className="palette-param-text-group">
             <ParamTextInput
-              ref={param.id === "command" ? commandInputRef : undefined}
+              ref={isCommand ? commandInputRef : undefined}
               paramId={param.id}
               label={param.label}
               value={typeof value === "string" ? value : ""}
@@ -317,32 +357,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
               onCompositionStart={() => setComposing(true)}
               onCompositionEnd={() => setComposing(false)}
             />
-            {param.id === "command" && (showWorktreeToggle || showHostToggle) && (
-              <fieldset className="palette-param-command-toggles" aria-label="command toggles">
-                {showWorktreeToggle && (
-                  <ChipSwitch
-                    hintKey="W"
-                    label="Worktree"
-                    checked={worktreeOn}
-                    onToggle={toggleWorktree}
-                    disabled={submitting}
-                    composing={composing}
-                    testId="worktree"
-                  />
-                )}
-                {showHostToggle && (
-                  <ChipSwitch
-                    hintKey="H"
-                    label="Host (sandbox)"
-                    checked={hostOn}
-                    onToggle={toggleHost}
-                    disabled={submitting}
-                    composing={composing}
-                    testId="host"
-                  />
-                )}
-              </fieldset>
-            )}
+            {chips}
           </div>
         );
       })}

@@ -44,6 +44,8 @@ export interface MkSnapshotInput {
   sessions?: Partial<SessionInfo>[];
   /** Active session id projection — default `null` (no selection). */
   activeSessionID?: string | null;
+  /** Curated [session].commands list (new-session "Command" picker) — default `[]`. */
+  commands?: string[];
   /** Push command catalog — default `[]`. */
   pushCommands?: string[];
   /** Pane occupancy for push-scope gating (FR-006). Default undefined. */
@@ -86,6 +88,7 @@ export function mkSnapshot(input: MkSnapshotInput = {}): DaemonSnapshot {
     sessions,
     activeSessionID: input.activeSessionID ?? null,
     projects,
+    commands: input.commands ?? [],
     pushCommands: input.pushCommands ?? [],
   };
   // activeOccupant is optional on DaemonSnapshot (omit when undefined so

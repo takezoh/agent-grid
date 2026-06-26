@@ -76,6 +76,7 @@ function setDaemonWithPush({
     activeOccupant,
     sessionConfig: {
       projects: [],
+      commands: [],
       pushCommands,
     },
   });

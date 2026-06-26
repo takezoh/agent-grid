@@ -117,6 +117,7 @@ function makeDaemonSnapshot(overrides: Partial<DaemonSnapshot> = {}): DaemonSnap
     sessions: [],
     activeSessionID: null,
     projects: [],
+    commands: [],
     pushCommands: [],
     ...overrides,
   };
@@ -219,7 +220,10 @@ describe("ParamDef discriminated union shape", () => {
     expect("options" in project).toBe(false);
   });
 
-  it("newSessionTool.params[1] is a text ParamDef", () => {
+  it("newSessionTool.params[1] is a dynamic-options ParamDef with materializeKey 'commands'", () => {
+    // web-ui-fixes 2026-06-24: the command field is now a curated picker
+    // sourced from /api/session-config's [session].commands list (same
+    // entries the TUI palette uses), not free-form text.
     const tools = listTools(makeDaemonSnapshot(), []);
     const newSession = findTool(tools, "new-session");
     const params = newSession.params;
@@ -227,12 +231,12 @@ describe("ParamDef discriminated union shape", () => {
     const command = params[1];
     if (!command) throw new Error("expected command param");
     expect(command.id).toBe("command");
-    expect(command.kind).toBe("text");
-    if (command.kind !== "text") throw new Error("kind narrowing failed");
+    expect(command.kind).toBe("dynamic-options");
+    if (command.kind !== "dynamic-options") throw new Error("kind narrowing failed");
+    expect(command.materializeKey).toBe("commands");
     expect(command.required).toBe(true);
-    // The text variant MUST NOT carry options / materializeKey.
+    // The dynamic variant MUST NOT carry an in-place options array.
     expect("options" in command).toBe(false);
-    expect("materializeKey" in command).toBe(false);
   });
 });
 

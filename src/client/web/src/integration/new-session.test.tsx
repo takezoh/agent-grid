@@ -74,6 +74,7 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
       activeSessionID: null,
       sessionConfig: {
         projects: [{ path: "/repo/a", isGit: false, isSandboxed: false }],
+        commands: ["claude"],
         pushCommands: [],
       },
     });
@@ -196,19 +197,19 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
       usePaletteStore.getState().moveCursor(+1);
     });
 
-    // Type a command then submit. We drive Enter on the command input —
-    // ParamTextInput's onKeyDown invokes advanceOrSubmit which (on the
-    // final field) routes through usePaletteStore.submit(ctx), which
-    // then calls newSessionTool.submit(ctx, payload), which fires the
-    // 5-step sequence we're observing.
-    // Use id-based query: two <label for="palette-param-command"> exist in the
-    // tree (the fieldset wrapper + ParamTextInput's internal label) and
-    // getByLabelText would error on the duplicate. The id is unique.
-    const commandInput = document.getElementById("palette-param-command") as HTMLInputElement;
+    // Submit by firing Enter on the command filter input. The command
+    // param is now a dynamic-options listbox (web-ui-fixes 2026-06-24)
+    // whose ID 'palette-param-command' is the listbox div; the filter
+    // combobox sits at 'palette-param-command-input' and carries the
+    // onKeyDown handler that routes Enter through advanceOrSubmit ->
+    // store.submit(ctx) -> newSessionTool.submit(ctx, payload).
+    //
+    // The command value is auto-preset to 'claude' by useDynamicParamPreset
+    // (FR-A1) since the session-config fixture seeds commands: ['claude'].
+    // No explicit fireEvent.change is needed — useDynamicParamPreset
+    // landed setParam('command', 'claude') during the microtask drain.
+    const commandInput = document.getElementById("palette-param-command-input") as HTMLInputElement;
     expect(commandInput).not.toBeNull();
-    act(() => {
-      fireEvent.change(commandInput, { target: { value: "claude" } });
-    });
     act(() => {
       fireEvent.keyDown(commandInput, { key: "Enter" });
     });

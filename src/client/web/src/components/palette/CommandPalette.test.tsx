@@ -557,6 +557,7 @@ describe("CommandPalette", () => {
       useDaemonStore.setState({
         sessionConfig: {
           projects: [],
+          commands: [],
           pushCommands: ["save"],
         },
       });
@@ -636,6 +637,7 @@ describe("CommandPalette", () => {
         activeSessionID: null,
         sessionConfig: {
           projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          commands: [],
           pushCommands: [],
         },
       });
@@ -680,6 +682,7 @@ describe("CommandPalette", () => {
         activeOccupant: "frame",
         sessionConfig: {
           projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          commands: [],
           pushCommands: ["push-cmd-1"],
         },
       });
@@ -724,6 +727,7 @@ describe("CommandPalette", () => {
             { path: "/home/foo/bar", isGit: false, isSandboxed: false },
             { path: "/home/foo/baz", isGit: false, isSandboxed: false },
           ],
+          commands: [],
           pushCommands: ["push-cmd-1", "push-cmd-2"],
         },
       });
@@ -761,6 +765,7 @@ describe("CommandPalette", () => {
         activeOccupant: "frame",
         sessionConfig: {
           projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          commands: [],
           pushCommands: ["push-cmd-1"],
         },
       });
@@ -811,6 +816,7 @@ describe("CommandPalette", () => {
             { path: "/home/foo/bar", isGit: false, isSandboxed: false },
             { path: "/home/foo/baz", isGit: false, isSandboxed: false },
           ],
+          commands: [],
           pushCommands: ["push-cmd-1", "push-cmd-2"],
         },
       });
@@ -852,6 +858,7 @@ describe("CommandPalette", () => {
         activeSessionID: "session-xyz",
         sessionConfig: {
           projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          commands: [],
           pushCommands: [],
         },
       });
@@ -925,6 +932,7 @@ describe("CommandPalette", () => {
         activeSessionID: "session-abcd1234",
         sessionConfig: {
           projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          commands: [],
           pushCommands: [],
         },
       });
@@ -953,6 +961,7 @@ describe("CommandPalette", () => {
       useDaemonStore.setState({
         sessionConfig: {
           projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          commands: [],
           pushCommands: [],
         },
       });
@@ -972,7 +981,13 @@ describe("CommandPalette", () => {
       usePaletteStore.getState().setParam("command", "claude");
       await usePaletteStore.getState().submit({
         http,
-        daemon: { sessions: [], activeSessionID: null, projects: [], pushCommands: [] },
+        daemon: {
+          sessions: [],
+          activeSessionID: null,
+          projects: [],
+          commands: [],
+          pushCommands: [],
+        },
         daemonActions: { selectSession: vi.fn() },
         notify: { success: vi.fn(), error: vi.fn(), add: vi.fn() },
         store: { close: usePaletteStore.getState().close },

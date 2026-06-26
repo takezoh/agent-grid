@@ -8,14 +8,16 @@ export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed"
 // SessionConfigSlice mirrors the subset of GET /api/session-config the
 // palette needs to gate behavior: the projects list (with
 // isGit/isSandboxed flags driving the new-session worktree/host toggles per
-// FR-013/FR-014) and the push_commands enumeration (FR-027, fed to the
-// dynamic push scope by tools-registry-dynamic-push). Kept as its own slice
-// (rather than packed into the existing socket frames) because /api/session-
-// config is REST-only by ADR-0041 / ADR-0030 — it never rides the WS view
-// update path. null means "not fetched yet"; consumers should fall back to
-// empty arrays in that case.
+// FR-013/FR-014), the curated [session].commands list (the same picker the
+// TUI palette uses — feeds the new-session "Command" dynamic listbox) and
+// the push_commands enumeration (FR-027, fed to the dynamic push scope by
+// tools-registry-dynamic-push). Kept as its own slice (rather than packed
+// into the existing socket frames) because /api/session-config is REST-only
+// by ADR-0041 / ADR-0030 — it never rides the WS view update path. null
+// means "not fetched yet"; consumers should fall back to empty arrays.
 export type SessionConfigSlice = {
   projects: SessionConfigProject[];
+  commands: string[];
   pushCommands: string[];
 };
 
@@ -107,6 +109,7 @@ export function selectDaemonSnapshot(state: DaemonSnapshotSource): DaemonSnapsho
     activeSessionID: state.activeSessionID,
     activeOccupant: state.activeOccupant,
     projects: state.sessionConfig?.projects ?? [],
+    commands: state.sessionConfig?.commands ?? [],
     pushCommands: state.sessionConfig?.pushCommands ?? [],
   };
 }
@@ -165,6 +168,7 @@ export const useDaemonStore = create<DaemonState>()((set) => ({
     set({
       sessionConfig: {
         projects: cfg.projects,
+        commands: cfg.commands,
         pushCommands: cfg.pushCommands,
       },
     }),
