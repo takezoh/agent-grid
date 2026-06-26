@@ -77,13 +77,17 @@ const ALLOWLIST: Record<string, RegExp[]> = {
   "components/ConfirmDialog.tsx": [/./],
   "components/DriverShortcutBar.test.tsx": [/./],
   "components/DriverShortcutBar.tsx": [/./],
+  // DriverViewPanel は active session の header に SessionTerminateButton を
+  // 抱えるようになったため、JSDoc / コメントに「終了」周りの日本語が入る。
+  // SessionTerminateButton 自体と同じ precedent で allowlist する。
+  "components/DriverViewPanel.test.tsx": [/./],
+  "components/DriverViewPanel.tsx": [/./],
   "components/FontSizeControl.test.tsx": [/./],
   "components/FontSizeControl.tsx": [/./],
   "components/JumpToLatestFAB.test.tsx": [/./],
   "components/JumpToLatestFAB.tsx": [/./],
   "components/KeyboardFAB.test.tsx": [/./],
   "components/KeyboardFAB.tsx": [/./],
-  "components/SessionList.tsx": [/./],
   "components/SessionTerminateButton.test.tsx": [/./],
   "components/SessionTerminateButton.tsx": [/./],
   "components/TerminalMobileOverlay.tsx": [/./],

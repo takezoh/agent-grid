@@ -1,16 +1,14 @@
-// SessionTerminateButton — SessionRow 内の ✕ (terminate) ボタン.
+// SessionTerminateButton — DriverViewPanel header に置くアクティブセッション終了ボタン.
 //
 // IconButton primitive を wrap して以下を担保:
-//   - 44x44 touch target (IconButton 既定 + CSS で PC 表示時のみ縮小)
+//   - text + stop glyph の outlined danger button (ghost at rest / filled on hover)
 //   - aria-label に session title を埋め込み (誤操作防止 / SR 親切)
-//   - 親 UnifiedListbox の onPointerDown が "行 activate" を発火するので
-//     pointerdown と click の両方で stopPropagation する (click では IconButton
-//     primitive が pointerdown.preventDefault するが、伝播は止めない)
+//   - mobile (<768px && pointer:coarse) では 44x44 touch target
 //
-// 親 SessionRow から渡された onRequestTerminate(id) を呼ぶだけ. dialog 表示
-// は AppShell 側で持つ.
+// 親 DriverViewPanel から渡された onRequestTerminate(id, opener) を呼ぶだけ.
+// dialog 表示は AppShell 側で持つ (opener は dialog close 時の focus 戻し先).
 
-import type { JSX, MouseEvent, PointerEvent } from "react";
+import type { JSX, MouseEvent } from "react";
 import "../css/session-terminate.css";
 import { IconButton } from "./primitives/IconButton";
 
@@ -29,14 +27,7 @@ export function SessionTerminateButton({
   onRequestTerminate,
   disabled,
 }: SessionTerminateButtonProps): JSX.Element {
-  const handlePointerDown = (e: PointerEvent<HTMLButtonElement>): void => {
-    // UnifiedListbox の onPointerDown (activate row) を抑制. IconButton
-    // primitive 側も pointerdown を listen して preventDefault するが、
-    // 親への伝播は別軸なので stopPropagation を明示する.
-    e.stopPropagation();
-  };
   const handleClick = (e: MouseEvent<HTMLButtonElement>): void => {
-    e.stopPropagation();
     onRequestTerminate(sessionId, e.currentTarget);
   };
   return (
@@ -44,9 +35,22 @@ export function SessionTerminateButton({
       className="session-terminate-button"
       aria-label={`「${sessionLabel}」を終了`}
       disabled={disabled}
-      onPointerDown={handlePointerDown}
       onClick={handleClick}
-      icon={<span aria-hidden="true">×</span>}
-    />
+      icon={
+        // Stop-square glyph: font に依存しないクリスプ描画 + currentColor 追従.
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          aria-hidden="true"
+          focusable="false"
+          className="session-terminate-button__glyph"
+        >
+          <rect x="0" y="0" width="10" height="10" rx="1.5" fill="currentColor" />
+        </svg>
+      }
+    >
+      <span className="session-terminate-button__label">終了</span>
+    </IconButton>
   );
 }

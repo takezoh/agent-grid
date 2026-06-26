@@ -30,7 +30,6 @@ import {
   useDaemonStore,
 } from "../store/daemon";
 import type { Card, SessionInfo } from "../wire/server";
-import { SessionTerminateButton } from "./SessionTerminateButton";
 import { StatusIcon, normalizeStatus as toStatusKind } from "./StatusIcon";
 import { SegmentedControl } from "./primitives/SegmentedControl";
 import { TagPill } from "./primitives/TagPill";
@@ -86,12 +85,9 @@ export function displayLabel(card: Card, _id: string): string {
 interface SessionRowProps {
   session: SessionInfo;
   isActive: boolean;
-  /** 親 AppShell が confirm dialog を開く trigger. undefined なら button 非表示.
-   *  opener は dialog close 時の focus 戻し先 (a11y). */
-  onRequestTerminate?: (sessionId: string, label: string, opener: HTMLElement) => void;
 }
 
-function SessionRow({ session, isActive, onRequestTerminate }: SessionRowProps) {
+function SessionRow({ session, isActive }: SessionRowProps) {
   const card = session.view.card;
   const status = session.view.status;
   const normalized = toStatusKind(status);
@@ -151,13 +147,6 @@ function SessionRow({ session, isActive, onRequestTerminate }: SessionRowProps) 
           </div>
         )}
       </div>
-      {onRequestTerminate && (
-        <SessionTerminateButton
-          sessionId={session.id}
-          sessionLabel={title}
-          onRequestTerminate={(id, opener) => onRequestTerminate(id, title, opener)}
-        />
-      )}
     </div>
   );
 }
@@ -205,7 +194,6 @@ interface ProjectGroupProps {
   activeId: string | null;
   daemonDisconnected: boolean;
   selectSession: (id: string) => void;
-  onRequestTerminate?: (sessionId: string, label: string, opener: HTMLElement) => void;
 }
 
 function ProjectGroup({
@@ -217,7 +205,6 @@ function ProjectGroup({
   activeId,
   daemonDisconnected,
   selectSession,
-  onRequestTerminate,
 }: ProjectGroupProps) {
   // Per-project cursor (aria-activedescendant). Independent from
   // activeSessionID so ArrowDown/Up navigates without committing. When the
@@ -277,13 +264,7 @@ function ProjectGroup({
             ariaLabel={`sessions in ${project}`}
             items={sessions.map((s) => ({
               id: s.id,
-              label: (
-                <SessionRow
-                  session={s}
-                  isActive={s.id === activeId}
-                  onRequestTerminate={onRequestTerminate}
-                />
-              ),
+              label: <SessionRow session={s} isActive={s.id === activeId} />,
               disabled: daemonDisconnected,
               disabledReason: daemonDisconnected ? "Daemon disconnected" : undefined,
             }))}
@@ -303,14 +284,11 @@ function ProjectGroup({
 
 export interface SessionListProps {
   conn: Connection;
-  /** AppShell が confirm dialog を開くための trigger. undefined なら button 非表示.
-   *  opener は dialog close 時の focus 戻し先. */
-  onRequestTerminate?: (sessionId: string, label: string, opener: HTMLElement) => void;
 }
 
 // conn is retained in the prop signature for API compatibility; SessionList
 // does not own subscriptions (ADR 0030) — TerminalPane is the sole owner.
-export function SessionList({ conn: _conn, onRequestTerminate }: SessionListProps) {
+export function SessionList({ conn: _conn }: SessionListProps) {
   const sessions = useDaemonStore((s) => s.sessions);
   const activeId = useDaemonStore((s) => s.activeSessionID);
   const selectSession = useDaemonStore((s) => s.selectSession);
@@ -362,7 +340,6 @@ export function SessionList({ conn: _conn, onRequestTerminate }: SessionListProp
               activeId={activeId}
               daemonDisconnected={daemonDisconnected}
               selectSession={selectSession}
-              onRequestTerminate={onRequestTerminate}
             />
           ))}
         </div>

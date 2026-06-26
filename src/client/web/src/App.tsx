@@ -131,11 +131,17 @@ export function App() {
     </>
   );
 
-  const sidebarContent = <SessionList conn={conn} onRequestTerminate={handleRequestTerminate} />;
+  const sidebarContent = <SessionList conn={conn} />;
 
   const mainContent = (
     <>
-      {activeSession && <DriverViewPanel view={activeSession.view} />}
+      {activeSession && (
+        <DriverViewPanel
+          view={activeSession.view}
+          sessionId={activeSession.id}
+          onRequestTerminate={handleRequestTerminate}
+        />
+      )}
       <MainTabs
         tabs={activeSession?.view.log_tabs ?? []}
         sessionId={activeSession?.id}

@@ -1,54 +1,74 @@
-/* session-terminate.css — SessionRow 内 ✕ button の reveal policy.
+/* session-terminate.css — DriverViewPanel header に置く終了 button のスタイル.
  *
- * PC: hover / focus-visible / active 行で表示, それ以外は不可視.
- * Mobile (<768px && pointer:coarse): 常時可視 (タッチデバイスは hover 無いため).
- *
- * IconButton primitive は 44x44 を強制するが、PC では場所を取り過ぎるので
- * 28x28 に縮小. ARIA target は 44x44 を担保するため padding でカバー領域は
- * 確保 (実体 24x24, touch target は親 row 全幅).
+ * PC: 32px height の outlined ghost button (fg-muted) → hover/focus で danger fill.
+ * Mobile (<768px && pointer:coarse): 44x44 touch target, default で hairline danger
+ * tint を載せて affordance を明示する.
  */
 
 .session-terminate-button {
-  /* Row 内右端に固定. flex-shrink で title が押し負けない. */
+  /* PC 表示時のサイズ: IconButton 既定 (44x44) を outline ghost 用に圧縮.
+     RunStateBadge と縦方向に balance させるため 32px を採用. */
+  min-width: 0;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 10px;
+  gap: 6px;
   flex-shrink: 0;
-  align-self: flex-start;
-  /* PC 既定: 不可視. row hover / focus / active で表示 (下の rule). */
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-out, background-color 120ms ease-out;
-  /* PC 表示時のサイズ: IconButton 既定 (44x44) を override. */
-  min-width: 28px;
-  min-height: 28px;
-  padding: 0;
-  font-size: 16px;
-  line-height: 1;
+  border-radius: 8px;
+
+  /* Ghost at rest: 余計な彩度を載せず、操作可能であることを border でだけ示す. */
+  background: transparent;
   color: var(--fg-muted, var(--fg));
+  border: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
 }
 
-/* PC: hover / focus / active row で表示 */
-.session-list__row:hover .session-terminate-button,
-.session-list__row:focus-within .session-terminate-button,
-.session-list__row--active .session-terminate-button,
-.unified-listbox__option:hover .session-terminate-button,
-.unified-listbox__option:focus-within .session-terminate-button,
-.session-terminate-button:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
+.session-terminate-button__label {
+  /* 1 行で完結させる. text-overflow は親 header が clamp する想定だが
+     保険として nowrap. */
+  white-space: nowrap;
+  line-height: 1;
 }
 
-.session-terminate-button:hover,
-.session-terminate-button:focus-visible {
-  background-color: var(--danger-bg, rgba(220, 38, 38, 0.12));
-  color: var(--danger, #dc2626);
+.session-terminate-button__glyph {
+  /* SVG の vertical 中央揃え — display:block で baseline ずれを潰す. */
+  display: block;
 }
 
-/* Mobile: 常時可視. AND 契約 (ADR-0067) と一致. */
+/* Hover / focus-visible で full danger fill. destructive である事を明示.
+   bundle 内で icon-button.css の `.icon-button:hover { background: ... }`
+   (短縮形) が後出しになるため、同 specificity だと background-color が
+   負ける. selector を `.icon-button.session-terminate-button` に膨らませて
+   specificity を (0,2,1) に持ち上げ、確定で danger fill を勝たせる. */
+.icon-button.session-terminate-button:hover,
+.icon-button.session-terminate-button:focus-visible {
+  background-color: var(--danger, #dc2626);
+  border-color: var(--danger, #dc2626);
+  color: #ffffff;
+}
+
+.icon-button.session-terminate-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Mobile: touch target を 44 に膨らませ、default state でも軽く danger tint を
+   出しておく (hover が無いため affordance が必要). */
 @media (max-width: 767px) and (pointer: coarse) {
   .session-terminate-button {
-    opacity: 1;
-    pointer-events: auto;
-    min-width: 44px;
     min-height: 44px;
-    font-size: 20px;
+    height: 44px;
+    padding: 0 14px;
+    font-size: 13px;
+    color: var(--danger, #dc2626);
+    border-color: var(--danger, #dc2626);
+    background-color: var(--danger-bg, rgba(220, 38, 38, 0.08));
+  }
+  .session-terminate-button:active {
+    background-color: var(--danger, #dc2626);
+    color: #ffffff;
   }
 }

@@ -1,30 +1,49 @@
 import { formatElapsed, useNow1Hz } from "../hooks/useNow1Hz";
 import type { View } from "../wire/server";
 import { RunStateBadge } from "./RunStateBadge";
+import { titleText } from "./SessionList";
+import { SessionTerminateButton } from "./SessionTerminateButton";
 import { TagPill, resolveTagPillStyle } from "./primitives/TagPill";
 import "../css/view.css";
 
 export type DriverViewPanelProps = {
   view: View;
+  /** Active session ID — terminate ボタンの発火源. 未指定なら button を出さない. */
+  sessionId?: string;
+  /** AppShell が confirm dialog を開く trigger. 未指定なら button を出さない.
+   *  opener は dialog close 時の focus 戻し先 (a11y). */
+  onRequestTerminate?: (sessionId: string, label: string, opener: HTMLElement) => void;
 };
 
 // Re-export for backwards compatibility (DriverViewPanel.test.tsx imports it
 // from this module path).
 export { resolveTagPillStyle };
 
-export function DriverViewPanel({ view }: DriverViewPanelProps) {
+export function DriverViewPanel({ view, sessionId, onRequestTerminate }: DriverViewPanelProps) {
   const now = useNow1Hz();
   const card = view.card;
   const elapsed = view.status_changed_at
     ? formatElapsed(now - new Date(view.status_changed_at).getTime())
     : "";
+  // Terminate dialog 用の label. SessionList と同じ titleText fallback を使う事で
+  // 「New Session」の placeholder が confirm dialog の文面と一致する.
+  const terminateLabel = titleText(card);
   return (
     <section className="driver-view-panel" aria-label="driver view">
       <header className="driver-view-header">
         <div className="driver-view-titles">
           {card.title && <h2 className="driver-view-title">{card.title}</h2>}
         </div>
-        <RunStateBadge status={view.status} />
+        <div className="driver-view-actions">
+          <RunStateBadge status={view.status} />
+          {sessionId && onRequestTerminate && (
+            <SessionTerminateButton
+              sessionId={sessionId}
+              sessionLabel={terminateLabel}
+              onRequestTerminate={(id, opener) => onRequestTerminate(id, terminateLabel, opener)}
+            />
+          )}
+        </div>
       </header>
       {card.tags && card.tags.length > 0 && (
         <div className="driver-view-tags">

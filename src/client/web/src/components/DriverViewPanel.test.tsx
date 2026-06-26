@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { contrastRatio, parseColor } from "../util/contrast";
 import type { View } from "../wire/server";
@@ -103,6 +103,58 @@ describe("DriverViewPanel", () => {
     const { container } = render(<DriverViewPanel view={view} />);
     const footer = container.querySelector(".driver-view-footer");
     expect(footer).toBeNull();
+  });
+});
+
+// ─── SessionTerminateButton placement (旧 SessionList row 配置からの移設) ──
+describe("DriverViewPanel — terminate button placement", () => {
+  it("sessionId と onRequestTerminate が両方与えられた時に終了ボタンを header に出す", () => {
+    const view = makeView({ card: { title: "alpha" }, status: "running" });
+    const { container } = render(
+      <DriverViewPanel view={view} sessionId="s1" onRequestTerminate={vi.fn()} />,
+    );
+    const header = container.querySelector(".driver-view-header");
+    expect(header).not.toBeNull();
+    const btn = header?.querySelector(".session-terminate-button");
+    expect(btn).not.toBeNull();
+    // RunStateBadge と一緒の actions cluster に置く.
+    const actions = header?.querySelector(".driver-view-actions");
+    expect(actions).not.toBeNull();
+    expect(actions?.querySelector(".run-state-badge")).not.toBeNull();
+    expect(actions?.querySelector(".session-terminate-button")).not.toBeNull();
+  });
+
+  it("onRequestTerminate が未指定なら button を出さない (旧 API 互換)", () => {
+    const view = makeView({ card: { title: "alpha" } });
+    const { container } = render(<DriverViewPanel view={view} sessionId="s1" />);
+    expect(container.querySelector(".session-terminate-button")).toBeNull();
+  });
+
+  it("sessionId が未指定なら button を出さない", () => {
+    const view = makeView({ card: { title: "alpha" } });
+    const { container } = render(<DriverViewPanel view={view} onRequestTerminate={vi.fn()} />);
+    expect(container.querySelector(".session-terminate-button")).toBeNull();
+  });
+
+  it("click で onRequestTerminate(id, label, opener) が呼ばれる", () => {
+    const onRequest = vi.fn();
+    const view = makeView({ card: { title: "alpha" } });
+    render(<DriverViewPanel view={view} sessionId="s-id-42" onRequestTerminate={onRequest} />);
+    const btn = screen.getByRole("button", { name: "「alpha」を終了" });
+    fireEvent.click(btn);
+    expect(onRequest).toHaveBeenCalledTimes(1);
+    expect(onRequest.mock.calls[0]?.[0]).toBe("s-id-42");
+    expect(onRequest.mock.calls[0]?.[1]).toBe("alpha");
+    expect(onRequest.mock.calls[0]?.[2]).toBe(btn);
+  });
+
+  it("card.title が空の時は 'New Session' placeholder を label として使う", () => {
+    const onRequest = vi.fn();
+    const view = makeView({ card: {} });
+    render(<DriverViewPanel view={view} sessionId="s-empty" onRequestTerminate={onRequest} />);
+    const btn = screen.getByRole("button", { name: "「New Session」を終了" });
+    fireEvent.click(btn);
+    expect(onRequest.mock.calls[0]?.[1]).toBe("New Session");
   });
 });
 
