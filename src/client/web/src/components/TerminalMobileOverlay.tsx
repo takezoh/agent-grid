@@ -1,6 +1,11 @@
 // TerminalMobileOverlay — the single mount point that wires every mobile hook
 // (chunk-02..06) onto the live xterm terminal and renders the FAB overlay layer
-// (ADR 0069 / 0072 / 0074, FR-MOB-FAB-* / VVP-* / COACH-* / PINCH-*).
+// (ADR 0069 / 0072 / 0074 / 0077, FR-MOB-FAB-* / VVP-* / COACH-* /
+// FR-MOB-SWIPE-ARROW-*).
+//
+// ADR 0077 retired the pinch path: PinchIndicator is no longer rendered,
+// useMobilePinch is removed, and the touch-gesture hook now emits arrow keys
+// for horizontal swipes (input mode only) instead of fontSize ratios.
 //
 // TerminalPane renders this *only* under `useMobileGate() === true`, so on the PC
 // path none of these hooks ever run (no data-input-active, no listeners, no FABs).
@@ -14,7 +19,7 @@
 // single CSS custom property on this layer (ADR 0069, zero React re-renders).
 
 import type { Terminal } from "@xterm/xterm";
-import { type JSX, type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { type JSX, type RefObject, useEffect, useRef } from "react";
 import "../css/terminal-fab-layer.css";
 import { AnnouncerProvider, useAnnouncer } from "../hooks/useAnnouncer";
 import { useCoachmarkOnce } from "../hooks/useCoachmarkOnce";
@@ -29,10 +34,6 @@ import { Coachmark } from "./Coachmark";
 import { FontSizeControl } from "./FontSizeControl";
 import { JumpToLatestFAB } from "./JumpToLatestFAB";
 import { KeyboardFAB } from "./KeyboardFAB";
-import { PinchIndicator } from "./PinchIndicator";
-
-/** How long after the last pinch frame the PinchIndicator stays "active". */
-const PINCH_ACTIVE_LINGER_MS = 150;
 
 export interface TerminalMobileOverlayProps {
   hostRef: RefObject<HTMLElement | null>;
@@ -43,6 +44,12 @@ export interface TerminalMobileOverlayProps {
   scheduleFit: () => void;
   /** ADR-0066 seed-flush completion; gates the jump-to-latest FAB. */
   seedReady: boolean;
+  /**
+   * ADR 0077: thin closure provided by `TerminalPane` that forwards a raw input
+   * string into the active session's wire frame (`{k:"i", d, sessionId}`).
+   * Kept narrow so the overlay never depends on `Connection` directly.
+   */
+  sendInput: (data: string) => void;
 }
 
 export function TerminalMobileOverlay(props: TerminalMobileOverlayProps): JSX.Element {
@@ -53,40 +60,8 @@ export function TerminalMobileOverlay(props: TerminalMobileOverlayProps): JSX.El
   );
 }
 
-/**
- * useMobilePinch tracks whether a pinch is in progress so PinchIndicator can show
- * the live readout, lingering briefly after the last frame so the fade reads as
- * one gesture rather than flickering per touchmove.
- */
-function useMobilePinch(applyPinch: (ratio: number) => void): {
-  pinchActive: boolean;
-  onPinchFontSize: (ratio: number) => void;
-} {
-  const [pinchActive, setPinchActive] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const onPinchFontSize = useCallback(
-    (ratio: number): void => {
-      applyPinch(ratio);
-      setPinchActive(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setPinchActive(false), PINCH_ACTIVE_LINGER_MS);
-    },
-    [applyPinch],
-  );
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    [],
-  );
-
-  return { pinchActive, onPinchFontSize };
-}
-
 function TerminalMobileLayer(props: TerminalMobileOverlayProps): JSX.Element {
-  const { hostRef, termRef, viewportRef, textareaRef, scheduleFit, seedReady } = props;
+  const { hostRef, termRef, viewportRef, textareaRef, scheduleFit, seedReady, sendInput } = props;
   const { announce } = useAnnouncer();
   const layerRef = useRef<HTMLDivElement | null>(null);
 
@@ -105,23 +80,27 @@ function TerminalMobileLayer(props: TerminalMobileOverlayProps): JSX.Element {
   // visualViewport-lift (ADR 0069): write --terminal-fab-offset while in input mode.
   useVisualViewportLift({ layerRef, active: input.active });
 
-  // fontSize (ADR 0070/0034): pinch + stepper share one clamp/persist/refit hook.
+  // fontSize (ADR 0070/0034/0077): stepper-only path now; pinch is retired.
   const font = useFontSize({ scheduleFit });
   // Apply the resolved fontSize to the live terminal; scheduleFit (inside
-  // useFontSize) then re-flows the grid (FR-MOB-PINCH-002 / FR-MOB-STEPPER-001).
+  // useFontSize) then re-flows the grid (FR-MOB-STEPPER-001).
   useEffect(() => {
     const term = termRef.current;
     if (term) term.options.fontSize = font.fontSize;
   }, [font.fontSize, termRef]);
 
-  // pinch → fontSize (FR-MOB-PINCH-001/004): the gesture machine's ratio drives
-  // useFontSize.applyPinch, completing the chunk-04 → chunk-05 wiring.
-  const { pinchActive, onPinchFontSize } = useMobilePinch(font.applyPinch);
+  // ADR 0077: horizontal swipe → arrow key spam. The reducer emits arrow effects
+  // in cell-width increments; this callback forms the VT100 byte sequence and
+  // hands one wire frame per touchmove to `sendInput`. Effects are gated by
+  // `isInputActive`, so view mode preserves the legacy scroll-only behaviour.
   useTerminalTouchGestures({
     viewportRef,
     termRef: termRef as RefObject<TerminalLike | null>,
-    onPinchFontSize,
-    scheduleFit,
+    onArrowKey: (direction, count) => {
+      const seq = direction === "right" ? "\x1b[C" : "\x1b[D";
+      sendInput(seq.repeat(count));
+    },
+    isInputActive: () => input.active,
   });
 
   // jump-to-latest FAB (ADR 0073/0066): scroll-position driven, seed-gated.
@@ -150,8 +129,6 @@ function TerminalMobileLayer(props: TerminalMobileOverlayProps): JSX.Element {
         {coach.showCoachmark && <Coachmark onDismiss={coach.dismiss} />}
         <AriaLiveStatus />
       </div>
-      {/* Separate Toast portal (ADR 0063 z-index isolation, FR-MOB-FAB-004). */}
-      <PinchIndicator fontSize={font.fontSize} active={pinchActive} onReset={() => font.reset()} />
     </>
   );
 }

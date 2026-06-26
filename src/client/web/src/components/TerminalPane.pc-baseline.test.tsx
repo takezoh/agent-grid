@@ -58,14 +58,14 @@ const ARIA_FONT_SIZE = "\u6587\u5B57\u30B5\u30A4\u30BA";
 // FAB / overlay discriminator selectors. None may exist in the DOM while the
 // gate is false. Combines the spec aria-labels with the structural contract
 // hooks (.terminal-fab-layer from FR-PC-PRESERVE-001, aria-pressed FAB,
-// PinchIndicator / Coachmark data hooks, AriaLiveStatus role=status).
+// Coachmark data hooks, AriaLiveStatus role=status). ADR 0077 removed the
+// PinchIndicator surface entirely.
 const FAB_OVERLAY_SELECTORS = [
   `[aria-label="${ARIA_KEYBOARD_OPEN}"]`,
   `[aria-label="${ARIA_KEYBOARD_CLOSE}"]`,
   `[aria-label="${ARIA_JUMP_LATEST}"]`,
   `[aria-label="${ARIA_FONT_SIZE}"]`,
   ".terminal-fab-layer",
-  "[data-pinch-indicator]",
   "[data-coachmark]",
   '[role="status"]',
 ];

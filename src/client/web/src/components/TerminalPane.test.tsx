@@ -887,9 +887,10 @@ describe("TerminalPane — Coachmark shows once (FR-MOB-COACH-001)", () => {
   });
 });
 
-describe("TerminalPane — pinch → fontSize → refit end-to-end (FR-MOB-PINCH-001/004)", () => {
+describe("TerminalPane — horizontal swipe → arrow wire frames (ADR 0077, FR-MOB-SWIPE-ARROW-*)", () => {
   let mm: MatchMediaHandle;
   let created: Array<{ options: Record<string, unknown> }>;
+
   beforeEach(() => {
     window.localStorage.clear();
     mm = mockMatchMedia({ [MOBILE_GATE_QUERY]: true });
@@ -914,29 +915,123 @@ describe("TerminalPane — pinch → fontSize → refit end-to-end (FR-MOB-PINCH
     vi.restoreAllMocks();
   });
 
-  it("a 1.5× pinch sets term.options.fontSize to 21 and refits via scheduleFit", () => {
-    const fitSpy = vi.spyOn(FitAddon.prototype, "fit");
+  /** Collect every `{k:"i"}` wire frame's `d` field from conn.send.mock.calls. */
+  function collectInputBytes(conn: Connection): string[] {
+    const send = (conn as unknown as { send: { mock: { calls: unknown[][] } } }).send;
+    const out: string[] = [];
+    for (const call of send.mock.calls) {
+      const frame = call[0] as { k?: string; d?: string };
+      if (frame?.k === "i" && typeof frame.d === "string") out.push(frame.d);
+    }
+    return out;
+  }
+
+  function enterInputMode(container: HTMLElement): void {
+    const fab = container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`) as HTMLElement;
+    act(() => fireEvent.click(fab));
+  }
+
+  // VT100 cursor sequences. Stored as constants so the assertions can use
+  // `split` / `includes` (biome's noControlCharactersInRegex forbids embedding
+  // the ESC byte inside a regex literal, but plain string ops are fine).
+  const ESC_RIGHT = "\x1b[C";
+  const ESC_LEFT = "\x1b[D";
+
+  function countOccurrences(haystack: string, needle: string): number {
+    return haystack.split(needle).length - 1;
+  }
+  function hasAnyArrow(frames: string[]): boolean {
+    return frames.some((d) => d.includes(ESC_RIGHT) || d.includes(ESC_LEFT));
+  }
+
+  it("FR-MOB-SWIPE-ARROW-001: input mode + 100px right swipe sends one or more \\x1b[C frames summing to 11 cells", () => {
     const conn = mobileConn();
     const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
-
     const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
     expect(viewport).not.toBeNull();
+
+    enterInputMode(container);
+
+    act(() => {
+      swipeFromTo(viewport, { clientX: 100, clientY: 200 }, { clientX: 200, clientY: 200 }, 100);
+    });
+
+    const frames = collectInputBytes(conn);
+    const totalRight = frames.reduce((n, d) => n + countOccurrences(d, ESC_RIGHT), 0);
+    const totalLeft = frames.reduce((n, d) => n + countOccurrences(d, ESC_LEFT), 0);
+    // TerminalMobileOverlay omits cellSize so the hook falls back to DEFAULT_CELL.width=9.
+    // 100px ÷ 9 = 11.11 → integer truncation per touchmove sums to 11.
+    expect(totalRight).toBe(11);
+    expect(totalLeft).toBe(0);
+    unmount();
+  });
+
+  it("FR-MOB-SWIPE-ARROW-001: input mode + 100px left swipe sends \\x1b[D frames summing to 11 cells", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
+
+    enterInputMode(container);
+
+    act(() => {
+      swipeFromTo(viewport, { clientX: 200, clientY: 200 }, { clientX: 100, clientY: 200 }, 100);
+    });
+
+    const frames = collectInputBytes(conn);
+    const totalLeft = frames.reduce((n, d) => n + countOccurrences(d, ESC_LEFT), 0);
+    const totalRight = frames.reduce((n, d) => n + countOccurrences(d, ESC_RIGHT), 0);
+    // DEFAULT_CELL.width=9 fallback: 100px ÷ 9 = 11 (see right-swipe note above).
+    expect(totalLeft).toBe(11);
+    expect(totalRight).toBe(0);
+    unmount();
+  });
+
+  it("FR-MOB-SWIPE-ARROW-002: view mode + horizontal swipe sends zero arrow input frames", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    expect(host.getAttribute("data-input-active")).toBe("false");
+
+    act(() => {
+      swipeFromTo(viewport, { clientX: 100, clientY: 200 }, { clientX: 200, clientY: 200 }, 100);
+    });
+
+    const frames = collectInputBytes(conn);
+    expect(hasAnyArrow(frames)).toBe(false);
+    unmount();
+  });
+
+  it("FR-MOB-SWIPE-ARROW-002: vertical swipe in input mode never emits arrow frames (axis lock)", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
+
+    enterInputMode(container);
+
+    act(() => {
+      swipeFromTo(viewport, { clientX: 100, clientY: 400 }, { clientX: 100, clientY: 80 }, 200);
+    });
+
+    const frames = collectInputBytes(conn);
+    expect(hasAnyArrow(frames)).toBe(false);
+    unmount();
+  });
+
+  it("FR-MOB-SWIPE-ARROW-003: 2-finger pinch sends no arrow frames and does NOT mutate fontSize", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
     const term = created[0];
-    // Default applied to the live terminal on mount.
     expect(term.options.fontSize).toBe(14);
 
-    const callsBefore = fitSpy.mock.calls.length;
     act(() => {
       pinchByRatio(viewport, 1.5, { cx: 100, cy: 100 }, 40);
     });
 
-    // 14 × 1.5 = 21, clamped within [8,28]; applied to the live terminal.
-    expect(term.options.fontSize).toBe(21);
-    // ADR-0034 refit fan-out fired at least once for the pinch.
-    expect(fitSpy.mock.calls.length).toBeGreaterThan(callsBefore);
-    // FR-MOB-PINCH-003 / UAC-017: pinch must NOT enter input mode.
-    // Counterexample: a pinch handler that wrongly called input.enter() would
-    // flip data-input-active to 'true'. The host stays at 'false' here.
+    expect(term.options.fontSize).toBe(14); // pinch path is gone; stepper is the only writer
+    const frames = collectInputBytes(conn);
+    expect(hasAnyArrow(frames)).toBe(false);
     const host = container.querySelector(".terminal-host") as HTMLElement;
     expect(host.getAttribute("data-input-active")).toBe("false");
     unmount();

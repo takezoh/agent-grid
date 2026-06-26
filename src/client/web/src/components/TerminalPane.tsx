@@ -220,6 +220,13 @@ export function TerminalPane({
           textareaRef={textareaRef}
           scheduleFit={() => scheduleFitRef.current()}
           seedReady={seedReady}
+          sendInput={(d) => {
+            // ADR 0077: mirrors the `term.onData` guard above — drop input if
+            // no session is active, otherwise forward as one wire frame.
+            const sid = sessionRef.current;
+            if (!sid) return;
+            conn.send({ k: "i", d, sessionId: sid });
+          }}
         />
       )}
     </>

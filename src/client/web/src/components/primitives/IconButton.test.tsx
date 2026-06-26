@@ -7,9 +7,9 @@
 // from disk here). The focus-steal-suppression mechanism (pointerdown →
 // preventDefault) is verified by spying on the dispatched event.
 
-import { fireEvent, render, screen } from "@testing-library/react";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { IconButton } from "./IconButton";
 
@@ -31,12 +31,10 @@ describe("IconButton — element + a11y contract", () => {
   it("UAC-024 counterexample: an empty aria-label is rejected (throws on render)", () => {
     // Suppress React's error-boundary console noise for this expected throw.
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() =>
-      render(<IconButton aria-label="">×</IconButton>),
-    ).toThrow(/non-empty aria-label/i);
-    expect(() =>
-      render(<IconButton aria-label={"   "}>×</IconButton>),
-    ).toThrow(/non-empty aria-label/i);
+    expect(() => render(<IconButton aria-label="">×</IconButton>)).toThrow(/non-empty aria-label/i);
+    expect(() => render(<IconButton aria-label={"   "}>×</IconButton>)).toThrow(
+      /non-empty aria-label/i,
+    );
     spy.mockRestore();
   });
 

@@ -15,7 +15,7 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockMatchMedia, type MatchMediaHandle } from "../test/touch-harness";
+import { type MatchMediaHandle, mockMatchMedia } from "../test/touch-harness";
 import { MOBILE_GATE_QUERY, useMobileGate } from "./useMobileGate";
 
 const WIDTH_Q = "(max-width: 767px)";

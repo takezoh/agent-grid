@@ -1,8 +1,8 @@
 # ADR 0071 — touch gesture (swipe / long-press 選択 / pinch) を 1 hook の state machine で arbitration し long-press 選択は xterm 標準 `term.select()` API で実装する
 
-Status: Accepted
+Status: Superseded by [ADR 0077](./0077-mobile-touch-gesture-swipe-to-arrow.md) (pinch phase 撤去 / swipe phase を arrow key 連射にリバインド / long-press 選択は不変で継承)
 
-Related: [ADR 0034](./0034-refit-raf-coalesce.md), [ADR 0064](./0064-reduced-motion-single-guard.md), [ADR 0066](./0066-terminal-scrollback-via-vt-buffer.md), [ADR 0069](./0069-fab-overlay-layout-and-visualviewport-lift.md), [ADR 0070](./0070-fontsize-persist-clamp.md)
+Related: [ADR 0034](./0034-refit-raf-coalesce.md), [ADR 0064](./0064-reduced-motion-single-guard.md), [ADR 0066](./0066-terminal-scrollback-via-vt-buffer.md), [ADR 0069](./0069-fab-overlay-layout-and-visualviewport-lift.md), [ADR 0070](./0070-fontsize-persist-clamp.md), [ADR 0077](./0077-mobile-touch-gesture-swipe-to-arrow.md)
 Related code: `src/client/web/src/hooks/useTerminalTouchGestures.ts` (new), `src/client/web/src/css/view.css` (mobile gate scope `.xterm-viewport { touch-action: pan-y }`), `src/client/web/src/components/TerminalPane.tsx`
 Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/spec.md) — `FR-MOB-SCROLL-001..003`, `FR-MOB-SELECT-001/002`, `FR-MOB-PINCH-001..004`
 

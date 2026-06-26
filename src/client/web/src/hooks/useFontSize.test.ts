@@ -1,11 +1,11 @@
-// useFontSize.test.ts — ADR 0070 / 0034, FR-MOB-PERSIST-001/002 /
-// FR-MOB-PINCH-002 / FR-MOB-STEPPER-001.
+// useFontSize.test.ts — ADR 0070 / 0034 / 0077, FR-MOB-PERSIST-001/002 /
+// FR-MOB-FONT-CLAMP-001 / FR-MOB-STEPPER-001.
 //
-// Proves the three write paths (pinch / stepper / restore) all clamp to [8,28],
-// persist through the injected Map adapter, and fan out exactly one scheduleFit
-// per mutation (ADR 0034). The UAC-017 lower-bound counterexample ("ratio is
-// multiplied straight onto fontSize with no floor → 5px / NaN cols") is failed by
-// asserting a deep pinch-in floors at 8, never below.
+// ADR 0077 retired the pinch write path. The two surviving write paths
+// (stepper / restore) all clamp to [8,28], persist through the injected Map
+// adapter, and fan out exactly one scheduleFit per mutation (ADR 0034). The
+// UAC-017 lower-bound counterexample ("set is multiplied onto fontSize with no
+// floor → 5px / NaN cols") is failed by asserting `set(5)` floors at 8.
 
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -75,51 +75,44 @@ describe("useFontSize — stepper (FR-MOB-STEPPER-001)", () => {
   });
 });
 
-describe("useFontSize — clamp [8,28] (FR-MOB-PINCH-002)", () => {
-  it("UAC-017: deep pinch-in floors at 8px, never below", () => {
+describe("useFontSize — clamp [8,28] (FR-MOB-FONT-CLAMP-001)", () => {
+  it("UAC-017: set() below the floor clamps to 8px, never below", () => {
     const storage = mapStorage();
     const { result } = renderHook(() => useFontSize({ scheduleFit: vi.fn(), storage }));
 
-    act(() => {
-      result.current.beginPinch();
-      result.current.applyPinch(0.1); // 14 * 0.1 = 1.4 → would be ~1px without a floor
-    });
+    act(() => result.current.set(5));
 
     expect(result.current.fontSize).toBe(8);
   });
 
-  it("pinch-out ceils at 28px, never above", () => {
+  it("set() above the ceiling clamps to 28px, never above", () => {
     const storage = mapStorage();
     const { result } = renderHook(() => useFontSize({ scheduleFit: vi.fn(), storage }));
 
-    act(() => {
-      result.current.beginPinch();
-      result.current.applyPinch(5); // 14 * 5 = 70 → clamps to 28
-    });
+    act(() => result.current.set(70));
 
     expect(result.current.fontSize).toBe(28);
   });
 
-  it("applyPinch is relative to the pinch-start base, not the compounding state", () => {
-    const storage = mapStorage();
-    const { result } = renderHook(() => useFontSize({ scheduleFit: vi.fn(), storage }));
+  it("decrease() at the floor stays at 8 (no underflow)", () => {
+    const storage = mapStorage({ [FONT_SIZE_KEY]: "8" });
+    const scheduleFit = vi.fn();
+    const { result } = renderHook(() => useFontSize({ scheduleFit, storage }));
+    expect(result.current.fontSize).toBe(8);
 
-    act(() => {
-      result.current.beginPinch(); // base = 14
-      result.current.applyPinch(1.5); // 14 * 1.5 = 21
-    });
-    expect(result.current.fontSize).toBe(21);
+    act(() => result.current.decrease());
 
-    act(() => {
-      result.current.applyPinch(1.5); // still 14 * 1.5 = 21 (not 21 * 1.5)
-    });
-    expect(result.current.fontSize).toBe(21);
+    expect(result.current.fontSize).toBe(8);
   });
 
-  it("set() rounds and clamps an explicit value below the floor", () => {
-    const storage = mapStorage();
-    const { result } = renderHook(() => useFontSize({ scheduleFit: vi.fn(), storage }));
-    act(() => result.current.set(5));
-    expect(result.current.fontSize).toBe(8);
+  it("increase() at the ceiling stays at 28 (no overflow)", () => {
+    const storage = mapStorage({ [FONT_SIZE_KEY]: "28" });
+    const scheduleFit = vi.fn();
+    const { result } = renderHook(() => useFontSize({ scheduleFit, storage }));
+    expect(result.current.fontSize).toBe(28);
+
+    act(() => result.current.increase());
+
+    expect(result.current.fontSize).toBe(28);
   });
 });

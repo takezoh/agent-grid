@@ -1,15 +1,17 @@
 # Web UI Terminal Mobile UX — Implementation Plan
 
-Status: Draft
+Status: Draft (partially superseded — pinch path 撤去)
 Spec: [./spec.md](./spec.md)
 Upstream UX: [./ux.md](./ux.md)
-Related ADRs: ADR 0067 〜 ADR 0075 ([spec.md](./spec.md) 冒頭参照)
+Related ADRs: ADR 0067 〜 ADR 0075 + [ADR 0077](../../adr/0077-mobile-touch-gesture-swipe-to-arrow.md) ([spec.md](./spec.md) 冒頭参照)
+
+> **NOTE (ADR 0077)**: 本 plan には pinch fontSize / PinchIndicator / chunk-04 の pinch wiring に関する記述が残るが、これらは [ADR 0077](../../adr/0077-mobile-touch-gesture-swipe-to-arrow.md) で **撤去** されている。pinch 経路は horizontal swipe → arrow key 連射 (`\x1b[C` / `\x1b[D`) にリバインドされ、`PinchIndicator` / `useMobilePinch` / `useFontSize.applyPinch` は削除済み。chunk-04/05/06 内の pinch 個別記述は ADR 0077 の `FR-MOB-SWIPE-ARROW-001..003` / `FR-MOB-FONT-CLAMP-001` / 改稿後 `FR-MOB-PERSIST-001` を真とする。
 
 ## Goal
 
 Web UI TerminalPane (xterm.js 5.5.0 + addon-fit) のモバイル UX を `ux.md` の 7 flow / 26 UAC で固定された観察契約どおりに、PC (`pointer:fine`) 完全現状維持 + 既存 ADR 衝突回避を絶対制約として実装する。UX Open Questions 1〜4 はすべて plan-how 段階で決着 (POC 先送り禁止) — 詳細は ADR 0067 〜 0075。
 
-ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Playwright 不在経路 (実 soft keyboard / 実 pinch / 実 long-press / 実 VoiceOver) は実機検証チェックリストへ振り分ける。
+ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Playwright 不在経路 (実 soft keyboard / 実 horizontal swipe → arrow / 実 long-press / 実 VoiceOver) は実機検証チェックリストへ振り分ける。 (ADR 0077 — 実 pinch 検証は撤去)
 
 ## Components
 
@@ -164,7 +166,8 @@ happy-dom + touch shim harness で再現可能な UAC:
 | UAC-010 | FR-MOB-SELECT-001 | 500ms dwell + drag で `term.select()` call + `getSelection()` 非空 |
 | UAC-011 | FR-MOB-SELECT-002 | dwell 不在 swipe で `getSelection()` 空 + scrollTop 変化 |
 | UAC-012 / 013 / 014 / 015 | FR-MOB-JUMP-001..004 | scrollTop ±2px boundary / mount-unmount / 44×44 / polite emit |
-| UAC-016 / 017 | FR-MOB-PINCH-001/002 | pinch 比率による fontSize 変更 + [8,28] clamp |
+| UAC-016 | FR-MOB-SWIPE-ARROW-001 | ADR 0077: pinch 撤去後の swipe → arrow リバインドで再解釈 |
+| UAC-017 | FR-MOB-FONT-CLAMP-001 | ステッパー単独経路の [8,28] clamp 規律 |
 | UAC-018 / 019 | FR-MOB-PERSIST-001/002 | localStorage 4 ケース (`'999'`/`''`/`'foo'`/`null`) + try/catch degrade |
 | UAC-020 | FR-MOB-STEPPER-001 | FontSizeControl popover 内 +/-/Reset の `role=button` / 44×44 / aria-label |
 | UAC-021 | FR-MOB-GATE-001, FR-PC-PRESERVE-001 | gate false で全 overlay DOM 不在 |

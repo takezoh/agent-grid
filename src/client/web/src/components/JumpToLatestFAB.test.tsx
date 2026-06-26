@@ -11,9 +11,9 @@
 //   - UAC-015: mode-independence — visible in input mode while in scrollback.
 //   - FR-MOB-JUMP-005: with the seed gate open the FAB is absent even in scrollback.
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { type JSX, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useJumpToLatest } from "../hooks/useJumpToLatest";
@@ -145,12 +145,7 @@ describe("JumpToLatestFAB — scroll-driven visibility", () => {
 
 describe("jump-fab.css — internal-only, does not break the 44×44 contract", () => {
   it("styles only .jump-to-latest-fab and never the chunk-07 layout layer", async () => {
-    const cssPath = path.join(
-      import.meta.dirname ?? __dirname,
-      "..",
-      "css",
-      "jump-fab.css",
-    );
+    const cssPath = path.join(import.meta.dirname ?? __dirname, "..", "css", "jump-fab.css");
     const source = await fs.readFile(cssPath, "utf-8");
     // Internal look only: it must not pin a sub-44px size (that lives in
     // icon-button.css and must not be overridden smaller here).

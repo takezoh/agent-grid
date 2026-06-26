@@ -1,10 +1,10 @@
-/* font-size-control.css — internal styles for FontSizeControl (popover) and
- * PinchIndicator (centre readout + fade) only.
+/* font-size-control.css — internal styles for FontSizeControl (popover) only.
  *
  * Scope guard (chunk-05): this file MUST NOT define `.terminal-fab-layer`
  * positioning, the FAB stack, or visualViewport offsets — those belong to
- * chunk-07. It only styles the popover interior and the indicator surface.
- * Colors/sizes reference theme tokens (ADR 0059); no ad-hoc hex. */
+ * chunk-07. It only styles the popover interior.
+ * Colors/sizes reference theme tokens (ADR 0059); no ad-hoc hex.
+ * ADR 0077: the PinchIndicator block (centre readout + fade) is removed. */
 
 /* ── FontSizeControl popover ─────────────────────────────────────────────── */
 
@@ -38,36 +38,4 @@
 
 .font-size-control__btn--reset {
   font-size: 12px;
-}
-
-/* ── PinchIndicator centre readout + fade ────────────────────────────────── */
-
-.notification-toast--ariahidden {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  z-index: 60;
-}
-
-.pinch-indicator {
-  pointer-events: auto;
-  min-width: 96px;
-  padding: 12px 20px;
-  border-radius: 16px;
-  background: var(--surface-canvas);
-  border: 1px solid var(--border-color);
-  color: var(--fg);
-  font-size: 24px;
-  font-variant-numeric: tabular-nums;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  opacity: 1;
-  transition: opacity 200ms ease-out;
-  cursor: pointer;
-}
-
-.pinch-indicator--fading {
-  opacity: 0;
 }

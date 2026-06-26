@@ -1,14 +1,18 @@
 // useFontSize — the in-memory fontSize state + persistence + refit fan-out
-// (ADR 0070 / 0034, FR-MOB-PERSIST-001/002 / FR-MOB-PINCH-002 / FR-MOB-STEPPER-001).
+// (ADR 0070 / 0034 / 0077, FR-MOB-PERSIST-001/002 / FR-MOB-FONT-CLAMP-001 /
+// FR-MOB-STEPPER-001).
 //
-// Three write paths converge here and all go through one `set`:
-//   - pinch          : applyPinch(ratio) — ratio is relative to the fontSize at
-//                      pinch start (chunk-04 onPinchFontSize); clamped to [8,28].
+// ADR 0077 supersedes the original pinch write path: only the FontSizeControl
+// stepper (+/-/reset) and the initial localStorage restore now write fontSize.
+// `applyPinch` / `beginPinch` are removed as dead code; the persist + clamp
+// contract is unchanged.
+//
+// Two write paths converge here and all go through one `set`:
 //   - +/-/Reset       : increase()/decrease()/reset() from FontSizeControl.
 //   - restore on boot : usePersistedValue reads `arc.web.term.fontSize`.
 //
-// Every mutation clamps to [8,28] (FR-MOB-PINCH-002 lower bound — below 8px the
-// font is unreadable and `fit()` can emit NaN cols), persists through the adapter,
+// Every mutation clamps to [8,28] (FR-MOB-FONT-CLAMP-001 — below 8px the font
+// is unreadable and `fit()` can emit NaN cols), persists through the adapter,
 // and invokes the ADR-0034 rAF-coalesced `scheduleFit` exactly once so the grid
 // re-flows. Keeping `scheduleFit` un-guarded (even when the value is unchanged,
 // e.g. Reset while already 14) preserves the invariant that every activate re-fits.
@@ -24,7 +28,7 @@ export const FONT_SIZE_DEFAULT = 14;
 /** +/- stepper increment (FR-MOB-STEPPER-001). */
 export const FONT_SIZE_STEP = 2;
 
-/** Clamp to the legible [8,28] window (FR-MOB-PINCH-002). */
+/** Clamp to the legible [8,28] window (FR-MOB-FONT-CLAMP-001). */
 export function clampFontSize(px: number): number {
   return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, px));
 }
@@ -47,10 +51,6 @@ export interface UseFontSizeApi {
   decrease: () => void;
   /** Back to a default (14px by default); persists + refits. */
   reset: (px?: number) => void;
-  /** Capture the base fontSize for the next pinch sequence (chunk-07 touchstart). */
-  beginPinch: () => void;
-  /** Apply a pinch ratio relative to the captured base; clamps + persists + refits. */
-  applyPinch: (ratio: number) => void;
 }
 
 export function useFontSize(options: UseFontSizeOptions): UseFontSizeApi {
@@ -67,19 +67,15 @@ export function useFontSize(options: UseFontSizeOptions): UseFontSizeApi {
     storage,
   });
 
-  // Mirror the latest fontSize into a ref so pinch math reads a synchronous value.
+  // Mirror the latest fontSize into a ref so stepper math reads a synchronous value.
   const fontSizeRef = useRef(fontSize);
   fontSizeRef.current = fontSize;
-  // Base captured at pinch start so successive ratio frames don't compound.
-  const pinchBaseRef = useRef<number | null>(null);
 
   const scheduleFitRef = useRef(scheduleFit);
   scheduleFitRef.current = scheduleFit;
 
   const set = useCallback(
     (px: number): void => {
-      // Any explicit set ends an in-flight pinch base capture.
-      pinchBaseRef.current = null;
       const clamped = clampFontSize(Math.round(px));
       persist(clamped);
       scheduleFitRef.current();
@@ -91,22 +87,5 @@ export function useFontSize(options: UseFontSizeOptions): UseFontSizeApi {
   const decrease = useCallback(() => set(fontSizeRef.current - FONT_SIZE_STEP), [set]);
   const reset = useCallback((px: number = FONT_SIZE_DEFAULT) => set(px), [set]);
 
-  const beginPinch = useCallback(() => {
-    pinchBaseRef.current = fontSizeRef.current;
-  }, []);
-
-  const applyPinch = useCallback(
-    (ratio: number): void => {
-      // Lazily capture the base on the first frame if chunk-07 didn't call
-      // beginPinch(), so the ratio is always relative to the gesture start.
-      const base = pinchBaseRef.current ?? fontSizeRef.current;
-      pinchBaseRef.current = base;
-      const clamped = clampFontSize(Math.round(base * ratio));
-      persist(clamped);
-      scheduleFitRef.current();
-    },
-    [persist],
-  );
-
-  return { fontSize, set, increase, decrease, reset, beginPinch, applyPinch };
+  return { fontSize, set, increase, decrease, reset };
 }

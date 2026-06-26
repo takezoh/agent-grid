@@ -1,11 +1,13 @@
-// useTerminalTouchGestures.test.ts — the swipe / long-press / pinch arbitration
-// state machine (ADR 0071). Tests are split into:
-//   1. gestureReducer — the pure transition table over the 5 states, exercised
-//      directly so every edge is named (idle/swipe/dwell/longpress-drag/pinch).
-//   2. useTerminalTouchGestures — the hook driven through the chunk-01 TouchEvent
-//      shim (swipeFromTo / longPressAndDrag / pinchByRatio + fake timers),
-//      asserting the discriminating contracts behind UAC-009/010/011/016 and the
-//      "preventDefault only after dwell + during pinch" discipline.
+// useTerminalTouchGestures.test.ts — ADR 0077 swipe-to-arrow arbitration.
+//
+// Layer 1: gestureReducer — pure transition table over idle/swipe/dwell/
+// longpress-drag, with the horizontal-swipe arrow emission discipline and the
+// 2-finger collapse contract.
+//
+// Layer 2: useTerminalTouchGestures — hook driven through the chunk-01 TouchEvent
+// shim (swipeFromTo / longPressAndDrag / pinchByRatio + fake timers), asserting
+// the input-mode gate (FR-MOB-SWIPE-ARROW-001/002), the 2-finger collapse
+// (FR-MOB-SWIPE-ARROW-003), and the long-press selection regression (UAC-010/011).
 
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,48 +29,161 @@ import {
 
 const CELL: Cell = { width: 10, height: 20 };
 
+/** Construct a fresh swipe-phase state at (x, y) for reducer tests. */
+function freshSwipe(x: number, y: number): Extract<GestureState, { phase: "swipe" }> {
+  const start = gestureReducer(INITIAL_GESTURE_STATE, {
+    kind: "start",
+    touches: [{ x, y }],
+    cell: CELL,
+  }).state;
+  if (start.phase !== "swipe") throw new Error("expected swipe after 1-finger start");
+  return start;
+}
+
 // ---------------------------------------------------------------------------
 // 1. Pure reducer — transition table
 // ---------------------------------------------------------------------------
 
 describe("gestureReducer (pure transition table)", () => {
-  it("idle + 1-finger touchstart → swipe (no effects)", () => {
+  it("idle + 1-finger touchstart → swipe (axis=undecided, lastArrowX=start.x)", () => {
     const r = gestureReducer(INITIAL_GESTURE_STATE, {
       kind: "start",
       touches: [{ x: 100, y: 100 }],
       cell: CELL,
     });
-    expect(r.state.phase).toBe("swipe");
+    expect(r.state).toEqual({
+      phase: "swipe",
+      start: { x: 100, y: 100 },
+      cell: CELL,
+      moved: false,
+      axis: "undecided",
+      lastArrowX: 100,
+    });
     expect(r.effects).toEqual([]);
   });
 
-  it("swipe + move past 8px → stays swipe, marks moved, no preventDefault", () => {
-    const swipe = gestureReducer(INITIAL_GESTURE_STATE, {
-      kind: "start",
-      touches: [{ x: 100, y: 100 }],
+  it("swipe + move <8px → axis undecided, moved false, no effects", () => {
+    const swipe = freshSwipe(100, 100);
+    const r = gestureReducer(swipe, { kind: "move", touches: [{ x: 105, y: 100 }], cell: CELL });
+    expect(r.state.phase).toBe("swipe");
+    if (r.state.phase !== "swipe") throw new Error("unreachable");
+    expect(r.state.moved).toBe(false);
+    expect(r.state.axis).toBe("undecided");
+    expect(r.effects).toEqual([]);
+  });
+
+  it("swipe + first move past 8px with |dx|>|dy| → axis horizontal locked", () => {
+    const swipe = freshSwipe(100, 100);
+    const r = gestureReducer(swipe, { kind: "move", touches: [{ x: 115, y: 102 }], cell: CELL });
+    expect(r.state.phase).toBe("swipe");
+    if (r.state.phase !== "swipe") throw new Error("unreachable");
+    expect(r.state.axis).toBe("horizontal");
+    expect(r.state.moved).toBe(true);
+  });
+
+  it("swipe + first move past 8px with |dy|>=|dx| → axis vertical locked (never arrow)", () => {
+    const swipe = freshSwipe(100, 100);
+    const r = gestureReducer(swipe, { kind: "move", touches: [{ x: 102, y: 130 }], cell: CELL });
+    expect(r.state.phase).toBe("swipe");
+    if (r.state.phase !== "swipe") throw new Error("unreachable");
+    expect(r.state.axis).toBe("vertical");
+    expect(r.effects).toEqual([]);
+  });
+
+  it("horizontal swipe: 18px right (cell.width=10) → arrow{right,1}, lastArrowX advances 10", () => {
+    const swipe = freshSwipe(100, 100);
+    const r = gestureReducer(swipe, { kind: "move", touches: [{ x: 118, y: 100 }], cell: CELL });
+    expect(r.effects).toEqual([{ kind: "arrow", direction: "right", count: 1 }]);
+    if (r.state.phase !== "swipe") throw new Error("unreachable");
+    expect(r.state.lastArrowX).toBe(110);
+  });
+
+  it("horizontal swipe: 25px right → arrow{right,2}, lastArrowX advances 20", () => {
+    const swipe = freshSwipe(100, 100);
+    const r = gestureReducer(swipe, { kind: "move", touches: [{ x: 125, y: 100 }], cell: CELL });
+    expect(r.effects).toEqual([{ kind: "arrow", direction: "right", count: 2 }]);
+    if (r.state.phase !== "swipe") throw new Error("unreachable");
+    expect(r.state.lastArrowX).toBe(120);
+  });
+
+  it("horizontal swipe: residuals carry over — 13px → 1, 15px more (28 total) → 1 more", () => {
+    let s: GestureState = freshSwipe(100, 100);
+    const r1 = gestureReducer(s, { kind: "move", touches: [{ x: 113, y: 100 }], cell: CELL });
+    expect(r1.effects).toEqual([{ kind: "arrow", direction: "right", count: 1 }]);
+    s = r1.state;
+    // total absolute 128 → delta from lastArrowX(110) is 18 → trunc(18/10)=1
+    const r2 = gestureReducer(s, { kind: "move", touches: [{ x: 128, y: 100 }], cell: CELL });
+    expect(r2.effects).toEqual([{ kind: "arrow", direction: "right", count: 1 }]);
+    if (r2.state.phase !== "swipe") throw new Error("unreachable");
+    expect(r2.state.lastArrowX).toBe(120);
+  });
+
+  it("horizontal swipe: sub-cell residual stays in state, no emission", () => {
+    const swipe = freshSwipe(100, 100);
+    // 9px > MOVE_THRESHOLD (8) so axis locks, but |Δx|/cell.width = 0.9 → trunc 0
+    const r = gestureReducer(swipe, { kind: "move", touches: [{ x: 109, y: 100 }], cell: CELL });
+    expect(r.effects).toEqual([]);
+    if (r.state.phase !== "swipe") throw new Error("unreachable");
+    expect(r.state.axis).toBe("horizontal");
+    expect(r.state.lastArrowX).toBe(100); // residual preserved
+  });
+
+  it("horizontal swipe: leftward 18px → arrow{left,1}", () => {
+    const swipe = freshSwipe(100, 100);
+    const r = gestureReducer(swipe, { kind: "move", touches: [{ x: 82, y: 100 }], cell: CELL });
+    expect(r.effects).toEqual([{ kind: "arrow", direction: "left", count: 1 }]);
+    if (r.state.phase !== "swipe") throw new Error("unreachable");
+    expect(r.state.lastArrowX).toBe(90);
+  });
+
+  it("vertical-locked swipe: any horizontal residual never emits arrow", () => {
+    const swipe = freshSwipe(100, 100);
+    // Vertical lock first (dy dominates)
+    const locked = gestureReducer(swipe, {
+      kind: "move",
+      touches: [{ x: 102, y: 130 }],
       cell: CELL,
     }).state;
-    const r = gestureReducer(swipe, { kind: "move", touches: [{ x: 100, y: 160 }], cell: CELL });
-    expect(r.state).toEqual({ phase: "swipe", start: { x: 100, y: 100 }, cell: CELL, moved: true });
+    // Now drift sideways — must still be silent because the axis is vertical.
+    const r = gestureReducer(locked, { kind: "move", touches: [{ x: 150, y: 132 }], cell: CELL });
+    expect(r.effects).toEqual([]);
+  });
+
+  it("2-finger touchstart → idle collapse (FR-MOB-SWIPE-ARROW-003)", () => {
+    const r = gestureReducer(INITIAL_GESTURE_STATE, {
+      kind: "start",
+      touches: [
+        { x: 60, y: 100 },
+        { x: 140, y: 100 },
+      ],
+      cell: CELL,
+    });
+    expect(r.state).toEqual(INITIAL_GESTURE_STATE);
+    expect(r.effects).toEqual([]);
+  });
+
+  it("1-finger swipe + 2-finger move (1→2 finger transition) → idle collapse, no effects", () => {
+    const swipe = freshSwipe(100, 100);
+    const r = gestureReducer(swipe, {
+      kind: "move",
+      touches: [
+        { x: 60, y: 100 },
+        { x: 140, y: 100 },
+      ],
+      cell: CELL,
+    });
+    expect(r.state).toEqual(INITIAL_GESTURE_STATE);
     expect(r.effects).toEqual([]);
   });
 
   it("swipe + dwellElapsed while stationary → dwell", () => {
-    const swipe = gestureReducer(INITIAL_GESTURE_STATE, {
-      kind: "start",
-      touches: [{ x: 100, y: 100 }],
-      cell: CELL,
-    }).state;
+    const swipe = freshSwipe(100, 100);
     const r = gestureReducer(swipe, { kind: "dwellElapsed" });
     expect(r.state.phase).toBe("dwell");
   });
 
   it("swipe + dwellElapsed AFTER moving past 8px → stays swipe (no false dwell)", () => {
-    const swipe = gestureReducer(INITIAL_GESTURE_STATE, {
-      kind: "start",
-      touches: [{ x: 100, y: 100 }],
-      cell: CELL,
-    }).state;
+    const swipe = freshSwipe(100, 100);
     const moved = gestureReducer(swipe, {
       kind: "move",
       touches: [{ x: 100, y: 160 }],
@@ -96,54 +211,6 @@ describe("gestureReducer (pure transition table)", () => {
     expect(r.effects.some((e) => e.kind === "select")).toBe(true);
   });
 
-  it("idle + 2-finger touchstart → pinch (records baseline, no preventDefault yet)", () => {
-    const r = gestureReducer(INITIAL_GESTURE_STATE, {
-      kind: "start",
-      touches: [
-        { x: 60, y: 100 },
-        { x: 140, y: 100 },
-      ],
-      cell: CELL,
-    });
-    expect(r.state).toEqual({ phase: "pinch", startDistance: 80 });
-    expect(r.effects).toEqual([]);
-  });
-
-  it("swipe + 2-finger move (1→2 finger) → interrupts into pinch, preventDefault only on first frame", () => {
-    const swipe = gestureReducer(INITIAL_GESTURE_STATE, {
-      kind: "start",
-      touches: [{ x: 100, y: 100 }],
-      cell: CELL,
-    }).state;
-    const r = gestureReducer(swipe, {
-      kind: "move",
-      touches: [
-        { x: 60, y: 100 },
-        { x: 140, y: 100 },
-      ],
-      cell: CELL,
-    });
-    expect(r.state.phase).toBe("pinch");
-    expect(r.effects).toEqual([{ kind: "preventDefault" }]);
-  });
-
-  it("pinch + 2-finger move → ratio follows d_now/d_start, with preventDefault + scheduleFit", () => {
-    const pinch: GestureState = { phase: "pinch", startDistance: 80 };
-    const r = gestureReducer(pinch, {
-      kind: "move",
-      touches: [
-        { x: 40, y: 100 },
-        { x: 160, y: 100 },
-      ],
-      cell: CELL,
-    });
-    expect(r.effects).toEqual([
-      { kind: "preventDefault" },
-      { kind: "pinch", ratio: 1.5 },
-      { kind: "scheduleFit" },
-    ]);
-  });
-
   it("any phase + touchend → idle", () => {
     const drag: GestureState = { phase: "longpress-drag", start: { x: 0, y: 0 }, cell: CELL };
     expect(gestureReducer(drag, { kind: "end" }).state).toEqual(INITIAL_GESTURE_STATE);
@@ -158,8 +225,6 @@ interface MockTerm extends TerminalLike {
   selectCalls: Array<[number, number, number]>;
   /** Mock-only mirror of the active selection; verified by UAC-010/011 assertions. */
   getSelection(): string;
-  /** Mock-only stand-in for the live xterm options; mutated by the onPinch handler. */
-  options: { fontSize: number };
 }
 
 function makeTerm(): MockTerm {
@@ -174,7 +239,6 @@ function makeTerm(): MockTerm {
     getSelection() {
       return selection;
     },
-    options: { fontSize: 14 },
   };
 }
 
@@ -187,16 +251,16 @@ describe("useTerminalTouchGestures (hook over the TouchEvent shim)", () => {
   let viewport: HTMLElement;
   let textarea: HTMLTextAreaElement;
   let term: MockTerm;
-  let onPinch: ReturnType<typeof vi.fn>;
-  let scheduleFit: ReturnType<typeof vi.fn>;
+  let onArrowKey: ReturnType<typeof vi.fn>;
+  let isInputActiveValue: boolean;
 
   function mount(): void {
     renderHook(() =>
       useTerminalTouchGestures({
         viewportRef: { current: viewport },
         termRef: { current: term },
-        onPinchFontSize: onPinch,
-        scheduleFit,
+        onArrowKey,
+        isInputActive: () => isInputActiveValue,
         cellSize: () => CELL,
       }),
     );
@@ -214,11 +278,8 @@ describe("useTerminalTouchGestures (hook over the TouchEvent shim)", () => {
     host.append(viewport, textarea);
     document.body.appendChild(host);
     term = makeTerm();
-    // chunk-05 useFontSize stand-in: multiply the 14px base by the ratio, clamp [8,28].
-    onPinch = vi.fn((ratio: number) => {
-      term.options.fontSize = Math.min(28, Math.max(8, Math.round(14 * ratio)));
-    });
-    scheduleFit = vi.fn();
+    onArrowKey = vi.fn();
+    isInputActiveValue = true; // default to input mode for arrow tests
   });
 
   afterEach(() => {
@@ -226,29 +287,113 @@ describe("useTerminalTouchGestures (hook over the TouchEvent shim)", () => {
     vi.useRealTimers();
   });
 
+  // FR-MOB-SWIPE-ARROW-001 — input mode + horizontal swipe → arrow callbacks.
+  it("FR-MOB-SWIPE-ARROW-001: input mode + 100px right swipe → arrow{right} sum count = 10", () => {
+    mount();
+    swipeFromTo(viewport, { clientX: 100, clientY: 200 }, { clientX: 200, clientY: 200 }, 100);
+
+    expect(onArrowKey).toHaveBeenCalled();
+    let totalRight = 0;
+    let totalLeft = 0;
+    for (const call of onArrowKey.mock.calls) {
+      const [direction, count] = call as ["left" | "right", number];
+      if (direction === "right") totalRight += count;
+      else totalLeft += count;
+    }
+    expect(totalRight).toBe(10);
+    expect(totalLeft).toBe(0);
+  });
+
+  // FR-MOB-SWIPE-ARROW-001 — leftward swipe direction is honoured.
+  it("FR-MOB-SWIPE-ARROW-001: input mode + 100px left swipe → arrow{left} sum count = 10", () => {
+    mount();
+    swipeFromTo(viewport, { clientX: 200, clientY: 200 }, { clientX: 100, clientY: 200 }, 100);
+
+    let totalRight = 0;
+    let totalLeft = 0;
+    for (const call of onArrowKey.mock.calls) {
+      const [direction, count] = call as ["left" | "right", number];
+      if (direction === "right") totalRight += count;
+      else totalLeft += count;
+    }
+    expect(totalLeft).toBe(10);
+    expect(totalRight).toBe(0);
+  });
+
+  // FR-MOB-SWIPE-ARROW-002 — view mode: arrow callbacks must not fire.
+  it("FR-MOB-SWIPE-ARROW-002: view mode + horizontal swipe → onArrowKey never fires", () => {
+    isInputActiveValue = false;
+    mount();
+    swipeFromTo(viewport, { clientX: 100, clientY: 200 }, { clientX: 200, clientY: 200 }, 100);
+
+    expect(onArrowKey).not.toHaveBeenCalled();
+  });
+
+  // FR-MOB-SWIPE-ARROW-002 — vertical swipe is silent even in input mode.
+  it("FR-MOB-SWIPE-ARROW-002: vertical swipe in input mode → onArrowKey never fires", () => {
+    mount();
+    swipeFromTo(viewport, { clientX: 100, clientY: 400 }, { clientX: 100, clientY: 80 }, 200);
+
+    expect(onArrowKey).not.toHaveBeenCalled();
+  });
+
+  // FR-MOB-SWIPE-ARROW-003 — 2-finger pinch is fully ignored: no arrow, no select.
+  it("FR-MOB-SWIPE-ARROW-003: 2-finger pinch → no arrow, no select, no input-mode flip", () => {
+    mount();
+    pinchByRatio(viewport, 1.5, { cx: 100, cy: 100 }, 40);
+
+    expect(onArrowKey).not.toHaveBeenCalled();
+    expect(term.selectCalls).toHaveLength(0);
+    expect(document.activeElement).not.toBe(textarea);
+    expect(host.getAttribute("data-input-active")).toBe("false");
+  });
+
+  // FR-MOB-SWIPE-ARROW-003 — 1→2 finger mid-swipe collapses to idle.
+  it("FR-MOB-SWIPE-ARROW-003: second finger mid-swipe → collapse, no further arrows", () => {
+    mount();
+    dispatchTouchEvent(viewport, "touchstart", [makeT(100, 100, 0)], [makeT(100, 100, 0)]);
+    dispatchTouchEvent(viewport, "touchmove", [makeT(120, 100, 0)], [makeT(120, 100, 0)]);
+    onArrowKey.mockClear();
+    // Second finger lands → idle collapse.
+    dispatchTouchEvent(
+      viewport,
+      "touchmove",
+      [makeT(140, 100, 0), makeT(200, 100, 1)],
+      [makeT(140, 100, 0), makeT(200, 100, 1)],
+    );
+    // Subsequent 2-finger move stays idle.
+    dispatchTouchEvent(
+      viewport,
+      "touchmove",
+      [makeT(160, 100, 0), makeT(220, 100, 1)],
+      [makeT(160, 100, 0), makeT(220, 100, 1)],
+    );
+    expect(onArrowKey).not.toHaveBeenCalled();
+  });
+
   // UAC-010 — 500ms dwell + drag → term.select non-empty, no focus, view mode kept.
   it("UAC-010: long-press dwell + drag selects via term.select and never enters input mode", () => {
+    isInputActiveValue = false; // view mode is the canonical context for long-press
     mount();
     longPressAndDrag(viewport, 100, 200, 30, 0, 500);
 
     expect(term.selectCalls.length).toBeGreaterThan(0);
     expect(term.selectCalls[0]).toEqual([10, 10, 3]); // floor(100/10), floor(200/20), round(30/10)
-    expect(term.getSelection()).not.toBe(""); // non-empty selection (counterexample: tap→focus would leave empty)
+    expect(term.getSelection()).not.toBe("");
     expect(document.activeElement).not.toBe(textarea);
     expect(host.getAttribute("data-input-active")).toBe("false");
   });
 
-  // UAC-011 — dwell-absent swipe scrolls only: no selection, no preventDefault hijack.
+  // UAC-011 — dwell-absent swipe scrolls only: no selection.
   it("UAC-011: a swipe without dwell never selects (getSelection stays empty)", () => {
     mount();
-    // No timer advance → dwell never fires; this is a pure swipe.
     swipeFromTo(viewport, { clientX: 100, clientY: 300 }, { clientX: 100, clientY: 100 }, 100);
 
     expect(term.selectCalls).toHaveLength(0);
     expect(term.getSelection()).toBe("");
   });
 
-  // UAC-009 — continuous swipe must not focus the helper textarea (focus count 0).
+  // UAC-009 — continuous swipe must not focus the helper textarea.
   it("UAC-009: continuous swipe dispatches zero focus events and keeps view mode", () => {
     mount();
     const focusSpy = vi.fn();
@@ -261,52 +406,21 @@ describe("useTerminalTouchGestures (hook over the TouchEvent shim)", () => {
     expect(host.getAttribute("data-input-active")).toBe("false");
   });
 
-  // UAC-016 — pinch follows the d_now/d_start ratio (counterexample A: ±2px step)
-  // and refits (counterexample B: missing fit()).
-  it("UAC-016: pinch out 1.5x drives fontSize ≥18px (ratio-faithful) and calls scheduleFit", () => {
-    mount();
-    pinchByRatio(viewport, 1.5, { cx: 100, cy: 100 }, 40);
+  // preventDefault discipline — only after dwell + during longpress-drag.
+  describe("preventDefault is reserved for dwell-drag (pinch path is gone)", () => {
+    it("plain horizontal swipe move does NOT preventDefault (no native xterm behaviour to suppress)", () => {
+      mount();
+      dispatchTouchEvent(viewport, "touchstart", [makeT(100, 200, 0)], [makeT(100, 200, 0)]);
+      const move = dispatchTouchEvent(
+        viewport,
+        "touchmove",
+        [makeT(200, 200, 0)],
+        [makeT(200, 200, 0)],
+      );
+      expect(move.defaultPrevented).toBe(false);
+    });
 
-    expect(onPinch).toHaveBeenCalled();
-    const ratio = onPinch.mock.calls.at(-1)?.[0] as number;
-    expect(ratio).toBeCloseTo(1.5, 5); // not a fixed ±2px step
-    expect(term.options.fontSize).toBeGreaterThanOrEqual(18); // 14*1.5≈21 > 18
-    expect(term.options.fontSize).toBeLessThanOrEqual(28); // clamp ceiling honoured
-    expect(scheduleFit).toHaveBeenCalled();
-    expect(term.selectCalls).toHaveLength(0); // pinch must not select
-  });
-
-  // FR-MOB-PINCH-003 — a 1→2 finger transition interrupts the swipe and never
-  // flips into input mode.
-  it("FR-MOB-PINCH-003: second finger mid-swipe interrupts into pinch without input-mode transition", () => {
-    mount();
-    // 1-finger swipe in progress …
-    dispatchTouchEvent(viewport, "touchstart", [makeT(100, 100, 0)], [makeT(100, 100, 0)]);
-    dispatchTouchEvent(viewport, "touchmove", [makeT(100, 130, 0)], [makeT(100, 130, 0)]);
-    // … a second finger lands → interrupt into pinch (baseline frame only suppresses).
-    dispatchTouchEvent(
-      viewport,
-      "touchmove",
-      [makeT(60, 100, 0), makeT(160, 100, 1)],
-      [makeT(60, 100, 0), makeT(160, 100, 1)],
-    );
-    // … a subsequent pinch frame delivers the ratio.
-    dispatchTouchEvent(
-      viewport,
-      "touchmove",
-      [makeT(40, 100, 0), makeT(160, 100, 1)],
-      [makeT(40, 100, 0), makeT(160, 100, 1)],
-    );
-
-    expect(onPinch).toHaveBeenCalled(); // pinch took over
-    expect(term.selectCalls).toHaveLength(0); // swipe was interrupted, not turned into a selection
-    expect(document.activeElement).not.toBe(textarea);
-    expect(host.getAttribute("data-input-active")).toBe("false");
-  });
-
-  // preventDefault discipline — exactly: not on plain swipe, yes after dwell, yes on pinch.
-  describe("preventDefault is reserved for dwell-drag + pinch", () => {
-    it("plain swipe move does NOT preventDefault (pan-y native scroll owns it)", () => {
+    it("plain vertical swipe move does NOT preventDefault (pan-y owns the lane)", () => {
       mount();
       dispatchTouchEvent(viewport, "touchstart", [makeT(100, 300, 0)], [makeT(100, 300, 0)]);
       const move = dispatchTouchEvent(
@@ -326,7 +440,7 @@ describe("useTerminalTouchGestures (hook over the TouchEvent shim)", () => {
         [makeT(100, 200, 0)],
         [makeT(100, 200, 0)],
       );
-      expect(start.defaultPrevented).toBe(false); // touchstart is never suppressed
+      expect(start.defaultPrevented).toBe(false);
       vi.advanceTimersByTime(500); // dwell fires
       const drag = dispatchTouchEvent(
         viewport,
@@ -335,23 +449,6 @@ describe("useTerminalTouchGestures (hook over the TouchEvent shim)", () => {
         [makeT(120, 200, 0)],
       );
       expect(drag.defaultPrevented).toBe(true);
-    });
-
-    it("pinch move DOES preventDefault", () => {
-      mount();
-      dispatchTouchEvent(
-        viewport,
-        "touchstart",
-        [makeT(60, 100, 0), makeT(140, 100, 1)],
-        [makeT(60, 100, 0), makeT(140, 100, 1)],
-      );
-      const move = dispatchTouchEvent(
-        viewport,
-        "touchmove",
-        [makeT(40, 100, 0), makeT(160, 100, 1)],
-        [makeT(40, 100, 0), makeT(160, 100, 1)],
-      );
-      expect(move.defaultPrevented).toBe(true);
     });
   });
 

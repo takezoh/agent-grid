@@ -19,7 +19,7 @@ Related ADRs:
 
 Web UI TerminalPane (xterm.js 5.5.0 + addon-fit) のモバイル UX を `ux.md` の 7 flow / 26 UAC で固定された観察契約どおりに、PC (pointer:fine) **完全現状維持** + 既存 ADR 0029 / 0030 / 0034 / 0059 / 0063 / 0064 / 0065 / 0066 衝突回避を絶対制約として実装する技術計画と、UX Open Questions 1〜4 をすべて plan-how 段階で決着させる 9 件の ADR (gate / mode 分離 + focus-block + zoom-guard / FAB overlay + visualViewport lift / fontSize 永続化 / touch gesture arbitration + long-press 選択 / coachmark dismiss / aria-live debounce + jumpFAB seed gating / migration / pattern adoption) を確定する。
 
-ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Playwright 不在経路 (実 soft keyboard / 実 pinch / 実 long-press / 実 VoiceOver) は実機検証チェックリストへ振り分ける。
+ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Playwright 不在経路 (実 soft keyboard / 実 horizontal swipe → arrow / 実 long-press / 実 VoiceOver) は実機検証チェックリストへ振り分ける。 (ADR 0077 で実 pinch 検証は撤去)
 
 ## Scope
 
@@ -28,12 +28,12 @@ ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Pl
 - `src/client/web/src/components/TerminalPane.tsx` のモバイル経路追加 (`useMobileGate` true 分岐のみ条件 render、PC path 1 bit 不変)
 - `src/client/web/src/css/app.css` と `view.css` の mobile gate scope 内 CSS 追加 (`touch-action:pan-y` / `.terminal-fab-layer` / `.xterm-helper-textarea font-size:16px !important` / FAB overlay layout / CSS custom property `--terminal-fab-offset` / ADR 0064 reduced-motion guard 末尾追記)
 - 新規 hook (10 個): `useMobileGate` / `useInputMode` / `useHostPointerInterceptor` / `useTerminalTouchGestures` / `useFontSize` / `useJumpToLatest` / `useVisualViewportLift` / `useCoachmarkOnce` / `usePersistedValue` / `useAnnouncer`
-- 新規 component (7 個): `IconButton` primitive / `KeyboardFAB` / `JumpToLatestFAB` / `FontSizeControl` + disclosure popover / `Coachmark` / `PinchIndicator` (Toast 再利用 wrap) / `AriaLiveStatus`
+- 新規 component (6 個): `IconButton` primitive / `KeyboardFAB` / `JumpToLatestFAB` / `FontSizeControl` + disclosure popover / `Coachmark` / `AriaLiveStatus` (ADR 0077 で `PinchIndicator` 撤去)
 - localStorage 永続化 (`arc.web.term.fontSize` / `arc.web.term.hintSeen`) を `usePersistedValue` adapter で集約
 - vitest + happy-dom + @testing-library/react ベースの UAC test suite (TouchEvent / Pointer / matchMedia / visualViewport の合成 harness を chunk-01 で確立)
 - 実機 iOS Safari 17+ / iPadOS 17+ / Android Chrome 最新の手動検証チェックリスト (visualViewport-lift / iOS focus-zoom / OS keyboard blur / long-press OS feedback / VoiceOver / TalkBack)
 - 新規 ADR 9 件 (ADR 0067 〜 0075)
-- ADR 0064 (reduced-motion 単一 guard) への追記 (smooth scroll / FAB fade / Coachmark fade / PinchIndicator fade を即時化)
+- ADR 0064 (reduced-motion 単一 guard) への追記 (smooth scroll / FAB fade / Coachmark fade を即時化、ADR 0077 で PinchIndicator fade は撤去)
 - chunk-01 で PC behavior baseline test を CI 必須化 (`FR-PC-PRESERVE-001/002/003` を machine-checkable に昇格)
 
 ### Out of Scope
@@ -55,7 +55,7 @@ EARS 件数: 39 件 (State-driven 15 / Event-driven 19 / Unwanted 5 / Ubiquitous
 
 ### State-driven (状態駆動)
 
-> **FR-MOB-GATE-002** (`state_driven`) — TerminalPane が mount している間、システムは matchMedia の change イベントを購読し続け、gate true→false 遷移時には現在の入力モード state を破棄し、helper textarea の readonly を解除し、全 overlay (FAB / Coachmark / PinchIndicator / AriaLiveStatus / .terminal-fab-layer) を unmount し、visualViewport listener を unsubscribe してから入力モード state 破棄を行う順序を守らなければならない。
+> **FR-MOB-GATE-002** (`state_driven`) — TerminalPane が mount している間、システムは matchMedia の change イベントを購読し続け、gate true→false 遷移時には現在の入力モード state を破棄し、helper textarea の readonly を解除し、全 overlay (FAB / Coachmark / AriaLiveStatus / .terminal-fab-layer) を unmount し、visualViewport listener を unsubscribe してから入力モード state 破棄を行う順序を守らなければならない。 (ADR 0077 で PinchIndicator は撤去済み)
 >
 > *Rationale*: ux edge case『デバイス回転で 767px 境界をまたぐ』+ visualViewport listener leak 防止。順序保証が無いと回転後に listener が leak し PC path で動作する。
 
@@ -85,7 +85,7 @@ EARS 件数: 39 件 (State-driven 15 / Event-driven 19 / Unwanted 5 / Ubiquitous
 
 > **FR-MOB-STEPPER-001** (`state_driven`) — gate true である間、システムは FontSizeControl を disclosure popover (Aa アイコン → tap で popover 露出) で常時到達可能にし、popover 内の +/-/Reset 3 ボタンがそれぞれ role=button / getBoundingClientRect().width≥44 / height≥44 / 非空 aria-label を持つ状態を維持しなければならない。+ activate で 2px 増加 / - activate で 2px 減少 / Reset activate で 14px に戻し、いずれの activate でも scheduleFit (ADR 0034) を invoke する。
 >
-> *Rationale*: UAC-020 — VoiceOver/TalkBack は 2 指ジェスチャを自前に奪うため pinch 不能ユーザー向け非 pinch 代替を invariant 提供。
+> *Rationale*: UAC-020 — VoiceOver/TalkBack は 2 指ジェスチャを自前に奪うため、`+ / − / reset` の単指タップ代替を invariant 提供 (ADR 0077 で pinch 経路は撤去、ステッパー単独経路)。
 
 > **FR-MOB-FAB-001** (`state_driven`) — gate true である間、システムは KeyboardFAB を IconButton primitive で wrap した <button type='button'> 要素として render し、getBoundingClientRect().width≥44 / height≥44 / 非空 aria-label / aria-pressed を useInputMode state と同期 (false 時 aria-label='キーボードを開く', true 時 'キーボードを閉じる') する状態を維持しなければならない。
 >
@@ -103,7 +103,7 @@ EARS 件数: 39 件 (State-driven 15 / Event-driven 19 / Unwanted 5 / Ubiquitous
 >
 > *Rationale*: ux edge case『iOS soft keyboard が dvh を縮めない』+ 最適化案『CSS 変数で 1→多 fan-out』採用。
 
-> **FR-PC-PRESERVE-001** (`state_driven`) — gate false である間、システムは KeyboardFAB / JumpToLatestFAB / FontSizeControl / Coachmark / PinchIndicator / AriaLiveStatus / .terminal-fab-layer のいずれも DOM に存在させず、terminal-host に data-input-active 属性を付与せず、.xterm-helper-textarea に readonly 属性を付与してはならない。
+> **FR-PC-PRESERVE-001** (`state_driven`) — gate false である間、システムは KeyboardFAB / JumpToLatestFAB / FontSizeControl / Coachmark / AriaLiveStatus / .terminal-fab-layer のいずれも DOM に存在させず、terminal-host に data-input-active 属性を付与せず、.xterm-helper-textarea に readonly 属性を付与してはならない。 (ADR 0077 で PinchIndicator は撤去済み)
 >
 > *Rationale*: UAC-021 invariant PC preserve。条件 render の機構的保証。
 
@@ -117,7 +117,7 @@ EARS 件数: 39 件 (State-driven 15 / Event-driven 19 / Unwanted 5 / Ubiquitous
 
 ### Event-driven (イベント駆動)
 
-> **FR-MOB-GATE-001** (`event_driven`) — セッションが mount される時、システムは useMobileGate hook を介して matchMedia('(max-width: 767px) and (pointer: coarse)').matches を boolean 真実源として評価し、matches=true の場合のみ terminal-host に data-input-active 属性を付与し、KeyboardFAB / JumpToLatestFAB / FontSizeControl / Coachmark / PinchIndicator / AriaLiveStatus / .terminal-fab-layer を条件 render (CSS display:none による隠蔽は禁止) しなければならない。
+> **FR-MOB-GATE-001** (`event_driven`) — セッションが mount される時、システムは useMobileGate hook を介して matchMedia('(max-width: 767px) and (pointer: coarse)').matches を boolean 真実源として評価し、matches=true の場合のみ terminal-host に data-input-active 属性を付与し、KeyboardFAB / JumpToLatestFAB / FontSizeControl / Coachmark / AriaLiveStatus / .terminal-fab-layer を条件 render (CSS display:none による隠蔽は禁止) しなければならない。 (ADR 0077 で PinchIndicator は撤去済み)
 >
 > *Rationale*: UAC-001/021/022 — JS gate を真実源とし条件 render で a11y tree からも完全に除外する。CSS display:none は querySelector で取得可能で UAC-012/021 counterexample を通すため禁忌。
 
@@ -161,21 +161,21 @@ EARS 件数: 39 件 (State-driven 15 / Event-driven 19 / Unwanted 5 / Ubiquitous
 >
 > *Rationale*: UAC-013 + 否定役指摘『慣性 scroll で aria-live polite 連続 emit が SR ear-fatigue』対応。
 
-> **FR-MOB-PINCH-001** (`event_driven`) — gate true で touches.length=2 の連続 touchmove が .xterm-viewport 上に発生する時、システムは 2 指間距離 d_now / d_start の比率を term.options.fontSize の base 値に乗じ整数 px に丸めた値を [8,28] に clamp して連続適用し、fontSize 変更ごとに scheduleFit (ADR 0034 rAF coalesce) を invoke しなければならない。
+> **FR-MOB-SWIPE-ARROW-001** (`event_driven`) — gate true かつ入力モード active な状態で 1-finger touchmove が .xterm-viewport 上の horizontal-locked swipe phase で発生する時、システムは `Math.trunc(Δx / cell.width)` (cell.width = DEFAULT_CELL.width = 9px) で arrow キー数 N を算出し、N>0 なら `"\x1b[C".repeat(N)`、N<0 なら `"\x1b[D".repeat(|N|)` を 1 touchmove あたり 1 つの `{k:"i"}` wire frame として `conn.send` に渡さなければならない。残差は state の `lastArrowX += N * cell.width` で次の touchmove に持ち越す。 (ADR 0077)
 >
-> *Rationale*: UAC-016 — 比率追従 + clamp + refit の 3 観察契約を 1 EARS に。
+> *Rationale*: pinch 撤去 + ユーザー要件『入力位置タップ移動相当』を Termius 流 swipe-to-arrow で達成。残差保持で drift / 重複発火なし、1 frame = 1 wire frame で WS フラッディング防止。
 
-> **FR-MOB-PINCH-003** (`event_driven`) — touchstart で touches.length が 1 から 2 へ遷移する時、システムは useTerminalTouchGestures の state machine を pinch へ遷移させ、進行中の swipe handler を中断し、入力モードへの遷移を発生させてはならない。
+> **FR-MOB-SWIPE-ARROW-002** (`unwanted`) — もし入力モードが inactive (view mode) または swipe phase の axis が vertical lock されているなら、システムは horizontal swipe であっても arrow キー wire frame を 0 件しか送ってはならない (既存スクロール挙動と byte-identical) 。 (ADR 0077)
 >
-> *Rationale*: ux edge case『1 指→2 指の pinch 開始』+ 否定役指摘『xterm 内部 touch handler との競合』対応。
+> *Rationale*: view mode は閲覧専用、vertical 軸は native pan-y に譲る分離契約。`onArrowKey` callback は `isInputActive() === true` で gate されるため、view mode 時は reducer が arrow effect を emit しても apply 層で drop される。
 
-> **FR-MOB-PINCH-004** (`event_driven`) — pinch が継続している時、システムは既存 Toast primitive (ADR 0063) を `ariaHidden=true` prop 拡張で再利用した PinchIndicator を画面中央に render し現在 fontSize を表示し、touchend 約 800ms 後に fade させ、indicator tap で useFontSize.reset(14) と scheduleFit() を呼ばなければならない。
+> **FR-MOB-SWIPE-ARROW-003** (`unwanted`) — もし touchstart 時点で touches.length ≥ 2 であるか、1-finger swipe の途中で touches.length が 2 以上に遷移したなら、システムは gestureReducer の状態を `INITIAL_GESTURE_STATE` (idle) に collapse させ、fontSize 変更も arrow キー送信も PinchIndicator 描画も発生させてはならない (pinch phase / PinchIndicator は DOM に存在しない)。 (ADR 0077)
 >
-> *Rationale*: ux F-005 step 3 — 純視覚 indicator は aria-hidden で Toast layer 再利用 (新規 primitive を作らない)。
+> *Rationale*: pinch 撤去で 2-finger touch を完全無視。ADR 0071 にあった『1→2 finger 遷移で swipe を中断する arbitration』の edge は構造的に消滅。
 
-> **FR-MOB-PERSIST-001** (`event_driven`) — pinch の touchend または FontSizeControl 操作で fontSize が確定する時、システムは usePersistedValue adapter を介して localStorage キー arc.web.term.fontSize に整数値を文字列で書き込まなければならない (try/catch で例外を握りつぶし、書込失敗時もメモリ上の state は更新)。
+> **FR-MOB-PERSIST-001** (`event_driven`) — FontSizeControl ステッパー (`+ / − / reset`) 操作で fontSize が確定する時、システムは usePersistedValue adapter を介して localStorage キー arc.web.term.fontSize に整数値を文字列で書き込まなければならない (try/catch で例外を握りつぶし、書込失敗時もメモリ上の state は更新)。 (ADR 0070 から ADR 0077 が継承、pinch touchend 経路は撤去)
 >
-> *Rationale*: UAC-018 + ux edge case『private mode で degrade のみ』対応。
+> *Rationale*: UAC-018 + ux edge case『private mode で degrade のみ』対応。pinch 撤去で writer 経路はステッパー単独に集約。
 
 > **FR-MOB-PERSIST-002** (`event_driven`) — セッション初期 mount で localStorage キー arc.web.term.fontSize を読む時、システムは parseInt の結果が NaN なら default 14px へ fallback し、parseInt 成功かつ Number.isFinite が真なら値を [8,28] に clamp して採用しなければならない (例: '999' は parse 成功 + finite で 28 に clamp / '' / 'foo' / null は NaN で 14 へ fallback)。
 >
@@ -207,9 +207,9 @@ EARS 件数: 39 件 (State-driven 15 / Event-driven 19 / Unwanted 5 / Ubiquitous
 >
 > *Rationale*: ux edge case + ADR 0064 single guard 維持。
 
-> **FR-MOB-PINCH-002** (`unwanted`) — もし clamp 適用後の fontSize 計算結果が 8 未満になる pinch in 比率が発生したなら、システムは term.options.fontSize を 8px に張り付かせ 8 未満にしてはならない。
+> **FR-MOB-FONT-CLAMP-001** (`unwanted`) — もし FontSizeControl ステッパーの増減または localStorage からの読み出しで fontSize 計算結果が 8 未満になる入力が発生したなら、システムは term.options.fontSize を 8px に張り付かせ 8 未満にしてはならない (上限 28px も同様に張り付かせる)。 (ADR 0070 → ADR 0077 改名継承)
 >
-> *Rationale*: UAC-017 — 下限 clamp 契約。NaN cols / 読めない font 防止。
+> *Rationale*: UAC-017 — 下限 clamp 契約。NaN cols / 読めない font 防止。旧 FR-MOB-PINCH-002 から pinch 文脈を切り離し、ステッパー / persist read のみで clamp 規律を保つ。
 
 > **FR-MOB-VVP-002** (`unwanted`) — もし window.visualViewport API が存在しない環境なら、システムは CSS custom property `--terminal-fab-offset` の default 16px を自動 fallback として適用し、JS から CSS 変数を書き換えてはならない。
 >
@@ -236,8 +236,8 @@ EARS 件数: 39 件 (State-driven 15 / Event-driven 19 / Unwanted 5 / Ubiquitous
 | UAC-013 | `FR-MOB-JUMP-002`, `FR-MOB-JUMP-004` |
 | UAC-014 | `FR-MOB-JUMP-003` |
 | UAC-015 | `FR-MOB-JUMP-002` |
-| UAC-016 | `FR-MOB-PINCH-001` |
-| UAC-017 | `FR-MOB-PINCH-002` |
+| UAC-016 | `FR-MOB-SWIPE-ARROW-001` (ADR 0077 で pinch → swipe-to-arrow に再解釈) |
+| UAC-017 | `FR-MOB-FONT-CLAMP-001` |
 | UAC-018 | `FR-MOB-PERSIST-001` |
 | UAC-019 | `FR-MOB-PERSIST-002` |
 | UAC-020 | `FR-MOB-STEPPER-001` |
@@ -254,8 +254,8 @@ EARS 件数: 39 件 (State-driven 15 / Event-driven 19 / Unwanted 5 / Ubiquitous
 - `FR-MOB-MODE-007` — helper textarea 16px CSS `!important` (iOS focus-zoom 抑止、ux edge case)
 - `FR-MOB-JUMP-005` — ADR 0066 seed flush 完了まで FAB 強制不在 (late-join FAB ちらつき排除)
 - `FR-MOB-JUMP-006` — prefers-reduced-motion 即時化 (ADR 0064 単一 guard 維持)
-- `FR-MOB-PINCH-003` — 1→2 finger 遷移で swipe 中断 + 入力モード非遷移 (ux edge case)
-- `FR-MOB-PINCH-004` — PinchIndicator を Toast primitive 再利用 (F-005 step 3 視覚 indicator)
+- `FR-MOB-SWIPE-ARROW-002` — view mode / vertical 軸での arrow 抑止 (ADR 0077、既存スクロール挙動の保護)
+- `FR-MOB-SWIPE-ARROW-003` — 2-finger 完全無視 (ADR 0077、pinch 撤去後の touches.length ≥ 2 collapse)
 - `FR-MOB-FAB-003` — safe-area 二重計上禁止 (`FR-LAYOUT-004` invariant)
 - `FR-MOB-FAB-004` — 固定スタック順 + Toast 別 portal (F-007 step 4)
 - `FR-MOB-VVP-001` — visualViewport 連動 CSS 変数更新 (iOS sticky toolbar、ux edge case)
