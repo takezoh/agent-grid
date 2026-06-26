@@ -4,8 +4,12 @@
    span is what running / pending rotates — rotating an inner SVG element via
    CSS transform was unreliable on iOS Safari / older WebKit (ADR-0078).
 
-   Reduced-motion suppression lives in view.css (ADR-0064 single-guard rule);
-   this file MUST NOT contain its own @media (prefers-reduced-motion) block. */
+   Reduced-motion: status indicators are EXEMPT from the prefers-reduced-motion
+   guard per ADR-0080 (functional progress indication, not decorative motion).
+   The single-guard rule (ADR-0064) still applies — this file MUST NOT contain
+   its own @media (prefers-reduced-motion) block — but view.css deliberately
+   omits .status-icon--* / .run-state-spinner / .session-status-spinner from
+   its suppression list. */
 
 /* ─── Base ──────────────────────────────────────────────────────────────── */
 /* 1em × 1em so callers control size via font-size. currentColor so the

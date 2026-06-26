@@ -3,6 +3,11 @@
 // running / pending rotation lives on the outer <span> because SVG-element
 // rotation is unreliable on Safari / older WebKit. The <span> is a plain
 // inline-block whose CSS transform is universally supported.
+//
+// Motion is INTENTIONALLY exempt from prefers-reduced-motion (ADR-0080): the
+// status indicator's motion is functional — it conveys "in progress" state,
+// not decorative parallax. Freezing it collapses running / pending / waiting
+// / idle into visually identical static glyphs.
 
 import type { ReactNode } from "react";
 import "../css/status-icon.css";

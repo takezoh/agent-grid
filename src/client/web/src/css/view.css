@@ -395,21 +395,16 @@
    here. Other CSS files (shell.css, snackbar.css, app.css) must NOT contain
    a prefers-reduced-motion media query — this file is the canonical location. */
 @media (prefers-reduced-motion: reduce) {
-  /* StatusIcon (ADR-0078): all animated status variants stop in place.
-     The .run-state-spinner / .session-status-spinner selectors are kept
-     for ADR-0064 documentation continuity — they remain valid hooks since
-     active StatusIcons still carry those classes via activeClass. running /
-     pending now animate the OUTER <span> directly (HTML-wrapper rotation
-     pattern), so the .status-icon--running / --pending selectors target
-     the animated element themselves. */
-  .run-state-spinner,
-  .session-status-spinner,
-  .status-icon--running,
-  .status-icon--pending,
-  .status-icon--waiting .status-icon__dot,
-  .status-icon--idle .status-icon__filled {
-    animation: none !important;
-  }
+  /* StatusIcon motion is INTENTIONALLY NOT suppressed here — ADR-0080 carves
+     status indicators (running / pending / waiting / idle) out of the Reduce
+     Motion guard as functional progress indicators. They are sub-second,
+     low-amplitude, viewport-anchored (1em × 1em), and convey "in progress"
+     state that is otherwise unreadable when frozen (running / idle / pending
+     would all look identical static circles). This aligns with WCAG 2.3.3
+     and Apple HIG: Reduce Motion targets parallax / large-amplitude effects,
+     not functional progress indicators. The .run-state-spinner /
+     .session-status-spinner / .status-icon--* / .status-icon__dot /
+     .status-icon__filled selectors are deliberately omitted. */
 
   /* SessionList caret rail (modernization parity with palette row caret).
      Suppresses palette-row-caret-in keyframe on the committed-active row.

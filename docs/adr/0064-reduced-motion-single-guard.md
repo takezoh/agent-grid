@@ -1,9 +1,11 @@
 # ADR 0064 — prefers-reduced-motion: reduce の一元 guard と新規 animation の追記先固定
 
-Status: Proposed
+Status: Proposed (partially revised by [ADR-0080](0080-status-indicator-exempt-from-reduced-motion.md))
 
-Related: [spec](../specs/2026-06-25-web-ui-redesign/spec.md), [plan](../specs/2026-06-25-web-ui-redesign/plan.md), [ux](../specs/2026-06-25-web-ui-redesign/ux.md)
-Related requirements: FR-MOTION-001, FR-MOTION-002
+Related: [spec](../specs/2026-06-25-web-ui-redesign/spec.md), [plan](../specs/2026-06-25-web-ui-redesign/plan.md), [ux](../specs/2026-06-25-web-ui-redesign/ux.md), [ADR-0080](0080-status-indicator-exempt-from-reduced-motion.md)
+Related requirements: FR-MOTION-001 (ADR-0080 で改定), FR-MOTION-002
+
+> **Update (ADR-0080)**: status-indicator (`.run-state-spinner` / `.session-status-spinner` / `.status-icon--running` / `--pending` / `--waiting .status-icon__dot` / `--idle .status-icon__filled`) は本 guard から除外される。motion が **functional progress indicator** であり、WCAG 2.3.3 / Apple HIG の対象外であるため。本 ADR の single-guard rule (view.css 1 箇所集約) と新規追記先固定ルールは維持。詳細は ADR-0080。
 
 ## Context
 

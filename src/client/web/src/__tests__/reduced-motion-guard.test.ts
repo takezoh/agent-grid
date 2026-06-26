@@ -2,8 +2,10 @@
  * reduced-motion-guard.test.ts
  *
  * FR-MOTION-001: When prefers-reduced-motion: reduce is active, animation/transition
- *   suppressions are applied to spinners, drawer, palette flash, snackbar, toast, tabs.
- *   Running state remains readable via icon + text in the DOM.
+ *   suppressions are applied to drawer, palette flash, snackbar, toast, tabs.
+ *   Status indicators (spinner / pending / waiting / idle) are EXEMPT per ADR-0080
+ *   because they convey functional in-progress state and stay readable as motion.
+ *   Running state remains readable via icon + text in the DOM regardless.
  *
  * FR-MOTION-002: The @media (prefers-reduced-motion: reduce) rule exists exactly once
  *   in view.css and is absent from tokens.css and app.css (single canonical location,
@@ -78,8 +80,12 @@ describe("FR-MOTION-002: single @media (prefers-reduced-motion: reduce) block in
 
 // ─── FR-MOTION-001: animation/transition suppressions present in view.css block
 
-// Extract the content of the @media (prefers-reduced-motion: reduce) block.
-// We locate it by finding the rule start and matching braces.
+// Extract the content of the @media (prefers-reduced-motion: reduce) block,
+// with all CSS comments (/* ... */) stripped so assertions match real rules,
+// not selector names that happen to be mentioned in explanatory comments
+// (ADR-0080 commentary references .status-icon--* / .run-state-spinner as
+// examples of EXEMPT selectors — those mentions must not register as guard
+// applications).
 function extractReducedMotionBlock(css: string): string {
   const startIndex = css.search(/^@media\s+\(prefers-reduced-motion:\s*reduce\)/m);
   if (startIndex === -1) return "";
@@ -102,7 +108,8 @@ function extractReducedMotionBlock(css: string): string {
   }
 
   if (blockStart === -1 || blockEnd === -1) return "";
-  return css.slice(blockStart, blockEnd + 1);
+  const raw = css.slice(blockStart, blockEnd + 1);
+  return raw.replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 describe("FR-MOTION-001: reduced-motion block contains required suppressions", () => {
@@ -113,13 +120,39 @@ describe("FR-MOTION-001: reduced-motion block contains required suppressions", (
     expect(reducedBlock.length, "reduced-motion block must be non-empty").toBeGreaterThan(0);
   });
 
-  it("suppresses .run-state-spinner animation", () => {
-    expect(reducedBlock).toMatch(/\.run-state-spinner/);
-    expect(reducedBlock).toMatch(/animation:\s*none\s*!important/);
+  // ADR-0080: status indicators are EXEMPT from the reduced-motion guard.
+  // Their motion is functional (conveys "in progress"), sub-second, and
+  // low-amplitude. Freezing them collapses running / waiting / pending / idle
+  // into indistinguishable static glyphs. WCAG 2.3.3 targets parallax /
+  // large-amplitude effects, not functional progress indicators.
+  it("does NOT suppress .run-state-spinner animation (ADR-0080 exemption)", () => {
+    expect(reducedBlock).not.toMatch(/\.run-state-spinner/);
   });
 
-  it("suppresses .session-status-spinner animation", () => {
-    expect(reducedBlock).toMatch(/\.session-status-spinner/);
+  it("does NOT suppress .session-status-spinner animation (ADR-0080 exemption)", () => {
+    expect(reducedBlock).not.toMatch(/\.session-status-spinner/);
+  });
+
+  it("does NOT suppress .status-icon--running animation (ADR-0080 exemption)", () => {
+    expect(reducedBlock).not.toMatch(/\.status-icon--running/);
+  });
+
+  it("does NOT suppress .status-icon--pending animation (ADR-0080 exemption)", () => {
+    expect(reducedBlock).not.toMatch(/\.status-icon--pending/);
+  });
+
+  it("does NOT suppress .status-icon--waiting dots (ADR-0080 exemption)", () => {
+    expect(reducedBlock).not.toMatch(/\.status-icon--waiting/);
+  });
+
+  it("does NOT suppress .status-icon--idle filled-dot (ADR-0080 exemption)", () => {
+    expect(reducedBlock).not.toMatch(/\.status-icon--idle/);
+  });
+
+  // animation:none !important must still appear elsewhere in the block (drawer,
+  // toast, snackbar, palette flash) — assert that the rule pattern survives.
+  it("still applies animation:none !important to non-status-indicator elements", () => {
+    expect(reducedBlock).toMatch(/animation:\s*none\s*!important/);
   });
 
   it("suppresses .session-drawer transition and animation", () => {
