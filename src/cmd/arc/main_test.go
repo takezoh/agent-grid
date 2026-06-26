@@ -138,6 +138,7 @@ func stubMainDeps(t *testing.T) func() {
 	prevInitLogger := initLoggerWithDataDir
 	prevCloseLogger := closeLogger
 	prevRedirectStderr := redirectStderr
+	prevParseDaemonArgs := parseDaemonArgsFn
 	prevRunCoordinator := runCoordinatorFn
 	prevRunMainTUI := runMainTUIFn
 	prevRunSessionList := runSessionListFn
@@ -149,6 +150,7 @@ func stubMainDeps(t *testing.T) func() {
 		initLoggerWithDataDir = prevInitLogger
 		closeLogger = prevCloseLogger
 		redirectStderr = prevRedirectStderr
+		parseDaemonArgsFn = prevParseDaemonArgs
 		runCoordinatorFn = prevRunCoordinator
 		runMainTUIFn = prevRunMainTUI
 		runSessionListFn = prevRunSessionList

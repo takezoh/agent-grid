@@ -18,6 +18,7 @@ var (
 	initLoggerWithDataDir = logger.InitWithDataDir
 	closeLogger           = logger.Close
 	redirectStderr        = logger.RedirectStderr
+	parseDaemonArgsFn     = parseDaemonArgs
 	runCoordinatorFn      = runCoordinator
 	runHeaderTUIFn        = runHeaderTUI
 	runMainTUIFn          = runMainTUI
@@ -33,6 +34,31 @@ func main() {
 func runMain(args []string, stdout, stderr io.Writer) (code int) {
 	kind := classifyCommand(args)
 	cfg, cfgErr := loadBootstrapConfig()
+	// Resolve the coordinator's -data-dir flag once at the top so EVERY
+	// downstream call to config.ResolveDataDir() (logger init here, plus
+	// runCoordinator's own fresh loadConfig() in coordinator.go) returns
+	// the flag-specified path. We do this by exporting ROOST_DATA_DIR,
+	// which is the highest-precedence branch inside ResolveDataDir — that
+	// route makes the flag win over a stale shell env (systemd inherits
+	// the user's env on `systemctl --user start`, so an `export
+	// ROOST_DATA_DIR=…` in a developer's rc would otherwise silently
+	// override the unit's explicit ExecStart=… -data-dir).
+	//
+	// Parse runs regardless of cfgErr / cfg==nil so a malformed
+	// settings.toml never hides a bad -data-dir flag from the operator.
+	if kind == commandKindRoost {
+		dataDir, err := parseDaemonArgsFn(args)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s: %v\n", appid.ClientBin, err)
+			return 2
+		}
+		if dataDir != "" {
+			_ = os.Setenv("ROOST_DATA_DIR", dataDir)
+			if cfg != nil {
+				cfg.DataDir = dataDir
+			}
+		}
+	}
 	loggerReady, loggerErr := initMainLogger(cfg, kind == commandKindRoost)
 	if loggerReady {
 		defer closeLogger()

@@ -8,13 +8,23 @@ NOTIFY_PS1  := notify.ps1
 SRC_DIR     := src
 INSTALL_DIR    := $(HOME)/.local/bin
 LIBEXEC_DIR    := $(HOME)/.local/lib/agent-reactor
+SYSTEMD_USER_DIR := $(HOME)/.config/systemd/user
+
+# install-systemd renames the three production binaries to their runtime/server/
+# web roles so the systemd unit file ExecStart= lines and `journalctl --user -u
+# agent-reactor-…` namespacing read in service vocabulary rather than the
+# TUI-era binary name. The binaries themselves are unchanged.
+RUNTIME_BIN := agent-reactor-runtime
+SERVER_BIN  := agent-reactor-server
+WEB_BIN     := agent-reactor-web
 
 CODEX_SCHEMA_DIR := $(SRC_DIR)/platform/agent/codexschema
 CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
 .PHONY: build build-orchestrator build-claude-app-server build-server build-web build-all \
         build-web-frontend \
-        run-dev build-experimental install clean test test-race vet lint verify-bridge-deps \
+        run-dev build-experimental install install-systemd clean test test-race vet lint \
+        verify-bridge-deps \
         codex-schema-update codex-schema-check
 
 build:
@@ -55,6 +65,36 @@ install: build
 	install -m 755 $(BINARY) $(INSTALL_DIR)/$(BINARY)
 	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(BRIDGE)
 	install -m 644 $(NOTIFY_PS1) $(LIBEXEC_DIR)/$(NOTIFY_PS1)
+
+# install-systemd installs the three production binaries (runtime, server, web)
+# plus the runtime's helper libexec (reactor-bridge + notify.ps1) into the
+# user-scope locations consumed by deploy/systemd/agent-reactor-{runtime,server,
+# web}.service, and copies those unit files into ~/.config/systemd/user/.
+# Binaries are renamed to their service role on disk so unit-file ExecStart=
+# lines and journald output stay in runtime/server/web vocabulary.
+#
+# After `make install-systemd`, run `systemctl --user daemon-reload && \
+# systemctl --user enable --now agent-reactor-web.service` to start the stack;
+# see docs/user/systemd.md for the full procedure.
+#
+# The existing `install` target (TUI-only workflow) is intentionally left
+# untouched — operators running both can run both targets independently.
+install-systemd: build build-server build-web
+	install -d $(INSTALL_DIR) $(LIBEXEC_DIR) $(SYSTEMD_USER_DIR)
+	install -m 755 $(BINARY) $(INSTALL_DIR)/$(RUNTIME_BIN)
+	install -m 755 $(SERVER) $(INSTALL_DIR)/$(SERVER_BIN)
+	install -m 755 $(WEB)    $(INSTALL_DIR)/$(WEB_BIN)
+	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(BRIDGE)
+	install -m 644 $(NOTIFY_PS1) $(LIBEXEC_DIR)/$(NOTIFY_PS1)
+	install -m 644 deploy/systemd/agent-reactor-runtime.service $(SYSTEMD_USER_DIR)/
+	install -m 644 deploy/systemd/agent-reactor-server.service  $(SYSTEMD_USER_DIR)/
+	install -m 644 deploy/systemd/agent-reactor-web.service     $(SYSTEMD_USER_DIR)/
+	@echo
+	@echo "Installed. Next:"
+	@echo "  systemctl --user daemon-reload"
+	@echo "  systemctl --user enable --now agent-reactor-web.service"
+	@echo "  loginctl enable-linger $$USER   # boot-time autostart"
+	@echo "See docs/user/systemd.md for the full guide."
 
 test:
 	cd $(SRC_DIR) && go test ./...

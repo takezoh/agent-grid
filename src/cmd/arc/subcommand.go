@@ -20,6 +20,9 @@ func classifyCommand(args []string) commandKind {
 	if len(args) == 0 {
 		return commandKindRoost
 	}
+	if isCoordinatorFlag(args[0]) {
+		return commandKindRoost
+	}
 	if args[0] == "--tui" {
 		return commandKindDaemon
 	}
@@ -33,7 +36,7 @@ func classifyCommand(args []string) commandKind {
 }
 
 func runCommand(args []string, stdout io.Writer) error {
-	if len(args) == 0 {
+	if len(args) == 0 || isCoordinatorFlag(args[0]) {
 		return runCoordinatorFn()
 	}
 	if isHelpCommand(args[0]) {

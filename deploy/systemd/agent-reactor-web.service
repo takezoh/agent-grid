@@ -1,0 +1,35 @@
+# agent-reactor web — UI host. Serves the embedded browser bundle (React +
+# xterm.js) at / and reverse-proxies /api + /ws to agent-reactor-server. The
+# browser talks only to this origin, so the page's CSP and the WebSocket
+# origin check hold while the gateway can stay a headless API.
+#
+# Default bind is 127.0.0.1:8080 + -insecure (loopback only). Operators
+# wanting external access should set -tls-cert / -tls-key + re-bind via
+# web.env; otherwise the recommended path is `ssh -L 8080:127.0.0.1:8080
+# host` from a workstation.
+
+[Unit]
+Description=agent-reactor web (UI host)
+# Operator guide: docs/user/systemd.md in the agent-reactor source repo.
+After=agent-reactor-server.service
+Requires=agent-reactor-server.service
+# BindsTo cascades server stops into us — without it the proxy would
+# 502-loop until systemd restarted server.
+BindsTo=agent-reactor-server.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/agent-reactor-web \
+  -addr 127.0.0.1:8080 -insecure \
+  -server http://127.0.0.1:8443
+EnvironmentFile=-%S/agent-reactor/web.env
+
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=5s
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

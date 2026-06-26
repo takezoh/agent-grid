@@ -78,6 +78,11 @@ const daemonShutdownTimeout = 5 * time.Second
 func run() error {
 	addr := flag.String("addr", ":8443", "listen address")
 	tokenFlag := flag.String("token", "", "bearer token (generated and printed if empty); ignored with -no-auth")
+	tokenFile := flag.String("token-file", "",
+		"path to a file holding the bearer token; if the file does not exist "+
+			"it is created (mode 0600) with a freshly generated token, so the "+
+			"value survives restarts. Mutually exclusive with -token; ignored "+
+			"with -no-auth.")
 	certFile := flag.String("tls-cert", "", "TLS certificate file (self-signed if empty)")
 	keyFile := flag.String("tls-key", "", "TLS key file")
 	insecure := flag.Bool("insecure", false, "serve plain HTTP (no TLS) — local dev only")
@@ -98,7 +103,7 @@ func run() error {
 			"binary, falling back to PATH lookup. Only consulted with -data-dir.")
 	flag.Parse()
 
-	token, err := resolveAuth(*tokenFlag, *noAuth, *addr)
+	token, err := resolveAuth(*tokenFlag, *tokenFile, *noAuth, *addr)
 	if err != nil {
 		return err
 	}
@@ -141,17 +146,103 @@ func run() error {
 // token is replaced with a freshly minted random one. -no-auth additionally
 // refuses non-loopback binds to keep the unauthenticated REST surface
 // off-network.
-func resolveAuth(tokenFlag string, noAuth bool, addr string) (string, error) {
+//
+// Precedence (highest first): -no-auth > -token > -token-file > random.
+// -token and -token-file are mutually exclusive: silent precedence between
+// "value flag" and "file flag" hides operator intent (was the literal stale,
+// or did the file path typo?). Surface that ambiguity BEFORE the -no-auth
+// short-circuit so a misconfig is reported now, not the moment an operator
+// later removes -no-auth and the hidden conflict suddenly becomes fatal.
+func resolveAuth(tokenFlag, tokenFile string, noAuth bool, addr string) (string, error) {
+	if tokenFlag != "" && tokenFile != "" {
+		return "", errors.New("-token and -token-file are mutually exclusive; pick one")
+	}
 	if noAuth {
 		if !isLoopbackAddr(addr) {
 			return "", fmt.Errorf("-no-auth refuses non-loopback bind %q (use 127.0.0.1:<port> or localhost:<port>)", addr)
 		}
 		return "", nil
 	}
-	if tokenFlag == "" {
-		return randToken(), nil
+	if tokenFlag != "" {
+		return tokenFlag, nil
 	}
-	return tokenFlag, nil
+	if tokenFile != "" {
+		return tokenFromFile(tokenFile)
+	}
+	return randToken(), nil
+}
+
+// tokenFromFile reads the bearer token from path, or generates and persists a
+// fresh one if the file is absent or empty. Persisted form is the raw hex
+// token followed by a newline so cat / sed-friendly tools see a sensible value.
+//
+// Persistence uses write-tmp-then-rename to guarantee atomicity: a crash
+// between truncate and write would otherwise leave a zero-byte file, which
+// this same function treats as "regenerate" on next boot — silently rotating
+// the token and invalidating every bookmarked browser URL the systemd unit
+// guide promises will survive restarts. The tmp file is chmod'd 0600 before
+// rename, which also forces tight permissions on a pre-existing target path
+// that an operator might have created with looser permissions (os.WriteFile
+// inherits the existing file's mode and would otherwise leak the secret).
+func tokenFromFile(path string) (string, error) {
+	if data, err := os.ReadFile(path); err == nil {
+		if tok := strings.TrimSpace(string(data)); tok != "" {
+			// Best-effort tighten in case the file pre-existed at a looser
+			// mode (e.g. 0644 from a manual edit). Failure here is not
+			// fatal — the token is still functional; leaving the warning
+			// to journald would just add noise on every boot.
+			_ = os.Chmod(path, 0o600)
+			return tok, nil
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("read token file %q: %w", path, err)
+	}
+	dir := filepath.Dir(path)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return "", fmt.Errorf("mkdir parent of token file %q: %w", path, err)
+		}
+	}
+	tok := randToken()
+	return tok, writeTokenAtomic(path, tok)
+}
+
+// writeTokenAtomic writes "<tok>\n" to path via a temp file in the same
+// directory followed by an atomic rename. The temp file is chmod'd 0600
+// before rename so even a brief intermediate exposure window is at the
+// final mode. On any error mid-flight the temp file is removed so a
+// half-written secret does not linger.
+func writeTokenAtomic(path, tok string) error {
+	dir := filepath.Dir(path)
+	if dir == "" {
+		dir = "."
+	}
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".*")
+	if err != nil {
+		return fmt.Errorf("create temp for token file %q: %w", path, err)
+	}
+	tmpName := tmp.Name()
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}
+	if _, err := tmp.WriteString(tok + "\n"); err != nil {
+		cleanup()
+		return fmt.Errorf("write temp token file %q: %w", tmpName, err)
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		cleanup()
+		return fmt.Errorf("chmod temp token file %q: %w", tmpName, err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("close temp token file %q: %w", tmpName, err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("rename temp token file %q to %q: %w", tmpName, path, err)
+	}
+	return nil
 }
 
 // buildHTTPHandler picks the appropriate mux variant and bolts on /healthz.

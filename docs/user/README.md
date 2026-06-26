@@ -16,5 +16,7 @@ Agent Reactor ships three binaries that map onto the [three-layer architecture](
 - [client TUI](reactor-tui.md) — the `client` layer for end users: key bindings, session states, command palette, configuration
 - [orchestrator](orchestrator.md) — the `orchestrator` layer for end users: running a `WORKFLOW.md` pipeline, agent selection, observability HTTP
 - [sandbox setup](sandbox.md) — the `platform` layer for end users: per-project devcontainer isolation and credential proxy
+- [web stack (ad-hoc launch)](web-server.md) — the browser-facing `server` + `web` processes for local/dev use
+- [run as a systemd service](systemd.md) — production stack (`runtime` + `server` + `web`) as per-user systemd units, with token persistence and boot-time autostart
 
 For internals, see the [technical docs](../technical/README.md).
