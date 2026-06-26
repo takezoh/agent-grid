@@ -49,8 +49,15 @@ export function titleText(card: Card): string {
   return card.title?.trim() || TITLE_PLACEHOLDER;
 }
 
+// subtitleText returns the Subtitle row text, or "" when it would exactly
+// duplicate the Title row. The driver-side chain (resolveCardTitleSubtitle)
+// keeps Card.Subtitle populated even when Summary was hoisted into Title so
+// non-rendering consumers (peer-summary fallback, send-to-session palette)
+// keep their label source; the UI hides the duplicate here.
 export function subtitleText(card: Card): string {
-  return card.subtitle?.trim() ?? "";
+  const sub = card.subtitle?.trim() ?? "";
+  if (sub === "" || sub === card.title?.trim()) return "";
+  return sub;
 }
 
 /**

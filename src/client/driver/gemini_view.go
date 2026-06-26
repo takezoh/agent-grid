@@ -20,9 +20,11 @@ func (d GeminiDriver) view(gs GeminiState) state.View {
 		tabs = append(tabs, *tab)
 	}
 
+	title, subtitle := resolveCardTitleSubtitle(gs.Title, gs.Summary, gs.LastPrompt)
 	return state.View{
 		Card: state.Card{
-			Subtitle:    firstNonEmpty(gs.Summary, gs.LastPrompt),
+			Title:       title,
+			Subtitle:    subtitle,
 			Tags:        tags,
 			BorderTitle: GeminiCommandTag(),
 			BorderBadge: fishpath.Shorten(gs.StartDir, ""),

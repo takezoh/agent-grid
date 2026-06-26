@@ -48,8 +48,8 @@ func (p *Parser) parseLine(line []byte) []Entry {
 		entries = parseAttachmentEntry(line)
 	case "file-history-snapshot":
 		entries = parseFileSnapshotEntry(line)
-	case "custom-title":
-		entries = parseCustomTitleEntry(line)
+	case "custom-title", "ai-title":
+		entries = parseTitleEntry(line)
 	case "agent-name":
 		entries = parseAgentNameEntry(line)
 	case "last-prompt":
@@ -174,14 +174,30 @@ func parseFileSnapshotEntry(line []byte) []Entry {
 	return []Entry{{Kind: KindFileSnapshot, Text: fmt.Sprintf("%d tracked", n)}}
 }
 
-func parseCustomTitleEntry(line []byte) []Entry {
+// parseTitleEntry accepts both legacy {customTitle} and current {aiTitle}
+// title records emitted by Claude Code.
+func parseTitleEntry(line []byte) []Entry {
 	var v struct {
 		CustomTitle string `json:"customTitle"`
+		AITitle     string `json:"aiTitle"`
 	}
-	if json.Unmarshal(line, &v) != nil || v.CustomTitle == "" {
+	if json.Unmarshal(line, &v) != nil {
 		return nil
 	}
-	return []Entry{{Kind: KindCustomTitle, Text: v.CustomTitle}}
+	title := firstNonEmptyTitle(v.AITitle, v.CustomTitle)
+	if title == "" {
+		return nil
+	}
+	return []Entry{{Kind: KindCustomTitle, Text: title}}
+}
+
+func firstNonEmptyTitle(candidates ...string) string {
+	for _, s := range candidates {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 func parseAgentNameEntry(line []byte) []Entry {

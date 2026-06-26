@@ -1329,20 +1329,6 @@ func TestClaudeViewBranchTagWorktree(t *testing.T) {
 	}
 }
 
-func TestClaudeViewSubtitleFallsBackToLastPrompt(t *testing.T) {
-	d, cs, _ := newClaude(t)
-	cs.LastPrompt = "the prompt"
-	v := d.view(cs)
-	if v.Card.Subtitle != "the prompt" {
-		t.Errorf("Subtitle = %q, want the prompt", v.Card.Subtitle)
-	}
-	cs.Summary = "the summary"
-	v = d.view(cs)
-	if v.Card.Subtitle != "the summary" {
-		t.Errorf("Subtitle = %q, want the summary (summary should win)", v.Card.Subtitle)
-	}
-}
-
 func TestClaudeViewLogTabsTranscript(t *testing.T) {
 	d, cs, _ := newClaude(t)
 	cs.StartDir = "/work"

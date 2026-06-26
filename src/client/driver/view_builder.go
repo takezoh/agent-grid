@@ -2,6 +2,7 @@ package driver
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/takezoh/agent-reactor/client/state"
 )
@@ -35,6 +36,30 @@ func firstNonEmpty(candidates ...string) string {
 		}
 	}
 	return ""
+}
+
+// resolveCardTitleSubtitle picks Title from aiTitle→summary→"" and Subtitle
+// from summary→lastPrompt→"". LastPrompt is never a Title candidate (only an
+// AI title or a user-prompt summary qualifies). Subtitle is intentionally
+// NOT deduped against Title here — downstream consumers that read Card.Subtitle
+// as the human-context source (peer-summary fallback in reduce_peer.go,
+// send-to-session palette label in tools/builtin.go) need it populated even
+// when Summary was hoisted into Title. The web SessionList row and the TUI
+// session card render the dedup so the same string never appears twice on
+// screen.
+func resolveCardTitleSubtitle(aiTitle, summary, lastPrompt string) (string, string) {
+	// Multi-line summaries (legacy persisted, pre-single-line constraint)
+	// are NOT Title candidates. The Title row has no per-line splitter, and
+	// promoting only the first line would leave the same line in the
+	// Subtitle row's multi-line splitter (tui/view.go sessionCardLines /
+	// SessionList.subtitleText), defeating dedup. For those sessions Title
+	// stays empty (placeholder "New Session" in the web client) and the
+	// multi-line Subtitle row keeps the legacy rendering path.
+	summaryAsTitle := summary
+	if strings.ContainsRune(summaryAsTitle, '\n') {
+		summaryAsTitle = ""
+	}
+	return firstNonEmpty(aiTitle, summaryAsTitle), firstNonEmpty(summary, lastPrompt)
 }
 
 // previewText truncates long text for display in info lines.

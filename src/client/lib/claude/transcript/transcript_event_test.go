@@ -127,6 +127,24 @@ func TestParser_CustomTitle(t *testing.T) {
 	}
 }
 
+// TestParser_AITitle locks the post-2026-Q2 Claude Code transcript shape:
+//
+//	{"type":"ai-title","aiTitle":"…"}
+//
+// replaces the legacy {"type":"custom-title","customTitle":"…"} record. The
+// parser must accept both shapes so a Claude Code upgrade does not silently
+// strand every session card on the "New Session" placeholder.
+func TestParser_AITitle(t *testing.T) {
+	p := NewParser(ParserOptions{})
+	entries := p.ParseLines([]byte(`{"type":"ai-title","aiTitle":"investigate Web title"}`))
+	if len(entries) != 1 || entries[0].Kind != KindCustomTitle {
+		t.Fatalf("got %+v", entries)
+	}
+	if entries[0].Text != "investigate Web title" {
+		t.Errorf("Text = %q", entries[0].Text)
+	}
+}
+
 func TestParser_AgentName(t *testing.T) {
 	p := NewParser(ParserOptions{})
 	entries := p.ParseLines([]byte(`{"type":"agent-name","agentName":"transcript-status"}`))

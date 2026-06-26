@@ -25,10 +25,11 @@ func (d CodexDriver) view(cs CodexState) state.View {
 		tabs = append(tabs, *tab)
 	}
 
+	title, subtitle := resolveCardTitleSubtitle(cs.Title, cs.Summary, cs.LastPrompt)
 	return state.View{
 		Card: state.Card{
-			Title:       cs.Title,
-			Subtitle:    firstNonEmpty(cs.Summary, cs.LastPrompt),
+			Title:       title,
+			Subtitle:    subtitle,
 			Tags:        tags,
 			BorderTitle: CodexCommandTag(),
 			BorderBadge: fishpath.Shorten(cs.StartDir, ""),

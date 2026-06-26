@@ -287,6 +287,30 @@ func TestHandleMouseWheelScrollsWhenOverflows(t *testing.T) {
 	}
 }
 
+// TestSessionCardLinesDedupesSubtitleAgainstTitle locks the TUI dedup that
+// pairs with the data-layer chain in resolveCardTitleSubtitle: when Title
+// and Subtitle carry the same string (which the driver chain does
+// intentionally so non-rendering consumers keep a label source), the TUI
+// must NOT render the subtitle row twice.
+func TestSessionCardLinesDedupesSubtitleAgainstTitle(t *testing.T) {
+	s := &proto.SessionInfo{
+		State: state.StatusRunning,
+		View: state.View{
+			Card: state.Card{Title: "shared text", Subtitle: "shared text"},
+		},
+	}
+	lines := sessionCardLines(s, 80, "")
+	count := 0
+	for _, line := range lines {
+		if strings.Contains(line, "shared text") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 'shared text' to render exactly once (Title only), got %d lines", count)
+	}
+}
+
 func TestSessionCardLinesNoStateTextOrElapsed(t *testing.T) {
 	s := &proto.SessionInfo{
 		State: state.StatusRunning,

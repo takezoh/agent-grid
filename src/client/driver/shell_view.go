@@ -7,9 +7,11 @@ import (
 )
 
 func (d ShellDriver) view(ss ShellState) state.View {
+	title, subtitle := resolveCardTitleSubtitle(ss.Title, ss.Summary, ss.LastPrompt)
 	return state.View{
 		Card: state.Card{
-			Subtitle:    ss.Summary,
+			Title:       title,
+			Subtitle:    subtitle,
 			BorderTitle: ShellCommandTag(d.displayName),
 			Tags:        shellTags(ss),
 		},

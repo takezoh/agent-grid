@@ -257,15 +257,19 @@ func sessionCardLines(s *proto.SessionInfo, textWidth int, notifLine string) []s
 	}
 
 	var lines []string
-	if title := s.View.Card.Title; title != "" {
+	title := s.View.Card.Title
+	if title != "" {
 		lines = append(lines, cardTitleStyle.Render(truncate(title, titleWidth)))
 	}
 
 	// Subtitle may carry an embedded newline-separated multi-line summary.
 	// Summaries are now single-line, but older persisted summaries can still
 	// be multi-line; split and render each line independently so they get a
-	// row each instead of a literal "\n" rendered onto one line.
-	if subtitle := s.View.Card.Subtitle; subtitle != "" {
+	// row each instead of a literal "\n" rendered onto one line. Skip the
+	// row entirely when Subtitle exactly duplicates Title — the driver-side
+	// chain (resolveCardTitleSubtitle) keeps both populated so non-rendering
+	// consumers (peer-summary fallback, palette label) still see Subtitle.
+	if subtitle := s.View.Card.Subtitle; subtitle != "" && subtitle != title {
 		n := 0
 		for _, sub := range strings.Split(subtitle, "\n") {
 			if sub == "" {

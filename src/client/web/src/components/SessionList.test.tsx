@@ -54,6 +54,19 @@ describe("subtitleText", () => {
   it("never references the session id (no leakage of internal identifiers)", () => {
     expect(subtitleText({})).not.toMatch(/^[a-z0-9-]+$/);
   });
+
+  // Dedup pairs with the driver-side chain (resolveCardTitleSubtitle): the
+  // data layer keeps Card.Subtitle = Summary even when Title was hoisted
+  // from the same Summary, so non-rendering consumers keep a label source.
+  // The UI hides the duplicate row.
+  it("returns empty when subtitle exactly duplicates title", () => {
+    expect(subtitleText({ title: "summary", subtitle: "summary" })).toBe("");
+    expect(subtitleText({ title: "  trimmed  ", subtitle: "trimmed" })).toBe("");
+  });
+
+  it("keeps subtitle when it differs from title (no false dedup)", () => {
+    expect(subtitleText({ title: "ai-title", subtitle: "summary" })).toBe("summary");
+  });
 });
 
 describe("displayLabel (deprecated, kept for back-compat)", () => {

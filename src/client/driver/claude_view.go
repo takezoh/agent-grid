@@ -45,10 +45,11 @@ func (d ClaudeDriver) view(cs ClaudeState) state.View {
 		logTabs = append(logTabs, *tab)
 	}
 
+	title, subtitle := resolveCardTitleSubtitle(cs.Title, cs.Summary, cs.LastPrompt)
 	return state.View{
 		Card: state.Card{
-			Title:       cs.Title,
-			Subtitle:    firstNonEmpty(cs.Summary, cs.LastPrompt),
+			Title:       title,
+			Subtitle:    subtitle,
 			Tags:        tags,
 			BorderTitle: CommandTag(ClaudeDriverName),
 			BorderBadge: fishpath.Shorten(cs.StartDir, d.home),
