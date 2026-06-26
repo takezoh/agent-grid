@@ -103,11 +103,6 @@
   font-weight: 700;
   color: var(--fg);
 }
-.driver-view-subtitle {
-  margin: 0;
-  font-size: 12px;
-  opacity: 0.7;
-}
 .driver-view-tags {
   display: flex;
   flex-wrap: wrap;

@@ -18,29 +18,34 @@ describe("DriverViewPanel", () => {
     vi.useRealTimers();
   });
 
-  it("renders card title and subtitle", () => {
-    const view = makeView({ card: { title: "My Title", subtitle: "My Subtitle" } });
+  it("renders card title", () => {
+    const view = makeView({ card: { title: "My Title" } });
     render(<DriverViewPanel view={view} />);
     expect(screen.getByText("My Title")).toBeTruthy();
-    expect(screen.getByText("My Subtitle")).toBeTruthy();
   });
 
-  it("ADR-0076: preserves the full title/subtitle text in the DOM (no JS truncation)", () => {
+  it("never renders card.subtitle in the header (Subtitle slot was removed)", () => {
+    const view = makeView({ card: { title: "My Title", subtitle: "My Subtitle" } });
+    const { container } = render(<DriverViewPanel view={view} />);
+    expect(screen.getByText("My Title")).toBeTruthy();
+    expect(container.querySelector(".driver-view-subtitle")).toBeNull();
+    expect(container.textContent).not.toMatch(/My Subtitle/);
+  });
+
+  it("ADR-0076: preserves the full title text in the DOM (no JS truncation)", () => {
     const longTitle = "T".repeat(140);
-    const longSubtitle = "S".repeat(140);
-    const view = makeView({ card: { title: longTitle, subtitle: longSubtitle } });
+    const view = makeView({ card: { title: longTitle } });
     render(<DriverViewPanel view={view} />);
     expect(screen.getByText(longTitle)).toBeTruthy();
-    expect(screen.getByText(longSubtitle)).toBeTruthy();
   });
 
-  it("ADR-0076: session-list.css clamps driver-view-title/subtitle width with text-overflow", () => {
+  it("ADR-0076: session-list.css clamps driver-view-title width with text-overflow", () => {
     const cssDir = path.resolve(__dirname, "../css");
     // The clamp declarations are co-located in session-list.css so view.css
     // stays under its 500-line FR-FRAMEWORK-001 cap. Cascade order is unaffected.
     const css = fs.readFileSync(path.join(cssDir, "session-list.css"), "utf-8");
     expect(css).toContain(".driver-view-title");
-    expect(css).toContain(".driver-view-subtitle");
+    expect(css).not.toContain(".driver-view-subtitle");
     expect(css).toMatch(/max-width:\s*100ch/);
     expect(css).toMatch(/text-overflow:\s*ellipsis/);
     expect(css).toMatch(/white-space:\s*nowrap/);

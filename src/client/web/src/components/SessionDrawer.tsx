@@ -119,7 +119,7 @@ export function SessionDrawer({
     if (!open) return;
     if (activeSessionID === null) return;
     if (prev === activeSessionID) return;
-    // displayLabel chain (ADR-0033): title → subtitle → id (shared with SessionList).
+    // displayLabel: title (or "New Session" placeholder) — shared with SessionList.
     const sess = sessions.find((s) => s.id === activeSessionID);
     const label = displayLabel(sess?.view?.card ?? {}, activeSessionID);
     onSelectionClose(prev, activeSessionID, label);

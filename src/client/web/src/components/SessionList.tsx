@@ -11,7 +11,8 @@
 //     active-session highlight never drifts to a different project.
 //
 // ADRs retained:
-//   - ADR-0076 (2-slot Title + Subtitle, "New Session" placeholder, supersedes 0033)
+//   - ADR-0076 (Title slot with "New Session" placeholder, supersedes 0033 —
+//     Subtitle row was removed; user-prompt summary no longer surfaces on the card)
 //   - ADR-0032 (session-status-slot + session-status-spinner kept)
 //   - ADR-0030 (conn prop retained for API compat; SessionList does not own
 //     subscriptions — TerminalPane owns them)
@@ -35,12 +36,13 @@ import { TagPill } from "./primitives/TagPill";
 import { UnifiedListbox } from "./primitives/UnifiedListbox";
 
 // ---------------------------------------------------------------------------
-// Title / Subtitle slot policy (ADR-0076)
+// Title slot policy (ADR-0076)
 //
 // The session ID is NEVER rendered as user-visible text — operators do not
-// need to read it to identify a session. When both Title and Subtitle are
-// empty the Title slot falls back to TITLE_PLACEHOLDER; the Subtitle row
-// is hidden entirely when there is nothing to show.
+// need to read it to identify a session. When Title is empty the slot falls
+// back to TITLE_PLACEHOLDER. The Subtitle row that ADR-0076 originally
+// introduced has been removed: the last-user-prompt summary that surfaced
+// there is no longer shown on the card, so only Title remains.
 // ---------------------------------------------------------------------------
 
 export const TITLE_PLACEHOLDER = "New Session";
@@ -49,20 +51,9 @@ export function titleText(card: Card): string {
   return card.title?.trim() || TITLE_PLACEHOLDER;
 }
 
-// subtitleText returns the Subtitle row text, or "" when it would exactly
-// duplicate the Title row. The driver-side chain (resolveCardTitleSubtitle)
-// keeps Card.Subtitle populated even when Summary was hoisted into Title so
-// non-rendering consumers (peer-summary fallback, send-to-session palette)
-// keep their label source; the UI hides the duplicate here.
-export function subtitleText(card: Card): string {
-  const sub = card.subtitle?.trim() ?? "";
-  if (sub === "" || sub === card.title?.trim()) return "";
-  return sub;
-}
-
 /**
- * @deprecated Use {@link titleText} / {@link subtitleText} directly. Kept
- * only for tests that still target the legacy 1-slot chain.
+ * @deprecated Use {@link titleText} directly. Kept only for tests that still
+ * target the legacy 1-slot chain.
  */
 export function displayLabel(card: Card, _id: string): string {
   return titleText(card);
@@ -81,17 +72,15 @@ export function displayLabel(card: Card, _id: string): string {
 // SessionRow — one row rendered inside UnifiedListbox as label prop
 // ---------------------------------------------------------------------------
 //
-// Card layout (ADR-0076 — Title + Subtitle as complementary slots):
+// Card layout (Title-only — subtitle row removed):
 //
 //   ┃ ● <title or "New Session">      [driver]
-//   ┃   <subtitle (CSS-clamped to ≈25ch, ellipsis)>
 //   ┃   [tag] [tag]  <border_badge>
 //
-// Title is always shown (with TITLE_PLACEHOLDER fallback). Subtitle is a
-// separate row, rendered only when non-empty. Width clamping happens in
-// CSS (max-width + text-overflow: ellipsis) so the full string stays in
-// the DOM — copy/find/screen-readers all see the original text. The Go
-// driver layer also caps the raw value at 30 code-points as a backstop.
+// Title is always shown (with TITLE_PLACEHOLDER fallback). Width clamping
+// happens in CSS (max-width + text-overflow: ellipsis) so the full string
+// stays in the DOM — copy/find/screen-readers all see the original text.
+// The Go driver layer also caps the raw value at 30 code-points as a backstop.
 
 interface SessionRowProps {
   session: SessionInfo;
@@ -103,7 +92,6 @@ function SessionRow({ session, isActive }: SessionRowProps) {
   const status = session.view.status;
   const normalized = toStatusKind(status);
   const title = titleText(card);
-  const subtitle = subtitleText(card);
 
   const driver = session.root_driver?.trim() || undefined;
   // Memoize the chip style by driver name so the {backgroundColor, color}
@@ -150,7 +138,6 @@ function SessionRow({ session, isActive }: SessionRowProps) {
             </span>
           )}
         </div>
-        {subtitle && <div className="session-list__subtitle">{subtitle}</div>}
         {showTags && (
           <div className="session-list__tags" aria-label="session tags">
             {tags.map((t, i) => (

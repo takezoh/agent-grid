@@ -23,7 +23,6 @@ export function DriverViewPanel({ view }: DriverViewPanelProps) {
       <header className="driver-view-header">
         <div className="driver-view-titles">
           {card.title && <h2 className="driver-view-title">{card.title}</h2>}
-          {card.subtitle && <p className="driver-view-subtitle">{card.subtitle}</p>}
         </div>
         <RunStateBadge status={view.status} />
       </header>
