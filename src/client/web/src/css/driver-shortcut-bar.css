@@ -1,0 +1,72 @@
+/* driver-shortcut-bar.css — モバイル入力モード時に出る driver 固有 shortcut bar.
+ *
+ * 配置: .terminal-fab-layer の中で bottom-left anchor.
+ *   - bottom-right: KeyboardFAB / JumpToLatestFAB (既存) と衝突しない.
+ *   - bottom: --terminal-fab-offset を読んで iOS soft keyboard 上に lift.
+ *
+ * pointer-events: layer は :none、bar 子要素 (button) は :auto. .terminal-fab-layer
+ * の `.terminal-fab-layer > *` rule に効くので bar 自体は auto になる. 子の
+ * IconButton は icon-button.css 既定が auto.
+ *
+ * 横スクロール: 320px 幅でも 3 button が収まるよう horizontal scroll を許可.
+ */
+
+.driver-shortcut-bar {
+  position: absolute;
+  left: 12px;
+  bottom: var(--terminal-fab-offset, 16px);
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--input-bg, rgba(20, 20, 24, 0.92));
+  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+  /* 右側に KeyboardFAB (~ 60px) があるので余白 (16px + 44px + 12px) を残し
+     overflow scrollable. */
+  max-width: calc(100vw - 88px);
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  /* iOS scroll bounce を抑えつつ horizontal pan は許可. */
+  overscroll-behavior-x: contain;
+  animation: driver-shortcut-bar__in 180ms ease-out;
+}
+
+.driver-shortcut-bar::-webkit-scrollbar {
+  display: none; /* Chromium / Safari */
+}
+
+.driver-shortcut-bar__btn {
+  /* IconButton 44x44 既定の中に label テキストを center. */
+  flex-shrink: 0;
+  min-width: 56px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--fg, #e6e6e6);
+  background: transparent;
+  border-radius: 8px;
+}
+
+.driver-shortcut-bar__btn:hover,
+.driver-shortcut-bar__btn:focus-visible {
+  background: var(--input-bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+@keyframes driver-shortcut-bar__in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-shortcut-bar {
+    animation: none;
+  }
+}

@@ -29,8 +29,10 @@ import { useInputMode } from "../hooks/useInputMode";
 import { useJumpToLatest } from "../hooks/useJumpToLatest";
 import { type TerminalLike, useTerminalTouchGestures } from "../hooks/useTerminalTouchGestures";
 import { useVisualViewportLift } from "../hooks/useVisualViewportLift";
+import { useDaemonStore } from "../store/daemon";
 import { AriaLiveStatus } from "./AriaLiveStatus";
 import { Coachmark } from "./Coachmark";
+import { DriverShortcutBar } from "./DriverShortcutBar";
 import { FontSizeControl } from "./FontSizeControl";
 import { JumpToLatestFAB } from "./JumpToLatestFAB";
 import { KeyboardFAB } from "./KeyboardFAB";
@@ -114,6 +116,15 @@ function TerminalMobileLayer(props: TerminalMobileOverlayProps): JSX.Element {
   // first-run coachmark (ADR 0072): shown once on the initial view-mode entry.
   const coach = useCoachmarkOnce({ active: !input.active });
 
+  // Active session の driver を引いて DriverShortcutBar に渡す.
+  // sessions / activeSessionID は安定参照 (applyViewUpdate が identity 保全)
+  // なので無駄な再 render は起きない.
+  const activeDriver = useDaemonStore((s) => {
+    if (!s.activeSessionID) return null;
+    const sess = s.sessions.find((x) => x.id === s.activeSessionID);
+    return sess?.root_driver ?? null;
+  });
+
   return (
     <>
       {/* FR-MOB-FAB-004 fixed stack; absolute sibling of terminal-host (UAC-025). */}
@@ -126,6 +137,7 @@ function TerminalMobileLayer(props: TerminalMobileOverlayProps): JSX.Element {
           onDecrease={font.decrease}
           onReset={() => font.reset()}
         />
+        <DriverShortcutBar driver={activeDriver} inputActive={input.active} sendInput={sendInput} />
         {coach.showCoachmark && <Coachmark onDismiss={coach.dismiss} />}
         <AriaLiveStatus />
       </div>

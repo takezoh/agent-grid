@@ -167,6 +167,50 @@ export function groupSessionsByProject(
   });
 }
 
+/** selectNextActiveAfterDelete — 削除した session の次に active にすべき session を返す.
+ *
+ *  優先順位 (削除した session の workspace 内、insertion order = CreatedAt 順で):
+ *    1. 同じ project に残るセッションのうち削除位置の「次」(index +1 方向),
+ *       無ければ「前」(index -1 方向)
+ *    2. 同 workspace の他 project から同様に「次 → 前」の最近接
+ *    3. null (workspace に何も残らなければ)
+ *
+ *  入力 sessions の並びはサイドバー render 順 (daemon が CreatedAt 順で emit)
+ *  と一致するため、ユーザは視覚的に隣接した session に focus が移る. id は
+ *  ランダム hex (reduce_helpers.go allocSessionID) なので localeCompare で
+ *  並べると random jump になる — それを避けるためここでは sort しない.
+ *
+ *  純粋関数なので store の外でも使えるし test しやすい.
+ */
+export function selectNextActiveAfterDelete(
+  sessions: readonly SessionInfo[],
+  deletedId: string,
+): string | null {
+  const idx = sessions.findIndex((s) => s.id === deletedId);
+  if (idx === -1) return null;
+  const deleted = sessions[idx];
+  if (!deleted) return null;
+  const ws = workspaceOf(deleted);
+  const project = deleted.project ?? "";
+
+  const pickNearest = (predicate: (s: SessionInfo) => boolean): string | null => {
+    // 削除位置の後方を優先 (sidebar で下方向の隣を選ぶ感覚)、無ければ前方.
+    for (let i = idx + 1; i < sessions.length; i++) {
+      const s = sessions[i];
+      if (s && predicate(s)) return s.id;
+    }
+    for (let i = idx - 1; i >= 0; i--) {
+      const s = sessions[i];
+      if (s && predicate(s)) return s.id;
+    }
+    return null;
+  };
+
+  const sameProject = pickNearest((s) => workspaceOf(s) === ws && (s.project ?? "") === project);
+  if (sameProject) return sameProject;
+  return pickNearest((s) => workspaceOf(s) === ws);
+}
+
 // DaemonSnapshotSource is the structural subset of DaemonState that
 // selectDaemonSnapshot consumes. Defining it as a structural type (not as
 // `Pick<DaemonState, ...>`) lets React-side callers pass narrowed inputs

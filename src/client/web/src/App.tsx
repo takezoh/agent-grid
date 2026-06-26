@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { makeSessionsApi } from "./api/sessions";
 import type { ApiHttpError } from "./api/sessions";
 import { readBearerTokenFromHash } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { CommandSearchTrigger } from "./components/CommandSearchTrigger";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { DriverViewPanel } from "./components/DriverViewPanel";
 import { MainTabs } from "./components/MainTabs";
 import { NotificationToast } from "./components/NotificationToast";
@@ -13,6 +14,8 @@ import { TerminalPane } from "./components/TerminalPane";
 import { ThemeSegmentedControl } from "./components/ThemeSegmentedControl";
 import { CommandPalette } from "./components/palette/CommandPalette";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
+import { useMobileGate } from "./hooks/useMobileGate";
+import { useTerminateSession } from "./hooks/useTerminateSession";
 import { Connection } from "./socket/connection";
 import { useDaemonStore } from "./store/daemon";
 import { useNotificationsStore } from "./store/notifications";
@@ -92,6 +95,29 @@ export function App() {
     s.activeSessionID ? (s.sessions.find((x) => x.id === s.activeSessionID) ?? null) : null,
   );
 
+  // セッション終了 confirm dialog の state. 単一インスタンスを App 直下で
+  // 持ち overlays に mount する. dialog の variant は mobile gate に応じて
+  // sheet / modal を出し分け.
+  const [terminationTarget, setTerminationTarget] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
+  // dialog close 時に focus を戻す opener (× button) を保持.
+  // ConfirmDialog は openerRef.current?.focus() で復元する.
+  const terminationOpenerRef = useRef<HTMLElement | null>(null);
+  const handleRequestTerminate = useCallback((id: string, label: string, opener: HTMLElement) => {
+    terminationOpenerRef.current = opener;
+    setTerminationTarget({ id, label });
+  }, []);
+  const closeTermination = useCallback(() => setTerminationTarget(null), []);
+  const { terminate, pending: terminatePending } = useTerminateSession();
+  const isMobile = useMobileGate();
+  const handleConfirmTerminate = useCallback(async () => {
+    if (!terminationTarget) return;
+    const ok = await terminate(terminationTarget.id);
+    if (ok) closeTermination();
+  }, [terminationTarget, terminate, closeTermination]);
+
   // B3 / ADR-0062: the legacy 'Command (⌘K)' + 'New Session' header buttons
   // are absorbed into the single CommandSearchTrigger (search-bar style) +
   // ThemeSegmentedControl. The palette's tool list surfaces new-session at
@@ -105,7 +131,7 @@ export function App() {
     </>
   );
 
-  const sidebarContent = <SessionList conn={conn} />;
+  const sidebarContent = <SessionList conn={conn} onRequestTerminate={handleRequestTerminate} />;
 
   const mainContent = (
     <>
@@ -138,6 +164,24 @@ export function App() {
           {/* Mounted via portal directly under <body>, so the placement of
               this element in the tree is irrelevant (ADR-0036). */}
           <CommandPalette />
+          <ConfirmDialog
+            open={terminationTarget !== null}
+            variant={isMobile ? "sheet" : "modal"}
+            title="セッションを終了"
+            body={
+              terminationTarget !== null
+                ? `「${terminationTarget.label}」を終了します。実行中のプロセスは停止されます。`
+                : ""
+            }
+            confirmLabel="終了する"
+            cancelLabel="キャンセル"
+            destructive
+            pending={terminatePending}
+            pendingLabel="終了中…"
+            onConfirm={handleConfirmTerminate}
+            onCancel={closeTermination}
+            openerRef={terminationOpenerRef}
+          />
         </>
       }
     />

@@ -7,6 +7,7 @@ import {
   projectBasename,
   selectDaemonSnapshot,
   selectDistinctWorkspaces,
+  selectNextActiveAfterDelete,
   useDaemonStore,
   workspaceOf,
 } from "./daemon";
@@ -422,5 +423,44 @@ describe("daemonStore", () => {
       activeSessionID: "s2",
     });
     expect(useDaemonStore.getState().selectedWorkspace).toBe("prod");
+  });
+});
+
+// ─── selectNextActiveAfterDelete ────────────────────────────────────────
+
+describe("selectNextActiveAfterDelete", () => {
+  it("deletedId が見つからなければ null", () => {
+    const sessions = [mkSession("a", { project: "p1" })];
+    expect(selectNextActiveAfterDelete(sessions, "ghost")).toBeNull();
+  });
+
+  it("同 project の次セッションを返す (alphabetical)", () => {
+    const sessions = [
+      mkSession("a", { project: "p1" }),
+      mkSession("b", { project: "p1" }),
+      mkSession("c", { project: "p2" }),
+    ];
+    expect(selectNextActiveAfterDelete(sessions, "a")).toBe("b");
+  });
+
+  it("同 project に他がいなければ同 workspace の次 project へ", () => {
+    const sessions = [
+      mkSession("a", { project: "p1", workspace: "default" }),
+      mkSession("b", { project: "p2", workspace: "default" }),
+    ];
+    expect(selectNextActiveAfterDelete(sessions, "a")).toBe("b");
+  });
+
+  it("workspace boundary を越えない", () => {
+    const sessions = [
+      mkSession("a", { project: "p1", workspace: "default" }),
+      mkSession("b", { project: "p1", workspace: "prod" }),
+    ];
+    expect(selectNextActiveAfterDelete(sessions, "a")).toBeNull();
+  });
+
+  it("最後のセッション削除で null", () => {
+    const sessions = [mkSession("only", { project: "p1" })];
+    expect(selectNextActiveAfterDelete(sessions, "only")).toBeNull();
   });
 });

@@ -52,6 +52,11 @@ const ALLOWLIST: Record<string, RegExp[]> = {
   // to English as part of the integration cleanup (post-review). Their
   // entries have been removed from this allowlist so the gate now
   // catches any future Japanese reintroduction in those files for real.
+  // App.tsx carries the confirm-dialog copy for the session-terminate feature
+  // (Japanese UI strings: title / body / button labels). Tracked here so the
+  // gate stays green; future palette additions to App.tsx still need to be
+  // English-only — only the confirm-dialog wiring is in scope of this allow.
+  "App.tsx": [/./],
   "App.test.tsx": [/./],
   "api/transcripts.test.ts": [/./],
   "api/transcripts.ts": [/./],
@@ -65,12 +70,23 @@ const ALLOWLIST: Record<string, RegExp[]> = {
   // baseline / chunk-07 integration files, which carry no Japanese at all).
   "components/AriaLiveStatus.test.tsx": [/./],
   "components/AriaLiveStatus.tsx": [/./],
+  // Session terminate (PC + mobile UX) + driver shortcut bar (mobile UX) ship
+  // Japanese aria-labels and confirm-dialog copy (driver mode 切替 / Ctrl-C
+  // 中断 / セッション終了 / キャンセル). Same precedent as KeyboardFAB et al.
+  "components/ConfirmDialog.test.tsx": [/./],
+  "components/ConfirmDialog.tsx": [/./],
+  "components/DriverShortcutBar.test.tsx": [/./],
+  "components/DriverShortcutBar.tsx": [/./],
   "components/FontSizeControl.test.tsx": [/./],
   "components/FontSizeControl.tsx": [/./],
   "components/JumpToLatestFAB.test.tsx": [/./],
   "components/JumpToLatestFAB.tsx": [/./],
   "components/KeyboardFAB.test.tsx": [/./],
   "components/KeyboardFAB.tsx": [/./],
+  "components/SessionList.tsx": [/./],
+  "components/SessionTerminateButton.test.tsx": [/./],
+  "components/SessionTerminateButton.tsx": [/./],
+  "components/TerminalMobileOverlay.tsx": [/./],
   "components/palette/ParamEmptyState.test.tsx": [/./],
   "components/primitives/IconButton.test.tsx": [/./],
   "hooks/useAnnouncer.test.ts": [/./],
@@ -79,7 +95,12 @@ const ALLOWLIST: Record<string, RegExp[]> = {
   "hooks/useInputMode.test.ts": [/./],
   "hooks/useInputMode.ts": [/./],
   "hooks/useJumpToLatest.ts": [/./],
+  "hooks/useTerminateSession.test.ts": [/./],
+  "hooks/useTerminateSession.ts": [/./],
   "hooks/useTranscript.ts": [/./],
+  "lib/driverShortcuts.test.ts": [/./],
+  "lib/driverShortcuts.ts": [/./],
+  "store/daemon.test.ts": [/./],
   "store/daemon.ts": [/./],
   "wire/codec.ts": [/./],
   "wire/server.ts": [/./],

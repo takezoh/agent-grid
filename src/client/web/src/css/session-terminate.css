@@ -1,0 +1,54 @@
+/* session-terminate.css — SessionRow 内 ✕ button の reveal policy.
+ *
+ * PC: hover / focus-visible / active 行で表示, それ以外は不可視.
+ * Mobile (<768px && pointer:coarse): 常時可視 (タッチデバイスは hover 無いため).
+ *
+ * IconButton primitive は 44x44 を強制するが、PC では場所を取り過ぎるので
+ * 28x28 に縮小. ARIA target は 44x44 を担保するため padding でカバー領域は
+ * 確保 (実体 24x24, touch target は親 row 全幅).
+ */
+
+.session-terminate-button {
+  /* Row 内右端に固定. flex-shrink で title が押し負けない. */
+  flex-shrink: 0;
+  align-self: flex-start;
+  /* PC 既定: 不可視. row hover / focus / active で表示 (下の rule). */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out, background-color 120ms ease-out;
+  /* PC 表示時のサイズ: IconButton 既定 (44x44) を override. */
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--fg-muted, var(--fg));
+}
+
+/* PC: hover / focus / active row で表示 */
+.session-list__row:hover .session-terminate-button,
+.session-list__row:focus-within .session-terminate-button,
+.session-list__row--active .session-terminate-button,
+.unified-listbox__option:hover .session-terminate-button,
+.unified-listbox__option:focus-within .session-terminate-button,
+.session-terminate-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.session-terminate-button:hover,
+.session-terminate-button:focus-visible {
+  background-color: var(--danger-bg, rgba(220, 38, 38, 0.12));
+  color: var(--danger, #dc2626);
+}
+
+/* Mobile: 常時可視. AND 契約 (ADR-0067) と一致. */
+@media (max-width: 767px) and (pointer: coarse) {
+  .session-terminate-button {
+    opacity: 1;
+    pointer-events: auto;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 20px;
+  }
+}
