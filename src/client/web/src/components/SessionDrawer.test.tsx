@@ -4,6 +4,8 @@
  * Covers FR-DRAWER-001/002/003/005/006/007 per acceptance criteria.
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionDrawer } from "./SessionDrawer";
@@ -158,6 +160,39 @@ describe("FR-DRAWER-002: open=true → inert + aria-hidden + pointer-events:none
     expect(mainContent.hasAttribute("inert")).toBe(false);
     expect(mainContent.getAttribute("aria-hidden")).toBeNull();
     expect(mainContent.classList.contains("main-content--inert")).toBe(false);
+  });
+});
+
+// ─── Drawer height anchoring (regression: only first project visible) ────────
+// Before this guard: <dialog>'s UA default `height: fit-content` combined
+// with our `top:0; bottom:0;` is over-constrained per CSS positioning rules.
+// The spec ignores `bottom`, the dialog shrinks to its content height, and
+// the drawer becomes a viewport-clipped strip that hides every project group
+// after the first (with no way to scroll because the slide's flex item also
+// resists shrinking without min-height: 0).
+describe("Drawer container is anchored to viewport height (regression)", () => {
+  // Extract a single `.cls { ... }` block from shell.css so each assertion is
+  // scoped to its rule (e.g. --dvh usage on .app-shell doesn't leak into the
+  // .session-drawer check). Non-greedy + `\n}` boundary terminates at the
+  // rule's own closing brace.
+  const shellCss = fs.readFileSync(path.resolve(__dirname, "../css/shell.css"), "utf-8");
+  const ruleBlock = (selector: string): string => {
+    const re = new RegExp(`\\.${selector}\\s*\\{[\\s\\S]*?\\n\\}`);
+    const m = shellCss.match(re);
+    expect(m, `expected a .${selector} rule block in shell.css`).not.toBeNull();
+    return m?.[0] ?? "";
+  };
+
+  it("session-drawer is sized to var(--dvh) so all project groups can scroll", () => {
+    const block = ruleBlock("session-drawer");
+    expect(block).toMatch(/height:\s*var\(--dvh\)/);
+    expect(block).toMatch(/max-height:\s*var\(--dvh\)/);
+  });
+
+  it("session-drawer__slide has min-height: 0 so overflow-y scroll can engage", () => {
+    const block = ruleBlock("session-drawer__slide");
+    expect(block).toMatch(/min-height:\s*0/);
+    expect(block).toMatch(/overflow-y:\s*auto/);
   });
 });
 
