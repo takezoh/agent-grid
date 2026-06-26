@@ -1,8 +1,10 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "@xterm/xterm/css/xterm.css";
+import { useMobileGate } from "../hooks/useMobileGate";
 import type { Connection } from "../socket/connection";
+import { TerminalMobileOverlay } from "./TerminalMobileOverlay";
 import { useXtermTheme } from "./ThemeProvider";
 
 // b64ToBytes decodes a base64 string into a Uint8Array. atob() returns a
@@ -45,6 +47,19 @@ export function TerminalPane({
   const xtermThemeRef = useRef(xtermTheme);
   xtermThemeRef.current = xtermTheme;
 
+  // ─── Mobile overlay wiring (ADR 0069 / 0072 / 0074) ──────────────────────
+  // These refs / signals are populated by the main lifecycle effect after the
+  // terminal is opened, then handed to the conditionally-mounted mobile overlay.
+  // On the PC path the overlay is never rendered, so none of this perturbs the
+  // legacy terminal-host (FR-PC-PRESERVE-*): the gate is the single render
+  // switch (ADR 0067), not a CSS display:none.
+  const viewportRef = useRef<HTMLElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const scheduleFitRef = useRef<() => void>(() => {});
+  const [termReady, setTermReady] = useState(false);
+  const [seedReady, setSeedReady] = useState(false);
+  const mobile = useMobileGate();
+
   // FR-THEME-002: apply new ITheme to the live terminal on every theme rebuild.
   // termRef.current is null until the main lifecycle effect mounts the terminal.
   // Initial ITheme application is guaranteed by the main lifecycle effect below,
@@ -86,6 +101,11 @@ export function TerminalPane({
     term.loadAddon(fit);
     term.open(host);
 
+    // ADR 0069 mobile wiring: resolve the xterm-built children the mobile hooks
+    // attach to. On PC the overlay never mounts so these refs are simply unused.
+    viewportRef.current = host.querySelector<HTMLElement>(".xterm-viewport");
+    textareaRef.current = host.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea");
+
     // ADR 0034: scheduleFit coalesces rapid resize events into a single rAF
     // tick. A pending flag ensures at most one rAF is queued at a time so
     // consecutive ResizeObserver / window-resize firings do not fan out.
@@ -98,10 +118,17 @@ export function TerminalPane({
         fit.fit();
       });
     }
+    // Expose the single ADR-0034 scheduleFit to the mobile fontSize / pinch
+    // paths so every refit funnels through one rAF-coalesced queue.
+    scheduleFitRef.current = scheduleFit;
 
     // Initial fit via scheduleFit so the first fit also runs in a rAF tick
     // (avoids 0-size measurement on initial paint, satisfies FR-008).
     scheduleFit();
+
+    // The terminal DOM now exists; allow the mobile overlay to mount and let its
+    // hooks bind to the resolved viewport / helper textarea (gate-true only).
+    setTermReady(true);
 
     const onData = term.onData((d) => {
       const sid = sessionRef.current;
@@ -113,6 +140,10 @@ export function TerminalPane({
       if (!sid) return;
       conn.send({ k: "r", cols, rows, sessionId: sid });
     });
+
+    // ADR 0066 seed-flush signal: the first output frame is the scrollback seed;
+    // until it lands the jump-to-latest FAB stays forced-absent (FR-MOB-JUMP-005).
+    let seeded = false;
 
     conn.onOutput = (frame) => {
       // The Go wire (server/web/wire.go:outputFrameFromSurface) sends
@@ -128,6 +159,10 @@ export function TerminalPane({
       // arriving briefly after the new session subscribe lands. Without the
       // sessionId filter that stale output bleeds into the new terminal.
       if (frame[3] !== sessionRef.current) return;
+      if (!seeded) {
+        seeded = true;
+        setSeedReady(true);
+      }
       term.write(b64ToBytes(frame[2]));
     };
 
@@ -147,6 +182,10 @@ export function TerminalPane({
       conn.onOutput = undefined;
       term.dispose();
       termRef.current = null;
+      viewportRef.current = null;
+      textareaRef.current = null;
+      setTermReady(false);
+      setSeedReady(false);
     };
   }, [conn]);
 
@@ -163,5 +202,26 @@ export function TerminalPane({
     };
   }, [conn, sessionId]);
 
-  return <div ref={hostRef} className="terminal-host" />;
+  // PC path: render exactly the legacy terminal-host (FR-PC-PRESERVE-*). The
+  // mobile overlay is a conditionally-mounted *sibling* of terminal-host (the
+  // ADR-0069 `.terminal-fab-layer` absolute overlay anchored to terminal-slot),
+  // NOT a child of the xterm-managed host (which would collide with xterm's
+  // imperative DOM). When the gate is false the fragment renders only
+  // terminal-host — DOM-identical to the legacy `<div className="terminal-host"/>`
+  // (ADR 0067 gate is the single render switch; no display:none, no PC change).
+  return (
+    <>
+      <div ref={hostRef} className="terminal-host" />
+      {mobile && termReady && (
+        <TerminalMobileOverlay
+          hostRef={hostRef}
+          termRef={termRef}
+          viewportRef={viewportRef}
+          textareaRef={textareaRef}
+          scheduleFit={() => scheduleFitRef.current()}
+          seedReady={seedReady}
+        />
+      )}
+    </>
+  );
 }

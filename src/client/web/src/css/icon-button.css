@@ -1,0 +1,54 @@
+/* icon-button.css — IconButton primitive (ADR 0075, WCAG 2.5.5 / 4.1.2).
+ *
+ * The single touch-target primitive every mobile FAB / FontSizeControl button
+ * wraps. Sizing and theming live here (imported by IconButton.tsx) and are kept
+ * out of the per-chunk FAB stylesheets so the 44×44 contract has one home.
+ *
+ * Style language is aligned with .command-search-trigger / SessionDrawer close:
+ * elevated surface, --accent focus ring, token-driven colors (ADR 0059). */
+
+.icon-button {
+  /* WCAG 2.5.5 touch target: never below 44×44 CSS px. */
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  gap: 6px;
+
+  background: var(--surface-canvas);
+  color: var(--fg-default, var(--fg-muted));
+  border: 1px solid var(--border-color);
+  border-radius: var(--row-radius, 10px);
+
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  /* Suppress the iOS tap highlight; focus-visible ring below is the affordance. */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.icon-button:hover {
+  background: var(--surface-row-hover);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* aria-pressed toggle (e.g. mode FABs): accent fill when active. */
+.icon-button[aria-pressed="true"] {
+  background: var(--surface-row-selected);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.icon-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

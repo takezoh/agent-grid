@@ -1,7 +1,30 @@
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HINT_SEEN_KEY } from "../hooks/useCoachmarkOnce";
+import { MOBILE_GATE_QUERY } from "../hooks/useMobileGate";
+import { FAB_OFFSET_PROP } from "../hooks/useVisualViewportLift";
 import type { Connection } from "../socket/connection";
+import {
+  type MatchMediaHandle,
+  mockMatchMedia,
+  mockVisualViewport,
+  pinchByRatio,
+  swipeFromTo,
+  tapAt,
+} from "../test/touch-harness";
 import { TerminalPane } from "./TerminalPane";
+
+// Spec aria-labels, \u-escaped (ADR-0049 english-only source), decoded values:
+//   ARIA_KEYBOARD_OPEN  → KeyboardFAB idle label (open keyboard)
+//   ARIA_KEYBOARD_CLOSE → KeyboardFAB input-mode label (close keyboard)
+//   ARIA_FONT_SIZE      → FontSizeControl trigger label (font size)
+const ARIA_KEYBOARD_OPEN = "\u30AD\u30FC\u30DC\u30FC\u30C9\u3092\u958B\u304F";
+const ARIA_KEYBOARD_CLOSE = "\u30AD\u30FC\u30DC\u30FC\u30C9\u3092\u9589\u3058\u308B";
+const ARIA_FONT_SIZE = "\u6587\u5B57\u30B5\u30A4\u30BA";
+// ARIA_JUMP_LATEST -> JumpToLatestFAB label ('jump to latest', cross-task UAC-014/015)
+const ARIA_JUMP_LATEST = "\u6700\u65B0\u3078\u30B9\u30AF\u30ED\u30FC\u30EB";
+// VIEW_MODE_TEXT   -> AriaLive announcement on blur/Esc exit ('returned to view mode', UAC-006)
+const VIEW_MODE_TEXT = "\u95B2\u89A7\u30E2\u30FC\u30C9\u306B\u623B\u308A\u307E\u3057\u305F";
 
 // ---------------------------------------------------------------------------
 // Helpers to grab the mocked FitAddon instance from vi.mock("@xterm/addon-fit")
@@ -676,6 +699,528 @@ describe("FR-THEME-002 — xterm.options.theme is updated on data-theme change",
       (lightTheme as { foreground?: string }).foreground,
     );
 
+    unmount();
+  });
+});
+
+// ===========================================================================
+// chunk-07 mobile integration wiring (ADR 0069/0072/0074).
+// These exercise TerminalPane under the mobile gate: the overlay set mounts,
+// the PC path stays absent under gate false, terminal-host box is invariant
+// (UAC-025), visualViewport-lift drives --terminal-fab-offset through the real
+// wiring, the coachmark shows once, and pinch→fontSize→refit is end-to-end.
+// ===========================================================================
+
+function mobileConn(): Connection {
+  let _onOutput: ((frame: [number, string, string, string]) => void) | undefined;
+  return {
+    subscribe: vi.fn(async () => {}),
+    unsubscribe: vi.fn(async () => {}),
+    send: vi.fn(),
+    get onOutput() {
+      return _onOutput;
+    },
+    set onOutput(cb) {
+      _onOutput = cb;
+    },
+  } as unknown as Connection;
+}
+
+describe("TerminalPane — mobile gate true mounts the overlay set (ADR 0074)", () => {
+  let mm: MatchMediaHandle;
+  beforeEach(() => {
+    window.localStorage.clear();
+    mm = mockMatchMedia({ [MOBILE_GATE_QUERY]: true });
+  });
+  afterEach(() => {
+    mm.restore();
+    vi.restoreAllMocks();
+  });
+
+  it("renders the fab-layer with KeyboardFAB / FontSizeControl / AriaLiveStatus and data-input-active=false", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+
+    expect(container.querySelector(".terminal-fab-layer")).not.toBeNull();
+    expect(container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`)).not.toBeNull();
+    expect(container.querySelector(`[aria-label="${ARIA_FONT_SIZE}"]`)).not.toBeNull();
+    expect(container.querySelector('[data-testid="terminal-aria-live"]')).not.toBeNull();
+
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    expect(host.getAttribute("data-input-active")).toBe("false");
+    unmount();
+  });
+
+  it("KeyboardFAB tap enters input mode: data-input-active=true + aria-pressed/label flip", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    const fab = container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`) as HTMLElement;
+
+    act(() => fireEvent.click(fab));
+
+    expect(host.getAttribute("data-input-active")).toBe("true");
+    const closed = container.querySelector(`[aria-label="${ARIA_KEYBOARD_CLOSE}"]`) as HTMLElement;
+    expect(closed).not.toBeNull();
+    expect(closed.getAttribute("aria-pressed")).toBe("true");
+    unmount();
+  });
+});
+
+describe("TerminalPane — mobile gate false keeps the overlay absent (FR-PC-PRESERVE-*)", () => {
+  let mm: MatchMediaHandle;
+  beforeEach(() => {
+    window.localStorage.clear();
+    mm = mockMatchMedia({ [MOBILE_GATE_QUERY]: false });
+  });
+  afterEach(() => {
+    mm.restore();
+    vi.restoreAllMocks();
+  });
+
+  it("no fab-layer / FABs / data-input-active when the gate is false", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    expect(container.querySelector(".terminal-fab-layer")).toBeNull();
+    expect(container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`)).toBeNull();
+    expect(container.querySelector("[data-input-active]")).toBeNull();
+    expect(container.querySelector("[data-coachmark]")).toBeNull();
+    unmount();
+  });
+});
+
+describe("TerminalPane — UAC-025 terminal-host box invariant (overlay placement)", () => {
+  let mm: MatchMediaHandle;
+  beforeEach(() => {
+    window.localStorage.clear();
+    mm = mockMatchMedia({ [MOBILE_GATE_QUERY]: true });
+  });
+  afterEach(() => {
+    mm.restore();
+    vi.restoreAllMocks();
+  });
+
+  it("FABs live in the absolute fab-layer SIBLING, never as in-flow children of terminal-host", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    const layer = container.querySelector(".terminal-fab-layer") as HTMLElement;
+
+    // Discriminator vs the counterexample (FAB inserted as a flex child of
+    // terminal-host): the FAB and the whole layer must NOT be inside terminal-host.
+    expect(host.contains(layer)).toBe(false);
+    expect(host.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`)).toBeNull();
+    expect(host.querySelector(".terminal-fab-layer")).toBeNull();
+
+    // Spec-named assertion: terminal-host rect unchanged across a FAB state change.
+    const before = JSON.stringify(host.getBoundingClientRect());
+    act(() =>
+      fireEvent.click(
+        container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`) as HTMLElement,
+      ),
+    );
+    const after = JSON.stringify(host.getBoundingClientRect());
+    expect(after).toBe(before);
+    unmount();
+  });
+});
+
+describe("TerminalPane — visualViewport-lift drives --terminal-fab-offset (FR-MOB-VVP-001/003)", () => {
+  let mm: MatchMediaHandle;
+  beforeEach(() => {
+    window.localStorage.clear();
+    Object.defineProperty(window, "innerHeight", { value: 800, configurable: true });
+    mm = mockMatchMedia({ [MOBILE_GATE_QUERY]: true });
+  });
+  afterEach(() => {
+    mm.restore();
+    vi.restoreAllMocks();
+  });
+
+  it("writes the offset only while in input mode and clears it on exit", () => {
+    const vv = mockVisualViewport({ height: 500, offsetTop: 0 }); // 800-500+16 = 316
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const layer = container.querySelector(".terminal-fab-layer") as HTMLElement;
+    const fab = () =>
+      container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`) as HTMLElement;
+    const fabClose = () =>
+      container.querySelector(`[aria-label="${ARIA_KEYBOARD_CLOSE}"]`) as HTMLElement;
+
+    // view mode: no inline write (subscription is gated on input mode).
+    expect(layer.style.getPropertyValue(FAB_OFFSET_PROP)).toBe("");
+
+    act(() => fireEvent.click(fab())); // enter input mode → subscribe + stamp
+    expect(getComputedStyle(layer).getPropertyValue(FAB_OFFSET_PROP).trim()).toBe("316px");
+
+    act(() => fireEvent.click(fabClose())); // exit input mode → unsubscribe + clear
+    expect(layer.style.getPropertyValue(FAB_OFFSET_PROP)).toBe("");
+
+    vv.restore();
+    unmount();
+  });
+});
+
+describe("TerminalPane — Coachmark shows once (FR-MOB-COACH-001)", () => {
+  let mm: MatchMediaHandle;
+  beforeEach(() => {
+    window.localStorage.clear();
+    mm = mockMatchMedia({ [MOBILE_GATE_QUERY]: true });
+  });
+  afterEach(() => {
+    mm.restore();
+    vi.restoreAllMocks();
+  });
+
+  it("renders the coachmark on first mount and writes hintSeen, absent on the next mount", () => {
+    const conn1 = mobileConn();
+    const first = render(<TerminalPane conn={conn1} sessionId="s1" />);
+    expect(first.container.querySelector("[data-coachmark]")).not.toBeNull();
+    expect(window.localStorage.getItem(HINT_SEEN_KEY)).toBe("1");
+    first.unmount();
+
+    // Second session/mount: hintSeen is set → no coachmark.
+    const conn2 = mobileConn();
+    const second = render(<TerminalPane conn={conn2} sessionId="s2" />);
+    expect(second.container.querySelector("[data-coachmark]")).toBeNull();
+    second.unmount();
+  });
+});
+
+describe("TerminalPane — pinch → fontSize → refit end-to-end (FR-MOB-PINCH-001/004)", () => {
+  let mm: MatchMediaHandle;
+  let created: Array<{ options: Record<string, unknown> }>;
+  beforeEach(() => {
+    window.localStorage.clear();
+    mm = mockMatchMedia({ [MOBILE_GATE_QUERY]: true });
+    created = [];
+    // Seed the xterm sub-DOM (mocked open is a no-op) so the gesture hook can
+    // bind to .xterm-viewport and the fontSize effect can read the term options.
+    vi.spyOn(Terminal.prototype, "open").mockImplementation(function (
+      this: Terminal,
+      el: HTMLElement,
+    ) {
+      const vp = document.createElement("div");
+      vp.className = "xterm-viewport";
+      const ta = document.createElement("textarea");
+      ta.className = "xterm-helper-textarea";
+      el.appendChild(vp);
+      el.appendChild(ta);
+      created.push(this as unknown as { options: Record<string, unknown> });
+    });
+  });
+  afterEach(() => {
+    mm.restore();
+    vi.restoreAllMocks();
+  });
+
+  it("a 1.5× pinch sets term.options.fontSize to 21 and refits via scheduleFit", () => {
+    const fitSpy = vi.spyOn(FitAddon.prototype, "fit");
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
+    expect(viewport).not.toBeNull();
+    const term = created[0];
+    // Default applied to the live terminal on mount.
+    expect(term.options.fontSize).toBe(14);
+
+    const callsBefore = fitSpy.mock.calls.length;
+    act(() => {
+      pinchByRatio(viewport, 1.5, { cx: 100, cy: 100 }, 40);
+    });
+
+    // 14 × 1.5 = 21, clamped within [8,28]; applied to the live terminal.
+    expect(term.options.fontSize).toBe(21);
+    // ADR-0034 refit fan-out fired at least once for the pinch.
+    expect(fitSpy.mock.calls.length).toBeGreaterThan(callsBefore);
+    // FR-MOB-PINCH-003 / UAC-017: pinch must NOT enter input mode.
+    // Counterexample: a pinch handler that wrongly called input.enter() would
+    // flip data-input-active to 'true'. The host stays at 'false' here.
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    expect(host.getAttribute("data-input-active")).toBe("false");
+    unmount();
+  });
+});
+
+// ===========================================================================
+// Cross-task user-reachable integration scenarios (UAC-002/003/004/005/006/009
+// + UAC-014/015 + FR-MOB-JUMP-005). These exercise the full TerminalPane wiring
+// under mobile-gate=true with the same xterm DOM seed the pinch suite uses, so
+// the chunk-03 / 04 / 06 / 07 hooks bind to a real .xterm-viewport and a real
+// .xterm-helper-textarea and the assertions land on the production code path
+// (mode + AriaLive + outside-tap + seed-gated jump FAB), not on a paper DOM.
+// ===========================================================================
+
+describe("TerminalPane — cross-task mobile UAC integration (gate=true)", () => {
+  let mm: MatchMediaHandle;
+  let created: Array<{ options: Record<string, unknown>; scrollToBottom?: () => void }>;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    mm = mockMatchMedia({ [MOBILE_GATE_QUERY]: true });
+    created = [];
+    // Same seed strategy as the pinch suite (line 884-933): replace the mocked
+    // Terminal.open with one that creates a real .xterm-viewport and real
+    // .xterm-helper-textarea inside the host, so useInputMode / useHostPointerInterceptor
+    // / useJumpToLatest / useTerminalTouchGestures bind to actual DOM nodes.
+    vi.spyOn(Terminal.prototype, "open").mockImplementation(function (
+      this: Terminal,
+      el: HTMLElement,
+    ) {
+      const vp = document.createElement("div");
+      vp.className = "xterm-viewport";
+      const ta = document.createElement("textarea");
+      ta.className = "xterm-helper-textarea";
+      el.appendChild(vp);
+      el.appendChild(ta);
+      created.push(this as unknown as { options: Record<string, unknown> });
+    });
+  });
+
+  afterEach(() => {
+    mm.restore();
+    vi.restoreAllMocks();
+  });
+
+  // -------------------------------------------------------------------------
+  // UAC-005: outside-tap chain (ADR 0068 useHostPointerInterceptor).
+  // After entering input mode via the KeyboardFAB, a capture-phase pointerdown
+  // on the viewport (descendant of terminal-host, neither helper-textarea nor
+  // inside a [data-overlay] FAB layer) must exit input mode and flip the FAB
+  // aria-pressed back to false.
+  //
+  // Counterexample: outside-tap subscribe missing → data-input-active stays 'true'.
+  // -------------------------------------------------------------------------
+  it("UAC-005: capture-phase pointerdown on viewport exits input mode (FAB aria-pressed flips back)", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
+    const openFab = container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`) as HTMLElement;
+
+    act(() => fireEvent.click(openFab));
+    expect(host.getAttribute("data-input-active")).toBe("true");
+
+    // pointerdown on viewport → host capture-phase listener → outside-tap exit.
+    act(() => fireEvent.pointerDown(viewport));
+
+    expect(host.getAttribute("data-input-active")).toBe("false");
+    const reOpenedFab = container.querySelector(
+      `[aria-label="${ARIA_KEYBOARD_OPEN}"]`,
+    ) as HTMLElement;
+    expect(reOpenedFab).not.toBeNull();
+    expect(reOpenedFab.getAttribute("aria-pressed")).toBe("false");
+    unmount();
+  });
+
+  // -------------------------------------------------------------------------
+  // UAC-006: blur -> AriaLive announcement (VIEW_MODE_TEXT, 'returned to view mode').
+  // useInputMode's blur subscription flips state→view + reducer produces the
+  // VIEW_MODE_ANNOUNCEMENT, which AnnouncerProvider feeds into AriaLiveStatus
+  // (data-testid='terminal-aria-live').
+  //
+  // Counterexample: blur listener unsubscribed → data-input-active stays 'true'
+  // (the phantom input-mode bug) and the live region stays empty.
+  // -------------------------------------------------------------------------
+  it("UAC-006: helper-textarea blur exits input mode and the AriaLive carries the view-mode announcement", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    const helper = container.querySelector(".xterm-helper-textarea") as HTMLTextAreaElement;
+    const openFab = container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`) as HTMLElement;
+
+    act(() => fireEvent.click(openFab));
+    expect(host.getAttribute("data-input-active")).toBe("true");
+
+    act(() => fireEvent.blur(helper));
+
+    expect(host.getAttribute("data-input-active")).toBe("false");
+    const live = container.querySelector('[data-testid="terminal-aria-live"]') as HTMLElement;
+    expect(live).not.toBeNull();
+    expect(live.textContent).toBe(VIEW_MODE_TEXT);
+    unmount();
+  });
+
+  // -------------------------------------------------------------------------
+  // UAC-002 + UAC-009: in view mode, neither tap nor swipe on the viewport
+  // focuses the helper textarea (ADR 0068 focus-block via capture-phase
+  // pointerdown.preventDefault on the host). We assert both the production
+  // contract (pointerdown.defaultPrevented === true on the host listener)
+  // and the user-observable effect (focus spy never fires, document.activeElement
+  // never lands on the helper).
+  //
+  // Counterexample: touchend → term.focus() or swipe touchstart → focus path
+  // would push focus into the textarea and bump the spy.
+  // -------------------------------------------------------------------------
+  it("UAC-002 / UAC-009: tap and swipe on viewport in view mode never focus the helper textarea", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    const helper = container.querySelector(".xterm-helper-textarea") as HTMLTextAreaElement;
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
+    expect(host.getAttribute("data-input-active")).toBe("false");
+
+    const focusSpy = vi.fn();
+    helper.addEventListener("focus", focusSpy);
+
+    // tap (touchstart→touchend) — chunk-01 harness; production never focuses.
+    act(() => {
+      tapAt(viewport, 100, 100);
+    });
+    expect(focusSpy).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(helper);
+
+    // swipe (touchstart→N touchmove→touchend) — same harness.
+    act(() => {
+      swipeFromTo(viewport, { clientX: 100, clientY: 100 }, { clientX: 200, clientY: 250 }, 64);
+    });
+    expect(focusSpy).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(helper);
+
+    // The production focus-block invariant: pointerdown on viewport in view mode
+    // is preventDefault'd by useHostPointerInterceptor so the synthesized
+    // mousedown/focus never reaches the helper textarea (real-device contract).
+    const pd = new Event("pointerdown", { bubbles: true, cancelable: true });
+    act(() => {
+      viewport.dispatchEvent(pd);
+    });
+    expect(pd.defaultPrevented).toBe(true);
+    expect(focusSpy).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  // -------------------------------------------------------------------------
+  // UAC-014 + UAC-015 + FR-MOB-JUMP-005: seed-gate flow. The jump FAB is
+  // forced-absent until the ADR-0066 first-output seed lands. Once seedReady
+  // is true and the viewport scrolls away from tail, the FAB surfaces; tapping
+  // it calls term.scrollToBottom and the FAB disappears when we return to tail.
+  //
+  // Counterexample: setSeedReady wiring missing → conn.onOutput never flips
+  // seedReady=true → FAB never appears no matter how far we scroll.
+  // -------------------------------------------------------------------------
+  it("UAC-014 / UAC-015 / FR-MOB-JUMP-005: seed-gated jump FAB surfaces only after first onOutput, click scrolls to bottom", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement;
+
+    // The mocked Terminal class has no scrollToBottom; stub it on the live
+    // instance so useJumpToLatest.jumpToBottom can call through without
+    // exploding. We assert it was called below.
+    const scrollToBottomSpy = vi.fn();
+    (created[0] as { scrollToBottom?: () => void }).scrollToBottom = scrollToBottomSpy;
+
+    // happy-dom has no layout, so back the three scroll metrics by hand
+    // (mirroring useJumpToLatest.test makeViewport).
+    let top = 0;
+    Object.defineProperty(viewport, "scrollHeight", { value: 1000, configurable: true });
+    Object.defineProperty(viewport, "clientHeight", { value: 200, configurable: true });
+    Object.defineProperty(viewport, "scrollTop", {
+      configurable: true,
+      get: () => top,
+      set: (v: number) => {
+        top = v;
+      },
+    });
+
+    // Pre-seed: no scroll listener subscribed → no FAB no matter what.
+    act(() => fireEvent.scroll(viewport));
+    expect(container.querySelector(`[aria-label="${ARIA_JUMP_LATEST}"]`)).toBeNull();
+
+    // First onOutput frame → setSeedReady(true) (TerminalPane.tsx seeded gate).
+    act(() => {
+      conn.onOutput?.([0, "o", btoa("seed"), "s1"]);
+    });
+
+    // Far from tail (tail = 1000-200 = 800; diff 700 > ±2px → FAB visible).
+    top = 100;
+    act(() => fireEvent.scroll(viewport));
+    const jumpFab = container.querySelector(`[aria-label="${ARIA_JUMP_LATEST}"]`) as HTMLElement;
+    expect(jumpFab).not.toBeNull();
+
+    // Tap the FAB → scrollToBottom + back-at-tail flow makes the FAB disappear.
+    act(() => fireEvent.click(jumpFab));
+    expect(scrollToBottomSpy).toHaveBeenCalled();
+
+    top = 800;
+    act(() => fireEvent.scroll(viewport));
+    expect(container.querySelector(`[aria-label="${ARIA_JUMP_LATEST}"]`)).toBeNull();
+    unmount();
+  });
+
+  // -------------------------------------------------------------------------
+  // UAC-003: KeyboardFAB tap focuses the helper textarea, removes readonly,
+  // flips aria-pressed/aria-label, and the state persists past 200ms.
+  // The 200ms persistence rules out the enter→immediate-exit race
+  // counterexample (a stray blur/effect-order bug flipping state inside 200ms).
+  // -------------------------------------------------------------------------
+  it("UAC-003: KeyboardFAB tap focuses the helper textarea and the input state persists past 200ms", () => {
+    vi.useFakeTimers();
+    try {
+      const conn = mobileConn();
+      const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+      const host = container.querySelector(".terminal-host") as HTMLElement;
+      const helper = container.querySelector(".xterm-helper-textarea") as HTMLTextAreaElement;
+      const openFab = container.querySelector(
+        `[aria-label="${ARIA_KEYBOARD_OPEN}"]`,
+      ) as HTMLElement;
+
+      act(() => fireEvent.click(openFab));
+
+      expect(host.getAttribute("data-input-active")).toBe("true");
+      expect(helper.hasAttribute("readonly")).toBe(false);
+      expect(document.activeElement).toBe(helper);
+      const closeFab = container.querySelector(
+        `[aria-label="${ARIA_KEYBOARD_CLOSE}"]`,
+      ) as HTMLElement;
+      expect(closeFab).not.toBeNull();
+      expect(closeFab.getAttribute("aria-pressed")).toBe("true");
+
+      // 200ms must not trigger any phantom exit (counterexample: enter→exit race).
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(host.getAttribute("data-input-active")).toBe("true");
+      expect(document.activeElement).toBe(helper);
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // UAC-004: toggle return. Tapping the KeyboardFAB a second time exits input
+  // mode silently (no announce), re-adds readonly to the helper, releases focus,
+  // and flips the FAB label/pressed back to the open variant.
+  //
+  // Counterexample: a single-direction trigger (no toggle) → after two taps the
+  // host remains 'true'.
+  // -------------------------------------------------------------------------
+  it("UAC-004: two KeyboardFAB taps round-trip the mode (readonly restored, helper not focused)", () => {
+    const conn = mobileConn();
+    const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+    const host = container.querySelector(".terminal-host") as HTMLElement;
+    const helper = container.querySelector(".xterm-helper-textarea") as HTMLTextAreaElement;
+
+    act(() =>
+      fireEvent.click(
+        container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`) as HTMLElement,
+      ),
+    );
+    expect(host.getAttribute("data-input-active")).toBe("true");
+    expect(document.activeElement).toBe(helper);
+
+    act(() =>
+      fireEvent.click(
+        container.querySelector(`[aria-label="${ARIA_KEYBOARD_CLOSE}"]`) as HTMLElement,
+      ),
+    );
+    expect(host.getAttribute("data-input-active")).toBe("false");
+    const reOpened = container.querySelector(`[aria-label="${ARIA_KEYBOARD_OPEN}"]`) as HTMLElement;
+    expect(reOpened).not.toBeNull();
+    expect(reOpened.getAttribute("aria-pressed")).toBe("false");
+    expect(helper.hasAttribute("readonly")).toBe(true);
+    expect(document.activeElement).not.toBe(helper);
     unmount();
   });
 });

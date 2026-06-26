@@ -1,0 +1,36 @@
+/* terminal-mode.css — 閲覧/入力 mode affordances (ADR 0068 / 0073).
+ *
+ * Everything here is mobile-gate scoped or only matches DOM that exists in the
+ * mobile experience, so the PC path is untouched (FR-PC-PRESERVE-*):
+ *   - the `.terminal-host[data-input-active]` selector only matches once the
+ *     mobile mode machine has stamped the attribute (never on PC);
+ *   - `.terminal-aria-live` is only rendered by AriaLiveStatus, which mounts
+ *     solely under the mobile gate.
+ *
+ * This file is imported by AriaLiveStatus.tsx; view.css / app.css are NOT touched
+ * (the mobile-gate wiring lands in chunk-07). */
+
+/* iOS focus-zoom guard (FR-MOB-MODE-007, ADR 0068 §Decision-4): the helper
+ * textarea must stay ≥16px so Safari does not auto-zoom the viewport when it is
+ * focused on entering input mode. Gate-scoped via [data-input-active] so it can
+ * never affect a PC terminal. The visible grid font lives on .xterm-rows and is
+ * driven separately by the pinch / FontSizeControl clamp — unaffected here. */
+.terminal-host[data-input-active] .xterm-helper-textarea {
+  font-size: 16px !important;
+}
+
+/* Visually-hidden live region: present in the a11y tree, invisible on screen.
+ * Standard clip technique so the announcement reaches the screen reader without
+ * occupying layout. */
+.terminal-aria-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

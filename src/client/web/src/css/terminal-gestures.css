@@ -1,0 +1,21 @@
+/* terminal-gestures.css — touch gesture arbitration affordances (ADR 0071).
+ *
+ * The single CSS contract this chunk owns is the swipe-scroll lane: in 閲覧 mode
+ * the browser owns vertical pan so swipe scrolls the scrollback natively (no JS
+ * preventDefault on swipe — FR-MOB-SCROLL-001 / 002). horizontal pan and pinch
+ * stay with the gesture state machine.
+ *
+ * Gate scope is mandatory: the selector is anchored on
+ * `.terminal-host[data-input-active]`, an attribute stamped *only* by the mobile
+ * mode machine (useInputMode, chunk-03). On the PC path the attribute is absent,
+ * so `touch-action` is never declared and xterm's default touch behaviour is
+ * preserved 1:1 (FR-PC-PRESERVE-*, UAC-023 baseline). This file is imported by
+ * useTerminalTouchGestures.ts; view.css / app.css are NOT touched (the gate
+ * wiring lands in chunk-07). */
+
+.terminal-host[data-input-active] .xterm-viewport {
+  /* Vertical swipe = native scroll; pinch / horizontal stay with the JS state
+   * machine. preventDefault is reserved for dwell-selection + pinch (the hook),
+   * never for plain swipe, so this declaration and the reducer agree. */
+  touch-action: pan-y;
+}

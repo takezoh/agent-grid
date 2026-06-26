@@ -178,4 +178,46 @@ describe("NotificationToast", () => {
     // width floor: the existing min-width: 240px already exceeds 44px.
     expect(block).toMatch(/min-width:\s*240px/);
   });
+
+  // ── ariaHidden prop (additive — ADR 0063 non-breaking, FR-MOB-PINCH-004) ───
+  // PinchIndicator reuses this primitive in a visual-only, screen-reader-silent
+  // mode. The prop must be purely additive: default behaviour is unchanged
+  // (covered by the cases above), and ariaHidden=true flips the container to an
+  // aria-hidden surface that renders ONLY its children.
+
+  it("ariaHidden=true: container is aria-hidden and carries no role=status / aria-live", () => {
+    render(
+      <NotificationToast ariaHidden>
+        <span>22px</span>
+      </NotificationToast>,
+    );
+    // Not announced: no status role at all.
+    expect(screen.queryByRole("status")).toBeNull();
+    const surface = document.querySelector(".notification-toast");
+    expect(surface).not.toBeNull();
+    expect(surface?.getAttribute("aria-hidden")).toBe("true");
+    expect(surface?.getAttribute("aria-live")).toBeNull();
+  });
+
+  it("ariaHidden=true: renders children and does NOT duplicate the passive store items", () => {
+    useNotificationsStore.getState().add({ level: "info", message: "passive-toast" });
+    render(
+      <NotificationToast ariaHidden>
+        <span>22px</span>
+      </NotificationToast>,
+    );
+    // The visual readout is shown…
+    expect(screen.getByText("22px")).toBeTruthy();
+    // …but passive store notifications are NOT mirrored into the indicator,
+    // nor is the undosnackbar slot (visual-only surface).
+    expect(screen.queryByText("passive-toast")).toBeNull();
+    expect(document.querySelector(".notification-toast__undosnackbar-slot")).toBeNull();
+  });
+
+  it("default (no ariaHidden) still exposes role=status (additive, unchanged)", () => {
+    render(<NotificationToast />);
+    const container = screen.getByRole("status");
+    expect(container.getAttribute("aria-hidden")).toBeNull();
+    expect(container.getAttribute("aria-live")).toBe("polite");
+  });
 });

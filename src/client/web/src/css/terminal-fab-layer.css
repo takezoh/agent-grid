@@ -1,0 +1,88 @@
+/* terminal-fab-layer.css — the mobile FAB overlay layer (ADR 0069).
+ *
+ * This file is the single owner of the FAB overlay layout: the absolute layer
+ * itself, the fixed FAB stack order, the `--terminal-fab-offset` default, and the
+ * Coachmark placement. The per-FAB *appearance* (shape / glyph / 44px target /
+ * focus ring) lives in icon-button.css + jump-fab.css + font-size-control.css —
+ * this file only positions them.
+ *
+ * Box-invariance (ADR 0029/0065, UAC-025): `.terminal-fab-layer` is an absolute
+ * sibling of `.terminal-host`, anchored to the positioned `.terminal-slot`. It is
+ * out of flow, so a FAB appearing / changing never reflows the terminal grid. The
+ * layer itself is pointer-transparent; only the FABs capture taps, so a tap on the
+ * empty terminal area still reaches the host pointer interceptor.
+ *
+ * safe-area: NOT re-added here — `.app-shell` is the single source for
+ * env(safe-area-inset-*) (FR-LAYOUT-004 / FR-MOB-FAB-003). The inner 16px inset is
+ * measured from inside the already-inset terminal-slot. */
+
+.terminal-fab-layer {
+  position: absolute;
+  inset: 0;
+  /* FR-MOB-VVP-002 default — used until useVisualViewportLift writes an inline
+     value while in input mode (and restored to this when it exits). */
+  --terminal-fab-offset: 16px;
+  /* Layer is a transparent stage: taps fall through to terminal-host except on
+     the FABs themselves (which re-enable pointer-events below). */
+  pointer-events: none;
+  /* Above the terminal grid, below the notification-toast portal (ADR 0063). */
+  z-index: 5;
+}
+
+.terminal-fab-layer > *,
+.terminal-fab-layer .font-size-control {
+  pointer-events: auto;
+}
+
+/* ─── Fixed stack order (FR-MOB-FAB-004) ─────────────────────────────────────
+   bottom-right: KeyboardFAB at the visualViewport-lifted offset, JumpToLatestFAB
+   8px above it (44px target + 8px gap = 52px). FontSizeControl sits top-right. */
+.terminal-fab-layer .keyboard-fab {
+  position: absolute;
+  right: 16px;
+  bottom: var(--terminal-fab-offset, 16px);
+}
+
+.terminal-fab-layer .jump-to-latest-fab {
+  position: absolute;
+  right: 16px;
+  bottom: calc(var(--terminal-fab-offset, 16px) + 52px);
+}
+
+.terminal-fab-layer .font-size-control {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+/* ─── Coachmark (ADR 0072) ───────────────────────────────────────────────────
+   A one-line hint anchored next to the KeyboardFAB (to its left so it never
+   covers the FAB). Fades in over 250ms; the reduced-motion immediate-ization is
+   in view.css's single ADR-0064 guard, NOT here. */
+.terminal-coachmark {
+  position: absolute;
+  right: 72px;
+  bottom: var(--terminal-fab-offset, 16px);
+  max-width: min(60vw, 280px);
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--input-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  animation: terminal-coachmark-in 250ms ease-out;
+}
+
+@keyframes terminal-coachmark-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

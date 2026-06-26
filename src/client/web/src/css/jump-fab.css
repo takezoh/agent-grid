@@ -1,0 +1,22 @@
+/* jump-fab.css — JumpToLatestFAB internal appearance ONLY (ADR 0073).
+ *
+ * The 44×44 touch target, focus ring, and base colors come from icon-button.css
+ * (via the IconButton primitive). This file styles only the FAB's own shape and
+ * glyph so the per-chunk look has one home.
+ *
+ * Out of scope (chunk-07, do NOT add here): the FAB overlay layer position /
+ * stacking order / offset custom property / visualViewport lift / the reduced-
+ * motion @media guard. Those all live in view.css. */
+
+.jump-to-latest-fab {
+  /* Circular FAB silhouette; size still governed by icon-button min-44px. */
+  border-radius: 999px;
+  /* Subtle elevation so the FAB reads above the terminal grid. */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.jump-to-latest-fab > span {
+  /* Slightly enlarge the ↓ glyph for legibility without changing the target. */
+  font-size: 1.25em;
+  line-height: 1;
+}

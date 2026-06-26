@@ -55,7 +55,30 @@ const ALLOWLIST: Record<string, RegExp[]> = {
   "App.test.tsx": [/./],
   "api/transcripts.test.ts": [/./],
   "api/transcripts.ts": [/./],
+  // Mobile terminal UX surface (web-terminal-mobile-ux spec, ADR 0067-0075).
+  // ADR-0049 governs the *palette* UI; the mobile experience is a separate
+  // surface whose aria-labels / announcements are spec-mandated Japanese
+  // ("キーボードを開く", "閲覧モードに戻りました", "最新へ移動できます", "文字サイズ",
+  // etc. — see ux.md / spec.md). They are tracked here as out-of-palette-scope,
+  // mirroring the transcripts / daemon legacy entries. New mobile work that does
+  // NOT need a spec string should still prefer \u escapes (cf. TerminalPane
+  // baseline / chunk-07 integration files, which carry no Japanese at all).
+  "components/AriaLiveStatus.test.tsx": [/./],
+  "components/AriaLiveStatus.tsx": [/./],
+  "components/FontSizeControl.test.tsx": [/./],
+  "components/FontSizeControl.tsx": [/./],
+  "components/JumpToLatestFAB.test.tsx": [/./],
+  "components/JumpToLatestFAB.tsx": [/./],
+  "components/KeyboardFAB.test.tsx": [/./],
+  "components/KeyboardFAB.tsx": [/./],
   "components/palette/ParamEmptyState.test.tsx": [/./],
+  "components/primitives/IconButton.test.tsx": [/./],
+  "hooks/useAnnouncer.test.ts": [/./],
+  "hooks/useHostPointerInterceptor.test.ts": [/./],
+  "hooks/useHostPointerInterceptor.ts": [/./],
+  "hooks/useInputMode.test.ts": [/./],
+  "hooks/useInputMode.ts": [/./],
+  "hooks/useJumpToLatest.ts": [/./],
   "hooks/useTranscript.ts": [/./],
   "store/daemon.ts": [/./],
   "wire/codec.ts": [/./],

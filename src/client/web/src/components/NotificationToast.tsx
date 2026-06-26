@@ -11,6 +11,7 @@
  */
 
 import { useEffect } from "react";
+import type { ReactNode } from "react";
 import type { Notification } from "../store/notifications";
 import { useNotificationsStore } from "../store/notifications";
 
@@ -50,17 +51,45 @@ function ToastItem({ item, onDismiss }: ToastItemProps): JSX.Element {
 
 // ─── NotificationToast ─────────────────────────────────────────────────────────
 
+export interface NotificationToastProps {
+  /**
+   * Additive (ADR 0063 non-breaking): when true the container is rendered as a
+   * purely visual, screen-reader-silent surface — `aria-hidden=true`, no
+   * `role=status` / `aria-live`, and only `children` are rendered (no passive
+   * store items, no UndoSnackbar slot). PinchIndicator reuses this primitive in
+   * this mode so the live fontSize is shown centre-screen without being
+   * announced (a pinch is a continuous visual gesture, not a discrete event).
+   * Default false preserves the existing notification behaviour exactly.
+   */
+  ariaHidden?: boolean;
+  /** Visual content for the ariaHidden surface (e.g. the PinchIndicator readout). */
+  children?: ReactNode;
+}
+
 /**
  * Renders a single aria-live container with up to 3 toast items.
  * The UndoSnackbar slot is a sibling within the same container for
  * 3-stream isolation (FR-TOAST-003): passive toasts | undo snackbar | palette.
  */
-export function NotificationToast(): JSX.Element {
+export function NotificationToast({
+  ariaHidden = false,
+  children,
+}: NotificationToastProps = {}): JSX.Element {
   const items = useNotificationsStore((s) => s.items);
   const dismiss = useNotificationsStore((s) => s.dismiss);
 
   // Show only the latest 3 items
   const visible = items.slice(-3);
+
+  // ariaHidden surface (PinchIndicator): visual-only, never announced. Renders
+  // children alone so it cannot duplicate the passive toast list.
+  if (ariaHidden) {
+    return (
+      <div className="notification-toast notification-toast--ariahidden" aria-hidden="true">
+        {children}
+      </div>
+    );
+  }
 
   return (
     // biome-ignore lint/a11y/useSemanticElements: spec requires explicit role='status' aria-live='polite' on a div container (FR-TOAST-001); <output> does not support child slot for UndoSnackbar

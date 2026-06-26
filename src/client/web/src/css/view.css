@@ -477,4 +477,23 @@
   .main-tab-panel {
     transition: none !important;
   }
+
+  /* Mobile terminal overlays (ADR 0069/0072/0073, FR-MOB-JUMP-006). The mobile
+     UX introduces FAB elevation transitions, the Coachmark fade-in, and the
+     PinchIndicator fade. Per the ADR-0064 single-guard rule they are immediate-
+     ized HERE (not in terminal-fab-layer.css / font-size-control.css). The
+     jump-to-latest smooth scroll is reduced to instant in JS via matchMedia in
+     useJumpToLatest; the viewport scroll-behavior is also pinned to auto so any
+     CSS-driven smooth scroll cannot reintroduce motion. */
+  .terminal-fab-layer .keyboard-fab,
+  .terminal-fab-layer .jump-to-latest-fab,
+  .terminal-fab-layer .font-size-control,
+  .terminal-coachmark,
+  .pinch-indicator {
+    animation: none !important;
+    transition: none !important;
+  }
+  .terminal-host .xterm-viewport {
+    scroll-behavior: auto !important;
+  }
 }
