@@ -1,7 +1,7 @@
 # 029: client/runtime — warm-restart container registry correctness (token-without-mounts window + Save/Delete race)
 
 - **Phase**: client-runtime follow-up（single-writer port 由来。Symphony SPEC 範囲外）
-- **Status**: Open
+- **Status**: Done (4fe60dea, 2026-06-27)
 - **Depends on**: orchestrator-migration → main マージ（single-writer port）
 - **Blocks**: なし
 
@@ -37,6 +37,18 @@ spawn 経路は `RegisterWithMounts` で token+mounts を atomic 登録するが
 検出しない（`tokenToFrame` が黙って rebind、片方の `frameToToken` が orphan 化）。
 唯一の現実的経路は warm の永続 token 再利用だが、token は 32byte 乱数で実質非到達。
 旧 `tokenStore` からの latent。
+
+> **2026-06-27 解消** (commit 4fe60dea):
+> - F6: `recoverWarmTokens` は `map[FrameID]string` を返すだけに変更し、
+>   `RecoverSandboxFrames` の per-frame loop で `AdoptFrame` 後に
+>   `frameReg.RegisterWithMounts(frame, token, mounts)` で atomic 登録。
+> - F4: `registerContainerFrame` の warm Save を goroutine fire-and-forget から
+>   event-loop 同期実行に変更。`executeKillSessionWindow` の Delete と順序保証。
+> - F8: `framereg.warnIfTokenRebind` で別 frame への token 再登録を log + 旧
+>   `frameToToken` entry の明示削除で orphan を防止。
+> tests: `TestWarmStart_AtomicMultiFrame` / `TestWarmStart_OrphanPruned` /
+> `TestRegisterContainerFrame_warmSaveIsSynchronous` /
+> `TestRegister{,WithMounts}DetectsTokenRebind`.
 
 ## Tasks
 

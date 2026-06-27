@@ -1,8 +1,8 @@
 # 031: client/runtime — FileRelay sweep が broadcast drop 時に dirty/offset を戻さない
 
 - **Phase**: client-runtime follow-up（2026-06-22 web-gateway-isolation インシデント由来。Symphony SPEC 範囲外）
-- **Status**: Open
-- **Depends on**: なし（[030](030-runtime-internalch-saturation-diagnosis.md) と独立に着手可）
+- **Status**: Done (55321ad0, 2026-06-27)
+- **Depends on**: なし（[030](.archive/030-runtime-internalch-saturation-diagnosis.md) と独立に着手可）
 - **Blocks**: なし
 
 ## Background
@@ -33,6 +33,13 @@
 ループ自体（FileRelay drop → arc.log への Warn → 再 drop の自己増幅）は
 [memory: web_gateway_isolation] の `slog.Warn`→`Debug` 降格で塞いだが、
 1 行単発の行抜けは現在も再現する。
+
+> **2026-06-27 解消** (commit 55321ad0): `enqueueInternal` を bool 返却に変更し、
+> `FileRelay.sweep` は pre-read offset を per-file に snapshot し、`broadcast`
+> が drop を報告したら `dirty=true` + `offset=oldOffset` に巻き戻す。次の sweep
+> tick で同 content が再読・再送されるため log 行の永久喪失が無くなる。
+> `TerminalRelay.send` も同 signature に追従 (drops 無視で OK)。
+> tests: `TestSweepRollsBackOnDrop` / `TestSweepAdvancesOnDeliver`.
 
 ## Tasks
 
