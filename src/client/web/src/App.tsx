@@ -13,6 +13,7 @@ import { StatusBanner } from "./components/StatusBanner";
 import { TerminalPane } from "./components/TerminalPane";
 import { ThemeSegmentedControl } from "./components/ThemeSegmentedControl";
 import { CommandPalette } from "./components/palette/CommandPalette";
+import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
 import { useMobileGate } from "./hooks/useMobileGate";
 import { useTerminateSession } from "./hooks/useTerminateSession";
@@ -25,6 +26,10 @@ export function App() {
   // Invariant: mount this exactly once across the App tree. Do not call from
   // multiple sites.
   useGlobalHotkey();
+
+  // Browser tab favicon reflects the loudest status across all sessions
+  // (priority: running > pending > waiting > idle > stopped). Mount once.
+  useFavicon();
 
   const token = useMemo(() => readBearerTokenFromHash(), []);
   const conn = useMemo(
