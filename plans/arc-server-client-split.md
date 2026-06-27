@@ -1,6 +1,6 @@
 # Plan: arc を「standalone server + remote client」に分割しきる
 
-> Status: **A1 完了 / phase C 着手前** (更新 2026-06-27) · Branch: `main`
+> Status: **A1 完了 / C 全完了** (更新 2026-06-27) · Branch: `main`
 > 設計(仮設計・根拠): [remote-client-design.md](remote-client-design.md) ·
 > 決定: [ADR 0004](../docs/adr/0004-ptybackend-reuses-pure-core.md)
 > この文書は元設計の phased plan を、**実コードの現状**と突き合わせて
@@ -18,9 +18,18 @@
 > wire vocabulary を [`docs/technical/web-gateway.md`](../docs/technical/web-gateway.md) に集約。
 > **phase C 再評価**(2026-06-27): 配線は既に PtyBackend driven
 > (`cmd/arc/coordinator.go:115` `NewPtyBackend` + `NewPtyPaneTap`)。残る tmux 痕跡は
-> (a) dead file 2 本 + tests、(b) `TmuxBackend` interface / `cfg.Tmux` field /
-> `RuntimeTmuxInjector` 等の 識別子残存(中身は PtyBackend)に分かれる。
-> 大手術ではなく **dead file 削除 + rename** で完了。詳細は §4.C / §7。
+> (a) dead file 2 本 + tests、(b) 識別子残存(中身は PtyBackend)に分かれる。
+> **C-1 完了**(2026-06-27, `b15b05a`): `tmux_real.go` / `tmux_pipe_tap.go` +
+> tests を削除、`isMissingPaneErr` の substring fallback を撤去。
+> **C-2a 完了**(2026-06-27, `ec17db7`): runtime backend layer の主要識別子を
+> rename(`TmuxBackend` → `PaneBackend`、`Config.Tmux` → `Config.Backend`、
+> `RuntimeTmuxInjector` → `RuntimePaneInjector`、`tmux_injector.go` →
+> `pane_injector.go` ほか)。詳細は §4.C / §7。
+> **C-2b 完了**(2026-06-27, `63870ed`): event 名 / 関数名 / test 内 fake 型 /
+> driver・state・platform 配下のコメントを完全に rename。残存する "tmux"
+> 言及は外部 tmux binary 互換性 integration test、外部 ライブラリ API
+> (`rasterm.IsTmuxScreen`)、ユーザー TOML config key (`[tmux]`、後方互換)
+> のみで、これらは意図的に保持。
 
 ## 1. ゴール(remote-client-design.md より)
 
@@ -214,44 +223,66 @@ PtyBackend を runtime に挿す上で出ていた 6 件:
 
 ### C. tmux 全削除(phase 3)— **dead file 削除 + 識別子 rename**
 - **2026-06-27 再評価**: 配線は A1 完了時点で既に PtyBackend driven。残作業は
-  「dead file 削除 + 識別子の機械的 rename」に縮退。phase は C-1 / C-2 に分割。
+  「dead file 削除 + 識別子の機械的 rename」に縮退。phase は C-1 / C-2a / C-2b に分割。
 
-#### C-1. dead file 削除
-- **対象**(production 参照ゼロ、test 経由のみ):
-  - `client/runtime/tmux_real.go`(`RealTmuxBackend`、`platform/lib/tmux` を import)
+#### C-1. dead file 削除 — **済**(2026-06-27, `b15b05a`)
+- 削除:
+  - `client/runtime/tmux_real.go`(`RealTmuxBackend`、`platform/lib/tmux` import)
   - `client/runtime/tmux_real_test.go`
   - `client/runtime/tmux_pipe_tap.go`(`TmuxPipePaneTap`、`pty_tap.go` に置換済み)
-  - `client/runtime/tmux_injector_test.go` のうち tmux 実装に依存している部分
-    (`RuntimeTmuxInjector` 自体は C-2 で rename して残す)
-- **副作用**: `platform/lib/tmux` への import が消えるはず → 依存ツリー縮小確認。
-- **完了条件**: `go test ./client/runtime/...` green / `make build-all` /
-  `go tool golangci-lint run ./...` 0 issues。
+- 関連整理:
+  - `resident.go` の `isMissingPaneErr` から legacy "can't find pane" substring
+    fallback を撤去(`errors.Is(err, ErrPaneMissing)` のみに統一)
+  - `backends.go` 冒頭の `RealTmuxBackend` 言及コメントを削除
+  - `runtime_test.go` の fake error を substring から `ErrPaneMissing` ラップに変更
+    (`tmux: can't find pane: %3` → `runtime: unknown pane %q: %w`)
+- 結果: `platform/lib/tmux` への runtime 側 import が消滅(package 自体は残)。
 
-#### C-2. 識別子 rename
-- **生きてる tmux 命名**(機械的 rename 対象):
-  - interface: `TmuxBackend` → `PaneBackend` (`client/runtime/backends.go`)
-  - field: `Config.Tmux` → `Config.Pane` (`client/runtime/runtime.go`)
-  - struct: `RuntimeTmuxInjector` → `RuntimePaneInjector` (`tmux_injector.go` → `pane_injector.go`)
+#### C-2a. runtime backend layer の識別子 rename — **済**(2026-06-27, `ec17db7`)
+- 完了した rename:
+  - interface: `TmuxBackend` → `PaneBackend`、`TmuxControl` → `BackendControl`、
+    `TmuxInjector` → `PromptInjector`
+  - field: `runtime.Config.Tmux` → `runtime.Config.Backend`
+  - struct: `noopTmux` → `noopBackend`、`RuntimeTmuxInjector` → `RuntimePaneInjector`
   - constructor: `NewRuntimeTmuxInjector` → `NewRuntimePaneInjector`
-  - 役割インターフェース郡(`PaneLifecycle` / `PaneIO` / `PaneInspect` /
-    `SessionEnv` / `TmuxControl` / `WindowLayout`)のうち `TmuxControl` のみ rename 候補
-    (`PaneControl` or 削除)。それ以外は元から `Pane*` 命名で OK。
-  - test の `t.Run` 名 / log 文字列の "tmux:" prefix
-- **file rename**:
-  - `tmux_injector.go` → `pane_injector.go`
-  - `tmux_injector_test.go` → `pane_injector_test.go`
-- **コメント整理**: `panetap.go` の "tmux pipe-pane is the current implementation"
-  → "PtyPaneTap is the current implementation"。`backends.go` 冒頭の
-  `RealTmuxBackend` 言及を削除。
-- **`cmd/arc/coordinator.go` の追従**: `cfg.Tmux.SessionName` / `cfg.Tmux.PaneRatioVertical`
-  は `Coordinator.Config` 側のフィールドで、`runtime.Config.Tmux` と別物(両方とも "tmux"
-  命名だが別構造体)。Coordinator 側はユーザー向け config (~/.agent-reactor/config.yaml)
-  に直結するので **rename しない**(後方互換)。区別は C-2 PR description に明記。
-- **完了条件**:
-  - `grep -ri "Tmux" src/client/runtime/ src/cmd/arc/coordinator.go` の残存が
-    「ユーザー向け config field のみ」になる
-  - 全テスト green、build green、lint 0 issues
-- **前提**: C-1 完了(dead file が残っていると rename 対象が増える)。
+  - file rename: `tmux_injector.go` → `pane_injector.go`、`tmux_injector_test.go`
+    → `pane_injector_test.go`
+  - 内部: `spawnDeps.tmux` → `spawnDeps.backend`
+  - コメント追従: `pty_backend.go` / `launcher.go` / `sandbox/manager.go` /
+    `backends.go` ほか
+- 触らなかったもの(意図的):
+  - **ユーザー向け config**(`coordinator.Config.Tmux.SessionName`,
+    `.PaneRatioVertical`)は ~/.agent-reactor/config.yaml に直結するので
+    後方互換のため **rename しない**。`cmd/arc/coordinator.go` 内では
+    `runtime.Config.Tmux` field 初期化のみ `Backend:` に追従。
+
+#### C-2b. 残存 "tmux" 命名の rename — **済**(2026-06-27, `63870ed`)
+- 完了した rename:
+  - **内部 event 名**: `EvTmuxPaneSpawned` → `EvPaneSpawned`、
+    `EvTmuxSpawnFailed` → `EvSpawnFailed`、`EvTmuxWindowVanished` → `EvPaneWindowVanished`
+  - **effect 名**: `EffSpawnTmuxWindow` → `EffSpawnPaneWindow`、
+    `EffSetTmuxEnv` / `EffUnsetTmuxEnv` → `EffSetPaneEnv` / `EffUnsetPaneEnv`、
+    `EffSendTmuxKeys` → `EffSendPaneKeys`
+  - **関数名**: `spawnTmuxWindow` → `spawnPaneWindow`、
+    `executeTmuxEffect` → `executePaneEffect`、`executeSendTmuxKeys` → `executeSendPaneKeys`、
+    `reduceTmux*` → `reducePane*` / `reduceSpawnFailed`
+  - **test ローカル fake**: `fakeTmuxBackend` → `fakeBackend`、`newFakeTmux` → `newFakeBackend`、
+    `recordingTmux` → `recordingBackend`、変数名 `tmux` / `ftmux` → `backend` / `fbackend`
+  - **ユーザー config 識別子**: `runtime.Config.Tmux` → `Config.Pane`、
+    `TmuxConfig` → `PaneConfig`、`coordinator` 内 `cfg.Tmux.*` → `cfg.Pane.*`
+    (TOML key は `toml:"tmux"` を保持して既存設定ファイル互換)
+  - **diagnostic 文字列**: `"tmux-spawned:" → "pane-spawned:"`、`"EvTmux*" → "EvPane*"` 等
+  - **driver / state / lib / platform 配下のコメント整理**
+- 意図的に残した tmux 言及:
+  - `client/driver/vt/{osc_capture,osc_pipe,tmux_passthrough}_test.go` — 実 tmux
+    binary との互換性検証 integration test。`exec.Command("tmux", ...)` で実 tmux
+    を呼ぶので tmux 識別子そのものが正しい。
+  - `client/tui/image/image.go` の `rasterm.IsTmuxScreen()` — 外部ライブラリ API。
+    関連コメント・テストも外部 multiplexer 検出ロジックなので保持。
+  - `client/config/config.go` の `toml:"tmux"` struct tag および
+    `config_test.go` の `[tmux]` TOML 後方互換テスト。
+- 結果: `grep -ri "[Tt]mux" src/` の残存は上記 意図的保持カテゴリのみ。
+  build / test / lint 全 green、0 issues。
 
 ### D.(任意)native client 用 proto remote 化
 - **What**: `StartIPCNet`(TCP+TLS+token)+ `Authenticator` seam + proto TLS dialer。
@@ -321,18 +352,18 @@ PtyBackend を runtime に挿す上で出ていた 6 件:
 8. **C 再評価**(2026-06-27): A1 完了時点で配線は既に PtyBackend driven
    (`cmd/arc/coordinator.go:115` `NewPtyBackend` + `NewPtyPaneTap`)。
    残る tmux 痕跡は (a) dead file 2 本 + tests、(b) 識別子残存。
-9. **C-1: dead file 削除** ← 次。
-   - 対象: `client/runtime/tmux_real.go` + `tmux_real_test.go`、
-     `client/runtime/tmux_pipe_tap.go`。
-   - 完了条件: build / test / lint green、`platform/lib/tmux` への依存縮小。
-10. **C-2: 識別子 rename**(C-1 後)。
-    - `TmuxBackend` → `PaneBackend` interface、`Config.Tmux` → `Config.Pane`、
-      `RuntimeTmuxInjector` → `RuntimePaneInjector`、コメント整理。
-    - `tmux_injector.go` → `pane_injector.go` file rename。
-    - `cmd/arc/coordinator.go` の `cfg.Tmux.SessionName` 等(ユーザー向け config)
-      は後方互換のため **rename しない**。
-    - 完了条件: `grep -ri Tmux src/client/runtime/` 残存ゼロ、全テスト green。
-11. **§6 未消化の積み残し**(C と独立、別 plan で着手):
+9. ~~**C-1: dead file 削除**~~ → 2026-06-27 完了(`b15b05a`)。
+   `tmux_real.go` / `tmux_pipe_tap.go` + test を削除、
+   `isMissingPaneErr` から substring fallback を撤去。
+10. ~~**C-2a: runtime backend layer の rename**~~ → 2026-06-27 完了(`ec17db7`)。
+    `TmuxBackend` → `PaneBackend`、`Config.Tmux` → `Config.Backend`、
+    `RuntimeTmuxInjector` → `RuntimePaneInjector`、ファイル rename、
+    `cmd/arc/coordinator.go` の `runtime.Config` field 初期化を追従。
+11. ~~**C-2b: 残存 tmux 命名の rename**~~ → 2026-06-27 完了(`63870ed`)。
+    event / effect / 関数 / test fake / コメント / ユーザー config の
+    Go 識別子から完全に "tmux" を除去。意図的に残したのは外部 tmux binary
+    互換性テスト、外部ライブラリ API、ユーザー TOML key のみ。
+12. **§6 未消化の積み残し**(C と独立、別 plan で着手):
     - `RecoverSandboxFrames` 再設計(devcontainer 孤児化の実害)
     - `RecoverWarmStartSessions` 再設計(codex durable driver の resume)
     - `ReconcileOrphans` / `RecoverActivePaneAtMain` の pure-core 駆動版
