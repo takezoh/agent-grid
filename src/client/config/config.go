@@ -63,11 +63,20 @@ type LogConfig struct {
 
 // PaneConfig holds the pane backend's session-level layout settings.
 // The TOML key remains "tmux" for back-compat with ~/.agent-reactor/config.toml.
+//
+// SessionName and PaneRatioVertical feed the runtime via
+// coordinator.Config. Prefix and PaneRatioHorizontal are *unused* on
+// PtyBackend (relics of the tmux backend); they are kept on the struct so
+// TOML parsing of existing user config does not surface "unknown field"
+// errors. Remove them once a deprecation window passes (track in a follow-up
+// of phase C in plans/arc-server-client-split.md).
 type PaneConfig struct {
-	SessionName         string `toml:"session_name"`
-	Prefix              string `toml:"prefix"`
-	PaneRatioHorizontal int    `toml:"pane_ratio_horizontal"`
-	PaneRatioVertical   int    `toml:"pane_ratio_vertical"`
+	SessionName string `toml:"session_name"`
+	// Deprecated: unused after ADR 0004; ignored on PtyBackend.
+	Prefix string `toml:"prefix"`
+	// Deprecated: unused after ADR 0004; ignored on PtyBackend.
+	PaneRatioHorizontal int `toml:"pane_ratio_horizontal"`
+	PaneRatioVertical   int `toml:"pane_ratio_vertical"`
 }
 
 type MonitorConfig struct {

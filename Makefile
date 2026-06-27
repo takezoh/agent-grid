@@ -38,7 +38,7 @@ build-orchestrator:
 build-claude-app-server:
 	cd $(SRC_DIR) && go build -o ../$(CLAUDE_APP_SERVER) ./cmd/claude-app-server
 
-# build-server builds the tmux-free backend (cmd/server): pty session host with a
+# build-server builds the headless backend (cmd/server): pty session host with a
 # REST + WebSocket API that clients connect to. It serves no UI.
 build-server:
 	cd $(SRC_DIR) && go build -o ../$(SERVER) ./cmd/server

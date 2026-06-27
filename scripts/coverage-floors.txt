@@ -84,7 +84,6 @@ github.com/takezoh/agent-reactor/platform/lib/notify                 30
 github.com/takezoh/agent-reactor/platform/lib/openurl                60
 github.com/takezoh/agent-reactor/platform/lib/plastic                45
 github.com/takezoh/agent-reactor/platform/lib/tlsdev                 30
-github.com/takezoh/agent-reactor/platform/lib/tmux                   10
 github.com/takezoh/agent-reactor/platform/lib/vcs                    85
 github.com/takezoh/agent-reactor/platform/lib/wsl                    45
 github.com/takezoh/agent-reactor/platform/logger                     60

@@ -2,14 +2,19 @@
 
 Status: Accepted
 
+> **2026-06-27 update**: Phase C has since landed. `RealTmuxBackend` is deleted,
+> the runtime field is now `Config.Backend PaneBackend`, and the legacy "tmux
+> backend" alternative no longer exists. The justifications below that refer
+> to "the tmux backend" are preserved as historical context — they describe
+> the constraint the ADR was decided under, not the current code shape.
+
 ## Context
 
 `PtyBackend` currently holds `mgr *termvt.Manager` as an unexported field.
 A1-α's `terminal_relay` needs to reach `termvt.Session.Subscribe` to fan output
-out to subscribed connections, but it sits behind the `cfg.Tmux` backend
-abstraction (tmux backend still exists pending phase C deletion). Reaching
-into `mgr` directly would bypass the abstraction and prevent future backend
-swaps (e.g. phase D's remote backend).
+out to subscribed connections, but it sits behind the `cfg.Backend` (formerly
+`cfg.Tmux`) backend abstraction. Reaching into `mgr` directly would bypass the
+abstraction and prevent future backend swaps (e.g. phase D's remote backend).
 
 ## Decision
 

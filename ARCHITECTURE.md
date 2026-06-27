@@ -4,7 +4,7 @@ This is the canonical overview of the system: its scope, design principles, and 
 
 ## Scope
 
-agent-reactor's client (run via the `arc` command) is a **session lifecycle manager — not an agent orchestrator**. It does not control what agents do; it gives you visibility and fast access to every agent session from a single tmux-based TUI. The separate `orchestrator` binary *does* drive agents autonomously against an issue tracker — a different concern in a different layer. This split is the top-level boundary the layer structure below enforces.
+agent-reactor's client (run via the `arc` command) is a **session lifecycle manager — not an agent orchestrator**. It does not control what agents do; it gives you visibility and fast access to every agent session from a single TUI (originally tmux-backed, now driven by an in-process pty multiplexer — see ADR 0004). The separate `orchestrator` binary *does* drive agents autonomously against an issue tracker — a different concern in a different layer. This split is the top-level boundary the layer structure below enforces.
 
 ## Design Principles
 
