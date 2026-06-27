@@ -35,7 +35,7 @@ active の定義は **`running` (進行中) と `waiting` (応答待ち = 能動
 - 既存の `textContent` / `aria-label` 契約を壊さず spinner FR (FR-009 / FR-010) を加法的に満たし、テスト全書き換えを回避
 - 観測アサーションが「各 status × spinner 要素の有無」で書け、`SessionList` / `DriverViewPanel` 両呼び出し元の互換が保たれる
 - spinner は `aria-hidden` で読み上げず status は `aria-label` で提供しアクセシビリティを担保
-- `waiting` を回す「待ちなのに動いて見える」懸念は残るが、arc TUI の能動待機表現との一貫性を優先。`running` のみに絞る案は本 ADR の follow-up として記録 (UX レビューで再考可能)
+- `waiting` を回す「待ちなのに動いて見える」懸念は残るが、active 状態 (running + waiting) の能動的可視化を優先。`running` のみに絞る案は本 ADR の follow-up として記録 (UX レビューで再考可能)
 - CSS `@keyframes` のみで新規 npm 依存ゼロ (AGENTS.md library selection に適合)
 
 ## Alternatives Considered
@@ -46,7 +46,7 @@ active の定義は **`running` (進行中) と `waiting` (応答待ち = 能動
 
 ### `running` のみ spinner、`waiting` は別表現
 
-却下: 表現が分岐し実装 / テストが増える。arc TUI の能動待機表現に合わせ `running + waiting` を active とする方が一貫。`running` 限定は follow-up で再考可能。
+却下: 表現が分岐し実装 / テストが増える。`running + waiting` を共に active とし spinner で能動的可視化する方が一貫。`running` 限定は follow-up で再考可能。
 
 ### spinner ライブラリ導入
 

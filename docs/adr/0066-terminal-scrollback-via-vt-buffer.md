@@ -7,7 +7,7 @@ Related code: `src/platform/termvt/session.go`, `src/platform/termvt/session_act
 
 ## Context
 
-Web UI から `arc` の terminal タブを開いた後に別デバイス (別ブラウザ / 別タブ) で同じセッションへ接続すると、初期表示は **現在の可視グリッドのみ** になっていた。`termvt.Session.Subscribe()` の seed event が `EventOutput{Data: em.Render()}` の 1 本だけで、画面外へ流れた行 (scrollback) は保持されていなかったため、claude / codex / bash のチャット出力や shell 履歴を後から接続したデバイスでは追えなかった。
+Web UI で terminal タブを開いた後に別デバイス (別ブラウザ / 別タブ) で同じセッションへ接続すると、初期表示は **現在の可視グリッドのみ** になっていた。`termvt.Session.Subscribe()` の seed event が `EventOutput{Data: em.Render()}` の 1 本だけで、画面外へ流れた行 (scrollback) は保持されていなかったため、claude / codex / bash のチャット出力や shell 履歴を後から接続したデバイスでは追えなかった。
 
 設計検討段階で 3 案を比較した:
 
@@ -25,7 +25,7 @@ Web UI から `arc` の terminal タブを開いた後に別デバイス (別ブ
 
 (3) `subscribeCmd.run` の seed フレーム生成を **2 段** にする。`SerializeScrollback()` が non-empty なら `Data: append(sb, '\n')` を 1 本目の `EventOutput` として送り、続けて `Data: Render()` を 2 本目として送る。空のとき (= fresh session / alt-screen 中) は 1 本目を省略する。trailing newline は xterm.js が 2 frame を連続して `term.write` する際に scrollback 最終行と screen 1 行目が衝突しないようにする分離記号。
 
-(4) 設定は `~/.agent-reactor/settings.toml` の `[terminal] scrollback_lines = N` として `MonitorConfig` パターンに揃える。default は `10000` (xvt のデフォルトと一致)。`cmd/arc/coordinator.go` の `buildRuntime()` で `runtime.NewPtyBackend(cfg.Terminal.ScrollbackLines)` として渡し、`PtyBackend` が `SpawnWindow` / `RespawnPane` の構築する `termvt.Spec` に伝搬する。
+(4) 設定は `~/.agent-reactor/settings.toml` の `[terminal] scrollback_lines = N` として `MonitorConfig` パターンに揃える。default は `10000` (xvt のデフォルトと一致)。`cmd/server/coordinator.go` の `buildRuntime()` で `runtime.NewPtyBackend(cfg.Terminal.ScrollbackLines)` として渡し、`PtyBackend` が `SpawnWindow` / `RespawnPane` の構築する `termvt.Spec` に伝搬する。
 
 (5) Wire shape (`EvtSurfaceOutput`) は変更しない。Browser 側 (`TerminalPane.tsx`) も変更不要 — 既存の `term.write(b64ToBytes(frame[2]))` が 2 frame 連続でも順に効く。
 

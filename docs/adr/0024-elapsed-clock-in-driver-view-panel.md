@@ -6,7 +6,7 @@ Status: Accepted
 
 `view.View.StatusLine` is a free-form string driver authors fill with the
 current status text. `view.View.StatusChangedAt` is an absolute timestamp
-indicating when the run state last changed. A faithful TUI-style display
+indicating when the run state last changed. A faithful elapsed-time display
 shows "running for 12s" or "idle since 3m" — a counter that ticks every
 second.
 

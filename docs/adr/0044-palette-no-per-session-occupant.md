@@ -15,7 +15,7 @@ SessionInfo proto / wire への occupant フィールド追加を中止し、pus
 
 ## Consequences
 
-- **positive**: proto / wire の鏡像改修ゼロ、既存 consumer (TUI / arc CLI / claude-app-server) への影響なし
+- **positive**: proto / wire の鏡像改修ゼロ、既存 consumer (claude-app-server 等) への影響なし
 - **positive**: viewUpdateFrame の activeSessionID ドロップ規約 (ADR-0023) と衝突しない
 - **positive**: PR diff と回帰リスクが大幅縮小
 - **negative**: 複数 web client が同じ daemon-global occupant を参照するため、ある web client の押下が他 web client の push 可否シグナルと連動する。これは push が常に daemon-global active を対象にする仕様 (FR-025) と整合

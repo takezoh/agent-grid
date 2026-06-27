@@ -5,7 +5,7 @@
 
 ## Goal
 
-agent-reactor の Web UI に、arc TUI と同等の 2 フェーズ操作 (ファジー検索でツール選択 → パラメータ順次入力) を持つコマンドパレットを Cmd/Ctrl+K + 常設ボタンで起動できるモーダルとして実装する。standard スコープ (new-session / stop-session) と push スコープ (push_commands 配列) をセグメント切替で同居させ、push 送信経路 (POST /api/sessions/{id}/push) を本 spec で新設し、CreateSessionForm はパレット new-session に一本化して撤去する。push 可否判定は既存の daemon-global ActiveSessionID + ActiveOccupant を流用し、SessionInfo proto / wire への per-session occupant 追加は行わない。ADR-0030 (TerminalPane subscribe 唯一所有) / ADR-0033 (displayLabel 空文字=空) / WS は I/O 専用の既存規約を破らないことを設計制約とする。
+agent-reactor の Web UI に、2 フェーズ操作 (ファジー検索でツール選択 → パラメータ順次入力) を持つコマンドパレットを Cmd/Ctrl+K + 常設ボタンで起動できるモーダルとして実装する。standard スコープ (new-session / stop-session) と push スコープ (push_commands 配列) をセグメント切替で同居させ、push 送信経路 (POST /api/sessions/{id}/push) を本 spec で新設し、CreateSessionForm はパレット new-session に一本化して撤去する。push 可否判定は既存の daemon-global ActiveSessionID + ActiveOccupant を流用し、SessionInfo proto / wire への per-session occupant 追加は行わない。ADR-0030 (TerminalPane subscribe 唯一所有) / ADR-0033 (displayLabel 空文字=空) / WS は I/O 専用の既存規約を破らないことを設計制約とする。
 
 ## Components
 
@@ -109,13 +109,13 @@ agent-reactor の Web UI に、arc TUI と同等の 2 フェーズ操作 (ファ
 
 - **静的検証**: `cd src && go vet ./...` / `make lint` (golangci-lint depguard / funlen / staticcheck) / `cd src/client/web && pnpm biome check` / `pnpm tsc --noEmit`
 - **テスト**: `cd src && go test ./server/web/... ./client/state/...` / `cd src/client/web && pnpm vitest run`
-- **手動**: `make build && ./arc` で実機起動し、Cmd/Ctrl+K でパレット起動 → new-session / stop-session / push 動作を確認する
+- **手動**: `make build && ./server` で実機起動し、Cmd/Ctrl+K でパレット起動 → new-session / stop-session / push 動作を確認する
 
 ## Open Questions (実装段階で確定する事項)
 
 > いずれも plan-impl 段階で grep / 観察により確定する。設計判断は ADR で決着済み。
 
-- GET /api/session-config の projects 要素拡張 ({path, isGit, isSandboxed}) は既存 TUI (arc CLI) や claude-app-server の /api/session-config 利用箇所に影響しないか — 現時点で apiSessionConfig は web 専用エンドポイントだが、設定回りの helper 共有がある場合は確認が必要 (plan 実装着手前に grep で確認、影響あれば backward-compatible に保つ)
+- GET /api/session-config の projects 要素拡張 ({path, isGit, isSandboxed}) は claude-app-server の /api/session-config 利用箇所に影響しないか — 現時点で apiSessionConfig は web 専用エンドポイントだが、設定回りの helper 共有がある場合は確認が必要 (plan 実装着手前に grep で確認、影響あれば backward-compatible に保つ)
 - isSandboxed の判定源 — config.Session の sandbox 対象 list と project path のマッチングを mux.go で行うか、platform 側に helper を切り出すか (plan-impl で実装位置を確定する)
 - /api/session-config の再 fetch タイミング — palette open 毎に再 fetch するか、App 起動時 + 任意の reload トリガで足りるか。push_commands は config 編集時に変わるが、変更通知の仕組みは現状なし (plan-impl で観察ベースで決める)
 - stop-session の対象 listbox の getText (displayLabel か title か id か) — ADR-0033 の displayLabel 純関数を再利用する想定だが、ParamDef.options の getText 指定方法は ToolRegistry 実装時に確定する

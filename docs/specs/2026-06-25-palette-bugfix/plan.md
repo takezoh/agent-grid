@@ -114,7 +114,7 @@ commit 9287c7f で導入された Web UI コマンドパレットの実害 (New 
 
 - 静的: `cd src && go vet ./... && make lint` / `cd src/client/web && pnpm biome check && pnpm tsc --noEmit`
 - テスト: `cd src/client/web && pnpm vitest run` (新規 __meta__/no-japanese.test.ts 含む) / 既存 Go テスト不変
-- 手動: `make build && ./arc` で実機起動、Cmd/Ctrl+K → New Session → Project 選択 → command 入力 → 完走確認
+- 手動: `make build && ./server` で実機起動、Cmd/Ctrl+K → New Session → Project 選択 → command 入力 → 完走確認
 
 ## Open Questions (実装後 follow-up)
 

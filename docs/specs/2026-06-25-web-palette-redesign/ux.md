@@ -1,15 +1,15 @@
 ---
 kind: ux
 id: ux-2026-06-25-web-palette-redesign
-title: Web UI コマンドパレット 再設計 (TUI 移植からの Web 最適化, 案 A 最小)
+title: Web UI コマンドパレット 再設計 (Web UX 最適化, 案 A 最小)
 created: 2026-06-25
 status: accepted
 owners: [take.gn@gmail.com]
-goal: Web UI コマンドパレットを TUI 移植のままから Web UX に最適化し、scope 統合 / disabled visible / chip 3 経路 toggle / hover follow / active context header / push 送信先明示 toast の 6 点を観測可能な振る舞いとして再設計する (案 A 最小)。
+goal: Web UI コマンドパレットを Web UX に最適化し、scope 統合 / disabled visible / chip 3 経路 toggle / hover follow / active context header / push 送信先明示 toast の 6 点を観測可能な振る舞いとして再設計する (案 A 最小)。
 target_users:
-  - arc Web UI で複数セッション (new-session + push) を頻繁に開閉する個人開発者
-  - TUI 版 arc に慣れていて Web 版に移行しつつあるユーザー (worktree / host を頻繁に切り替える)
-  - Web 慣れだが TUI を触らないユーザー (Tab / Shift+Tab を知らず pointer 操作主体)
+  - Web UI で複数セッション (new-session + push) を頻繁に開閉する個人開発者
+  - worktree / host を頻繁に切り替えるキーボード主体ユーザー
+  - pointer 操作主体ユーザー (Raycast / Linear / VSCode の command palette と同じ操作感を期待)
   - アクセシビリティ支援技術 (NVDA / VoiceOver) で操作するキーボードユーザー
 primary_flows:
   - id: F-001
@@ -220,19 +220,19 @@ related:
     - docs/specs/2026-06-25-palette-bugfix/spec.md
 ---
 
-# UX — Web UI コマンドパレット 再設計 (TUI 移植からの Web 最適化, 案 A 最小)
+# UX — Web UI コマンドパレット 再設計 (Web UX 最適化, 案 A 最小)
 
 ## Goal
 
-Web UI コマンドパレット (arc TUI prefix+p / prefix+C-p の Web 移植) は commit 9287c7f の時点で TUI 操作モデルをほぼそのまま写しており、Web UX 標準と複数箇所で乖離している。具体的には (i) ScopeSegment による standard / push の tab 分割、(ii) push tool が disabled のとき push tab 全体が空 list になり理由がユーザーに見えない、(iii) Worktree / Host chip の toggle が Tab / Shift+Tab というキーバインドで Web の Tab 標準 (focus 移動) と衝突、(iv) pointer hover と keyboard cursor で highlight が独立して動く、(v) パレット内に active session の文脈表示が無く push の送信宛先が不可視、(vi) paramless push 送信後にフィードバックが薄く誤送信検知が困難、の 6 点である。
+Web UI コマンドパレットは commit 9287c7f の時点で Web UX 標準と複数箇所で乖離している。具体的には (i) ScopeSegment による standard / push の tab 分割、(ii) push tool が disabled のとき push tab 全体が空 list になり理由がユーザーに見えない、(iii) Worktree / Host chip の toggle が Tab / Shift+Tab というキーバインドで Web の Tab 標準 (focus 移動) と衝突、(iv) pointer hover と keyboard cursor で highlight が独立して動く、(v) パレット内に active session の文脈表示が無く push の送信宛先が不可視、(vi) paramless push 送信後にフィードバックが薄く誤送信検知が困難、の 6 点である。
 
 本 UX 再設計は案 A (最小) として、これらを 1 PR で観測可能な振る舞いに落とす。すなわち (a) ScopeSegment を撤去して全 tool を 1 listbox に統合し『有効グループ → separator → disabled グループ』に並べる、(b) disabled tool も理由 (disabledReason) 付きで常時表示し keyboard cursor が skip する、(c) chip toggle を pointer click / Tab→Space / Alt+W / Alt+H + chip Enter の 4 経路に再設計、(d) hover と keyboard を単一 cursor state に統一する (有効行 hover で cursor follow、disabled 行 hover は cursor を奪わない)、(e) palette header に client-local active session (ADR-0046) を常時表示し変化時は flash + aria-live で告知、(f) paramless push の送信時 toast に projBase + sid8 + full path tooltip を載せる、を観測可能な振る舞いとして実現する。ADR-0036 (store 純粋性) / ADR-0040 (IME) / ADR-0046 (stale-tab + client-local active) / ADR-0047 (disabledReason 単一情報源) / ADR-0049 (英語統一) はすべて維持し、変更は `src/client/web/` 内に閉じる。
 
 ## Target Users
 
-- **arc Web UI で複数セッション (new-session + push) を頻繁に開閉する個人開発者** — 一日に何度も palette を開き push の送信先を判断したい。送信宛先が不可視だと誤送信のコストが高い。
-- **TUI 版 arc に慣れていて Web 版に移行しつつあるユーザー (worktree / host を頻繁に切り替える)** — TUI の Tab / Shift+Tab chip 切替を体で覚えているが、Web の Tab 標準と衝突するため retraining が必要。新キーバインド (Alt+W / Alt+H) と key hint icon でこのギャップを緩和する。
-- **Web 慣れだが TUI を触らないユーザー (Tab / Shift+Tab を知らず pointer 操作主体)** — Raycast / Linear / VSCode の command palette と同じ操作感を期待する。1 list 統合と pointer click による chip toggle が必須。
+- **Web UI で複数セッション (new-session + push) を頻繁に開閉する個人開発者** — 一日に何度も palette を開き push の送信先を判断したい。送信宛先が不可視だと誤送信のコストが高い。
+- **worktree / host を頻繁に切り替えるキーボード主体ユーザー** — chip 切替が Web の Tab 標準 (focus 移動) と衝突しないキーバインドを期待する。新キーバインド (Alt+W / Alt+H) と key hint icon で発見性を担保する。
+- **pointer 操作主体ユーザー** — Raycast / Linear / VSCode の command palette と同じ操作感を期待する。1 list 統合と pointer click による chip toggle が必須。
 - **アクセシビリティ支援技術 (NVDA / VoiceOver) で操作するキーボードユーザー** — disabled 行の理由を screen reader で読みたい。active session 変化を aria-live で受け取りたい。色のみに依存しない (WCAG 1.4.1)。
 
 ## Primary Flows

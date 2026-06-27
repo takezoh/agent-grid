@@ -177,7 +177,7 @@ prefix+p / prefix+C-p の挙動は不変。
   - `pnpm biome check` / `pnpm tsc --noEmit` clean
   - `no-japanese.test.ts` pass
   - 静的 lint: `cd src && go vet ./... && make lint` (Go 側不変)
-  - 手動: `make build && ./arc` で実機起動、Cmd/Ctrl+K → tool 選択 → push 成功で toast 確認 → active 切替で flash 確認
+  - 手動: `make build && ./server` で実機起動、Cmd/Ctrl+K → tool 選択 → push 成功で toast 確認 → active 切替で flash 確認
 
 ## Test Strategy
 

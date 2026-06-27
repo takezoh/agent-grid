@@ -7,7 +7,7 @@ Related requirements: FR-007, FR-008, FR-009, FR-010, FR-011, FR-019, FR-020
 
 ## Context
 
-TUI の 2 フェーズパレット (toolSelect → paramSelect) を Web に持ち込むにあたり、phase / scope / paramValues / submitting / error / opener を散らさず 1 箇所に集約する必要がある。同時に I/O (HTTP / store/daemon read) と UI state 遷移を混ぜると test 容易性が落ちる。
+2 フェーズパレット (toolSelect → paramSelect) を Web に実装するにあたり、phase / scope / paramValues / submitting / error / opener を散らさず 1 箇所に集約する必要がある。同時に I/O (HTTP / store/daemon read) と UI state 遷移を混ぜると test 容易性が落ちる。
 
 ## Decision
 

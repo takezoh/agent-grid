@@ -53,7 +53,7 @@ ADR-0076 §Decision 1 の「Title slot は常に何かを描画する。`TITLE_P
 - AI title 未到着でも Summary が出た瞬間に Title slot が人間が読める文字列に変わる
 - Title slot のフォールバックチェーンが全 driver で統一されるため、6 つめの driver を追加するときの仕様も明確 (`resolveCardTitleSubtitle` を呼ぶだけ)
 - `Card.Subtitle` を読む既存 consumer (peer fallback, palette label) は ADR-0076 時点の挙動のまま動き続ける
-- UI 層 (Web SessionList / TUI sessionCardLines) は title/subtitle 完全一致を hide する dedup を持つ。これが本 ADR の追加コスト
+- UI 層 (Web SessionList) は title/subtitle 完全一致を hide する dedup を持つ。これが本 ADR の追加コスト
 
 ## Alternatives Considered
 

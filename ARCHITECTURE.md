@@ -85,15 +85,13 @@ native clients with consistent behaviour.
   [ADR 0011](docs/adr/0011-two-step-ws-close-on-daemon-disconnect.md).
 - `server/web/mux.go` maps REST `/api/sessions` GET/POST/DELETE to
   `proto.CmdEvent{Event: state.Event{Create,List,Stop}Session}` via the
-  daemon client; cols/rows are packed into `state.LaunchOptions`
-  ([ADR 0005](docs/adr/0005-cmd-server-as-arc-daemon-gateway.md), FR-022).
+  daemon client; cols/rows are packed into `state.LaunchOptions` (FR-022).
 - `cmd/server/main.go` is the binary entry point for the merged backend: it
   boots the coordinator (event loop + IPC socket listener + persistence) and
-  a co-resident gateway goroutine. The gateway resolves the daemon socket
-  via `platform/socketpath.ResolveDaemonSocket(-server-sock, ARC_SOCKET,
-  ~/.agent-reactor/server.sock)`, dials it via `DaemonClient`, and serves
-  `server/web.NewMux(daemon, token)` behind a bearer-token + ws-ticket gate
-  ([ADR 0017](docs/adr/0017-platform-socketpath-helper.md)).
+  a co-resident gateway goroutine. The gateway dials the daemon socket
+  (default `~/.agent-reactor/server.sock`, overridable via `-server-sock`)
+  with `DaemonClient`, and serves `server/web.NewMux(daemon, token)` behind
+  a bearer-token + ws-ticket gate.
 - `server/session` was removed in A1-ε
   ([ADR 0014](docs/adr/0014-server-session-legacy-build-tag.md), superseded);
   the directory and its `legacy_session` build tag no longer exist.
@@ -110,8 +108,7 @@ is driven by browser-originated REST + WebSocket traffic against this gateway.
 import `platform/*`, `client/proto`, `client/state`, and `client/runtime`
 (the subset needed to speak IPC). It must not import `orchestrator/*`.
 
-Related ADRs: [0005](docs/adr/0005-cmd-server-as-arc-daemon-gateway.md) (cmd/server as gateway) ·
-[0011](docs/adr/0011-two-step-ws-close-on-daemon-disconnect.md) (two-step WS close) ·
+Related ADRs: [0011](docs/adr/0011-two-step-ws-close-on-daemon-disconnect.md) (two-step WS close) ·
 [0012](docs/adr/0012-daemon-client-eager-dial-supervisor.md) (daemon client supervisor) ·
 [0014](docs/adr/0014-server-session-legacy-build-tag.md) (legacy_session build tag) ·
 [0016](docs/adr/0016-depguard-server-layer-rule.md) (depguard server layer rule).

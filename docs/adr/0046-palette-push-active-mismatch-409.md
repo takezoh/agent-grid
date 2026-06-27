@@ -7,7 +7,7 @@ Related requirements: FR-025, FR-026
 
 ## Context
 
-push は daemon-global active session への操作という意味論 (TUI と同等)。client から path id を明示的に渡すことで race を検出可能にしたいが、照合相手 (daemon-global active か / 各 web client の活動 active か) を明確化する必要がある (MEMORY/web-active-session-ownership で client 独立管理が記録されている)。
+push は daemon-global active session への操作という意味論。client から path id を明示的に渡すことで race を検出可能にしたいが、照合相手 (daemon-global active か / 各 web client の活動 active か) を明確化する必要がある (MEMORY/web-active-session-ownership で client 独立管理が記録されている)。
 
 ## Decision
 

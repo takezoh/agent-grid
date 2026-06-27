@@ -21,7 +21,7 @@ Three options:
 The internal event is already the right shape: it fires only when state
 changes, and it carries the full sessions slice. Mirroring it requires no
 new state tracking and keeps the daemon's broadcast logic identical to
-the TUI's local consumer.
+the in-process consumer.
 
 ## Decision
 

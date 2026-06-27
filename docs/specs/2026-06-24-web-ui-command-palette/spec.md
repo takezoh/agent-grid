@@ -1,4 +1,4 @@
-# Spec — Web UI Command Palette (arc TUI prefix+p / prefix+C-p の Web 移植)
+# Spec — Web UI Command Palette
 
 - **作成日**: 2026-06-24
 - **ブランチ**: `main`
@@ -7,7 +7,7 @@
 
 ## Goal
 
-agent-reactor の Web UI に、arc TUI と同等の 2 フェーズ操作 (ファジー検索でツール選択 → パラメータ順次入力) を持つコマンドパレットを Cmd/Ctrl+K + 常設ボタンで起動できるモーダルとして実装する。standard スコープ (new-session / stop-session) と push スコープ (push_commands 配列) をセグメント切替で同居させ、push 送信経路 (POST /api/sessions/{id}/push) を本 spec で新設し、CreateSessionForm はパレット new-session に一本化して撤去する。push 可否判定は既存の daemon-global ActiveSessionID + ActiveOccupant を流用し、SessionInfo proto / wire への per-session occupant 追加は行わない。ADR-0030 (TerminalPane subscribe 唯一所有) / ADR-0033 (displayLabel 空文字=空) / WS は I/O 専用の既存規約を破らないことを設計制約とする。
+agent-reactor の Web UI に、2 フェーズ操作 (ファジー検索でツール選択 → パラメータ順次入力) を持つコマンドパレットを Cmd/Ctrl+K + 常設ボタンで起動できるモーダルとして実装する。standard スコープ (new-session / stop-session) と push スコープ (push_commands 配列) をセグメント切替で同居させ、push 送信経路 (POST /api/sessions/{id}/push) を本 spec で新設し、CreateSessionForm はパレット new-session に一本化して撤去する。push 可否判定は既存の daemon-global ActiveSessionID + ActiveOccupant を流用し、SessionInfo proto / wire への per-session occupant 追加は行わない。ADR-0030 (TerminalPane subscribe 唯一所有) / ADR-0033 (displayLabel 空文字=空) / WS は I/O 専用の既存規約を破らないことを設計制約とする。
 
 ## Scope
 
@@ -16,7 +16,7 @@ agent-reactor の Web UI に、arc TUI と同等の 2 フェーズ操作 (ファ
 - src/client/web 配下のパレット UI コンポーネント (CommandPalette / 検索 input / listbox / paramSelect / scope segment / ヘッダーバー / 戻る・閉じる button)
 - Cmd/Ctrl+K の document capture-phase ハンドラ + 常設『Command (⌘K / Ctrl+K)』ボタン (Header 既存 New Session ボタンの再配線含む)
 - xterm blur 戦略: パレット open 時にアクティブ TerminalPane.blur() を呼び、close 時に直前 focus へ復帰 (subscribe/unsubscribe は発行しない)
-- ファジー検索純関数 (items × query → ranked + match ranges) を web/src/lib/fuzzy.ts に新設、TUI sahilm/fuzzy 互換挙動
+- ファジー検索純関数 (items × query → ranked + match ranges) を web/src/lib/fuzzy.ts に新設、sahilm/fuzzy 相当の挙動
 - phaseToolSelect / phaseParamSelect 2 フェーズ state machine (Zustand store: store/palette.ts) — DOM 操作は持たず純粋 state のみ
 - ToolRegistry (lib/tools.ts): 宣言的 ToolDef 配列で standard 2 (new-session / stop-session) + push 動的展開を定義、disabledReason(daemonSnapshot) と submit(ctx) を ToolDef に集約
 - new-session の条件付きトグル: projectIsGit gating で worktree (Tab)、projectIsSandboxed gating で host (Shift+Tab)
@@ -31,7 +31,6 @@ agent-reactor の Web UI に、arc TUI と同等の 2 フェーズ操作 (ファ
 
 - detach / create-project / shutdown / 監視系ツールの Web 露出 (送信経路未整備)
 - activeSessionID の client 単独管理化の正式リファクタ (store 改修は別 spec、本 spec は new-session 成功時の setActive を従来挙動のまま流用)
-- arc TUI 側のキーバインド変更
 - fuse.js 等のファジー検索ライブラリ追加 (依存ゼロ純関数で実装)
 - WS 経由の mutating フレーム種別追加 (push は HTTP に寄せる)
 - Go proto SessionInfo / TS wire SessionInfo への per-session occupant フィールド追加 (本 spec では行わない)
@@ -50,19 +49,19 @@ agent-reactor の Web UI に、arc TUI と同等の 2 フェーズ操作 (ファ
 - **FR-003** *(event_driven)* — コマンドパレットが開いた時、システムは検索 input にフォーカスを移し focus trap を有効化し、アクティブ TerminalPane を blur しなければならない。
   - *Rationale*: 起動後に xterm が keydown を奪い続けると palette 操作が成立しない。focus trap で dialog 内に閉じ込める。
 - **FR-004** *(event_driven)* — コマンドパレットが開いた時、アクティブセッションが存在し daemon-global ActiveOccupant が 'frame' である場合、システムは push スコープを既定選択しなければならない。それ以外の場合、システムは standard スコープを既定選択しなければならない。
-  - *Rationale*: TUI と同等の初期スコープ選択を再現する。push 可否は per-session occupant ではなく既存の daemon-global ActiveOccupant を使う (per-session occupant モデルが daemon に存在しないため)。
+  - *Rationale*: push 可否は per-session occupant ではなく既存の daemon-global ActiveOccupant を使う (per-session occupant モデルが daemon に存在しないため)。
 - **FR-005** *(unwanted)* — もしアクティブセッションが存在しないなら、システムは push スコープセグメントを disabled にし、サブテキスト『アクティブセッションなし』を表示しなければならない。
   - *Rationale*: 選択不可な scope の理由をユーザに明示する。
 - **FR-006** *(unwanted)* — もしアクティブセッションが存在し ActiveOccupant が 'frame' でないなら、システムは push スコープセグメントを disabled にし、サブテキスト『push 対象 driver なし』を表示しなければならない。
-  - *Rationale*: TUI と同等の理由提示。
+  - *Rationale*: 選択不可な scope の理由をユーザに明示する。
 - **FR-007** *(state_driven)* — phaseToolSelect である間、システムは role=listbox / option の構造で候補を表示し、aria-activedescendant で現在選択を伝えなければならない。
   - *Rationale*: スクリーンリーダ / キーボード操作の標準準拠。
 - **FR-008** *(event_driven)* — 検索 input への入力が発生した時、システムは候補を fuzzy filter しランクトップを選択状態にし、マッチ位置を <mark> でハイライト描画しなければならない。
-  - *Rationale*: TUI sahilm/fuzzy と同等の体験。ハイライト range の消費は ToolSelectPhase に限定 (ParamSelectPhase は使わない)。
+  - *Rationale*: sahilm/fuzzy 相当の体験。ハイライト range の消費は ToolSelectPhase に限定 (ParamSelectPhase は使わない)。
 - **FR-009** *(event_driven)* — ↑/↓ または Ctrl+P/Ctrl+N が押された時、システムは候補カーソルを移動しなければならない。Enter が押された時、システムは選択ツールを確定し phaseParamSelect に遷移しなければならない。
-  - *Rationale*: TUI と同等のキーバインド。
+  - *Rationale*: command palette の業界標準キーバインド。
 - **FR-010** *(event_driven)* — 選択されたツールが ParamDef を持たない場合、Enter による確定で即座に submit を実行しなければならない。
-  - *Rationale*: paramless push コマンドは確定即送信 (TUI と同等)。
+  - *Rationale*: paramless push コマンドは確定即送信。
 - **FR-011** *(state_driven)* — phaseParamSelect である間、システムは選択ツールの必須パラメータを縦並びで全表示し、入力済みフィールドを画面に残さなければならない。
   - *Rationale*: 後戻りせずに入力状況を一覧確認できる UX。
 - **FR-012** *(event_driven)* — ParamDef.options が non-null の時、システムはそのフィールドを listbox 表示にし、options が null の時は text input 表示にしなければならない。自由入力フィールドでは候補 0 件でも Enter を有効にしなければならない。
@@ -106,7 +105,7 @@ agent-reactor の Web UI に、arc TUI と同等の 2 フェーズ操作 (ファ
 
 > 設計判断ではなく plan-impl 段階で grep / 観察により確定する implementation-time の確認事項。
 
-- GET /api/session-config の projects 要素拡張 ({path, isGit, isSandboxed}) は既存 TUI (arc CLI) や claude-app-server の /api/session-config 利用箇所に影響しないか — 現時点で apiSessionConfig は web 専用エンドポイントだが、設定回りの helper 共有がある場合は確認が必要 (plan 実装着手前に grep で確認、影響あれば backward-compatible に保つ)
+- GET /api/session-config の projects 要素拡張 ({path, isGit, isSandboxed}) は claude-app-server の /api/session-config 利用箇所に影響しないか — 現時点で apiSessionConfig は web 専用エンドポイントだが、設定回りの helper 共有がある場合は確認が必要 (plan 実装着手前に grep で確認、影響あれば backward-compatible に保つ)
 - isSandboxed の判定源 — config.Session の sandbox 対象 list と project path のマッチングを mux.go で行うか、platform 側に helper を切り出すか (plan-impl で実装位置を確定する)
 - /api/session-config の再 fetch タイミング — palette open 毎に再 fetch するか、App 起動時 + 任意の reload トリガで足りるか。push_commands は config 編集時に変わるが、変更通知の仕組みは現状なし (plan-impl で観察ベースで決める)
 - stop-session の対象 listbox の getText (displayLabel か title か id か) — ADR-0033 の displayLabel 純関数を再利用する想定だが、ParamDef.options の getText 指定方法は ToolRegistry 実装時に確定する

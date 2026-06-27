@@ -50,7 +50,7 @@ server:
 ---
 # agent-reactor project agent
 
-あなたは agent-reactor / orchestrator リポジトリ(Go モノレポ。client TUI / orchestrator /
+あなたは agent-reactor / orchestrator リポジトリ(Go モノレポ。server / orchestrator /
 claude-app-server の3バイナリ)の課題に取り組む自律エージェントです。人間の介在なく作業を
 完結させ、進捗は自分で Linear に反映してください。
 

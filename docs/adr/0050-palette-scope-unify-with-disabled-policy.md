@@ -7,7 +7,7 @@ Related requirements: F-002, F-007 (UAC-004〜UAC-005, UAC-015〜UAC-016)
 
 ## Context
 
-commit 9287c7f は CommandPalette UI に `ScopeSegment.tsx` を導入し、standard / push の 2 tab で tool を分離した。これは arc TUI 版の操作モデルを直訳したもので、TUI では画面幅と縦スクロールの制約から tab 分割が合理的だった。しかし Web の command palette UX 標準 (Raycast / Linear / VSCode Quick Pick) は 1 list 混在 + fuzzy filter による横断検索で、tab 分割は無い。
+commit 9287c7f は CommandPalette UI に `ScopeSegment.tsx` を導入し、standard / push の 2 tab で tool を分離した。しかし Web の command palette UX 標準 (Raycast / Linear / VSCode Quick Pick) は 1 list 混在 + fuzzy filter による横断検索で、tab 分割は無い。
 
 本リポジトリの現状では active session が未選択のとき push tab 全体が空になり、ユーザーには『push が押せない』という事実は分かっても『なぜ押せないか』の理由 (No active session) が見えない。disabled の理由 (`disabledReason`) は ADR-0047 で `scopeDisabledReason()` という single source として確立済みだが、その値が UI に露出していない。さらに tab 内が空であることが loading / context 失敗 / 単なる empty の区別がつかず、silent failure に近い。
 
@@ -36,7 +36,7 @@ commit 9287c7f は CommandPalette UI に `ScopeSegment.tsx` を導入し、stand
 - **positive**: ADR-0047 (disabledReason single source) を維持しつつ、その値の唯一の表示先が secondary text と inline status に限定され重複が生まれない。
 - **positive**: ADR-0036 (store 純粋性) と矛盾しない。本 ADR で追加される group sort と inline status は表示層 (React 層) に閉じ、store の責務は変えない。
 - **negative**: pushCommands 件数が将来増えた場合 (例: 100 件超) に listbox 縦方向が膨張する。本 ADR では sort 機構を導入しないため、その際は open_questions の dynamic sort 検討に繋ぐ。
-- **negative**: 既存 `ScopeSegment.tsx` と関連 store action / keybinding を削除する破壊的変更が発生する。TUI ↔ Web の操作モデル差が広がるため release note と key hint で説明責任を負う。
+- **negative**: 既存 `ScopeSegment.tsx` と関連 store action / keybinding を削除する破壊的変更が発生する。release note と key hint で説明責任を負う。
 - neutral: registry 順を維持するため既存 fuzzy ランクの相対順序は変わらず、ユーザーの筋肉記憶への影響は最小化される。
 
 ## Alternatives Considered

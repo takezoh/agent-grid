@@ -115,7 +115,7 @@ ResizeObserver(host)─┘
 2. `cd src/client/web && npx vitest run` が green、全 12 FR に対応する `it` ケースが存在
 3. `cd src/client/web && npx biome check .` が pass
 4. `cd src && go test ./...` が green (server/web 側に影響しない)
-5. **手動確認** (`make build-all` 後、`./arc daemon` + `./arc` web gateway 起動 + ブラウザ):
+5. **手動確認** (`make build-all` 後、`./server` 起動 + ブラウザ):
    - EVENTS タブをクリック → event-log の内容 (1 行以上) が `<pre>` に表示される
    - セッションを切替 → ターミナルが空になり、新セッションの出力のみ表示される
    - ブラウザウィンドウをリサイズ → ターミナルが追従して fit する

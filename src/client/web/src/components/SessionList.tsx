@@ -1,10 +1,10 @@
 // SessionList — sidebar session picker, partitioned by workspace and grouped
-// by project. Mirrors the arc TUI sidebar structure (workspace switcher row
-// → alphabetical project headers with fold toggles → sessions under each).
+// by project (workspace switcher row → alphabetical project headers with fold
+// toggles → sessions under each).
 //
 // Layered listbox model:
 //   - Workspace switcher: SegmentedControl (radiogroup) — only rendered when
-//     ≥ 2 workspaces exist (TUI workspaceBarVisible parity).
+//     ≥ 2 workspaces exist.
 //   - Per-project section: disclosure button (aria-expanded) + nested
 //     UnifiedListbox of sessions. Each project has its own cursor; this is
 //     deliberate — keeps keyboard nav contained inside a project so the

@@ -7,13 +7,13 @@ Related requirements: F-004 (UAC-008〜UAC-010)
 
 ## Context
 
-commit 9287c7f の ParamSelectPhase は new-session の Worktree / Host chip を **Tab で Worktree toggle / Shift+Tab で Host toggle** というキーバインドで操作する。これは arc TUI 版の chip 操作モデルを直訳したもので、TUI では Tab は単に key event の一つだが、Web の Tab は『focus を次の interactive 要素に動かす』というブラウザ標準動作を持つ。Tab を chip toggle に奪うと:
+commit 9287c7f の ParamSelectPhase は new-session の Worktree / Host chip を **Tab で Worktree toggle / Shift+Tab で Host toggle** というキーバインドで操作する。しかし Web の Tab は『focus を次の interactive 要素に動かす』というブラウザ標準動作を持ち、Tab を chip toggle に奪うと:
 
 - focus trap 内で「次の chip にフォーカスを動かす」「palette 外に focus を出す」といった素直な Tab 操作が永久に塞がれる
 - chip 自体が role='switch' を持たず pointer click / Space / Enter どれでも toggle できないため、**pointer ユーザーは chip を全く操作できない** (Web では完全な締め出し)
 - screen reader ユーザーが chip にフォーカスを当てる手段が無い (Tab で来られないため)
 
-つまり TUI 直訳のキーバインドが Web UX の 3 大入力経路 (pointer / keyboard tab / screen reader) を同時に塞いでいる。これを最小スコープで解消する設計判断を本 ADR で決める。spec.md / plan.md は後続 plan-how フェーズで生成される。
+つまり既存キーバインドが Web UX の 3 大入力経路 (pointer / keyboard tab / screen reader) を同時に塞いでいる。これを最小スコープで解消する設計判断を本 ADR で決める。spec.md / plan.md は後続 plan-how フェーズで生成される。
 
 ## Decision
 
@@ -36,7 +36,7 @@ commit 9287c7f の ParamSelectPhase は new-session の Worktree / Host chip を
 - **positive**: Alt+W / Alt+H + `[W]` / `[H]` key hint icon の組合せで、新 hotkey の存在が affordance として常時 visible。隠れたショートカットにならない。
 - **positive**: chip focus 中 Enter = toggle / input 欄 focus 中 Enter = submit の役割分離が明示され、submit 誤発火が構造的に防止される。
 - **positive**: chip visibility 動的変化での focus 喪失も focus trap 内 fallback ルールで構造的に防止され、focus が body に逃げる footgun が消える。
-- **negative**: TUI の Tab/Shift+Tab に慣れたユーザーの retraining が必要。release note と `[W]` / `[H]` key hint icon で緩和するが、筋肉記憶への影響は避けられない。
+- **negative**: 旧 Tab/Shift+Tab キーバインドに慣れたユーザーの retraining が必要。release note と `[W]` / `[H]` key hint icon で緩和するが、筋肉記憶への影響は避けられない。
 - negative: Alt+W / Alt+H が他 OS / ブラウザの mnemonic (例: macOS Option+W で `∑` 入力 / 一部ブラウザの menu mnemonic) と稀に衝突する可能性がある。実機検証は open_questions に送り、本 ADR では `event.preventDefault()` で当該 hotkey をブラウザに伝播させない実装にする。
 - neutral: ARIA role='switch' + aria-checked は WAI-ARIA 1.2 標準で screen reader 対応が安定している。NVDA / VoiceOver / JAWS で同様に告知される。
 - neutral: chip Enter = toggle の挙動は form 内 chip の Web 標準 (button / switch) と整合し、driver-typed input field の Enter = submit とも矛盾しない (focus 元で挙動が分岐するため)。
@@ -61,4 +61,4 @@ ARIA `role='switch'` と同等の意味論だが、checkbox は通常 label + bo
 
 ### Alt+W / Alt+H の hotkey を導入せず pointer + Tab→Space のみで済ます
 
-key hint icon `[W]` / `[H]` の affordance が失われ、keyboard 操作で 1 手数 (Tab で chip に focus → Space で toggle) 必要になる。input 欄から手を離さず toggle できる Alt hotkey が utility として顕著に高く、TUI ユーザーの retraining も Alt+W / Alt+H という新ルールで明示できる。
+key hint icon `[W]` / `[H]` の affordance が失われ、keyboard 操作で 1 手数 (Tab で chip に focus → Space で toggle) 必要になる。input 欄から手を離さず toggle できる Alt hotkey が utility として顕著に高く、旧キーバインド利用者の retraining も Alt+W / Alt+H という新ルールで明示できる。

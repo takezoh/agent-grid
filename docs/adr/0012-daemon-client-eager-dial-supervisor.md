@@ -4,7 +4,7 @@ Status: Accepted
 
 ## Context
 
-`cmd/server` needs a `proto.Client` connection to the arc daemon. Two
+`cmd/server` needs a `proto.Client` connection to the session daemon. Two
 properties are non-negotiable:
 
 - The server process survives daemon restarts (the daemon may go down for

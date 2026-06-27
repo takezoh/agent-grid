@@ -7,7 +7,7 @@
 
 ## Goal
 
-Web UI から `arc` の terminal タブを開いた後、別デバイス (別ブラウザ / 別タブ) で同じセッションへ後から接続したとき、claude / codex / bash の **画面外に流れた行を遡って読める** ようにする。逆に vim / less 等の全画面 TUI については「現在画面だけ届く」既存挙動を維持する (tmux / mosh と同じ意味論)。サーバ側 VT エミュレータの scrollback バッファを使い、`termvt.Session.Subscribe()` の seed が `scrollback + 現在グリッド` の 2 frame で届くようにする。永続化はしない (in-memory)。
+Web UI で terminal タブを開いた後、別デバイス (別ブラウザ / 別タブ) で同じセッションへ後から接続したとき、claude / codex / bash の **画面外に流れた行を遡って読める** ようにする。逆に vim / less 等の全画面 TUI については「現在画面だけ届く」既存挙動を維持する (tmux / mosh と同じ意味論)。サーバ側 VT エミュレータの scrollback バッファを使い、`termvt.Session.Subscribe()` の seed が `scrollback + 現在グリッド` の 2 frame で届くようにする。永続化はしない (in-memory)。
 
 ## Functional Requirements (EARS)
 
@@ -46,4 +46,4 @@ Web UI から `arc` の terminal タブを開いた後、別デバイス (別ブ
 - xterm.js 側 scrollback の動的な server cap 連携 (現状は静的に server default と同じ 10,000 に揃えている。settings.toml の `[terminal] scrollback_lines` を変更した場合の client 側追従は別 PR)
 - ADR 0010 (subscribe-scoped Sequence) の意味論変更 — 2 frame seed でも frame 単位 incremental ID は live chunk から数え始まる、契約は無変更
 - 既存 transcript / event-log の REST backfill (ADR 0025) との統合 — terminal は別経路、文書化のみ
-- TUI クライアント (`cmd/arc/` の tui) 側の scrollback 表示 — 本 PR は Web UI に閉じる
+- 本 PR は Web UI に閉じる

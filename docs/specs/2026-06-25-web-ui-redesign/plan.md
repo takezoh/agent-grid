@@ -159,7 +159,7 @@ agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計
   - FR-TOKEN-001 の構造観察: `fs.readFile` で SessionList / palette listbox の CSS source を読み、正規表現で `--row-*` 参照を持つことを assert (ハードコード値の混入を構造的に排除)。
   - FR-TAGPILL-001 の数値観察: contrast util の `contrastRatio` を直接呼び 4.5 以上を assert + DOM の computed style からも assert (二重観察)。
 - **Go 側テスト**: 本刷新は wire/persistence/daemon 変更なし (FR-WIRE-001) のため Go 側追加テストなし。既存 `cd src && go test ./server/web/... ./client/state/...` の緑維持のみ確認。
-- **手動検証**: `make build && ./arc` で実機起動し、PC (>=1024px) / タブレット (768-1024px) / スマホ (<768px) の 3 帯で各 chunk 完了時に主要 flow (F-001 drawer / F-002 theme / F-003 palette / F-004 tab 切替) を一度ずつ実施。iOS Safari は dvh + safe-area の挙動確認に必須。
+- **手動検証**: `make build && ./server` で実機起動し、PC (>=1024px) / タブレット (768-1024px) / スマホ (<768px) の 3 帯で各 chunk 完了時に主要 flow (F-001 drawer / F-002 theme / F-003 palette / F-004 tab 切替) を一度ずつ実施。iOS Safari は dvh + safe-area の挙動確認に必須。
 
 ## 移行戦略 (visual 退行ゼロを最初の安全弁)
 

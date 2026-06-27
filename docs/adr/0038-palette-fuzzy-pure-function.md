@@ -7,7 +7,7 @@ Related requirements: FR-008
 
 ## Context
 
-ツール候補数は最大でも数十程度、自由入力 options のフィルタも軽量。fuse.js などのライブラリを新規導入すると bundle と維持コストが増え、TUI の sahilm/fuzzy と挙動が乖離する可能性がある。
+ツール候補数は最大でも数十程度、自由入力 options のフィルタも軽量。fuse.js などのライブラリを新規導入すると bundle と維持コストが増える。
 
 ## Decision
 
@@ -24,7 +24,7 @@ fuzzyRank<T>(items, query, getText): Array<{item, score, ranges}> という gene
 
 ### fuse.js 導入
 
-却下: bundle 増 + TUI と挙動差
+却下: bundle 増
 
 ### string includes のみで filter
 

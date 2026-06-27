@@ -517,12 +517,6 @@ The following ADRs document the decisions that shaped the gateway wire
 protocol and architecture. Read these when you need the rationale behind
 a specific design choice.
 
-- [ADR 0005](../adr/0005-cmd-server-as-arc-daemon-gateway.md) — established
-  `cmd/server` as the HTTP/WS gateway fronting the session daemon; defined
-  the stateless-proxy architecture and the Unix-socket boundary. The current
-  layout (since phase F-E) co-resides daemon and gateway in one process; the
-  proxy contract still holds across the in-process socket.
-
 - [ADR 0006](../adr/0006-surface-namespace-for-new-proto-commands.md) — unified
   the `CmdSurface*` / `EvtSurface*` prefix in the proto layer; the gateway's
   `CmdSurfaceSubscribe`, `CmdSurfaceWriteRaw`, `CmdSurfaceResize` commands

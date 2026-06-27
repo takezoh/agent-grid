@@ -7,7 +7,7 @@ Related requirements: FR-011, FR-012
 
 ## Context
 
-Web UI のセッション一覧でセッションを ID ではなく、driver が付与したタイトル / 要約 / 最終入力プロンプトで表示したい (Web UI 問題6)。arc TUI (`client/driver/claude_view.go` 等) は
+Web UI のセッション一覧でセッションを ID ではなく、driver が付与したタイトル / 要約 / 最終入力プロンプトで表示したい (Web UI 問題6)。driver (`client/driver/claude_view.go` 等) は
 
 ```go
 Card: state.Card{
@@ -52,7 +52,7 @@ function displayLabel(card: Card, id: string): string {
 - 空タイトルカードで空ラベルになる現行バグを解消し、`title` / `subtitle` 双方空のときのみ `id` にフォールバック (FR-011 / FR-012)
 - 空判定規約が `SessionList` と `DriverViewPanel` で統一され、将来のカード表示の一貫性が保たれる
 - `displayLabel` が純関数のため `title` / `subtitle` / `id` の各分岐を単体テストで網羅でき観測しやすい
-- 起動直後に `title` / `subtitle` 未確定で生 `id` が一瞬見える点は arc と挙動一致だが UX 上の是非は follow-up (本 ADR の Open follow-up、Spec の Open Question Q5 で「arc 挙動維持」と決定済み)
+- 起動直後に `title` / `subtitle` 未確定で生 `id` が一瞬見える点の UX 上の是非は follow-up (本 ADR の Open follow-up、Spec の Open Question Q5 で「id フォールバック維持」と決定済み)
 
 ## Alternatives Considered
 
@@ -62,4 +62,4 @@ function displayLabel(card: Card, id: string): string {
 
 ### `title` / `subtitle` 不在時にプレースホルダ (`"New session…"`) を表示
 
-却下: arc TUI との差異と追加状態管理が生じる。`id` フォールバックが arc と揃い単純。プレースホルダ案は follow-up で再考可能。
+却下: 追加状態管理が生じる。`id` フォールバックが単純。プレースホルダ案は follow-up で再考可能。

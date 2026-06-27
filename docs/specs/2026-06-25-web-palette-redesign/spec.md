@@ -1,4 +1,4 @@
-# Spec — Web UI コマンドパレット 再設計 (TUI 移植からの Web 最適化, 案 A 最小)
+# Spec — Web UI コマンドパレット 再設計 (Web UX 最適化, 案 A 最小)
 
 - **作成日**: 2026-06-25
 - **ブランチ**: `main`
@@ -49,7 +49,6 @@ accepted な ux.md (UAC-001〜UAC-018, F-001〜F-008) と ADR-0050〜0053 を入
 - destructive push の確認モーダル
 - mobile / touch-first レイアウト最適化
 - breadcrumb / favorites UI
-- TUI 側 palette (src/client/tui/palette*.go) の変更
 - platform / orchestrator 層への変更
 - wire-format (server 側 API / JSON schema) の変更 — SessionInfo に project 識別子が不足する場合は active header を sid8 のみ fallback 表示し別 PR で対応
 - 新規 npm 依存の追加

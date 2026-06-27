@@ -1,7 +1,7 @@
 /* session-list.css — sidebar session picker (workspace bar + project tree).
    Import order: tokens.css → app.css → session-list.css → palette.css → snackbar.css → shell.css → view.css
 
-   Structure mirrors arc TUI sidebar:
+   Structure:
      1. Workspace switcher row (rendered only when ≥ 2 workspaces exist)
      2. Project sections: disclosure header + nested UnifiedListbox
    Same DOM on desktop / tablet / mobile drawer — only spacing and the

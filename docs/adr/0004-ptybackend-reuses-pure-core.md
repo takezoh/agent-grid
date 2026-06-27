@@ -8,7 +8,7 @@ The tmux-free split (historical plan / design docs lived under `plans/` and were
 removed once execution completed — see git history) shipped a phase-2 web stack — `platform/termvt`, `server/session`, `server/web`,
 `client/web` — that operates pty-backed sessions and streams them to the browser.
 
-That stack works, but it **bypasses arc's pure core**: `server/web` and
+That stack works, but it **bypasses the pure core**: `server/web` and
 `server/session` import neither `client/state` (the reducer) nor `client/driver`.
 The design's strategy (remote-client-design.md §2) was the opposite — *replace the
 `TmuxBackend` implementation with a `PtyBackend`, keep the pure core untouched* —
@@ -95,20 +95,21 @@ the web surface (plan A) and the eventual tmux removal (plan C).
 ## Open questions — resolved in B1
 
 - **Session ownership → the runtime's PtyBackend owns its own `termvt.Manager`.**
-  `NewPtyBackend()` constructs a private `termvt.Manager`; the arc daemon and
-  `cmd/server` are separate processes, so each holding its own Manager cannot
-  collide. B1 does **not** touch `server/session.Service` / `cmd/server`.
+  `NewPtyBackend()` constructs a private `termvt.Manager`; the session daemon
+  and `cmd/server` are separate processes, so each holding its own Manager
+  cannot collide. B1 does **not** touch `server/session.Service` / `cmd/server`.
   Converging the web surface onto the daemon's runtime-owned sessions (so the
   web inherits driver intelligence, and `cmd/server` is absorbed or proxied) is
   plan A, not B1.
 - **Reattach after daemon restart → not preserved across restart in B1.** termvt
-  sessions are children of the arc daemon and die with it — the same model as the
-  already-shipped `cmd/server` (sessions survive client disconnect but not a host
-  restart). Session *definitions* persist via `SessionSnapshot`; on restart the
-  daemon cold re-spawns rather than re-attaching live processes. PtyBackend's
-  `SetEnv`/`ShowEnvironment` are in-process only and documented as non-persistent;
-  a tmux-session-env replacement for cross-restart pane recovery is deferred (a
-  detached supervisor that outlives the daemon is explicitly out of scope here).
+  sessions are children of the session daemon and die with it — the same model
+  as the already-shipped `cmd/server` (sessions survive client disconnect but
+  not a host restart). Session *definitions* persist via `SessionSnapshot`; on
+  restart the daemon cold re-spawns rather than re-attaching live processes.
+  PtyBackend's `SetEnv`/`ShowEnvironment` are in-process only and documented as
+  non-persistent; a tmux-session-env replacement for cross-restart pane recovery
+  is deferred (a detached supervisor that outlives the daemon is explicitly out
+  of scope here).
 
 ## Status of B1 implementation
 
@@ -119,5 +120,5 @@ and `CaptureTail`). Data plane is real, presentation plane is stubbed. It is
 integration prerequisites before wiring — missing-pane error contract vs
 `isMissingPaneErr`, shell-string vs argv command form, `ResizeWindow` target
 shape, session-env persistence, `PipePane` tap, main-window kill guard — were
-tracked under "B1-wiring の前提条件" in the (now-removed) `plans/arc-server-client-split.md`;
+tracked under "B1-wiring の前提条件" in the (now-removed) `plans/` design docs;
 all six were resolved or rendered moot by the time wiring completed.

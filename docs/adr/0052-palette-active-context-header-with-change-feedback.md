@@ -38,7 +38,7 @@ ADR-0046 (web-active-session-ownership) で active session の論理 source は 
 - **positive**: ctx 構築失敗時に Active 行と Unavailable 表示が共存しないため、不通状態の表現が一貫する。
 - **negative**: palette の縦方向が 1 行 (header) 増える。modal の overall height が伸びるため、小さな画面で visible 行数が 1 行減る。
 - **negative**: 同名 basename の disambiguator 表示 (`work (under foo)`) が長くなると 1 行に収まらない可能性がある。truncate ルールは表示層の責務として CSS `text-overflow: ellipsis` + `title` attribute で full 表示する。
-- neutral: TUI 側の palette には Active context 行が無いため、Web ↔ TUI で palette の見た目に差が生じる。TUI は単一 session 運用が主のため Active 表示の必要性が薄い設計判断と整合する。
+- neutral: Active context 行は Web の複数 client 並走前提で意味を持つ表示要素であり、単一 session 運用では情報量が冗長になる可能性がある。
 - neutral: flash の duration (600ms) と aria-live の `polite` レベルは UX 監視対象 (頻繁すぎる切替で読み上げが累積する場合の調整余地あり)。
 
 ## Alternatives Considered
