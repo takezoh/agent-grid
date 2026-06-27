@@ -1,5 +1,16 @@
 # Handoff: Web UI session 作成フォームの UX 修正
 
+> **Status: OBSOLETE / SUPERSEDED** (2026-06-27 更新)
+> ADR-0043 (`docs/adr/0043-palette-createsessionform-replacement.md`) で
+> `CreateSessionForm.tsx` ごと撤去され、command palette ベースの session 作成 flow
+> (`docs/adr/0040-0045`) に置換された。本 plan の前提となるフォームが存在しない
+> ため、案 A/B/C いずれも適用不可。歴史的な incident → backend 修正
+> (`f83047d`: POST /api/sessions の 400/422 path 整理) の経緯記録としてのみ残す。
+> 新しい session 作成 UX に問題が出た場合は ADR-0040〜0045 と palette 実装
+> (`src/client/web/src/components/CommandSearchTrigger.tsx` 周辺) を起点に再計画する。
+>
+> --- 以下、当時の plan(参考用、実装してはならない) ---
+>
 > Status: **未着手** (作成 2026-06-22) · Branch: `feat/tmux-free-web-server`
 > 直近 backend 修正: commit `f83047d` (POST /api/sessions の 500/502 を grep-able 化 + spawn mode 追加 + `project` 絶対パス強制)
 > 引き継ぎ元コンテキスト: ユーザーの incident report → backend 側修正 → frontend 側の UX 問題が露呈
