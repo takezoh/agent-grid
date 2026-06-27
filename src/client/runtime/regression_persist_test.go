@@ -116,7 +116,7 @@ func TestRegressionColdStartDropsStoppedFrames(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      p,
 		Launcher:     l,
 	})
@@ -161,7 +161,7 @@ func TestRegressionCreateSessionReachesDisk(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      persist,
 	})
 
@@ -198,7 +198,7 @@ func TestRegressionSpawnFailureReachesDiskAsDelete(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      persist,
 	})
 
@@ -295,7 +295,7 @@ func TestRegressionRunFlushesPendingMutationsOnCancel(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second, // suppress periodic ticks that would mask the bug
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      persist,
 	})
 
@@ -403,7 +403,7 @@ func TestRegressionEvictedSessionStaysEvictedAfterPaneEvents(t *testing.T) {
 		SessionName:      "reactor-test",
 		TickInterval:     50 * time.Millisecond,
 		FastTickInterval: 25 * time.Millisecond,
-		Tmux:             tmux,
+		Backend:          tmux,
 		Persist:          persist,
 	})
 

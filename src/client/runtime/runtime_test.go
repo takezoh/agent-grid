@@ -309,7 +309,7 @@ func TestRuntimeStartsAndShutsDown(t *testing.T) {
 		SessionName:  "reactor-test",
 		RoostExe:     "/usr/local/bin/roost",
 		TickInterval: 50 * time.Millisecond,
-		Tmux:         newFakeTmux(),
+		Backend:      newFakeTmux(),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -331,7 +331,7 @@ func TestExecuteKillSession(t *testing.T) {
 	r := New(Config{
 		SessionName: "reactor-test",
 		RoostExe:    "/usr/local/bin/roost",
-		Tmux:        tmux,
+		Backend:     tmux,
 	})
 
 	r.execute(state.EffKillSession{})
@@ -394,7 +394,7 @@ func TestRuntimeCreateSessionFlow(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second, // suppress periodic ticks
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      persist,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -446,7 +446,7 @@ func TestRuntimeTickFiresHealthChecks(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Millisecond,
-		Tmux:         tmux,
+		Backend:      tmux,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -472,7 +472,7 @@ func TestRuntimeRespawnsDeadPane(t *testing.T) {
 		SessionName:  "reactor-test",
 		RoostExe:     "/usr/bin/roost",
 		TickInterval: 10 * time.Millisecond,
-		Tmux:         tmux,
+		Backend:      tmux,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -505,7 +505,7 @@ func TestActivateSessionInitializesMainPaneIDOnDemand(t *testing.T) {
 	r := New(Config{
 		SessionName:       "reactor-test",
 		MainPaneHeightPct: 70,
-		Tmux:              tmux,
+		Backend:           tmux,
 	})
 	r.state.Sessions["sess-1"] = state.Session{
 		ID:      "sess-1",
@@ -539,7 +539,7 @@ func TestActivateSessionMissingPaneEnqueuesWindowVanished(t *testing.T) {
 	r := New(Config{
 		SessionName:       "reactor-test",
 		MainPaneHeightPct: 70,
-		Tmux:              tmux,
+		Backend:           tmux,
 	})
 	r.sessionPanes["_main"] = "%main"
 	r.state.Sessions["sess-1"] = state.Session{
@@ -626,7 +626,7 @@ func TestRuntimeStopSession(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 	})
 	r.state.Sessions["abc"] = state.Session{
 		ID:      "abc",
@@ -666,7 +666,7 @@ func TestFastTickDetectsActivePaneDeath(t *testing.T) {
 		SessionName:      "reactor-test",
 		TickInterval:     10 * time.Second,
 		FastTickInterval: 10 * time.Millisecond,
-		Tmux:             tmux,
+		Backend:          tmux,
 	})
 	r.activeFrameID = "frame-1"
 	r.sessionPanes["frame-1"] = "%42"
@@ -693,7 +693,7 @@ func TestFastTickSkipsWhenNoActiveFrame(t *testing.T) {
 		SessionName:      "reactor-test",
 		TickInterval:     10 * time.Second,
 		FastTickInterval: 10 * time.Millisecond,
-		Tmux:             tmux,
+		Backend:          tmux,
 	})
 	// activeFrameID remains empty
 
@@ -714,7 +714,7 @@ func TestFastTickIgnoresAliveActivePane(t *testing.T) {
 		SessionName:      "reactor-test",
 		TickInterval:     10 * time.Second,
 		FastTickInterval: 10 * time.Millisecond,
-		Tmux:             tmux,
+		Backend:          tmux,
 	})
 	r.activeFrameID = "frame-1"
 	r.sessionPanes["frame-1"] = "%42"
@@ -743,7 +743,7 @@ func TestFastTickDetectsActivePaneDeathByPaneID(t *testing.T) {
 		SessionName:      "reactor-test",
 		TickInterval:     10 * time.Second,
 		FastTickInterval: 10 * time.Millisecond,
-		Tmux:             tmux,
+		Backend:          tmux,
 	})
 	r.activeFrameID = "frame-1"
 	r.sessionPanes["frame-1"] = "%42"
@@ -771,7 +771,7 @@ func TestExecuteCheckPaneAliveResolvesActiveFramePaneID(t *testing.T) {
 	tmux.alive["reactor-test:0.1"] = true
 	r := New(Config{
 		SessionName: "reactor-test",
-		Tmux:        tmux,
+		Backend:     tmux,
 	})
 	r.activeFrameID = "frame-1"
 	r.sessionPanes["frame-1"] = "%42"
@@ -810,7 +810,7 @@ func TestExecuteCheckPaneAliveTransientErrorDoesNotKillActiveFrame(t *testing.T)
 	tmux.aliveErr["%42"] = fmt.Errorf("tmux display-message -t %%42 -p #{pane_dead}: %w", context.DeadlineExceeded)
 	r := New(Config{
 		SessionName: "reactor-test",
-		Tmux:        tmux,
+		Backend:     tmux,
 	})
 	r.activeFrameID = "frame-1"
 	r.sessionPanes["frame-1"] = "%42"
@@ -836,7 +836,7 @@ func TestExecuteCheckPaneAliveMissingPaneKillsActiveFrame(t *testing.T) {
 	tmux.aliveErr["%42"] = fmt.Errorf("runtime: unknown pane %q: %w", "%42", ErrPaneMissing)
 	r := New(Config{
 		SessionName: "reactor-test",
-		Tmux:        tmux,
+		Backend:     tmux,
 	})
 	r.activeFrameID = "frame-1"
 	r.sessionPanes["frame-1"] = "%42"
@@ -864,7 +864,7 @@ func TestReconcileWindowsTransientErrorKeepsFrame(t *testing.T) {
 	tmux.exitStatusErr["%7"] = fmt.Errorf("tmux display-message -t %%7 -p ...: %w", context.DeadlineExceeded)
 	r := New(Config{
 		SessionName: "reactor-test",
-		Tmux:        tmux,
+		Backend:     tmux,
 	})
 	r.activeFrameID = "active-frame"
 	r.sessionPanes["inactive-frame"] = "%7"
@@ -884,7 +884,7 @@ func TestReconcileWindowsMissingPaneVanishesFrame(t *testing.T) {
 	tmux.exitStatusErr["%7"] = fmt.Errorf("runtime: unknown pane %q: %w", "%7", ErrPaneMissing)
 	r := New(Config{
 		SessionName: "reactor-test",
-		Tmux:        tmux,
+		Backend:     tmux,
 	})
 	r.activeFrameID = "active-frame"
 	r.sessionPanes["inactive-frame"] = "%7"
@@ -923,7 +923,7 @@ func TestRuntimeShellSessionSpawnsLoginShell(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      persist,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -977,7 +977,7 @@ func TestReconcileDetectsVanishedPane(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 20 * time.Millisecond,
-		Tmux:         ftmux,
+		Backend:      ftmux,
 	})
 	drv := state.GetDriver("shell")
 	r.state.Sessions[state.SessionID("tracked1")] = state.Session{
@@ -1016,7 +1016,7 @@ func TestReconcileSkipsWithoutTrackedPanes(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 20 * time.Millisecond,
-		Tmux:         ftmux,
+		Backend:      ftmux,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1038,7 +1038,7 @@ func TestRuntimeEnqueueDoesNotBlock(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 	})
 	// Don't start Run — just check Enqueue doesn't deadlock when no
 	// reader is active.
@@ -1063,7 +1063,7 @@ func TestActivateSessionSwapsOnFrameChange(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      &recordingPersist{},
 	})
 
@@ -1114,7 +1114,7 @@ func TestActivateSessionNoopWhenFrameUnchanged(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      &recordingPersist{},
 	})
 
@@ -1153,7 +1153,7 @@ func TestPopTopFrameSwapBeforeKill(t *testing.T) {
 	r := New(Config{
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Second,
-		Tmux:         tmux,
+		Backend:      tmux,
 		Persist:      &recordingPersist{},
 	})
 
@@ -1222,7 +1222,7 @@ func TestPopTopFrameSwapBeforeKill(t *testing.T) {
 // targets on every call so repeated toggles never produce a self-swap.
 func TestSwapHiddenUsesPositionalTargets(t *testing.T) {
 	fake := newFakeTmux()
-	r := New(Config{SessionName: "reactor-test", Tmux: fake})
+	r := New(Config{SessionName: "reactor-test", Backend: fake})
 	r.sessionPanes["_log"] = "%42" // must not appear as a SwapPane arg
 
 	r.swapHidden()

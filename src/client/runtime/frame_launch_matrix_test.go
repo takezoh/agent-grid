@@ -243,7 +243,7 @@ func buildLaunchHarness(t *testing.T, env envKind, persistWarm bool) *launchHarn
 	base := newFakeTmux()
 	cfg := Config{
 		SessionName: "reactor-test",
-		Tmux:        &recordingTmux{fakeTmuxBackend: base, rec: rec},
+		Backend:     &recordingTmux{fakeTmuxBackend: base, rec: rec},
 		Launcher:    NewDispatcherAdapter(disp),
 		Persist:     &recordingPersist{},
 	}
@@ -463,7 +463,7 @@ func (h *launchHarness) newSessionSpawn(t *testing.T, e state.EffSpawnTmuxWindow
 	internalCh := make(chan internalEvent, 1)
 	eventCh := make(chan state.Event, 1)
 	deps := spawnDeps{
-		tmux:         h.r.cfg.Tmux,
+		backend:      h.r.cfg.Backend,
 		launcher:     launcher(h.r.cfg),
 		factories:    h.r.subsystemFactories,
 		sessionName:  h.r.cfg.SessionName,

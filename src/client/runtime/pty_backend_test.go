@@ -10,8 +10,8 @@ import (
 	"github.com/takezoh/agent-reactor/platform/termvt"
 )
 
-// Compile-time proof that PtyBackend satisfies the full TmuxBackend role set.
-var _ TmuxBackend = (*PtyBackend)(nil)
+// Compile-time proof that PtyBackend satisfies the full PaneBackend role set.
+var _ PaneBackend = (*PtyBackend)(nil)
 
 // waitUntil polls pred until it returns true or the deadline elapses.
 func waitUntil(t *testing.T, pred func() bool) {

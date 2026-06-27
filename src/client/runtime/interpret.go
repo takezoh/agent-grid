@@ -113,9 +113,9 @@ func (r *Runtime) executeSendTmuxKeys(e state.EffSendTmuxKeys) {
 	}
 	var err error
 	if e.WithEnter {
-		err = r.cfg.Tmux.SendKeys(pane, e.Text)
+		err = r.cfg.Backend.SendKeys(pane, e.Text)
 	} else {
-		err = r.cfg.Tmux.SendKey(pane, e.Key)
+		err = r.cfg.Backend.SendKey(pane, e.Key)
 	}
 	if err != nil {
 		slog.Warn("runtime: send-keys failed", "session", e.SessionID, "err", err)
@@ -131,7 +131,7 @@ func (r *Runtime) executeSendTmuxKeys(e state.EffSendTmuxKeys) {
 }
 
 func (r *Runtime) executeInjectPrompt(e state.EffInjectPrompt) {
-	inj := NewRuntimeTmuxInjector(r.sessionPanes, r.cfg.Tmux)
+	inj := NewRuntimePaneInjector(r.sessionPanes, r.cfg.Backend)
 	if err := InjectPrompt(inj, e.FrameID, e.Text); err != nil {
 		slog.Warn("runtime: inject prompt failed", "frame", e.FrameID, "err", err)
 	}
@@ -212,26 +212,26 @@ func (r *Runtime) executeTmuxEffect(eff state.Effect) {
 		r.executeUnregisterPane(e)
 	case state.EffSelectPane:
 		target := substitutePlaceholdersString(e.Target, r.cfg.SessionName, r.cfg.RoostExe)
-		_ = r.cfg.Tmux.SelectPane(target)
+		_ = r.cfg.Backend.SelectPane(target)
 	case state.EffSyncStatusLine:
 		r.executeSyncStatusLine(e)
 	case state.EffSetTmuxEnv:
-		_ = r.cfg.Tmux.SetEnv(e.Key, e.Value)
+		_ = r.cfg.Backend.SetEnv(e.Key, e.Value)
 	case state.EffUnsetTmuxEnv:
-		_ = r.cfg.Tmux.UnsetEnv(e.Key)
+		_ = r.cfg.Backend.UnsetEnv(e.Key)
 	case state.EffCheckPaneAlive:
 		r.executeCheckPaneAlive(e)
 	case state.EffRespawnPane:
 		target := substitutePlaceholdersString(e.Pane, r.cfg.SessionName, r.cfg.RoostExe)
-		_ = r.cfg.Tmux.RespawnPane(target, e.Proc.Command(r.cfg.RoostExe))
+		_ = r.cfg.Backend.RespawnPane(target, e.Proc.Command(r.cfg.RoostExe))
 	case state.EffSwapHidden:
 		r.swapHidden()
 	case state.EffDetachClient:
-		_ = r.cfg.Tmux.DetachClient()
+		_ = r.cfg.Backend.DetachClient()
 	case state.EffDisplayPopup:
-		_ = r.cfg.Tmux.DisplayPopup(e.Width, e.Height, uiproc.Palette(e.Tool, e.Args, "").Command(r.cfg.RoostExe))
+		_ = r.cfg.Backend.DisplayPopup(e.Width, e.Height, uiproc.Palette(e.Tool, e.Args, "").Command(r.cfg.RoostExe))
 	case state.EffKillSession:
-		_ = r.cfg.Tmux.KillSession()
+		_ = r.cfg.Backend.KillSession()
 	case state.EffReconcileWindows:
 		r.reconcileWindows()
 	}
@@ -239,10 +239,10 @@ func (r *Runtime) executeTmuxEffect(eff state.Effect) {
 
 func (r *Runtime) executeKillSessionWindow(e state.EffKillSessionWindow) {
 	if target := r.sessionPanes[e.FrameID]; target != "" {
-		if tail, err := r.cfg.Tmux.CapturePane(target, 20); err == nil && tail != "" {
+		if tail, err := r.cfg.Backend.CapturePane(target, 20); err == nil && tail != "" {
 			slog.Info("runtime: pane tail on kill", "frame", e.FrameID, "target", target, "tail", tail)
 		}
-		if err := r.cfg.Tmux.KillPaneWindow(target); err != nil {
+		if err := r.cfg.Backend.KillPaneWindow(target); err != nil {
 			slog.Error("runtime: kill window failed", "target", target, "err", err)
 		}
 		delete(r.sessionPanes, e.FrameID)
@@ -264,7 +264,7 @@ func (r *Runtime) executeKillSessionWindow(e state.EffKillSessionWindow) {
 
 func (r *Runtime) executeRegisterPane(e state.EffRegisterPane) {
 	r.sessionPanes[e.FrameID] = e.PaneTarget
-	_ = r.cfg.Tmux.SetEnv(sessionPaneEnvKey(e.FrameID), e.PaneTarget)
+	_ = r.cfg.Backend.SetEnv(sessionPaneEnvKey(e.FrameID), e.PaneTarget)
 	if e.Tap && r.taps != nil {
 		r.taps.start(e.FrameID, e.PaneTarget, r.Enqueue)
 	}
@@ -279,7 +279,7 @@ func (r *Runtime) executeUnregisterPane(e state.EffUnregisterPane) {
 		r.taps.stop(e.FrameID)
 	}
 	delete(r.sessionPanes, e.FrameID)
-	_ = r.cfg.Tmux.UnsetEnv(sessionPaneEnvKey(e.FrameID))
+	_ = r.cfg.Backend.UnsetEnv(sessionPaneEnvKey(e.FrameID))
 	r.cfg.EventLog.Close(e.FrameID)
 	if r.cfg.TerminalEvict != nil {
 		r.cfg.TerminalEvict(target)
@@ -291,7 +291,7 @@ func (r *Runtime) executeSyncStatusLine(e state.EffSyncStatusLine) {
 	if line == "" {
 		line = r.activeStatusLine()
 	}
-	_ = r.cfg.Tmux.SetStatusLine(line)
+	_ = r.cfg.Backend.SetStatusLine(line)
 }
 
 func (r *Runtime) executeCheckPaneAlive(e state.EffCheckPaneAlive) {
@@ -301,7 +301,7 @@ func (r *Runtime) executeCheckPaneAlive(e state.EffCheckPaneAlive) {
 	// pane_id ならプロセスと共に消えるので、err も dead 扱いにする。
 	if e.Pane == "{sessionName}:0.1" && r.activeFrameID != "" {
 		if paneID := r.sessionPanes[r.activeFrameID]; paneID != "" {
-			alive, err := r.cfg.Tmux.PaneAlive(paneID)
+			alive, err := r.cfg.Backend.PaneAlive(paneID)
 			if err != nil && !isMissingPaneErr(err) {
 				// A transient probe failure (e.g. "context deadline exceeded"
 				// when tmux is slow under load) is NOT death — re-probe on the
@@ -323,7 +323,7 @@ func (r *Runtime) executeCheckPaneAlive(e state.EffCheckPaneAlive) {
 		}
 	}
 	target := substitutePlaceholdersString(e.Pane, r.cfg.SessionName, r.cfg.RoostExe)
-	if alive, err := r.cfg.Tmux.PaneAlive(target); err == nil && !alive {
+	if alive, err := r.cfg.Backend.PaneAlive(target); err == nil && !alive {
 		ev := state.EvPaneDied{Pane: e.Pane}
 		if e.Pane == "{sessionName}:0.1" {
 			ev.OwnerFrameID = r.findPaneOwner(target)
@@ -478,7 +478,7 @@ func (r *Runtime) reconcileWindows() {
 			slog.Debug("runtime: reconcile pane skipped (active)", "frame", frameID, "target", target)
 			continue
 		}
-		dead, code, err := r.cfg.Tmux.PaneExitStatus(target)
+		dead, code, err := r.cfg.Backend.PaneExitStatus(target)
 		if err != nil {
 			if isMissingPaneErr(err) {
 				slog.Debug("runtime: reconcile pane vanished", "frame", frameID, "pane", target, "err", err)
@@ -493,7 +493,7 @@ func (r *Runtime) reconcileWindows() {
 		if !dead {
 			continue
 		}
-		if tail, terr := r.cfg.Tmux.CapturePane(target, 20); terr == nil && tail != "" {
+		if tail, terr := r.cfg.Backend.CapturePane(target, 20); terr == nil && tail != "" {
 			slog.Info("runtime: pane tail on exit", "frame", frameID, "target", target, "exit_code", code, "tail", tail)
 		} else {
 			slog.Info("runtime: pane exited", "frame", frameID, "target", target, "exit_code", code)

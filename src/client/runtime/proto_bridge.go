@@ -357,7 +357,7 @@ func (r *Runtime) buildSurfaceText(b state.SurfaceReadTextReply) proto.Response 
 	if pane == "" {
 		return proto.RespSurfaceText{}
 	}
-	text, err := r.cfg.Tmux.CapturePane(pane, b.Lines)
+	text, err := r.cfg.Backend.CapturePane(pane, b.Lines)
 	if err != nil {
 		slog.Warn("runtime: surface.read_text capture failed", "session", b.SessionID, "err", err)
 		return proto.RespSurfaceText{}

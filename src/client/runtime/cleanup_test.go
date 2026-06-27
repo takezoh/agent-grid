@@ -124,7 +124,7 @@ func TestCtxCancel_doesNotDrainCleanups(t *testing.T) {
 	defer cancel()
 
 	var called atomic.Bool
-	r := New(Config{Tmux: newFakeTmux()})
+	r := New(Config{Backend: newFakeTmux()})
 	r.storeFrameCleanup("f-shutdown", func() error {
 		called.Store(true)
 		return nil
@@ -150,7 +150,7 @@ func TestCtxCancel_doesNotDrainCleanups(t *testing.T) {
 // This is the explicit shutdown path (reduceShutdown emits this effect).
 func TestEffReleaseFrameSandboxes_drainsCleanups(t *testing.T) {
 	var count atomic.Int32
-	r := New(Config{Tmux: newFakeTmux()})
+	r := New(Config{Backend: newFakeTmux()})
 	for _, id := range []state.FrameID{"f1", "f2", "f3"} {
 		r.storeFrameCleanup(id, func() error {
 			count.Add(1)
@@ -169,7 +169,7 @@ func TestEffReleaseFrameSandboxes_drainsCleanups(t *testing.T) {
 // does not touch frame cleanups — containers must survive for warm-restart.
 func TestEffDetachClient_doesNotDrainCleanups(t *testing.T) {
 	var called atomic.Bool
-	r := New(Config{Tmux: newFakeTmux()})
+	r := New(Config{Backend: newFakeTmux()})
 	r.storeFrameCleanup("f-detach", func() error {
 		called.Store(true)
 		return nil
@@ -187,7 +187,7 @@ func TestEffDetachClient_doesNotDrainCleanups(t *testing.T) {
 // effect that precedes EffKillSession in the shutdown sequence.
 func TestEffKillSession_doesNotDrainCleanups(t *testing.T) {
 	var called atomic.Bool
-	r := New(Config{Tmux: newFakeTmux()})
+	r := New(Config{Backend: newFakeTmux()})
 	r.storeFrameCleanup("f-kill-session", func() error {
 		called.Store(true)
 		return nil
@@ -226,7 +226,7 @@ func TestSpawnFrameWindow_cleanupCalledOnSpawnError(t *testing.T) {
 	tmux := newFakeTmux()
 	tmux.spawnErr = errors.New("tmux spawn failed")
 
-	r := New(Config{Tmux: tmux, Launcher: fakeLauncher})
+	r := New(Config{Backend: tmux, Launcher: fakeLauncher})
 	frame := state.SessionFrame{
 		ID:      "frame-spawn-err",
 		Command: "minimal-test",
@@ -263,7 +263,7 @@ func (l *testLauncher) IsContainer(_ string) bool { return false }
 func TestEffKillSessionWindow_invokesCleanup(t *testing.T) {
 	var called atomic.Bool
 	tmux := &fakeTmux{}
-	r := New(Config{Tmux: tmux})
+	r := New(Config{Backend: tmux})
 
 	frameID := state.FrameID("f-kill")
 	r.sessionPanes[frameID] = "%42"

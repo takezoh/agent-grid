@@ -102,33 +102,35 @@ type WindowLayout interface {
 	RunChain(ops ...[]string) error
 }
 
-// TmuxControl covers session/client-level control operations.
-type TmuxControl interface {
-	// SetStatusLine writes the tmux status-left.
+// BackendControl covers session/client-level control operations.
+type BackendControl interface {
+	// SetStatusLine writes the status-left line (tmux legacy; no-op on
+	// PtyBackend).
 	SetStatusLine(line string) error
-	// DetachClient detaches the current tmux client.
+	// DetachClient detaches the current client (tmux legacy).
 	DetachClient() error
-	// KillSession destroys the client tmux session.
+	// KillSession destroys the client session (tmux legacy).
 	KillSession() error
-	// DisplayPopup runs `tmux display-popup`.
+	// DisplayPopup runs a popup window (tmux legacy).
 	DisplayPopup(width, height, cmd string) error
 }
 
-// TmuxBackend is the full set of tmux operations the runtime needs.
+// PaneBackend is the full set of pane / window operations the runtime
+// needs. PtyBackend is the production implementation; tests use stubs.
 // Methods that return data are synchronous (the runtime calls them
 // from execute() and waits for the result before queueing the
 // follow-up event).
 //
 // New code that needs only a subset of these operations should depend on
 // the narrower role interfaces (PaneLifecycle, PaneIO, PaneInspect,
-// SessionEnv, WindowLayout, TmuxControl) instead.
-type TmuxBackend interface {
+// SessionEnv, WindowLayout, BackendControl) instead.
+type PaneBackend interface {
 	PaneLifecycle
 	PaneIO
 	PaneInspect
 	SessionEnv
 	WindowLayout
-	TmuxControl
+	BackendControl
 }
 
 // PersistBackend abstracts sessions.json persistence so tests don't
@@ -208,40 +210,40 @@ type FSEvent struct {
 
 // === noop backends (used until production wiring lands) ===
 
-type noopTmux struct{}
+type noopBackend struct{}
 
-func (noopTmux) SpawnWindow(name, command, startDir string, env map[string]string) (string, string, error) {
+func (noopBackend) SpawnWindow(name, command, startDir string, env map[string]string) (string, string, error) {
 	return "", "", nil
 }
-func (noopTmux) KillPaneWindow(string) error    { return nil }
-func (noopTmux) RunChain(...[]string) error     { return nil }
-func (noopTmux) SwapPane(string, string) error  { return nil }
-func (noopTmux) BreakPane(string, string) error { return nil }
-func (noopTmux) BreakPaneToNewWindow(string, string) (string, error) {
+func (noopBackend) KillPaneWindow(string) error    { return nil }
+func (noopBackend) RunChain(...[]string) error     { return nil }
+func (noopBackend) SwapPane(string, string) error  { return nil }
+func (noopBackend) BreakPane(string, string) error { return nil }
+func (noopBackend) BreakPaneToNewWindow(string, string) (string, error) {
 	return "", nil
 }
-func (noopTmux) JoinPane(string, string, bool, int) error  { return nil }
-func (noopTmux) PaneID(string) (string, error)             { return "", nil }
-func (noopTmux) PaneSize(string) (int, int, error)         { return 0, 0, nil }
-func (noopTmux) SelectPane(string) error                   { return nil }
-func (noopTmux) ResizeWindow(string, int, int) error       { return nil }
-func (noopTmux) SetStatusLine(string) error                { return nil }
-func (noopTmux) SetEnv(string, string) error               { return nil }
-func (noopTmux) UnsetEnv(string) error                     { return nil }
-func (noopTmux) PaneAlive(string) (bool, error)            { return true, nil }
-func (noopTmux) PaneExitStatus(string) (bool, int, error)  { return false, -1, nil }
-func (noopTmux) RespawnPane(string, string) error          { return nil }
-func (noopTmux) CapturePane(string, int) (string, error)   { return "", nil }
-func (noopTmux) ShowEnvironment() (string, error)          { return "", nil }
-func (noopTmux) DetachClient() error                       { return nil }
-func (noopTmux) KillSession() error                        { return nil }
-func (noopTmux) DisplayPopup(string, string, string) error { return nil }
-func (noopTmux) PipePane(string, string) error             { return nil }
-func (noopTmux) SendKeys(string, string) error             { return nil }
-func (noopTmux) SendKey(string, string) error              { return nil }
-func (noopTmux) LoadBuffer(string, string) error           { return nil }
-func (noopTmux) PasteBuffer(string, string) error          { return nil }
-func (noopTmux) SendEnter(string) error                    { return nil }
+func (noopBackend) JoinPane(string, string, bool, int) error  { return nil }
+func (noopBackend) PaneID(string) (string, error)             { return "", nil }
+func (noopBackend) PaneSize(string) (int, int, error)         { return 0, 0, nil }
+func (noopBackend) SelectPane(string) error                   { return nil }
+func (noopBackend) ResizeWindow(string, int, int) error       { return nil }
+func (noopBackend) SetStatusLine(string) error                { return nil }
+func (noopBackend) SetEnv(string, string) error               { return nil }
+func (noopBackend) UnsetEnv(string) error                     { return nil }
+func (noopBackend) PaneAlive(string) (bool, error)            { return true, nil }
+func (noopBackend) PaneExitStatus(string) (bool, int, error)  { return false, -1, nil }
+func (noopBackend) RespawnPane(string, string) error          { return nil }
+func (noopBackend) CapturePane(string, int) (string, error)   { return "", nil }
+func (noopBackend) ShowEnvironment() (string, error)          { return "", nil }
+func (noopBackend) DetachClient() error                       { return nil }
+func (noopBackend) KillSession() error                        { return nil }
+func (noopBackend) DisplayPopup(string, string, string) error { return nil }
+func (noopBackend) PipePane(string, string) error             { return nil }
+func (noopBackend) SendKeys(string, string) error             { return nil }
+func (noopBackend) SendKey(string, string) error              { return nil }
+func (noopBackend) LoadBuffer(string, string) error           { return nil }
+func (noopBackend) PasteBuffer(string, string) error          { return nil }
+func (noopBackend) SendEnter(string) error                    { return nil }
 
 type noopPersist struct{}
 

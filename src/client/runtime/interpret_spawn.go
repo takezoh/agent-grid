@@ -19,7 +19,7 @@ import (
 // the event loop via sendInternal (internalSpawnComplete) / sendEvent
 // (EvTmuxSpawnFailed), preserving the single-writer discipline.
 type spawnDeps struct {
-	tmux         TmuxBackend
+	backend      PaneBackend
 	launcher     AgentLauncher
 	factories    map[state.LaunchSubsystem]rsubsystem.Factory
 	sessionName  string
@@ -33,7 +33,7 @@ type spawnDeps struct {
 // state (conns, sessionPanes, subsystems, …) directly.
 func (r *Runtime) buildSpawnDeps() spawnDeps {
 	return spawnDeps{
-		tmux:         r.cfg.Tmux,
+		backend:      r.cfg.Backend,
 		launcher:     launcher(r.cfg),
 		factories:    r.subsystemFactories,
 		sessionName:  r.cfg.SessionName,
@@ -107,7 +107,7 @@ func spawnTmuxWindow(deps spawnDeps, e state.EffSpawnTmuxWindow) {
 	spawnCmd := buildSpawnCommand(wrapped.Command, e.Stdin)
 	slog.Info("runtime: spawning window", "frame", e.FrameID, "cmd", spawnCmd)
 	size := deps.mainPaneSize()
-	target, paneID, err := deps.tmux.SpawnWindow(name, spawnCmd, wrapped.StartDir, wrapped.Env)
+	target, paneID, err := deps.backend.SpawnWindow(name, spawnCmd, wrapped.StartDir, wrapped.Env)
 	if err != nil {
 		// wrapLaunchForSpawn already acquired the sandbox/container; the pane never
 		// launched and no EvTmuxPaneSpawned/kill path will reach this frame, so
@@ -121,7 +121,7 @@ func spawnTmuxWindow(deps spawnDeps, e state.EffSpawnTmuxWindow) {
 		return
 	}
 	if size.width > 0 && size.height > 0 {
-		if rerr := deps.tmux.ResizeWindow(deps.sessionName+":"+target, size.width, size.height); rerr != nil {
+		if rerr := deps.backend.ResizeWindow(deps.sessionName+":"+target, size.width, size.height); rerr != nil {
 			slog.Debug("runtime: resize-window failed", "target", target, "err", rerr)
 		}
 	}

@@ -7,9 +7,9 @@ import (
 	"github.com/takezoh/agent-reactor/client/state"
 )
 
-// fakeTmux is a recording TmuxBackend for injector tests.
+// fakeTmux is a recording PaneBackend for injector tests.
 type fakeTmux struct {
-	noopTmux
+	noopBackend
 	loadBufferCalls  []loadBufferCall
 	pasteBufferCalls []pasteBufferCall
 	sendEnterCalls   []string
@@ -36,12 +36,12 @@ func (f *fakeTmux) SendEnter(target string) error {
 	return f.enterErr
 }
 
-func TestRuntimeTmuxInjector_ResolveFramePane(t *testing.T) {
+func TestRuntimePaneInjector_ResolveFramePane(t *testing.T) {
 	panes := map[state.FrameID]string{
 		"frame-1": "%5",
 		"frame-2": "",
 	}
-	inj := NewRuntimeTmuxInjector(panes, &fakeTmux{})
+	inj := NewRuntimePaneInjector(panes, &fakeTmux{})
 
 	t.Run("known frame returns target and true", func(t *testing.T) {
 		target, ok := inj.ResolveFramePane("frame-1")
@@ -68,10 +68,10 @@ func TestRuntimeTmuxInjector_ResolveFramePane(t *testing.T) {
 	})
 }
 
-func TestRuntimeTmuxInjector_PastePrompt(t *testing.T) {
+func TestRuntimePaneInjector_PastePrompt(t *testing.T) {
 	t.Run("calls LoadBuffer then PasteBuffer", func(t *testing.T) {
 		ft := &fakeTmux{}
-		inj := NewRuntimeTmuxInjector(nil, ft)
+		inj := NewRuntimePaneInjector(nil, ft)
 
 		if err := inj.PastePrompt("%5", "hello world"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -98,7 +98,7 @@ func TestRuntimeTmuxInjector_PastePrompt(t *testing.T) {
 
 	t.Run("LoadBuffer error stops before PasteBuffer", func(t *testing.T) {
 		ft := &fakeTmux{loadErr: errors.New("load failed")}
-		inj := NewRuntimeTmuxInjector(nil, ft)
+		inj := NewRuntimePaneInjector(nil, ft)
 
 		if err := inj.PastePrompt("%5", "text"); err == nil {
 			t.Fatal("expected error from LoadBuffer")
@@ -109,9 +109,9 @@ func TestRuntimeTmuxInjector_PastePrompt(t *testing.T) {
 	})
 }
 
-func TestRuntimeTmuxInjector_SubmitEnter(t *testing.T) {
+func TestRuntimePaneInjector_SubmitEnter(t *testing.T) {
 	ft := &fakeTmux{}
-	inj := NewRuntimeTmuxInjector(nil, ft)
+	inj := NewRuntimePaneInjector(nil, ft)
 
 	if err := inj.SubmitEnter("%5"); err != nil {
 		t.Fatalf("unexpected error: %v", err)

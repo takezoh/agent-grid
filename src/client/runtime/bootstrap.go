@@ -131,7 +131,7 @@ func (r *Runtime) LoadSessionPanes() error {
 	type envLister interface {
 		ShowEnvironment() (string, error)
 	}
-	el, ok := r.cfg.Tmux.(envLister)
+	el, ok := r.cfg.Backend.(envLister)
 	if !ok {
 		return nil
 	}
@@ -199,7 +199,7 @@ func (r *Runtime) ReconcileOrphans() {
 		if !found {
 			delete(r.sessionPanes, frameID)
 			slog.Warn("bootstrap: removing stale pane env", "frame", frameID)
-			_ = r.cfg.Tmux.UnsetEnv(sessionPaneEnvKey(frameID))
+			_ = r.cfg.Backend.UnsetEnv(sessionPaneEnvKey(frameID))
 		}
 	}
 
@@ -212,7 +212,7 @@ func (r *Runtime) ReconcileOrphans() {
 
 // RecoverActivePaneAtMain restores a consistent main-pane owner on warm start.
 func (r *Runtime) RecoverActivePaneAtMain() {
-	paneAtZero, err := r.cfg.Tmux.PaneID(r.mainPaneTarget())
+	paneAtZero, err := r.cfg.Backend.PaneID(r.mainPaneTarget())
 	if err != nil {
 		slog.Debug("bootstrap: could not get pane id at 0.0", "err", err)
 		return
@@ -241,7 +241,7 @@ func (r *Runtime) RecoverActivePaneAtMain() {
 	if owner == "" {
 		if r.sessionPanes["_main"] != paneAtZero {
 			r.sessionPanes["_main"] = paneAtZero
-			_ = r.cfg.Tmux.SetEnv("ROOST_FRAME__main", paneAtZero)
+			_ = r.cfg.Backend.SetEnv("ROOST_FRAME__main", paneAtZero)
 		}
 		r.mainPaneSession = ""
 		slog.Info("bootstrap: main TUI active at 0.1", "pane", paneAtZero)
@@ -471,5 +471,5 @@ func (r *Runtime) RespawnMainPane() {
 	}
 
 	slog.Info("bootstrap: respawning main TUI", "target", target)
-	_ = r.cfg.Tmux.RespawnPane(target, uiproc.Main().Command(r.cfg.RoostExe))
+	_ = r.cfg.Backend.RespawnPane(target, uiproc.Main().Command(r.cfg.RoostExe))
 }

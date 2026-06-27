@@ -51,7 +51,7 @@ type Config struct {
 	Workers           int
 	MainPaneHeightPct int
 
-	Tmux     TmuxBackend
+	Backend  PaneBackend
 	Persist  PersistBackend
 	EventLog EventLogBackend
 	ToolLog  ToolLogBackend
@@ -178,7 +178,7 @@ type Runtime struct {
 	pgidTracker *procgroup.Tracker
 
 	// terminalRelay fans pane output from TerminalRelay to subscribed ConnIDs.
-	// Nil when cfg.Tmux does not implement SurfaceBackend.
+	// Nil when cfg.Backend does not implement SurfaceBackend.
 	terminalRelay *TerminalRelay
 }
 
@@ -218,8 +218,8 @@ func applyConfigDefaults(cfg Config) Config {
 	if cfg.MainPaneHeightPct <= 0 {
 		cfg.MainPaneHeightPct = 70
 	}
-	if cfg.Tmux == nil {
-		cfg.Tmux = noopTmux{}
+	if cfg.Backend == nil {
+		cfg.Backend = noopBackend{}
 	}
 	if cfg.Persist == nil {
 		cfg.Persist = noopPersist{}
@@ -276,7 +276,7 @@ func New(cfg Config) *Runtime {
 		}
 	}
 	r.registerSubsystemFactories()
-	if sb, ok := cfg.Tmux.(SurfaceBackend); ok {
+	if sb, ok := cfg.Backend.(SurfaceBackend); ok {
 		r.terminalRelay = NewTerminalRelay(sb, r.enqueueInternal)
 	}
 	return r
@@ -480,7 +480,7 @@ func (r *Runtime) scheduleActiveFramePaneProbe() {
 	frameID := r.activeFrameID // snapshot owned by event loop goroutine
 	go func() {
 		defer r.fastProbeInFlight.Store(false)
-		alive, err := r.cfg.Tmux.PaneAlive(target)
+		alive, err := r.cfg.Backend.PaneAlive(target)
 		if err == nil && alive {
 			return
 		}

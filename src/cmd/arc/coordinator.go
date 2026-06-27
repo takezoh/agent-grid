@@ -138,7 +138,7 @@ func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, da
 		TickInterval:      pollInterval,
 		FastTickInterval:  fastPollInterval,
 		MainPaneHeightPct: cfg.Tmux.PaneRatioVertical,
-		Tmux:              ptyBackend,
+		Backend:           ptyBackend,
 		Persist:           runtime.NewFilePersist(dataDir),
 		EventLog:          runtime.NewFileEventLog(dataDir),
 		ToolLog:           runtime.NewFileToolLog(dataDir),

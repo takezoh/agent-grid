@@ -64,7 +64,7 @@ func (r *Runtime) swapSessionIntoMain(sessID state.SessionID) bool {
 	slog.Info("runtime: swapSessionIntoMain SwapPane",
 		"session", sessID, "frame", frame.ID,
 		"srcPane", paneID, "dstTarget", r.mainPaneTarget())
-	if err := r.cfg.Tmux.SwapPane(paneID, r.mainPaneTarget()); err != nil {
+	if err := r.cfg.Backend.SwapPane(paneID, r.mainPaneTarget()); err != nil {
 		if isMissingPaneErr(err) {
 			r.Enqueue(state.EvTmuxWindowVanished{FrameID: frame.ID})
 		}
@@ -87,7 +87,7 @@ func (r *Runtime) swapMainIntoMain() bool {
 		return false
 	}
 
-	if err := r.cfg.Tmux.SwapPane(paneID, r.mainPaneTarget()); err != nil {
+	if err := r.cfg.Backend.SwapPane(paneID, r.mainPaneTarget()); err != nil {
 		slog.Warn("runtime: swap-pane main failed", "pane", paneID, "err", err)
 		return false
 	}
@@ -100,13 +100,13 @@ func (r *Runtime) ensureMainPaneID() (string, bool) {
 	if id := r.sessionPanes["_main"]; id != "" {
 		return id, true
 	}
-	paneID, err := r.cfg.Tmux.PaneID(r.mainPaneTarget())
+	paneID, err := r.cfg.Backend.PaneID(r.mainPaneTarget())
 	if err != nil || paneID == "" {
 		slog.Warn("runtime: pane-id lookup failed", "target", r.mainPaneTarget(), "err", err)
 		return "", false
 	}
 	r.sessionPanes["_main"] = paneID
-	_ = r.cfg.Tmux.SetEnv("ROOST_FRAME__main", paneID)
+	_ = r.cfg.Backend.SetEnv("ROOST_FRAME__main", paneID)
 	return paneID, true
 }
 
@@ -123,7 +123,7 @@ func (r *Runtime) hiddenPaneTarget() string {
 // swap-pane, so using sessionPanes["_log"] as source would self-swap after the
 // first toggle.
 func (r *Runtime) swapHidden() {
-	if err := r.cfg.Tmux.SwapPane(r.hiddenPaneTarget(), r.mainPaneTarget()); err != nil {
+	if err := r.cfg.Backend.SwapPane(r.hiddenPaneTarget(), r.mainPaneTarget()); err != nil {
 		slog.Warn("runtime: swap-hidden failed", "err", err)
 	}
 }
@@ -145,7 +145,7 @@ type paneSize struct {
 }
 
 func (r *Runtime) mainPaneSize() paneSize {
-	width, height, err := r.cfg.Tmux.PaneSize(r.mainPaneTarget())
+	width, height, err := r.cfg.Backend.PaneSize(r.mainPaneTarget())
 	if err != nil {
 		slog.Debug("runtime: pane-size lookup failed", "target", r.mainPaneTarget(), "err", err)
 		return paneSize{}
@@ -157,7 +157,7 @@ func (r *Runtime) resizeWindowToMain(target string, size paneSize) {
 	if size.width == 0 || size.height == 0 {
 		return
 	}
-	if err := r.cfg.Tmux.ResizeWindow(target, size.width, size.height); err != nil {
+	if err := r.cfg.Backend.ResizeWindow(target, size.width, size.height); err != nil {
 		slog.Debug("runtime: resize-window failed", "target", target, "width", size.width, "height", size.height, "err", err)
 	}
 }

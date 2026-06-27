@@ -15,7 +15,7 @@ import (
 // stores the spawn goroutine's results into the loop-owned maps for a
 // non-container frame, and registers no container token.
 func TestHandleSpawnComplete_storesHandlesNonContainer(t *testing.T) {
-	r := New(Config{Tmux: newFakeTmux()})
+	r := New(Config{Backend: newFakeTmux()})
 	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
 
 	r.handleSpawnComplete(internalSpawnComplete{
@@ -44,7 +44,7 @@ func TestHandleSpawnComplete_storesHandlesNonContainer(t *testing.T) {
 // and starts the endpoint.
 func TestHandleSpawnComplete_registersContainerFrame(t *testing.T) {
 	dir := t.TempDir()
-	r := New(Config{Tmux: newFakeTmux()})
+	r := New(Config{Backend: newFakeTmux()})
 	t.Cleanup(r.shutdownContainerEndpoints)
 
 	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
@@ -84,7 +84,7 @@ func TestSpawnTmuxWindow_emitsInternalSpawnComplete(t *testing.T) {
 	eventCh := make(chan state.Event, 1)
 
 	deps := spawnDeps{
-		tmux:     newFakeTmux(),
+		backend:  newFakeTmux(),
 		launcher: DirectLauncher{},
 		factories: map[state.LaunchSubsystem]rsubsystem.Factory{
 			state.LaunchSubsystemCLI: &fakeFactory{sub: sub},
@@ -136,7 +136,7 @@ func TestSpawnTmuxWindow_emitsSpawnFailedOnError(t *testing.T) {
 	eventCh := make(chan state.Event, 1)
 
 	deps := spawnDeps{
-		tmux:     tmux,
+		backend:  tmux,
 		launcher: DirectLauncher{},
 		factories: map[state.LaunchSubsystem]rsubsystem.Factory{
 			state.LaunchSubsystemCLI: &fakeFactory{sub: sub},
@@ -177,7 +177,7 @@ func TestSpawnTmuxWindow_cleanupOnSpawnError(t *testing.T) {
 	tmux.spawnErr = errors.New("tmux boom")
 
 	deps := spawnDeps{
-		tmux:     tmux,
+		backend:  tmux,
 		launcher: &testLauncher{cleanup: func() error { cleaned.Store(true); return nil }},
 		factories: map[state.LaunchSubsystem]rsubsystem.Factory{
 			state.LaunchSubsystemCLI: &fakeFactory{sub: &fakeSubsystem{id: "s", kind: state.LaunchSubsystemCLI}},
@@ -202,7 +202,7 @@ func TestSpawnTmuxWindow_cleanupOnSpawnError(t *testing.T) {
 // daemon has shut down (r.done closed), the send returns instead of blocking
 // forever.
 func TestSendSpawnComplete_unblocksOnShutdown(t *testing.T) {
-	r := New(Config{Tmux: newFakeTmux()})
+	r := New(Config{Backend: newFakeTmux()})
 	// Fill the internal channel to capacity so the next send would block.
 	for {
 		select {

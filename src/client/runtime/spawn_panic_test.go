@@ -39,7 +39,7 @@ func TestSpawnTmuxWindow_recoversFromPanicAndEmitsSpawnFailed(t *testing.T) {
 	eventCh := make(chan state.Event, 1)
 
 	deps := spawnDeps{
-		tmux:     tmux,
+		backend:  tmux,
 		launcher: DirectLauncher{},
 		factories: map[state.LaunchSubsystem]rsubsystem.Factory{
 			state.LaunchSubsystemCLI: &panickingFactory{msg: "synthetic panic from test"},

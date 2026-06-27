@@ -176,7 +176,7 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 		r.registerContainerFrame(frame.ID, frame.Project, wrapped.ContainerSockDir, wrapResult.token, wrapped.Mounts)
 	}
 	envKey := sessionPaneEnvKey(frame.ID)
-	if err := r.cfg.Tmux.SetEnv(envKey, paneID); err != nil {
+	if err := r.cfg.Backend.SetEnv(envKey, paneID); err != nil {
 		slog.Warn("bootstrap: set pane env failed", "key", envKey, "err", err)
 	}
 	return nil
@@ -187,7 +187,7 @@ func (r *Runtime) spawnWrapped(frameID state.FrameID, project string, wrapped Wr
 	name := windowName(project, string(frameID))
 	tmuxCmd := buildSpawnCommand(wrapped.Command, nil)
 	slog.Info("runtime: spawning window", "frame", frameID, "cmd", tmuxCmd, "mode", "coldstart")
-	target, paneID, err := r.cfg.Tmux.SpawnWindow(name, tmuxCmd, wrapped.StartDir, wrapped.Env)
+	target, paneID, err := r.cfg.Backend.SpawnWindow(name, tmuxCmd, wrapped.StartDir, wrapped.Env)
 	if err != nil {
 		return "", err
 	}

@@ -10,12 +10,12 @@ import (
 	"github.com/takezoh/agent-reactor/platform/termvt"
 )
 
-// PtyBackend implements the TmuxBackend role interfaces over platform/termvt,
+// PtyBackend implements the PaneBackend role interfaces over platform/termvt,
 // driving pty-backed sessions without tmux (ADR 0004). The data plane
 // (lifecycle, IO, inspection, liveness) is implemented for real; the
-// presentation plane (WindowLayout layout ops, TmuxControl) is stubbed because
-// a pty multiplexer has no server-side equivalent — layout composition moves
-// client-side in the tmux-removal phase.
+// presentation plane (WindowLayout layout ops, BackendControl) is stubbed
+// because a pty multiplexer has no server-side equivalent — layout
+// composition moves client-side in the tmux-removal phase.
 //
 // Targets are synthetic pane ids ("%1", "%2", …) that PtyBackend allocates and
 // uses as the termvt.Manager session id, so the live session is always resolved
@@ -393,7 +393,7 @@ func (p *PtyBackend) ResizeSurface(target string, cols, rows int) error {
 	return sess.Resize(cols, rows)
 }
 
-// === TmuxControl (all stubbed — no server-side equivalent) ===
+// === BackendControl (all stubbed — no server-side equivalent) ===
 
 func (p *PtyBackend) SetStatusLine(line string) error              { return nil }
 func (p *PtyBackend) DetachClient() error                          { return nil }

@@ -16,7 +16,7 @@ type recordedInjCall struct {
 	text   string
 }
 
-// fakePromptInjector is a test double for TmuxInjector.
+// fakePromptInjector is a test double for PromptInjector.
 type fakePromptInjector struct {
 	panes     map[state.FrameID]string
 	pasteErr  error

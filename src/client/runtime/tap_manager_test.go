@@ -298,7 +298,7 @@ func TestStartTapsForRestoredFrames_DispatchesViaEventLoop(t *testing.T) {
 		SessionName:  "reactor-test",
 		TickInterval: 10 * time.Millisecond,
 		Tap:          tap,
-		Tmux:         noopTmux{},
+		Backend:      noopBackend{},
 	})
 	r.state.Sessions[state.SessionID("s1")] = state.Session{
 		ID:     "s1",

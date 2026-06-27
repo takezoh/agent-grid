@@ -8,33 +8,30 @@ import (
 	"github.com/takezoh/agent-reactor/client/state"
 )
 
-// TmuxInjector abstracts the minimal tmux operations InjectPrompt needs.
-type TmuxInjector interface {
-	// ResolveFramePane returns the tmux pane target (e.g. "%3") registered
-	// for the given frame id, or ("", false) if the frame is unknown.
-	// The expected backing implementation reads the tmux session environment
+// PromptInjector abstracts the minimal backend operations InjectPrompt needs.
+// The runtime implementation (RuntimePaneInjector) sits on top of PaneBackend;
+// tests use fakes.
+type PromptInjector interface {
+	// ResolveFramePane returns the pane target (e.g. "%3") registered for
+	// the given frame id, or ("", false) if the frame is unknown.
+	// The expected backing implementation reads the session environment
 	// variable ROOST_FRAME_<id> written by EffRegisterPane.
 	ResolveFramePane(frameID state.FrameID) (string, bool)
 
 	// PastePrompt writes text into the pane as a bracketed paste event.
-	// The expected backing implementation uses:
-	//
-	//   tmux load-buffer -b <name> -   (with text on stdin)
-	//   tmux paste-buffer -d -b <name> -t <target>
-	//
-	// Using paste-buffer instead of send-keys -l avoids the issue where
-	// embedded newlines are interpreted as submit by Ink-based TUIs.
+	// The expected backing implementation uses LoadBuffer + PasteBuffer
+	// instead of send-keys -l to avoid the issue where embedded newlines are
+	// interpreted as submit by Ink-based TUIs.
 	PastePrompt(target, text string) error
 
 	// SubmitEnter sends the Enter key to confirm the current input.
-	//   tmux send-keys -t <target> Enter
 	SubmitEnter(target string) error
 }
 
-// InjectPrompt pastes prompt into the tmux pane owned by frameID and
-// submits it with Enter. This is the only reliable way to feed a prompt
-// into a driver whose TUI ignores piped stdin (e.g. Ink-based renderers)
-// from an external process.
+// InjectPrompt pastes prompt into the pane owned by frameID and submits
+// it with Enter. This is the only reliable way to feed a prompt into a
+// driver whose TUI ignores piped stdin (e.g. Ink-based renderers) from
+// an external process.
 //
 // Trailing whitespace and newlines are stripped from prompt before
 // sending; a trailing newline would otherwise cause a double-submit
@@ -45,13 +42,13 @@ type TmuxInjector interface {
 // input buffer. Idle detection is the caller's responsibility.
 //
 // Error semantics:
-//   - empty or whitespace-only prompt: error, no tmux calls made
-//   - unknown frame: error, no tmux calls made
+//   - empty or whitespace-only prompt: error, no backend calls made
+//   - unknown frame: error, no backend calls made
 //   - PastePrompt failure: error, SubmitEnter not called
 //   - SubmitEnter failure: error, but the pasted text already sits in the
-//     pane's input buffer; no cleanup attempt is made (tmux has no undo,
+//     pane's input buffer; no cleanup attempt is made (no undo path,
 //     and sending Ctrl+U risks erasing the user's own input)
-func InjectPrompt(inj TmuxInjector, frameID state.FrameID, prompt string) error {
+func InjectPrompt(inj PromptInjector, frameID state.FrameID, prompt string) error {
 	trimmed := strings.TrimRight(prompt, "\n\r\t ")
 	if trimmed == "" {
 		return errors.New("runtime: empty prompt")
