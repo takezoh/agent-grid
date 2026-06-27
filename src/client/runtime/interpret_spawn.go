@@ -154,7 +154,19 @@ func recoverSpawnPanic(e state.EffSpawnPaneWindow, sendFailed func(string)) {
 // handleSpawnComplete runs on the event loop. It stores the per-frame I/O
 // handles produced by spawnPaneWindow into loop-owned maps (and the container
 // registry), then dispatches the pure EvPaneSpawned event.
+//
+// If the session or frame was killed while spawn was in flight (an
+// EffKillSessionWindow effect arrived on the loop before this completion),
+// store nothing and release the resources the goroutine acquired. Without
+// this check, handleSpawnComplete would write loop-owned maps for a frame
+// the reducer no longer knows about, leak the subsystem backend / container
+// / worktree / endpoint / warm file, and resurrect a dead frame from the
+// kill path's point of view (issues/027).
 func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
+	if !r.spawnTargetAlive(e.effect.SessionID, e.effect.FrameID) {
+		r.discardSpawnResult(e)
+		return
+	}
 	r.subsystems[e.subsystemID] = e.sub
 	r.frameSubsystems[e.effect.FrameID] = e.sub
 	r.frameSubsystemIDs[e.effect.FrameID] = e.subsystemID
@@ -174,6 +186,73 @@ func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
 		ReplyConn:        e.effect.ReplyConn,
 		ReplyReqID:       e.effect.ReplyReqID,
 	})
+}
+
+// spawnTargetAlive reports whether the (sessionID, frameID) pair the spawn
+// goroutine was launching for still exists in reducer state. A return of
+// false means EffKillSessionWindow ran on the loop while spawn was in flight.
+// Loop-owned read — no synchronisation needed.
+func (r *Runtime) spawnTargetAlive(sessionID state.SessionID, frameID state.FrameID) bool {
+	sess, ok := r.state.Sessions[sessionID]
+	if !ok {
+		return false
+	}
+	for _, f := range sess.Frames {
+		if f.ID == frameID {
+			return true
+		}
+	}
+	return false
+}
+
+// discardSpawnResult releases the resources a spawn goroutine acquired when
+// the loop discovers that EffKillSessionWindow ran first and the target frame
+// is gone. Mirrors the executeKillSessionWindow tear-down path but works
+// directly off the spawnComplete event (which carries fresh handles the loop
+// never stored into its maps). Heavy I/O (Cleanup, ReleaseFrame, Remove) runs
+// in a goroutine so a saturated loop doesn't block on container teardown.
+func (r *Runtime) discardSpawnResult(e internalSpawnComplete) {
+	slog.Info("runtime: discarding spawn-complete for killed frame",
+		"session", e.effect.SessionID, "frame", e.effect.FrameID,
+		"subsystem", e.subsystemID, "pane", e.paneID)
+	// Pane: kill synchronously on the loop. PtyBackend.KillPaneWindow is a map
+	// delete + a non-blocking SIGTERM dispatch, so this is cheap.
+	if e.paneID != "" {
+		if err := r.cfg.Backend.KillPaneWindow(e.paneID); err != nil {
+			slog.Warn("runtime: kill orphan pane failed", "pane", e.paneID, "err", err)
+		}
+	}
+	// Subsystem reaping needs access to loop-owned r.frameSubsystemIDs; since
+	// we never wrote this frame into that map, we replicate the "last frame
+	// for this subsystem?" check inline against the current map state.
+	frameID := e.effect.FrameID
+	sub := e.sub
+	subsystemID := e.subsystemID
+	hasOther := false
+	for _, id := range r.frameSubsystemIDs {
+		if id == subsystemID {
+			hasOther = true
+			break
+		}
+	}
+	cleanup := e.cleanup
+	// Off-loop: ReleaseFrame may block on container shutdown, Cleanup may
+	// release worktrees, Reaper.Remove waits for the backend process to exit.
+	go func() {
+		sub.ReleaseFrame(frameID)
+		if cleanup != nil {
+			if err := cleanup(); err != nil {
+				slog.Warn("runtime: cleanup after discarded spawn", "frame", frameID, "err", err)
+			}
+		}
+		if !hasOther {
+			if factory, ok := r.subsystemFactories[sub.Kind()]; ok {
+				if reaper, ok := factory.(rsubsystem.Reaper); ok {
+					reaper.Remove(context.Background(), subsystemID)
+				}
+			}
+		}
+	}()
 }
 
 // ensureSubsystemOnce dispatches to the factory registered for the given kind

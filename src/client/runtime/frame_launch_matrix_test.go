@@ -455,6 +455,16 @@ func TestFrameLaunch_ColdStart_SubsystemKindSelection(t *testing.T) {
 
 func (h *launchHarness) newSessionSpawn(t *testing.T, e state.EffSpawnPaneWindow) internalSpawnComplete {
 	t.Helper()
+	// In production the reducer adds the session+frame before EffSpawnPaneWindow
+	// is emitted; handleSpawnComplete's 027 frame-alive check assumes that
+	// invariant. Seed the same shape here so the loop completion path doesn't
+	// discard our spawn as an orphan.
+	if _, ok := h.r.state.Sessions[e.SessionID]; !ok {
+		h.r.state.Sessions[e.SessionID] = state.Session{
+			ID: e.SessionID, Project: e.Project,
+			Frames: []state.SessionFrame{{ID: e.FrameID, Project: e.Project, Command: e.Command}},
+		}
+	}
 	internalCh := make(chan internalEvent, 1)
 	eventCh := make(chan state.Event, 1)
 	deps := spawnDeps{
