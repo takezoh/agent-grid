@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1128,13 +1129,35 @@ func TestMuxNoAuth_AllowsUnauthenticated(t *testing.T) {
 // Tests cover (1) .git exists, (2) .git missing (silent false), (3) a parent
 // that is a regular file producing ENOTDIR (logged false).
 
+// syncBuffer is a bytes.Buffer protected by a mutex so it is safe for
+// concurrent writes from in-flight HTTP handler goroutines and reads from the
+// test goroutine that calls withCapturedSlog.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (n int, err error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 // withCapturedSlog swaps slog.Default() for the duration of fn so the test
 // can assert on the log record emitted by gitChildExists. The returned string
 // is the captured handler output (newline-delimited slog "key=value" records).
+// A mutex-protected buffer is used because parallel tests share the global
+// slog default and in-flight httptest goroutines may write concurrently.
 func withCapturedSlog(t *testing.T, fn func()) string {
 	t.Helper()
 	prev := slog.Default()
-	var buf bytes.Buffer
+	var buf syncBuffer
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})))
