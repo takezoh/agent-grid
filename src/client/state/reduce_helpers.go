@@ -407,4 +407,3 @@ func okResp(connID ConnID, reqID string, body any) Effect {
 		Body:   body,
 	}
 }
-

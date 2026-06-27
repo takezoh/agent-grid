@@ -14,9 +14,9 @@ import "testing"
 // keep their label source.
 func TestCardTitleChain(t *testing.T) {
 	tests := []struct {
-		name                          string
-		aiTitle, summary, lastPrompt  string
-		wantTitle, wantSubtitle       string
+		name                         string
+		aiTitle, summary, lastPrompt string
+		wantTitle, wantSubtitle      string
 	}{
 		{"AI title wins, subtitle gets summary", "ai", "sum", "prompt", "ai", "sum"},
 		{"AI title wins, subtitle falls to last prompt", "ai", "", "prompt", "ai", "prompt"},

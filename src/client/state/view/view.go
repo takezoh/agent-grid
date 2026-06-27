@@ -9,17 +9,17 @@ import (
 // Driver.Step. JSON tags allow the proto layer to ship View values
 // directly across the wire without a parallel type hierarchy.
 type View struct {
-	Card            Card       `json:"card"`
-	DisplayName     string     `json:"display_name,omitempty"`
-	LogTabs         []LogTab   `json:"log_tabs,omitempty"`
-	InfoExtras      []InfoLine `json:"info_extras,omitempty"`
-	SuppressInfo    bool       `json:"suppress_info,omitempty"`
-	StatusLine      string     `json:"status_line,omitempty"`
+	Card         Card       `json:"card"`
+	DisplayName  string     `json:"display_name,omitempty"`
+	LogTabs      []LogTab   `json:"log_tabs,omitempty"`
+	InfoExtras   []InfoLine `json:"info_extras,omitempty"`
+	SuppressInfo bool       `json:"suppress_info,omitempty"`
+	StatusLine   string     `json:"status_line,omitempty"`
 	// Status: NO omitempty. Status is `int` (iota) and StatusRunning == 0,
 	// so omitempty would drop the field for every running session and the
 	// web client would fall back to "unknown" (RunStateBadge).
-	Status          Status     `json:"status"`
-	StatusChangedAt time.Time  `json:"status_changed_at,omitempty"`
+	Status          Status    `json:"status"`
+	StatusChangedAt time.Time `json:"status_changed_at,omitempty"`
 }
 
 // Card is the driver-specific portion of the session list card.

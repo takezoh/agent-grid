@@ -115,4 +115,3 @@ func TestViewJSONStatusAlwaysEmitted(t *testing.T) {
 		}
 	}
 }
-
