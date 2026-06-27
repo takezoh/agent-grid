@@ -3,7 +3,6 @@ package runtime
 import (
 	"errors"
 	"log/slog"
-	"strings"
 
 	"github.com/takezoh/agent-reactor/client/state"
 )
@@ -133,13 +132,7 @@ func isMissingPaneErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, ErrPaneMissing) {
-		return true
-	}
-	// Legacy substring path for RealTmuxBackend, which surfaces tmux's
-	// "can't find pane" responses verbatim. Removed in phase C when the
-	// tmux backend goes.
-	return strings.Contains(err.Error(), "can't find pane")
+	return errors.Is(err, ErrPaneMissing)
 }
 
 func sessionPaneEnvKey(frameID state.FrameID) string {

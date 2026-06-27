@@ -535,7 +535,7 @@ func TestActivateSessionInitializesMainPaneIDOnDemand(t *testing.T) {
 
 func TestActivateSessionMissingPaneEnqueuesWindowVanished(t *testing.T) {
 	tmux := newFakeTmux()
-	tmux.swapErr = fmt.Errorf("tmux swap-pane -d -s %%3 -t reactor-test:0.0: exit status 1: can't find pane: %%3")
+	tmux.swapErr = fmt.Errorf("runtime: unknown pane %q: %w", "%3", ErrPaneMissing)
 	r := New(Config{
 		SessionName:       "reactor-test",
 		MainPaneHeightPct: 70,
@@ -833,7 +833,7 @@ func TestExecuteCheckPaneAliveTransientErrorDoesNotKillActiveFrame(t *testing.T)
 // pane_id vanished with the process) must still be treated as death.
 func TestExecuteCheckPaneAliveMissingPaneKillsActiveFrame(t *testing.T) {
 	tmux := newFakeTmux()
-	tmux.aliveErr["%42"] = fmt.Errorf("tmux display-message -t %%42 -p #{pane_dead}: can't find pane: %%42")
+	tmux.aliveErr["%42"] = fmt.Errorf("runtime: unknown pane %q: %w", "%42", ErrPaneMissing)
 	r := New(Config{
 		SessionName: "reactor-test",
 		Tmux:        tmux,
@@ -881,7 +881,7 @@ func TestReconcileWindowsTransientErrorKeepsFrame(t *testing.T) {
 
 func TestReconcileWindowsMissingPaneVanishesFrame(t *testing.T) {
 	tmux := newFakeTmux()
-	tmux.exitStatusErr["%7"] = fmt.Errorf("tmux display-message -t %%7 -p ...: can't find pane: %%7")
+	tmux.exitStatusErr["%7"] = fmt.Errorf("runtime: unknown pane %q: %w", "%7", ErrPaneMissing)
 	r := New(Config{
 		SessionName: "reactor-test",
 		Tmux:        tmux,

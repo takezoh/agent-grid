@@ -7,16 +7,13 @@ import (
 )
 
 // ErrPaneMissing reports that the requested pane is not known to the backend.
-// RealTmuxBackend surfaces tmux's "can't find pane" responses; PtyBackend
-// returns errors that wrap this sentinel when the termvt.Manager has no
-// session under target. The runtime distinguishes vanished panes from
+// PtyBackend returns errors that wrap this sentinel when the termvt.Manager
+// has no session under target. The runtime distinguishes vanished panes from
 // transient failures via errors.Is(err, ErrPaneMissing).
 var ErrPaneMissing = errors.New("pane missing")
 
 // ErrNotImplemented is returned by backend methods that are not implemented
-// on a given backend type. RealTmuxBackend returns this for the surface
-// accessor methods (SubscribeSurface, UnsubscribeSurface, WriteSurface,
-// ResizeSurface) which only have meaning on PtyBackend.
+// on a given backend type.
 var ErrNotImplemented = errors.New("runtime: not implemented on this backend")
 
 // Backend interfaces. The runtime depends on these abstractions, not

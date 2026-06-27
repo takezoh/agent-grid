@@ -20,15 +20,6 @@ func TestIsMissingPaneErrAcceptsSentinel(t *testing.T) {
 	}
 }
 
-// TestIsMissingPaneErrAcceptsLegacySubstring keeps the RealTmuxBackend
-// substring path live until phase C removes the tmux backend.
-func TestIsMissingPaneErrAcceptsLegacySubstring(t *testing.T) {
-	legacy := errors.New("tmux: can't find pane: arc:0.7")
-	if !isMissingPaneErr(legacy) {
-		t.Fatalf("isMissingPaneErr(legacy substring) = false, want true")
-	}
-}
-
 // TestIsMissingPaneErrIgnoresOther verifies unrelated errors are not classified
 // as missing-pane errors.
 func TestIsMissingPaneErrIgnoresOther(t *testing.T) {
@@ -38,5 +29,10 @@ func TestIsMissingPaneErrIgnoresOther(t *testing.T) {
 	other := errors.New("write: broken pipe")
 	if isMissingPaneErr(other) {
 		t.Fatalf("isMissingPaneErr(%q) = true, want false", other.Error())
+	}
+	legacy := errors.New("tmux: can't find pane: arc:0.7")
+	if isMissingPaneErr(legacy) {
+		t.Fatalf("isMissingPaneErr(legacy substring) = true, want false " +
+			"after RealTmuxBackend removal")
 	}
 }
