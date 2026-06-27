@@ -9,6 +9,7 @@
 package framereg
 
 import (
+	"log/slog"
 	"sync"
 
 	"github.com/takezoh/agent-reactor/client/state"
@@ -42,6 +43,7 @@ func (reg *Registry) Register(frameID state.FrameID, token string) {
 	if old, ok := reg.frameToToken[frameID]; ok {
 		delete(reg.tokenToFrame, old)
 	}
+	reg.warnIfTokenRebind(token, frameID)
 	reg.frameToToken[frameID] = token
 	reg.tokenToFrame[token] = frameID
 }
@@ -58,6 +60,7 @@ func (reg *Registry) RegisterWithMounts(frameID state.FrameID, token string, mou
 	if old, ok := reg.frameToToken[frameID]; ok {
 		delete(reg.tokenToFrame, old)
 	}
+	reg.warnIfTokenRebind(token, frameID)
 	reg.frameToToken[frameID] = token
 	reg.tokenToFrame[token] = frameID
 	if len(mounts) > 0 {
@@ -65,6 +68,28 @@ func (reg *Registry) RegisterWithMounts(frameID state.FrameID, token string, mou
 	} else {
 		delete(reg.mounts, frameID)
 	}
+}
+
+// warnIfTokenRebind logs when a token is being rebound from one frame to
+// another and orphans the previous holder's frameToToken entry. 32-byte
+// random tokens make this practically unreachable except for warm-token
+// reuse bugs (issues/029 F8). Caller must hold reg.mu.
+func (reg *Registry) warnIfTokenRebind(token string, newFrameID state.FrameID) {
+	if prev, ok := reg.tokenToFrame[token]; ok && prev != newFrameID {
+		slog.Warn("framereg: token rebound to a different frame; previous frameToToken entry orphaned",
+			"token-prefix", tokenPrefix(token), "prev-frame", prev, "new-frame", newFrameID)
+		delete(reg.frameToToken, prev)
+	}
+}
+
+// tokenPrefix returns the first 8 chars of token for log diagnostics without
+// leaking the full bearer.
+func tokenPrefix(token string) string {
+	const prefixLen = 8
+	if len(token) <= prefixLen {
+		return token
+	}
+	return token[:prefixLen] + "…"
 }
 
 // StoreMounts associates mounts with frameID.

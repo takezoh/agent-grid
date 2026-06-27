@@ -34,6 +34,46 @@ func (minimalDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, proj
 func (minimalDriver) StartDir(_ state.DriverState) string                          { return "" }
 func (minimalDriver) WithStartDir(s state.DriverState, _ string) state.DriverState { return s }
 
+// TestRegisterContainerFrame_warmSaveIsSynchronous guards the 029 F4 fix:
+// warm Save runs synchronously inside registerContainerFrame so it cannot
+// race a follow-up Delete from executeKillSessionWindow. Before the fix,
+// Save was fired off in a goroutine and could win against a kill-path Delete
+// for the same frame's warm file, leaving a stale token on disk.
+func TestRegisterContainerFrame_warmSaveIsSynchronous(t *testing.T) {
+	dir := t.TempDir()
+	r := New(Config{Backend: newFakeBackend(), DataDir: dir})
+	t.Cleanup(r.shutdownContainerEndpoints)
+	if r.warmFrames == nil {
+		t.Fatal("warm-frame store not initialised with DataDir set")
+	}
+	r.state.Sessions["s1"] = state.Session{
+		ID: "s1", Project: "/p",
+		Frames: []state.SessionFrame{{ID: "f1", Project: "/p", Command: "shell"}},
+	}
+
+	r.registerContainerFrame("f1", "/p", dir, "tok-1", pathmap.Mounts{{Host: "/h", Container: "/c"}})
+
+	// Synchronous contract: by the time registerContainerFrame returns the
+	// warm state for the frame must be visible to LoadAll. No sleep, no poll.
+	states, err := r.warmFrames.LoadAll()
+	if err != nil {
+		t.Fatalf("warmFrames.LoadAll: %v", err)
+	}
+	var got *WarmFrameState
+	for i := range states {
+		if states[i].FrameID == "f1" {
+			got = &states[i]
+			break
+		}
+	}
+	if got == nil {
+		t.Fatal("warm save did not land synchronously: f1 missing from LoadAll")
+	}
+	if got.ContainerToken != "tok-1" {
+		t.Errorf("warm token = %q, want tok-1", got.ContainerToken)
+	}
+}
+
 func TestStoreAndInvokeFrameCleanup(t *testing.T) {
 	r := New(Config{})
 

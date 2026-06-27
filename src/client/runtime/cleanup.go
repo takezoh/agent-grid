@@ -19,11 +19,14 @@ func (r *Runtime) storeFrameCleanup(frameID state.FrameID, fn func() error) {
 }
 
 // registerContainerFrame atomically registers the container token and mounts,
-// starts the endpoint if needed, and schedules the warm-frame persist in a
-// goroutine so the event loop is not blocked on disk I/O. The atomic
+// starts the endpoint if needed, and persists the warm-frame state. The atomic
 // RegisterWithMounts closes the window where a container request could see the
-// token before its mounts. Must be called from the event loop or bootstrap
-// (pre-Run) only.
+// token before its mounts. Warm Save runs synchronously on the event loop
+// (issues/029, F4) so it cannot race executeKillSessionWindow's synchronous
+// Delete on the same frame's warm file — the prior async go-Save could win and
+// leave a stale warm file behind a kill. The disk cost is a small JSON write
+// to <dataDir>/warm/, sub-ms on local storage. Must be called from the event
+// loop or bootstrap (pre-Run) only.
 func (r *Runtime) registerContainerFrame(frameID state.FrameID, project, sockDir, token string, mounts pathmap.Mounts) {
 	r.frameReg.RegisterWithMounts(frameID, token, mounts)
 	r.startContainerEndpointIfNeeded(project, ContainerSockPath(sockDir))
@@ -31,12 +34,9 @@ func (r *Runtime) registerContainerFrame(frameID state.FrameID, project, sockDir
 		return
 	}
 	wf := WarmFrameState{FrameID: string(frameID), ContainerToken: token}
-	wfStore := r.warmFrames
-	go func() {
-		if err := wfStore.Save(wf); err != nil {
-			slog.Warn("runtime: warm frame save failed", "frame", frameID, "err", err)
-		}
-	}()
+	if err := r.warmFrames.Save(wf); err != nil {
+		slog.Warn("runtime: warm frame save failed", "frame", frameID, "err", err)
+	}
 }
 
 // invokeFrameCleanup removes the frame's container registration, retrieves the

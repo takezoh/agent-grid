@@ -292,9 +292,18 @@ func (r *Runtime) bootstrapSessionEffect(sessID state.SessionID, frameID state.F
 // which AdoptFrame fails (no surviving container, dispatcher refuses) are left
 // alone — RecreateAll will spawn a fresh container for them via the normal
 // EnsureProject path.
+//
+// Per-frame ordering matters (issues/029, F6): each frame's warm token + mounts
+// are registered atomically via RegisterWithMounts and only THEN is the
+// container endpoint started. Previously recoverWarmTokens registered every
+// token first (token-only, no mounts) and per-frame StoreMounts followed in
+// the same loop body — this opened a window where the same-project endpoint
+// could already be live (from a sibling frame's iteration) while a later
+// frame's token was looked-up-able but its mounts were not yet stored, causing
+// container-relative paths to leak unconverted to the wire.
 func (r *Runtime) RecoverSandboxFrames(ctx context.Context) map[state.FrameID]struct{} {
 	l := launcher(r.cfg)
-	r.recoverWarmTokens()
+	warmTokens := r.recoverWarmTokens()
 
 	adopted := make(map[state.FrameID]struct{})
 	for _, sess := range r.state.Sessions {
@@ -309,10 +318,13 @@ func (r *Runtime) RecoverSandboxFrames(ctx context.Context) map[state.FrameID]st
 			if cleanup != nil {
 				r.storeFrameCleanup(frame.ID, cleanup)
 			}
-			if len(mounts) > 0 {
-				// The token was registered by recoverWarmTokens above; store the
-				// mounts on the same registry so token and mounts live behind one
-				// lock. Boot is pre-Run (serial), so this is the sole writer.
+			// Register token + mounts in one atomic step so a same-project hook
+			// arriving on the already-live endpoint never observes a half-set
+			// (token without mounts). Tokens with no mounts and mounts with no
+			// token both stay valid — RegisterWithMounts handles both shapes.
+			if tok := warmTokens[frame.ID]; tok != "" {
+				r.frameReg.RegisterWithMounts(frame.ID, tok, mounts)
+			} else if len(mounts) > 0 {
 				r.frameReg.StoreMounts(frame.ID, mounts)
 			}
 			if r.state.SandboxedProject != nil && r.state.SandboxedProject(frame.Project) && r.cfg.DataDir != "" {
@@ -330,13 +342,18 @@ func (r *Runtime) RecoverSandboxFrames(ctx context.Context) map[state.FrameID]st
 	return adopted
 }
 
-// recoverWarmTokens restores container tokens from warm/ so container agents
-// can still send hook events after a daemon restart. Walks the persisted
-// snapshot to identify live frames; warm entries for frames absent from the
-// snapshot are deleted proactively so warm/ does not accumulate stale files.
-func (r *Runtime) recoverWarmTokens() {
+// recoverWarmTokens reads warm/ and returns a per-frame map of saved container
+// tokens for frames still present in r.state. Stale warm entries (frames no
+// longer in the snapshot) are deleted proactively. Returns an empty map when
+// no warm store is configured, so callers can iterate unconditionally.
+//
+// Does NOT touch frameReg — the caller stages tokens into the per-frame
+// AdoptFrame loop and uses RegisterWithMounts so token + mounts land behind
+// the same lock (issues/029, F6).
+func (r *Runtime) recoverWarmTokens() map[state.FrameID]string {
+	out := map[state.FrameID]string{}
 	if r.warmFrames == nil {
-		return
+		return out
 	}
 	liveFrames := make(map[string]struct{})
 	for _, sess := range r.state.Sessions {
@@ -354,9 +371,10 @@ func (r *Runtime) recoverWarmTokens() {
 			continue
 		}
 		if st.ContainerToken != "" {
-			r.frameReg.Register(state.FrameID(st.FrameID), st.ContainerToken)
+			out[state.FrameID(st.FrameID)] = st.ContainerToken
 		}
 	}
+	return out
 }
 
 // SetAliases sets the command alias map on state. Called once at

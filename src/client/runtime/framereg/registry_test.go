@@ -40,6 +40,54 @@ func TestRegisterReplacesOldToken(t *testing.T) {
 	}
 }
 
+// TestRegisterDetectsTokenRebindAcrossFrames guards the 029 F8 fix: if a
+// token already maps to a different frame, the second Register must clear
+// the old frame's frameToToken entry (no orphan) and the new mapping must
+// stand. Without the cleanup the orphaned entry would survive until the old
+// frame's Delete, returning stale tokens via internal iteration.
+func TestRegisterDetectsTokenRebindAcrossFrames(t *testing.T) {
+	reg := framereg.New()
+	reg.Register("frame-a", "shared-tok")
+	reg.Register("frame-b", "shared-tok") // F8: rebind to a new frame
+
+	// Forward lookup: latest binding wins.
+	if got, ok := reg.Lookup("shared-tok"); !ok || got != "frame-b" {
+		t.Errorf("Lookup(shared-tok) = (%q, %v), want (frame-b, true)", got, ok)
+	}
+	// Reverse: frame-a must NOT still be presenting itself as a token holder.
+	// Delete-then-reregister-shared-tok is the realistic warm-token reuse path,
+	// and the old frame should leave no shadow entry.
+	reg.Delete("frame-a") // cheapest portable assertion: Delete on a "tokenless" frame must be a no-op for the rebind.
+	if got, ok := reg.Lookup("shared-tok"); !ok || got != "frame-b" {
+		t.Errorf("after Delete(frame-a), Lookup(shared-tok) = (%q, %v); rebind to frame-b must survive", got, ok)
+	}
+}
+
+// TestRegisterWithMountsDetectsTokenRebind mirrors the F8 fix for the atomic
+// register path. Same shape as TestRegisterDetectsTokenRebindAcrossFrames
+// but exercises RegisterWithMounts since that's the prod call site after the
+// 029 F6 rework.
+func TestRegisterWithMountsDetectsTokenRebind(t *testing.T) {
+	reg := framereg.New()
+	msA := pathmap.Mounts{{Host: "/a", Container: "/work"}}
+	msB := pathmap.Mounts{{Host: "/b", Container: "/work"}}
+	reg.RegisterWithMounts("frame-a", "shared-tok", msA)
+	reg.RegisterWithMounts("frame-b", "shared-tok", msB)
+
+	if got, ok := reg.Lookup("shared-tok"); !ok || got != "frame-b" {
+		t.Errorf("Lookup(shared-tok) = (%q, %v), want (frame-b, true)", got, ok)
+	}
+	if ms, ok := reg.GetMounts("frame-b"); !ok || ms[0].Host != "/b" {
+		t.Errorf("frame-b mounts = (%v, %v), want host=/b", ms, ok)
+	}
+	// frame-a should have been cleared from frameToToken when shared-tok rebound.
+	// Re-registering frame-a with a fresh token must not collide with leftovers.
+	reg.RegisterWithMounts("frame-a", "fresh-tok", msA)
+	if got, ok := reg.Lookup("fresh-tok"); !ok || got != "frame-a" {
+		t.Errorf("Lookup(fresh-tok) = (%q, %v), want (frame-a, true) after re-register", got, ok)
+	}
+}
+
 func TestDeleteRemovesTokenAndMounts(t *testing.T) {
 	reg := framereg.New()
 	reg.Register("frame1", "tok1")

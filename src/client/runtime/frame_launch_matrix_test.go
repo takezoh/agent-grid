@@ -209,9 +209,10 @@ func newLaunchHarness(t *testing.T, env envKind) *launchHarness {
 
 // buildLaunchHarness wires a Runtime through the real launcher stack. When
 // persistWarm is true the runtime's warm-frame store is enabled (Config.DataDir
-// set) — only the warm-start test needs it. Cold/new-session tests leave it
-// off so registerContainerFrame's fire-and-forget warm Save goroutine cannot
-// race t.TempDir cleanup (it would otherwise write into a dir being removed).
+// set) — only the warm-start tests need it. Cold/new-session tests leave it
+// off because they don't exercise the warm path; registerContainerFrame now
+// Saves synchronously (issues/029 F4) so there's no async write left dangling
+// past t.Cleanup either way.
 func buildLaunchHarness(t *testing.T, env envKind, persistWarm bool) *launchHarness {
 	t.Helper()
 	rec := &orderRecorder{}
@@ -599,5 +600,87 @@ func TestFrameLaunch_WarmStart_PerProject(t *testing.T) {
 	}
 	if _, ok := h.r.containerEndpoints[project]; !ok {
 		t.Error("container warm start must restart the project endpoint")
+	}
+}
+
+// TestWarmStart_AtomicMultiFrame guards the 029 F6 fix. With multiple frames
+// in the same project the per-frame loop now uses RegisterWithMounts so every
+// frame's token and mounts land behind one lock. Before the fix,
+// recoverWarmTokens would Register the second frame's token immediately
+// while StoreMounts came later in the same loop — leaving a window where
+// the same-project endpoint was already live (from frame 1's iteration) and
+// an incoming container hook would see Lookup(token)=ok but
+// GetMounts(frame)=miss, leaking container-relative paths.
+//
+// Test name is intentionally short — Unix-domain socket paths under
+// t.TempDir() have a 108-byte limit and long test names push the per-project
+// run dir over the edge.
+func TestWarmStart_AtomicMultiFrame(t *testing.T) {
+	h := buildLaunchHarness(t, envProject, true)
+	const project = "/proj/multi"
+
+	if _, err := EnsureProjectRunDir(filepath.Join(h.dataDir, "run"), project); err != nil {
+		t.Fatalf("EnsureProjectRunDir: %v", err)
+	}
+	for _, e := range []struct{ id, tok string }{
+		{"f-a", "warm-tok-a"},
+		{"f-b", "warm-tok-b"},
+	} {
+		if err := h.r.warmFrames.Save(WarmFrameState{FrameID: e.id, ContainerToken: e.tok}); err != nil {
+			t.Fatalf("warm save %s: %v", e.id, err)
+		}
+	}
+	h.r.state.Sessions["s1"] = state.Session{
+		ID: "s1", Project: project,
+		Frames: []state.SessionFrame{
+			{ID: "f-a", Project: project, Command: "minimal-test", Driver: state.DriverStateBase{}},
+			{ID: "f-b", Project: project, Command: "minimal-test", Driver: state.DriverStateBase{}},
+		},
+	}
+
+	h.r.RecoverSandboxFrames(context.Background())
+
+	// Every recovered frame must have BOTH a token lookup and a mounts entry —
+	// the atomicity contract of RegisterWithMounts.
+	for _, e := range []struct{ id, tok string }{
+		{"f-a", "warm-tok-a"},
+		{"f-b", "warm-tok-b"},
+	} {
+		if id, ok := h.r.frameReg.Lookup(e.tok); !ok || string(id) != e.id {
+			t.Errorf("Lookup(%q) = (%q, %v), want (%q, true)", e.tok, id, ok, e.id)
+		}
+		if ms, ok := h.r.frameReg.GetMounts(state.FrameID(e.id)); !ok || len(ms) == 0 {
+			t.Errorf("GetMounts(%q) = (%v, %v), want mounts present alongside token", e.id, ms, ok)
+		}
+	}
+	if _, ok := h.r.containerEndpoints[project]; !ok {
+		t.Error("shared-project endpoint must be running for both frames")
+	}
+}
+
+// TestWarmStart_OrphanPruned guards the orphan-pruning behaviour of
+// recoverWarmTokens: a warm file for a frame that no longer exists in
+// r.state.Sessions must be deleted at startup so warm/ doesn't accumulate
+// stale tokens that the framereg would happily rebind.
+func TestWarmStart_OrphanPruned(t *testing.T) {
+	h := buildLaunchHarness(t, envProject, true)
+	if err := h.r.warmFrames.Save(WarmFrameState{FrameID: "ghost", ContainerToken: "orphan-tok"}); err != nil {
+		t.Fatalf("warm save: %v", err)
+	}
+	// No session for "ghost" — recoverWarmTokens must prune it.
+
+	tokens := h.r.recoverWarmTokens()
+
+	if _, ok := tokens[state.FrameID("ghost")]; ok {
+		t.Error("recoverWarmTokens returned a staged token for a frame absent from state")
+	}
+	states, err := h.r.warmFrames.LoadAll()
+	if err != nil {
+		t.Fatalf("warmFrames.LoadAll: %v", err)
+	}
+	for _, st := range states {
+		if st.FrameID == "ghost" {
+			t.Error("orphan warm file was not deleted on recovery")
+		}
 	}
 }
