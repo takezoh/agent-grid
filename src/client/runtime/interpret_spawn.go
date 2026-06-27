@@ -207,10 +207,20 @@ func (r *Runtime) spawnTargetAlive(sessionID state.SessionID, frameID state.Fram
 
 // discardSpawnResult releases the resources a spawn goroutine acquired when
 // the loop discovers that EffKillSessionWindow ran first and the target frame
-// is gone. Mirrors the executeKillSessionWindow tear-down path but works
-// directly off the spawnComplete event (which carries fresh handles the loop
-// never stored into its maps). Heavy I/O (Cleanup, ReleaseFrame, Remove) runs
-// in a goroutine so a saturated loop doesn't block on container teardown.
+// is gone. Tears down what the goroutine produced (pane window, per-frame
+// subsystem binding, sandbox/container cleanup) and dispatches EvSpawnFailed
+// so the original CreateSession/AddFrame caller — which is still parked on
+// its reply channel — gets an explicit error rather than a silent timeout.
+//
+// We DO NOT call Reaper.Remove on the subsystem here. The discard goroutine
+// runs arbitrarily late and the snapshot of "no other frame uses this
+// subsystem" can be invalidated by a concurrent sibling spawn that completes
+// after the snapshot: ensureSubsystemOnce dedupes by (project, kind), so the
+// sibling holds a reference to the same subsystem instance, and a late
+// Reaper.Remove would kill the backend out from under the live sibling.
+// The orphan backend (when no sibling exists either) survives until the
+// next kill of any frame on the same subsystem (reapSubsystemIfLast cleans
+// it up) or until daemon shutdown — bounded leak, no liveness corruption.
 func (r *Runtime) discardSpawnResult(e internalSpawnComplete) {
 	slog.Info("runtime: discarding spawn-complete for killed frame",
 		"session", e.effect.SessionID, "frame", e.effect.FrameID,
@@ -222,22 +232,11 @@ func (r *Runtime) discardSpawnResult(e internalSpawnComplete) {
 			slog.Warn("runtime: kill orphan pane failed", "pane", e.paneID, "err", err)
 		}
 	}
-	// Subsystem reaping needs access to loop-owned r.frameSubsystemIDs; since
-	// we never wrote this frame into that map, we replicate the "last frame
-	// for this subsystem?" check inline against the current map state.
 	frameID := e.effect.FrameID
 	sub := e.sub
-	subsystemID := e.subsystemID
-	hasOther := false
-	for _, id := range r.frameSubsystemIDs {
-		if id == subsystemID {
-			hasOther = true
-			break
-		}
-	}
 	cleanup := e.cleanup
 	// Off-loop: ReleaseFrame may block on container shutdown, Cleanup may
-	// release worktrees, Reaper.Remove waits for the backend process to exit.
+	// release worktrees. Captures only the values we need (no *Runtime).
 	go func() {
 		sub.ReleaseFrame(frameID)
 		if cleanup != nil {
@@ -245,14 +244,18 @@ func (r *Runtime) discardSpawnResult(e internalSpawnComplete) {
 				slog.Warn("runtime: cleanup after discarded spawn", "frame", frameID, "err", err)
 			}
 		}
-		if !hasOther {
-			if factory, ok := r.subsystemFactories[sub.Kind()]; ok {
-				if reaper, ok := factory.(rsubsystem.Reaper); ok {
-					reaper.Remove(context.Background(), subsystemID)
-				}
-			}
-		}
 	}()
+	// Reply to the original spawn caller so it doesn't hang on its HTTP
+	// timeout. EvSpawnFailed's reducer evicts the (already-gone) frame as a
+	// no-op and emits errResp via ReplyConn/ReplyReqID. Always dispatch even
+	// when ReplyConn is zero — the reducer guards on ReplyConn==0 internally.
+	r.dispatch(state.EvSpawnFailed{
+		SessionID:  e.effect.SessionID,
+		FrameID:    e.effect.FrameID,
+		Err:        "frame killed before spawn completed",
+		ReplyConn:  e.effect.ReplyConn,
+		ReplyReqID: e.effect.ReplyReqID,
+	})
 }
 
 // ensureSubsystemOnce dispatches to the factory registered for the given kind

@@ -71,15 +71,21 @@ func (reg *Registry) RegisterWithMounts(frameID state.FrameID, token string, mou
 }
 
 // warnIfTokenRebind logs when a token is being rebound from one frame to
-// another and orphans the previous holder's frameToToken entry. 32-byte
-// random tokens make this practically unreachable except for warm-token
-// reuse bugs (issues/029 F8). Caller must hold reg.mu.
+// another and fully evicts the previous holder (frameToToken + mounts) so the
+// rebind matches the post-Delete shape. 32-byte random tokens make this
+// practically unreachable except for warm-token reuse bugs (issues/029 F8).
+// Without the mounts wipe, a future GetMounts(prev) would return stale paths
+// belonging to the old frame, defeating the atomicity contract on the new
+// binding side. Caller must hold reg.mu.
 func (reg *Registry) warnIfTokenRebind(token string, newFrameID state.FrameID) {
-	if prev, ok := reg.tokenToFrame[token]; ok && prev != newFrameID {
-		slog.Warn("framereg: token rebound to a different frame; previous frameToToken entry orphaned",
-			"token-prefix", tokenPrefix(token), "prev-frame", prev, "new-frame", newFrameID)
-		delete(reg.frameToToken, prev)
+	prev, ok := reg.tokenToFrame[token]
+	if !ok || prev == newFrameID {
+		return
 	}
+	slog.Warn("framereg: token rebound to a different frame; previous binding evicted",
+		"token-prefix", tokenPrefix(token), "prev-frame", prev, "new-frame", newFrameID)
+	delete(reg.frameToToken, prev)
+	delete(reg.mounts, prev)
 }
 
 // tokenPrefix returns the first 8 chars of token for log diagnostics without

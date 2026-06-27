@@ -1,11 +1,14 @@
 package runtime
 
 import (
+	"bufio"
 	"errors"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/takezoh/agent-reactor/client/proto"
 	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
 	"github.com/takezoh/agent-reactor/client/state"
 	"github.com/takezoh/agent-reactor/platform/pathmap"
@@ -262,16 +265,19 @@ func TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn(t *testing.T) {
 // endpoint + warm-file leaks.
 func TestHandleSpawnComplete_discardsContainerFrame(t *testing.T) {
 	dir := t.TempDir()
-	r := New(Config{Backend: newFakeBackend()})
+	backend := newFakeBackend()
+	r := New(Config{Backend: backend})
 	t.Cleanup(r.shutdownContainerEndpoints)
 
 	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
 	ms := pathmap.Mounts{{Host: "/h/work", Container: "/work"}}
+	var cleaned atomic.Bool
 
 	r.handleSpawnComplete(internalSpawnComplete{
 		effect:           state.EffSpawnPaneWindow{SessionID: "ghost", FrameID: "ghost", Project: "/p"},
 		subsystemID:      "sub-1",
 		sub:              sub,
+		cleanup:          func() error { cleaned.Store(true); return nil },
 		token:            "tok-1",
 		mounts:           ms,
 		containerSockDir: dir,
@@ -286,6 +292,86 @@ func TestHandleSpawnComplete_discardsContainerFrame(t *testing.T) {
 	}
 	if _, ok := r.containerEndpoints["/p"]; ok {
 		t.Error("container endpoint was started for a killed frame (endpoint leak)")
+	}
+
+	// Pane kill is loop-synchronous.
+	backend.mu.Lock()
+	killCalls := backend.killCalls
+	killedPanes := append([]string(nil), backend.killedPanes...)
+	backend.mu.Unlock()
+	if killCalls != 1 || len(killedPanes) != 1 || killedPanes[0] != "%1" {
+		t.Errorf("expected one KillPaneWindow(%%1), got killCalls=%d killedPanes=%v", killCalls, killedPanes)
+	}
+
+	// Cleanup + ReleaseFrame run off-loop. The container-frame discard path is
+	// the more leak-prone branch (endpoint + token + warm-file all in scope),
+	// so it must release the same resources the non-container sibling does.
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if cleaned.Load() && atomic.LoadInt32(&sub.releaseN) == 1 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !cleaned.Load() {
+		t.Error("cleanup closure was not invoked for discarded container frame")
+	}
+	if got := atomic.LoadInt32(&sub.releaseN); got != 1 {
+		t.Errorf("sub.ReleaseFrame call count = %d, want 1", got)
+	}
+}
+
+// TestHandleSpawnComplete_discardRepliesToOriginalCaller verifies that when
+// the loop discards a spawn (kill-mid-spawn), the original CreateSession /
+// AddFrame caller — still parked on its reply channel — receives an error
+// response rather than waiting for an HTTP timeout. Without this dispatch,
+// the kill replied to its own caller but the spawn caller hung indefinitely.
+func TestHandleSpawnComplete_discardRepliesToOriginalCaller(t *testing.T) {
+	server, client := net.Pipe()
+	defer server.Close()
+	defer client.Close()
+
+	r := New(Config{Backend: newFakeBackend()})
+	cc := newIPCConn(1, server)
+	r.conns[1] = cc
+	go r.connWriter(cc)
+	t.Cleanup(cc.shut)
+
+	got := make(chan []byte, 1)
+	go func() {
+		reader := bufio.NewReader(client)
+		line, _ := reader.ReadBytes('\n')
+		got <- line
+	}()
+
+	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
+	r.handleSpawnComplete(internalSpawnComplete{
+		effect: state.EffSpawnPaneWindow{
+			SessionID: "ghost", FrameID: "ghost", Project: "/p",
+			ReplyConn: state.ConnID(1), ReplyReqID: "spawn-req-1",
+		},
+		subsystemID: "sub-1",
+		sub:         sub,
+		paneID:      "%1",
+	})
+
+	select {
+	case line := <-got:
+		env, err := proto.DecodeEnvelope(line)
+		if err != nil {
+			t.Fatalf("DecodeEnvelope: %v", err)
+		}
+		if env.Type != proto.TypeResponse {
+			t.Fatalf("type = %q, want %q", env.Type, proto.TypeResponse)
+		}
+		if env.ReqID != "spawn-req-1" {
+			t.Errorf("req_id = %q, want spawn-req-1 (discard must reply to original caller)", env.ReqID)
+		}
+		if env.Status != proto.StatusError {
+			t.Errorf("status = %q, want %q", env.Status, proto.StatusError)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for discard error reply — original caller would hang")
 	}
 }
 

@@ -187,40 +187,36 @@ func (fr *FileRelay) sweepLoop() {
 
 func (fr *FileRelay) sweep() {
 	fr.mu.Lock()
-	// Snapshot dirty files under lock, then release for I/O. Capture the
-	// pre-read offset alongside each file so a broadcast drop can roll it back.
-	type pending struct {
-		f         *relayFile
-		oldOffset int64
-	}
-	var dirty []pending
+	// Snapshot dirty files under lock, then release for I/O. Clear dirty here
+	// so any watchLoop Write that lands during the read/broadcast re-arms it;
+	// drops re-arm explicitly below.
+	var dirty []*relayFile
 	for _, f := range fr.files {
 		if f.dirty {
 			f.dirty = false
-			dirty = append(dirty, pending{f: f, oldOffset: f.offset})
+			dirty = append(dirty, f)
 		}
 	}
 	fr.mu.Unlock()
 
-	for _, p := range dirty {
-		content, newOffset := readFrom(p.f.path, p.oldOffset)
+	for _, f := range dirty {
+		oldOffset := f.offset
+		content, newOffset := readFrom(f.path, oldOffset)
 		if content == "" {
 			continue
 		}
+		// Single mutation under the lock: advance on broadcast success, re-arm
+		// dirty on drop so the next sweep tick reads the same byte range and
+		// retries delivery (no permanent log line loss under internalCh
+		// saturation, no torn intermediate offset visible to other readers).
+		delivered := fr.broadcast(f, content)
 		fr.mu.Lock()
-		p.f.offset = newOffset
-		fr.mu.Unlock()
-
-		if !fr.broadcast(p.f, content) {
-			// internalCh saturation dropped our broadcast. Roll back so the
-			// next sweep tick re-reads and re-broadcasts the same content.
-			// dirty=true means watchLoop's subsequent Write events keep us
-			// armed even between retries.
-			fr.mu.Lock()
-			p.f.offset = p.oldOffset
-			p.f.dirty = true
-			fr.mu.Unlock()
+		if delivered {
+			f.offset = newOffset
+		} else {
+			f.dirty = true
 		}
+		fr.mu.Unlock()
 	}
 }
 
@@ -253,9 +249,11 @@ func readFrom(path string, offset int64) (string, int64) {
 
 // broadcast posts the read content to the runtime event loop. Returns true
 // when the event was accepted, false on a saturated internalCh — the sweep
-// caller uses this signal to roll back dirty/offset so the next tick retries.
-// Encode errors are treated as "delivered" (no retry possible): the line is
-// lost but the offset advance is correct because the bytes were consumed.
+// caller uses this signal to re-arm dirty so the next tick re-reads and
+// retries. Encode errors are treated as "delivered" (no retry possible): the
+// bytes were consumed so the offset must still advance, but we log at Warn
+// so an operator notices a silent loss path that the saturation-rollback
+// machinery cannot recover.
 func (fr *FileRelay) broadcast(f *relayFile, content string) bool {
 	var event proto.ServerEvent
 	if f.frameID == "" {
@@ -269,6 +267,8 @@ func (fr *FileRelay) broadcast(f *relayFile, content string) bool {
 	}
 	wire, err := proto.EncodeEvent(event)
 	if err != nil {
+		slog.Warn("filerelay: encode event failed; line dropped",
+			"path", f.path, "frame", f.frameID, "kind", f.kind, "bytes", len(content), "err", err)
 		return true
 	}
 	return fr.send(internalBroadcastWire{wire: wire, eventName: event.EventName()})
