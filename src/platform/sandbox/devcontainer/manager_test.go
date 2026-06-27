@@ -931,18 +931,19 @@ func TestIsShared(t *testing.T) {
 func withMockDockerStack(t *testing.T, m dockerStackMocks) {
 	t.Helper()
 	saved := struct {
-		start  func(context.Context, string) error
-		stop   func(context.Context, string) error
-		rm     func(context.Context, string) error
-		create func(context.Context, []string) (string, error)
-		find   func(context.Context, string, string) (*ContainerInfo, error)
-		shared func(context.Context, string) (*ContainerInfo, error)
-		image  func(context.Context, string) (map[string]string, error)
-		post   func(context.Context, string, string, []string)
+		start   func(context.Context, string) error
+		stop    func(context.Context, string) error
+		rm      func(context.Context, string) error
+		create  func(context.Context, []string) (string, error)
+		find    func(context.Context, string, string) (*ContainerInfo, error)
+		shared  func(context.Context, string) (*ContainerInfo, error)
+		image   func(context.Context, string) (map[string]string, error)
+		post    func(context.Context, string, string, []string)
+		inspect func(context.Context, string) (string, error)
 	}{
 		startContainerFn, stopContainerFn, removeContainerFn,
 		createContainerFn, findContainerFn, findSharedContainerFn,
-		imageEnvFn, runPostCreateFn,
+		imageEnvFn, runPostCreateFn, inspectContainerStateFn,
 	}
 	t.Cleanup(func() {
 		startContainerFn = saved.start
@@ -953,6 +954,7 @@ func withMockDockerStack(t *testing.T, m dockerStackMocks) {
 		findSharedContainerFn = saved.shared
 		imageEnvFn = saved.image
 		runPostCreateFn = saved.post
+		inspectContainerStateFn = saved.inspect
 	})
 	if m.start != nil {
 		startContainerFn = m.start
@@ -978,17 +980,21 @@ func withMockDockerStack(t *testing.T, m dockerStackMocks) {
 	if m.postCreate != nil {
 		runPostCreateFn = m.postCreate
 	}
+	if m.inspectState != nil {
+		inspectContainerStateFn = m.inspectState
+	}
 }
 
 type dockerStackMocks struct {
-	start      func(context.Context, string) error
-	stop       func(context.Context, string) error
-	remove     func(context.Context, string) error
-	create     func(context.Context, []string) (string, error)
-	find       func(context.Context, string, string) (*ContainerInfo, error)
-	findShared func(context.Context, string) (*ContainerInfo, error)
-	imageEnv   func(context.Context, string) (map[string]string, error)
-	postCreate func(context.Context, string, string, []string)
+	start        func(context.Context, string) error
+	stop         func(context.Context, string) error
+	remove       func(context.Context, string) error
+	create       func(context.Context, []string) (string, error)
+	find         func(context.Context, string, string) (*ContainerInfo, error)
+	findShared   func(context.Context, string) (*ContainerInfo, error)
+	imageEnv     func(context.Context, string) (map[string]string, error)
+	postCreate   func(context.Context, string, string, []string)
+	inspectState func(context.Context, string) (string, error)
 }
 
 // setupTestSpec writes a minimal devcontainer.json so loadSpec succeeds.
@@ -1295,8 +1301,9 @@ func TestEnsureInstance_CachedSecondCall(t *testing.T) {
 			createCalls++
 			return "id", nil
 		},
-		start:      func(_ context.Context, _ string) error { return nil },
-		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+		start:        func(_ context.Context, _ string) error { return nil },
+		postCreate:   func(_ context.Context, _, _ string, _ []string) {},
+		inspectState: func(_ context.Context, _ string) (string, error) { return "running", nil },
 	})
 	m := New(nil)
 	for i := 0; i < 3; i++ {
@@ -1306,6 +1313,119 @@ func TestEnsureInstance_CachedSecondCall(t *testing.T) {
 	}
 	if createCalls != 1 {
 		t.Errorf("CreateContainer called %d times across 3 EnsureInstance calls, want 1", createCalls)
+	}
+}
+
+// Regression for "container <id> is not running" on new session after the
+// container stopped externally. Manager's in-memory cache held a handle to a
+// stopped container, so EnsureInstance returned the cached state without a
+// state check and BuildLaunchCommand produced docker exec against the dead
+// container. With the fix, a cached non-running container drops the cache,
+// re-runs the find path (which sees state=exited), and starts it back up.
+func TestEnsureInstance_CachedButStoppedContainerIsRestarted(t *testing.T) {
+	project := setupTestSpec(t)
+	const ctrID = "0b4599e19629"
+	var startCalls, createCalls, findCalls int
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _, _ string) (*ContainerInfo, error) {
+			findCalls++
+			// After the cache drop the find path surfaces the existing-but-stopped
+			// container; reuseContainer then restarts it.
+			return &ContainerInfo{ID: ctrID, State: "exited", MountHash: "none"}, nil
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) { return map[string]string{}, nil },
+		create: func(_ context.Context, _ []string) (string, error) {
+			createCalls++
+			t.Errorf("CreateContainer must not be called; existing container should be restarted")
+			return ctrID, nil
+		},
+		start: func(_ context.Context, id string) error {
+			startCalls++
+			if id != ctrID {
+				t.Errorf("StartContainer called with %q, want %q", id, ctrID)
+			}
+			return nil
+		},
+		inspectState: func(_ context.Context, _ string) (string, error) {
+			// External actor (docker stop, OOM, host reboot) put the container
+			// into a non-running state while Manager still held the handle.
+			return "exited", nil
+		},
+		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+	})
+
+	// Pre-seed the cache the way a successful prior EnsureInstance would have:
+	// the container handle is live but the actual docker container is now stopped.
+	spec, err := LoadSpec(project, filepath.Join(project, ".devcontainer"))
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	m := New(nil)
+	m.containers[project] = &ContainerState{containerID: ctrID, spec: spec}
+
+	if _, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{}); err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if startCalls != 1 {
+		t.Errorf("startCalls=%d, want 1 (must restart the existing container after cache drop)", startCalls)
+	}
+	if findCalls != 1 {
+		t.Errorf("findCalls=%d, want 1 (cache drop must re-run find)", findCalls)
+	}
+	if createCalls != 0 {
+		t.Errorf("createCalls=%d, want 0 (existing container should be reused, not recreated)", createCalls)
+	}
+	// Cache must be rebuilt and now reference the same container ID.
+	if got := m.containers[project].containerID; got != ctrID {
+		t.Errorf("cache rebuilt with containerID=%q, want %q", got, ctrID)
+	}
+}
+
+// When the cached container has been completely removed (docker rm by an
+// external actor), InspectContainerState returns ("", nil) — the cache must
+// still be dropped and the create path re-run, otherwise BuildLaunchCommand
+// would docker exec into a non-existent container.
+func TestEnsureInstance_CachedButRemovedContainerIsRecreated(t *testing.T) {
+	project := setupTestSpec(t)
+	const oldID, newID = "old-removed", "fresh-id"
+	createCalls := 0
+	withMockDockerStack(t, dockerStackMocks{
+		find: func(_ context.Context, _, _ string) (*ContainerInfo, error) {
+			// External docker rm <oldID>: FindContainer no longer surfaces the
+			// old container, so the create path runs.
+			return nil, nil
+		},
+		imageEnv: func(_ context.Context, _ string) (map[string]string, error) { return map[string]string{}, nil },
+		create: func(_ context.Context, _ []string) (string, error) {
+			createCalls++
+			return newID, nil
+		},
+		start: func(_ context.Context, _ string) error { return nil },
+		inspectState: func(_ context.Context, _ string) (string, error) {
+			// InspectContainerState returns "" with nil error when the
+			// container has been docker rm'd by an external actor.
+			return "", nil
+		},
+		postCreate: func(_ context.Context, _, _ string, _ []string) {},
+	})
+
+	// Pre-seed the cache the way a successful prior EnsureInstance would have.
+	spec, err := LoadSpec(project, filepath.Join(project, ".devcontainer"))
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	m := New(nil)
+	m.containers[project] = &ContainerState{containerID: oldID, spec: spec}
+
+	inst, err := m.EnsureInstance(context.Background(), project, "", sandbox.StartOptions{})
+	if err != nil {
+		t.Fatalf("EnsureInstance: %v", err)
+	}
+	if createCalls != 1 {
+		t.Errorf("createCalls=%d, want 1 (must recreate after cache drop)", createCalls)
+	}
+	if got := inst.Internal.ContainerID(); got != newID {
+		t.Errorf("Instance after recreate: ContainerID=%q, want %q", got, newID)
 	}
 }
 

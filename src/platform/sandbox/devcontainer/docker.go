@@ -147,6 +147,24 @@ func CreateContainer(ctx context.Context, args []string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
+// InspectContainerState returns the runtime state ("running", "exited",
+// "created", "paused", "restarting", "removing", "dead") of the given
+// container. Returns "" with nil error when the container does not exist
+// (the cache held a handle to a docker rm'd container). All other docker
+// failures propagate so callers can distinguish "gone" from "unreachable".
+func InspectContainerState(ctx context.Context, containerID string) (string, error) {
+	out, err := exec.CommandContext(ctx, "docker", "inspect",
+		"--format", "{{.State.Status}}", containerID).CombinedOutput()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return "", nil
+		}
+		return "", fmt.Errorf("docker inspect %s: %w\n%s", shortID(containerID), err, string(out))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // StartContainer runs "docker start <containerID>".
 func StartContainer(ctx context.Context, containerID string) error {
 	out, err := exec.CommandContext(ctx, "docker", "start", containerID).CombinedOutput()

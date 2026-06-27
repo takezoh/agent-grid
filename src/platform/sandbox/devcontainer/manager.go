@@ -32,14 +32,15 @@ const SharedContainerKey = sandbox.SharedInstanceKey
 // first argument so peer daemons running under a different prefix never see
 // each other's containers in `docker ps --filter`.
 var (
-	startContainerFn      = StartContainer
-	stopContainerFn       = StopContainer
-	removeContainerFn     = RemoveContainer
-	createContainerFn     = CreateContainer
-	findContainerFn       = FindContainer
-	findSharedContainerFn = FindSharedContainer
-	imageEnvFn            = ImageEnv
-	runPostCreateFn       = RunPostCreate
+	startContainerFn        = StartContainer
+	stopContainerFn         = StopContainer
+	removeContainerFn       = RemoveContainer
+	createContainerFn       = CreateContainer
+	findContainerFn         = FindContainer
+	findSharedContainerFn   = FindSharedContainer
+	imageEnvFn              = ImageEnv
+	runPostCreateFn         = RunPostCreate
+	inspectContainerStateFn = InspectContainerState
 )
 
 // ContainerState holds runtime data for one project's devcontainer.
@@ -188,11 +189,36 @@ func (m *Manager) EnsureInstance(ctx context.Context, projectPath, _ string, opt
 	}, nil
 }
 
+// cachedContainerStillRunning re-verifies that the cached container handle
+// still points at a live container. External actions (docker stop, host
+// reboot, OOM kill, docker daemon restart without restart policy) can leave
+// the container in a non-running state while the manager still holds its
+// handle; without this re-check BuildLaunchCommand produces docker exec
+// against a dead container and the new session fails with
+// "container <id> is not running". When the container is not running the
+// cache entry is dropped so the caller falls through to the find/start path
+// which boots the existing container (or recreates it).
+func (m *Manager) cachedContainerStillRunning(ctx context.Context, instanceKey string, cs *ContainerState) bool {
+	cs.mu.Lock()
+	id := cs.containerID
+	cs.mu.Unlock()
+	state, err := inspectContainerStateFn(ctx, id)
+	if err == nil && state == "running" {
+		return true
+	}
+	slog.Info("devcontainer: cached container not running, re-resolving",
+		"id", shortID(id), "state", state, "key", instanceKey, "err", err)
+	m.mu.Lock()
+	delete(m.containers, instanceKey)
+	m.mu.Unlock()
+	return false
+}
+
 func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath string, opts sandbox.StartOptions) error {
 	m.mu.Lock()
-	_, exists := m.containers[instanceKey]
+	cached, exists := m.containers[instanceKey]
 	m.mu.Unlock()
-	if exists {
+	if exists && m.cachedContainerStillRunning(ctx, instanceKey, cached) {
 		return nil
 	}
 
