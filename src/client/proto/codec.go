@@ -150,8 +150,7 @@ func DecodeResponse(env Envelope, target Response) error {
 // DecodeResponseByCommand picks the right Response variant for the
 // envelope's data. Without the original command name in the response
 // envelope, we use a heuristic: try the richest variants first
-// (RespCreateSession / RespSessions / RespActiveSession), fall back
-// to RespOK on empty data.
+// (RespCreateSession / RespSessions), fall back to RespOK on empty data.
 func DecodeResponseByCommand(env Envelope) (Response, error) {
 	if len(env.Data) == 0 {
 		return RespOK{}, nil
@@ -170,9 +169,6 @@ func DecodeResponseByCommand(env Envelope) (Response, error) {
 		return decodeResponse(env.Data, &r)
 	case has(probe, "sessions"):
 		var r RespSessions
-		return decodeResponse(env.Data, &r)
-	case has(probe, "active_session_id"):
-		var r RespActiveSession
 		return decodeResponse(env.Data, &r)
 	case has(probe, "text"):
 		var r RespSurfaceText

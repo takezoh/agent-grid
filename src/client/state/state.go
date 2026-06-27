@@ -57,13 +57,6 @@ type State struct {
 	// from the config file and never mutated. Reduce reads it as a
 	// read-only value, so it does not break pure-function semantics.
 	Features features.Set
-
-	// ActiveSession is the logically focused session. The web client tracks
-	// its own active-session-per-tab; the daemon-side ActiveSession is only
-	// used as a fallback for surface RPCs that omit SessionID and for the
-	// session-tagging in reduceFrame/reduceFrameEvict. Cleared when the
-	// session is removed.
-	ActiveSession SessionID
 }
 
 // Session is the static metadata + driver state of one client session.
@@ -74,8 +67,8 @@ type Session struct {
 	Project       string
 	CreatedAt     time.Time
 	Frames        []SessionFrame
-	ActiveFrameID FrameID   // explicit active frame; empty = use Frames[len-1]
-	MRUFrameIDs   []FrameID // MRU stack for fallback on active-frame death
+	HeadFrameID   FrameID   // head frame: the frame currently receiving I/O in the session's child-agent stack; empty = use Frames[len-1]
+	MRUFrameIDs   []FrameID // MRU stack for fallback on head-frame death
 	Command       string
 	Sandbox       SandboxOverride // session-scoped sandbox mode, set at creation, applies to all frames
 	LaunchOptions LaunchOptions

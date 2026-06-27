@@ -26,7 +26,7 @@ type BindResult struct {
 	// ExtraEnv is merged into the frame's environment before sandbox wrap.
 	ExtraEnv map[string]string
 	// WorktreeStartDir is non-empty when the subsystem created a managed
-	// worktree. The runtime enqueues DEvWorktreeResolved via EvPaneSpawned
+	// worktree. The runtime enqueues DEvWorktreeResolved via EvFrameSpawned
 	// so the driver persists the path for cold-start reconstruction.
 	WorktreeStartDir string
 	// WorktreeName is the petname chosen for the managed worktree.

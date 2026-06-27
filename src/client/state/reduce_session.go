@@ -27,27 +27,12 @@ type StopSessionParams struct {
 	SessionID string `json:"session_id"`
 }
 
-type PreviewSessionParams struct {
-	SessionID string `json:"session_id"`
-}
-
-type SwitchSessionParams struct {
-	SessionID string `json:"session_id"`
-}
-
-type PreviewProjectParams struct {
-	Project string `json:"project"`
-}
-
 func init() {
 	RegisterEvent[CreateSessionParams](EventCreateSession, reduceCreateSession)
 	RegisterEvent[PushDriverParams](EventPushDriver, reducePushDriver)
 	RegisterEvent[ForkSessionParams](EventForkSession, reduceForkSession)
 	RegisterEvent[StopSessionParams](EventStopSession, reduceStopSession)
 	RegisterEvent[struct{}](EventListSessions, reduceListSessions)
-	RegisterEvent[PreviewSessionParams](EventPreviewSession, reducePreviewSession)
-	RegisterEvent[SwitchSessionParams](EventSwitchSession, reduceSwitchSession)
-	RegisterEvent[PreviewProjectParams](EventPreviewProject, reducePreviewProject)
 }
 
 func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionParams) (State, []Effect) {
@@ -71,7 +56,7 @@ func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionPa
 		ID:            sessID,
 		Project:       p.Project,
 		CreatedAt:     s.Now,
-		ActiveFrameID: rootFrameID,
+		HeadFrameID:   rootFrameID,
 		Command:       command,
 		Sandbox:       p.Sandbox,
 		LaunchOptions: p.Options,
@@ -204,8 +189,8 @@ func pushDriverInternal(s State, sid SessionID, project, rawCommand string, opti
 		Driver:    driverState,
 	}
 	frame.TargetID = TargetID(frame.ID)
-	sess = pushMRU(sess, sess.ActiveFrameID)
-	sess.ActiveFrameID = frame.ID
+	sess = pushMRU(sess, sess.HeadFrameID)
+	sess.HeadFrameID = frame.ID
 	sess.Frames = append(append([]SessionFrame(nil), sess.Frames...), frame)
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[sid] = sess
@@ -309,7 +294,7 @@ func makeForkSession(s State, src Session, newSessID SessionID, rootFrameID Fram
 		ID:            newSessID,
 		Project:       src.Project,
 		CreatedAt:     s.Now,
-		ActiveFrameID: rootFrameID,
+		HeadFrameID:   rootFrameID,
 		Command:       durableCommand,
 		Sandbox:       src.Sandbox,
 		LaunchOptions: opts,
@@ -333,9 +318,6 @@ func reduceStopSession(s State, connID ConnID, reqID string, p StopSessionParams
 	removed := truncateFrames(sess, 0)
 	s.Sessions = cloneSessions(s.Sessions)
 	delete(s.Sessions, sid)
-	if s.ActiveSession == sid {
-		s.ActiveSession = ""
-	}
 	effs := make([]Effect, 0, len(removed)*4+3)
 	effs = append(effs, EffBroadcastSessionsChanged{})
 	for _, frame := range removed {

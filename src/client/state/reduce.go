@@ -25,12 +25,12 @@ func Reduce(s State, ev Event) (State, []Effect) {
 		return reduceSubsystem(s, e)
 
 	// pane backend feedback
-	case EvPaneSpawned:
-		return reducePaneSpawned(s, e)
+	case EvFrameSpawned:
+		return reduceFrameSpawned(s, e)
 	case EvSpawnFailed:
 		return reduceSpawnFailed(s, e)
-	case EvPaneWindowVanished:
-		return reducePaneWindowVanished(s, e)
+	case EvFrameVanished:
+		return reduceFrameVanished(s, e)
 	case EvFrameCommandExited:
 		return reduceFrameCommandExited(s, e)
 
@@ -47,10 +47,10 @@ func Reduce(s State, ev Event) (State, []Effect) {
 		return reduceFileChanged(s, e)
 
 	// pane tap
-	case EvPaneOsc:
-		return reducePaneOsc(s, e)
-	case EvPanePrompt:
-		return reducePanePrompt(s, e)
+	case EvFrameOsc:
+		return reduceFrameOsc(s, e)
+	case EvFramePrompt:
+		return reduceFramePrompt(s, e)
 
 	// connection lifecycle
 	case EvConnOpened:

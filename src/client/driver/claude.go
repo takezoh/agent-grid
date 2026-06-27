@@ -255,7 +255,7 @@ func (d ClaudeDriver) Step(prev state.DriverState, ctx state.FrameContext, ev st
 	case state.DEvJobResult:
 		next := d.handleJobResult(cs, e)
 		return next, nil, d.view(next)
-	case state.DEvPaneOsc:
+	case state.DEvFrameOsc:
 		next := d.handleWindowTitle(cs, e.Title, e.Now)
 		return next, nil, d.view(next)
 	case state.DEvStatusLineClick:

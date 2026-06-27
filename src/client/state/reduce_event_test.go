@@ -140,9 +140,9 @@ func TestDriverHookEffPushDriverBogusSessionIDDropped(t *testing.T) {
 		Payload:   json.RawMessage(payload),
 	})
 
-	// EffPushDriver with bogus SessionID should be dropped — no EffSpawnPaneWindow.
-	if _, ok := findEff[EffSpawnPaneWindow](effs); ok {
-		t.Error("expected EffSpawnPaneWindow to be absent (bogus SessionID should be dropped)")
+	// EffPushDriver with bogus SessionID should be dropped — no EffSpawnFrame.
+	if _, ok := findEff[EffSpawnFrame](effs); ok {
+		t.Error("expected EffSpawnFrame to be absent (bogus SessionID should be dropped)")
 	}
 }
 
@@ -177,10 +177,10 @@ func TestDriverHookEffPushDriverIsResolved(t *testing.T) {
 	})
 	_ = next
 
-	// EffPushDriver should have been resolved into EffSpawnPaneWindow.
-	spawn, ok := findEff[EffSpawnPaneWindow](effs)
+	// EffPushDriver should have been resolved into EffSpawnFrame.
+	spawn, ok := findEff[EffSpawnFrame](effs)
 	if !ok {
-		t.Fatal("expected EffSpawnPaneWindow from resolved EffPushDriver")
+		t.Fatal("expected EffSpawnFrame from resolved EffPushDriver")
 	}
 	// Project should fall back to the parent session's project,
 	// since the driver's EffPushDriver carries no project.

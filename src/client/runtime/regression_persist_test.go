@@ -367,7 +367,7 @@ func TestRegressionRunFlushesPendingMutationsOnCancel(t *testing.T) {
 // "session restored every cold start" bug.
 //
 // Observed: a daemon evicted session "doomed" via the frame-death path
-// (reconcileWindows → EvPaneWindowVanished → evictFrame), Persist.Delete
+// (reconcileWindows → EvFrameVanished → evictFrame), Persist.Delete
 // fired, file removed. Then while the daemon kept running,
 // sessions/doomed.json was written again — Persist.Save received
 // "doomed" in its session list — meaning state.Sessions had re-acquired
@@ -382,14 +382,14 @@ func TestRegressionRunFlushesPendingMutationsOnCancel(t *testing.T) {
 // startup). All findFrame-gated paths return early when the session is
 // missing. Subsystem and panetap events for the dead frame are the
 // remaining suspects — particularly because executeUnregisterPane
-// early-returns when sessionPanes was already cleared by executeKill
+// early-returns when sessionFrames was already cleared by executeKill
 // SessionWindow, so the panetap for an evicted frame leaks and keeps
-// emitting EvPaneOsc / EvPanePrompt events with the dead FrameID.
+// emitting EvFrameOsc / EvFramePrompt events with the dead FrameID.
 //
 // This test pre-loads "doomed" + a peer "keeper", evicts "doomed" via
-// EvPaneWindowVanished (the same reducer the broken daemon's
+// EvFrameVanished (the same reducer the broken daemon's
 // reconcileWindows path drives), then fires the events the leaked tap
-// can emit (EvPaneOsc, EvPanePrompt) and verifies the session remains
+// can emit (EvFrameOsc, EvFramePrompt) and verifies the session remains
 // absent from state, no Save call includes its ID, and Persist.Delete
 // was called exactly once.
 func TestRegressionEvictedSessionStaysEvictedAfterPaneEvents(t *testing.T) {
@@ -417,9 +417,8 @@ func TestRegressionEvictedSessionStaysEvictedAfterPaneEvents(t *testing.T) {
 			}},
 		}
 	}
-	r.sessionPanes["doomed"] = "%doomed"
-	r.sessionPanes["keeper"] = "%keeper"
-	r.state.ActiveSession = "doomed"
+	r.sessionFrames["doomed"] = "%doomed"
+	r.sessionFrames["keeper"] = "%keeper"
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -431,7 +430,7 @@ func TestRegressionEvictedSessionStaysEvictedAfterPaneEvents(t *testing.T) {
 
 	// Evict via the same reducer the broken daemon's reconcileWindows
 	// path drives.
-	r.Enqueue(state.EvPaneWindowVanished{FrameID: "doomed"})
+	r.Enqueue(state.EvFrameVanished{FrameID: "doomed"})
 
 	// Wait for the eviction's Persist.Delete to land.
 	deadline := time.Now().Add(2 * time.Second)
@@ -454,13 +453,13 @@ func TestRegressionEvictedSessionStaysEvictedAfterPaneEvents(t *testing.T) {
 	// Now fire the events a leaked panetap would still emit for the
 	// dead frame. If any of these re-inserts the session, subsequent
 	// Save calls will include "doomed".
-	r.Enqueue(state.EvPaneOsc{
+	r.Enqueue(state.EvFrameOsc{
 		FrameID: "doomed",
 		Cmd:     0,
 		Title:   "ghost title",
 		Now:     time.Now(),
 	})
-	r.Enqueue(state.EvPaneOsc{
+	r.Enqueue(state.EvFrameOsc{
 		FrameID: "doomed",
 		Cmd:     9,
 		Title:   "ghost notification",
@@ -468,7 +467,7 @@ func TestRegressionEvictedSessionStaysEvictedAfterPaneEvents(t *testing.T) {
 		Now:     time.Now(),
 	})
 	exit := 0
-	r.Enqueue(state.EvPanePrompt{
+	r.Enqueue(state.EvFramePrompt{
 		FrameID:  "doomed",
 		Phase:    state.PromptPhaseComplete,
 		ExitCode: &exit,

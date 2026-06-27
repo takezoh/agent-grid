@@ -36,12 +36,12 @@ func isSandboxed(s State, project string, override SandboxOverride) bool {
 	return s.SandboxedProject != nil && s.SandboxedProject(project) && override != SandboxOverrideHost
 }
 
-// spawnEffect builds an EffSpawnPaneWindow from a resolved LaunchPlan.
+// spawnEffect builds an EffSpawnFrame from a resolved LaunchPlan.
 // plan.Project, plan.Sandbox, and plan.Stdin must be set by the caller before invoking.
 // The runtime resolves the frame's SubsystemID during ensureSubsystem and
-// reports it back via EvPaneSpawned.
-func spawnEffect(sessID SessionID, frameID FrameID, plan LaunchPlan, connID ConnID, reqID string) EffSpawnPaneWindow {
-	return EffSpawnPaneWindow{
+// reports it back via EvFrameSpawned.
+func spawnEffect(sessID SessionID, frameID FrameID, plan LaunchPlan, connID ConnID, reqID string) EffSpawnFrame {
+	return EffSpawnFrame{
 		SessionID:  sessID,
 		FrameID:    frameID,
 		Mode:       LaunchModeCreate,
@@ -76,13 +76,13 @@ func rootFrame(sess Session) (SessionFrame, bool) {
 	return sess.Frames[0], true
 }
 
-func activeFrame(sess Session) (SessionFrame, bool) {
+func headFrame(sess Session) (SessionFrame, bool) {
 	if len(sess.Frames) == 0 {
 		return rootFrame(sess)
 	}
-	if sess.ActiveFrameID != "" {
+	if sess.HeadFrameID != "" {
 		for _, f := range sess.Frames {
-			if f.ID == sess.ActiveFrameID {
+			if f.ID == sess.HeadFrameID {
 				return f, true
 			}
 		}
@@ -305,11 +305,23 @@ func postProcessEffect(s State, sessID SessionID, frameID FrameID, eff Effect) (
 	}
 }
 
+// sessionWatched reports whether any connected client is surface-subscribing
+// to sid. Drivers use this to gate expensive per-tick work (e.g. git branch
+// refresh) that only matters when a user is looking.
+func sessionWatched(s State, sid SessionID) bool {
+	for _, subs := range s.SurfaceSubs {
+		if _, ok := subs[sid]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // stepActiveSessions runs Step against every live session's driver.
 // Each driver decides internally whether to react to a tick — return
 // a no-op Step result to skip. Returns whether any session emitted
 // effects, so the caller can decide whether to broadcast/persist.
-func stepActiveSessions(s State, makeEv func(sessID SessionID, sess Session, active bool) DriverEvent) (State, []Effect, bool) {
+func stepActiveSessions(s State, makeEv func(sessID SessionID, sess Session, watched bool) DriverEvent) (State, []Effect, bool) {
 	if len(s.Sessions) == 0 {
 		return s, nil, false
 	}
@@ -331,8 +343,8 @@ func stepActiveSessions(s State, makeEv func(sessID SessionID, sess Session, act
 		if drv == nil {
 			continue
 		}
-		active := sessID == s.ActiveSession
-		ev := makeEv(sessID, sess, active)
+		watched := sessionWatched(s, sessID)
+		ev := makeEv(sessID, sess, watched)
 		next, sessEffs, ok := stepDriver(s, frame.ID, ev)
 		if !ok {
 			continue

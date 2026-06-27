@@ -57,7 +57,6 @@ export type SessionInfo = {
   state?: string;
   state_changed_at?: string;
   view: View;
-  is_active?: boolean;
 };
 
 // asciicast-style array [timeSec, type, dataB64, sessionId] — Go wire.go と同順。
@@ -89,7 +88,11 @@ export type ActiveOccupant = "main" | "log" | "frame";
 export type HelloFrame = {
   k: "h";
   sessions: SessionInfo[];
-  activeSessionID: string | null;
+  // The daemon no longer tracks or ships an active session id — web clients
+  // own their own active-session-per-tab. Kept optional for backward compat
+  // with pre-upgrade daemons that still emit it; seedHello falls back to the
+  // first session when it is absent.
+  activeSessionID?: string | null;
   // Optional for backward compat: pre-this-change servers do not emit the
   // field. The TS reducer in store/daemon.ts treats `undefined` as "leave
   // the current value alone" so a clean reconnect after a binary upgrade

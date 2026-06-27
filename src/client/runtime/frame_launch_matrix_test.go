@@ -399,10 +399,10 @@ func TestFrameLaunch_ColdStart_RecoverableCodexSpawnsResume(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("SpawnWindow calls = %d, want 1 (codex resumed, stopped generic skipped)", calls)
 	}
-	if _, ok := h.r.sessionPanes["f-codex"]; !ok {
+	if _, ok := h.r.sessionFrames["f-codex"]; !ok {
 		t.Error("recoverable stopped codex frame must be relaunched on cold start")
 	}
-	if _, ok := h.r.sessionPanes["f-gen"]; ok {
+	if _, ok := h.r.sessionFrames["f-gen"]; ok {
 		t.Error("stopped generic frame must be skipped on cold start")
 	}
 	if h.kinds.count(state.LaunchSubsystemStream) != 1 {
@@ -454,9 +454,9 @@ func TestFrameLaunch_ColdStart_SubsystemKindSelection(t *testing.T) {
 
 // === new session (spawnPaneWindow goroutine + handleSpawnComplete loop) ===
 
-func (h *launchHarness) newSessionSpawn(t *testing.T, e state.EffSpawnPaneWindow) internalSpawnComplete {
+func (h *launchHarness) newSessionSpawn(t *testing.T, e state.EffSpawnFrame) internalSpawnComplete {
 	t.Helper()
-	// In production the reducer adds the session+frame before EffSpawnPaneWindow
+	// In production the reducer adds the session+frame before EffSpawnFrame
 	// is emitted; handleSpawnComplete's 027 frame-alive check assumes that
 	// invariant. Seed the same shape here so the loop completion path doesn't
 	// discard our spawn as an orphan.
@@ -494,7 +494,7 @@ func TestFrameLaunch_NewSession_Host(t *testing.T) {
 	registerMinimalDriver(t)
 	h := newLaunchHarness(t, envHost)
 
-	sc := h.newSessionSpawn(t, state.EffSpawnPaneWindow{
+	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
 		SessionID: "s1", FrameID: "f1", Project: "/proj/host", Command: "minimal-test",
 		Env: map[string]string{"ROOST_SESSION_ID": "s1", "ROOST_FRAME_ID": "f1"},
 	})
@@ -519,7 +519,7 @@ func TestFrameLaunch_NewSession_PerProject(t *testing.T) {
 	h := newLaunchHarness(t, envProject)
 
 	const project = "/proj/box"
-	sc := h.newSessionSpawn(t, state.EffSpawnPaneWindow{
+	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
 		SessionID: "s1", FrameID: "f1", Project: project, Command: "minimal-test",
 		Env: map[string]string{"ROOST_SESSION_ID": "s1", "ROOST_FRAME_ID": "f1"},
 	})
@@ -549,7 +549,7 @@ func TestFrameLaunch_WarmStart_Host(t *testing.T) {
 		ID: "s1", Project: "/proj/host",
 		Frames: []state.SessionFrame{matrixFrame("/proj/host")},
 	}
-	h.r.sessionPanes["f1"] = "%1"
+	h.r.sessionFrames["f1"] = "%1"
 
 	h.r.RecoverSandboxFrames(context.Background())
 
@@ -582,7 +582,7 @@ func TestFrameLaunch_WarmStart_PerProject(t *testing.T) {
 		ID: "s1", Project: project,
 		Frames: []state.SessionFrame{matrixFrame(project)},
 	}
-	h.r.sessionPanes["f1"] = "%1"
+	h.r.sessionFrames["f1"] = "%1"
 
 	h.r.RecoverSandboxFrames(context.Background())
 

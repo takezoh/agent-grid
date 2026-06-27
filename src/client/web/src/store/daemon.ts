@@ -257,12 +257,16 @@ export const useDaemonStore = create<DaemonState>()((set) => ({
   ...initialState,
   seedHello: (frame) =>
     set((s) => {
-      // Follow the daemon's active session into its workspace on hello so
-      // the partition matching activeSessionID is what the user sees first
-      // (TUI sidebar_events.go parity — `m.selectedWorkspace = workspaceOf(s)`).
+      // The daemon no longer ships an active session id; the web client owns
+      // its own selection. Seed the initial selection from the first session
+      // (falling back to a value the daemon supplies only if a pre-upgrade
+      // daemon still sends one).
+      const seededActive = frame.activeSessionID ?? frame.sessions[0]?.id ?? null;
+      // Follow the seeded session into its workspace on hello so the
+      // partition matching it is what the user sees first.
       let ws = s.selectedWorkspace;
-      if (frame.activeSessionID !== null) {
-        const active = frame.sessions.find((x) => x.id === frame.activeSessionID);
+      if (seededActive !== null) {
+        const active = frame.sessions.find((x) => x.id === seededActive);
         if (active) ws = workspaceOf(active);
       }
       // Reset to DEFAULT_WORKSPACE if the previously selected workspace no
@@ -271,7 +275,7 @@ export const useDaemonStore = create<DaemonState>()((set) => ({
       if (!known.includes(ws)) ws = DEFAULT_WORKSPACE;
       return {
         sessions: frame.sessions,
-        activeSessionID: frame.activeSessionID,
+        activeSessionID: seededActive,
         features: frame.features,
         serverTime: frame.serverTime,
         activeOccupant: frame.activeOccupant ?? s.activeOccupant,

@@ -100,7 +100,7 @@ func TestEncodeError(t *testing.T) {
 
 func TestEncodeDecodeEvent(t *testing.T) {
 	cases := []ServerEvent{
-		EvtSessionsChanged{Sessions: []SessionInfo{{ID: "abc"}}, ActiveSessionID: "abc"},
+		EvtSessionsChanged{Sessions: []SessionInfo{{ID: "abc"}}},
 		EvtProjectSelected{Project: "/foo"},
 		EvtPaneFocused{Pane: "0.1"},
 		EvtLogLine{Path: "/var/log", Line: "hello"},

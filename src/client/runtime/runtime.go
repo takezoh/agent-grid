@@ -47,7 +47,7 @@ type Config struct {
 	TickInterval time.Duration
 	Workers      int
 
-	Backend  PaneBackend
+	Backend  FrameBackend
 	Persist  PersistBackend
 	EventLog EventLogBackend
 	ToolLog  ToolLogBackend
@@ -63,7 +63,7 @@ type Config struct {
 	// frame's pane. The reader feeds bytes into a VT emulator that fires
 	// callbacks for OSC 9/99/777 notifications, OSC 133 prompt events, and
 	// OSC 0/2 window titles; each callback enqueues the corresponding event.
-	Tap PaneTap
+	Tap FrameTap
 
 	// Features is the set of runtime flags built from the config file.
 	// Injected into state.State once at construction; never mutated.
@@ -92,10 +92,10 @@ type Runtime struct {
 
 	state state.State
 
-	// sessionPanes maps each FrameID to its pane id ("%5", "%12", ...).
-	sessionPanes map[state.FrameID]string
-	eventCh      chan state.Event   // public events from any goroutine
-	internalCh   chan internalEvent // runtime-internal lifecycle (conn open/close)
+	// sessionFrames maps each FrameID to its pane id ("%5", "%12", ...).
+	sessionFrames map[state.FrameID]string
+	eventCh       chan state.Event   // public events from any goroutine
+	internalCh    chan internalEvent // runtime-internal lifecycle (conn open/close)
 
 	workers *worker.Pool
 
@@ -245,7 +245,7 @@ func New(cfg Config) *Runtime {
 	r := &Runtime{
 		cfg:                cfg,
 		state:              initial,
-		sessionPanes:       map[state.FrameID]string{},
+		sessionFrames:      map[state.FrameID]string{},
 		eventCh:            make(chan state.Event, 256),
 		internalCh:         make(chan internalEvent, 64),
 		conns:              map[state.ConnID]*ipcConn{},
@@ -433,8 +433,8 @@ func (r *Runtime) SetRelay(fr *FileRelay) {
 
 // StartTapsForRestoredFrames attaches a pane tap to each frame that was
 // restored from the snapshot.  Normal sessions route through
-// EvPaneSpawned → EffRegisterPane → tapManager.start, but bootstrap
-// paths (warm restart, cold-start RecreateAll) populate sessionPanes
+// EvFrameSpawned → EffRegisterFrame → tapManager.start, but bootstrap
+// paths (warm restart, cold-start RecreateAll) populate sessionFrames
 // directly without emitting that effect, leaving restored frames
 // without a tap.  Call once from the coordinator (see cmd/server/coordinator.go
 // runAndWait) immediately after Run has been started, so internalCh is
@@ -516,7 +516,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 
 // dispatch runs Reduce against the current state and executes every
 // resulting effect. Effects may enqueue more events into r.eventCh
-// (e.g. pane spawn → EvPaneSpawned), which are picked up on
+// (e.g. pane spawn → EvFrameSpawned), which are picked up on
 // subsequent loop iterations.
 //
 // After Reduce returns, dispatch reconciles persistence with the
@@ -545,11 +545,11 @@ func eventName(ev state.Event) string {
 		return "drvev:" + e.Event
 	case state.EvSubsystem:
 		return "subsys:" + string(e.FrameID)
-	case state.EvPaneSpawned:
+	case state.EvFrameSpawned:
 		return "pane-spawned:" + string(e.FrameID)
 	case state.EvSpawnFailed:
 		return "spawn-failed:" + string(e.FrameID)
-	case state.EvPaneWindowVanished:
+	case state.EvFrameVanished:
 		return "pane-vanished:" + string(e.FrameID)
 	case state.EvFrameCommandExited:
 		return "cmd-exit:" + string(e.FrameID)
@@ -559,9 +559,9 @@ func eventName(ev state.Event) string {
 		return "job-result"
 	case state.EvFileChanged:
 		return "file-changed:" + string(e.FrameID)
-	case state.EvPaneOsc:
+	case state.EvFrameOsc:
 		return "pane-osc:" + string(e.FrameID)
-	case state.EvPanePrompt:
+	case state.EvFramePrompt:
 		return "pane-prompt:" + string(e.FrameID)
 	default:
 		return ""
@@ -615,14 +615,14 @@ func (r *Runtime) reconcilePersist(prev, next map[state.SessionID]state.Session,
 	}
 }
 
-// snapshotPaneTargets returns a copy of sessionPanes for inclusion in
+// snapshotPaneTargets returns a copy of sessionFrames for inclusion in
 // EvTick so reducers can forward pane targets to drivers without
 // accessing the runtime directly.
 func (r *Runtime) snapshotPaneTargets() map[state.FrameID]string {
 	if len(r.state.Sessions) == 0 {
 		return nil
 	}
-	out := make(map[state.FrameID]string, len(r.sessionPanes))
+	out := make(map[state.FrameID]string, len(r.sessionFrames))
 	for _, sess := range r.state.Sessions {
 		for _, frame := range sess.Frames {
 			if pane := r.subsystemPaneForFrame(frame); pane != "" {
@@ -636,14 +636,14 @@ func (r *Runtime) snapshotPaneTargets() map[state.FrameID]string {
 	return out
 }
 
-// sessionPaneForSession returns the pane target for the active frame of the
+// sessionPaneForSession returns the pane target for the head frame of the
 // given session. Returns "" if the session has no registered pane.
 func (r *Runtime) sessionPaneForSession(sid state.SessionID) string {
 	sess, ok := r.state.Sessions[sid]
 	if !ok {
 		return ""
 	}
-	frame, ok := sessionActiveFrame(sess)
+	frame, ok := sessionHeadFrame(sess)
 	if !ok {
 		return ""
 	}
@@ -651,7 +651,7 @@ func (r *Runtime) sessionPaneForSession(sid state.SessionID) string {
 }
 
 func (r *Runtime) subsystemPaneForFrame(frame state.SessionFrame) string {
-	return r.sessionPanes[frame.ID]
+	return r.sessionFrames[frame.ID]
 }
 
 // HelperBinaryPath resolves a helper binary (e.g. "sockbridge") using the

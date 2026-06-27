@@ -125,11 +125,11 @@ func registerProjectTools(r *Registry, pc PaletteContext) {
 				Name:        "command: " + cmd,
 				Description: "Push " + cmd + " onto active session",
 				Run: func(ctx *ToolContext, _ map[string]string) (*ToolInvocation, error) {
-					_, activeID, _, err := ctx.Client.ListSessions()
-					if err != nil || activeID == "" {
+					sessions, _, err := ctx.Client.ListSessions()
+					if err != nil || len(sessions) == 0 {
 						return nil, fmt.Errorf("no active session")
 					}
-					return nil, ctx.Client.PushDriver(activeID, cmd, nil)
+					return nil, ctx.Client.PushDriver(sessions[0].ID, cmd, nil)
 				},
 			})
 		}
@@ -139,11 +139,11 @@ func registerProjectTools(r *Registry, pc PaletteContext) {
 			Name:        "fork-session",
 			Description: "Fork active session (new branch)",
 			Run: func(ctx *ToolContext, _ map[string]string) (*ToolInvocation, error) {
-				_, activeID, _, err := ctx.Client.ListSessions()
-				if err != nil || activeID == "" {
+				sessions, _, err := ctx.Client.ListSessions()
+				if err != nil || len(sessions) == 0 {
 					return nil, fmt.Errorf("no active session")
 				}
-				_, err = ctx.Client.ForkSession(activeID)
+				_, err = ctx.Client.ForkSession(sessions[0].ID)
 				return nil, err
 			},
 		})

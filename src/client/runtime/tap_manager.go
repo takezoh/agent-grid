@@ -17,15 +17,15 @@ type tapEntry struct {
 	pane   string
 }
 
-// tapManager starts and stops PaneTap reader goroutines per frame.
+// tapManager starts and stops FrameTap reader goroutines per frame.
 // All methods must be called from the event loop goroutine.
 type tapManager struct {
-	tap     PaneTap
+	tap     FrameTap
 	ctx     context.Context
 	cancels map[state.FrameID]tapEntry
 }
 
-func newTapManager(ctx context.Context, tap PaneTap) *tapManager {
+func newTapManager(ctx context.Context, tap FrameTap) *tapManager {
 	return &tapManager{
 		tap:     tap,
 		ctx:     ctx,
@@ -124,30 +124,30 @@ func vtPromptPhase(p vt.PromptPhase) state.PromptPhase {
 	}
 }
 
-// newPaneTapTerminal creates a VT emulator wired to emit EvPaneOsc and
-// EvPanePrompt events via enqueue. Minimal 1×1 dimensions are used because
+// newPaneTapTerminal creates a VT emulator wired to emit EvFrameOsc and
+// EvFramePrompt events via enqueue. Minimal 1×1 dimensions are used because
 // the emulator is only needed for OSC sequence extraction, not rendering.
 func newPaneTapTerminal(frameID state.FrameID, enqueue func(state.Event)) *vt.Terminal {
 	term := vt.New(1, 1)
 	term.OnWindowTitle = func(cmd int, title string) {
 		if title != "" {
-			enqueue(state.EvPaneOsc{FrameID: frameID, Cmd: cmd, Title: title, Now: time.Now()})
+			enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: cmd, Title: title, Now: time.Now()})
 		}
 	}
 	term.OnOscNotification = func(n vt.OscNotification) {
 		title, body := parseOscNotification(n)
 		if title != "" || body != "" {
-			enqueue(state.EvPaneOsc{FrameID: frameID, Cmd: n.Cmd, Title: title, Body: body, Now: time.Now()})
+			enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: n.Cmd, Title: title, Body: body, Now: time.Now()})
 		}
 	}
 	term.OnPromptEvent = func(e vt.PromptEvent) {
-		enqueue(state.EvPanePrompt{FrameID: frameID, Phase: vtPromptPhase(e.Phase), ExitCode: e.ExitCode, Now: time.Now()})
+		enqueue(state.EvFramePrompt{FrameID: frameID, Phase: vtPromptPhase(e.Phase), ExitCode: e.ExitCode, Now: time.Now()})
 	}
 	return term
 }
 
-// readTap feeds raw bytes from ch into a VT emulator and enqueues EvPaneOsc
-// and EvPanePrompt events for each OSC sequence detected.
+// readTap feeds raw bytes from ch into a VT emulator and enqueues EvFrameOsc
+// and EvFramePrompt events for each OSC sequence detected.
 // Runs in its own goroutine; exits when ch is closed or ctx is cancelled.
 func readTap(ctx context.Context, frameID state.FrameID, pane string, ch <-chan []byte, enqueue func(state.Event)) {
 	term := newPaneTapTerminal(frameID, enqueue)

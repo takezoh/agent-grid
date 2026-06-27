@@ -188,13 +188,13 @@ func registerOneHostAgentHook(home, exe, dataDir string, spec agenthook.Spec) {
 // the socket path it will listen on, and any error.
 //
 // Backend is hard-wired to PtyBackend (ADR 0004 / B1b). The runtime drives a
-// private termvt.Manager directly. Config.Tap is a PtyPaneTap (plan A 5a/5b) that wraps the same
+// private termvt.Manager directly. Config.Tap is a PtyFrameTap (plan A 5a/5b) that wraps the same
 // Manager's Session.Subscribe stream, so the existing tap_manager + vt.Terminal
-// pipeline parses OSC 0/9/133 back into EvPaneOsc/EvPanePrompt — restoring
+// pipeline parses OSC 0/9/133 back into EvFrameOsc/EvFramePrompt — restoring
 // driver run-state detection on top of the pty backend.
 func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, dataDir string) (*runtime.Runtime, string, error) {
 	ptyBackend := runtime.NewPtyBackend(cfg.Terminal.ScrollbackLines)
-	ptyTap := runtime.NewPtyPaneTap(ptyBackend)
+	ptyTap := runtime.NewPtyFrameTap(ptyBackend)
 	pollInterval := time.Duration(cfg.Monitor.PollIntervalMs) * time.Millisecond
 	sockPath := filepath.Join(dataDir, appid.SocketFileName)
 
@@ -253,7 +253,7 @@ func startSession(ctx context.Context, rt *runtime.Runtime, loginShell string, i
 func bootSession(ctx context.Context, rt *runtime.Runtime, shellDriver statedriver.ShellDriver) error {
 	slog.Info("booting session")
 	state.Register(shellDriver)
-	if err := rt.LoadSessionPanes(); err != nil {
+	if err := rt.LoadSessionFrames(); err != nil {
 		slog.Warn("session-panes env load failed", "err", err)
 	}
 	if err := rt.LoadSnapshot(true); err != nil {
@@ -359,10 +359,10 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 	defer stopSignals()
 	runErrCh := make(chan error, 1)
 	go superviseRun(cancel, runErrCh, func() error { return rt.Run(ctx) })
-	// Cold-start path: LoadSnapshot → RecreateAll populates sessionPanes
-	// directly without emitting EffRegisterPane, so root frames restored from
+	// Cold-start path: LoadSnapshot → RecreateAll populates sessionFrames
+	// directly without emitting EffRegisterFrame, so root frames restored from
 	// sessions.json never reach tap_manager.start through the reducer. With
-	// Config.Tap now wired to PtyPaneTap (plan A0), reinstate the bootstrap
+	// Config.Tap now wired to PtyFrameTap (plan A0), reinstate the bootstrap
 	// call so restored frames get an OSC tap.
 	rt.StartTapsForRestoredFrames()
 	if err := rt.StartIPC(sockPath); err != nil {

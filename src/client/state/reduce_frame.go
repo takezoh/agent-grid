@@ -1,15 +1,15 @@
 package state
 
-type ActivateFrameParams struct {
+type SetHeadFrameParams struct {
 	SessionID string `json:"session_id"`
 	FrameID   string `json:"frame_id"`
 }
 
 func init() {
-	RegisterEvent[ActivateFrameParams](EventActivateFrame, reduceActivateFrame)
+	RegisterEvent[SetHeadFrameParams](EventSetHeadFrame, reduceSetHeadFrame)
 }
 
-func reduceActivateFrame(s State, connID ConnID, reqID string, p ActivateFrameParams) (State, []Effect) {
+func reduceSetHeadFrame(s State, connID ConnID, reqID string, p SetHeadFrameParams) (State, []Effect) {
 	sid := SessionID(p.SessionID)
 	fid := FrameID(p.FrameID)
 	sess, ok := s.Sessions[sid]
@@ -20,12 +20,12 @@ func reduceActivateFrame(s State, connID ConnID, reqID string, p ActivateFramePa
 		return s, []Effect{errResp(connID, reqID, ErrCodeNotFound, "frame not found")}
 	}
 
-	if sess.ActiveFrameID == fid {
+	if sess.HeadFrameID == fid {
 		return s, []Effect{okResp(connID, reqID, nil)}
 	}
 
-	sess = pushMRU(sess, sess.ActiveFrameID)
-	sess.ActiveFrameID = fid
+	sess = pushMRU(sess, sess.HeadFrameID)
+	sess.HeadFrameID = fid
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[sid] = sess
 

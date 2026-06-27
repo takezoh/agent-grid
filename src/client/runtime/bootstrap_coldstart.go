@@ -50,7 +50,7 @@ func (r *Runtime) PrewarmContainers(ctx context.Context) {
 
 // RecreateAll spawns fresh pane windows for every session in r.state.
 // Used during cold-start (the pane backend session was just created and
-// contains no client windows yet). Populates r.sessionPanes.
+// contains no client windows yet). Populates r.sessionFrames.
 // Spawn failures are logged but do not remove the session: a transient
 // error is not evidence that the user intended to delete the session.
 func (r *Runtime) RecreateAll() error {
@@ -167,14 +167,14 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 		return err
 	}
 
-	r.sessionPanes[frame.ID] = paneID
+	r.sessionFrames[frame.ID] = paneID
 	if wrapped.Cleanup != nil {
 		r.storeFrameCleanup(frame.ID, wrapped.Cleanup)
 	}
 	if wrapResult.token != "" {
 		r.registerContainerFrame(frame.ID, frame.Project, wrapped.ContainerSockDir, wrapResult.token, wrapped.Mounts)
 	}
-	envKey := sessionPaneEnvKey(frame.ID)
+	envKey := sessionFrameEnvKey(frame.ID)
 	if err := r.cfg.Backend.SetEnv(envKey, paneID); err != nil {
 		slog.Warn("bootstrap: set pane env failed", "key", envKey, "err", err)
 	}

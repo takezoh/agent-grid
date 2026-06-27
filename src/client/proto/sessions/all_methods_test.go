@@ -24,42 +24,15 @@ func TestSubscribe(t *testing.T) {
 func TestListSessions(t *testing.T) {
 	c, srv := newFakeClient(t)
 	go reply(t, srv, proto.RespSessions{
-		Sessions:        []proto.SessionInfo{{ID: "s1"}},
-		ActiveSessionID: "s1",
-		Features:        []string{"f1"},
+		Sessions: []proto.SessionInfo{{ID: "s1"}},
+		Features: []string{"f1"},
 	})
-	sessions, active, features, err := c.ListSessions()
+	sessions, features, err := c.ListSessions()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sessions) != 1 || active != "s1" || len(features) != 1 {
-		t.Errorf("unexpected: %+v %q %v", sessions, active, features)
-	}
-}
-
-func TestPreviewSession(t *testing.T) {
-	c, srv := newFakeClient(t)
-	go reply(t, srv, proto.RespActiveSession{ActiveSessionID: "s1"})
-	got, err := c.PreviewSession("s1")
-	if err != nil || got != "s1" {
-		t.Errorf("got %q err %v", got, err)
-	}
-}
-
-func TestSwitchSession(t *testing.T) {
-	c, srv := newFakeClient(t)
-	go reply(t, srv, proto.RespActiveSession{ActiveSessionID: "s1"})
-	got, err := c.SwitchSession("s1")
-	if err != nil || got != "s1" {
-		t.Errorf("got %q err %v", got, err)
-	}
-}
-
-func TestPreviewProject(t *testing.T) {
-	c, srv := newFakeClient(t)
-	go reply(t, srv, proto.RespOK{})
-	if err := c.PreviewProject("/p"); err != nil {
-		t.Errorf("PreviewProject: %v", err)
+	if len(sessions) != 1 || len(features) != 1 {
+		t.Errorf("unexpected: %+v %v", sessions, features)
 	}
 }
 
@@ -71,11 +44,11 @@ func TestShutdown(t *testing.T) {
 	}
 }
 
-func TestActivateFrame(t *testing.T) {
+func TestSetHeadFrame(t *testing.T) {
 	c, srv := newFakeClient(t)
 	go reply(t, srv, proto.RespOK{})
-	if err := c.ActivateFrame("s", "f"); err != nil {
-		t.Errorf("ActivateFrame: %v", err)
+	if err := c.SetHeadFrame("s", "f"); err != nil {
+		t.Errorf("SetHeadFrame: %v", err)
 	}
 }
 

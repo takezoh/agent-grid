@@ -176,7 +176,7 @@ func (d CodexDriver) Step(prev state.DriverState, ctx state.FrameContext, ev sta
 	case state.DEvTick:
 		effs := cs.HandleTick(e, false)
 		return cs, effs, d.view(cs)
-	case state.DEvPaneOsc:
+	case state.DEvFrameOsc:
 		next := d.handleWindowTitle(cs, e.Title, e.Now)
 		return next, nil, d.view(next)
 	case state.DEvFileChanged:

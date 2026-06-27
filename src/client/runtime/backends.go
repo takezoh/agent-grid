@@ -6,11 +6,11 @@ import (
 	"github.com/takezoh/agent-reactor/client/state"
 )
 
-// ErrPaneMissing reports that the requested pane is not known to the backend.
+// ErrFrameMissing reports that the requested pane is not known to the backend.
 // PtyBackend returns errors that wrap this sentinel when the termvt.Manager
 // has no session under target. The runtime distinguishes vanished panes from
-// transient failures via errors.Is(err, ErrPaneMissing).
-var ErrPaneMissing = errors.New("pane missing")
+// transient failures via errors.Is(err, ErrFrameMissing).
+var ErrFrameMissing = errors.New("pane missing")
 
 // ErrNotImplemented is returned by backend methods that are not implemented
 // on a given backend type.
@@ -20,25 +20,25 @@ var ErrNotImplemented = errors.New("runtime: not implemented on this backend")
 // on concrete backend/persistence/fs/log libraries, so tests can plug in
 // fakes and so the production wiring lives in one place (cmd/main).
 
-// PaneLifecycle covers pane/window creation, destruction, and liveness.
-type PaneLifecycle interface {
+// FrameLifecycle covers pane/window creation, destruction, and liveness.
+type FrameLifecycle interface {
 	// SpawnWindow creates a new pane window for a session. Returns the
 	// window index (e.g. "1") and the pane id (e.g. "%5").
 	SpawnWindow(name, command, startDir string, env map[string]string) (windowIndex, paneID string, err error)
-	// KillPaneWindow destroys the pane window containing the named pane.
-	KillPaneWindow(paneTarget string) error
-	// RespawnPane runs respawn-pane against a dead pane.
-	RespawnPane(target, command string) error
-	// PaneExitStatus reports the exit code of a dead pane via
+	// KillFrame destroys the pane window containing the named pane.
+	KillFrame(paneTarget string) error
+	// RespawnFrame runs respawn-pane against a dead pane.
+	RespawnFrame(target, command string) error
+	// FrameExitStatus reports the exit code of a dead pane via
 	// #{pane_dead_status}. Returns (true, code) when the pane is
 	// dead and exit status was captured; (false, -1) when the pane
 	// is alive or no exit status is available. Requires the pane to
 	// have been spawned with remain-on-exit=on.
-	PaneExitStatus(target string) (dead bool, code int, err error)
+	FrameExitStatus(target string) (dead bool, code int, err error)
 }
 
-// PaneIO covers key input and buffer operations directed at a pane.
-type PaneIO interface {
+// FrameIO covers key input and buffer operations directed at a pane.
+type FrameIO interface {
 	// SendKeys writes text into the pane's input followed by Enter.
 	SendKeys(paneTarget, text string) error
 	// SendKey writes a single named key (e.g. "Escape", "q") into the pane
@@ -55,22 +55,22 @@ type PaneIO interface {
 	// drops the buffer afterwards. Used by InjectPrompt to deliver multi-line
 	// text without each newline being interpreted as submit by Ink TUIs.
 	PasteBuffer(name, target string) error
-	// PipePane attaches a shell command to the pane's output stream so the
+	// PipeFrame attaches a shell command to the pane's output stream so the
 	// runtime can observe raw bytes. An empty command stops a running pipe.
-	// PtyBackend implements this as a no-op because PtyPaneTap subscribes
+	// PtyBackend implements this as a no-op because PtyFrameTap subscribes
 	// directly to the termvt.Manager.
-	PipePane(paneTarget, command string) error
+	PipeFrame(paneTarget, command string) error
 }
 
-// PaneInspect covers read-only pane introspection.
-type PaneInspect interface {
-	// PaneID returns the pane id (e.g. "%5") for the target pane.
-	PaneID(target string) (string, error)
-	// PaneSize returns the visible size of the target pane.
-	PaneSize(target string) (width, height int, err error)
-	// CapturePane returns the trailing nLines of a pane's content (no SGR).
+// FrameInspect covers read-only pane introspection.
+type FrameInspect interface {
+	// ResolveID returns the pane id (e.g. "%5") for the target pane.
+	ResolveID(target string) (string, error)
+	// FrameSize returns the visible size of the target pane.
+	FrameSize(target string) (width, height int, err error)
+	// CaptureFrame returns the trailing nLines of a pane's content (no SGR).
 	// Used by polling drivers via the worker pool.
-	CapturePane(paneTarget string, nLines int) (string, error)
+	CaptureFrame(paneTarget string, nLines int) (string, error)
 }
 
 // SessionEnv covers session-level environment variable operations.
@@ -122,19 +122,19 @@ type BackendControl interface {
 	DisplayPopup(width, height, cmd string) error
 }
 
-// PaneBackend is the full set of pane / window operations the runtime
+// FrameBackend is the full set of pane / window operations the runtime
 // needs. PtyBackend is the production implementation; tests use stubs.
 // Methods that return data are synchronous (the runtime calls them
 // from execute() and waits for the result before queueing the
 // follow-up event).
 //
 // New code that needs only a subset of these operations should depend on
-// the narrower role interfaces (PaneLifecycle, PaneIO, PaneInspect,
+// the narrower role interfaces (FrameLifecycle, FrameIO, FrameInspect,
 // SessionEnv, WindowLayout, BackendControl) instead.
-type PaneBackend interface {
-	PaneLifecycle
-	PaneIO
-	PaneInspect
+type FrameBackend interface {
+	FrameLifecycle
+	FrameIO
+	FrameInspect
 	SessionEnv
 	WindowLayout
 	BackendControl
@@ -159,13 +159,13 @@ type PersistBackend interface {
 // bag (opaque map of strings). Pane ids are tracked in session env
 // vars (ROOST_SESSION_<sid>); sessions.json stays pane-id free.
 type SessionSnapshot struct {
-	ID            string                 `json:"id"`
-	Project       string                 `json:"project"`
-	CreatedAt     string                 `json:"created_at"`
-	Frames        []SessionFrameSnapshot `json:"frames"`
-	ActiveFrameID string                 `json:"active_frame_id,omitempty"`
-	MRUFrameIDs   []string               `json:"mru_frame_ids,omitempty"`
-	Sandbox       state.SandboxOverride  `json:"sandbox,omitempty"`
+	ID          string                 `json:"id"`
+	Project     string                 `json:"project"`
+	CreatedAt   string                 `json:"created_at"`
+	Frames      []SessionFrameSnapshot `json:"frames"`
+	HeadFrameID string                 `json:"head_frame_id,omitempty"`
+	MRUFrameIDs []string               `json:"mru_frame_ids,omitempty"`
+	Sandbox     state.SandboxOverride  `json:"sandbox,omitempty"`
 }
 
 type SessionFrameSnapshot struct {
@@ -222,7 +222,7 @@ type noopBackend struct{}
 func (noopBackend) SpawnWindow(name, command, startDir string, env map[string]string) (string, string, error) {
 	return "", "", nil
 }
-func (noopBackend) KillPaneWindow(string) error    { return nil }
+func (noopBackend) KillFrame(string) error         { return nil }
 func (noopBackend) RunChain(...[]string) error     { return nil }
 func (noopBackend) SwapPane(string, string) error  { return nil }
 func (noopBackend) BreakPane(string, string) error { return nil }
@@ -230,21 +230,21 @@ func (noopBackend) BreakPaneToNewWindow(string, string) (string, error) {
 	return "", nil
 }
 func (noopBackend) JoinPane(string, string, bool, int) error  { return nil }
-func (noopBackend) PaneID(string) (string, error)             { return "", nil }
-func (noopBackend) PaneSize(string) (int, int, error)         { return 0, 0, nil }
+func (noopBackend) ResolveID(string) (string, error)          { return "", nil }
+func (noopBackend) FrameSize(string) (int, int, error)        { return 0, 0, nil }
 func (noopBackend) SelectPane(string) error                   { return nil }
 func (noopBackend) ResizeWindow(string, int, int) error       { return nil }
 func (noopBackend) SetStatusLine(string) error                { return nil }
 func (noopBackend) SetEnv(string, string) error               { return nil }
 func (noopBackend) UnsetEnv(string) error                     { return nil }
-func (noopBackend) PaneExitStatus(string) (bool, int, error)  { return false, -1, nil }
-func (noopBackend) RespawnPane(string, string) error          { return nil }
-func (noopBackend) CapturePane(string, int) (string, error)   { return "", nil }
+func (noopBackend) FrameExitStatus(string) (bool, int, error) { return false, -1, nil }
+func (noopBackend) RespawnFrame(string, string) error         { return nil }
+func (noopBackend) CaptureFrame(string, int) (string, error)  { return "", nil }
 func (noopBackend) ShowEnvironment() (string, error)          { return "", nil }
 func (noopBackend) DetachClient() error                       { return nil }
 func (noopBackend) KillSession() error                        { return nil }
 func (noopBackend) DisplayPopup(string, string, string) error { return nil }
-func (noopBackend) PipePane(string, string) error             { return nil }
+func (noopBackend) PipeFrame(string, string) error            { return nil }
 func (noopBackend) SendKeys(string, string) error             { return nil }
 func (noopBackend) SendKey(string, string) error              { return nil }
 func (noopBackend) LoadBuffer(string, string) error           { return nil }
@@ -292,8 +292,8 @@ func eventTypeName(ev state.Event) string {
 		return "EvEvent"
 	case state.EvJobResult:
 		return "EvJobResult"
-	case state.EvPaneSpawned:
-		return "EvPaneSpawned"
+	case state.EvFrameSpawned:
+		return "EvFrameSpawned"
 	case state.EvSpawnFailed:
 		return "EvSpawnFailed"
 	case state.EvFileChanged:

@@ -11,18 +11,18 @@ import (
 // key derivation, and the per-frame "active" / "root" frame projections used
 // by snapshot helpers.
 
-func isMissingPaneErr(err error) bool {
+func isMissingFrameErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, ErrPaneMissing)
+	return errors.Is(err, ErrFrameMissing)
 }
 
-func sessionPaneEnvKey(frameID state.FrameID) string {
+func sessionFrameEnvKey(frameID state.FrameID) string {
 	return "ROOST_FRAME_" + string(frameID)
 }
 
-func sessionActiveFrame(sess state.Session) (state.SessionFrame, bool) {
+func sessionHeadFrame(sess state.Session) (state.SessionFrame, bool) {
 	if len(sess.Frames) == 0 {
 		if sess.Command == "" || sess.Driver == nil {
 			return state.SessionFrame{}, false
@@ -36,9 +36,9 @@ func sessionActiveFrame(sess state.Session) (state.SessionFrame, bool) {
 			Driver:        sess.Driver,
 		}, true
 	}
-	if sess.ActiveFrameID != "" {
+	if sess.HeadFrameID != "" {
 		for _, f := range sess.Frames {
-			if f.ID == sess.ActiveFrameID {
+			if f.ID == sess.HeadFrameID {
 				return f, true
 			}
 		}
@@ -48,7 +48,7 @@ func sessionActiveFrame(sess state.Session) (state.SessionFrame, bool) {
 
 func sessionRootFrame(sess state.Session) (state.SessionFrame, bool) {
 	if len(sess.Frames) == 0 {
-		return sessionActiveFrame(sess)
+		return sessionHeadFrame(sess)
 	}
 	return sess.Frames[0], true
 }

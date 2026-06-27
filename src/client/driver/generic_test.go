@@ -33,8 +33,8 @@ func TestGenericNewStateDefaults(t *testing.T) {
 
 func TestGenericTickSkipsWhenParkedAndWaiting(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
-	// Status=Waiting (default), Active=false → self-gate skips tick
-	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Active: false, PaneTarget: "5"})
+	// Status=Waiting (default), Watched=false → self-gate skips tick
+	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Watched: false, PaneTarget: "5"})
 	if len(effs) != 0 {
 		t.Errorf("expected 0 effects for parked+waiting, got %d", len(effs))
 	}
@@ -42,7 +42,7 @@ func TestGenericTickSkipsWhenParkedAndWaiting(t *testing.T) {
 
 func TestGenericTickWithoutWindowEmitsNothing(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
-	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Active: true})
+	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Watched: true})
 	if len(effs) != 0 {
 		t.Errorf("expected 0 effects when PaneTarget empty, got %d", len(effs))
 	}
@@ -269,7 +269,7 @@ func TestGenericViewFallbackChip(t *testing.T) {
 
 func TestGenericTickActiveSchedulesBranchJob(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
-	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Active: true, Project: "/repo"})
+	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Watched: true, Project: "/repo"})
 	var found bool
 	for _, eff := range effs {
 		job, ok := eff.(state.EffStartJob)
@@ -287,7 +287,7 @@ func TestGenericTickActiveSchedulesBranchJob(t *testing.T) {
 
 func TestGenericTickActiveSchedulesBranchJobUpdatesState(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
-	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Active: true, Project: "/repo"})
+	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Watched: true, Project: "/repo"})
 	gs := next.(GenericState)
 	if !gs.BranchInFlight {
 		t.Error("BranchInFlight should be true after branch job scheduled")
@@ -299,7 +299,7 @@ func TestGenericTickActiveSchedulesBranchJobUpdatesState(t *testing.T) {
 
 func TestGenericTickInactiveSkipsBranchDetect(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
-	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Active: false, Project: "/repo", PaneTarget: "5"})
+	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Watched: false, Project: "/repo", PaneTarget: "5"})
 	for _, eff := range effs {
 		job, ok := eff.(state.EffStartJob)
 		if !ok {
@@ -315,7 +315,7 @@ func TestGenericTickFreshCacheSkipsBranchDetect(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
 	s.BranchTarget = "/repo"
 	s.BranchAt = now.Add(-10 * time.Second) // within 30s
-	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Active: true, Project: "/repo"})
+	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Watched: true, Project: "/repo"})
 	for _, eff := range effs {
 		job, ok := eff.(state.EffStartJob)
 		if !ok {
@@ -331,7 +331,7 @@ func TestGenericTickStaleCacheRefreshesBranchDetect(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
 	s.BranchTarget = "/repo"
 	s.BranchAt = now.Add(-31 * time.Second) // stale
-	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Active: true, Project: "/repo"})
+	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Watched: true, Project: "/repo"})
 	var found bool
 	for _, eff := range effs {
 		job, ok := eff.(state.EffStartJob)
@@ -350,7 +350,7 @@ func TestGenericTickStaleCacheRefreshesBranchDetect(t *testing.T) {
 func TestGenericTickBranchInFlightSkips(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
 	s.BranchInFlight = true
-	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Active: true, Project: "/repo"})
+	_, effs, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvTick{Now: now, Watched: true, Project: "/repo"})
 	for _, eff := range effs {
 		job, ok := eff.(state.EffStartJob)
 		if !ok {
@@ -461,7 +461,7 @@ func TestGenericStepNonRootSkipsTick(t *testing.T) {
 	d, s, now := newGenericState(t, 0)
 	s.Status = state.StatusRunning
 	next, effs, _ := d.Step(s, state.FrameContext{IsRoot: false}, state.DEvTick{
-		Now: now.Add(2 * time.Second), Active: true, Project: "/repo", PaneTarget: "%5",
+		Now: now.Add(2 * time.Second), Watched: true, Project: "/repo", PaneTarget: "%5",
 	})
 	if len(effs) != 0 {
 		t.Errorf("non-root DEvTick effects = %d, want 0", len(effs))

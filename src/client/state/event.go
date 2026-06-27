@@ -14,16 +14,13 @@ type Event interface {
 
 // Event type constants for dispatch by reduceEvent.
 const (
-	EventCreateSession  = "create-session"
-	EventStopSession    = "stop-session"
-	EventListSessions   = "list-sessions"
-	EventPreviewSession = "preview-session"
-	EventSwitchSession  = "switch-session"
-	EventPreviewProject = "preview-project"
-	EventShutdown       = "shutdown"
-	EventPushDriver     = "push-driver"
-	EventForkSession    = "fork-session"
-	EventActivateFrame  = "activate-frame"
+	EventCreateSession = "create-session"
+	EventStopSession   = "stop-session"
+	EventListSessions  = "list-sessions"
+	EventShutdown      = "shutdown"
+	EventPushDriver    = "push-driver"
+	EventForkSession   = "fork-session"
+	EventSetHeadFrame  = "set-head-frame"
 )
 
 // === IPC commands (caller → daemon) ===
@@ -181,11 +178,11 @@ type EvJobResult struct {
 	Err    error
 }
 
-// EvPaneWindowVanished is fired by ReconcileWindows when the pane backend's
+// EvFrameVanished is fired by ReconcileWindows when the pane backend's
 // window backing a frame has truly disappeared (the user closed the
 // window via the backend's own kill-window, for instance). The frame is
 // always evicted because there is nothing left to inspect.
-type EvPaneWindowVanished struct {
+type EvFrameVanished struct {
 	FrameID FrameID
 }
 
@@ -206,15 +203,15 @@ type EvFrameCommandExited struct {
 	ExitCode int
 }
 
-// EvPaneSpawned is the async result of a backend new-window call
-// initiated by EffSpawnPaneWindow. PaneTarget is the pane id the runtime
+// EvFrameSpawned is the async result of a backend new-window call
+// initiated by EffSpawnFrame. PaneTarget is the pane id the runtime
 // uses to route activate/capture effects. SubsystemID is the opaque
 // identifier the subsystem factory chose for this frame's backend; the
 // reducer writes it onto the frame for future routing. WorktreeStartDir
 // is non-empty when the subsystem created a managed worktree during
 // BindFrame; the reducer routes DEvWorktreeResolved to the frame's driver
 // so the path is persisted for cold-start reconstruction.
-type EvPaneSpawned struct {
+type EvFrameSpawned struct {
 	SessionID        SessionID
 	FrameID          FrameID
 	SubsystemID      SubsystemID
@@ -236,10 +233,10 @@ type EvSpawnFailed struct {
 	ReplyReqID string
 }
 
-// EvPaneOsc is fired by the PaneTap reader goroutine when an OSC
+// EvFrameOsc is fired by the FrameTap reader goroutine when an OSC
 // notification is detected in the raw byte stream from a pane.
 // Title and Body are already parsed from the raw payload.
-type EvPaneOsc struct {
+type EvFrameOsc struct {
 	FrameID FrameID
 	Cmd     int
 	Title   string
@@ -258,9 +255,9 @@ const (
 	PromptPhaseComplete             // 133;D — command finished
 )
 
-// EvPanePrompt is fired by the PaneTap reader goroutine when an OSC 133
+// EvFramePrompt is fired by the FrameTap reader goroutine when an OSC 133
 // semantic-prompt sequence is detected in the raw byte stream from a pane.
-type EvPanePrompt struct {
+type EvFramePrompt struct {
 	FrameID  FrameID
 	Phase    PromptPhase
 	ExitCode *int
@@ -287,9 +284,9 @@ func (EvConnClosed) isEvent()            {}
 func (EvTick) isEvent()                  {}
 func (EvFileChanged) isEvent()           {}
 func (EvJobResult) isEvent()             {}
-func (EvPaneWindowVanished) isEvent()    {}
+func (EvFrameVanished) isEvent()         {}
 func (EvFrameCommandExited) isEvent()    {}
-func (EvPaneSpawned) isEvent()           {}
+func (EvFrameSpawned) isEvent()          {}
 func (EvSpawnFailed) isEvent()           {}
-func (EvPaneOsc) isEvent()               {}
-func (EvPanePrompt) isEvent()            {}
+func (EvFrameOsc) isEvent()              {}
+func (EvFramePrompt) isEvent()           {}

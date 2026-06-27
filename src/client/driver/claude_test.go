@@ -520,7 +520,7 @@ func TestClaudeTickInactiveIdleDoesNothing(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.StartDir = "/work"
 	// Idle (default) + inactive → no effects
-	_, effs := d.handleTick(cs, state.DEvTick{Now: now, Active: false})
+	_, effs := d.handleTick(cs, state.DEvTick{Now: now, Watched: false})
 	if len(effs) != 0 {
 		t.Errorf("inactive idle tick effs = %d, want 0", len(effs))
 	}
@@ -530,7 +530,7 @@ func TestClaudeTickActiveSchedulesBranchJob(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.Status = state.StatusRunning
 	cs.StartDir = "/work"
-	next, effs := d.handleTick(cs, state.DEvTick{Now: now, Active: true})
+	next, effs := d.handleTick(cs, state.DEvTick{Now: now, Watched: true})
 	if !next.BranchInFlight {
 		t.Error("BranchInFlight should be true")
 	}
@@ -556,7 +556,7 @@ func TestClaudeTickFreshCacheSkips(t *testing.T) {
 	cs.StartDir = "/work"
 	cs.BranchTarget = "/work"
 	cs.BranchAt = now // fresh
-	_, effs := d.handleTick(cs, state.DEvTick{Now: now.Add(time.Second), Active: true})
+	_, effs := d.handleTick(cs, state.DEvTick{Now: now.Add(time.Second), Watched: true})
 	if len(effs) != 0 {
 		t.Errorf("fresh cache effs = %d, want 0", len(effs))
 	}
@@ -568,7 +568,7 @@ func TestClaudeTickStaleCacheRefreshes(t *testing.T) {
 	cs.StartDir = "/work"
 	cs.BranchTarget = "/work"
 	cs.BranchAt = now.Add(-time.Hour)
-	_, effs := d.handleTick(cs, state.DEvTick{Now: now, Active: true})
+	_, effs := d.handleTick(cs, state.DEvTick{Now: now, Watched: true})
 	if _, ok := findEffect[state.EffStartJob](effs); !ok {
 		t.Error("stale cache should refresh")
 	}
@@ -579,7 +579,7 @@ func TestClaudeTickInFlightSkips(t *testing.T) {
 	cs.Status = state.StatusRunning
 	cs.StartDir = "/work"
 	cs.BranchInFlight = true
-	_, effs := d.handleTick(cs, state.DEvTick{Now: now, Active: true})
+	_, effs := d.handleTick(cs, state.DEvTick{Now: now, Watched: true})
 	if len(effs) != 0 {
 		t.Errorf("in-flight effs = %d, want 0", len(effs))
 	}
@@ -1662,7 +1662,7 @@ func TestHandleWindowTitle_ViaStep_StatusTransitions(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.Status = state.StatusRunning
 
-	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: true}, state.DEvPaneOsc{Cmd: 0, Title: "✳ Done", Now: now})
+	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: true}, state.DEvFrameOsc{Cmd: 0, Title: "✳ Done", Now: now})
 	nextCS := next.(ClaudeState)
 
 	if nextCS.Status != state.StatusWaiting {

@@ -130,7 +130,7 @@ func (d GeminiDriver) Step(prev state.DriverState, ctx state.FrameContext, ev st
 	case state.DEvTick:
 		effs := gs.HandleTick(e, false)
 		return gs, effs, d.view(gs)
-	case state.DEvPaneOsc:
+	case state.DEvFrameOsc:
 		next := d.handleWindowTitle(gs, e.Title, e.Now)
 		return next, nil, d.view(next)
 	case state.DEvFileChanged:

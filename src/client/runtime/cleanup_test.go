@@ -266,10 +266,10 @@ func (l *testLauncher) EnsureProject(_ context.Context, _ string) error { return
 func (l *testLauncher) IsContainer(_ string) bool { return false }
 
 // TestEffKillSessionWindow_doesNotInvokeCleanup asserts that
-// EffKillSessionWindow is responsible for pane-backend window kill only
+// EffKillFrame is responsible for pane-backend window kill only
 // — sandbox cleanup (Manager.ReleaseFrame → DestroyInstance) is driven
 // by EffReleaseFrameSandbox emitted from the reducer for the same frame.
-// Splitting the responsibilities lets EvPaneWindowVanished release the
+// Splitting the responsibilities lets EvFrameVanished release the
 // container even though it skips the pane kill (`killWindow=false`).
 func TestEffKillSessionWindow_doesNotInvokeCleanup(t *testing.T) {
 	var called atomic.Bool
@@ -277,17 +277,17 @@ func TestEffKillSessionWindow_doesNotInvokeCleanup(t *testing.T) {
 	r := New(Config{Backend: backend})
 
 	frameID := state.FrameID("f-kill")
-	r.sessionPanes[frameID] = "%42"
+	r.sessionFrames[frameID] = "%42"
 	r.storeFrameCleanup(frameID, func() error {
 		called.Store(true)
 		return nil
 	})
 
-	r.execute(state.EffKillSessionWindow{FrameID: frameID})
+	r.execute(state.EffKillFrame{FrameID: frameID})
 
 	time.Sleep(50 * time.Millisecond)
 	if called.Load() {
-		t.Error("cleanup must not be called by EffKillSessionWindow alone; expected EffReleaseFrameSandbox to drive cleanup")
+		t.Error("cleanup must not be called by EffKillFrame alone; expected EffReleaseFrameSandbox to drive cleanup")
 	}
 }
 

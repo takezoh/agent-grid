@@ -9,7 +9,7 @@ import (
 
 // Generic driver: polling-driven status producer for arbitrary terminal panes
 // (vim, tig, build output, unknown commands, fallback). Receives OSC events
-// via DEvPaneOsc when the pane emits semantic sequences; otherwise transitions
+// via DEvFrameOsc when the pane emits semantic sequences; otherwise transitions
 // Running → Waiting after IdleThreshold elapses.
 //
 // Shell-specific logic (OSC 133, promptRe heuristic) lives in ShellDriver.
@@ -153,7 +153,7 @@ func (d GenericDriver) Step(prev state.DriverState, ctx state.FrameContext, ev s
 		// Tick only when visible on the main pane OR actively running
 		// (hash still changing). Parked + waiting sessions skip to save CPU;
 		// the next tick after the user brings them back to active resumes.
-		if !e.Active && gs.Status != state.StatusRunning {
+		if !e.Watched && gs.Status != state.StatusRunning {
 			return gs, nil, d.view(gs)
 		}
 		effs := gs.HandleTick(e, false)

@@ -363,7 +363,7 @@ func TestCodexWindowTitleViaStepIgnoresNonRoot(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.Status = state.StatusRunning
 
-	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: false}, state.DEvPaneOsc{
+	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: false}, state.DEvFrameOsc{
 		Cmd:   0,
 		Title: "[ ! ] Action Required | agent-roost",
 		Now:   now,

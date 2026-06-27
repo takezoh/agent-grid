@@ -142,7 +142,7 @@ func (internalBroadcastWire) isInternalEvent() {}
 // attach pane taps to panes that were restored from the snapshot (warm
 // or cold start) — bypasses the reducer because Reduce is only invoked
 // by user-driven events, and restored panes never go through
-// EvPaneSpawned.
+// EvFrameSpawned.
 type internalStartRestoredTaps struct{}
 
 func (internalStartRestoredTaps) isInternalEvent() {}
@@ -153,7 +153,7 @@ func (internalStartRestoredTaps) isInternalEvent() {}
 // them into loop-owned maps (handleSpawnComplete), keeping spawn off the
 // single-writer state without any direct map writes from the goroutine.
 type internalSpawnComplete struct {
-	effect           state.EffSpawnPaneWindow
+	effect           state.EffSpawnFrame
 	subsystemID      state.SubsystemID
 	sub              rsubsystem.Subsystem
 	cleanup          func() error
@@ -196,7 +196,7 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 // startRestoredTaps attaches a pane tap to each restored root frame.
 // Non-root frames don't get taps because their driver state isn't
 // displayed in the UI. Called from the event loop so r.taps is
-// guaranteed to be initialised and r.sessionPanes is accessed under
+// guaranteed to be initialised and r.sessionFrames is accessed under
 // the loop's single-writer discipline.
 func (r *Runtime) startRestoredTaps() {
 	if r.taps == nil {
@@ -208,7 +208,7 @@ func (r *Runtime) startRestoredTaps() {
 			rootFrames[sess.Frames[0].ID] = true
 		}
 	}
-	for frameID, pane := range r.sessionPanes {
+	for frameID, pane := range r.sessionFrames {
 		if frameID == "_main" || pane == "" {
 			continue
 		}

@@ -8,7 +8,7 @@ import (
 	"github.com/takezoh/agent-reactor/client/state"
 )
 
-func TestLoadSessionPanes_ParsesEnvVars(t *testing.T) {
+func TestLoadSessionFrames_ParsesEnvVars(t *testing.T) {
 	fbackend := newFakeBackend()
 	fbackend.envOutput = "ROOST_FRAME_frame_abc=%11\nROOST_FRAME_frame_def=%12\nSOME_OTHER=value\n"
 	r := New(Config{
@@ -18,29 +18,29 @@ func TestLoadSessionPanes_ParsesEnvVars(t *testing.T) {
 	r.state.Sessions[state.SessionID("session_abc")] = state.Session{ID: "session_abc", Frames: []state.SessionFrame{{ID: "frame_abc", Command: "stub", Driver: driver.NewGenericDriver("", "", 0).NewState(time.Now())}}}
 	r.state.Sessions[state.SessionID("session_def")] = state.Session{ID: "session_def", Frames: []state.SessionFrame{{ID: "frame_def", Command: "stub", Driver: driver.NewGenericDriver("", "", 0).NewState(time.Now())}}}
 
-	if err := r.LoadSessionPanes(); err != nil {
-		t.Fatalf("LoadSessionPanes: %v", err)
+	if err := r.LoadSessionFrames(); err != nil {
+		t.Fatalf("LoadSessionFrames: %v", err)
 	}
-	if r.sessionPanes[state.FrameID("frame_abc")] != "%11" {
-		t.Errorf("frame_abc → %q, want %%11", r.sessionPanes[state.FrameID("frame_abc")])
+	if r.sessionFrames[state.FrameID("frame_abc")] != "%11" {
+		t.Errorf("frame_abc → %q, want %%11", r.sessionFrames[state.FrameID("frame_abc")])
 	}
-	if r.sessionPanes[state.FrameID("frame_def")] != "%12" {
-		t.Errorf("frame_def → %q, want %%12", r.sessionPanes[state.FrameID("frame_def")])
+	if r.sessionFrames[state.FrameID("frame_def")] != "%12" {
+		t.Errorf("frame_def → %q, want %%12", r.sessionFrames[state.FrameID("frame_def")])
 	}
-	if _, ok := r.sessionPanes[state.FrameID("value")]; ok {
+	if _, ok := r.sessionFrames[state.FrameID("value")]; ok {
 		t.Error("non-ROOST_FRAME_ env should not be parsed")
 	}
 }
 
-func TestLoadSessionPanes_NoEnvSupport(t *testing.T) {
+func TestLoadSessionFrames_NoEnvSupport(t *testing.T) {
 	backend := noopBackend{}
 	r := New(Config{
 		TickInterval: 10 * time.Second,
 		Backend:      backend,
 	})
 	// Should not error — backend just doesn't support ShowEnvironment
-	if err := r.LoadSessionPanes(); err != nil {
-		t.Fatalf("LoadSessionPanes with noop backend: %v", err)
+	if err := r.LoadSessionFrames(); err != nil {
+		t.Fatalf("LoadSessionFrames with noop backend: %v", err)
 	}
 }
 
@@ -52,7 +52,7 @@ func TestReconcileOrphans_DropsSessionWithoutPane(t *testing.T) {
 	})
 	r.state.Sessions["s1"] = state.Session{ID: "s1", Frames: []state.SessionFrame{{ID: "f1", Command: "stub", Driver: driver.NewGenericDriver("", "", 0).NewState(time.Now())}}}
 	r.state.Sessions["s2"] = state.Session{ID: "s2", Frames: []state.SessionFrame{{ID: "f2", Command: "stub", Driver: driver.NewGenericDriver("", "", 0).NewState(time.Now())}}}
-	r.sessionPanes["f1"] = "%1"
+	r.sessionFrames["f1"] = "%1"
 
 	r.ReconcileOrphans()
 
@@ -71,12 +71,12 @@ func TestReconcileOrphans_RemovesStalePaneEntry(t *testing.T) {
 		Backend:      fbackend,
 	})
 	r.state.Sessions["s1"] = state.Session{ID: "s1", Frames: []state.SessionFrame{{ID: "f1", Command: "stub", Driver: driver.NewGenericDriver("", "", 0).NewState(time.Now())}}}
-	r.sessionPanes["f1"] = "%1"
-	r.sessionPanes["ghost"] = "%2"
+	r.sessionFrames["f1"] = "%1"
+	r.sessionFrames["ghost"] = "%2"
 
 	r.ReconcileOrphans()
 
-	if _, ok := r.sessionPanes["ghost"]; ok {
+	if _, ok := r.sessionFrames["ghost"]; ok {
 		t.Error("stale pane entry should be removed")
 	}
 	fbackend.mu.Lock()

@@ -58,7 +58,7 @@ type fakeBackend struct {
 	envs             map[string]string
 	popups           []string
 	alive            map[string]bool
-	exitStatusErr    map[string]error // pane target → error from PaneExitStatus
+	exitStatusErr    map[string]error // pane target → error from FrameExitStatus
 	exitStatus       map[string]int   // pane target → exit code (when dead)
 	captured         string
 	spawnWID         string
@@ -105,7 +105,7 @@ func (f *fakeBackend) ShowEnvironment() (string, error) {
 	return f.envOutput, nil
 }
 
-func (f *fakeBackend) KillPaneWindow(paneID string) error {
+func (f *fakeBackend) KillFrame(paneID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.killCalls++
@@ -148,7 +148,7 @@ func (f *fakeBackend) JoinPane(srcPane, dstPane string, before bool, sizePct int
 	f.joinTargets = append(f.joinTargets, dstPane)
 	return nil
 }
-func (f *fakeBackend) PaneID(target string) (string, error) {
+func (f *fakeBackend) ResolveID(target string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	lookup := strings.Replace(target, ":=", ":", 1)
@@ -163,7 +163,7 @@ func (f *fakeBackend) PaneID(target string) (string, error) {
 	}
 	return "%main", nil
 }
-func (f *fakeBackend) PaneSize(string) (int, int, error) {
+func (f *fakeBackend) FrameSize(string) (int, int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.paneWidth, f.paneHeight, nil
@@ -196,7 +196,7 @@ func (f *fakeBackend) UnsetEnv(k string) error {
 	delete(f.envs, k)
 	return nil
 }
-func (f *fakeBackend) PaneExitStatus(target string) (bool, int, error) {
+func (f *fakeBackend) FrameExitStatus(target string) (bool, int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err, ok := f.exitStatusErr[target]; ok {
@@ -212,13 +212,13 @@ func (f *fakeBackend) PaneExitStatus(target string) (bool, int, error) {
 	}
 	return true, code, nil
 }
-func (f *fakeBackend) RespawnPane(target, cmd string) error {
+func (f *fakeBackend) RespawnFrame(target, cmd string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.respawnCmds = append(f.respawnCmds, cmd)
 	return nil
 }
-func (f *fakeBackend) CapturePane(string, int) (string, error) {
+func (f *fakeBackend) CaptureFrame(string, int) (string, error) {
 	return f.captured, nil
 }
 func (f *fakeBackend) DetachClient() error { return nil }
@@ -234,7 +234,7 @@ func (f *fakeBackend) DisplayPopup(w, h, cmd string) error {
 	f.popups = append(f.popups, cmd)
 	return nil
 }
-func (f *fakeBackend) PipePane(string, string) error    { return nil }
+func (f *fakeBackend) PipeFrame(string, string) error   { return nil }
 func (f *fakeBackend) SendKeys(string, string) error    { return nil }
 func (f *fakeBackend) SendKey(string, string) error     { return nil }
 func (f *fakeBackend) LoadBuffer(string, string) error  { return nil }
@@ -460,7 +460,7 @@ func TestRuntimeStopSession(t *testing.T) {
 		Driver:  driver.NewGenericDriver("", "", 0).NewState(time.Now()),
 		Frames:  []state.SessionFrame{{ID: "abc-frame", Command: "stub-x", Driver: driver.NewGenericDriver("", "", 0).NewState(time.Now())}},
 	}
-	r.sessionPanes["abc-frame"] = "%5"
+	r.sessionFrames["abc-frame"] = "%5"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { _ = r.Run(ctx) }()
@@ -486,20 +486,20 @@ func TestRuntimeStopSession(t *testing.T) {
 }
 
 // reconcileWindows must distinguish a vanished pane from a transient query
-// failure: only errors that wrap ErrPaneMissing should evict a frame.
+// failure: only errors that wrap ErrFrameMissing should evict a frame.
 func TestReconcileWindowsTransientErrorKeepsFrame(t *testing.T) {
 	backend := newFakeBackend()
 	backend.exitStatusErr["%7"] = fmt.Errorf("backend display-message -t %%7 -p ...: %w", context.DeadlineExceeded)
 	r := New(Config{
 		Backend: backend,
 	})
-	r.sessionPanes["inactive-frame"] = "%7"
+	r.sessionFrames["inactive-frame"] = "%7"
 
 	r.reconcileWindows()
 
 	select {
 	case ev := <-r.eventCh:
-		t.Fatalf("transient PaneExitStatus error must not vanish a frame, got %T", ev)
+		t.Fatalf("transient FrameExitStatus error must not vanish a frame, got %T", ev)
 	case <-time.After(200 * time.Millisecond):
 		// OK: transient error ignored.
 	}
@@ -507,25 +507,25 @@ func TestReconcileWindowsTransientErrorKeepsFrame(t *testing.T) {
 
 func TestReconcileWindowsMissingPaneVanishesFrame(t *testing.T) {
 	backend := newFakeBackend()
-	backend.exitStatusErr["%7"] = fmt.Errorf("runtime: unknown pane %q: %w", "%7", ErrPaneMissing)
+	backend.exitStatusErr["%7"] = fmt.Errorf("runtime: unknown pane %q: %w", "%7", ErrFrameMissing)
 	r := New(Config{
 		Backend: backend,
 	})
-	r.sessionPanes["inactive-frame"] = "%7"
+	r.sessionFrames["inactive-frame"] = "%7"
 
 	r.reconcileWindows()
 
 	select {
 	case ev := <-r.eventCh:
-		vanished, ok := ev.(state.EvPaneWindowVanished)
+		vanished, ok := ev.(state.EvFrameVanished)
 		if !ok {
-			t.Fatalf("expected EvPaneWindowVanished, got %T", ev)
+			t.Fatalf("expected EvFrameVanished, got %T", ev)
 		}
 		if vanished.FrameID != "inactive-frame" {
 			t.Errorf("FrameID = %q, want inactive-frame", vanished.FrameID)
 		}
 	case <-time.After(500 * time.Millisecond):
-		t.Fatal("expected EvPaneWindowVanished for a genuinely missing pane")
+		t.Fatal("expected EvFrameVanished for a genuinely missing pane")
 	}
 }
 
@@ -608,7 +608,7 @@ func TestReconcileDetectsVanishedPane(t *testing.T) {
 		Driver:  drv.NewState(time.Now()),
 		Frames:  []state.SessionFrame{{ID: "tracked1", Command: "shell", Driver: drv.NewState(time.Now())}},
 	}
-	r.sessionPanes[state.FrameID("tracked1")] = "%3"
+	r.sessionFrames[state.FrameID("tracked1")] = "%3"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { _ = r.Run(ctx) }()

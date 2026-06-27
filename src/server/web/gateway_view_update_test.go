@@ -122,9 +122,8 @@ func TestGatewayLifecycle_EmitsHelloFirst(t *testing.T) {
 	c := dialLifecycleWS(t, srv)
 
 	fake.events <- proto.EvtSessionsChanged{
-		Sessions:        []proto.SessionInfo{sampleSession("s1", "T", stateview.StatusRunning)},
-		ActiveSessionID: "s1",
-		Features:        []string{"surface"},
+		Sessions: []proto.SessionInfo{sampleSession("s1", "T", stateview.StatusRunning)},
+		Features: []string{"surface"},
 	}
 
 	m := readJSONFrame(t, c)
@@ -132,8 +131,10 @@ func TestGatewayLifecycle_EmitsHelloFirst(t *testing.T) {
 	if m["k"] != "h" {
 		t.Errorf("first frame k = %q, want \"h\"", m["k"])
 	}
-	if m["activeSessionID"] != "s1" {
-		t.Errorf("activeSessionID = %q, want \"s1\"", m["activeSessionID"])
+	// The hello frame no longer carries a daemon-side active session id — web
+	// clients own their own selection. Assert absence to lock the contract.
+	if _, has := m["activeSessionID"]; has {
+		t.Errorf("hello frame must not carry activeSessionID; got: %v", m["activeSessionID"])
 	}
 	sessions, ok := m["sessions"].([]any)
 	if !ok || len(sessions) == 0 {
@@ -167,21 +168,19 @@ func TestGatewayLifecycle_BroadcastsViewUpdate(t *testing.T) {
 
 	// First event → hello frame.
 	fake.events <- proto.EvtSessionsChanged{
-		Sessions:        []proto.SessionInfo{sampleSession("s1", "T", stateview.StatusRunning)},
-		ActiveSessionID: "s1",
-		Features:        []string{"surface"},
+		Sessions: []proto.SessionInfo{sampleSession("s1", "T", stateview.StatusRunning)},
+		Features: []string{"surface"},
 	}
 	hello := readJSONFrame(t, c)
 	if hello["k"] != "h" {
 		t.Fatalf("expected hello frame, got k=%q", hello["k"])
 	}
 
-	// Second event → view-update frame. The daemon-side ActiveSessionID is
-	// intentionally NOT mirrored on view-update frames (see wire.go) — web
-	// clients own their own selection. Assert absence to lock the contract.
+	// Second event → view-update frame. The daemon no longer ships an active
+	// session id at all — web clients own their own selection. Assert absence
+	// on the view-update frame to lock the contract.
 	fake.events <- proto.EvtSessionsChanged{
-		Sessions:        []proto.SessionInfo{sampleSession("s2", "U", stateview.StatusIdle)},
-		ActiveSessionID: "s2",
+		Sessions: []proto.SessionInfo{sampleSession("s2", "U", stateview.StatusIdle)},
 	}
 	m := readJSONFrame(t, c)
 

@@ -52,7 +52,7 @@ func TestSpawnPaneWindow_recoversFromPanicAndEmitsSpawnFailed(t *testing.T) {
 	// it would propagate the panic out of the goroutine; in a goroutine
 	// that would crash the process, but synchronously here `testing` would
 	// fail the test with the panic surface. Either way, panic = test fail.
-	spawnPaneWindow(deps, state.EffSpawnPaneWindow{
+	spawnPaneWindow(deps, state.EffSpawnFrame{
 		SessionID: "s-survives", FrameID: "f-survives",
 		Project: "/p", Command: "minimal-test",
 	})

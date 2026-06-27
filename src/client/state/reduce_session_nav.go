@@ -4,11 +4,11 @@ import (
 	"fmt"
 )
 
-// reduce_session_nav.go holds reducers for session navigation (preview,
-// switch, focus, list) and pane spawn lifecycle events. Kept separate
-// from the core session creation / push / fork logic in reduce_session.go.
+// reduce_session_nav.go holds the session list reducer and the frame
+// spawn lifecycle events. Kept separate from the core session creation /
+// push / fork logic in reduce_session.go.
 
-func reducePaneSpawned(s State, e EvPaneSpawned) (State, []Effect) {
+func reduceFrameSpawned(s State, e EvFrameSpawned) (State, []Effect) {
 	sess, ok := s.Sessions[e.SessionID]
 	if !ok {
 		return s, nil
@@ -45,11 +45,10 @@ func reducePaneSpawned(s State, e EvPaneSpawned) (State, []Effect) {
 	if frameIdx == 0 {
 		s, bootstrapEffs, _ = bootstrapDriverSessionStart(s, e.FrameID)
 	}
-	s.ActiveSession = e.SessionID
 
 	effs := []Effect{}
 	effs = append(effs, bootstrapEffs...)
-	effs = append(effs, EffRegisterPane{
+	effs = append(effs, EffRegisterFrame{
 		FrameID:    e.FrameID,
 		PaneTarget: e.PaneTarget,
 		Tap:        frameIdx == 0 || sess.Frames[frameIdx].SubsystemID != "",
@@ -85,45 +84,9 @@ func reduceSpawnFailed(s State, e EvSpawnFailed) (State, []Effect) {
 	)
 }
 
-func reducePreviewSession(s State, connID ConnID, reqID string, p PreviewSessionParams) (State, []Effect) {
-	sid := SessionID(p.SessionID)
-	if _, ok := s.Sessions[sid]; !ok {
-		return s, []Effect{errResp(connID, reqID, ErrCodeNotFound, "session not found")}
-	}
-	s.ActiveSession = sid
-	return s, []Effect{
-		EffBroadcastSessionsChanged{IsPreview: true},
-		okResp(connID, reqID, ActiveSessionReply{ActiveSessionID: string(sid)}),
-	}
-}
-
-func reduceSwitchSession(s State, connID ConnID, reqID string, p SwitchSessionParams) (State, []Effect) {
-	sid := SessionID(p.SessionID)
-	if _, ok := s.Sessions[sid]; !ok {
-		return s, []Effect{errResp(connID, reqID, ErrCodeNotFound, "session not found")}
-	}
-	s.ActiveSession = sid
-	return s, []Effect{
-		EffBroadcastSessionsChanged{},
-		okResp(connID, reqID, ActiveSessionReply{ActiveSessionID: string(sid)}),
-	}
-}
-
-type ActiveSessionReply struct {
-	ActiveSessionID string
-}
-
-func reducePreviewProject(s State, connID ConnID, reqID string, p PreviewProjectParams) (State, []Effect) {
-	s.ActiveSession = ""
-	return s, []Effect{
-		okResp(connID, reqID, nil),
-		EffBroadcastEvent{
-			Name:    "project-selected",
-			Payload: ProjectSelectedPayload(p),
-		},
-	}
-}
-
+// ProjectSelectedPayload is the state-side payload for the generic
+// "project-selected" broadcast event (translated to proto.EvtProjectSelected
+// by the runtime bridge).
 type ProjectSelectedPayload struct {
 	Project string
 }

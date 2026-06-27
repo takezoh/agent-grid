@@ -100,7 +100,7 @@ func TestShellStepNonRootSkipsTick(t *testing.T) {
 	d, s, now := newShellState(t, 5*time.Second)
 	s.Status = state.StatusRunning
 	next, effs, _ := d.Step(s, state.FrameContext{IsRoot: false}, state.DEvTick{
-		Now: now.Add(time.Second), Active: true, Project: "/repo", PaneTarget: "%5",
+		Now: now.Add(time.Second), Watched: true, Project: "/repo", PaneTarget: "%5",
 	})
 	if len(effs) != 0 {
 		t.Errorf("non-root DEvTick effects = %d, want 0", len(effs))
@@ -112,13 +112,13 @@ func TestShellStepNonRootSkipsTick(t *testing.T) {
 
 func TestShellStepDEvPanePromptInputSetsSawPromptEvent(t *testing.T) {
 	d, s, now := newShellState(t, 5*time.Second)
-	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvPanePrompt{
+	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvFramePrompt{
 		Phase: state.PromptPhaseInput,
 		Now:   now,
 	})
 	ns := next.(ShellState)
 	if !ns.SawPromptEvent {
-		t.Error("SawPromptEvent should be true after DEvPanePrompt{PromptPhaseInput}")
+		t.Error("SawPromptEvent should be true after DEvFramePrompt{PromptPhaseInput}")
 	}
 	if ns.Status != state.StatusWaiting {
 		t.Errorf("Status = %v, want Waiting", ns.Status)
@@ -130,7 +130,7 @@ func TestShellStepDEvPanePromptInputSetsSawPromptEvent(t *testing.T) {
 
 func TestShellStepDEvPanePromptCommandSetsRunning(t *testing.T) {
 	d, s, now := newShellState(t, 5*time.Second)
-	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvPanePrompt{
+	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvFramePrompt{
 		Phase: state.PromptPhaseCommand,
 		Now:   now.Add(time.Second),
 	})
@@ -148,14 +148,14 @@ func TestShellStepDEvPanePromptCompleteSetsLastExitCodeAndWaiting(t *testing.T) 
 	s.Status = state.StatusRunning
 	s.StatusChangedAt = now
 	code := 42
-	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvPanePrompt{
+	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvFramePrompt{
 		Phase:    state.PromptPhaseComplete,
 		ExitCode: &code,
 		Now:      now.Add(2 * time.Second),
 	})
 	ns := next.(ShellState)
 	if !ns.SawPromptEvent {
-		t.Error("SawPromptEvent should be true after DEvPanePrompt{PromptPhaseComplete}")
+		t.Error("SawPromptEvent should be true after DEvFramePrompt{PromptPhaseComplete}")
 	}
 	if ns.Status != state.StatusWaiting {
 		t.Errorf("Status = %v, want Waiting", ns.Status)
@@ -170,7 +170,7 @@ func TestShellStepDEvPanePromptCompleteSetsLastExitCodeAndWaiting(t *testing.T) 
 
 func TestShellStepDEvPanePromptInputPreservesStatusChangedAtWhenAlreadyWaiting(t *testing.T) {
 	d, s, now := newShellState(t, 5*time.Second)
-	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvPanePrompt{
+	next, _, _ := d.Step(s, state.FrameContext{IsRoot: true}, state.DEvFramePrompt{
 		Phase: state.PromptPhaseInput,
 		Now:   now.Add(time.Second),
 	})

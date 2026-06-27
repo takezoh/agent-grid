@@ -52,6 +52,28 @@ describe("daemonStore", () => {
     expect(s.serverTime).toBe(12345);
   });
 
+  it("seedHello picks the first session when the daemon omits activeSessionID", () => {
+    const frame: HelloFrame = {
+      k: "h",
+      sessions: [mkSession("first"), mkSession("second")],
+      features: [],
+      serverTime: 1,
+    };
+    useDaemonStore.getState().seedHello(frame);
+    expect(useDaemonStore.getState().activeSessionID).toBe("first");
+  });
+
+  it("seedHello leaves activeSessionID null when there are no sessions", () => {
+    const frame: HelloFrame = {
+      k: "h",
+      sessions: [],
+      features: [],
+      serverTime: 1,
+    };
+    useDaemonStore.getState().seedHello(frame);
+    expect(useDaemonStore.getState().activeSessionID).toBeNull();
+  });
+
   it("applyViewUpdate replaces sessions and preserves activeSessionID when omitted", () => {
     useDaemonStore.setState({ activeSessionID: "preserved" });
     const frame: ViewUpdateFrame = {

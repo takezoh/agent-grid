@@ -11,7 +11,7 @@ import (
 )
 
 // Bootstrap helpers used at startup before the event loop starts.
-// These mutate r.state and r.sessionPanes directly — safe because no
+// These mutate r.state and r.sessionFrames directly — safe because no
 // goroutine is reading state yet.
 
 // LoadSnapshot reads sessions.json and registers each session in
@@ -110,10 +110,10 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 	sess.Command = sess.Frames[0].Command
 	sess.LaunchOptions = sess.Frames[0].LaunchOptions
 	sess.Driver = sess.Frames[0].Driver
-	if snap.ActiveFrameID != "" {
-		sess.ActiveFrameID = state.FrameID(snap.ActiveFrameID)
+	if snap.HeadFrameID != "" {
+		sess.HeadFrameID = state.FrameID(snap.HeadFrameID)
 	} else {
-		sess.ActiveFrameID = sess.Frames[len(sess.Frames)-1].ID
+		sess.HeadFrameID = sess.Frames[len(sess.Frames)-1].ID
 	}
 	mru := make([]state.FrameID, 0, len(snap.MRUFrameIDs))
 	for _, id := range snap.MRUFrameIDs {
@@ -123,12 +123,12 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 	return sess, true
 }
 
-// LoadSessionPanes reads ROOST_FRAME_* env entries on the pane backend
-// and populates r.sessionPanes. With PtyBackend each daemon boot starts a
+// LoadSessionFrames reads ROOST_FRAME_* env entries on the pane backend
+// and populates r.sessionFrames. With PtyBackend each daemon boot starts a
 // fresh termvt.Manager whose env table is empty, so this is effectively a
 // no-op today and exists only for backends that opt into ShowEnvironment
 // for diagnostic dumps.
-func (r *Runtime) LoadSessionPanes() error {
+func (r *Runtime) LoadSessionFrames() error {
 	type envLister interface {
 		ShowEnvironment() (string, error)
 	}
@@ -150,25 +150,25 @@ func (r *Runtime) LoadSessionPanes() error {
 			continue
 		}
 		frameID := state.FrameID(strings.TrimPrefix(parts[0], "ROOST_FRAME_"))
-		r.sessionPanes[frameID] = parts[1]
+		r.sessionFrames[frameID] = parts[1]
 	}
 	return nil
 }
 
-// ReconcileOrphans compares the loaded sessionPanes against the snapshot
-// sessions, drops orphan sessions (in JSON but not in sessionPanes) and
+// ReconcileOrphans compares the loaded sessionFrames against the snapshot
+// sessions, drops orphan sessions (in JSON but not in sessionFrames) and
 // cleans up stale env entries (in windowMap but not in JSON).
 //
-// In PtyBackend mode sessionPanes is empty at boot, so every persisted
+// In PtyBackend mode sessionFrames is empty at boot, so every persisted
 // session is "orphan" wrt panes. The cold-start spawn path in coordinator
 // recreates panes from snapshot; this reconciler therefore narrows to
-// pruning sessionPanes entries that no persisted frame owns — useful only
+// pruning sessionFrames entries that no persisted frame owns — useful only
 // for backends that survive across daemon restarts (none in the tree today).
 func (r *Runtime) ReconcileOrphans() {
 	for id, sess := range r.state.Sessions {
 		cut := len(sess.Frames)
 		for i, frame := range sess.Frames {
-			if _, ok := r.sessionPanes[frame.ID]; !ok {
+			if _, ok := r.sessionFrames[frame.ID]; !ok {
 				cut = i
 				break
 			}
@@ -185,7 +185,7 @@ func (r *Runtime) ReconcileOrphans() {
 		r.state.Sessions[id] = sess
 	}
 
-	for frameID := range r.sessionPanes {
+	for frameID := range r.sessionFrames {
 		found := false
 		for _, sess := range r.state.Sessions {
 			for _, frame := range sess.Frames {
@@ -196,9 +196,9 @@ func (r *Runtime) ReconcileOrphans() {
 			}
 		}
 		if !found {
-			delete(r.sessionPanes, frameID)
+			delete(r.sessionFrames, frameID)
 			slog.Warn("bootstrap: removing stale pane env", "frame", frameID)
-			_ = r.cfg.Backend.UnsetEnv(sessionPaneEnvKey(frameID))
+			_ = r.cfg.Backend.UnsetEnv(sessionFrameEnvKey(frameID))
 		}
 	}
 

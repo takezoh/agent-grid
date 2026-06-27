@@ -158,16 +158,17 @@ type DEvSubsystem struct {
 
 func (DEvSubsystem) isDriverEvent() {}
 
-// DEvTick is the periodic tick. Active reflects whether this session is
-// currently shown in pane 0.0 — drivers use it to gate expensive work
-// that only matters when the user is looking. PaneTarget is the backend
-// pane id (e.g. "%5").
+// DEvTick is the periodic tick. Watched reports whether at least one client is
+// surface-subscribing to this session. Drivers use it to gate expensive work
+// that only matters when the user is looking. Unlike the old daemon-global
+// "active", this is the union across all connected clients — correct for
+// multi-client setups. PaneTarget is the backend pane id (e.g. "%5").
 // N and Seq are used for bucketing: drivers gate periodic work to ticks
 // where (N+Seq)%interval==0, so sessions are spread across different
 // ticks rather than all firing simultaneously.
 type DEvTick struct {
 	Now        time.Time
-	Active     bool
+	Watched    bool
 	Project    string
 	PaneTarget string
 	N          uint64 // monotonic tick counter from EvTick.N
@@ -198,28 +199,28 @@ type DEvFileChanged struct {
 
 func (DEvFileChanged) isDriverEvent() {}
 
-// DEvPaneOsc delivers a parsed OSC sequence from the PaneTap byte stream to
+// DEvFrameOsc delivers a parsed OSC sequence from the FrameTap byte stream to
 // the driver. Only OSC 0/2 (window title) is routed here; OSC 9/99/777 go
 // directly to EffRecordNotification in the state reducer instead. The driver
 // interprets the title string and may update its status accordingly.
-type DEvPaneOsc struct {
+type DEvFrameOsc struct {
 	Cmd   int
 	Title string
 	Body  string
 	Now   time.Time
 }
 
-func (DEvPaneOsc) isDriverEvent() {}
+func (DEvFrameOsc) isDriverEvent() {}
 
-// DEvPanePrompt delivers an OSC 133 semantic-prompt event to the driver.
+// DEvFramePrompt delivers an OSC 133 semantic-prompt event to the driver.
 // ExitCode is non-nil only for PromptPhaseComplete (133;D;<exit-code>).
-type DEvPanePrompt struct {
+type DEvFramePrompt struct {
 	Phase    PromptPhase
 	ExitCode *int
 	Now      time.Time
 }
 
-func (DEvPanePrompt) isDriverEvent() {}
+func (DEvFramePrompt) isDriverEvent() {}
 
 // DEvStatusLineClick is fired when the user clicks the status bar
 // (bound to MouseDown1Status in the root key table). Range is the

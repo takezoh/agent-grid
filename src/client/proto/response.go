@@ -30,23 +30,13 @@ type RespCreateSession struct {
 func (RespCreateSession) isResponse() {}
 
 // RespSessions is the response to list-sessions and the body of
-// EvtSessionsChanged. Carries the full session table + the active
-// session id.
+// EvtSessionsChanged. Carries the full session table.
 type RespSessions struct {
-	Sessions        []SessionInfo `json:"sessions"`
-	ActiveSessionID string        `json:"active_session_id,omitempty"`
-	Features        []string      `json:"features,omitempty"`
+	Sessions []SessionInfo `json:"sessions"`
+	Features []string      `json:"features,omitempty"`
 }
 
 func (RespSessions) isResponse() {}
-
-// RespActiveSession is the response to preview-session and
-// switch-session. Returns the new active session id.
-type RespActiveSession struct {
-	ActiveSessionID string `json:"active_session_id"`
-}
-
-func (RespActiveSession) isResponse() {}
 
 // SessionInfo is the per-session payload shipped on the wire. Mirrors
 // state.Session + the driver's View output. Carried inside
@@ -66,8 +56,7 @@ type SessionInfo struct {
 	StateChangedAt     string           `json:"state_changed_at,omitempty"`
 	View               stateview.View   `json:"view"`
 	Frames             []FrameInfo      `json:"frames,omitempty"`
-	ActiveFrameID      string           `json:"active_frame_id,omitempty"`
-	IsActive           bool             `json:"is_active,omitempty"` // true when displayed in main pane
+	HeadFrameID        string           `json:"head_frame_id,omitempty"`
 }
 
 // FrameInfo is the per-frame wire payload for header tab rendering.

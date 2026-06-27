@@ -15,11 +15,11 @@ import (
 
 // spawnDeps is the narrow set of capabilities given to the spawn goroutine.
 // It holds no *Runtime reference, so the goroutine cannot touch loop-owned
-// state (conns, sessionPanes, subsystems, …) directly. Results flow back to
+// state (conns, sessionFrames, subsystems, …) directly. Results flow back to
 // the event loop via sendInternal (internalSpawnComplete) / sendEvent
 // (EvSpawnFailed), preserving the single-writer discipline.
 type spawnDeps struct {
-	backend      PaneBackend
+	backend      FrameBackend
 	launcher     AgentLauncher
 	factories    map[state.LaunchSubsystem]rsubsystem.Factory
 	sendInternal func(internalEvent)
@@ -28,7 +28,7 @@ type spawnDeps struct {
 
 // buildSpawnDeps snapshots the dependencies needed by the spawn goroutine.
 // The goroutine holds no *Runtime reference so it cannot access loop-owned
-// state (conns, sessionPanes, subsystems, …) directly.
+// state (conns, sessionFrames, subsystems, …) directly.
 func (r *Runtime) buildSpawnDeps() spawnDeps {
 	return spawnDeps{
 		backend:      r.cfg.Backend,
@@ -51,7 +51,7 @@ func (r *Runtime) buildSpawnDeps() spawnDeps {
 // agent session that issued the POST /api/sessions that triggered the
 // spawn. Converting a panic into EvSpawnFailed keeps the failure scoped
 // to the one session being created; the rest of the daemon continues serving.
-func spawnPaneWindow(deps spawnDeps, e state.EffSpawnPaneWindow) {
+func spawnPaneWindow(deps spawnDeps, e state.EffSpawnFrame) {
 	sendFailed := func(msg string) {
 		deps.sendEvent(state.EvSpawnFailed{
 			SessionID: e.SessionID, FrameID: e.FrameID,
@@ -105,7 +105,7 @@ func spawnPaneWindow(deps spawnDeps, e state.EffSpawnPaneWindow) {
 	_, paneID, err := deps.backend.SpawnWindow(name, spawnCmd, wrapped.StartDir, wrapped.Env)
 	if err != nil {
 		// wrapLaunchForSpawn already acquired the sandbox/container; the pane never
-		// launched and no EvPaneSpawned/kill path will reach this frame, so
+		// launched and no EvFrameSpawned/kill path will reach this frame, so
 		// release it here to avoid leaking the container ref + cleanup closure.
 		if wrapped.Cleanup != nil {
 			if cerr := wrapped.Cleanup(); cerr != nil {
@@ -137,7 +137,7 @@ func spawnPaneWindow(deps spawnDeps, e state.EffSpawnPaneWindow) {
 //
 // Kept out of spawnPaneWindow's body so spawnPaneWindow stays under the
 // project-wide 80-line function cap (funlen lint).
-func recoverSpawnPanic(e state.EffSpawnPaneWindow, sendFailed func(string)) {
+func recoverSpawnPanic(e state.EffSpawnFrame, sendFailed func(string)) {
 	rec := recover()
 	if rec == nil {
 		return
@@ -153,10 +153,10 @@ func recoverSpawnPanic(e state.EffSpawnPaneWindow, sendFailed func(string)) {
 
 // handleSpawnComplete runs on the event loop. It stores the per-frame I/O
 // handles produced by spawnPaneWindow into loop-owned maps (and the container
-// registry), then dispatches the pure EvPaneSpawned event.
+// registry), then dispatches the pure EvFrameSpawned event.
 //
 // If the session or frame was killed while spawn was in flight (an
-// EffKillSessionWindow effect arrived on the loop before this completion),
+// EffKillFrame effect arrived on the loop before this completion),
 // store nothing and release the resources the goroutine acquired. Without
 // this check, handleSpawnComplete would write loop-owned maps for a frame
 // the reducer no longer knows about, leak the subsystem backend / container
@@ -176,7 +176,7 @@ func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
 		r.registerContainerFrame(e.effect.FrameID, e.effect.Project, e.containerSockDir, e.token, e.mounts)
 	}
 
-	r.dispatch(state.EvPaneSpawned{
+	r.dispatch(state.EvFrameSpawned{
 		SessionID:        e.effect.SessionID,
 		FrameID:          e.effect.FrameID,
 		SubsystemID:      e.subsystemID,
@@ -190,7 +190,7 @@ func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
 
 // spawnTargetAlive reports whether the (sessionID, frameID) pair the spawn
 // goroutine was launching for still exists in reducer state. A return of
-// false means EffKillSessionWindow ran on the loop while spawn was in flight.
+// false means EffKillFrame ran on the loop while spawn was in flight.
 // Loop-owned read — no synchronisation needed.
 func (r *Runtime) spawnTargetAlive(sessionID state.SessionID, frameID state.FrameID) bool {
 	sess, ok := r.state.Sessions[sessionID]
@@ -206,7 +206,7 @@ func (r *Runtime) spawnTargetAlive(sessionID state.SessionID, frameID state.Fram
 }
 
 // discardSpawnResult releases the resources a spawn goroutine acquired when
-// the loop discovers that EffKillSessionWindow ran first and the target frame
+// the loop discovers that EffKillFrame ran first and the target frame
 // is gone. Tears down what the goroutine produced (pane window, per-frame
 // subsystem binding, sandbox/container cleanup) and dispatches EvSpawnFailed
 // so the original CreateSession/AddFrame caller — which is still parked on
@@ -232,10 +232,10 @@ func (r *Runtime) discardSpawnResult(e internalSpawnComplete) {
 	slog.Info("runtime: discarding spawn-complete for killed frame",
 		"session", e.effect.SessionID, "frame", e.effect.FrameID,
 		"subsystem", e.subsystemID, "pane", e.paneID)
-	// Pane: kill synchronously on the loop. PtyBackend.KillPaneWindow is a map
+	// Pane: kill synchronously on the loop. PtyBackend.KillFrame is a map
 	// delete + a non-blocking SIGTERM dispatch, so this is cheap.
 	if e.paneID != "" {
-		if err := r.cfg.Backend.KillPaneWindow(e.paneID); err != nil {
+		if err := r.cfg.Backend.KillFrame(e.paneID); err != nil {
 			slog.Warn("runtime: kill orphan pane failed", "pane", e.paneID, "err", err)
 		}
 	}

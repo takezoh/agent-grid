@@ -138,7 +138,6 @@ func TestWireEncodeServerEvent_SessionsChanged_ViewUpdate(t *testing.T) {
 				},
 			},
 		},
-		ActiveSessionID: "s1",
 	}
 	got := encodeServerEvent(ev)
 	if got == nil {
@@ -168,18 +167,14 @@ func TestWireEncodeServerEvent_SessionsChanged_ViewUpdate(t *testing.T) {
 }
 
 // TestWireEncodeServerEvent_SessionsChanged_DropsActiveID guards the bug
-// where a non-empty daemon-side ActiveSessionID leaked into every web
-// client's view-update frame and clobbered their locally-tracked
-// selection. Each new session spawn (reducePaneSpawned) and many
-// other reducers mutate state.ActiveSession, and EffBroadcastSessionsChanged
-// fan-outs reach every connected browser — so even with a single web user
-// open, a background session creation or driver frame push would yank
-// their active tab away. The wire must NOT carry activeSessionID on
-// view-update frames; web selection is per-client and managed locally.
+// where a daemon-side active session id leaked into every web client's
+// view-update frame and clobbered their locally-tracked selection. The
+// daemon no longer tracks an active session at all, and the wire must NOT
+// carry activeSessionID on view-update frames; web selection is per-client
+// and managed locally.
 func TestWireEncodeServerEvent_SessionsChanged_DropsActiveID(t *testing.T) {
 	ev := proto.EvtSessionsChanged{
-		Sessions:        []proto.SessionInfo{{ID: "s1", CreatedAt: "2026-06-20T00:00:00Z"}},
-		ActiveSessionID: "s1",
+		Sessions: []proto.SessionInfo{{ID: "s1", CreatedAt: "2026-06-20T00:00:00Z"}},
 	}
 	got := encodeServerEvent(ev)
 	if got == nil {

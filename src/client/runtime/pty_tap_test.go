@@ -67,7 +67,7 @@ func waitChannelClosed(t *testing.T, ch <-chan []byte, budget time.Duration) {
 }
 
 // spawnPane spawns a pane under backend and returns its synthetic pane id. The
-// caller is responsible for backend.KillPaneWindow on cleanup.
+// caller is responsible for backend.KillFrame on cleanup.
 func spawnPane(t *testing.T, backend *PtyBackend, command string) string {
 	t.Helper()
 	_, paneID, err := backend.SpawnWindow("test", command, "", nil)
@@ -75,7 +75,7 @@ func spawnPane(t *testing.T, backend *PtyBackend, command string) string {
 		t.Fatalf("SpawnWindow: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = backend.KillPaneWindow(paneID)
+		_ = backend.KillFrame(paneID)
 	})
 	return paneID
 }
@@ -83,14 +83,14 @@ func spawnPane(t *testing.T, backend *PtyBackend, command string) string {
 func TestPtyPaneTap_Start_UnknownPaneReturnsMissing(t *testing.T) {
 	backend := NewPtyBackend(0)
 	t.Cleanup(func() { backend.mgr.CloseAll() })
-	tap := NewPtyPaneTap(backend)
+	tap := NewPtyFrameTap(backend)
 
 	_, err := tap.Start(context.Background(), "%999")
 	if err == nil {
 		t.Fatal("expected error for unknown pane")
 	}
-	if !errors.Is(err, ErrPaneMissing) {
-		t.Fatalf("err = %v, want errors.Is ErrPaneMissing", err)
+	if !errors.Is(err, ErrFrameMissing) {
+		t.Fatalf("err = %v, want errors.Is ErrFrameMissing", err)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestPtyPaneTap_Start_DeliversSnapshotFirst(t *testing.T) {
 	t.Cleanup(func() { backend.mgr.CloseAll() })
 
 	pane := spawnPane(t, backend, "sleep 1")
-	tap := NewPtyPaneTap(backend)
+	tap := NewPtyFrameTap(backend)
 
 	ch, err := tap.Start(context.Background(), pane)
 	if err != nil {
@@ -125,11 +125,11 @@ func TestPtyPaneTap_ForwardsOutputChunks(t *testing.T) {
 	t.Cleanup(func() { backend.mgr.CloseAll() })
 
 	// printf emits an OSC 9 escape; termvt fans the raw bytes out as an
-	// EventOutput in addition to surfacing the structured Control. PtyPaneTap
+	// EventOutput in addition to surfacing the structured Control. PtyFrameTap
 	// drops the Control side and forwards the raw bytes, which is exactly what
-	// tap_manager's vt.Terminal then re-parses to fire EvPaneOsc.
+	// tap_manager's vt.Terminal then re-parses to fire EvFrameOsc.
 	pane := spawnPane(t, backend, `printf '\033]9;tap-test\a'; sleep 0.5`)
-	tap := NewPtyPaneTap(backend)
+	tap := NewPtyFrameTap(backend)
 
 	ch, err := tap.Start(context.Background(), pane)
 	if err != nil {
@@ -145,7 +145,7 @@ func TestPtyPaneTap_Stop_ClosesChannel(t *testing.T) {
 	t.Cleanup(func() { backend.mgr.CloseAll() })
 
 	pane := spawnPane(t, backend, "sleep 5")
-	tap := NewPtyPaneTap(backend)
+	tap := NewPtyFrameTap(backend)
 
 	ch, err := tap.Start(context.Background(), pane)
 	if err != nil {
@@ -171,7 +171,7 @@ func TestPtyPaneTap_ContextCancelClosesChannel(t *testing.T) {
 	t.Cleanup(func() { backend.mgr.CloseAll() })
 
 	pane := spawnPane(t, backend, "sleep 5")
-	tap := NewPtyPaneTap(backend)
+	tap := NewPtyFrameTap(backend)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ch, err := tap.Start(ctx, pane)
@@ -189,11 +189,11 @@ func TestPtyPaneTap_SessionExitClosesChannel(t *testing.T) {
 
 	// printf + a short sleep keeps the session alive long enough for Start to
 	// subscribe before the process exits. The Start-side ExitCode guard turns
-	// an already-reaped Session into ErrPaneMissing, so a bare `echo bye`
+	// an already-reaped Session into ErrFrameMissing, so a bare `echo bye`
 	// would race the reaper and intermittently exercise the missing-pane
 	// path instead of the EventExit → channel-close path this test pins.
 	pane := spawnPane(t, backend, `printf 'bye'; sleep 0.3`)
-	tap := NewPtyPaneTap(backend)
+	tap := NewPtyFrameTap(backend)
 
 	ch, err := tap.Start(context.Background(), pane)
 	if err != nil {
@@ -212,17 +212,17 @@ func TestPtyPaneTap_RespawnSamePane(t *testing.T) {
 	t.Cleanup(func() { backend.mgr.CloseAll() })
 
 	pane := spawnPane(t, backend, "sleep 5")
-	tap := NewPtyPaneTap(backend)
+	tap := NewPtyFrameTap(backend)
 
 	firstCh, err := tap.Start(context.Background(), pane)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// RespawnPane closes the previous session, which closes firstCh through
+	// RespawnFrame closes the previous session, which closes firstCh through
 	// EventExit. A subsequent Start must subscribe to the new session.
-	if err := backend.RespawnPane(pane, `printf 'after-respawn'; sleep 0.5`); err != nil {
-		t.Fatalf("RespawnPane: %v", err)
+	if err := backend.RespawnFrame(pane, `printf 'after-respawn'; sleep 0.5`); err != nil {
+		t.Fatalf("RespawnFrame: %v", err)
 	}
 	waitChannelClosed(t, firstCh, 2*time.Second)
 

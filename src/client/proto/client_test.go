@@ -131,8 +131,7 @@ func TestClientReceivesEvents(t *testing.T) {
 	defer c.Close()
 
 	wire, _ := EncodeEvent(EvtSessionsChanged{
-		Sessions:        []SessionInfo{{ID: "abc"}},
-		ActiveSessionID: "abc",
+		Sessions: []SessionInfo{{ID: "abc"}},
 	})
 	server.send(wire)
 
@@ -142,7 +141,7 @@ func TestClientReceivesEvents(t *testing.T) {
 		if !ok {
 			t.Fatalf("event type = %T", ev)
 		}
-		if got.ActiveSessionID != "abc" || len(got.Sessions) != 1 {
+		if len(got.Sessions) != 1 || got.Sessions[0].ID != "abc" {
 			t.Errorf("event = %+v", got)
 		}
 	case <-time.After(time.Second):
@@ -191,11 +190,6 @@ func TestDecodeResponseByCommandHeuristics(t *testing.T) {
 			want: "RespSessions",
 		},
 		{
-			name: "active-session",
-			data: mustMarshal(RespActiveSession{ActiveSessionID: "abc"}),
-			want: "RespActiveSession",
-		},
-		{
 			name: "surface-text",
 			data: mustMarshal(RespSurfaceText{Text: "hello"}),
 			want: "RespSurfaceText",
@@ -242,8 +236,6 @@ func typeName(r Response) string {
 		return "RespCreateSession"
 	case RespSessions:
 		return "RespSessions"
-	case RespActiveSession:
-		return "RespActiveSession"
 	case RespSurfaceText:
 		return "RespSurfaceText"
 	case RespDriverList:

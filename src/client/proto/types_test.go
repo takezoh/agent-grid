@@ -50,7 +50,6 @@ func TestResponseInterface(t *testing.T) {
 	var _ Response = RespOK{}
 	var _ Response = RespCreateSession{}
 	var _ Response = RespSessions{}
-	var _ Response = RespActiveSession{}
 	var _ Response = RespSurfaceText{}
 	var _ Response = RespDriverList{}
 }

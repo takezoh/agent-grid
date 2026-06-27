@@ -20,10 +20,8 @@ const (
 // EvtSessionsChanged carries the current session table. Sent on
 // every state change that affects what clients should render.
 type EvtSessionsChanged struct {
-	Sessions        []SessionInfo `json:"sessions"`
-	ActiveSessionID string        `json:"active_session_id,omitempty"`
-	IsPreview       bool          `json:"is_preview,omitempty"`
-	Features        []string      `json:"features,omitempty"`
+	Sessions []SessionInfo `json:"sessions"`
+	Features []string      `json:"features,omitempty"`
 }
 
 func (EvtSessionsChanged) isEvent()          {}

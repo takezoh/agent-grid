@@ -94,7 +94,7 @@ func (c *CommonState) HandleTick(e state.DEvTick, hasActiveSubagents bool) []sta
 
 	// Branch refresh: only when the session is active (swapped into 0.0)
 	// and the cache is stale or the working dir changed.
-	if e.Active {
+	if e.Watched {
 		target := c.StartDir
 		if target == "" {
 			target = e.Project

@@ -153,7 +153,7 @@ func (d ShellDriver) Step(prev state.DriverState, ctx state.FrameContext, ev sta
 
 	switch e := ev.(type) {
 	case state.DEvTick:
-		if !e.Active && ss.Status != state.StatusRunning {
+		if !e.Watched && ss.Status != state.StatusRunning {
 			return ss, nil, d.view(ss)
 		}
 		effs := ss.HandleTick(e, false)
@@ -163,7 +163,7 @@ func (d ShellDriver) Step(prev state.DriverState, ctx state.FrameContext, ev sta
 		ss = d.applyJobResult(ss, e)
 		return ss, nil, d.view(ss)
 
-	case state.DEvPanePrompt:
+	case state.DEvFramePrompt:
 		ss = applyShellPromptEvent(ss, e)
 		return ss, nil, d.view(ss)
 
@@ -181,7 +181,7 @@ func (d ShellDriver) Step(prev state.DriverState, ctx state.FrameContext, ev sta
 	return ss, nil, d.view(ss)
 }
 
-func applyShellPromptEvent(ss ShellState, e state.DEvPanePrompt) ShellState {
+func applyShellPromptEvent(ss ShellState, e state.DEvFramePrompt) ShellState {
 	ss.SawPromptEvent = true
 	prev := ss.Status
 	switch e.Phase {

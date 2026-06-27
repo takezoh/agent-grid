@@ -10,7 +10,7 @@ func TestReducePaneOsc_EmitsRecordNotification(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	ev := EvPaneOsc{FrameID: frameID, Cmd: 9, Title: "hello", Body: ""}
+	ev := EvFrameOsc{FrameID: frameID, Cmd: 9, Title: "hello", Body: ""}
 	_, effs := Reduce(s, ev)
 
 	if len(effs) != 1 {
@@ -37,7 +37,7 @@ func TestReducePaneOsc_EmptyTitleBody_NoEffect(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 9, Title: "", Body: ""})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 9, Title: "", Body: ""})
 	if len(effs) != 0 {
 		t.Errorf("expected no effects for empty notification, got %d", len(effs))
 	}
@@ -45,7 +45,7 @@ func TestReducePaneOsc_EmptyTitleBody_NoEffect(t *testing.T) {
 
 func TestReducePaneOsc_UnknownFrame_NoEffect(t *testing.T) {
 	s := New()
-	_, effs := Reduce(s, EvPaneOsc{FrameID: "ghost", Cmd: 9, Title: "hi"})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: "ghost", Cmd: 9, Title: "hi"})
 	if len(effs) != 0 {
 		t.Errorf("expected no effects for unknown frame, got %d", len(effs))
 	}
@@ -57,7 +57,7 @@ func TestReducePaneOsc_OSC0_RoutesToDriver_NotRecordNotification(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 0, Title: "✳ Claude Code"})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 0, Title: "✳ Claude Code"})
 
 	for _, e := range effs {
 		if _, ok := e.(EffRecordNotification); ok {
@@ -72,7 +72,7 @@ func TestReducePaneOsc_OSC0_AppendsEventLog(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 0, Title: "✳ Claude Code"})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 0, Title: "✳ Claude Code"})
 
 	logEff, ok := findEff[EffEventLogAppend](effs)
 	if !ok {
@@ -92,7 +92,7 @@ func TestReducePaneOsc_OSC2_AppendsEventLog(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 2, Title: "✋ Action Required"})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 2, Title: "✋ Action Required"})
 
 	logEff, ok := findEff[EffEventLogAppend](effs)
 	if !ok {
@@ -109,7 +109,7 @@ func TestReducePaneOsc_OSC0_EmptyTitle_NoEffect(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 0, Title: ""})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 0, Title: ""})
 	if len(effs) != 0 {
 		t.Errorf("expected no effects for empty OSC 0 title, got %d", len(effs))
 	}
@@ -121,7 +121,7 @@ func TestReducePaneOsc_OSC2_RoutesToDriver_NotRecordNotification(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 2, Title: "✋ Action Required"})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 2, Title: "✋ Action Required"})
 
 	for _, e := range effs {
 		if _, ok := e.(EffRecordNotification); ok {
@@ -136,7 +136,7 @@ func TestReducePaneOsc_OSC2_EmptyTitle_NoEffect(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 2, Title: ""})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 2, Title: ""})
 	if len(effs) != 0 {
 		t.Errorf("expected no effects for empty OSC 2 title, got %d", len(effs))
 	}
@@ -144,7 +144,7 @@ func TestReducePaneOsc_OSC2_EmptyTitle_NoEffect(t *testing.T) {
 
 func TestReducePanePrompt_UnknownFrame_NoEffect(t *testing.T) {
 	s := New()
-	_, effs := Reduce(s, EvPanePrompt{FrameID: "ghost", Phase: PromptPhaseInput})
+	_, effs := Reduce(s, EvFramePrompt{FrameID: "ghost", Phase: PromptPhaseInput})
 	if len(effs) != 0 {
 		t.Errorf("expected no effects for unknown frame, got %d", len(effs))
 	}
@@ -158,10 +158,10 @@ func TestReducePanePrompt_RoutesToDriver(t *testing.T) {
 
 	// stubSession uses stubDriver which returns nil effects for all events,
 	// so we just verify no EffRecordNotification (prompt events are not notifications).
-	_, effs := Reduce(s, EvPanePrompt{FrameID: frameID, Phase: PromptPhaseInput})
+	_, effs := Reduce(s, EvFramePrompt{FrameID: frameID, Phase: PromptPhaseInput})
 	for _, e := range effs {
 		if _, ok := e.(EffRecordNotification); ok {
-			t.Error("EvPanePrompt should not produce EffRecordNotification")
+			t.Error("EvFramePrompt should not produce EffRecordNotification")
 		}
 	}
 }
@@ -172,10 +172,10 @@ func TestReducePanePrompt_AppendsEventLog_Input(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPanePrompt{FrameID: frameID, Phase: PromptPhaseInput})
+	_, effs := Reduce(s, EvFramePrompt{FrameID: frameID, Phase: PromptPhaseInput})
 	logEff, ok := findEff[EffEventLogAppend](effs)
 	if !ok {
-		t.Fatal("EvPanePrompt should produce EffEventLogAppend")
+		t.Fatal("EvFramePrompt should produce EffEventLogAppend")
 	}
 	if logEff.Line != "[osc133] phase=input" {
 		t.Errorf("Line = %q, want %q", logEff.Line, "[osc133] phase=input")
@@ -189,10 +189,10 @@ func TestReducePanePrompt_AppendsEventLog_CompleteWithExitCode(t *testing.T) {
 	frameID := FrameID(sessID)
 
 	code := 42
-	_, effs := Reduce(s, EvPanePrompt{FrameID: frameID, Phase: PromptPhaseComplete, ExitCode: &code})
+	_, effs := Reduce(s, EvFramePrompt{FrameID: frameID, Phase: PromptPhaseComplete, ExitCode: &code})
 	logEff, ok := findEff[EffEventLogAppend](effs)
 	if !ok {
-		t.Fatal("EvPanePrompt should produce EffEventLogAppend")
+		t.Fatal("EvFramePrompt should produce EffEventLogAppend")
 	}
 	if logEff.Line != "[osc133] phase=complete exit=42" {
 		t.Errorf("Line = %q, want %q", logEff.Line, "[osc133] phase=complete exit=42")
@@ -205,7 +205,7 @@ func TestReducePanePrompt_AppendsPersistAndBroadcastWithoutDriverEffects(t *test
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPanePrompt{FrameID: frameID, Phase: PromptPhaseInput})
+	_, effs := Reduce(s, EvFramePrompt{FrameID: frameID, Phase: PromptPhaseInput})
 	if _, ok := findEff[EffPersistSnapshot](effs); !ok {
 		t.Fatal("expected EffPersistSnapshot")
 	}
@@ -220,7 +220,7 @@ func TestReducePaneOsc_OSC9_StillEmitsRecordNotification(t *testing.T) {
 	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
 	frameID := FrameID(sessID)
 
-	_, effs := Reduce(s, EvPaneOsc{FrameID: frameID, Cmd: 9, Title: "ping"})
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 9, Title: "ping"})
 	if _, ok := findEff[EffRecordNotification](effs); !ok {
 		t.Error("OSC 9 should still produce EffRecordNotification")
 	}

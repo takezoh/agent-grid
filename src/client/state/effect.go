@@ -10,11 +10,11 @@ type Effect interface {
 
 // === pane backend operations (synchronous, fast — interpret inline) ===
 
-// EffSpawnPaneWindow asks the runtime to create a new pane window for
+// EffSpawnFrame asks the runtime to create a new pane window for
 // the given session. The runtime executes this and feeds back
-// EvPaneSpawned / EvSpawnFailed, forwarding the Reply*
+// EvFrameSpawned / EvSpawnFailed, forwarding the Reply*
 // fields so the reducer can complete the create-session round trip.
-type EffSpawnPaneWindow struct {
+type EffSpawnFrame struct {
 	SessionID  SessionID
 	FrameID    FrameID
 	Mode       LaunchMode
@@ -31,37 +31,37 @@ type EffSpawnPaneWindow struct {
 	ReplyReqID string
 }
 
-// EffKillSessionWindow destroys the pane window containing the given session pane.
-// The runtime looks up the pane target from its sessionPanes map.
-type EffKillSessionWindow struct {
+// EffKillFrame destroys the pane window containing the given session pane.
+// The runtime looks up the pane target from its sessionFrames map.
+type EffKillFrame struct {
 	FrameID FrameID
 }
 
-// EffRegisterPane records the pane target for a session in the runtime
+// EffRegisterFrame records the pane target for a session in the runtime
 // and saves it as a session-level env var. Tap controls whether a
-// byte tap (PaneTap) is started for this pane — only root frames need
+// byte tap (FrameTap) is started for this pane — only root frames need
 // taps since driver state for non-root frames is not displayed in the UI.
-type EffRegisterPane struct {
+type EffRegisterFrame struct {
 	FrameID    FrameID
 	PaneTarget string
 	Tap        bool
 }
 
-// EffUnregisterPane removes a session from the runtime's pane map and
+// EffUnregisterFrame removes a session from the runtime's pane map and
 // deletes the corresponding session-level env var.
-type EffUnregisterPane struct {
+type EffUnregisterFrame struct {
 	FrameID FrameID
 }
 
-// EffSetPaneEnv writes a session-level environment variable.
+// EffSetSessionEnv writes a session-level environment variable.
 // Empty Value is treated as unset.
-type EffSetPaneEnv struct {
+type EffSetSessionEnv struct {
 	Key   string
 	Value string
 }
 
-// EffUnsetPaneEnv removes a session-level env var.
-type EffUnsetPaneEnv struct {
+// EffUnsetSessionEnv removes a session-level env var.
+type EffUnsetSessionEnv struct {
 	Key string
 }
 
@@ -81,9 +81,9 @@ type EffReleaseFrameSandboxes struct{}
 //
 // Emitted by evictFrame (root + child) and reduceFrameCommandExited (異常
 // exit 枝) so pane が vanish しても crash しても sandbox は確実に release
-// される。 EffKillSessionWindow とは責務を分けていて、 後者は backend
+// される。 EffKillFrame とは責務を分けていて、 後者は backend
 // pane window を kill するためだけのもの。 pane window が既に消えていて
-// EffKillSessionWindow が要らない経路 (EvPaneWindowVanished) でも sandbox
+// EffKillFrame が要らない経路 (EvFrameVanished) でも sandbox
 // release は別途必要なので別 effect に分けてある。
 type EffReleaseFrameSandbox struct {
 	FrameID FrameID
@@ -121,9 +121,7 @@ type EffSendError struct {
 // sessions-changed payload from State and broadcast it to subscribers.
 // No payload is carried — runtime reads State directly so we don't
 // pay for an extra clone.
-type EffBroadcastSessionsChanged struct {
-	IsPreview bool
-}
+type EffBroadcastSessionsChanged struct{}
 
 // EffBroadcastEvent broadcasts a generic typed event to subscribers
 // matching FilterTag (empty = no filter).
@@ -138,10 +136,10 @@ type EffCloseConn struct {
 	ConnID ConnID
 }
 
-// EffSendPaneKeys asks the runtime to send key input against the pane
+// EffSendFrameKeys asks the runtime to send key input against the pane
 // belonging to SessionID. WithEnter=true appends an Enter keypress (send_text
 // semantics); WithEnter=false sends Key as a literal key name (send_key semantics).
-type EffSendPaneKeys struct {
+type EffSendFrameKeys struct {
 	ConnID    ConnID
 	ReqID     string
 	SessionID SessionID
@@ -190,7 +188,7 @@ type EffToolLogAppend struct {
 // === Reconciliation ===
 
 // EffReconcileWindows asks the runtime to compare the live backend
-// window list against state.Sessions and emit EvPaneWindowVanished
+// window list against state.Sessions and emit EvFrameVanished
 // for any session whose window has disappeared.
 type EffReconcileWindows struct{}
 
@@ -234,12 +232,12 @@ type EffStartJob struct {
 
 // === isEffect markers ===
 
-func (EffSpawnPaneWindow) isEffect()          {}
-func (EffKillSessionWindow) isEffect()        {}
-func (EffRegisterPane) isEffect()             {}
-func (EffUnregisterPane) isEffect()           {}
-func (EffSetPaneEnv) isEffect()               {}
-func (EffUnsetPaneEnv) isEffect()             {}
+func (EffSpawnFrame) isEffect()               {}
+func (EffKillFrame) isEffect()                {}
+func (EffRegisterFrame) isEffect()            {}
+func (EffUnregisterFrame) isEffect()          {}
+func (EffSetSessionEnv) isEffect()            {}
+func (EffUnsetSessionEnv) isEffect()          {}
 func (EffReleaseFrameSandboxes) isEffect()    {}
 func (EffReleaseFrameSandbox) isEffect()      {}
 func (EffSendResponse) isEffect()             {}
@@ -256,13 +254,13 @@ func (EffToolLogAppend) isEffect()            {}
 func (EffReconcileWindows) isEffect()         {}
 func (EffStartJob) isEffect()                 {}
 func (EffRecordNotification) isEffect()       {}
-func (EffSendPaneKeys) isEffect()             {}
+func (EffSendFrameKeys) isEffect()            {}
 
 // === Surface streaming (PR-2 reducer-only; runtime wires in PR-3) ===
 
 // EffSurfaceSubscribeStart asks the runtime to begin streaming pane
 // output for SessionID toward ConnID. The reducer guarantees the
-// session exists and that ActiveFrame is non-nil before emitting this.
+// session exists and that the head frame is non-nil before emitting this.
 // The runtime is responsible for starting the relay goroutine.
 type EffSurfaceSubscribeStart struct {
 	ConnID    ConnID
@@ -284,7 +282,7 @@ func (EffSurfaceSubscribeStop) isEffect() {}
 
 // EffSurfaceResize forwards a logical resize request to the pty backend
 // behind SessionID. The runtime resolves the backend from its internal
-// sessionPanes map.
+// sessionFrames map.
 type EffSurfaceResize struct {
 	SessionID SessionID
 	Cols      uint16

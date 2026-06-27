@@ -2,7 +2,7 @@ package state
 
 // SurfaceReadTextReply is the marker passed to EffSendResponseSync.Body for
 // surface.read_text. The runtime resolves the pane target from its internal
-// sessionPanes map and calls CapturePane to fill in the text.
+// sessionFrames map and calls CaptureFrame to fill in the text.
 type SurfaceReadTextReply struct {
 	SessionID SessionID
 	Lines     int
@@ -14,9 +14,6 @@ type DriverListReply struct{}
 
 func reduceSurfaceReadText(s State, e EvCmdSurfaceReadText) (State, []Effect) {
 	sid := e.SessionID
-	if sid == "" {
-		sid = s.ActiveSession
-	}
 	if _, ok := s.Sessions[sid]; !ok {
 		return s, []Effect{EffSendError{
 			ConnID:  e.ConnID,
@@ -38,9 +35,6 @@ func reduceSurfaceReadText(s State, e EvCmdSurfaceReadText) (State, []Effect) {
 
 func reduceSurfaceSendText(s State, e EvCmdSurfaceSendText) (State, []Effect) {
 	sid := e.SessionID
-	if sid == "" {
-		sid = s.ActiveSession
-	}
 	if _, ok := s.Sessions[sid]; !ok {
 		return s, []Effect{EffSendError{
 			ConnID:  e.ConnID,
@@ -49,7 +43,7 @@ func reduceSurfaceSendText(s State, e EvCmdSurfaceSendText) (State, []Effect) {
 			Message: "session not found: " + string(sid),
 		}}
 	}
-	return s, []Effect{EffSendPaneKeys{
+	return s, []Effect{EffSendFrameKeys{
 		ConnID:    e.ConnID,
 		ReqID:     e.ReqID,
 		SessionID: sid,
@@ -60,9 +54,6 @@ func reduceSurfaceSendText(s State, e EvCmdSurfaceSendText) (State, []Effect) {
 
 func reduceSurfaceSendKey(s State, e EvCmdSurfaceSendKey) (State, []Effect) {
 	sid := e.SessionID
-	if sid == "" {
-		sid = s.ActiveSession
-	}
 	if _, ok := s.Sessions[sid]; !ok {
 		return s, []Effect{EffSendError{
 			ConnID:  e.ConnID,
@@ -71,7 +62,7 @@ func reduceSurfaceSendKey(s State, e EvCmdSurfaceSendKey) (State, []Effect) {
 			Message: "session not found: " + string(sid),
 		}}
 	}
-	return s, []Effect{EffSendPaneKeys{
+	return s, []Effect{EffSendFrameKeys{
 		ConnID:    e.ConnID,
 		ReqID:     e.ReqID,
 		SessionID: sid,
@@ -90,14 +81,11 @@ func reduceDriverList(s State, e EvCmdDriverList) (State, []Effect) {
 
 func reduceSurfaceSubscribe(s State, e EvCmdSurfaceSubscribe) (State, []Effect) {
 	sid := e.SessionID
-	if sid == "" {
-		sid = s.ActiveSession
-	}
 	sess, ok := s.Sessions[sid]
 	if !ok {
 		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeNotFound, "session not found: "+string(sid))}
 	}
-	if _, ok := activeFrame(sess); !ok {
+	if _, ok := headFrame(sess); !ok {
 		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeFrameNotReady, "frame-not-ready: "+string(sid))}
 	}
 	existing := s.SurfaceSubs[e.ConnID]
@@ -123,9 +111,6 @@ func reduceSurfaceSubscribe(s State, e EvCmdSurfaceSubscribe) (State, []Effect) 
 
 func reduceSurfaceUnsubscribe(s State, e EvCmdSurfaceUnsubscribe) (State, []Effect) {
 	sid := e.SessionID
-	if sid == "" {
-		sid = s.ActiveSession
-	}
 	if _, ok := s.SurfaceSubs[e.ConnID][sid]; !ok {
 		return s, []Effect{okResp(e.ConnID, e.ReqID, nil)}
 	}
@@ -142,9 +127,6 @@ func reduceSurfaceUnsubscribe(s State, e EvCmdSurfaceUnsubscribe) (State, []Effe
 
 func reduceSurfaceResize(s State, e EvCmdSurfaceResize) (State, []Effect) {
 	sid := e.SessionID
-	if sid == "" {
-		sid = s.ActiveSession
-	}
 	if _, ok := s.Sessions[sid]; !ok {
 		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeNotFound, "session not found: "+string(sid))}
 	}
@@ -156,9 +138,6 @@ func reduceSurfaceResize(s State, e EvCmdSurfaceResize) (State, []Effect) {
 
 func reduceSurfaceWriteRaw(s State, e EvCmdSurfaceWriteRaw) (State, []Effect) {
 	sid := e.SessionID
-	if sid == "" {
-		sid = s.ActiveSession
-	}
 	if _, ok := s.Sessions[sid]; !ok {
 		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeNotFound, "session not found: "+string(sid))}
 	}

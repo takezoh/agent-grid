@@ -142,15 +142,15 @@ func AttachWS(ctx context.Context, sess Attacher, sessionID string, c *websocket
 }
 
 // helloFrame is the first server→browser frame for a lifecycle WebSocket.
-// It seeds the browser with the current sessions / activeSessionID / features
-// so the React store can render the initial view before any subsequent
-// view-update arrives.
+// It seeds the browser with the current sessions / features so the React
+// store can render the initial view before any subsequent view-update
+// arrives. The web client owns its own active-session-per-tab, so no active
+// session id is shipped.
 type helloFrame struct {
-	K               string              `json:"k"` // always "h"
-	Sessions        []proto.SessionInfo `json:"sessions"`
-	ActiveSessionID string              `json:"activeSessionID,omitempty"`
-	Features        []string            `json:"features"`
-	ServerTime      int64               `json:"serverTime"`
+	K          string              `json:"k"` // always "h"
+	Sessions   []proto.SessionInfo `json:"sessions"`
+	Features   []string            `json:"features"`
+	ServerTime int64               `json:"serverTime"`
 }
 
 // encodeHelloFrame encodes EvtSessionsChanged as the initial hello frame.
@@ -165,11 +165,10 @@ func encodeHelloFrame(sc proto.EvtSessionsChanged, serverTime int64) []byte {
 		features = []string{}
 	}
 	h := helloFrame{
-		K:               "h",
-		Sessions:        sessions,
-		ActiveSessionID: sc.ActiveSessionID,
-		Features:        features,
-		ServerTime:      serverTime,
+		K:          "h",
+		Sessions:   sessions,
+		Features:   features,
+		ServerTime: serverTime,
 	}
 	b, err := json.Marshal(h)
 	if err != nil {

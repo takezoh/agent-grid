@@ -14,7 +14,7 @@ func TestClaudeTickEarlyReturnOnIdle(t *testing.T) {
 
 	next, effs := d.handleTick(cs, state.DEvTick{
 		Now:        now.Add(time.Second),
-		Active:     true,
+		Watched:    true,
 		Project:    "/repo",
 		PaneTarget: "%5",
 	})
@@ -33,7 +33,7 @@ func TestClaudeTickEarlyReturnOnStopped(t *testing.T) {
 
 	_, effs := d.handleTick(cs, state.DEvTick{
 		Now:        now.Add(time.Second),
-		Active:     true,
+		Watched:    true,
 		Project:    "/repo",
 		PaneTarget: "%5",
 	})
@@ -49,7 +49,7 @@ func TestClaudeTickRunsOnRunning(t *testing.T) {
 
 	_, effs := d.handleTick(cs, state.DEvTick{
 		Now:     now.Add(time.Second),
-		Active:  true,
+		Watched: true,
 		Project: "/repo",
 	})
 	// Running + active + non-empty target → branch refresh should fire
@@ -74,7 +74,7 @@ func TestClaudeStepNonRootSkipsTick(t *testing.T) {
 	cs.Status = state.StatusRunning
 	cs.StartDir = "/repo"
 	next, effs, _ := d.Step(cs, state.FrameContext{IsRoot: false}, state.DEvTick{
-		Now: now.Add(time.Second), Active: true, Project: "/repo", PaneTarget: "%5",
+		Now: now.Add(time.Second), Watched: true, Project: "/repo", PaneTarget: "%5",
 	})
 	if len(effs) != 0 {
 		t.Errorf("non-root DEvTick effects = %d, want 0", len(effs))
@@ -86,11 +86,11 @@ func TestClaudeStepNonRootSkipsTick(t *testing.T) {
 
 func TestClaudeStepNonRootSkipsPaneOsc(t *testing.T) {
 	d, cs, now := newClaude(t)
-	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: false}, state.DEvPaneOsc{
+	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: false}, state.DEvFrameOsc{
 		Cmd: 0, Title: "✳ Done", Now: now.Add(time.Second),
 	})
 	// handleWindowTitle would otherwise mutate Status when "Done" appears.
 	if next.(ClaudeState).Status != cs.Status {
-		t.Errorf("non-root DEvPaneOsc mutated Status: got %v, want %v", next.(ClaudeState).Status, cs.Status)
+		t.Errorf("non-root DEvFrameOsc mutated Status: got %v, want %v", next.(ClaudeState).Status, cs.Status)
 	}
 }

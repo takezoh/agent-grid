@@ -18,9 +18,9 @@ import (
 // risking deadlock on the channel.
 func (r *Runtime) execute(eff state.Effect) {
 	switch e := eff.(type) {
-	case state.EffSpawnPaneWindow, state.EffKillSessionWindow,
-		state.EffRegisterPane, state.EffUnregisterPane,
-		state.EffSetPaneEnv, state.EffUnsetPaneEnv,
+	case state.EffSpawnFrame, state.EffKillFrame,
+		state.EffRegisterFrame, state.EffUnregisterFrame,
+		state.EffSetSessionEnv, state.EffUnsetSessionEnv,
 		state.EffReconcileWindows:
 		r.executePaneEffect(e)
 
@@ -31,7 +31,7 @@ func (r *Runtime) execute(eff state.Effect) {
 	case state.EffWatchFile, state.EffUnwatchFile:
 		r.executeFSEffect(e)
 
-	case state.EffSendPaneKeys:
+	case state.EffSendFrameKeys:
 		r.executeSendPaneKeys(e)
 
 	case state.EffSurfaceSubscribeStart, state.EffSurfaceSubscribeStop,
@@ -105,7 +105,7 @@ func (r *Runtime) executeRecordNotification(e state.EffRecordNotification) {
 	}
 }
 
-func (r *Runtime) executeSendPaneKeys(e state.EffSendPaneKeys) {
+func (r *Runtime) executeSendPaneKeys(e state.EffSendFrameKeys) {
 	pane := r.sessionPaneForSession(e.SessionID)
 	if pane == "" {
 		r.executeIPCEffect(state.EffSendError{
@@ -196,32 +196,32 @@ func (r *Runtime) executeSurfaceEffect(eff state.Effect) {
 
 func (r *Runtime) executePaneEffect(eff state.Effect) {
 	switch e := eff.(type) {
-	case state.EffSpawnPaneWindow:
+	case state.EffSpawnFrame:
 		go spawnPaneWindow(r.buildSpawnDeps(), e)
-	case state.EffKillSessionWindow:
+	case state.EffKillFrame:
 		r.executeKillSessionWindow(e)
-	case state.EffRegisterPane:
+	case state.EffRegisterFrame:
 		r.executeRegisterPane(e)
-	case state.EffUnregisterPane:
+	case state.EffUnregisterFrame:
 		r.executeUnregisterPane(e)
-	case state.EffSetPaneEnv:
+	case state.EffSetSessionEnv:
 		_ = r.cfg.Backend.SetEnv(e.Key, e.Value)
-	case state.EffUnsetPaneEnv:
+	case state.EffUnsetSessionEnv:
 		_ = r.cfg.Backend.UnsetEnv(e.Key)
 	case state.EffReconcileWindows:
 		r.reconcileWindows()
 	}
 }
 
-func (r *Runtime) executeKillSessionWindow(e state.EffKillSessionWindow) {
-	if target := r.sessionPanes[e.FrameID]; target != "" {
-		if tail, err := r.cfg.Backend.CapturePane(target, 20); err == nil && tail != "" {
+func (r *Runtime) executeKillSessionWindow(e state.EffKillFrame) {
+	if target := r.sessionFrames[e.FrameID]; target != "" {
+		if tail, err := r.cfg.Backend.CaptureFrame(target, 20); err == nil && tail != "" {
 			slog.Info("runtime: pane tail on kill", "frame", e.FrameID, "target", target, "tail", tail)
 		}
-		if err := r.cfg.Backend.KillPaneWindow(target); err != nil {
+		if err := r.cfg.Backend.KillFrame(target); err != nil {
 			slog.Error("runtime: kill window failed", "target", target, "err", err)
 		}
-		delete(r.sessionPanes, e.FrameID)
+		delete(r.sessionFrames, e.FrameID)
 	}
 	if r.warmFrames != nil {
 		if err := r.warmFrames.Delete(e.FrameID); err != nil {
@@ -240,24 +240,24 @@ func (r *Runtime) executeKillSessionWindow(e state.EffKillSessionWindow) {
 	}
 }
 
-func (r *Runtime) executeRegisterPane(e state.EffRegisterPane) {
-	r.sessionPanes[e.FrameID] = e.PaneTarget
-	_ = r.cfg.Backend.SetEnv(sessionPaneEnvKey(e.FrameID), e.PaneTarget)
+func (r *Runtime) executeRegisterPane(e state.EffRegisterFrame) {
+	r.sessionFrames[e.FrameID] = e.PaneTarget
+	_ = r.cfg.Backend.SetEnv(sessionFrameEnvKey(e.FrameID), e.PaneTarget)
 	if e.Tap && r.taps != nil {
 		r.taps.start(e.FrameID, e.PaneTarget, r.Enqueue)
 	}
 }
 
-func (r *Runtime) executeUnregisterPane(e state.EffUnregisterPane) {
-	target, ok := r.sessionPanes[e.FrameID]
+func (r *Runtime) executeUnregisterPane(e state.EffUnregisterFrame) {
+	target, ok := r.sessionFrames[e.FrameID]
 	if !ok {
 		return
 	}
 	if r.taps != nil {
 		r.taps.stop(e.FrameID)
 	}
-	delete(r.sessionPanes, e.FrameID)
-	_ = r.cfg.Backend.UnsetEnv(sessionPaneEnvKey(e.FrameID))
+	delete(r.sessionFrames, e.FrameID)
+	_ = r.cfg.Backend.UnsetEnv(sessionFrameEnvKey(e.FrameID))
 	r.cfg.EventLog.Close(e.FrameID)
 	if r.cfg.TerminalEvict != nil {
 		r.cfg.TerminalEvict(target)
@@ -273,7 +273,7 @@ func (r *Runtime) executeIPCEffect(eff state.Effect) {
 	case state.EffSendError:
 		r.sendError(e)
 	case state.EffBroadcastSessionsChanged:
-		r.broadcastSessionsChanged(e.IsPreview)
+		r.broadcastSessionsChanged()
 	case state.EffBroadcastEvent:
 		r.broadcastGenericEvent(e)
 	case state.EffCloseConn:
@@ -352,13 +352,13 @@ func (r *Runtime) snapshotSessions() []SessionSnapshot {
 			mruIDs[i] = string(id)
 		}
 		out = append(out, SessionSnapshot{
-			ID:            string(sess.ID),
-			Project:       sess.Project,
-			CreatedAt:     sess.CreatedAt.UTC().Format(time.RFC3339),
-			Frames:        frames,
-			ActiveFrameID: string(sess.ActiveFrameID),
-			MRUFrameIDs:   mruIDs,
-			Sandbox:       sess.Sandbox,
+			ID:          string(sess.ID),
+			Project:     sess.Project,
+			CreatedAt:   sess.CreatedAt.UTC().Format(time.RFC3339),
+			Frames:      frames,
+			HeadFrameID: string(sess.HeadFrameID),
+			MRUFrameIDs: mruIDs,
+			Sandbox:     sess.Sandbox,
 		})
 	}
 	return out
@@ -374,15 +374,15 @@ func (r *Runtime) snapshotSessions() []SessionSnapshot {
 //
 //   - The query for the pane itself failed with a missing-pane style
 //     error: the pane window was destroyed externally (user kill-window).
-//     Emit EvPaneWindowVanished to evict unconditionally — there is
+//     Emit EvFrameVanished to evict unconditionally — there is
 //     nothing left to inspect.
 func (r *Runtime) reconcileWindows() {
-	for frameID, target := range r.sessionPanes {
-		dead, code, err := r.cfg.Backend.PaneExitStatus(target)
+	for frameID, target := range r.sessionFrames {
+		dead, code, err := r.cfg.Backend.FrameExitStatus(target)
 		if err != nil {
-			if isMissingPaneErr(err) {
+			if isMissingFrameErr(err) {
 				slog.Debug("runtime: reconcile pane vanished", "frame", frameID, "pane", target, "err", err)
-				r.Enqueue(state.EvPaneWindowVanished{FrameID: frameID})
+				r.Enqueue(state.EvFrameVanished{FrameID: frameID})
 			} else {
 				// Transient query failure (timeout/busy): keep the frame and
 				// re-probe next reconcile rather than treating it as vanished.
@@ -393,7 +393,7 @@ func (r *Runtime) reconcileWindows() {
 		if !dead {
 			continue
 		}
-		if tail, terr := r.cfg.Backend.CapturePane(target, 20); terr == nil && tail != "" {
+		if tail, terr := r.cfg.Backend.CaptureFrame(target, 20); terr == nil && tail != "" {
 			slog.Info("runtime: pane tail on exit", "frame", frameID, "target", target, "exit_code", code, "tail", tail)
 		} else {
 			slog.Info("runtime: pane exited", "frame", frameID, "target", target, "exit_code", code)

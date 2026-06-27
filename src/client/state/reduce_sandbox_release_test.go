@@ -16,13 +16,13 @@ func containsReleaseFor(effs []Effect, frameID FrameID) bool {
 	return false
 }
 
-// containsKillSessionWindow returns true when EffKillSessionWindow is
+// containsKillSessionWindow returns true when EffKillFrame is
 // emitted for frameID. Used together with containsReleaseFor to assert
 // the two effects' independence — pane kill follows window liveness,
 // sandbox release follows frame eviction regardless.
 func containsKillSessionWindow(effs []Effect, frameID FrameID) bool {
 	for _, e := range effs {
-		if k, ok := e.(EffKillSessionWindow); ok && k.FrameID == frameID {
+		if k, ok := e.(EffKillFrame); ok && k.FrameID == frameID {
 			return true
 		}
 	}
@@ -32,10 +32,10 @@ func containsKillSessionWindow(effs []Effect, frameID FrameID) bool {
 // TestPaneWindowVanished_emitsReleaseFrameSandbox_butNotKill asserts the
 // fix for the “container never goes away” bug. When the pane process
 // exits (pty EOF) the reducer routes via evictFrame(killWindow=false) so
-// no EffKillSessionWindow is emitted (the backend window is already
+// no EffKillFrame is emitted (the backend window is already
 // gone), but EffReleaseFrameSandbox MUST still fire so the per-frame
 // cleanup runs Manager.ReleaseFrame → 0 なら DestroyInstance. Before the
-// fix the two responsibilities were welded into EffKillSessionWindow and
+// fix the two responsibilities were welded into EffKillFrame and
 // pane-vanished left the container alive forever.
 func TestPaneWindowVanished_emitsReleaseFrameSandbox_butNotKill(t *testing.T) {
 	s := New()
@@ -50,15 +50,14 @@ func TestPaneWindowVanished_emitsReleaseFrameSandbox_butNotKill(t *testing.T) {
 			{ID: rootID, Project: "/p", Command: "stub", Driver: stubDriverState{}},
 		},
 	}
-	s.ActiveSession = id
 
-	_, effs := Reduce(s, EvPaneWindowVanished{FrameID: rootID})
+	_, effs := Reduce(s, EvFrameVanished{FrameID: rootID})
 
 	if !containsReleaseFor(effs, rootID) {
 		t.Errorf("expected EffReleaseFrameSandbox{%q} in effects, got %v", rootID, effectTypes(effs))
 	}
 	if containsKillSessionWindow(effs, rootID) {
-		t.Errorf("EffKillSessionWindow must not fire when window already vanished, effects=%v", effectTypes(effs))
+		t.Errorf("EffKillFrame must not fire when window already vanished, effects=%v", effectTypes(effs))
 	}
 }
 
@@ -80,7 +79,6 @@ func TestFrameCommandExited_intentional_emitsKillAndRelease(t *testing.T) {
 			{ID: rootID, Project: "/p", Command: "stub", Driver: stubDriverState{}},
 		},
 	}
-	s.ActiveSession = id
 
 	_, effs := Reduce(s, EvFrameCommandExited{FrameID: rootID, ExitCode: 0})
 
@@ -88,7 +86,7 @@ func TestFrameCommandExited_intentional_emitsKillAndRelease(t *testing.T) {
 		t.Errorf("clean exit must emit EffReleaseFrameSandbox{%q}, got %v", rootID, effectTypes(effs))
 	}
 	if !containsKillSessionWindow(effs, rootID) {
-		t.Errorf("clean exit must emit EffKillSessionWindow{%q}, got %v", rootID, effectTypes(effs))
+		t.Errorf("clean exit must emit EffKillFrame{%q}, got %v", rootID, effectTypes(effs))
 	}
 }
 
@@ -112,7 +110,6 @@ func TestFrameCommandExited_abnormal_releasesSandboxButKeepsFrame(t *testing.T) 
 			{ID: rootID, Project: "/p", Command: "stub", Driver: stubDriverState{}},
 		},
 	}
-	s.ActiveSession = id
 
 	next, effs := Reduce(s, EvFrameCommandExited{FrameID: rootID, ExitCode: 7})
 
@@ -126,7 +123,7 @@ func TestFrameCommandExited_abnormal_releasesSandboxButKeepsFrame(t *testing.T) 
 
 // TestStopSession_releasesEveryFrameSandbox guards the regression that
 // motivated frameTeardownEffects: reduceStopSession used to emit only
-// EffKillSessionWindow + EffUnregisterPane + EffUnwatchFile per frame
+// EffKillFrame + EffUnregisterFrame + EffUnwatchFile per frame
 // and silently leaked the sandbox. The fix routes through the shared
 // teardown helper so a frame removed by stop-session releases its
 // container refcount the same way pane-vanish and clean-exit do.
@@ -145,7 +142,6 @@ func TestStopSession_releasesEveryFrameSandbox(t *testing.T) {
 			{ID: childID, Project: "/p", Command: "stub", Driver: stubDriverState{}},
 		},
 	}
-	s.ActiveSession = id
 
 	_, effs := reduceStopSession(s, 1, "req-1", StopSessionParams{SessionID: string(id)})
 
@@ -154,7 +150,7 @@ func TestStopSession_releasesEveryFrameSandbox(t *testing.T) {
 			t.Errorf("stop-session must emit EffReleaseFrameSandbox{%q}; effects=%v", fid, effectTypes(effs))
 		}
 		if !containsKillSessionWindow(effs, fid) {
-			t.Errorf("stop-session must emit EffKillSessionWindow{%q}; effects=%v", fid, effectTypes(effs))
+			t.Errorf("stop-session must emit EffKillFrame{%q}; effects=%v", fid, effectTypes(effs))
 		}
 	}
 }
@@ -180,7 +176,6 @@ func TestEvictRootFrame_releasesEverySiblingSandbox(t *testing.T) {
 			{ID: childID, Project: "/p", Command: "stub", Driver: stubDriverState{}},
 		},
 	}
-	s.ActiveSession = id
 
 	_, effs := Reduce(s, EvFrameCommandExited{FrameID: rootID, ExitCode: 0})
 
@@ -193,7 +188,7 @@ func TestEvictRootFrame_releasesEverySiblingSandbox(t *testing.T) {
 }
 
 // effectTypes returns the type names of effs for diagnostics. %T renders
-// `state.EffKillSessionWindow`-style names which is enough for test
+// `state.EffKillFrame`-style names which is enough for test
 // failure messages without enumerating every effect type by hand.
 func effectTypes(effs []Effect) []string {
 	out := make([]string, 0, len(effs))

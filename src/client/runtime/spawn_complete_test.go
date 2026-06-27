@@ -26,7 +26,7 @@ func TestHandleSpawnComplete_storesHandlesNonContainer(t *testing.T) {
 	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
 
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect:      state.EffSpawnPaneWindow{SessionID: "s1", FrameID: "f1", Project: "/p"},
+		effect:      state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Project: "/p"},
 		subsystemID: "sub-1",
 		sub:         sub,
 		paneID:      "%1",
@@ -62,7 +62,7 @@ func TestHandleSpawnComplete_registersContainerFrame(t *testing.T) {
 	ms := pathmap.Mounts{{Host: "/h/work", Container: "/work"}}
 
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect:           state.EffSpawnPaneWindow{SessionID: "s1", FrameID: "f1", Project: "/p"},
+		effect:           state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Project: "/p"},
 		subsystemID:      "sub-1",
 		sub:              sub,
 		token:            "tok-1",
@@ -104,7 +104,7 @@ func TestSpawnPaneWindow_emitsInternalSpawnComplete(t *testing.T) {
 		sendEvent:    func(ev state.Event) { eventCh <- ev },
 	}
 
-	spawnPaneWindow(deps, state.EffSpawnPaneWindow{
+	spawnPaneWindow(deps, state.EffSpawnFrame{
 		SessionID: "s1", FrameID: "f1", Project: "/p", Command: "minimal-test",
 	})
 
@@ -154,7 +154,7 @@ func TestSpawnPaneWindow_emitsSpawnFailedOnError(t *testing.T) {
 		sendEvent:    func(ev state.Event) { eventCh <- ev },
 	}
 
-	spawnPaneWindow(deps, state.EffSpawnPaneWindow{
+	spawnPaneWindow(deps, state.EffSpawnFrame{
 		SessionID: "s1", FrameID: "f1", Project: "/p", Command: "minimal-test",
 	})
 
@@ -177,7 +177,7 @@ func TestSpawnPaneWindow_emitsSpawnFailedOnError(t *testing.T) {
 // TestSpawnPaneWindow_cleanupOnSpawnError verifies that when the sandbox was
 // acquired (WrapLaunch returned a Cleanup) but backend SpawnWindow then fails, the
 // spawn goroutine releases the sandbox — otherwise the container ref leaks
-// because no EvPaneSpawned / kill path ever reaches this frame.
+// because no EvFrameSpawned / kill path ever reaches this frame.
 func TestSpawnPaneWindow_cleanupOnSpawnError(t *testing.T) {
 	var cleaned atomic.Bool
 	backend := newFakeBackend()
@@ -193,7 +193,7 @@ func TestSpawnPaneWindow_cleanupOnSpawnError(t *testing.T) {
 		sendEvent:    func(state.Event) {},
 	}
 
-	spawnPaneWindow(deps, state.EffSpawnPaneWindow{
+	spawnPaneWindow(deps, state.EffSpawnFrame{
 		SessionID: "s1", FrameID: "f1", Project: "/p", Command: "minimal-test",
 	})
 
@@ -204,7 +204,7 @@ func TestSpawnPaneWindow_cleanupOnSpawnError(t *testing.T) {
 
 // TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn verifies the 027
 // fix: if the spawn target session/frame is no longer in reducer state when
-// the completion arrives (EffKillSessionWindow processed first), the loop
+// the completion arrives (EffKillFrame processed first), the loop
 // must NOT write the loop-owned maps and must release the resources the
 // goroutine acquired (cleanup closure, ReleaseFrame, pane kill).
 func TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn(t *testing.T) {
@@ -216,7 +216,7 @@ func TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn(t *testing.T) {
 	var cleaned atomic.Bool
 
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect:      state.EffSpawnPaneWindow{SessionID: "s1", FrameID: "f1", Project: "/p"},
+		effect:      state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Project: "/p"},
 		subsystemID: "sub-1",
 		sub:         sub,
 		cleanup:     func() error { cleaned.Store(true); return nil },
@@ -240,7 +240,7 @@ func TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn(t *testing.T) {
 	killedPanes := append([]string(nil), backend.killedPanes...)
 	backend.mu.Unlock()
 	if killCalls != 1 || len(killedPanes) != 1 || killedPanes[0] != "%1" {
-		t.Errorf("expected one KillPaneWindow(%%1), got killCalls=%d killedPanes=%v", killCalls, killedPanes)
+		t.Errorf("expected one KillFrame(%%1), got killCalls=%d killedPanes=%v", killCalls, killedPanes)
 	}
 
 	// Cleanup + ReleaseFrame run off-loop. Wait briefly for the goroutine.
@@ -274,7 +274,7 @@ func TestHandleSpawnComplete_discardsContainerFrame(t *testing.T) {
 	var cleaned atomic.Bool
 
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect:           state.EffSpawnPaneWindow{SessionID: "ghost", FrameID: "ghost", Project: "/p"},
+		effect:           state.EffSpawnFrame{SessionID: "ghost", FrameID: "ghost", Project: "/p"},
 		subsystemID:      "sub-1",
 		sub:              sub,
 		cleanup:          func() error { cleaned.Store(true); return nil },
@@ -300,7 +300,7 @@ func TestHandleSpawnComplete_discardsContainerFrame(t *testing.T) {
 	killedPanes := append([]string(nil), backend.killedPanes...)
 	backend.mu.Unlock()
 	if killCalls != 1 || len(killedPanes) != 1 || killedPanes[0] != "%1" {
-		t.Errorf("expected one KillPaneWindow(%%1), got killCalls=%d killedPanes=%v", killCalls, killedPanes)
+		t.Errorf("expected one KillFrame(%%1), got killCalls=%d killedPanes=%v", killCalls, killedPanes)
 	}
 
 	// Cleanup + ReleaseFrame run off-loop. The container-frame discard path is
@@ -346,7 +346,7 @@ func TestHandleSpawnComplete_discardRepliesToOriginalCaller(t *testing.T) {
 
 	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect: state.EffSpawnPaneWindow{
+		effect: state.EffSpawnFrame{
 			SessionID: "ghost", FrameID: "ghost", Project: "/p",
 			ReplyConn: state.ConnID(1), ReplyReqID: "spawn-req-1",
 		},
@@ -395,7 +395,7 @@ func TestSendSpawnComplete_unblocksOnShutdown(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		r.sendSpawnComplete(internalSpawnComplete{effect: state.EffSpawnPaneWindow{FrameID: "f1"}})
+		r.sendSpawnComplete(internalSpawnComplete{effect: state.EffSpawnFrame{FrameID: "f1"}})
 		close(done)
 	}()
 

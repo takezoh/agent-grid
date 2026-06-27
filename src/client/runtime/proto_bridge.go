@@ -68,10 +68,7 @@ func (r *Runtime) translateResponseBody(body any) proto.Response {
 			SessionID: b.SessionID,
 		}
 	case state.SessionsReply:
-		infos, active := r.buildSessionInfos()
-		return proto.RespSessions{Sessions: infos, ActiveSessionID: active, Features: r.buildFeatureList()}
-	case state.ActiveSessionReply:
-		return proto.RespActiveSession{ActiveSessionID: b.ActiveSessionID}
+		return proto.RespSessions{Sessions: r.buildSessionInfos(), Features: r.buildFeatureList()}
 	case state.SurfaceReadTextReply:
 		return r.buildSurfaceText(b)
 	case state.DriverListReply:
@@ -125,14 +122,11 @@ func (r *Runtime) syncRelayWatches() {
 
 // broadcastSessionsChanged builds the sessions-changed event from
 // current state and queues it on every subscribed connection.
-func (r *Runtime) broadcastSessionsChanged(preview bool) {
+func (r *Runtime) broadcastSessionsChanged() {
 	r.syncRelayWatches()
-	infos, active := r.buildSessionInfos()
 	ev := proto.EvtSessionsChanged{
-		Sessions:        infos,
-		ActiveSessionID: active,
-		IsPreview:       preview,
-		Features:        r.buildFeatureList(),
+		Sessions: r.buildSessionInfos(),
+		Features: r.buildFeatureList(),
 	}
 	wire, err := proto.EncodeEvent(ev)
 	if err != nil {
@@ -228,8 +222,8 @@ func (r *Runtime) closeConn(id state.ConnID) {
 
 // buildSessionInfos materializes the current state.Sessions map into
 // the proto.SessionInfo wire format. Calls each driver's View() pure
-// getter to fill the View payload. Returns sessions and active session id.
-func (r *Runtime) buildSessionInfos() ([]proto.SessionInfo, string) {
+// getter to fill the View payload.
+func (r *Runtime) buildSessionInfos() []proto.SessionInfo {
 	sorted := make([]state.Session, 0, len(r.state.Sessions))
 	for _, sess := range r.state.Sessions {
 		sorted = append(sorted, sess)
@@ -243,7 +237,7 @@ func (r *Runtime) buildSessionInfos() ([]proto.SessionInfo, string) {
 			infos = append(infos, info)
 		}
 	}
-	return infos, string(r.state.ActiveSession)
+	return infos
 }
 
 func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bool) {
@@ -261,7 +255,7 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		_, rootDriverForkable = drv.(state.Forkable)
 	}
 	if len(sess.Frames) > 1 {
-		if activeF, ok := sessionActiveFrame(sess); ok {
+		if activeF, ok := sessionHeadFrame(sess); ok {
 			if activeDrv := state.GetDriver(activeF.Command); activeDrv != nil {
 				view.Card.BorderTitleSecondary = activeDrv.View(activeF.Driver).Card.BorderTitle
 			}
@@ -279,7 +273,7 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 			TargetID:    string(sf.TargetID),
 		})
 	}
-	activeF, _ := sessionActiveFrame(sess)
+	activeF, _ := sessionHeadFrame(sess)
 	info := proto.SessionInfo{
 		ID:                 string(sess.ID),
 		Project:            sess.Project,
@@ -291,8 +285,7 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		State:              view.Status,
 		View:               view,
 		Frames:             frames,
-		ActiveFrameID:      string(activeF.ID),
-		IsActive:           r.state.ActiveSession == sess.ID,
+		HeadFrameID:        string(activeF.ID),
 	}
 	if !view.StatusChangedAt.IsZero() {
 		info.StateChangedAt = view.StatusChangedAt.Format("2006-01-02T15:04:05Z07:00")
@@ -316,14 +309,14 @@ func (r *Runtime) buildFeatureList() []string {
 	return list
 }
 
-// buildSurfaceText calls CapturePane against the session's pane and returns
+// buildSurfaceText calls CaptureFrame against the session's pane and returns
 // the result as a RespSurfaceText.
 func (r *Runtime) buildSurfaceText(b state.SurfaceReadTextReply) proto.Response {
 	pane := r.sessionPaneForSession(b.SessionID)
 	if pane == "" {
 		return proto.RespSurfaceText{}
 	}
-	text, err := r.cfg.Backend.CapturePane(pane, b.Lines)
+	text, err := r.cfg.Backend.CaptureFrame(pane, b.Lines)
 	if err != nil {
 		slog.Warn("runtime: surface.read_text capture failed", "session", b.SessionID, "err", err)
 		return proto.RespSurfaceText{}
@@ -353,8 +346,6 @@ func typeNameOf(v any) string {
 		return "state.CreateSessionReply"
 	case state.SessionsReply:
 		return "state.SessionsReply"
-	case state.ActiveSessionReply:
-		return "state.ActiveSessionReply"
 	case state.SurfaceReadTextReply:
 		return "state.SurfaceReadTextReply"
 	case state.DriverListReply:

@@ -9,31 +9,30 @@ import (
 func makeSessionWithFrames() State {
 	s := New()
 	s.Sessions["s1"] = Session{
-		ID:            "s1",
-		Project:       "/foo",
-		Command:       "stub",
-		Driver:        stubDriverState{},
-		ActiveFrameID: "f1",
+		ID:          "s1",
+		Project:     "/foo",
+		Command:     "stub",
+		Driver:      stubDriverState{},
+		HeadFrameID: "f1",
 		Frames: []SessionFrame{
 			{ID: "f1", Project: "/foo", Command: "stub", Driver: stubDriverState{}},
 			{ID: "f2", Project: "/foo", Command: "alt", Driver: stubDriverState{}},
 		},
 	}
-	s.ActiveSession = "s1"
 	return s
 }
 
-// TestActivateFrameSameFrameIsNoOp verifies that activating the already-active
+// TestSetHeadFrameSameFrameIsNoOp verifies that activating the already-active
 // frame is a no-op: only okResp, no persist / broadcast / mutation.
-func TestActivateFrameSameFrameIsNoOp(t *testing.T) {
+func TestSetHeadFrameSameFrameIsNoOp(t *testing.T) {
 	s := makeSessionWithFrames()
 
 	next, effs := Reduce(s, EvEvent{
-		ConnID: 1, ReqID: "r", Event: "activate-frame",
+		ConnID: 1, ReqID: "r", Event: "set-head-frame",
 		Payload: mustPayload(map[string]string{"session_id": "s1", "frame_id": "f1"}),
 	})
-	if sess := next.Sessions["s1"]; sess.ActiveFrameID != "f1" {
-		t.Errorf("ActiveFrameID = %q, want f1 (unchanged)", sess.ActiveFrameID)
+	if sess := next.Sessions["s1"]; sess.HeadFrameID != "f1" {
+		t.Errorf("HeadFrameID = %q, want f1 (unchanged)", sess.HeadFrameID)
 	}
 	if n := countEff[EffPersistSnapshot](effs); n != 0 {
 		t.Errorf("EffPersistSnapshot = %d, want 0", n)
@@ -45,17 +44,17 @@ func TestActivateFrameSameFrameIsNoOp(t *testing.T) {
 }
 
 // TestActivateDifferentFrameUpdatesAndPersistsAndBroadcasts verifies that
-// activating a different frame updates ActiveFrameID, persists the snapshot,
+// activating a different frame updates HeadFrameID, persists the snapshot,
 // and broadcasts EvtSessionsChanged.
 func TestActivateDifferentFrameUpdatesAndPersistsAndBroadcasts(t *testing.T) {
 	s := makeSessionWithFrames()
 
 	next, effs := Reduce(s, EvEvent{
-		ConnID: 1, ReqID: "r", Event: "activate-frame",
+		ConnID: 1, ReqID: "r", Event: "set-head-frame",
 		Payload: mustPayload(map[string]string{"session_id": "s1", "frame_id": "f2"}),
 	})
-	if sess := next.Sessions["s1"]; sess.ActiveFrameID != "f2" {
-		t.Errorf("ActiveFrameID = %q, want f2", sess.ActiveFrameID)
+	if sess := next.Sessions["s1"]; sess.HeadFrameID != "f2" {
+		t.Errorf("HeadFrameID = %q, want f2", sess.HeadFrameID)
 	}
 	if _, ok := findEff[EffPersistSnapshot](effs); !ok {
 		t.Error("expected EffPersistSnapshot")

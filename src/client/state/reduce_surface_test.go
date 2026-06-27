@@ -64,9 +64,9 @@ func TestReduceSurfaceSendText(t *testing.T) {
 	if len(effs) != 1 {
 		t.Fatalf("expected 1 effect, got %d", len(effs))
 	}
-	e, ok := effs[0].(EffSendPaneKeys)
+	e, ok := effs[0].(EffSendFrameKeys)
 	if !ok {
-		t.Fatalf("effect = %T, want EffSendPaneKeys", effs[0])
+		t.Fatalf("effect = %T, want EffSendFrameKeys", effs[0])
 	}
 	if !e.WithEnter {
 		t.Error("WithEnter should be true for send_text")
@@ -81,9 +81,9 @@ func TestReduceSurfaceSendKey(t *testing.T) {
 	s.Sessions["sess-1"] = Session{ID: "sess-1"}
 	ev := EvCmdSurfaceSendKey{ConnID: 1, ReqID: "r1", SessionID: "sess-1", Key: "Escape"}
 	_, effs := Reduce(s, ev)
-	e, ok := effs[0].(EffSendPaneKeys)
+	e, ok := effs[0].(EffSendFrameKeys)
 	if !ok {
-		t.Fatalf("effect = %T, want EffSendPaneKeys", effs[0])
+		t.Fatalf("effect = %T, want EffSendFrameKeys", effs[0])
 	}
 	if e.WithEnter {
 		t.Error("WithEnter should be false for send_key")
@@ -110,13 +110,13 @@ func TestReduceDriverList(t *testing.T) {
 }
 
 // newStateWithFramedSession returns a New() state that has "sess-1" with one frame,
-// satisfying the activeFrame() check.
+// satisfying the headFrame() check.
 func newStateWithFramedSession() State {
 	s := New()
 	s.Sessions["sess-1"] = Session{
-		ID:            "sess-1",
-		Frames:        []SessionFrame{{ID: "f1"}},
-		ActiveFrameID: "f1",
+		ID:          "sess-1",
+		Frames:      []SessionFrame{{ID: "f1"}},
+		HeadFrameID: "f1",
 	}
 	return s
 }
@@ -157,7 +157,7 @@ func TestReduceSurfaceSubscribeIdempotent(t *testing.T) {
 
 func TestReduceSurfaceSubscribeNoFrame(t *testing.T) {
 	s := New()
-	// Session without frames — activeFrame returns false.
+	// Session without frames — headFrame returns false.
 	s.Sessions["sess-1"] = Session{ID: "sess-1"}
 	orig := s
 
@@ -204,17 +204,17 @@ func TestReduceSurfaceSubscribeResourceExhausted(t *testing.T) {
 		sid := SessionID("s" + string(rune('0'+i)))
 		inner[sid] = struct{}{}
 		s.Sessions[sid] = Session{
-			ID:            sid,
-			Frames:        []SessionFrame{{ID: "f1"}},
-			ActiveFrameID: "f1",
+			ID:          sid,
+			Frames:      []SessionFrame{{ID: "f1"}},
+			HeadFrameID: "f1",
 		}
 	}
 	s.SurfaceSubs[1] = inner
 	// 9th new session.
 	s.Sessions["s9"] = Session{
-		ID:            "s9",
-		Frames:        []SessionFrame{{ID: "f1"}},
-		ActiveFrameID: "f1",
+		ID:          "s9",
+		Frames:      []SessionFrame{{ID: "f1"}},
+		HeadFrameID: "f1",
 	}
 
 	_, effs := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "s9"})

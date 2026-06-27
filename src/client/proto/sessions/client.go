@@ -49,38 +49,14 @@ func (c *Client) StopSession(id string) error {
 	return err
 }
 
-// ListSessions returns the current session table, active session id, and the
-// list of enabled runtime feature flags.
-func (c *Client) ListSessions() ([]proto.SessionInfo, string, []string, error) {
+// ListSessions returns the current session table and the list of enabled
+// runtime feature flags.
+func (c *Client) ListSessions() ([]proto.SessionInfo, []string, error) {
 	r, err := sendJSONEvent[proto.RespSessions](c.Client, state.EventListSessions, nil)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-	return r.Sessions, r.ActiveSessionID, r.Features, nil
-}
-
-// PreviewSession swaps a session into pane 0.0 without focusing it.
-func (c *Client) PreviewSession(sessionID string) (string, error) {
-	r, err := sendJSONEvent[proto.RespActiveSession](c.Client, state.EventPreviewSession, map[string]string{"session_id": sessionID})
-	if err != nil {
-		return "", err
-	}
-	return r.ActiveSessionID, nil
-}
-
-// SwitchSession swaps a session into pane 0.0 and focuses it.
-func (c *Client) SwitchSession(sessionID string) (string, error) {
-	r, err := sendJSONEvent[proto.RespActiveSession](c.Client, state.EventSwitchSession, map[string]string{"session_id": sessionID})
-	if err != nil {
-		return "", err
-	}
-	return r.ActiveSessionID, nil
-}
-
-// PreviewProject deactivates the current session and broadcasts project-selected.
-func (c *Client) PreviewProject(project string) error {
-	_, err := sendJSONEvent[proto.RespOK](c.Client, state.EventPreviewProject, map[string]string{"project": project})
-	return err
+	return r.Sessions, r.Features, nil
 }
 
 // Shutdown tells the daemon to terminate.
@@ -89,9 +65,9 @@ func (c *Client) Shutdown() error {
 	return err
 }
 
-// ActivateFrame switches the active frame for a session.
-func (c *Client) ActivateFrame(sessionID, frameID string) error {
-	_, err := sendJSONEvent[proto.RespOK](c.Client, state.EventActivateFrame, state.ActivateFrameParams{
+// SetHeadFrame switches the head frame for a session.
+func (c *Client) SetHeadFrame(sessionID, frameID string) error {
+	_, err := sendJSONEvent[proto.RespOK](c.Client, state.EventSetHeadFrame, state.SetHeadFrameParams{
 		SessionID: sessionID,
 		FrameID:   frameID,
 	})

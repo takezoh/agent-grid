@@ -64,7 +64,7 @@ func TestTickProcessesRunningSessions(t *testing.T) {
 		Command: "stub",
 		Driver:  stubDriverState{status: StatusRunning},
 	}
-	s.ActiveSession = "run1"
+	s.SurfaceSubs[1] = map[SessionID]struct{}{"run1": {}}
 
 	_, effs := Reduce(s, EvTick{Now: now})
 
@@ -101,9 +101,9 @@ func TestSiblingIndependence(t *testing.T) {
 			{ID: child2ID, Project: "/foo", Command: "stub", Driver: stubDriverState{}},
 		},
 	}
-	s.ActiveSession = id
+	s.SurfaceSubs[1] = map[SessionID]struct{}{id: {}}
 
-	next, _ := Reduce(s, EvPaneWindowVanished{FrameID: child1ID})
+	next, _ := Reduce(s, EvFrameVanished{FrameID: child1ID})
 
 	sess, ok := next.Sessions[id]
 	if !ok {
@@ -147,19 +147,19 @@ func TestMRUFallbackOnFrameDeath(t *testing.T) {
 			{ID: child1ID, Project: "/foo", Command: "stub", Driver: stubDriverState{}},
 			{ID: child2ID, Project: "/foo", Command: "stub", Driver: stubDriverState{}},
 		},
-		ActiveFrameID: child2ID,
-		MRUFrameIDs:   []FrameID{child1ID, rootID},
+		HeadFrameID: child2ID,
+		MRUFrameIDs: []FrameID{child1ID, rootID},
 	}
-	s.ActiveSession = id
+	s.SurfaceSubs[1] = map[SessionID]struct{}{id: {}}
 
-	next, _ := Reduce(s, EvPaneWindowVanished{FrameID: child2ID})
+	next, _ := Reduce(s, EvFrameVanished{FrameID: child2ID})
 
 	sess, ok := next.Sessions[id]
 	if !ok {
 		t.Fatal("session should survive child2 death")
 	}
-	if sess.ActiveFrameID != child1ID {
-		t.Errorf("ActiveFrameID = %q, want child1 via MRU fallback", sess.ActiveFrameID)
+	if sess.HeadFrameID != child1ID {
+		t.Errorf("HeadFrameID = %q, want child1 via MRU fallback", sess.HeadFrameID)
 	}
 	for _, f := range sess.Frames {
 		if f.ID == child2ID {

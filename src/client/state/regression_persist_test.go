@@ -71,7 +71,7 @@ func newExitSession(id SessionID) Session {
 
 // Intentional exit codes (clean exit + standard termination signals)
 // must evict the frame from state and tear down the dead backend window
-// via EffKillSessionWindow. Many TUI agents return a non-zero code on
+// via EffKillFrame. Many TUI agents return a non-zero code on
 // /quit or Ctrl-C, so eviction must not be limited to ExitCode == 0
 // or those user-driven terminations linger as Stopped entries that
 // the next cold start would restore.
@@ -93,8 +93,8 @@ func TestReduceFrameCommandExited_IntentionalExitCodesEvict(t *testing.T) {
 			if _, ok := next.Sessions[id]; ok {
 				t.Errorf("exit %d must evict the frame from state", code)
 			}
-			if _, ok := findEff[EffKillSessionWindow](effs); !ok {
-				t.Errorf("exit %d must request EffKillSessionWindow to tear down the dead window", code)
+			if _, ok := findEff[EffKillFrame](effs); !ok {
+				t.Errorf("exit %d must request EffKillFrame to tear down the dead window", code)
 			}
 		})
 	}
@@ -130,7 +130,7 @@ func TestReduceFrameCommandExited_CrashExitCodesMarkStopped(t *testing.T) {
 			if st != StatusStopped {
 				t.Errorf("driver status = %v, want StatusStopped", st)
 			}
-			if _, ok := findEff[EffKillSessionWindow](effs); ok {
+			if _, ok := findEff[EffKillFrame](effs); ok {
 				t.Errorf("crash exit %d must NOT kill the window — the user needs the tail output", code)
 			}
 		})
@@ -177,8 +177,8 @@ func TestReduceFrameCommandExited_IntentionalExitEvictsEvenWhenDriverStopped(t *
 			if _, ok := next.Sessions[id]; ok {
 				t.Errorf("intentional exit %d on hook-stopped frame must still evict from state", code)
 			}
-			if _, ok := findEff[EffKillSessionWindow](effs); !ok {
-				t.Errorf("intentional exit %d on hook-stopped frame must still request EffKillSessionWindow", code)
+			if _, ok := findEff[EffKillFrame](effs); !ok {
+				t.Errorf("intentional exit %d on hook-stopped frame must still request EffKillFrame", code)
 			}
 		})
 	}

@@ -532,8 +532,7 @@ func TestMux_PushForwardsEventPushDriver(t *testing.T) {
 	mux := NewMux(d, "tok")
 
 	list := proto.RespSessions{
-		Sessions:        []proto.SessionInfo{{ID: "s1"}},
-		ActiveSessionID: "s1",
+		Sessions: []proto.SessionInfo{{ID: "s1"}},
 	}
 	gotCh := drainPushRequest(t, daemon, list, true)
 
@@ -559,46 +558,16 @@ func TestMux_PushForwardsEventPushDriver(t *testing.T) {
 	}
 }
 
-// TestMux_PushReturns409OnActiveMismatch verifies the FR-026 stale-tab guard:
-// if the path id is a known session but the daemon-global ActiveSessionID
-// points elsewhere, return 409 Conflict and do NOT issue PushDriver.
-func TestMux_PushReturns409OnActiveMismatch(t *testing.T) {
-	t.Parallel()
-	d, daemon := newDaemonPair(t)
-	mux := NewMux(d, "tok")
-
-	list := proto.RespSessions{
-		Sessions:        []proto.SessionInfo{{ID: "s1"}, {ID: "s2"}},
-		ActiveSessionID: "s2", // active is s2, but path is s1
-	}
-	gotCh := drainPushRequest(t, daemon, list, false)
-
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("s1"),
-		strings.NewReader(`{"command":"/clear"}`))
-	r.Header.Set("Authorization", "Bearer tok")
-	r.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, r)
-
-	if w.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409 (body %q)", w.Code, w.Body.String())
-	}
-	if _, ok := <-gotCh; ok {
-		t.Fatal("PushDriver was sent on mismatch; want none")
-	}
-}
-
 // TestMux_PushReturns404OnUnknownSession verifies that POST to a session id
-// that does not exist on the daemon returns 404 (FR-026), without issuing
-// a PushDriver RPC.
+// that does not exist on the daemon returns 404, without issuing a PushDriver
+// RPC.
 func TestMux_PushReturns404OnUnknownSession(t *testing.T) {
 	t.Parallel()
 	d, daemon := newDaemonPair(t)
 	mux := NewMux(d, "tok")
 
 	list := proto.RespSessions{
-		Sessions:        []proto.SessionInfo{{ID: "other"}},
-		ActiveSessionID: "other",
+		Sessions: []proto.SessionInfo{{ID: "other"}},
 	}
 	gotCh := drainPushRequest(t, daemon, list, false)
 
@@ -768,8 +737,7 @@ func TestMux_PushMapsDaemonErrorTo502(t *testing.T) {
 	mux := NewMux(d, "tok")
 
 	list := proto.RespSessions{
-		Sessions:        []proto.SessionInfo{{ID: "s1"}},
-		ActiveSessionID: "s1",
+		Sessions: []proto.SessionInfo{{ID: "s1"}},
 	}
 	go func() {
 		env := daemon.recv() // ListSessions

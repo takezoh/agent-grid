@@ -54,7 +54,7 @@ func TestReadTapEmitsOscEvents(t *testing.T) {
 
 	var gotOsc bool
 	for _, ev := range events {
-		if o, ok := ev.(state.EvPaneOsc); ok {
+		if o, ok := ev.(state.EvFrameOsc); ok {
 			gotOsc = true
 			if o.Cmd != 9 {
 				t.Errorf("Cmd = %d, want 9", o.Cmd)
@@ -65,7 +65,7 @@ func TestReadTapEmitsOscEvents(t *testing.T) {
 		}
 	}
 	if !gotOsc {
-		t.Error("expected EvPaneOsc event")
+		t.Error("expected EvFrameOsc event")
 	}
 }
 
@@ -83,9 +83,9 @@ func TestReadTapEmitsRepeatedPromptEvents(t *testing.T) {
 
 	readTap(context.Background(), frameID, "%1", ch, enqueue)
 
-	var prompts []state.EvPanePrompt
+	var prompts []state.EvFramePrompt
 	for _, ev := range events {
-		if p, ok := ev.(state.EvPanePrompt); ok {
+		if p, ok := ev.(state.EvFramePrompt); ok {
 			prompts = append(prompts, p)
 		}
 	}
@@ -187,7 +187,7 @@ func TestFeedSafe_ContinuesAfterPanic(t *testing.T) {
 
 	var gotOSC bool
 	for _, ev := range events {
-		if o, ok := ev.(state.EvPaneOsc); ok && o.Cmd == 9 && o.Title == "ping" {
+		if o, ok := ev.(state.EvFrameOsc); ok && o.Cmd == 9 && o.Title == "ping" {
 			gotOSC = true
 		}
 	}
@@ -223,7 +223,7 @@ func TestReadTap_SurvivesVTPanic(t *testing.T) {
 
 	var gotOSC bool
 	for _, ev := range events {
-		if o, ok := ev.(state.EvPaneOsc); ok && o.Title == "after-panic" {
+		if o, ok := ev.(state.EvFrameOsc); ok && o.Title == "after-panic" {
 			gotOSC = true
 		}
 	}
@@ -251,10 +251,10 @@ func TestStartRestoredTaps_StartsOnlyRootFrames(t *testing.T) {
 		ID:     "s2",
 		Frames: []state.SessionFrame{{ID: state.FrameID("frame_b")}},
 	}
-	r.sessionPanes["frame_a"] = "%1"
-	r.sessionPanes["frame_b"] = "%2"
-	r.sessionPanes["frame_c"] = "%3"
-	r.sessionPanes["_main"] = "%0"
+	r.sessionFrames["frame_a"] = "%1"
+	r.sessionFrames["frame_b"] = "%2"
+	r.sessionFrames["frame_c"] = "%3"
+	r.sessionFrames["_main"] = "%0"
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -280,7 +280,7 @@ func TestStartRestoredTaps_NoTapsWhenNilManager(t *testing.T) {
 		TickInterval: 10 * time.Second,
 		Tap:          tap,
 	})
-	r.sessionPanes["frame_a"] = "%1"
+	r.sessionFrames["frame_a"] = "%1"
 	// r.taps left nil (Run not started)
 
 	r.startRestoredTaps() // must not panic
@@ -301,8 +301,8 @@ func TestStartTapsForRestoredFrames_DispatchesViaEventLoop(t *testing.T) {
 		ID:     "s1",
 		Frames: []state.SessionFrame{{ID: state.FrameID("frame_a")}},
 	}
-	r.sessionPanes["frame_a"] = "%1"
-	r.sessionPanes["_main"] = "%0"
+	r.sessionFrames["frame_a"] = "%1"
+	r.sessionFrames["_main"] = "%0"
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)

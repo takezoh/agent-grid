@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// legacySnapshot decodes the pre-rename head-frame tag ("active_frame_id")
+// so Load can migrate old on-disk sessions to HeadFrameID.
+type legacySnapshot struct {
+	ActiveFrameID string `json:"active_frame_id,omitempty"`
+}
+
 // FilePersist is the production PersistBackend. It writes each session
 // to an individual file under <dataDir>/sessions/<id>.json with atomic
 // temp+rename. Save is upsert-only — it does not remove sessions absent
@@ -101,6 +107,16 @@ func (p *FilePersist) Load() ([]SessionSnapshot, error) {
 		var snap SessionSnapshot
 		if err := json.Unmarshal(data, &snap); err != nil {
 			return nil, fmt.Errorf("persist: unmarshal %s: %w", name, err)
+		}
+		// Backward compat: snapshots written before the active→head rename
+		// carried the head frame under "active_frame_id". When the new tag is
+		// absent, fall back to the legacy field so old on-disk sessions keep
+		// their head frame across the upgrade.
+		if snap.HeadFrameID == "" {
+			var legacy legacySnapshot
+			if err := json.Unmarshal(data, &legacy); err == nil {
+				snap.HeadFrameID = legacy.ActiveFrameID
+			}
 		}
 		out = append(out, snap)
 	}

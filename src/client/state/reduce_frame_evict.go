@@ -10,9 +10,9 @@ package state
 // When frameID is a child frame (index > 0), only that frame is removed;
 // siblings are unaffected.
 //
-// killWindow controls whether EffKillSessionWindow is emitted per removed
+// killWindow controls whether EffKillFrame is emitted per removed
 // frame. Pass true when the backend window still exists (e.g. EvPaneDied);
-// pass false when the window has already vanished (e.g. EvPaneWindowVanished).
+// pass false when the window has already vanished (e.g. EvFrameVanished).
 //
 // Effect ordering: cleanup → persist → broadcast.
 func evictFrame(s State, frameID FrameID, killWindow bool) (State, []Effect, bool) {
@@ -30,9 +30,6 @@ func evictRootFrame(s State, sessID SessionID, sess Session, killWindow bool) (S
 	allRemoved := truncateFrames(sess, 0)
 	s.Sessions = cloneSessions(s.Sessions)
 	delete(s.Sessions, sessID)
-	if s.ActiveSession == sessID {
-		s.ActiveSession = ""
-	}
 	effs := make([]Effect, 0, len(allRemoved)*4+2)
 	for _, frame := range allRemoved {
 		effs = append(effs, frameTeardownEffects(frame.ID, killWindow)...)
@@ -42,7 +39,7 @@ func evictRootFrame(s State, sessID SessionID, sess Session, killWindow bool) (S
 }
 
 func evictChildFrame(s State, sessID SessionID, sess Session, idx int, frameID FrameID, killWindow bool) (State, []Effect, bool) {
-	wasActive := sess.ActiveFrameID == frameID
+	wasActive := sess.HeadFrameID == frameID
 	sess, removed := removeFrameByIndex(sess, idx)
 	if wasActive {
 		fallback, next := popMRU(sess)
@@ -50,7 +47,7 @@ func evictChildFrame(s State, sessID SessionID, sess Session, idx int, frameID F
 		if fallback == "" {
 			fallback = sess.Frames[0].ID
 		}
-		sess.ActiveFrameID = fallback
+		sess.HeadFrameID = fallback
 	}
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[sessID] = sess
@@ -73,11 +70,11 @@ func evictChildFrame(s State, sessID SessionID, sess Session, idx int, frameID F
 func frameTeardownEffects(frameID FrameID, killWindow bool) []Effect {
 	effs := make([]Effect, 0, 4)
 	if killWindow {
-		effs = append(effs, EffKillSessionWindow{FrameID: frameID})
+		effs = append(effs, EffKillFrame{FrameID: frameID})
 	}
 	effs = append(effs,
 		EffReleaseFrameSandbox{FrameID: frameID},
-		EffUnregisterPane{FrameID: frameID},
+		EffUnregisterFrame{FrameID: frameID},
 		EffUnwatchFile{FrameID: frameID},
 	)
 	return effs

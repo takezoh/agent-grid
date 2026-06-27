@@ -7,11 +7,11 @@ func reduceTick(s State, e EvTick) (State, []Effect) {
 	s.Now = e.Now
 
 	var seq uint64
-	s, effs, changed := stepActiveSessions(s, func(sessID SessionID, sess Session, active bool) DriverEvent {
+	s, effs, changed := stepActiveSessions(s, func(sessID SessionID, sess Session, watched bool) DriverEvent {
 		frame, _ := rootFrame(sess)
 		ev := DEvTick{
 			Now:        e.Now,
-			Active:     active,
+			Watched:    watched,
 			Project:    frame.Project,
 			PaneTarget: e.PaneTargets[frame.ID],
 			N:          e.N,
@@ -21,8 +21,8 @@ func reduceTick(s State, e EvTick) (State, []Effect) {
 		return ev
 	})
 
-	// Frame liveness reconcile: every 5 ticks the runtime walks r.sessionPanes
-	// and emits EvFrameCommandExited / EvPaneWindowVanished per dead frame.
+	// Frame liveness reconcile: every 5 ticks the runtime walks r.sessionFrames
+	// and emits EvFrameCommandExited / EvFrameVanished per dead frame.
 	// reconcileWindows is the sole frame-death detection path now — the legacy
 	// per-tick EffCheckPaneAlive emissions targeted tmux control panes
 	// (0.0/0.1/0.2/__hidden__.0) that no longer exist under PtyBackend.
@@ -36,9 +36,9 @@ func reduceTick(s State, e EvTick) (State, []Effect) {
 	return s, effs
 }
 
-// reducePaneWindowVanished evicts a session whose backend window has
+// reduceFrameVanished evicts a session whose backend window has
 // disappeared (agent process exited) and broadcasts the new list.
-func reducePaneWindowVanished(s State, e EvPaneWindowVanished) (State, []Effect) {
+func reduceFrameVanished(s State, e EvFrameVanished) (State, []Effect) {
 	s, effs, ok := evictFrame(s, e.FrameID, false)
 	if !ok {
 		return s, nil
@@ -73,7 +73,7 @@ func isIntentionalExit(code int) bool {
 // reduceFrameCommandExited routes a command-exit signal based on its
 // exit code. Codes recognised by isIntentionalExit (clean exit or
 // standard termination signal) trigger full eviction — the dead backend
-// pane is also closed via EffKillSessionWindow. Other codes are
+// pane is also closed via EffKillFrame. Other codes are
 // treated as crashes: the frame is kept in state with driver
 // status=Stopped so the user can still find it in the session list,
 // and the dead pane is left attached so the tail output (stack trace,

@@ -11,7 +11,7 @@ import (
 	"github.com/takezoh/agent-reactor/platform/termvt"
 )
 
-// PtyBackend implements the PaneBackend role interfaces over platform/termvt,
+// PtyBackend implements the FrameBackend role interfaces over platform/termvt,
 // driving pty-backed sessions directly (ADR 0004). The data plane
 // (lifecycle, IO, inspection, liveness) is implemented for real; the
 // presentation plane (WindowLayout layout ops, BackendControl) is stubbed
@@ -39,7 +39,7 @@ type PtyBackend struct {
 	winSeq  int               // last allocated window index
 
 	// scrollbackLines is the per-session VT scrollback cap stamped into
-	// every termvt.Spec built by SpawnWindow / RespawnPane. Zero leaves
+	// every termvt.Spec built by SpawnWindow / RespawnFrame. Zero leaves
 	// the underlying xvt emulator default (10000) in effect — tests pass
 	// 0 to avoid coupling to the cap, production passes the value from
 	// settings.toml's [terminal] scrollback_lines.
@@ -59,7 +59,7 @@ func NewPtyBackend(scrollbackLines int) *PtyBackend {
 	}
 }
 
-// === PaneLifecycle ===
+// === FrameLifecycle ===
 
 // SpawnWindow starts command in a new pty and returns synthetic window/pane
 // ids. The command is always invoked via the user's POSIX shell so that the
@@ -98,35 +98,35 @@ func (p *PtyBackend) SpawnWindow(name, command, startDir string, env map[string]
 	return winIdx, paneID, nil
 }
 
-// KillPaneWindow closes the session for target and forgets it.
+// KillFrame closes the session for target and forgets it.
 //
 // forgetWindowFor runs unconditionally so a stale windowIndex→paneID entry is
 // cleaned up even when the Manager already lost the session (e.g. it was
 // reaped concurrently). When the Manager reports the session missing, the
-// error is wrapped with ErrPaneMissing so isMissingPaneErr can recognise it
-// alongside SendKeys/CapturePane/ResizeWindow et al. The error message keeps
+// error is wrapped with ErrFrameMissing so isMissingFrameErr can recognise it
+// alongside SendKeys/CaptureFrame/ResizeWindow et al. The error message keeps
 // the caller's original target shape — runtime debugging stays readable when
 // the call site passed "arc:1" rather than the resolved "%1".
-func (p *PtyBackend) KillPaneWindow(target string) error {
+func (p *PtyBackend) KillFrame(target string) error {
 	resolved := p.resolvePaneTarget(target)
 	err := p.mgr.Remove(resolved)
 	p.forgetWindowFor(resolved)
 	if err != nil && strings.Contains(err.Error(), "not found") {
-		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	return err
 }
 
-// RespawnPane tears the dead pane down and re-creates a session under the same
+// RespawnFrame tears the dead pane down and re-creates a session under the same
 // target. It does NOT carry over the session-env store or the original spawn
 // env — respawn launches a fresh process with the default environment — and the
 // new session starts at the default terminal size until the next ResizeWindow.
 //
 // The Manager owns the id→Session map and its own mutex, so we never hold
 // p.mu across mgr.Remove / mgr.Create — that would serialise every other
-// backend op (SendKeys, CapturePane, etc.) behind the respawn's fork/exec, in
+// backend op (SendKeys, CaptureFrame, etc.) behind the respawn's fork/exec, in
 // violation of the lock-discipline SpawnWindow's comment already documents.
-func (p *PtyBackend) RespawnPane(target, command string) error {
+func (p *PtyBackend) RespawnFrame(target, command string) error {
 	if strings.TrimSpace(command) == "" {
 		return fmt.Errorf("runtime: empty respawn command for %q", target)
 	}
@@ -153,12 +153,12 @@ func (p *PtyBackend) RespawnPane(target, command string) error {
 	return nil
 }
 
-// PaneExitStatus reports the exit code once the process has been reaped.
-func (p *PtyBackend) PaneExitStatus(target string) (bool, int, error) {
+// FrameExitStatus reports the exit code once the process has been reaped.
+func (p *PtyBackend) FrameExitStatus(target string) (bool, int, error) {
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return false, -1, fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return false, -1, fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	code, exited := sess.ExitCode()
 	if !exited {
@@ -167,7 +167,7 @@ func (p *PtyBackend) PaneExitStatus(target string) (bool, int, error) {
 	return true, code, nil
 }
 
-// === PaneIO ===
+// === FrameIO ===
 
 // SendKeys writes text followed by a carriage return to the pane.
 func (p *PtyBackend) SendKeys(target, text string) error {
@@ -206,45 +206,45 @@ func (p *PtyBackend) PasteBuffer(name, target string) error {
 	return p.write(target, []byte(text))
 }
 
-// PipePane is a no-op: output taps are served by PtyPaneTap (see pty_tap.go),
+// PipeFrame is a no-op: output taps are served by PtyFrameTap (see pty_tap.go),
 // which subscribes directly to the termvt.Session and bypasses the legacy
 // pipe-pane bridge. Tap teardown is driven by tap_manager.stop, which cancels
 // its own per-frame tapCtx (propagating to the forwarder via the context
-// chain) and then calls PtyPaneTap.Stop to cancel the inner sub-ctx; whichever
+// chain) and then calls PtyFrameTap.Stop to cancel the inner sub-ctx; whichever
 // fires first triggers the forwarder's ctx.Done branch and Session.Unsubscribe.
 // The empty-command "stop the tap" contract collapses to a no-op here without
 // losing functionality.
-func (p *PtyBackend) PipePane(target, command string) error { return nil }
+func (p *PtyBackend) PipeFrame(target, command string) error { return nil }
 
-// === PaneInspect ===
+// === FrameInspect ===
 
-// PaneID echoes the synthetic pane id back when the pane is known.
-func (p *PtyBackend) PaneID(target string) (string, error) {
+// ResolveID echoes the synthetic pane id back when the pane is known.
+func (p *PtyBackend) ResolveID(target string) (string, error) {
 	target = p.resolvePaneTarget(target)
 	if _, ok := p.mgr.Get(target); !ok {
-		return "", fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return "", fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	return target, nil
 }
 
-// PaneSize returns the session's current terminal dimensions.
-func (p *PtyBackend) PaneSize(target string) (int, int, error) {
+// FrameSize returns the session's current terminal dimensions.
+func (p *PtyBackend) FrameSize(target string) (int, int, error) {
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return 0, 0, fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return 0, 0, fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	cols, rows := sess.Size()
 	return cols, rows, nil
 }
 
-// CapturePane returns the trailing nLines of the pane's rendered screen with SGR
+// CaptureFrame returns the trailing nLines of the pane's rendered screen with SGR
 // escapes stripped.
-func (p *PtyBackend) CapturePane(target string, nLines int) (string, error) {
+func (p *PtyBackend) CaptureFrame(target string, nLines int) (string, error) {
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return "", fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return "", fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	return termvt.CaptureTail(sess, nLines), nil
 }
@@ -304,7 +304,7 @@ func (p *PtyBackend) ResizeWindow(target string, width, height int) error {
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	return sess.Resize(width, height)
 }
@@ -338,7 +338,7 @@ func (p *PtyBackend) SubscribeSurface(target string) (int, <-chan termvt.Event, 
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return 0, nil, fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return 0, nil, fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	id, ch := sess.Subscribe()
 	return id, ch, nil
@@ -352,7 +352,7 @@ func (p *PtyBackend) UnsubscribeSurface(target string, id int) error {
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	sess.Unsubscribe(id)
 	return nil
@@ -365,7 +365,7 @@ func (p *PtyBackend) WriteSurface(target string, data []byte) error {
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	return sess.WriteInput(data)
 }
@@ -377,7 +377,7 @@ func (p *PtyBackend) ResizeSurface(target string, cols, rows int) error {
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	return sess.Resize(cols, rows)
 }
@@ -395,7 +395,7 @@ func (p *PtyBackend) write(target string, b []byte) error {
 	target = p.resolvePaneTarget(target)
 	sess, ok := p.mgr.Get(target)
 	if !ok {
-		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrPaneMissing)
+		return fmt.Errorf("runtime: unknown pane %q: %w", target, ErrFrameMissing)
 	}
 	return sess.WriteInput(b)
 }
@@ -412,7 +412,7 @@ func (p *PtyBackend) write(target string, b []byte) error {
 //
 // If no translation matches (e.g. the runtime is probing a pane id we never
 // minted) the original target falls through so the caller's mgr.Get reports
-// ErrPaneMissing with the same target the runtime asked about.
+// ErrFrameMissing with the same target the runtime asked about.
 func (p *PtyBackend) resolvePaneTarget(target string) string {
 	if target == "" {
 		return target
@@ -449,7 +449,7 @@ func isPaneIDForm(target string) bool {
 // forgetWindowFor removes the windowIndex→paneID entry for paneID. Called on
 // teardown so that a window index does not survive the pane that backed it.
 // Each paneID appears at most once as a value (SpawnWindow allocates fresh,
-// unique paneIDs; KillPaneWindow drops the entry; RespawnPane reuses the
+// unique paneIDs; KillFrame drops the entry; RespawnFrame reuses the
 // same paneID without adding a new windows entry), so we stop after the
 // first hit — both a slight speed-up and a clearer expression of the
 // invariant.

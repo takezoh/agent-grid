@@ -2,12 +2,12 @@ package state
 
 import "fmt"
 
-// reducePaneOsc handles an OSC notification event fired by the PaneTap reader.
+// reduceFrameOsc handles an OSC notification event fired by the FrameTap reader.
 // Every observed OSC sequence is appended to the EVENTS log so operators can
 // trace what each pane is emitting. OSC 0/2 (window title) is also routed to
-// the driver via DEvPaneOsc; OSC 9/99/777 are emitted as EffRecordNotification
+// the driver via DEvFrameOsc; OSC 9/99/777 are emitted as EffRecordNotification
 // (which itself writes the EVENTS log line and may dispatch a desktop toast).
-func reducePaneOsc(s State, e EvPaneOsc) (State, []Effect) {
+func reduceFrameOsc(s State, e EvFrameOsc) (State, []Effect) {
 	if e.Cmd == 0 || e.Cmd == 2 {
 		if e.Title == "" {
 			return s, nil
@@ -16,7 +16,7 @@ func reducePaneOsc(s State, e EvPaneOsc) (State, []Effect) {
 			FrameID: e.FrameID,
 			Line:    fmt.Sprintf("[osc%d] %s", e.Cmd, e.Title),
 		}}
-		next, dEffs, _ := stepDriver(s, e.FrameID, DEvPaneOsc{Cmd: e.Cmd, Title: e.Title, Now: e.Now})
+		next, dEffs, _ := stepDriver(s, e.FrameID, DEvFrameOsc{Cmd: e.Cmd, Title: e.Title, Now: e.Now})
 		effs = append(effs, dEffs...)
 		return next, effs
 	}
@@ -37,10 +37,10 @@ func reducePaneOsc(s State, e EvPaneOsc) (State, []Effect) {
 	}}
 }
 
-// reducePanePrompt routes an OSC 133 semantic-prompt event to the owning
-// frame's driver as DEvPanePrompt and writes a line to the EVENTS log so
+// reduceFramePrompt routes an OSC 133 semantic-prompt event to the owning
+// frame's driver as DEvFramePrompt and writes a line to the EVENTS log so
 // operators can see prompt-phase transitions in real time.
-func reducePanePrompt(s State, e EvPanePrompt) (State, []Effect) {
+func reduceFramePrompt(s State, e EvFramePrompt) (State, []Effect) {
 	s.Now = e.Now
 	if _, _, _, ok := findFrame(s, e.FrameID); !ok {
 		return s, nil
@@ -49,7 +49,7 @@ func reducePanePrompt(s State, e EvPanePrompt) (State, []Effect) {
 		FrameID: e.FrameID,
 		Line:    promptEventLogLine(e.Phase, e.ExitCode),
 	}}
-	next, dEffs, _ := stepDriver(s, e.FrameID, DEvPanePrompt{
+	next, dEffs, _ := stepDriver(s, e.FrameID, DEvFramePrompt{
 		Phase:    e.Phase,
 		ExitCode: e.ExitCode,
 		Now:      e.Now,

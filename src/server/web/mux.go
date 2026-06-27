@@ -448,7 +448,7 @@ func handleCreateSession(d *DaemonClient) http.HandlerFunc {
 }
 
 // Push-route handler and helpers (handlePushCommand, decodePushBody,
-// lookupActiveSession, sendPushDriver, apiPushReq, pushBodyLimit) live in
+// sessionKnown, sendPushDriver, apiPushReq, pushBodyLimit) live in
 // mux_push.go to keep mux.go under the file-length budget.
 
 func handleDeleteSession(d *DaemonClient) http.HandlerFunc {
