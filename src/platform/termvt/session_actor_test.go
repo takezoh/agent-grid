@@ -2,6 +2,7 @@ package termvt
 
 import (
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -154,10 +155,11 @@ func TestActor_SubscribeReceivesSnapshotThenChunk(t *testing.T) {
 	_, ch := s.Subscribe()
 	pty.in <- []byte("CHUNK")
 
-	// Seed: Render() bytes + trailing CUP pinning the cursor to (0,0).
+	// Seed: Render() bytes + trailing CUP pinning the cursor to (0,0) +
+	// EL to wipe stale cells past the cursor on the input row.
 	first := waitNext(t, ch, time.Second)
-	if first.Kind != EventOutput || string(first.Data) != "SNAPSHOT\x1b[1;1H" {
-		t.Fatalf("first event = %+v, want EventOutput SNAPSHOT\\x1b[1;1H", first)
+	if first.Kind != EventOutput || string(first.Data) != "SNAPSHOT\x1b[1;1H\x1b[K" {
+		t.Fatalf("first event = %+v, want EventOutput SNAPSHOT\\x1b[1;1H\\x1b[K", first)
 	}
 	second := waitNext(t, ch, time.Second)
 	if second.Kind != EventOutput || string(second.Data) != "CHUNK" {
@@ -191,18 +193,21 @@ func TestActor_SubscribeSeedWithScrollback(t *testing.T) {
 		t.Fatalf("first event = %+v, want EventOutput old1\\nold2\\n", first)
 	}
 	second := waitNext(t, ch, time.Second)
-	if second.Kind != EventOutput || string(second.Data) != "SCREEN\x1b[1;1H" {
-		t.Fatalf("second event = %+v, want EventOutput SCREEN\\x1b[1;1H", second)
+	if second.Kind != EventOutput || string(second.Data) != "SCREEN\x1b[1;1H\x1b[K" {
+		t.Fatalf("second event = %+v, want EventOutput SCREEN\\x1b[1;1H\\x1b[K", second)
 	}
 }
 
 // TestActor_SubscribeSeedPinsCursorWithCUP asserts that the second seed
 // frame ends with a CUP escape that places xterm.js's cursor at the same
-// (x, y) the emulator holds. Without this, Render() bytes leave the
-// browser-side cursor at the bottom-right of the rendered grid and any
-// subsequent shell echo gets painted at the wrong screen cell (the
-// "session-switch input position is broken" regression — Web UI bug
-// fixed by this commit). CUP is 1-based; emulator coords are 0-based.
+// (x, y) the emulator holds, immediately followed by EL (\x1b[K) which
+// clears any stale cells past the cursor on the input row. Without CUP,
+// Render() bytes leave the browser-side cursor at the bottom-right of the
+// rendered grid and any subsequent shell echo gets painted at the wrong
+// screen cell (the "session-switch input position is broken" regression).
+// Without EL, the emulator's Render() faithfully re-paints any residue a
+// claude-code-style "\r❯ "-only redraw left in the buffer (see seed-shape
+// comment on subscribeCmd.run). CUP is 1-based; emulator coords are 0-based.
 func TestActor_SubscribeSeedPinsCursorWithCUP(t *testing.T) {
 	em := newFakeEmulator()
 	em.RenderOut = "SCREEN"
@@ -215,9 +220,77 @@ func TestActor_SubscribeSeedPinsCursorWithCUP(t *testing.T) {
 	_, ch := s.Subscribe()
 
 	ev := waitNext(t, ch, time.Second)
-	want := "SCREEN\x1b[5;13H"
+	want := "SCREEN\x1b[5;13H\x1b[K"
 	if ev.Kind != EventOutput || string(ev.Data) != want {
 		t.Fatalf("seed event = %+v, want EventOutput %q", ev, want)
+	}
+}
+
+// TestActor_SubscribeSeedClearsStaleInputTail is the end-to-end regression
+// for the Web UI bug: when a TUI (e.g. claude code's prompt component)
+// redraws the input row by writing only "\r❯ " — moving the cursor to col 0
+// then overwriting cols 0..1 without an explicit EL — the emulator's
+// underlying buffer keeps the previous prompt's tail at the cells past
+// col 2. Render() at Subscribe faithfully re-emits that residue; without the
+// trailing EL the user sees stale text on the input row immediately after a
+// session switch, until the TUI's next repaint masks it.
+//
+// We drive a Session with the real *vt.Emulator (no fake mock) so we exercise
+// the actual cell-tracking behavior, then replay the seed bytes into a
+// freshly-spawned *vt.Emulator — exactly what xterm.js does client-side on
+// the keyed remount. The fresh emulator's Render() must not contain the
+// stale tail.
+func TestActor_SubscribeSeedClearsStaleInputTail(t *testing.T) {
+	em := emulatorFor(80, 24)
+	pty := newFakePTY()
+	s := NewSessionWithDeps(em, pty, nil, 80, 24)
+	defer func() { _ = s.Close() }()
+
+	const stale = "業確認"
+	// One chunk so the emulator processes typing + incomplete clear atomically:
+	// "❯ 業確認" (cursor advances past col 7) then "\r❯ " (cursor moves back
+	// to col 0, rewrites the prompt indicator, ends at col 2). Cells 2..7
+	// remain populated with the wide-char glyphs.
+	pty.in <- []byte("❯ 業確認\r❯ ")
+	// Wait until the actor has applied the chunk: the snapshot must contain
+	// the stale tail. If not, the test's premise (incomplete clear leaves
+	// residue in the buffer) is broken and the regression cannot trigger.
+	deadline := time.Now().Add(time.Second)
+	var snap string
+	for time.Now().Before(deadline) {
+		snap = string(s.Snapshot())
+		if strings.Contains(snap, stale) {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !strings.Contains(snap, stale) {
+		t.Fatalf("setup precondition not met: stale tail %q not in source snapshot %q", stale, snap)
+	}
+
+	_, ch := s.Subscribe()
+	ev := waitNext(t, ch, time.Second)
+	if ev.Kind != EventOutput {
+		t.Fatalf("seed event kind = %v, want EventOutput", ev.Kind)
+	}
+
+	// Replay the seed bytes into a fresh emulator, mirroring xterm.js on the
+	// client (keyed remount via <TerminalPane key={activeSessionID}>).
+	fresh := vt.NewEmulator(80, 24)
+	if _, err := fresh.Write(ev.Data); err != nil {
+		t.Fatalf("fresh emulator write: %v", err)
+	}
+	replayed := fresh.Render()
+	if strings.Contains(replayed, stale) {
+		t.Fatalf("EL did not wipe stale input tail; replayed Render() = %q", replayed)
+	}
+	// Sanity check: the prompt indicator survives (only cells past the
+	// cursor are EL-cleared). The trailing space after "❯" is collapsed
+	// by Render()'s trailing-whitespace trim (renderLine accumulates
+	// EmptyCell into `pending` and never flushes it at EOL), so we don't
+	// assert on it here.
+	if !strings.Contains(replayed, "❯") {
+		t.Fatalf("prompt indicator clobbered; replayed Render() = %q", replayed)
 	}
 }
 

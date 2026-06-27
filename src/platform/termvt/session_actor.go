@@ -49,20 +49,31 @@ type subscribeCmd struct {
 // newline so the screen render that follows starts on a fresh row). The
 // current visible grid is then emitted as a second EventOutput frame, with
 // a trailing CUP escape (\x1b[<y+1>;<x+1>H) that pins xterm.js's cursor to
-// the same (x, y) the server-side emulator holds. Both content frames share
-// the format documented on Emulator.SerializeScrollback / Render —
-// newline-separated rows with inline SGR escapes, no cursor positioning, no
-// clear sequences — so a client that writes them in order builds the same
-// scrollback its xterm.js would have accumulated had it been attached from
-// the start. An empty scrollback (fresh session, or an alt-screen TUI whose
-// draws never spilled to history) elides the first frame entirely; the
-// screen frame is unconditional.
+// the same (x, y) the server-side emulator holds, followed by EL (\x1b[K)
+// that wipes any stale cells past the cursor on the input row. Both content
+// frames share the format documented on Emulator.SerializeScrollback /
+// Render — newline-separated rows with inline SGR escapes, no cursor
+// positioning, no clear sequences — so a client that writes them in order
+// builds the same scrollback its xterm.js would have accumulated had it been
+// attached from the start. An empty scrollback (fresh session, or an
+// alt-screen TUI whose draws never spilled to history) elides the first
+// frame entirely; the screen frame is unconditional.
 //
-// The trailing CUP is what keeps typed input rendering at the correct
-// position after a session switch. Without it, xterm.js's cursor settles at
-// the bottom of the rendered grid (Render() emits cell content + '\n'
+// The trailing CUP keeps typed input rendering at the correct position
+// after a session switch. Without it, xterm.js's cursor settles at the
+// bottom of the rendered grid (Render() emits cell content + '\n'
 // separators only) while the PTY's cursor sits at the shell prompt; the
 // next echoed character would then be painted at the wrong screen cell.
+//
+// The trailing EL (\x1b[K) clears stale cells past the cursor on the input
+// row. Some TUIs (notably claude code's prompt component) redraw the input
+// row by writing only "\r❯ " without explicit EL, so the emulator's
+// underlying buffer keeps the previous prompt's tail (e.g. "業確認") at
+// columns past col 2 even though the live xterm view is masked by the very
+// next frame. Render() at subscribe captures that stale state verbatim;
+// without EL the user sees the residue on switch-back until the TUI's next
+// repaint. Cursor sits at the end of the TUI's intended input, so cells
+// past it are by definition "should be empty" — EL is safe to issue.
 //
 // IDs are allocated starting from 1 so 0 stays reserved as the post-shutdown
 // sentinel that Session.Subscribe returns when mainLoop has exited; any
@@ -80,8 +91,9 @@ func (c subscribeCmd) run(ls *loopState) {
 	}
 	rendered := []byte(ls.em.Render())
 	x, y := ls.em.CursorPosition()
-	// CUP is 1-based; emulator coords are 0-based.
-	rendered = fmt.Appendf(rendered, "\x1b[%d;%dH", y+1, x+1)
+	// CUP is 1-based; emulator coords are 0-based. EL after CUP clears any
+	// stale cells past the cursor on the input row (see seed-shape comment).
+	rendered = fmt.Appendf(rendered, "\x1b[%d;%dH\x1b[K", y+1, x+1)
 	ch <- Event{Kind: EventOutput, Data: rendered}
 	ls.subs[id] = ch
 	c.reply <- subscribeReply{id: id, ch: ch}
