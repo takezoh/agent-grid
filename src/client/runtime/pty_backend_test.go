@@ -532,7 +532,6 @@ func TestPtyBackendConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(workers)
 	for i := 0; i < workers; i++ {
-		i := i
 		go func() {
 			defer wg.Done()
 			frameID := "concurrent-frame-" + strings.Repeat("a", i+1)

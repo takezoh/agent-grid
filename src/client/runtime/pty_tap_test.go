@@ -133,7 +133,14 @@ func TestPtyFrameTap_ForwardsOutputChunks(t *testing.T) {
 	// EventOutput in addition to surfacing the structured Control. PtyFrameTap
 	// drops the Control side and forwards the raw bytes, which is exactly what
 	// tap_manager's vt.Terminal then re-parses to fire EvFrameOsc.
-	frameID := spawnFrame(t, backend, `printf '\033]9;tap-test\a'; sleep 0.5`)
+	//
+	// The leading sleep ensures Subscribe is registered before printf fires:
+	// server-side em.Render() of a screen that has already absorbed an OSC
+	// does NOT replay the raw bytes, so a subscriber that arrives late sees
+	// only the rendered snapshot (which omits OSC sequences) and misses the
+	// EventOutput chunk entirely. 500ms matches the headroom used in
+	// pty_tap_wire_test.go for the same reason.
+	frameID := spawnFrame(t, backend, `sleep 0.5; printf '\033]9;tap-test\a'; sleep 0.5`)
 	tap := NewPtyFrameTap(backend)
 
 	ch, err := tap.Start(context.Background(), frameID)
