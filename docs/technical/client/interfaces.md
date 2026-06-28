@@ -163,7 +163,6 @@ type FrameIO interface {
     SendEnter(target string) error
     LoadBuffer(name, text string) error               // bracketed-paste path
     PasteBuffer(name, target string) error
-    PipeFrame(frameID, command string) error          // no-op on PtyBackend
 }
 
 type FrameInspect interface {
@@ -173,7 +172,7 @@ type FrameInspect interface {
 }
 
 // FrameBackend bundles the full set of frame operations the runtime
-// needs (lifecycle + io + inspect + session env + control). Production
+// needs (lifecycle + io + inspect + session env). Production
 // wiring uses PtyBackend; new code should depend on the narrower role
 // interfaces above where possible.
 type FrameBackend interface {
@@ -181,7 +180,6 @@ type FrameBackend interface {
     FrameIO
     FrameInspect
     SessionEnv
-    BackendControl
 }
 
 // PersistBackend abstracts sessions.json persistence so tests don't
@@ -421,7 +419,7 @@ src/
 │   ├── terminal_relay.go     Per-subscriber frame→client byte relay for the
 │   │                         HTTP/WS gateway (EffSurfaceSubscribeStart)
 │   ├── backends.go      FrameLifecycle / FrameIO / FrameInspect / SessionEnv /
-│   │                    BackendControl / FrameBackend +
+│   │                    FrameBackend +
 │   │                    PersistBackend / EventLogBackend / ToolLogBackend /
 │   │                    FSWatcher interfaces and noop fakes
 │   ├── pty_backend.go   PtyBackend — production FrameBackend implementation over

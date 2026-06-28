@@ -65,8 +65,10 @@ interfaces over `platform/termvt`, and keep the pure core (`state.Reduce`,
 - **Data plane** (`FrameLifecycle`, `FrameIO`, `FrameInspect`, `SessionEnv`,
   liveness): implemented for real against termvt. `FrameID` is the single
   key — there is no separate physical-handle namespace.
-- **Presentation plane** (window layout, `BackendControl`): stubbed (like
-  `noopTmux`) initially; relocated client-side in the tmux-removal phase.
+- **Presentation plane** (window layout, session/client control): originally
+  stubbed (like `noopTmux`) initially; in the final scrub (commit aa4541c3)
+  the role interfaces (`WindowLayout`, `BackendControl`) were removed entirely
+  rather than relocated server-side — layout composition lives client-side.
 
 This is the linchpin (plan §4, B1). It unblocks reuse of driver intelligence on
 the web surface (plan A) and the eventual tmux removal (plan C).
