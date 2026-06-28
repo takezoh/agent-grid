@@ -56,11 +56,6 @@ type FrameIO interface {
 	// drops the buffer afterwards. Used by InjectPrompt to deliver multi-line
 	// text without each newline being interpreted as submit by Ink TUIs.
 	PasteBuffer(name, target string) error
-	// PipeFrame attaches a shell command to the frame's output stream so the
-	// runtime can observe raw bytes. An empty command stops a running pipe.
-	// PtyBackend implements this as a no-op because PtyFrameTap subscribes
-	// directly to the termvt.Manager.
-	PipeFrame(frameID, command string) error
 }
 
 // FrameInspect covers read-only frame introspection.
@@ -85,23 +80,6 @@ type SessionEnv interface {
 	ShowEnvironment() (string, error)
 }
 
-// BackendControl covers session/client-level control operations that only
-// the legacy tmux backend implemented. PtyBackend stubs each method as a
-// no-op so the runtime stays backend-agnostic and reducers can emit the
-// corresponding Eff{StatusLine,DetachClient,KillSession,DisplayPopup}
-// without checking which backend is wired in. See effect.go for the per-
-// effect rationale.
-type BackendControl interface {
-	// SetStatusLine writes the status-left line (tmux era).
-	SetStatusLine(line string) error
-	// DetachClient detaches the current attached client (tmux era).
-	DetachClient() error
-	// KillSession destroys the client session (tmux era).
-	KillSession() error
-	// DisplayPopup runs a popup window for a named tool (tmux era).
-	DisplayPopup(width, height, cmd string) error
-}
-
 // FrameBackend is the full set of frame (pty session) operations the runtime
 // needs. PtyBackend is the production implementation; tests use stubs.
 // Methods that return data are synchronous (the runtime calls them
@@ -110,7 +88,7 @@ type BackendControl interface {
 //
 // New code that needs only a subset of these operations should depend on
 // the narrower role interfaces (FrameLifecycle, FrameIO, FrameInspect,
-// SessionEnv, BackendControl) instead.
+// SessionEnv) instead.
 //
 // FrameID identifiers are passed as plain strings (string(FrameID)) at the
 // backend boundary; persistence layer governs the FrameID typedef.
@@ -119,7 +97,6 @@ type FrameBackend interface {
 	FrameIO
 	FrameInspect
 	SessionEnv
-	BackendControl
 }
 
 // PersistBackend abstracts sessions.json persistence so tests don't
@@ -207,17 +184,12 @@ func (noopBackend) SpawnFrame(frameID, name, command, startDir string, env map[s
 func (noopBackend) KillFrame(string) error                    { return nil }
 func (noopBackend) ResolveID(string) (string, error)          { return "", nil }
 func (noopBackend) FrameSize(string) (int, int, error)        { return 0, 0, nil }
-func (noopBackend) SetStatusLine(string) error                { return nil }
 func (noopBackend) SetEnv(string, string) error               { return nil }
 func (noopBackend) UnsetEnv(string) error                     { return nil }
 func (noopBackend) FrameExitStatus(string) (bool, int, error) { return false, -1, nil }
 func (noopBackend) RespawnFrame(string, string) error         { return nil }
 func (noopBackend) CaptureFrame(string, int) (string, error)  { return "", nil }
 func (noopBackend) ShowEnvironment() (string, error)          { return "", nil }
-func (noopBackend) DetachClient() error                       { return nil }
-func (noopBackend) KillSession() error                        { return nil }
-func (noopBackend) DisplayPopup(string, string, string) error { return nil }
-func (noopBackend) PipeFrame(string, string) error            { return nil }
 func (noopBackend) SendKeys(string, string) error             { return nil }
 func (noopBackend) SendKey(string, string) error              { return nil }
 func (noopBackend) LoadBuffer(string, string) error           { return nil }

@@ -31,44 +31,24 @@ func TestMain(m *testing.M) {
 // === Fake backends for runtime tests ===
 
 type fakeBackend struct {
-	mu               sync.Mutex
-	spawnCalls       int
-	spawnCmds        []string
-	spawnEnvs        []map[string]string
-	spawnFrameIDs    []string
-	killCalls        int
-	sessionKillCalls int
-	killedFrames      []string
-	breakCalls       int
-	breakTargets     []string
-	breakNewCalls    int
-	breakNewNames    []string
-	joinCalls        int
-	joinSources      []string
-	joinTargets      []string
-	swapCalls        int
-	swapSources      []string
-	swapTargets      []string
-	callLog          []string // records "swap"/"kill" in order, for ordering assertions
-	resizeCalls      int
-	resizeTargets    []string
-	resizeWidths     []int
-	resizeHeights    []int
-	respawnCmds      []string
-	statusLines      []string
-	envs             map[string]string
-	popups           []string
-	alive            map[string]bool
-	exitStatusErr    map[string]error // frame target → error from FrameExitStatus
-	exitStatus       map[string]int   // frame target → exit code (when dead)
-	captured         string
-	breakNewWID      string
-	spawnErr         error
-	swapErr          error
-	envOutput        string
-	frameWidth        int
-	frameHeight       int
-	frameIDs          map[string]string
+	mu            sync.Mutex
+	spawnCalls    int
+	spawnCmds     []string
+	spawnEnvs     []map[string]string
+	spawnFrameIDs []string
+	killCalls     int
+	killedFrames  []string
+	respawnCmds   []string
+	envs          map[string]string
+	alive         map[string]bool
+	exitStatusErr map[string]error // frame target → error from FrameExitStatus
+	exitStatus    map[string]int   // frame target → exit code (when dead)
+	captured      string
+	spawnErr      error
+	envOutput     string
+	frameWidth    int
+	frameHeight   int
+	frameIDs      map[string]string
 }
 
 func newFakeBackend() *fakeBackend {
@@ -77,10 +57,9 @@ func newFakeBackend() *fakeBackend {
 		exitStatusErr: map[string]error{},
 		exitStatus:    map[string]int{},
 		envs:          map[string]string{},
-		frameIDs:       map[string]string{},
-		breakNewWID:   "9",
-		frameWidth:     120,
-		frameHeight:    40,
+		frameIDs:      map[string]string{},
+		frameWidth:    120,
+		frameHeight:   40,
 	}
 }
 
@@ -105,7 +84,6 @@ func (f *fakeBackend) KillFrame(frameID string) error {
 	defer f.mu.Unlock()
 	f.killCalls++
 	f.killedFrames = append(f.killedFrames, frameID)
-	f.callLog = append(f.callLog, "kill")
 	return nil
 }
 
@@ -125,12 +103,6 @@ func (f *fakeBackend) FrameSize(string) (int, int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.frameWidth, f.frameHeight, nil
-}
-func (f *fakeBackend) SetStatusLine(line string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.statusLines = append(f.statusLines, line)
-	return nil
 }
 func (f *fakeBackend) SetEnv(k, v string) error {
 	f.mu.Lock()
@@ -169,20 +141,6 @@ func (f *fakeBackend) RespawnFrame(target, cmd string) error {
 func (f *fakeBackend) CaptureFrame(string, int) (string, error) {
 	return f.captured, nil
 }
-func (f *fakeBackend) DetachClient() error { return nil }
-func (f *fakeBackend) KillSession() error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.sessionKillCalls++
-	return nil
-}
-func (f *fakeBackend) DisplayPopup(w, h, cmd string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.popups = append(f.popups, cmd)
-	return nil
-}
-func (f *fakeBackend) PipeFrame(string, string) error   { return nil }
 func (f *fakeBackend) SendKeys(string, string) error    { return nil }
 func (f *fakeBackend) SendKey(string, string) error     { return nil }
 func (f *fakeBackend) LoadBuffer(string, string) error  { return nil }
@@ -338,12 +296,6 @@ func TestRuntimeCreateSessionFlow(t *testing.T) {
 	defer backend.mu.Unlock()
 	if backend.spawnCalls != 1 {
 		t.Errorf("spawnCalls = %d, want 1", backend.spawnCalls)
-	}
-	// With the TUI gone there is no "main frame" to resize new spawns to;
-	// spawnDeps no longer carries a frameSize provider, so ResizeWindow stays
-	// at zero calls on this path.
-	if backend.resizeCalls != 0 {
-		t.Errorf("resizeCalls = %d, want 0 (no main frame to size to)", backend.resizeCalls)
 	}
 	persist.mu.Lock()
 	defer persist.mu.Unlock()

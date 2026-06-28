@@ -24,13 +24,13 @@ type fakeSurfaceBackend struct {
 
 type writeCall struct {
 	frameID string
-	data   []byte
+	data    []byte
 }
 
 type resizeCall struct {
 	frameID string
-	cols   int
-	rows   int
+	cols    int
+	rows    int
 }
 
 func newFakeSurfaceBackend() *fakeSurfaceBackend {

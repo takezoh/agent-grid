@@ -11,11 +11,10 @@ import (
 )
 
 // PtyBackend implements the FrameBackend role interfaces over platform/termvt,
-// driving pty-backed sessions directly (ADR 0004). The data plane
-// (lifecycle, IO, inspection, liveness) is implemented for real; the
-// presentation plane (WindowLayout layout ops, BackendControl) is stubbed
-// because a pty multiplexer has no server-side equivalent — layout
-// composition moves client-side in the backend-replacement phase.
+// driving pty-backed sessions directly (ADR 0004). All four role surfaces
+// (FrameLifecycle, FrameIO, FrameInspect, SessionEnv) are implemented for
+// real; layout composition that used to live on the backend in the tmux era
+// moves client-side in the backend-replacement phase.
 //
 // Targets are FrameID strings: termvt.Manager keys every session on
 // string(FrameID), so the live session is always resolved via mgr.Get(target).
@@ -73,7 +72,7 @@ func (p *PtyBackend) SpawnFrame(frameID, name, command, startDir string, env map
 // KillFrame closes the session for target. When the Manager reports the
 // session missing, the error is wrapped with ErrFrameMissing so
 // isMissingFrameErr can recognise it alongside SendKeys/CaptureFrame/
-// ResizeWindow et al.
+// ResizeSurface et al.
 func (p *PtyBackend) KillFrame(target string) error {
 	err := p.mgr.Remove(target)
 	if err != nil && strings.Contains(err.Error(), "not found") {
@@ -86,7 +85,7 @@ func (p *PtyBackend) KillFrame(target string) error {
 // same target. It does NOT carry over the session-env store or the original
 // spawn env — respawn launches a fresh process with the default environment —
 // and the new session starts at the default terminal size until the next
-// ResizeWindow.
+// ResizeSurface.
 //
 // The Manager owns the id→Session map and its own mutex; we never hold p.mu
 // across mgr.Remove / mgr.Create.
@@ -163,16 +162,6 @@ func (p *PtyBackend) PasteBuffer(name, target string) error {
 	}
 	return p.write(target, []byte(text))
 }
-
-// PipeFrame is a no-op: output taps are served by PtyFrameTap (see pty_tap.go),
-// which subscribes directly to the termvt.Session and bypasses the legacy
-// tmux pipe bridge. Tap teardown is driven by tap_manager.stop, which cancels
-// its own per-frame tapCtx (propagating to the forwarder via the context
-// chain) and then calls PtyFrameTap.Stop to cancel the inner sub-ctx; whichever
-// fires first triggers the forwarder's ctx.Done branch and Session.Unsubscribe.
-// The empty-command "stop the tap" contract collapses to a no-op here without
-// losing functionality.
-func (p *PtyBackend) PipeFrame(target, command string) error { return nil }
 
 // === FrameInspect ===
 
@@ -284,11 +273,7 @@ func (p *PtyBackend) UnsubscribeSurface(target string, id int) error {
 // no carriage return is appended; the caller (xterm.js via terminal_relay)
 // is expected to have already assembled the correct byte sequence.
 func (p *PtyBackend) WriteSurface(target string, data []byte) error {
-	sess, ok := p.mgr.Get(target)
-	if !ok {
-		return fmt.Errorf("runtime: unknown frame %q: %w", target, ErrFrameMissing)
-	}
-	return sess.WriteInput(data)
+	return p.write(target, data)
 }
 
 // ResizeSurface resizes target's pty and VT emulator grid to (cols, rows).
@@ -301,13 +286,6 @@ func (p *PtyBackend) ResizeSurface(target string, cols, rows int) error {
 	}
 	return sess.Resize(cols, rows)
 }
-
-// === BackendControl (all stubbed — no server-side equivalent) ===
-
-func (p *PtyBackend) SetStatusLine(line string) error              { return nil }
-func (p *PtyBackend) DetachClient() error                          { return nil }
-func (p *PtyBackend) KillSession() error                           { return nil }
-func (p *PtyBackend) DisplayPopup(width, height, cmd string) error { return nil }
 
 // === helpers ===
 
