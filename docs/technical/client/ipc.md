@@ -18,16 +18,16 @@ flowchart TB
     subgraph daemon["Daemon process (runtime.Runtime)"]
         EL["Event loop<br/>select { eventCh | internalCh | ticker | workers.Results | watcher.Events }"]
         Reduce["state.Reduce(state, event)<br/>→ (state', []Effect)<br/>pure function: no goroutine, no I/O"]
-        Interp["Effect interpreter<br/>runtime.execute(eff)<br/>pane backend / IPC / persist / worker / tap"]
+        Interp["Effect interpreter<br/>runtime.execute(eff)<br/>frame backend / IPC / persist / worker / tap"]
         Pool["Worker pool (4 goroutine)<br/>worker.Dispatch<br/>JobKind-based runner registry"]
-        Tap["tapManager<br/>1 reader goroutine / live frame<br/>termvt pty subscription → VT emulator → EvPaneOsc / EvPanePrompt"]
+        Tap["tapManager<br/>1 reader goroutine / live frame<br/>termvt pty subscription → VT emulator → EvFrameOsc / EvFramePrompt"]
 
         EL --> Reduce
         Reduce --> Interp
         Interp -->|EffStartJob| Pool
         Pool -->|EvJobResult| EL
-        Interp -->|EffRegisterPane| Tap
-        Tap -->|"EvPaneOsc<br/>EvPanePrompt"| EL
+        Interp -->|EffRegisterFrame| Tap
+        Tap -->|"EvFrameOsc<br/>EvFramePrompt"| EL
     end
 
     subgraph clients["Clients (browser gateway / CLI / hook bridges)"]
@@ -37,13 +37,13 @@ flowchart TB
     Client <-->|"Host socket (SO_PEERCRED uid check)<br/>NDJSON (proto.Envelope)"| EL
 ```
 
-`runtime.Runtime` is the sole state owner. `state.State` is a pure value type that only round-trips as an argument and return value of `Reduce`. The effect interpreter performs pane-backend operations, IPC sends, persistence, and worker pool submits, feeding results back to the event loop as `Event`s.
+`runtime.Runtime` is the sole state owner. `state.State` is a pure value type that only round-trips as an argument and return value of `Reduce`. The effect interpreter performs frame-backend operations, IPC sends, persistence, and worker pool submits, feeding results back to the event loop as `Event`s.
 
 **Runtime composition**:
 - `state`: `state.State` — all domain state (Sessions map, Active, Subscribers, Jobs). Solely owned by the event loop goroutine
 - `eventCh`: channel where external goroutines (IPC reader, worker pool, fsnotify watcher, tap readers) submit Events
 - `workers`: `worker.Pool` — fixed-size (4) goroutine pool. `worker.Dispatch` dispatches via registered runner lookup using `JobInput.JobKind()`
-- `taps`: `*tapManager` — per-frame PaneTap reader goroutines. Started on `EffRegisterPane`, stopped on `EffUnregisterPane`. `PtyPaneTap` subscribes directly to the per-frame pty managed by `platform/termvt`; the raw byte stream feeds a per-frame VT emulator (`driver/vt.Terminal`), which fires synchronous callbacks for OSC notifications, window titles, and OSC 133 prompt phases. Callbacks enqueue `EvPaneOsc` / `EvPanePrompt` into `eventCh`
+- `taps`: `*tapManager` — per-frame FrameTap reader goroutines. Started on `EffRegisterFrame`, stopped on `EffUnregisterFrame`. `PtyFrameTap` subscribes directly to the per-frame pty managed by `platform/termvt`; the raw byte stream feeds a per-frame VT emulator (`driver/vt.Terminal`), which fires synchronous callbacks for OSC notifications, window titles, and OSC 133 prompt phases. Callbacks enqueue `EvFrameOsc` / `EvFramePrompt` into `eventCh`
 - `conns`: `map[ConnID]*ipcConn` — connection management. Solely owned by the event loop goroutine
 - `cfg.Backend` / `cfg.Persist` / `cfg.EventLog` / `cfg.Watcher`: backend interfaces (replaceable with fakes during testing). Production wires `PtyBackend` (over `platform/termvt`) into `cfg.Backend`
 
@@ -83,8 +83,8 @@ Command / Response / ServerEvent are closed sum types. See [interfaces.md](inter
 | `event` | event, timestamp, sender_id, payload | Unified event envelope — domain operations and driver hooks (see below). **Host endpoint only.** |
 | `hook-event` | token, hook, timestamp, payload | Driver hook notification from a sandboxed agent. **Container endpoint only.** Token resolves to the owning frame server-side. |
 | `subsystem-event` | token, source, kind, timestamp, payload | Structured subsystem event from a sandboxed backend. **Container endpoint only.** Token resolves to the owning frame server-side. |
-| `surface.read_text` | session_id, lines | Read the trailing N lines of the active pane's VT snapshot |
-| `surface.send_text` | session_id, text | Send text followed by Enter to the session's active pane |
+| `surface.read_text` | session_id, lines | Read the trailing N lines of the active frame's VT snapshot |
+| `surface.send_text` | session_id, text | Send text followed by Enter to the session's active frame |
 | `surface.send_key` | session_id, key | Send a named key (e.g. `Escape`, `q`) without Enter |
 | `driver.list` | - | List available driver names and display names |
 
@@ -149,22 +149,22 @@ flowchart LR
 
     Reduce -->|"[]Effect"| Interp
 
-    Interp -->|EffSpawnPaneWindow| PaneAsync["pane backend<br/>(go async spawn)"]:::async
-    Interp -->|EffKillSessionWindow<br/>EffRegisterPane<br/>EffUnregisterPane<br/>EffSetPaneEnv<br/>EffUnsetPaneEnv<br/>EffCheckPaneAlive<br/>EffReconcileWindows| PaneSync["pane backend<br/>(inline sync)<br/>PtyBackend over platform/termvt"]:::sync
+    Interp -->|EffSpawnFrame| FrameAsync["frame backend<br/>(go async spawn)"]:::async
+    Interp -->|EffKillFrame<br/>EffRegisterFrame<br/>EffUnregisterFrame<br/>EffSetSessionEnv<br/>EffUnsetSessionEnv<br/>EffReconcileWindows| FrameSync["frame backend<br/>(inline sync)<br/>PtyBackend over platform/termvt"]:::sync
     Interp -->|EffSendResponse<br/>EffSendResponseSync<br/>EffSendError<br/>EffBroadcastSessionsChanged<br/>EffBroadcastEvent<br/>EffCloseConn| IPC["IPC conn writer"]:::sync
     Interp -->|EffPersistSnapshot| Persist["sessions.json writer"]:::sync
     Interp -->|EffStartJob| Pool["Worker pool<br/>(4 goroutine)"]:::async
     Interp -->|EffWatchFile<br/>EffUnwatchFile| Watcher["fsnotify watcher"]:::sync
     Interp -->|EffEventLogAppend<br/>EffToolLogAppend| EventLog["event / tool log writer"]:::sync
-    Interp -->|EffRegisterPane| TapMgr["tapManager<br/>(1 goroutine / frame)"]:::async
-    Interp -->|EffSendPaneKeys<br/>EffInjectPrompt| PaneSync
+    Interp -->|EffRegisterFrame| TapMgr["tapManager<br/>(1 goroutine / frame)"]:::async
+    Interp -->|EffSendFrameKeys| FrameSync
     Interp -->|EffRecordNotification| EventLog
     Interp -->|EffReleaseFrameSandboxes| Sandbox["sandbox release"]:::sync
 
-    PaneAsync -->|EvPaneSpawned / EvSpawnFailed| EL["event loop (eventCh)"]
+    FrameAsync -->|EvFrameSpawned / EvSpawnFailed| EL["event loop (eventCh)"]
     Pool -->|EvJobResult| EL
     Watcher -->|EvFileChanged| EL
-    TapMgr -->|"EvPaneOsc<br/>EvPanePrompt"| EL
+    TapMgr -->|"EvFrameOsc<br/>EvFramePrompt"| EL
 ```
 
 Legend:
@@ -224,7 +224,7 @@ sequenceDiagram
     D1-->>Red: (driverState1', [EffStartJob{TranscriptParse}], view1)
     Red->>D2: Driver.Step(driverState2, DEvTick{Active: false})
     D2-->>Red: (driverState2', [EffStartJob{BranchDetect}], view2)
-    Red-->>EL: (state', [EffStartJob×N, EffCheckPaneAlive,<br/>EffPersistSnapshot, EffBroadcastSessionsChanged])
+    Red-->>EL: (state', [EffStartJob×N, EffReconcileWindows,<br/>EffPersistSnapshot, EffBroadcastSessionsChanged])
     EL->>Interp: execute(effects...)
     Note over Interp: Interprets each Effect in order<br/>EffStartJob → worker pool submit<br/>EffBroadcast → IPC send<br/>EffPersist → write sessions.json
 ```
@@ -249,7 +249,7 @@ Hook-driven agents converge at `EvDriverEvent`; structured backends converge at 
 | `ipcConn.readLoop` | M (1 / client) | IPC reader. Converts Commands to Events and submits to eventCh |
 | `ipcConn.writeLoop` | M (1 / client) | IPC writer. Drains outbox and writes to socket |
 | `worker.Pool.run` | 4 (fixed) | Worker pool goroutines |
-| `tapManager.readTap` | N (1 / live frame) | PaneTap reader. Feeds the raw byte stream from the per-frame pty via `platform/termvt` subscription into a per-frame VT emulator, which fires callbacks that emit `EvPaneOsc` (window titles + OSC 9/99/777 notifications) and `EvPanePrompt` (OSC 133 phases) into eventCh |
+| `tapManager.readTap` | N (1 / live frame) | FrameTap reader. Feeds the raw byte stream from the per-frame pty via `platform/termvt` subscription into a per-frame VT emulator, which fires callbacks that emit `EvFrameOsc` (window titles + OSC 9/99/777 notifications) and `EvFramePrompt` (OSC 133 phases) into eventCh |
 
 IPC reader/writer scales with client count; tap readers scale with live frame count. Both are continuous sources that only emit events — they never read or write `state.State`.
 
@@ -263,7 +263,7 @@ sequenceDiagram
     participant Red as state.Reduce
     participant Drv as Driver.Step<br/>(claudeDriver)
 
-    Note over Bridge: SenderID is read from<br/>the pane environment (frame id)
+    Note over Bridge: SenderID is read from<br/>the frame's pty environment (frame id)
     Bridge->>Reader: proto.CmdEvent{Event, Timestamp, SenderID, Payload}
     Reader->>EL: EvDriverEvent (eventCh)
     EL->>Red: Reduce(state, EvDriverEvent)

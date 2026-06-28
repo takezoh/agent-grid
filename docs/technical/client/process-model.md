@@ -1,4 +1,4 @@
-# Process Model, Pane Model, and Rendering Responsibilities
+# Process Model, Frame Model, and Rendering Responsibilities
 
 ## Rendering Responsibilities
 
@@ -112,7 +112,7 @@ The daemon is the single long-running process that owns all session state. Concr
 - the Runtime event loop (`select` over eventCh / ticker / workers / fsnotify),
 - the IPC server (host endpoint plus per-container endpoint),
 - the worker pool that executes Effects against drivers and backends,
-- `tapManager`, which holds one reader goroutine per frame fanning the pty pane stream out to subscribers (the browser frontend's xterm.js terminal connects through this fanout via `server/web`).
+- `tapManager`, which holds one reader goroutine per frame fanning the per-frame pty stream out to subscribers (the browser frontend's xterm.js terminal connects through this fanout via `server/web`).
 
 ```
 runDaemon()
@@ -123,12 +123,13 @@ runDaemon()
 ├── Cold-start bootstrap
 │   └── RecreateAll — for each session, walk frames root-to-tail and
 │                     Driver.PrepareLaunch(LaunchModeColdStart, …) using
-│                     the persisted LaunchOptions; emitted EffSpawnPaneWindow
-│                     drives termvt.Manager to allocate a fresh pane id (%1, %2, …)
+│                     the persisted LaunchOptions; emitted EffSpawnFrame
+│                     drives termvt.Manager to allocate a fresh pty session
+│                     keyed by string(FrameID)
 ├── rt.Run(ctx) — start event loop goroutine
-│                 tapManager starts a reader goroutine per frame on EffRegisterPane;
+│                 tapManager starts a reader goroutine per frame on EffRegisterFrame;
 │                 each reader feeds the raw pty stream into a VT emulator and
-│                 emits EvPaneOsc / EvPanePrompt into eventCh. tapManager.stopAll()
+│                 emits EvFrameOsc / EvFramePrompt into eventCh. tapManager.stopAll()
 │                 is called on ctx cancel.
 │                 defer stack tears down in reverse: deactivateBeforeExit → EventLog.CloseAll
 │                 → shutdownIPC → workers.Stop (bounded 500ms; pool ctx cancels runner
@@ -138,11 +139,11 @@ runDaemon()
 └── Block on ctx until SIGINT/SIGTERM or explicit shutdown
 ```
 
-**Cold start is the only startup mode** because `PtyBackend` is backed by an in-process `platform/termvt.Manager` whose pane table is empty at every daemon boot — no pty survives the daemon process. The bootstrap therefore always walks the restored frame stack and calls `Driver.PrepareLaunch(LaunchModeColdStart, …)` for each frame, using the normalized `LaunchOptions` persisted alongside the frame's `driver_state`. `sessions.json` is the source of truth for what to restore.
+**Cold start is the only startup mode** because `PtyBackend` is backed by an in-process `platform/termvt.Manager` whose session table is empty at every daemon boot — no pty survives the daemon process. The bootstrap therefore always walks the restored frame stack and calls `Driver.PrepareLaunch(LaunchModeColdStart, …)` for each frame, using the normalized `LaunchOptions` persisted alongside the frame's `driver_state`. `sessions.json` is the source of truth for what to restore.
 
-The `RespawnPane` interface still exists on `PaneLifecycle` and `PtyBackend` implements it as a teardown + recreate via the termvt.Manager, but the cold-start bootstrap path does not use it — fresh launches go through `EffSpawnPaneWindow`. Legacy session/client control methods on `BackendControl` (`SetStatusLine`, `DetachClient`, `KillSession`, `DisplayPopup`) are no-op stubs on `PtyBackend`; they remain on the interface so reducers can emit the corresponding Effects unconditionally without checking which backend is wired in.
+The `RespawnFrame` interface still exists on `FrameLifecycle` and `PtyBackend` implements it as a teardown + recreate via the termvt.Manager, but the cold-start bootstrap path does not use it — fresh launches go through `EffSpawnFrame`. Legacy session/client control methods on `BackendControl` (`SetStatusLine`, `DetachClient`, `KillSession`, `DisplayPopup`) are no-op stubs on `PtyBackend`; they remain on the interface so reducers can emit the corresponding Effects unconditionally without checking which backend is wired in.
 
-For Codex, the daemon starts **one `codex app-server` per session managed by the client** (keyed by `stream:session:<sessionID>`). All frames within the same Session (root + peers) share one app-server; different Sessions get separate processes. The app-server is launched via `agentlaunch.Dispatcher.Wrap` + `agentlaunch.Spawn` (argv-direct, no host shell); the listen argv is built by `libcodex.AppServerListenArgs`, binding a per-session UDS `codex-<sessionID>.sock`. The path the app-server binds comes from `Factory.ResolveSockPath` (container-absolute under the run dir in container mode); the host-side path the daemon dials is derived from that path plus the launch's bind mounts (`resolveDialSock` → `WrappedLaunch.HostPath`). The stream daemon uses a dedicated non-TTY `DevcontainerLauncher` (`docker exec -i`) that shares the same `sandbox.Manager` as the pane launcher. The daemon connects via **WebSocket-over-UDS** (HTTP Upgrade — the transport codex app-server speaks). Structured RPC events are converted to `DEvSubsystem` and dispatched to the owning frame. Each frame's pane runs in the same sandbox as the app-server and attaches to that UDS directly with `codex --remote unix://<sock>` (cold start) or `codex resume <id> --remote unix://<sock>` (warm start); these remote-attach strings are built by `libcodex.RemoteAttachArgs`. There is no TCP routing bridge. Codex state is not driven by hooks. When a session's last frame is released, `Factory.Remove` stops the corresponding app-server process (reap on exit).
+For Codex, the daemon starts **one `codex app-server` per session managed by the client** (keyed by `stream:session:<sessionID>`). All frames within the same Session (root + peers) share one app-server; different Sessions get separate processes. The app-server is launched via `agentlaunch.Dispatcher.Wrap` + `agentlaunch.Spawn` (argv-direct, no host shell); the listen argv is built by `libcodex.AppServerListenArgs`, binding a per-session UDS `codex-<sessionID>.sock`. The path the app-server binds comes from `Factory.ResolveSockPath` (container-absolute under the run dir in container mode); the host-side path the daemon dials is derived from that path plus the launch's bind mounts (`resolveDialSock` → `WrappedLaunch.HostPath`). The stream daemon uses a dedicated non-TTY `DevcontainerLauncher` (`docker exec -i`) that shares the same `sandbox.Manager` as the per-frame interactive launcher. The daemon connects via **WebSocket-over-UDS** (HTTP Upgrade — the transport codex app-server speaks). Structured RPC events are converted to `DEvSubsystem` and dispatched to the owning frame. Each frame runs in the same sandbox as the app-server and attaches to that UDS directly with `codex --remote unix://<sock>` (cold start) or `codex resume <id> --remote unix://<sock>` (warm start); these remote-attach strings are built by `libcodex.RemoteAttachArgs`. There is no TCP routing bridge. Codex state is not driven by hooks. When a session's last frame is released, `Factory.Remove` stops the corresponding app-server process (reap on exit).
 
 ### Shutdown semantics
 
@@ -154,15 +155,15 @@ For Codex, the daemon starts **one `codex app-server` per session managed by the
 
 `sessions.json` is **always preserved** — it is the restoration source for cold start. See [Sandbox Backends — Cold-start fresh provisioning](../platform/sandbox.md#design-decisions) for the container-side handshake.
 
-### Pane Model
+### Frame Model
 
-Each frame owns exactly one pty pane allocated by `platform/termvt.Manager`. Pane ids are synthetic (`%1`, `%2`, …) and stable for the lifetime of the daemon process. The runtime's `EffSpawnPaneWindow` asks the backend to create a pane; the resulting pane id is returned via `EvPaneSpawned` (or `EvSpawnFailed`) and recorded in `EffRegisterPane`. The browser frontend subscribes to per-frame pane output via the `server/web` WebSocket gateway, which connects to `tapManager`'s fanout for the corresponding pane id. Key input from the frontend travels back through `PaneIO.SendKeys` / `SendKey` / `SendEnter`.
+Each frame owns exactly one pty session allocated by `platform/termvt.Manager`. The `termvt.Manager` session key is `string(FrameID)` — there is no separate physical-handle namespace at the backend. The runtime's `EffSpawnFrame` asks the backend to create the pty session; success comes back as `EvFrameSpawned` (failure as `EvSpawnFailed`) and registration is recorded via `EffRegisterFrame`. The browser frontend subscribes to per-frame output via the `server/web` WebSocket gateway, which connects to `tapManager`'s fanout for the corresponding frame id. Key input from the frontend travels back through `FrameIO.SendKeys` / `SendKey` / `SendEnter`.
 
 ### Failure Behavior
 
-- **Frame command exits**: termvt reports the session ended; `reduceTick` emits `EffReconcileWindows`, runtime compares the live pane table against state.Sessions and emits `EvPaneWindowVanished` / `EvFrameCommandExited` for the missing frames. The reducer truncates the owning session at the dead frame's index — if it was the root frame, the whole session is deleted; otherwise the remaining lower frames stay and the new tail becomes the active frame. State is updated, the snapshot is rewritten, and `sessions-changed` is broadcast.
-- **Active frame pane death**: `executeCheckPaneAlive` probes the active frame's pane id via `PaneLifecycle.PaneAlive`. A `PaneAlive` error that wraps `ErrPaneMissing` is treated as dead; runtime emits `EvPaneDied{OwnerFrameID:<active>}` and the reducer applies the same truncate rule above.
+- **Frame command exits**: termvt reports the session ended; `reduceTick` emits `EffReconcileWindows`, runtime compares the live backend frame table against state.Sessions and emits `EvFrameVanished` / `EvFrameCommandExited` for the missing frames. The reducer truncates the owning session at the dead frame's index — if it was the root frame, the whole session is deleted; otherwise the remaining lower frames stay and the new tail becomes the active frame. State is updated, the snapshot is rewritten, and `sessions-changed` is broadcast.
+- **Active frame death**: the runtime probes each live frame's backend session every tick; an error that wraps `ErrFrameMissing` is treated as dead and the runtime emits `EvFrameVanished{OwnerFrameID:<active>}`, and the reducer applies the same truncate rule above.
 - **Container death**: handled symmetrically — the next frame command exit reconciliation reaps the frame; sandbox cleanup runs through the normal `EffReleaseFrameSandboxes` path on explicit shutdown.
 - **Daemon crash (SIGKILL)**: cleanup defers do not run, so any containers from the previous boot survive; the next daemon boot cold-starts and either adopts them or discards them via the `BeginColdStart` handshake.
-- **Startup consistency**: `sessions.json` is the single source of truth at boot. Because every boot is a cold start, there is no warm-rebind step that can desynchronise with a live pane table — the bootstrap allocates a fresh pane id for every restored frame.
+- **Startup consistency**: `sessions.json` is the single source of truth at boot. Because every boot is a cold start, there is no warm-rebind step that can desynchronise with a live backend frame table — the bootstrap allocates a fresh pty session for every restored frame.
 - **IPC errors**: when an IPC command returns an error on the frontend side, the gateway logs it and does not change UI state. No timeout is configured (local Unix-socket communication). If the daemon deadlocks, the client risks blocking indefinitely; recovery means killing the daemon process.

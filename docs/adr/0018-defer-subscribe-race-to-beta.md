@@ -7,7 +7,7 @@ Status: Accepted
 When the browser sends `CmdSurfaceSubscribe{SessionID}` immediately after
 `POST /api/sessions` returns, the daemon's `EffSpawnFrame` may not yet have
 run. `Sessions[sid].ActiveFrame()` is `nil`, and `terminal_relay` cannot
-resolve the paneID.
+resolve the backend target id.
 
 Three responses were considered:
 

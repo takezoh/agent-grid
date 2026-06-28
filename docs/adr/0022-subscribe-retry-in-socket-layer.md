@@ -17,7 +17,7 @@ Three places to put the retry:
    only observes "subscribed" / "retrying" / "failed" status flags.
 3. **As a React custom hook** — `useSubscribeWithRetry(sid)` wraps the
    subscribe lifecycle. Tied to component lifetime, hard to share across
-   panes.
+   surfaces.
 
 The reconnect-on-disconnect logic already lives in the socket layer
 (FR-β06). Putting subscribe retry there too keeps both retry policies in

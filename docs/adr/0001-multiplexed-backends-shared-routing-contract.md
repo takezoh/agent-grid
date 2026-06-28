@@ -80,7 +80,7 @@ cwd. `resolveFrameForStartedThread` and the `activeLookup` fallback are removed;
 `handleThreadStarted` only confirms an already-bound thread and drops unknown
 ones. The `REACTOR_ROUTING_PINS` gate is gone — the cases are now permanent
 regression guards (same-cwd frames get distinct ids and cannot cross-talk).
-Because the spawned pane now resumes the daemon-created thread (cold start uses
+Because the spawned frame now resumes the daemon-created thread (cold start uses
 `codex resume <id> --remote`), this change to the spawn/attach contract must be
 verified against a real app-server via the opt-in e2e
 ([stream-backend-e2e.md](../technical/client/stream-backend-e2e.md)).

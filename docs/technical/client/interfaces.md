@@ -30,7 +30,7 @@ type Session struct {
 }
 
 // SessionFrame is one execution context within a session. Each frame
-// owns one pane and carries its own DriverState, so push-driver
+// owns one pty session and carries its own DriverState, so push-driver
 // can layer a fresh driver context on top and frame death can truncate
 // just that slice of the stack.
 type SessionFrame struct {
@@ -77,7 +77,7 @@ type Driver interface {
 
 // CreateSessionPlanner is an optional extension for drivers that need
 // async setup work (e.g. creating a managed worktree) between the
-// create-session request and the pane spawn. PrepareCreate returns a
+// create-session request and the frame spawn. PrepareCreate returns a
 // CreatePlan with an optional SetupJob; once the job completes the
 // reducer calls CompleteCreate to get the final CreateLaunch.
 type CreateSessionPlanner interface {
@@ -93,14 +93,14 @@ type DriverState interface {
 }
 
 // DriverEvent — input to Driver.Step (closed sum type)
-// DEvTick, DEvHook, DEvJobResult, DEvFileChanged, DEvPaneOsc, DEvPanePrompt, DEvSubsystem
+// DEvTick, DEvHook, DEvJobResult, DEvFileChanged, DEvFrameOsc, DEvFramePrompt, DEvSubsystem
 ```
 
 Hook-driven agents (Claude, Gemini) receive `DEvHook`. Stream-backed agents (Codex) receive `DEvSubsystem` carrying structured thread / turn / tool / approval events from `codex app-server`.
 
 Driver is a **value-type plugin**: no goroutines, no I/O, no mutexes. Per-frame state is embedded on each `SessionFrame.Driver` as a `DriverState` value, and round-trips as arguments and return values of `Driver.Step`. Side effects are returned as `[]Effect` and executed by the runtime's Effect interpreter.
 
-**Launch plan is resolved in the reducer, not the runtime.** `reduceCreateSession` (or `handlePendingCreate` for planner-gated flows) calls `Driver.PrepareLaunch` synchronously, writes the normalized `LaunchOptions` onto the frame, and bakes `launch.Command` / `launch.StartDir` / `launch.Options` into `EffSpawnPaneWindow`. The runtime interprets the effect verbatim and never calls driver methods, keeping driver-specific logic entirely inside the pure functional core. (`LaunchPlan` and `WrappedLaunch` also carry `Argv []string` for `agentlaunch.Spawn`; the pane spawn path uses `Command`.)
+**Launch plan is resolved in the reducer, not the runtime.** `reduceCreateSession` (or `handlePendingCreate` for planner-gated flows) calls `Driver.PrepareLaunch` synchronously, writes the normalized `LaunchOptions` onto the frame, and bakes `launch.Command` / `launch.StartDir` / `launch.Options` into `EffSpawnFrame`. The runtime interprets the effect verbatim and never calls driver methods, keeping driver-specific logic entirely inside the pure functional core. (`LaunchPlan` and `WrappedLaunch` also carry `Argv []string` for `agentlaunch.Spawn`; the frame spawn path uses `Command`.)
 
 ```go
 // state/view/status.go — canonical Status definition (stdlib-only; no state import)
@@ -144,45 +144,43 @@ func (r *Runtime) Enqueue(ev state.Event)          // goroutine-safe
 ```go
 // runtime/backends.go — Backend interfaces swappable for testing
 //
-// Pane operations are split into narrow role interfaces so callers can
+// Frame operations are split into narrow role interfaces so callers can
 // depend on the minimum surface they need. The production backend
 // (PtyBackend, built on platform/termvt) implements all of them; test
 // fakes can stub a subset.
 
-type PaneLifecycle interface {
-    SpawnWindow(name, command, startDir string,
-                env map[string]string) (windowIndex, paneID string, err error)
-    KillPaneWindow(paneTarget string) error
-    RespawnPane(target, command string) error
-    PaneAlive(target string) (bool, error)
-    PaneExitStatus(target string) (dead bool, code int, err error)
+type FrameLifecycle interface {
+    SpawnFrame(frameID, name, command, startDir string,
+               env map[string]string) error
+    KillFrame(frameID string) error
+    RespawnFrame(target, command string) error
+    FrameExitStatus(target string) (dead bool, code int, err error)
 }
 
-type PaneIO interface {
-    SendKeys(paneTarget, text string) error          // text + Enter
-    SendKey(paneTarget, key string) error            // named key, no Enter
+type FrameIO interface {
+    SendKeys(frameID, text string) error              // text + Enter
+    SendKey(frameID, key string) error                // named key, no Enter
     SendEnter(target string) error
-    LoadBuffer(name, text string) error              // bracketed-paste path
+    LoadBuffer(name, text string) error               // bracketed-paste path
     PasteBuffer(name, target string) error
-    PipePane(paneTarget, command string) error       // no-op on PtyBackend
+    PipeFrame(frameID, command string) error          // no-op on PtyBackend
 }
 
-type PaneInspect interface {
-    PaneID(target string) (string, error)
-    PaneSize(target string) (width, height int, err error)
-    CapturePane(paneTarget string, nLines int) (string, error)
+type FrameInspect interface {
+    ResolveID(target string) (string, error)
+    FrameSize(target string) (width, height int, err error)
+    CaptureFrame(frameID string, nLines int) (string, error)
 }
 
-// PaneBackend bundles the full set of pane / window operations the
-// runtime needs (lifecycle + io + inspect + session env + window
-// layout + control). Production wiring uses PtyBackend; new code should
-// depend on the narrower role interfaces above where possible.
-type PaneBackend interface {
-    PaneLifecycle
-    PaneIO
-    PaneInspect
+// FrameBackend bundles the full set of frame operations the runtime
+// needs (lifecycle + io + inspect + session env + control). Production
+// wiring uses PtyBackend; new code should depend on the narrower role
+// interfaces above where possible.
+type FrameBackend interface {
+    FrameLifecycle
+    FrameIO
+    FrameInspect
     SessionEnv
-    WindowLayout
     BackendControl
 }
 
@@ -251,7 +249,7 @@ type Envelope struct {
 
 // Command — closed sum type.
 // subscribe / unsubscribe / event: session control and domain operations.
-// surface.read_text / surface.send_text / surface.send_key: pane surface control.
+// surface.read_text / surface.send_text / surface.send_key: frame surface control.
 // driver.list: enumerate registered drivers.
 // All session domain operations are dispatched via CmdEvent with Event field
 // discriminator + RegisterEvent[T] typed handler lookup.
@@ -267,7 +265,7 @@ type CmdEvent struct {
 }
 ```
 
-Hook-driven agents pass their payloads through typed IPC as `proto.CmdEvent{Event, Timestamp, SenderID, Payload}`. Each hook bridge subcommand (e.g., `server event <eventType>`) reads the frame id from its pane environment, packs its hook payload into `CmdEvent` with `SenderID = frameID`, and sends it. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions and calls `Driver.Step(frame.Driver, DEvHook{...})`. Hooks whose target frame has already been truncated off the stack are silently dropped.
+Hook-driven agents pass their payloads through typed IPC as `proto.CmdEvent{Event, Timestamp, SenderID, Payload}`. Each hook bridge subcommand (e.g., `server event <eventType>`) reads the frame id from its frame's pty environment, packs its hook payload into `CmdEvent` with `SenderID = frameID`, and sends it. The runtime's IPC reader converts it into an `EvDriverEvent` and feeds it into the event loop. `reduceDriverHook` locates the owning frame across all sessions and calls `Driver.Step(frame.Driver, DEvHook{...})`. Hooks whose target frame has already been truncated off the stack are silently dropped.
 
 Structured backends such as Codex App Server use `proto.CmdSubsystemEvent{Source, Kind, Payload}` instead. The runtime converts this to `EvSubsystem`, updates the frame's `TargetID` when present, and calls `Driver.Step(frame.Driver, DEvSubsystem{...})`.
 
@@ -324,16 +322,16 @@ src/
 │   ├── state.go         State, Session, SessionFrame, Subscriber, JobMeta,
 │   │                    LaunchOptions — plain value types
 │   ├── event.go         Event closed sum type (EvEvent, EvDriverEvent, EvSubsystem,
-│   │                    EvTick, EvJobResult, EvPaneDied, EvPaneSpawned,
-│   │                    EvSpawnFailed, EvPaneWindowVanished,
-│   │                    EvFrameCommandExited, EvPaneOsc, EvPanePrompt, ...)
+│   │                    EvTick, EvJobResult, EvFrameVanished, EvFrameSpawned,
+│   │                    EvSpawnFailed, EvFrameCommandExited,
+│   │                    EvFrameOsc, EvFramePrompt, ...)
 │   ├── event_dispatch.go  RegisterEvent[T] registry + dispatch lookup
-│   ├── effect.go        Effect closed sum type (EffSpawnPaneWindow,
-│   │                    EffKillSessionWindow, EffRegisterPane, EffUnregisterPane,
-│   │                    EffSetPaneEnv, EffUnsetPaneEnv, EffCheckPaneAlive,
+│   ├── effect.go        Effect closed sum type (EffSpawnFrame,
+│   │                    EffKillFrame, EffRegisterFrame, EffUnregisterFrame,
+│   │                    EffSetSessionEnv, EffUnsetSessionEnv,
 │   │                    EffPersistSnapshot, EffEventLogAppend, EffToolLogAppend,
 │   │                    EffReconcileWindows, EffStartJob, EffRecordNotification,
-│   │                    EffSendPaneKeys, EffInjectPrompt,
+│   │                    EffSendFrameKeys,
 │   │                    EffSurfaceSubscribeStart/Stop/Resize/WriteRaw,
 │   │                    EffBroadcastSurfaceOutput, ...)
 │   ├── reduce.go        Reduce(State, Event) → (State, []Effect) — pure transition
@@ -346,8 +344,8 @@ src/
 │   ├── reduce_frame_evict.go  spawn-failure and frame-death eviction paths
 │   ├── reduce_tick.go         EvTick → step active frame of each session →
 │   │                          Driver.Step(DEvTick)
-│   ├── reduce_osc.go    EvPaneOsc / EvPanePrompt → EffEventLogAppend + driver routing
-│   │                    (OSC 0/2 → DEvPaneOsc; OSC 133 → DEvPanePrompt;
+│   ├── reduce_osc.go    EvFrameOsc / EvFramePrompt → EffEventLogAppend + driver routing
+│   │                    (OSC 0/2 → DEvFrameOsc; OSC 133 → DEvFramePrompt;
 │   │                     OSC 9/99/777 → EffRecordNotification)
 │   ├── reduce_surface.go  surface.read_text / send_text / send_key / driver.list /
 │   │                     surface streaming reducers
@@ -403,10 +401,8 @@ src/
 ├── client/runtime/      Imperative shell — event loop + Effect interpreter
 │   ├── runtime.go       Runtime.Run() — single event loop (select)
 │   ├── interpret.go     execute(Effect) — interpreter for all side effects
-│   ├── interpret_spawn.go    EffSpawnPaneWindow interpreter (sandbox dispatch,
+│   ├── interpret_spawn.go    EffSpawnFrame interpreter (sandbox dispatch,
 │   │                         launcher wiring, env propagation)
-│   ├── inject_prompt.go      EffInjectPrompt — load-buffer + paste-buffer + Enter
-│   ├── pane_injector.go      Helper used by inject_prompt to address backend panes
 │   ├── ipc.go           Host IPC server (accept + SO_PEERCRED uid check,
 │   │                    readLoop, writeLoop)
 │   ├── ipc_container.go Container IPC endpoint (per-project Unix socket;
@@ -422,21 +418,21 @@ src/
 │   │                    container-token wrap
 │   ├── notifier.go      Notification dispatch wiring (driven by EffRecordNotification)
 │   ├── resident.go      Long-lived per-project resources (sandbox managers, etc.)
-│   ├── terminal_relay.go     Per-subscriber pane→client byte relay for the
+│   ├── terminal_relay.go     Per-subscriber frame→client byte relay for the
 │   │                         HTTP/WS gateway (EffSurfaceSubscribeStart)
-│   ├── backends.go      PaneLifecycle / PaneIO / PaneInspect / SessionEnv /
-│   │                    WindowLayout / BackendControl / PaneBackend +
+│   ├── backends.go      FrameLifecycle / FrameIO / FrameInspect / SessionEnv /
+│   │                    BackendControl / FrameBackend +
 │   │                    PersistBackend / EventLogBackend / ToolLogBackend /
 │   │                    FSWatcher interfaces and noop fakes
-│   ├── pty_backend.go   PtyBackend — production PaneBackend implementation over
-│   │                    platform/termvt (synthetic "%N" pane ids, per-session
-│   │                    scrollback cap)
-│   ├── panetap.go       PaneTap interface — raw byte stream abstraction
-│   ├── pty_tap.go       PtyPaneTap — subscribes directly to termvt.Manager and
+│   ├── pty_backend.go   PtyBackend — production FrameBackend implementation over
+│   │                    platform/termvt (termvt.Manager keyed by string(FrameID),
+│   │                    per-session scrollback cap)
+│   ├── frametap.go      FrameTap interface — raw byte stream abstraction
+│   ├── pty_tap.go       PtyFrameTap — subscribes directly to termvt.Manager and
 │   │                    forwards Output events as the raw byte stream
 │   ├── tap_manager.go   per-frame tap lifecycle; runs a goroutine that feeds tap
-│   │                    bytes into a driver/vt.Terminal and emits EvPaneOsc
-│   │                    (OSC 0/2/9/99/777) and EvPanePrompt (OSC 133) into eventCh
+│   │                    bytes into a driver/vt.Terminal and emits EvFrameOsc
+│   │                    (OSC 0/2/9/99/777) and EvFramePrompt (OSC 133) into eventCh
 │   ├── stream_backend.go     UDS path resolution for the per-session app-server
 │   ├── subsystem.go          Subsystem dispatcher entry point
 │   ├── subsystem/            Subsystem backend implementations

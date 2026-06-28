@@ -1,12 +1,14 @@
-# ADR 0009 — Expose `SubscribeSurface(paneID)` on `PtyBackend`
+# ADR 0009 — Expose `SubscribeSurface(target)` on `PtyBackend`
 
 Status: Accepted
 
-> **2026-06-27 update**: Phase C has since landed. `RealTmuxBackend` is deleted,
-> the runtime field is now `Config.Backend PaneBackend`, and the legacy "tmux
-> backend" alternative no longer exists. The justifications below that refer
-> to "the tmux backend" are preserved as historical context — they describe
-> the constraint the ADR was decided under, not the current code shape.
+> **2026-06-28 update**: Phase C has since landed, and the subsequent
+> vocabulary scrub (commit 73603f4d) renamed `paneID` to `target` /
+> `string(FrameID)` everywhere. The runtime field is now
+> `Config.Backend FrameBackend`, and the legacy "tmux backend" alternative
+> no longer exists. The justifications below that refer to "the tmux backend"
+> or "paneID" are preserved as historical context — they describe the
+> constraint the ADR was decided under, not the current code shape.
 
 ## Context
 
@@ -21,17 +23,18 @@ abstraction and prevent future backend swaps (e.g. phase D's remote backend).
 Add three methods to `PtyBackend`:
 
 ```go
-SubscribeSurface(paneID string) (*termvt.Subscription, error)
-WriteSurface(paneID string, data []byte) error
-ResizeSurface(paneID string, cols, rows int) error
+SubscribeSurface(target string) (*termvt.Subscription, error)
+WriteSurface(target string, data []byte) error
+ResizeSurface(target string, cols, rows int) error
 ```
 
-`paneID` is the only argument. `ConnID` and `SessionID` are not exposed —
-they are state-level concerns that the runtime owns. The tmux backend
-implements these as `ErrNotImplemented` until phase C removes it.
+`target` (the `string(FrameID)` key into the `termvt.Manager`) is the only
+argument. `ConnID` and `SessionID` are not exposed — they are state-level
+concerns that the runtime owns. The tmux backend implements these as
+`ErrNotImplemented` until phase C removes it.
 
 `platform/termvt` is **not modified**. The accessors are pure forwarders to
-`mgr.Get(paneID)` plus existing termvt methods.
+`mgr.Get(target)` plus existing termvt methods.
 
 ## Consequences
 
@@ -39,7 +42,7 @@ implements these as `ErrNotImplemented` until phase C removes it.
 - The backend interface stays free of state-level types (`state.ConnID`,
   `state.SessionID`) — no reverse import direction.
 - Phase D's remote backend implements the same three methods, and the wire
-  carries only `paneID`.
+  carries only the backend `target` (`string(FrameID)`).
 - Three more methods become visible on the backend surface. tmux backend
   paths return `ErrNotImplemented`, which is acceptable since tmux backend is
   scheduled for removal in phase C.

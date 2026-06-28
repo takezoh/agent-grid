@@ -15,7 +15,8 @@ CSI "Report Mode" sequence (`\033[?1$p`, DECRQM). Upstream
 `vt.Emulator.handleRequestMode` writes the reply synchronously to an
 **internal `io.Pipe`** whose read end nothing in `termvt` drained. `em.Write`
 parked in the pipe send, holding the mutex, and the daemon's single dispatch
-goroutine (which polls `ExitCode` via `PaneAlive` every tick) blocked on the
+goroutine (which polls `ExitCode` via the backend liveness check every tick)
+blocked on the
 same lock. From the browser's side, every `GET /api/sessions` hung indefinitely
 — the symptom that surfaced this bug end-to-end (gateway timeout / 401-shaped
 failure in the UI).

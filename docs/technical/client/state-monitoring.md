@@ -6,8 +6,8 @@ For the interactive operation processing flow (client → IPC → Reduce → Eff
 
 Four parallel event sources feed Driver.Step:
 
-- **Periodic tick (1s)**: `reduceTick` steps the active frame of each running session via `Driver.Step(frame.Driver, DEvTick{...})`. Pane reconciliation and per-frame pane health checks are performed on the same tick. For the detailed sequence, see [ipc.md](ipc.md#tick-processing-sequence).
-- **PaneTap OSC events**: When the `tapManager` reader goroutine receives bytes from the per-frame pty (via `PtyPaneTap` over `platform/termvt`), it feeds them into a per-frame `driver/vt.Terminal` (a thin wrapper over `charmbracelet/x/vt`). The emulator fires synchronous callbacks for OSC 0/2 (window titles), OSC 9/99/777 (notifications), and OSC 133 (semantic prompt phases). The reader translates these into `EvPaneOsc` and `EvPanePrompt` events.
+- **Periodic tick (1s)**: `reduceTick` steps the active frame of each running session via `Driver.Step(frame.Driver, DEvTick{...})`. Frame reconciliation and per-frame health checks are performed on the same tick. For the detailed sequence, see [ipc.md](ipc.md#tick-processing-sequence).
+- **FrameTap OSC events**: When the `tapManager` reader goroutine receives bytes from the per-frame pty (via `PtyFrameTap` over `platform/termvt`), it feeds them into a per-frame `driver/vt.Terminal` (a thin wrapper over `charmbracelet/x/vt`). The emulator fires synchronous callbacks for OSC 0/2 (window titles), OSC 9/99/777 (notifications), and OSC 133 (semantic prompt phases). The reader translates these into `EvFrameOsc` and `EvFramePrompt` events.
 - **Driver hooks (`EvDriverEvent`)**: hook subprocesses send events through the IPC bridge; `reduceDriverHook` dispatches them to the owning frame's driver as `DEvHook`.
 - **Subsystem events (`EvSubsystem`)**: structured backends send typed execution events through the IPC bridge; `reduceSubsystem` dispatches them to the owning frame's driver as `DEvSubsystem`.
 
@@ -23,12 +23,12 @@ The Driver plugin's `Step` method is responsible for status updates. For the Dri
 |---------|-----------|------|
 | `NewState(now)` | `reduceCreateSession`, `reducePushDriver` | Generates a fresh DriverState value for a new frame. Initial values are Idle / now |
 | `Restore(bag, now)` | `runtime.Bootstrap` | Reconstructs each frame's DriverState from the previously saved opaque map on warm/cold restart |
-| `PrepareLaunch(s, mode, project, cmd, options)` | `reduceCreateSession`, `reducePushDriver`, cold-start bootstrap | Pure function that resolves the frame's launch plan (command / start_dir / normalized `LaunchOptions`). Called synchronously inside `state.Reduce` and on cold-start restoration; the resolved plan is baked into `EffSpawnPaneWindow` so the runtime never calls drivers |
+| `PrepareLaunch(s, mode, project, cmd, options)` | `reduceCreateSession`, `reducePushDriver`, cold-start bootstrap | Pure function that resolves the frame's launch plan (command / start_dir / normalized `LaunchOptions`). Called synchronously inside `state.Reduce` and on cold-start restoration; the resolved plan is baked into `EffSpawnFrame` so the runtime never calls drivers |
 | `PrepareCreate(s, sessID, project, cmd, options)` | `reduceCreateSession` (planner-gated drivers only) | Optional extension returning a `CreatePlan` with a `SetupJob` for async pre-launch work (e.g., creating a managed worktree) |
 | `CompleteCreate(s, cmd, options, result, err)` | `handlePendingCreate` (planner-gated drivers only) | Runs after the SetupJob completes; returns the final `CreateLaunch` and the normalized `LaunchOptions` to persist on the frame |
 | `Step(prev, DEvTick)` | `reduceTick` | Periodic tick on the active frame of each running session. Claude gates on `DEvTick.Active`, emitting transcript parse jobs only when active. Generic transitions Running → Waiting after `IdleThreshold` elapses without OSC activity |
-| `Step(prev, DEvPaneOsc)` | `reducePaneOsc` | Routes OSC 0/2 (window title) sequences to the driver. Claude/Codex/Gemini interpret the title to update status (e.g. Braille spinner = Running, "✳" = Waiting) |
-| `Step(prev, DEvPanePrompt)` | `reducePanePrompt` | Routes OSC 133 semantic-prompt events. Shell driver sets `SawPromptEvent` on first observation and updates `LastExitCode` on `PromptPhaseComplete` |
+| `Step(prev, DEvFrameOsc)` | `reduceFrameOsc` | Routes OSC 0/2 (window title) sequences to the driver. Claude/Codex/Gemini interpret the title to update status (e.g. Braille spinner = Running, "✳" = Waiting) |
+| `Step(prev, DEvFramePrompt)` | `reduceFramePrompt` | Routes OSC 133 semantic-prompt events. Shell driver sets `SawPromptEvent` on first observation and updates `LastExitCode` on `PromptPhaseComplete` |
 | `Step(prev, DEvHook)` | `reduceDriverHook` | Receives hook events targeted at a specific frame and updates that frame's DriverState. Used by hook-driven agents such as Claude and Gemini |
 | `Step(prev, DEvSubsystem)` | `reduceSubsystem` | Receives structured subsystem events targeted at a specific frame and updates that frame's DriverState. Used by Codex App Server |
 | `Step(prev, DEvJobResult)` | `reduceJobResult` | Reflects results from the worker pool into the owning frame's DriverState. Transcript parse results such as title / lastPrompt |
@@ -81,23 +81,23 @@ For Codex, transcript files are display-only. The source of truth for status, ap
 
 A mechanism for the hook subprocess to identify its owning client frame in a race-free manner.
 
-**Problem**: A hook may fire before the daemon could write any pane-scoped marker visible to the process inside the pane. Any post-spawn marker write would race with the hook.
+**Problem**: A hook may fire before the daemon could write any frame-scoped marker visible to the process inside the frame's pty. Any post-spawn marker write would race with the hook.
 
-**Solution**: Inject a frame-scoped env var into the pane environment at pane-spawn time (passed through to `platform/termvt` together with the command and argv). The env var is set at the kernel exec level simultaneously with the pty allocation, so no race occurs. The hook bridge reads the frame id directly from its own process environment. The reducer then scans the frame stacks to locate the owning frame and routes the hook to that frame's driver. Hooks whose target frame has already been truncated off the stack are silently dropped — this is the intended behavior when a frame's pane has just died and the reducer is still processing the eviction.
+**Solution**: Inject a frame-scoped env var into the frame's pty environment at spawn time (passed through to `platform/termvt` together with the command and argv). The env var is set at the kernel exec level simultaneously with the pty allocation, so no race occurs. The hook bridge reads the frame id directly from its own process environment. The reducer then scans the frame stacks to locate the owning frame and routes the hook to that frame's driver. Hooks whose target frame has already been truncated off the stack are silently dropped — this is the intended behavior when a frame's pty has just died and the reducer is still processing the eviction.
 
 ### OSC pipeline (pty → VT emulator → driver)
 
-Pane status detection is OSC-driven. `PtyPaneTap` subscribes to each frame's pty via `platform/termvt` and streams the raw byte sequence into a per-frame `driver/vt.Terminal`; the emulator parses the byte stream and fires synchronous callbacks for the OSC sequences agents and shells emit:
+Frame status detection is OSC-driven. `PtyFrameTap` subscribes to each frame's pty via `platform/termvt` and streams the raw byte sequence into a per-frame `driver/vt.Terminal`; the emulator parses the byte stream and fires synchronous callbacks for the OSC sequences agents and shells emit:
 
 | OSC | Source | Routing |
 |-----|--------|---------|
-| 0 / 2 | Window title (Claude/Codex/Gemini emit "✳ Working", "✋ Action Required", etc.) | `EvPaneOsc` → `EffEventLogAppend` (EVENTS log) + `DEvPaneOsc` to driver for status interpretation |
-| 9 / 99 / 777 | Desktop notification protocols (Growl / Kitty / urxvt) | `EvPaneOsc` → `EffRecordNotification` (writes EVENTS log + dispatches optional desktop toast) |
-| 133 | FinalTerm semantic prompt phases (`A`=start, `B`=input, `C`=command, `D`=complete with exit code) | `EvPanePrompt` → `EffEventLogAppend` + `DEvPanePrompt` to driver |
+| 0 / 2 | Window title (Claude/Codex/Gemini emit "✳ Working", "✋ Action Required", etc.) | `EvFrameOsc` → `EffEventLogAppend` (EVENTS log) + `DEvFrameOsc` to driver for status interpretation |
+| 9 / 99 / 777 | Desktop notification protocols (Growl / Kitty / urxvt) | `EvFrameOsc` → `EffRecordNotification` (writes EVENTS log + dispatches optional desktop toast) |
+| 133 | FinalTerm semantic prompt phases (`A`=start, `B`=input, `C`=command, `D`=complete with exit code) | `EvFramePrompt` → `EffEventLogAppend` + `DEvFramePrompt` to driver |
 
 ### Generic driver
 
-`genericDriver` runs in a Waiting state by default. OSC events received via `DEvPaneOsc` may transition it to Running (e.g. when the pane reports a working spinner). Without OSC activity, the driver falls back to `IdleThreshold`-based decay: Running → Waiting after the configured duration elapses.
+`genericDriver` runs in a Waiting state by default. OSC events received via `DEvFrameOsc` may transition it to Running (e.g. when the frame reports a working spinner). Without OSC activity, the driver falls back to `IdleThreshold`-based decay: Running → Waiting after the configured duration elapses.
 
 ### Shell driver
 
@@ -108,7 +108,7 @@ Pane status detection is OSC-driven. `PtyPaneTap` subscribes to each frame's pty
 
 ### State persistence and restoration
 
-`Driver.Persist(driverState)` returns an opaque `map[string]string` interpreted by the driver, and `EffPersistSnapshot` writes it to `sessions.json`. Frame-to-pane mapping is held in the runtime's loop-owned `sessionPanes` map (not persisted), so pane ids do not leak into the snapshot file.
+`Driver.Persist(driverState)` returns an opaque `map[string]string` interpreted by the driver, and `EffPersistSnapshot` writes it to `sessions.json`. The backend uses `string(FrameID)` directly as its `termvt.Manager` session key — there is no separate physical-handle namespace that could leak into the snapshot file.
 
 `sessions.json` is organized as a list of sessions, where each session contains a **frame stack** `frames[]`. Each frame in the stack carries its own `command`, normalized `launch_options`, and the driver-interpreted `driver_state` bag. The active frame is not persisted — it is always the tail of the stack at load time. `LaunchOptions` is stored in its canonical (normalized) form that drivers returned from `PrepareLaunch`; on cold start the bootstrap re-feeds those persisted options back into `PrepareLaunch` so each frame respawns with the same launch flavor (worktree vs in-place, etc.).
 
@@ -130,12 +130,12 @@ sequenceDiagram
     Red-->>Interp: [EffPersistSnapshot, ...]
     Interp->>Interp: snapshotSessions():<br/>for each session, serialize frames[] with<br/>command / launch_options / driver_state
     Interp->>JSON: Write to sessions.json
-    Note over JSON: sessions.json is the sole persistence target<br/>Pane ids stay in the runtime's loop-owned map only
+    Note over JSON: sessions.json is the sole persistence target<br/>Backend keys are derived from FrameID and never leak here
 ```
 
 #### Restoration (warm restart / cold boot)
 
-Restoration is always a **cold start** with `PtyBackend`: each fresh daemon boot brings up a new `termvt.Manager` with an empty pane table, so there is no warm-restart "live pane" case at the backend level. The bootstrap walks each restored session's frame stack in root-to-tail order and respawns a pane per frame via `Driver.PrepareLaunch(LaunchModeColdStart, …)`, re-feeding the persisted `LaunchOptions` so the launch flavor is preserved across restarts:
+Restoration is always a **cold start** with `PtyBackend`: each fresh daemon boot brings up a new `termvt.Manager` with an empty session table, so there is no warm-restart "live backend frame" case at the backend level. The bootstrap walks each restored session's frame stack in root-to-tail order and respawns a pty session per frame via `Driver.PrepareLaunch(LaunchModeColdStart, …)`, re-feeding the persisted `LaunchOptions` so the launch flavor is preserved across restarts:
 
 ```mermaid
 sequenceDiagram
@@ -151,7 +151,7 @@ sequenceDiagram
     loop each frame, root-to-tail
         Boot->>Drv: Driver.PrepareLaunch(driverState, ColdStart,<br/>project, command, launch_options)
         Drv-->>Boot: LaunchPlan (command, start_dir, normalized options)
-        Boot->>Pty: SpawnWindow spawning the frame
+        Boot->>Pty: SpawnFrame spawning the pty session
     end
 ```
 
@@ -205,11 +205,11 @@ sequenceDiagram
 
 | Scenario | Behavior |
 |---------|------|
-| **New session creation** | `reduceCreateSession` generates the initial DriverState via `Driver.NewState`, calls `Driver.PrepareLaunch` synchronously to resolve the frame's command / start_dir / normalized `LaunchOptions`, stores a root frame carrying the normalized options on the session, and emits `EffSpawnPaneWindow` pre-baked with the resolved plan. The runtime spawns the pty pane and reports back via `EvPaneSpawned` |
+| **New session creation** | `reduceCreateSession` generates the initial DriverState via `Driver.NewState`, calls `Driver.PrepareLaunch` synchronously to resolve the frame's command / start_dir / normalized `LaunchOptions`, stores a root frame carrying the normalized options on the session, and emits `EffSpawnFrame` pre-baked with the resolved plan. The runtime spawns the pty session and reports back via `EvFrameSpawned` |
 | **Push driver on top of a session** | `reducePushDriver` appends a new frame on top of the active frame, running the same `PrepareLaunch` / spawn pipeline as new session creation. The appended frame becomes the new active frame |
-| **Daemon restart** | `runtime.Bootstrap` loads the frame stacks from sessions.json, restores each frame's DriverState via `Driver.Restore`, then walks each session's frames in root-to-tail order and calls `Driver.PrepareLaunch(LaunchModeColdStart, …)` with the persisted `LaunchOptions` to reconstruct the launch plan. A pty pane is spawned per frame from the resolved plan |
-| **Session stop** | `reduceStopSession` emits terminate / unwatch / unregister effects for every frame in the session. The session is removed from State only once the pane actually exits and a `EvPaneWindowVanished` arrives |
-| **Dead pane reap** | Pane reconciliation and `EvPaneDied` / `EvPaneWindowVanished` locate the owning frame and truncate the session from that frame onward. If the root frame is the one that died, the entire session is deleted; otherwise the remaining lower frames stay and the new tail becomes the active frame |
+| **Daemon restart** | `runtime.Bootstrap` loads the frame stacks from sessions.json, restores each frame's DriverState via `Driver.Restore`, then walks each session's frames in root-to-tail order and calls `Driver.PrepareLaunch(LaunchModeColdStart, …)` with the persisted `LaunchOptions` to reconstruct the launch plan. A pty session is spawned per frame from the resolved plan |
+| **Session stop** | `reduceStopSession` emits terminate / unwatch / unregister effects for every frame in the session. The session is removed from State only once the pty session actually exits and an `EvFrameVanished` arrives |
+| **Dead frame reap** | Frame reconciliation and `EvFrameVanished` locate the owning frame and truncate the session from that frame onward. If the root frame is the one that died, the entire session is deleted; otherwise the remaining lower frames stay and the new tail becomes the active frame |
 
 ### Cost extraction
 

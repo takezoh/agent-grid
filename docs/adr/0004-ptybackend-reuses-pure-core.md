@@ -28,16 +28,19 @@ We must decide how the two reconcile:
 The `TmuxBackend` seam splits cleanly into a **data plane** and a
 **presentation plane**, and termvt already supplies the data plane:
 
-| `TmuxBackend` method | `platform/termvt` primitive |
+| Historical `TmuxBackend` method (tmux CLI vocabulary) | `platform/termvt` primitive |
 |---|---|
 | `SpawnWindow` | `NewSession(Spec)` |
 | `SendKeys` / `SendKey` / `SendEnter` / `PasteBuffer` | `WriteInput([]byte)` |
-| `PipePane` (output tap) | `Subscribe()` (snapshot-first fan-out) |
-| `CapturePane` | `Snapshot()` / `em.Render()` |
-| `PaneSize` / `ResizeWindow` | `Resize()` / `Size()` |
-| `KillPaneWindow` | `Close()` |
-| `PaneAlive` / `PaneExitStatus` | `EventExit` (exit **code** not yet retained) |
+| `pipe-pane` (output tap) | `Subscribe()` (snapshot-first fan-out) |
+| `capture-pane` | `Snapshot()` / `em.Render()` |
+| `display-message -p '#{pane_width},#{pane_height}'` / `resize-window` | `Resize()` / `Size()` |
+| `kill-window` | `Close()` |
+| `pane_dead` / `pane_dead_exit_code` | `EventExit` (exit **code** not yet retained) |
 | OSC 9/133 + title/bell tee | `registerOSC()` → `Control` event |
+
+(Names in the left column are tmux CLI command/format strings, not agent-reactor
+Go types. Agent-reactor's current backend has no "pane" concept.)
 
 Two facts make (i) low-risk and incremental:
 
@@ -46,12 +49,12 @@ Two facts make (i) low-risk and incremental:
 2. The data-plane methods map 1:1 onto existing termvt primitives; only small
    additions are needed (below).
 
-The **presentation plane** — `WindowLayout` (`SwapPane`/`BreakPane`/`JoinPane`/
-`SelectPane`/`RunChain`) and `TmuxControl` (`SetStatusLine`/`DetachClient`/
-`KillSession`/`DisplayPopup`) — has no server-side equivalent in a pty
-multiplexer. The design already anticipates this: layout composition moves
-client-side (remote-client-design.md, "client-side layout composition replaces
-the tmux 3-pane control screen").
+The **presentation plane** — tmux layout commands (`swap-pane` / `break-pane` /
+`join-pane` / `select-pane` / `run-shell`) and `TmuxControl`
+(`SetStatusLine` / `DetachClient` / `KillSession` / `DisplayPopup`) — has no
+server-side equivalent in a pty multiplexer. The design already anticipates
+this: layout composition moves client-side (remote-client-design.md,
+"client-side layout composition replaces the tmux 3-window control screen").
 
 ## Decision
 
@@ -59,9 +62,10 @@ Adopt **(i)**. Introduce a `PtyBackend` that implements the `TmuxBackend` role
 interfaces over `platform/termvt`, and keep the pure core (`state.Reduce`,
 `Driver`) unchanged.
 
-- **Data plane** (`PaneLifecycle`, `PaneIO`, `PaneInspect`, `SessionEnv`,
-  liveness): implemented for real against termvt + an in-process pane-id map.
-- **Presentation plane** (`WindowLayout`, `TmuxControl`): stubbed (like
+- **Data plane** (`FrameLifecycle`, `FrameIO`, `FrameInspect`, `SessionEnv`,
+  liveness): implemented for real against termvt. `FrameID` is the single
+  key — there is no separate physical-handle namespace.
+- **Presentation plane** (window layout, `BackendControl`): stubbed (like
   `noopTmux`) initially; relocated client-side in the tmux-removal phase.
 
 This is the linchpin (plan §4, B1). It unblocks reuse of driver intelligence on
@@ -81,10 +85,10 @@ the web surface (plan A) and the eventual tmux removal (plan C).
 **Required termvt additions (small)**
 
 - Retain `cmd.Wait()`'s exit code and expose it on `EventExit` (for
-  `PaneExitStatus`).
+  `FrameExitStatus`).
 - OSC parity: add 777 (notify), 7 (cwd), 99 to the existing 9/133/title/bell.
 - `SendKey` named-key → byte translation (`Escape` → `0x1b`, etc.).
-- `CapturePane` adapter: trailing N lines, SGR-stripped, from the emulator grid.
+- `CaptureFrame` adapter: trailing N lines, SGR-stripped, from the emulator grid.
 
 **Rejected — (ii) server reimplementation**
 
@@ -107,7 +111,7 @@ the web surface (plan A) and the eventual tmux removal (plan C).
   not a host restart). Session *definitions* persist via `SessionSnapshot`; on
   restart the daemon cold re-spawns rather than re-attaching live processes.
   PtyBackend's `SetEnv`/`ShowEnvironment` are in-process only and documented as
-  non-persistent; a tmux-session-env replacement for cross-restart pane recovery
+  non-persistent; a tmux-session-env replacement for cross-restart frame recovery
   is deferred (a detached supervisor that outlives the daemon is explicitly out
   of scope here).
 
@@ -117,8 +121,9 @@ The PtyBackend type and its unit tests are implemented and reviewed
 (`client/runtime/pty_backend.go`; `platform/termvt` gained `Session.ExitCode`
 and `CaptureTail`). Data plane is real, presentation plane is stubbed. It is
 **not yet wired into the runtime** (`NewPtyBackend` is test-only). The
-integration prerequisites before wiring — missing-pane error contract vs
-`isMissingPaneErr`, shell-string vs argv command form, `ResizeWindow` target
-shape, session-env persistence, `PipePane` tap, main-window kill guard — were
+integration prerequisites before wiring — missing-frame error contract vs
+the now-renamed sentinel (`ErrFrameMissing`), shell-string vs argv command form,
+`Resize` target shape, session-env persistence, output tap wiring, main-window
+kill guard — were
 tracked under "B1-wiring の前提条件" in the (now-removed) `plans/` design docs;
 all six were resolved or rendered moot by the time wiring completed.
