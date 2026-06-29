@@ -11,8 +11,8 @@
 //     active-session highlight never drifts to a different project.
 //
 // ADRs retained:
-//   - ADR-0076 (Title slot with "New Session" placeholder, supersedes 0033 —
-//     Subtitle row was removed; user-prompt summary no longer surfaces on the card)
+//   - ADR-0079 (Title slot fallback: Title → Subtitle → "New Session";
+//     Subtitle has no separate row)
 //   - ADR-0032 (session-status-slot + session-status-spinner kept)
 //   - ADR-0030 (conn prop retained for API compat; SessionList does not own
 //     subscriptions — TerminalPane owns them)
@@ -36,19 +36,18 @@ import { TagPill } from "./primitives/TagPill";
 import { UnifiedListbox } from "./primitives/UnifiedListbox";
 
 // ---------------------------------------------------------------------------
-// Title slot policy (ADR-0076)
+// Title slot policy (ADR-0079)
 //
 // The session ID is NEVER rendered as user-visible text — operators do not
-// need to read it to identify a session. When Title is empty the slot falls
-// back to TITLE_PLACEHOLDER. The Subtitle row that ADR-0076 originally
-// introduced has been removed: the last-user-prompt summary that surfaced
-// there is no longer shown on the card, so only Title remains.
+// need to read it to identify a session. The single title slot chooses the
+// first non-empty value from Title → Subtitle → TITLE_PLACEHOLDER. Subtitle
+// has no separate row.
 // ---------------------------------------------------------------------------
 
 export const TITLE_PLACEHOLDER = "New Session";
 
 export function titleText(card: Card): string {
-  return card.title?.trim() || TITLE_PLACEHOLDER;
+  return card.title?.trim() || card.subtitle?.trim() || TITLE_PLACEHOLDER;
 }
 
 /**
@@ -72,9 +71,9 @@ export function displayLabel(card: Card, _id: string): string {
 // SessionRow — one row rendered inside UnifiedListbox as label prop
 // ---------------------------------------------------------------------------
 //
-// Card layout (Title-only — subtitle row removed):
+// Card layout (one title slot — subtitle row removed):
 //
-//   ┃ ● <title or "New Session">      [driver]
+//   ┃ ● <Title, Subtitle, or "New Session">      [driver]
 //   ┃   [tag] [tag]  <border_badge>
 //
 // Title is always shown (with TITLE_PLACEHOLDER fallback). Width clamping

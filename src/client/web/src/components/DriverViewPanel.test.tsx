@@ -24,12 +24,25 @@ describe("DriverViewPanel", () => {
     expect(screen.getByText("My Title")).toBeTruthy();
   });
 
-  it("never renders card.subtitle in the header (Subtitle slot was removed)", () => {
+  it("uses card title before subtitle in the header title slot", () => {
     const view = makeView({ card: { title: "My Title", subtitle: "My Subtitle" } });
     const { container } = render(<DriverViewPanel view={view} />);
     expect(screen.getByText("My Title")).toBeTruthy();
     expect(container.querySelector(".driver-view-subtitle")).toBeNull();
     expect(container.textContent).not.toMatch(/My Subtitle/);
+  });
+
+  it("falls back to card subtitle in the header title slot", () => {
+    const view = makeView({ card: { subtitle: "My Subtitle" } });
+    const { container } = render(<DriverViewPanel view={view} />);
+    expect(container.querySelector(".driver-view-title")?.textContent).toBe("My Subtitle");
+    expect(container.querySelector(".driver-view-subtitle")).toBeNull();
+  });
+
+  it("falls back to New Session in the header title slot", () => {
+    const view = makeView({ card: {} });
+    const { container } = render(<DriverViewPanel view={view} />);
+    expect(container.querySelector(".driver-view-title")?.textContent).toBe("New Session");
   });
 
   it("ADR-0076: preserves the full title text in the DOM (no JS truncation)", () => {
@@ -148,7 +161,16 @@ describe("DriverViewPanel — terminate button placement", () => {
     expect(onRequest.mock.calls[0]?.[2]).toBe(btn);
   });
 
-  it("card.title が空の時は 'New Session' placeholder を label として使う", () => {
+  it("card.title が空で subtitle がある時は subtitle を label として使う", () => {
+    const onRequest = vi.fn();
+    const view = makeView({ card: { subtitle: "subtitle label" } });
+    render(<DriverViewPanel view={view} sessionId="s-sub" onRequestTerminate={onRequest} />);
+    const btn = screen.getByRole("button", { name: "「subtitle label」を終了" });
+    fireEvent.click(btn);
+    expect(onRequest.mock.calls[0]?.[1]).toBe("subtitle label");
+  });
+
+  it("card.title/subtitle が空の時は 'New Session' placeholder を label として使う", () => {
     const onRequest = vi.fn();
     const view = makeView({ card: {} });
     render(<DriverViewPanel view={view} sessionId="s-empty" onRequestTerminate={onRequest} />);

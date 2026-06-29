@@ -25,14 +25,14 @@ export function DriverViewPanel({ view, sessionId, onRequestTerminate }: DriverV
   const elapsed = view.status_changed_at
     ? formatElapsed(now - new Date(view.status_changed_at).getTime())
     : "";
-  // Terminate dialog 用の label. SessionList と同じ titleText fallback を使う事で
-  // 「New Session」の placeholder が confirm dialog の文面と一致する.
-  const terminateLabel = titleText(card);
+  const displayTitle = titleText(card);
+  // Terminate dialog 用の label. Header / SessionList と同じ titleText fallback を使う.
+  const terminateLabel = displayTitle;
   return (
     <section className="driver-view-panel" aria-label="driver view">
       <header className="driver-view-header">
         <div className="driver-view-titles">
-          {card.title && <h2 className="driver-view-title">{card.title}</h2>}
+          <h2 className="driver-view-title">{displayTitle}</h2>
         </div>
         <div className="driver-view-actions">
           <RunStateBadge status={view.status} />

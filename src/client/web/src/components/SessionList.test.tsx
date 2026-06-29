@@ -10,23 +10,26 @@ const fakeConn = {
   unsubscribe: vi.fn(async () => {}),
 } as unknown as import("../socket/connection").Connection;
 
-// ─── titleText (ADR-0076; subtitleText removed) ────────────────────────────
+// ─── titleText (ADR-0079; Title → Subtitle → New Session) ──────────────────
 describe("titleText", () => {
   it("returns trimmed card.title when present", () => {
     expect(titleText({ title: "My Session" })).toBe("My Session");
     expect(titleText({ title: "  trimmed  " })).toBe("trimmed");
   });
 
-  it("falls back to TITLE_PLACEHOLDER when title is empty / missing / whitespace", () => {
+  it("falls back to TITLE_PLACEHOLDER when title and subtitle are empty / missing / whitespace", () => {
     expect(titleText({})).toBe(TITLE_PLACEHOLDER);
     expect(titleText({ title: "" })).toBe(TITLE_PLACEHOLDER);
     expect(titleText({ title: "   " })).toBe(TITLE_PLACEHOLDER);
     expect(titleText({ title: undefined })).toBe(TITLE_PLACEHOLDER);
+    expect(titleText({ title: "", subtitle: "" })).toBe(TITLE_PLACEHOLDER);
+    expect(titleText({ title: "   ", subtitle: "   " })).toBe(TITLE_PLACEHOLDER);
   });
 
-  it("does NOT fall back to subtitle (Subtitle was removed from the card)", () => {
-    expect(titleText({ subtitle: "sub" })).toBe(TITLE_PLACEHOLDER);
-    expect(titleText({ title: "", subtitle: "sub" })).toBe(TITLE_PLACEHOLDER);
+  it("falls back to trimmed subtitle when title is empty / missing / whitespace", () => {
+    expect(titleText({ subtitle: "sub" })).toBe("sub");
+    expect(titleText({ title: "", subtitle: "sub" })).toBe("sub");
+    expect(titleText({ title: "   ", subtitle: "  sub  " })).toBe("sub");
   });
 
   it("TITLE_PLACEHOLDER is the literal 'New Session'", () => {
@@ -37,7 +40,7 @@ describe("titleText", () => {
 describe("displayLabel (deprecated, kept for back-compat)", () => {
   it("returns the title slot value (equivalent to titleText)", () => {
     expect(displayLabel({ title: "My Session" }, "s1")).toBe("My Session");
-    expect(displayLabel({ subtitle: "sub" }, "s1")).toBe(TITLE_PLACEHOLDER);
+    expect(displayLabel({ subtitle: "sub" }, "s1")).toBe("sub");
     expect(displayLabel({}, "s1")).toBe(TITLE_PLACEHOLDER);
   });
 
@@ -48,7 +51,7 @@ describe("displayLabel (deprecated, kept for back-compat)", () => {
 });
 
 // ─── SessionRow rendering (per-session card) ──────────────────────────────
-describe("SessionList rendering — Title-only slot (ADR-0076, Subtitle removed)", () => {
+describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)", () => {
   beforeEach(() => {
     useDaemonStore.getState().reset();
     vi.clearAllMocks();
@@ -71,7 +74,7 @@ describe("SessionList rendering — Title-only slot (ADR-0076, Subtitle removed)
     expect(title?.textContent).toBe("alpha");
   });
 
-  it("never renders a subtitle row, even when card.subtitle is populated", () => {
+  it("uses title in the title slot and never renders a separate subtitle row", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -92,7 +95,7 @@ describe("SessionList rendering — Title-only slot (ADR-0076, Subtitle removed)
     expect(container.textContent).not.toMatch(/refactor auth/);
   });
 
-  it("falls back to 'New Session' in the title slot when title is absent", () => {
+  it("falls back to subtitle in the title slot when title is absent", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -105,10 +108,9 @@ describe("SessionList rendering — Title-only slot (ADR-0076, Subtitle removed)
       ],
     });
     const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelector(".session-list__title")?.textContent).toBe("New Session");
+    expect(container.querySelector(".session-list__title")?.textContent).toBe("my-sub");
     // Subtitle is never rendered.
     expect(container.querySelector(".session-list__subtitle")).toBeNull();
-    expect(container.textContent).not.toMatch(/my-sub/);
   });
 
   it("shows 'New Session' when card is empty", () => {
