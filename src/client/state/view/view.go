@@ -23,9 +23,15 @@ type View struct {
 }
 
 // Card is the driver-specific portion of the session list card.
+//
+// Title is the only user-prompt-derived label. The Subtitle field was
+// removed (ADR-0079 follow-up): the Web Subtitle row was retired in
+// ADR-0076, the TUI consumer was removed with the arc binary in 5cb51eb,
+// and `tools/builtin.go` no longer reads it — so no in-tree consumer is
+// left. Multi-line summaries are now folded into Title at the driver
+// layer (`resolveCardTitle`) instead of falling through to a Subtitle row.
 type Card struct {
 	Title                string `json:"title,omitempty"`
-	Subtitle             string `json:"subtitle,omitempty"`
 	Tags                 []Tag  `json:"tags,omitempty"`
 	BorderTitle          Tag    `json:"border_title,omitempty"`
 	BorderTitleSecondary Tag    `json:"border_title_secondary,omitempty"`

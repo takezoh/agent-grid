@@ -10,9 +10,11 @@ export type Tag = {
 };
 
 // Card mirrors view.Card — driver-specific portion of the session list card.
+// The Subtitle field was removed (ADR-0079 follow-up): multi-line summaries
+// are now collapsed into Title at the driver layer instead of falling
+// through to a Subtitle row.
 export type Card = {
   title?: string;
-  subtitle?: string;
   tags?: Tag[];
   border_title?: Tag;
   border_title_secondary?: Tag;

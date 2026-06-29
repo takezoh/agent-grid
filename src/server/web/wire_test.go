@@ -128,7 +128,6 @@ func TestWireEncodeServerEvent_SessionsChanged_ViewUpdate(t *testing.T) {
 				View: view.View{
 					Card: view.Card{
 						Title:       "T",
-						Subtitle:    "S",
 						Tags:        []view.Tag{{Text: "tag"}},
 						BorderTitle: view.Tag{Text: "BT"},
 					},

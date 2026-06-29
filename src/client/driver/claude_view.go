@@ -15,14 +15,11 @@ import (
 // Step before view is called.
 //
 // Card content:
-//   - Title    = transcript title (set by transcript parse result)
-//   - Subtitle = haiku-generated session summary, falling back to
-//     LastPrompt while haiku is still computing or hasn't
-//     run yet. LastPrompt is now seeded from
-//     UserPromptSubmit hook payload directly so it's
-//     populated even on the first turn of a brand-new
-//     session before Claude has flushed anything to JSONL.
-//   - Tags     = [BranchTag?]
+//   - Title = transcript title, falling back to a single-line-collapsed
+//     haiku-generated session summary (ADR-0079). LastPrompt
+//     is never promoted to Title — it is only surfaced in the
+//     INFO "Last Prompt" line.
+//   - Tags  = [BranchTag?]
 //
 // StatusLine: cached from the transcript parse result.
 func (d ClaudeDriver) view(cs ClaudeState) state.View {
@@ -45,11 +42,9 @@ func (d ClaudeDriver) view(cs ClaudeState) state.View {
 		logTabs = append(logTabs, *tab)
 	}
 
-	title, subtitle := resolveCardTitleSubtitle(cs.Title, cs.Summary, cs.LastPrompt)
 	return state.View{
 		Card: state.Card{
-			Title:       title,
-			Subtitle:    subtitle,
+			Title:       resolveCardTitle(cs.Title, cs.Summary),
 			Tags:        tags,
 			BorderTitle: CommandTag(ClaudeDriverName),
 			BorderBadge: fishpath.Shorten(cs.StartDir, d.home),

@@ -10,9 +10,11 @@ const fakeConn = {
   unsubscribe: vi.fn(async () => {}),
 } as unknown as import("../socket/connection").Connection;
 
-// ─── titleText (ADR-0079; driver layer resolves aiTitle→summary, Web only
-//     adds the "New Session" placeholder — Card.Subtitle is never promoted
-//     into the title slot here) ─────────────────────────────────────────────
+// ─── titleText (ADR-0079; the full aiTitle → collapseToSingleLine(summary)
+//     chain is resolved at the driver layer, so the Web client only adds
+//     the "New Session" placeholder. Card.Subtitle was removed from the
+//     wire — the matrix for the data-layer fallback lives in
+//     src/client/driver/title_chain_test.go.) ───────────────────────────────
 describe("titleText", () => {
   it("returns trimmed card.title when present", () => {
     expect(titleText({ title: "My Session" })).toBe("My Session");
@@ -26,12 +28,6 @@ describe("titleText", () => {
     expect(titleText({ title: undefined })).toBe(TITLE_PLACEHOLDER);
   });
 
-  it("does NOT promote card.subtitle into the title slot (ADR-0079: LastPrompt must never surface as title; Web cannot distinguish summary vs lastPrompt inside Card.Subtitle so it ignores subtitle entirely)", () => {
-    expect(titleText({ subtitle: "sub" })).toBe(TITLE_PLACEHOLDER);
-    expect(titleText({ title: "", subtitle: "sub" })).toBe(TITLE_PLACEHOLDER);
-    expect(titleText({ title: "   ", subtitle: "  sub  " })).toBe(TITLE_PLACEHOLDER);
-  });
-
   it("TITLE_PLACEHOLDER is the literal 'New Session'", () => {
     expect(TITLE_PLACEHOLDER).toBe("New Session");
   });
@@ -40,13 +36,12 @@ describe("titleText", () => {
 describe("displayLabel (deprecated, kept for back-compat)", () => {
   it("returns the title slot value (equivalent to titleText)", () => {
     expect(displayLabel({ title: "My Session" }, "s1")).toBe("My Session");
-    expect(displayLabel({ subtitle: "sub" }, "s1")).toBe(TITLE_PLACEHOLDER);
     expect(displayLabel({}, "s1")).toBe(TITLE_PLACEHOLDER);
   });
 
   it("does NOT return the id under any input (sessionID is hidden from UI now)", () => {
     expect(displayLabel({}, "raw-id")).not.toBe("raw-id");
-    expect(displayLabel({ title: "", subtitle: "" }, "raw-id")).not.toBe("raw-id");
+    expect(displayLabel({ title: "" }, "raw-id")).not.toBe("raw-id");
   });
 });
 
@@ -74,7 +69,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
     expect(title?.textContent).toBe("alpha");
   });
 
-  it("uses title in the title slot and never renders a separate subtitle row", () => {
+  it("renders only the title row — the legacy .session-list__subtitle row never appears", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -82,36 +77,13 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: {
-            card: { title: "alpha", subtitle: "refactor auth" },
-            status: "running",
-          },
+          view: { card: { title: "alpha" }, status: "running" },
         },
       ],
     });
     const { container } = render(<SessionList conn={fakeConn} />);
     expect(container.querySelector(".session-list__title")?.textContent).toBe("alpha");
     expect(container.querySelector(".session-list__subtitle")).toBeNull();
-    expect(container.textContent).not.toMatch(/refactor auth/);
-  });
-
-  it("shows 'New Session' in the title slot when only card.subtitle is set (ADR-0079: Web never promotes Card.Subtitle into the title)", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "proj",
-          command: "claude",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { subtitle: "my-sub" }, status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelector(".session-list__title")?.textContent).toBe("New Session");
-    // Subtitle is never rendered.
-    expect(container.querySelector(".session-list__subtitle")).toBeNull();
-    expect(container.textContent).not.toMatch(/my-sub/);
   });
 
   it("shows 'New Session' when card is empty", () => {
@@ -131,7 +103,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
     expect(container.querySelector(".session-list__subtitle")).toBeNull();
   });
 
-  it("shows 'New Session' for empty strings on title/subtitle", () => {
+  it("shows 'New Session' for empty title", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -139,7 +111,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "", subtitle: "" }, status: "stopped" },
+          view: { card: { title: "" }, status: "stopped" },
         },
       ],
     });
@@ -148,7 +120,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
     expect(container.querySelector(".session-list__subtitle")).toBeNull();
   });
 
-  it("shows 'New Session' for whitespace-only inputs", () => {
+  it("shows 'New Session' for whitespace-only title", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -156,7 +128,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "  ", subtitle: "  " }, status: "stopped" },
+          view: { card: { title: "  " }, status: "stopped" },
         },
       ],
     });

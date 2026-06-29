@@ -873,9 +873,9 @@ func TestCodexViewAddsTranscriptTab(t *testing.T) {
 	if v.Card.Title != "saved-session" {
 		t.Fatalf("title = %q", v.Card.Title)
 	}
-	if v.Card.Subtitle != "session summary" {
-		t.Fatalf("subtitle = %q", v.Card.Subtitle)
-	}
+	// Summary only surfaces in InfoExtras now (Card.Subtitle field removed,
+	// ADR-0079 follow-up). The matrix for the Title fallback chain lives in
+	// title_chain_test.go.
 }
 
 func TestParseCodexWorktree(t *testing.T) {

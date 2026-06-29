@@ -185,18 +185,15 @@ func TestGenericApplySummaryResultErrorKeepsPrevious(t *testing.T) {
 
 // TestGenericViewSummaryPromotesToTitle locks the title priority chain on
 // the generic driver: when no upstream Title is set, the user-prompt summary
-// is promoted into the Card.Title slot. Card.Subtitle still mirrors Summary
-// for downstream non-rendering consumers; the UI layer hides the duplicate
-// row.
+// is promoted into the Card.Title slot. Card.Subtitle was removed (ADR-0079
+// follow-up): every multi-line summary is now flattened into a single-line
+// Title instead of falling through to a Subtitle row.
 func TestGenericViewSummaryPromotesToTitle(t *testing.T) {
 	d, s, _ := newGenericState(t, 0)
 	s.Summary = "running tests"
 	v := d.view(s)
 	if v.Card.Title != "running tests" {
 		t.Errorf("Title = %q, want running tests", v.Card.Title)
-	}
-	if v.Card.Subtitle != "running tests" {
-		t.Errorf("Subtitle = %q, want running tests (UI dedups; data layer keeps it)", v.Card.Subtitle)
 	}
 }
 

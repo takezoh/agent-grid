@@ -38,26 +38,41 @@ func firstNonEmpty(candidates ...string) string {
 	return ""
 }
 
-// resolveCardTitleSubtitle picks Title from aiTitle→summary→"" and Subtitle
-// from summary→lastPrompt→"". LastPrompt is never a Title candidate (only an
-// AI title or a user-prompt summary qualifies). Subtitle is intentionally
-// NOT deduped against Title here — non-rendering consumers may read
-// Card.Subtitle as the human-context source and need it populated even when
-// Summary was hoisted into Title. The web SessionList row renders the dedup
-// so the same string never appears twice on screen.
-func resolveCardTitleSubtitle(aiTitle, summary, lastPrompt string) (string, string) {
-	// Multi-line summaries (legacy persisted, pre-single-line constraint)
-	// are NOT Title candidates. The Title row has no per-line splitter, and
-	// promoting only the first line would leave the same line in the
-	// Subtitle row's multi-line splitter (SessionList.subtitleText),
-	// defeating dedup. For those sessions Title stays empty (placeholder
-	// "New Session" in the web client) and the multi-line Subtitle row
-	// keeps the legacy rendering path.
-	summaryAsTitle := summary
-	if strings.ContainsRune(summaryAsTitle, '\n') {
-		summaryAsTitle = ""
+// resolveCardTitle picks the session card Title from `aiTitle → summary → ""`.
+// LastPrompt is never a Title candidate — ADR-0079 rejects promoting raw user
+// prompts (un-summarised, often multi-line) into the title slot.
+//
+// Multi-line summaries used to drop to "" because the legacy Subtitle row
+// would re-render them. That row no longer exists (Web Subtitle removed in
+// ADR-0076, TUI removed in 5cb51eb, the peer/palette consumers ADR-0079
+// §Decision 3 cited are gone too), so leaving multi-line summaries
+// unrendered would lock affected sessions on the "New Session" placeholder
+// forever. We collapse newlines into spaces so the Title row still gets the
+// LLM's summary verbatim (modulo whitespace).
+func resolveCardTitle(aiTitle, summary string) string {
+	return firstNonEmpty(aiTitle, collapseToSingleLine(summary))
+}
+
+// collapseToSingleLine folds CR/LF runs into single spaces and trims the
+// result. Used to keep multi-line summaries renderable in the single-line
+// card Title slot.
+func collapseToSingleLine(s string) string {
+	if !strings.ContainsAny(s, "\r\n") {
+		return strings.TrimSpace(s)
 	}
-	return firstNonEmpty(aiTitle, summaryAsTitle), firstNonEmpty(summary, lastPrompt)
+	fields := strings.FieldsFunc(s, func(r rune) bool {
+		return r == '\r' || r == '\n'
+	})
+	for i, f := range fields {
+		fields[i] = strings.TrimSpace(f)
+	}
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if f != "" {
+			out = append(out, f)
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // previewText truncates long text for display in info lines.

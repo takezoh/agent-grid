@@ -11,10 +11,12 @@
 //     active-session highlight never drifts to a different project.
 //
 // ADRs retained:
-//   - ADR-0079 (Title chain `aiTitle → summary → ""` resolved in the driver
-//     layer; the Web client only adds the "New Session" placeholder and never
-//     promotes Card.Subtitle into the title slot — LastPrompt must never
-//     surface as a title)
+//   - ADR-0079 (Title chain `aiTitle → collapseToSingleLine(summary) → ""`
+//     resolved entirely in the driver layer; the Web client only adds the
+//     "New Session" placeholder. LastPrompt is not in the chain — raw user
+//     prompts must never surface as a card title. Card.Subtitle was removed
+//     as a follow-up: no consumer remained after the Web Subtitle row, TUI,
+//     and tools/builtin palette label were all retired.)
 //   - ADR-0032 (session-status-slot + session-status-spinner kept)
 //   - ADR-0030 (conn prop retained for API compat; SessionList does not own
 //     subscriptions — TerminalPane owns them)
@@ -42,16 +44,16 @@ import { UnifiedListbox } from "./primitives/UnifiedListbox";
 //
 // The session ID is NEVER rendered as user-visible text — operators do not
 // need to read it to identify a session. The full Title chain
-// (`aiTitle → summary → ""`) is resolved in driver/view_builder.go
-// (`resolveCardTitleSubtitle`) so by the time `card.title` reaches the Web
-// client it already carries the AI title or the user-prompt summary. The
-// Web client only fills the final empty slot with TITLE_PLACEHOLDER.
+// (`aiTitle → collapseToSingleLine(summary) → ""`) is resolved in
+// driver/view_builder.go (`resolveCardTitle`) so by the time `card.title`
+// reaches the Web client it already carries the AI title or the user-prompt
+// summary (multi-line summaries are folded into one line at that layer).
+// The Web client only fills the final empty slot with TITLE_PLACEHOLDER.
 //
-// `card.subtitle` is NOT a Title candidate here — the driver layer's
-// Subtitle is `summary → lastPrompt`, and ADR-0079 explicitly rejects
-// promoting raw LastPrompt into a Title slot (raw / multi-line / not
-// summarised). `card.subtitle` survives only for non-rendering consumers
-// (peer fallback, palette label).
+// Card.Subtitle no longer exists on the wire (ADR-0079 follow-up) — the
+// Subtitle row was retired in ADR-0076 and the non-rendering consumers
+// cited by ADR-0079 §Decision 3 (state/reduce_peer.go, tools/builtin.go)
+// were both removed, so the field had no remaining reader.
 // ---------------------------------------------------------------------------
 
 export const TITLE_PLACEHOLDER = "New Session";

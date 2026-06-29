@@ -24,23 +24,14 @@ describe("DriverViewPanel", () => {
     expect(screen.getByText("My Title")).toBeTruthy();
   });
 
-  it("renders card.title in the header title slot and never card.subtitle (Subtitle slot was removed)", () => {
-    const view = makeView({ card: { title: "My Title", subtitle: "My Subtitle" } });
+  it("renders only the title row — the legacy .driver-view-subtitle row never appears", () => {
+    const view = makeView({ card: { title: "My Title" } });
     const { container } = render(<DriverViewPanel view={view} />);
     expect(screen.getByText("My Title")).toBeTruthy();
     expect(container.querySelector(".driver-view-subtitle")).toBeNull();
-    expect(container.textContent).not.toMatch(/My Subtitle/);
   });
 
-  it("ADR-0079: never promotes card.subtitle into the title slot — falls straight to 'New Session'", () => {
-    const view = makeView({ card: { subtitle: "My Subtitle" } });
-    const { container } = render(<DriverViewPanel view={view} />);
-    expect(container.querySelector(".driver-view-title")?.textContent).toBe("New Session");
-    expect(container.querySelector(".driver-view-subtitle")).toBeNull();
-    expect(container.textContent).not.toMatch(/My Subtitle/);
-  });
-
-  it("falls back to New Session in the header title slot when card is empty", () => {
+  it("falls back to New Session in the header title slot when card.title is absent", () => {
     const view = makeView({ card: {} });
     const { container } = render(<DriverViewPanel view={view} />);
     expect(container.querySelector(".driver-view-title")?.textContent).toBe("New Session");
@@ -160,15 +151,6 @@ describe("DriverViewPanel — terminate button placement", () => {
     expect(onRequest.mock.calls[0]?.[0]).toBe("s-id-42");
     expect(onRequest.mock.calls[0]?.[1]).toBe("alpha");
     expect(onRequest.mock.calls[0]?.[2]).toBe(btn);
-  });
-
-  it("ADR-0079: card.title が空なら subtitle があっても 'New Session' placeholder を label として使う", () => {
-    const onRequest = vi.fn();
-    const view = makeView({ card: { subtitle: "subtitle label" } });
-    render(<DriverViewPanel view={view} sessionId="s-sub" onRequestTerminate={onRequest} />);
-    const btn = screen.getByRole("button", { name: "「New Session」を終了" });
-    fireEvent.click(btn);
-    expect(onRequest.mock.calls[0]?.[1]).toBe("New Session");
   });
 
   it("card.title が空の時は 'New Session' placeholder を label として使う", () => {

@@ -10,11 +10,9 @@ func (d GenericDriver) view(gs GenericState) state.View {
 	if d.displayName != "" {
 		borderTitle = CommandTag(d.displayName)
 	}
-	title, subtitle := resolveCardTitleSubtitle(gs.Title, gs.Summary, gs.LastPrompt)
 	return state.View{
 		Card: state.Card{
-			Title:       title,
-			Subtitle:    subtitle,
+			Title:       resolveCardTitle(gs.Title, gs.Summary),
 			BorderTitle: borderTitle,
 			Tags:        CommonTags(gs.CommonState),
 		},
