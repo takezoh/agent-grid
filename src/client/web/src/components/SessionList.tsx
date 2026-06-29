@@ -11,8 +11,10 @@
 //     active-session highlight never drifts to a different project.
 //
 // ADRs retained:
-//   - ADR-0079 (Title slot fallback: Title → Subtitle → "New Session";
-//     Subtitle has no separate row)
+//   - ADR-0079 (Title chain `aiTitle → summary → ""` resolved in the driver
+//     layer; the Web client only adds the "New Session" placeholder and never
+//     promotes Card.Subtitle into the title slot — LastPrompt must never
+//     surface as a title)
 //   - ADR-0032 (session-status-slot + session-status-spinner kept)
 //   - ADR-0030 (conn prop retained for API compat; SessionList does not own
 //     subscriptions — TerminalPane owns them)
@@ -39,15 +41,23 @@ import { UnifiedListbox } from "./primitives/UnifiedListbox";
 // Title slot policy (ADR-0079)
 //
 // The session ID is NEVER rendered as user-visible text — operators do not
-// need to read it to identify a session. The single title slot chooses the
-// first non-empty value from Title → Subtitle → TITLE_PLACEHOLDER. Subtitle
-// has no separate row.
+// need to read it to identify a session. The full Title chain
+// (`aiTitle → summary → ""`) is resolved in driver/view_builder.go
+// (`resolveCardTitleSubtitle`) so by the time `card.title` reaches the Web
+// client it already carries the AI title or the user-prompt summary. The
+// Web client only fills the final empty slot with TITLE_PLACEHOLDER.
+//
+// `card.subtitle` is NOT a Title candidate here — the driver layer's
+// Subtitle is `summary → lastPrompt`, and ADR-0079 explicitly rejects
+// promoting raw LastPrompt into a Title slot (raw / multi-line / not
+// summarised). `card.subtitle` survives only for non-rendering consumers
+// (peer fallback, palette label).
 // ---------------------------------------------------------------------------
 
 export const TITLE_PLACEHOLDER = "New Session";
 
 export function titleText(card: Card): string {
-  return card.title?.trim() || card.subtitle?.trim() || TITLE_PLACEHOLDER;
+  return card.title?.trim() || TITLE_PLACEHOLDER;
 }
 
 /**
@@ -73,7 +83,7 @@ export function displayLabel(card: Card, _id: string): string {
 //
 // Card layout (one title slot — subtitle row removed):
 //
-//   ┃ ● <Title, Subtitle, or "New Session">      [driver]
+//   ┃ ● <card.title or "New Session">      [driver]
 //   ┃   [tag] [tag]  <border_badge>
 //
 // Title is always shown (with TITLE_PLACEHOLDER fallback). Width clamping
