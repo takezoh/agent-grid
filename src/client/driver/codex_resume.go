@@ -45,26 +45,26 @@ func (cs CodexState) coldStartResumePlan() (state.ResumeTarget, string, bool, er
 	if !isAlphanumHyphen(threadID) {
 		return state.ResumeTarget{}, "", false, fmt.Errorf("codex cold-start resume requires a valid thread_id, got %q", threadID)
 	}
-	resolvedSessionID, err := resolveCodexSessionID(rolloutPath, sessionID)
-	if err != nil {
-		return state.ResumeTarget{}, "", false, err
-	}
-	return state.ResumeTarget{ThreadID: threadID, RolloutPath: rolloutPath}, resolvedSessionID, true, nil
+	return state.ResumeTarget{ThreadID: threadID, RolloutPath: rolloutPath}, resolveCodexSessionID(rolloutPath, sessionID), true, nil
 }
 
-func resolveCodexSessionID(rolloutPath, persistedSessionID string) (string, error) {
+func resolveCodexSessionID(rolloutPath, persistedSessionID string) string {
 	if rolloutPath == "" || persistedSessionID != "" {
-		return persistedSessionID, nil
+		return persistedSessionID
 	}
 	codexHome, err := codexHomeDir()
 	if err != nil {
-		return "", nil
+		slog.Debug("codex: session id lookup skipped",
+			"rollout_path", rolloutPath, "err", err)
+		return ""
 	}
 	sessionID, err := lookupCodexThreadByRollout(codexHome, rolloutPath)
 	if err != nil {
-		return "", nil
+		slog.Debug("codex: session id lookup skipped",
+			"rollout_path", rolloutPath, "codex_home", codexHome, "err", err)
+		return ""
 	}
-	return sessionID, nil
+	return sessionID
 }
 
 func usableRolloutPath(path string) string {

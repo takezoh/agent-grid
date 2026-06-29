@@ -191,24 +191,6 @@ func newBoundBackend(t *testing.T, listenSock string) *boundHarness {
 	return &boundHarness{backend: b, server: srv}
 }
 
-func newBoundBackendNoPath(t *testing.T, listenSock string) *boundHarness {
-	t.Helper()
-	h := newBoundBackend(t, listenSock)
-	h.server.mu.Lock()
-	h.server.omitPath = true
-	h.server.mu.Unlock()
-	return h
-}
-
-func newBoundBackendCustomPath(t *testing.T, listenSock, path string) *boundHarness {
-	t.Helper()
-	h := newBoundBackend(t, listenSock)
-	h.server.mu.Lock()
-	h.server.customPath = path
-	h.server.mu.Unlock()
-	return h
-}
-
 func writeRollout(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "rollout.jsonl")

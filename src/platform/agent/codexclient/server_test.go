@@ -220,12 +220,12 @@ func TestStartThread(t *testing.T) {
 	go connB.Run(ctx, &threadStartHandler{conn: connB}) //nolint:errcheck
 	go connA.Run(ctx, &noopHandler{})                   //nolint:errcheck
 
-	id, err := codexclient.StartThread(connA, "/work", nil, codexclient.ThreadOptions{})
+	session, err := codexclient.StartThread(connA, "/work", nil, codexclient.ThreadOptions{})
 	if err != nil {
 		t.Fatalf("StartThread: %v", err)
 	}
-	if id != "th-42" {
-		t.Fatalf("got thread id %q, want th-42", id)
+	if session.ThreadID != "th-42" {
+		t.Fatalf("got thread id %q, want th-42", session.ThreadID)
 	}
 }
 
@@ -240,12 +240,12 @@ func TestStartThread_WithOptions(t *testing.T) {
 	go connA.Run(ctx, &noopHandler{})                   //nolint:errcheck
 
 	opts := codexclient.ThreadOptions{ApprovalPolicy: "never", SandboxMode: "workspace-write", ServiceName: "test"}
-	id, err := codexclient.StartThread(connA, "/work", []any{"tool1"}, opts)
+	session, err := codexclient.StartThread(connA, "/work", []any{"tool1"}, opts)
 	if err != nil {
 		t.Fatalf("StartThread with options: %v", err)
 	}
-	if id != "th-42" {
-		t.Fatalf("got thread id %q, want th-42", id)
+	if session.ThreadID != "th-42" {
+		t.Fatalf("got thread id %q, want th-42", session.ThreadID)
 	}
 }
 
@@ -259,7 +259,7 @@ func TestResumeThread(t *testing.T) {
 	go connB.Run(ctx, &echoHandler{conn: connB}) //nolint:errcheck
 	go connA.Run(ctx, &noopHandler{})            //nolint:errcheck
 
-	_, err := codexclient.ResumeThread(connA, "th-1", "/work")
+	_, err := codexclient.ResumeThread(connA, codexclient.ResumeOptions{ThreadID: "th-1", Cwd: "/work"})
 	if err != nil {
 		t.Fatalf("ResumeThread: %v", err)
 	}

@@ -390,11 +390,11 @@ func initSession(conn *codexclient.Conn, wsPath, rendered string, dynamicTools [
 	if err := codexclient.Initialize(conn); err != nil {
 		return sessionIDs{}, fmt.Errorf("agent: initialize: %w", err)
 	}
-	threadID, err := codexclient.StartThread(conn, wsPath, dynamicTools, threadOpts)
+	session, err := codexclient.StartThread(conn, wsPath, dynamicTools, threadOpts)
 	if err != nil {
 		return sessionIDs{}, fmt.Errorf("agent: start thread: %w", err)
 	}
-	if err := codexclient.StartTurn(conn, threadID, wsPath, []byte(rendered), turnOpts); err != nil {
+	if err := codexclient.StartTurn(conn, session.ThreadID, wsPath, []byte(rendered), turnOpts); err != nil {
 		return sessionIDs{}, fmt.Errorf("agent: start turn: %w", err)
 	}
 

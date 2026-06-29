@@ -388,48 +388,45 @@ func (b *Backend) bindThread(frameID state.FrameID, startDir, worktreePath strin
 		return "", "", state.ResumeTarget{}, err
 	}
 	if resumeTarget.rpc.ThreadID != "" || resumeTarget.rpc.RolloutPath != "" {
-		session, err := codexclient.ResumeThread(b.conn, codexclient.ResumeOptions{
-			ThreadID:    resumeTarget.rpc.ThreadID,
-			RolloutPath: resumeTarget.rpc.RolloutPath,
-			Cwd:         startDir,
-		})
-		if err != nil {
-			return "", "", state.ResumeTarget{}, err
-		}
-		threadID := strings.TrimSpace(session.ThreadID)
-		if threadID == "" {
-			return "", "", state.ResumeTarget{}, errors.New("stream backend: thread/resume returned an empty thread id")
-		}
-		hostPath := strings.TrimSpace(opts.ResumeTarget.RolloutPath)
-		if session.RolloutPath != "" {
-			_, hostPath, err = translateRolloutPath(session.RolloutPath, b.mounts)
-			if err != nil {
-				slog.Debug("stream backend: ignoring unusable rollout path from thread/resume",
-					"subsystem", b.subsystemID,
-					"thread", threadID,
-					"rollout_path", session.RolloutPath,
-					"err", err)
-				hostPath = strings.TrimSpace(opts.ResumeTarget.RolloutPath)
-			}
-		}
-		stableSessionID := firstNonEmpty(strings.TrimSpace(session.SessionID), strings.TrimSpace(opts.ColdStartSessionID))
-		b.mu.Lock()
-		if binding := b.frames[frameID]; binding != nil {
-			binding.threadID = threadID
-			binding.sessionID = stableSessionID
-			binding.rolloutPath = hostPath
-			binding.requestedID = opts.ResumeTarget.ThreadID
-			binding.observedID = threadID
-			binding.resumePhase = resumePhasePending
-			b.threads[threadID] = frameID
-		}
-		b.mu.Unlock()
-		return threadID, stableSessionID, state.ResumeTarget{ThreadID: threadID, RolloutPath: hostPath}, nil
+		return b.bindResume(frameID, startDir, opts, resumeTarget)
 	}
-	// Cold start: create the thread synchronously (thread/start request) so its
-	// id is known here and the frame binds deterministically — no async
-	// thread.started guessing, no cwd/active-frame heuristic. The spawned frame
-	// then resumes this id (RemoteAttachArgs with a non-empty threadID).
+	return b.bindColdStart(frameID, startDir, stdin)
+}
+
+func (b *Backend) bindResume(frameID state.FrameID, startDir string, opts state.StreamLaunchOptions, resumeTarget normalizedResumeTarget) (string, string, state.ResumeTarget, error) {
+	session, err := codexclient.ResumeThread(b.conn, codexclient.ResumeOptions{
+		ThreadID:    resumeTarget.rpc.ThreadID,
+		RolloutPath: resumeTarget.rpc.RolloutPath,
+		Cwd:         startDir,
+	})
+	if err != nil {
+		return "", "", state.ResumeTarget{}, err
+	}
+	threadID := strings.TrimSpace(session.ThreadID)
+	if threadID == "" {
+		return "", "", state.ResumeTarget{}, errors.New("stream backend: thread/resume returned an empty thread id")
+	}
+	hostPath := b.resolveHostPath(session.RolloutPath, strings.TrimSpace(opts.ResumeTarget.RolloutPath), threadID, "thread/resume")
+	stableSessionID := firstNonEmpty(strings.TrimSpace(session.SessionID), strings.TrimSpace(opts.ColdStartSessionID))
+	b.mu.Lock()
+	if binding := b.frames[frameID]; binding != nil {
+		binding.threadID = threadID
+		binding.sessionID = stableSessionID
+		binding.rolloutPath = hostPath
+		binding.requestedID = opts.ResumeTarget.ThreadID
+		binding.observedID = threadID
+		binding.resumePhase = resumePhasePending
+		b.threads[threadID] = frameID
+	}
+	b.mu.Unlock()
+	return threadID, stableSessionID, state.ResumeTarget{ThreadID: threadID, RolloutPath: hostPath}, nil
+}
+
+func (b *Backend) bindColdStart(frameID state.FrameID, startDir string, stdin []byte) (string, string, state.ResumeTarget, error) {
+	// Create the thread synchronously (thread/start request) so its id is known
+	// here and the frame binds deterministically — no async thread.started
+	// guessing, no cwd/active-frame heuristic. The spawned frame then resumes
+	// this id (RemoteAttachArgs with a non-empty threadID).
 	session, err := codexclient.StartThread(b.conn, startDir, nil, codexclient.ThreadOptions{})
 	if err != nil {
 		return "", "", state.ResumeTarget{}, err
@@ -438,22 +435,12 @@ func (b *Backend) bindThread(frameID state.FrameID, startDir, worktreePath strin
 	if threadID == "" {
 		return "", "", state.ResumeTarget{}, fmt.Errorf("stream backend: app-server returned an empty thread id on cold start")
 	}
-	hostPath := ""
-	if session.RolloutPath != "" {
-		_, hostPath, err = translateRolloutPath(session.RolloutPath, b.mounts)
-		if err != nil {
-			slog.Debug("stream backend: ignoring unusable rollout path from thread/start",
-				"subsystem", b.subsystemID,
-				"thread", threadID,
-				"rollout_path", session.RolloutPath,
-				"err", err)
-			hostPath = ""
-		}
-	}
+	hostPath := b.resolveHostPath(session.RolloutPath, "", threadID, "thread/start")
+	sessionID := strings.TrimSpace(session.SessionID)
 	b.mu.Lock()
 	if binding := b.frames[frameID]; binding != nil {
 		binding.threadID = threadID
-		binding.sessionID = strings.TrimSpace(session.SessionID)
+		binding.sessionID = sessionID
 		binding.rolloutPath = hostPath
 		binding.requestedID = threadID
 		binding.observedID = threadID
@@ -472,7 +459,28 @@ func (b *Backend) bindThread(frameID state.FrameID, startDir, worktreePath strin
 			return "", "", state.ResumeTarget{}, err
 		}
 	}
-	return threadID, strings.TrimSpace(session.SessionID), state.ResumeTarget{ThreadID: threadID, RolloutPath: hostPath}, nil
+	return threadID, sessionID, state.ResumeTarget{ThreadID: threadID, RolloutPath: hostPath}, nil
+}
+
+// resolveHostPath translates a rollout path returned by the app-server into a
+// host-side path, falling back to the requested host path on translation
+// failure. method is used purely for diagnostic logging.
+func (b *Backend) resolveHostPath(rolloutPath, fallback, threadID, method string) string {
+	rolloutPath = strings.TrimSpace(rolloutPath)
+	if rolloutPath == "" {
+		return fallback
+	}
+	_, hostPath, err := translateRolloutPath(rolloutPath, b.mounts)
+	if err != nil {
+		slog.Debug("stream backend: ignoring unusable rollout path",
+			"subsystem", b.subsystemID,
+			"method", method,
+			"thread", threadID,
+			"rollout_path", rolloutPath,
+			"err", err)
+		return fallback
+	}
+	return hostPath
 }
 
 func (b *Backend) waitProcess() {

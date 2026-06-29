@@ -749,12 +749,12 @@ func TestShim_BridgeEnvPassedToLauncher(t *testing.T) {
 	go func() { _ = clientConn.Run(context.Background(), nc) }()
 
 	require.NoError(t, codexclient.Initialize(clientConn))
-	tid, err := codexclient.StartThread(clientConn, "/ws", []any{map[string]any{
+	session, err := codexclient.StartThread(clientConn, "/ws", []any{map[string]any{
 		"name": "linear_graphql", "description": "Linear GraphQL", "inputSchema": map[string]any{"type": "object"},
 	}}, codexclient.ThreadOptions{})
 	require.NoError(t, err)
-	require.Equal(t, "thread-1", tid)
-	require.NoError(t, codexclient.StartTurn(clientConn, tid, "/ws", []byte("work the issue"), codexclient.TurnOptions{}))
+	require.Equal(t, "thread-1", session.ThreadID)
+	require.NoError(t, codexclient.StartTurn(clientConn, session.ThreadID, "/ws", []byte("work the issue"), codexclient.TurnOptions{}))
 
 	waitForMethods(t, nc, []string{
 		codexschema.MethodThreadStarted,

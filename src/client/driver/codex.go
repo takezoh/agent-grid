@@ -144,11 +144,10 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 		}, nil
 	}
 	resume, sessionID, ok, err := cs.coldStartResumePlan()
-	if err != nil {
+	switch {
+	case err != nil:
 		logCodexResumeSkip(project, cs.ThreadID, cs.RolloutPath, "invalid_resume_locator")
-		return state.LaunchPlan{}, err
-	}
-	if ok {
+	case ok:
 		stream.ResumeTarget = resume
 		stream.ColdStartSessionID = sessionID
 	}
