@@ -12,12 +12,16 @@ func reduceFrameOsc(s State, e EvFrameOsc) (State, []Effect) {
 		if e.Title == "" {
 			return s, nil
 		}
+		if _, _, _, ok := findFrame(s, e.FrameID); !ok {
+			return s, nil
+		}
 		effs := []Effect{EffEventLogAppend{
 			FrameID: e.FrameID,
 			Line:    fmt.Sprintf("[osc%d] %s", e.Cmd, e.Title),
 		}}
 		next, dEffs, _ := stepDriver(s, e.FrameID, DEvFrameOsc{Cmd: e.Cmd, Title: e.Title, Now: e.Now})
 		effs = append(effs, dEffs...)
+		effs = appendMissingSessionRefreshEffects(effs)
 		return next, effs
 	}
 

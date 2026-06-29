@@ -142,6 +142,52 @@ func TestReduceFrameOsc_OSC2_EmptyTitle_NoEffect(t *testing.T) {
 	}
 }
 
+func TestReduceFrameOsc_OSC0_AppendsPersistAndBroadcastWithoutDriverEffects(t *testing.T) {
+	s := New()
+	sessID := SessionID("sess1")
+	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
+	frameID := FrameID(sessID)
+
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 0, Title: "✳ Claude Code"})
+	if _, ok := findEff[EffPersistSnapshot](effs); !ok {
+		t.Fatal("expected EffPersistSnapshot")
+	}
+	if _, ok := findEff[EffBroadcastSessionsChanged](effs); !ok {
+		t.Fatal("expected EffBroadcastSessionsChanged")
+	}
+}
+
+func TestReduceFrameOsc_OSC2_AppendsPersistAndBroadcastWithoutDriverEffects(t *testing.T) {
+	s := New()
+	sessID := SessionID("sess1")
+	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
+	frameID := FrameID(sessID)
+
+	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 2, Title: "✋ Action Required"})
+	if _, ok := findEff[EffPersistSnapshot](effs); !ok {
+		t.Fatal("expected EffPersistSnapshot")
+	}
+	if _, ok := findEff[EffBroadcastSessionsChanged](effs); !ok {
+		t.Fatal("expected EffBroadcastSessionsChanged")
+	}
+}
+
+func TestReduceFrameOsc_OSC0_UnknownFrame_NoEffect(t *testing.T) {
+	s := New()
+	_, effs := Reduce(s, EvFrameOsc{FrameID: "ghost", Cmd: 0, Title: "✳ Claude Code"})
+	if len(effs) != 0 {
+		t.Errorf("expected no effects for unknown frame on OSC 0, got %d", len(effs))
+	}
+}
+
+func TestReduceFrameOsc_OSC2_UnknownFrame_NoEffect(t *testing.T) {
+	s := New()
+	_, effs := Reduce(s, EvFrameOsc{FrameID: "ghost", Cmd: 2, Title: "✋ Action Required"})
+	if len(effs) != 0 {
+		t.Errorf("expected no effects for unknown frame on OSC 2, got %d", len(effs))
+	}
+}
+
 func TestReduceFramePrompt_UnknownFrame_NoEffect(t *testing.T) {
 	s := New()
 	_, effs := Reduce(s, EvFramePrompt{FrameID: "ghost", Phase: PromptPhaseInput})
