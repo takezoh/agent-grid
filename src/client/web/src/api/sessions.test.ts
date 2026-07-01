@@ -641,6 +641,34 @@ describe("getSessionConfig", () => {
     expect(cfg.projects).toEqual([{ path: "/p", isGit: false, isSandboxed: false }]);
   });
 
+  it("TestGetSessionConfig_RetryAfterZero_FloorsAtMinRetry", async () => {
+    // Regression: `retryAfter ?? backoff` treated Retry-After: 0 as valid,
+    // yielding delay=0 and a synchronous hot loop against the server. The
+    // fix floors the header at minRetryFloorMs (100ms) so a 0-hint cannot
+    // collapse pacing, while a legitimate short hint (e.g. 1s from
+    // host.go's 502→503 map) can still shorten the exponential backoff.
+    vi.useFakeTimers();
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(makeResponse("upstream not ready", 503, { "Retry-After": "0" }))
+      .mockResolvedValueOnce(
+        jsonResponse({ commands: ["claude"], projects: ["/p"] }, 200),
+      );
+    const api = makeSessionsApi(fetchFn);
+
+    const promise = api.getSessionConfig();
+
+    // 100ms MIN floor should elapse even though the header said 0.
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(99);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    const cfg = await promise;
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(cfg.commands).toEqual(["claude"]);
+  });
+
   it("TestGetSessionConfig_5xxEventuallyThrowsAfterRetryBudget", async () => {
     vi.useFakeTimers();
     const fetchFn = vi.fn().mockResolvedValue(makeResponse("settings.toml broken", 500));

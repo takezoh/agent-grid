@@ -215,10 +215,21 @@ interface RetryOpts {
   capMs?: number;
 }
 
+// minRetryFloorMs is the shortest delay we'll ever wait between retries even
+// when the server hints Retry-After: 0. Below this a valid HTTP hint would
+// collapse to a synchronous hot loop against the origin.
+const minRetryFloorMs = 100;
+
 function retryDelayMs(attempt: number, res: Response, baseDelayMs: number, capMs: number): number {
   const backoff = baseDelayMs * 2 ** attempt;
+  // Retry-After: 0 (or a past HTTP-date) is a valid server hint that would
+  // collapse to no delay under `retryAfter ?? backoff` — nullish coalescing
+  // treats 0 as a valid value. Floor the header at minRetryFloorMs so a
+  // 0-hint can't hot-spin the loop while a legitimate short hint (say
+  // "1s") can still shorten our exponential backoff, which is exactly why
+  // the server sent it (see host.go's 502→503 upstream-not-ready map).
   const retryAfter = parseRetryAfter(res.headers.get("Retry-After"));
-  const desired = retryAfter ?? backoff;
+  const desired = retryAfter !== null ? Math.max(retryAfter, minRetryFloorMs) : backoff;
   return Math.max(0, Math.min(desired, capMs));
 }
 
