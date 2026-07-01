@@ -133,15 +133,22 @@ func TestRemoteAttachArgs(t *testing.T) {
 	tests := []struct {
 		name         string
 		sock         string
+		threadID     string
 		startDir     string
 		wantContains []string
 		wantAbsent   []string
 	}{
 		{
-			name:         "cold start no thread",
+			name:         "fresh cold start (no thread id) omits resume",
 			sock:         "/opt/agent-reactor/run/codex-sess1.sock",
 			wantContains: []string{"codex", "--remote", "unix:///opt/agent-reactor/run/codex-sess1.sock"},
 			wantAbsent:   []string{"resume"},
+		},
+		{
+			name:         "recovery with thread id emits `resume <id>`",
+			sock:         "/opt/agent-reactor/run/codex-sess2.sock",
+			threadID:     "019f1c19-e1f3-78c3-ba3e-a37cb776e5fe",
+			wantContains: []string{"codex", "resume", "019f1c19-e1f3-78c3-ba3e-a37cb776e5fe", "--remote", "unix:///opt/agent-reactor/run/codex-sess2.sock"},
 		},
 		{
 			name:         "with startDir",
@@ -157,7 +164,7 @@ func TestRemoteAttachArgs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RemoteAttachArgs(tt.sock, tt.startDir)
+			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir)
 			for _, want := range tt.wantContains {
 				found := false
 				for _, g := range got {

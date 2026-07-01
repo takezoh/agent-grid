@@ -72,13 +72,26 @@ func (b *Backend) handleRequest(id int64, method string, params json.RawMessage)
 
 func (b *Backend) handleThreadStarted(raw json.RawMessage) {
 	threadID := extractThreadID(raw)
-	// Threads are bound at creation/resume (see bindThread), so a thread.started
-	// only confirms an already-bound thread. An unknown thread id is dropped,
-	// never adopted via a cwd or active-frame heuristic (that was the cross-talk
-	// bug — see docs/adr/0001).
+	if threadID == "" {
+		return
+	}
+	// Two arrival paths:
+	//
+	//   - Known thread — the CLI resumed a persisted id we recorded in
+	//     b.threads at BindFrame time (recovery). We just confirm the binding.
+	//   - Unknown thread — the CLI issued its own `thread/start` on its
+	//     connection (fresh cold-start). Adopt it into the single pending
+	//     frame reserved by the initState reservation (ADR-0081). If no frame is
+	//     pending the notification is a legitimate no-op (e.g. an old thread
+	//     replayed by the server, or an out-of-band client).
 	frameID := b.frameForThread(threadID)
 	if frameID == "" {
-		return
+		frameID = b.adoptPendingFrame(threadID)
+		if frameID == "" {
+			slog.Debug("stream backend: thread/started with no pending frame — dropping",
+				"subsystem", b.subsystemID, "thread", threadID)
+			return
+		}
 	}
 	b.mu.Lock()
 	if binding := b.frames[frameID]; binding != nil {
@@ -99,6 +112,31 @@ func (b *Backend) handleThreadStarted(raw json.RawMessage) {
 	}
 	b.mu.Unlock()
 	b.emit(frameID, state.SubsystemSessionReady, b.payload(frameID))
+}
+
+// adoptPendingFrame links an unknown incoming thread id to the frame that is
+// currently occupying the pending slot. Serialization is what makes this
+// deterministic: acquirePendingSlot ensures at most one such frame exists
+// per Backend, so the take here selects the unique owner without any
+// heuristic. Returns "" if no frame is pending.
+func (b *Backend) adoptPendingFrame(threadID string) state.FrameID {
+	slot := b.initState.takeAny()
+	if slot == nil {
+		return ""
+	}
+	b.mu.Lock()
+	binding := b.frames[slot.frameID]
+	if binding == nil {
+		// Frame was killed between slot acquire and adopt. Drop the thread.
+		b.mu.Unlock()
+		return ""
+	}
+	binding.threadID = threadID
+	b.threads[threadID] = slot.frameID
+	b.mu.Unlock()
+	slog.Debug("stream backend: adopted CLI-created thread for pending frame",
+		"subsystem", b.subsystemID, "frame", slot.frameID, "thread", threadID)
+	return slot.frameID
 }
 
 func (b *Backend) handleTurnCompleted(raw json.RawMessage) {

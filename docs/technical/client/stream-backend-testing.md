@@ -20,23 +20,34 @@ from ambient state such as the active frame (a "fabricated fallback").
 
 ## How the fix makes cross-talk impossible
 
-`bindThread` creates each thread **synchronously** — cold start issues a
-`thread/start` request and binds the returned id; resume binds the resumed id —
-so the frame→thread mapping is established before any event arrives. Two frames
-sharing a cwd therefore get **distinct thread ids**, and every server event
-routes by exact thread id (`frameForThread`). A `thread.started` for an unknown
-thread is dropped, never adopted by a cwd or active-frame heuristic. (Before the
-fix, cold threads were bound asynchronously by matching the start cwd, falling
-back to the active frame — the cross-talk bug; see ADR 0001.)
+`Backend.BindFrame` reserves a per-frame slot in `initState` — a
+mutex-guarded `*pendingSlot` with a per-generation wait channel (see
+`initsem.go`) — for fresh cold-start, and pre-registers the persisted
+thread id for cold-start recovery. Backend itself never issues
+`thread/start` — the codex CLI owns the thread lifecycle. When the CLI's
+`thread/started` notification arrives, `handleThreadStarted` calls
+`initState.takeAny()` to atomically consume the reservation and binds the
+incoming thread id into the pending frame's binding; if the thread id was
+pre-registered (recovery), the existing map entry routes the notification
+directly. Two same-cwd frames therefore get distinct thread ids because
+the CLI mints fresh ids per invocation, and the "at-most-one pending"
+invariant means adopt has an unambiguous target — no cwd/heuristic guess
+is ever needed. See [ADR-0081](../../adr/0081-codex-frame-init-serialize.md)
+for the full contract, and [ADR-0001](../../adr/0001-multiplexed-backends-shared-routing-contract.md) Update — passive adopt for the empirical
+evidence that motivated the switch away from backend-owned `thread/start`.
 
 ## Files
 
 | File | Role |
 |---|---|
 | `routing_contract_test.go` | `recordingRuntime`, `assertMarkerFrames`, the direct-drive `inProc` harness, and `TestStreamRoutingContract` (the case table). |
-| `routing_wired_test.go` | the `wired` harness driving the real `codexclient.Conn` against a fake app-server (reuses `bindServer` + `codexclient.Server`); async, run under `-race`. |
+| `routing_wired_test.go` | the `wired` harness driving the real `codexclient.Conn` against a `fake.AppServer` (WebSocket-over-UDS); tests the async adopt path under `-race`. |
 | `routing_fuzz_test.go` | `FuzzStreamRouting` (stdlib `testing.F`) over random message/release interleavings. |
 | `routing_e2e_test.go` | `//go:build e2e` real **app-server** fidelity backstop (any conforming server, not just codex); skips when no backend env is set. See [stream-backend-e2e.md](stream-backend-e2e.md). |
+| `routing_backstop_test.go` | Always-on fake-based version of the isolation invariant. Same `runIsolationScenario` shape as the e2e above but drives `fake.AppServer` directly, so the invariant is re-verified on every default `go test` run. |
+| `init_serialize_test.go` | Pins the `initState` invariants (serialization, timeout, ReleaseFrame drain, reaper cleanup, silent-drop-on-no-pending). Regression net for ADR-0081. |
+| `interactive_flow_test.go` | End-to-end integration: `fake.AppServer` + pty-spawned `fake.FakeCLI` + real `Backend`. Verifies the CLI-owned thread flows all the way to a driver `Status = StatusWaiting` transition after a prompt round trip. |
+| `fake/` package | High-fidelity fake of codex-app-server + fake CLI (pty-attached, argv-compatible with `codex --remote`). Reused by wired, backstop, and interactive_flow tests. |
 
 `recordingRuntime` is the shared observation point: it records each emitted
 `EvSubsystem`'s `FrameID`, and markers travel in `Payload.LastAssistantMessage`,

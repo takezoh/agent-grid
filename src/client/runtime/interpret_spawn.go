@@ -91,9 +91,17 @@ func spawnFrameWindow(deps spawnDeps, e state.EffSpawnFrame) {
 	}
 	plan = bindResult.Plan
 
+	// BindFrame may have acquired subsystem-scoped resources (e.g. stream
+	// backend's initState slot for a fresh cold-start). The frameSubsystems map
+	// is only populated in handleSpawnComplete after the spawn succeeds, so
+	// EffKillFrame → executeKillSessionWindow's ReleaseFrame path never fires
+	// for a frame that dies in between BindFrame and the internalSpawnComplete
+	// dispatch. Release directly on the error paths below to avoid leaking
+	// the slot for up to reapInterval + initAdoptDeadline (~70s).
 	wrapResult, err := wrapLaunchForSpawn(deps.launcher, e.FrameID, e.Project, plan, e.Env)
 	if err != nil {
 		slog.Error("runtime: wrap launch failed", "frame", e.FrameID, "err", err)
+		sub.ReleaseFrame(e.FrameID)
 		sendFailed(err.Error())
 		return
 	}
@@ -111,6 +119,7 @@ func spawnFrameWindow(deps spawnDeps, e state.EffSpawnFrame) {
 				slog.Warn("runtime: cleanup after spawn failure", "frame", e.FrameID, "err", cerr)
 			}
 		}
+		sub.ReleaseFrame(e.FrameID)
 		sendFailed(err.Error())
 		return
 	}

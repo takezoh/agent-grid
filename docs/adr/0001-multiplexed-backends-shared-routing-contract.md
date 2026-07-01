@@ -84,3 +84,37 @@ Because the spawned frame now resumes the daemon-created thread (cold start uses
 `codex resume <id> --remote`), this change to the spawn/attach contract must be
 verified against a real app-server via the opt-in e2e
 ([stream-backend-e2e.md](../technical/client/stream-backend-e2e.md)).
+
+## Update — passive adopt (2026-07-01, see ADR-0081)
+
+Empirical verification showed the "backend creates T1 via `thread/start`, CLI
+resumes T1 via `codex resume <id> --remote`" mechanism above **does not work**
+for fresh cold-start:
+
+- `codex resume <id> --remote` requires a **local rollout file** at
+  `~/.codex/sessions/…/rollout-<id>.jsonl` with valid content. codex CLI
+  performs this local check before ever contacting the remote endpoint.
+- The app-server only writes the rollout file after the **first turn** runs
+  on the thread — not on `thread/start` alone. So the backend-created T1
+  starts as a 0-byte file, `codex resume` client-side check fails with
+  "No saved session found", and the CLI never attaches.
+- As a workaround the pre-restructure code left `RemoteAttachArgs` without
+  the `resume <id>` prefix. That in turn caused the CLI to issue its **own**
+  `thread/start` on its connection, producing a second thread T2 that the
+  backend received via broadcast but silently dropped
+  (`frameForThread(T2) == ""`) — the Idle-stuck-badge production bug.
+
+The current design (ADR-0081) inverts thread ownership: the CLI owns the
+thread lifecycle (Claude Driver's model, applied to codex). Backend no longer
+calls `thread/start` at all. Fresh interactive frames are pre-registered
+under an `initSem` semaphore (capacity 1, holds the FrameID of the
+currently-adopting frame); when the CLI's thread/started broadcast arrives,
+`handleThreadStarted` drains the slot and binds the id — the serialisation
+invariant guarantees "at most one pending frame" so no cwd/heuristic
+disambiguation is needed. Cold-start recovery still uses `codex resume
+<persistedID> --remote`, but the id comes from a rollout the CLI itself
+wrote in a prior session (guaranteed non-empty), so the local check passes.
+
+The Routing Isolation Invariant at the top of this document still holds —
+same-cwd frames still get distinct thread ids because the CLI mints fresh
+ids, and adopt maps them 1:1 to the single pending frame.

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +32,24 @@ const (
 	// finish after cancelling. A little above procgroup's WaitDelay so the
 	// SIGKILL'd group has time to be reaped before Stop returns.
 	stopGrace = procgroup.DefaultWaitDelay + time.Second
+
+	// initAcquireTimeout bounds how long a fresh (non-resume) BindFrame will
+	// wait for the previous pending frame's adopt to complete before failing.
+	// Interactive CLI startup is typically <1s; 60s comfortably accommodates
+	// slow container starts without leaving the caller stuck forever.
+	initAcquireTimeout = 60 * time.Second
+
+	// initAdoptDeadline is written into a pendingSlot when it is acquired.
+	// If handleThreadStarted does not consume the slot within this window,
+	// reapExpiredSlots discards it and removes the orphan frameBinding —
+	// covering the case where the spawned CLI crashes before issuing
+	// `thread/start` and therefore no adopt or ReleaseFrame ever fires.
+	initAdoptDeadline = 60 * time.Second
+
+	// reapInterval is how often reapExpiredSlots wakes to sweep the initState.
+	// Set to (initAdoptDeadline / 6) so an expired slot is reclaimed within a
+	// small multiple of its deadline without polling excessively.
+	reapInterval = 10 * time.Second
 )
 
 // RuntimeHook is implemented by *runtime.Runtime and lets the stream backend
@@ -44,6 +61,14 @@ type RuntimeHook interface {
 // Backend is the codex app-server stream subsystem. One instance exists per
 // client Session. It manages the per-session app-server process, the
 // WebSocket-over-UDS connection, and per-frame thread bindings.
+//
+// Thread ownership: the codex CLI (`codex --remote` or `codex resume <id>
+// --remote`) always creates or resumes threads on its own connection. The
+// Backend is a passive router — it never calls `thread/start` itself. Fresh
+// interactive frames are adopted when `thread/started` arrives on the
+// broadcast channel; the initState reservation keeps at most one adopt candidate
+// pending at a time so the incoming thread has an unambiguous owner. See
+// docs/adr/0081-codex-frame-init-serialize.md.
 type Backend struct {
 	runtime     RuntimeHook
 	dispatcher  agentlaunch.Dispatcher
@@ -68,6 +93,11 @@ type Backend struct {
 	mu          sync.Mutex
 	frames      map[state.FrameID]*frameBinding
 	threads     map[string]state.FrameID
+	// initState serializes fresh (non-resume) frame init. Holds a single
+	// pending slot at a time (see initsem.go). Replaces the earlier
+	// chan pendingSlot design whose drain-check-put-back non-atomicity was
+	// the root cause of race chains around reaper / adopt / release.
+	initState *initState
 }
 
 type frameBinding struct {
@@ -116,6 +146,7 @@ func New(
 		listenSock:  listenSock,
 		frames:      map[state.FrameID]*frameBinding{},
 		threads:     map[string]state.FrameID{},
+		initState:   newInitState(),
 	}
 }
 
@@ -172,135 +203,36 @@ func (b *Backend) Start(ctx context.Context) error {
 	}
 	b.trackProcessGroups()
 	go b.waitProcess()
+	go b.reapExpiredSlots()
 	return nil
 }
 
-// resolveDialSock returns the host-side path the daemon dials for an app-server
-// that binds listenSock. In container mode listenSock is container-absolute and
-// the launch's bind mounts expose it at a host path; in host mode there are no
-// mounts, so the dial path equals the listen path.
-func resolveDialSock(listenSock string, wrapped agentlaunch.WrappedLaunch) string {
-	if host, ok := wrapped.HostPath(listenSock); ok {
-		return host
-	}
-	return listenSock
-}
-
-func toPathmapMounts(ms []agentlaunch.Mount) pathmap.Mounts {
-	if len(ms) == 0 {
-		return nil
-	}
-	out := make(pathmap.Mounts, len(ms))
-	for i, m := range ms {
-		out[i] = pathmap.Mount{Host: m.Host, Container: m.Container}
-	}
-	return out
-}
-
-type normalizedResumeTarget struct {
-	rpc state.ResumeTarget
-}
-
-func normalizeResumeTarget(target state.ResumeTarget, mounts pathmap.Mounts) (normalizedResumeTarget, error) {
-	target.ThreadID = strings.TrimSpace(target.ThreadID)
-	target.RolloutPath = strings.TrimSpace(target.RolloutPath)
-	if target.ThreadID == "" && target.RolloutPath == "" {
-		return normalizedResumeTarget{}, nil
-	}
-	if target.RolloutPath == "" {
-		return normalizedResumeTarget{rpc: state.ResumeTarget{ThreadID: target.ThreadID}}, nil
-	}
-	cliPath, _, err := translateRolloutPath(target.RolloutPath, mounts)
-	if err != nil {
-		return normalizedResumeTarget{}, err
-	}
-	return normalizedResumeTarget{
-		rpc: state.ResumeTarget{ThreadID: target.ThreadID, RolloutPath: cliPath},
-	}, nil
-}
-
-func translateRolloutPath(path string, mounts pathmap.Mounts) (cliPath, hostPath string, err error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return "", "", errors.New("stream backend: codex resume requires rollout path")
-	}
-	if len(mounts) == 0 {
-		return path, path, nil
-	}
-	if container, ok := mounts.ToContainer(path); ok {
-		return container, path, nil
-	}
-	if host, ok := mounts.ToHost(path); ok {
-		return path, host, nil
-	}
-	return "", "", fmt.Errorf("stream backend: rollout path %q is not reachable from current sandbox mounts", path)
-}
-
-// spawnServer wraps the app-server using the dispatcher, resolves the host dial
-// path from the launch's bind mounts, and spawns the process.
-// The returned *strings.Builder accumulates the app-server's stderr; read it
-// only after the process is reaped (res.Wait) so the copier goroutine is done.
-func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *strings.Builder, error) {
-	argv := libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.serverArgs, b.sandboxed)
-
-	plan := agentlaunch.LaunchPlan{
-		Command:  strings.Join(argv, " "),
-		Argv:     argv,
-		Project:  b.project,
-		StartDir: "",
-	}
-
-	errBuf := &strings.Builder{}
-	var wrapped agentlaunch.WrappedLaunch
-	var err error
-	if b.dispatcher != nil {
-		wrapped, err = b.dispatcher.Wrap(ctx, string(b.subsystemID), plan)
-		if err != nil {
-			return agentlaunch.SpawnResult{}, errBuf, fmt.Errorf("stream backend: dispatch wrap: %w", err)
-		}
-	} else {
-		wrapped = agentlaunch.WrappedLaunch{Argv: argv}
-	}
-
-	b.dialSock = resolveDialSock(b.listenSock, wrapped)
-	b.mounts = toPathmapMounts(wrapped.Mounts)
-	// Clear any stale socket before the app-server binds it (e.g. a crashed
-	// predecessor left the file behind). Removing the host path also clears the
-	// bind-mounted container path.
-	_ = os.Remove(b.dialSock)
-
-	res, err := agentlaunch.Spawn(b.ctx, wrapped, agentlaunch.SpawnOptions{
-		InheritEnv: true,
-		Stderr:     newPrefixWriter(errBuf, 8192),
-	})
-	return res, errBuf, err
-}
-
-// trackProcessGroups records the app-server pgid so a future boot's
-// PruneOrphans reaps it if this daemon dies without a graceful Stop.
-// No-op when tracker is nil.
-func (b *Backend) trackProcessGroups() {
-	if b.spawnRes.PID != 0 {
-		b.tracker.Track(b.spawnRes.PID)
-	}
-}
-
-// BindFrame implements subsystem.Subsystem. It resolves worktree (if requested),
-// binds or resumes an app-server thread, and rewrites Plan.Command to the
-// remote-attach command.
+// BindFrame implements subsystem.Subsystem. It resolves the frame's worktree,
+// registers a per-frame binding, and rewrites Plan.Command to the CLI attach
+// command. The Backend never invokes `thread/start` or `thread/resume`
+// itself — the codex CLI owns the thread lifecycle. For cold-start recovery
+// (persisted ThreadID present), Backend records the id up front so the
+// broadcast thread/started routes straight to this frame. For fresh
+// interactive sessions, Backend acquires the initState slot with an empty
+// thread id, and handleThreadStarted adopts the CLI-created thread when it
+// arrives (see docs/adr/0081-codex-frame-init-serialize.md).
 func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (subsystem.BindResult, error) {
 	result := subsystem.BindResult{Plan: req.Plan}
 	startDir := req.Plan.StartDir
 
-	// Worktree resolution: same logic as CLI backend.
-	var worktreePath string
+	// Worktree resolution: same logic as CLI backend. Track the newly-created
+	// path so any error return after this point removes it — ReleaseFrame is
+	// not called on a BindFrame failure and the worktree would otherwise
+	// orphan on disk (registerBoundFrame's collision reject, resume-target
+	// normalize failure, initState acquire timeout, etc).
+	var worktreePath, createdWorktree string
 	switch {
 	case subsystem.IsManagedWorktreePath(startDir):
 		worktreePath = startDir
 		result.WorktreeStartDir = startDir
 	case req.Plan.Options.Worktree.Enabled:
 		names := subsystem.GenerateWorktreeNames(subsystem.WorktreeNameAttempts)
-		wt, err := subsystem.CreateWorktree(ctx, subsystem.WorktreeInput{
+		wt, err := createWorktree(ctx, subsystem.WorktreeInput{
 			RepoDir:        startDir,
 			CandidateNames: names,
 		})
@@ -309,37 +241,149 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 		}
 		startDir = wt.StartDir
 		worktreePath = wt.StartDir
+		createdWorktree = wt.StartDir
 		result.Plan.StartDir = startDir
 		result.WorktreeStartDir = wt.StartDir
 		result.WorktreeName = wt.Name
 	}
+	bindOK := false
+	defer func() {
+		if !bindOK && createdWorktree != "" {
+			removeWorktree(createdWorktree)
+		}
+	}()
 
-	// Thread binding.
-	_, sessionID, resumeTarget, err := b.bindThread(req.FrameID, startDir, worktreePath, req.Plan.Stream, req.Stdin)
+	// Normalize the resume target (validate + translate rollout path).
+	resumeTarget, err := normalizeResumeTarget(req.Plan.Stream.ResumeTarget, b.mounts)
 	if err != nil {
 		return subsystem.BindResult{}, err
 	}
-	stableSessionID := strings.TrimSpace(req.Plan.Stream.ColdStartSessionID)
-	if stableSessionID == "" {
-		stableSessionID = sessionID
+	persistedThreadID := strings.TrimSpace(resumeTarget.rpc.ThreadID)
+
+	if persistedThreadID != "" {
+		// Recovery path: id is known up front; register directly and let the
+		// CLI attach via `codex resume <id> --remote`. The initState is not
+		// touched — no adopt ambiguity because the incoming thread/started
+		// carries an id already present in b.threads.
+		if err := b.registerBoundFrame(req.FrameID, startDir, worktreePath, persistedThreadID, resumeTarget.rpc.RolloutPath, req.Plan.Stream.ColdStartSessionID); err != nil {
+			return subsystem.BindResult{}, err
+		}
+	} else {
+		// Fresh path: acquire the init slot, register a pending binding
+		// (threadID == ""), let the CLI create its own thread. handleThreadStarted
+		// will adopt it. If we fail below, release the slot to avoid leaking.
+		if err := b.acquirePendingSlot(ctx, req.FrameID); err != nil {
+			return subsystem.BindResult{}, err
+		}
+		b.registerPendingFrame(req.FrameID, startDir, worktreePath)
 	}
-	result.Plan.Command = strings.Join(libcodex.RemoteAttachArgs(b.listenSock, startDir), " ")
+	bindOK = true
+
+	result.Plan.Command = strings.Join(libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir), " ")
 	result.Plan.Stdin = nil
-	result.Plan.Stream.ResumeTarget = resumeTarget
-	result.Plan.Stream.ColdStartSessionID = stableSessionID
+	result.Plan.Stream.ResumeTarget = resumeTarget.rpc
+	// ColdStartSessionID stays as caller provided (may be empty). It will be
+	// populated later via SubsystemSessionReady payload in the fresh case;
+	// recovery already has it in the persisted state.
+	result.Plan.Stream.ColdStartSessionID = strings.TrimSpace(req.Plan.Stream.ColdStartSessionID)
 	return result, nil
 }
 
+// registerBoundFrame stores a frameBinding with the thread id already known
+// (recovery path). Both the frames map and the reverse-lookup threads map are
+// populated atomically under b.mu.
+//
+// Rejects a collision on b.threads[threadID] instead of silently overwriting:
+// letting a second frame steal the routing entry would strand every event
+// meant for the earlier frame at frameForThread (ADR-0001 routing-isolation
+// invariant). Callers should treat this as a hard failure — the two frames
+// disagree about session state and there is no way to disambiguate.
+func (b *Backend) registerBoundFrame(frameID state.FrameID, startDir, worktreePath, threadID, rolloutPath, sessionID string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if existing, ok := b.threads[threadID]; ok && existing != frameID {
+		return fmt.Errorf("stream backend: thread %q already bound to frame %q; refusing to rebind to %q",
+			threadID, existing, frameID)
+	}
+	b.frames[frameID] = &frameBinding{
+		frameID:      frameID,
+		startDir:     startDir,
+		worktreePath: worktreePath,
+		threadID:     threadID,
+		sessionID:    strings.TrimSpace(sessionID),
+		rolloutPath:  strings.TrimSpace(rolloutPath),
+		requestedID:  threadID,
+		observedID:   threadID,
+		resumePhase:  resumePhasePending,
+	}
+	b.threads[threadID] = frameID
+	return nil
+}
+
+// registerPendingFrame stores a frameBinding with an empty threadID.
+// handleThreadStarted's adopt path will fill in the thread id when the CLI
+// broadcasts thread/started.
+func (b *Backend) registerPendingFrame(frameID state.FrameID, startDir, worktreePath string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.frames[frameID] = &frameBinding{
+		frameID:      frameID,
+		startDir:     startDir,
+		worktreePath: worktreePath,
+	}
+}
+
 // ReleaseFrame removes the frame from the registry and its thread mapping.
+// Also drains the initState slot if this frame was still pending — otherwise
+// the next BindFrame would block for no reason (or the reaper would need to
+// wait a full deadline before reclaiming). The pending check is done under
+// b.mu so a bound frame's release never touches initState (see releaseOwnSlot).
+//
+// Asynchronously removes the managed worktree if no other frame in this
+// backend still references it. Without this the wrap/spawn failure path
+// (interpret_spawn.go, bootstrap_coldstart.go) leaves .agent-reactor/worktrees/<name>
+// and its git worktree metadata on disk indefinitely — a repeat-failing
+// launch would accumulate one orphan per retry. Mirrors the CLI backend's
+// ReleaseFrame shape (client/runtime/subsystem/cli/backend.go).
 func (b *Backend) ReleaseFrame(frameID state.FrameID) {
 	b.mu.Lock()
 	binding := b.frames[frameID]
+	wasPending := binding != nil && binding.threadID == ""
+	worktreePath := ""
+	if binding != nil {
+		worktreePath = binding.worktreePath
+	}
 	delete(b.frames, frameID)
 	if binding != nil && binding.threadID != "" {
 		delete(b.threads, binding.threadID)
 	}
+	stillUsed := false
+	if worktreePath != "" {
+		for _, other := range b.frames {
+			if other.worktreePath == worktreePath {
+				stillUsed = true
+				break
+			}
+		}
+	}
 	b.mu.Unlock()
+	if wasPending {
+		b.releaseOwnSlot(frameID)
+	}
+	if worktreePath != "" && !stillUsed {
+		removeWorktree(worktreePath)
+	}
 }
+
+// removeWorktree is a package-level indirection so tests can observe the
+// call without waiting on the real async git worktree removal. Production
+// wires this to subsystem.RemoveWorktree.
+var removeWorktree = subsystem.RemoveWorktree
+
+// createWorktree indirects subsystem.CreateWorktree for the same reason —
+// so tests can trigger the "worktree created; later step errors" path
+// (validating the bindOK defer) without a real git repo on disk.
+var createWorktree = subsystem.CreateWorktree
 
 // Stop cancels the subsystem context (SIGKILLing the app-server process group
 // via procgroup) and blocks until waitProcess has reaped it, so the call
@@ -367,117 +411,6 @@ func (b *Backend) OnNotification(method string, params json.RawMessage) {
 // OnServerRequest implements codexclient.Handler.
 func (b *Backend) OnServerRequest(id int64, method string, params json.RawMessage) {
 	b.handleRequest(id, method, params)
-}
-
-// bindThread associates a new frame with a thread in the app-server and returns
-// the bound thread ID — resumed for a warm start, or created synchronously via
-// thread/start for a cold start.
-func (b *Backend) bindThread(frameID state.FrameID, startDir, worktreePath string, opts state.StreamLaunchOptions, stdin []byte) (string, string, state.ResumeTarget, error) {
-	b.mu.Lock()
-	b.frames[frameID] = &frameBinding{
-		frameID:      frameID,
-		startDir:     startDir,
-		worktreePath: worktreePath,
-	}
-	b.mu.Unlock()
-	resumeTarget, err := normalizeResumeTarget(opts.ResumeTarget, b.mounts)
-	if err != nil {
-		return "", "", state.ResumeTarget{}, err
-	}
-	if resumeTarget.rpc.ThreadID != "" || resumeTarget.rpc.RolloutPath != "" {
-		return b.bindResume(frameID, startDir, opts, resumeTarget)
-	}
-	return b.bindColdStart(frameID, startDir, stdin)
-}
-
-func (b *Backend) bindResume(frameID state.FrameID, startDir string, opts state.StreamLaunchOptions, resumeTarget normalizedResumeTarget) (string, string, state.ResumeTarget, error) {
-	session, err := codexclient.ResumeThread(b.conn, codexclient.ResumeOptions{
-		ThreadID:    resumeTarget.rpc.ThreadID,
-		RolloutPath: resumeTarget.rpc.RolloutPath,
-		Cwd:         startDir,
-	})
-	if err != nil {
-		return "", "", state.ResumeTarget{}, err
-	}
-	threadID := strings.TrimSpace(session.ThreadID)
-	if threadID == "" {
-		return "", "", state.ResumeTarget{}, errors.New("stream backend: thread/resume returned an empty thread id")
-	}
-	hostPath := b.resolveHostPath(session.RolloutPath, strings.TrimSpace(opts.ResumeTarget.RolloutPath), threadID, "thread/resume")
-	stableSessionID := firstNonEmpty(strings.TrimSpace(session.SessionID), strings.TrimSpace(opts.ColdStartSessionID))
-	b.mu.Lock()
-	if binding := b.frames[frameID]; binding != nil {
-		binding.threadID = threadID
-		binding.sessionID = stableSessionID
-		binding.rolloutPath = hostPath
-		binding.requestedID = opts.ResumeTarget.ThreadID
-		binding.observedID = threadID
-		binding.resumePhase = resumePhasePending
-		b.threads[threadID] = frameID
-	}
-	b.mu.Unlock()
-	return threadID, stableSessionID, state.ResumeTarget{ThreadID: threadID, RolloutPath: hostPath}, nil
-}
-
-func (b *Backend) bindColdStart(frameID state.FrameID, startDir string, stdin []byte) (string, string, state.ResumeTarget, error) {
-	// Create the thread synchronously (thread/start request) so its id is known
-	// here and the frame binds deterministically — no async thread.started
-	// guessing, no cwd/active-frame heuristic. The spawned frame then resumes
-	// this id (RemoteAttachArgs with a non-empty threadID).
-	session, err := codexclient.StartThread(b.conn, startDir, nil, codexclient.ThreadOptions{})
-	if err != nil {
-		return "", "", state.ResumeTarget{}, err
-	}
-	threadID := strings.TrimSpace(session.ThreadID)
-	if threadID == "" {
-		return "", "", state.ResumeTarget{}, fmt.Errorf("stream backend: app-server returned an empty thread id on cold start")
-	}
-	hostPath := b.resolveHostPath(session.RolloutPath, "", threadID, "thread/start")
-	sessionID := strings.TrimSpace(session.SessionID)
-	b.mu.Lock()
-	if binding := b.frames[frameID]; binding != nil {
-		binding.threadID = threadID
-		binding.sessionID = sessionID
-		binding.rolloutPath = hostPath
-		binding.requestedID = threadID
-		binding.observedID = threadID
-		binding.resumePhase = resumePhaseAttached
-		b.threads[threadID] = frameID
-	}
-	b.mu.Unlock()
-	// The thread/start response is authoritative for the id (a thread.started
-	// notification may not follow), so surface readiness now; a later
-	// thread.started re-confirms idempotently.
-	b.emit(frameID, state.SubsystemSessionReady, b.payload(frameID))
-	// Inject an initial prompt only when one was supplied (orchestrator-style);
-	// interactive frames drive their own turns.
-	if len(stdin) > 0 {
-		if err := codexclient.StartTurn(b.conn, threadID, startDir, stdin, codexclient.TurnOptions{}); err != nil {
-			return "", "", state.ResumeTarget{}, err
-		}
-	}
-	return threadID, sessionID, state.ResumeTarget{ThreadID: threadID, RolloutPath: hostPath}, nil
-}
-
-// resolveHostPath translates a rollout path returned by the app-server into a
-// host-side path, falling back to the requested host path on translation
-// failure. method is used purely for diagnostic logging.
-func (b *Backend) resolveHostPath(rolloutPath, fallback, threadID, method string) string {
-	rolloutPath = strings.TrimSpace(rolloutPath)
-	if rolloutPath == "" {
-		return fallback
-	}
-	_, hostPath, err := translateRolloutPath(rolloutPath, b.mounts)
-	if err != nil {
-		slog.Debug("stream backend: ignoring unusable rollout path",
-			"subsystem", b.subsystemID,
-			"method", method,
-			"thread", threadID,
-			"rollout_path", rolloutPath,
-			"err", err)
-		return fallback
-	}
-	return hostPath
 }
 
 func (b *Backend) waitProcess() {

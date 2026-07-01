@@ -70,17 +70,26 @@ func AppServerStdioArgs(extra []string, sandboxExternal bool) []string {
 }
 
 // RemoteAttachArgs returns the argv for the codex CLI frame that attaches to
-// the per-session app-server over its unix domain socket
-// (`codex --remote unix://<sock>`). sock is the container-absolute UDS path
-// the app-server binds; the codex CLI runs in the same sandbox, so it
-// connects to that socket directly (no TCP routing bridge).
+// the per-session app-server over its unix domain socket. sock is the
+// container-absolute UDS path the app-server binds; the codex CLI runs in
+// the same sandbox, so it connects to that socket directly (no TCP routing
+// bridge).
 //
-// Thread selection belongs to the app-server/backend. The foreground codex
-// CLI only connects to the remote endpoint; passing `resume <id>` here would
-// route through Codex's saved-session CLI path instead of the already-bound
-// remote thread.
-func RemoteAttachArgs(sock, startDir string) []string {
+// threadID selects the thread the CLI attaches to:
+//
+//   - Empty (fresh cold-start): `codex --remote unix://<sock>` — the CLI
+//     will issue its own `thread/start` on its connection, and the stream
+//     backend adopts the resulting thread into the (single) pending frame
+//     via handleThreadStarted (see ADR-0081).
+//   - Non-empty (cold-start recovery): `codex resume <id> --remote
+//     unix://<sock>` — the CLI reads `~/.codex/sessions/…/rollout-<id>.jsonl`
+//     locally and issues `thread/resume`, so app-server events for <id>
+//     route back to the frame that was pre-bound with that id.
+func RemoteAttachArgs(sock, threadID, startDir string) []string {
 	args := []string{DriverName}
+	if threadID != "" {
+		args = append(args, "resume", threadID)
+	}
 	args = append(args, "--remote", "unix://"+sock, "--dangerously-bypass-approvals-and-sandbox")
 	if startDir != "" {
 		args = append(args, "-C", startDir)

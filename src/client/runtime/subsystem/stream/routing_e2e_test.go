@@ -70,6 +70,16 @@ func TestStreamRoutingE2EIsolation(t *testing.T) {
 	}
 }
 
+// TestStreamRoutingE2EBackstopFidelity is intentionally a placeholder — the
+// scenario runner in routing_backstop_test.go relies on the emitter's
+// mintThread + emitMarker helpers, which are fake-only. Real codex only
+// emits events in response to actual model turns and does not expose an
+// arbitrary broadcast hook. Fidelity of adopt + routing against the real
+// server is validated by TestStreamRoutingE2EIsolation (real turns).
+func TestStreamRoutingE2EBackstopFidelity(t *testing.T) {
+	t.Skip("real app-server fidelity requires actual model turns; covered by TestStreamRoutingE2EIsolation")
+}
+
 // runE2EIsolation launches a real app-server and asserts that two frames in
 // distinct working dirs each receive only their own turn's output. Distinct
 // cwds let the (current) demux disambiguate; the point here is to confirm the

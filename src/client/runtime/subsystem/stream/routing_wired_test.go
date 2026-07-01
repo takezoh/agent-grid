@@ -1,77 +1,107 @@
 package stream
 
 // Wired routing harness: drives the backend through its real codexclient.Conn
-// against an in-process fake app-server. It reuses the existing bindServer
-// (launch_flow_test.go) as the handler — which now answers thread/start with a
-// fresh unique id — and wraps its conn in a codexclient.Server for the emit
-// side. Unlike the direct-drive contract (routing_contract_test.go), this
-// exercises the async read loop, so it runs under `go test -race`, and it pins
-// that a real cold BindFrame binds a distinct thread id synchronously — making
-// cross-talk between same-cwd frames structurally impossible.
+// against a real WebSocket-over-UDS FakeAppServer. Unlike the direct-drive
+// contract (routing_contract_test.go), this exercises the async read loop,
+// so it runs under `go test -race`, and it pins that a real cold BindFrame
+// binds a distinct thread id synchronously — making cross-talk between
+// same-cwd frames structurally impossible.
+//
+// Uses fake.AppServer (the same fake used by interactive_flow_test.go) so
+// the wire behaviour under test — broadcast of every notification to every
+// connected client — is identical to production.
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
+	"github.com/takezoh/agent-reactor/client/runtime/subsystem/stream/fake"
 	"github.com/takezoh/agent-reactor/client/state"
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 )
 
 type wired struct {
-	t      *testing.T
-	b      *Backend
-	rt     *recordingRuntime
-	server *bindServer         // handler: answers thread/start + thread/resume
-	emit   *codexclient.Server // emit side over the same server conn
+	t   *testing.T
+	b   *Backend
+	rt  *recordingRuntime
+	srv *fake.AppServer
 }
 
 func newWired(t *testing.T) *wired {
 	t.Helper()
-	w := &wired{t: t, rt: &recordingRuntime{}}
-	w.b = New(w.rt, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", time.Second)
+	rt := &recordingRuntime{}
+	srv := fake.New(fake.Config{Sock: filepath.Join(t.TempDir(), "wired.sock")})
+	if err := srv.Start(); err != nil {
+		t.Fatalf("fake.Start: %v", err)
+	}
+	t.Cleanup(srv.Stop)
 
-	clientT, serverT := streamPipe()
-	w.b.conn = codexclient.NewConn(clientT, time.Second)
-	serverConn := codexclient.NewConn(serverT, time.Second)
-	w.server = &bindServer{conn: serverConn}
-	w.emit = codexclient.NewServer(serverConn)
-
+	b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, srv.SockPath(), time.Second)
+	tr, err := codexclient.DialUDS(srv.SockPath(), 3*time.Second)
+	if err != nil {
+		t.Fatalf("dial %s: %v", srv.SockPath(), err)
+	}
+	b.conn = codexclient.NewConn(tr, time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
-	// The transports are not ctx-aware (bufio.Scanner reads block) and their
-	// Close is a no-op, so the Run goroutines park until the test binary exits —
-	// the same accepted condition as newBoundBackend.
 	t.Cleanup(cancel)
-	go w.b.conn.Run(ctx, w.b)        //nolint:errcheck
-	go serverConn.Run(ctx, w.server) //nolint:errcheck
-	return w
+	go b.conn.Run(ctx, b) //nolint:errcheck
+	if err := codexclient.Initialize(b.conn); err != nil {
+		t.Fatalf("backend initialize: %v", err)
+	}
+	return &wired{t: t, b: b, rt: rt, srv: srv}
 }
 
-// bindCold runs the real cold-start BindFrame (thread/start request → a
-// synchronously-bound id) and returns that thread id.
+// bindCold runs a fresh cold-start BindFrame and then simulates the CLI
+// issuing thread/start by broadcasting thread/started on the fake. The
+// Backend's adopt path binds that id into the pending frame. Returns the
+// adopted thread id.
+//
+// This is the async equivalent of the pre-restructure synchronous
+// thread/start path: the Backend no longer creates the thread itself; the
+// CLI does. Tests inject a fresh id via the fake's Broadcast helper.
 func (w *wired) bindCold(frame state.FrameID, dir string) string {
 	w.t.Helper()
-	_, err := w.b.BindFrame(context.Background(), subsystem.BindRequest{
+	if _, err := w.b.BindFrame(context.Background(), subsystem.BindRequest{
 		FrameID: frame,
 		Plan:    state.LaunchPlan{StartDir: dir},
-	})
-	if err != nil {
+	}); err != nil {
 		w.t.Fatalf("BindFrame(%s): %v", frame, err)
 	}
-	w.b.mu.Lock()
-	binding := w.b.frames[frame]
-	w.b.mu.Unlock()
-	if binding == nil || binding.threadID == "" {
-		w.t.Fatalf("BindFrame(%s) did not bind a thread id", frame)
+	threadID := "wired-thread-" + string(frame)
+	if err := w.srv.Broadcast(codexschema.MethodThreadStarted, map[string]any{
+		"thread": map[string]any{"id": threadID, "cwd": dir},
+	}); err != nil {
+		w.t.Fatalf("mint thread/started: %v", err)
 	}
-	return binding.threadID
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		w.b.mu.Lock()
+		binding := w.b.frames[frame]
+		observedThreadID := ""
+		if binding != nil {
+			observedThreadID = binding.threadID
+		}
+		w.b.mu.Unlock()
+		if observedThreadID != "" {
+			return observedThreadID
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	w.t.Fatalf("BindFrame(%s) not adopted within timeout", frame)
+	return ""
 }
 
 func (w *wired) emitMessage(threadID, delta string) {
 	w.t.Helper()
-	if err := w.emit.EmitAgentMessageDelta(threadID, delta); err != nil {
-		w.t.Fatalf("EmitAgentMessageDelta: %v", err)
+	if err := w.srv.Broadcast(codexschema.MethodItemAgentMessageDelta, map[string]any{
+		"threadId": threadID,
+		"delta":    delta,
+	}); err != nil {
+		w.t.Fatalf("Broadcast agent message delta: %v", err)
 	}
 	deadline := time.Now().Add(2 * time.Second)
 	for len(w.rt.framesWithMarker(delta)) == 0 {

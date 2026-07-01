@@ -154,6 +154,11 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 	wrapResult, err := wrapLaunchForSpawn(launcher(r.cfg), frame.ID, frame.Project, launch, baseEnv)
 	if err != nil {
 		slog.Error("bootstrap: wrap launch failed", "id", id, "frame", frame.ID, "err", err)
+		// Bootstrap runs before the event loop, so ReleaseFrame is not driven
+		// by EffKillFrame. Release subsystem-scoped resources (e.g. stream
+		// backend's initState slot if the frame took the fresh path) directly.
+		sub.ReleaseFrame(frame.ID)
+		delete(r.frameSubsystems, frame.ID)
 		return err
 	}
 	wrapped := wrapResult.wrapped
@@ -165,6 +170,8 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 				slog.Warn("bootstrap: cleanup after spawn failure", "frame", frame.ID, "err", cerr)
 			}
 		}
+		sub.ReleaseFrame(frame.ID)
+		delete(r.frameSubsystems, frame.ID)
 		return err
 	}
 
