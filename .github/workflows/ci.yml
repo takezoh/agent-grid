@@ -20,6 +20,23 @@ jobs:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
 
+      # client/web embeds dist/ via `//go:embed all:dist`. `go test ./...` and
+      # `go build ./cmd/web` both compile that package, so the Vite output must
+      # exist before either step runs. Without this the tracked dist/.gitkeep
+      # placeholder is all the embed sees and TestEmbedHasNoInlineScript /
+      # TestStaticServesShellHidesListing fail against an empty FS.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/client/web/package-lock.json
+
+      - name: build web assets
+        working-directory: src/client/web
+        run: |
+          npm ci
+          npm run build
+
       - name: vet
         run: go vet ./...
 
@@ -34,7 +51,7 @@ jobs:
         run: scripts/check-coverage.sh
 
       - name: build
-        run: go build -o ../arc ./cmd/arc
+        run: go build -o ../server ./cmd/server
 
       - name: build orchestrator + claude-app-server
         run: |
@@ -60,6 +77,20 @@ jobs:
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
+
+      # client/web tests read the embedded dist/ — build it before `go test`.
+      # (Same reason as the ci job's build-web-assets step.)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/client/web/package-lock.json
+
+      - name: build web assets
+        working-directory: src/client/web
+        run: |
+          npm ci
+          npm run build
 
       - name: test -race
         run: go test -race ./...
