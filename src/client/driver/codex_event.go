@@ -50,6 +50,8 @@ func codexTitleNeedsUserAction(title string) bool {
 func (d CodexDriver) handleSubsystem(cs CodexState, ctx state.FrameContext, e state.DEvSubsystem) (CodexState, []state.Effect) {
 	prevStatus := cs.Status
 	prevThreadID := cs.ThreadID
+	prevSessionID := cs.SessionID
+	prevRolloutPath := cs.resolvedRolloutPath()
 	p := e.Payload
 	if p.RequestedTargetID != "" {
 		cs.RequestedThreadID = p.RequestedTargetID
@@ -80,6 +82,7 @@ func (d CodexDriver) handleSubsystem(cs CodexState, ctx state.FrameContext, e st
 	if p.StatusLine != "" {
 		cs.StatusLine = p.StatusLine
 	}
+	logCodexIdentityCaptured(ctx.ID, prevThreadID, prevSessionID, prevRolloutPath, cs)
 	effs := watchCodexTranscript(&cs)
 	cs, effs = d.applySubsystemKind(cs, ctx, e, effs)
 	slog.Debug("codex: subsystem event applied",

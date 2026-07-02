@@ -35,6 +35,29 @@ func logCodexResumeSkip(project, threadID, rolloutPath, reason string) {
 		"reason", reason)
 }
 
+// logCodexIdentityCaptured emits a one-shot Info log whenever a durable
+// cold-start locator (thread_id, session_id, rollout_path) transitions from
+// empty to non-empty. Cold-start recovery dies silently when none of these
+// were observed before a crash, so surfacing the first capture lets operators
+// confirm from logs whether the daemon had a chance to persist identity.
+func logCodexIdentityCaptured(frame state.FrameID, prevThread, prevSession, prevRollout string, cs CodexState) {
+	curRollout := cs.resolvedRolloutPath()
+	threadCaptured := prevThread == "" && cs.ThreadID != ""
+	sessionCaptured := prevSession == "" && cs.SessionID != ""
+	rolloutCaptured := prevRollout == "" && curRollout != ""
+	if !threadCaptured && !sessionCaptured && !rolloutCaptured {
+		return
+	}
+	slog.Info("codex: cold-start locator captured",
+		"frame", frame,
+		"thread_id", cs.ThreadID,
+		"session_id", cs.SessionID,
+		"rollout_path", curRollout,
+		"thread_first_seen", threadCaptured,
+		"session_first_seen", sessionCaptured,
+		"rollout_first_seen", rolloutCaptured)
+}
+
 func (cs CodexState) coldStartResumePlan() (state.ResumeTarget, string, bool, error) {
 	rawThreadID := strings.TrimSpace(cs.ThreadID)
 	sessionID := strings.TrimSpace(cs.SessionID)

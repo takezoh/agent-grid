@@ -45,6 +45,9 @@ func (r *Runtime) LoadSnapshot(coldStart bool) error {
 				dropped++
 				if err := r.cfg.Persist.Delete(snap.ID); err != nil {
 					slog.Warn("bootstrap: drop unrecoverable snapshot failed", "id", snap.ID, "err", err)
+				} else {
+					slog.Info("bootstrap: deleted unrecoverable snapshot",
+						"id", snap.ID, "frames", len(snap.Frames))
 				}
 			}
 			continue
@@ -79,6 +82,15 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 		// stopped status before its app-server locator is available; deleting
 		// that snapshot would discard the user's session entry.
 		if coldStart && drv.Status(driverState) == state.StatusStopped && !coldStartRecoverable(drv, driverState) {
+			slog.Info("bootstrap: dropping stopped frame on cold start (driver declared unrecoverable)",
+				"session", snap.ID,
+				"frame", fsnap.ID,
+				"command", fsnap.Command,
+				"thread_id", fsnap.DriverState["thread_id"],
+				"session_id", fsnap.DriverState["session_id"],
+				"rollout_path", fsnap.DriverState["rollout_path"],
+				"transcript_path", fsnap.DriverState["transcript_path"],
+			)
 			continue
 		}
 		frameCreatedAt, _ := time.Parse(time.RFC3339, fsnap.CreatedAt)
