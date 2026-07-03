@@ -125,6 +125,9 @@ type Runtime struct {
 	// A plain loop-owned map: spawn goroutines no longer write it directly —
 	// handleSpawnComplete stores the cleanup on the event loop.
 	sandboxCleanups map[state.FrameID]func() error
+	// pendingSpawns tracks frames whose async spawn has been dispatched but has
+	// not yet reported completion back into the event loop.
+	pendingSpawns map[state.FrameID]struct{}
 
 	// frameReg maps container bearer tokens and bind-mount tables to frame IDs.
 	// The event loop is the sole writer (via registerContainerFrame /
@@ -249,6 +252,7 @@ func New(cfg Config) *Runtime {
 		done:               make(chan struct{}),
 		workspaceResolver:  config.NewWorkspaceResolver(),
 		sandboxCleanups:    map[state.FrameID]func() error{},
+		pendingSpawns:      map[state.FrameID]struct{}{},
 		frameReg:           framereg.New(),
 		containerEndpoints: map[string]*containerEndpoint{},
 		subsystems:         map[state.SubsystemID]rsubsystem.Subsystem{},
@@ -522,6 +526,12 @@ func (r *Runtime) Run(ctx context.Context) error {
 // reducer must remember to emit via EffPersistSnapshot. See the
 // "sessions.json が終了時の snapshot になっていない" investigation.
 func (r *Runtime) dispatch(ev state.Event) {
+	switch e := ev.(type) {
+	case state.EvFrameSpawned:
+		delete(r.pendingSpawns, e.FrameID)
+	case state.EvSpawnFailed:
+		delete(r.pendingSpawns, e.FrameID)
+	}
 	prev := r.state.Sessions
 	next, effects := state.Reduce(r.state, ev)
 	r.state = next

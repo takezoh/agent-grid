@@ -123,7 +123,10 @@ func (f *fakeBackend) FrameExitStatus(target string) (bool, int, error) {
 		return false, -1, err
 	}
 	alive, known := f.alive[target]
-	if !known || alive {
+	if !known {
+		return false, -1, fmt.Errorf("runtime: unknown frame %q: %w", target, ErrFrameMissing)
+	}
+	if alive {
 		return false, -1, nil
 	}
 	code, has := f.exitStatus[target]

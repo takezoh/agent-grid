@@ -197,6 +197,7 @@ func (r *Runtime) executeSurfaceEffect(eff state.Effect) {
 func (r *Runtime) executeFrameEffect(eff state.Effect) {
 	switch e := eff.(type) {
 	case state.EffSpawnFrame:
+		r.pendingSpawns[e.FrameID] = struct{}{}
 		go spawnFrameWindow(r.buildSpawnDeps(), e)
 	case state.EffKillFrame:
 		r.executeKillSessionWindow(e)
@@ -380,6 +381,9 @@ func (r *Runtime) reconcileWindows() {
 	for _, sess := range r.state.Sessions {
 		for _, frame := range sess.Frames {
 			frameID := frame.ID
+			if _, inFlight := r.pendingSpawns[frameID]; inFlight {
+				continue
+			}
 			target := string(frameID)
 			dead, code, err := r.cfg.Backend.FrameExitStatus(target)
 			if err != nil {
