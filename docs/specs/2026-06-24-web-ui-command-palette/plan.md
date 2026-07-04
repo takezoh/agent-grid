@@ -1,7 +1,29 @@
+---
+id: plan-20260624-2026-06-24-web-ui-command-palette
+kind: plan
+title: Plan — Web UI Command Palette
+status: draft
+created: '2026-06-24'
+updated: '2026-07-04'
+tags:
+- plan
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+goal: Plan — Web UI Command Palette
+scope_in: []
+scope_out: []
+milestones: []
+contracts: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-24-web-ui-command-palette/plan.md -->
+
 # Plan — Web UI Command Palette
 
-- **spec**: [spec.md](./spec.md)
-- **ADRs**: [0036](../../adr/0036-palette-2phase-store-architecture.md), [0037](../../adr/0037-palette-hotkey-capture-phase.md), [0038](../../adr/0038-palette-fuzzy-pure-function.md), [0039](../../adr/0039-palette-focus-trap-minimal.md), [0040](../../adr/0040-palette-ime-suppression-in-store.md), [0041](../../adr/0041-palette-session-config-rest-extension.md), [0042](../../adr/0042-palette-new-session-payload-wire-mirror.md), [0043](../../adr/0043-palette-createsessionform-replacement.md), [0044](../../adr/0044-palette-no-per-session-occupant.md), [0045](../../adr/0045-palette-push-route-sendcommand.md), [0046](../../adr/0046-palette-push-active-mismatch-409.md), [0047](../../adr/0047-palette-disabledreason-single-source.md)
+- **spec**: [spec.md](../../specs/2026-06-24-web-ui-command-palette/spec.md)
+- **ADRs**: [0036](../../adr/adr-20260624-0036-palette-2phase-store-architecture.md), [0037](../../adr/adr-20260624-0037-palette-hotkey-capture-phase.md), [0038](../../adr/adr-20260624-0038-palette-fuzzy-pure-function.md), [0039](../../adr/adr-20260624-0039-palette-focus-trap-minimal.md), [0040](../../adr/adr-20260624-0040-palette-ime-suppression-in-store.md), [0041](../../adr/adr-20260624-0041-palette-session-config-rest-extension.md), [0042](../../adr/adr-20260624-0042-palette-new-session-payload-wire-mirror.md), [0043](../../adr/adr-20260624-0043-palette-createsessionform-replacement.md), [0044](../../adr/adr-20260624-0044-palette-no-per-session-occupant.md), [0045](../../adr/adr-20260624-0045-palette-push-route-sendcommand.md), [0046](../../adr/adr-20260624-0046-palette-push-active-mismatch-409.md), [0047](../../adr/adr-20260624-0047-palette-disabledreason-single-source.md)
 
 ## Goal
 
@@ -59,11 +81,11 @@ agent-reactor の Web UI に、2 フェーズ操作 (ファジー検索でツー
   - req:FR-019
   - req:FR-020
   - req:FR-029
-  - adr: [0036-palette-2phase-store-architecture](../../adr/0036-palette-2phase-store-architecture.md)
-  - adr: [0037-palette-hotkey-capture-phase](../../adr/0037-palette-hotkey-capture-phase.md)
-  - adr: [0038-palette-fuzzy-pure-function](../../adr/0038-palette-fuzzy-pure-function.md)
-  - adr: [0039-palette-focus-trap-minimal](../../adr/0039-palette-focus-trap-minimal.md)
-  - adr: [0040-palette-ime-suppression-in-store](../../adr/0040-palette-ime-suppression-in-store.md)
+  - adr: [0036-palette-2phase-store-architecture](../../adr/adr-20260624-0036-palette-2phase-store-architecture.md)
+  - adr: [0037-palette-hotkey-capture-phase](../../adr/adr-20260624-0037-palette-hotkey-capture-phase.md)
+  - adr: [0038-palette-fuzzy-pure-function](../../adr/adr-20260624-0038-palette-fuzzy-pure-function.md)
+  - adr: [0039-palette-focus-trap-minimal](../../adr/adr-20260624-0039-palette-focus-trap-minimal.md)
+  - adr: [0040-palette-ime-suppression-in-store](../../adr/adr-20260624-0040-palette-ime-suppression-in-store.md)
 
 ### Chunk: `f2-createsessionform-removal`
 
@@ -80,9 +102,9 @@ agent-reactor の Web UI に、2 フェーズ操作 (ファジー検索でツー
   - req:FR-022
   - req:FR-027
   - req:FR-028
-  - adr: [0041-palette-session-config-rest-extension](../../adr/0041-palette-session-config-rest-extension.md)
-  - adr: [0042-palette-new-session-payload-wire-mirror](../../adr/0042-palette-new-session-payload-wire-mirror.md)
-  - adr: [0043-palette-createsessionform-replacement](../../adr/0043-palette-createsessionform-replacement.md)
+  - adr: [0041-palette-session-config-rest-extension](../../adr/adr-20260624-0041-palette-session-config-rest-extension.md)
+  - adr: [0042-palette-new-session-payload-wire-mirror](../../adr/adr-20260624-0042-palette-new-session-payload-wire-mirror.md)
+  - adr: [0043-palette-createsessionform-replacement](../../adr/adr-20260624-0043-palette-createsessionform-replacement.md)
 
 ### Chunk: `f3-push-scope-and-route`
 
@@ -98,10 +120,10 @@ agent-reactor の Web UI に、2 フェーズ操作 (ファジー検索でツー
   - req:FR-024
   - req:FR-025
   - req:FR-026
-  - adr: [0044-palette-no-per-session-occupant](../../adr/0044-palette-no-per-session-occupant.md)
-  - adr: [0045-palette-push-route-sendcommand](../../adr/0045-palette-push-route-sendcommand.md)
-  - adr: [0046-palette-push-active-mismatch-409](../../adr/0046-palette-push-active-mismatch-409.md)
-  - adr: [0047-palette-disabledreason-single-source](../../adr/0047-palette-disabledreason-single-source.md)
+  - adr: [0044-palette-no-per-session-occupant](../../adr/adr-20260624-0044-palette-no-per-session-occupant.md)
+  - adr: [0045-palette-push-route-sendcommand](../../adr/adr-20260624-0045-palette-push-route-sendcommand.md)
+  - adr: [0046-palette-push-active-mismatch-409](../../adr/adr-20260624-0046-palette-push-active-mismatch-409.md)
+  - adr: [0047-palette-disabledreason-single-source](../../adr/adr-20260624-0047-palette-disabledreason-single-source.md)
 
 ## Verification
 

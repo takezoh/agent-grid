@@ -10,7 +10,7 @@
 
 [Unit]
 Description=agent-reactor web (UI host)
-# Operator guide: docs/user/systemd.md in the agent-reactor source repo.
+# Operator guide: docs/note/note-20260624-user-systemd.md in the agent-reactor source repo.
 After=agent-reactor-server.service
 Requires=agent-reactor-server.service
 # BindsTo cascades server stops into us — without it the proxy would

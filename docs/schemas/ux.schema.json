@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-module.local/docs/ux.schema.json",
+  "title": "UX plan (user-facing flows and Given-When-Then acceptance scenarios)",
+  "description": "What the user experiences. Sibling of spec (which is system-facing). Holds primary user flows, acceptance scenarios in Given-When-Then form, states, and edge cases.",
+  "allOf": [{"$ref": "_common.schema.json"}],
+  "type": "object",
+  "required": ["goal"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind":   {"const": "ux"},
+    "status": {"enum": ["draft", "approved", "implemented", "obsolete"]},
+    "goal":   {"type": "string", "minLength": 1},
+    "target_users": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "primary_flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "steps"],
+        "additionalProperties": false,
+        "properties": {
+          "id":    {"type": "string", "pattern": "^F-[0-9]{3,4}$"},
+          "name":  {"type": "string", "minLength": 1},
+          "steps": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "description": "Methodology may require an activation modality tag prefix (e.g. `[keyboard|pointer-mouse] ...`). See plan-ux/PRINCIPLES.md §1."
+          }
+        }
+      }
+    },
+    "acceptance_scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "given", "when", "then"],
+        "additionalProperties": false,
+        "properties": {
+          "id":    {"type": "string", "pattern": "^UAC-[0-9]{3,4}$"},
+          "given": {"type": "string", "minLength": 1},
+          "when":  {"type": "string", "minLength": 1},
+          "then":  {"type": "string", "minLength": 1},
+          "flow_ref": {
+            "type": "string",
+            "pattern": "^F-[0-9]{3,4}$",
+            "description": "Optional reference to a primary_flows[].id this scenario validates."
+          },
+          "counterexample": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Methodology §8 (plan-ux): description of a wrong implementation that would still pass this scenario. Empty if none can be constructed (= scenario is discriminating)."
+          },
+          "vs_legacy": {
+            "enum": ["must-fail", "must-pass", "irrelevant"],
+            "description": "Methodology §9 (plan-ux): only meaningful in refactor/port/migration context. must-fail = the legacy implementation would fail this scenario (delta encoding); must-pass = legacy behavior intentionally preserved; irrelevant = new territory."
+          }
+        }
+      }
+    },
+    "reference_ux": {
+      "type": "array",
+      "description": "Methodology §8 (plan-ux): UX patterns this design models on or rejects. Names may be products (Raycast / Spotlight / Linear) or UI primitives (combobox / breadcrumb).",
+      "items": {
+        "type": "object",
+        "required": ["name", "stance"],
+        "additionalProperties": false,
+        "properties": {
+          "name":   {"type": "string", "minLength": 1},
+          "stance": {"enum": ["modeled_on", "rejected"]},
+          "aspects": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "legacy_context": {
+      "type": "object",
+      "description": "Methodology §9 (plan-ux): present only when this UX is a refactor / port / migration of an existing implementation. Encodes what is inherited vs replaced.",
+      "additionalProperties": false,
+      "properties": {
+        "source_implementation": {"type": "string", "minLength": 1},
+        "inherited_behaviors": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "replaced_behaviors": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "states": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "edge_cases": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

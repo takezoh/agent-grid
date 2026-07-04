@@ -1,7 +1,29 @@
+---
+id: plan-20260625-2026-06-25-palette-bugfix
+kind: plan
+title: Plan — Web UI コマンドパレット バグ修正
+status: draft
+created: '2026-06-25'
+updated: '2026-07-04'
+tags:
+- plan
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+goal: Plan — Web UI コマンドパレット バグ修正
+scope_in: []
+scope_out: []
+milestones: []
+contracts: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-25-palette-bugfix/plan.md -->
+
 # Plan — Web UI コマンドパレット バグ修正
 
-- **spec**: [spec.md](./spec.md)
-- **ADRs**: [0048](../../adr/0048-paramselect-display-layer-materialize.md), [0049](../../adr/0049-palette-ui-english-only.md)
+- **spec**: [spec.md](../../specs/2026-06-25-palette-bugfix/spec.md)
+- **ADRs**: [0048](../../adr/adr-20260624-0048-paramselect-display-layer-materialize.md), [0049](../../adr/adr-20260624-0049-palette-ui-english-only.md)
 
 ## Goal
 
@@ -53,7 +75,7 @@ commit 9287c7f で導入された Web UI コマンドパレットの実害 (New 
   - req:FR-C1
   - req:FR-C2
   - req:FR-C4
-  - adr: [0048-paramselect-display-layer-materialize](../../adr/0048-paramselect-display-layer-materialize.md)
+  - adr: [0048-paramselect-display-layer-materialize](../../adr/adr-20260624-0048-paramselect-display-layer-materialize.md)
 
 ### Chunk: `m3-empty-state-and-fixtures`
 
@@ -108,7 +130,7 @@ commit 9287c7f で導入された Web UI コマンドパレットの実害 (New 
   - component:__meta__/no-japanese.test.ts (新規)
   - component:Vitest 更新 (既存テスト群)
   - req:FR-C6
-  - adr: [0049-palette-ui-english-only](../../adr/0049-palette-ui-english-only.md)
+  - adr: [0049-palette-ui-english-only](../../adr/adr-20260624-0049-palette-ui-english-only.md)
 
 ## Verification
 

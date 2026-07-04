@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-module.local/docs/spec.schema.json",
+  "title": "Specification (baseline schema, methodology-neutral)",
+  "description": "System specification baseline: structural fields only (id pattern, priority MoSCoW, ISO/IEC 25010 NFR enum, Given-When-Then acceptance shape). functional_requirements[].statement is intentionally free-form here; methodology overlays at `methodologies/<name>/spec.schema.json` (e.g. `sdd` for EARS, `atdd` for G-W-T-required) tighten the contract per methodology declared via frontmatter `methodology` field. Body uses Markdoc {% req id=\"FR-XXX\" %} / {% acceptance id=\"AC-XXX\" %} tags whose id must match frontmatter.",
+  "allOf": [{"$ref": "_common.schema.json"}],
+  "type": "object",
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind":   {"const": "spec"},
+    "status": {"enum": ["draft", "approved", "implemented", "obsolete"]},
+    "functional_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "statement", "priority"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^FR-[0-9]{3,4}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Free-form here (baseline). methodology overlay (e.g. `methodologies/sdd/spec.schema.json`) tightens this with a pattern when applicable."
+          },
+          "priority": {
+            "enum": ["must", "should", "could", "wont"],
+            "description": "MoSCoW prioritization."
+          },
+          "rationale": {"type": "string"}
+        }
+      }
+    },
+    "non_functional_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "criteria"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^NFR-[0-9]{3,4}$"
+          },
+          "type": {
+            "enum": [
+              "performance",
+              "security",
+              "reliability",
+              "usability",
+              "maintainability",
+              "compatibility",
+              "scalability",
+              "portability"
+            ],
+            "description": "ISO/IEC 25010 quality characteristics."
+          },
+          "criteria": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Measurable criterion. Pattern is not enforced; agent should prefer numeric / observable thresholds."
+          },
+          "measurement": {"type": "string"}
+        }
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "given", "when", "then"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^AC-[0-9]{3,4}$"
+          },
+          "given": {"type": "string", "minLength": 1},
+          "when":  {"type": "string", "minLength": 1},
+          "then":  {"type": "string", "minLength": 1},
+          "requirement_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(FR|NFR)-[0-9]{3,4}$"
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    }
+  }
+}

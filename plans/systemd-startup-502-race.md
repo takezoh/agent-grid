@@ -11,7 +11,7 @@
   - `src/client/web/host.go` (`ReverseProxy.ErrorHandler` 追加)
   - `src/client/web/src/api/sessions.ts` (`retryOn5xx` helper + `getSessionConfig` 差し替え)
   - `deploy/systemd/agent-reactor-server.service` (`Type=simple` → `Type=notify`)
-  - `docs/user/systemd.md` (Type=notify 化の追記)
+  - `docs/note/note-20260624-user-systemd.md` (Type=notify 化の追記)
 - **関連 ADR (本 plan の実装で起票)**:
   1. **sd_notify readiness 契約**: `READY=1` を送るタイミング (`net.Listen` 成功直後) の正当性、`NOTIFY_SOCKET` 未設定時の silent no-op fallback、`WATCHDOG` / `RELOADING` は将来スコープとする境界
   2. **reverse proxy transient error mapping**: `httputil.ReverseProxy` の dial 失敗のうち `ECONNREFUSED` / `EHOSTUNREACH` / `*net.DNSError` を **503 + `Retry-After: 1`** にマップし、TLS handshake 失敗 / mid-response 切断は **既存の 502** のまま残すルール
@@ -250,7 +250,7 @@ CLAUDE.md の Library Selection rule に従い候補比較:
 - `getSessionConfig` を helper 経由に差し替え。`Retry-After` header (数値秒 or HTTP-date) をパースして backoff に反映、ただし合計 cap 1.4s を超えない。
 - **test** (`sessions.test.ts`): 503→200 で silent 成功 / 3 連続 5xx で throw / Retry-After 尊重 / signal abort で早期中断 / 4xx は retry しない、を各分岐で。
 
-### 4.8 `docs/user/systemd.md` 追記
+### 4.8 `docs/note/note-20260624-user-systemd.md` 追記
 
 - `Install` セクションに `Type=notify` に変わった旨と、対話起動時は sd_notify が silent no-op になる旨。
 - `LAN / external exposure` の drop-in サンプル (`ExecStart=` の上書き) は unit の `Type=notify` を継承するので影響なし、と明記。
@@ -259,7 +259,7 @@ CLAUDE.md の Library Selection rule に従い候補比較:
 ### 4.9 影響ファイル一覧
 
 - 追加: `src/platform/lib/systemdnotify/notify.go`, `src/platform/lib/systemdnotify/notify_test.go`
-- 修正: `src/go.mod`, `src/go.sum`, `src/.golangci.yml`, `src/cmd/server/gateway.go`, `src/cmd/server/gateway_test.go` (存在確認要), `src/client/web/host.go`, `src/client/web/host_test.go`, `src/client/web/src/api/sessions.ts`, `src/client/web/src/api/sessions.test.ts`, `deploy/systemd/agent-reactor-server.service`, `docs/user/systemd.md`
+- 修正: `src/go.mod`, `src/go.sum`, `src/.golangci.yml`, `src/cmd/server/gateway.go`, `src/cmd/server/gateway_test.go` (存在確認要), `src/client/web/host.go`, `src/client/web/host_test.go`, `src/client/web/src/api/sessions.ts`, `src/client/web/src/api/sessions.test.ts`, `deploy/systemd/agent-reactor-server.service`, `docs/note/note-20260624-user-systemd.md`
 
 ## 5. 検証手順
 

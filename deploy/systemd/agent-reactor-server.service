@@ -10,7 +10,7 @@
 
 [Unit]
 Description=agent-reactor server (session daemon + HTTP/WS gateway)
-# Operator guide: docs/user/systemd.md in the agent-reactor source repo.
+# Operator guide: docs/note/note-20260624-user-systemd.md in the agent-reactor source repo.
 
 [Service]
 Type=notify

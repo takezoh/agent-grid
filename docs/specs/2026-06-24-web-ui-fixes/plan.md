@@ -1,7 +1,29 @@
+---
+id: plan-20260624-2026-06-24-web-ui-fixes
+kind: plan
+title: Plan — Web UI Fixes
+status: draft
+created: '2026-06-24'
+updated: '2026-07-04'
+tags:
+- plan
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+goal: Plan — Web UI Fixes
+scope_in: []
+scope_out: []
+milestones: []
+contracts: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-24-web-ui-fixes/plan.md -->
+
 # Plan — Web UI Fixes
 
-- **spec**: [spec.md](./spec.md)
-- **ADRs**: [0029](../../adr/0029-terminal-host-flex-height.md), [0030](../../adr/0030-terminal-keyed-remount.md), [0031](../../adr/0031-kindoftab-server-symmetry.md), [0032](../../adr/0032-runstate-spinner-additive.md), [0033](../../adr/0033-display-label-empty-policy.md), [0034](../../adr/0034-refit-raf-coalesce-and-test-infra.md)
+- **spec**: [spec.md](../../specs/2026-06-24-web-ui-fixes/spec.md)
+- **ADRs**: [0029](../../adr/adr-20260624-0029-terminal-host-flex-height.md), [0030](../../adr/adr-20260624-0030-terminal-keyed-remount.md), [0031](../../adr/adr-20260624-0031-kindoftab-server-symmetry.md), [0032](../../adr/adr-20260624-0032-runstate-spinner-additive.md), [0033](../../adr/adr-20260624-0033-display-label-empty-policy.md), [0034](../../adr/adr-20260624-0034-refit-raf-coalesce-and-test-infra.md)
 
 ## Components
 
@@ -67,19 +89,19 @@ ResizeObserver(host)─┘
 | ファイル | 変更内容 |
 |---------|---------|
 | `src/client/web/src/test-setup.ts` | `ResizeObserver` mock を `globalThis.ResizeObserver` に注入。`observe(target, cb)` / `disconnect()` と「手動発火フック」(`__triggerResize(target, entries)`) を提供。`requestAnimationFrame` を同期 flush (即時 callback 呼び出し) に差し替え |
-| `src/client/web/src/components/LogTabs.tsx` | `kindOfTab(tab)` に分岐追加: path 末尾 `.log` / `.jsonl` → `"event-log"`、label 小文字化後 `includes("events")` または `includes("event-log")` → `"event-log"`。既存判定の後方に置く ([ADR 0031](../../adr/0031-kindoftab-server-symmetry.md)) |
+| `src/client/web/src/components/LogTabs.tsx` | `kindOfTab(tab)` に分岐追加: path 末尾 `.log` / `.jsonl` → `"event-log"`、label 小文字化後 `includes("events")` または `includes("event-log")` → `"event-log"`。既存判定の後方に置く ([ADR 0031](../../adr/adr-20260624-0031-kindoftab-server-symmetry.md)) |
 | `src/client/web/src/components/LogTabs.test.tsx` | FR-001/002/003/004 の `kindOfTab` 単体テスト追加 (label=EVENTS / path=`<sid>.log` / label="event-log" / `.jsonl` / 既存 `.transcript` 回帰) |
-| `src/client/web/src/components/SessionList.tsx` | `displayLabel(card, id): string` 純関数を追加 (内部関数で可)。`title.trim()` → `subtitle.trim()` → `id` の順で最初に非空を返す ([ADR 0033](../../adr/0033-display-label-empty-policy.md)) |
+| `src/client/web/src/components/SessionList.tsx` | `displayLabel(card, id): string` 純関数を追加 (内部関数で可)。`title.trim()` → `subtitle.trim()` → `id` の順で最初に非空を返す ([ADR 0033](../../adr/adr-20260624-0033-display-label-empty-policy.md)) |
 | `src/client/web/src/components/SessionList.test.tsx` | FR-011/012 の `displayLabel` 単体テスト追加 (title 有 / title 空 + subtitle 有 / 両方空 → id / undefined / 空白のみ) |
 
 ### Chunk 2: `display-layer` (← Chunk 1)
 
 | ファイル | 変更内容 |
 |---------|---------|
-| `src/client/web/src/components/RunStateBadge.tsx` | active 状態 (`running` / `waiting`) のとき `aria-hidden` な `<span className="run-state-spinner" />` を可視テキストの直前または直後に追加。可視テキスト・`aria-label` は変更しない ([ADR 0032](../../adr/0032-runstate-spinner-additive.md)) |
+| `src/client/web/src/components/RunStateBadge.tsx` | active 状態 (`running` / `waiting`) のとき `aria-hidden` な `<span className="run-state-spinner" />` を可視テキストの直前または直後に追加。可視テキスト・`aria-label` は変更しない ([ADR 0032](../../adr/adr-20260624-0032-runstate-spinner-additive.md)) |
 | `src/client/web/src/css/view.css` | `.run-state-spinner { display:inline-block; width:8px; height:8px; border:2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: run-state-spin 0.8s linear infinite; margin-right: 4px; }` + `@keyframes run-state-spin { to { transform: rotate(360deg); } }` |
 | `src/client/web/src/components/RunStateBadge.test.tsx` | FR-009/010 のアサーション追加: `running` / `waiting` のとき `[aria-hidden="true"].run-state-spinner` が 1 件存在、`idle` / `stopped` / `pending` / `unknown` のとき 0 件。既存の `textContent===status` / `aria-label` 契約は温存 |
-| `src/client/web/src/components/SessionList.tsx` | (Chunk 1 で追加した) `displayLabel` を `<span className="title">` に適用。`onClick` から `await conn.unsubscribe(activeId)` / `await conn.subscribe(s.id)` を削除し `selectSession(s.id)` のみに ([ADR 0030](../../adr/0030-terminal-keyed-remount.md)) |
+| `src/client/web/src/components/SessionList.tsx` | (Chunk 1 で追加した) `displayLabel` を `<span className="title">` に適用。`onClick` から `await conn.unsubscribe(activeId)` / `await conn.subscribe(s.id)` を削除し `selectSession(s.id)` のみに ([ADR 0030](../../adr/adr-20260624-0030-terminal-keyed-remount.md)) |
 | `src/client/web/src/components/SessionList.test.tsx` | FR-011/012 のレンダリングテスト追加 (display 表示の検証)。onClick が subscribe を呼ばないことを `Connection` mock で検証 |
 | `src/client/web/src/components/LogTabs.tsx` | ContentArea は無改修 (kind 解決が直れば自動で活性化する) |
 
@@ -87,9 +109,9 @@ ResizeObserver(host)─┘
 
 | ファイル | 変更内容 |
 |---------|---------|
-| `src/client/web/src/css/app.css` | `.terminal { ... min-height: 0; }` (必要なら) + `.terminal-host { flex: 1 1 0; min-height: 0; width: 100%; }` に変更 ([ADR 0029](../../adr/0029-terminal-host-flex-height.md)) |
-| `src/client/web/src/components/TerminalPane.tsx` | `scheduleFit()` 関数を導入 (rAF コアレスで pending フラグを使い 1 フレーム 1 回)。初回 fit / `window resize` / `ResizeObserver` を `scheduleFit()` 経由に統一。`useEffect` で `new ResizeObserver(scheduleFit)` を作り `observe(hostRef.current)` / cleanup で `disconnect()` ([ADR 0034](../../adr/0034-refit-raf-coalesce-and-test-infra.md)) |
-| `src/client/web/src/App.tsx` | `<TerminalPane key={activeSessionID ?? "none"} conn={conn} sessionId={activeSessionID} />` ([ADR 0030](../../adr/0030-terminal-keyed-remount.md)) |
+| `src/client/web/src/css/app.css` | `.terminal { ... min-height: 0; }` (必要なら) + `.terminal-host { flex: 1 1 0; min-height: 0; width: 100%; }` に変更 ([ADR 0029](../../adr/adr-20260624-0029-terminal-host-flex-height.md)) |
+| `src/client/web/src/components/TerminalPane.tsx` | `scheduleFit()` 関数を導入 (rAF コアレスで pending フラグを使い 1 フレーム 1 回)。初回 fit / `window resize` / `ResizeObserver` を `scheduleFit()` 経由に統一。`useEffect` で `new ResizeObserver(scheduleFit)` を作り `observe(hostRef.current)` / cleanup で `disconnect()` ([ADR 0034](../../adr/adr-20260624-0034-refit-raf-coalesce-and-test-infra.md)) |
+| `src/client/web/src/App.tsx` | `<TerminalPane key={activeSessionID ?? "none"} conn={conn} sessionId={activeSessionID} />` ([ADR 0030](../../adr/adr-20260624-0030-terminal-keyed-remount.md)) |
 | `src/client/web/src/components/TerminalPane.test.tsx` | FR-005: 旧 sessionId でマウント → `conn.onOutput` で stale 出力 write → React の `key` 変更で remount → 新 instance で `term.write` が呼ばれていない (= 旧出力が残らない) ことを検証 (※ keyed remount は親側、当ファイルでは sessionId-prop 変化と key 変更を組み合わせて検証)。FR-006/007/008: `__triggerResize` で host サイズ変化を発火 → `fit.fit` が rAF flush 後に 1 回呼ばれることを検証 |
 | `src/client/web/src/App.test.tsx` (存在すれば) | `activeSessionID` 切替で `TerminalPane` が remount される (key prop) ことの間接検証 |
 

@@ -90,7 +90,7 @@ install: build
 #
 # After `make install-systemd`, run `systemctl --user daemon-reload && \
 # systemctl --user enable --now agent-reactor-web.service` to start the stack;
-# see docs/user/systemd.md for the full procedure.
+# see docs/note/note-20260624-user-systemd.md for the full procedure.
 install-systemd: install-server install-web
 	install -d $(SYSTEMD_USER_DIR)
 	install -m 644 deploy/systemd/agent-reactor-server.service  $(SYSTEMD_USER_DIR)/
@@ -100,7 +100,7 @@ install-systemd: install-server install-web
 	@echo "Installed. Next:"
 	@echo "  systemctl --user enable --now agent-reactor-web.service"
 	@echo "  loginctl enable-linger $$USER   # boot-time autostart"
-	@echo "See docs/user/systemd.md for the full guide."
+	@echo "See docs/note/note-20260624-user-systemd.md for the full guide."
 
 # install-web builds and installs the web binary only (no unit files, no server).
 # Use after front-end-only changes when the server binary is already up to date.
@@ -142,7 +142,7 @@ test:
 # client/runtime (single-dispatcher event loop + ipc fan-out) because the
 # rest of the tree adds noise (third-party stubs, large startup paths) we
 # haven't validated under -race yet. Add subtrees here as they're audited.
-# See docs/agent/testing.md for the rollout plan.
+# See docs/note/note-20260624-agent-testing.md for the rollout plan.
 test-race:
 	cd $(SRC_DIR) && go test -race -count=1 ./platform/termvt/... ./client/runtime/...
 
@@ -155,7 +155,7 @@ lint:
 # Opt-in fidelity backstop: routing-isolation invariant against a REAL app-server
 # (not codex-only). Configure via REACTOR_E2E_CODEX_BIN and/or
 # REACTOR_E2E_APPSERVER_BIN; skips if none set. Validates the in-process fake —
-# see docs/technical/client/stream-backend-e2e.md and docs/adr/0002.
+# see docs/component/component-20260624-client-stream-backend-e2e.md and docs/adr/0002.
 test-e2e:
 	cd $(SRC_DIR) && go test -tags e2e -run TestStreamRoutingE2E ./client/runtime/subsystem/stream/ -v
 

@@ -1,10 +1,32 @@
+---
+id: plan-20260625-2026-06-25-web-palette-redesign
+kind: plan
+title: Plan — Web UI コマンドパレット 再設計
+status: draft
+created: '2026-06-25'
+updated: '2026-07-04'
+tags:
+- plan
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+goal: Plan — Web UI コマンドパレット 再設計
+scope_in: []
+scope_out: []
+milestones: []
+contracts: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-25-web-palette-redesign/plan.md -->
+
 # Plan — Web UI コマンドパレット 再設計
 
 - **作成日**: 2026-06-25
-- **spec**: [spec.md](./spec.md)
-- **ux**: [ux.md](./ux.md)
-- **ADRs (新規)**: [0054](../../adr/0054-palette-cursor-identity-by-tool-id.md), [0055](../../adr/0055-palette-submit-freeze-via-lift-state.md), [0056](../../adr/0056-palette-store-slice-composition.md), [0057](../../adr/0057-palette-single-aria-live-slot.md), [0058](../../adr/0058-palette-active-context-data-path.md)
-- **ADRs (ux で生成済み)**: [0050](../../adr/0050-palette-scope-unify-with-disabled-policy.md), [0051](../../adr/0051-palette-hover-follow-single-cursor.md), [0052](../../adr/0052-palette-active-context-header-with-change-feedback.md), [0053](../../adr/0053-palette-chip-toggle-keybinding-redesign.md)
+- **spec**: [spec.md](../../specs/2026-06-25-web-palette-redesign/spec.md)
+- **ux**: [ux.md](../../specs/2026-06-25-web-palette-redesign/ux.md)
+- **ADRs (新規)**: [0054](../../adr/adr-20260624-0054-palette-cursor-identity-by-tool-id.md), [0055](../../adr/adr-20260624-0055-palette-submit-freeze-via-lift-state.md), [0056](../../adr/adr-20260624-0056-palette-store-slice-composition.md), [0057](../../adr/adr-20260624-0057-palette-single-aria-live-slot.md), [0058](../../adr/adr-20260624-0058-palette-active-context-data-path.md)
+- **ADRs (ux で生成済み)**: [0050](../../adr/adr-20260624-0050-palette-scope-unify-with-disabled-policy.md), [0051](../../adr/adr-20260624-0051-palette-hover-follow-single-cursor.md), [0052](../../adr/adr-20260624-0052-palette-active-context-header-with-change-feedback.md), [0053](../../adr/adr-20260624-0053-palette-chip-toggle-keybinding-redesign.md)
 
 ## Goal
 

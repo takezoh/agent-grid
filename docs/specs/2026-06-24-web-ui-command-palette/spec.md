@@ -1,9 +1,29 @@
+---
+id: spec-20260624-2026-06-24-web-ui-command-palette
+kind: spec
+title: Spec — Web UI Command Palette
+status: draft
+created: '2026-06-24'
+updated: '2026-07-04'
+tags:
+- spec
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+functional_requirements: []
+non_functional_requirements: []
+acceptance: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-24-web-ui-command-palette/spec.md -->
+
 # Spec — Web UI Command Palette
 
 - **作成日**: 2026-06-24
 - **ブランチ**: `main`
-- **plan**: [plan.md](./plan.md)
-- **ADRs**: [0036](../../adr/0036-palette-2phase-store-architecture.md), [0037](../../adr/0037-palette-hotkey-capture-phase.md), [0038](../../adr/0038-palette-fuzzy-pure-function.md), [0039](../../adr/0039-palette-focus-trap-minimal.md), [0040](../../adr/0040-palette-ime-suppression-in-store.md), [0041](../../adr/0041-palette-session-config-rest-extension.md), [0042](../../adr/0042-palette-new-session-payload-wire-mirror.md), [0043](../../adr/0043-palette-createsessionform-replacement.md), [0044](../../adr/0044-palette-no-per-session-occupant.md), [0045](../../adr/0045-palette-push-route-sendcommand.md), [0046](../../adr/0046-palette-push-active-mismatch-409.md), [0047](../../adr/0047-palette-disabledreason-single-source.md)
+- **plan**: [plan.md](../../specs/2026-06-24-web-ui-command-palette/plan.md)
+- **ADRs**: [0036](../../adr/adr-20260624-0036-palette-2phase-store-architecture.md), [0037](../../adr/adr-20260624-0037-palette-hotkey-capture-phase.md), [0038](../../adr/adr-20260624-0038-palette-fuzzy-pure-function.md), [0039](../../adr/adr-20260624-0039-palette-focus-trap-minimal.md), [0040](../../adr/adr-20260624-0040-palette-ime-suppression-in-store.md), [0041](../../adr/adr-20260624-0041-palette-session-config-rest-extension.md), [0042](../../adr/adr-20260624-0042-palette-new-session-payload-wire-mirror.md), [0043](../../adr/adr-20260624-0043-palette-createsessionform-replacement.md), [0044](../../adr/adr-20260624-0044-palette-no-per-session-occupant.md), [0045](../../adr/adr-20260624-0045-palette-push-route-sendcommand.md), [0046](../../adr/adr-20260624-0046-palette-push-active-mismatch-409.md), [0047](../../adr/adr-20260624-0047-palette-disabledreason-single-source.md)
 
 ## Goal
 

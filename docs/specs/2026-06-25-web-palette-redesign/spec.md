@@ -1,11 +1,31 @@
+---
+id: spec-20260625-2026-06-25-web-palette-redesign
+kind: spec
+title: Spec — Web UI コマンドパレット 再設計 (Web UX 最適化, 案 A 最小)
+status: draft
+created: '2026-06-25'
+updated: '2026-07-04'
+tags:
+- spec
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+functional_requirements: []
+non_functional_requirements: []
+acceptance: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-25-web-palette-redesign/spec.md -->
+
 # Spec — Web UI コマンドパレット 再設計 (Web UX 最適化, 案 A 最小)
 
 - **作成日**: 2026-06-25
 - **ブランチ**: `main`
-- **ux**: [ux.md](./ux.md)
-- **plan**: [plan.md](./plan.md)
-- **ADRs (新規, 本 spec 範囲)**: [0054](../../adr/0054-palette-cursor-identity-by-tool-id.md), [0055](../../adr/0055-palette-submit-freeze-via-lift-state.md), [0056](../../adr/0056-palette-store-slice-composition.md), [0057](../../adr/0057-palette-single-aria-live-slot.md), [0058](../../adr/0058-palette-active-context-data-path.md)
-- **ADRs (既存・ux で生成済み)**: [0050](../../adr/0050-palette-scope-unify-with-disabled-policy.md), [0051](../../adr/0051-palette-hover-follow-single-cursor.md), [0052](../../adr/0052-palette-active-context-header-with-change-feedback.md), [0053](../../adr/0053-palette-chip-toggle-keybinding-redesign.md)
+- **ux**: [ux.md](../../specs/2026-06-25-web-palette-redesign/ux.md)
+- **plan**: [plan.md](../../specs/2026-06-25-web-palette-redesign/plan.md)
+- **ADRs (新規, 本 spec 範囲)**: [0054](../../adr/adr-20260624-0054-palette-cursor-identity-by-tool-id.md), [0055](../../adr/adr-20260624-0055-palette-submit-freeze-via-lift-state.md), [0056](../../adr/adr-20260624-0056-palette-store-slice-composition.md), [0057](../../adr/adr-20260624-0057-palette-single-aria-live-slot.md), [0058](../../adr/adr-20260624-0058-palette-active-context-data-path.md)
+- **ADRs (既存・ux で生成済み)**: [0050](../../adr/adr-20260624-0050-palette-scope-unify-with-disabled-policy.md), [0051](../../adr/adr-20260624-0051-palette-hover-follow-single-cursor.md), [0052](../../adr/adr-20260624-0052-palette-active-context-header-with-change-feedback.md), [0053](../../adr/adr-20260624-0053-palette-chip-toggle-keybinding-redesign.md)
 - **ADRs (制約として参照)**: ADR-0036 (store 純粋性), ADR-0040 (composing guard), ADR-0046 (client-local activeSessionID), ADR-0047 (disabledReason single source), ADR-0049 (ASCII-only)
 
 ## Goal

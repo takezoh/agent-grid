@@ -25,17 +25,17 @@ One Go module, three top-level trees under `src/` and three binaries:
 `platform/` is shared infrastructure; `client/` is agent-reactor's session daemon and the embedded HTTP/WS gateway under `client/web/`, both shipped as the single `server` binary; `orchestrator/` is the Symphony pipeline. Import direction (enforced by `depguard`, `src/.golangci.yml`): `platform/*` imports neither `client/*` nor `orchestrator/*`; `client/*` does not import `orchestrator/*`; `orchestrator/*` does not import `client/*`. Full layer definition: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Orchestrator-scoped test run: `cd src && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...`
-Conformance: `docs/technical/orchestrator/symphony-conformance.md` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。
+Conformance: `docs/component/component-20260624-orchestrator-symphony-conformance.md` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。
 
 ## Rules
 
 - Follow the design principles in [ARCHITECTURE.md](ARCHITECTURE.md)
-- All structural & architectural rules are enforced at lint or compile time. The comprehensive catalogue — each rule, where it is defined, and how to handle exceptions — is [docs/technical/code-enforcement.md](docs/technical/code-enforcement.md)
+- All structural & architectural rules are enforced at lint or compile time. The comprehensive catalogue — each rule, where it is defined, and how to handle exceptions — is [docs/note/note-20260624-technical-code-enforcement.md](docs/note/note-20260624-technical-code-enforcement.md)
 - Keep files under 500 lines and functions under 80 lines. State-machine reducers in `client/state/reduce_*.go` are exempt from the function-length limit — dispatch tables stay cohesive (see ARCHITECTURE.md "Layer Structure")
 - Actively use libraries. Do not implement from scratch
 - Do not overwrite user config files (~/.agent-reactor/)
 - Always write tests for new features and bug fixes. Do not consider work complete without tests
-- Testability is a primary design constraint. Refactor production code (interface extraction, env-var override, dependency injection) when it's needed to enable a test. Per-package coverage targets and the Tier scheme are in `docs/agent/testing.md`
+- Testability is a primary design constraint. Refactor production code (interface extraction, env-var override, dependency injection) when it's needed to enable a test. Per-package coverage targets and the Tier scheme are in `docs/note/note-20260624-agent-testing.md`
 
 ## Library Selection
 
@@ -47,4 +47,4 @@ Before adding a third-party dependency:
 
 ## Documentation
 
-Structured by audience × layer under [`docs/`](docs/README.md): [contributing](docs/agent/contributing.md) (this file expanded), [WORKFLOW.md authoring](docs/agent/workflow-authoring.md), [testing](docs/agent/testing.md), and per-layer internals ([platform](docs/technical/platform/README.md) · [client](docs/technical/client/README.md) · [orchestrator](docs/technical/orchestrator/README.md)).
+Structured docs live under [`docs/`](docs/note/note-20260624-docs-overview.md): [contributing](docs/note/note-20260624-agent-contributing.md) (this file expanded), [WORKFLOW.md authoring](docs/note/note-20260624-agent-workflow-authoring.md), [testing](docs/note/note-20260624-agent-testing.md), and per-layer internals ([platform](docs/component/component-20260624-platform-overview.md) · [client](docs/component/component-20260624-client-overview.md) · [orchestrator](docs/component/component-20260624-orchestrator-overview.md)).

@@ -1,19 +1,39 @@
+---
+id: spec-20260626-web-terminal-mobile-ux
+kind: spec
+title: Web UI Terminal Mobile UX — Specification
+status: draft
+created: '2026-06-26'
+updated: '2026-07-04'
+tags:
+- spec
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+functional_requirements: []
+non_functional_requirements: []
+acceptance: []
+---
+
+<!-- migrated_from: docs/specs/web-terminal-mobile-ux/spec.md -->
+
 # Web UI Terminal Mobile UX — Specification
 
 Status: Draft
-Upstream UX: [./ux.md](./ux.md)
-Implementation Plan: [./plan.md](./plan.md)
+Upstream UX: [./ux.md](../../specs/web-terminal-mobile-ux/ux.md)
+Implementation Plan: [./plan.md](../../specs/web-terminal-mobile-ux/plan.md)
 
 Related ADRs:
-- [ADR 0067 — モバイル UX gate (matchMedia AND 契約)](../../adr/0067-mobile-gate-matchmedia.md)
-- [ADR 0068 — mode 分離 / focus-block / iOS zoom-guard](../../adr/0068-mode-separation-focus-block-and-zoom-guard.md)
-- [ADR 0069 — FAB overlay layout + visualViewport-lift (CSS 変数)](../../adr/0069-fab-overlay-layout-and-visualviewport-lift.md)
-- [ADR 0070 — fontSize 永続化 + parse / clamp 厳密化](../../adr/0070-fontsize-persist-clamp.md)
-- [ADR 0071 — touch gesture arbitration + long-press 選択 (term.select)](../../adr/0071-touch-gesture-arbitration-and-long-press-selection.md)
-- [ADR 0072 — Coachmark dismiss (tap or 5s) + hintSeen 冪等書込](../../adr/0072-coachmark-dismiss-and-once.md)
-- [ADR 0073 — AriaLive debounce + JumpFAB seed-gating](../../adr/0073-arialive-debounce-and-jump-fab-seed-stability.md)
-- [ADR 0074 — Migration: PC-only → PC + Mobile (baseline test + gate rollback)](../../adr/0074-migration-pc-only-to-pc-plus-mobile.md)
-- [ADR 0075 — Pattern adoption (modal editor / Termius / Slack / Material / iOS / WAI-ARIA + IconButton)](../../adr/0075-pattern-adoption-mode-affordances.md)
+- [ADR 0067 — モバイル UX gate (matchMedia AND 契約)](../../adr/adr-20260624-0067-mobile-gate-matchmedia.md)
+- [ADR 0068 — mode 分離 / focus-block / iOS zoom-guard](../../adr/adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md)
+- [ADR 0069 — FAB overlay layout + visualViewport-lift (CSS 変数)](../../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md)
+- [ADR 0070 — fontSize 永続化 + parse / clamp 厳密化](../../adr/adr-20260624-0070-fontsize-persist-clamp.md)
+- [ADR 0071 — touch gesture arbitration + long-press 選択 (term.select)](../../adr/adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection.md)
+- [ADR 0072 — Coachmark dismiss (tap or 5s) + hintSeen 冪等書込](../../adr/adr-20260624-0072-coachmark-dismiss-and-once.md)
+- [ADR 0073 — AriaLive debounce + JumpFAB seed-gating](../../adr/adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md)
+- [ADR 0074 — Migration: PC-only → PC + Mobile (baseline test + gate rollback)](../../adr/adr-20260624-0074-migration-pc-only-to-pc-plus-mobile.md)
+- [ADR 0075 — Pattern adoption (modal editor / Termius / Slack / Material / iOS / WAI-ARIA + IconButton)](../../adr/adr-20260624-0075-pattern-adoption-mode-affordances.md)
 
 ## Goal
 

@@ -1,10 +1,30 @@
+---
+id: spec-20260625-2026-06-25-web-ui-redesign
+kind: spec
+title: Spec — Web UI 全面刷新 (適応レイアウト + デザイントークン + テーマ + a11y 波及)
+status: draft
+created: '2026-06-25'
+updated: '2026-07-04'
+tags:
+- spec
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+functional_requirements: []
+non_functional_requirements: []
+acceptance: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-25-web-ui-redesign/spec.md -->
+
 # Spec — Web UI 全面刷新 (適応レイアウト + デザイントークン + テーマ + a11y 波及)
 
 - **作成日**: 2026-06-25
 - **ブランチ**: `main`
-- **ux**: [ux.md](./ux.md) (`ux-2026-06-25-web-ui-redesign`)
-- **plan**: [plan.md](./plan.md)
-- **ADRs**: [0059](../../adr/0059-design-token-and-theme-bridge.md), [0060](../../adr/0060-adaptive-layout-and-drawer.md), [0061](../../adr/0061-apg-tabs-manual-activation.md), [0062](../../adr/0062-search-bar-trigger-and-palette-theme-entry.md), [0063](../../adr/0063-toast-single-live-and-undosnackbar.md), [0064](../../adr/0064-reduced-motion-single-guard.md)
+- **ux**: [ux.md](../../specs/2026-06-25-web-ui-redesign/ux.md) (`ux-2026-06-25-web-ui-redesign`)
+- **plan**: [plan.md](../../specs/2026-06-25-web-ui-redesign/plan.md)
+- **ADRs**: [0059](../../adr/adr-20260624-0059-design-token-and-theme-bridge.md), [0060](../../adr/adr-20260624-0060-adaptive-layout-and-drawer.md), [0061](../../adr/adr-20260624-0061-apg-tabs-manual-activation.md), [0062](../../adr/adr-20260624-0062-search-bar-trigger-and-palette-theme-entry.md), [0063](../../adr/adr-20260624-0063-toast-single-live-and-undosnackbar.md), [0064](../../adr/adr-20260624-0064-reduced-motion-single-guard.md)
 
 ## Goal
 

@@ -43,16 +43,16 @@ server                              # start the backend (daemon + HTTP/WS gatewa
                                     # path on every boot — no manual setup.
 ```
 
-To reach sessions from a browser, run `make run-dev` (boots `server` + `web` together) or follow [web stack (ad-hoc launch)](docs/user/web-server.md).
+To reach sessions from a browser, run `make run-dev` (boots `server` + `web` together) or follow [web stack (ad-hoc launch)](docs/note/note-20260624-user-web-server.md).
 
-See [Getting started](docs/user/getting-started.md) for the full walkthrough.
+See [Getting started](docs/note/note-20260624-user-getting-started.md) for the full walkthrough.
 
 ## Documentation
 
-Documentation is organized by **audience × architecture layer** under [`docs/`](docs/README.md).
+Documentation is stored as structured docs-skill records under [`docs/`](docs/note/note-20260624-docs-overview.md), with audience × architecture layer pages kept as the primary navigation.
 
 | | Start here |
 |---|---|
-| **Using the tools** | [User guide](docs/user/README.md) — [getting started](docs/user/getting-started.md), [web stack](docs/user/web-server.md), [orchestrator](docs/user/orchestrator.md), [sandbox](docs/user/sandbox.md), [systemd service](docs/user/systemd.md) |
-| **Working in the repo** | [Agent guide](docs/agent/README.md) — [contributing](docs/agent/contributing.md), [WORKFLOW.md authoring](docs/agent/workflow-authoring.md), [testing](docs/agent/testing.md) |
-| **Internals** | [Technical docs](docs/technical/README.md) — [platform/](docs/technical/platform/README.md), [client/](docs/technical/client/README.md), [orchestrator/](docs/technical/orchestrator/README.md) · [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **Using the tools** | [User guide](docs/note/note-20260624-user-overview.md) — [getting started](docs/note/note-20260624-user-getting-started.md), [web stack](docs/note/note-20260624-user-web-server.md), [orchestrator](docs/note/note-20260624-user-orchestrator.md), [sandbox](docs/note/note-20260624-user-sandbox.md), [systemd service](docs/note/note-20260624-user-systemd.md) |
+| **Working in the repo** | [Agent guide](docs/note/note-20260624-agent-overview.md) — [contributing](docs/note/note-20260624-agent-contributing.md), [WORKFLOW.md authoring](docs/note/note-20260624-agent-workflow-authoring.md), [testing](docs/note/note-20260624-agent-testing.md) |
+| **Internals** | [Technical docs](docs/note/note-20260624-technical-overview.md) — [platform/](docs/component/component-20260624-platform-overview.md), [client/](docs/component/component-20260624-client-overview.md), [orchestrator/](docs/component/component-20260624-orchestrator-overview.md) · [ARCHITECTURE.md](ARCHITECTURE.md) |

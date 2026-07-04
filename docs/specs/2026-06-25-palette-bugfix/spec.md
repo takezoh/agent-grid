@@ -1,9 +1,29 @@
+---
+id: spec-20260625-2026-06-25-palette-bugfix
+kind: spec
+title: Spec — Web UI コマンドパレット バグ修正 (commit 9287c7f 由来 4 件)
+status: draft
+created: '2026-06-25'
+updated: '2026-07-04'
+tags:
+- spec
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+functional_requirements: []
+non_functional_requirements: []
+acceptance: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-25-palette-bugfix/spec.md -->
+
 # Spec — Web UI コマンドパレット バグ修正 (commit 9287c7f 由来 4 件)
 
 - **作成日**: 2026-06-25
 - **ブランチ**: `main`
-- **plan**: [plan.md](./plan.md)
-- **ADRs**: [0048](../../adr/0048-paramselect-display-layer-materialize.md), [0049](../../adr/0049-palette-ui-english-only.md)
+- **plan**: [plan.md](../../specs/2026-06-25-palette-bugfix/plan.md)
+- **ADRs**: [0048](../../adr/adr-20260624-0048-paramselect-display-layer-materialize.md), [0049](../../adr/adr-20260624-0049-palette-ui-english-only.md)
 - **前提**: docs/specs/2026-06-24-web-ui-command-palette/ (元 spec)、main HEAD 9287c7f (修正対象実装)
 
 ## Goal

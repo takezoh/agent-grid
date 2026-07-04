@@ -1,11 +1,33 @@
+---
+id: plan-20260626-web-terminal-mobile-ux
+kind: plan
+title: Web UI Terminal Mobile UX — Implementation Plan
+status: draft
+created: '2026-06-26'
+updated: '2026-07-04'
+tags:
+- plan
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+goal: Web UI Terminal Mobile UX — Implementation Plan
+scope_in: []
+scope_out: []
+milestones: []
+contracts: []
+---
+
+<!-- migrated_from: docs/specs/web-terminal-mobile-ux/plan.md -->
+
 # Web UI Terminal Mobile UX — Implementation Plan
 
 Status: Draft (partially superseded — pinch path 撤去)
-Spec: [./spec.md](./spec.md)
-Upstream UX: [./ux.md](./ux.md)
-Related ADRs: ADR 0067 〜 ADR 0075 + [ADR 0077](../../adr/0077-mobile-touch-gesture-swipe-to-arrow.md) ([spec.md](./spec.md) 冒頭参照)
+Spec: [./spec.md](../../specs/web-terminal-mobile-ux/spec.md)
+Upstream UX: [./ux.md](../../specs/web-terminal-mobile-ux/ux.md)
+Related ADRs: ADR 0067 〜 ADR 0075 + [ADR 0077](../../adr/adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md) ([spec.md](../../specs/web-terminal-mobile-ux/spec.md) 冒頭参照)
 
-> **NOTE (ADR 0077)**: 本 plan には pinch fontSize / PinchIndicator / chunk-04 の pinch wiring に関する記述が残るが、これらは [ADR 0077](../../adr/0077-mobile-touch-gesture-swipe-to-arrow.md) で **撤去** されている。pinch 経路は horizontal swipe → arrow key 連射 (`\x1b[C` / `\x1b[D`) にリバインドされ、`PinchIndicator` / `useMobilePinch` / `useFontSize.applyPinch` は削除済み。chunk-04/05/06 内の pinch 個別記述は ADR 0077 の `FR-MOB-SWIPE-ARROW-001..003` / `FR-MOB-FONT-CLAMP-001` / 改稿後 `FR-MOB-PERSIST-001` を真とする。
+> **NOTE (ADR 0077)**: 本 plan には pinch fontSize / PinchIndicator / chunk-04 の pinch wiring に関する記述が残るが、これらは [ADR 0077](../../adr/adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md) で **撤去** されている。pinch 経路は horizontal swipe → arrow key 連射 (`\x1b[C` / `\x1b[D`) にリバインドされ、`PinchIndicator` / `useMobilePinch` / `useFontSize.applyPinch` は削除済み。chunk-04/05/06 内の pinch 個別記述は ADR 0077 の `FR-MOB-SWIPE-ARROW-001..003` / `FR-MOB-FONT-CLAMP-001` / 改稿後 `FR-MOB-PERSIST-001` を真とする。
 
 ## Goal
 
@@ -59,8 +81,8 @@ ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Pl
   - `component:IconButton`
   - `req:FR-MOB-GATE-001`
   - `req:FR-MOB-GATE-002`
-  - `adr:adr-20260626-mobile-gate-matchmedia` ([ADR 0067](../../adr/0067-mobile-gate-matchmedia.md))
-  - `adr:adr-20260626-pattern-adoption-mode-affordances` ([ADR 0075](../../adr/0075-pattern-adoption-mode-affordances.md))
+  - `adr:adr-20260626-mobile-gate-matchmedia` ([ADR 0067](../../adr/adr-20260624-0067-mobile-gate-matchmedia.md))
+  - `adr:adr-20260626-pattern-adoption-mode-affordances` ([ADR 0075](../../adr/adr-20260624-0075-pattern-adoption-mode-affordances.md))
 - **Acceptance (UAC)**: UAC-001 (gate true 時の初期), UAC-021 (gate false で overlay 全不在), UAC-022 (narrow-window + pointer:fine = PC 扱い), UAC-024 / UAC-026 (44×44 / aria-label / aria-pressed primitive)
 - **Test approach**:
   - **vitest + happy-dom**: `mockMatchMedia` で AND 契約の 4 組合せ網羅。change イベント発火で gate true→false 遷移時の overlay unmount / readonly 解除 / state 破棄を assertion。IconButton primitive の `pointerdown.preventDefault` / 44×44 を unit test。
@@ -78,8 +100,8 @@ ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Pl
   - `req:FR-MOB-MODE-001..007`
   - `req:FR-MOB-FAB-PD-001`
   - `req:FR-MOB-FAB-001`
-  - `adr:adr-20260626-mode-separation-focus-block-and-zoom-guard` ([ADR 0068](../../adr/0068-mode-separation-focus-block-and-zoom-guard.md))
-  - `adr:adr-20260626-arialive-debounce-and-jump-fab-seed-stability` ([ADR 0073](../../adr/0073-arialive-debounce-and-jump-fab-seed-stability.md))
+  - `adr:adr-20260626-mode-separation-focus-block-and-zoom-guard` ([ADR 0068](../../adr/adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md))
+  - `adr:adr-20260626-arialive-debounce-and-jump-fab-seed-stability` ([ADR 0073](../../adr/adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md))
 - **Acceptance (UAC)**: UAC-001 ('false' invariant), UAC-002 / UAC-009 (focus 発火 0), UAC-003 / UAC-004 (toggle), UAC-005 (outside-tap), UAC-006 (blur/Esc + AriaLive), UAC-024 / UAC-026 (KeyboardFAB a11y)
 - **Test approach**:
   - **vitest + happy-dom**: capture-phase `pointerdown` listener が 1 系統のみ attach されることを spy で確認。閲覧モード tap で `focus` event 数 0 / `activeElement` 不変を assertion。toggle / blur / Esc / outside-tap 4 経路の reducer 遷移を pure unit test。debounce 1.5s を fake timer で検証。
@@ -93,7 +115,7 @@ ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Pl
   - `req:FR-MOB-SCROLL-001..003`
   - `req:FR-MOB-SELECT-001/002`
   - `req:FR-MOB-PINCH-001..004` (FR-MOB-PINCH-004 の実 wire は chunk-05 で完成)
-  - `adr:adr-20260626-touch-gesture-arbitration-and-long-press-selection` ([ADR 0071](../../adr/0071-touch-gesture-arbitration-and-long-press-selection.md))
+  - `adr:adr-20260626-touch-gesture-arbitration-and-long-press-selection` ([ADR 0071](../../adr/adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection.md))
 - **Acceptance (UAC)**: UAC-007 / UAC-008 (pan-y swipe scroll), UAC-009 (swipe 中 focus 0), UAC-010 (500ms dwell + term.select 非空), UAC-011 (dwell 不在 swipe は scroll のみ), UAC-016 (pinch 比率追従 + clamp + refit)
 - **Test approach**:
   - **vitest + happy-dom**: state machine を pure reducer として TouchEvent shim で単体 test (`idle / swipe / dwell / longpress-drag / pinch` 5 状態の transition table)。`preventDefault` 呼出が dwell 成立後 + pinch 中のみであることを spy。`term.select()` の programmatic call 引数を mock で検証。
@@ -109,7 +131,7 @@ ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Pl
   - `component:PinchIndicator`
   - `req:FR-MOB-PERSIST-001/002`
   - `req:FR-MOB-STEPPER-001`
-  - `adr:adr-20260626-fontsize-persist-clamp` ([ADR 0070](../../adr/0070-fontsize-persist-clamp.md))
+  - `adr:adr-20260626-fontsize-persist-clamp` ([ADR 0070](../../adr/adr-20260624-0070-fontsize-persist-clamp.md))
 - **Acceptance (UAC)**: UAC-016 (pinch → fontSize 変更後 PinchIndicator), UAC-017 (8 下限 clamp), UAC-018 (20px 永続化), UAC-019 (999 → 28 clamp), UAC-020 (FontSizeControl +/-/Reset a11y)
 - **Test approach**:
   - **vitest + happy-dom**: `usePersistedValue` を in-memory Map に DI して 4 ケース (`'999'` → 28 / `''` → 14 / `'foo'` → 14 / `null` → 14) を網羅。`localStorage` throw 時の degrade も assertion。FontSizeControl disclosure popover の +/-/Reset 3 ボタン a11y (`role=button` / 44×44 / `aria-label`) を `getBoundingClientRect()` で。PinchIndicator が Toast primitive を `ariaHidden=true` で再利用していることを props assertion。
@@ -138,9 +160,9 @@ ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Pl
   - `req:FR-MOB-FAB-002/003/004`
   - `req:FR-MOB-VVP-001/002/003`
   - `req:FR-MOB-COACH-001/002`
-  - `adr:adr-20260626-fab-overlay-layout-and-visualviewport-lift` ([ADR 0069](../../adr/0069-fab-overlay-layout-and-visualviewport-lift.md))
-  - `adr:adr-20260626-coachmark-dismiss-and-once` ([ADR 0072](../../adr/0072-coachmark-dismiss-and-once.md))
-  - `adr:adr-20260626-migration-pc-only-to-pc-plus-mobile` ([ADR 0074](../../adr/0074-migration-pc-only-to-pc-plus-mobile.md))
+  - `adr:adr-20260626-fab-overlay-layout-and-visualviewport-lift` ([ADR 0069](../../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md))
+  - `adr:adr-20260626-coachmark-dismiss-and-once` ([ADR 0072](../../adr/adr-20260624-0072-coachmark-dismiss-and-once.md))
+  - `adr:adr-20260626-migration-pc-only-to-pc-plus-mobile` ([ADR 0074](../../adr/adr-20260624-0074-migration-pc-only-to-pc-plus-mobile.md))
 - **Acceptance (UAC)**: UAC-025 (terminal-host box 不変), F-001 step 9 (visualViewport-lift), UAC F-007 step 4 (固定スタック順 + Toast 別 portal), F-001 step 3 (Coachmark 1 回 + dismiss)
 - **Test approach**:
   - **vitest + happy-dom**: `mockVisualViewport({height, offsetTop})` で `.terminal-fab-layer` の inline `--terminal-fab-offset` が更新されることを `getComputedStyle` で確認。listener subscribe / unsubscribe 順序を spy で検証。Coachmark hintSeen 初回 render 時の冪等書込を `usePersistedValue` mock で。tap or 5s 早い方で unmount を fake timer。Coachmark 用既存 primitive grep 調査 (chunk 着手前) で extend 方針確定。
@@ -198,17 +220,17 @@ happy-dom + touch shim harness で再現可能な UAC:
 
 | 既存 ADR | 本計画での扱い | 衝突有無 |
 |---|---|---|
-| [ADR 0029](../../adr/0029-terminal-host-flex-height.md) (terminal-host `flex:1 1 0` / dvh) | `.terminal-fab-layer` は terminal-slot 直下の absolute 兄弟で sizing 非影響 ([ADR 0069](../../adr/0069-fab-overlay-layout-and-visualviewport-lift.md)) | なし |
-| [ADR 0030](../../adr/0030-keyed-remount.md) (keyed remount) | 入力モード state は TerminalPane 内 local で session 切替時に keyed remount で破棄。別 `TerminalPaneMobile.tsx` を新設しないため subscribe 所有権と整合 ([ADR 0074](../../adr/0074-migration-pc-only-to-pc-plus-mobile.md)) | なし |
-| [ADR 0034](../../adr/0034-refit-raf-coalesce.md) (refit rAF coalesce) | fontSize 変更も `scheduleFit` 経由で coalesce。pinch / FontSizeControl / Reset の 3 経路すべて経由 | なし |
-| [ADR 0057](../../adr/0057-palette-single-aria-live.md) (palette single aria-live) | TerminalPane local `AriaLiveStatus` と role 分離 (palette = palette 開閉 / terminal = mode 変化通知)。同時 emit は現状アーキテクチャで発生しない ([ADR 0073](../../adr/0073-arialive-debounce-and-jump-fab-seed-stability.md)) | なし |
-| [ADR 0059](../../adr/0059-theme.md) (theme) | fontSize は theme と独立 key (`web.term.fontSize`) で衝突しない | なし |
-| [ADR 0063](../../adr/0063-notification-toast-primitive.md) (Toast primitive) | `PinchIndicator` は Toast primitive を `ariaHidden=true` prop 拡張で再利用 (新規 primitive を作らない) | なし |
-| [ADR 0064](../../adr/0064-reduced-motion-single-guard.md) (reduced-motion 単一 guard) | 新規 animation (smooth scroll / FAB fade / Coachmark fade / PinchIndicator fade) は view.css 末尾の単一 guard ブロックに追記 | なし |
-| [ADR 0065](../../adr/0065-terminal-slot-absolute-overlay.md) (terminal-slot absolute overlay) | `.terminal-fab-layer` は terminal-slot 直下、box 不変 (UAC-025) | なし |
-| [ADR 0066](../../adr/0066-terminal-scrollback-via-vt-buffer.md) (scrollback-snapshot seed) | `JumpToLatestFAB` は seed flush 完了まで suppress (`FR-MOB-JUMP-005` / [ADR 0073](../../adr/0073-arialive-debounce-and-jump-fab-seed-stability.md)) | なし |
+| [ADR 0029](../../adr/adr-20260624-0029-terminal-host-flex-height.md) (terminal-host `flex:1 1 0` / dvh) | `.terminal-fab-layer` は terminal-slot 直下の absolute 兄弟で sizing 非影響 ([ADR 0069](../../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md)) | なし |
+| [ADR 0030](../../adr/adr-20260624-0030-terminal-keyed-remount.md) (keyed remount) | 入力モード state は TerminalPane 内 local で session 切替時に keyed remount で破棄。別 `TerminalPaneMobile.tsx` を新設しないため subscribe 所有権と整合 ([ADR 0074](../../adr/adr-20260624-0074-migration-pc-only-to-pc-plus-mobile.md)) | なし |
+| [ADR 0034](../../adr/adr-20260624-0034-refit-raf-coalesce-and-test-infra.md) (refit rAF coalesce) | fontSize 変更も `scheduleFit` 経由で coalesce。pinch / FontSizeControl / Reset の 3 経路すべて経由 | なし |
+| [ADR 0057](../../adr/adr-20260624-0057-palette-single-aria-live-slot.md) (palette single aria-live) | TerminalPane local `AriaLiveStatus` と role 分離 (palette = palette 開閉 / terminal = mode 変化通知)。同時 emit は現状アーキテクチャで発生しない ([ADR 0073](../../adr/adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md)) | なし |
+| [ADR 0059](../../adr/adr-20260624-0059-design-token-and-theme-bridge.md) (theme) | fontSize は theme と独立 key (`web.term.fontSize`) で衝突しない | なし |
+| [ADR 0063](../../adr/adr-20260624-0063-toast-single-live-and-undosnackbar.md) (Toast primitive) | `PinchIndicator` は Toast primitive を `ariaHidden=true` prop 拡張で再利用 (新規 primitive を作らない) | なし |
+| [ADR 0064](../../adr/adr-20260624-0064-reduced-motion-single-guard.md) (reduced-motion 単一 guard) | 新規 animation (smooth scroll / FAB fade / Coachmark fade / PinchIndicator fade) は view.css 末尾の単一 guard ブロックに追記 | なし |
+| [ADR 0065](../../adr/adr-20260624-0065-terminal-slot-absolute-overlay.md) (terminal-slot absolute overlay) | `.terminal-fab-layer` は terminal-slot 直下、box 不変 (UAC-025) | なし |
+| [ADR 0066](../../adr/adr-20260624-0066-terminal-scrollback-via-vt-buffer.md) (scrollback-snapshot seed) | `JumpToLatestFAB` は seed flush 完了まで suppress (`FR-MOB-JUMP-005` / [ADR 0073](../../adr/adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md)) | なし |
 
-`FR-LAYOUT-004` (safe-area single-source via `.app-shell`) との衝突: `FR-MOB-FAB-003` で FAB 側の `env(safe-area-inset-*)` 加算を禁止する invariant を契約化し、二重計上を構造的に防止 ([ADR 0069](../../adr/0069-fab-overlay-layout-and-visualviewport-lift.md))。
+`FR-LAYOUT-004` (safe-area single-source via `.app-shell`) との衝突: `FR-MOB-FAB-003` で FAB 側の `env(safe-area-inset-*)` 加算を禁止する invariant を契約化し、二重計上を構造的に防止 ([ADR 0069](../../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md))。
 
 ## Open Questions
 

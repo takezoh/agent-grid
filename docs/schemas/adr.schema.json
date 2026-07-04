@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-module.local/docs/adr.schema.json",
+  "title": "Architecture Decision Record (Nygard-style skeleton with frontmatter)",
+  "allOf": [{"$ref": "_common.schema.json"}],
+  "type": "object",
+  "required": ["decision_makers"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind":   {"const": "adr"},
+    "status": {"enum": ["proposed", "accepted", "rejected", "deprecated", "superseded"]},
+    "decision_makers": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1
+    },
+    "consulted": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "informed": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

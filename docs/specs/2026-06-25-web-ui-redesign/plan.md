@@ -1,8 +1,30 @@
+---
+id: plan-20260625-2026-06-25-web-ui-redesign
+kind: plan
+title: Plan — Web UI 全面刷新
+status: draft
+created: '2026-06-25'
+updated: '2026-07-04'
+tags:
+- plan
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+goal: Plan — Web UI 全面刷新
+scope_in: []
+scope_out: []
+milestones: []
+contracts: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-25-web-ui-redesign/plan.md -->
+
 # Plan — Web UI 全面刷新
 
-- **spec**: [spec.md](./spec.md)
-- **ux**: [ux.md](./ux.md) (`ux-2026-06-25-web-ui-redesign`)
-- **ADRs**: [0059](../../adr/0059-design-token-and-theme-bridge.md), [0060](../../adr/0060-adaptive-layout-and-drawer.md), [0061](../../adr/0061-apg-tabs-manual-activation.md), [0062](../../adr/0062-search-bar-trigger-and-palette-theme-entry.md), [0063](../../adr/0063-toast-single-live-and-undosnackbar.md), [0064](../../adr/0064-reduced-motion-single-guard.md)
+- **spec**: [spec.md](../../specs/2026-06-25-web-ui-redesign/spec.md)
+- **ux**: [ux.md](../../specs/2026-06-25-web-ui-redesign/ux.md) (`ux-2026-06-25-web-ui-redesign`)
+- **ADRs**: [0059](../../adr/adr-20260624-0059-design-token-and-theme-bridge.md), [0060](../../adr/adr-20260624-0060-adaptive-layout-and-drawer.md), [0061](../../adr/adr-20260624-0061-apg-tabs-manual-activation.md), [0062](../../adr/adr-20260624-0062-search-bar-trigger-and-palette-theme-entry.md), [0063](../../adr/adr-20260624-0063-toast-single-live-and-undosnackbar.md), [0064](../../adr/adr-20260624-0064-reduced-motion-single-guard.md)
 
 ## Goal
 
@@ -48,7 +70,7 @@ agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計
   - req:FR-FRAMEWORK-001
   - req:FR-TOKEN-001
   - req:FR-TOKEN-002
-  - adr: [0059-design-token-and-theme-bridge](../../adr/0059-design-token-and-theme-bridge.md)
+  - adr: [0059-design-token-and-theme-bridge](../../adr/adr-20260624-0059-design-token-and-theme-bridge.md)
 
 ### Chunk: `m2-theme`
 
@@ -68,7 +90,7 @@ agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計
   - req:FR-THEME-006
   - req:FR-THEME-007
   - req:FR-STORE-001
-  - adr: [0059-design-token-and-theme-bridge](../../adr/0059-design-token-and-theme-bridge.md)
+  - adr: [0059-design-token-and-theme-bridge](../../adr/adr-20260624-0059-design-token-and-theme-bridge.md)
 
 ### Chunk: `m3-adaptive-layout-and-drawer`
 
@@ -93,8 +115,8 @@ agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計
   - req:FR-DRAWER-007
   - req:FR-PALETTE-TRIGGER-001
   - req:FR-WIRE-001
-  - adr: [0060-adaptive-layout-and-drawer](../../adr/0060-adaptive-layout-and-drawer.md)
-  - adr: [0062-search-bar-trigger-and-palette-theme-entry](../../adr/0062-search-bar-trigger-and-palette-theme-entry.md)
+  - adr: [0060-adaptive-layout-and-drawer](../../adr/adr-20260624-0060-adaptive-layout-and-drawer.md)
+  - adr: [0062-search-bar-trigger-and-palette-theme-entry](../../adr/adr-20260624-0062-search-bar-trigger-and-palette-theme-entry.md)
 
 ### Chunk: `m4-tabs-and-terminal-dvh`
 
@@ -109,8 +131,8 @@ agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計
   - req:FR-TERMINAL-001
   - req:FR-TERMINAL-002
   - req:FR-RUNSTATE-001
-  - adr: [0061-apg-tabs-manual-activation](../../adr/0061-apg-tabs-manual-activation.md)
-  - adr: [0060-adaptive-layout-and-drawer](../../adr/0060-adaptive-layout-and-drawer.md)
+  - adr: [0061-apg-tabs-manual-activation](../../adr/adr-20260624-0061-apg-tabs-manual-activation.md)
+  - adr: [0060-adaptive-layout-and-drawer](../../adr/adr-20260624-0060-adaptive-layout-and-drawer.md)
 
 ### Chunk: `m5-toast-and-tagpill-and-listbox`
 
@@ -132,7 +154,7 @@ agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計
   - req:FR-TAGPILL-001
   - req:FR-A11Y-001
   - req:FR-A11Y-002
-  - adr: [0063-toast-single-live-and-undosnackbar](../../adr/0063-toast-single-live-and-undosnackbar.md)
+  - adr: [0063-toast-single-live-and-undosnackbar](../../adr/adr-20260624-0063-toast-single-live-and-undosnackbar.md)
 
 ### Chunk: `m6-reduced-motion-and-final-consistency`
 
@@ -146,7 +168,7 @@ agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計
   - req:FR-MOTION-002
   - req:FR-TOKEN-001
   - req:FR-TOKEN-002
-  - adr: [0064-reduced-motion-single-guard](../../adr/0064-reduced-motion-single-guard.md)
+  - adr: [0064-reduced-motion-single-guard](../../adr/adr-20260624-0064-reduced-motion-single-guard.md)
 
 ## テスト戦略
 

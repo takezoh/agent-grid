@@ -1,9 +1,29 @@
+---
+id: spec-20260626-2026-06-26-terminal-scrollback
+kind: spec
+title: Spec — Web UI terminal の履歴を別デバイス join 時に復元する
+status: draft
+created: '2026-06-26'
+updated: '2026-07-04'
+tags:
+- spec
+- legacy-import
+owners: []
+relations: []
+source_paths: []
+functional_requirements: []
+non_functional_requirements: []
+acceptance: []
+---
+
+<!-- migrated_from: docs/specs/2026-06-26-terminal-scrollback/spec.md -->
+
 # Spec — Web UI terminal の履歴を別デバイス join 時に復元する
 
 - **作成日**: 2026-06-26
 - **ブランチ**: `main`
-- **ADRs**: [0066](../../adr/0066-terminal-scrollback-via-vt-buffer.md)
-- **関連**: [ADR 0010](../../adr/0010-surface-output-sequence-per-subscribe.md), [ADR 0025](../../adr/0025-transcript-rest-backfill-then-ws-tail.md)
+- **ADRs**: [0066](../../adr/adr-20260624-0066-terminal-scrollback-via-vt-buffer.md)
+- **関連**: [ADR 0010](../../adr/adr-20260624-0010-surface-output-sequence-per-subscribe.md), [ADR 0025](../../adr/adr-20260624-0025-transcript-rest-backfill-then-ws-tail.md)
 
 ## Goal
 

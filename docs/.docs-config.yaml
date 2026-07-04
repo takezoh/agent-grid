@@ -1,0 +1,14 @@
+schemas_dir: schemas
+lint_targets:
+- adr/*.md
+- specs/**/*.md
+- task/*.md
+- note/*.md
+- component/*.md
+sqlite_path: index/docs.sqlite
+default_methodology:
+  spec: baseline
+allowed_methodologies:
+- sdd
+- atdd
+- baseline

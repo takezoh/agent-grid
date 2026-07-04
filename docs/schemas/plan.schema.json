@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-module.local/docs/plan.schema.json",
+  "title": "Implementation plan (Spec-Kit compatible)",
+  "allOf": [{"$ref": "_common.schema.json"}],
+  "type": "object",
+  "required": ["goal"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind":   {"const": "plan"},
+    "status": {"enum": ["draft", "active", "done", "abandoned"]},
+    "goal":   {"type": "string", "minLength": 1},
+    "scope_in":  {"type": "array", "items": {"type": "string"}},
+    "scope_out": {"type": "array", "items": {"type": "string"}},
+    "milestones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id":     {"type": "string", "pattern": "^m[0-9]+$"},
+          "title":  {"type": "string", "minLength": 1},
+          "status": {"enum": ["todo", "in_progress", "done", "cancelled"]}
+        }
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}
