@@ -160,6 +160,8 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 		if p.Message != nil {
 			cs.RecentTurns = subsystemTurnsToSummaryTurns(p.Message.RecentTurns)
 		}
+	case state.SubsystemTitleUpdated:
+		cs.Title = strings.TrimSpace(p.Title)
 	}
 	return cs, effs
 }

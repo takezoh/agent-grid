@@ -33,6 +33,8 @@ func (b *Backend) handleNotification(method string, params json.RawMessage) {
 		b.emitItemLifecycle(codexschema.MethodItemCompleted, params)
 	case codexschema.MethodThreadStatusChanged:
 		b.handleThreadStatusChanged(params)
+	case codexschema.MethodThreadNameUpdated:
+		b.handleThreadNameUpdated(params)
 	case codexschema.MethodItemAgentMessageDelta:
 		b.handleAgentMessageDelta(params)
 	case codexschema.MethodError:
@@ -199,6 +201,27 @@ func (b *Backend) handleAgentMessageDelta(raw json.RawMessage) {
 	b.emit(frameID, state.SubsystemMessageUpdated, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
 		p.LastAssistantMessage = last
 		p.Message = &state.SubsystemMessage{RecentTurns: history}
+	}))
+}
+
+func (b *Backend) handleThreadNameUpdated(raw json.RawMessage) {
+	var params struct {
+		ThreadID   string  `json:"threadId"`
+		ThreadName *string `json:"threadName"`
+	}
+	if json.Unmarshal(raw, &params) != nil {
+		return
+	}
+	frameID := b.frameForThread(params.ThreadID)
+	if frameID == "" {
+		return
+	}
+	title := ""
+	if params.ThreadName != nil {
+		title = strings.TrimSpace(*params.ThreadName)
+	}
+	b.emit(frameID, state.SubsystemTitleUpdated, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
+		p.Title = title
 	}))
 }
 

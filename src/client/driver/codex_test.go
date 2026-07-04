@@ -891,6 +891,45 @@ func TestCodexViewAddsTranscriptTab(t *testing.T) {
 	// title_chain_test.go.
 }
 
+func TestCodexSubsystemTitleUpdatedPromotesAndClears(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.Summary = "session summary"
+
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemTitleUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Title:     " saved-session ",
+		},
+	})
+	if next.Title != "saved-session" {
+		t.Fatalf("Title = %q", next.Title)
+	}
+	if got := d.view(next).Card.Title; got != "saved-session" {
+		t.Fatalf("card title = %q", got)
+	}
+
+	next, _ = d.handleSubsystem(next, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemTitleUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Title:     "",
+		},
+	})
+	if next.Title != "" {
+		t.Fatalf("Title = %q, want empty", next.Title)
+	}
+	if got := d.view(next).Card.Title; got != "session summary" {
+		t.Fatalf("card title = %q, want summary fallback", got)
+	}
+}
+
 func TestParseCodexWorktree(t *testing.T) {
 	tests := []struct {
 		name    string

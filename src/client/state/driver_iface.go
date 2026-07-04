@@ -89,6 +89,7 @@ const (
 	SubsystemPlanUpdated       SubsystemEventKind = "plan_updated"
 	SubsystemDiffUpdated       SubsystemEventKind = "diff_updated"
 	SubsystemMessageUpdated    SubsystemEventKind = "message_updated"
+	SubsystemTitleUpdated      SubsystemEventKind = "title_updated"
 )
 
 type SubsystemTurn struct {
@@ -142,6 +143,7 @@ type SubsystemPayload struct {
 	Error                string             `json:"error"`
 	LastAssistantMessage string             `json:"last_assistant_message"`
 	StatusLine           string             `json:"status_line"`
+	Title                string             `json:"title"`
 	TranscriptPath       string             `json:"transcript_path"`
 	Tool                 *SubsystemTool     `json:"tool,omitempty"`
 	Approval             *SubsystemApproval `json:"approval,omitempty"`

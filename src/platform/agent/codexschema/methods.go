@@ -28,6 +28,7 @@ const (
 	MethodItemStarted              = "item/started"
 	MethodItemCompleted            = "item/completed"
 	MethodThreadStatusChanged      = "thread/status/changed"
+	MethodThreadNameUpdated        = "thread/name/updated"
 	MethodItemAgentMessageDelta    = "item/agentMessage/delta"
 	MethodThreadTokenUsageUpdated  = "thread/tokenUsage/updated"
 	MethodAccountRateLimitsUpdated = "account/rateLimits/updated"

@@ -198,10 +198,11 @@ func (p *Parser) parseAgentMessage(payload json.RawMessage) (Entry, bool) {
 
 func (p *Parser) parseThreadNameUpdated(payload json.RawMessage) (Entry, bool) {
 	var ev struct {
-		ThreadName string `json:"thread_name"`
+		ThreadNameLegacy string `json:"thread_name"`
+		ThreadName       string `json:"threadName"`
 	}
 	_ = json.Unmarshal(payload, &ev)
-	name := strings.TrimSpace(ev.ThreadName)
+	name := strings.TrimSpace(firstNonEmpty(ev.ThreadName, ev.ThreadNameLegacy))
 	if name == "" {
 		return Entry{}, false
 	}

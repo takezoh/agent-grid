@@ -111,6 +111,47 @@ func TestHandleAgentMessageDeltaIgnored(t *testing.T) {
 	}
 }
 
+func TestHandleThreadNameUpdated(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleThreadNameUpdated([]byte(`{"threadId":"t1","threadName":" saved-session "}`))
+	if len(fr.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(fr.events))
+	}
+	ev, ok := fr.events[0].(state.EvSubsystem)
+	if !ok {
+		t.Fatalf("event = %T, want EvSubsystem", fr.events[0])
+	}
+	if ev.Kind != state.SubsystemTitleUpdated {
+		t.Fatalf("Kind = %q, want %q", ev.Kind, state.SubsystemTitleUpdated)
+	}
+	if ev.Payload.Title != "saved-session" {
+		t.Fatalf("Title = %q", ev.Payload.Title)
+	}
+}
+
+func TestHandleThreadNameUpdatedEmptyAndUnknown(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleThreadNameUpdated([]byte(`{"threadId":"unknown","threadName":"ignored"}`))
+	b.handleThreadNameUpdated([]byte(`{"threadId":"t1","threadName":null}`))
+	if len(fr.events) != 1 {
+		t.Fatalf("expected only empty-title event, got %d", len(fr.events))
+	}
+	ev := fr.events[0].(state.EvSubsystem)
+	if ev.Payload.Title != "" {
+		t.Fatalf("Title = %q, want empty", ev.Payload.Title)
+	}
+}
+
 func TestHandleNotificationUnknownMethodIsNoop(t *testing.T) {
 	b, fr := newTestBackend()
 	b.handleNotification("unknown/method", []byte(`{}`))
@@ -126,11 +167,15 @@ func TestHandleNotificationRoutesToHandlers(t *testing.T) {
 	b.threads["t1"] = "f1"
 	b.mu.Unlock()
 
-	for _, method := range []string{"turn/started", "turn/plan/updated", "turn/diff/updated"} {
-		b.handleNotification(method, []byte(`{"threadId":"t1"}`))
+	for _, method := range []string{"turn/started", "turn/plan/updated", "turn/diff/updated", "thread/name/updated"} {
+		params := []byte(`{"threadId":"t1"}`)
+		if method == "thread/name/updated" {
+			params = []byte(`{"threadId":"t1","threadName":"title"}`)
+		}
+		b.handleNotification(method, params)
 	}
-	if len(fr.events) != 3 {
-		t.Errorf("expected 3 events from known methods, got %d", len(fr.events))
+	if len(fr.events) != 4 {
+		t.Errorf("expected 4 events from known methods, got %d", len(fr.events))
 	}
 }
 

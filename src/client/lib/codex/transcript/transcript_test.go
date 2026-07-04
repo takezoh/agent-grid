@@ -79,6 +79,13 @@ func TestParserThreadNameUpdatedAndStatusLine(t *testing.T) {
 	}
 }
 
+func TestParserThreadNameUpdatedCamelCase(t *testing.T) {
+	_, snap := parse(`{"timestamp":"x","type":"event_msg","payload":{"type":"thread_name_updated","threadName":"saved-camel"}}`)
+	if snap.Title != "saved-camel" {
+		t.Fatalf("Title = %q", snap.Title)
+	}
+}
+
 func TestParserRecentTurns(t *testing.T) {
 	p := NewParser()
 	_ = p.ParseLines([]byte(strings.Join([]string{
