@@ -5,14 +5,24 @@ import (
 )
 
 // TestSessionExitCodeSuccess verifies a clean exit reports code 0 and exited=true.
+//
+// The child blocks on `read` until WriteInput unblocks it, so Subscribe is
+// guaranteed to register before the process can exit — without that gate, a
+// child that exits fast enough can race mainLoop's handleExit ahead of the
+// Subscribe RPC, which would then observe an already-shut-down Session and
+// return a closed channel with no EventExit (see subscribeCmd's shutdown
+// contract in session.go). That race made this test flaky under CI load.
 func TestSessionExitCodeSuccess(t *testing.T) {
-	s, err := NewSession(Spec{Argv: []string{"bash", "-c", "exit 0"}})
+	s, err := NewSession(Spec{Argv: []string{"bash", "-c", "read _; exit 0"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = s.Close() }()
 
 	_, ch := s.Subscribe()
+	if err := s.WriteInput([]byte("\n")); err != nil {
+		t.Fatalf("WriteInput: %v", err)
+	}
 	waitFor(t, ch, func(ev Event) bool { return ev.Kind == EventExit })
 
 	code, exited := s.ExitCode()
@@ -25,14 +35,18 @@ func TestSessionExitCodeSuccess(t *testing.T) {
 }
 
 // TestSessionExitCodeNonZero verifies a non-zero exit propagates the exit code.
+// See TestSessionExitCodeSuccess for why the child gates its exit on input.
 func TestSessionExitCodeNonZero(t *testing.T) {
-	s, err := NewSession(Spec{Argv: []string{"bash", "-c", "exit 7"}})
+	s, err := NewSession(Spec{Argv: []string{"bash", "-c", "read _; exit 7"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = s.Close() }()
 
 	_, ch := s.Subscribe()
+	if err := s.WriteInput([]byte("\n")); err != nil {
+		t.Fatalf("WriteInput: %v", err)
+	}
 	waitFor(t, ch, func(ev Event) bool { return ev.Kind == EventExit })
 
 	code, exited := s.ExitCode()

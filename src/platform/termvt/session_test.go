@@ -352,20 +352,30 @@ func truncate(s string, n int) string {
 
 // TestSessionDisconnectsSlowSubscriber verifies that a subscriber which does not
 // drain its channel is disconnected (channel closed) once its buffer overflows,
-// rather than having events silently dropped. A 20MB output stream yields far
-// more than the buffer's worth of events; we deliberately do not read during the
-// flood, then drain and require the channel to be closed.
+// rather than having events silently dropped.
+//
+// This drives the actor through fake deps (see session_actor_test.go) instead
+// of a real pty and a 20MB /dev/zero flood: the disconnect logic lives in
+// fanout() and only cares about channel occupancy, not where chunks come
+// from, and a real subprocess made the overflow depend on wall-clock pty
+// throughput — on a CPU-starved CI runner the flood could take far longer
+// than the test's fixed sleep/deadline to fill the buffer, so the test
+// wrongly reported the subscriber as never disconnected.
 func TestSessionDisconnectsSlowSubscriber(t *testing.T) {
-	s, err := NewSession(Spec{Argv: []string{"bash", "-c", "head -c 20000000 /dev/zero"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	em := newFakeEmulator()
+	pty := newFakePTY()
+	s := newFakeSession(em, pty)
 	defer func() { _ = s.Close() }()
 
 	_, ch := s.Subscribe()
-	time.Sleep(500 * time.Millisecond) // let the flood overflow the buffer
 
-	deadline := time.After(5 * time.Second)
+	// Feed far more chunks than subBuffer can hold while nothing drains ch;
+	// each chunk becomes one Output event in fanout.
+	for i := 0; i < subBuffer+50; i++ {
+		pty.in <- []byte("x")
+	}
+
+	deadline := time.After(waitTimeout)
 	for {
 		select {
 		case _, ok := <-ch:
