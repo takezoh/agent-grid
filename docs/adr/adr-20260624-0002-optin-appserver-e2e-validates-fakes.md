@@ -9,7 +9,15 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
+- {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
+- {type: references, target: component-20260624-client-stream-backend-e2e}
+- {type: referencedBy, target: adr-20260624-0081-codex-frame-init-serialize}
+- {type: referencedBy, target: component-20260624-client-stream-backend-e2e}
+- {type: referencedBy, target: component-20260624-client-stream-backend-testing}
+- {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
+- {type: referencedBy, target: note-20260624-technical-code-enforcement}
 source_paths: []
 decision_makers:
 - unknown

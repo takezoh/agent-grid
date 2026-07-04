@@ -10,7 +10,18 @@ tags:
 - platform
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: component-20260624-platform-agent-protocol}
+- {type: references, target: component-20260624-platform-brokers}
+- {type: references, target: component-20260624-platform-sandbox}
+- {type: references, target: component-20260624-platform-spawn-and-launch}
+- {type: references, target: note-20260624-technical-code-enforcement}
+- {type: references, target: note-20260624-technical-guardrails}
+- {type: references, target: note-20260624-user-sandbox}
+- {type: referencedBy, target: note-20260624-agent-overview}
+- {type: referencedBy, target: note-20260624-docs-overview}
+- {type: referencedBy, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 provides:
 - platform-shared-infrastructure

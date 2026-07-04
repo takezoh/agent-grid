@@ -9,7 +9,34 @@ tags:
 - plan
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0036-palette-2phase-store-architecture}
+- {type: referencedBy, target: adr-20260624-0037-palette-hotkey-capture-phase}
+- {type: referencedBy, target: adr-20260624-0038-palette-fuzzy-pure-function}
+- {type: referencedBy, target: adr-20260624-0039-palette-focus-trap-minimal}
+- {type: referencedBy, target: adr-20260624-0040-palette-ime-suppression-in-store}
+- {type: referencedBy, target: adr-20260624-0041-palette-session-config-rest-extension}
+- {type: referencedBy, target: adr-20260624-0042-palette-new-session-payload-wire-mirror}
+- {type: referencedBy, target: adr-20260624-0043-palette-createsessionform-replacement}
+- {type: referencedBy, target: adr-20260624-0044-palette-no-per-session-occupant}
+- {type: referencedBy, target: adr-20260624-0045-palette-push-route-sendcommand}
+- {type: referencedBy, target: adr-20260624-0046-palette-push-active-mismatch-409}
+- {type: referencedBy, target: adr-20260624-0047-palette-disabledreason-single-source}
+- {type: implements, target: spec-20260624-2026-06-24-web-ui-command-palette}
+- {type: references, target: adr-20260624-0036-palette-2phase-store-architecture}
+- {type: references, target: adr-20260624-0037-palette-hotkey-capture-phase}
+- {type: references, target: adr-20260624-0038-palette-fuzzy-pure-function}
+- {type: references, target: adr-20260624-0039-palette-focus-trap-minimal}
+- {type: references, target: adr-20260624-0040-palette-ime-suppression-in-store}
+- {type: references, target: adr-20260624-0041-palette-session-config-rest-extension}
+- {type: references, target: adr-20260624-0042-palette-new-session-payload-wire-mirror}
+- {type: references, target: adr-20260624-0043-palette-createsessionform-replacement}
+- {type: references, target: adr-20260624-0044-palette-no-per-session-occupant}
+- {type: references, target: adr-20260624-0045-palette-push-route-sendcommand}
+- {type: references, target: adr-20260624-0046-palette-push-active-mismatch-409}
+- {type: references, target: adr-20260624-0047-palette-disabledreason-single-source}
+- {type: references, target: spec-20260624-2026-06-24-web-ui-command-palette}
+- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-command-palette}
 source_paths: []
 goal: Plan — Web UI Command Palette
 scope_in: []

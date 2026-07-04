@@ -10,7 +10,11 @@ tags:
 - client
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: component-20260624-client-overview}
+- {type: references, target: adr-20260624-0081-codex-frame-init-serialize}
+- {type: references, target: component-20260624-platform-sandbox}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 provides:
 - process-model-frame-model-and-rendering-responsibilities

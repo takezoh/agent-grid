@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0044-palette-no-per-session-occupant
 kind: adr
-title: ADR 0044 — Go proto SessionInfo / TS wire SessionInfo に per-session occupant を追加しない
+title: ADR 0044 — Go proto SessionInfo / TS wire SessionInfo に per-session occupant
+  を追加しない
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,11 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260624-2026-06-24-web-ui-command-palette}
+- {type: references, target: spec-20260624-2026-06-24-web-ui-command-palette}
+- {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-command-palette}
+- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-command-palette}
 source_paths: []
 decision_makers:
 - unknown

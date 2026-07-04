@@ -10,7 +10,17 @@ tags:
 - client
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0081-codex-frame-init-serialize}
+- {type: references, target: component-20260624-client-interfaces}
+- {type: references, target: component-20260624-client-ipc}
+- {type: references, target: component-20260624-client-process-model}
+- {type: references, target: component-20260624-client-state-monitoring}
+- {type: references, target: component-20260624-orchestrator-overview}
+- {type: referencedBy, target: note-20260624-agent-overview}
+- {type: referencedBy, target: note-20260624-docs-overview}
+- {type: referencedBy, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 provides:
 - client-agent-reactor-client-session-lifecycle-manager

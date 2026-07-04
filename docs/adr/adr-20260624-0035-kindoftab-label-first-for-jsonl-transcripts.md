@@ -9,7 +9,10 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0031-kindoftab-server-symmetry}
+- {type: references, target: adr-20260624-0031-kindoftab-server-symmetry}
+- {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
 source_paths: []
 decision_makers:
 - unknown

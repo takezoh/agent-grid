@@ -10,7 +10,16 @@ tags:
 - platform
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: referencedBy, target: adr-20260624-0028-termvt-session-actor-model}
+- {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
+- {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: references, target: adr-20260624-0028-termvt-session-actor-model}
+- {type: references, target: component-20260624-client-stream-backend-e2e}
+- {type: references, target: component-20260624-client-stream-backend-testing}
+- {type: referencedBy, target: note-20260624-agent-testing}
+- {type: referencedBy, target: note-20260624-technical-code-enforcement}
 source_paths: []
 provides:
 - termvt-multiplexer-fan-out-isolation-test-harness

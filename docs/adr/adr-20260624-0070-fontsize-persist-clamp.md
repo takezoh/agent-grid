@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0070-fontsize-persist-clamp
 kind: adr
-title: ADR 0070 — `fontSize` の device-scoped 永続化を `usePersistedValue` adapter で集約し parse 失敗と範囲外を別経路でハンドルする
+title: ADR 0070 — `fontSize` の device-scoped 永続化を `usePersistedValue` adapter で集約し
+  parse 失敗と範囲外を別経路でハンドルする
 status: superseded
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,17 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0059-design-token-and-theme-bridge}
+- {type: references, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: references, target: adr-20260624-0072-coachmark-dismiss-and-once}
+- {type: references, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
+- {type: references, target: spec-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: referencedBy, target: adr-20260624-0072-coachmark-dismiss-and-once}
+- {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
 source_paths: []
 decision_makers:
 - unknown

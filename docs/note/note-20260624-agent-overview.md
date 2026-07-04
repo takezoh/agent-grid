@@ -9,7 +9,14 @@ tags:
 - agent
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: component-20260624-client-overview}
+- {type: references, target: component-20260624-orchestrator-overview}
+- {type: references, target: component-20260624-platform-overview}
+- {type: references, target: note-20260624-agent-contributing}
+- {type: references, target: note-20260624-agent-testing}
+- {type: references, target: note-20260624-agent-workflow-authoring}
+- {type: referencedBy, target: note-20260624-docs-overview}
 source_paths: []
 topic: agent
 ---

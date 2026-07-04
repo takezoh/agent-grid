@@ -9,7 +9,13 @@ tags:
 - technical
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: component-20260624-orchestrator-symphony-conformance}
+- {type: references, target: note-20260624-agent-testing}
+- {type: references, target: note-20260624-agent-workflow-authoring}
+- {type: references, target: note-20260624-technical-code-enforcement}
+- {type: references, target: note-20260624-technical-guardrails}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 topic: technical
 ---

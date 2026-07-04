@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0053-palette-chip-toggle-keybinding-redesign
 kind: adr
-title: ADR 0053 — Worktree / Host chip の Tab・Shift+Tab toggle を撤去し pointer + Alt+W・Alt+H + Tab→Space + chip Enter の 4 経路に再設計
+title: ADR 0053 — Worktree / Host chip の Tab・Shift+Tab toggle を撤去し pointer + Alt+W・Alt+H
+  + Tab→Space + chip Enter の 4 経路に再設計
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,10 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
 source_paths: []
 decision_makers:
 - unknown

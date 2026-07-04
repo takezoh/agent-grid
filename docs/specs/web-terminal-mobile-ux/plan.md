@@ -9,7 +9,30 @@ tags:
 - plan
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: implements, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: adr-20260624-0029-terminal-host-flex-height}
+- {type: references, target: adr-20260624-0030-terminal-keyed-remount}
+- {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
+- {type: references, target: adr-20260624-0057-palette-single-aria-live-slot}
+- {type: references, target: adr-20260624-0059-design-token-and-theme-bridge}
+- {type: references, target: adr-20260624-0063-toast-single-live-and-undosnackbar}
+- {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
+- {type: references, target: adr-20260624-0065-terminal-slot-absolute-overlay}
+- {type: references, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
+- {type: references, target: adr-20260624-0067-mobile-gate-matchmedia}
+- {type: references, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: references, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: references, target: adr-20260624-0070-fontsize-persist-clamp}
+- {type: references, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: references, target: adr-20260624-0072-coachmark-dismiss-and-once}
+- {type: references, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
+- {type: references, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
+- {type: references, target: adr-20260624-0075-pattern-adoption-mode-affordances}
+- {type: references, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
+- {type: references, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: ux-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
 source_paths: []
 goal: Web UI Terminal Mobile UX — Implementation Plan
 scope_in: []

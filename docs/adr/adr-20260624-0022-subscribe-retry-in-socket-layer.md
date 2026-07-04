@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0022-subscribe-retry-in-socket-layer
 kind: adr
-title: ADR 0022 — Subscribe retry lives in the socket layer, integrated with the Zustand store
+title: ADR 0022 — Subscribe retry lives in the socket layer, integrated with the Zustand
+  store
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,8 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0018-defer-subscribe-race-to-beta}
 source_paths: []
 decision_makers:
 - unknown

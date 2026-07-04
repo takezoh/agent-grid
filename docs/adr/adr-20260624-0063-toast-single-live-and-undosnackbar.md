@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0063-toast-single-live-and-undosnackbar
 kind: adr
-title: ADR 0063 — NotificationToast 単一 aria-live 化 + 3 region 独立 + safe-area + UndoSnackbar 吸収
+title: ADR 0063 — NotificationToast 単一 aria-live 化 + 3 region 独立 + safe-area + UndoSnackbar
+  吸収
 status: proposed
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,16 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0057-palette-single-aria-live-slot}
+- {type: references, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: spec-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
 source_paths: []
 decision_makers:
 - unknown

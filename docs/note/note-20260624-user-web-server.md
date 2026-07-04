@@ -9,7 +9,12 @@ tags:
 - user
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: note-20260624-docs-overview}
+- {type: referencedBy, target: note-20260624-technical-web-gateway}
+- {type: referencedBy, target: note-20260624-user-getting-started}
+- {type: referencedBy, target: note-20260624-user-overview}
+- {type: references, target: note-20260624-technical-web-gateway}
 source_paths: []
 topic: user
 ---

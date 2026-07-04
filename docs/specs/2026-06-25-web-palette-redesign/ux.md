@@ -10,9 +10,23 @@ tags:
 - legacy-import
 owners:
 - take.gn@gmail.com
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0050-palette-scope-unify-with-disabled-policy}
+- {type: referencedBy, target: adr-20260624-0051-palette-hover-follow-single-cursor}
+- {type: referencedBy, target: adr-20260624-0052-palette-active-context-header-with-change-feedback}
+- {type: referencedBy, target: adr-20260624-0053-palette-chip-toggle-keybinding-redesign}
+- {type: referencedBy, target: adr-20260624-0054-palette-cursor-identity-by-tool-id}
+- {type: referencedBy, target: adr-20260624-0055-palette-submit-freeze-via-lift-state}
+- {type: referencedBy, target: adr-20260624-0056-palette-store-slice-composition}
+- {type: referencedBy, target: adr-20260624-0057-palette-single-aria-live-slot}
+- {type: referencedBy, target: adr-20260624-0058-palette-active-context-data-path}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
+- {type: implementedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
 source_paths: []
-goal: Web UI コマンドパレットを Web UX に最適化し、scope 統合 / disabled visible / chip 3 経路 toggle / hover follow / active context header / push 送信先明示 toast の 6 点を観測可能な振る舞いとして再設計する (案 A 最小)。
+goal: Web UI コマンドパレットを Web UX に最適化し、scope 統合 / disabled visible / chip 3 経路 toggle
+  / hover follow / active context header / push 送信先明示 toast の 6 点を観測可能な振る舞いとして再設計する
+  (案 A 最小)。
 target_users:
 - Web UI で複数セッション (new-session + push) を頻繁に開閉する個人開発者
 - worktree / host を頻繁に切り替えるキーボード主体ユーザー
@@ -23,75 +37,106 @@ primary_flows:
   name: パレット起動 → 統合 list から new-session を選び送信 (正常系)
   steps:
   - ユーザーが TerminalPane / SessionList にフォーカスがある状態で prefix+p (または prefix+C-p) を押す
-  - CommandPalette が overlay として開き、palette-input にフォーカスが移る (TerminalPane の textarea は blur される)
-  - 'palette header に Active context 行が表示される (例: `Active: bar / sess_abcd1234`)。active session が未選択なら icon + `— No active session` を secondary 表示で出す (色だけに依存しない)'
-  - listbox には [New Session, push:save, push:resume, ...] の順で 1 list が描画される。ScopeSegment は描画されない
-  - ユーザーが `new` とタイプすると fuzzy filter が走り `New Session` 行が先頭 hit になり keyboard cursor がその行に表示される
+  - CommandPalette が overlay として開き、palette-input にフォーカスが移る (TerminalPane の textarea
+    は blur される)
+  - 'palette header に Active context 行が表示される (例: `Active: bar / sess_abcd1234`)。active
+    session が未選択なら icon + `— No active session` を secondary 表示で出す (色だけに依存しない)'
+  - listbox には [New Session, push:save, push:resume, ...] の順で 1 list が描画される。ScopeSegment
+    は描画されない
+  - ユーザーが `new` とタイプすると fuzzy filter が走り `New Session` 行が先頭 hit になり keyboard cursor
+    がその行に表示される
   - ユーザーが Enter を押すと Project listbox に遷移し先頭オプションが選択状態で描画される
-  - ユーザーが project を選び Enter すると command 入力行に進み、project の isGit / isSandboxed に応じて Worktree / Host chip が入力欄下に常時表示される (chip 左に `[W]` / `[H]` の key hint icon が見える)
-  - ユーザーが pointer で Worktree chip をクリックすると chip の aria-checked が true になり、入力欄 focus は失われない
+  - ユーザーが project を選び Enter すると command 入力行に進み、project の isGit / isSandboxed に応じて
+    Worktree / Host chip が入力欄下に常時表示される (chip 左に `[W]` / `[H]` の key hint icon が見える)
+  - ユーザーが pointer で Worktree chip をクリックすると chip の aria-checked が true になり、入力欄 focus
+    は失われない
   - ユーザーが command を入力し Enter を押すと palette は閉じ、新しいセッションが画面上で active になる
   - palette が閉じた瞬間、起動前にフォーカスしていた DOM 要素 (TerminalPane など) にフォーカスが戻る
 - id: F-002
   name: push tool が disabled な状態で list 上に表示・選択ブロック
   steps:
-  - ユーザーが Web UI を開いた直後 (Active context 行に `— No active session` が見える状態) で palette を起動する
-  - listbox の上段に [New Session]、下段に separator (視覚的横線) を挟んで [push:save (disabled), push:resume (disabled), ...] が並ぶ。disabled 行は warning icon + secondary text `No active session` が同一行に表示される
-  - ユーザーが `save` とタイプすると `push:save` 行が表示され、行末に同じく warning icon + `No active session` が出る
+  - ユーザーが Web UI を開いた直後 (Active context 行に `— No active session` が見える状態) で palette
+    を起動する
+  - listbox の上段に [New Session]、下段に separator (視覚的横線) を挟んで [push:save (disabled), push:resume
+    (disabled), ...] が並ぶ。disabled 行は warning icon + secondary text `No active session`
+    が同一行に表示される
+  - ユーザーが `save` とタイプすると `push:save` 行が表示され、行末に同じく warning icon + `No active session`
+    が出る
   - ユーザーが Enter または pointer click で disabled 行を選択しようとする
-  - 'palette は閉じず、該当行が 1 回 shake / flash し、入力欄直下の inline status 領域に `"save" is unavailable: No active session` のメッセージが aria-live=polite で 1 回読み上げられる (toast は出さない)'
+  - 'palette は閉じず、該当行が 1 回 shake / flash し、入力欄直下の inline status 領域に `"save" is unavailable:
+    No active session` のメッセージが aria-live=polite で 1 回読み上げられる (toast は出さない)'
   - ユーザーが Esc で閉じるか、別 tool を選び直すかを判断できる
 - id: F-003
   name: hover follow と keyboard cursor の単一 highlight
   steps:
-  - ユーザーが palette を開き listbox に 5 行以上見えている状態で、↓ を 3 回押す。4 行目に keyboard cursor highlight (aria-selected=true) が表示される
+  - ユーザーが palette を開き listbox に 5 行以上見えている状態で、↓ を 3 回押す。4 行目に keyboard cursor highlight
+    (aria-selected=true) が表示される
   - ユーザーが pointer を 6 行目 (有効な行) に hover させる
   - 6 行目に同じ highlight (aria-selected=true) が移り、4 行目の highlight は消える
-  - ユーザーが ↓ を 1 回押すと 7 行目に highlight が移り、pointer は 6 行目に置いたままでも highlight は cursor を follow する
+  - ユーザーが ↓ を 1 回押すと 7 行目に highlight が移り、pointer は 6 行目に置いたままでも highlight は cursor
+    を follow する
   - ユーザーが pointer を disabled 行に hover させる
   - disabled 行には『情報を読みに来た』subtle hover style が出るのみで、aria-selected は元の cursor 位置に残り続ける
-  - ユーザーが pointer を listbox 外に出すと、最後の keyboard cursor 行の highlight が再表示される (mouseleave で cursor 位置の visual highlight が確実に復元される)
+  - ユーザーが pointer を listbox 外に出すと、最後の keyboard cursor 行の highlight が再表示される (mouseleave
+    で cursor 位置の visual highlight が確実に復元される)
 - id: F-004
   name: worktree / host chip を pointer + Alt+W / Alt+H + Tab→Space の 3 経路で toggle
   steps:
-  - ユーザーが new-session の command 入力欄にフォーカスがあり、Worktree chip と Host chip が入力欄直下に並んで見える状態 (各 chip 左に `[W]` / `[H]` の key hint icon)
-  - ユーザーが pointer で Worktree chip をクリックする。chip の aria-checked が true に変わり、入力欄 focus は維持される
+  - ユーザーが new-session の command 入力欄にフォーカスがあり、Worktree chip と Host chip が入力欄直下に並んで見える状態
+    (各 chip 左に `[W]` / `[H]` の key hint icon)
+  - ユーザーが pointer で Worktree chip をクリックする。chip の aria-checked が true に変わり、入力欄 focus
+    は維持される
   - ユーザーが Alt+W を押す。Worktree chip の aria-checked が false に戻り、入力欄 focus は維持される
-  - ユーザーが Tab を押すと focus が次の interactive 要素 (chip など) に移る (Tab は素直な focus 移動として機能する。chip toggle 専用の Tab / Shift+Tab ショートカットは存在しない)
+  - ユーザーが Tab を押すと focus が次の interactive 要素 (chip など) に移る (Tab は素直な focus 移動として機能する。chip
+    toggle 専用の Tab / Shift+Tab ショートカットは存在しない)
   - focus が Worktree chip にある状態で Space を押すと aria-checked が toggle される
-  - chip focus 中に Enter を押すと chip toggle が発火する (form submit にはならない。submit は入力欄 focus 時のみ)
+  - chip focus 中に Enter を押すと chip toggle が発火する (form submit にはならない。submit は入力欄 focus
+    時のみ)
 - id: F-005
   name: paramless push の送信先明示 toast
   steps:
-  - 'ユーザーが palette を開き、Active context 行に `Active: bar / sess_abcd1234` が表示されている状態で `save` を fuzzy 入力する'
+  - 'ユーザーが palette を開き、Active context 行に `Active: bar / sess_abcd1234` が表示されている状態で
+    `save` を fuzzy 入力する'
   - push:save 行が cursor 位置にあり Enter を押す
   - palette overlay が閉じる
-  - 画面右下 (toast 領域) に info level の toast `Sent 'save' → bar · sess_abcd1234` が約 2.5 秒間表示される。toast の sessionID 部分は monospace で描画される
-  - 'ユーザーが toast に pointer を hover すると、tooltip / title 属性で full project path (例: `/home/dev/foo/bar`) と full session ID が表示される'
+  - 画面右下 (toast 領域) に info level の toast `Sent 'save' → bar · sess_abcd1234` が約 2.5
+    秒間表示される。toast の sessionID 部分は monospace で描画される
+  - 'ユーザーが toast に pointer を hover すると、tooltip / title 属性で full project path (例: `/home/dev/foo/bar`)
+    と full session ID が表示される'
   - undo 操作は提供されない (push は不可逆)
 - id: F-006
   name: active session の palette open 中切替を flash + aria-live で告知
   steps:
   - 'ユーザーが palette を開き、Active context 行に `Active: foo / sess_001aaaa` が見えている状態'
-  - 別ウィンドウ / 別 client から view-update が届き、この client が見ている active session が sess_002bbbb に切り替わる
-  - 'Active context 行の表示が `Active: bar / sess_002bbbb` に更新され、行全体が約 600ms subtle background flash する'
+  - 別ウィンドウ / 別 client から view-update が届き、この client が見ている active session が sess_002bbbb
+    に切り替わる
+  - 'Active context 行の表示が `Active: bar / sess_002bbbb` に更新され、行全体が約 600ms subtle background
+    flash する'
   - 同時に aria-live=polite 領域から `Active session changed to bar / sess_002bbbb` が 1 回読み上げられる
-  - これまで disabled だった push:* 行のうち、新 active session で利用可能になったものは warning icon と `No active session` 表示が消え、separator 上段 (有効グループ) に移動して再描画される。該当行も 1 回 flash する
-  - ユーザーは Esc で閉じるか、現在の cursor 位置のまま Enter で送信するかを判断できる (送信は新 active 宛になる旨が header と該当行 flash で告知済み)
+  - これまで disabled だった push:* 行のうち、新 active session で利用可能になったものは warning icon と `No
+    active session` 表示が消え、separator 上段 (有効グループ) に移動して再描画される。該当行も 1 回 flash する
+  - ユーザーは Esc で閉じるか、現在の cursor 位置のまま Enter で送信するかを判断できる (送信は新 active 宛になる旨が header
+    と該当行 flash で告知済み)
 - id: F-007
   name: disabled tool は cursor が skip し、有効グループに着地する
   steps:
-  - listbox が [New Session] / separator / [push:save (disabled), push:resume (disabled), push:status (有効)] の順で並んでいる状態
+  - listbox が [New Session] / separator / [push:save (disabled), push:resume (disabled),
+    push:status (有効)] の順で並んでいる状態
   - ユーザーが ↓ を 1 回押す
-  - cursor が New Session(index 0) から push:status (有効グループ末尾) に飛ぶ。間の disabled 行は keyboard cursor で skip される (ただし list には visible で表示が残る)
+  - cursor が New Session(index 0) から push:status (有効グループ末尾) に飛ぶ。間の disabled 行は keyboard
+    cursor で skip される (ただし list には visible で表示が残る)
   - ユーザーが ↑ を 1 回押すと cursor が New Session(index 0) に戻る
-  - 全行が disabled な異常状態 (movable = 空) になった場合、palette 上部の status badge slot に `Loading commands…` または `No commands available` が表示され、Enter は no-op になる (silent failure ではなく明示メッセージで知らせる)
+  - 全行が disabled な異常状態 (movable = 空) になった場合、palette 上部の status badge slot に `Loading
+    commands…` または `No commands available` が表示され、Enter は no-op になる (silent failure
+    ではなく明示メッセージで知らせる)
 - id: F-008
   name: submit in-flight 中に active 切替が起きた場合の凍結
   steps:
-  - ユーザーが push:save の Enter を押し、palette は閉じ始めていないがネットワーク送信中 (status badge slot に `Sending…` spinner が見える) になる
+  - ユーザーが push:save の Enter を押し、palette は閉じ始めていないがネットワーク送信中 (status badge slot に `Sending…`
+    spinner が見える) になる
   - その送信中に別 client から active session 切替の view-update が届く
-  - palette UI (Active context 行 / listbox / status badge) は凍結状態で、送信が解決するまで現状の表示を維持する (silent な context shift で表示と送信先がズレることを防ぐ)
+  - palette UI (Active context 行 / listbox / status badge) は凍結状態で、送信が解決するまで現状の表示を維持する
+    (silent な context shift で表示と送信先がズレることを防ぐ)
   - 送信が解決した瞬間に palette は閉じ、F-005 と同じ toast が表示される
   - 切替後の新 active context は palette を次回開いた時に反映される
 acceptance_scenarios:
@@ -114,22 +159,27 @@ acceptance_scenarios:
   flow_ref: F-002
   given: active session が未選択の状態で palette を開いた直後
   when: listbox を視認する
-  then: '[New Session] が上、separator (横線) を挟んで [push:save (warning icon + `No active session`), push:resume (同様)] が下に表示されている'
+  then: '[New Session] が上、separator (横線) を挟んで [push:save (warning icon + `No active
+    session`), push:resume (同様)] が下に表示されている'
 - id: UAC-005
   flow_ref: F-002
   given: 上記状態で push:save 行に cursor がある (もしくは pointer で hover している)
   when: Enter を押す
-  then: 'palette は開いたままで、該当行が 1 回 flash し、入力欄直下に `"save" is unavailable: No active session` のテキストが表示され screen reader が同じ文言を読み上げる (toast 通知は出ない)'
+  then: 'palette は開いたままで、該当行が 1 回 flash し、入力欄直下に `"save" is unavailable: No active
+    session` のテキストが表示され screen reader が同じ文言を読み上げる (toast 通知は出ない)'
 - id: UAC-006
   flow_ref: F-003
-  given: palette listbox に有効な行が 7 件並んでいて、keyboard cursor が 4 行目 (aria-selected=true) にある状態
+  given: palette listbox に有効な行が 7 件並んでいて、keyboard cursor が 4 行目 (aria-selected=true)
+    にある状態
   when: ユーザーが pointer で 6 行目 (有効) に hover する
   then: 6 行目に aria-selected=true の highlight が移動し、4 行目からは highlight が消える
 - id: UAC-007
   flow_ref: F-003
-  given: keyboard cursor が有効な行に置かれた状態で、ユーザーが listbox 内の disabled 行に pointer を hover した状態
+  given: keyboard cursor が有効な行に置かれた状態で、ユーザーが listbox 内の disabled 行に pointer を hover
+    した状態
   when: Enter を押す
-  then: 発火するのは元の keyboard cursor 行 (有効な行) であり、disabled 行は発火しない (palette は閉じ、もしくは次 phase に進む)
+  then: 発火するのは元の keyboard cursor 行 (有効な行) であり、disabled 行は発火しない (palette は閉じ、もしくは次
+    phase に進む)
 - id: UAC-008
   flow_ref: F-004
   given: command 入力欄にフォーカスがあり Worktree chip (aria-checked=false) が見える状態
@@ -149,7 +199,8 @@ acceptance_scenarios:
   flow_ref: F-005
   given: 'Active context 行に `Active: bar / sess_abcd1234` と表示されている palette open 状態'
   when: '`save` を入力して Enter を押す'
-  then: palette が閉じ、画面右下に info 色の toast `Sent 'save' → bar · sess_abcd1234` が表示され、sessionID 部分が monospace で読める
+  then: palette が閉じ、画面右下に info 色の toast `Sent 'save' → bar · sess_abcd1234` が表示され、sessionID
+    部分が monospace で読める
 - id: UAC-012
   flow_ref: F-005
   given: 上記 toast が表示されている状態
@@ -159,22 +210,27 @@ acceptance_scenarios:
   flow_ref: F-006
   given: 'palette が開いていて Active context 行に `Active: foo / sess_001aaaa` が表示されている状態'
   when: 別 client の操作によりこの client の active session が sess_002bbbb に切り替わる
-  then: 'Active context 行が `Active: bar / sess_002bbbb` に変わり、視覚的に約 600ms flash し、screen reader が `Active session changed to bar / sess_002bbbb` を 1 回読み上げる'
+  then: 'Active context 行が `Active: bar / sess_002bbbb` に変わり、視覚的に約 600ms flash し、screen
+    reader が `Active session changed to bar / sess_002bbbb` を 1 回読み上げる'
 - id: UAC-014
   flow_ref: F-006
   given: 上記の active 切替により push:save 行が disabled → 有効に変化した状態
   when: listbox を視認する
-  then: push:save 行から warning icon と `No active session` 文言が消え、separator の上段 (有効グループ) に移動して 1 回 flash している
+  then: push:save 行から warning icon と `No active session` 文言が消え、separator の上段 (有効グループ)
+    に移動して 1 回 flash している
 - id: UAC-015
   flow_ref: F-007
-  given: listbox に [New Session, separator, push:save (disabled), push:resume (disabled), push:status (有効)] が並び keyboard cursor が New Session にある状態
+  given: listbox に [New Session, separator, push:save (disabled), push:resume (disabled),
+    push:status (有効)] が並び keyboard cursor が New Session にある状態
   when: ↓ を 1 回押す
-  then: keyboard cursor highlight が push:status に表示され、push:save と push:resume には cursor highlight が出ない (ただし両行は list 上に表示されたままで warning icon + `No active session` が読める)
+  then: keyboard cursor highlight が push:status に表示され、push:save と push:resume には cursor
+    highlight が出ない (ただし両行は list 上に表示されたままで warning icon + `No active session` が読める)
 - id: UAC-016
   flow_ref: F-007
   given: sessionConfig がまだ hydrate されておらず list に operable な行が 1 件も無い状態
   when: palette を視認する
-  then: palette 上部の status badge slot に `Loading commands…` テキストが表示され、Enter を押しても何も起きないことがメッセージで明示される (silent ではない)
+  then: palette 上部の status badge slot に `Loading commands…` テキストが表示され、Enter を押しても何も起きないことがメッセージで明示される
+    (silent ではない)
 - id: UAC-017
   flow_ref: F-008
   given: push:save の Enter を押し palette 上部 status badge slot に `Sending…` spinner が見える状態
@@ -184,41 +240,80 @@ acceptance_scenarios:
   flow_ref: F-008
   given: 上記の送信が解決した瞬間
   when: 送信完了 response が返る
-  then: palette が閉じ、F-005 と同じフォーマットの info toast が表示される (送信先は送信開始時の active context のまま)
+  then: palette が閉じ、F-005 と同じフォーマットの info toast が表示される (送信先は送信開始時の active context
+    のまま)
 states:
-- 'toolSelect 状態 (統合 list): 標準 tool が separator 上段、push tool が下段。各 push 行に warning icon + secondary text disabledReason が active session 状態に応じて表示される'
-- 'paramSelect 状態 (Worktree / Host chip): chip は role=''switch'' aria-checked。chip 左に `[W]` / `[H]` の key hint icon が常時可視'
-- 'header Active context 行 (常時可視): `Active: <projBase> / <sid8>` または icon + `— No active session`。client-local activeSessionID (ADR-0046) を source とする'
-- 'Active context 変化時 flash 状態: 行全体が約 600ms subtle background flash + aria-live=polite で `Active session changed to ...` を 1 回読み上げ'
-- 'submitting 状態 (送信中): palette 上部 status badge slot に `Sending…` spinner、listbox aria-disabled=true、Active context / listbox 表示は凍結'
-- 'loading 状態 (sessionConfig 未 hydrate): palette 上部 status badge slot に `Loading commands…`、listbox には new-session のみ表示'
-- 'empty 状態 (dynamic options 0 件): ParamEmptyState `No projects available` 表示、後続 param と submit を suppress (既存 FR-A4 維持)'
-- 'unavailable 状態 (ctx 構築失敗): palette 上部 status badge slot に `Unavailable` 表示、listbox aria-disabled=true、Active context 行は表示しない (整合性のため)'
-- 'inline disabled feedback 状態: 入力欄直下の inline status 領域に `"<label>" is unavailable: <reason>` を aria-live=polite で 1 回読み上げ、該当行が 1 回 shake / flash (toast は出さない)'
-- 'composing 状態 (IME 変換中): Enter / arrow / Ctrl+N/P / Esc / pointer click / Space chip toggle / Alt+W / Alt+H をすべて guard'
+- 'toolSelect 状態 (統合 list): 標準 tool が separator 上段、push tool が下段。各 push 行に warning
+  icon + secondary text disabledReason が active session 状態に応じて表示される'
+- 'paramSelect 状態 (Worktree / Host chip): chip は role=''switch'' aria-checked。chip
+  左に `[W]` / `[H]` の key hint icon が常時可視'
+- 'header Active context 行 (常時可視): `Active: <projBase> / <sid8>` または icon + `— No
+  active session`。client-local activeSessionID (ADR-0046) を source とする'
+- 'Active context 変化時 flash 状態: 行全体が約 600ms subtle background flash + aria-live=polite
+  で `Active session changed to ...` を 1 回読み上げ'
+- 'submitting 状態 (送信中): palette 上部 status badge slot に `Sending…` spinner、listbox
+  aria-disabled=true、Active context / listbox 表示は凍結'
+- 'loading 状態 (sessionConfig 未 hydrate): palette 上部 status badge slot に `Loading commands…`、listbox
+  には new-session のみ表示'
+- 'empty 状態 (dynamic options 0 件): ParamEmptyState `No projects available` 表示、後続 param
+  と submit を suppress (既存 FR-A4 維持)'
+- 'unavailable 状態 (ctx 構築失敗): palette 上部 status badge slot に `Unavailable` 表示、listbox
+  aria-disabled=true、Active context 行は表示しない (整合性のため)'
+- 'inline disabled feedback 状態: 入力欄直下の inline status 領域に `"<label>" is unavailable:
+  <reason>` を aria-live=polite で 1 回読み上げ、該当行が 1 回 shake / flash (toast は出さない)'
+- 'composing 状態 (IME 変換中): Enter / arrow / Ctrl+N/P / Esc / pointer click / Space
+  chip toggle / Alt+W / Alt+H をすべて guard'
 - 'stale-tab 状態 (ADR-0046): 一定時間 inactive 後の再 open 時の挙動は既存維持 (本タスクで変えない)'
 edge_cases:
-- disabled tool は keyboard ↑↓ で skip するが list には visible (warning icon + secondary text 付き)。movable な行が 0 件の場合は ↑↓ no-op で、status badge slot に `Loading commands…` または `No commands available` を明示する (silent failure 禁止)
-- pointermove で cursor を有効行に移したあと keyboard ↓ を押したら cursor + 1 (現在位置 + 1)。pointer と keyboard は同じ cursor state を 1 ソース共有する。disabled 行への hover は cursor state を更新せず、subtle hover style のみで知覚される (Enter で誤発火しない)
-- Stop session lifecycle action は本タスクでは復活させない (e4fd31d で撤去された経緯 + 案 A 最小スコープ + 不可逆操作は確認モーダルが必須で UX を肥大化させるため別 ADR で再検討)
-- Tab / Shift+Tab の chip 切替専用キーバインドは撤去。Tab は素の focus trap 内移動として機能。chip toggle は pointer click / Tab→Space / Alt+W (worktree) / Alt+H (host) の 3 経路。chip focus 中の Enter は toggle (submit にはならない)
-- global header (palette 外) の active session 表示は本タスク out of scope。palette 内 header のみ表示 (Open Questions に記録)
-- 1 list の並び順は『有効グループ → separator → disabled グループ』。グループ内は registry 順を維持。recently used 等の sort 機構は案 C 領域として除外 (Open Questions に記録)
-- 'disabled inline 文言は scopeDisabledReason の戻り値そのまま (ADR-0047 single source 維持)。表示時に装飾を加えない。`"<label>" is unavailable: <reason>` の `<reason>` 部分は scopeDisabledReason の生戻り値を埋め込むのみで加工しない'
-- paramless push 送信時 toast に session 切替リンクは入れない (toast は read-only)。送信先 projBase / sid8 を文字列で明示し、tooltip / title で full path / full sessionID を提供する。誤送信時は次回 palette で正しい session を選び直す
-- Active context 行の source は client-local activeSessionID (ADR-0046)。daemon-global active ではない。submit in-flight 中に view-update で active が変わっても palette は凍結し、表示と送信先のズレを構造的に防ぐ
-- Active context の変化は flash (約 600ms background) + aria-live=polite (`Active session changed to ...` 1 回読み上げ) で告知。push:* 行が disabled→有効に変わった場合は該当行も flash + group 移動
-- active session 切替後、cursor が指していた tool が disabled→有効や有効→disabled に変わった / 行位置が group 移動した場合、cursor は selectedToolId ベースで再計算する。同 index に別 tool が来る silent footgun を回避
-- IME 変換中 (composing=true) は pointer click / Space chip toggle / Alt+W / Alt+H もすべて guard (Enter と同様に変換確定が優先)
-- ParamSelectPhase 内では本タスクで listbox / chip の挙動を変えるが useDynamicParamPreset の preselect / FR-A4 empty-state は維持
-- 'Active context header の projBase 表示で projects[].path の basename を使うが、(a) path が ''/'' 終端や empty なら path そのものを fallback、(b) 同名 basename が複数 projects に存在する場合は disambiguator として親 dir 名 (例: `work (under foo)`) を併記、(c) Windows path (\ 区切り) でも basename が抽出できるよう / と \ 両方を separator として扱う'
-- sessionID prefix 8 char は uniqueness を保証しないため、tooltip で full sessionID も提供する。複数 session が prefix 8 char 衝突する場合でも toast の sessionID は monospace + tooltip full でユーザーが事後検証できる
-- view-update で sessionConfig.pushCommands が新規に増えた / 減ったときに listbox は次 render で反映。cursor が削除された行を指していたら selectedToolId ベースの再計算で safe な行に移動
-- 'screen reader: aria-activedescendant は cursor 位置 (movable な行) のみ参照。disabled 行は aria-disabled=true で `unavailable` と告知される。Active context 行は role=''status'' aria-live=''polite'' を持ち変化時に読み上げられる'
-- disabled / `No active session` / 各 status は色だけでなく icon (warning icon / `—` prefix / spinner 等) でも区別され WCAG 1.4.1 (Use of Color) を満たす
-- ctx 構築失敗 (httpFactory invalid) 状態では Active context 行を描画せず status badge slot に `Unavailable` を表示する (palette 全体不通であることを矛盾なく示す)
-- chip の visibility (showWorktreeToggle / showHostToggle) が project 選択後に動的に変わるとき、focus が消える chip にある場合は focus を command 入力欄に戻す (focus trap 内 fallback ルール)
-- submitting 中の context shift は palette UI を凍結 (Active context 行 / listbox / status badge を変更しない)。送信解決後の次回 palette open で新 active を反映 (silent context switch + 送信先ズレを防ぐ)
+- disabled tool は keyboard ↑↓ で skip するが list には visible (warning icon + secondary
+  text 付き)。movable な行が 0 件の場合は ↑↓ no-op で、status badge slot に `Loading commands…`
+  または `No commands available` を明示する (silent failure 禁止)
+- pointermove で cursor を有効行に移したあと keyboard ↓ を押したら cursor + 1 (現在位置 + 1)。pointer と
+  keyboard は同じ cursor state を 1 ソース共有する。disabled 行への hover は cursor state を更新せず、subtle
+  hover style のみで知覚される (Enter で誤発火しない)
+- Stop session lifecycle action は本タスクでは復活させない (e4fd31d で撤去された経緯 + 案 A 最小スコープ + 不可逆操作は確認モーダルが必須で
+  UX を肥大化させるため別 ADR で再検討)
+- Tab / Shift+Tab の chip 切替専用キーバインドは撤去。Tab は素の focus trap 内移動として機能。chip toggle は pointer
+  click / Tab→Space / Alt+W (worktree) / Alt+H (host) の 3 経路。chip focus 中の Enter は
+  toggle (submit にはならない)
+- global header (palette 外) の active session 表示は本タスク out of scope。palette 内 header
+  のみ表示 (Open Questions に記録)
+- 1 list の並び順は『有効グループ → separator → disabled グループ』。グループ内は registry 順を維持。recently used
+  等の sort 機構は案 C 領域として除外 (Open Questions に記録)
+- 'disabled inline 文言は scopeDisabledReason の戻り値そのまま (ADR-0047 single source 維持)。表示時に装飾を加えない。`"<label>"
+  is unavailable: <reason>` の `<reason>` 部分は scopeDisabledReason の生戻り値を埋め込むのみで加工しない'
+- paramless push 送信時 toast に session 切替リンクは入れない (toast は read-only)。送信先 projBase /
+  sid8 を文字列で明示し、tooltip / title で full path / full sessionID を提供する。誤送信時は次回 palette
+  で正しい session を選び直す
+- Active context 行の source は client-local activeSessionID (ADR-0046)。daemon-global
+  active ではない。submit in-flight 中に view-update で active が変わっても palette は凍結し、表示と送信先のズレを構造的に防ぐ
+- Active context の変化は flash (約 600ms background) + aria-live=polite (`Active session
+  changed to ...` 1 回読み上げ) で告知。push:* 行が disabled→有効に変わった場合は該当行も flash + group 移動
+- active session 切替後、cursor が指していた tool が disabled→有効や有効→disabled に変わった / 行位置が group
+  移動した場合、cursor は selectedToolId ベースで再計算する。同 index に別 tool が来る silent footgun を回避
+- IME 変換中 (composing=true) は pointer click / Space chip toggle / Alt+W / Alt+H もすべて
+  guard (Enter と同様に変換確定が優先)
+- ParamSelectPhase 内では本タスクで listbox / chip の挙動を変えるが useDynamicParamPreset の preselect
+  / FR-A4 empty-state は維持
+- 'Active context header の projBase 表示で projects[].path の basename を使うが、(a) path が
+  ''/'' 終端や empty なら path そのものを fallback、(b) 同名 basename が複数 projects に存在する場合は disambiguator
+  として親 dir 名 (例: `work (under foo)`) を併記、(c) Windows path (\ 区切り) でも basename が抽出できるよう
+  / と \ 両方を separator として扱う'
+- sessionID prefix 8 char は uniqueness を保証しないため、tooltip で full sessionID も提供する。複数
+  session が prefix 8 char 衝突する場合でも toast の sessionID は monospace + tooltip full でユーザーが事後検証できる
+- view-update で sessionConfig.pushCommands が新規に増えた / 減ったときに listbox は次 render で反映。cursor
+  が削除された行を指していたら selectedToolId ベースの再計算で safe な行に移動
+- 'screen reader: aria-activedescendant は cursor 位置 (movable な行) のみ参照。disabled 行は
+  aria-disabled=true で `unavailable` と告知される。Active context 行は role=''status'' aria-live=''polite''
+  を持ち変化時に読み上げられる'
+- disabled / `No active session` / 各 status は色だけでなく icon (warning icon / `—` prefix
+  / spinner 等) でも区別され WCAG 1.4.1 (Use of Color) を満たす
+- ctx 構築失敗 (httpFactory invalid) 状態では Active context 行を描画せず status badge slot に `Unavailable`
+  を表示する (palette 全体不通であることを矛盾なく示す)
+- chip の visibility (showWorktreeToggle / showHostToggle) が project 選択後に動的に変わるとき、focus
+  が消える chip にある場合は focus を command 入力欄に戻す (focus trap 内 fallback ルール)
+- submitting 中の context shift は palette UI を凍結 (Active context 行 / listbox / status
+  badge を変更しない)。送信解決後の次回 palette open で新 active を反映 (silent context switch + 送信先ズレを防ぐ)
 assumptions: []
 ---
 

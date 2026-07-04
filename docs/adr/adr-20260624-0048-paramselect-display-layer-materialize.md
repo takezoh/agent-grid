@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0048-paramselect-display-layer-materialize
 kind: adr
-title: ADR 0048 — ParamSelectPhase で dynamic-options を表示層 materialize する (ParamDef 判別共用体化)
+title: ADR 0048 — ParamSelectPhase で dynamic-options を表示層 materialize する (ParamDef
+  判別共用体化)
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,11 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260625-2026-06-25-palette-bugfix}
+- {type: references, target: spec-20260625-2026-06-25-palette-bugfix}
+- {type: referencedBy, target: plan-20260625-2026-06-25-palette-bugfix}
+- {type: referencedBy, target: spec-20260625-2026-06-25-palette-bugfix}
 source_paths: []
 decision_makers:
 - unknown

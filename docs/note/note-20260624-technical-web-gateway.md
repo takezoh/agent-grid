@@ -9,7 +9,15 @@ tags:
 - technical
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0006-surface-namespace-for-new-proto-commands}
+- {type: references, target: adr-20260624-0011-two-step-ws-close-on-daemon-disconnect}
+- {type: references, target: adr-20260624-0012-daemon-client-eager-dial-supervisor}
+- {type: references, target: adr-20260624-0023-view-update-broadcast-shape}
+- {type: references, target: adr-20260624-0025-transcript-rest-backfill-then-ws-tail}
+- {type: references, target: adr-20260624-0027-notification-toast-auto-dismiss-policy}
+- {type: references, target: note-20260624-user-web-server}
+- {type: referencedBy, target: note-20260624-user-web-server}
 source_paths: []
 topic: technical
 ---

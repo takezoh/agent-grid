@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0067-mobile-gate-matchmedia
 kind: adr
-title: 'ADR 0067 — モバイル UX gate を `matchMedia(''(max-width: 767px) and (pointer: coarse)'')` の AND 契約に固定する'
+title: 'ADR 0067 — モバイル UX gate を `matchMedia(''(max-width: 767px) and (pointer: coarse)'')`
+  の AND 契約に固定する'
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,19 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0029-terminal-host-flex-height}
+- {type: references, target: adr-20260624-0030-terminal-keyed-remount}
+- {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
+- {type: references, target: adr-20260624-0065-terminal-slot-absolute-overlay}
+- {type: references, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
+- {type: references, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
+- {type: references, target: spec-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
+- {type: referencedBy, target: adr-20260624-0075-pattern-adoption-mode-affordances}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
 source_paths: []
 decision_makers:
 - unknown

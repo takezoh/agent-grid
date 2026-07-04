@@ -10,7 +10,17 @@ tags:
 - platform
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: component-20260624-client-ipc}
+- {type: referencedBy, target: component-20260624-client-process-model}
+- {type: referencedBy, target: component-20260624-orchestrator-overview}
+- {type: referencedBy, target: component-20260624-platform-agent-protocol}
+- {type: referencedBy, target: component-20260624-platform-brokers}
+- {type: referencedBy, target: component-20260624-platform-overview}
+- {type: references, target: note-20260624-user-sandbox}
+- {type: referencedBy, target: note-20260624-technical-guardrails}
+- {type: referencedBy, target: note-20260624-technical-overview}
+- {type: referencedBy, target: note-20260624-user-sandbox}
 source_paths: []
 provides:
 - sandbox-backends

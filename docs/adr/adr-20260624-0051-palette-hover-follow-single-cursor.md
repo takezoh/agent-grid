@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0051-palette-hover-follow-single-cursor
 kind: adr
-title: ADR 0051 — listbox の pointer hover と keyboard cursor を単一 highlight state に統一 (有効行のみ cursor 移動)
+title: ADR 0051 — listbox の pointer hover と keyboard cursor を単一 highlight state に統一
+  (有効行のみ cursor 移動)
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,10 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
 source_paths: []
 decision_makers:
 - unknown

@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile
 kind: adr
-title: ADR 0074 — PC 専用 `TerminalPane.tsx` を PC + モバイル両対応へ refactor する移行戦略 (gate 内に閉じ込め + PC baseline test で機構的 rollback)
+title: ADR 0074 — PC 専用 `TerminalPane.tsx` を PC + モバイル両対応へ refactor する移行戦略 (gate 内に閉じ込め
+  + PC baseline test で機構的 rollback)
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,21 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0067-mobile-gate-matchmedia}
+- {type: references, target: adr-20260624-0029-terminal-host-flex-height}
+- {type: references, target: adr-20260624-0030-terminal-keyed-remount}
+- {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
+- {type: references, target: adr-20260624-0059-design-token-and-theme-bridge}
+- {type: references, target: adr-20260624-0063-toast-single-live-and-undosnackbar}
+- {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
+- {type: references, target: adr-20260624-0065-terminal-slot-absolute-overlay}
+- {type: references, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
+- {type: references, target: adr-20260624-0067-mobile-gate-matchmedia}
+- {type: references, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: ux-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
 source_paths: []
 decision_makers:
 - unknown

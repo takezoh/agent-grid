@@ -9,7 +9,16 @@ tags:
 - agent
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: note-20260624-agent-contributing}
+- {type: referencedBy, target: note-20260624-agent-overview}
+- {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: references, target: component-20260624-client-stream-backend-e2e}
+- {type: references, target: component-20260624-client-stream-backend-testing}
+- {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
+- {type: references, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: note-20260624-docs-overview}
+- {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
 source_paths: []
 topic: agent
 ---

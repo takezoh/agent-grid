@@ -9,7 +9,8 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0021-frontend-wire-types-hand-written}
 source_paths: []
 decision_makers:
 - unknown

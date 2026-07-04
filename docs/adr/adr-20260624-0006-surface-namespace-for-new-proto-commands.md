@@ -9,7 +9,8 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: note-20260624-technical-web-gateway}
 source_paths: []
 decision_makers:
 - unknown

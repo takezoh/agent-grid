@@ -9,7 +9,24 @@ tags:
 - technical
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: note-20260624-docs-overview}
+- {type: references, target: component-20260624-client-interfaces}
+- {type: references, target: component-20260624-client-ipc}
+- {type: references, target: component-20260624-client-overview}
+- {type: references, target: component-20260624-client-process-model}
+- {type: references, target: component-20260624-client-state-monitoring}
+- {type: references, target: component-20260624-orchestrator-overview}
+- {type: references, target: component-20260624-orchestrator-symphony-conformance}
+- {type: references, target: component-20260624-platform-agent-protocol}
+- {type: references, target: component-20260624-platform-brokers}
+- {type: references, target: component-20260624-platform-overview}
+- {type: references, target: component-20260624-platform-sandbox}
+- {type: references, target: component-20260624-platform-spawn-and-launch}
+- {type: references, target: note-20260624-technical-code-enforcement}
+- {type: references, target: note-20260624-technical-guardrails}
+- {type: references, target: note-20260624-technical-harness-engineering-assessment}
+- {type: referencedBy, target: note-20260624-user-overview}
 source_paths: []
 topic: technical
 ---

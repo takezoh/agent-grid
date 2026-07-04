@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0046-palette-push-active-mismatch-409
 kind: adr
-title: ADR 0046 — POST /api/sessions/{id}/push の id mismatch は 409 で返し、照合キーは web gateway が SubscribeEvents から保持する daemon-global ActiveSessionID とする
+title: ADR 0046 — POST /api/sessions/{id}/push の id mismatch は 409 で返し、照合キーは web gateway
+  が SubscribeEvents から保持する daemon-global ActiveSessionID とする
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,11 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260624-2026-06-24-web-ui-command-palette}
+- {type: references, target: spec-20260624-2026-06-24-web-ui-command-palette}
+- {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-command-palette}
+- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-command-palette}
 source_paths: []
 decision_makers:
 - unknown

@@ -10,7 +10,11 @@ tags:
 - client
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: component-20260624-client-ipc}
+- {type: referencedBy, target: component-20260624-client-overview}
+- {type: referencedBy, target: component-20260624-client-state-monitoring}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 provides:
 - interfaces-data-files-and-file-structure

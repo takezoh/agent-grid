@@ -9,7 +9,11 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0031-kindoftab-server-symmetry}
+- {type: referencedBy, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
+- {type: referencedBy, target: note-20260624-technical-web-gateway}
+- {type: referencedBy, target: spec-20260626-2026-06-26-terminal-scrollback}
 source_paths: []
 decision_makers:
 - unknown

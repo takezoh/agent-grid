@@ -9,7 +9,14 @@ tags:
 - plan
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0048-paramselect-display-layer-materialize}
+- {type: referencedBy, target: adr-20260624-0049-palette-ui-english-only}
+- {type: implements, target: spec-20260625-2026-06-25-palette-bugfix}
+- {type: references, target: adr-20260624-0048-paramselect-display-layer-materialize}
+- {type: references, target: adr-20260624-0049-palette-ui-english-only}
+- {type: references, target: spec-20260625-2026-06-25-palette-bugfix}
+- {type: referencedBy, target: spec-20260625-2026-06-25-palette-bugfix}
 source_paths: []
 goal: Plan — Web UI コマンドパレット バグ修正
 scope_in: []

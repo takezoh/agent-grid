@@ -9,7 +9,8 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0019-react-ts-vite-zustand-stack}
 source_paths: []
 decision_makers:
 - unknown

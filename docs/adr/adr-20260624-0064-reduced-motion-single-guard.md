@@ -9,7 +9,20 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0080-status-indicator-exempt-from-reduced-motion}
+- {type: references, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: spec-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: referencedBy, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: referencedBy, target: adr-20260624-0072-coachmark-dismiss-and-once}
+- {type: referencedBy, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
+- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
+- {type: referencedBy, target: adr-20260624-0080-status-indicator-exempt-from-reduced-motion}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
 source_paths: []
 decision_makers:
 - unknown

@@ -9,7 +9,11 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260624-2026-06-24-web-ui-command-palette}
+- {type: references, target: spec-20260624-2026-06-24-web-ui-command-palette}
+- {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-command-palette}
+- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-command-palette}
 source_paths: []
 decision_makers:
 - unknown

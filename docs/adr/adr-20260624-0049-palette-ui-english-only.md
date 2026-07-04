@@ -9,7 +9,11 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260625-2026-06-25-palette-bugfix}
+- {type: references, target: spec-20260625-2026-06-25-palette-bugfix}
+- {type: referencedBy, target: plan-20260625-2026-06-25-palette-bugfix}
+- {type: referencedBy, target: spec-20260625-2026-06-25-palette-bugfix}
 source_paths: []
 decision_makers:
 - unknown

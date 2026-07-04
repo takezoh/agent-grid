@@ -9,7 +9,24 @@ tags:
 - spec
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0059-design-token-and-theme-bridge}
+- {type: referencedBy, target: adr-20260624-0060-adaptive-layout-and-drawer}
+- {type: referencedBy, target: adr-20260624-0061-apg-tabs-manual-activation}
+- {type: referencedBy, target: adr-20260624-0062-search-bar-trigger-and-palette-theme-entry}
+- {type: referencedBy, target: adr-20260624-0063-toast-single-live-and-undosnackbar}
+- {type: referencedBy, target: adr-20260624-0064-reduced-motion-single-guard}
+- {type: implementedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: implements, target: ux-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: adr-20260624-0059-design-token-and-theme-bridge}
+- {type: references, target: adr-20260624-0060-adaptive-layout-and-drawer}
+- {type: references, target: adr-20260624-0061-apg-tabs-manual-activation}
+- {type: references, target: adr-20260624-0062-search-bar-trigger-and-palette-theme-entry}
+- {type: references, target: adr-20260624-0063-toast-single-live-and-undosnackbar}
+- {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
+- {type: references, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
 source_paths: []
 functional_requirements: []
 non_functional_requirements: []

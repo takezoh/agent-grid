@@ -1,7 +1,9 @@
 ---
 id: adr-20260624-0075-pattern-adoption-mode-affordances
 kind: adr
-title: ADR 0075 — modal editor 流の mode 分離 + Termius/a-Shell キーボード toggle + Slack jump-to-latest + Material FAB + iOS sticky toolbar + WAI-ARIA live region パターンを採用し `IconButton` primitive で a11y 仕様を集約する
+title: ADR 0075 — modal editor 流の mode 分離 + Termius/a-Shell キーボード toggle + Slack jump-to-latest
+  + Material FAB + iOS sticky toolbar + WAI-ARIA live region パターンを採用し `IconButton`
+  primitive で a11y 仕様を集約する
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +11,19 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: references, target: adr-20260624-0057-palette-single-aria-live-slot}
+- {type: references, target: adr-20260624-0059-design-token-and-theme-bridge}
+- {type: references, target: adr-20260624-0067-mobile-gate-matchmedia}
+- {type: references, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: references, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: references, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
+- {type: references, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: ux-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
 source_paths: []
 decision_makers:
 - unknown

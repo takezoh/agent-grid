@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0001-multiplexed-backends-shared-routing-contract
 kind: adr
-title: ADR 0001 — Multiplexed backends are verified by a shared routing-isolation contract
+title: ADR 0001 — Multiplexed backends are verified by a shared routing-isolation
+  contract
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,15 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
+- {type: references, target: component-20260624-client-stream-backend-e2e}
+- {type: references, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
+- {type: referencedBy, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: referencedBy, target: adr-20260624-0081-codex-frame-init-serialize}
+- {type: referencedBy, target: component-20260624-client-stream-backend-testing}
+- {type: referencedBy, target: note-20260624-technical-code-enforcement}
 source_paths: []
 decision_makers:
 - unknown

@@ -9,7 +9,24 @@ tags:
 - technical
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
+- {type: referencedBy, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: referencedBy, target: component-20260624-platform-overview}
+- {type: referencedBy, target: note-20260624-agent-contributing}
+- {type: referencedBy, target: note-20260624-agent-testing}
+- {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
+- {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
+- {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: references, target: component-20260624-client-overview}
+- {type: references, target: component-20260624-client-stream-backend-testing}
+- {type: references, target: component-20260624-orchestrator-overview}
+- {type: references, target: component-20260624-platform-overview}
+- {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
+- {type: references, target: note-20260624-technical-guardrails}
+- {type: referencedBy, target: note-20260624-technical-guardrails}
+- {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 topic: technical
 ---

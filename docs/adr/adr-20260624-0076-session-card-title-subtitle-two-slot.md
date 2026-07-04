@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0076-session-card-title-subtitle-two-slot
 kind: adr
-title: ADR 0076 — セッションカードを Title + Subtitle の 2 slot 構造に変更し、Subtitle を user-prompt-only LLM 要約で埋め、表示幅は CSS でクランプする
+title: ADR 0076 — セッションカードを Title + Subtitle の 2 slot 構造に変更し、Subtitle を user-prompt-only
+  LLM 要約で埋め、表示幅は CSS でクランプする
 status: superseded
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,11 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0033-display-label-empty-policy}
+- {type: references, target: adr-20260624-0033-display-label-empty-policy}
+- {type: references, target: adr-20260624-0079-session-card-title-fallback-chain}
+- {type: referencedBy, target: adr-20260624-0079-session-card-title-fallback-chain}
 source_paths: []
 decision_makers:
 - unknown

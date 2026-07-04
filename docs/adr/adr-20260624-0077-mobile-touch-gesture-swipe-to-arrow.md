@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow
 kind: adr
-title: ADR 0077 — pinch fontSize を撤去し horizontal swipe を arrow key 連射 (`\x1b[C` / `\x1b[D`) にリバインドする
+title: ADR 0077 — pinch fontSize を撤去し horizontal swipe を arrow key 連射 (`\x1b[C` /
+  `\x1b[D`) にリバインドする
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,16 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0070-fontsize-persist-clamp}
+- {type: referencedBy, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
+- {type: references, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: references, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: references, target: adr-20260624-0070-fontsize-persist-clamp}
+- {type: references, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: references, target: spec-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 source_paths: []
 decision_makers:
 - unknown

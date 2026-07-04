@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection
 kind: adr
-title: ADR 0071 — touch gesture (swipe / long-press 選択 / pinch) を 1 hook の state machine で arbitration し long-press 選択は xterm 標準 `term.select()` API で実装する
+title: ADR 0071 — touch gesture (swipe / long-press 選択 / pinch) を 1 hook の state machine
+  で arbitration し long-press 選択は xterm 標準 `term.select()` API で実装する
 status: superseded
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,18 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
+- {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
+- {type: references, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
+- {type: references, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: references, target: adr-20260624-0070-fontsize-persist-clamp}
+- {type: references, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
+- {type: references, target: spec-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
 source_paths: []
 decision_makers:
 - unknown

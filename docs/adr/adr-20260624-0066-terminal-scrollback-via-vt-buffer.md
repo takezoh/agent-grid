@@ -9,7 +9,17 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0010-surface-output-sequence-per-subscribe}
+- {type: references, target: adr-20260624-0011-two-step-ws-close-on-daemon-disconnect}
+- {type: references, target: adr-20260624-0013-attacher-interface-and-protofake}
+- {type: references, target: adr-20260624-0025-transcript-rest-backfill-then-ws-tail}
+- {type: referencedBy, target: adr-20260624-0067-mobile-gate-matchmedia}
+- {type: referencedBy, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: referencedBy, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
+- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260626-2026-06-26-terminal-scrollback}
 source_paths: []
 decision_makers:
 - unknown

@@ -10,7 +10,12 @@ tags:
 - orchestrator
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: component-20260624-orchestrator-overview}
+- {type: referencedBy, target: note-20260624-agent-contributing}
+- {type: referencedBy, target: note-20260624-agent-workflow-authoring}
+- {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 provides:
 - symphony-spec-conformance

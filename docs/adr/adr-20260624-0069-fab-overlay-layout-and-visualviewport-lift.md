@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift
 kind: adr
-title: ADR 0069 — FAB overlay を `terminal-slot` 直下の `.terminal-fab-layer` に集約し、visualViewport-lift は CSS custom property で配信する
+title: ADR 0069 — FAB overlay を `terminal-slot` 直下の `.terminal-fab-layer` に集約し、visualViewport-lift
+  は CSS custom property で配信する
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,22 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: references, target: adr-20260624-0029-terminal-host-flex-height}
+- {type: references, target: adr-20260624-0063-toast-single-live-and-undosnackbar}
+- {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
+- {type: references, target: adr-20260624-0065-terminal-slot-absolute-overlay}
+- {type: references, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: references, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
+- {type: references, target: adr-20260624-0075-pattern-adoption-mode-affordances}
+- {type: references, target: spec-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: referencedBy, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
+- {type: referencedBy, target: adr-20260624-0075-pattern-adoption-mode-affordances}
+- {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
 source_paths: []
 decision_makers:
 - unknown

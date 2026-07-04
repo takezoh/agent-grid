@@ -9,7 +9,15 @@ tags:
 - user
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: component-20260624-platform-overview}
+- {type: referencedBy, target: component-20260624-platform-sandbox}
+- {type: referencedBy, target: component-20260624-platform-spawn-and-launch}
+- {type: referencedBy, target: note-20260624-docs-overview}
+- {type: referencedBy, target: note-20260624-user-getting-started}
+- {type: referencedBy, target: note-20260624-user-orchestrator}
+- {type: referencedBy, target: note-20260624-user-overview}
+- {type: references, target: component-20260624-platform-sandbox}
 source_paths: []
 topic: user
 ---

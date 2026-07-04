@@ -9,7 +9,22 @@ tags:
 - plan
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0029-terminal-host-flex-height}
+- {type: referencedBy, target: adr-20260624-0030-terminal-keyed-remount}
+- {type: referencedBy, target: adr-20260624-0031-kindoftab-server-symmetry}
+- {type: referencedBy, target: adr-20260624-0032-runstate-spinner-additive}
+- {type: referencedBy, target: adr-20260624-0033-display-label-empty-policy}
+- {type: referencedBy, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
+- {type: implements, target: spec-20260624-2026-06-24-web-ui-fixes}
+- {type: references, target: adr-20260624-0029-terminal-host-flex-height}
+- {type: references, target: adr-20260624-0030-terminal-keyed-remount}
+- {type: references, target: adr-20260624-0031-kindoftab-server-symmetry}
+- {type: references, target: adr-20260624-0032-runstate-spinner-additive}
+- {type: references, target: adr-20260624-0033-display-label-empty-policy}
+- {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
+- {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
+- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
 source_paths: []
 goal: Plan — Web UI Fixes
 scope_in: []

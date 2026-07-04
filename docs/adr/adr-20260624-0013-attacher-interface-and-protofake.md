@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0013-attacher-interface-and-protofake
 kind: adr
-title: ADR 0013 — Keep the `Attacher` interface; satisfy it with both `DaemonAdapter` and `protofake`
+title: ADR 0013 — Keep the `Attacher` interface; satisfy it with both `DaemonAdapter`
+  and `protofake`
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,8 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
 source_paths: []
 decision_makers:
 - unknown

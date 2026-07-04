@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0061-apg-tabs-manual-activation
 kind: adr
-title: ADR 0061 — MainTabs を WAI-ARIA APG Tabs Pattern (roving tabindex + manual activation) で再実装
+title: ADR 0061 — MainTabs を WAI-ARIA APG Tabs Pattern (roving tabindex + manual activation)
+  で再実装
 status: proposed
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,13 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: spec-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: adr-20260624-0065-terminal-slot-absolute-overlay}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
 source_paths: []
 decision_makers:
 - unknown

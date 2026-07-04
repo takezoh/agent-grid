@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0050-palette-scope-unify-with-disabled-policy
 kind: adr
-title: ADR 0050 — コマンドパレットを 1 listbox に統合し disabled tool を visible + skip-navigation + group-sort で扱う
+title: ADR 0050 — コマンドパレットを 1 listbox に統合し disabled tool を visible + skip-navigation
+  + group-sort で扱う
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,10 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
 source_paths: []
 decision_makers:
 - unknown

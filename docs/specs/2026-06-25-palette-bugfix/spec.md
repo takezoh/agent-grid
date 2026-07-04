@@ -9,7 +9,14 @@ tags:
 - spec
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0048-paramselect-display-layer-materialize}
+- {type: referencedBy, target: adr-20260624-0049-palette-ui-english-only}
+- {type: implementedBy, target: plan-20260625-2026-06-25-palette-bugfix}
+- {type: referencedBy, target: plan-20260625-2026-06-25-palette-bugfix}
+- {type: references, target: adr-20260624-0048-paramselect-display-layer-materialize}
+- {type: references, target: adr-20260624-0049-palette-ui-english-only}
+- {type: references, target: plan-20260625-2026-06-25-palette-bugfix}
 source_paths: []
 functional_requirements: []
 non_functional_requirements: []

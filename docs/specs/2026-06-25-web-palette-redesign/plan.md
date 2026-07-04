@@ -9,7 +9,25 @@ tags:
 - plan
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0054-palette-cursor-identity-by-tool-id}
+- {type: referencedBy, target: adr-20260624-0055-palette-submit-freeze-via-lift-state}
+- {type: referencedBy, target: adr-20260624-0056-palette-store-slice-composition}
+- {type: referencedBy, target: adr-20260624-0057-palette-single-aria-live-slot}
+- {type: referencedBy, target: adr-20260624-0058-palette-active-context-data-path}
+- {type: implements, target: spec-20260625-2026-06-25-web-palette-redesign}
+- {type: references, target: adr-20260624-0050-palette-scope-unify-with-disabled-policy}
+- {type: references, target: adr-20260624-0051-palette-hover-follow-single-cursor}
+- {type: references, target: adr-20260624-0052-palette-active-context-header-with-change-feedback}
+- {type: references, target: adr-20260624-0053-palette-chip-toggle-keybinding-redesign}
+- {type: references, target: adr-20260624-0054-palette-cursor-identity-by-tool-id}
+- {type: references, target: adr-20260624-0055-palette-submit-freeze-via-lift-state}
+- {type: references, target: adr-20260624-0056-palette-store-slice-composition}
+- {type: references, target: adr-20260624-0057-palette-single-aria-live-slot}
+- {type: references, target: adr-20260624-0058-palette-active-context-data-path}
+- {type: references, target: spec-20260625-2026-06-25-web-palette-redesign}
+- {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
 source_paths: []
 goal: Plan — Web UI コマンドパレット 再設計
 scope_in: []

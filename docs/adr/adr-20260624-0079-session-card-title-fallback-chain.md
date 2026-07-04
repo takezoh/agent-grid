@@ -9,7 +9,9 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0076-session-card-title-subtitle-two-slot}
+- {type: references, target: adr-20260624-0076-session-card-title-subtitle-two-slot}
 source_paths: []
 decision_makers:
 - unknown

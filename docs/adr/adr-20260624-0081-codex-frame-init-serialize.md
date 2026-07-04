@@ -9,7 +9,12 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
+- {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
+- {type: referencedBy, target: component-20260624-client-overview}
+- {type: referencedBy, target: component-20260624-client-process-model}
+- {type: referencedBy, target: component-20260624-client-stream-backend-testing}
 source_paths: []
 decision_makers:
 - unknown

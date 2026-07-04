@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0058-palette-active-context-data-path
 kind: adr
-title: ADR 0058 — Active context header の projBase 解決は SessionInfo.projectPath + projects[] 突合で行い、欠落時は sid8 のみ fallback 表示する
+title: ADR 0058 — Active context header の projBase 解決は SessionInfo.projectPath + projects[]
+  突合で行い、欠落時は sid8 のみ fallback 表示する
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,12 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260625-2026-06-25-web-palette-redesign}
+- {type: references, target: spec-20260625-2026-06-25-web-palette-redesign}
+- {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
 source_paths: []
 decision_makers:
 - unknown

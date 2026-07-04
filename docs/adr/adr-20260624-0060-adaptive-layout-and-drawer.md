@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0060-adaptive-layout-and-drawer
 kind: adr
-title: ADR 0060 — 適応レイアウト (named grid areas + dvh + safe-area) + SessionDrawer 三重 guard
+title: ADR 0060 — 適応レイアウト (named grid areas + dvh + safe-area) + SessionDrawer 三重
+  guard
 status: proposed
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,13 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: adr-20260624-0029-terminal-host-flex-height}
+- {type: references, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: spec-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
 source_paths: []
 decision_makers:
 - unknown

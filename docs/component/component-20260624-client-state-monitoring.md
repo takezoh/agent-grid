@@ -10,7 +10,12 @@ tags:
 - client
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: component-20260624-client-ipc}
+- {type: referencedBy, target: component-20260624-client-overview}
+- {type: references, target: component-20260624-client-interfaces}
+- {type: references, target: component-20260624-client-ipc}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 provides:
 - state-monitoring

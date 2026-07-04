@@ -9,7 +9,31 @@ tags:
 - spec
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0067-mobile-gate-matchmedia}
+- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: referencedBy, target: adr-20260624-0070-fontsize-persist-clamp}
+- {type: referencedBy, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: referencedBy, target: adr-20260624-0072-coachmark-dismiss-and-once}
+- {type: referencedBy, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
+- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
+- {type: referencedBy, target: adr-20260624-0075-pattern-adoption-mode-affordances}
+- {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
+- {type: implementedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
+- {type: implements, target: ux-20260626-web-terminal-mobile-ux}
+- {type: references, target: adr-20260624-0067-mobile-gate-matchmedia}
+- {type: references, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
+- {type: references, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
+- {type: references, target: adr-20260624-0070-fontsize-persist-clamp}
+- {type: references, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
+- {type: references, target: adr-20260624-0072-coachmark-dismiss-and-once}
+- {type: references, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
+- {type: references, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
+- {type: references, target: adr-20260624-0075-pattern-adoption-mode-affordances}
+- {type: references, target: plan-20260626-web-terminal-mobile-ux}
+- {type: references, target: ux-20260626-web-terminal-mobile-ux}
 source_paths: []
 functional_requirements: []
 non_functional_requirements: []

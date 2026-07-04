@@ -9,7 +9,11 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
+- {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
 source_paths: []
 decision_makers:
 - unknown

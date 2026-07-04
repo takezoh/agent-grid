@@ -9,7 +9,12 @@ tags:
 - agent
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: component-20260624-orchestrator-symphony-conformance}
+- {type: references, target: note-20260624-agent-testing}
+- {type: references, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: note-20260624-agent-overview}
+- {type: referencedBy, target: note-20260624-docs-overview}
 source_paths: []
 topic: agent
 ---

@@ -10,7 +10,14 @@ tags:
 - platform
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: component-20260624-platform-sandbox}
+- {type: references, target: component-20260624-platform-spawn-and-launch}
+- {type: references, target: note-20260624-technical-guardrails}
+- {type: referencedBy, target: component-20260624-platform-overview}
+- {type: referencedBy, target: component-20260624-platform-spawn-and-launch}
+- {type: referencedBy, target: note-20260624-technical-guardrails}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 provides:
 - brokers-host-mediation-and-policy-enforcement

@@ -1,7 +1,8 @@
 ---
 id: adr-20260624-0055-palette-submit-freeze-via-lift-state
 kind: adr
-title: ADR 0055 — submit in-flight 中の palette UI freeze は CommandPalette の lift-state で実装する
+title: ADR 0055 — submit in-flight 中の palette UI freeze は CommandPalette の lift-state
+  で実装する
 status: accepted
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -9,7 +10,12 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260625-2026-06-25-web-palette-redesign}
+- {type: references, target: spec-20260625-2026-06-25-web-palette-redesign}
+- {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
+- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
 source_paths: []
 decision_makers:
 - unknown

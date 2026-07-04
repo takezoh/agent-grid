@@ -10,7 +10,23 @@ tags:
 - orchestrator
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: referencedBy, target: component-20260624-client-overview}
+- {type: references, target: component-20260624-orchestrator-symphony-conformance}
+- {type: references, target: component-20260624-platform-agent-protocol}
+- {type: references, target: component-20260624-platform-sandbox}
+- {type: references, target: component-20260624-platform-spawn-and-launch}
+- {type: references, target: note-20260624-agent-workflow-authoring}
+- {type: references, target: note-20260624-technical-guardrails}
+- {type: references, target: note-20260624-user-orchestrator}
+- {type: referencedBy, target: component-20260624-platform-agent-protocol}
+- {type: referencedBy, target: note-20260624-agent-overview}
+- {type: referencedBy, target: note-20260624-agent-workflow-authoring}
+- {type: referencedBy, target: note-20260624-docs-overview}
+- {type: referencedBy, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: note-20260624-technical-guardrails}
+- {type: referencedBy, target: note-20260624-technical-overview}
+- {type: referencedBy, target: note-20260624-user-orchestrator}
 source_paths: []
 provides:
 - orchestrator-symphony-spec-implementation

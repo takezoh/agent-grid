@@ -9,7 +9,8 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: supersedes, target: adr-20260624-0008-session-id-to-pane-id-resolution-in-runtime}
 source_paths: []
 decision_makers:
 - unknown

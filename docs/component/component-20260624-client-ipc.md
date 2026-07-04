@@ -10,7 +10,13 @@ tags:
 - client
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: component-20260624-client-interfaces}
+- {type: references, target: component-20260624-client-state-monitoring}
+- {type: references, target: component-20260624-platform-sandbox}
+- {type: referencedBy, target: component-20260624-client-overview}
+- {type: referencedBy, target: component-20260624-client-state-monitoring}
+- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths: []
 provides:
 - inter-process-communication-ipc-and-tool-system

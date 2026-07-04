@@ -9,7 +9,12 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations: []
+relations:
+- {type: references, target: plan-20260624-2026-06-24-web-ui-fixes}
+- {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
+- {type: referencedBy, target: adr-20260624-0080-status-indicator-exempt-from-reduced-motion}
+- {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-fixes}
+- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
 source_paths: []
 decision_makers:
 - unknown
