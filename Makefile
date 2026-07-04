@@ -152,12 +152,23 @@ vet:
 lint:
 	cd $(SRC_DIR) && go tool golangci-lint run ./...
 
-# Opt-in fidelity backstop: routing-isolation invariant against a REAL app-server
-# (not codex-only). Configure via REACTOR_E2E_CODEX_BIN and/or
-# REACTOR_E2E_APPSERVER_BIN; skips if none set. Validates the in-process fake —
-# see docs/component/component-20260624-client-stream-backend-e2e.md and docs/adr/0002.
+# Opt-in fidelity backstop: real-CLI e2e for the fakes.
+#
+# Configure via REACTOR_E2E_CODEX_BIN / REACTOR_E2E_CLAUDE_BIN /
+# REACTOR_E2E_APPSERVER_BIN; each subtest skips when its binary is not set,
+# so partial configurations are fine. Every fake in this list is validated
+# against the wire form of a real CLI — see:
+#
+#   - docs/adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md
+#     (WebSocket routing, stream/fake)
+#   - docs/adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md
+#     (Claude CLI stream-json + hook, Codex stdio; fakeclaude + fakecodex)
 test-e2e:
-	cd $(SRC_DIR) && go test -tags e2e -run TestStreamRoutingE2E ./client/runtime/subsystem/stream/ -v
+	cd $(SRC_DIR) && go test -tags e2e -v -count=1 \
+		./client/runtime/subsystem/stream/... \
+		./platform/lib/claude/fakeclaude/... \
+		./platform/agent/fakecodex/... \
+		./client/lib/agenthook/...
 
 verify-bridge-deps:
 	@echo "Checking that reactor-bridge does not import client/state, client/uiproc, or platform/features..."

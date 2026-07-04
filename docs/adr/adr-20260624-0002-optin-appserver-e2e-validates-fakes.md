@@ -18,6 +18,8 @@ relations:
 - {type: referencedBy, target: component-20260624-client-stream-backend-testing}
 - {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
+- {type: referencedBy, target: component-20260704-platform-fakecodex}
 source_paths:
 - src/client/runtime/subsystem/stream/
 decision_makers:

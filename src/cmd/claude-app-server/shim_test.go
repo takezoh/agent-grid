@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
 	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/platform/lib/claude/fakeclaude"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
 )
 
@@ -133,33 +134,43 @@ func (c *notificationCollector) nthParams(method string, n int) map[string]any {
 
 // fakeLauncherSequence returns a launcher that, for each successive call,
 // returns the corresponding line sequence from sequences. The last sequence
-// is reused for any extra calls.
+// is reused for any extra calls. Wraps fakeclaude.NewProgrammableLauncher —
+// each invocation appends its own (cwd, resumeID, prompt) into *calls under
+// callsMu, so concurrent launches cannot mis-attribute rows.
 func fakeLauncherSequence(calls *[][]string, sequences ...[]string) claudeLauncher {
-	i := 0
-	var mu sync.Mutex
-	return func(ctx context.Context, cwd, resumeID, sysPrompt, prompt string, extraEnv []string) (io.ReadCloser, func() error, error) {
+	if len(sequences) == 0 {
+		sequences = [][]string{nil}
+	}
+	var (
+		mu      sync.Mutex
+		idx     int
+		callsMu sync.Mutex
+	)
+	fn, _ := fakeclaude.NewProgrammableLauncher(func(a fakeclaude.LaunchArgs) fakeclaude.LaunchResponse {
+		callsMu.Lock()
+		*calls = append(*calls, []string{a.CWD, a.ResumeSessionID, a.Prompt})
+		callsMu.Unlock()
+
 		mu.Lock()
-		idx := i
-		if i < len(sequences)-1 {
-			i++
-		} else {
-			i = len(sequences) - 1
+		i := idx
+		if idx < len(sequences)-1 {
+			idx++
 		}
 		mu.Unlock()
-		*calls = append(*calls, []string{cwd, resumeID, prompt})
-		body := strings.Join(sequences[idx], "\n") + "\n"
-		return io.NopCloser(strings.NewReader(body)), func() error { return nil }, nil
-	}
+		return fakeclaude.LaunchResponse{Lines: sequences[i]}
+	})
+	return claudeLauncher(fn)
 }
 
-// stream-json fixtures.
+// stream-json fixtures — reference the public fakeclaude constants so
+// changes to the wire form live in exactly one place.
 const (
-	lineSystemInit = `{"type":"system","subtype":"init","session_id":"claude-sess-1"}`
-	lineAssistant  = `{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]}}`
-	lineResultOK   = `{"type":"result","subtype":"success","result":"done","is_error":false,"usage":{"input_tokens":10,"output_tokens":5}}`
-	lineResultFail = `{"type":"result","subtype":"error","result":"oops","is_error":true,"usage":{"input_tokens":1,"output_tokens":0}}`
-	lineToolUse    = `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu-1","name":"Bash","input":{"command":"ls"}}]}}`
-	lineToolResult = `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu-1","content":"file1.txt","is_error":false}]}}`
+	lineSystemInit = fakeclaude.LineSystemInit
+	lineAssistant  = fakeclaude.LineAssistant
+	lineResultOK   = fakeclaude.LineResultOK
+	lineResultFail = fakeclaude.LineResultFail
+	lineToolUse    = fakeclaude.LineToolUse
+	lineToolResult = fakeclaude.LineToolResult
 )
 
 func waitForMethods(t *testing.T, nc *notificationCollector, want []string) {

@@ -19,6 +19,7 @@ relations:
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: note-20260624-docs-overview}
 - {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
+- {type: referencedBy, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
 source_paths:
 - src/orchestrator/scheduler/
 - src/client/runtime/

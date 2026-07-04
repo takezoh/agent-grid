@@ -17,7 +17,7 @@ import (
 	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
 	"github.com/takezoh/agent-reactor/orchestrator/workspace"
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	"github.com/takezoh/agent-reactor/platform/agent/fakecodex"
 	"github.com/takezoh/agent-reactor/platform/agentlaunch"
 	"github.com/takezoh/agent-reactor/platform/tracker"
 )
@@ -27,112 +27,67 @@ const (
 	testTurnID   = "turn-xyz"
 )
 
-// fakeServer simulates a codex app-server over an in-memory pipe.
-// It handles initialize, then responds to turn/start by emitting the standard sequence.
+// fakeServer is a thin adapter around fakecodex.Server that preserves the
+// call-site API historic to this test file. The wire behavior comes from
+// platform/agent/fakecodex — validated end-to-end by the codex_appserver_e2e
+// tests. See package doc there for the invariant.
 type fakeServer struct {
-	srv              *codexclient.Server
-	failTurn         bool // if true, emits error instead of turn/completed
-	hangTurn         bool // if true, starts the session but never completes the turn
-	mu               sync.Mutex
-	lastCWD          string          // cwd from the most recent turn/start notification
-	lastMessage      string          // rendered prompt from the most recent turn/start notification
-	lastDynamicTools json.RawMessage // params from the most recent thread/start request
-	lastThreadParams json.RawMessage // full params from the most recent thread/start request
-	lastTurnParams   json.RawMessage // full params from the most recent turn/start notification
-}
-
-func (f *fakeServer) OnNotification(method string, params json.RawMessage) {
-	if method != codexschema.MethodTurnStart {
-		return
-	}
-
-	// Capture cwd, rendered prompt, and full params for test assertions.
-	var p struct {
-		CWD     string `json:"cwd"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal(params, &p); err == nil {
-		f.mu.Lock()
-		f.lastCWD = p.CWD
-		f.lastMessage = p.Message
-		f.mu.Unlock()
-	}
-	f.mu.Lock()
-	f.lastTurnParams = params
-	fail := f.failTurn
-	hang := f.hangTurn
-	f.mu.Unlock()
-
-	_ = f.srv.EmitThreadStarted(testThreadID, "/ws")
-	_ = f.srv.EmitTurnStarted(testThreadID, testTurnID)
-	switch {
-	case hang:
-		// session is live but the turn never resolves — exercises turn_timeout_ms.
-	case fail:
-		_ = f.srv.EmitTurnFailed(testThreadID, "simulated failure")
-	default:
-		_ = f.srv.EmitTurnCompleted(testThreadID, testTurnID, "done")
-	}
+	failTurn bool // if true, emits error instead of turn/completed
+	hangTurn bool // if true, starts the session but never completes the turn
+	srv      *fakecodex.Server
 }
 
 func (f *fakeServer) getLastCWD() string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.lastCWD
+	if f.srv == nil {
+		return ""
+	}
+	return f.srv.LastCWD()
 }
 
 func (f *fakeServer) getLastMessage() string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.lastMessage
+	if f.srv == nil {
+		return ""
+	}
+	return f.srv.LastMessage()
 }
 
 func (f *fakeServer) getLastThreadParams() json.RawMessage {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.lastThreadParams
+	if f.srv == nil {
+		return nil
+	}
+	return f.srv.LastThreadParams()
 }
 
 func (f *fakeServer) getLastTurnParams() json.RawMessage {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.lastTurnParams
-}
-
-func (f *fakeServer) OnServerRequest(id int64, method string, params json.RawMessage) {
-	switch method {
-	case codexschema.MethodInitialize:
-		_ = f.srv.Conn().Reply(id, map[string]any{})
-	case codexschema.MethodThreadStart:
-		f.mu.Lock()
-		f.lastDynamicTools = params
-		f.lastThreadParams = params
-		f.mu.Unlock()
-		_ = f.srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": testThreadID}})
+	if f.srv == nil {
+		return nil
 	}
+	return f.srv.LastTurnParams()
 }
 
-// makeFakeProc returns a spawnFunc that wires runner ↔ fakeServer via io.Pipe.
+// makeFakeProc returns a spawnFunc that wires runner ↔ fakecodex.Server via
+// io.Pipe. The runner reads pr1 and writes pw2; the fake server reads pr2
+// and writes pw1. ctx-cancel closes pw1 so the runner's stdout EOFs like a
+// dying subprocess.
 func makeFakeProc(fs *fakeServer) spawnFunc {
-	return func(ctx context.Context, w agentlaunch.WrappedLaunch, _ agentlaunch.SpawnOptions) (agentlaunch.SpawnResult, error) {
-		// runner reads pr1; server reads pr2
+	return func(ctx context.Context, _ agentlaunch.WrappedLaunch, _ agentlaunch.SpawnOptions) (agentlaunch.SpawnResult, error) {
 		pr1, pw1 := io.Pipe()
 		pr2, pw2 := io.Pipe()
 
-		serverConn := codexclient.NewConn(
-			codexclient.StdioTransport(pr2, pw1),
-			2*time.Second,
-		)
-		fs.srv = codexclient.NewServer(serverConn)
+		cfg := fakecodex.Config{
+			ThreadID: testThreadID,
+			TurnID:   testTurnID,
+			HangTurn: fs.hangTurn,
+		}
+		if fs.failTurn {
+			cfg.Handler = fakecodex.FailingTurnHandler("simulated failure")
+		}
+		fs.srv = fakecodex.New(cfg)
 
 		go func() {
 			defer pw2.Close()
-			_ = serverConn.Run(ctx, fs)
+			_ = fs.srv.Serve(ctx, codexclient.StdioTransport(pr2, pw1))
 		}()
-
-		// The stdio transport is not context-aware; emulate process death on
-		// cancellation by closing the runner's read end so its loop sees EOF
-		// (a real subprocess dies and EOFs its stdout the same way).
 		go func() {
 			<-ctx.Done()
 			_ = pw1.Close()
@@ -673,9 +628,7 @@ func TestSpawn_startTurnUsesWrappedStartDir_directFallback(t *testing.T) {
 // client is configured (§10.5), and advertise none when it is not.
 func threadStartDynamicTools(t *testing.T, fs *fakeServer) []map[string]any {
 	t.Helper()
-	fs.mu.Lock()
-	raw := fs.lastDynamicTools
-	fs.mu.Unlock()
+	raw := fs.getLastThreadParams()
 	require.NotEmpty(t, raw, "thread/start should have been sent")
 	var p struct {
 		DynamicTools []map[string]any `json:"dynamicTools"`
