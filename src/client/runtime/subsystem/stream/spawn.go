@@ -32,6 +32,7 @@ func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *st
 		if err != nil {
 			return agentlaunch.SpawnResult{}, errBuf, fmt.Errorf("stream backend: dispatch wrap: %w", err)
 		}
+		b.setSpawnCleanup(wrapped.Cleanup)
 	} else {
 		wrapped = agentlaunch.WrappedLaunch{Argv: argv}
 	}
@@ -47,6 +48,9 @@ func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *st
 		InheritEnv: true,
 		Stderr:     newPrefixWriter(errBuf, 8192),
 	})
+	if err != nil {
+		b.cleanupSpawn(context.Background())
+	}
 	return res, errBuf, err
 }
 

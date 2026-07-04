@@ -70,29 +70,31 @@ type RuntimeHook interface {
 // pending at a time so the incoming thread has an unambiguous owner. See
 // docs/adr/0081-codex-frame-init-serialize.md.
 type Backend struct {
-	runtime     RuntimeHook
-	dispatcher  agentlaunch.Dispatcher
-	subsystemID state.SubsystemID
-	sessionID   state.SessionID
-	project     string
-	serverBin   string
-	serverArgs  []string
-	model       string
-	sandboxed   bool
-	autoApprove bool
-	readTimeout time.Duration
-	ctx         context.Context    // subsystem-scoped; child of the daemon ctx
-	cancel      context.CancelFunc // cancels ctx → reaps read loop + process group
-	done        chan struct{}      // closed when waitProcess returns (process reaped)
-	tracker     *procgroup.Tracker // records pgids for crash-path reaping; may be nil
-	spawnRes    agentlaunch.SpawnResult
-	conn        *codexclient.Conn
-	listenSock  string // UDS path the app-server binds (container-absolute under a devcontainer)
-	dialSock    string // host-side UDS path the daemon dials; resolved from listenSock + bind mounts in spawnServer
-	mounts      pathmap.Mounts
-	mu          sync.Mutex
-	frames      map[state.FrameID]*frameBinding
-	threads     map[string]state.FrameID
+	runtime      RuntimeHook
+	dispatcher   agentlaunch.Dispatcher
+	subsystemID  state.SubsystemID
+	sessionID    state.SessionID
+	project      string
+	serverBin    string
+	serverArgs   []string
+	model        string
+	sandboxed    bool
+	autoApprove  bool
+	readTimeout  time.Duration
+	ctx          context.Context    // subsystem-scoped; child of the daemon ctx
+	cancel       context.CancelFunc // cancels ctx → reaps read loop + process group
+	done         chan struct{}      // closed when waitProcess returns (process reaped)
+	tracker      *procgroup.Tracker // records pgids for crash-path reaping; may be nil
+	spawnRes     agentlaunch.SpawnResult
+	spawnCleanup func(context.Context) error
+	spawnCleaned sync.Once
+	conn         *codexclient.Conn
+	listenSock   string // UDS path the app-server binds (container-absolute under a devcontainer)
+	dialSock     string // host-side UDS path the daemon dials; resolved from listenSock + bind mounts in spawnServer
+	mounts       pathmap.Mounts
+	mu           sync.Mutex
+	frames       map[state.FrameID]*frameBinding
+	threads      map[string]state.FrameID
 	// initState serializes fresh (non-resume) frame init. Holds a single
 	// pending slot at a time (see initsem.go). Replaces the earlier
 	// chan pendingSlot design whose drain-check-put-back non-atomicity was
@@ -176,6 +178,7 @@ func (b *Backend) Start(ctx context.Context) error {
 		// goroutine has flushed everything into serverErr, so the captured
 		// output reflects what the app-server printed before it died.
 		_ = res.Wait()
+		b.cleanupSpawn(context.Background())
 		slog.Error("stream backend: app-server dial failed",
 			"subsystem", b.subsystemID, "sock", b.dialSock,
 			"stderr", strings.TrimSpace(serverErr.String()))
@@ -199,6 +202,7 @@ func (b *Backend) Start(ctx context.Context) error {
 		// dial-failure path; otherwise the process is orphaned (waitProcess
 		// is not started on this path and the pgid was never tracked).
 		_ = res.Wait()
+		b.cleanupSpawn(context.Background())
 		return err
 	}
 	b.trackProcessGroups()
@@ -401,6 +405,26 @@ func (b *Backend) Stop(_ context.Context) {
 	case <-time.After(stopGrace):
 		slog.Warn("stream backend: Stop timed out waiting for reap", "subsystem", b.subsystemID)
 	}
+	b.cleanupSpawn(context.Background())
+}
+
+func (b *Backend) setSpawnCleanup(fn func(context.Context) error) {
+	if fn == nil {
+		return
+	}
+	b.spawnCleanup = fn
+}
+
+func (b *Backend) cleanupSpawn(ctx context.Context) {
+	if b.spawnCleanup == nil {
+		return
+	}
+	b.spawnCleaned.Do(func() {
+		if err := b.spawnCleanup(ctx); err != nil {
+			slog.Warn("stream backend: app-server sandbox cleanup failed",
+				"subsystem", b.subsystemID, "err", err)
+		}
+	})
 }
 
 // OnNotification implements codexclient.Handler.

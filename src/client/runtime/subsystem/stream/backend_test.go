@@ -2,6 +2,10 @@ package stream
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +18,35 @@ type fakeRuntime struct {
 }
 
 func (f *fakeRuntime) Enqueue(e state.Event) { f.events = append(f.events, e) }
+
+type cleanupDispatcher struct {
+	argv         []string
+	cleanupCalls atomic.Int32
+	cleanupErr   error
+}
+
+func (d *cleanupDispatcher) Wrap(_ context.Context, _ string, plan agentlaunch.LaunchPlan) (agentlaunch.WrappedLaunch, error) {
+	argv := d.argv
+	if len(argv) == 0 {
+		argv = plan.Argv
+	}
+	return agentlaunch.WrappedLaunch{
+		Argv:     argv,
+		StartDir: plan.StartDir,
+		Cleanup: func(context.Context) error {
+			d.cleanupCalls.Add(1)
+			return d.cleanupErr
+		},
+	}, nil
+}
+
+func (d *cleanupDispatcher) AdoptFrame(context.Context, string, string) (func(context.Context) error, []agentlaunch.Mount, error) {
+	return nil, nil, nil
+}
+
+func (d *cleanupDispatcher) EnsureProject(context.Context, string) error { return nil }
+
+func (d *cleanupDispatcher) IsContainer(string) bool { return true }
 
 func TestStopBeforeStartIsNoop(t *testing.T) {
 	b, _ := newTestBackend()
@@ -40,6 +73,98 @@ func TestStopCancelsAndWaitsForReap(t *testing.T) {
 	case <-b.done:
 	default:
 		t.Fatal("Stop returned before done was closed")
+	}
+}
+
+func TestStopRunsAppServerCleanupOnce(t *testing.T) {
+	b, _ := newTestBackend()
+	dispatcher := &cleanupDispatcher{}
+	b.dispatcher = dispatcher
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.done = make(chan struct{})
+	wrapped, err := dispatcher.Wrap(context.Background(), "", agentlaunch.LaunchPlan{})
+	if err != nil {
+		t.Fatalf("Wrap: %v", err)
+	}
+	b.setSpawnCleanup(wrapped.Cleanup)
+	go func() {
+		<-b.ctx.Done()
+		close(b.done)
+	}()
+
+	b.Stop(context.Background())
+	b.Stop(context.Background())
+
+	if got := dispatcher.cleanupCalls.Load(); got != 1 {
+		t.Fatalf("cleanup calls = %d, want 1", got)
+	}
+}
+
+func TestStopLogsAndSuppressesCleanupError(t *testing.T) {
+	b, _ := newTestBackend()
+	dispatcher := &cleanupDispatcher{cleanupErr: errors.New("cleanup failed")}
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.done = make(chan struct{})
+	wrapped, err := dispatcher.Wrap(context.Background(), "", agentlaunch.LaunchPlan{})
+	if err != nil {
+		t.Fatalf("Wrap: %v", err)
+	}
+	b.setSpawnCleanup(wrapped.Cleanup)
+	close(b.done)
+
+	b.Stop(context.Background())
+
+	if got := dispatcher.cleanupCalls.Load(); got != 1 {
+		t.Fatalf("cleanup calls = %d, want 1", got)
+	}
+}
+
+func TestSpawnServerRunsCleanupWhenProcessStartFails(t *testing.T) {
+	b, _ := newTestBackend()
+	dispatcher := &cleanupDispatcher{argv: []string{filepath.Join(t.TempDir(), "missing-app-server")}}
+	b.dispatcher = dispatcher
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	defer b.cancel()
+
+	_, _, err := b.spawnServer(context.Background())
+	if err == nil {
+		t.Fatal("spawnServer must fail for a missing app-server binary")
+	}
+	if got := dispatcher.cleanupCalls.Load(); got != 1 {
+		t.Fatalf("cleanup calls = %d, want 1", got)
+	}
+}
+
+func TestStartRunsCleanupWhenInitializeFails(t *testing.T) {
+	dispatcher := &cleanupDispatcher{}
+	sock := filepath.Join(t.TempDir(), "codex-x.sock")
+	b := New(&fakeRuntime{}, dispatcher, "sid", "sess1", "/p",
+		os.Args[0], []string{"--mode", "initfail"}, "", false, false,
+		sock, 3*time.Second)
+
+	err := b.Start(context.Background())
+	if err == nil {
+		t.Fatal("Start must fail when initialize fails")
+	}
+	if got := dispatcher.cleanupCalls.Load(); got != 1 {
+		t.Fatalf("cleanup calls = %d, want 1", got)
+	}
+}
+
+func TestStartThenStopRunsRegisteredCleanup(t *testing.T) {
+	dispatcher := &cleanupDispatcher{}
+	sock := filepath.Join(t.TempDir(), "codex-x.sock")
+	b := New(&fakeRuntime{}, dispatcher, "sid", "sess1", "/p",
+		os.Args[0], []string{"--mode", "ok"}, "", false, false,
+		sock, 3*time.Second)
+
+	if err := b.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	b.Stop(context.Background())
+
+	if got := dispatcher.cleanupCalls.Load(); got != 1 {
+		t.Fatalf("cleanup calls = %d, want 1", got)
 	}
 }
 
