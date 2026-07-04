@@ -1,7 +1,7 @@
 # server プロセスが VT emulator の `InsertLineArea` bounds bug で panic して死ぬ
 
 - 作成日: 2026-07-02
-- 改訂: 2026-07-02 (修正方針を「三層防御」→「構造起点の最小集合」に revise、codex MCP による多段検証を反映)
+- 改訂: 2026-07-04 (同一 stack の再発を追記)
 - 対象 process: `agent-reactor-server`
 - 関係 module: `src/platform/termvt`, `github.com/charmbracelet/ultraviolet`, `github.com/charmbracelet/x/vt`
 - 現状: 未修正 (crash パスは残存、trigger が引かれないだけで動いている)
@@ -30,7 +30,7 @@ Session actor 側に `defer recover()` が無いためプロセス全体が exit
 
 ## Symptoms
 
-### Panic 実例 (2 回、両方同一 stack)
+### Panic 実例 (3 回、同一 stack)
 
 ```
 panic: runtime error: index out of range [63] with length 63
@@ -61,9 +61,22 @@ Jul 01 15:58:21 agent-reactor-server.service: Main process exited, code=exited, 
 Jul 01 15:58:23 Scheduled restart job, restart counter is at 1.
 Jul 01 16:07:37 Main process exited, code=exited, status=2/INVALIDARGUMENT
 Jul 01 16:07:39 Scheduled restart job, restart counter is at 2.
+Jul 04 11:05:00 Main process exited, code=exited, status=2/INVALIDARGUMENT
+Jul 04 11:05:02 Scheduled restart job, restart counter is at 1.
 ```
 
 `agent-reactor-web.service` は `BindsTo=agent-reactor-server.service` により停止するが、web の exit code は 0 なので `Restart=on-failure` に該当せず、web は **inactive のまま放置** される。手動 `systemctl --user start agent-reactor-web.service` が必要。これは crash とは独立の 2 次被害 (後述の構造的欠陥 §4)。
+
+### 2026-07-04 再発の補足
+
+`2026-07-04T11:05:00Z` に同一 stack で再発。直前の流れ:
+
+- `11:04:59.335Z`: session `622284eab625f6f1a62e5840` 作成 (`/home/dev/dev/agent-grid`)
+- `11:04:59.782Z`: frame `c07498962e9c97a8a77543ae` spawn
+- `11:05:00.204Z`: Codex thread `019f2ccd-9be8-7582-9307-8dd4be796742` を capture
+- `11:05:00.211Z` 直後: `platform/termvt.(*Session).processChunk` の `ls.em.Write(chunk)` 経由で `InsertLineArea` panic
+
+今回の service は `Restart=on-failure` により `11:05:02Z` に自動復旧。再起動後、cold-start recovery は該当 session を復元しようとしたが、Codex local session source に thread row がなく、`codex cold-start resume requires a usable rollout_path` で当該 session は incomplete → frame vanished として整理された。crash 原因自体は既存分析と同じ `x/vt` / `ultraviolet` bounds invariant 欠落。
 
 ## 検証済みの証拠
 
@@ -342,9 +355,12 @@ crash 自体の直接原因は上流 lib bug だが、**被害が silent corrupt
 - **上流 HEAD (2026-06-22 `f39628c8`)**: `buffer.go` 未修正で同じコード。`go get -u` では直らない
 - **`SetLogger` / `Screen.buf` wrap / library 全替**: いずれも該当バグに無効か過剰コスト (§修正方針 の「明示的に採用しない案」参照)
 
-### 現状の live server 状態 (作成セッション時点)
+### 現状の live server 状態 (2026-07-04 追記)
 
-- 07-02 01:26:42 に手動再起動 (binary は observability log 追加分の rebuild)、以降 crash なし
+- 07-04 11:05:00 に同一 stack で再発。systemd が 07-04 11:05:02 に自動再起動し、その後は `active/running`
+- 再発時の直前 trigger は `/home/dev/dev/agent-grid` の新規 Codex session `622284eab625f6f1a62e5840` / frame `c07498962e9c97a8a77543ae`
+- 再起動後、該当 session は cold-start recovery の rollout path 不備で incomplete のまま整理された
+- 07-02 01:26:42 に手動再起動 (binary は observability log 追加分の rebuild)
 - 07-02 01:47:50 の新規 worktree codex spawn (`profound-goblin`, thread `019f2082-cbd4-...`) は panic なしで稼働継続
 - 依然として race 経路は残存、trigger を引かないだけの状態
 - ライブラリ pin: `ultraviolet@v0.0.0-20260303162955-0b88c25f3fff`, `x/vt@v0.0.0-20260615091924-bb3af1bbe712`, `x/ansi@v0.11.7` (`src/go.mod`)
