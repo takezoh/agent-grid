@@ -18,7 +18,9 @@ relations:
 - {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-fixes}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
-source_paths: []
+source_paths:
+- src/client/web/src/components/TerminalPane.tsx
+- src/client/web/src/App.tsx
 decision_makers:
 - unknown
 ---

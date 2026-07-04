@@ -22,7 +22,10 @@ relations:
 - {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- src/client/web/src/hooks/useTerminalTouchGestures.ts
+- src/client/web/src/css/view.css
+- src/client/web/src/components/TerminalPane.tsx
 decision_makers:
 - unknown
 ---

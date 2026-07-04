@@ -26,7 +26,15 @@ relations:
 - {type: references, target: adr-20260624-0033-display-label-empty-policy}
 - {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
 - {type: references, target: plan-20260624-2026-06-24-web-ui-fixes}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/client/web/src/wire/server.ts
+- src/client/web/src/components/LogTabs.tsx
+- src/client/web/src/css/app.css
+- src/client/web/src/components/TerminalPane.tsx
+- src/client/web/src/App.tsx
+- src/client/web/src/components/RunStateBadge.tsx
+- src/client/web/src/css/view.css
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []

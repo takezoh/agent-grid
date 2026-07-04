@@ -25,7 +25,10 @@ relations:
 - {type: references, target: ux-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- src/client/web/src/components/TerminalPane.tsx
+- AGENTS.md
+- src/client/web/src/
 decision_makers:
 - unknown
 ---

@@ -11,7 +11,8 @@ tags:
 owners: []
 relations:
 - {type: referencedBy, target: note-20260624-technical-web-gateway}
-source_paths: []
+source_paths:
+- src/client/proto/
 decision_makers:
 - unknown
 ---

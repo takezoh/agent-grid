@@ -37,7 +37,15 @@ relations:
 - {type: references, target: adr-20260624-0047-palette-disabledreason-single-source}
 - {type: references, target: spec-20260624-2026-06-24-web-ui-command-palette}
 - {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-command-palette}
-source_paths: []
+source_paths:
+- src/client/web/src/components/palette/ToolSelectPhase.tsx
+- src/client/web/src/components/palette/ParamSelectPhase.tsx
+- src/client/web/src/store/palette.ts
+- src/client/web/src/lib/tools.ts
+- src/client/web/src/lib/fuzzy.ts
+- src/client/web/src/hooks/useGlobalHotkey.ts
+- src/client/web/src/hooks/useFocusTrap.ts
+- src/client/web/src/api/sessions.ts
 goal: Plan — Web UI Command Palette
 scope_in: []
 scope_out: []

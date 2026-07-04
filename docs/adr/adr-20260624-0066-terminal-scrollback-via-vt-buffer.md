@@ -20,7 +20,15 @@ relations:
 - {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260626-2026-06-26-terminal-scrollback}
-source_paths: []
+source_paths:
+- src/platform/termvt/session.go
+- src/platform/termvt/session_actor.go
+- src/platform/termvt/session_deps.go
+- src/client/runtime/pty_backend.go
+- src/client/config/config.go
+- src/client/web/src/components/TerminalPane.tsx
+- src/cmd/server/coordinator.go
+- src/server/web/transcript.go
 decision_makers:
 - unknown
 ---

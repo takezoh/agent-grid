@@ -26,7 +26,15 @@ relations:
 - {type: references, target: spec-20260625-2026-06-25-web-ui-redesign}
 - {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
 - {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/client/web/src/css/tokens.css
+- src/client/web/src/store/theme.ts
+- src/client/web/src/components/ThemeProvider.tsx
+- src/client/web/src/components/primitives/SegmentedControl.tsx
+- src/client/web/src/components/ThemeSegmentedControl.tsx
+- src/client/web/src/components/primitives/UnifiedListbox.tsx
+- src/client/web/src/components/AppShell.tsx
 goal: Plan — Web UI 全面刷新
 scope_in: []
 scope_out: []

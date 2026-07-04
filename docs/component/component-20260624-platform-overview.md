@@ -22,7 +22,15 @@ relations:
 - {type: referencedBy, target: note-20260624-docs-overview}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/platform/sandbox/
+- src/platform/hostexec/
+- src/platform/mcpproxy/
+- src/platform/pathmap/
+- src/platform/logger/
+- src/platform/lib/
+- src/platform/tracker/
+- src/platform/metrics/
 provides:
 - platform-shared-infrastructure
 ---

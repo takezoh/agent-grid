@@ -18,7 +18,9 @@ relations:
 - {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
 - {type: referencedBy, target: note-20260624-agent-testing}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
-source_paths: []
+source_paths:
+- src/platform/termvt/
+- src/server/web/
 decision_makers:
 - unknown
 ---

@@ -14,7 +14,9 @@ relations:
 - {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
 - {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
 - {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
-source_paths: []
+source_paths:
+- src/platform/termvt/
+- src/client/runtime/
 decision_makers:
 - unknown
 ---

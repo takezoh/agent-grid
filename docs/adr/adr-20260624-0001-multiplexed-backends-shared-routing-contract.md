@@ -19,7 +19,9 @@ relations:
 - {type: referencedBy, target: adr-20260624-0081-codex-frame-init-serialize}
 - {type: referencedBy, target: component-20260624-client-stream-backend-testing}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
-source_paths: []
+source_paths:
+- src/client/runtime/subsystem/stream/
+- ARCHITECTURE.md
 decision_makers:
 - unknown
 ---

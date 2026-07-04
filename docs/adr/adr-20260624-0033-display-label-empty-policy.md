@@ -16,7 +16,10 @@ relations:
 - {type: referencedBy, target: adr-20260624-0076-session-card-title-subtitle-two-slot}
 - {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-fixes}
 - {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
-source_paths: []
+source_paths:
+- src/client/driver/claude_view.go
+- src/client/web/src/components/SessionList.tsx
+- src/client/web/src/components/DriverViewPanel.tsx
 decision_makers:
 - unknown
 ---

@@ -28,7 +28,11 @@ relations:
 - {type: references, target: spec-20260625-2026-06-25-web-palette-redesign}
 - {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
 - {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/client/web/src/components/palette/
+- src/client/web/src/store/
+- src/client/web/src/lib/tools.ts
 goal: Plan — Web UI コマンドパレット 再設計
 scope_in: []
 scope_out: []

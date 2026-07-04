@@ -16,7 +16,9 @@ relations:
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: implementedBy, target: spec-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- src/client/web/src/components/TerminalPane.tsx
+- src/client/web/src/css/
 goal: Web UI ターミナルタブ (TerminalPane) のモバイル UX を「閲覧モード (デフォルト) / 入力モード」に明示分離し、(a) タップで仮想キーボードが勝手に出ない、(b)
   指スワイプで scrollback がスクロールしつつ long-press で文字選択を維持、(c) キーボード FAB で明示的に入力モードへ、(d) scrollback
   中だけ ↓最新 FAB、(e) 2 本指ピンチ + 支援技術向けステッパで fontSize 変更 + refit、を観測可能な振る舞いとして実現する。PC (keyboard

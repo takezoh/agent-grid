@@ -19,7 +19,10 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
 - {type: referencedBy, target: note-20260624-user-orchestrator}
-source_paths: []
+source_paths:
+- WORKFLOW.md
+- src/orchestrator/workflowfile/
+- src/orchestrator/prompt/
 topic: agent
 ---
 

@@ -33,7 +33,11 @@ relations:
 - {type: references, target: spec-20260626-web-terminal-mobile-ux}
 - {type: references, target: ux-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- AGENTS.md
+- src/client/web/src/components/
+- src/client/web/src/components/TerminalPane.tsx
+- src/client/web/src/css/
 goal: Web UI Terminal Mobile UX — Implementation Plan
 scope_in: []
 scope_out: []

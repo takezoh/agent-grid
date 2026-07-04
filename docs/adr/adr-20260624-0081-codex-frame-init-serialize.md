@@ -15,7 +15,8 @@ relations:
 - {type: referencedBy, target: component-20260624-client-overview}
 - {type: referencedBy, target: component-20260624-client-process-model}
 - {type: referencedBy, target: component-20260624-client-stream-backend-testing}
-source_paths: []
+source_paths:
+- src/client/runtime/subsystem/stream/
 decision_makers:
 - unknown
 ---

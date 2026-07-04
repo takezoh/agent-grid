@@ -17,7 +17,10 @@ relations:
 - {type: references, target: note-20260624-agent-testing}
 - {type: references, target: note-20260624-agent-workflow-authoring}
 - {type: referencedBy, target: note-20260624-docs-overview}
-source_paths: []
+source_paths:
+- WORKFLOW.md
+- AGENTS.md
+- ARCHITECTURE.md
 topic: agent
 ---
 

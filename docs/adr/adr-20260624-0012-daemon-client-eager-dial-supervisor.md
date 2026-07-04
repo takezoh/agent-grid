@@ -12,7 +12,9 @@ owners: []
 relations:
 - {type: references, target: adr-20260624-0011-two-step-ws-close-on-daemon-disconnect}
 - {type: referencedBy, target: note-20260624-technical-web-gateway}
-source_paths: []
+source_paths:
+- src/cmd/server/
+- src/server/web/
 decision_makers:
 - unknown
 ---

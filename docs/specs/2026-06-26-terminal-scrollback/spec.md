@@ -13,7 +13,10 @@ relations:
 - {type: references, target: adr-20260624-0010-surface-output-sequence-per-subscribe}
 - {type: references, target: adr-20260624-0025-transcript-rest-backfill-then-ws-tail}
 - {type: references, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
-source_paths: []
+source_paths:
+- src/platform/termvt/
+- src/client/config/
+- src/client/web/src/components/TerminalPane.tsx
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []

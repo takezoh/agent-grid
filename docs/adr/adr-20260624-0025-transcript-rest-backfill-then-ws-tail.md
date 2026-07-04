@@ -14,7 +14,8 @@ relations:
 - {type: referencedBy, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
 - {type: referencedBy, target: note-20260624-technical-web-gateway}
 - {type: referencedBy, target: spec-20260626-2026-06-26-terminal-scrollback}
-source_paths: []
+source_paths:
+- src/server/web/
 decision_makers:
 - unknown
 ---

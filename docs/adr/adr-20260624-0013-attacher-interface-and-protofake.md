@@ -12,7 +12,11 @@ tags:
 owners: []
 relations:
 - {type: referencedBy, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
-source_paths: []
+source_paths:
+- src/server/web/gateway.go
+- src/client/proto/
+- src/client/proto/protofake/
+- src/server/web/
 decision_makers:
 - unknown
 ---

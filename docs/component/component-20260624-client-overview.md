@@ -21,7 +21,15 @@ relations:
 - {type: referencedBy, target: note-20260624-docs-overview}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/cmd/server/
+- src/server/web/
+- ARCHITECTURE.md
+- src/client/state/
+- src/client/runtime/
+- src/client/state/view/
+- src/client/driver/
 provides:
 - client-agent-reactor-client-session-lifecycle-manager
 ---

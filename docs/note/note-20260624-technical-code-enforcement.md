@@ -27,7 +27,15 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- ARCHITECTURE.md
+- src/.golangci.yml
+- src/platform/lib/
+- src/client/driver/vt/
+- src/client/state/
+- src/orchestrator/scheduler/
+- src/gorules/purecore.go
+- src/platform/features/features.go
 topic: technical
 ---
 

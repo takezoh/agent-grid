@@ -18,7 +18,13 @@ relations:
 - {type: referencedBy, target: component-20260624-platform-spawn-and-launch}
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/platform/credproxy/
+- src/platform/hostexec/
+- src/platform/mcpproxy/
+- src/platform/secretenv/
+- src/platform/secretenv/broker.go
+- src/platform/secretenv/gate.go
 provides:
 - brokers-host-mediation-and-policy-enforcement
 ---

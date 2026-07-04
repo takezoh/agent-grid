@@ -15,7 +15,8 @@ relations:
 - {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
 - {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
 - {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
-source_paths: []
+source_paths:
+- src/client/web/src/
 decision_makers:
 - unknown
 ---

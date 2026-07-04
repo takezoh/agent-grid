@@ -10,7 +10,8 @@ tags:
 - legacy-import
 owners: []
 relations: []
-source_paths: []
+source_paths:
+- src/cmd/server/
 decision_makers:
 - unknown
 ---

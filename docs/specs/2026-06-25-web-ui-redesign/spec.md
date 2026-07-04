@@ -27,7 +27,14 @@ relations:
 - {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
 - {type: references, target: plan-20260625-2026-06-25-web-ui-redesign}
 - {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/client/web/src/css/tokens.css
+- src/client/web/src/util/contrast.ts
+- src/client/web/src/store/theme.ts
+- src/client/web/src/css/
+- src/client/web/src/
+- src/client/web/src/components/
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []

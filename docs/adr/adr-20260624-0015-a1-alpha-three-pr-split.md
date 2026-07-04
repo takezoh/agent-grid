@@ -10,7 +10,13 @@ tags:
 - legacy-import
 owners: []
 relations: []
-source_paths: []
+source_paths:
+- src/client/proto/
+- src/client/state/
+- src/client/runtime/
+- src/server/web/
+- src/cmd/server/
+- src/platform/socketpath/
 decision_makers:
 - unknown
 ---

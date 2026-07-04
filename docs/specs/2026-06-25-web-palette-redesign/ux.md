@@ -23,7 +23,11 @@ relations:
 - {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
 - {type: implementedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
 - {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/client/web/src/components/palette/
+- src/client/web/src/store/
+- src/client/web/src/lib/tools.ts
 goal: Web UI コマンドパレットを Web UX に最適化し、scope 統合 / disabled visible / chip 3 経路 toggle
   / hover follow / active context header / push 送信先明示 toast の 6 点を観測可能な振る舞いとして再設計する
   (案 A 最小)。

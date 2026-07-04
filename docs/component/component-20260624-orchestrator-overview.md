@@ -27,7 +27,15 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
 - {type: referencedBy, target: note-20260624-user-orchestrator}
-source_paths: []
+source_paths:
+- WORKFLOW.md
+- src/orchestrator/workflowfile/
+- src/orchestrator/wfconfig/
+- src/orchestrator/scheduler/
+- src/orchestrator/tracker/
+- src/platform/tracker/linear/
+- src/orchestrator/workspace/
+- src/orchestrator/agent/
 provides:
 - orchestrator-symphony-spec-implementation
 ---

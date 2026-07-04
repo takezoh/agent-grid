@@ -20,7 +20,14 @@ relations:
 - {type: references, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
 - {type: references, target: spec-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- src/client/web/src/hooks/useTerminalTouchGestures.ts
+- src/client/web/src/components/TerminalMobileOverlay.tsx
+- src/client/web/src/components/TerminalPane.tsx
+- src/platform/termvt/session.go
+- src/client/web/src/css/font-size-control.css
+- src/client/web/src/css/view.css
+- src/client/web/src/
 decision_makers:
 - unknown
 ---

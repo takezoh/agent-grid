@@ -20,7 +20,11 @@ relations:
 - {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
 - {type: implementedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
 - {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/client/web/src/
+- src/client/web/src/components/
+- src/client/web/src/css/
 goal: agent-reactor-new の Web client (src/client/web) を、情報設計・認知負荷・一貫性・アクセシビリティ・ 既存プラットフォーム慣習の観点でモダンに全面刷新する。PC
   / スマホ / タブレットの 3 デバイスすべてで 破綻しない適応レイアウトを実現し、デザイントークン体系 + タイポグラフィ階層 + WCAG AA コントラストを
   確立し、コマンドパレットで熟成済みの視覚言語・a11y パターン (unified listbox / focus trap / 単一 aria-live slot

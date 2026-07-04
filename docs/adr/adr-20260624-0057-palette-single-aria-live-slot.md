@@ -19,7 +19,8 @@ relations:
 - {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
-source_paths: []
+source_paths:
+- src/client/web/src/
 decision_makers:
 - unknown
 ---

@@ -17,7 +17,11 @@ relations:
 - {type: references, target: spec-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- src/client/web/src/hooks/useCoachmarkOnce.ts
+- src/client/web/src/components/Coachmark.tsx
+- src/client/web/src/css/view.css
+- src/client/web/src/components/
 decision_makers:
 - unknown
 ---

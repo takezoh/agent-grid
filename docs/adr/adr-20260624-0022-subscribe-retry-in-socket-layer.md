@@ -12,7 +12,8 @@ tags:
 owners: []
 relations:
 - {type: references, target: adr-20260624-0018-defer-subscribe-race-to-beta}
-source_paths: []
+source_paths:
+- src/client/web/src/socket/retry.ts
 decision_makers:
 - unknown
 ---

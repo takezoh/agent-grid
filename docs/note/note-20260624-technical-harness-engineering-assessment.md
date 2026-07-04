@@ -16,7 +16,15 @@ relations:
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/platform/agent/codexclient/
+- WORKFLOW.md
+- AGENTS.md
+- src/orchestrator/agent/runner.go
+- src/cmd/claude-app-server/turn.go
+- src/cmd/claude-app-server/toolbridge.go
+- src/orchestrator/agent/runner_test.go
+- scripts/check-coverage.sh
 topic: technical
 ---
 

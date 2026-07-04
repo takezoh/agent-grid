@@ -14,7 +14,10 @@ relations:
 - {type: references, target: spec-20260625-2026-06-25-palette-bugfix}
 - {type: referencedBy, target: plan-20260625-2026-06-25-palette-bugfix}
 - {type: referencedBy, target: spec-20260625-2026-06-25-palette-bugfix}
-source_paths: []
+source_paths:
+- src/client/web/src/__meta__/no-japanese.test.ts
+- src/client/web/src/
+- AGENTS.md
 decision_makers:
 - unknown
 ---

@@ -19,7 +19,15 @@ relations:
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: note-20260624-docs-overview}
 - {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
-source_paths: []
+source_paths:
+- src/orchestrator/scheduler/
+- src/client/runtime/
+- src/platform/termvt/
+- src/server/web/
+- Makefile
+- scripts/check-coverage.sh
+- scripts/coverage-floors.txt
+- src/cmd/reactor-bridge/
 topic: agent
 ---
 

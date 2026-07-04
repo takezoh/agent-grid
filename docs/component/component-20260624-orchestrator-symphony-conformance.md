@@ -16,7 +16,15 @@ relations:
 - {type: referencedBy, target: note-20260624-agent-workflow-authoring}
 - {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/cmd/orchestrator/
+- WORKFLOW.md
+- src/orchestrator/tracker/
+- src/platform/tracker/linear/
+- src/cmd/claude-app-server/
+- src/platform/metrics/
+- src/orchestrator/httpserver/
+- src/orchestrator/workflowfile/
 provides:
 - symphony-spec-conformance
 ---

@@ -17,7 +17,11 @@ relations:
 - {type: referencedBy, target: component-20260624-client-overview}
 - {type: referencedBy, target: component-20260624-client-state-monitoring}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/platform/termvt/
+- ARCHITECTURE.md
+- src/client/proto/
+- src/client/proto/sessions/
 provides:
 - inter-process-communication-ipc-and-tool-system
 ---

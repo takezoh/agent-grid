@@ -16,7 +16,10 @@ relations:
 - {type: references, target: component-20260624-client-interfaces}
 - {type: references, target: component-20260624-client-ipc}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/platform/termvt/
+- src/client/state/
+- src/client/runtime/
 provides:
 - state-monitoring
 ---

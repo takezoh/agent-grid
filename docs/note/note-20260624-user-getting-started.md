@@ -16,7 +16,12 @@ relations:
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
 - {type: referencedBy, target: note-20260624-user-overview}
-source_paths: []
+source_paths:
+- src/cmd/server/coordinator.go
+- Makefile
+- src/cmd/server/
+- src/cmd/orchestrator/
+- src/cmd/claude-app-server/
 topic: user
 ---
 

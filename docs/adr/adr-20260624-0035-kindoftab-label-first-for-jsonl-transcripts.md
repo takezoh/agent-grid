@@ -13,7 +13,10 @@ relations:
 - {type: referencedBy, target: adr-20260624-0031-kindoftab-server-symmetry}
 - {type: references, target: adr-20260624-0031-kindoftab-server-symmetry}
 - {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
-source_paths: []
+source_paths:
+- src/client/driver/claude.go
+- src/server/web/transcript.go
+- src/client/web/src/wire/server.ts
 decision_makers:
 - unknown
 ---

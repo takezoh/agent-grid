@@ -37,7 +37,12 @@ relations:
 - {type: references, target: adr-20260624-0046-palette-push-active-mismatch-409}
 - {type: references, target: adr-20260624-0047-palette-disabledreason-single-source}
 - {type: references, target: plan-20260624-2026-06-24-web-ui-command-palette}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/server/web/mux.go
+- src/client/web/src/components/palette/
+- src/client/web/src/store/
+- src/client/web/src/lib/tools.ts
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []

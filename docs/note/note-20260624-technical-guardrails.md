@@ -24,7 +24,15 @@ relations:
 - {type: references, target: note-20260624-user-orchestrator}
 - {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- WORKFLOW.md
+- src/orchestrator/wfconfig/
+- src/orchestrator/scheduler/eligibility.go
+- src/orchestrator/scheduler/slots.go
+- src/platform/agent/codexclient/client.go
+- src/orchestrator/agent/handler.go
+- src/orchestrator/prompt/
+- src/orchestrator/scheduler/preflight.go
 topic: technical
 ---
 

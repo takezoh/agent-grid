@@ -11,7 +11,8 @@ tags:
 owners: []
 relations:
 - {type: references, target: adr-20260624-0021-frontend-wire-types-hand-written}
-source_paths: []
+source_paths:
+- src/client/web/
 decision_makers:
 - unknown
 ---

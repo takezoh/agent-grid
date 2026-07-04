@@ -19,7 +19,10 @@ relations:
 - {type: references, target: note-20260624-agent-workflow-authoring}
 - {type: references, target: note-20260624-user-sandbox}
 - {type: referencedBy, target: note-20260624-user-overview}
-source_paths: []
+source_paths:
+- WORKFLOW.md
+- src/cmd/orchestrator/
+- src/orchestrator/
 topic: user
 ---
 

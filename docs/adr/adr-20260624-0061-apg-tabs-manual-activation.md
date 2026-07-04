@@ -17,7 +17,8 @@ relations:
 - {type: referencedBy, target: adr-20260624-0065-terminal-slot-absolute-overlay}
 - {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
 - {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
-source_paths: []
+source_paths:
+- src/client/web/src/
 decision_makers:
 - unknown
 ---

@@ -18,7 +18,8 @@ relations:
 - {type: referencedBy, target: component-20260624-client-stream-backend-testing}
 - {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
 - {type: referencedBy, target: note-20260624-agent-testing}
-source_paths: []
+source_paths:
+- src/client/runtime/subsystem/stream/
 provides:
 - stream-backend-real-app-server-e2e-fidelity-backstop
 ---

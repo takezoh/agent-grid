@@ -18,7 +18,11 @@ relations:
 - {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
 - {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- src/client/web/src/components/MainTabs.tsx
+- src/client/web/src/components/LogTabs.tsx
+- src/client/web/src/css/view.css
+- src/client/web/src/
 decision_makers:
 - unknown
 ---

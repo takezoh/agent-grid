@@ -18,7 +18,9 @@ relations:
 - {type: referencedBy, target: note-20260624-user-orchestrator}
 - {type: referencedBy, target: note-20260624-user-overview}
 - {type: references, target: component-20260624-platform-sandbox}
-source_paths: []
+source_paths:
+- src/platform/sandbox/
+- src/platform/credproxy/
 topic: user
 ---
 

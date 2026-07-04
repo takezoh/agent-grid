@@ -21,7 +21,9 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
 - {type: referencedBy, target: note-20260624-user-sandbox}
-source_paths: []
+source_paths:
+- src/platform/sandbox/
+- src/platform/sandbox/devcontainer/
 provides:
 - sandbox-backends
 ---

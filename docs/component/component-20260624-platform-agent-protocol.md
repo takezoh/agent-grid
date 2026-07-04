@@ -19,7 +19,15 @@ relations:
 - {type: referencedBy, target: component-20260624-platform-spawn-and-launch}
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/platform/agent/codexclient/
+- src/platform/agent/codexschema/
+- src/platform/lib/codex/
+- src/platform/lib/claude/
+- src/platform/agent/codexschema/README.md
+- src/cmd/claude-app-server/
+- src/orchestrator/agent/handler.go
+- src/cmd/claude-app-server/main.go
 provides:
 - agent-protocol-the-codex-app-server-protocol-layer
 ---

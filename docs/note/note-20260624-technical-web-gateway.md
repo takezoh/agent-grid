@@ -18,7 +18,15 @@ relations:
 - {type: references, target: adr-20260624-0027-notification-toast-auto-dismiss-policy}
 - {type: references, target: note-20260624-user-web-server}
 - {type: referencedBy, target: note-20260624-user-web-server}
-source_paths: []
+source_paths:
+- src/server/web/
+- src/client/runtime/
+- ARCHITECTURE.md
+- src/cmd/server/
+- src/server/web/wire.go
+- src/server/web/gateway.go
+- src/client/web/src/wire/server.ts
+- src/client/web/src/wire/client.ts
 topic: technical
 ---
 

@@ -20,7 +20,12 @@ relations:
 - {type: references, target: note-20260624-user-sandbox}
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/platform/agentlaunch/
+- src/platform/procgroup/
+- src/platform/pathmap/
+- WORKFLOW.md
+- src/client/state/
 provides:
 - spawn-launch-centralized-agent-process-launching
 ---

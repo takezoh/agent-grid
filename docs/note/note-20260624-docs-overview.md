@@ -24,7 +24,9 @@ relations:
 - {type: references, target: note-20260624-user-sandbox}
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
-source_paths: []
+source_paths:
+- ARCHITECTURE.md
+- WORKFLOW.md
 topic: docs
 ---
 

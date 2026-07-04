@@ -34,7 +34,11 @@ relations:
 - {type: references, target: adr-20260624-0075-pattern-adoption-mode-affordances}
 - {type: references, target: plan-20260626-web-terminal-mobile-ux}
 - {type: references, target: ux-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- src/client/web/src/components/TerminalPane.tsx
+- src/client/web/src/css/app.css
+- src/server/web/wire.go
+- src/client/web/src/css/
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []

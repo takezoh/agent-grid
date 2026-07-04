@@ -11,7 +11,11 @@ tags:
 owners: []
 relations:
 - {type: supersedes, target: adr-20260624-0008-session-id-to-pane-id-resolution-in-runtime}
-source_paths: []
+source_paths:
+- src/platform/termvt/
+- src/server/web/
+- src/client/web/
+- src/client/runtime/backends.go
 decision_makers:
 - unknown
 ---

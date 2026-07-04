@@ -20,7 +20,9 @@ relations:
 - {type: references, target: component-20260624-client-stream-backend-testing}
 - {type: referencedBy, target: note-20260624-agent-testing}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
-source_paths: []
+source_paths:
+- src/platform/termvt/
+- src/server/web/
 provides:
 - termvt-multiplexer-fan-out-isolation-test-harness
 ---

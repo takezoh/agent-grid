@@ -10,7 +10,8 @@ tags:
 - legacy-import
 owners: []
 relations: []
-source_paths: []
+source_paths:
+- src/platform/termvt/
 decision_makers:
 - unknown
 ---

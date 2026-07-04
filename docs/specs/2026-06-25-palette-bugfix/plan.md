@@ -17,7 +17,11 @@ relations:
 - {type: references, target: adr-20260624-0049-palette-ui-english-only}
 - {type: references, target: spec-20260625-2026-06-25-palette-bugfix}
 - {type: referencedBy, target: spec-20260625-2026-06-25-palette-bugfix}
-source_paths: []
+source_paths:
+- src/client/web/src/
+- src/client/web/
+- src/client/web/src/components/palette/
+- src/client/web/src/store/
 goal: Plan — Web UI コマンドパレット バグ修正
 scope_in: []
 scope_out: []

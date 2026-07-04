@@ -10,7 +10,15 @@ tags:
 - legacy-import
 owners: []
 relations: []
-source_paths: []
+source_paths:
+- AGENTS.md
+- src/.golangci.yml
+- src/server/web/
+- src/platform/termvt/
+- src/client/proto/
+- src/client/state/
+- src/client/runtime/
+- src/cmd/server/
 decision_makers:
 - unknown
 ---

@@ -15,7 +15,15 @@ relations:
 - {type: references, target: adr-20260624-0081-codex-frame-init-serialize}
 - {type: references, target: component-20260624-platform-sandbox}
 - {type: referencedBy, target: note-20260624-technical-overview}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/cmd/server/
+- src/client/web/src/
+- src/client/lib/agenthook/
+- src/server/web/
+- src/client/runtime/subsystem/stream/
+- src/client/runtime/pty_backend.go
+- src/platform/termvt/session.go
 provides:
 - process-model-frame-model-and-rendering-responsibilities
 ---

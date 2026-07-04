@@ -29,7 +29,11 @@ relations:
 - {type: references, target: adr-20260624-0058-palette-active-context-data-path}
 - {type: references, target: plan-20260625-2026-06-25-web-palette-redesign}
 - {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
-source_paths: []
+source_paths:
+- src/client/web/
+- src/client/web/src/components/palette/
+- src/client/web/src/store/
+- src/client/web/src/lib/tools.ts
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []

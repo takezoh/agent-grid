@@ -23,7 +23,9 @@ relations:
 - {type: referencedBy, target: adr-20260624-0075-pattern-adoption-mode-affordances}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
-source_paths: []
+source_paths:
+- src/client/web/src/components/TerminalPane.tsx
+- src/client/web/src/hooks/useMobileGate.ts
 decision_makers:
 - unknown
 ---

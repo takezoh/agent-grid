@@ -15,7 +15,11 @@ relations:
 - {type: references, target: adr-20260624-0033-display-label-empty-policy}
 - {type: references, target: adr-20260624-0079-session-card-title-fallback-chain}
 - {type: referencedBy, target: adr-20260624-0079-session-card-title-fallback-chain}
-source_paths: []
+source_paths:
+- src/client/web/src/components/SessionList.tsx
+- src/client/web/src/components/DriverViewPanel.tsx
+- src/client/web/src/css/session-list.css
+- src/client/web/src/css/view.css
 decision_makers:
 - unknown
 ---

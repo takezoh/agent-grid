@@ -15,7 +15,12 @@ relations:
 - {type: referencedBy, target: note-20260624-user-getting-started}
 - {type: referencedBy, target: note-20260624-user-overview}
 - {type: references, target: note-20260624-technical-web-gateway}
-source_paths: []
+source_paths:
+- Makefile
+- src/cmd/server/
+- src/cmd/web/
+- src/server/web/
+- src/client/web/
 topic: user
 ---
 

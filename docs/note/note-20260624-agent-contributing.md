@@ -15,7 +15,11 @@ relations:
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: note-20260624-agent-overview}
 - {type: referencedBy, target: note-20260624-docs-overview}
-source_paths: []
+source_paths:
+- AGENTS.md
+- ARCHITECTURE.md
+- Makefile
+- src/.golangci.yml
 topic: agent
 ---
 

@@ -17,7 +17,15 @@ relations:
 - {type: references, target: adr-20260624-0048-paramselect-display-layer-materialize}
 - {type: references, target: adr-20260624-0049-palette-ui-english-only}
 - {type: references, target: plan-20260625-2026-06-25-palette-bugfix}
-source_paths: []
+source_paths:
+- src/client/web/src/lib/tools.ts
+- src/client/web/src/lib/platform.ts
+- src/client/web/src/lib/platform.test.ts
+- src/client/web/src/hooks/useGlobalHotkey.ts
+- src/client/web/src/App.tsx
+- src/client/web/src/store/palette.ts
+- src/client/web/src/store/palette_helpers.ts
+- src/client/web/src/components/palette/ParamSelectPhase.tsx
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []

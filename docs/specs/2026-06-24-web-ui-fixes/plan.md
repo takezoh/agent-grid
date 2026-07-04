@@ -25,7 +25,15 @@ relations:
 - {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
 - {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
 - {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
-source_paths: []
+source_paths:
+- src/client/web/src/test-setup.ts
+- src/client/web/src/components/LogTabs.tsx
+- src/client/web/src/components/LogTabs.test.tsx
+- src/client/web/src/components/SessionList.tsx
+- src/client/web/src/components/SessionList.test.tsx
+- src/client/web/src/components/RunStateBadge.tsx
+- src/client/web/src/css/view.css
+- src/client/web/src/components/RunStateBadge.test.tsx
 goal: Plan — Web UI Fixes
 scope_in: []
 scope_out: []
