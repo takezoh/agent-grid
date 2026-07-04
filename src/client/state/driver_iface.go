@@ -90,6 +90,7 @@ const (
 	SubsystemDiffUpdated       SubsystemEventKind = "diff_updated"
 	SubsystemMessageUpdated    SubsystemEventKind = "message_updated"
 	SubsystemTitleUpdated      SubsystemEventKind = "title_updated"
+	SubsystemMetadataUpdated   SubsystemEventKind = "metadata_updated"
 )
 
 type SubsystemTurn struct {
@@ -144,6 +145,8 @@ type SubsystemPayload struct {
 	LastAssistantMessage string             `json:"last_assistant_message"`
 	StatusLine           string             `json:"status_line"`
 	Title                string             `json:"title"`
+	TitleSet             bool               `json:"title_set,omitempty"`
+	Preview              string             `json:"preview"`
 	TranscriptPath       string             `json:"transcript_path"`
 	Tool                 *SubsystemTool     `json:"tool,omitempty"`
 	Approval             *SubsystemApproval `json:"approval,omitempty"`

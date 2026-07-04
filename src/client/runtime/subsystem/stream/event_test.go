@@ -34,6 +34,26 @@ func TestHandleThreadStarted(t *testing.T) {
 	}
 }
 
+func TestHandleThreadStartedEmitsMetadata(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", startDir: "/work", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleThreadStarted(json.RawMessage(`{"thread":{"id":"t1","name":" saved-session ","preview":" preview text "}}`))
+	if len(fr.events) != 2 {
+		t.Fatalf("expected ready + metadata events, got %d", len(fr.events))
+	}
+	meta := fr.events[1].(state.EvSubsystem)
+	if meta.Kind != state.SubsystemMetadataUpdated {
+		t.Fatalf("Kind = %q, want %q", meta.Kind, state.SubsystemMetadataUpdated)
+	}
+	if meta.Payload.Title != "saved-session" || meta.Payload.Preview != "preview text" {
+		t.Fatalf("metadata payload = %+v", meta.Payload)
+	}
+}
+
 func TestHandleThreadStartedUnknownThreadDrops(t *testing.T) {
 	// A waiting frame exists, but the thread is not bound to it. A thread.started
 	// for an unknown thread must NOT be adopted (no cwd/active-frame heuristic) —
@@ -126,11 +146,14 @@ func TestHandleThreadNameUpdated(t *testing.T) {
 	if !ok {
 		t.Fatalf("event = %T, want EvSubsystem", fr.events[0])
 	}
-	if ev.Kind != state.SubsystemTitleUpdated {
-		t.Fatalf("Kind = %q, want %q", ev.Kind, state.SubsystemTitleUpdated)
+	if ev.Kind != state.SubsystemMetadataUpdated {
+		t.Fatalf("Kind = %q, want %q", ev.Kind, state.SubsystemMetadataUpdated)
 	}
 	if ev.Payload.Title != "saved-session" {
 		t.Fatalf("Title = %q", ev.Payload.Title)
+	}
+	if !ev.Payload.TitleSet {
+		t.Fatal("TitleSet = false, want true")
 	}
 }
 
@@ -143,12 +166,15 @@ func TestHandleThreadNameUpdatedEmptyAndUnknown(t *testing.T) {
 
 	b.handleThreadNameUpdated([]byte(`{"threadId":"unknown","threadName":"ignored"}`))
 	b.handleThreadNameUpdated([]byte(`{"threadId":"t1","threadName":null}`))
-	if len(fr.events) != 1 {
-		t.Fatalf("expected only empty-title event, got %d", len(fr.events))
+	b.handleThreadNameUpdated([]byte(`{"threadId":"t1","threadName":""}`))
+	if len(fr.events) != 2 {
+		t.Fatalf("expected two title clear metadata events, got %d", len(fr.events))
 	}
-	ev := fr.events[0].(state.EvSubsystem)
-	if ev.Payload.Title != "" {
-		t.Fatalf("Title = %q, want empty", ev.Payload.Title)
+	for _, raw := range fr.events {
+		ev := raw.(state.EvSubsystem)
+		if ev.Kind != state.SubsystemMetadataUpdated || !ev.Payload.TitleSet || ev.Payload.Title != "" {
+			t.Fatalf("clear metadata event = %+v", ev)
+		}
 	}
 }
 
@@ -160,7 +186,7 @@ func TestHandleNotificationUnknownMethodIsNoop(t *testing.T) {
 	}
 }
 
-func TestHandleTurnStartedEmitsPromptSubmitted(t *testing.T) {
+func TestHandleTurnStartedEmitsMetadataBeforeTurnStarted(t *testing.T) {
 	b, fr := newTestBackend()
 	b.mu.Lock()
 	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
@@ -176,15 +202,32 @@ func TestHandleTurnStartedEmitsPromptSubmitted(t *testing.T) {
 		}
 	}`))
 	if len(fr.events) != 2 {
-		t.Fatalf("expected prompt + turn events, got %d", len(fr.events))
+		t.Fatalf("expected metadata + turn events, got %d", len(fr.events))
 	}
-	prompt := fr.events[0].(state.EvSubsystem)
-	if prompt.Kind != state.SubsystemPromptSubmitted || prompt.Payload.Prompt != "diagnose the app" {
-		t.Fatalf("prompt event = %+v", prompt)
+	meta := fr.events[0].(state.EvSubsystem)
+	if meta.Kind != state.SubsystemMetadataUpdated || meta.Payload.Prompt != "diagnose the app" {
+		t.Fatalf("metadata event = %+v", meta)
 	}
 	started := fr.events[1].(state.EvSubsystem)
 	if started.Kind != state.SubsystemTurnStarted || started.Payload.TurnID != "tu1" {
 		t.Fatalf("turn event = %+v", started)
+	}
+}
+
+func TestHandleTurnStartedEmitsMetadataWhenOnlyPreview(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleNotification("turn/started", []byte(`{"threadId":"t1","preview":"live preview","turn":{"id":"tu1","items":[]}}`))
+	if len(fr.events) != 2 {
+		t.Fatalf("events = %d, want 2", len(fr.events))
+	}
+	meta := fr.events[0].(state.EvSubsystem)
+	if meta.Kind != state.SubsystemMetadataUpdated || meta.Payload.Preview != "live preview" {
+		t.Fatalf("metadata event = %+v", meta)
 	}
 }
 

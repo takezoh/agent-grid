@@ -747,6 +747,19 @@ func TestCodexPersistRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestCodexPersistRestoreRoundTripPreview(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.Preview = "live preview"
+	bag := d.Persist(cs)
+	got := d.Restore(bag, now).(CodexState)
+	if got.Preview != "live preview" {
+		t.Fatalf("Preview = %q, want live preview", got.Preview)
+	}
+	if title := d.view(got).Card.Title; title != "live preview" {
+		t.Fatalf("Card.Title = %q, want preview fallback", title)
+	}
+}
+
 func TestCodexWarmStartRecoverReinstallsTranscriptWatch(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.TranscriptPath = "/tmp/t.jsonl"
@@ -927,6 +940,139 @@ func TestCodexSubsystemTitleUpdatedPromotesAndClears(t *testing.T) {
 	}
 	if got := d.view(next).Card.Title; got != "session summary" {
 		t.Fatalf("card title = %q, want summary fallback", got)
+	}
+}
+
+func TestCodexSubsystemMetadataUpdatedPromotesTitle(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.Summary = "session summary"
+
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemMetadataUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Title:     " saved-session ",
+			TitleSet:  true,
+		},
+	})
+	if next.Title != "saved-session" {
+		t.Fatalf("Title = %q", next.Title)
+	}
+	if got := d.view(next).Card.Title; got != "saved-session" {
+		t.Fatalf("card title = %q", got)
+	}
+}
+
+func TestCodexSubsystemMetadataUpdatedClearsTitle(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.Title = "saved-session"
+	cs.Summary = "session summary"
+	cs.Preview = "preview fallback"
+
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemMetadataUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Title:     "",
+			TitleSet:  true,
+		},
+	})
+	if next.Title != "" {
+		t.Fatalf("Title = %q, want cleared", next.Title)
+	}
+	if got := d.view(next).Card.Title; got != "session summary" {
+		t.Fatalf("card title = %q, want summary fallback", got)
+	}
+	next.Summary = ""
+	if got := d.view(next).Card.Title; got != "preview fallback" {
+		t.Fatalf("card title = %q, want preview fallback", got)
+	}
+}
+
+func TestCodexViewPreviewFallbackAndSummaryPriority(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	cs.Preview = " preview\ntext "
+	if got := d.view(cs).Card.Title; got != "preview text" {
+		t.Fatalf("preview fallback title = %q", got)
+	}
+	cs.Summary = "session summary"
+	if got := d.view(cs).Card.Title; got != "session summary" {
+		t.Fatalf("summary title = %q, want summary priority over preview", got)
+	}
+	cs.Title = "saved-session"
+	if got := d.view(cs).Card.Title; got != "saved-session" {
+		t.Fatalf("title = %q, want title priority", got)
+	}
+}
+
+func TestCodexSubsystemMetadataUpdatedPromptStartsSummary(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.RecentTurns = []SummaryTurn{
+		{Role: "user", Text: "inspect repo"},
+		{Role: "assistant", Text: "checking files"},
+		{Role: "user", Text: "find failing tests"},
+	}
+	next, effs := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemMetadataUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Prompt:    "implement this",
+		},
+	})
+	if next.LastPrompt != "implement this" {
+		t.Fatalf("LastPrompt = %q", next.LastPrompt)
+	}
+	if len(next.RecentTurns) == 0 || next.RecentTurns[len(next.RecentTurns)-1] != (SummaryTurn{Role: "user", Text: "implement this"}) {
+		t.Fatalf("RecentTurns = %+v", next.RecentTurns)
+	}
+	if !next.SummaryInFlight {
+		t.Fatal("SummaryInFlight should be true")
+	}
+	foundSummary := false
+	for _, eff := range effs {
+		job, ok := eff.(state.EffStartJob)
+		if !ok {
+			continue
+		}
+		if in, ok := job.Input.(SummaryCommandInput); ok {
+			foundSummary = true
+			if strings.Contains(in.Prompt, "inspect repo") {
+				t.Fatalf("prompt should keep only last 2 user turns: %q", in.Prompt)
+			}
+			if !strings.Contains(in.Prompt, "find failing tests") || !strings.Contains(in.Prompt, "implement this") {
+				t.Fatalf("summary prompt missing recent user turns: %q", in.Prompt)
+			}
+		}
+	}
+	if !foundSummary {
+		t.Fatal("expected SummaryCommandInput job")
+	}
+}
+
+func TestCodexLiveThreadStartedPreviewAvoidsNewSessionFallback(t *testing.T) {
+	d, cs, now := newCodex(t)
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemMetadataUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Preview:   "Implement metadata title fallback",
+			Prompt:    "Implement metadata title fallback",
+		},
+	})
+	if got := d.view(next).Card.Title; got != "Implement metadata title fallback" {
+		t.Fatalf("Card.Title = %q, want preview fallback", got)
 	}
 }
 

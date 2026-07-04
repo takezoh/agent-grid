@@ -22,6 +22,7 @@ const (
 	codexKeyRequestedThreadID = "requested_thread_id"
 	codexKeyObservedThreadID  = "observed_thread_id"
 	codexKeyResumePhase       = "resume_phase"
+	codexKeyPreview           = "preview"
 )
 
 type CodexState struct {
@@ -40,6 +41,7 @@ type CodexState struct {
 	WatchedFile        string
 	StatusLine         string
 	LastWindowTitle    string
+	Preview            string
 	PlanSummary        string
 	DiffSummary        string
 	DiffPaths          []string

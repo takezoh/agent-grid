@@ -12,6 +12,64 @@ type subsystemEmission struct {
 	payload state.SubsystemPayload
 }
 
+type codexThreadMetadata struct {
+	threadID string
+	title    string
+	titleSet bool
+	preview  string
+	prompt   string
+}
+
+func normalizeCodexThreadMetadata(raw json.RawMessage) codexThreadMetadata {
+	var data map[string]any
+	if json.Unmarshal(raw, &data) != nil {
+		return codexThreadMetadata{}
+	}
+	thread, _ := data["thread"].(map[string]any)
+	title, titleSet := metadataTitle(data, thread)
+	meta := codexThreadMetadata{
+		threadID: firstNonEmpty(stringValue(data["threadId"]), stringValue(thread["id"])),
+		title:    title,
+		titleSet: titleSet,
+		preview:  firstNonEmpty(stringValue(thread["preview"]), stringValue(data["preview"])),
+		prompt:   turnPromptFromData(data),
+	}
+	meta.title = collapseMetadataText(meta.title)
+	meta.preview = collapseMetadataText(meta.preview)
+	meta.prompt = collapseMetadataText(meta.prompt)
+	return meta
+}
+
+func stringValue(v any) string {
+	s, _ := v.(string)
+	return s
+}
+
+func metadataTitle(data, thread map[string]any) (string, bool) {
+	for _, source := range []struct {
+		data map[string]any
+		key  string
+	}{
+		{data: thread, key: "name"},
+		{data: data, key: "threadName"},
+		{data: data, key: "name"},
+	} {
+		if source.data == nil {
+			continue
+		}
+		v, ok := source.data[source.key]
+		if !ok {
+			continue
+		}
+		return stringValue(v), true
+	}
+	return "", false
+}
+
+func collapseMetadataText(s string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
+}
+
 func extractThreadID(raw json.RawMessage) string {
 	var data map[string]any
 	if json.Unmarshal(raw, &data) != nil {
@@ -81,6 +139,10 @@ func extractTurnPrompt(raw json.RawMessage) string {
 	if json.Unmarshal(raw, &data) != nil {
 		return ""
 	}
+	return turnPromptFromData(data)
+}
+
+func turnPromptFromData(data map[string]any) string {
 	turn, _ := data["turn"].(map[string]any)
 	if turn == nil {
 		return ""
@@ -99,6 +161,9 @@ func extractTurnPrompt(raw json.RawMessage) string {
 }
 
 func userMessageText(item map[string]any) string {
+	if text, _ := item["content"].(string); strings.TrimSpace(text) != "" {
+		return strings.TrimSpace(text)
+	}
 	content, _ := item["content"].([]any)
 	var parts []string
 	for _, contentRaw := range content {

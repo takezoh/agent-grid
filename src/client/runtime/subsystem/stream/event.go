@@ -43,12 +43,9 @@ func (b *Backend) handleNotification(method string, params json.RawMessage) {
 }
 
 func (b *Backend) handleTurnStarted(raw json.RawMessage) {
-	threadID := extractThreadID(raw)
-	if prompt := extractTurnPrompt(raw); prompt != "" {
-		b.emitToThread(threadID, state.SubsystemPromptSubmitted, func(p *state.SubsystemPayload) {
-			p.Prompt = prompt
-		})
-	}
+	meta := normalizeCodexThreadMetadata(raw)
+	threadID := firstNonEmpty(meta.threadID, extractThreadID(raw))
+	b.emitMetadata(meta)
 	b.emitToThread(threadID, state.SubsystemTurnStarted, func(p *state.SubsystemPayload) {
 		p.TurnID = extractTurnID(raw)
 	})
@@ -124,6 +121,7 @@ func (b *Backend) handleThreadStarted(raw json.RawMessage) {
 	}
 	b.mu.Unlock()
 	b.emit(frameID, state.SubsystemSessionReady, b.payload(frameID))
+	b.emitMetadata(normalizeCodexThreadMetadata(raw))
 }
 
 // adoptPendingFrame links an unknown incoming thread id to the frame that is
@@ -215,23 +213,29 @@ func (b *Backend) handleAgentMessageDelta(raw json.RawMessage) {
 }
 
 func (b *Backend) handleThreadNameUpdated(raw json.RawMessage) {
-	var params struct {
-		ThreadID   string  `json:"threadId"`
-		ThreadName *string `json:"threadName"`
-	}
-	if json.Unmarshal(raw, &params) != nil {
+	b.emitMetadata(normalizeCodexThreadMetadata(raw))
+}
+
+func (b *Backend) emitMetadata(meta codexThreadMetadata) {
+	if meta.threadID == "" || (!meta.titleSet && meta.preview == "" && meta.prompt == "") {
 		return
 	}
-	frameID := b.frameForThread(params.ThreadID)
+	frameID := b.frameForThread(meta.threadID)
 	if frameID == "" {
 		return
 	}
-	title := ""
-	if params.ThreadName != nil {
-		title = strings.TrimSpace(*params.ThreadName)
+	if meta.prompt != "" {
+		b.mu.Lock()
+		if binding := b.frames[frameID]; binding != nil {
+			appendHistory(&binding.history, "user", meta.prompt)
+		}
+		b.mu.Unlock()
 	}
-	b.emit(frameID, state.SubsystemTitleUpdated, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
-		p.Title = title
+	b.emit(frameID, state.SubsystemMetadataUpdated, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
+		p.Title = meta.title
+		p.TitleSet = meta.titleSet
+		p.Preview = meta.preview
+		p.Prompt = meta.prompt
 	}))
 }
 

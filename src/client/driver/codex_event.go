@@ -110,11 +110,9 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 		cs.FailureReason = strings.TrimSpace(p.Error)
 		cs = applyHookStatus(cs, state.StatusStopped, e.Timestamp)
 	case state.SubsystemPromptSubmitted:
-		cs.LastPrompt = strings.TrimSpace(p.Prompt)
-		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
-		turns := userOnlyTurns(appendHookPromptTurn(cs.RecentTurns, p.Prompt), 2)
-		effs, cs.SummaryInFlight = enqueueSummaryJob(effs, cs.SummaryInFlight, formatSummaryPrompt(cs.Summary, turns))
-		effs = append(effs, d.startCodexTranscriptParse(&cs)...)
+		cs, effs = d.applyMetadataPrompt(cs, strings.TrimSpace(p.Prompt), e.Timestamp, effs)
+	case state.SubsystemMetadataUpdated:
+		cs, effs = d.applySubsystemMetadata(cs, p, e.Timestamp, effs)
 	case state.SubsystemTurnStarted:
 		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
 	case state.SubsystemTurnCompleted:
@@ -164,6 +162,43 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 		cs.Title = strings.TrimSpace(p.Title)
 	}
 	return cs, effs
+}
+
+func (d CodexDriver) applySubsystemMetadata(cs CodexState, p state.SubsystemPayload, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {
+	if p.TitleSet {
+		cs.Title = strings.TrimSpace(p.Title)
+	}
+	if preview := strings.TrimSpace(p.Preview); preview != "" {
+		cs.Preview = preview
+	}
+	return d.applyMetadataPrompt(cs, strings.TrimSpace(p.Prompt), now, effs)
+}
+
+func (d CodexDriver) applyMetadataPrompt(cs CodexState, prompt string, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {
+	if prompt == "" {
+		return cs, effs
+	}
+	cs.LastPrompt = prompt
+	cs.RecentTurns = appendSummaryTurn(cs.RecentTurns, SummaryTurn{Role: "user", Text: prompt})
+	cs = applyHookStatus(cs, state.StatusRunning, now)
+	turns := userOnlyTurns(cs.RecentTurns, 2)
+	effs, cs.SummaryInFlight = enqueueSummaryJob(effs, cs.SummaryInFlight, formatSummaryPrompt(cs.Summary, turns))
+	effs = append(effs, d.startCodexTranscriptParse(&cs)...)
+	return cs, effs
+}
+
+func appendSummaryTurn(turns []SummaryTurn, turn SummaryTurn) []SummaryTurn {
+	if strings.TrimSpace(turn.Role) == "" || strings.TrimSpace(turn.Text) == "" {
+		return turns
+	}
+	out := append(append([]SummaryTurn(nil), turns...), SummaryTurn{
+		Role: strings.TrimSpace(turn.Role),
+		Text: strings.TrimSpace(turn.Text),
+	})
+	if len(out) > 6 {
+		out = out[len(out)-6:]
+	}
+	return out
 }
 
 func (d CodexDriver) applySessionStart(cs CodexState, ctx state.FrameContext, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {

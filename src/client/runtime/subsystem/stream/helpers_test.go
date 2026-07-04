@@ -63,6 +63,67 @@ func TestExtractTurnPrompt(t *testing.T) {
 	}
 }
 
+func TestNormalizeCodexThreadMetadata(t *testing.T) {
+	raw := []byte(`{
+		"thread":{"id":"t1","name":" saved\nsession ","preview":" first\npreview "},
+		"turn":{"items":[{"type":"userMessage","content":[" diagnose ",{"type":"text","text":" app "}]}]}
+	}`)
+	got := normalizeCodexThreadMetadata(raw)
+	if got.threadID != "t1" || got.title != "saved session" || !got.titleSet || got.preview != "first preview" || got.prompt != "diagnose app" {
+		t.Fatalf("metadata = %+v", got)
+	}
+}
+
+func TestNormalizeCodexThreadMetadataTopLevelFields(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want codexThreadMetadata
+	}{
+		{
+			name: "threadName title",
+			raw:  `{"threadId":"t1","threadName":" named "}`,
+			want: codexThreadMetadata{threadID: "t1", title: "named", titleSet: true},
+		},
+		{
+			name: "name title",
+			raw:  `{"threadId":"t1","name":" named "}`,
+			want: codexThreadMetadata{threadID: "t1", title: "named", titleSet: true},
+		},
+		{
+			name: "preview",
+			raw:  `{"threadId":"t1","preview":" preview text "}`,
+			want: codexThreadMetadata{threadID: "t1", preview: "preview text"},
+		},
+		{
+			name: "string content prompt",
+			raw:  `{"threadId":"t1","turn":{"items":[{"type":"userMessage","content":" prompt text "}]}}`,
+			want: codexThreadMetadata{threadID: "t1", prompt: "prompt text"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := normalizeCodexThreadMetadata([]byte(tc.raw))
+			if got != tc.want {
+				t.Fatalf("metadata = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeCodexThreadMetadataTitleClear(t *testing.T) {
+	for _, raw := range []string{
+		`{"threadId":"t1","threadName":null}`,
+		`{"threadId":"t1","threadName":""}`,
+		`{"thread":{"id":"t1","name":null}}`,
+	} {
+		got := normalizeCodexThreadMetadata([]byte(raw))
+		if got.threadID != "t1" || !got.titleSet || got.title != "" {
+			t.Fatalf("metadata = %+v, raw=%s", got, raw)
+		}
+	}
+}
+
 func TestExtractText(t *testing.T) {
 	if got := extractText([]byte(`{"text":"hi"}`)); got != "hi" {
 		t.Errorf("text: %q", got)

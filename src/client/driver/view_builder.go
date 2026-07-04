@@ -53,6 +53,14 @@ func resolveCardTitle(aiTitle, summary string) string {
 	return firstNonEmpty(aiTitle, collapseToSingleLine(summary))
 }
 
+func resolveCardTitleWithPreview(aiTitle, summary, preview string) string {
+	return firstNonEmpty(aiTitle, collapseToSingleLine(summary), previewSummary(preview))
+}
+
+func previewSummary(preview string) string {
+	return previewText(collapseToSingleLine(preview))
+}
+
 // collapseToSingleLine folds CR/LF runs into single spaces and trims the
 // result. Used to keep multi-line summaries renderable in the single-line
 // card Title slot.
