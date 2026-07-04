@@ -85,6 +85,14 @@ func (d CodexDriver) handleSubsystem(cs CodexState, ctx state.FrameContext, e st
 	logCodexIdentityCaptured(ctx.ID, prevThreadID, prevSessionID, prevRolloutPath, cs)
 	effs := watchCodexTranscript(&cs)
 	cs, effs = d.applySubsystemKind(cs, ctx, e, effs)
+	// Transcript file が session state の authoritative source なので、任意の
+	// wire event を disk 再読の trigger として利用する。codex-cli 0.142.5 は
+	// thread/name/updated を emit しない場合が多く、thread/started の thread.name
+	// も null なので、wire payload だけを頼りにすると title が永遠に空になる。
+	// TranscriptInFlight で冪等性が担保されているので、無条件に呼んでも parse は
+	// 1 本 in-flight に制限される。fsnotify.Add が race で失敗しても wire event
+	// で backstop されるため、file watch と wire event の二重化になる。
+	effs = append(effs, d.startCodexTranscriptParse(&cs)...)
 	slog.Debug("codex: subsystem event applied",
 		"frame", ctx.ID,
 		"kind", e.Kind,
@@ -165,13 +173,14 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 }
 
 func (d CodexDriver) applySubsystemMetadata(cs CodexState, p state.SubsystemPayload, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {
-	if p.TitleSet {
-		cs.Title = strings.TrimSpace(p.Title)
-	}
-	if preview := strings.TrimSpace(p.Preview); preview != "" {
-		cs.Preview = preview
-	}
-	return d.applyMetadataPrompt(cs, strings.TrimSpace(p.Prompt), now, effs)
+	prompt := strings.TrimSpace(p.Prompt)
+	cs = applyCodexMetadata(cs, codexMetadata{
+		TitleSet: p.TitleSet,
+		Title:    p.Title,
+		Preview:  p.Preview,
+		Prompt:   prompt,
+	})
+	return d.applyMetadataPrompt(cs, prompt, now, effs)
 }
 
 func (d CodexDriver) applyMetadataPrompt(cs CodexState, prompt string, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {
@@ -317,9 +326,11 @@ func (d CodexDriver) handleJobResult(cs CodexState, e state.DEvJobResult) CodexS
 		if e.Err != nil {
 			return cs
 		}
-		if r.Title != "" {
-			cs.Title = r.Title
-		}
+		cs = applyCodexMetadata(cs, codexMetadata{
+			TitleSet:   r.Title != "",
+			Title:      r.Title,
+			LastPrompt: r.LastPrompt,
+		})
 		if r.LastPrompt != "" {
 			cs.LastPrompt = r.LastPrompt
 		}
@@ -336,6 +347,29 @@ func (d CodexDriver) handleJobResult(cs CodexState, e state.DEvJobResult) CodexS
 		cs.ApplyBranchResult(r, e.Err, e.Now)
 	}
 	return cs
+}
+
+type codexMetadata struct {
+	TitleSet   bool
+	Title      string
+	Preview    string
+	Prompt     string
+	LastPrompt string
+}
+
+func applyCodexMetadata(cs CodexState, m codexMetadata) CodexState {
+	if m.TitleSet {
+		cs.Title = strings.TrimSpace(m.Title)
+	}
+	if preview := strings.TrimSpace(m.Preview); preview != "" {
+		cs.Preview = preview
+	}
+	cs.DisplayFallback = codexDisplayFallback(cs.Preview, firstNonEmpty(m.Prompt, m.LastPrompt, cs.LastPrompt))
+	return cs
+}
+
+func codexDisplayFallback(preview, prompt string) string {
+	return previewSummary(firstNonEmpty(preview, prompt))
 }
 
 func (d CodexDriver) handleTranscriptChanged(cs CodexState, e state.DEvFileChanged) (CodexState, []state.Effect) {

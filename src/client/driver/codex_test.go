@@ -750,10 +750,25 @@ func TestCodexPersistRestoreRoundTrip(t *testing.T) {
 func TestCodexPersistRestoreRoundTripPreview(t *testing.T) {
 	d, cs, now := newCodex(t)
 	cs.Preview = "live preview"
+	cs.DisplayFallback = "live preview"
 	bag := d.Persist(cs)
 	got := d.Restore(bag, now).(CodexState)
 	if got.Preview != "live preview" {
 		t.Fatalf("Preview = %q, want live preview", got.Preview)
+	}
+	if got.DisplayFallback != "live preview" {
+		t.Fatalf("DisplayFallback = %q, want live preview", got.DisplayFallback)
+	}
+	if title := d.view(got).Card.Title; title != "live preview" {
+		t.Fatalf("Card.Title = %q, want preview fallback", title)
+	}
+}
+
+func TestCodexRestoreBackfillsDisplayFallbackFromPreview(t *testing.T) {
+	d, _, now := newCodex(t)
+	got := d.Restore(map[string]string{codexKeyPreview: "live preview"}, now).(CodexState)
+	if got.DisplayFallback != "live preview" {
+		t.Fatalf("DisplayFallback = %q, want live preview", got.DisplayFallback)
 	}
 	if title := d.view(got).Card.Title; title != "live preview" {
 		t.Fatalf("Card.Title = %q, want preview fallback", title)
@@ -971,6 +986,7 @@ func TestCodexSubsystemMetadataUpdatedClearsTitle(t *testing.T) {
 	cs.Title = "saved-session"
 	cs.Summary = "session summary"
 	cs.Preview = "preview fallback"
+	cs.DisplayFallback = "preview fallback"
 
 	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
 		Source:    state.SubsystemStream,
@@ -998,6 +1014,7 @@ func TestCodexSubsystemMetadataUpdatedClearsTitle(t *testing.T) {
 func TestCodexViewPreviewFallbackAndSummaryPriority(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.Preview = " preview\ntext "
+	cs.DisplayFallback = " preview\ntext "
 	if got := d.view(cs).Card.Title; got != "preview text" {
 		t.Fatalf("preview fallback title = %q", got)
 	}
@@ -1056,6 +1073,169 @@ func TestCodexSubsystemMetadataUpdatedPromptStartsSummary(t *testing.T) {
 	if !foundSummary {
 		t.Fatal("expected SummaryCommandInput job")
 	}
+}
+
+func TestCodexLivePromptOnlyMetadataAvoidsNewSessionFallback(t *testing.T) {
+	d, cs, now := newCodex(t)
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemMetadataUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Prompt:    "Implement live Codex title fallback",
+		},
+	})
+	if got := d.view(next).Card.Title; got != "Implement live Codex title fallback" {
+		t.Fatalf("Card.Title = %q, want prompt fallback", got)
+	}
+	if next.Preview != "" {
+		t.Fatalf("Preview = %q, want empty for prompt-only metadata", next.Preview)
+	}
+	if next.DisplayFallback != "Implement live Codex title fallback" {
+		t.Fatalf("DisplayFallback = %q, want prompt fallback", next.DisplayFallback)
+	}
+}
+
+func TestCodexColdStartTranscriptTitleAvoidsNewSessionFallback(t *testing.T) {
+	d, cs, now := newCodex(t)
+	next := d.handleJobResult(cs, state.DEvJobResult{
+		Now: now,
+		Result: CodexTranscriptParseResult{
+			Title:      "Implement cold start Codex title fallback",
+			LastPrompt: "Implement cold start Codex title fallback",
+		},
+	})
+	if got := d.view(next).Card.Title; got != "Implement cold start Codex title fallback" {
+		t.Fatalf("Card.Title = %q, want transcript title", got)
+	}
+}
+
+func TestCodexColdStartTranscriptLastPromptAvoidsNewSessionFallback(t *testing.T) {
+	d, cs, now := newCodex(t)
+	next := d.handleJobResult(cs, state.DEvJobResult{
+		Now: now,
+		Result: CodexTranscriptParseResult{
+			LastPrompt: "Implement cold start Codex prompt fallback",
+		},
+	})
+	if next.Title != "" {
+		t.Fatalf("Title = %q, want empty", next.Title)
+	}
+	if got := d.view(next).Card.Title; got != "Implement cold start Codex prompt fallback" {
+		t.Fatalf("Card.Title = %q, want transcript prompt fallback", got)
+	}
+}
+
+// TestCodexAnyLiveSubsystemEventTriggersTranscriptParse は "New Session 固着"
+// bug の regression guard。実測した codex-cli 0.142.5 の wire behaviour は:
+//   - thread/started は thread.name を null にし、preview="" のまま返す
+//   - thread/name/updated は多くのセッションで発火しない
+//   - turn/started には items[] が入らないことがある (payload に prompt が無い)
+//
+// この状況では wire payload だけを頼りにすると title が永遠に空のまま
+// ("New Session" placeholder が固着する)。WarmStartRecover が transcript を
+// 無条件に読み直すため server 再起動でだけ title が復元する現象が発生した。
+//
+// 修正: transcript file を session state の authoritative source として扱い、
+// 任意の subsystem event を disk 再読の trigger に利用する。
+// TranscriptInFlight で冪等性を担保して parse は 1 本 in-flight に制限する。
+func TestCodexAnyLiveSubsystemEventTriggersTranscriptParse(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload state.SubsystemPayload
+		kind    state.SubsystemEventKind
+	}{
+		{
+			name: "TurnStarted without items", // codex-cli の実測 event
+			kind: state.SubsystemTurnStarted,
+			payload: state.SubsystemPayload{
+				SessionID: "thread-1", TargetID: "thread-1",
+			},
+		},
+		{
+			name: "TurnCompleted with only assistant text",
+			kind: state.SubsystemTurnCompleted,
+			payload: state.SubsystemPayload{
+				SessionID: "thread-1", TargetID: "thread-1",
+				LastAssistantMessage: "done",
+			},
+		},
+		{
+			name: "MetadataUpdated with everything empty",
+			kind: state.SubsystemMetadataUpdated,
+			payload: state.SubsystemPayload{
+				SessionID: "thread-1", TargetID: "thread-1",
+			},
+		},
+		{
+			name: "MessageUpdated (agent streaming)",
+			kind: state.SubsystemMessageUpdated,
+			payload: state.SubsystemPayload{
+				SessionID: "thread-1", TargetID: "thread-1",
+				LastAssistantMessage: "chunk",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			d, cs, now := newCodex(t)
+			cs.TranscriptPath = "/tmp/codex-rollout.jsonl"
+			cs.WatchedFile = cs.TranscriptPath // watch は成立済み扱い (EffWatchFile を再emit しない)
+			_, effs := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+				Source:    state.SubsystemStream,
+				Kind:      tc.kind,
+				Timestamp: now,
+				Payload:   tc.payload,
+			})
+			if !hasCodexTranscriptParseJob(effs) {
+				t.Fatalf("expected a CodexTranscriptParseInput job to be enqueued for %q; got %+v", tc.kind, effs)
+			}
+		})
+	}
+}
+
+// TestCodexSubsystemEventThenParseResolvesTitle は wire event と parse result
+// の 2 stage で title が解決される end-to-end shape を pin する。
+func TestCodexSubsystemEventThenParseResolvesTitle(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.TranscriptPath = "/tmp/codex-rollout.jsonl"
+	cs.WatchedFile = cs.TranscriptPath
+	next, effs := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemTurnStarted,
+		Timestamp: now,
+		Payload:   state.SubsystemPayload{SessionID: "thread-1", TargetID: "thread-1"},
+	})
+	if !hasCodexTranscriptParseJob(effs) {
+		t.Fatal("expected transcript parse job on subsystem event")
+	}
+	// parse job が非同期で戻る前は Title は空 → UI は placeholder。
+	// parse 完了時に driver は cs.Title を transcript 由来で埋める。
+	result := d.handleJobResult(next, state.DEvJobResult{
+		Now: now,
+		Result: CodexTranscriptParseResult{
+			Title:      "Fix Codex live title fallback",
+			LastPrompt: "Fix Codex live title fallback",
+		},
+	})
+	if got := d.view(result).Card.Title; got != "Fix Codex live title fallback" {
+		t.Fatalf("Card.Title = %q, want transcript-derived title", got)
+	}
+}
+
+func hasCodexTranscriptParseJob(effs []state.Effect) bool {
+	for _, e := range effs {
+		job, ok := e.(state.EffStartJob)
+		if !ok {
+			continue
+		}
+		if _, ok := job.Input.(CodexTranscriptParseInput); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCodexLiveThreadStartedPreviewAvoidsNewSessionFallback(t *testing.T) {

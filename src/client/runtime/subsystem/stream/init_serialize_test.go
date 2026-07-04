@@ -271,6 +271,49 @@ func TestBindFrame_RecoveryPathSkipsInitSem(t *testing.T) {
 	}
 }
 
+func TestBindFrame_FreshAdoptRegistersReverseRouteForLiveMetadata(t *testing.T) {
+	b, rt := newTestBackend()
+
+	if _, err := b.BindFrame(context.Background(), makeBindReq("F-live", "/work")); err != nil {
+		t.Fatalf("fresh BindFrame: %v", err)
+	}
+
+	b.handleThreadStarted(json.RawMessage(`{"thread":{"id":"live-T","cwd":"/work","preview":"live prompt"}}`))
+
+	b.mu.Lock()
+	owner := b.threads["live-T"]
+	b.mu.Unlock()
+	if owner != "F-live" {
+		t.Fatalf("b.threads[live-T] = %q, want F-live", owner)
+	}
+	if len(rt.events) != 2 {
+		t.Fatalf("events = %d, want session_ready + metadata", len(rt.events))
+	}
+	meta := rt.events[1].(state.EvSubsystem)
+	if meta.FrameID != "F-live" || meta.Kind != state.SubsystemMetadataUpdated || meta.Payload.Preview != "live prompt" {
+		t.Fatalf("metadata event = %+v", meta)
+	}
+}
+
+func TestBindFrame_ColdStartRecoveryRoutesThreadStartedMetadata(t *testing.T) {
+	b, rt := newTestBackend()
+	req := makeBindReq("F-cold", "/work")
+	req.Plan.Stream.ResumeTarget = state.ResumeTarget{ThreadID: "cold-T"}
+	if _, err := b.BindFrame(context.Background(), req); err != nil {
+		t.Fatalf("recovery BindFrame: %v", err)
+	}
+
+	b.handleThreadStarted(json.RawMessage(`{"thread":{"id":"cold-T","cwd":"/work","preview":"cold prompt"}}`))
+
+	if len(rt.events) != 2 {
+		t.Fatalf("events = %d, want session_ready + metadata", len(rt.events))
+	}
+	meta := rt.events[1].(state.EvSubsystem)
+	if meta.FrameID != "F-cold" || meta.Kind != state.SubsystemMetadataUpdated || meta.Payload.Preview != "cold prompt" {
+		t.Fatalf("metadata event = %+v", meta)
+	}
+}
+
 // TestBindFrame_RecoveryCollision_RejectsSecondBind — the ADR-0001
 // routing-isolation invariant: two frames must not share a threadID in
 // b.threads. registerBoundFrame's collision guard (added in Loop 2)

@@ -53,8 +53,8 @@ func resolveCardTitle(aiTitle, summary string) string {
 	return firstNonEmpty(aiTitle, collapseToSingleLine(summary))
 }
 
-func resolveCardTitleWithPreview(aiTitle, summary, preview string) string {
-	return firstNonEmpty(aiTitle, collapseToSingleLine(summary), previewSummary(preview))
+func resolveCardTitleWithDisplayFallback(aiTitle, summary, fallback string) string {
+	return firstNonEmpty(aiTitle, collapseToSingleLine(summary), previewSummary(fallback))
 }
 
 func previewSummary(preview string) string {

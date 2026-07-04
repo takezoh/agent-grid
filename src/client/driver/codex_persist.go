@@ -34,6 +34,9 @@ func (CodexDriver) Persist(s state.DriverState) map[string]string {
 	if cs.Preview != "" {
 		out[codexKeyPreview] = cs.Preview
 	}
+	if cs.DisplayFallback != "" {
+		out[codexKeyDisplayFallback] = cs.DisplayFallback
+	}
 	return out
 }
 
@@ -58,6 +61,10 @@ func (d CodexDriver) Restore(bag map[string]string, now time.Time) state.DriverS
 	cs.ObservedThreadID = bag[codexKeyObservedThreadID]
 	cs.ResumePhase = bag[codexKeyResumePhase]
 	cs.Preview = bag[codexKeyPreview]
+	cs.DisplayFallback = bag[codexKeyDisplayFallback]
+	if cs.DisplayFallback == "" {
+		cs.DisplayFallback = codexDisplayFallback(cs.Preview, cs.LastPrompt)
+	}
 	if cs.TranscriptPath == "" && cs.RolloutPath != "" {
 		cs.TranscriptPath = cs.RolloutPath
 	}

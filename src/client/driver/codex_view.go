@@ -27,7 +27,7 @@ func (d CodexDriver) view(cs CodexState) state.View {
 
 	return state.View{
 		Card: state.Card{
-			Title:       resolveCardTitleWithPreview(cs.Title, cs.Summary, cs.Preview),
+			Title:       resolveCardTitleWithDisplayFallback(cs.Title, cs.Summary, cs.DisplayFallback),
 			Tags:        tags,
 			BorderTitle: CodexCommandTag(),
 			BorderBadge: fishpath.Shorten(cs.StartDir, ""),
@@ -62,6 +62,7 @@ func codexInfoExtras(cs CodexState) []state.InfoLine {
 	add("Transcript", cs.TranscriptPath)
 	add("Summary", cs.Summary)
 	add("Preview", cs.Preview)
+	add("Display Fallback", cs.DisplayFallback)
 	add("Plan", cs.PlanSummary)
 	add("Diff", cs.DiffSummary)
 	add("Status Line", cs.StatusLine)
