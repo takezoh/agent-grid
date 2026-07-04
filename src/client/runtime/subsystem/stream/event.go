@@ -14,9 +14,7 @@ func (b *Backend) handleNotification(method string, params json.RawMessage) {
 	case codexschema.MethodThreadStarted:
 		b.handleThreadStarted(params)
 	case codexschema.MethodTurnStarted:
-		b.emitToThread(extractThreadID(params), state.SubsystemTurnStarted, func(p *state.SubsystemPayload) {
-			p.TurnID = extractTurnID(params)
-		})
+		b.handleTurnStarted(params)
 	case codexschema.MethodTurnCompleted:
 		b.handleTurnCompleted(params)
 	case codexschema.MethodTurnPlanUpdated:
@@ -42,6 +40,18 @@ func (b *Backend) handleNotification(method string, params json.RawMessage) {
 	case codexschema.MethodWarning, codexschema.MethodGuardianWarning, codexschema.MethodDeprecationNotice:
 		slog.Warn("stream backend: app-server notice", "method", method, "subsystem", b.subsystemID, "params", string(params))
 	}
+}
+
+func (b *Backend) handleTurnStarted(raw json.RawMessage) {
+	threadID := extractThreadID(raw)
+	if prompt := extractTurnPrompt(raw); prompt != "" {
+		b.emitToThread(threadID, state.SubsystemPromptSubmitted, func(p *state.SubsystemPayload) {
+			p.Prompt = prompt
+		})
+	}
+	b.emitToThread(threadID, state.SubsystemTurnStarted, func(p *state.SubsystemPayload) {
+		p.TurnID = extractTurnID(raw)
+	})
 }
 
 func (b *Backend) handleRequest(id int64, method string, params json.RawMessage) {

@@ -35,6 +35,34 @@ func TestExtractTurnID(t *testing.T) {
 	}
 }
 
+func TestExtractTurnPrompt(t *testing.T) {
+	raw := []byte(`{
+		"threadId":"t1",
+		"turn":{
+			"id":"tu1",
+			"items":[
+				{"id":"u1","type":"userMessage","content":[
+					" first line ",
+					{"type":"text","text":" diagnose the app "},
+					{"type":"image","url":"https://example.test/image.png"},
+					{"type":"text","text":"include logs"}
+				]},
+				{"id":"a1","type":"agentMessage","text":"ok"}
+			],
+			"status":"inProgress"
+		}
+	}`)
+	if got := extractTurnPrompt(raw); got != "first line\ndiagnose the app\ninclude logs" {
+		t.Errorf("prompt: %q", got)
+	}
+	if got := extractTurnPrompt([]byte(`{"turn":{"items":[]}}`)); got != "" {
+		t.Errorf("empty items: %q", got)
+	}
+	if got := extractTurnPrompt([]byte(`bad`)); got != "" {
+		t.Errorf("bad: %q", got)
+	}
+}
+
 func TestExtractText(t *testing.T) {
 	if got := extractText([]byte(`{"text":"hi"}`)); got != "hi" {
 		t.Errorf("text: %q", got)

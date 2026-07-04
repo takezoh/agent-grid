@@ -160,6 +160,34 @@ func TestHandleNotificationUnknownMethodIsNoop(t *testing.T) {
 	}
 }
 
+func TestHandleTurnStartedEmitsPromptSubmitted(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleNotification("turn/started", []byte(`{
+		"threadId":"t1",
+		"turn":{
+			"id":"tu1",
+			"items":[{"id":"u1","type":"userMessage","content":[{"type":"text","text":"diagnose the app"}]}],
+			"status":"inProgress"
+		}
+	}`))
+	if len(fr.events) != 2 {
+		t.Fatalf("expected prompt + turn events, got %d", len(fr.events))
+	}
+	prompt := fr.events[0].(state.EvSubsystem)
+	if prompt.Kind != state.SubsystemPromptSubmitted || prompt.Payload.Prompt != "diagnose the app" {
+		t.Fatalf("prompt event = %+v", prompt)
+	}
+	started := fr.events[1].(state.EvSubsystem)
+	if started.Kind != state.SubsystemTurnStarted || started.Payload.TurnID != "tu1" {
+		t.Fatalf("turn event = %+v", started)
+	}
+}
+
 func TestHandleNotificationRoutesToHandlers(t *testing.T) {
 	b, fr := newTestBackend()
 	b.mu.Lock()

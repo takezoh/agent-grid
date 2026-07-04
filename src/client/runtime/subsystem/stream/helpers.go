@@ -76,6 +76,47 @@ func extractTurnID(raw json.RawMessage) string {
 	return ""
 }
 
+func extractTurnPrompt(raw json.RawMessage) string {
+	var data map[string]any
+	if json.Unmarshal(raw, &data) != nil {
+		return ""
+	}
+	turn, _ := data["turn"].(map[string]any)
+	if turn == nil {
+		return ""
+	}
+	items, _ := turn["items"].([]any)
+	for _, itemRaw := range items {
+		item, _ := itemRaw.(map[string]any)
+		if item == nil || item["type"] != "userMessage" {
+			continue
+		}
+		if text := userMessageText(item); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func userMessageText(item map[string]any) string {
+	content, _ := item["content"].([]any)
+	var parts []string
+	for _, contentRaw := range content {
+		if text, _ := contentRaw.(string); strings.TrimSpace(text) != "" {
+			parts = append(parts, strings.TrimSpace(text))
+			continue
+		}
+		c, _ := contentRaw.(map[string]any)
+		if c == nil || c["type"] != "text" {
+			continue
+		}
+		if text, _ := c["text"].(string); strings.TrimSpace(text) != "" {
+			parts = append(parts, strings.TrimSpace(text))
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
 func extractText(raw json.RawMessage) string {
 	var data map[string]any
 	if json.Unmarshal(raw, &data) != nil {
