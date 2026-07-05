@@ -21,8 +21,8 @@ require (
 	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
 	github.com/takezoh/credproxy v0.0.0-20260527021126-c5e0af72e46e
 	github.com/takezoh/fishpath-go v0.1.0
-	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/sync v0.21.0
+	golang.org/x/sys v0.46.0
 	golang.org/x/term v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.53.0
@@ -69,7 +69,7 @@ require (
 	github.com/ccojocar/zxcvbn-go v1.0.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charithe/durationcheck v0.0.11 // indirect
-	github.com/charmbracelet/colorprofile v0.4.2 // indirect
+	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
@@ -246,9 +246,8 @@ require (
 
 tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
-// Patched vendored forks for upstream scroll-region bounds bugs that crash
-// the server (see issues/2026-07-02-vt-emulator-insertlinearea-panic.md and
-// forks/README.md). Drop these once the upstream PRs land.
-replace github.com/charmbracelet/ultraviolet => ../forks/ultraviolet
+// Temporary fork pins for upstream scroll-region bounds bugs that crash the
+// server. Drop these once upstream merges PR #908 / #135.
+replace github.com/charmbracelet/ultraviolet => github.com/takezoh/ultraviolet v0.0.0-20260705072351-7f8d42d2f662
 
-replace github.com/charmbracelet/x/vt => ../forks/x-vt
+replace github.com/charmbracelet/x/vt => github.com/takezoh/x/vt v0.0.0-20260705072350-05fd7357eba6
