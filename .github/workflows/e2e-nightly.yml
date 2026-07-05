@@ -50,18 +50,23 @@ jobs:
           if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
             echo "reactor_e2e_claude_bin=$(command -v claude)" >> "$GITHUB_OUTPUT"
           fi
+          if command -v docker >/dev/null 2>&1; then
+            echo "reactor_e2e_docker_bin=$(command -v docker)" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Explain skipped suites
-        if: steps.suite_env.outputs.reactor_e2e_codex_bin == '' || steps.suite_env.outputs.reactor_e2e_claude_bin == ''
+        if: steps.suite_env.outputs.reactor_e2e_codex_bin == '' || steps.suite_env.outputs.reactor_e2e_claude_bin == '' || steps.suite_env.outputs.reactor_e2e_docker_bin == ''
         run: |
           [[ -n "${{ steps.suite_env.outputs.reactor_e2e_codex_bin }}" ]] || echo "Skipping Codex-backed e2e suites: OPENAI_API_KEY is not configured."
           [[ -n "${{ steps.suite_env.outputs.reactor_e2e_claude_bin }}" ]] || echo "Skipping Claude-backed e2e suites: ANTHROPIC_API_KEY is not configured."
+          [[ -n "${{ steps.suite_env.outputs.reactor_e2e_docker_bin }}" ]] || echo "Skipping Docker-backed e2e suites: docker is not available on this runner."
 
       - name: Run nightly e2e
         working-directory: .
         env:
           REACTOR_E2E_CODEX_BIN: ${{ steps.suite_env.outputs.reactor_e2e_codex_bin }}
           REACTOR_E2E_CLAUDE_BIN: ${{ steps.suite_env.outputs.reactor_e2e_claude_bin }}
+          REACTOR_E2E_DOCKER_BIN: ${{ steps.suite_env.outputs.reactor_e2e_docker_bin }}
         run: make test-e2e
 
       - name: Open or update nightly e2e failure issue

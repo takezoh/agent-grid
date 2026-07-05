@@ -56,6 +56,7 @@ type TerminalRelay struct {
 	// drop — TerminalRelay ignores the return because realtime surface chunks
 	// are best-effort by design.
 	send    func(internalEvent) bool
+	sendNow func(internalEvent)
 	startTS time.Time // base for TimeSec computation
 
 	mu   sync.Mutex
@@ -84,11 +85,13 @@ func WithTerminalRelaySubscriberBuffer(size int) TerminalRelayOption {
 func NewTerminalRelay(
 	b SurfaceBackend,
 	send func(internalEvent) bool,
+	sendNow func(internalEvent),
 	opts ...TerminalRelayOption,
 ) *TerminalRelay {
 	tr := &TerminalRelay{
 		backend:          b,
 		send:             send,
+		sendNow:          sendNow,
 		startTS:          time.Now(),
 		subs:             make(map[surfaceKey]*surfaceSub),
 		subscriberBuffer: defaultTerminalRelaySubscriberBuffer,
@@ -161,6 +164,29 @@ func (tr *TerminalRelay) Unsubscribe(connID state.ConnID, sessionID state.Sessio
 	_ = tr.backend.UnsubscribeSurface(sub.frameID, sub.subID)
 }
 
+func (tr *TerminalRelay) shouldApplySlowClose(connID state.ConnID, sessionID state.SessionID, subID int) bool {
+	key := surfaceKey{connID: connID, sessionID: sessionID}
+
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+
+	sub, ok := tr.subs[key]
+	if !ok {
+		return true
+	}
+	return sub.subID == subID
+}
+
+func (tr *TerminalRelay) hasSubscription(connID state.ConnID, sessionID state.SessionID) bool {
+	key := surfaceKey{connID: connID, sessionID: sessionID}
+
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+
+	_, ok := tr.subs[key]
+	return ok
+}
+
 // Write forwards raw bytes to the frame's pty. No carriage return is appended;
 // the caller (xterm.js via the web gateway) is responsible for proper encoding.
 func (tr *TerminalRelay) Write(frameID string, data []byte) error {
@@ -198,21 +224,15 @@ func (tr *TerminalRelay) fanOut(key surfaceKey, sub *surfaceSub, ch <-chan termv
 			return
 		case ev, ok := <-ch:
 			if !ok {
-				// termvt slow-closed the channel. Remove the entry from the
-				// local subs map BEFORE notifying the reducer so that even if
-				// the non-blocking send drops the internalSurfaceClosed event
-				// (when the runtime's internal queue is saturated), we do not
-				// leak tr.subs[key]. The reducer's SurfaceSubs reconciliation
-				// may then be slightly delayed but is not lost (a subsequent
-				// EvConnClosed for the daemon ConnID will clean state anyway).
 				tr.mu.Lock()
 				if cur, ok := tr.subs[key]; ok && cur == sub {
 					delete(tr.subs, key)
 				}
 				tr.mu.Unlock()
-				_ = tr.send(internalSurfaceClosed{
+				tr.sendNow(internalSurfaceClosed{
 					ConnID:    key.connID,
 					SessionID: key.sessionID,
+					SubID:     sub.subID,
 				})
 				return
 			}
@@ -263,6 +283,7 @@ func (internalBroadcastSurface) isInternalEvent() {}
 type internalSurfaceClosed struct {
 	ConnID    state.ConnID
 	SessionID state.SessionID
+	SubID     int
 }
 
 func (internalSurfaceClosed) isInternalEvent() {}

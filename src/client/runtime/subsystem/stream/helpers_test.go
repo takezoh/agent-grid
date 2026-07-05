@@ -145,6 +145,13 @@ func TestNormalizeCodexThreadSettingsReasoningEffortAlias(t *testing.T) {
 	}
 }
 
+func TestNormalizeCodexThreadSettingsReasoningEffortAliasOverridesNullEffort(t *testing.T) {
+	got := normalizeCodexThreadSettings([]byte(`{"threadId":"t1","threadSettings":{"effort":null,"reasoning_effort":{"level":"high"}}}`))
+	if got.threadID != "t1" || !got.effortSet || got.effort != "high" {
+		t.Fatalf("metadata = %+v", got)
+	}
+}
+
 func TestExtractText(t *testing.T) {
 	if got := extractText([]byte(`{"text":"hi"}`)); got != "hi" {
 		t.Errorf("text: %q", got)

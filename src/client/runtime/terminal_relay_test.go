@@ -158,17 +158,19 @@ func newTestTerminalRelay(t *testing.T, b SurfaceBackend) (*TerminalRelay, <-cha
 	t.Helper()
 	ch := make(chan internalEvent, 64)
 	send := func(ev internalEvent) bool { ch <- ev; return true }
-	return NewTerminalRelay(b, send), ch
+	sendNow := func(ev internalEvent) { ch <- ev }
+	return NewTerminalRelay(b, send, sendNow), ch
 }
 
 func newTestTerminalRelayWithOptions(
 	t *testing.T,
 	b SurfaceBackend,
 	send func(internalEvent) bool,
+	sendNow func(internalEvent),
 	opts ...TerminalRelayOption,
 ) *TerminalRelay {
 	t.Helper()
-	return NewTerminalRelay(b, send, opts...)
+	return NewTerminalRelay(b, send, sendNow, opts...)
 }
 
 const (
@@ -313,11 +315,97 @@ func TestTerminalRelay_SlowCloseEmitsClosedEvent(t *testing.T) {
 	if sc.ConnID != conn1 || sc.SessionID != sess1 {
 		t.Errorf("closed event = {%v, %v}, want {%v, %v}", sc.ConnID, sc.SessionID, conn1, sess1)
 	}
+	if sc.SubID != id {
+		t.Errorf("closed event SubID = %d, want %d", sc.SubID, id)
+	}
 
 	// No additional events should arrive.
 	extra := collectEvents(t, events, 1, 50*time.Millisecond)
 	if len(extra) != 0 {
 		t.Errorf("unexpected extra events: %v", extra)
+	}
+}
+
+func TestTerminalRelay_SlowCloseAllowsResubscribeBeforeClosedEventIsDelivered(t *testing.T) {
+	b := newFakeSurfaceBackend()
+	events := make(chan internalEvent, 8)
+	allowCloseDelivery := make(chan struct{})
+	closeStarted := make(chan struct{})
+	var closeStartedOnce atomic.Bool
+
+	send := func(ev internalEvent) bool {
+		events <- ev
+		return true
+	}
+	sendNow := func(ev internalEvent) {
+		if _, ok := ev.(internalSurfaceClosed); ok {
+			if closeStartedOnce.CompareAndSwap(false, true) {
+				close(closeStarted)
+			}
+			<-allowCloseDelivery
+		}
+		events <- ev
+	}
+
+	tr := newTestTerminalRelayWithOptions(t, b, send, sendNow)
+	defer tr.Close()
+
+	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+	id := int(b.nextID.Load())
+
+	b.CloseID(id)
+
+	select {
+	case <-closeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for blocked internalSurfaceClosed send")
+	}
+
+	tr.mu.Lock()
+	_, stillPresent := tr.subs[surfaceKey{connID: conn1, sessionID: sess1}]
+	tr.mu.Unlock()
+	if stillPresent {
+		t.Fatal("local subscription remained after slow-close started")
+	}
+
+	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+		t.Fatalf("re-Subscribe: %v", err)
+	}
+	id2 := int(b.nextID.Load())
+	if id2 == id {
+		t.Fatalf("subscriber id did not advance after re-Subscribe: old=%d new=%d", id, id2)
+	}
+
+	b.Send(id2, termvt.Event{Kind: termvt.EventOutput, Data: []byte("r")})
+	gotOutput := collectEvents(t, events, 1, time.Second)
+	if len(gotOutput) != 1 {
+		t.Fatalf("expected 1 output event, got %d", len(gotOutput))
+	}
+	bs, ok := gotOutput[0].(internalBroadcastSurface)
+	if !ok {
+		t.Fatalf("expected internalBroadcastSurface, got %T", gotOutput[0])
+	}
+	if bs.Sequence != 0 || string(bs.Data) != "r" {
+		t.Fatalf("re-subscribed output = %+v, want sequence 0 data r", bs)
+	}
+
+	close(allowCloseDelivery)
+
+	got := collectEvents(t, events, 1, time.Second)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(got))
+	}
+	sc, ok := got[0].(internalSurfaceClosed)
+	if !ok {
+		t.Fatalf("expected internalSurfaceClosed, got %T", got[0])
+	}
+	if sc.ConnID != conn1 || sc.SessionID != sess1 {
+		t.Fatalf("closed event = {%v, %v}, want {%v, %v}", sc.ConnID, sc.SessionID, conn1, sess1)
+	}
+	if sc.SubID != id {
+		t.Fatalf("closed event SubID = %d, want %d", sc.SubID, id)
 	}
 }
 
@@ -501,6 +589,7 @@ func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
 		t,
 		b,
 		router.send,
+		func(ev internalEvent) { _ = router.send(ev) },
 		WithTerminalRelaySubscriberBuffer(1),
 	)
 	defer tr.Close()
@@ -569,6 +658,7 @@ func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
 	if _, ok := gotBlocked[2].(internalSurfaceClosed); !ok {
 		t.Fatalf("third blocked event type = %T, want internalSurfaceClosed", gotBlocked[2])
 	}
+	tr.Unsubscribe(conn1, sess1)
 
 	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
 		t.Fatalf("re-Subscribe blocked key: %v", err)

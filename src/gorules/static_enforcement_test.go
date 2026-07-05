@@ -88,6 +88,22 @@ func TestCheckE2ESiblingsScript(t *testing.T) {
 	})
 }
 
+func TestNightlyE2EWorkflowExportsAllRealBinaryEnvVars(t *testing.T) {
+	workflowPath := filepath.Join(repoRoot(t), ".github", "workflows", "e2e-nightly.yml")
+	raw, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatalf("read workflow: %v", err)
+	}
+	text := string(raw)
+
+	if !strings.Contains(text, "echo \"reactor_e2e_docker_bin=$(command -v docker)\" >> \"$GITHUB_OUTPUT\"") {
+		t.Fatalf("nightly workflow does not export reactor_e2e_docker_bin in suite selection step")
+	}
+	if !strings.Contains(text, "REACTOR_E2E_DOCKER_BIN: ${{ steps.suite_env.outputs.reactor_e2e_docker_bin }}") {
+		t.Fatalf("nightly workflow does not pass REACTOR_E2E_DOCKER_BIN to make test-e2e")
+	}
+}
+
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	wd, err := os.Getwd()

@@ -339,6 +339,37 @@ func TestHandleThreadSettingsUpdatedClearsEffortWhenServerSendsNull(t *testing.T
 	}
 }
 
+func TestHandleThreadSettingsUpdatedUsesReasoningEffortAliasWhenEffortIsNull(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1", model: "gpt-5", effort: "low"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleThreadSettingsUpdated([]byte(`{"threadId":"t1","threadSettings":{"model":"gpt-5","effort":null,"reasoning_effort":{"level":"high"}}}`))
+	if len(fr.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(fr.events))
+	}
+	ev := fr.events[0].(state.EvSubsystem)
+	if ev.Kind != state.SubsystemMetadataUpdated {
+		t.Fatalf("Kind = %q, want metadata_updated", ev.Kind)
+	}
+	if !ev.Payload.EffortSet {
+		t.Fatalf("EffortSet = false, want true: %+v", ev.Payload)
+	}
+	if ev.Payload.Effort != "high" {
+		t.Fatalf("Effort = %q, want alias high", ev.Payload.Effort)
+	}
+
+	payload := b.payload("f1")
+	if !payload.EffortSet {
+		t.Fatalf("payload EffortSet = false, want true: %+v", payload)
+	}
+	if payload.Effort != "high" {
+		t.Fatalf("payload Effort = %q, want alias high", payload.Effort)
+	}
+}
+
 func TestHandleThreadSettingsUpdatedDoesNotBleedAcrossThreads(t *testing.T) {
 	b, _ := newTestBackend()
 	b.mu.Lock()

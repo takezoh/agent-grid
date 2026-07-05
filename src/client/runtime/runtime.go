@@ -283,7 +283,7 @@ func New(cfg Config) *Runtime {
 	}
 	r.registerSubsystemFactories()
 	if sb, ok := cfg.Backend.(SurfaceBackend); ok {
-		r.terminalRelay = NewTerminalRelay(sb, r.enqueueInternal)
+		r.terminalRelay = NewTerminalRelay(sb, r.enqueueInternal, r.sendInternalNow)
 	}
 	r.publishState(initial)
 	return r
@@ -545,7 +545,29 @@ func (r *Runtime) dispatch(ev state.Event) {
 	for _, eff := range effects {
 		r.execute(eff)
 	}
+	r.reconcileSurfaceRelay(ev)
 	r.reconcilePersist(prev, r.state.Sessions, eventName(ev))
+}
+
+func (r *Runtime) reconcileSurfaceRelay(ev state.Event) {
+	e, ok := ev.(state.EvCmdSurfaceSubscribe)
+	if !ok || r.terminalRelay == nil {
+		return
+	}
+	if _, ok := r.state.SurfaceSubs[e.ConnID][e.SessionID]; !ok {
+		return
+	}
+	if r.terminalRelay.hasSubscription(e.ConnID, e.SessionID) {
+		return
+	}
+	frameID := r.sessionHeadFrameTarget(e.SessionID)
+	if frameID == "" {
+		return
+	}
+	if err := r.terminalRelay.Subscribe(e.ConnID, e.SessionID, frameID); err != nil {
+		slog.Warn("runtime: surface subscribe reconciliation failed",
+			"session", e.SessionID, "conn", e.ConnID, "err", err)
+	}
 }
 
 func (r *Runtime) publishState(s state.State) {

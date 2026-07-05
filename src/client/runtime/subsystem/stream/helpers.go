@@ -53,10 +53,10 @@ func normalizeCodexThreadSettings(raw json.RawMessage) codexThreadMetadata {
 		return codexThreadMetadata{}
 	}
 	model, modelSet := normalizeMetadataStringField(data.ThreadSettings["model"])
-	effort, effortSet := normalizeMetadataEffortField(data.ThreadSettings["effort"])
-	if !effortSet {
-		effort, effortSet = normalizeMetadataEffortField(data.ThreadSettings["reasoning_effort"])
-	}
+	effort, effortSet := normalizeMetadataEffortAliasFields(
+		data.ThreadSettings["effort"],
+		data.ThreadSettings["reasoning_effort"],
+	)
 	return codexThreadMetadata{
 		threadID:  strings.TrimSpace(data.ThreadID),
 		model:     model,
@@ -108,6 +108,21 @@ func normalizeMetadataStringField(raw json.RawMessage) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSpace(value), true
+}
+
+func normalizeMetadataEffortAliasFields(primary, alias json.RawMessage) (string, bool) {
+	effort, effortSet := normalizeMetadataEffortField(primary)
+	if effortSet && strings.TrimSpace(effort) != "" {
+		return effort, true
+	}
+	aliasEffort, aliasSet := normalizeMetadataEffortField(alias)
+	if aliasSet && strings.TrimSpace(aliasEffort) != "" {
+		return aliasEffort, true
+	}
+	if effortSet {
+		return effort, true
+	}
+	return aliasEffort, aliasSet
 }
 
 func normalizeMetadataEffortField(raw json.RawMessage) (string, bool) {

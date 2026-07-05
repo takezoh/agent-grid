@@ -193,8 +193,8 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 	case internalBroadcastSurface:
 		r.broadcastSurfaceFromInternal(e)
 	case internalSurfaceClosed:
-		if r.terminalRelay != nil {
-			r.terminalRelay.Unsubscribe(e.ConnID, e.SessionID)
+		if r.terminalRelay != nil && !r.terminalRelay.shouldApplySlowClose(e.ConnID, e.SessionID, e.SubID) {
+			return
 		}
 		r.dispatch(state.EvCmdSurfaceUnsubscribe{ConnID: e.ConnID, ReqID: "", SessionID: e.SessionID})
 	}
@@ -344,6 +344,13 @@ func (c *internalDropCounter) snapshot() map[string]uint64 {
 // token and cleanup closure with no recovery path. Blocks until the loop
 // accepts it or the daemon shuts down (r.done), so it never leaks a goroutine.
 func (r *Runtime) sendSpawnComplete(ev internalEvent) {
+	select {
+	case r.internalCh <- ev:
+	case <-r.done:
+	}
+}
+
+func (r *Runtime) sendInternalNow(ev internalEvent) {
 	select {
 	case r.internalCh <- ev:
 	case <-r.done:
