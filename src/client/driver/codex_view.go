@@ -36,6 +36,8 @@ func (d CodexDriver) view(cs CodexState) state.View {
 		LogTabs:         tabs,
 		InfoExtras:      codexInfoExtras(cs),
 		StatusLine:      cs.StatusLine,
+		Model:           cs.Model,
+		Effort:          cs.Effort,
 		Status:          cs.Status,
 		StatusChangedAt: cs.StatusChangedAt,
 	}
@@ -55,6 +57,8 @@ func codexInfoExtras(cs CodexState) []state.InfoLine {
 	add("Resume Phase", cs.ResumePhase)
 	add("Working Dir", cs.StartDir)
 	add("Worktree Name", cs.WorktreeName)
+	add("Model", cs.Model)
+	add("Effort", cs.Effort)
 	add("Current Tool", cs.CurrentTool)
 	if cs.BranchIsWorktree {
 		add("Parent Branch", cs.BranchParentBranch)

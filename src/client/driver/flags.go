@@ -6,7 +6,11 @@ import "strings"
 // (or with a = suffix like "--flag=value"). Assumes alias expansion has
 // already been applied by the caller.
 func hasFlagToken(command, flag string) bool {
-	for _, p := range strings.Fields(command) {
+	argv, err := splitCommandArgs(command)
+	if err != nil {
+		return false
+	}
+	for _, p := range argv {
 		if p == flag || strings.HasPrefix(p, flag+"=") {
 			return true
 		}
@@ -17,7 +21,10 @@ func hasFlagToken(command, flag string) bool {
 // stripFlagToken removes exact flag tokens; "--flag=value" form is left intact
 // (asymmetric with hasFlagToken by design — targets boolean-only flags).
 func stripFlagToken(command, flag string) string {
-	parts := strings.Fields(command)
+	parts, err := splitCommandArgs(command)
+	if err != nil {
+		return strings.TrimSpace(command)
+	}
 	out := parts[:0]
 	for _, p := range parts {
 		if p == flag {
@@ -25,5 +32,5 @@ func stripFlagToken(command, flag string) string {
 		}
 		out = append(out, p)
 	}
-	return strings.Join(out, " ")
+	return joinCommandArgs(out)
 }

@@ -70,6 +70,21 @@ describe("DriverViewPanel", () => {
     expect(screen.getByText("beta")).toBeTruthy();
   });
 
+  it("renders header metadata pills for model and effort", () => {
+    const view = makeView({ card: { title: "My Title" }, model: "gpt-5", effort: "high" });
+    const { container } = render(<DriverViewPanel view={view} />);
+    const row = container.querySelector(".driver-view-metadata");
+    expect(row?.textContent).toContain("gpt-5");
+    expect(row?.textContent).toContain("high");
+  });
+
+  it("hides missing metadata values in the header row", () => {
+    const view = makeView({ card: { title: "My Title" }, model: "gpt-5" });
+    const { container } = render(<DriverViewPanel view={view} />);
+    const pills = [...container.querySelectorAll(".driver-view-meta-pill")].map((el) => el.textContent);
+    expect(pills).toEqual(["gpt-5"]);
+  });
+
   it("renders RunStateBadge for view.status", () => {
     const view = makeView({ status: "running" });
     render(<DriverViewPanel view={view} />);

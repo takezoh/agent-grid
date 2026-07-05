@@ -17,6 +17,7 @@ type CommandConfig struct {
 	ServerBin  string
 	ServerArgs []string
 	Model      string
+	Effort     string
 }
 
 // ParseCommand parses a pre-tokenized codex argv into a CommandConfig.
@@ -37,10 +38,22 @@ func ParseCommand(argv []string) (CommandConfig, error) {
 				cfg.Model = argv[i+1]
 				i++
 			}
+		case "--effort":
+			if i+1 < len(argv) {
+				cfg.Effort = argv[i+1]
+				i++
+			}
 		case "-c", "--config", "--enable", "--disable":
 			if i+1 < len(argv) {
 				cfg.ServerArgs = append(cfg.ServerArgs, arg, argv[i+1])
 				i++
+			}
+		default:
+			switch {
+			case strings.HasPrefix(arg, "--model="):
+				cfg.Model = strings.TrimSpace(strings.TrimPrefix(arg, "--model="))
+			case strings.HasPrefix(arg, "--effort="):
+				cfg.Effort = strings.TrimSpace(strings.TrimPrefix(arg, "--effort="))
 			}
 		}
 	}
@@ -85,10 +98,16 @@ func AppServerStdioArgs(extra []string, sandboxExternal bool) []string {
 //     unix://<sock>` — the CLI reads `~/.codex/sessions/…/rollout-<id>.jsonl`
 //     locally and issues `thread/resume`, so app-server events for <id>
 //     route back to the frame that was pre-bound with that id.
-func RemoteAttachArgs(sock, threadID, startDir string) []string {
+func RemoteAttachArgs(sock, threadID, startDir, model, effort string) []string {
 	args := []string{DriverName}
 	if threadID != "" {
 		args = append(args, "resume", threadID)
+	}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	if effort != "" {
+		args = append(args, "--effort", effort)
 	}
 	args = append(args, "--remote", "unix://"+sock, "--dangerously-bypass-approvals-and-sandbox")
 	if startDir != "" {

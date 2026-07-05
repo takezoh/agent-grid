@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
 )
 
 const (
@@ -16,39 +18,53 @@ const (
 	CodexAppServerSockPrefix = "codex-"
 	CodexAppServerSockSuffix = ".sock"
 
-	codexKeyThreadID          = "thread_id"
-	codexKeySessionID         = "session_id"
-	codexKeyRolloutPath       = "rollout_path"
-	codexKeyRequestedThreadID = "requested_thread_id"
-	codexKeyObservedThreadID  = "observed_thread_id"
-	codexKeyResumePhase       = "resume_phase"
-	codexKeyPreview           = "preview"
-	codexKeyDisplayFallback   = "display_fallback"
+	codexKeyThreadID            = "thread_id"
+	codexKeySessionID           = "session_id"
+	codexKeyRolloutPath         = "rollout_path"
+	codexKeyRequestedThreadID   = "requested_thread_id"
+	codexKeyObservedThreadID    = "observed_thread_id"
+	codexKeyResumePhase         = "resume_phase"
+	codexKeyPreview             = "preview"
+	codexKeyDisplayFallback     = "display_fallback"
+	codexKeyModel               = "codex_model"
+	codexKeyEffort              = "codex_effort"
+	codexKeyModelSet            = "codex_model_set"
+	codexKeyEffortSet           = "codex_effort_set"
+	codexKeyModelAuthoritative  = "codex_model_authoritative"
+	codexKeyEffortAuthoritative = "codex_effort_authoritative"
+	codexLegacyKeyModel         = "model"
+	codexLegacyKeyEffort        = "effort"
 )
 
 type CodexState struct {
 	CommonState
 
-	ThreadID           string
-	SessionID          string
-	RolloutPath        string
-	RequestedThreadID  string
-	ObservedThreadID   string
-	ResumePhase        string
-	FailureReason      string
-	CurrentTool        string
-	PendingApproval    bool
-	TranscriptInFlight bool
-	WatchedFile        string
-	StatusLine         string
-	LastWindowTitle    string
-	Preview            string
-	DisplayFallback    string
-	PlanSummary        string
-	DiffSummary        string
-	DiffPaths          []string
-	RecentTurns        []SummaryTurn
-	PendingTools       map[string]codexPendingTool
+	ThreadID            string
+	SessionID           string
+	RolloutPath         string
+	RequestedThreadID   string
+	ObservedThreadID    string
+	ResumePhase         string
+	FailureReason       string
+	Model               string
+	Effort              string
+	ModelSet            bool
+	EffortSet           bool
+	ModelAuthoritative  bool
+	EffortAuthoritative bool
+	CurrentTool         string
+	PendingApproval     bool
+	TranscriptInFlight  bool
+	WatchedFile         string
+	StatusLine          string
+	LastWindowTitle     string
+	Preview             string
+	DisplayFallback     string
+	PlanSummary         string
+	DiffSummary         string
+	DiffPaths           []string
+	RecentTurns         []SummaryTurn
+	PendingTools        map[string]codexPendingTool
 }
 
 type CodexDriver struct {
@@ -119,6 +135,12 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 	if !ok {
 		cs = CodexState{}
 	}
+	if cs.Model != "" {
+		cs.ModelSet = true
+	}
+	if cs.Effort != "" {
+		cs.EffortSet = true
+	}
 	startDir := project
 	if cs.StartDir != "" {
 		startDir = cs.StartDir
@@ -127,6 +149,32 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 	fields := strings.Fields(stripped)
 	if len(fields) == 0 || fields[0] != CodexDriverName {
 		return state.LaunchPlan{Command: strings.TrimSpace(baseCommand), StartDir: startDir, Options: options, Stdin: options.InitialInput}, nil
+	}
+	if argv, err := agentlaunch.SplitArgs(stripped); err == nil {
+		if cfg, err := libcodex.ParseCommand(argv); err == nil {
+			if !cs.ModelSet && cfg.Model != "" {
+				cs.Model = cfg.Model
+				cs.ModelSet = true
+			}
+			if !cs.EffortSet && cfg.Effort != "" {
+				cs.Effort = cfg.Effort
+				cs.EffortSet = true
+			}
+			if cs.ModelSet {
+				if cs.Model == "" {
+					stripped = stripFlagValues(stripped, []string{"--model", "-m"})
+				} else {
+					stripped = replaceFlagValue(stripped, []string{"--model", "-m"}, cs.Model)
+				}
+			}
+			if cs.EffortSet {
+				if cs.Effort == "" {
+					stripped = stripFlagValues(stripped, []string{"--effort"})
+				} else {
+					stripped = replaceFlagValue(stripped, []string{"--effort"}, cs.Effort)
+				}
+			}
+		}
 	}
 	base := strings.TrimSpace(stripped)
 	stream := state.StreamLaunchOptions{}

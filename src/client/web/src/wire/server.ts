@@ -43,6 +43,8 @@ export type View = {
   info_extras?: InfoLine[];
   suppress_info?: boolean;
   status_line?: string;
+  model?: string;
+  effort?: string;
   status?: string; // "running" | "waiting" | "idle" | "stopped" | "pending"
   status_changed_at?: string; // RFC3339
 };

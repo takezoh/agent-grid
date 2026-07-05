@@ -139,7 +139,7 @@ func TestStartRunsCleanupWhenInitializeFails(t *testing.T) {
 	dispatcher := &cleanupDispatcher{}
 	sock := filepath.Join(t.TempDir(), "codex-x.sock")
 	b := New(&fakeRuntime{}, dispatcher, "sid", "sess1", "/p",
-		os.Args[0], []string{"--mode", "initfail"}, "", false, false,
+		os.Args[0], []string{"--mode", "initfail"}, "", "", false, false,
 		sock, 3*time.Second)
 
 	err := b.Start(context.Background())
@@ -155,7 +155,7 @@ func TestStartThenStopRunsRegisteredCleanup(t *testing.T) {
 	dispatcher := &cleanupDispatcher{}
 	sock := filepath.Join(t.TempDir(), "codex-x.sock")
 	b := New(&fakeRuntime{}, dispatcher, "sid", "sess1", "/p",
-		os.Args[0], []string{"--mode", "ok"}, "", false, false,
+		os.Args[0], []string{"--mode", "ok"}, "", "", false, false,
 		sock, 3*time.Second)
 
 	if err := b.Start(context.Background()); err != nil {
@@ -169,7 +169,7 @@ func TestStartThenStopRunsRegisteredCleanup(t *testing.T) {
 }
 
 func TestBackendKind(t *testing.T) {
-	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", 0)
+	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, "/sock", 0)
 	if b.Kind() != state.LaunchSubsystemStream {
 		t.Errorf("Kind = %v", b.Kind())
 	}

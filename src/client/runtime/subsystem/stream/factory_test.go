@@ -104,7 +104,7 @@ func TestFactory_RemoveStopsAndDeletesBackend(t *testing.T) {
 
 func TestBackend_BindThreadRegistersMultipleFrameBindings(t *testing.T) {
 	b := New(nil, nil, "stream:session:sess1", "sess1", "/workspace/agent-roost",
-		"codex", nil, "", false, false,
+		"codex", nil, "", "", false, false,
 		"/opt/agent-reactor/run/codex.sock",
 		0,
 	)

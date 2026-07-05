@@ -175,10 +175,15 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 func (d CodexDriver) applySubsystemMetadata(cs CodexState, p state.SubsystemPayload, now time.Time, effs []state.Effect) (CodexState, []state.Effect) {
 	prompt := strings.TrimSpace(p.Prompt)
 	cs = applyCodexMetadata(cs, codexMetadata{
-		TitleSet: p.TitleSet,
-		Title:    p.Title,
-		Preview:  p.Preview,
-		Prompt:   prompt,
+		TitleSet:      p.TitleSet,
+		Title:         p.Title,
+		Preview:       p.Preview,
+		Prompt:        prompt,
+		Model:         p.Model,
+		ModelSet:      p.ModelSet,
+		Effort:        p.Effort,
+		EffortSet:     p.EffortSet,
+		Authoritative: true,
 	})
 	return d.applyMetadataPrompt(cs, prompt, now, effs)
 }
@@ -330,6 +335,10 @@ func (d CodexDriver) handleJobResult(cs CodexState, e state.DEvJobResult) CodexS
 			TitleSet:   r.Title != "",
 			Title:      r.Title,
 			LastPrompt: r.LastPrompt,
+			Model:      r.Model,
+			ModelSet:   r.ModelSet,
+			Effort:     r.Effort,
+			EffortSet:  r.EffortSet,
 		})
 		if r.LastPrompt != "" {
 			cs.LastPrompt = r.LastPrompt
@@ -350,11 +359,16 @@ func (d CodexDriver) handleJobResult(cs CodexState, e state.DEvJobResult) CodexS
 }
 
 type codexMetadata struct {
-	TitleSet   bool
-	Title      string
-	Preview    string
-	Prompt     string
-	LastPrompt string
+	TitleSet      bool
+	Title         string
+	Preview       string
+	Prompt        string
+	LastPrompt    string
+	Model         string
+	ModelSet      bool
+	Effort        string
+	EffortSet     bool
+	Authoritative bool
 }
 
 func applyCodexMetadata(cs CodexState, m codexMetadata) CodexState {
@@ -363,6 +377,20 @@ func applyCodexMetadata(cs CodexState, m codexMetadata) CodexState {
 	}
 	if preview := strings.TrimSpace(m.Preview); preview != "" {
 		cs.Preview = preview
+	}
+	if m.ModelSet && (m.Authoritative || !cs.ModelAuthoritative) {
+		cs.Model = strings.TrimSpace(m.Model)
+		cs.ModelSet = true
+		if m.Authoritative {
+			cs.ModelAuthoritative = true
+		}
+	}
+	if m.EffortSet && (m.Authoritative || !cs.EffortAuthoritative) {
+		cs.Effort = strings.TrimSpace(m.Effort)
+		cs.EffortSet = true
+		if m.Authoritative {
+			cs.EffortAuthoritative = true
+		}
 	}
 	cs.DisplayFallback = codexDisplayFallback(cs.Preview, firstNonEmpty(m.Prompt, m.LastPrompt, cs.LastPrompt))
 	return cs

@@ -31,6 +31,7 @@ func newTranscriptSummaryRunners(summarizeCmd string) (
 			LastPrompt:  snap.LastPrompt,
 			StatusLine:  tracker.StatusLine(in.ClaudeUUID),
 			CurrentTool: snap.Insight.CurrentTool,
+			Model:       snap.Model,
 			Subagents:   snap.Insight.SubagentCounts,
 			RecentTurns: normalizeTurns(tracker.RecentRounds(in.ClaudeUUID, 2)),
 			PlanFile:    snap.Insight.PlanFile,

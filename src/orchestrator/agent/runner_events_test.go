@@ -88,6 +88,9 @@ func (s *startupFailServer) OnServerRequest(id int64, method string, _ json.RawM
 		_ = s.srv.Conn().Reply(id, map[string]any{})
 	case codexschema.MethodThreadStart:
 		_ = s.srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": testThreadID}})
+	case codexschema.MethodTurnStart:
+		_ = s.srv.Conn().Reply(id, map[string]any{"turn": map[string]any{"id": "turn-1"}})
+		s.killWriter()
 	}
 }
 

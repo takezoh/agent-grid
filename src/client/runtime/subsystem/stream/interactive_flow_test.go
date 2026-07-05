@@ -42,7 +42,7 @@ func newFakeServer(t *testing.T) *fake.AppServer {
 func attachBackend(t *testing.T, srv *fake.AppServer) (*Backend, *recordingRuntime) {
 	t.Helper()
 	rt := &recordingRuntime{}
-	b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, srv.SockPath(), 30*time.Second)
+	b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, srv.SockPath(), 30*time.Second)
 
 	tr, err := codexclient.DialUDS(srv.SockPath(), 3*time.Second)
 	if err != nil {

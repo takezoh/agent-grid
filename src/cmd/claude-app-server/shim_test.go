@@ -162,6 +162,24 @@ func fakeLauncherSequence(calls *[][]string, sequences ...[]string) claudeLaunch
 	return claudeLauncher(fn)
 }
 
+func blockingLauncher(calls *[][]string, started chan<- struct{}, release <-chan struct{}) claudeLauncher {
+	return func(_ context.Context, cwd, resumeSessionID, _ string, prompt string, _ []string) (io.ReadCloser, func() error, error) {
+		if calls != nil {
+			*calls = append(*calls, []string{cwd, resumeSessionID, prompt})
+		}
+		pr, pw := io.Pipe()
+		go func() {
+			if started != nil {
+				started <- struct{}{}
+			}
+			<-release
+			_, _ = io.WriteString(pw, lineSystemInit+"\n"+lineResultOK+"\n")
+			_ = pw.Close()
+		}()
+		return pr, func() error { return nil }, nil
+	}
+}
+
 // stream-json fixtures — reference the public fakeclaude constants so
 // changes to the wire form live in exactly one place.
 const (
@@ -233,6 +251,105 @@ func TestShim_SessionID(t *testing.T) {
 	turnCompletedParams := nc.lastParams(codexschema.MethodTurnCompleted)
 	assert.Equal(t, "thread-1-turn-1", turnCompletedParams["sessionId"])
 	assert.Equal(t, "done", turnCompletedParams["text"])
+}
+
+func TestShim_TurnStartResponseIDMatchesLifecycleEvents(t *testing.T) {
+	var calls [][]string
+	launch := fakeLauncherSequence(&calls, []string{lineSystemInit, lineResultOK})
+	clientConn, _, _ := pipeShim(t, launch, []string{"thread-1", "turn-1"})
+
+	nc := &notificationCollector{}
+	go func() { _ = clientConn.Run(context.Background(), nc) }()
+
+	require.NoError(t, codexclient.Initialize(clientConn))
+
+	res, err := clientConn.Request(codexschema.MethodTurnStart, map[string]any{
+		"cwd": "/ws",
+		"input": []map[string]any{{
+			"type": "text",
+			"text": "hi",
+		}},
+	})
+	require.NoError(t, err)
+
+	var response struct {
+		Turn struct {
+			ID string `json:"id"`
+		} `json:"turn"`
+	}
+	require.NoError(t, json.Unmarshal(res, &response))
+	require.NotEmpty(t, response.Turn.ID)
+
+	waitForMethods(t, nc, []string{
+		codexschema.MethodThreadStarted,
+		codexschema.MethodTurnStarted,
+		codexschema.MethodThreadTokenUsageUpdated,
+		codexschema.MethodTurnCompleted,
+	})
+
+	turnStartedParams := nc.lastParams(codexschema.MethodTurnStarted)
+	require.NotNil(t, turnStartedParams)
+	assert.Equal(t, response.Turn.ID, turnStartedParams["turnId"])
+
+	turnCompletedParams := nc.lastParams(codexschema.MethodTurnCompleted)
+	require.NotNil(t, turnCompletedParams)
+	assert.Equal(t, response.Turn.ID, turnCompletedParams["turnId"])
+}
+
+func TestShim_TurnStartRequestFailsWhenQueueFull(t *testing.T) {
+	var calls [][]string
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	launch := blockingLauncher(&calls, started, release)
+	clientConn, _, _ := pipeShim(t, launch, []string{
+		"thread-1",
+		"turn-1", "turn-2", "turn-3", "turn-4", "turn-5",
+		"turn-6", "turn-7", "turn-8", "turn-9", "turn-10",
+	})
+
+	nc := &notificationCollector{}
+	go func() { _ = clientConn.Run(context.Background(), nc) }()
+
+	require.NoError(t, codexclient.Initialize(clientConn))
+
+	_, err := clientConn.Request(codexschema.MethodTurnStart, map[string]any{
+		"cwd": "/ws",
+		"input": []map[string]any{{
+			"type": "text",
+			"text": "first",
+		}},
+	})
+	require.NoError(t, err)
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout waiting for first launcher start")
+	}
+
+	for i := 0; i < 8; i++ {
+		_, err := clientConn.Request(codexschema.MethodTurnStart, map[string]any{
+			"threadId": "thread-1",
+			"cwd":      "/ws",
+			"input": []map[string]any{{
+				"type": "text",
+				"text": "queued",
+			}},
+		})
+		require.NoError(t, err)
+	}
+
+	_, err = clientConn.Request(codexschema.MethodTurnStart, map[string]any{
+		"threadId": "thread-1",
+		"cwd":      "/ws",
+		"input": []map[string]any{{
+			"type": "text",
+			"text": "overflow",
+		}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "turn queue full")
+
+	close(release)
 }
 
 func TestShim_ContinuationResume(t *testing.T) {

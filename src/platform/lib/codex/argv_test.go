@@ -23,6 +23,16 @@ func TestParseCommand(t *testing.T) {
 			want: CommandConfig{ServerBin: "codex", Model: "gpt-4o"},
 		},
 		{
+			name: "effort flag",
+			argv: []string{"codex", "--effort", "high"},
+			want: CommandConfig{ServerBin: "codex", Effort: "high"},
+		},
+		{
+			name: "equals flags",
+			argv: []string{"codex", "--model=gpt-5", "--effort=high"},
+			want: CommandConfig{ServerBin: "codex", Model: "gpt-5", Effort: "high"},
+		},
+		{
 			name: "resume skips thread id",
 			argv: []string{"codex", "resume", "abc-123"},
 			want: CommandConfig{ServerBin: "codex"},
@@ -52,7 +62,7 @@ func TestParseCommand(t *testing.T) {
 			if tt.wantErr {
 				return
 			}
-			if got.ServerBin != tt.want.ServerBin || got.Model != tt.want.Model {
+			if got.ServerBin != tt.want.ServerBin || got.Model != tt.want.Model || got.Effort != tt.want.Effort {
 				t.Errorf("got %+v, want %+v", got, tt.want)
 			}
 			if len(got.ServerArgs) != len(tt.want.ServerArgs) {
@@ -135,6 +145,8 @@ func TestRemoteAttachArgs(t *testing.T) {
 		sock         string
 		threadID     string
 		startDir     string
+		model        string
+		effort       string
 		wantContains []string
 		wantAbsent   []string
 	}{
@@ -157,6 +169,13 @@ func TestRemoteAttachArgs(t *testing.T) {
 			wantContains: []string{"-C", "/workspace/foo"},
 		},
 		{
+			name:         "with model and effort",
+			sock:         "/opt/agent-reactor/run/codex-sess5.sock",
+			model:        "gpt-5-codex",
+			effort:       "high",
+			wantContains: []string{"--model", "gpt-5-codex", "--effort", "high"},
+		},
+		{
 			name:       "no startDir omits -C",
 			sock:       "/opt/agent-reactor/run/codex-sess4.sock",
 			wantAbsent: []string{"-C"},
@@ -164,7 +183,7 @@ func TestRemoteAttachArgs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir)
+			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir, tt.model, tt.effort)
 			for _, want := range tt.wantContains {
 				found := false
 				for _, g := range got {

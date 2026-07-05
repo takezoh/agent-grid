@@ -97,7 +97,7 @@ func ResumeThread(c *Conn, opts ResumeOptions) (ThreadSession, error) {
 	return decodeThreadSession(res)
 }
 
-// StartTurn sends a `turn/start` notification to begin a new turn.
+// StartTurn sends a `turn/start` request to begin a new turn.
 // opts carries §10.2 approval/sandbox policy for the turn.
 func StartTurn(c *Conn, threadID, startDir string, stdin []byte, opts TurnOptions) error {
 	params := map[string]any{}
@@ -108,7 +108,10 @@ func StartTurn(c *Conn, threadID, startDir string, stdin []byte, opts TurnOption
 		params["cwd"] = startDir
 	}
 	if len(stdin) > 0 {
-		params["message"] = string(stdin)
+		params["input"] = []map[string]any{{
+			"type": "text",
+			"text": string(stdin),
+		}}
 	}
 	if opts.ApprovalPolicy != "" {
 		params["approvalPolicy"] = opts.ApprovalPolicy
@@ -116,7 +119,8 @@ func StartTurn(c *Conn, threadID, startDir string, stdin []byte, opts TurnOption
 	if opts.SandboxPolicy != "" {
 		params["sandboxPolicy"] = map[string]any{"type": opts.SandboxPolicy}
 	}
-	return c.Notify(codexschema.MethodTurnStart, params)
+	_, err := c.Request(codexschema.MethodTurnStart, params)
+	return err
 }
 
 func decodeThreadSession(raw json.RawMessage) (ThreadSession, error) {

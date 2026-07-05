@@ -88,6 +88,7 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 		cmdCfg.ServerBin,
 		cmdCfg.ServerArgs,
 		cmdCfg.Model,
+		cmdCfg.Effort,
 		plan.Stream.SandboxPolicy == state.StreamSandboxPolicyExternal,
 		plan.Stream.ApprovalPolicy == state.StreamApprovalPolicyAutoApprove,
 		listen,

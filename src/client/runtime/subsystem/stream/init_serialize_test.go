@@ -175,7 +175,7 @@ func TestReleaseFrame_DoesNotDrainOtherFramesSlot(t *testing.T) {
 		t.Fatalf("F1 BindFrame: %v", err)
 	}
 	// Register F2 in b.frames only (no slot), then ReleaseFrame it.
-	b.registerPendingFrame("F2", "/work-2", "")
+	b.registerPendingFrame("F2", "/work-2", "", "", "")
 	// Sanity: initState still holds F1.
 	if pendingCount(b) != 1 {
 		t.Fatalf("initState count = %d, want 1 (F1's slot)", pendingCount(b))
@@ -196,7 +196,7 @@ func TestReapExpiredSlot_CleansOrphanBinding(t *testing.T) {
 
 	// Manually inject a slot with a past deadline to simulate an expired
 	// pending frame.
-	b.registerPendingFrame("F-stuck", "/work", "")
+	b.registerPendingFrame("F-stuck", "/work", "", "", "")
 	b.initState.mu.Lock()
 	b.initState.slot = &pendingSlot{frameID: "F-stuck", deadline: time.Now().Add(-time.Second)}
 	b.initState.mu.Unlock()
@@ -417,7 +417,7 @@ func TestReapExpiredSlot_GoesThroughReleaseFrame(t *testing.T) {
 	removeWorktree = func(path string) { got <- path }
 	t.Cleanup(func() { removeWorktree = prev })
 
-	b.registerPendingFrame("F-stuck", "/work", "/repo/.agent-reactor/worktrees/wt-42")
+	b.registerPendingFrame("F-stuck", "/work", "/repo/.agent-reactor/worktrees/wt-42", "", "")
 	b.initState.mu.Lock()
 	b.initState.slot = &pendingSlot{
 		frameID:  "F-stuck",

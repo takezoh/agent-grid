@@ -449,6 +449,41 @@ describe("SessionList tag row", () => {
     vi.clearAllMocks();
   });
 
+  it("renders model/effort metadata pills in the tag row", () => {
+    useDaemonStore.setState({
+      sessions: [
+        {
+          id: "s1",
+          project: "proj",
+          command: "codex",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: { title: "alpha" }, model: "gpt-5", effort: "high", status: "running" },
+        },
+      ],
+    });
+    const { container } = render(<SessionList conn={fakeConn} />);
+    const row = container.querySelector(".session-list__tags");
+    expect(row?.textContent).toContain("gpt-5");
+    expect(row?.textContent).toContain("high");
+  });
+
+  it("renders only the present metadata pill when one side is missing", () => {
+    useDaemonStore.setState({
+      sessions: [
+        {
+          id: "s1",
+          project: "proj",
+          command: "codex",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: { title: "alpha" }, model: "gpt-5", status: "running" },
+        },
+      ],
+    });
+    const { container } = render(<SessionList conn={fakeConn} />);
+    const pills = [...container.querySelectorAll(".session-list__meta-pill")].map((el) => el.textContent);
+    expect(pills).toEqual(["gpt-5"]);
+  });
+
   it("renders card.tags as pills", () => {
     useDaemonStore.setState({
       sessions: [

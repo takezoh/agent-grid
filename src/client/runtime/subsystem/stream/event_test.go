@@ -9,7 +9,7 @@ import (
 
 func newTestBackend() (*Backend, *fakeRuntime) {
 	fr := &fakeRuntime{}
-	b := New(fr, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", 0)
+	b := New(fr, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, "/sock", 0)
 	return b, fr
 }
 
@@ -238,15 +238,125 @@ func TestHandleNotificationRoutesToHandlers(t *testing.T) {
 	b.threads["t1"] = "f1"
 	b.mu.Unlock()
 
-	for _, method := range []string{"turn/started", "turn/plan/updated", "turn/diff/updated", "thread/name/updated"} {
+	for _, method := range []string{"turn/started", "turn/plan/updated", "turn/diff/updated", "thread/name/updated", "thread/settings/updated"} {
 		params := []byte(`{"threadId":"t1"}`)
 		if method == "thread/name/updated" {
 			params = []byte(`{"threadId":"t1","threadName":"title"}`)
 		}
+		if method == "thread/settings/updated" {
+			params = []byte(`{"threadId":"t1","threadSettings":{"model":"gpt-5","effort":{"level":"high"}}}`)
+		}
 		b.handleNotification(method, params)
 	}
-	if len(fr.events) != 4 {
-		t.Errorf("expected 4 events from known methods, got %d", len(fr.events))
+	if len(fr.events) != 5 {
+		t.Errorf("expected 5 events from known methods, got %d", len(fr.events))
+	}
+}
+
+func TestHandleThreadSettingsUpdated(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleThreadSettingsUpdated([]byte(`{"threadId":"t1","threadSettings":{"model":"gpt-5","effort":{"level":"high"}}}`))
+	if len(fr.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(fr.events))
+	}
+	ev := fr.events[0].(state.EvSubsystem)
+	if ev.Kind != state.SubsystemMetadataUpdated || ev.Payload.Model != "gpt-5" || ev.Payload.Effort != "high" {
+		t.Fatalf("event = %+v", ev)
+	}
+}
+
+func TestHandleThreadSettingsUpdatedBecomesAuthoritativeForLaterPayloads(t *testing.T) {
+	b, _ := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1", model: "gpt-4.1", effort: "low"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleThreadSettingsUpdated([]byte(`{"threadId":"t1","threadSettings":{"model":"gpt-5","effort":{"level":"high"}}}`))
+
+	payload := b.payload("f1")
+	if payload.Model != "gpt-5" || payload.Effort != "high" {
+		t.Fatalf("payload = %+v, want updated model/effort to persist", payload)
+	}
+}
+
+func TestHandleThreadNameUpdatedDoesNotPromoteSeedMetadata(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1", model: "gpt-4.1", modelSet: true, effort: "low", effortSet: true}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleThreadNameUpdated([]byte(`{"threadId":"t1","threadName":"saved name"}`))
+	if len(fr.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(fr.events))
+	}
+	ev := fr.events[0].(state.EvSubsystem)
+	if ev.Kind != state.SubsystemMetadataUpdated {
+		t.Fatalf("Kind = %q, want metadata_updated", ev.Kind)
+	}
+	if ev.Payload.ModelSet || ev.Payload.EffortSet {
+		t.Fatalf("payload unexpectedly promoted seed metadata: %+v", ev.Payload)
+	}
+	if ev.Payload.Model != "" || ev.Payload.Effort != "" {
+		t.Fatalf("payload unexpectedly carried seed metadata: %+v", ev.Payload)
+	}
+}
+
+func TestHandleThreadSettingsUpdatedClearsEffortWhenServerSendsNull(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1", model: "gpt-5", effort: "high"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleThreadSettingsUpdated([]byte(`{"threadId":"t1","threadSettings":{"model":"gpt-5","effort":null}}`))
+	if len(fr.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(fr.events))
+	}
+	ev := fr.events[0].(state.EvSubsystem)
+	if ev.Kind != state.SubsystemMetadataUpdated {
+		t.Fatalf("Kind = %q, want metadata_updated", ev.Kind)
+	}
+	if !ev.Payload.EffortSet {
+		t.Fatalf("EffortSet = false, want true: %+v", ev.Payload)
+	}
+	if ev.Payload.Effort != "" {
+		t.Fatalf("Effort = %q, want cleared", ev.Payload.Effort)
+	}
+
+	payload := b.payload("f1")
+	if !payload.EffortSet {
+		t.Fatalf("payload EffortSet = false, want true: %+v", payload)
+	}
+	if payload.Effort != "" {
+		t.Fatalf("payload Effort = %q, want cleared", payload.Effort)
+	}
+}
+
+func TestHandleThreadSettingsUpdatedDoesNotBleedAcrossThreads(t *testing.T) {
+	b, _ := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1", model: "gpt-4.1", effort: "low"}
+	b.frames["f2"] = &frameBinding{frameID: "f2", threadID: "t2", model: "gpt-4o", effort: "medium"}
+	b.threads["t1"] = "f1"
+	b.threads["t2"] = "f2"
+	b.mu.Unlock()
+
+	b.handleThreadSettingsUpdated([]byte(`{"threadId":"t1","threadSettings":{"model":"gpt-5","effort":{"level":"high"}}}`))
+
+	payloadA := b.payload("f1")
+	payloadB := b.payload("f2")
+	if payloadA.Model != "gpt-5" || payloadA.Effort != "high" {
+		t.Fatalf("payloadA = %+v", payloadA)
+	}
+	if payloadB.Model != "gpt-4o" || payloadB.Effort != "medium" {
+		t.Fatalf("payloadB = %+v, want untouched sibling thread settings", payloadB)
 	}
 }
 

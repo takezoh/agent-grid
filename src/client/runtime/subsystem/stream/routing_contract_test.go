@@ -82,7 +82,7 @@ type inProc struct {
 func newInProc(t *testing.T) *inProc {
 	t.Helper()
 	rt := &recordingRuntime{}
-	b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, "/sock", 0)
+	b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, "/sock", 0)
 	return &inProc{t: t, b: b, rt: rt}
 }
 

@@ -98,11 +98,16 @@ interface SessionRowProps {
   isActive: boolean;
 }
 
+function metadataPills(model?: string, effort?: string): string[] {
+  return [model?.trim(), effort?.trim()].filter((value): value is string => Boolean(value));
+}
+
 function SessionRow({ session, isActive }: SessionRowProps) {
   const card = session.view.card;
   const status = session.view.status;
   const normalized = toStatusKind(status);
   const title = titleText(card);
+  const metadata = metadataPills(session.view.model, session.view.effort);
 
   const driver = session.root_driver?.trim() || undefined;
   // Memoize the chip style by driver name so the {backgroundColor, color}
@@ -115,7 +120,7 @@ function SessionRow({ session, isActive }: SessionRowProps) {
   }, [driver]);
   const tags = card.tags ?? [];
   const borderBadge = card.border_badge;
-  const showTags = tags.length > 0 || Boolean(borderBadge);
+  const showTags = tags.length > 0 || Boolean(borderBadge) || metadata.length > 0;
 
   return (
     <div
@@ -151,6 +156,11 @@ function SessionRow({ session, isActive }: SessionRowProps) {
         </div>
         {showTags && (
           <div className="session-list__tags" aria-label="session tags">
+            {metadata.map((value, index) => (
+              <span key={`${index}-${value}`} className="session-list__meta-pill">
+                {value}
+              </span>
+            ))}
             {tags.map((t, i) => (
               <TagPill key={`${i}-${t.text}`} tag={t} className="session-list__tag" />
             ))}

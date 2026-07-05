@@ -10,12 +10,12 @@ const (
 	MethodInitialize   = "initialize"
 	MethodThreadStart  = "thread/start"
 	MethodThreadResume = "thread/resume"
+	MethodTurnStart    = "turn/start"
 )
 
 // Client → server notifications (no response expected).
 const (
 	MethodInitialized = "initialized"
-	MethodTurnStart   = "turn/start"
 )
 
 // Server → client notifications.
@@ -23,6 +23,7 @@ const (
 	MethodThreadStarted            = "thread/started"
 	MethodTurnStarted              = "turn/started"
 	MethodTurnCompleted            = "turn/completed"
+	MethodThreadSettingsUpdated    = "thread/settings/updated"
 	MethodTurnPlanUpdated          = "turn/plan/updated"
 	MethodTurnDiffUpdated          = "turn/diff/updated"
 	MethodItemStarted              = "item/started"

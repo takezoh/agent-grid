@@ -340,9 +340,13 @@ func absorbIdentityFromHP(cs ClaudeState, hp hookPayload) ClaudeState {
 	}
 	if hp.Model != "" {
 		cs.Model = hp.Model
+		cs.ModelSet = true
+		cs.ModelAuthoritative = true
 	}
 	if effort := hp.Effort.Value(); effort != "" {
 		cs.Effort = effort
+		cs.EffortSet = true
+		cs.EffortAuthoritative = true
 	}
 	return cs
 }

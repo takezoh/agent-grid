@@ -124,6 +124,20 @@ func TestNormalizeCodexThreadMetadataTitleClear(t *testing.T) {
 	}
 }
 
+func TestNormalizeCodexThreadSettings(t *testing.T) {
+	got := normalizeCodexThreadSettings([]byte(`{"threadId":"t1","threadSettings":{"model":"gpt-5","effort":{"level":"high"}}}`))
+	if got.threadID != "t1" || got.model != "gpt-5" || !got.modelSet || got.effort != "high" || !got.effortSet {
+		t.Fatalf("metadata = %+v", got)
+	}
+}
+
+func TestNormalizeCodexThreadSettingsNullEffort(t *testing.T) {
+	got := normalizeCodexThreadSettings([]byte(`{"threadId":"t1","threadSettings":{"effort":null}}`))
+	if got.threadID != "t1" || !got.effortSet || got.effort != "" {
+		t.Fatalf("metadata = %+v", got)
+	}
+}
+
 func TestExtractText(t *testing.T) {
 	if got := extractText([]byte(`{"text":"hi"}`)); got != "hi" {
 		t.Errorf("text: %q", got)

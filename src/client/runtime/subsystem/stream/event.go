@@ -17,6 +17,8 @@ func (b *Backend) handleNotification(method string, params json.RawMessage) {
 		b.handleTurnStarted(params)
 	case codexschema.MethodTurnCompleted:
 		b.handleTurnCompleted(params)
+	case codexschema.MethodThreadSettingsUpdated:
+		b.handleThreadSettingsUpdated(params)
 	case codexschema.MethodTurnPlanUpdated:
 		b.emitToThread(extractThreadID(params), state.SubsystemPlanUpdated, func(p *state.SubsystemPayload) {
 			p.Plan = &state.SubsystemPlan{Summary: summarizePlan(params)}
@@ -216,8 +218,14 @@ func (b *Backend) handleThreadNameUpdated(raw json.RawMessage) {
 	b.emitMetadata(normalizeCodexThreadMetadata(raw))
 }
 
+func (b *Backend) handleThreadSettingsUpdated(raw json.RawMessage) {
+	meta := normalizeCodexThreadSettings(raw)
+	b.applyThreadSettings(meta.threadID, meta.model, meta.modelSet, meta.effort, meta.effortSet)
+	b.emitMetadata(meta)
+}
+
 func (b *Backend) emitMetadata(meta codexThreadMetadata) {
-	if meta.threadID == "" || (!meta.titleSet && meta.preview == "" && meta.prompt == "") {
+	if meta.threadID == "" || (!meta.titleSet && meta.preview == "" && meta.prompt == "" && !meta.modelSet && !meta.effortSet) {
 		return
 	}
 	frameID := b.frameForThread(meta.threadID)
@@ -236,6 +244,10 @@ func (b *Backend) emitMetadata(meta codexThreadMetadata) {
 		p.TitleSet = meta.titleSet
 		p.Preview = meta.preview
 		p.Prompt = meta.prompt
+		p.Model = meta.model
+		p.ModelSet = meta.modelSet
+		p.Effort = meta.effort
+		p.EffortSet = meta.effortSet
 	}))
 }
 
@@ -299,6 +311,10 @@ func (b *Backend) payloadWith(frameID state.FrameID, mutate func(*state.Subsyste
 			ObservedTargetID:   binding.observedID,
 			ResumePhase:        binding.resumePhase,
 			TranscriptPath:     binding.rolloutPath,
+			Model:              binding.model,
+			ModelSet:           binding.modelSet,
+			Effort:             binding.effort,
+			EffortSet:          binding.effortSet,
 		}
 	}
 	b.mu.Unlock()
@@ -306,6 +322,25 @@ func (b *Backend) payloadWith(frameID state.FrameID, mutate func(*state.Subsyste
 		mutate(&payload)
 	}
 	return payload
+}
+
+func (b *Backend) applyThreadSettings(threadID, model string, modelSet bool, effort string, effortSet bool) {
+	frameID := b.frameForThread(threadID)
+	if frameID == "" {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if binding := b.frames[frameID]; binding != nil {
+		if modelSet {
+			binding.model = strings.TrimSpace(model)
+			binding.modelSet = true
+		}
+		if effortSet {
+			binding.effort = strings.TrimSpace(effort)
+			binding.effortSet = true
+		}
+	}
 }
 
 func (b *Backend) withTracking(frameID state.FrameID, payload state.SubsystemPayload) state.SubsystemPayload {

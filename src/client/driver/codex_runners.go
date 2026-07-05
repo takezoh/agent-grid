@@ -24,6 +24,10 @@ func newCodexTranscriptParse() func(context.Context, CodexTranscriptParseInput) 
 			LastPrompt:           snap.LastPrompt,
 			LastAssistantMessage: snap.LastAssistantMessage,
 			StatusLine:           snap.StatusLine,
+			Model:                snap.Model,
+			ModelSet:             snap.ModelSet,
+			Effort:               snap.Effort,
+			EffortSet:            snap.EffortSet,
 			RecentTurns:          normalizeCodexTurns(snap.RecentTurns),
 		}, nil
 	}

@@ -15,6 +15,8 @@ import (
 // turnReq carries a decoded turn/start notification payload.
 type turnReq struct {
 	threadID       string // empty on first turn; shim generates one
+	startThread    bool
+	turnID         string
 	cwd            string
 	prompt         string
 	approvalPolicy string // logged but not enforced; container is the boundary
@@ -60,11 +62,14 @@ func (r *turnRunner) run(turns <-chan turnReq, stopCh <-chan struct{}) {
 
 func (r *turnRunner) runTurn(req turnReq) {
 	threadID := req.threadID
-	isNewThread := threadID == ""
-	if isNewThread {
+	if threadID == "" {
 		threadID = r.newID()
 	}
-	turnID := r.newID()
+	turnID := req.turnID
+	if turnID == "" {
+		turnID = r.newID()
+	}
+	isNewThread := req.startThread
 	sessionID := threadID + "-" + turnID
 
 	if req.approvalPolicy != "" || req.sandboxPolicy != "" {
@@ -272,20 +277,33 @@ func usageBreakdown(u streamjson.Usage) map[string]any {
 	}
 }
 
-// parseTurnStart decodes the turn/start notification params.
+// parseTurnStart decodes the turn/start params.
 func parseTurnStart(params json.RawMessage) turnReq {
 	var p struct {
-		ThreadID       string          `json:"threadId"`
-		CWD            string          `json:"cwd"`
-		Message        string          `json:"message"`
+		ThreadID string `json:"threadId"`
+		CWD      string `json:"cwd"`
+		Message  string `json:"message"`
+		Input    []struct {
+			Type string  `json:"type"`
+			Text *string `json:"text"`
+		} `json:"input"`
 		ApprovalPolicy json.RawMessage `json:"approvalPolicy"`
 		SandboxPolicy  json.RawMessage `json:"sandboxPolicy"`
 	}
 	_ = json.Unmarshal(params, &p)
+	prompt := p.Message
+	if prompt == "" {
+		for _, item := range p.Input {
+			if item.Type == "text" && item.Text != nil {
+				prompt = *item.Text
+				break
+			}
+		}
+	}
 	return turnReq{
 		threadID:       p.ThreadID,
 		cwd:            p.CWD,
-		prompt:         p.Message,
+		prompt:         prompt,
 		approvalPolicy: string(p.ApprovalPolicy),
 		sandboxPolicy:  string(p.SandboxPolicy),
 	}

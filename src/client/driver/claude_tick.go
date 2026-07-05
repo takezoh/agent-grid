@@ -69,6 +69,10 @@ func (d ClaudeDriver) handleJobResult(cs ClaudeState, e state.DEvJobResult) Clau
 		if r.LastPrompt != "" {
 			cs.LastPrompt = r.LastPrompt
 		}
+		if r.Model != "" && !cs.ModelAuthoritative {
+			cs.Model = r.Model
+			cs.ModelSet = true
+		}
 		cs.StatusLine = r.StatusLine
 		cs.CurrentTool = r.CurrentTool
 		cs.SubagentCounts = r.Subagents

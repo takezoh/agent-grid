@@ -181,7 +181,7 @@ type boundHarness struct {
 
 func newBoundBackend(t *testing.T, listenSock string) *boundHarness {
 	t.Helper()
-	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", false, false,
+	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false,
 		listenSock, time.Second)
 	ta, tb := streamPipe()
 	b.conn = codexclient.NewConn(ta, time.Second)
@@ -238,7 +238,7 @@ func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
 		t.Errorf("initState occupancy = %d, want 1", pendingCount(h.backend))
 	}
 	// Command must be `codex --remote unix://<sock>` with NO `resume`.
-	want := strings.Join(libcodex.RemoteAttachArgs(listen, "", "/repo"), " ")
+	want := strings.Join(libcodex.RemoteAttachArgs(listen, "", "/repo", "", ""), " ")
 	if res.Plan.Command != want {
 		t.Fatalf("Command = %q, want %q", res.Plan.Command, want)
 	}
@@ -277,12 +277,66 @@ func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
 		t.Errorf("initState occupancy = %d, want 0 (recovery bypasses semaphore)", pendingCount(h.backend))
 	}
 	// Command must contain `resume thread-abc`.
-	want := strings.Join(libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo"), " ")
+	want := strings.Join(libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", "", ""), " ")
 	if res.Plan.Command != want {
 		t.Fatalf("Command = %q, want %q", res.Plan.Command, want)
 	}
 	if res.Plan.Stream.ColdStartSessionID != "019e727e-fde4-7432-9036-ae6604ce1b27" {
 		t.Errorf("ColdStartSessionID = %q, want passthrough of caller value", res.Plan.Stream.ColdStartSessionID)
+	}
+}
+
+func TestBackendBindFrame_RecoveryRestoresModelEffortIntoAttachCommand(t *testing.T) {
+	const listen = "/opt/agent-reactor/run/codex-sess-model.sock"
+	h := newBoundBackend(t, listen)
+
+	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
+		FrameID: "f1",
+		Plan: state.LaunchPlan{
+			Command:  "codex --model gpt-5-codex --effort high",
+			StartDir: "/repo",
+			Stream: state.StreamLaunchOptions{
+				ResumeTarget: state.ResumeTarget{ThreadID: "thread-abc"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BindFrame: %v", err)
+	}
+	if !strings.Contains(res.Plan.Command, "--model gpt-5-codex") {
+		t.Fatalf("Command = %q, want restored --model", res.Plan.Command)
+	}
+	if !strings.Contains(res.Plan.Command, "--effort high") {
+		t.Fatalf("Command = %q, want restored --effort", res.Plan.Command)
+	}
+}
+
+func TestBackendBindFrame_RecoveryUsesPerFrameSettingsNotAnotherThreadsSettings(t *testing.T) {
+	const listen = "/opt/agent-reactor/run/codex-sess-isolated.sock"
+	h := newBoundBackend(t, listen)
+	h.backend.mu.Lock()
+	h.backend.frames["other"] = &frameBinding{frameID: "other", threadID: "thread-other", model: "gpt-4.1", effort: "low"}
+	h.backend.threads["thread-other"] = "other"
+	h.backend.mu.Unlock()
+
+	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
+		FrameID: "f1",
+		Plan: state.LaunchPlan{
+			Command:  "codex --model gpt-5-codex --effort high",
+			StartDir: "/repo",
+			Stream: state.StreamLaunchOptions{
+				ResumeTarget: state.ResumeTarget{ThreadID: "thread-abc"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BindFrame: %v", err)
+	}
+	if !strings.Contains(res.Plan.Command, "--model gpt-5-codex") || strings.Contains(res.Plan.Command, "--model gpt-4.1") {
+		t.Fatalf("Command = %q, want recovered thread settings only", res.Plan.Command)
+	}
+	if !strings.Contains(res.Plan.Command, "--effort high") || strings.Contains(res.Plan.Command, "--effort low") {
+		t.Fatalf("Command = %q, want recovered thread effort only", res.Plan.Command)
 	}
 }
 
@@ -348,7 +402,7 @@ func newHelperBackend(t *testing.T, mode string) *Backend {
 	t.Helper()
 	sock := filepath.Join(t.TempDir(), "codex-x.sock")
 	return New(&fakeRuntime{}, nil, "sid", "sess1", "/p",
-		os.Args[0], []string{"--mode", mode}, "", false, false,
+		os.Args[0], []string{"--mode", mode}, "", "", false, false,
 		sock, 3*time.Second)
 }
 

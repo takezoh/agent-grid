@@ -21,7 +21,9 @@ func shEsc(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + 
 //
 // The fix runs the command string through a real shell (Argv = ["sh","-c",cmd]).
 // This test executes Wrap's Argv with a real /bin/sh and asserts the embedded
-// agent command actually runs; it also asserts the old SplitArgs path would NOT.
+// agent command actually runs. Even though SplitArgs now understands the
+// quoting pattern used here, Wrap's contract remains to preserve the original
+// shell text exactly instead of reconstructing argv from it.
 func TestWrap_ArgvExecutesNestedQuotedCommandViaShell(t *testing.T) {
 	dir := t.TempDir()
 	sentinel := filepath.Join(dir, "launched")
@@ -53,18 +55,4 @@ func TestWrap_ArgvExecutesNestedQuotedCommandViaShell(t *testing.T) {
 		t.Fatalf("agent command did not run via Wrap.Argv: sentinel missing: %v", err)
 	}
 
-	// Guard: the old SplitArgs round-trip drops the agent command, so executing it
-	// would not produce the sentinel. This documents why SplitArgs is unsuitable.
-	sentinel2 := filepath.Join(dir, "launched_old")
-	agentCmd2 := `env CODEX_X="a b" touch ` + sentinel2
-	inner2 := shEsc("true; exec " + agentCmd2)
-	cmd2 := "sh -c " + shEsc("exec sh -lc "+inner2)
-	bad, err := SplitArgs(cmd2)
-	if err != nil {
-		t.Fatalf("SplitArgs: %v", err)
-	}
-	_ = exec.Command(bad[0], bad[1:]...).Run()
-	if _, err := os.Stat(sentinel2); err == nil {
-		t.Fatalf("expected SplitArgs round-trip to drop the agent command, but sentinel was created")
-	}
 }

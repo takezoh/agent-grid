@@ -124,3 +124,45 @@ func TestParserRecentTurns(t *testing.T) {
 		t.Fatalf("turn[2] = %+v", snap.RecentTurns[2])
 	}
 }
+
+func TestParserThreadSettingsUpdatedMetadata(t *testing.T) {
+	_, snap := parse(strings.Join([]string{
+		`{"timestamp":"x","type":"turn_context","payload":{"model":"gpt-5-codex","reasoning_effort":"medium"}}`,
+		`{"timestamp":"x","type":"event_msg","payload":{"type":"thread_settings_updated","threadSettings":{"model":"gpt-5.1","effort":{"level":"high"}}}}`,
+	}, "\n"))
+	if snap.Model != "gpt-5.1" {
+		t.Fatalf("Model = %q", snap.Model)
+	}
+	if snap.Effort != "high" {
+		t.Fatalf("Effort = %q", snap.Effort)
+	}
+	if !strings.Contains(snap.StatusLine, "gpt-5.1") || !strings.Contains(snap.StatusLine, "effort=high") {
+		t.Fatalf("StatusLine = %q", snap.StatusLine)
+	}
+}
+
+func TestParserThreadSettingsUpdatedClearsMetadata(t *testing.T) {
+	_, snap := parse(strings.Join([]string{
+		`{"timestamp":"x","type":"turn_context","payload":{"model":"gpt-5-codex","reasoning_effort":"medium"}}`,
+		`{"timestamp":"x","type":"event_msg","payload":{"type":"thread_settings_updated","threadSettings":{"model":null,"effort":null}}}`,
+	}, "\n"))
+	if !snap.ModelSet || !snap.EffortSet {
+		t.Fatalf("set flags = %v/%v, want true/true", snap.ModelSet, snap.EffortSet)
+	}
+	if snap.Model != "" || snap.Effort != "" {
+		t.Fatalf("cleared metadata = %q/%q, want empty", snap.Model, snap.Effort)
+	}
+}
+
+func TestParserTurnContextReadsReasoningEffort(t *testing.T) {
+	_, snap := parse(`{"timestamp":"x","type":"turn_context","payload":{"model":"gpt-5-codex","reasoning_effort":"medium"}}`)
+	if snap.Model != "gpt-5-codex" {
+		t.Fatalf("Model = %q", snap.Model)
+	}
+	if snap.Effort != "medium" {
+		t.Fatalf("Effort = %q", snap.Effort)
+	}
+	if !strings.Contains(snap.StatusLine, "effort=medium") {
+		t.Fatalf("StatusLine = %q", snap.StatusLine)
+	}
+}

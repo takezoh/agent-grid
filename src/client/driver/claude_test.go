@@ -709,6 +709,7 @@ func TestClaudeTranscriptParseResultMergesFields(t *testing.T) {
 			LastPrompt:  "please refactor",
 			StatusLine:  "claude-3.5",
 			CurrentTool: "Edit",
+			Model:       "claude-sonnet-4-5-20250929",
 			Subagents:   map[string]int{"Task": 2},
 		},
 	})
@@ -726,6 +727,22 @@ func TestClaudeTranscriptParseResultMergesFields(t *testing.T) {
 	}
 	if next.SubagentCounts["Task"] != 2 {
 		t.Errorf("Subagents not merged: %v", next.SubagentCounts)
+	}
+	if next.Model != "claude-sonnet-4-5-20250929" {
+		t.Errorf("Model = %q", next.Model)
+	}
+}
+
+func TestClaudeTranscriptParseResultDoesNotOverrideAuthoritativeModel(t *testing.T) {
+	d, cs, _ := newClaude(t)
+	cs.TranscriptInFlight = true
+	cs.Model = "claude-opus-4-1"
+	cs.ModelAuthoritative = true
+	next := d.handleJobResult(cs, state.DEvJobResult{
+		Result: TranscriptParseResult{Model: "claude-sonnet-4-5-20250929"},
+	})
+	if next.Model != "claude-opus-4-1" {
+		t.Fatalf("Model = %q, want hook-authoritative value", next.Model)
 	}
 }
 
@@ -858,7 +875,11 @@ func TestClaudePersistRoundTrip(t *testing.T) {
 			Title:              "Refactor X",
 			LastPrompt:         "do the thing",
 		},
-		ClaudeSessionID: "uuid-1",
+		ClaudeSessionID:     "uuid-1",
+		Model:               "sonnet-4-5",
+		Effort:              "medium",
+		ModelAuthoritative:  true,
+		EffortAuthoritative: true,
 	}
 	bag := d.Persist(cs)
 	if bag[keyRoostSessionID] != "reactor-1" {
@@ -866,6 +887,12 @@ func TestClaudePersistRoundTrip(t *testing.T) {
 	}
 	if bag[claudeKeyClaudeSessionID] != "uuid-1" {
 		t.Errorf("persist session_id = %q", bag[claudeKeyClaudeSessionID])
+	}
+	if bag[claudeKeyModel] != "sonnet-4-5" || bag[claudeKeyEffort] != "medium" {
+		t.Errorf("persist model/effort = %q/%q", bag[claudeKeyModel], bag[claudeKeyEffort])
+	}
+	if bag[claudeKeyModelAuthoritative] != "1" || bag[claudeKeyEffortAuthoritative] != "1" {
+		t.Errorf("persist authoritative flags = %q/%q", bag[claudeKeyModelAuthoritative], bag[claudeKeyEffortAuthoritative])
 	}
 	if bag[keyStatus] != "running" {
 		t.Errorf("persist status = %q", bag[keyStatus])
@@ -892,6 +919,12 @@ func TestClaudePersistRoundTrip(t *testing.T) {
 	if restored.BranchFG != "#FFFFFF" {
 		t.Errorf("restored BranchFG = %q", restored.BranchFG)
 	}
+	if restored.Model != "sonnet-4-5" || restored.Effort != "medium" {
+		t.Errorf("restored model/effort = %q/%q", restored.Model, restored.Effort)
+	}
+	if !restored.ModelAuthoritative || !restored.EffortAuthoritative {
+		t.Errorf("restored authoritative flags = %v/%v", restored.ModelAuthoritative, restored.EffortAuthoritative)
+	}
 	if !restored.BranchIsWorktree {
 		t.Error("restored BranchIsWorktree = false, want true")
 	}
@@ -906,6 +939,54 @@ func TestClaudePersistRoundTrip(t *testing.T) {
 	}
 	if restored.LastPrompt != "do the thing" {
 		t.Errorf("restored LastPrompt = %q", restored.LastPrompt)
+	}
+}
+
+func TestClaudeRestoreFallsBackToLegacyCommonMetadataKeys(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	restored := d.Restore(map[string]string{
+		claudeLegacyKeyModel:  "sonnet-4-5",
+		claudeLegacyKeyEffort: "medium",
+	}, time.Now()).(ClaudeState)
+	if restored.Model != "sonnet-4-5" || restored.Effort != "medium" {
+		t.Fatalf("restored legacy model/effort = %q/%q", restored.Model, restored.Effort)
+	}
+}
+
+func TestClaudeSessionStartAndHookEffortMetadata(t *testing.T) {
+	d, cs, now := newClaude(t)
+	next, _ := d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("SessionStart", map[string]any{
+		"session_id":      "uuid",
+		"hook_event_name": "SessionStart",
+		"transcript_path": "/tmp/t.jsonl",
+		"model":           "sonnet-4-5",
+		"effort":          map[string]any{"level": "medium"},
+	}, now))
+	if next.Model != "sonnet-4-5" || next.Effort != "medium" {
+		t.Fatalf("session start metadata = %q/%q", next.Model, next.Effort)
+	}
+	next, _ = d.handleHook(next, state.FrameContext{IsRoot: true}, hookEventAny("Stop", map[string]any{
+		"session_id":      "uuid",
+		"hook_event_name": "Stop",
+		"effort":          map[string]any{"level": "high"},
+	}, now.Add(time.Second)))
+	if next.Effort != "high" {
+		t.Fatalf("Effort = %q, want high", next.Effort)
+	}
+}
+
+func TestClaudeOutOfOrderHookDoesNotMutateEffort(t *testing.T) {
+	d, cs, now := newClaude(t)
+	cs.LastBridgeTS = now.Add(time.Second)
+	cs.Effort = "high"
+
+	next, _ := d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("Stop", map[string]any{
+		"session_id":      "uuid",
+		"hook_event_name": "Stop",
+		"effort":          map[string]any{"level": "low"},
+	}, now))
+	if next.Effort != "high" {
+		t.Fatalf("Effort = %q, want preserved value from accepted hook", next.Effort)
 	}
 }
 
@@ -1073,17 +1154,117 @@ func TestClaudePrepareLaunchAlreadyHasResume(t *testing.T) {
 	}
 }
 
+func TestClaudePrepareLaunchColdStartRestoresModelEffort(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		ClaudeSessionID: "uuid-Z",
+		Model:           "sonnet",
+		Effort:          "high",
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if !strings.Contains(plan.Command, "--model sonnet") || !strings.Contains(plan.Command, "--effort high") {
+		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
+	}
+}
+
+func TestClaudePrepareLaunchColdStartReplacesEqualsFlagsWithPersistedValues(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		ClaudeSessionID: "uuid-Z",
+		Model:           "opus",
+		Effort:          "low",
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --model=sonnet --effort=high", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if strings.Contains(plan.Command, "--model=sonnet") || strings.Contains(plan.Command, "--effort=high") {
+		t.Fatalf("PrepareLaunch.Command = %q, want persisted values to replace command flags", plan.Command)
+	}
+	if !strings.Contains(plan.Command, "--model opus") || !strings.Contains(plan.Command, "--effort low") {
+		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
+	}
+}
+
+func TestClaudePrepareLaunchColdStartKeepsAuthoritativeClears(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		ClaudeSessionID:     "uuid-Z",
+		ModelSet:            true,
+		EffortSet:           true,
+		ModelAuthoritative:  true,
+		EffortAuthoritative: true,
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --model sonnet --effort high", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if strings.Contains(plan.Command, "--model") || strings.Contains(plan.Command, "--effort") {
+		t.Fatalf("PrepareLaunch.Command = %q, want cleared metadata to stay cleared", plan.Command)
+	}
+}
+
+func TestClaudePrepareLaunchKeepsWorktreeAndSandboxNormalizationWhenReplacingMetadata(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		Model:  "opus",
+		Effort: "low",
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree feature --model=sonnet --effort=high --enable-auto-mode", state.LaunchOptions{}, true)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if strings.Contains(plan.Command, "--worktree") {
+		t.Fatalf("PrepareLaunch.Command = %q, want worktree flag stripped", plan.Command)
+	}
+	if strings.Contains(plan.Command, "--enable-auto-mode") {
+		t.Fatalf("PrepareLaunch.Command = %q, want auto-mode stripped in sandbox", plan.Command)
+	}
+	if !strings.Contains(plan.Command, "--model opus") || !strings.Contains(plan.Command, "--effort low") {
+		t.Fatalf("PrepareLaunch.Command = %q, want persisted metadata restored", plan.Command)
+	}
+	if !strings.Contains(plan.Command, "--allow-dangerously-skip-permissions") {
+		t.Fatalf("PrepareLaunch.Command = %q, want sandbox bypass flag appended", plan.Command)
+	}
+	if !plan.Options.Worktree.Enabled {
+		t.Fatal("expected worktree enabled")
+	}
+}
+
+func TestClaudePrepareLaunchPreservesQuotedArgsWhenReplacingMetadata(t *testing.T) {
+	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
+	cs := ClaudeState{
+		Model:  "opus",
+		Effort: "low",
+	}
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", `claude -c 'foo = "bar baz"' --model=sonnet --effort=high`, state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := `claude -c 'foo = "bar baz"' --model opus --effort low`
+	if plan.Command != want {
+		t.Fatalf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
+	}
+}
+
 func TestClaudePrepareCreateWithoutWorktree(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	_, launch, err := d.PrepareCreate(cs, "sess-1", "/repo", "claude --model sonnet", state.LaunchOptions{})
+	next, launch, err := d.PrepareCreate(cs, "sess-1", "/repo", "claude --model sonnet --effort high", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareCreate error: %v", err)
 	}
+	created := next.(ClaudeState)
 	if launch.Options.Worktree.Enabled {
 		t.Fatal("expected worktree not enabled")
 	}
-	if launch.Command != "claude --model sonnet" || launch.StartDir != "/repo" {
+	if launch.Command != "claude --model sonnet --effort high" || launch.StartDir != "/repo" {
 		t.Fatalf("launch = %+v", launch)
+	}
+	if created.Model != "sonnet" || created.Effort != "high" {
+		t.Fatalf("created metadata = %q/%q", created.Model, created.Effort)
 	}
 }
 

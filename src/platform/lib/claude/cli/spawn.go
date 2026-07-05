@@ -6,7 +6,11 @@
 // session/driver cannot import lib/claude root, only its leaf subpackages.)
 package cli
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+)
 
 // ResumeCommand returns the Claude CLI invocation that resumes a prior
 // session by ID. Empty sessionID returns baseCommand unchanged. When
@@ -40,20 +44,23 @@ func ForkCommand(baseCommand, parentID string) string {
 // Tokens that look like flags (start with "-") immediately after a bare
 // --worktree are preserved, since they cannot be the worktree name.
 func StripWorktreeFlag(command string) string {
-	parts := strings.Fields(command)
+	parts, err := agentlaunch.LexArgs(strings.TrimSpace(command))
+	if err != nil {
+		return strings.TrimSpace(command)
+	}
 	out := make([]string, 0, len(parts))
 	for i := 0; i < len(parts); i++ {
 		p := parts[i]
-		if p == "--worktree" {
-			if i+1 < len(parts) && !strings.HasPrefix(parts[i+1], "-") {
+		if p.Value == "--worktree" {
+			if i+1 < len(parts) && !strings.HasPrefix(parts[i+1].Value, "-") {
 				i++ // drop the worktree name
 			}
 			continue
 		}
-		if strings.HasPrefix(p, "--worktree=") {
+		if strings.HasPrefix(p.Value, "--worktree=") {
 			continue
 		}
-		out = append(out, p)
+		out = append(out, p.Raw)
 	}
-	return strings.Join(out, " ")
+	return strings.TrimSpace(strings.Join(out, " "))
 }

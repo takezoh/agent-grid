@@ -126,7 +126,7 @@ func TestStreamRoutingFakeBackstop(t *testing.T) {
 		t.Cleanup(srv.Stop)
 
 		rt := &recordingRuntime{}
-		b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, srv.SockPath(), time.Second)
+		b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, srv.SockPath(), time.Second)
 		tr, err := codexclient.DialUDS(srv.SockPath(), 3*time.Second)
 		if err != nil {
 			t.Fatalf("dial: %v", err)

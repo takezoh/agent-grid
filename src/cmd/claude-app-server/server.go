@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -22,6 +23,8 @@ type appHandler struct {
 	runner  *turnRunner
 	turns   chan turnReq
 }
+
+var errTurnQueueFull = errors.New("turn queue full")
 
 func newAppHandler(conn *codexclient.Conn, appCtx context.Context, launch claudeLauncher, newID func() string) *appHandler {
 	turns := make(chan turnReq, 8)
@@ -78,6 +81,17 @@ func (h *appHandler) OnServerRequest(id int64, method string, params json.RawMes
 		})
 		h.writeMu.Unlock()
 	default:
+		if method == codexschema.MethodTurnStart {
+			req, err := h.enqueueTurn(parseTurnStart(params))
+			h.writeMu.Lock()
+			defer h.writeMu.Unlock()
+			if err != nil {
+				_ = h.conn.ReplyError(id, err.Error())
+				return
+			}
+			_ = h.conn.Reply(id, map[string]any{"turn": map[string]any{"id": req.turnID}})
+			return
+		}
 		h.writeMu.Lock()
 		_ = h.conn.ReplyError(id, fmt.Sprintf("method %q not implemented", method))
 		h.writeMu.Unlock()
@@ -87,14 +101,27 @@ func (h *appHandler) OnServerRequest(id int64, method string, params json.RawMes
 func (h *appHandler) OnNotification(method string, params json.RawMessage) {
 	switch method {
 	case codexschema.MethodTurnStart:
-		req := parseTurnStart(params)
-		select {
-		case h.turns <- req:
-		default:
+		if _, err := h.enqueueTurn(parseTurnStart(params)); err != nil {
 			slog.Warn("turn queue full, dropping turn/start")
 		}
 	default:
 		slog.Debug("notification received", "method", method)
+	}
+}
+
+func (h *appHandler) enqueueTurn(req turnReq) (turnReq, error) {
+	if req.threadID == "" {
+		req.threadID = h.runner.newID()
+		req.startThread = true
+	}
+	if req.turnID == "" {
+		req.turnID = h.runner.newID()
+	}
+	select {
+	case h.turns <- req:
+		return req, nil
+	default:
+		return req, errTurnQueueFull
 	}
 }
 

@@ -145,6 +145,10 @@ type SubsystemPayload struct {
 	LastAssistantMessage string             `json:"last_assistant_message"`
 	StatusLine           string             `json:"status_line"`
 	Title                string             `json:"title"`
+	Model                string             `json:"model"`
+	ModelSet             bool               `json:"model_set,omitempty"`
+	Effort               string             `json:"effort"`
+	EffortSet            bool               `json:"effort_set,omitempty"`
 	TitleSet             bool               `json:"title_set,omitempty"`
 	Preview              string             `json:"preview"`
 	TranscriptPath       string             `json:"transcript_path"`

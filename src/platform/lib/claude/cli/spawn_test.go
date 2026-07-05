@@ -64,6 +64,8 @@ func TestStripWorktreeFlag(t *testing.T) {
 		{"--worktree=name", "claude --worktree=foo", "claude"},
 		{"--worktree followed by flag (preserve flag)", "claude --worktree --verbose", "claude --verbose"},
 		{"--worktree in the middle with name", "claude --verbose --worktree foo --resume bar", "claude --verbose --resume bar"},
+		{"preserves quoted args", `claude -c 'foo = "bar baz"' --worktree foo --resume bar`, `claude -c 'foo = "bar baz"' --resume bar`},
+		{"preserves double-quoted expansion", `claude -c "$HOME/conf" --worktree foo --resume bar`, `claude -c "$HOME/conf" --resume bar`},
 		{"empty input", "", ""},
 		{"only --worktree", "--worktree", ""},
 	}

@@ -40,7 +40,7 @@ func newWired(t *testing.T) *wired {
 	}
 	t.Cleanup(srv.Stop)
 
-	b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", false, false, srv.SockPath(), time.Second)
+	b := New(rt, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, srv.SockPath(), time.Second)
 	tr, err := codexclient.DialUDS(srv.SockPath(), 3*time.Second)
 	if err != nil {
 		t.Fatalf("dial %s: %v", srv.SockPath(), err)

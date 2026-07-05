@@ -43,6 +43,7 @@ type TranscriptParseResult struct {
 	LastPrompt  string
 	StatusLine  string
 	CurrentTool string
+	Model       string
 	Subagents   map[string]int
 	RecentTurns []SummaryTurn
 	PlanFile    string // latest Write target under ~/.claude/plans/*.md
@@ -57,6 +58,10 @@ type CodexTranscriptParseResult struct {
 	LastPrompt           string
 	LastAssistantMessage string
 	StatusLine           string
+	Model                string
+	ModelSet             bool
+	Effort               string
+	EffortSet            bool
 	RecentTurns          []SummaryTurn
 }
 

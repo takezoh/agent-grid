@@ -21,6 +21,7 @@ type SessionInsight struct {
 type MetaSnapshot struct {
 	Title      string
 	LastPrompt string
+	Model      string
 	Insight    SessionInsight
 }
 

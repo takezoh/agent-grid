@@ -180,6 +180,9 @@ func (s *toolCallServer) OnServerRequest(id int64, method string, _ json.RawMess
 		_ = s.srv.Conn().Reply(id, map[string]any{})
 	case codexschema.MethodThreadStart:
 		_ = s.srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": testThreadID}})
+	case codexschema.MethodTurnStart:
+		_ = s.srv.Conn().Reply(id, map[string]any{"turn": map[string]any{"id": testTurnID}})
+		s.runTurn()
 	}
 }
 
@@ -187,6 +190,10 @@ func (s *toolCallServer) OnNotification(method string, _ json.RawMessage) {
 	if method != codexschema.MethodTurnStart {
 		return
 	}
+	s.runTurn()
+}
+
+func (s *toolCallServer) runTurn() {
 	_ = s.srv.EmitThreadStarted(testThreadID, "/ws")
 	_ = s.srv.EmitTurnStarted(testThreadID, testTurnID)
 
@@ -347,6 +354,9 @@ func (s *userInputRequiredServer) OnServerRequest(id int64, method string, _ jso
 		_ = s.srv.Conn().Reply(id, map[string]any{})
 	case codexschema.MethodThreadStart:
 		_ = s.srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": testThreadID}})
+	case codexschema.MethodTurnStart:
+		_ = s.srv.Conn().Reply(id, map[string]any{"turn": map[string]any{"id": testTurnID}})
+		s.runTurn()
 	}
 }
 
@@ -354,6 +364,10 @@ func (s *userInputRequiredServer) OnNotification(method string, _ json.RawMessag
 	if method != codexschema.MethodTurnStart {
 		return
 	}
+	s.runTurn()
+}
+
+func (s *userInputRequiredServer) runTurn() {
 	_ = s.srv.EmitThreadStarted(testThreadID, "/ws")
 	_ = s.srv.EmitTurnStarted(testThreadID, testTurnID)
 

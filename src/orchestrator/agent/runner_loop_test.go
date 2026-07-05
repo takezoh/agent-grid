@@ -29,10 +29,7 @@ type scriptedServer struct {
 	outcomes []bool
 }
 
-func (s *scriptedServer) OnNotification(method string, params json.RawMessage) {
-	if method != codexschema.MethodTurnStart {
-		return
-	}
+func (s *scriptedServer) runTurn() {
 	s.mu.Lock()
 	n := s.turn
 	fail := n < len(s.outcomes) && s.outcomes[n]
@@ -51,12 +48,23 @@ func (s *scriptedServer) OnNotification(method string, params json.RawMessage) {
 	}
 }
 
+func (s *scriptedServer) OnNotification(method string, params json.RawMessage) {
+	if method != codexschema.MethodTurnStart {
+		return
+	}
+	_ = params
+	s.runTurn()
+}
+
 func (s *scriptedServer) OnServerRequest(id int64, method string, _ json.RawMessage) {
 	switch method {
 	case codexschema.MethodInitialize:
 		_ = s.srv.Conn().Reply(id, map[string]any{})
 	case codexschema.MethodThreadStart:
 		_ = s.srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": testThreadID}})
+	case codexschema.MethodTurnStart:
+		_ = s.srv.Conn().Reply(id, map[string]any{"turn": map[string]any{"id": fmt.Sprintf("turn-%d", s.turn+1)}})
+		s.runTurn()
 	}
 }
 

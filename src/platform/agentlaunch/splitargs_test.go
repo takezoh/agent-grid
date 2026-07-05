@@ -22,6 +22,7 @@ func TestSplitArgs(t *testing.T) {
 		{"extra whitespace", "  codex  -m  gpt-4o  ", []string{"codex", "-m", "gpt-4o"}, false},
 		{"tab separator", "codex\t-m\tgpt-4o", []string{"codex", "-m", "gpt-4o"}, false},
 		{"adjacent quotes", `foo''bar`, []string{"foobar"}, false},
+		{"escaped apostrophe idiom", `echo 'it'\''s'`, []string{"echo", "it's"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

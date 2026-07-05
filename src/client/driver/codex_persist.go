@@ -22,6 +22,24 @@ func (CodexDriver) Persist(s state.DriverState) map[string]string {
 	if cs.RolloutPath != "" {
 		out[codexKeyRolloutPath] = cs.RolloutPath
 	}
+	if cs.Model != "" {
+		out[codexKeyModel] = cs.Model
+	}
+	if cs.Effort != "" {
+		out[codexKeyEffort] = cs.Effort
+	}
+	if cs.ModelSet {
+		out[codexKeyModelSet] = "1"
+	}
+	if cs.EffortSet {
+		out[codexKeyEffortSet] = "1"
+	}
+	if cs.ModelAuthoritative {
+		out[codexKeyModelAuthoritative] = "1"
+	}
+	if cs.EffortAuthoritative {
+		out[codexKeyEffortAuthoritative] = "1"
+	}
 	if cs.RequestedThreadID != "" {
 		out[codexKeyRequestedThreadID] = cs.RequestedThreadID
 	}
@@ -54,6 +72,12 @@ func (d CodexDriver) Restore(bag map[string]string, now time.Time) state.DriverS
 	cs.ThreadID = bag[codexKeyThreadID]
 	cs.SessionID = bag[codexKeySessionID]
 	cs.RolloutPath = bag[codexKeyRolloutPath]
+	cs.Model = firstPersistedValue(bag, codexKeyModel, codexLegacyKeyModel)
+	cs.Effort = firstPersistedValue(bag, codexKeyEffort, codexLegacyKeyEffort)
+	cs.ModelSet = bag[codexKeyModelSet] == "1" || cs.Model != ""
+	cs.EffortSet = bag[codexKeyEffortSet] == "1" || cs.Effort != ""
+	cs.ModelAuthoritative = bag[codexKeyModelAuthoritative] == "1"
+	cs.EffortAuthoritative = bag[codexKeyEffortAuthoritative] == "1"
 	if cs.RolloutPath == "" && cs.TranscriptPath != "" {
 		cs.RolloutPath = cs.TranscriptPath
 	}

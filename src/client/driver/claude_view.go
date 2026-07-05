@@ -53,6 +53,8 @@ func (d ClaudeDriver) view(cs ClaudeState) state.View {
 		LogTabs:         logTabs,
 		InfoExtras:      claudeInfoExtras(cs),
 		StatusLine:      planStatusLine(cs),
+		Model:           cs.Model,
+		Effort:          cs.Effort,
 		Status:          cs.Status,
 		StatusChangedAt: cs.StatusChangedAt,
 	}
@@ -67,6 +69,8 @@ func claudeInfoExtras(cs ClaudeState) []state.InfoLine {
 	}
 	add("Title", cs.Title)
 	add("Summary", cs.Summary)
+	add("Model", cs.Model)
+	add("Effort", cs.Effort)
 	add("Last Prompt", cs.LastPrompt)
 	add("Working Dir", cs.StartDir)
 	if cs.BranchIsWorktree {

@@ -271,10 +271,11 @@ func TestStartTurn(t *testing.T) {
 	connB := codexclient.NewConn(tb, time.Second)
 
 	recv := make(chan string, 1)
-	h := &notifyHandler{recv: recv}
+	h := &turnStartHandler{conn: connB, recv: recv}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	go connB.Run(ctx, h) //nolint:errcheck
+	go connB.Run(ctx, h)              //nolint:errcheck
+	go connA.Run(ctx, &noopHandler{}) //nolint:errcheck
 
 	opts := codexclient.TurnOptions{ApprovalPolicy: "never", SandboxPolicy: "workspace-write"}
 	if err := codexclient.StartTurn(connA, "th-1", "/work", []byte("hello"), opts); err != nil {
@@ -283,11 +284,26 @@ func TestStartTurn(t *testing.T) {
 	select {
 	case got := <-recv:
 		if got == "" {
-			t.Fatal("expected notification params")
+			t.Fatal("expected request params")
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for turn/start notification")
+		t.Fatal("timeout waiting for turn/start request")
 	}
+}
+
+type turnStartHandler struct {
+	conn *codexclient.Conn
+	recv chan string
+}
+
+func (h *turnStartHandler) OnNotification(_ string, _ json.RawMessage) {}
+func (h *turnStartHandler) OnServerRequest(id int64, method string, params json.RawMessage) {
+	if method != codexschema.MethodTurnStart {
+		_ = h.conn.Reply(id, map[string]any{})
+		return
+	}
+	h.recv <- string(params)
+	_ = h.conn.Reply(id, map[string]any{"turn": map[string]any{"id": "turn-1"}})
 }
 
 func TestConn_Close(t *testing.T) {

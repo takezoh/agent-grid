@@ -77,7 +77,6 @@ type Backend struct {
 	project      string
 	serverBin    string
 	serverArgs   []string
-	model        string
 	sandboxed    bool
 	autoApprove  bool
 	readTimeout  time.Duration
@@ -116,6 +115,10 @@ type frameBinding struct {
 	waitApproval    bool
 	activeTurnID    string
 	lastAssistant   string
+	model           string
+	modelSet        bool
+	effort          string
+	effortSet       bool
 	history         []state.SubsystemTurn
 	failureReported bool
 }
@@ -128,7 +131,7 @@ func New(
 	sessionID state.SessionID,
 	project, serverBin string,
 	serverArgs []string,
-	model string,
+	_, _ string,
 	sandboxed, autoApprove bool,
 	listenSock string,
 	readTimeout time.Duration,
@@ -141,7 +144,6 @@ func New(
 		project:     project,
 		serverBin:   serverBin,
 		serverArgs:  serverArgs,
-		model:       model,
 		sandboxed:   sandboxed,
 		autoApprove: autoApprove,
 		readTimeout: readTimeout,
@@ -223,6 +225,7 @@ func (b *Backend) Start(ctx context.Context) error {
 func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (subsystem.BindResult, error) {
 	result := subsystem.BindResult{Plan: req.Plan}
 	startDir := req.Plan.StartDir
+	initialModel, initialEffort := attachSettingsFromCommand(req.Plan.Command)
 
 	// Worktree resolution: same logic as CLI backend. Track the newly-created
 	// path so any error return after this point removes it — ReleaseFrame is
@@ -272,6 +275,7 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 		if err := b.registerBoundFrame(req.FrameID, startDir, worktreePath, persistedThreadID, resumeTarget.rpc.RolloutPath, req.Plan.Stream.ColdStartSessionID); err != nil {
 			return subsystem.BindResult{}, err
 		}
+		b.applyBindingSettings(req.FrameID, initialModel, initialEffort)
 	} else {
 		// Fresh path: acquire the init slot, register a pending binding
 		// (threadID == ""), let the CLI create its own thread. handleThreadStarted
@@ -279,11 +283,12 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 		if err := b.acquirePendingSlot(ctx, req.FrameID); err != nil {
 			return subsystem.BindResult{}, err
 		}
-		b.registerPendingFrame(req.FrameID, startDir, worktreePath)
+		b.registerPendingFrame(req.FrameID, startDir, worktreePath, initialModel, initialEffort)
 	}
 	bindOK = true
 
-	result.Plan.Command = strings.Join(libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir), " ")
+	model, effort := b.bindingSettings(req.FrameID)
+	result.Plan.Command = strings.Join(libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir, model, effort), " ")
 	result.Plan.Stdin = nil
 	result.Plan.Stream.ResumeTarget = resumeTarget.rpc
 	// ColdStartSessionID stays as caller provided (may be empty). It will be
@@ -327,14 +332,54 @@ func (b *Backend) registerBoundFrame(frameID state.FrameID, startDir, worktreePa
 // registerPendingFrame stores a frameBinding with an empty threadID.
 // handleThreadStarted's adopt path will fill in the thread id when the CLI
 // broadcasts thread/started.
-func (b *Backend) registerPendingFrame(frameID state.FrameID, startDir, worktreePath string) {
+func (b *Backend) registerPendingFrame(frameID state.FrameID, startDir, worktreePath, model, effort string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.frames[frameID] = &frameBinding{
 		frameID:      frameID,
 		startDir:     startDir,
 		worktreePath: worktreePath,
+		model:        strings.TrimSpace(model),
+		modelSet:     strings.TrimSpace(model) != "",
+		effort:       strings.TrimSpace(effort),
+		effortSet:    strings.TrimSpace(effort) != "",
 	}
+}
+
+func (b *Backend) bindingSettings(frameID state.FrameID) (model, effort string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if binding := b.frames[frameID]; binding != nil {
+		return binding.model, binding.effort
+	}
+	return "", ""
+}
+
+func (b *Backend) applyBindingSettings(frameID state.FrameID, model, effort string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if binding := b.frames[frameID]; binding != nil {
+		if model = strings.TrimSpace(model); model != "" {
+			binding.model = model
+			binding.modelSet = true
+		}
+		if effort = strings.TrimSpace(effort); effort != "" {
+			binding.effort = effort
+			binding.effortSet = true
+		}
+	}
+}
+
+func attachSettingsFromCommand(command string) (model, effort string) {
+	argv, err := agentlaunch.SplitArgs(strings.TrimSpace(command))
+	if err != nil {
+		return "", ""
+	}
+	cfg, err := libcodex.ParseCommand(argv)
+	if err != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(cfg.Model), strings.TrimSpace(cfg.Effort)
 }
 
 // ReleaseFrame removes the frame from the registry and its thread mapping.

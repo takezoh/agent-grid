@@ -19,6 +19,10 @@ export type DriverViewPanelProps = {
 // from this module path).
 export { resolveTagPillStyle };
 
+function metadataPills(model?: string, effort?: string): string[] {
+  return [model?.trim(), effort?.trim()].filter((value): value is string => Boolean(value));
+}
+
 export function DriverViewPanel({ view, sessionId, onRequestTerminate }: DriverViewPanelProps) {
   const now = useNow1Hz();
   const card = view.card;
@@ -26,6 +30,7 @@ export function DriverViewPanel({ view, sessionId, onRequestTerminate }: DriverV
     ? formatElapsed(now - new Date(view.status_changed_at).getTime())
     : "";
   const displayTitle = titleText(card);
+  const metadata = metadataPills(view.model, view.effort);
   // Terminate dialog 用の label. Header / SessionList と同じ titleText fallback を使う.
   const terminateLabel = displayTitle;
   return (
@@ -33,6 +38,15 @@ export function DriverViewPanel({ view, sessionId, onRequestTerminate }: DriverV
       <header className="driver-view-header">
         <div className="driver-view-titles">
           <h2 className="driver-view-title">{displayTitle}</h2>
+          {metadata.length > 0 && (
+            <div className="driver-view-metadata" aria-label="session metadata">
+              {metadata.map((value, index) => (
+                <span key={`${index}-${value}`} className="driver-view-meta-pill">
+                  {value}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="driver-view-actions">
           <RunStateBadge status={view.status} />

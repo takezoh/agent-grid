@@ -726,6 +726,8 @@ func TestCodexPersistRestoreRoundTrip(t *testing.T) {
 		LastHookAt:           now,
 	}
 	cs.ThreadID = "thread-t1"
+	cs.Model = "gpt-5-codex"
+	cs.Effort = "high"
 	cs.WorktreeName = "codex-abcd"
 
 	bag := d.Persist(cs)
@@ -744,6 +746,20 @@ func TestCodexPersistRestoreRoundTrip(t *testing.T) {
 	}
 	if got.LastPrompt != "p" || got.LastAssistantMessage != "a" {
 		t.Fatalf("message fields mismatch: %+v", got)
+	}
+	if got.Model != "gpt-5-codex" || got.Effort != "high" {
+		t.Fatalf("metadata fields mismatch: %+v", got)
+	}
+}
+
+func TestCodexRestoreFallsBackToLegacyCommonMetadataKeys(t *testing.T) {
+	d, _, now := newCodex(t)
+	got := d.Restore(map[string]string{
+		codexLegacyKeyModel:  "gpt-5-codex",
+		codexLegacyKeyEffort: "high",
+	}, now).(CodexState)
+	if got.Model != "gpt-5-codex" || got.Effort != "high" {
+		t.Fatalf("legacy metadata fields mismatch: %+v", got)
 	}
 }
 
@@ -858,6 +874,10 @@ func TestCodexTranscriptParseResultMergesFields(t *testing.T) {
 			LastPrompt:           "Run tests",
 			LastAssistantMessage: "done",
 			StatusLine:           "gpt-5-codex | 7,205 tok",
+			Model:                "gpt-5-codex",
+			ModelSet:             true,
+			Effort:               "medium",
+			EffortSet:            true,
 			RecentTurns: []SummaryTurn{
 				{Role: "user", Text: "Run tests"},
 				{Role: "assistant", Text: "done"},
@@ -878,6 +898,51 @@ func TestCodexTranscriptParseResultMergesFields(t *testing.T) {
 	}
 	if len(next.RecentTurns) != 2 {
 		t.Fatalf("RecentTurns len = %d, want 2", len(next.RecentTurns))
+	}
+	if next.Model != "gpt-5-codex" || next.Effort != "medium" {
+		t.Fatalf("metadata fields = %q/%q", next.Model, next.Effort)
+	}
+}
+
+func TestCodexTranscriptParseResultDoesNotOverrideAuthoritativeMetadata(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.Model = "gpt-5"
+	cs.Effort = "high"
+	cs.ModelAuthoritative = true
+	cs.EffortAuthoritative = true
+	cs.TranscriptInFlight = true
+
+	next := d.handleJobResult(cs, state.DEvJobResult{
+		Now: now,
+		Result: CodexTranscriptParseResult{
+			Model:     "gpt-4.1",
+			ModelSet:  true,
+			Effort:    "low",
+			EffortSet: true,
+		},
+	})
+	if next.Model != "gpt-5" || next.Effort != "high" {
+		t.Fatalf("authoritative metadata overridden: %q/%q", next.Model, next.Effort)
+	}
+}
+
+func TestCodexTranscriptParseResultClearsFallbackMetadata(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.Model = "gpt-5"
+	cs.Effort = "high"
+	cs.TranscriptInFlight = true
+
+	next := d.handleJobResult(cs, state.DEvJobResult{
+		Now: now,
+		Result: CodexTranscriptParseResult{
+			Model:     "",
+			ModelSet:  true,
+			Effort:    "",
+			EffortSet: true,
+		},
+	})
+	if next.Model != "" || next.Effort != "" {
+		t.Fatalf("fallback metadata not cleared: %q/%q", next.Model, next.Effort)
 	}
 }
 
@@ -1008,6 +1073,54 @@ func TestCodexSubsystemMetadataUpdatedClearsTitle(t *testing.T) {
 	next.Summary = ""
 	if got := d.view(next).Card.Title; got != "preview fallback" {
 		t.Fatalf("card title = %q, want preview fallback", got)
+	}
+}
+
+func TestCodexSubsystemMetadataUpdatedClearsEffort(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.Effort = "high"
+
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemMetadataUpdated,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Effort:    "",
+			EffortSet: true,
+		},
+	})
+	if next.Effort != "" {
+		t.Fatalf("Effort = %q, want cleared", next.Effort)
+	}
+	if !next.EffortSet {
+		t.Fatal("EffortSet = false, want true")
+	}
+}
+
+func TestCodexNonMetadataSubsystemEventDoesNotOverrideFallbackMetadata(t *testing.T) {
+	d, cs, now := newCodex(t)
+	cs.Model = "gpt-5-transcript"
+	cs.Effort = ""
+	cs.ModelSet = true
+	cs.EffortSet = true
+
+	next, _ := d.handleSubsystem(cs, state.FrameContext{IsRoot: true}, state.DEvSubsystem{
+		Source:    state.SubsystemStream,
+		Kind:      state.SubsystemTurnStarted,
+		Timestamp: now,
+		Payload: state.SubsystemPayload{
+			SessionID: "thread-1",
+			TargetID:  "thread-1",
+			Model:     "gpt-4-seed",
+			ModelSet:  true,
+			Effort:    "high",
+			EffortSet: true,
+		},
+	})
+	if next.Model != "gpt-5-transcript" || next.Effort != "" {
+		t.Fatalf("metadata overwritten by non-metadata event: %q/%q", next.Model, next.Effort)
 	}
 }
 
@@ -1280,15 +1393,96 @@ func TestParseCodexWorktree(t *testing.T) {
 
 func TestCodexPrepareCreateWithoutWorktree(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	_, plan, err := d.PrepareCreate(cs, "sess-1", "/repo", "codex --model gpt-5", state.LaunchOptions{})
+	next, plan, err := d.PrepareCreate(cs, "sess-1", "/repo", "codex --model gpt-5 --effort low", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareCreate error: %v", err)
 	}
-	if plan.Command != "codex --model gpt-5" || plan.StartDir != "/repo" {
+	created := next.(CodexState)
+	if plan.Command != "codex --model gpt-5 --effort low" || plan.StartDir != "/repo" {
 		t.Fatalf("launch = %+v", plan)
 	}
 	if plan.Options.Worktree.Enabled {
 		t.Fatal("expected worktree disabled")
+	}
+	if created.Model != "gpt-5" || created.Effort != "low" {
+		t.Fatalf("created metadata = %q/%q", created.Model, created.Effort)
+	}
+}
+
+func TestCodexPrepareLaunchColdStartRestoresModelEffort(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	cs.Model = "gpt-5-codex"
+	cs.Effort = "high"
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if !strings.Contains(plan.Command, "--model gpt-5-codex") || !strings.Contains(plan.Command, "--effort high") {
+		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
+	}
+}
+
+func TestCodexPrepareLaunchColdStartReplacesEqualsFlagsWithPersistedValues(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	cs.Model = "gpt-5-codex"
+	cs.Effort = "low"
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model=gpt-4.1 --effort=high", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if strings.Contains(plan.Command, "--model=gpt-4.1") || strings.Contains(plan.Command, "--effort=high") {
+		t.Fatalf("PrepareLaunch.Command = %q, want persisted values to replace command flags", plan.Command)
+	}
+	if !strings.Contains(plan.Command, "--model gpt-5-codex") || !strings.Contains(plan.Command, "--effort low") {
+		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
+	}
+}
+
+func TestCodexPrepareLaunchColdStartKeepsClearedMetadata(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	cs.ModelSet = true
+	cs.EffortSet = true
+	cs.ModelAuthoritative = true
+	cs.EffortAuthoritative = true
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex --effort high", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if strings.Contains(plan.Command, "--model") || strings.Contains(plan.Command, "--effort") {
+		t.Fatalf("PrepareLaunch.Command = %q, want cleared metadata to stay cleared", plan.Command)
+	}
+}
+
+func TestCodexPrepareLaunchKeepsWorktreeNormalizationWhenReplacingMetadata(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	cs.Model = "gpt-5-codex"
+	cs.Effort = "low"
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --worktree feature --model=gpt-4.1 --effort=high", state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if strings.Contains(plan.Command, "--worktree") {
+		t.Fatalf("PrepareLaunch.Command = %q, want worktree flag stripped", plan.Command)
+	}
+	if !strings.Contains(plan.Command, "--model gpt-5-codex") || !strings.Contains(plan.Command, "--effort low") {
+		t.Fatalf("PrepareLaunch.Command = %q, want persisted metadata restored", plan.Command)
+	}
+	if !plan.Options.Worktree.Enabled {
+		t.Fatal("expected worktree enabled")
+	}
+}
+
+func TestCodexPrepareLaunchPreservesQuotedArgsWhenReplacingMetadata(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	cs.Model = "gpt-5-codex"
+	cs.Effort = "low"
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", `codex -c 'foo = "bar baz"' --model=gpt-4.1 --effort=high`, state.LaunchOptions{}, false)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	want := `codex -c 'foo = "bar baz"' --model gpt-5-codex --effort low`
+	if plan.Command != want {
+		t.Fatalf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
 	}
 }
 

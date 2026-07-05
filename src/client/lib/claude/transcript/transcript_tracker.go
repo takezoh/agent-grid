@@ -152,6 +152,7 @@ func (t *Tracker) Snapshot(agentSessionID string) MetaSnapshot {
 	return MetaSnapshot{
 		Title:      st.title,
 		LastPrompt: st.activeLastPrompt(),
+		Model:      st.model,
 		Insight:    st.insight,
 	}
 }

@@ -13,11 +13,15 @@ type subsystemEmission struct {
 }
 
 type codexThreadMetadata struct {
-	threadID string
-	title    string
-	titleSet bool
-	preview  string
-	prompt   string
+	threadID  string
+	title     string
+	titleSet  bool
+	preview   string
+	prompt    string
+	model     string
+	modelSet  bool
+	effort    string
+	effortSet bool
 }
 
 func normalizeCodexThreadMetadata(raw json.RawMessage) codexThreadMetadata {
@@ -38,6 +42,25 @@ func normalizeCodexThreadMetadata(raw json.RawMessage) codexThreadMetadata {
 	meta.preview = collapseMetadataText(meta.preview)
 	meta.prompt = collapseMetadataText(meta.prompt)
 	return meta
+}
+
+func normalizeCodexThreadSettings(raw json.RawMessage) codexThreadMetadata {
+	var data struct {
+		ThreadID       string                     `json:"threadId"`
+		ThreadSettings map[string]json.RawMessage `json:"threadSettings"`
+	}
+	if json.Unmarshal(raw, &data) != nil || data.ThreadSettings == nil {
+		return codexThreadMetadata{}
+	}
+	model, modelSet := normalizeMetadataStringField(data.ThreadSettings["model"])
+	effort, effortSet := normalizeMetadataEffortField(data.ThreadSettings["effort"])
+	return codexThreadMetadata{
+		threadID:  strings.TrimSpace(data.ThreadID),
+		model:     model,
+		modelSet:  modelSet,
+		effort:    effort,
+		effortSet: effortSet,
+	}
 }
 
 func stringValue(v any) string {
@@ -68,6 +91,44 @@ func metadataTitle(data, thread map[string]any) (string, bool) {
 
 func collapseMetadataText(s string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
+}
+
+func normalizeMetadataStringField(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	if strings.TrimSpace(string(raw)) == "null" {
+		return "", true
+	}
+	var value string
+	if json.Unmarshal(raw, &value) != nil {
+		return "", false
+	}
+	return strings.TrimSpace(value), true
+}
+
+func normalizeMetadataEffortField(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	if strings.TrimSpace(string(raw)) == "null" {
+		return "", true
+	}
+	var value any
+	if json.Unmarshal(raw, &value) != nil {
+		return "", false
+	}
+	switch effort := value.(type) {
+	case string:
+		return strings.TrimSpace(effort), true
+	case map[string]any:
+		if level, _ := effort["level"].(string); strings.TrimSpace(level) != "" {
+			return strings.TrimSpace(level), true
+		}
+		return "", true
+	default:
+		return "", true
+	}
 }
 
 func extractThreadID(raw json.RawMessage) string {

@@ -16,7 +16,10 @@ type Snapshot struct {
 	LastPrompt           string
 	LastAssistantMessage string
 	StatusLine           string
+	Model                string
+	ModelSet             bool
 	Effort               string
+	EffortSet            bool
 	RecentTurns          []TurnText
 }
 
@@ -25,7 +28,9 @@ type Parser struct {
 	lastPrompt           string
 	lastAssistantMessage string
 	model                string
+	modelSet             bool
 	effort               string
+	effortSet            bool
 	totalTokens          int
 	contextWindow        int
 	currentTurnID        string
@@ -48,7 +53,10 @@ func (p *Parser) Snapshot() Snapshot {
 		LastPrompt:           p.lastPrompt,
 		LastAssistantMessage: p.lastAssistantMessage,
 		StatusLine:           p.statusLine(),
+		Model:                p.model,
+		ModelSet:             p.modelSet,
 		Effort:               p.effort,
+		EffortSet:            p.effortSet,
 		RecentTurns:          turns,
 	}
 }
@@ -110,9 +118,11 @@ func (p *Parser) parseTurnContext(payload json.RawMessage) {
 	_ = json.Unmarshal(payload, &ctx)
 	if ctx.Model != "" {
 		p.model = ctx.Model
+		p.modelSet = true
 	}
 	if effort := firstNonEmptyEffort(ctx.ReasoningEffort, ctx.LegacyEffort); effort != "" {
 		p.effort = effort
+		p.effortSet = true
 	}
 }
 
@@ -169,6 +179,34 @@ func firstNonEmptyEffort(values ...any) string {
 	return ""
 }
 
+func normalizeNullableString(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	if strings.TrimSpace(string(raw)) == "null" {
+		return "", true
+	}
+	var value string
+	if json.Unmarshal(raw, &value) != nil {
+		return "", false
+	}
+	return strings.TrimSpace(value), true
+}
+
+func normalizeNullableReasoningEffort(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	if strings.TrimSpace(string(raw)) == "null" {
+		return "", true
+	}
+	var value any
+	if json.Unmarshal(raw, &value) != nil {
+		return "", false
+	}
+	return normalizeReasoningEffort(value), true
+}
+
 func (p *Parser) parseEvent(payload json.RawMessage) (Entry, bool) {
 	var probe struct {
 		Type string `json:"type"`
@@ -183,6 +221,8 @@ func (p *Parser) parseEvent(payload json.RawMessage) (Entry, bool) {
 		return p.parseAgentMessage(payload)
 	case "thread_name_updated":
 		return p.parseThreadNameUpdated(payload)
+	case "thread_settings_updated":
+		return p.parseThreadSettingsUpdated(payload)
 	case "token_count":
 		return p.parseTokenCount(payload)
 	case "turn_started":
@@ -242,6 +282,35 @@ func (p *Parser) parseThreadNameUpdated(payload json.RawMessage) (Entry, bool) {
 	}
 	p.title = name
 	return Entry{Text: "[title] " + name}, true
+}
+
+func (p *Parser) parseThreadSettingsUpdated(payload json.RawMessage) (Entry, bool) {
+	var ev struct {
+		ThreadSettings map[string]json.RawMessage `json:"threadSettings"`
+	}
+	_ = json.Unmarshal(payload, &ev)
+	if ev.ThreadSettings == nil {
+		return Entry{}, false
+	}
+	if model, ok := normalizeNullableString(ev.ThreadSettings["model"]); ok {
+		p.model = model
+		p.modelSet = true
+	}
+	if effort, ok := normalizeNullableReasoningEffort(ev.ThreadSettings["effort"]); ok {
+		p.effort = effort
+		p.effortSet = true
+	}
+	var parts []string
+	if p.modelSet {
+		parts = append(parts, "model="+p.model)
+	}
+	if p.effortSet {
+		parts = append(parts, "effort="+p.effort)
+	}
+	if len(parts) == 0 {
+		return Entry{}, false
+	}
+	return Entry{Text: "[settings] " + strings.Join(parts, " ")}, true
 }
 
 func (p *Parser) parseTokenCount(payload json.RawMessage) (Entry, bool) {
@@ -415,6 +484,9 @@ func (p *Parser) statusLine() string {
 	var parts []string
 	if p.model != "" {
 		parts = append(parts, p.model)
+	}
+	if p.effort != "" {
+		parts = append(parts, "effort="+p.effort)
 	}
 	if p.totalTokens > 0 {
 		parts = append(parts, comma(p.totalTokens)+" tok")

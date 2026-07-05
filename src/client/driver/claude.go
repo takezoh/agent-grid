@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/agentlaunch"
 	claudecli "github.com/takezoh/agent-reactor/platform/lib/claude/cli"
 )
 
@@ -26,7 +27,11 @@ const (
 	ClaudeDriverName = "claude"
 
 	// PersistedState bag keys for sessions.json round-trip.
-	claudeKeyClaudeSessionID = "claude_session_id"
+	claudeKeyClaudeSessionID     = "claude_session_id"
+	claudeKeyModelAuthoritative  = "claude_model_authoritative"
+	claudeKeyEffortAuthoritative = "claude_effort_authoritative"
+	claudeKeyModelSet            = "claude_model_set"
+	claudeKeyEffortSet           = "claude_effort_set"
 )
 
 // pendingTool tracks an in-flight tool call from PreToolUse until
@@ -48,9 +53,13 @@ type ClaudeState struct {
 	CommonState
 
 	// Identity (set via Restore or DEvHook session-start payload).
-	ClaudeSessionID string // distinct from client session id; the *Claude* conversation id
-	Model           string
-	Effort          string
+	ClaudeSessionID     string // distinct from client session id; the *Claude* conversation id
+	Model               string
+	Effort              string
+	ModelSet            bool
+	EffortSet           bool
+	ModelAuthoritative  bool
+	EffortAuthoritative bool
 	// ForkParentID is the ClaudeSessionID of the session this was forked from.
 	// It is used to reject the parent id arriving in the first hook after
 	// `--fork-session` launch, so the parent id never poisons ClaudeSessionID.
@@ -158,12 +167,44 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	if !ok {
 		cs = ClaudeState{}
 	}
+	if cs.Model != "" {
+		cs.ModelSet = true
+	}
+	if cs.Effort != "" {
+		cs.EffortSet = true
+	}
 	startDir := project
 	if cs.StartDir != "" {
 		startDir = cs.StartDir
 	}
 	req, command := resolveWorktreeRequest(baseCommand, options, "--worktree")
 	command = strings.TrimSpace(command)
+	if argv, err := agentlaunch.SplitArgs(command); err == nil {
+		if cfg, err := claudecli.ParseCommand(argv); err == nil {
+			if !cs.ModelSet && cfg.Model != "" {
+				cs.Model = cfg.Model
+				cs.ModelSet = true
+			}
+			if !cs.EffortSet && cfg.Effort != "" {
+				cs.Effort = cfg.Effort
+				cs.EffortSet = true
+			}
+			if cs.ModelSet {
+				if cs.Model == "" {
+					command = stripFlagValues(command, []string{"--model"})
+				} else {
+					command = replaceFlagValue(command, []string{"--model"}, cs.Model)
+				}
+			}
+			if cs.EffortSet {
+				if cs.Effort == "" {
+					command = stripFlagValues(command, []string{"--effort"})
+				} else {
+					command = replaceFlagValue(command, []string{"--effort"}, cs.Effort)
+				}
+			}
+		}
+	}
 	command = claudecli.SandboxFlags(command, sandboxed)
 	if mode != state.LaunchModeColdStart || cs.ClaudeSessionID == "" {
 		if mode == state.LaunchModeColdStart {

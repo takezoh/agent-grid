@@ -17,12 +17,53 @@ func TestSandboxFlags(t *testing.T) {
 		{"sandboxed strips auto-mode", "claude --enable-auto-mode", true, "claude " + sandboxSkipFlag},
 		{"sandboxed idempotent when skip already present", "claude " + sandboxSkipFlag, true, "claude " + sandboxSkipFlag},
 		{"sandboxed strips auto-mode and keeps other flags", "claude --verbose --enable-auto-mode", true, "claude --verbose " + sandboxSkipFlag},
+		{"sandboxed preserves quoted args", `claude -c 'foo = "bar baz"' --enable-auto-mode`, true, `claude -c 'foo = "bar baz"' ` + sandboxSkipFlag},
+		{"sandboxed preserves double-quoted expansion", `claude -c "$HOME/conf" --enable-auto-mode`, true, `claude -c "$HOME/conf" ` + sandboxSkipFlag},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := SandboxFlags(tt.command, tt.sandboxed)
 			if got != tt.want {
 				t.Errorf("SandboxFlags(%q, %v) = %q, want %q", tt.command, tt.sandboxed, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseCommand(t *testing.T) {
+	tests := []struct {
+		name    string
+		argv    []string
+		want    CommandConfig
+		wantErr bool
+	}{
+		{
+			name: "model and effort",
+			argv: []string{"claude", "--model", "sonnet", "--effort", "high"},
+			want: CommandConfig{CommandBin: "claude", Model: "sonnet", Effort: "high"},
+		},
+		{
+			name: "equals flags",
+			argv: []string{"claude", "--model=sonnet", "--effort=high"},
+			want: CommandConfig{CommandBin: "claude", Model: "sonnet", Effort: "high"},
+		},
+		{
+			name:    "unsupported command",
+			argv:    []string{"codex"},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseCommand(tt.argv)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseCommand(%v) error = %v, wantErr %v", tt.argv, err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if got != tt.want {
+				t.Fatalf("ParseCommand(%v) = %+v, want %+v", tt.argv, got, tt.want)
 			}
 		})
 	}
