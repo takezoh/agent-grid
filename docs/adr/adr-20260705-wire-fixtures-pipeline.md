@@ -2,7 +2,7 @@
 id: adr-20260705-wire-fixtures-pipeline
 kind: adr
 title: 'Cross-language wire fixtures: Go-generated, TS-consumed, CI-gated'
-status: proposed
+status: accepted
 created: '2026-07-05'
 decision_makers:
 - Takehito Gondo
@@ -13,6 +13,7 @@ owners: []
 relations:
 - {type: partOf, target: plan-20260705-test-harness}
 - {type: references, target: adr-20260624-0021-frontend-wire-types-hand-written}
+- {type: referencedBy, target: adr-20260624-0021-frontend-wire-types-hand-written}
 source_paths:
 - src/server/web/wire.go
 - src/server/web/wire_test.go
@@ -20,6 +21,7 @@ source_paths:
 - .github/workflows/ci.yml
 summary: server/web が golden fixture JSON を生成し vitest が同一ファイルを消費、再生成 diff を CI で gate
   して Go↔TS wire drift を機械検出する (ADR 0021 の未実装機構を置換)
+updated: '2026-07-05'
 ---
 
 # Cross-language wire fixtures: Go-generated, TS-consumed, CI-gated
@@ -72,3 +74,8 @@ wire 変更 PR は fixture 再生成の 1 手順が増える。fixture の網羅
   ライブラリ導入は depguard 方針と衝突する。fixture は追加依存ゼロ。
 - **手書き fixtures.ts の継続 (現状維持)** — 却下。71d05a4 で実際に手動同期が発生しており、漏れの検出
   手段が無い。
+
+
+{% transition from="proposed" to="accepted" date="2026-07-05" %}
+Implemented Go-generated wire fixtures, TS fixture consumption, and CI diff gate.
+{% /transition %}

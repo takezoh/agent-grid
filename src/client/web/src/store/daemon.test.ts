@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { SessionConfig } from "../api/sessions";
+import { parseServerFrame } from "../wire/codec";
+import { fixtures } from "../wire/fixtures";
 import type { HelloFrame, SessionInfo, ViewUpdateFrame } from "../wire/server";
 import {
   DEFAULT_WORKSPACE,
@@ -72,6 +74,26 @@ describe("daemonStore", () => {
     };
     useDaemonStore.getState().seedHello(frame);
     expect(useDaemonStore.getState().activeSessionID).toBeNull();
+  });
+
+  it("replays committed Go-generated hello/view-update fixtures", () => {
+    const hello = parseServerFrame(fixtures.hello);
+    if (!hello || Array.isArray(hello) || hello.k !== "h") {
+      throw new Error("expected hello fixture");
+    }
+    useDaemonStore.getState().seedHello(hello);
+    expect(useDaemonStore.getState().activeSessionID).toBe("s1");
+    expect(useDaemonStore.getState().features).toEqual(["surface"]);
+
+    const update = parseServerFrame(fixtures.viewUpdate);
+    if (!update || Array.isArray(update) || update.k !== "v") {
+      throw new Error("expected view-update fixture");
+    }
+    useDaemonStore.getState().applyViewUpdate(update);
+    const state = useDaemonStore.getState();
+    expect(state.activeSessionID).toBe("s1");
+    expect(state.sessions).toHaveLength(5);
+    expect(state.sessions[4]?.view.status).toBe("pending");
   });
 
   it("applyViewUpdate replaces sessions and preserves activeSessionID when omitted", () => {

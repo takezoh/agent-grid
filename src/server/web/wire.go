@@ -47,9 +47,9 @@ type controlMsg struct {
 	Data string `json:"data,omitempty"`
 }
 
-// controlFrame encodes a controlMsg as a JSON text frame.
-func controlFrame(kind string, code int, data string) []byte {
-	b, _ := json.Marshal(controlMsg{K: kind, Code: code, Data: data})
+// controlFrame encodes the fixed {"k":"c",...} control JSON text frame.
+func controlFrame(code int, data string) []byte {
+	b, _ := json.Marshal(controlMsg{K: "c", Code: code, Data: data})
 	return b
 }
 

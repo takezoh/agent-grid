@@ -2,9 +2,9 @@
 id: adr-20260624-0023-view-update-broadcast-shape
 kind: adr
 title: ADR 0023 — `view-update` broadcast is a 1:1 wire-level mirror of `EvtSessionsChanged`
-status: accepted
+status: superseded
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-05'
 tags:
 - adr
 - legacy-import
@@ -86,3 +86,8 @@ beyond store replace.
 ## Related requirements
 
 - FR-γ01, FR-γ02, FR-γ03, FR-γ10
+
+
+{% transition from="accepted" to="superseded" date="2026-07-05" %}
+Superseded by adr-20260705-view-update-sessions-only after aligning docs to the implemented wire contract.
+{% /transition %}

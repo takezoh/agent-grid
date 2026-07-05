@@ -2,7 +2,7 @@
 id: task-20260705-driver-conformance-suite
 kind: task
 title: drivertest.Conformance + registry 走査テスト
-status: todo
+status: done
 created: '2026-07-05'
 priority: high
 effort: medium
@@ -22,6 +22,7 @@ source_paths:
 - docs/adr/adr-20260705-metadata-source-priority.md
 summary: Step 純粋性・DriverEvent totality・Persist/Restore round-trip・metadata source
   priority (ADR-20260705) を共通契約化し、state.Register 全 driver に自動適用
+updated: '2026-07-05'
 ---
 
 # drivertest.Conformance + registry 走査テスト
@@ -63,3 +64,13 @@ summary: Step 純粋性・DriverEvent totality・Persist/Restore round-trip・me
 - 登録済み全 driver (claude / codex / gemini / shell / generic) が suite を pass する
 - registry に仮の新 driver を足すテストで suite が自動適用されることを確認
 - coverage floor (state / driver) の非後退、`make lint` green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Started implementation of the driver conformance suite and Claude metadata contract fixes.
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented common driver conformance suite, registry scan coverage, Claude metadata tri-state fix, and verified with tests plus lint.
+{% /transition %}

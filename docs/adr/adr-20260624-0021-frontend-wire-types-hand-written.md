@@ -12,6 +12,7 @@ owners: []
 relations:
 - {type: referencedBy, target: adr-20260624-0019-react-ts-vite-zustand-stack}
 - {type: referencedBy, target: adr-20260705-wire-fixtures-pipeline}
+- {type: references, target: adr-20260705-wire-fixtures-pipeline}
 source_paths:
 - src/client/proto/surface_command.go
 - src/client/web/src/wire/

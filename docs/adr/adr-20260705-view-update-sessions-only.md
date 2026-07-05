@@ -2,7 +2,7 @@
 id: adr-20260705-view-update-sessions-only
 kind: adr
 title: view-update broadcast carries sessions only (no activeSessionID)
-status: proposed
+status: accepted
 created: '2026-07-05'
 decision_makers:
 - Takehito Gondo
@@ -18,6 +18,7 @@ source_paths:
 - src/client/web/src/wire/server.ts
 summary: 実装済みの現実 (viewUpdate は activeSessionID を mirror しない) を正本化し ADR 0023 を supersede
   する
+updated: '2026-07-05'
 ---
 
 # view-update broadcast carries sessions only (no activeSessionID)
@@ -60,3 +61,8 @@ ADR の記述が一致する。
   サーバの単一 active に引きずられる UX 欠陥を再導入する。
 - **ADR 0023 を編集して記述だけ直す** — 却下。ADR は不変レコードであり、判断の変更は supersede で表現する
   (docs 方法論)。
+
+
+{% transition from="proposed" to="accepted" date="2026-07-05" %}
+The implemented wire contract already omits activeSessionID on view-update frames.
+{% /transition %}

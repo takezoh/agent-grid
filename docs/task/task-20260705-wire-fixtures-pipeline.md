@@ -2,7 +2,7 @@
 id: task-20260705-wire-fixtures-pipeline
 kind: task
 title: Go 生成 golden wire fixtures + vitest 消費 + CI diff gate
-status: todo
+status: done
 created: '2026-07-05'
 priority: high
 effort: medium
@@ -27,6 +27,7 @@ source_paths:
 - docs/adr/adr-20260624-0021-frontend-wire-types-hand-written.md
 summary: server/web が viewUpdate/output/control の canonical JSON fixture を生成、codec.test.ts
   が同一ファイルを消費、再生成 git diff --exit-code を CI に追加
+updated: '2026-07-05'
 ---
 
 # Go 生成 golden wire fixtures + vitest 消費 + CI diff gate
@@ -64,3 +65,13 @@ Go↔TS wire 契約の手動同期 (手書き `fixtures.ts`) を、Go 生成 fix
 - Go 側フィールド追加 → fixture 未再生成で CI step が fail することを実証 (AC-002)
 - vitest / go test が同一 fixture で green
 - `make lint`、biome green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Started implementing Go-generated wire fixtures, TS consumption, and CI diff gate.
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented fixture generation, TS consumption, CI drift gate, and related ADR updates.
+{% /transition %}

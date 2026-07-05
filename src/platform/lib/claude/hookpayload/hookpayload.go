@@ -19,11 +19,30 @@ type HookPayload struct {
 	Source           string         `json:"source,omitempty"`
 	Model            string         `json:"model,omitempty"`
 	Effort           *Effort        `json:"effort,omitempty"`
+	ModelSet         bool           `json:"-"`
+	EffortSet        bool           `json:"-"`
 
 	ToolUseID      string `json:"tool_use_id,omitempty"`
 	PermissionMode string `json:"permission_mode,omitempty"`
 	Error          string `json:"error,omitempty"`
 	IsInterrupt    bool   `json:"is_interrupt,omitempty"`
+}
+
+func (p *HookPayload) UnmarshalJSON(data []byte) error {
+	type alias HookPayload
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*p = HookPayload(decoded)
+	p.Model = strings.TrimSpace(p.Model)
+	_, p.ModelSet = raw["model"]
+	_, p.EffortSet = raw["effort"]
+	return nil
 }
 
 // Effort is Claude's effort payload shape. Real payloads are observed as an

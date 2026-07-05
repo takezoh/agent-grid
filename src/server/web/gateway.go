@@ -130,7 +130,7 @@ func AttachWS(ctx context.Context, sess Attacher, sessionID string, c *websocket
 	if err != nil {
 		var eb *proto.ErrorBody
 		if errors.As(err, &eb) {
-			_ = c.Write(ctx, websocket.MessageText, controlFrame("c", 0, string(eb.Code)))
+			_ = c.Write(ctx, websocket.MessageText, controlFrame(0, string(eb.Code)))
 		}
 		writeTypedClose(c, "subscribe-failed")
 		return err
@@ -247,7 +247,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 			return ctx.Err()
 		case ev, ok := <-ch:
 			if !ok {
-				_ = c.Write(ctx, websocket.MessageText, controlFrame("c", 0, "daemon-disconnected"))
+				_ = c.Write(ctx, websocket.MessageText, controlFrame(0, "daemon-disconnected"))
 				writeTypedClose(c, "daemon-disconnected")
 				return errDaemonGone
 			}
@@ -434,7 +434,7 @@ func writeOutbound(ctx context.Context, sessionID string, c *websocket.Conn, ch 
 		case ev, ok := <-ch:
 			if !ok {
 				// Daemon disconnected: 2-step close (ADR 0011).
-				_ = c.Write(ctx, websocket.MessageText, controlFrame("c", 0, "daemon-disconnected"))
+				_ = c.Write(ctx, websocket.MessageText, controlFrame(0, "daemon-disconnected"))
 				writeTypedClose(c, "daemon-disconnected")
 				return errDaemonGone
 			}

@@ -990,6 +990,30 @@ func TestClaudeOutOfOrderHookDoesNotMutateEffort(t *testing.T) {
 	}
 }
 
+func TestClaudeHookMetadataClearPreservesTriState(t *testing.T) {
+	d, cs, now := newClaude(t)
+	cs.Model = "sonnet-4-5"
+	cs.ModelSet = true
+	cs.Effort = "medium"
+	cs.EffortSet = true
+
+	next, _ := d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("Stop", map[string]any{
+		"session_id":      "uuid",
+		"hook_event_name": "Stop",
+		"model":           nil,
+		"effort":          nil,
+	}, now.Add(time.Second)))
+	if next.Model != "" || next.Effort != "" {
+		t.Fatalf("cleared metadata = %q/%q, want empty", next.Model, next.Effort)
+	}
+	if !next.ModelSet || !next.EffortSet {
+		t.Fatalf("tri-state flags = %v/%v, want true/true", next.ModelSet, next.EffortSet)
+	}
+	if !next.ModelAuthoritative || !next.EffortAuthoritative {
+		t.Fatalf("authoritative flags = %v/%v, want true/true", next.ModelAuthoritative, next.EffortAuthoritative)
+	}
+}
+
 func TestClaudeRestoreEmpty(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
@@ -1996,8 +2020,10 @@ func TestAbsorbIdentityForkGuard(t *testing.T) {
 func TestAbsorbIdentityFromHPAcceptsSharedEffortType(t *testing.T) {
 	cs := ClaudeState{}
 	hp := hookPayload{
-		Model:  "claude-opus",
-		Effort: &claudehookpayload.Effort{Level: "medium"},
+		Model:     "claude-opus",
+		ModelSet:  true,
+		Effort:    &claudehookpayload.Effort{Level: "medium"},
+		EffortSet: true,
 	}
 	got := absorbIdentityFromHP(cs, hp)
 	if got.Model != "claude-opus" || got.Effort != "medium" {

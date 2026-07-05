@@ -37,6 +37,11 @@ jobs:
           npm ci
           npm run build
 
+      - name: verify wire fixtures are up to date
+        run: |
+          go test ./server/web -run TestWireFixtures -count=1 -args -update
+          git diff --exit-code -- client/web/src/wire/testdata
+
       - name: vet
         run: go vet ./...
 
