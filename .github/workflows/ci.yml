@@ -134,6 +134,9 @@ jobs:
       - name: fuzz web inbound decode
         run: go test -run '^$' -fuzz '^FuzzInbound$' -fuzztime=30s ./server/web/
 
+      - name: fuzz tap OSC parsing
+        run: go test -run '^$' -fuzz '^FuzzParseOsc$' -fuzztime=30s ./client/runtime/
+
   schema-drift:
     runs-on: ubuntu-latest
     steps:

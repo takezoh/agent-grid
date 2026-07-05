@@ -17,6 +17,8 @@ type eventSink struct {
 	events []state.Event
 }
 
+const tapEventWait = 2 * time.Second
+
 func (s *eventSink) push(ev state.Event) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -33,9 +35,9 @@ func (s *eventSink) snapshot() []state.Event {
 
 // waitForEvent polls the sink until pred matches an event or budget elapses.
 // Returns the matching event for follow-up assertions.
-func waitForEvent(t *testing.T, sink *eventSink, pred func(state.Event) bool, budget time.Duration) state.Event {
+func waitForEvent(t *testing.T, sink *eventSink, pred func(state.Event) bool) state.Event {
 	t.Helper()
-	deadline := time.Now().Add(budget)
+	deadline := time.Now().Add(tapEventWait)
 	for {
 		for _, ev := range sink.snapshot() {
 			if pred(ev) {
@@ -43,7 +45,7 @@ func waitForEvent(t *testing.T, sink *eventSink, pred func(state.Event) bool, bu
 			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("waitForEvent: timeout after %v, events=%+v", budget, sink.snapshot())
+			t.Fatalf("waitForEvent: timeout after %v, events=%+v", tapEventWait, sink.snapshot())
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -75,7 +77,7 @@ func TestPtyTapWiring_OSC0TitleReachesEvFrameOsc(t *testing.T) {
 	ev := waitForEvent(t, sink, func(ev state.Event) bool {
 		osc, ok := ev.(state.EvFrameOsc)
 		return ok && osc.Cmd == 0 && osc.Title == "Braille"
-	}, 2*time.Second)
+	})
 
 	osc := ev.(state.EvFrameOsc)
 	if osc.FrameID != state.FrameID("frame-osc0") {
@@ -109,13 +111,13 @@ func TestPtyTapWiring_OSC133ReachesEvFramePrompt(t *testing.T) {
 	waitForEvent(t, sink, func(ev state.Event) bool {
 		p, ok := ev.(state.EvFramePrompt)
 		return ok && p.Phase == state.PromptPhaseCommand
-	}, 2*time.Second)
+	})
 
 	// …then the Complete phase with the captured exit code.
 	completeEv := waitForEvent(t, sink, func(ev state.Event) bool {
 		p, ok := ev.(state.EvFramePrompt)
 		return ok && p.Phase == state.PromptPhaseComplete
-	}, 2*time.Second)
+	})
 
 	complete := completeEv.(state.EvFramePrompt)
 	if complete.ExitCode == nil || *complete.ExitCode != 0 {
