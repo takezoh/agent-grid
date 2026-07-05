@@ -162,6 +162,11 @@ func fakeLauncherSequence(calls *[][]string, sequences ...[]string) claudeLaunch
 	return claudeLauncher(fn)
 }
 
+// blockingLauncher's returned launcher is invoked once per turn the runner
+// dequeues. started only needs to fire for the first (test-observed) launch,
+// so the signal is best-effort: once the queue drains after release closes,
+// every later launch would otherwise block forever trying to refill an
+// already-full, never-redrained buffered channel.
 func blockingLauncher(calls *[][]string, started chan<- struct{}, release <-chan struct{}) claudeLauncher {
 	return func(_ context.Context, cwd, resumeSessionID, _ string, prompt string, _ []string) (io.ReadCloser, func() error, error) {
 		if calls != nil {
@@ -170,7 +175,10 @@ func blockingLauncher(calls *[][]string, started chan<- struct{}, release <-chan
 		pr, pw := io.Pipe()
 		go func() {
 			if started != nil {
-				started <- struct{}{}
+				select {
+				case started <- struct{}{}:
+				default:
+				}
 			}
 			<-release
 			_, _ = io.WriteString(pw, lineSystemInit+"\n"+lineResultOK+"\n")
