@@ -198,3 +198,14 @@ func StopContainer(ctx context.Context, containerID string) error {
 	}
 	return nil
 }
+
+// CheckAvailable reports whether the "docker" binary is on PATH, returning an
+// error identifying devcontainer mode as the reason it's required. Callers
+// building a devcontainer launcher should call this before wiring up any
+// other docker-dependent state.
+func CheckAvailable() error {
+	if _, err := exec.LookPath("docker"); err != nil {
+		return fmt.Errorf("sandbox: devcontainer mode requires docker in PATH: %w", err)
+	}
+	return nil
+}

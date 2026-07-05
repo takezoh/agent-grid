@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/takezoh/agent-reactor/platform/agentlaunch"
@@ -53,8 +52,8 @@ func buildDevcontainerLauncher(
 	resolver *platformconfig.SandboxResolver,
 	dataDir string,
 ) (*agentlaunch.DevcontainerLauncher, func(), error) {
-	if _, err := exec.LookPath("docker"); err != nil {
-		return nil, nil, fmt.Errorf("sandbox: devcontainer mode requires docker in PATH: %w", err)
+	if err := sandboxdc.CheckAvailable(); err != nil {
+		return nil, nil, err
 	}
 
 	currentHost := os.Getenv("DOCKER_HOST")

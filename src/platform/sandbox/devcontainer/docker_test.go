@@ -1,6 +1,7 @@
 package devcontainer
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -85,4 +86,26 @@ func TestPsFormat_StableContract(t *testing.T) {
 	if got := psFormatFor("reactor-dev"); got != wantCustom {
 		t.Errorf("psFormatFor(\"reactor-dev\") = %q\nwant                          %q", got, wantCustom)
 	}
+}
+
+func TestCheckAvailable(t *testing.T) {
+	t.Run("docker on PATH", func(t *testing.T) {
+		if _, err := exec.LookPath("docker"); err != nil {
+			t.Skip("docker not installed in this test environment")
+		}
+		if err := CheckAvailable(); err != nil {
+			t.Errorf("CheckAvailable() = %v, want nil (docker is on PATH in this environment)", err)
+		}
+	})
+
+	t.Run("docker missing from PATH", func(t *testing.T) {
+		t.Setenv("PATH", t.TempDir())
+		err := CheckAvailable()
+		if err == nil {
+			t.Fatal("CheckAvailable() = nil, want error when docker is not on PATH")
+		}
+		if !strings.Contains(err.Error(), "devcontainer mode requires docker in PATH") {
+			t.Errorf("CheckAvailable() error = %q, want it to explain devcontainer mode requires docker", err)
+		}
+	})
 }
