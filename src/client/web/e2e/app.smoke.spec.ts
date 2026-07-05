@@ -67,6 +67,21 @@ test("renders live sessions and completes a new-session submission against the f
   expect(await backend.createSessionRequests()).toEqual([
     { project: "/repo/app", command: "claude" },
   ]);
+  await expect
+    .poll(async () => {
+      const frames = await backend.emittedFrames();
+      return frames.filter((frame) => frame.k === "v").at(-1);
+    })
+    .toMatchObject({
+      k: "v",
+      sessions: [
+        expect.objectContaining({ id: "session-1" }),
+        expect.objectContaining({ id: "session-new" }),
+      ],
+    });
+  const latestViewUpdate = (await backend.emittedFrames()).filter((frame) => frame.k === "v").at(-1);
+  expect(latestViewUpdate).toBeDefined();
+  expect(latestViewUpdate).not.toHaveProperty("activeSessionID");
 
   await expect(page.getByRole("heading", { name: "Browser smoke" })).toBeVisible();
   await expect

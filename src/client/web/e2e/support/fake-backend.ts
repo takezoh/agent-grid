@@ -18,6 +18,7 @@ export type FakeBackendOptions = {
 export type FakeBackend = {
   waitForSocketOpen(): Promise<void>;
   emit(frame: ServerFrame): Promise<void>;
+  emittedFrames(): Promise<Array<Record<string, unknown>>>;
   sentFrames(): Promise<Array<Record<string, unknown>>>;
   createSessionRequests(): Promise<CreateSessionPayload[]>;
 };
@@ -38,7 +39,7 @@ function cloneSession(session: SessionInfo): SessionInfo {
 
 function makeViewUpdateFrame(
   sessions: SessionInfo[],
-  activeSessionID: string | null,
+  activeSessionID?: string | null,
 ): ViewUpdateFrame {
   const frame: ViewUpdateFrame = {
     k: "v",
@@ -60,9 +61,11 @@ export async function installFakeBackend(
 
   await page.addInitScript(() => {
     type ClientRecord = { raw: string; parsed: Record<string, unknown> | null };
+    type ServerRecord = { raw: string; parsed: Record<string, unknown> | null };
     type SocketHarness = {
       sockets: FakeWebSocket[];
       sent: ClientRecord[];
+      emitted: ServerRecord[];
       emit(frame: ServerFrame): void;
     };
     const isOpenGatewaySocket = (socket: { readyState: number; url?: string | null }): boolean => {
@@ -136,8 +139,16 @@ export async function installFakeBackend(
     const harness: SocketHarness = {
       sockets: [],
       sent: [],
+      emitted: [],
       emit(frame: ServerFrame): void {
         const raw = JSON.stringify(frame);
+        let parsed: Record<string, unknown> | null = null;
+        try {
+          parsed = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+          parsed = null;
+        }
+        this.emitted.push({ raw, parsed });
         for (const socket of this.sockets) {
           if (!isOpenGatewaySocket(socket)) continue;
           socket.onmessage?.(new MessageEvent("message", { data: raw }));
@@ -212,7 +223,7 @@ export async function installFakeBackend(
         ).__agentGridHarness;
         harness?.emit(frame as ServerFrame);
       },
-      { frame: makeViewUpdateFrame(sessions, createdSessionId) },
+      { frame: makeViewUpdateFrame(sessions) },
     );
   });
 
@@ -248,6 +259,18 @@ export async function installFakeBackend(
         },
         { frame },
       );
+    },
+    async emittedFrames() {
+      return page.evaluate(() => {
+        const harness = (
+          globalThis as typeof globalThis & {
+            __agentGridHarness?: {
+              emitted: Array<{ raw: string; parsed: Record<string, unknown> | null }>;
+            };
+          }
+        ).__agentGridHarness;
+        return harness?.emitted.map((entry) => entry.parsed ?? { raw: entry.raw }) ?? [];
+      });
     },
     async sentFrames() {
       return page.evaluate(() => {
