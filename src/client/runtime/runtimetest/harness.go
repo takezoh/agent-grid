@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	defaultTickInterval   = time.Hour
-	defaultWaitTimeout    = 2 * time.Second
-	defaultQuiesceTimeout = 2 * time.Second
+	defaultTickInterval = time.Hour
+	// Wait/Quiesce poll and return as soon as the condition holds, so a large
+	// deadline costs nothing when green. 2s deadlines expired under saturated
+	// CI-style parallel package runs (-race batch); 10s absorbs that load skew.
+	defaultWaitTimeout    = 10 * time.Second
+	defaultQuiesceTimeout = 10 * time.Second
 )
 
 type options struct {

@@ -152,6 +152,26 @@ func collectEvents(t *testing.T, ch <-chan internalEvent, n int, timeout time.Du
 	return out
 }
 
+// collectUntilSurfaceClosed reads events until an internalSurfaceClosed
+// arrives (inclusive) or the timeout expires.
+func collectUntilSurfaceClosed(t *testing.T, ch <-chan internalEvent, timeout time.Duration) []internalEvent {
+	t.Helper()
+	var out []internalEvent
+	deadline := time.After(timeout)
+	for {
+		select {
+		case ev := <-ch:
+			out = append(out, ev)
+			if _, ok := ev.(internalSurfaceClosed); ok {
+				return out
+			}
+		case <-deadline:
+			t.Fatalf("timeout waiting for internalSurfaceClosed; got %d events", len(out))
+			return out
+		}
+	}
+}
+
 // newTestTerminalRelay wires up a TerminalRelay whose send function posts to
 // the returned channel, making test assertions straightforward.
 func newTestTerminalRelay(t *testing.T, b SurfaceBackend) (*TerminalRelay, <-chan internalEvent) {
@@ -651,12 +671,30 @@ func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
 		}
 	}()
 
-	gotBlocked := collectEvents(t, blockedDrain, 3, time.Second)
-	if len(gotBlocked) != 3 {
-		t.Fatalf("blocked key events = %d, want 3", len(gotBlocked))
+	// How many broadcasts squeeze through before severance is scheduling
+	// dependent: the fanOut goroutine may or may not have pulled the first
+	// event out of the size-1 subscriber channel before the next broadcast
+	// finds it full. The contract is only that the slow subscriber is severed
+	// after an in-order prefix of the stream, never that it sees a fixed count.
+	gotBlocked := collectUntilSurfaceClosed(t, blockedDrain, time.Second)
+	if _, ok := gotBlocked[len(gotBlocked)-1].(internalSurfaceClosed); !ok {
+		t.Fatalf("last blocked event type = %T, want internalSurfaceClosed", gotBlocked[len(gotBlocked)-1])
 	}
-	if _, ok := gotBlocked[2].(internalSurfaceClosed); !ok {
-		t.Fatalf("third blocked event type = %T, want internalSurfaceClosed", gotBlocked[2])
+	prefix := gotBlocked[:len(gotBlocked)-1]
+	if len(prefix) < 1 || len(prefix) > 2 {
+		t.Fatalf("blocked key broadcasts before severance = %d, want 1 or 2", len(prefix))
+	}
+	for i, ev := range prefix {
+		bs, ok := ev.(internalBroadcastSurface)
+		if !ok {
+			t.Fatalf("blocked event[%d] type = %T, want internalBroadcastSurface", i, ev)
+		}
+		if bs.Sequence != uint64(i) {
+			t.Fatalf("blocked event[%d] sequence = %d, want %d", i, bs.Sequence, i)
+		}
+		if want := []byte{byte('a' + i)}; string(bs.Data) != string(want) {
+			t.Fatalf("blocked event[%d] data = %q, want %q", i, bs.Data, want)
+		}
 	}
 	tr.Unsubscribe(conn1, sess1)
 
