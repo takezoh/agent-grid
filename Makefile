@@ -168,7 +168,8 @@ test-e2e:
 		./client/runtime/subsystem/stream/... \
 		./platform/lib/claude/fakeclaude/... \
 		./platform/agent/fakecodex/... \
-		./client/lib/agenthook/...
+		./client/lib/agenthook/... \
+		./platform/sandbox/devcontainer/...
 
 verify-bridge-deps:
 	@echo "Checking that reactor-bridge does not import client/state, client/uiproc, or platform/features..."

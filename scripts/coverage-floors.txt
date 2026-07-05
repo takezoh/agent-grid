@@ -91,7 +91,9 @@ github.com/takezoh/agent-reactor/platform/metrics                    95
 github.com/takezoh/agent-reactor/platform/pathmap                    95
 github.com/takezoh/agent-reactor/platform/procgroup                  75
 github.com/takezoh/agent-reactor/platform/sandbox                    90
-github.com/takezoh/agent-reactor/platform/sandbox/devcontainer       70
+github.com/takezoh/agent-reactor/platform/sandbox/devcontainer       86
+github.com/takezoh/agent-reactor/platform/sandbox/devcontainer/fakedocker 0
+github.com/takezoh/agent-reactor/platform/sandbox/devcontainer/fakedocker/cmd/docker 0
 github.com/takezoh/agent-reactor/platform/secretenv                  34
 github.com/takezoh/agent-reactor/platform/shellalias                  90
 github.com/takezoh/agent-reactor/platform/termvt                     85

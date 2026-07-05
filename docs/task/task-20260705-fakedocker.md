@@ -2,7 +2,7 @@
 id: task-20260705-fakedocker
 kind: task
 title: fakedocker + real-docker backstop
-status: todo
+status: done
 created: '2026-07-05'
 priority: normal
 effort: large
@@ -26,6 +26,7 @@ source_paths:
 - docs/adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md
 summary: PATH 注入 fake docker CLI で devcontainer lifecycle を T1 検証し、REACTOR_E2E_DOCKER_BIN
   opt-in の FakeVsRealDocker を追加
+updated: '2026-07-05'
 ---
 
 # fakedocker + real-docker backstop
@@ -64,3 +65,13 @@ summary: PATH 注入 fake docker CLI で devcontainer lifecycle を T1 検証し
 - lifecycle T1 テストが docker 非依存で green (CI 標準ジョブ)
 - real docker のある環境で `make test-e2e` + `REACTOR_E2E_DOCKER_BIN` が green
 - floor 引き上げ後 `scripts/check-coverage.sh` green、`make lint` green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+implementation started and completed in this change
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+implemented: fakedocker, lifecycle T1, opt-in docker e2e, Makefile/CI/coverage updates
+{% /transition %}
