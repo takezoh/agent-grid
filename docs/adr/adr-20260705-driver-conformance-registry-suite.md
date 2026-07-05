@@ -2,7 +2,7 @@
 id: adr-20260705-driver-conformance-registry-suite
 kind: adr
 title: Driver conformance suite enforced via registry iteration
-status: proposed
+status: accepted
 created: '2026-07-05'
 decision_makers:
 - Takehito Gondo
@@ -22,6 +22,7 @@ source_paths:
 - src/client/driver/
 summary: state.Register 済み全 driver に共通契約 (Step 純粋性・DriverEvent totality・Persist/Restore・metadata
   source priority) を registry 走査テストで自動強制する
+updated: '2026-07-05'
 ---
 
 # Driver conformance suite enforced via registry iteration
@@ -85,3 +86,8 @@ suite は T0 (pure) tier に属し、fake も I/O も使わない。
 - **lint (ruleguard) で Step 内の I/O を静的検出する** — 部分採用の余地はあるが、純粋性の完全な静的証明は
   できず (間接呼び出し)、round-trip / priority のような動的契約は表現できない。suite と排他ではないため、
   将来の強化候補として却下ではなく保留。
+
+
+{% transition from="proposed" to="accepted" date="2026-07-05" %}
+drivertest.Conformance + registry 走査が全 driver で green
+{% /transition %}

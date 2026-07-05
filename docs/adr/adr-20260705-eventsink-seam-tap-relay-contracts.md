@@ -2,7 +2,7 @@
 id: adr-20260705-eventsink-seam-tap-relay-contracts
 kind: adr
 title: EventSink seam and contract pins for the pty-tap and surface-relay paths
-status: proposed
+status: accepted
 created: '2026-07-05'
 decision_makers:
 - Takehito Gondo
@@ -23,6 +23,7 @@ source_paths:
 - src/client/runtime/subsystem/stream/backend.go
 summary: stream backend の RuntimeHook パターンを tap/relay へ複製し、pty→OSC routing と relay
   severance を real-pty contract で pin する
+updated: '2026-07-05'
 ---
 
 # EventSink seam and contract pins for the pty-tap and surface-relay paths
@@ -78,3 +79,8 @@ production コードに 2 箇所の seam 変更 (interface 導入・容量注入
   (adr-20260705-test-tier-taxonomy の pty 例外)、fake の導入は忠実性保証という新たな負債を作る。
 - **relay の sever を統計的に (大量データ投入で) 駆動する** — 却下。flaky の温床。容量注入により決定的に
   再現するのが正道。
+
+
+{% transition from="proposed" to="accepted" date="2026-07-05" %}
+tap/relay contract 実装済み・severance contract は scheduling 非依存化 (453c8803) 済み
+{% /transition %}

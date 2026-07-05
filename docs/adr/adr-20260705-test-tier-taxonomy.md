@@ -2,7 +2,7 @@
 id: adr-20260705-test-tier-taxonomy
 kind: adr
 title: Test tier taxonomy (T0-T3) and the external-dependency triple
-status: proposed
+status: accepted
 created: '2026-07-05'
 decision_makers:
 - Takehito Gondo
@@ -25,6 +25,7 @@ source_paths:
 - .github/workflows/ci.yml
 summary: テストを T0 pure / T1 wired / T2 contract / T3 fidelity に正式階層化し、外部依存導入時の fake
   + FakeVsReal e2e + contract の 3 点セットを規範化する
+updated: '2026-07-05'
 ---
 
 # Test tier taxonomy (T0-T3) and the external-dependency triple
@@ -94,3 +95,8 @@ coverage tier (S〜D) とは直交する分類として併存する。floors は
   直結し、flaky gate 化する。nightly + issue 起票で「定期的に真実と突き合わせる」を達成する。
 - **mock ライブラリ (gomock 等) による per-test mock** — 却下。プロジェクトは手書きの高忠実 fake +
   実プロトコル round-trip を採用済みで、per-test mock は wire 忠実性の保証と両立しない。
+
+
+{% transition from="proposed" to="accepted" date="2026-07-05" %}
+全 milestone 実装完了・multi-agent レビューと修正 (bbf797a3) を経て合意
+{% /transition %}
