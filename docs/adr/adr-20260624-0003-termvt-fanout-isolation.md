@@ -18,6 +18,7 @@ relations:
 - {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
 - {type: referencedBy, target: note-20260624-agent-testing}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: adr-20260705-eventsink-seam-tap-relay-contracts}
 source_paths:
 - src/platform/termvt/
 - src/server/web/
