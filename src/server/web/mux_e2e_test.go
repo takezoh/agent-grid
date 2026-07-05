@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -49,6 +50,12 @@ var (
 type daemonInstance struct {
 	sockPath string
 	homeDir  string
+	httpURL  string
+}
+
+type daemonLaunchOptions struct {
+	addr     string
+	extraEnv []string
 }
 
 // buildServerOnce builds the server binary under t.TempDir() (shared across
@@ -119,18 +126,26 @@ func moduleRoot(t *testing.T) string {
 // drives its own in-test mux against the daemon socket. Killed at the end
 // of the test via t.Cleanup so a panicking test still reaps the child.
 func startServerDaemon(t *testing.T) daemonInstance {
+	return startServerDaemonWithOptions(t, daemonLaunchOptions{})
+}
+
+func startServerDaemonWithOptions(t *testing.T, opts daemonLaunchOptions) daemonInstance {
 	t.Helper()
 	bin := buildServerOnce(t)
 	dataDir := t.TempDir()
 	homeDir := t.TempDir()
+	addr := opts.addr
+	if addr == "" {
+		addr = "127.0.0.1:0"
+	}
 
 	cmd := exec.Command(bin,
 		"-data-dir", dataDir,
 		"-insecure",
 		"-no-auth",
-		"-addr", "127.0.0.1:0",
+		"-addr", addr,
 	)
-	cmd.Env = replaceEnv(os.Environ(), "HOME", homeDir)
+	cmd.Env = appendEnv(replaceEnv(os.Environ(), "HOME", homeDir), opts.extraEnv...)
 	logFile, err := os.Create(filepath.Join(dataDir, "server.log"))
 	if err != nil {
 		t.Fatalf("create log: %v", err)
@@ -151,7 +166,14 @@ func startServerDaemon(t *testing.T) daemonInstance {
 	for time.Now().Before(deadline) {
 		if fi, err := os.Stat(sockPath); err == nil && fi.Mode()&os.ModeSocket != 0 {
 			waitForHookSettings(t, homeDir, time.Now().Add(5*time.Second))
-			return daemonInstance{sockPath: sockPath, homeDir: homeDir}
+			if !strings.HasSuffix(addr, ":0") {
+				waitForHTTPReady(t, addr, time.Now().Add(5*time.Second))
+			}
+			return daemonInstance{
+				sockPath: sockPath,
+				homeDir:  homeDir,
+				httpURL:  httpURLForAddr(addr),
+			}
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -188,6 +210,53 @@ func replaceEnv(env []string, key, value string) []string {
 		out = append(out, entry)
 	}
 	return append(out, prefix+value)
+}
+
+func appendEnv(env []string, extra ...string) []string {
+	out := append([]string(nil), env...)
+	for _, entry := range extra {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		out = replaceEnv(out, key, value)
+	}
+	return out
+}
+
+func reserveLoopbackAddr(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve loopback addr: %v", err)
+	}
+	addr := l.Addr().String()
+	_ = l.Close()
+	return addr
+}
+
+func waitForHTTPReady(t *testing.T, addr string, deadline time.Time) {
+	t.Helper()
+	client := &http.Client{Timeout: 200 * time.Millisecond}
+	url := "http://" + addr + "/api/sessions"
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(url)
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("server did not accept HTTP on %s within deadline", addr)
+}
+
+func httpURLForAddr(addr string) string {
+	if strings.HasSuffix(addr, ":0") {
+		return ""
+	}
+	return "http://" + addr
 }
 
 func waitForHookSettings(t *testing.T, homeDir string, deadline time.Time) {
