@@ -121,9 +121,6 @@ func TestE2E_FakeVsRealMethods(t *testing.T) {
 
 	// Every fake method must exist in the real set.
 	for m := range fakeSet {
-		if m == codexschema.MethodThreadSettingsUpdated {
-			continue
-		}
 		if !realSet[m] {
 			t.Errorf("fakecodex emits %q but real codex did not; real set = %s", m, formatSet(realSet))
 		}
@@ -146,11 +143,7 @@ func TestE2E_FakeVsRealThreadSettingsUpdated(t *testing.T) {
 	realScenario := runRealAppServerScenario(t, bin, realAppServerExtra(), "Say hi.")
 	realRaw := waitForRecordedMethodNoFail(realScenario.rec, codexschema.MethodThreadSettingsUpdated, 10*time.Second)
 	if realRaw == nil {
-		fakeRaw := mustMarshalThreadSettingsUpdate(t, DefaultThreadID, defaultSettingsUpdatedSpecs()[0])
-		if _, err := codexschemav2.UnmarshalThreadSettingsUpdatedNotification(fakeRaw); err != nil {
-			t.Fatalf("schema decode fake settings payload: %v", err)
-		}
-		t.Skip("real codex did not emit thread/settings/updated in this scenario; validated fake payload against codex schema instead")
+		t.Skip("real codex did not emit thread/settings/updated in this scenario; default fake preset does not model it")
 	}
 
 	realShape, err := decodeThreadSettingsShape(realRaw)

@@ -109,7 +109,6 @@ func TestServer_DefaultTurn(t *testing.T) {
 	waitFor(t, nc, []string{
 		codexschema.MethodThreadStarted,
 		codexschema.MethodTurnStarted,
-		codexschema.MethodThreadSettingsUpdated,
 		codexschema.MethodThreadTokenUsageUpdated,
 		codexschema.MethodTurnCompleted,
 	})

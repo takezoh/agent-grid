@@ -23,9 +23,6 @@ type SettingsUpdatedSpec struct {
 // DefaultTurnHandler completes the turn immediately with the text "done".
 // Used when Config.Handler is nil.
 func DefaultTurnHandler(_ context.Context, _ TurnRequest, e TurnEmitter) (string, error) {
-	if err := emitSettingsUpdates(e, defaultSettingsUpdatedSpecs()...); err != nil {
-		return "", fmt.Errorf("emit settings updated: %w", err)
-	}
 	return "done", nil
 }
 

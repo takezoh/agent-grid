@@ -9,6 +9,7 @@ import (
 
 	"github.com/takezoh/agent-reactor/client/runtime/runtimetest"
 	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-reactor/platform/shellalias"
 )
 
 type blockingBackend struct {
@@ -214,7 +215,8 @@ func TestRuntimeHarness_ShellCreateSessionSpawnsCommand(t *testing.T) {
 	if backend.SpawnCalls() != 1 {
 		t.Fatalf("SpawnFrame calls = %d, want 1", backend.SpawnCalls())
 	}
-	if command := backend.LastSpawnCommand(); command == "" {
-		t.Fatal("shell create-session produced empty spawn command")
+	want := "exec " + shellalias.LoginShellCommand + " -l"
+	if command := backend.LastSpawnCommand(); command != want {
+		t.Fatalf("shell create-session command = %q, want %q", command, want)
 	}
 }

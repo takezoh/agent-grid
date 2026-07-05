@@ -21,7 +21,6 @@ func TestRecordedDefaultTurnFixtureMatchesPresetContract(t *testing.T) {
 	}, []string{
 		codexschema.MethodThreadStarted,
 		codexschema.MethodTurnStarted,
-		codexschema.MethodThreadSettingsUpdated,
 		codexschema.MethodThreadTokenUsageUpdated,
 		codexschema.MethodTurnCompleted,
 	})
@@ -87,12 +86,16 @@ func projectFakeDefaultTurnEvent(t *testing.T, method string, raw json.RawMessag
 	switch method {
 	case codexschema.MethodThreadStarted:
 		thread, _ := params["thread"].(map[string]any)
+		path := thread["path"]
+		if path == nil {
+			path = thread["cwd"]
+		}
 		return map[string]any{
 			"method": method,
 			"params": map[string]any{
 				"thread": map[string]any{
 					"id":   thread["id"],
-					"path": thread["cwd"],
+					"path": path,
 				},
 			},
 		}

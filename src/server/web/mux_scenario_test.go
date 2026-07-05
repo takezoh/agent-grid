@@ -29,7 +29,7 @@ func buildFakeAgentsOnce(t *testing.T) string {
 	defer fakeAgentsMu.Unlock()
 	if fakeAgentsDir != "" || fakeAgentsErr != nil {
 		if fakeAgentsErr != nil {
-			t.Skipf("fake agents binary unavailable: %v", fakeAgentsErr)
+			t.Fatalf("fake agents binary unavailable: %v", fakeAgentsErr)
 		}
 		return fakeAgentsDir
 	}
@@ -37,7 +37,7 @@ func buildFakeAgentsOnce(t *testing.T) string {
 	dir, err := os.MkdirTemp("", "fake-agents-bin-")
 	if err != nil {
 		fakeAgentsErr = err
-		t.Skipf("mkdir tempdir: %v", err)
+		t.Fatalf("mkdir tempdir: %v", err)
 	}
 	bin := filepath.Join(dir, "fake-agents")
 	cmd := exec.Command("go", "build", "-o", bin, "./server/web/testsupport/fakeagents")
@@ -47,18 +47,18 @@ func buildFakeAgentsOnce(t *testing.T) string {
 	if err := cmd.Run(); err != nil {
 		fakeAgentsErr = err
 		_ = os.RemoveAll(dir)
-		t.Skipf("go build fake-agents failed: %v\nstderr:\n%s", err, stderr.String())
+		t.Fatalf("go build fake-agents failed: %v\nstderr:\n%s", err, stderr.String())
 	}
 	for _, name := range []string{"claude", "codex"} {
 		dst := filepath.Join(dir, name)
 		data, err := os.ReadFile(bin)
 		if err != nil {
 			fakeAgentsErr = err
-			t.Skipf("read fake agents binary: %v", err)
+			t.Fatalf("read fake agents binary: %v", err)
 		}
 		if err := os.WriteFile(dst, data, 0o755); err != nil {
 			fakeAgentsErr = err
-			t.Skipf("write fake agent %s: %v", name, err)
+			t.Fatalf("write fake agent %s: %v", name, err)
 		}
 	}
 	fakeAgentsDir = dir

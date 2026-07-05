@@ -83,6 +83,14 @@ func TestServer_EmitThreadStarted(t *testing.T) {
 	if msg["method"] != codexschema.MethodThreadStarted {
 		t.Fatalf("method = %v, want %v", msg["method"], codexschema.MethodThreadStarted)
 	}
+	params, _ := msg["params"].(map[string]any)
+	thread, _ := params["thread"].(map[string]any)
+	if thread["cwd"] != "/work" {
+		t.Fatalf("thread.cwd = %v, want /work", thread["cwd"])
+	}
+	if _, ok := thread["path"]; ok {
+		t.Fatalf("thread.path must not be synthesized from cwd: %v", thread)
+	}
 }
 
 func TestServer_EmitAgentMessageDelta(t *testing.T) {

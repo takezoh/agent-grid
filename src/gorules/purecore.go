@@ -61,8 +61,9 @@ func noDirectIOInPureCore(m dsl.Matcher) {
 // platform/lib wrappers, fake packages that validate themselves against the
 // real binary, and *_e2e_test.go files.
 func noRealBinaryExecOutsideE2E(m dsl.Matcher) {
-	m.Match(`exec.Command($name, $*_)`, `exec.CommandContext($_, $name, $*_)`).
-		Where(m["name"].Text.Matches(`^"(claude|codex|docker)"$`) &&
+	m.Match(`exec.Command($name, $*_)`, `exec.CommandContext($_, $name, $*_)`, `exec.LookPath($name)`).
+		Where((m["name"].Text.Matches(`^"(claude|codex|docker)"$`) ||
+			m["name"].Text.Matches(`^(claude|codex|docker)(Bin|Path|Command)?$`)) &&
 			!m.File().Name.Matches(`_e2e_test\.go$`) &&
 			!m.File().PkgPath.Matches(`/platform/lib(/|$)`) &&
 			!m.File().PkgPath.Matches(`/(fakeclaude|fakecodex|fakedocker)$`)).

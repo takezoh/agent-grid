@@ -24,8 +24,10 @@ import (
 )
 
 func violate() {
+	const dockerBin = "docker"
 	_ = os.Getenv("REACTOR_E2E_CODEX_BIN")
-	_ = exec.Command("docker", "ps")
+	_ = exec.Command(dockerBin, "ps")
+	_, _ = exec.LookPath(dockerBin)
 }
 `
 	if err := os.WriteFile(filepath.Join(pkgDir, "bad.go"), []byte(src), 0o644); err != nil {
@@ -86,6 +88,51 @@ func TestCheckE2ESiblingsScript(t *testing.T) {
 			t.Fatalf("unexpected script output:\n%s", out)
 		}
 	})
+
+	t.Run("fails with composite e2e build sibling only", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "pkg", "suite_e2e_test.go"), "//go:build e2e\n\npackage pkg\n")
+		writeFile(t, filepath.Join(root, "pkg", "suite_test.go"), "//go:build e2e && linux\n\npackage pkg\n")
+
+		cmd := exec.Command(script, root)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("script unexpectedly passed:\n%s", out)
+		}
+		if !strings.Contains(string(out), "missing always-on sibling test in package: pkg") {
+			t.Fatalf("unexpected script output:\n%s", out)
+		}
+	})
+
+	t.Run("fails with legacy e2e build sibling only", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "pkg", "suite_e2e_test.go"), "//go:build e2e\n\npackage pkg\n")
+		writeFile(t, filepath.Join(root, "pkg", "suite_test.go"), "// +build e2e\n\npackage pkg\n")
+
+		cmd := exec.Command(script, root)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("script unexpectedly passed:\n%s", out)
+		}
+		if !strings.Contains(string(out), "missing always-on sibling test in package: pkg") {
+			t.Fatalf("unexpected script output:\n%s", out)
+		}
+	})
+}
+
+func TestCIWorkflowRunsWebTestsAndDetectsUntrackedWireFixtures(t *testing.T) {
+	workflowPath := filepath.Join(repoRoot(t), ".github", "workflows", "ci.yml")
+	raw, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatalf("read workflow: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "npm test -- --run src/wire/codec.test.ts") {
+		t.Fatalf("CI does not run the TS wire fixture decoder test")
+	}
+	if !strings.Contains(text, "git status --porcelain -- client/web/src/wire/testdata") {
+		t.Fatalf("CI does not check untracked wire fixtures")
+	}
 }
 
 func TestNightlyE2EWorkflowExportsAllRealBinaryEnvVars(t *testing.T) {

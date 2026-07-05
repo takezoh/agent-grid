@@ -164,7 +164,12 @@ func (tr *TerminalRelay) Unsubscribe(connID state.ConnID, sessionID state.Sessio
 	_ = tr.backend.UnsubscribeSurface(sub.frameID, sub.subID)
 }
 
-func (tr *TerminalRelay) shouldApplySlowClose(connID state.ConnID, sessionID state.SessionID, subID int) bool {
+func (tr *TerminalRelay) shouldApplySlowClose(
+	connID state.ConnID,
+	sessionID state.SessionID,
+	frameID string,
+	subID int,
+) bool {
 	key := surfaceKey{connID: connID, sessionID: sessionID}
 
 	tr.mu.Lock()
@@ -174,7 +179,7 @@ func (tr *TerminalRelay) shouldApplySlowClose(connID state.ConnID, sessionID sta
 	if !ok {
 		return true
 	}
-	return sub.subID == subID
+	return sub.frameID == frameID && sub.subID == subID
 }
 
 func (tr *TerminalRelay) hasSubscription(connID state.ConnID, sessionID state.SessionID) bool {
@@ -232,6 +237,7 @@ func (tr *TerminalRelay) fanOut(key surfaceKey, sub *surfaceSub, ch <-chan termv
 				tr.sendNow(internalSurfaceClosed{
 					ConnID:    key.connID,
 					SessionID: key.sessionID,
+					FrameID:   sub.frameID,
 					SubID:     sub.subID,
 				})
 				return
@@ -283,6 +289,7 @@ func (internalBroadcastSurface) isInternalEvent() {}
 type internalSurfaceClosed struct {
 	ConnID    state.ConnID
 	SessionID state.SessionID
+	FrameID   string
 	SubID     int
 }
 

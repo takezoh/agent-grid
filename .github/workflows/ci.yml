@@ -36,11 +36,13 @@ jobs:
         run: |
           npm ci
           npm run build
+          npm test -- --run src/wire/codec.test.ts
 
       - name: verify wire fixtures are up to date
         run: |
           go test ./server/web -run TestWireFixtures -count=1 -args -update
           git diff --exit-code -- client/web/src/wire/testdata
+          test -z "$(git status --porcelain -- client/web/src/wire/testdata)"
 
       - name: vet
         run: go vet ./...

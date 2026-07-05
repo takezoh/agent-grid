@@ -27,6 +27,7 @@ func TestDispatchInternalIgnoresStaleSurfaceClosedAfterResubscribe(t *testing.T)
 	r.dispatchInternal(internalSurfaceClosed{
 		ConnID:    conn1,
 		SessionID: sess1,
+		FrameID:   "%1",
 		SubID:     1,
 	})
 
@@ -35,6 +36,38 @@ func TestDispatchInternalIgnoresStaleSurfaceClosedAfterResubscribe(t *testing.T)
 	}
 	if _, ok := r.state.SurfaceSubs[conn1][sess1]; !ok {
 		t.Fatal("state.SurfaceSubs lost live subscription after stale close")
+	}
+}
+
+func TestDispatchInternalIgnoresStaleSurfaceClosedFromPreviousFrame(t *testing.T) {
+	r := New(Config{Backend: newFakeBackend()})
+	key := surfaceKey{connID: conn1, sessionID: sess1}
+
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SessionID]struct{}{
+		conn1: {sess1: {}},
+	}
+	r.terminalRelay = &TerminalRelay{
+		subs: map[surfaceKey]*surfaceSub{
+			key: {
+				frameID: "%2",
+				subID:   1,
+				cancel:  make(chan struct{}),
+			},
+		},
+	}
+
+	r.dispatchInternal(internalSurfaceClosed{
+		ConnID:    conn1,
+		SessionID: sess1,
+		FrameID:   "%1",
+		SubID:     1,
+	})
+
+	if sub := r.terminalRelay.subs[key]; sub == nil || sub.frameID != "%2" || sub.subID != 1 {
+		t.Fatalf("terminal relay subscription = %+v, want live frame %%2 subID 1", sub)
+	}
+	if _, ok := r.state.SurfaceSubs[conn1][sess1]; !ok {
+		t.Fatal("state.SurfaceSubs lost live subscription after stale cross-frame close")
 	}
 }
 
@@ -51,6 +84,7 @@ func TestDispatchInternalAppliesCurrentSurfaceClosed(t *testing.T) {
 	r.dispatchInternal(internalSurfaceClosed{
 		ConnID:    conn1,
 		SessionID: sess1,
+		FrameID:   "%1",
 		SubID:     1,
 	})
 

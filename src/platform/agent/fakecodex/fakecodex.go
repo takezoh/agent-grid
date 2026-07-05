@@ -1,7 +1,7 @@
 // Package fakecodex publishes a reusable in-process fake of the Codex
 // app-server (stdio JSON-RPC v2). It replies to initialize / thread/start /
 // thread/resume, and — on turn/start — emits the thread/started ▸ turn/started ▸
-// thread/settings/updated ▸ (optional item events) ▸ thread/tokenUsage/updated ▸
+// (optional item events) ▸ thread/tokenUsage/updated ▸
 // turn/completed sequence a real server produces.
 //
 // Two invariants keep the fake honest:

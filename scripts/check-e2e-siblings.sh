@@ -13,7 +13,16 @@ status=0
 while IFS= read -r dir; do
     has_sibling=0
     while IFS= read -r testfile; do
-        if ! grep -Eq '^//go:build[[:space:]]+e2e$' "$testfile"; then
+        if ! awk '
+            /^$/ { next }
+            /^\/\// {
+                if ($0 ~ /^\/\/go:build/ && $0 ~ /(^|[^[:alnum:]_])e2e([^[:alnum:]_]|$)/) found=1
+                if ($0 ~ /^\/\/[[:space:]]*\+build/ && $0 ~ /(^|[[:space:],])e2e([[:space:],]|$)/) found=1
+                next
+            }
+            { exit }
+            END { exit found ? 0 : 1 }
+        ' "$testfile"; then
             has_sibling=1
             break
         fi
