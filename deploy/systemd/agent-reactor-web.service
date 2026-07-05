@@ -16,7 +16,7 @@ Description=agent-reactor web (UI host)
 # isolation, and BindsTo would stop web on a server crash — web then exits 0,
 # Restart=on-failure never fires, and the UI stays down even after server
 # auto-restarts. A crashed server just means the proxy 502s until systemd
-# brings server back (issues/2026-07-02-vt-emulator-insertlinearea-panic.md §4).
+# brings server back.
 After=agent-reactor-server.service
 Requires=agent-reactor-server.service
 

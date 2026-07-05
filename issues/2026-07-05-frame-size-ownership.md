@@ -3,7 +3,7 @@
 - 作成日: 2026-07-05
 - 対象 layer: `client/` (runtime, state, driver, proto), `platform/termvt`, `server/web`
 - 現状: 未着手 (本 issue は調査済み・実装待ち)
-- 関連 issue: `issues/2026-07-02-vt-emulator-insertlinearea-panic.md` (**別物として扱う**。あちらは上流 lib の bounds bug、こちらは size の所有権とデータフローの整理。依存関係なし、独立に着手可能)
+- 関連 issue: 上流 lib の bounds bug は修正済み。こちらは size の所有権とデータフローの整理として独立に着手可能
 
 ## TL;DR
 
@@ -79,7 +79,7 @@ web API (server/web/mux.go:408 req.Cols/Rows)
 ### スコープ外 (混ぜないこと)
 
 - **tap の 1×1 emulator 撤去・`Emulator` interface 分割**: VT issue の第 2 段 (別 issue 予定) の領分
-- **VT bounds bug 対応**: `issues/2026-07-02-vt-emulator-insertlinearea-panic.md` で修正済み。`forks/` に触る必要はない
+- **VT bounds bug 対応**: 上流 lib 側の修正で解消済み。`forks/` に触る必要はない
 - **multi-viewer の size reconcile ポリシー** (現状 last-writer-wins): 実害の報告がない限り現状維持
 
 ## 関連 file 参照

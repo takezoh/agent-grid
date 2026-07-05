@@ -5,8 +5,8 @@ import "testing"
 // These regression tests pin the reason tap_manager must not depend on
 // feedSafe for known VT streams: a 1×1 tap terminal used to panic inside the
 // upstream emulator on scroll/cursor sequences that any full-screen TUI emits
-// at startup (issues/2026-07-02-vt-emulator-insertlinearea-panic.md). With the
-// upstream bounds fixes the raw Feed must survive them all.
+// at startup. With the upstream bounds fixes the raw Feed must survive them
+// all.
 
 func TestFeed1x1SurvivesScrollAndCursorSequences(t *testing.T) {
 	cases := []struct {

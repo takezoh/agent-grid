@@ -8,8 +8,7 @@ import (
 
 // TestSession_StaleScrollRegionAfterResizeDoesNotPanic is the end-to-end
 // regression for the production crash in
-// issues/2026-07-02-vt-emulator-insertlinearea-panic.md: the child TUI emits
-// a DECSTBM computed from a stale size while a browser re-fit shrinks the
+// the child TUI emits a DECSTBM computed from a stale size while a browser re-fit shrinks the
 // session, then a reverse index at the top of the (now out-of-bounds) scroll
 // region drove ScrollDown → InsertLine → Buffer.InsertLineArea into an index
 // out of range, killing the whole server process.
