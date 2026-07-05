@@ -65,6 +65,15 @@ export async function installFakeBackend(
       sent: ClientRecord[];
       emit(frame: ServerFrame): void;
     };
+    const isOpenGatewaySocket = (socket: { readyState: number; url?: string | null }): boolean => {
+      if (socket.readyState !== 1 || !socket.url) return false;
+      try {
+        const parsed = new URL(socket.url, "http://127.0.0.1");
+        return parsed.pathname === "/ws" && parsed.searchParams.get("ticket") !== null;
+      } catch {
+        return false;
+      }
+    };
 
     class FakeWebSocket {
       static readonly CONNECTING = 0;
@@ -130,7 +139,7 @@ export async function installFakeBackend(
       emit(frame: ServerFrame): void {
         const raw = JSON.stringify(frame);
         for (const socket of this.sockets) {
-          if (socket.readyState !== FakeWebSocket.OPEN) continue;
+          if (!isOpenGatewaySocket(socket)) continue;
           socket.onmessage?.(new MessageEvent("message", { data: raw }));
         }
       },
@@ -210,12 +219,21 @@ export async function installFakeBackend(
   return {
     async waitForSocketOpen() {
       await page.waitForFunction(() => {
+        const isOpenGatewaySocket = (socket: { readyState: number; url?: string | null }): boolean => {
+          if (socket.readyState !== 1 || !socket.url) return false;
+          try {
+            const parsed = new URL(socket.url, "http://127.0.0.1");
+            return parsed.pathname === "/ws" && parsed.searchParams.get("ticket") !== null;
+          } catch {
+            return false;
+          }
+        };
         const harness = (
           globalThis as typeof globalThis & {
-            __agentGridHarness?: { sockets: Array<{ readyState: number }> };
+            __agentGridHarness?: { sockets: Array<{ readyState: number; url?: string | null }> };
           }
         ).__agentGridHarness;
-        return Boolean(harness?.sockets.some((socket) => socket.readyState === 1));
+        return Boolean(harness?.sockets.some((socket) => isOpenGatewaySocket(socket)));
       });
     },
     async emit(frame: ServerFrame) {
