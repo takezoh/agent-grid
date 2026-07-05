@@ -102,5 +102,5 @@ adaptation of the harness to this subsystem's shape, not an omission.
   [code-enforcement.md §7](../note/note-20260624-technical-code-enforcement.md). Full guide:
   [termvt-multiplexer-testing.md](../component/component-20260624-platform-termvt-multiplexer-testing.md).
 - The untrusted client→server frame decode (the web gateway's `/ws` data plane)
-  is fuzzed in `server/web` (`FuzzInbound`) so malformed frames can neither panic
+  is fuzzed in `server/web` (`FuzzApplyInboundProto`) so malformed frames can neither panic
   the reader nor resize the pty to a non-positive size.

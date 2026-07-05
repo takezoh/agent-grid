@@ -119,7 +119,7 @@ live subscribers of its own session, in order; a slow subscriber is severed, not
 allowed to block or corrupt the others). It is pinned by a real-pty contract
 (`fanout_contract_test.go`: multi-subscriber delivery, `Manager` cross-talk,
 slow-vs-fast containment, control-before-output ordering) run under `-race`, plus
-a `server/web` `FuzzInbound` over the untrusted client→server frame decode.
+a `server/web` `FuzzApplyInboundProto` over the untrusted client→server frame decode.
 Unlike the stream subsystem, termvt has no in-process fake — its only backend is
 a real pty — so there is no opt-in e2e tier. Full guide:
 [termvt multiplexer testing](../component/component-20260624-platform-termvt-multiplexer-testing.md);

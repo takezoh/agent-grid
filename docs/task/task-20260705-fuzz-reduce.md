@@ -40,7 +40,7 @@ updated: '2026-07-05'
    - 入力 State が変異していない (fold 前 snapshot と deep-equal — copy-on-write 検証)
    - 返る Effect が closed sum の範囲内
 3. seed corpus に既存 regression (persist 系など) の event 列を数本入れる。
-4. CI fuzz job (`FuzzStreamRouting` / `FuzzInbound` と同じ 30s 枠) に追加する。
+4. CI fuzz job (`FuzzStreamRouting` / `FuzzApplyInboundProto` と同じ 30s 枠) に追加する。
 
 ## 前提
 

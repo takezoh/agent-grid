@@ -67,3 +67,10 @@ func (r *Runtime) TestQuiesce(timeout time.Duration) error {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+func (r *Runtime) quiesced() bool {
+	return len(r.eventCh) == 0 &&
+		len(r.internalCh) == 0 &&
+		len(r.pendingSpawns) == 0 &&
+		(r.workers == nil || r.workers.Idle())
+}

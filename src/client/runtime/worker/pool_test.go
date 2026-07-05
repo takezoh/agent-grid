@@ -190,3 +190,195 @@ func TestPoolStopHardDeadline(t *testing.T) {
 		t.Errorf("Stop took %v, want <700ms", elapsed)
 	}
 }
+
+func TestPoolIdleCountsDequeuedJob(t *testing.T) {
+	pool := NewPool(context.Background(), 1)
+	defer pool.Stop()
+
+	dequeued := make(chan struct{})
+	releaseDequeue := make(chan struct{})
+	started := make(chan struct{})
+	releaseRun := make(chan struct{})
+	pool.testAfterDequeue = func() {
+		close(dequeued)
+		<-releaseDequeue
+	}
+
+	Submit(pool, 1, testInput{}, func(ctx context.Context, in testInput) (testOutput, error) {
+		close(started)
+		<-releaseRun
+		return testOutput{}, nil
+	})
+
+	select {
+	case <-dequeued:
+	case <-time.After(2 * time.Second):
+		t.Fatal("worker did not dequeue job")
+	}
+
+	if pool.Idle() {
+		t.Fatal("Idle returned true while a dequeued job was still outstanding")
+	}
+
+	close(releaseDequeue)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("runner did not start after dequeue gate release")
+	}
+	close(releaseRun)
+
+	select {
+	case <-pool.Results():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for result")
+	}
+}
+
+func TestPoolIdleRecoversAfterStopDropsQueuedJobs(t *testing.T) {
+	pool := NewPool(context.Background(), 1)
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	Submit(pool, 1, testInput{}, func(ctx context.Context, in testInput) (testOutput, error) {
+		close(started)
+		<-release
+		return testOutput{}, nil
+	})
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first job did not start")
+	}
+
+	Submit(pool, 2, testInput{}, func(ctx context.Context, in testInput) (testOutput, error) {
+		return testOutput{}, nil
+	})
+	pool.Stop()
+	close(release)
+
+	deadline := time.After(2 * time.Second)
+	tick := time.NewTicker(2 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if pool.Idle() {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("Idle stayed false after Stop discarded queued jobs")
+		case <-tick.C:
+		}
+	}
+}
+
+func TestPoolIdleIgnoresResultBacklogAfterStop(t *testing.T) {
+	pool := NewPool(context.Background(), 1)
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	Submit(pool, 1, testInput{}, func(ctx context.Context, in testInput) (testOutput, error) {
+		close(started)
+		<-ctx.Done()
+		<-release
+		return testOutput{}, ctx.Err()
+	})
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("runner did not start")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		pool.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return")
+	}
+
+	close(release)
+
+	deadline := time.After(2 * time.Second)
+	tick := time.NewTicker(2 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if pool.Idle() {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("Idle stayed false after Stop with results backlog=%d outstanding=%d", len(pool.results), pool.outstanding.Load())
+		case <-tick.C:
+		}
+	}
+}
+
+func TestPoolSubmitStopRaceDoesNotLeakOutstanding(t *testing.T) {
+	pool := NewPool(context.Background(), 1)
+
+	submitReached := make(chan struct{})
+	releaseSubmit := make(chan struct{})
+	pool.testBeforeEnqueue = func() {
+		close(submitReached)
+		<-releaseSubmit
+	}
+
+	submitDone := make(chan struct{})
+	go func() {
+		Submit(pool, 1, testInput{}, func(ctx context.Context, in testInput) (testOutput, error) {
+			return testOutput{}, nil
+		})
+		close(submitDone)
+	}()
+
+	select {
+	case <-submitReached:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Submit did not reach enqueue gate")
+	}
+
+	stopDone := make(chan struct{})
+	go func() {
+		pool.Stop()
+		close(stopDone)
+	}()
+
+	select {
+	case <-stopDone:
+		t.Fatal("Stop returned before Submit released the admission lock")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(releaseSubmit)
+
+	select {
+	case <-submitDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Submit did not return")
+	}
+	select {
+	case <-stopDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return")
+	}
+
+	deadline := time.After(2 * time.Second)
+	tick := time.NewTicker(2 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if pool.Idle() {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("Idle stayed false after Submit/Stop race: outstanding=%d results=%d", pool.outstanding.Load(), len(pool.results))
+		case <-tick.C:
+		}
+	}
+}

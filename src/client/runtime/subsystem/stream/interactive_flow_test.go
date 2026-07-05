@@ -202,18 +202,18 @@ func TestInteractiveFlow_SettingsUpdatedBroadcastReachesDriverMetadata(t *testin
 	srv := fake.New(fake.Config{
 		Sock: filepath.Join(t.TempDir(), "fake-settings.sock"),
 		TurnHandler: func(req fake.TurnRequest, emit fake.Emitter) {
-			_ = emit.Broadcast(codexschema.MethodTurnStarted, map[string]any{
+			_ = emit.Emit(codexschema.MethodTurnStarted, map[string]any{
 				"threadId": req.ThreadID,
 				"turnId":   req.TurnID,
 			})
-			_ = emit.Broadcast(codexschema.MethodThreadSettingsUpdated, map[string]any{
+			_ = emit.Emit(codexschema.MethodThreadSettingsUpdated, map[string]any{
 				"threadId": req.ThreadID,
 				"threadSettings": map[string]any{
 					"model":            "gpt-5-codex",
 					"reasoning_effort": map[string]any{"level": "medium"},
 				},
 			})
-			_ = emit.Broadcast(codexschema.MethodTurnCompleted, map[string]any{
+			_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
 				"threadId": req.ThreadID,
 				"turnId":   req.TurnID,
 				"text":     "done",

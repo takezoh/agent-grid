@@ -38,16 +38,16 @@ type TurnRequest struct {
 }
 
 // TurnHandler is invoked from the server goroutine after a `turn/start`
-// request completes. It receives an Emitter targeted at every connected
-// client, so a handler that writes turn/started + turn/completed reproduces
-// the real broadcast semantics observed on the wire.
+// request completes. It receives an Emitter that enforces the fake's delivery
+// contract based on the method name, so callers cannot accidentally leak
+// initiator-only turn notifications to observers.
 type TurnHandler func(req TurnRequest, emit Emitter)
 
-// Emitter fan-outs notifications to every connected client (broadcast). This
-// mirrors the real codex-app-server, which delivers a thread/turn event to
-// every subscribed client regardless of who initiated the turn.
+// Emitter sends notifications with the same visibility split as the real
+// codex app-server. turn/* methods are initiator-local; other notifications
+// fan out to every connected client.
 type Emitter interface {
-	Broadcast(method string, params any) error
+	Emit(method string, params any) error
 }
 
 // Thread captures the (small) subset of thread state the fake tracks. Kept
@@ -237,19 +237,22 @@ func (a *AppServer) removeClient(target *serverConn) {
 	}
 }
 
-// Broadcast implements Emitter. Every currently connected client receives
-// method+params as a JSON-RPC notification. Errors on individual clients are
-// logged but do not abort the fan-out.
+// Broadcast sends a notification to every currently connected client. Errors
+// on individual clients are logged but do not abort the fan-out.
 func (a *AppServer) Broadcast(method string, params any) error {
 	a.mu.Lock()
 	targets := append([]*serverConn(nil), a.clients...)
 	a.mu.Unlock()
+	a.emit(targets, method, params)
+	return nil
+}
+
+func (a *AppServer) emit(targets []*serverConn, method string, params any) {
 	for _, c := range targets {
 		if err := c.server.EmitNotification(method, params); err != nil {
 			slog.Debug("fake app-server: broadcast failed", "method", method, "err", err)
 		}
 	}
-	return nil
 }
 
 // newThread mints a fresh thread id + session id (same UUID; matches real
@@ -332,7 +335,31 @@ func (s *serverConn) handleTurnStart(params json.RawMessage) {
 		TurnID:   turnID,
 		Cwd:      t.Cwd,
 		Input:    input,
-	}, s.app)
+	}, turnEmitter{app: s.app, initiator: s})
+}
+
+type turnEmitter struct {
+	app       *AppServer
+	initiator *serverConn
+}
+
+func (e turnEmitter) Emit(method string, params any) error {
+	targets := e.targetsFor(method)
+	e.app.emit(targets, method, params)
+	return nil
+}
+
+func (e turnEmitter) targetsFor(method string) []*serverConn {
+	if isInitiatorScopedMethod(method) {
+		return []*serverConn{e.initiator}
+	}
+	e.app.mu.Lock()
+	defer e.app.mu.Unlock()
+	return append([]*serverConn(nil), e.app.clients...)
+}
+
+func isInitiatorScopedMethod(method string) bool {
+	return len(method) >= len("turn/") && method[:len("turn/")] == "turn/"
 }
 
 // OnNotification handles legacy client-side notifications. Real Codex now
@@ -394,32 +421,32 @@ func (s *serverConn) OnServerRequest(id int64, method string, params json.RawMes
 }
 
 // defaultTurnHandler emits the minimum event sequence that carries the driver
-// through Idle → Running → Waiting: turn/started, thread/settings/updated,
-// thread/status active, turn/completed, thread/status idle. Real codex emits
-// many more events (item/started, item/completed, message deltas, etc.); tests
-// that need those override this via Config.TurnHandler.
+// through Idle → Running → Waiting. Real codex scopes turn/* notifications to
+// the initiating client while broadcasting thread-level state changes to every
+// subscriber; the fake mirrors that split so observers must rely on
+// thread/status/changed rather than illicit turn/* fan-out.
 func defaultTurnHandler(req TurnRequest, emit Emitter) {
-	_ = emit.Broadcast(codexschema.MethodTurnStarted, map[string]any{
+	_ = emit.Emit(codexschema.MethodTurnStarted, map[string]any{
 		"threadId": req.ThreadID,
 		"turnId":   req.TurnID,
 	})
-	_ = emit.Broadcast(codexschema.MethodThreadSettingsUpdated, map[string]any{
+	_ = emit.Emit(codexschema.MethodThreadSettingsUpdated, map[string]any{
 		"threadId": req.ThreadID,
 		"threadSettings": map[string]any{
 			"model":  "gpt-5-codex",
 			"effort": map[string]any{"level": "high"},
 		},
 	})
-	_ = emit.Broadcast(codexschema.MethodThreadStatusChanged, map[string]any{
+	_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
 		"threadId": req.ThreadID,
 		"status":   map[string]any{"type": "active"},
 	})
-	_ = emit.Broadcast(codexschema.MethodTurnCompleted, map[string]any{
+	_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
 		"threadId": req.ThreadID,
 		"turnId":   req.TurnID,
 		"text":     "echo: " + req.Input,
 	})
-	_ = emit.Broadcast(codexschema.MethodThreadStatusChanged, map[string]any{
+	_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
 		"threadId": req.ThreadID,
 		"status":   map[string]any{"type": "idle"},
 	})

@@ -207,6 +207,36 @@ func TestTurnStartDrivesDefaultLifecycleBroadcast(t *testing.T) {
 	}
 }
 
+func TestTurnStartScopesTurnNotificationsToInitiator(t *testing.T) {
+	srv := startFake(t, Config{})
+	initiator, initRec := dialClient(t, srv.SockPath())
+	_, observerRec := dialClient(t, srv.SockPath())
+
+	sess, err := codexclient.StartThread(initiator, "/work", nil, codexclient.ThreadOptions{})
+	if err != nil {
+		t.Fatalf("StartThread: %v", err)
+	}
+	if err := codexclient.StartTurn(initiator, sess.ThreadID, "/work", []byte("hello"), codexclient.TurnOptions{}); err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+
+	waitFor(t, 2*time.Second, func() bool {
+		return len(initRec.filter(codexschema.MethodTurnStarted)) == 1 &&
+			len(initRec.filter(codexschema.MethodTurnCompleted)) == 1 &&
+			len(initRec.filter(codexschema.MethodThreadStatusChanged)) >= 2
+	}, "initiator turn lifecycle")
+	waitFor(t, 2*time.Second, func() bool {
+		return len(observerRec.filter(codexschema.MethodThreadStatusChanged)) >= 2
+	}, "observer thread status lifecycle")
+
+	if got := len(observerRec.filter(codexschema.MethodTurnStarted)); got != 0 {
+		t.Fatalf("observer turn.started count = %d, want 0", got)
+	}
+	if got := len(observerRec.filter(codexschema.MethodTurnCompleted)); got != 0 {
+		t.Fatalf("observer turn.completed count = %d, want 0", got)
+	}
+}
+
 func TestTurnStartTriggersHandlerScripting(t *testing.T) {
 	// Custom handler emits a scripted notification; assert the fake actually
 	// invokes it and its output reaches the client via broadcast.
@@ -214,7 +244,7 @@ func TestTurnStartTriggersHandlerScripting(t *testing.T) {
 	srv := startFake(t, Config{
 		TurnHandler: func(req TurnRequest, emit Emitter) {
 			handlerCalls.Add(1)
-			_ = emit.Broadcast("test/custom", map[string]any{
+			_ = emit.Emit("test/custom", map[string]any{
 				"threadId": req.ThreadID,
 				"echo":     req.Input,
 			})
@@ -227,6 +257,49 @@ func TestTurnStartTriggersHandlerScripting(t *testing.T) {
 	}
 	waitFor(t, time.Second, func() bool { return handlerCalls.Load() == 1 }, "handler invocation")
 	waitFor(t, time.Second, func() bool { return len(rec.filter("test/custom")) == 1 }, "custom broadcast")
+}
+
+func TestCustomTurnHandlerCannotLeakTurnNotificationsToObserver(t *testing.T) {
+	srv := startFake(t, Config{
+		TurnHandler: func(req TurnRequest, emit Emitter) {
+			_ = emit.Emit(codexschema.MethodTurnStarted, map[string]any{
+				"threadId": req.ThreadID,
+				"turnId":   req.TurnID,
+			})
+			_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
+				"threadId": req.ThreadID,
+				"turnId":   req.TurnID,
+			})
+			_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
+				"threadId": req.ThreadID,
+				"status":   map[string]any{"type": "idle"},
+			})
+		},
+	})
+	initiator, initRec := dialClient(t, srv.SockPath())
+	_, observerRec := dialClient(t, srv.SockPath())
+
+	sess, err := codexclient.StartThread(initiator, "/work", nil, codexclient.ThreadOptions{})
+	if err != nil {
+		t.Fatalf("StartThread: %v", err)
+	}
+	if err := codexclient.StartTurn(initiator, sess.ThreadID, "/work", []byte("hello"), codexclient.TurnOptions{}); err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+
+	waitFor(t, time.Second, func() bool {
+		return len(initRec.filter(codexschema.MethodTurnStarted)) == 1 &&
+			len(initRec.filter(codexschema.MethodTurnCompleted)) == 1
+	}, "initiator sees turn notifications")
+	waitFor(t, time.Second, func() bool {
+		return len(observerRec.filter(codexschema.MethodThreadStatusChanged)) == 1
+	}, "observer sees thread notification")
+	if got := len(observerRec.filter(codexschema.MethodTurnStarted)); got != 0 {
+		t.Fatalf("observer turn.started count = %d, want 0", got)
+	}
+	if got := len(observerRec.filter(codexschema.MethodTurnCompleted)); got != 0 {
+		t.Fatalf("observer turn.completed count = %d, want 0", got)
+	}
 }
 
 func TestThreadResumeReloadsPreviouslyCreatedThread(t *testing.T) {

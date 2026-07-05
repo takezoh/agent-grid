@@ -187,7 +187,7 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 		_ = e
 		r.startRestoredTaps()
 	case internalBarrier:
-		e.drained <- len(r.eventCh) == 0 && len(r.internalCh) == 0
+		e.drained <- r.quiesced()
 	case internalSpawnComplete:
 		r.handleSpawnComplete(e)
 	case internalBroadcastSurface:

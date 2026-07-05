@@ -154,11 +154,15 @@ func TestDriverMetadataSourcePriorityConformance(t *testing.T) {
 
 func registerConformanceDrivers() {
 	state.ClearRegistry()
-	state.Register(NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less"))
-	state.Register(NewCodexDriver(testEventLogDir))
-	state.Register(NewGeminiDriver(testEventLogDir))
+	for _, drv := range builtinDrivers(RegisterOptions{
+		Home:          testHome,
+		EventLogDir:   testEventLogDir,
+		IdleThreshold: 30 * time.Second,
+		Pager:         "less",
+	}) {
+		state.Register(drv)
+	}
 	state.Register(NewShellDriver(ShellDriverName, ShellDriverName, 30*time.Second))
-	state.Register(NewGenericDriver("", "", 30*time.Second))
 }
 
 func runRegistryConformance(t *testing.T) []string {

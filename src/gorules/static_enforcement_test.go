@@ -1,6 +1,7 @@
 package gorules_test
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -127,8 +128,28 @@ func TestCIWorkflowRunsWebTestsAndDetectsUntrackedWireFixtures(t *testing.T) {
 		t.Fatalf("read workflow: %v", err)
 	}
 	text := string(raw)
-	if !strings.Contains(text, "npm test -- --run src/wire/codec.test.ts src/store/daemon.test.ts") {
-		t.Fatalf("CI does not run the TS wire fixture decoder test")
+	if !strings.Contains(text, "npm run test:web") {
+		t.Fatalf("CI does not run the web test entrypoint")
+	}
+
+	pkgPath := filepath.Join(repoRoot(t), "src", "client", "web", "package.json")
+	pkgRaw, err := os.ReadFile(pkgPath)
+	if err != nil {
+		t.Fatalf("read package.json: %v", err)
+	}
+	var pkg struct {
+		Scripts map[string]string `json:"scripts"`
+	}
+	if err := json.Unmarshal(pkgRaw, &pkg); err != nil {
+		t.Fatalf("decode package.json: %v", err)
+	}
+	testWeb := pkg.Scripts["test:web"]
+	testUnit := pkg.Scripts["test:unit"]
+	if !strings.Contains(testWeb, "npm run test:unit") {
+		t.Fatalf("test:web does not include the unit-test entrypoint: %q", testWeb)
+	}
+	if !strings.Contains(testUnit, "vitest") || !strings.Contains(testUnit, "--run") {
+		t.Fatalf("test:unit is not an all-files vitest run: %q", testUnit)
 	}
 	if !strings.Contains(text, "git status --porcelain -- client/web/src/wire/testdata") {
 		t.Fatalf("CI does not check untracked wire fixtures")

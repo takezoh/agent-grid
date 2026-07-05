@@ -11,28 +11,28 @@
 # client/ — reactor-specific session lifecycle layer
 github.com/takezoh/agent-reactor/client/config                       85
 github.com/takezoh/agent-reactor/client/driver                       75
+github.com/takezoh/agent-reactor/client/driver/drivertest            0
 github.com/takezoh/agent-reactor/client/driver/vt                    55
 github.com/takezoh/agent-reactor/client/event                        20
+github.com/takezoh/agent-reactor/client/lib/agenthook               80
 github.com/takezoh/agent-reactor/client/lib/claude/transcript        75
 github.com/takezoh/agent-reactor/client/lib/codex/transcript         60
 github.com/takezoh/agent-reactor/client/lib/editor                   80
-github.com/takezoh/agent-reactor/client/lib/peers                    50
 github.com/takezoh/agent-reactor/client/procio                       95
 github.com/takezoh/agent-reactor/client/proto                        85
+github.com/takezoh/agent-reactor/client/proto/protofake             75
 github.com/takezoh/agent-reactor/client/proto/sessions               80
 github.com/takezoh/agent-reactor/client/runtime                      58
 github.com/takezoh/agent-reactor/client/runtime/framereg             95
+github.com/takezoh/agent-reactor/client/runtime/runtimetest          0
 github.com/takezoh/agent-reactor/client/runtime/subsystem            15
 github.com/takezoh/agent-reactor/client/runtime/subsystem/cli        70
 github.com/takezoh/agent-reactor/client/runtime/subsystem/stream     74
+github.com/takezoh/agent-reactor/client/runtime/subsystem/stream/fake 75
 github.com/takezoh/agent-reactor/client/runtime/worker               90
 github.com/takezoh/agent-reactor/client/state                        80
 github.com/takezoh/agent-reactor/client/state/view                   95
 github.com/takezoh/agent-reactor/client/tools                        50
-github.com/takezoh/agent-reactor/client/tui                          50
-github.com/takezoh/agent-reactor/client/tui/glyphs                   85
-github.com/takezoh/agent-reactor/client/tui/image                    50
-github.com/takezoh/agent-reactor/client/uiproc                       95
 github.com/takezoh/agent-reactor/client/web                          90
 
 # cmd/ — binary entry points
@@ -62,27 +62,30 @@ github.com/takezoh/agent-reactor/orchestrator/workspace              80
 
 # platform/ — shared execution base
 github.com/takezoh/agent-reactor/platform/agent/codexclient          80
-github.com/takezoh/agent-reactor/platform/agent/fakecodex             80
+github.com/takezoh/agent-reactor/platform/agent/codexschema           0
+github.com/takezoh/agent-reactor/platform/agent/fakecodex             70
 github.com/takezoh/agent-reactor/platform/tracker/linear             80
 github.com/takezoh/agent-reactor/platform/agent/codexschema/v1        0
 github.com/takezoh/agent-reactor/platform/agent/codexschema/v2        0
 github.com/takezoh/agent-reactor/platform/agentlaunch                63
+github.com/takezoh/agent-reactor/platform/appid                       0
 github.com/takezoh/agent-reactor/platform/config                     62
 github.com/takezoh/agent-reactor/platform/credproxy                  10
+github.com/takezoh/agent-reactor/platform/e2etest                    45
 github.com/takezoh/agent-reactor/platform/features                   85
 github.com/takezoh/agent-reactor/platform/hostexec                   50
 github.com/takezoh/agent-reactor/platform/internal/globutil          95
-github.com/takezoh/agent-reactor/platform/lib/claude                 55
 github.com/takezoh/agent-reactor/platform/lib/claude/cli             95
+github.com/takezoh/agent-reactor/platform/lib/claude/fakeclaude      80
+github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload     40
 github.com/takezoh/agent-reactor/platform/lib/claude/streamjson      85
 github.com/takezoh/agent-reactor/platform/lib/codex                  75
-github.com/takezoh/agent-reactor/platform/lib/gemini                 80
 github.com/takezoh/agent-reactor/platform/lib/git                    70
 github.com/takezoh/agent-reactor/platform/lib/github                 85
-github.com/takezoh/agent-reactor/platform/lib/notify                 30
 github.com/takezoh/agent-reactor/platform/lib/openurl                60
 github.com/takezoh/agent-reactor/platform/lib/plastic                45
-github.com/takezoh/agent-reactor/platform/lib/tlsdev                 30
+github.com/takezoh/agent-reactor/platform/lib/systemdnotify          95
+github.com/takezoh/agent-reactor/platform/lib/tlsdev                 20
 github.com/takezoh/agent-reactor/platform/lib/vcs                    85
 github.com/takezoh/agent-reactor/platform/lib/wsl                    45
 github.com/takezoh/agent-reactor/platform/logger                     60
@@ -96,8 +99,10 @@ github.com/takezoh/agent-reactor/platform/sandbox/devcontainer/fakedocker 0
 github.com/takezoh/agent-reactor/platform/sandbox/devcontainer/fakedocker/cmd/docker 0
 github.com/takezoh/agent-reactor/platform/secretenv                  34
 github.com/takezoh/agent-reactor/platform/shellalias                  90
+github.com/takezoh/agent-reactor/platform/socketpath                95
 github.com/takezoh/agent-reactor/platform/termvt                     85
+github.com/takezoh/agent-reactor/platform/tracker                    0
 
 # server/ — pty session daemon + co-resident web gateway
-github.com/takezoh/agent-reactor/server/session                      78
-github.com/takezoh/agent-reactor/server/web                          90
+github.com/takezoh/agent-reactor/server/web                          75
+github.com/takezoh/agent-reactor/server/web/testsupport/fakeagents    0

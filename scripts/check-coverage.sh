@@ -27,9 +27,42 @@ while IFS= read -r line; do
     floors[$pkg]=$pct
 done <"$FLOORS_FILE"
 
+declare -A expected
+declare -A no_test_packages
+while read -r pkg test_files xtest_files; do
+    [[ -z $pkg ]] && continue
+    expected[$pkg]=1
+    if (( test_files == 0 && xtest_files == 0 )); then
+        no_test_packages[$pkg]=1
+    fi
+done < <(
+    cd "$REPO_ROOT/src" &&
+        go list -f '{{if .GoFiles}}{{.ImportPath}} {{len .TestGoFiles}} {{len .XTestGoFiles}}{{end}}' ./... |
+        sed '/^$/d'
+)
+
 violations=0
 unknown=0
 checked=0
+stale=0
+no_tests=0
+
+for pkg in "${!floors[@]}"; do
+    if [[ -z ${expected[$pkg]+x} ]]; then
+        printf 'STALE    %-60s floor exists for a package no longer returned by go list\n' "$pkg"
+        stale=$((stale + 1))
+    fi
+done
+
+for pkg in "${!expected[@]}"; do
+    if [[ -z ${floors[$pkg]+x} ]]; then
+        printf 'UNKNOWN  %-60s missing from scripts/coverage-floors.txt\n' "$pkg"
+        unknown=$((unknown + 1))
+    fi
+done
+
+declare -A covered
+declare -A untested
 
 while IFS= read -r line; do
     if [[ $line =~ ^(ok|---FAIL).*"github.com/takezoh/agent-reactor"[^[:space:]]*.*coverage:\ ([0-9.]+)% ]]; then
@@ -40,9 +73,14 @@ while IFS= read -r line; do
         # "<tab>github.com/.../pkg<tab><tab>coverage: 0.0% of statements"
         pkg="${BASH_REMATCH[1]}"
         pct="${BASH_REMATCH[2]}"
+    elif [[ $line =~ ^\?[[:space:]]+(github.com/takezoh/agent-reactor[^[:space:]]*)[[:space:]]+\[no\ test\ files\] ]]; then
+        pkg="${BASH_REMATCH[1]}"
+        untested[$pkg]=1
+        continue
     else
         continue
     fi
+    covered[$pkg]=1
     checked=$((checked + 1))
     floor="${floors[$pkg]:-}"
     if [[ -z $floor ]]; then
@@ -60,8 +98,26 @@ while IFS= read -r line; do
 done <"$TEST_LOG"
 
 echo
-echo "Checked $checked packages; $violations regression(s), $unknown unknown package(s)."
+for pkg in "${!expected[@]}"; do
+    if [[ -n ${covered[$pkg]+x} ]]; then
+        continue
+    fi
+    if [[ -n ${untested[$pkg]+x} ]]; then
+        floor="${floors[$pkg]:-}"
+        if [[ -n ${no_test_packages[$pkg]+x} ]] && awk -v f="$floor" 'BEGIN { exit !(f+0 == 0) }'; then
+            printf 'ok       %-60s no test files (explicit floor 0%%)\n' "$pkg"
+            continue
+        fi
+        printf 'FAIL     %-60s no test files — coverage gate disabled for this package\n' "$pkg"
+        no_tests=$((no_tests + 1))
+        continue
+    fi
+    printf 'FAIL     %-60s missing from go test coverage output\n' "$pkg"
+    violations=$((violations + 1))
+done
 
-if (( violations > 0 || unknown > 0 )); then
+echo "Checked $checked packages; $violations regression(s), $unknown unknown package(s), $stale stale floor(s), $no_tests no-test violation(s)."
+
+if (( violations > 0 || unknown > 0 || stale > 0 || no_tests > 0 )); then
     exit 1
 fi

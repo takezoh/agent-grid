@@ -134,7 +134,7 @@ jobs:
         run: go test -run '^$' -fuzz '^FuzzReduce$' -fuzztime=30s ./client/state/
 
       - name: fuzz web inbound decode
-        run: go test -run '^$' -fuzz '^FuzzInbound$' -fuzztime=30s ./server/web/
+        run: go test -run '^$' -fuzz '^FuzzApplyInboundProto$' -fuzztime=30s ./server/web/
 
       - name: fuzz tap OSC parsing
         run: go test -run '^$' -fuzz '^FuzzParseOsc$' -fuzztime=30s ./client/runtime/

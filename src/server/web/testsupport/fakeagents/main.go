@@ -336,28 +336,28 @@ func runCodexCLI(args streamfake.CLIArgs) error {
 }
 
 func codexTurnHandler(req streamfake.TurnRequest, emit streamfake.Emitter) {
-	_ = emit.Broadcast(codexschema.MethodTurnStarted, map[string]any{
+	_ = emit.Emit(codexschema.MethodTurnStarted, map[string]any{
 		"threadId": req.ThreadID,
 		"turnId":   req.TurnID,
 		"preview":  req.Input,
 	})
-	_ = emit.Broadcast(codexschema.MethodThreadSettingsUpdated, map[string]any{
+	_ = emit.Emit(codexschema.MethodThreadSettingsUpdated, map[string]any{
 		"threadId": req.ThreadID,
 		"threadSettings": map[string]any{
 			"model":  "gpt-5-codex",
 			"effort": map[string]any{"level": "high"},
 		},
 	})
-	_ = emit.Broadcast(codexschema.MethodThreadStatusChanged, map[string]any{
+	_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
 		"threadId": req.ThreadID,
 		"status":   map[string]any{"type": "active"},
 	})
-	_ = emit.Broadcast(codexschema.MethodTurnCompleted, map[string]any{
+	_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
 		"threadId": req.ThreadID,
 		"turnId":   req.TurnID,
 		"text":     "echo: " + req.Input,
 	})
-	_ = emit.Broadcast(codexschema.MethodThreadStatusChanged, map[string]any{
+	_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
 		"threadId": req.ThreadID,
 		"status":   map[string]any{"type": "idle"},
 	})

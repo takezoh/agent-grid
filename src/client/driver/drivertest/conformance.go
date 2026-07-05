@@ -36,18 +36,7 @@ func Conformance(t *testing.T, drv state.Driver) {
 		CreatedAt: now,
 		IsRoot:    true,
 	}
-	evs := []state.DriverEvent{
-		state.DEvHook{},
-		state.DEvSubsystem{},
-		state.DEvTick{Now: now.Add(time.Second), Watched: true, Project: "/repo", N: 1, Seq: 1},
-		state.DEvJobResult{Now: now.Add(2 * time.Second)},
-		state.DEvFileChanged{},
-		state.DEvFrameOsc{Now: now.Add(3 * time.Second)},
-		state.DEvFramePrompt{Now: now.Add(4 * time.Second)},
-		state.DEvStatusLineClick{Now: now.Add(5 * time.Second)},
-		state.DEvWorktreeResolved{StartDir: "/repo", Name: "wt-1"},
-		state.DEvCommandExited{Timestamp: now.Add(6 * time.Second)},
-	}
+	evs := state.ConformanceDriverEvents(now)
 
 	current := drv.NewState(now)
 	reached := []state.DriverState{current}

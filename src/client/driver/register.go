@@ -36,11 +36,9 @@ type RegisterOptions struct {
 // as both its registry name and display name.
 func RegisterDefaults(opts RegisterOptions) {
 	registerOnce.Do(func() {
-		claudeOpts := decodeConfig[ClaudeOptions](opts.DriverConfigs[ClaudeDriverName])
-		state.Register(NewClaudeDriver(opts.Home, opts.EventLogDir, claudeOpts, opts.Pager))
-		state.Register(NewCodexDriver(opts.EventLogDir))
-		state.Register(NewGeminiDriver(opts.EventLogDir))
-		state.Register(NewGenericDriver("", "", opts.IdleThreshold))
+		for _, drv := range builtinDrivers(opts) {
+			state.Register(drv)
+		}
 		state.RegisterDefaultFactory(func(command string) state.Driver {
 			name := state.FirstToken(command)
 			return NewGenericDriver(name, name, opts.IdleThreshold)
@@ -49,6 +47,16 @@ func RegisterDefaults(opts RegisterOptions) {
 }
 
 var registerOnce sync.Once
+
+func builtinDrivers(opts RegisterOptions) []state.Driver {
+	claudeOpts := decodeConfig[ClaudeOptions](opts.DriverConfigs[ClaudeDriverName])
+	return []state.Driver{
+		NewClaudeDriver(opts.Home, opts.EventLogDir, claudeOpts, opts.Pager),
+		NewCodexDriver(opts.EventLogDir),
+		NewGeminiDriver(opts.EventLogDir),
+		NewGenericDriver("", "", opts.IdleThreshold),
+	}
+}
 
 // ParseClaudeOptions decodes the [drivers.claude] config section into a
 // ClaudeOptions value.

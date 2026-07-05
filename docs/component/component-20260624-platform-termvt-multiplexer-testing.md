@@ -105,7 +105,7 @@ make test-race
 ```
 
 The untrusted client→server decode for the web gateway is fuzzed separately in
-`server/web` (`FuzzInbound`): arbitrary client frames must never panic the reader
+`server/web` (`FuzzApplyInboundProto`): arbitrary client frames must never panic the reader
 and must never drive the pty to a non-positive size. See
 [.github/workflows/ci.yml](../../../.github/workflows/ci.yml)'s `fuzz` job.
 
@@ -121,7 +121,7 @@ and must never drive the pty to a non-positive size. See
 | OSC 9 / 133 / title captured as Control, not raw bytes | `TestSessionCapturesOSC9`, `…OSC133Prompt`, `…Title` |
 | Process exit fans out EventExit then closes channels | `TestSessionEmitsExitOnClose`, `TestManagerRemove` |
 | Resize dimensions are floored/capped (no uint16 overflow or OOM grid) | `TestNormalizeSizeClamp` |
-| Malformed or out-of-range client frames can't panic or mis-resize | `server/web` `TestApplyInbound`, `FuzzInbound` |
+| Malformed or out-of-range client frames can't panic or mis-resize | `server/web` `TestApplyInboundProto_IgnoresMalformedAndNonPositiveResize`, `FuzzApplyInboundProto` |
 | CSI Report Mode (DECRQM) reply cannot deadlock `ExitCode` | `TestSessionExitCodeNeverBlocksDuringCSIReportMode` |
 | `Subscribe`/`Resize`/`Snapshot`/`Size` complete in deterministic order vs chunks | `TestActor_SubscribeReceivesSnapshotThenChunk` |
 | `ExitCode` stays lock-free even while `mainLoop` is parked in a slow chunk | `TestActor_ExitCodeNeverGoesThroughMainLoop` |

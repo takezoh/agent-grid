@@ -266,6 +266,24 @@ type DEvCommandExited struct {
 
 func (DEvCommandExited) isDriverEvent() {}
 
+// ConformanceDriverEvents returns one zero-value-ish instance of every closed
+// DriverEvent variant so registry-wide conformance tests cannot drift from the
+// canonical sum type by maintaining a hand-written copy elsewhere.
+func ConformanceDriverEvents(now time.Time) []DriverEvent {
+	return []DriverEvent{
+		DEvHook{},
+		DEvSubsystem{},
+		DEvTick{Now: now.Add(time.Second), Watched: true, Project: "/repo", N: 1, Seq: 1},
+		DEvJobResult{Now: now.Add(2 * time.Second)},
+		DEvFileChanged{},
+		DEvFrameOsc{Now: now.Add(3 * time.Second)},
+		DEvFramePrompt{Now: now.Add(4 * time.Second)},
+		DEvStatusLineClick{Now: now.Add(5 * time.Second)},
+		DEvWorktreeResolved{StartDir: "/repo", Name: "wt-1"},
+		DEvCommandExited{Timestamp: now.Add(6 * time.Second)},
+	}
+}
+
 // ViewProvider is an optional capability for drivers that provide a
 // custom view payload.
 type ViewProvider interface {
