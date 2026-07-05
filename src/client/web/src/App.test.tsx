@@ -436,17 +436,15 @@ describe("App", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     render(<App />);
-    // Flush the promise chain without advancing fake timers: the
-    // NotificationToast auto-dismisses after 5000ms via setTimeout, and
-    // runOnlyPendingTimersAsync would fire that immediately, wiping the
-    // very item we are about to assert on. Microtask flush via
-    // act(Promise.resolve()) walks fetch -> request -> text() -> throw
-    // -> catch -> useNotificationsStore.add without touching timers.
-    for (let i = 0; i < 5; i++) {
-      await act(async () => {
-        await Promise.resolve();
-      });
-    }
+    // requestWithRetry backs off for up to 1.4s total before App catches and
+    // surfaces the toast. Advance only that window so the toast is added but
+    // not yet auto-dismissed.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1400);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const items = useNotificationsStore.getState().items;
     const errors = items.filter((i) => i.level === "error");

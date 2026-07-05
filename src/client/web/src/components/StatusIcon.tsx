@@ -62,7 +62,9 @@ export function StatusIcon({ status, activeClass, inactiveClass }: StatusIconPro
     .join(" ");
   return (
     <span className={className} aria-hidden="true">
-      <svg viewBox="0 0 24 24" focusable="false">{GEOMETRY[status]}</svg>
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        {GEOMETRY[status]}
+      </svg>
     </span>
   );
 }

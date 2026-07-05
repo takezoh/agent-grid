@@ -60,7 +60,7 @@ Related ADRs: ADR 0067 〜 ADR 0075 + [ADR 0077](../../adr/adr-20260624-0077-mob
 
 Web UI TerminalPane (xterm.js 5.5.0 + addon-fit) のモバイル UX を `ux.md` の 7 flow / 26 UAC で固定された観察契約どおりに、PC (`pointer:fine`) 完全現状維持 + 既存 ADR 衝突回避を絶対制約として実装する。UX Open Questions 1〜4 はすべて plan-how 段階で決着 (POC 先送り禁止) — 詳細は ADR 0067 〜 0075。
 
-ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Playwright 不在経路 (実 soft keyboard / 実 horizontal swipe → arrow / 実 long-press / 実 VoiceOver) は実機検証チェックリストへ振り分ける。 (ADR 0077 — 実 pinch 検証は撤去)
+ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Playwright browser smoke で session hydrate / command palette / new-session submit を補完する。実 soft keyboard / 実 horizontal swipe → arrow / 実 long-press / 実 VoiceOver は実機検証チェックリストへ振り分ける。 (ADR 0077 — 実 pinch 検証は撤去)
 
 ## Components
 

@@ -71,7 +71,7 @@ describe("useMobileGate — change subscription + transition notification", () =
     expect(result.current).toBe(true);
 
     act(() => {
-      mm!.setMatches(MOBILE_GATE_QUERY, false);
+      mm?.setMatches(MOBILE_GATE_QUERY, false);
     });
     expect(result.current).toBe(false);
   });
@@ -85,7 +85,7 @@ describe("useMobileGate — change subscription + transition notification", () =
     expect(onLeaveMobile).not.toHaveBeenCalled();
 
     act(() => {
-      mm!.setMatches(MOBILE_GATE_QUERY, false);
+      mm?.setMatches(MOBILE_GATE_QUERY, false);
     });
     expect(result.current).toBe(false);
     expect(onLeaveMobile).toHaveBeenCalledTimes(1);
@@ -98,7 +98,7 @@ describe("useMobileGate — change subscription + transition notification", () =
     expect(result.current).toBe(false);
 
     act(() => {
-      mm!.setMatches(MOBILE_GATE_QUERY, true);
+      mm?.setMatches(MOBILE_GATE_QUERY, true);
     });
     expect(result.current).toBe(true);
     expect(onLeaveMobile).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe("useMobileGate — change subscription + transition notification", () =
     unmount();
     // After unmount the listener is gone: a transition must not call back.
     act(() => {
-      mm!.setMatches(MOBILE_GATE_QUERY, false);
+      mm?.setMatches(MOBILE_GATE_QUERY, false);
     });
     expect(onLeaveMobile).not.toHaveBeenCalled();
   });

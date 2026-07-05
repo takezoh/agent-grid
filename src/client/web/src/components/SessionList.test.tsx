@@ -480,7 +480,9 @@ describe("SessionList tag row", () => {
       ],
     });
     const { container } = render(<SessionList conn={fakeConn} />);
-    const pills = [...container.querySelectorAll(".session-list__meta-pill")].map((el) => el.textContent);
+    const pills = [...container.querySelectorAll(".session-list__meta-pill")].map(
+      (el) => el.textContent,
+    );
     expect(pills).toEqual(["gpt-5"]);
   });
 

@@ -2,6 +2,8 @@ node_modules/
 dist/*
 !dist/.gitkeep
 coverage/
+test-results/
+playwright-report/
 .vite/
 *.tsbuildinfo
 vite.config.js

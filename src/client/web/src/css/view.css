@@ -456,10 +456,7 @@
     animation: none !important;
     transition: none !important;
   }
-
-  /* Palette modernization (caret rail, dialog entry, row caret, spinner).
-     New animations introduced in palette.css are suppressed here per the
-     ADR-0064 single-guard rule. */
+  /* Palette modernization (caret rail, dialog entry, row caret, spinner) */
   .palette-overlay,
   .palette-dialog,
   .palette-dialog::before,
@@ -488,14 +485,7 @@
     transition: none !important;
   }
 
-  /* Mobile terminal overlays (ADR 0069/0072/0073, FR-MOB-JUMP-006). The mobile
-     UX introduces FAB elevation transitions and the Coachmark fade-in. Per the
-     ADR-0064 single-guard rule they are immediate-ized HERE (not in
-     terminal-fab-layer.css / font-size-control.css). The jump-to-latest smooth
-     scroll is reduced to instant in JS via matchMedia in useJumpToLatest; the
-     viewport scroll-behavior is also pinned to auto so any CSS-driven smooth
-     scroll cannot reintroduce motion. ADR 0077 removed the PinchIndicator
-     surface so its fade is no longer guarded here. */
+  /* Mobile terminal overlays (ADR 0069/0072/0073, FR-MOB-JUMP-006). */
   .terminal-fab-layer .keyboard-fab,
   .terminal-fab-layer .jump-to-latest-fab,
   .terminal-fab-layer .font-size-control,

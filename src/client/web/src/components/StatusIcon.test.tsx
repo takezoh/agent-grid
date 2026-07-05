@@ -4,10 +4,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StatusIcon, isActiveStatus, normalizeStatus } from "./StatusIcon";
 
-const STATUS_ICON_CSS = fs.readFileSync(
-  path.resolve(__dirname, "../css/status-icon.css"),
-  "utf-8",
-);
+const STATUS_ICON_CSS = fs.readFileSync(path.resolve(__dirname, "../css/status-icon.css"), "utf-8");
 
 describe("normalizeStatus", () => {
   it.each([

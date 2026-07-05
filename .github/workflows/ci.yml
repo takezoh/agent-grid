@@ -35,8 +35,8 @@ jobs:
         working-directory: src/client/web
         run: |
           npm ci
-          npm run build
-          npm test -- --run src/wire/codec.test.ts src/store/daemon.test.ts
+          npx playwright install --with-deps chromium
+          npm run test:web
 
       - name: verify wire fixtures are up to date
         run: |

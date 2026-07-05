@@ -651,9 +651,7 @@ describe("getSessionConfig", () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValueOnce(makeResponse("upstream not ready", 503, { "Retry-After": "0" }))
-      .mockResolvedValueOnce(
-        jsonResponse({ commands: ["claude"], projects: ["/p"] }, 200),
-      );
+      .mockResolvedValueOnce(jsonResponse({ commands: ["claude"], projects: ["/p"] }, 200));
     const api = makeSessionsApi(fetchFn);
 
     const promise = api.getSessionConfig();

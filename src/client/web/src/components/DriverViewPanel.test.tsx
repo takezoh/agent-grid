@@ -81,7 +81,9 @@ describe("DriverViewPanel", () => {
   it("hides missing metadata values in the header row", () => {
     const view = makeView({ card: { title: "My Title" }, model: "gpt-5" });
     const { container } = render(<DriverViewPanel view={view} />);
-    const pills = [...container.querySelectorAll(".driver-view-meta-pill")].map((el) => el.textContent);
+    const pills = [...container.querySelectorAll(".driver-view-meta-pill")].map(
+      (el) => el.textContent,
+    );
     expect(pills).toEqual(["gpt-5"]);
   });
 

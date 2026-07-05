@@ -67,7 +67,7 @@ Related ADRs:
 
 Web UI TerminalPane (xterm.js 5.5.0 + addon-fit) のモバイル UX を `ux.md` の 7 flow / 26 UAC で固定された観察契約どおりに、PC (pointer:fine) **完全現状維持** + 既存 ADR 0029 / 0030 / 0034 / 0059 / 0063 / 0064 / 0065 / 0066 衝突回避を絶対制約として実装する技術計画と、UX Open Questions 1〜4 をすべて plan-how 段階で決着させる 9 件の ADR (gate / mode 分離 + focus-block + zoom-guard / FAB overlay + visualViewport lift / fontSize 永続化 / touch gesture arbitration + long-press 選択 / coachmark dismiss / aria-live debounce + jumpFAB seed gating / migration / pattern adoption) を確定する。
 
-ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Playwright 不在経路 (実 soft keyboard / 実 horizontal swipe → arrow / 実 long-press / 実 VoiceOver) は実機検証チェックリストへ振り分ける。 (ADR 0077 で実 pinch 検証は撤去)
+ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Playwright browser smoke では session hydrate / command palette / new-session submit を検証する。実 soft keyboard / 実 horizontal swipe → arrow / 実 long-press / 実 VoiceOver は引き続き実機検証チェックリストへ振り分ける。 (ADR 0077 で実 pinch 検証は撤去)
 
 ## Scope
 
@@ -94,7 +94,7 @@ ATDD は **vitest + happy-dom + @testing-library/react** を harness とし、Pl
 - scrollback 容量変更 (xterm scrollback:10000 固定、ADR 0066 維持)
 - 既存 ADR 0029 / 0030 / 0034 / 0059 / 0063 / 0065 / 0066 の改廃 (本タスクで参照のみ)
 - App-level `useAnnouncer` への即時移行 (ADR 0057 拡張) — fast-follow note のみ、本タスクは TerminalPane local で完結
-- Playwright の導入 (現状未導入 / 導入予定なし、実 soft keyboard 経路は実機チェックリストで対応)
+- Playwright browser smoke (session hydrate / command palette / new-session submit) の導入。実 soft keyboard 経路は引き続き実機チェックリストで対応
 - アクセシビリティの全 ARIA pattern 適用 (本タスクは `aria-live polite` + `aria-pressed` + `aria-label` + `role=button` に限定)
 
 ## EARS Requirements

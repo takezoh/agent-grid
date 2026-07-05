@@ -10,7 +10,11 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "vitest"
+    "test": "vitest",
+    "test:unit": "vitest --run --allowOnly false",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:web": "npm run lint && npm run test:unit && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.10.0",
@@ -26,6 +30,7 @@
     "@types/node": "^22.20.0",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
+    "@playwright/test": "^1.56.1",
     "@vitejs/plugin-react-swc": "3.7.2",
     "happy-dom": "15.11.7",
     "typescript": "5.7.2",

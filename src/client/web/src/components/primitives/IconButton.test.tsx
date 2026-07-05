@@ -31,6 +31,7 @@ describe("IconButton — element + a11y contract", () => {
   it("UAC-024 counterexample: an empty aria-label is rejected (throws on render)", () => {
     // Suppress React's error-boundary console noise for this expected throw.
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // biome-ignore lint/a11y/useValidAriaValues: deliberate counterexample for runtime guard
     expect(() => render(<IconButton aria-label="">×</IconButton>)).toThrow(/non-empty aria-label/i);
     expect(() => render(<IconButton aria-label={"   "}>×</IconButton>)).toThrow(
       /non-empty aria-label/i,
