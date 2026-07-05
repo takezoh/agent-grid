@@ -225,15 +225,13 @@ func (s *Server) OnServerRequest(id int64, method string, params json.RawMessage
 		s.lastResumeParams = append(json.RawMessage(nil), params...)
 		s.mu.Unlock()
 		_ = srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": s.cfg.ThreadID}})
+	case codexschema.MethodTurnStart:
+		_ = srv.Conn().Reply(id, map[string]any{"turn": map[string]any{"id": s.cfg.TurnID}})
+		s.handleTurnStart(params)
 	}
 }
 
-// OnNotification handles turn/start by emitting the standard event sequence.
-// Any other notification is ignored.
-func (s *Server) OnNotification(method string, params json.RawMessage) {
-	if method != codexschema.MethodTurnStart {
-		return
-	}
+func (s *Server) handleTurnStart(params json.RawMessage) {
 	s.mu.Lock()
 	srv := s.srv
 	if srv == nil {
@@ -241,12 +239,7 @@ func (s *Server) OnNotification(method string, params json.RawMessage) {
 		return
 	}
 	s.lastTurnParams = append(json.RawMessage(nil), params...)
-	var p struct {
-		ThreadID string `json:"threadId"`
-		CWD      string `json:"cwd"`
-		Message  string `json:"message"`
-	}
-	_ = json.Unmarshal(params, &p)
+	p := parseTurnStartParams(params)
 	s.lastCWD = p.CWD
 	s.lastMessage = p.Message
 	turnID := s.cfg.TurnID
@@ -299,6 +292,49 @@ func (s *Server) OnNotification(method string, params json.RawMessage) {
 		s.emitTokenUsage(srv, tid, turnID)
 		_ = srv.EmitTurnCompleted(tid, turnID, text)
 	}()
+}
+
+// OnNotification handles legacy turn/start notifications.
+func (s *Server) OnNotification(method string, params json.RawMessage) {
+	if method != codexschema.MethodTurnStart {
+		return
+	}
+	s.handleTurnStart(params)
+}
+
+func parseTurnStartParams(params json.RawMessage) struct {
+	ThreadID string
+	CWD      string
+	Message  string
+} {
+	var payload struct {
+		ThreadID string `json:"threadId"`
+		CWD      string `json:"cwd"`
+		Message  string `json:"message"`
+		Input    []struct {
+			Type string  `json:"type"`
+			Text *string `json:"text"`
+		} `json:"input"`
+	}
+	_ = json.Unmarshal(params, &payload)
+	message := payload.Message
+	if message == "" {
+		for _, item := range payload.Input {
+			if item.Type == "text" && item.Text != nil {
+				message = *item.Text
+				break
+			}
+		}
+	}
+	return struct {
+		ThreadID string
+		CWD      string
+		Message  string
+	}{
+		ThreadID: payload.ThreadID,
+		CWD:      payload.CWD,
+		Message:  message,
+	}
 }
 
 // WaitInflight blocks until every turn-handler goroutine spawned so far has

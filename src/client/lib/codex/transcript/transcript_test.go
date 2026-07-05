@@ -86,6 +86,23 @@ func TestParserThreadNameUpdatedCamelCase(t *testing.T) {
 	}
 }
 
+func TestParserTurnContextTracksReasoningEffort(t *testing.T) {
+	got, snap := parse(`{"timestamp":"x","type":"turn_context","payload":{"model":"gpt-5-codex","reasoning_effort":"medium","cwd":"/repo"}}`)
+	if !strings.Contains(got, "effort=medium") {
+		t.Fatalf("render = %q", got)
+	}
+	if snap.Effort != "medium" {
+		t.Fatalf("Effort = %q", snap.Effort)
+	}
+}
+
+func TestParserTurnContextFallsBackToLegacyEffort(t *testing.T) {
+	_, snap := parse(`{"timestamp":"x","type":"turn_context","payload":{"model":"gpt-5-codex","effort":{"level":"high"}}}`)
+	if snap.Effort != "high" {
+		t.Fatalf("Effort = %q", snap.Effort)
+	}
+}
+
 func TestParserRecentTurns(t *testing.T) {
 	p := NewParser()
 	_ = p.ParseLines([]byte(strings.Join([]string{

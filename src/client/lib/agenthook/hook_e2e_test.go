@@ -16,22 +16,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/creack/pty"
+
+	"github.com/takezoh/agent-reactor/platform/e2etest"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/cli"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/fakeclaude"
+	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
 )
 
 // requireHome forces $HOME to a fresh TempDir so Install never
 // clobbers the developer's real ~/.claude.
 func requireHome(t *testing.T) string {
 	t.Helper()
-	home := t.TempDir()
+	home := e2etest.NewIsolatedHome(t, ".claude-e2e-home-")
 	t.Setenv("HOME", home)
 	return home
 }
@@ -63,9 +69,9 @@ func setupClaudeHooks(t *testing.T) (recordFile string) {
 	return recordFile
 }
 
-// runClaudeShort runs claude with a trivial prompt and waits for it to exit.
-// Test-scoped failures on non-zero exit; stdout is discarded because we only
-// care about hook side effects here.
+// runClaudeShortPTY runs real claude under a PTY so hook delivery is exercised
+// through the same terminal-facing path as an interactive session, even though
+// we use `-p` for deterministic non-blocking completion.
 func runClaudeShort(t *testing.T, bin, prompt string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -74,17 +80,25 @@ func runClaudeShort(t *testing.T, bin, prompt string) {
 	cmd.Env = os.Environ()
 	stderr := &strings.Builder{}
 	cmd.Stderr = stderr
-	if out, err := cmd.Output(); err != nil {
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		t.Fatalf("pty.Start(claude): %v", err)
+	}
+	defer ptmx.Close() //nolint:errcheck
+	if _, err := io.Copy(io.Discard, ptmx); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, syscall.EIO) {
+		t.Fatalf("read claude pty: %v", err)
+	}
+	if err := cmd.Wait(); err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
-			t.Fatalf("claude exited non-zero: %v\nstdout head: %.200s\nstderr: %s", err, string(out), stderr.String())
+			t.Fatalf("claude exited non-zero: %v\nstderr: %s", err, stderr.String())
 		}
 		t.Fatalf("claude: %v\nstderr: %s", err, stderr.String())
 	}
 }
 
-// readHookPayloads parses recordFile as one JSON payload per line.
-func readHookPayloads(t *testing.T, path string) []fakeclaude.HookPayload {
+// readHookPayloads parses recordFile as one raw JSON object per line.
+func readHookPayloads(t *testing.T, path string) []map[string]any {
 	t.Helper()
 	f, err := os.Open(path)
 	if err != nil {
@@ -92,7 +106,7 @@ func readHookPayloads(t *testing.T, path string) []fakeclaude.HookPayload {
 	}
 	defer f.Close() //nolint:errcheck
 
-	var out []fakeclaude.HookPayload
+	var out []map[string]any
 	scan := bufio.NewScanner(f)
 	scan.Buffer(make([]byte, 0, 64<<10), 8<<20)
 	for scan.Scan() {
@@ -100,9 +114,9 @@ func readHookPayloads(t *testing.T, path string) []fakeclaude.HookPayload {
 		if line == "" {
 			continue
 		}
-		var p fakeclaude.HookPayload
+		var p map[string]any
 		if err := json.Unmarshal([]byte(line), &p); err != nil {
-			t.Errorf("hook payload not decodable into fakeclaude.HookPayload: %v\nline: %s", err, line)
+			t.Errorf("hook payload not decodable JSON object: %v\nline: %s", err, line)
 			continue
 		}
 		out = append(out, p)
@@ -127,14 +141,15 @@ func TestE2E_HookPayloadSchema(t *testing.T) {
 	}
 
 	// Every payload must at least name its event.
-	seen := map[string]fakeclaude.HookPayload{}
+	seen := map[string]map[string]any{}
 	for _, p := range payloads {
-		if p.HookEventName == "" {
+		name, _ := p["hook_event_name"].(string)
+		if name == "" {
 			t.Errorf("hook payload has no hook_event_name: %+v", p)
 			continue
 		}
-		if _, ok := seen[p.HookEventName]; !ok {
-			seen[p.HookEventName] = p
+		if _, ok := seen[name]; !ok {
+			seen[name] = p
 		}
 	}
 
@@ -145,83 +160,60 @@ func TestE2E_HookPayloadSchema(t *testing.T) {
 			t.Errorf("expected %s to fire at least once (got events: %v)", want, keysOf(seen))
 			continue
 		}
-		if p.SessionID == "" {
+		if sessionID, _ := p["session_id"].(string); sessionID == "" {
 			t.Errorf("%s payload has empty session_id; driver's session-card title fallback depends on it", want)
 		}
-		if want != "SessionStart" && p.TranscriptPath == "" {
-			// SessionStart may fire before the transcript file exists.
-			t.Errorf("%s payload has empty transcript_path; driver's transcript watcher depends on it", want)
+		if want != "SessionStart" {
+			if transcriptPath, _ := p["transcript_path"].(string); transcriptPath == "" {
+				// SessionStart may fire before the transcript file exists.
+				t.Errorf("%s payload has empty transcript_path; driver's transcript watcher depends on it", want)
+			}
 		}
 	}
 }
 
 // TestE2E_HookPayloadKeySubset — every JSON key present in real claude
-// payloads must also be declared in the HookPayload struct, otherwise the
-// driver silently drops fields.
-func TestE2E_HookPayloadKeySubset(t *testing.T) {
+// payloads must remain raw-decodable JSON objects, and the fields the driver
+// reads must be present with the expected JSON shapes.
+func TestE2E_HookPayloadRawShape(t *testing.T) {
 	bin := fakeclaude.E2EClaudeBin(t)
 	recordFile := setupClaudeHooks(t)
 	runClaudeShort(t, bin, "Reply with 'hi', then stop.")
 
-	f, err := os.Open(recordFile)
-	if err != nil {
-		t.Fatalf("open record: %v", err)
-	}
-	defer f.Close() //nolint:errcheck
-
-	// The set of json tags fakeclaude.HookPayload declares — must be updated
-	// in lockstep with hookpayload.go. Extra real fields are flagged so the
-	// driver can be updated to consume them.
-	fakeKeys := map[string]bool{
-		"session_id":        true,
-		"hook_event_name":   true,
-		"prompt":            true,
-		"transcript_path":   true,
-		"notification_type": true,
-		"tool_name":         true,
-		"tool_input":        true,
-		"source":            true,
-		"tool_use_id":       true,
-		"permission_mode":   true,
-		"error":             true,
-		"is_interrupt":      true,
-	}
-
-	// Fields Claude adds around the driver-required set. Not consumed by the
-	// driver today, so their presence is tolerated — but new *sensitive-looking*
-	// keys (auth tokens, workspace paths outside cwd, etc.) show up here and
-	// warrant an intentional decision.
-	knownExtraKeys := map[string]bool{
-		"cwd":                            true,
-		"user":                           true,
-		"claude_code_session_start_time": true,
-	}
-
-	unknown := map[string]int{}
-	scan := bufio.NewScanner(f)
-	scan.Buffer(make([]byte, 0, 64<<10), 8<<20)
-	for scan.Scan() {
-		line := strings.TrimSpace(scan.Text())
-		if line == "" {
-			continue
+	for _, raw := range readHookPayloads(t, recordFile) {
+		payloadJSON, err := json.Marshal(raw)
+		if err != nil {
+			t.Fatalf("marshal payload map: %v", err)
 		}
-		var raw map[string]any
-		if err := json.Unmarshal([]byte(line), &raw); err != nil {
-			continue
+		var decoded claudehookpayload.HookPayload
+		if err := json.Unmarshal(payloadJSON, &decoded); err != nil {
+			t.Fatalf("hook payload does not decode through shared Claude schema: %v\npayload=%+v", err, raw)
 		}
-		for k := range raw {
-			if fakeKeys[k] || knownExtraKeys[k] {
-				continue
+		if _, ok := raw["hook_event_name"].(string); !ok {
+			t.Fatalf("hook payload missing string hook_event_name: %+v", raw)
+		}
+		if model, ok := raw["model"]; ok {
+			if _, ok := model.(string); !ok {
+				t.Fatalf("hook payload model has unexpected shape: %+v", raw)
 			}
-			unknown[k]++
+			if decoded.Model == "" {
+				t.Fatalf("hook payload model was silently dropped by shared Claude schema: %+v", raw)
+			}
 		}
-	}
-	if len(unknown) > 0 {
-		t.Logf("real claude hook payloads carry unknown keys — consider extending HookPayload or the knownExtraKeys allowlist: %v", unknown)
+		if effort, ok := raw["effort"]; ok {
+			switch effort.(type) {
+			case string, map[string]any:
+			default:
+				t.Fatalf("hook payload effort has unexpected shape: %+v", raw)
+			}
+			if decoded.Effort == nil || decoded.Effort.Value() == "" {
+				t.Fatalf("hook payload effort was silently dropped by shared Claude schema: %+v", raw)
+			}
+		}
 	}
 }
 
-func keysOf(m map[string]fakeclaude.HookPayload) []string {
+func keysOf(m map[string]map[string]any) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)

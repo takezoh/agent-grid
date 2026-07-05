@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
 )
 
@@ -190,27 +191,9 @@ func TestNewProgrammableLauncher_ObservesExtraEnv(t *testing.T) {
 	}
 }
 
-// TestHookPayload_MarshalMatchesDriverStructShape verifies the JSON keys the
-// fake produces are a subset of the driver hookPayload's expected keys. If a
-// new field is added to either side, the mismatch surfaces here.
-func TestHookPayload_MarshalMatchesDriverStructShape(t *testing.T) {
-	// The set of json tags the driver's hookPayload declares.
-	// Must be updated in lockstep with client/driver/claude_event.go:hookPayload.
-	driverKeys := map[string]bool{
-		"session_id":        true,
-		"hook_event_name":   true,
-		"prompt":            true,
-		"transcript_path":   true,
-		"notification_type": true,
-		"tool_name":         true,
-		"tool_input":        true,
-		"source":            true,
-		"tool_use_id":       true,
-		"permission_mode":   true,
-		"error":             true,
-		"is_interrupt":      true,
-	}
-
+// TestHookPayload_MarshalMatchesSharedSchema verifies the fake's JSON decodes
+// through the same Claude-specific payload type the production driver uses.
+func TestHookPayload_MarshalMatchesSharedSchema(t *testing.T) {
 	full := HookPayload{
 		SessionID:        "s",
 		HookEventName:    "PreToolUse",
@@ -220,22 +203,22 @@ func TestHookPayload_MarshalMatchesDriverStructShape(t *testing.T) {
 		ToolName:         "Bash",
 		ToolInput:        map[string]any{"command": "ls"},
 		Source:           "user",
+		Model:            "claude-sonnet-4-5",
+		Effort:           &claudehookpayload.Effort{Level: "high"},
 		ToolUseID:        "tu-1",
 		PermissionMode:   "default",
 		Error:            "",
 		IsInterrupt:      false,
 	}
-	// Force is_interrupt to appear by using non-omitempty via a second variant.
-	// The current schema has is_interrupt as omitempty=true for space, but the
-	// driver reads it either way — presence of the key is not required.
 	b := Marshal(full)
-	var got map[string]any
+	var got claudehookpayload.HookPayload
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	for k := range got {
-		if !driverKeys[k] {
-			t.Errorf("fakeclaude JSON key %q is not declared in the driver hookPayload struct", k)
-		}
+	if got.Model != "claude-sonnet-4-5" {
+		t.Fatalf("Model = %q", got.Model)
+	}
+	if got.Effort == nil || got.Effort.Value() != "high" {
+		t.Fatalf("Effort = %+v", got.Effort)
 	}
 }

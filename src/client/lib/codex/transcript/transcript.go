@@ -16,6 +16,7 @@ type Snapshot struct {
 	LastPrompt           string
 	LastAssistantMessage string
 	StatusLine           string
+	Effort               string
 	RecentTurns          []TurnText
 }
 
@@ -24,6 +25,7 @@ type Parser struct {
 	lastPrompt           string
 	lastAssistantMessage string
 	model                string
+	effort               string
 	totalTokens          int
 	contextWindow        int
 	currentTurnID        string
@@ -46,6 +48,7 @@ func (p *Parser) Snapshot() Snapshot {
 		LastPrompt:           p.lastPrompt,
 		LastAssistantMessage: p.lastAssistantMessage,
 		StatusLine:           p.statusLine(),
+		Effort:               p.effort,
 		RecentTurns:          turns,
 	}
 }
@@ -100,11 +103,16 @@ func (p *Parser) parseSessionMeta(payload json.RawMessage) {
 
 func (p *Parser) parseTurnContext(payload json.RawMessage) {
 	var ctx struct {
-		Model string `json:"model"`
+		Model           string `json:"model"`
+		ReasoningEffort any    `json:"reasoning_effort"`
+		LegacyEffort    any    `json:"effort"`
 	}
 	_ = json.Unmarshal(payload, &ctx)
 	if ctx.Model != "" {
 		p.model = ctx.Model
+	}
+	if effort := firstNonEmptyEffort(ctx.ReasoningEffort, ctx.LegacyEffort); effort != "" {
+		p.effort = effort
 	}
 }
 
@@ -114,7 +122,8 @@ func (p *Parser) renderTurnContext(payload json.RawMessage) (Entry, bool) {
 		Cwd              string `json:"cwd"`
 		ApprovalPolicy   string `json:"approval_policy"`
 		CollabMode       any    `json:"collaboration_mode"`
-		ReasoningEffort  any    `json:"effort"`
+		ReasoningEffort  any    `json:"reasoning_effort"`
+		LegacyEffort     any    `json:"effort"`
 		RealtimeActive   any    `json:"realtime_active"`
 		SandboxPolicyRaw any    `json:"sandbox_policy"`
 	}
@@ -122,6 +131,10 @@ func (p *Parser) renderTurnContext(payload json.RawMessage) (Entry, bool) {
 	var parts []string
 	if ctx.Model != "" {
 		parts = append(parts, "model="+ctx.Model)
+	}
+	if effort := firstNonEmptyEffort(ctx.ReasoningEffort, ctx.LegacyEffort); effort != "" {
+		p.effort = effort
+		parts = append(parts, "effort="+effort)
 	}
 	if ctx.ApprovalPolicy != "" {
 		parts = append(parts, "approval="+ctx.ApprovalPolicy)
@@ -133,6 +146,27 @@ func (p *Parser) renderTurnContext(payload json.RawMessage) (Entry, bool) {
 		return Entry{}, false
 	}
 	return Entry{Text: "[turn] " + strings.Join(parts, " ")}, true
+}
+
+func normalizeReasoningEffort(value any) string {
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case map[string]any:
+		if level, _ := v["level"].(string); strings.TrimSpace(level) != "" {
+			return strings.TrimSpace(level)
+		}
+	}
+	return ""
+}
+
+func firstNonEmptyEffort(values ...any) string {
+	for _, value := range values {
+		if effort := normalizeReasoningEffort(value); effort != "" {
+			return effort
+		}
+	}
+	return ""
 }
 
 func (p *Parser) parseEvent(payload json.RawMessage) (Entry, bool) {

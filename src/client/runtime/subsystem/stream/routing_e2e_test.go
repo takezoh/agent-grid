@@ -80,6 +80,10 @@ func TestStreamRoutingE2EBackstopFidelity(t *testing.T) {
 	t.Skip("real app-server fidelity requires actual model turns; covered by TestStreamRoutingE2EIsolation")
 }
 
+func newE2EBackend(rt RuntimeHook, be e2eBackend, listen string) *Backend {
+	return New(rt, nil, "sid", "e2e", "/p", be.bin, be.args, "", false, true, listen, 30*time.Second)
+}
+
 // runE2EIsolation launches a real app-server and asserts that two frames in
 // distinct working dirs each receive only their own turn's output. Distinct
 // cwds let the (current) demux disambiguate; the point here is to confirm the
@@ -88,8 +92,7 @@ func TestStreamRoutingE2EBackstopFidelity(t *testing.T) {
 func runE2EIsolation(t *testing.T, be e2eBackend) {
 	rt := &recordingRuntime{}
 	listen := filepath.Join(t.TempDir(), "appserver-e2e.sock")
-	b := New(rt, nil, "sid", "e2e", "/p", be.bin, be.args, "", false, true,
-		listen, 30*time.Second)
+	b := newE2EBackend(rt, be, listen)
 
 	ctx := context.Background()
 	if err := b.Start(ctx); err != nil {

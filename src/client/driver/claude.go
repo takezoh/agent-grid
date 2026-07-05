@@ -49,6 +49,8 @@ type ClaudeState struct {
 
 	// Identity (set via Restore or DEvHook session-start payload).
 	ClaudeSessionID string // distinct from client session id; the *Claude* conversation id
+	Model           string
+	Effort          string
 	// ForkParentID is the ClaudeSessionID of the session this was forked from.
 	// It is used to reject the parent id arriving in the first hook after
 	// `--fork-session` launch, so the parent id never poisons ClaudeSessionID.

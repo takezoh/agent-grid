@@ -25,24 +25,41 @@ func (t *wsServerTransport) WriteMessage(ctx context.Context, data []byte) error
 
 func (t *wsServerTransport) Close() error { return t.c.CloseNow() }
 
-// nestedString reads a top-level string field from a raw JSON object. Empty
-// string + ok=false when missing/wrong type.
-func nestedString(raw json.RawMessage, field string) (string, bool) {
+// nestedString reads a top-level string field from a raw JSON object.
+// Returns empty string when missing/wrong type.
+func nestedString(raw json.RawMessage, field string) string {
 	if len(raw) == 0 {
-		return "", false
+		return ""
 	}
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return "", false
+		return ""
 	}
-	s, ok := m[field].(string)
-	return s, ok
+	s, _ := m[field].(string)
+	return s
 }
 
-// extractTurnInput pulls the user text out of a turn/start params body. The
-// codexclient.StartTurn helper serialises the raw stdin bytes into a
-// "message" string field (see StartTurn in platform/agent/codexclient/client.go).
+// extractTurnInput pulls the user text out of a turn/start params body.
+// Current Codex schema carries user text under input[0].text; legacy tests may
+// still provide "message", so keep that as a fallback.
 // Returns ("", false) when the shape doesn't match.
 func extractTurnInput(raw json.RawMessage) (string, bool) {
-	return nestedString(raw, "message")
+	var payload struct {
+		Input []struct {
+			Type string  `json:"type"`
+			Text *string `json:"text"`
+		} `json:"input"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(raw, &payload); err == nil {
+		for _, item := range payload.Input {
+			if item.Type == "text" && item.Text != nil {
+				return *item.Text, true
+			}
+		}
+		if payload.Message != "" {
+			return payload.Message, true
+		}
+	}
+	return "", false
 }

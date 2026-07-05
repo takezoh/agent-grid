@@ -11,13 +11,14 @@ import (
 
 	"github.com/takezoh/agent-reactor/client/lib/claude/transcript"
 	"github.com/takezoh/agent-reactor/client/state"
+	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
 )
 
 const testHome = "/home/test"
 const testEventLogDir = "/data/events"
 
 // hookEvent builds a DEvHook from the given fields and now time.
-func hookEvent(eventName string, fields map[string]string, ts time.Time) state.DEvHook {
+func hookEvent(eventName string, fields any, ts time.Time) state.DEvHook {
 	raw, _ := json.Marshal(fields)
 	return state.DEvHook{
 		Event:     eventName,
@@ -103,6 +104,22 @@ func TestClaudeSessionStartAbsorbsIdentityAndWatches(t *testing.T) {
 	}
 	if !foundBranch {
 		t.Error("expected BranchDetectInput job in SessionStart effects")
+	}
+}
+
+func TestClaudeSessionStartAbsorbsModelAndEffort(t *testing.T) {
+	d, cs, now := newClaude(t)
+	next, _ := d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEvent("SessionStart", map[string]any{
+		"session_id":      "claude-uuid",
+		"hook_event_name": "SessionStart",
+		"model":           "claude-sonnet-4-5",
+		"effort":          map[string]any{"level": "high"},
+	}, now))
+	if next.Model != "claude-sonnet-4-5" {
+		t.Fatalf("Model = %q", next.Model)
+	}
+	if next.Effort != "high" {
+		t.Fatalf("Effort = %q", next.Effort)
 	}
 }
 
@@ -1793,6 +1810,18 @@ func TestAbsorbIdentityForkGuard(t *testing.T) {
 			t.Errorf("ClaudeSessionID = %q, want %q", got.ClaudeSessionID, "some-id")
 		}
 	})
+}
+
+func TestAbsorbIdentityFromHPAcceptsSharedEffortType(t *testing.T) {
+	cs := ClaudeState{}
+	hp := hookPayload{
+		Model:  "claude-opus",
+		Effort: &claudehookpayload.Effort{Level: "medium"},
+	}
+	got := absorbIdentityFromHP(cs, hp)
+	if got.Model != "claude-opus" || got.Effort != "medium" {
+		t.Fatalf("metadata = %q/%q", got.Model, got.Effort)
+	}
 }
 
 // === PrepareLaunch re-fork path ===

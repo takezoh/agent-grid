@@ -310,15 +310,9 @@ type serverConn struct {
 	app    *AppServer
 }
 
-// OnNotification handles client-initiated notifications. The only one the
-// codex protocol defines client-side is turn/start, which triggers the
-// scripted TurnHandler.
-func (s *serverConn) OnNotification(method string, params json.RawMessage) {
-	if method != codexschema.MethodTurnStart {
-		return
-	}
-	s.app.recordRequest(method, params)
-	threadID, _ := nestedString(params, "threadId")
+func (s *serverConn) handleTurnStart(params json.RawMessage) {
+	s.app.recordRequest(codexschema.MethodTurnStart, params)
+	threadID := nestedString(params, "threadId")
 	input, _ := extractTurnInput(params)
 	s.app.mu.Lock()
 	t := s.app.threads[threadID]
@@ -341,13 +335,23 @@ func (s *serverConn) OnNotification(method string, params json.RawMessage) {
 	}, s.app)
 }
 
+// OnNotification handles legacy client-side notifications. Real Codex now
+// sends turn/start as a request, but keep notification compatibility so older
+// tests remain valid.
+func (s *serverConn) OnNotification(method string, params json.RawMessage) {
+	if method != codexschema.MethodTurnStart {
+		return
+	}
+	s.handleTurnStart(params)
+}
+
 func (s *serverConn) OnServerRequest(id int64, method string, params json.RawMessage) {
 	s.app.recordRequest(method, params)
 	switch method {
 	case codexschema.MethodInitialize:
 		_ = s.conn.Reply(id, map[string]any{})
 	case codexschema.MethodThreadStart:
-		cwd, _ := nestedString(params, "cwd")
+		cwd := nestedString(params, "cwd")
 		t := s.app.newThread(cwd)
 		_ = s.conn.Reply(id, map[string]any{
 			"thread": map[string]any{
@@ -361,8 +365,8 @@ func (s *serverConn) OnServerRequest(id int64, method string, params json.RawMes
 			"thread": map[string]any{"id": t.ID, "sessionId": t.SessionID, "path": t.RolloutPath, "cwd": t.Cwd},
 		})
 	case codexschema.MethodThreadResume:
-		threadID, _ := nestedString(params, "threadId")
-		rolloutPath, _ := nestedString(params, "path")
+		threadID := nestedString(params, "threadId")
+		rolloutPath := nestedString(params, "path")
 		t := s.app.resumeThread(threadID, rolloutPath)
 		if t == nil {
 			_ = s.conn.ReplyError(id, fmt.Sprintf("fake app-server: thread not found (threadId=%q rolloutPath=%q)", threadID, rolloutPath))
@@ -379,6 +383,9 @@ func (s *serverConn) OnServerRequest(id int64, method string, params json.RawMes
 		_ = s.app.Broadcast(codexschema.MethodThreadStarted, map[string]any{
 			"thread": map[string]any{"id": t.ID, "sessionId": t.SessionID, "path": t.RolloutPath, "cwd": t.Cwd},
 		})
+	case codexschema.MethodTurnStart:
+		_ = s.conn.Reply(id, map[string]any{"turn": map[string]any{"id": "fake-turn"}})
+		s.handleTurnStart(params)
 	default:
 		// Unknown methods: reply with an error rather than silently succeed so
 		// tests noticing an untracked call have a signal.

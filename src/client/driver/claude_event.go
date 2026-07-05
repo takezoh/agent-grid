@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/takezoh/agent-reactor/client/state"
+	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
 )
 
 // Hook event handling for the Claude driver. The hook bridge sends the
@@ -15,31 +16,11 @@ import (
 // by hook_event_name. All field extraction lives here — the bridge is
 // a thin relay.
 
-// hookPayload is the minimal subset of the Claude hook JSON the driver
-// needs. Parsed from the "raw" key in DEvHook.Payload. Defined here
-// (not in lib/claude/hookevent) so state/driver stays a leaf package.
-type hookPayload struct {
-	SessionID      string `json:"session_id"`
-	HookEventName  string `json:"hook_event_name"`
-	Prompt         string `json:"prompt"`
-	TranscriptPath string `json:"transcript_path"`
-
-	NotificationType string         `json:"notification_type"`
-	ToolName         string         `json:"tool_name"`
-	ToolInput        map[string]any `json:"tool_input"`
-	Source           string         `json:"source"`
-
-	// Tool correlation and permission fields (PreToolUse / PostToolUse /
-	// PostToolUseFailure). tool_use_id links Pre to its matching Post.
-	ToolUseID      string `json:"tool_use_id"`
-	PermissionMode string `json:"permission_mode"`
-	Error          string `json:"error"`
-	IsInterrupt    bool   `json:"is_interrupt"`
-}
+type hookPayload = claudehookpayload.HookPayload
 
 // deriveState maps the hook_event_name to a client status string.
 // Must stay in sync with lib/claude/hookevent.HookEvent.DeriveState.
-func (hp hookPayload) deriveState() string {
+func deriveHookState(hp hookPayload) string {
 	switch hp.HookEventName {
 	case "UserPromptSubmit", "PreToolUse", "PostToolUse":
 		return "running"
@@ -62,7 +43,7 @@ func (hp hookPayload) deriveState() string {
 	return ""
 }
 
-func (hp hookPayload) formatLog() string {
+func formatHookLog(hp hookPayload) string {
 	if hp.HookEventName == "" {
 		return ""
 	}
@@ -93,8 +74,8 @@ func (hp hookPayload) formatLog() string {
 	return eventLogLine(hp.HookEventName, detail)
 }
 
-func (hp hookPayload) logEffects() []state.Effect {
-	if line := hp.formatLog(); line != "" {
+func hookLogEffects(hp hookPayload) []state.Effect {
+	if line := formatHookLog(hp); line != "" {
 		return []state.Effect{state.EffEventLogAppend{Line: line}}
 	}
 	return nil
@@ -152,12 +133,12 @@ func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state
 	// Agent tool events track subagent lifecycle, not main-agent
 	// activity — log only, no status change.
 	if hp.ToolName == "Agent" {
-		return cs, hp.logEffects()
+		return cs, hookLogEffects(hp)
 	}
 
 	switch hp.HookEventName {
 	case "SubagentStart", "SubagentStop":
-		return cs, hp.logEffects()
+		return cs, hookLogEffects(hp)
 	}
 
 	// Tool log side-channel: update PendingTools and emit EffToolLogAppend
@@ -172,9 +153,9 @@ func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state
 
 	// All other hook events (PreToolUse, PostToolUse, Stop, etc.)
 	// go through the state-change path if they map to a status.
-	status := hp.deriveState()
+	status := deriveHookState(hp)
 	if status == "" {
-		return cs, append(hp.logEffects(), toolLogEffs...)
+		return cs, append(hookLogEffects(hp), toolLogEffs...)
 	}
 
 	next, effs := d.handleStateChange(cs, hp, status, e.Timestamp)
@@ -210,7 +191,7 @@ func (d ClaudeDriver) handleSessionStart(cs ClaudeState, ctx state.FrameContext,
 			})
 		}
 	}
-	if line := hp.formatLog(); line != "" {
+	if line := formatHookLog(hp); line != "" {
 		effs = append(effs, state.EffEventLogAppend{Line: line})
 	}
 
@@ -245,7 +226,7 @@ func (d ClaudeDriver) handleStateChange(cs ClaudeState, hp hookPayload, statusSt
 	}
 
 	var effs []state.Effect
-	logLine := hp.formatLog()
+	logLine := formatHookLog(hp)
 	if logLine != "" {
 		effs = append(effs, state.EffEventLogAppend{Line: logLine})
 	}
@@ -280,7 +261,7 @@ func (d ClaudeDriver) handleUserPromptSubmit(cs ClaudeState, hp hookPayload, now
 	}
 
 	var effs []state.Effect
-	if line := hp.formatLog(); line != "" {
+	if line := formatHookLog(hp); line != "" {
 		effs = append(effs, state.EffEventLogAppend{Line: line})
 	}
 
@@ -356,6 +337,12 @@ func absorbIdentityFromHP(cs ClaudeState, hp hookPayload) ClaudeState {
 	}
 	if hp.TranscriptPath != "" {
 		cs.TranscriptPath = hp.TranscriptPath
+	}
+	if hp.Model != "" {
+		cs.Model = hp.Model
+	}
+	if effort := hp.Effort.Value(); effort != "" {
+		cs.Effort = effort
 	}
 	return cs
 }
