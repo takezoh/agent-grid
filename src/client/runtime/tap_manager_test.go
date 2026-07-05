@@ -48,9 +48,9 @@ func TestReadTapEmitsOscEvents(t *testing.T) {
 	close(ch)
 
 	var events []state.Event
-	enqueue := func(e state.Event) { events = append(events, e) }
+	sink := eventSinkFunc(func(e state.Event) { events = append(events, e) })
 
-	readTap(context.Background(), frameID, "%1", ch, enqueue)
+	readTap(context.Background(), frameID, "%1", ch, sink)
 
 	var gotOsc bool
 	for _, ev := range events {
@@ -79,9 +79,9 @@ func TestReadTapEmitsRepeatedPromptEvents(t *testing.T) {
 	close(ch)
 
 	var events []state.Event
-	enqueue := func(e state.Event) { events = append(events, e) }
+	sink := eventSinkFunc(func(e state.Event) { events = append(events, e) })
 
-	readTap(context.Background(), frameID, "%1", ch, enqueue)
+	readTap(context.Background(), frameID, "%1", ch, sink)
 
 	var prompts []state.EvFramePrompt
 	for _, ev := range events {
@@ -139,7 +139,7 @@ func TestReadTapCancelStops(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		readTap(ctx, "f1", "%1", ch, func(state.Event) {})
+		readTap(ctx, "f1", "%1", ch, eventSinkFunc(func(state.Event) {}))
 		close(done)
 	}()
 
@@ -163,8 +163,8 @@ func TestReadTapCancelStops(t *testing.T) {
 func TestFrameTapTerminal_ProcessesOscAfterScrollSequences(t *testing.T) {
 	frameID := state.FrameID("f1")
 	var events []state.Event
-	enqueue := func(e state.Event) { events = append(events, e) }
-	term := newFrameTapTerminal(frameID, enqueue)
+	sink := eventSinkFunc(func(e state.Event) { events = append(events, e) })
+	term := newFrameTapTerminal(frameID, sink)
 	// Chunk 1: ESC sequences that used to crash the 1x1 emulator.
 	if err := term.Feed([]byte("\x1bM\x1bM\x1bM")); err != nil {
 		t.Fatalf("Feed: %v", err)
@@ -199,10 +199,10 @@ func TestReadTap_SurvivesScrollSequences(t *testing.T) {
 	close(ch)
 
 	var events []state.Event
-	enqueue := func(e state.Event) { events = append(events, e) }
+	sink := eventSinkFunc(func(e state.Event) { events = append(events, e) })
 	done := make(chan struct{})
 	go func() {
-		readTap(context.Background(), frameID, "%1", ch, enqueue)
+		readTap(context.Background(), frameID, "%1", ch, sink)
 		close(done)
 	}()
 	select {

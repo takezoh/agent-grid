@@ -1,0 +1,127 @@
+package runtimetest
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/takezoh/agent-reactor/client/runtime"
+	"github.com/takezoh/agent-reactor/client/state"
+)
+
+const (
+	defaultTickInterval   = time.Hour
+	defaultWaitTimeout    = 2 * time.Second
+	defaultQuiesceTimeout = 2 * time.Second
+)
+
+type options struct {
+	cfg            runtime.Config
+	waitTimeout    time.Duration
+	quiesceTimeout time.Duration
+}
+
+// Option customises the harness runtime or polling timeouts.
+type Option func(*options)
+
+func WithBackend(backend runtime.FrameBackend) Option {
+	return func(o *options) { o.cfg.Backend = backend }
+}
+
+func WithPersist(persist runtime.PersistBackend) Option {
+	return func(o *options) { o.cfg.Persist = persist }
+}
+
+func WithEventLog(eventLog runtime.EventLogBackend) Option {
+	return func(o *options) { o.cfg.EventLog = eventLog }
+}
+
+func WithToolLog(toolLog runtime.ToolLogBackend) Option {
+	return func(o *options) { o.cfg.ToolLog = toolLog }
+}
+
+func WithWatcher(watcher runtime.FSWatcher) Option {
+	return func(o *options) { o.cfg.Watcher = watcher }
+}
+
+func WithTickInterval(interval time.Duration) Option {
+	return func(o *options) { o.cfg.TickInterval = interval }
+}
+
+func WithWaitTimeout(timeout time.Duration) Option {
+	return func(o *options) { o.waitTimeout = timeout }
+}
+
+func WithQuiesceTimeout(timeout time.Duration) Option {
+	return func(o *options) { o.quiesceTimeout = timeout }
+}
+
+// Harness runs a real Runtime loop with test-configurable backends and
+// deterministic polling helpers.
+type Harness struct {
+	runtime        *runtime.Runtime
+	waitTimeout    time.Duration
+	quiesceTimeout time.Duration
+}
+
+func New(t *testing.T, opts ...Option) *Harness {
+	t.Helper()
+
+	o := options{
+		cfg: runtime.Config{
+			TickInterval: defaultTickInterval,
+		},
+		waitTimeout:    defaultWaitTimeout,
+		quiesceTimeout: defaultQuiesceTimeout,
+	}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	r := runtime.New(o.cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	h := &Harness{
+		runtime:        r,
+		waitTimeout:    o.waitTimeout,
+		quiesceTimeout: o.quiesceTimeout,
+	}
+
+	go func() { _ = r.Run(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-r.Done():
+		case <-time.After(2 * time.Second):
+			t.Fatal("runtimetest: runtime did not stop within 2s")
+		}
+	})
+
+	h.Quiesce(t)
+	return h
+}
+
+func (h *Harness) Runtime() *runtime.Runtime { return h.runtime }
+
+func (h *Harness) Enqueue(ev state.Event) { h.runtime.Enqueue(ev) }
+
+func (h *Harness) WaitFor(t *testing.T, pred func(state.State) bool) state.State {
+	t.Helper()
+	deadline := time.Now().Add(h.waitTimeout)
+	for {
+		snapshot := h.runtime.TestPublishedState()
+		if pred(snapshot) {
+			return snapshot
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("runtimetest: WaitFor timed out after %v", h.waitTimeout)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func (h *Harness) Quiesce(t *testing.T) {
+	t.Helper()
+	if err := h.runtime.TestQuiesce(h.quiesceTimeout); err != nil {
+		t.Fatal(err)
+	}
+}

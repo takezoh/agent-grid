@@ -147,6 +147,12 @@ type internalStartRestoredTaps struct{}
 
 func (internalStartRestoredTaps) isInternalEvent() {}
 
+type internalBarrier struct {
+	drained chan bool
+}
+
+func (internalBarrier) isInternalEvent() {}
+
 // internalSpawnComplete is enqueued by the spawn goroutine after a window has
 // been launched. The goroutine performs all slow I/O and carries the resulting
 // per-frame handles back as data; the event loop is the sole writer that stores
@@ -180,6 +186,8 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 	case internalStartRestoredTaps:
 		_ = e
 		r.startRestoredTaps()
+	case internalBarrier:
+		e.drained <- len(r.eventCh) == 0 && len(r.internalCh) == 0
 	case internalSpawnComplete:
 		r.handleSpawnComplete(e)
 	case internalBroadcastSurface:
@@ -206,7 +214,7 @@ func (r *Runtime) startRestoredTaps() {
 			continue
 		}
 		frameID := sess.Frames[0].ID
-		r.taps.start(frameID, string(frameID), r.Enqueue)
+		r.taps.start(frameID, string(frameID), r)
 	}
 }
 

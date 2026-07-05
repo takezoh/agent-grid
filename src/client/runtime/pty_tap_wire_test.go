@@ -23,6 +23,8 @@ func (s *eventSink) push(ev state.Event) {
 	s.events = append(s.events, ev)
 }
 
+func (s *eventSink) Enqueue(ev state.Event) { s.push(ev) }
+
 func (s *eventSink) snapshot() []state.Event {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -68,7 +70,7 @@ func TestPtyTapWiring_OSC0TitleReachesEvFrameOsc(t *testing.T) {
 	t.Cleanup(mgr.stopAll)
 
 	sink := &eventSink{}
-	mgr.start(state.FrameID("frame-osc0"), frameID, sink.push)
+	mgr.start(state.FrameID("frame-osc0"), frameID, sink)
 
 	ev := waitForEvent(t, sink, func(ev state.Event) bool {
 		osc, ok := ev.(state.EvFrameOsc)
@@ -101,7 +103,7 @@ func TestPtyTapWiring_OSC133ReachesEvFramePrompt(t *testing.T) {
 	t.Cleanup(mgr.stopAll)
 
 	sink := &eventSink{}
-	mgr.start(state.FrameID("frame-osc133"), frameID, sink.push)
+	mgr.start(state.FrameID("frame-osc133"), frameID, sink)
 
 	// Wait for the Command phase first…
 	waitForEvent(t, sink, func(ev state.Event) bool {

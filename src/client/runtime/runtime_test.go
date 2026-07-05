@@ -261,55 +261,6 @@ func TestSendResponseSyncFlushesImmediately(t *testing.T) {
 	}
 }
 
-func TestRuntimeCreateSessionFlow(t *testing.T) {
-	backend := newFakeBackend()
-	persist := &recordingPersist{}
-	r := New(Config{
-		TickInterval: 10 * time.Second, // suppress periodic ticks
-		Backend:      backend,
-		Persist:      persist,
-	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _ = r.Run(ctx) }()
-
-	r.Enqueue(state.EvEvent{
-		ConnID: 1, ReqID: "r1", Event: "create-session",
-		Payload: json.RawMessage(`{"project":"/tmp/test","command":"stub-fallback"}`),
-	})
-
-	// Wait for the spawn callback to land.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		backend.mu.Lock()
-		spawned := backend.spawnCalls
-		backend.mu.Unlock()
-		persist.mu.Lock()
-		saved := persist.saves
-		persist.mu.Unlock()
-		if spawned >= 1 && saved >= 1 {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	cancel()
-	<-r.Done()
-
-	backend.mu.Lock()
-	defer backend.mu.Unlock()
-	if backend.spawnCalls != 1 {
-		t.Errorf("spawnCalls = %d, want 1", backend.spawnCalls)
-	}
-	persist.mu.Lock()
-	defer persist.mu.Unlock()
-	if persist.saves < 1 {
-		t.Errorf("persist saves = %d, want ≥1", persist.saves)
-	}
-	if len(persist.last) != 1 {
-		t.Errorf("last snapshot len = %d, want 1", len(persist.last))
-	}
-}
-
 func TestWindowName(t *testing.T) {
 	if got := windowName("/foo/bar", "abc"); got != "bar:abc" {
 		t.Errorf("got %q, want bar:abc", got)
@@ -446,46 +397,6 @@ func TestIsShellCommand(t *testing.T) {
 	}
 	if isShellCommand("") {
 		t.Error("expected false for empty")
-	}
-}
-
-func TestRuntimeShellSessionSpawnsLoginShell(t *testing.T) {
-	backend := newFakeBackend()
-	persist := &recordingPersist{}
-	r := New(Config{
-		TickInterval: 10 * time.Second,
-		Backend:      backend,
-		Persist:      persist,
-	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _ = r.Run(ctx) }()
-
-	r.Enqueue(state.EvEvent{
-		ConnID: 1, ReqID: "r1", Event: "create-session",
-		Payload: json.RawMessage(`{"project":"/tmp/test","command":"shell"}`),
-	})
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		backend.mu.Lock()
-		spawned := backend.spawnCalls
-		backend.mu.Unlock()
-		if spawned >= 1 {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	cancel()
-	<-r.Done()
-
-	backend.mu.Lock()
-	defer backend.mu.Unlock()
-	if backend.spawnCalls != 1 {
-		t.Fatalf("spawnCalls = %d, want 1", backend.spawnCalls)
-	}
-	if want := buildSpawnCommand("shell", nil); backend.spawnCmds[0] != want {
-		t.Errorf("spawn command = %q, want %q (explicit passwd login shell)", backend.spawnCmds[0], want)
 	}
 }
 

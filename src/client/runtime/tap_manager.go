@@ -10,6 +10,15 @@ import (
 	"github.com/takezoh/agent-reactor/client/state"
 )
 
+// EventSink is the enqueue seam used by tap goroutines and test harnesses.
+type EventSink interface {
+	Enqueue(state.Event)
+}
+
+type eventSinkFunc func(state.Event)
+
+func (f eventSinkFunc) Enqueue(ev state.Event) { f(ev) }
+
 // tapEntry holds the cancel function and frame target for one running tap.
 type tapEntry struct {
 	cancel context.CancelFunc
@@ -34,7 +43,7 @@ func newTapManager(ctx context.Context, tap FrameTap) *tapManager {
 
 // start begins a tap for the given (frameID, target) pair. If a tap already
 // exists for frameID it is stopped first.
-func (m *tapManager) start(frameID state.FrameID, target string, enqueue func(state.Event)) {
+func (m *tapManager) start(frameID state.FrameID, target string, sink EventSink) {
 	if m.tap == nil {
 		return
 	}
@@ -49,7 +58,7 @@ func (m *tapManager) start(frameID state.FrameID, target string, enqueue func(st
 	}
 	slog.Info("frametap: started", "frame", frameID, "target", target)
 	m.cancels[frameID] = tapEntry{cancel: cancel, target: target}
-	go readTap(tapCtx, frameID, target, ch, enqueue)
+	go readTap(tapCtx, frameID, target, ch, sink)
 }
 
 // stop cancels the reader goroutine and stops the underlying tap forwarder.
@@ -126,21 +135,21 @@ func vtPromptPhase(p vt.PromptPhase) state.PromptPhase {
 // newFrameTapTerminal creates a VT emulator wired to emit EvFrameOsc and
 // EvFramePrompt events via enqueue. Minimal 1×1 dimensions are used because
 // the emulator is only needed for OSC sequence extraction, not rendering.
-func newFrameTapTerminal(frameID state.FrameID, enqueue func(state.Event)) *vt.Terminal {
+func newFrameTapTerminal(frameID state.FrameID, sink EventSink) *vt.Terminal {
 	term := vt.New(1, 1)
 	term.OnWindowTitle = func(cmd int, title string) {
 		if title != "" {
-			enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: cmd, Title: title, Now: time.Now()})
+			sink.Enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: cmd, Title: title, Now: time.Now()})
 		}
 	}
 	term.OnOscNotification = func(n vt.OscNotification) {
 		title, body := parseOscNotification(n)
 		if title != "" || body != "" {
-			enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: n.Cmd, Title: title, Body: body, Now: time.Now()})
+			sink.Enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: n.Cmd, Title: title, Body: body, Now: time.Now()})
 		}
 	}
 	term.OnPromptEvent = func(e vt.PromptEvent) {
-		enqueue(state.EvFramePrompt{FrameID: frameID, Phase: vtPromptPhase(e.Phase), ExitCode: e.ExitCode, Now: time.Now()})
+		sink.Enqueue(state.EvFramePrompt{FrameID: frameID, Phase: vtPromptPhase(e.Phase), ExitCode: e.ExitCode, Now: time.Now()})
 	}
 	return term
 }
@@ -155,8 +164,8 @@ func newFrameTapTerminal(frameID state.FrameID, enqueue func(state.Event)) *vt.T
 // (pinned by TestFeed1x1SurvivesScrollAndCursorSequences), and recovering
 // here would silently drop the chunk's OSC 133 / prompt / notification
 // payloads.
-func readTap(ctx context.Context, frameID state.FrameID, target string, ch <-chan []byte, enqueue func(state.Event)) {
-	term := newFrameTapTerminal(frameID, enqueue)
+func readTap(ctx context.Context, frameID state.FrameID, target string, ch <-chan []byte, sink EventSink) {
+	term := newFrameTapTerminal(frameID, sink)
 	for {
 		select {
 		case data, ok := <-ch:

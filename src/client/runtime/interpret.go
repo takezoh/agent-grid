@@ -248,7 +248,7 @@ func (r *Runtime) executeKillSessionWindow(e state.EffKillFrame) {
 
 func (r *Runtime) executeRegisterFrame(e state.EffRegisterFrame) {
 	if e.Tap && r.taps != nil {
-		r.taps.start(e.FrameID, string(e.FrameID), r.Enqueue)
+		r.taps.start(e.FrameID, string(e.FrameID), r)
 	}
 }
 

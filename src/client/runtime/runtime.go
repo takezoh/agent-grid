@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/takezoh/agent-reactor/client/config"
@@ -91,6 +92,10 @@ type Runtime struct {
 	cfg Config
 
 	state state.State
+	// published stores the latest reducer-produced state snapshot for tests that
+	// need to observe loop progress from another goroutine without touching the
+	// loop-owned state field directly.
+	published atomic.Pointer[state.State]
 
 	eventCh    chan state.Event   // public events from any goroutine
 	internalCh chan internalEvent // runtime-internal lifecycle (conn open/close)
@@ -280,6 +285,7 @@ func New(cfg Config) *Runtime {
 	if sb, ok := cfg.Backend.(SurfaceBackend); ok {
 		r.terminalRelay = NewTerminalRelay(sb, r.enqueueInternal)
 	}
+	r.publishState(initial)
 	return r
 }
 
@@ -535,10 +541,16 @@ func (r *Runtime) dispatch(ev state.Event) {
 	prev := r.state.Sessions
 	next, effects := state.Reduce(r.state, ev)
 	r.state = next
+	r.publishState(next)
 	for _, eff := range effects {
 		r.execute(eff)
 	}
 	r.reconcilePersist(prev, r.state.Sessions, eventName(ev))
+}
+
+func (r *Runtime) publishState(s state.State) {
+	snapshot := s
+	r.published.Store(&snapshot)
 }
 
 // eventName returns a short identifier for an Event, used in diagnostic
