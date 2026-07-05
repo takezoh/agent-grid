@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -149,6 +148,11 @@ func newFrameTapTerminal(frameID state.FrameID, enqueue func(state.Event)) *vt.T
 // readTap feeds raw bytes from ch into a VT emulator and enqueues EvFrameOsc
 // and EvFramePrompt events for each OSC sequence detected.
 // Runs in its own goroutine; exits when ch is closed or ctx is cancelled.
+//
+// Feed is deliberately unguarded: the forks/ bounds fixes make the emulator
+// survive the scroll/cursor sequences that used to panic at 1×1 (pinned by
+// TestFeed1x1SurvivesScrollAndCursorSequences), and recovering here would
+// silently drop the chunk's OSC 133 / prompt / notification payloads.
 func readTap(ctx context.Context, frameID state.FrameID, target string, ch <-chan []byte, enqueue func(state.Event)) {
 	term := newFrameTapTerminal(frameID, enqueue)
 	for {
@@ -157,26 +161,11 @@ func readTap(ctx context.Context, frameID state.FrameID, target string, ch <-cha
 			if !ok {
 				return
 			}
-			feedSafe(frameID, target, term, data)
+			if err := term.Feed(data); err != nil {
+				slog.Debug("frametap: feed error", "frame", frameID, "target", target, "err", err)
+			}
 		case <-ctx.Done():
 			return
 		}
-	}
-}
-
-// feedSafe drives the VT emulator with one chunk and recovers any panic.
-// vt.New(1,1) panics on ESC M / CSI M / DECRC via InsertLineArea out-of-bounds;
-// emulator handler state remains valid after the panic so the next chunk is safe.
-func feedSafe(frameID state.FrameID, target string, term *vt.Terminal, data []byte) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			slog.Error("frametap: vt emulator panic, skipping chunk",
-				"frame", frameID, "target", target,
-				"err", fmt.Sprintf("%v", rec),
-				"len", len(data))
-		}
-	}()
-	if err := term.Feed(data); err != nil {
-		slog.Debug("frametap: feed error", "frame", frameID, "target", target, "err", err)
 	}
 }

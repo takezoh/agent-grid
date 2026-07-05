@@ -1,11 +1,11 @@
 # server プロセスが VT emulator の `InsertLineArea` bounds bug で panic して死ぬ
 
 - 作成日: 2026-07-02
-- 改訂: 2026-07-04 (同一 stack の再発を追記)
+- 改訂: 2026-07-05 (A2 / A1 / feedSafe 撤去 / systemd fix を実装、後述「実施記録」参照)
 - 対象 process: `agent-reactor-server`
 - 関係 module: `src/platform/termvt`, `github.com/charmbracelet/ultraviolet`, `github.com/charmbracelet/x/vt`
-- 現状: 未修正 (crash パスは残存、trigger が引かれないだけで動いている)
-- 関連コメント: `src/client/runtime/tap_manager.go:168` に同種バグの既知記載あり (現状 recover-drop で silent corruption)
+- 現状: **repo 側は修正済・未 commit** (`forks/` + `replace` directive、working tree に変更あり)。残タスク: commit、上流 PR (D)、実運用 systemd unit への反映、server 再起動、第 2 段 (VT layer 再設計) の別 issue 化
+- 関連 issue: `issues/2026-07-05-frame-size-ownership.md` (spawn size hint 未配線ほか size 所有権の整理。**本 issue とは別物**、独立に着手可能)
 
 ## TL;DR
 
@@ -332,6 +332,28 @@ crash 自体の直接原因は上流 lib bug だが、**被害が silent corrupt
 
 ## 他セッションからの再開情報
 
+### 2026-07-05 実装セッションからの再開情報 (最新)
+
+A2 / A1 / feedSafe 撤去 / systemd fix を実装・検証済み (「実施記録」参照)。**未 commit のまま終了**している。working tree の変更:
+
+```
+ M deploy/systemd/agent-reactor-web.service      (BindsTo= 除去)
+ M src/client/runtime/tap_manager.go             (feedSafe 撤去)
+ M src/client/runtime/tap_manager_test.go        (feedSafe 前提テストを contract テストに書き換え)
+ M src/go.mod / src/go.sum                       (replace directive 2 件)
+?? forks/                                        (x-vt + ultraviolet の patched fork、forks/README.md に patch 詳細)
+?? src/client/driver/vt/terminal_panic_test.go   (1×1 tap の regression)
+?? src/platform/termvt/session_scroll_region_test.go (production 経路の e2e regression)
+```
+
+次セッションはまず `git status` で上記と一致することを確認してから commit (`make build-all` / `make vet` / `make lint` / `cd src && go test ./...` は 2026-07-05 に全 green 確認済み)。以下は再検証不要:
+
+- 追加テストが fork 無しで panic し fork ありで PASS することは、replace を一時無効化して実測済み (「実施記録」の表)
+- 上流 HEAD (x `2cc9a8f`, ultraviolet `f5a850f`) は 2026-07-05 時点で両方未修正
+- A2 の clamp を handler 側に置くと上流既存テスト (`TestTerminal/CUP_Relative_to_Origin` 系) と衝突する — margin setter (格納地点) で clamp するのが正解。この経緯は上流 PR の説明に使う
+
+実運用 systemd unit (`~/.config/systemd/user/agent-reactor-web.service`) への反映は、実装セッションでは権限外として**未実施** (repo 側 `deploy/systemd/` のみ修正)。
+
 ### この issue を作成したセッションの成果
 
 作成セッション (2026-07-02) は本 issue の作成と付随する commit のみを実施しており、**実装 patch (A2 / A1) は未投入**。関連 commit:
@@ -368,9 +390,9 @@ crash 自体の直接原因は上流 lib bug だが、**被害が silent corrupt
 
 ### TBD (次セッションで判断)
 
-- **fork 先 GitHub organization / repo 名**: 現時点で未決定 (`takezoh/x-vt`, `takezoh/ultraviolet` あたりの命名になりそうだが git remote は未追加)
-- **上流 PR の tone と scope**: producer 側 (`x/vt`) と consumer 側 (`ultraviolet`) を 1 PR ずつに分けるか、それぞれ ADR / 補足 test も含めるかの判断
-- **`feedSafe` 撤去のタイミング**: 順序 A (A2/A1 投入・動作確認後) を推奨しているが、tap の silent OSC loss をどこまで許容するかで順序 B (先に撤去して panic を露出) も選択肢
+- ~~fork 先 GitHub organization / repo 名~~ → **決着 (2026-07-05)**: GitHub fork は作らず repo 内 `forks/` + ローカル `replace` を採用。GitHub fork が必要になるのは上流 PR 提出時のみ
+- **上流 PR の tone と scope**: producer 側 (`x/vt`) と consumer 側 (`ultraviolet`) を 1 PR ずつに分けるか、それぞれ ADR / 補足 test も含めるかの判断。fork 内の patch + test がそのまま素材になる
+- ~~`feedSafe` 撤去のタイミング~~ → **決着 (2026-07-05)**: 順序 A で撤去済み
 - **第 2 段の開始時期**: 本 issue closed → 別 issue を切るタイミング。tap 再設計と `Emulator` interface 分割は独立して進められるが、ADR 必要
 
 ### 検証環境の再構築 (scratchpad `/tmp/claude-.../scratchpad/vt-repro/` が失われた場合)
@@ -401,6 +423,38 @@ crash 自体の直接原因は上流 lib bug だが、**被害が silent corrupt
 
 - `feedback_no_recover_for_reproducible_bugs.md` — 再現性のある panic に defer recover を提案するなという教訓 (本 issue の C 案却下と同根)
 
+## 実施記録 (2026-07-05)
+
+必須スコープ 5 項目のうち 4 項目を実装した。上流 HEAD (x `2cc9a8f`, ultraviolet `f5a850f`) が依然未修正であることを実コードで確認した上で、fork + `replace` 方針を確定。
+
+### 実装内容
+
+- **A2 (x/vt fork)**: `forks/x-vt/` (base: pin バージョン)。clamp は handler ではなく `screen.go` の `setVerticalMargins` / `setHorizontalMargins` (格納地点) で実施 — handler 側で clamp してから `top >= bottom` を判定すると、上流既存テスト (`TestTerminal/CUP_Relative_to_Origin` 系) が要求する「stale margin でも region として機能する」挙動と衝突するため。clamp 後に退化した region は無視 (xterm の top >= bottom 無視と同じ扱い)。`margins_test.go` 追加
+- **A1 (ultraviolet fork)**: `forks/ultraviolet/` (base: pin バージョン)。`InsertLineArea` / `DeleteLineArea` 冒頭で `area = area.Intersect(b.Bounds())` (Y 方向だけでなく X 方向 OOB も同時に塞がる)。`buffer_area_bounds_test.go` 追加
+- **replace 配線**: `src/go.mod` に 2 module の `replace => ../forks/...` を追加
+- **feedSafe 撤去**: `tap_manager.go` の recover-drop を削除し raw `term.Feed` に戻した。既存の feedSafe 前提テスト 2 本は「scroll sequence 後も OSC が届く」contract テストに書き換え
+- **systemd**: `deploy/systemd/agent-reactor-web.service` から `BindsTo=` を除去 (`After=` + `Requires=` は維持)
+- **D (上流 PR)**: 未実施。fork の patch と test がそのまま PR の素材になる
+
+### 検証 (すべて実測)
+
+| テスト | fork 無し (上流 pin) | fork あり |
+|---|---|---|
+| `forks/x-vt/margins_test.go` (production 経路再現: stale DECSTBM → RI) | panic (`Emulator.Write` 経由) | PASS |
+| `forks/ultraviolet/buffer_area_bounds_test.go` (Phase 1 の 80×63 + Max.Y=64) | panic | PASS |
+| `src/platform/termvt/session_scroll_region_test.go` (e2e: 実 Session actor + Resize + stale DECSTBM + RI) | panic (`mainLoop` 経由、production stack と同一) | PASS |
+| `src/client/driver/vt/terminal_panic_test.go` (1×1 tap terminal: ESC M / CSI M / DECRC / codex startup 風 stream) | panic (`index out of range [22] with length 1` = Phase 3 と同一) | PASS |
+
+`make build-all` / `make vet` / `make lint` (0 issues) / `cd src && go test ./...` 全 PASS。
+
+### 残タスク
+
+1. **commit**: 実装セッション (2026-07-05) は未 commit で終了している。working tree の変更 (下記「2026-07-05 実装セッションからの再開情報」参照) を確認して commit するところから始める
+2. **実運用反映**: `~/.config/systemd/user/agent-reactor-web.service` への `BindsTo=` 除去反映 + `systemctl --user daemon-reload`、server binary の再デプロイ + 再起動
+3. **上流 PR (D)**: fork 2 件をそれぞれ upstream へ。x/vt 側は「格納地点で clamp」の設計判断 (既存テストとの互換性) を PR 説明に含める
+4. **fork の後始末**: 上流 merge 後に `forks/` を削除し pin を戻す (`forks/README.md` 参照)
+5. **第 2 段**: tap からの full emulator 撤去 + `Emulator` interface 分割を別 issue に切る (size 所有権の issue `2026-07-05-frame-size-ownership.md` とはスコープが違う点に注意 — あちらは spawn hint 配線と死 API、こちらは emulator の要不要)
+
 ## 変更履歴
 
 - **2026-07-02 (初版)**: 三層防御 (A1 + A2 + C + D) を推奨
@@ -413,3 +467,5 @@ crash 自体の直接原因は上流 lib bug だが、**被害が silent corrupt
   - `BindsTo=` 除去を明示、`Restart=always` / `sd_notify` 追加は対症療法として不採用
   - 「構造起点の最小集合」という位置付けを明示 (コスト最適化ではない)
   - 第 2 段 (VT layer 再設計) を続く設計是正として明示
+- **2026-07-04**: 同一 stack の再発 (11:05:00Z) を追記
+- **2026-07-05**: A2 + A1 (forks/ + replace) / feedSafe 撤去 / systemd fix を実装。「実施記録」参照。A2 の clamp 位置を handler から margin setter (格納地点) に変更 (上流既存テストとの互換性)

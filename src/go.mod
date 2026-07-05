@@ -245,3 +245,10 @@ require (
 )
 
 tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+
+// Patched vendored forks for upstream scroll-region bounds bugs that crash
+// the server (see issues/2026-07-02-vt-emulator-insertlinearea-panic.md and
+// forks/README.md). Drop these once the upstream PRs land.
+replace github.com/charmbracelet/ultraviolet => ../forks/ultraviolet
+
+replace github.com/charmbracelet/x/vt => ../forks/x-vt
