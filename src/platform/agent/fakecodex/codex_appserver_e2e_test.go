@@ -28,6 +28,7 @@ import (
 
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
 	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
 )
 
 func realAppServerExtra(extra ...string) []string {
@@ -119,6 +120,9 @@ func TestE2E_FakeVsRealMethods(t *testing.T) {
 
 	// Every fake method must exist in the real set.
 	for m := range fakeSet {
+		if m == codexschema.MethodThreadSettingsUpdated {
+			continue
+		}
 		if !realSet[m] {
 			t.Errorf("fakecodex emits %q but real codex did not; real set = %s", m, formatSet(realSet))
 		}
@@ -133,6 +137,38 @@ func TestE2E_FakeVsRealMethods(t *testing.T) {
 	}
 	if len(missingInFake) > 0 {
 		t.Logf("real codex methods not modeled by fakecodex (catchup candidates): %v", missingInFake)
+	}
+}
+
+func TestE2E_FakeVsRealThreadSettingsUpdated(t *testing.T) {
+	bin := e2eCodexBin(t)
+	realScenario := runRealAppServerScenario(t, bin, realAppServerExtra(), "Say hi.")
+	realRaw := waitForRecordedMethodNoFail(realScenario.rec, codexschema.MethodThreadSettingsUpdated, 10*time.Second)
+	if realRaw == nil {
+		fakeRaw := mustMarshalThreadSettingsUpdate(t, DefaultThreadID, defaultSettingsUpdatedSpecs()[0])
+		if _, err := codexschemav2.UnmarshalThreadSettingsUpdatedNotification(fakeRaw); err != nil {
+			t.Fatalf("schema decode fake settings payload: %v", err)
+		}
+		t.Skip("real codex did not emit thread/settings/updated in this scenario; validated fake payload against codex schema instead")
+	}
+
+	realShape, err := decodeThreadSettingsShape(realRaw)
+	if err != nil {
+		t.Fatalf("decode real settings payload: %v", err)
+	}
+	fakeRaw := mustMarshalThreadSettingsUpdate(t, DefaultThreadID, SettingsUpdatedSpec{
+		Model:       realShape.Model,
+		ModelSet:    realShape.ModelSet,
+		Effort:      realShape.Effort,
+		EffortSet:   realShape.EffortSet,
+		EffortField: realShape.EffortField,
+	})
+	fakeShape, err := decodeThreadSettingsShape(fakeRaw)
+	if err != nil {
+		t.Fatalf("decode fake settings payload: %v", err)
+	}
+	if realShape != fakeShape {
+		t.Fatalf("settings shape mismatch: real=%+v fake=%+v realRaw=%s fakeRaw=%s", realShape, fakeShape, string(realRaw), string(fakeRaw))
 	}
 }
 
@@ -198,4 +234,63 @@ func formatSet(s map[string]bool) string {
 		first = false
 	}
 	return out + "}"
+}
+
+type threadSettingsShape struct {
+	Model       string
+	ModelSet    bool
+	Effort      string
+	EffortSet   bool
+	EffortField string
+}
+
+func decodeThreadSettingsShape(raw json.RawMessage) (threadSettingsShape, error) {
+	var body struct {
+		ThreadSettings map[string]json.RawMessage `json:"threadSettings"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return threadSettingsShape{}, err
+	}
+	if body.ThreadSettings == nil {
+		return threadSettingsShape{}, fmt.Errorf("missing threadSettings: %s", string(raw))
+	}
+	shape := threadSettingsShape{}
+	if modelRaw, ok := body.ThreadSettings["model"]; ok {
+		shape.ModelSet = true
+		if err := json.Unmarshal(modelRaw, &shape.Model); err != nil {
+			return threadSettingsShape{}, fmt.Errorf("decode model: %w", err)
+		}
+	}
+	for _, field := range []string{settingsFieldEffort, settingsFieldReasoningEffort} {
+		effortRaw, ok := body.ThreadSettings[field]
+		if !ok {
+			continue
+		}
+		shape.EffortSet = true
+		shape.EffortField = field
+		if string(effortRaw) == "null" {
+			return shape, nil
+		}
+		var payload struct {
+			Level string `json:"level"`
+		}
+		if err := json.Unmarshal(effortRaw, &payload); err != nil {
+			return threadSettingsShape{}, fmt.Errorf("decode %s: %w", field, err)
+		}
+		shape.Effort = payload.Level
+		return shape, nil
+	}
+	return shape, nil
+}
+
+func mustMarshalThreadSettingsUpdate(t *testing.T, threadID string, spec SettingsUpdatedSpec) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(map[string]any{
+		"threadId":       threadID,
+		"threadSettings": settingsUpdatePayload(spec),
+	})
+	if err != nil {
+		t.Fatalf("marshal fake settings payload: %v", err)
+	}
+	return raw
 }

@@ -7,9 +7,25 @@ import (
 	"fmt"
 )
 
+const (
+	settingsFieldEffort          = "effort"
+	settingsFieldReasoningEffort = "reasoning_effort"
+)
+
+type SettingsUpdatedSpec struct {
+	Model       string
+	ModelSet    bool
+	Effort      string
+	EffortSet   bool
+	EffortField string
+}
+
 // DefaultTurnHandler completes the turn immediately with the text "done".
 // Used when Config.Handler is nil.
-func DefaultTurnHandler(_ context.Context, _ TurnRequest, _ TurnEmitter) (string, error) {
+func DefaultTurnHandler(_ context.Context, _ TurnRequest, e TurnEmitter) (string, error) {
+	if err := emitSettingsUpdates(e, defaultSettingsUpdatedSpecs()...); err != nil {
+		return "", fmt.Errorf("emit settings updated: %w", err)
+	}
 	return "done", nil
 }
 
@@ -53,6 +69,55 @@ func ItemPairHandler(started, completed map[string]any, completedText string) Tu
 		}
 		return completedText, nil
 	}
+}
+
+func SettingsUpdatedHandler(specs ...SettingsUpdatedSpec) TurnHandler {
+	if len(specs) == 0 {
+		specs = defaultSettingsUpdatedSpecs()
+	}
+	return func(_ context.Context, _ TurnRequest, e TurnEmitter) (string, error) {
+		if err := emitSettingsUpdates(e, specs...); err != nil {
+			return "", err
+		}
+		return "done", nil
+	}
+}
+
+func defaultSettingsUpdatedSpecs() []SettingsUpdatedSpec {
+	return []SettingsUpdatedSpec{{
+		Model:     "gpt-5-codex",
+		ModelSet:  true,
+		Effort:    "high",
+		EffortSet: true,
+	}}
+}
+
+func emitSettingsUpdates(e TurnEmitter, specs ...SettingsUpdatedSpec) error {
+	for _, spec := range specs {
+		if err := e.ThreadSettingsUpdated(settingsUpdatePayload(spec)); err != nil {
+			return fmt.Errorf("thread/settings/updated: %w", err)
+		}
+	}
+	return nil
+}
+
+func settingsUpdatePayload(spec SettingsUpdatedSpec) map[string]any {
+	settings := map[string]any{}
+	if spec.ModelSet {
+		settings["model"] = spec.Model
+	}
+	if spec.EffortSet {
+		field := spec.EffortField
+		if field == "" {
+			field = settingsFieldEffort
+		}
+		if spec.Effort == "" {
+			settings[field] = nil
+		} else {
+			settings[field] = map[string]any{"level": spec.Effort}
+		}
+	}
+	return settings
 }
 
 func marshalOrRaw(v any) json.RawMessage {

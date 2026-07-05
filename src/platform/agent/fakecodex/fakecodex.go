@@ -1,8 +1,8 @@
 // Package fakecodex publishes a reusable in-process fake of the Codex
 // app-server (stdio JSON-RPC v2). It replies to initialize / thread/start /
 // thread/resume, and — on turn/start — emits the thread/started ▸ turn/started ▸
-// (optional item events) ▸ thread/tokenUsage/updated ▸ turn/completed sequence
-// a real server produces.
+// thread/settings/updated ▸ (optional item events) ▸ thread/tokenUsage/updated ▸
+// turn/completed sequence a real server produces.
 //
 // Two invariants keep the fake honest:
 //
@@ -63,6 +63,7 @@ type TurnEmitter interface {
 	ItemStarted(item map[string]any) error
 	ItemCompleted(item map[string]any) error
 	ToolCallRequest(tool string, arguments any, callID string) (json.RawMessage, error)
+	ThreadSettingsUpdated(settings map[string]any) error
 }
 
 // TurnHandler drives one turn. Return err != nil to fail the turn: the fake
@@ -450,4 +451,11 @@ func (e *turnEmitter) ToolCallRequest(tool string, arguments any, callID string)
 		e.s.mu.Unlock()
 	}
 	return raw, err
+}
+
+func (e *turnEmitter) ThreadSettingsUpdated(settings map[string]any) error {
+	return e.srv.EmitNotification(codexschema.MethodThreadSettingsUpdated, map[string]any{
+		"threadId":       e.threadID,
+		"threadSettings": settings,
+	})
 }

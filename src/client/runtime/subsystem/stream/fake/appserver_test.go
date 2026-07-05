@@ -184,6 +184,7 @@ func TestTurnStartDrivesDefaultLifecycleBroadcast(t *testing.T) {
 	wantSeq := []string{
 		codexschema.MethodThreadStarted,
 		codexschema.MethodTurnStarted,
+		codexschema.MethodThreadSettingsUpdated,
 		codexschema.MethodThreadStatusChanged,
 		codexschema.MethodTurnCompleted,
 		codexschema.MethodThreadStatusChanged,

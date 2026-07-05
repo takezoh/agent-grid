@@ -109,6 +109,7 @@ func TestServer_DefaultTurn(t *testing.T) {
 	waitFor(t, nc, []string{
 		codexschema.MethodThreadStarted,
 		codexschema.MethodTurnStarted,
+		codexschema.MethodThreadSettingsUpdated,
 		codexschema.MethodThreadTokenUsageUpdated,
 		codexschema.MethodTurnCompleted,
 	})
@@ -283,5 +284,63 @@ func TestServer_FailInit(t *testing.T) {
 	err := codexclient.Initialize(client)
 	if err == nil {
 		t.Fatalf("Initialize: want error, got nil")
+	}
+}
+
+func TestServer_SettingsUpdatedHandlerSupportsVariants(t *testing.T) {
+	s := New(Config{Handler: SettingsUpdatedHandler(
+		SettingsUpdatedSpec{Model: "gpt-5", ModelSet: true},
+		SettingsUpdatedSpec{Effort: "medium", EffortSet: true, EffortField: settingsFieldReasoningEffort},
+		SettingsUpdatedSpec{EffortSet: true},
+	)})
+	client, cleanup := pipeToClient(t, s)
+	defer cleanup()
+
+	nc := &notifRecorder{}
+	go func() { _ = client.Run(context.Background(), nc) }()
+
+	if err := codexclient.Initialize(client); err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	if err := codexclient.StartTurn(client, "", "/ws", []byte("hi"), codexclient.TurnOptions{}); err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	waitFor(t, nc, []string{
+		codexschema.MethodThreadStarted,
+		codexschema.MethodTurnStarted,
+		codexschema.MethodThreadSettingsUpdated,
+		codexschema.MethodThreadSettingsUpdated,
+		codexschema.MethodThreadSettingsUpdated,
+		codexschema.MethodThreadTokenUsageUpdated,
+		codexschema.MethodTurnCompleted,
+	})
+
+	nc.mu.Lock()
+	defer nc.mu.Unlock()
+	var payloads []map[string]any
+	for _, ev := range nc.events {
+		if ev.method != codexschema.MethodThreadSettingsUpdated {
+			continue
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(ev.params, &decoded); err != nil {
+			t.Fatalf("unmarshal settings payload: %v", err)
+		}
+		payloads = append(payloads, decoded)
+	}
+	if got := len(payloads); got != 3 {
+		t.Fatalf("settings payload count = %d, want 3", got)
+	}
+	firstSettings, _ := payloads[0]["threadSettings"].(map[string]any)
+	if firstSettings["model"] != "gpt-5" {
+		t.Fatalf("first settings = %+v, want model update", firstSettings)
+	}
+	secondSettings, _ := payloads[1]["threadSettings"].(map[string]any)
+	if _, ok := secondSettings["reasoning_effort"]; !ok {
+		t.Fatalf("second settings = %+v, want reasoning_effort field", secondSettings)
+	}
+	thirdSettings, _ := payloads[2]["threadSettings"].(map[string]any)
+	if value, ok := thirdSettings["effort"]; !ok || value != nil {
+		t.Fatalf("third settings = %+v, want effort:null clear", thirdSettings)
 	}
 }

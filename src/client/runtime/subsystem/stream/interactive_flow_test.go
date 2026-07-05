@@ -20,6 +20,7 @@ import (
 	"github.com/takezoh/agent-reactor/client/runtime/subsystem/stream/fake"
 	"github.com/takezoh/agent-reactor/client/state"
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 )
 
 // newFakeServer boots an isolated FakeAppServer under t.TempDir() and returns
@@ -194,6 +195,84 @@ func TestInteractiveFlow_PromptBroadcastReachesBackend(t *testing.T) {
 	if cs.Status != state.StatusWaiting {
 		t.Fatalf("driver Status = %v, want %v (event trace = %d frame events)",
 			cs.Status, state.StatusWaiting, countFrameEvents(captured, frameID))
+	}
+}
+
+func TestInteractiveFlow_SettingsUpdatedBroadcastReachesDriverMetadata(t *testing.T) {
+	srv := fake.New(fake.Config{
+		Sock: filepath.Join(t.TempDir(), "fake-settings.sock"),
+		TurnHandler: func(req fake.TurnRequest, emit fake.Emitter) {
+			_ = emit.Broadcast(codexschema.MethodTurnStarted, map[string]any{
+				"threadId": req.ThreadID,
+				"turnId":   req.TurnID,
+			})
+			_ = emit.Broadcast(codexschema.MethodThreadSettingsUpdated, map[string]any{
+				"threadId": req.ThreadID,
+				"threadSettings": map[string]any{
+					"model":            "gpt-5-codex",
+					"reasoning_effort": map[string]any{"level": "medium"},
+				},
+			})
+			_ = emit.Broadcast(codexschema.MethodTurnCompleted, map[string]any{
+				"threadId": req.ThreadID,
+				"turnId":   req.TurnID,
+				"text":     "done",
+			})
+		},
+	})
+	if err := srv.Start(); err != nil {
+		t.Fatalf("fake.Start: %v", err)
+	}
+	t.Cleanup(srv.Stop)
+	b, rt := attachBackend(t, srv)
+
+	frameID := state.FrameID("frame-settings")
+	if _, err := b.BindFrame(context.Background(), subsystem.BindRequest{
+		FrameID: frameID,
+		Plan:    state.LaunchPlan{StartDir: "/work"},
+	}); err != nil {
+		t.Fatalf("BindFrame: %v", err)
+	}
+
+	cli := fake.SpawnCLI(t, "--remote", "unix://"+srv.SockPath(), "--cd", "/work")
+	_ = cli.Ready(t, 3*time.Second)
+	cli.SendPrompt(t, "show metadata")
+
+	waitForEvent(t, rt, 3*time.Second, func(evs []state.EvSubsystem) bool {
+		for _, e := range evs {
+			if e.FrameID != frameID || e.Kind != state.SubsystemMetadataUpdated {
+				continue
+			}
+			if e.Payload.Model == "gpt-5-codex" && e.Payload.Effort == "medium" && e.Payload.ModelSet && e.Payload.EffortSet {
+				return true
+			}
+		}
+		return false
+	}, "MetadataUpdated for settings event")
+
+	drv := driver.CodexDriver{}
+	cs := drv.NewState(time.Now()).(driver.CodexState)
+	ctx := state.FrameContext{ID: frameID, IsRoot: true}
+	rt.mu.Lock()
+	captured := append([]state.EvSubsystem(nil), rt.events...)
+	rt.mu.Unlock()
+	for _, ev := range captured {
+		if ev.FrameID != frameID {
+			continue
+		}
+		next, _, _ := drv.Step(cs, ctx, state.DEvSubsystem{
+			Source:    ev.Source,
+			Kind:      ev.Kind,
+			Timestamp: ev.Timestamp,
+			Payload:   ev.Payload,
+		})
+		cs = next.(driver.CodexState)
+	}
+	if !cs.ModelSet || cs.Model != "gpt-5-codex" {
+		t.Fatalf("driver model = %q (set=%v), want gpt-5-codex", cs.Model, cs.ModelSet)
+	}
+	if !cs.EffortSet || cs.Effort != "medium" {
+		t.Fatalf("driver effort = %q (set=%v), want medium", cs.Effort, cs.EffortSet)
 	}
 }
 

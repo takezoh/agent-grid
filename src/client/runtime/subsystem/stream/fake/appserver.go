@@ -394,14 +394,21 @@ func (s *serverConn) OnServerRequest(id int64, method string, params json.RawMes
 }
 
 // defaultTurnHandler emits the minimum event sequence that carries the driver
-// through Idle → Running → Waiting: turn/started, thread/status active,
-// turn/completed, thread/status idle. Real codex emits many more events
-// (item/started, item/completed, message deltas, etc.); tests that need those
-// override this via Config.TurnHandler.
+// through Idle → Running → Waiting: turn/started, thread/settings/updated,
+// thread/status active, turn/completed, thread/status idle. Real codex emits
+// many more events (item/started, item/completed, message deltas, etc.); tests
+// that need those override this via Config.TurnHandler.
 func defaultTurnHandler(req TurnRequest, emit Emitter) {
 	_ = emit.Broadcast(codexschema.MethodTurnStarted, map[string]any{
 		"threadId": req.ThreadID,
 		"turnId":   req.TurnID,
+	})
+	_ = emit.Broadcast(codexschema.MethodThreadSettingsUpdated, map[string]any{
+		"threadId": req.ThreadID,
+		"threadSettings": map[string]any{
+			"model":  "gpt-5-codex",
+			"effort": map[string]any{"level": "high"},
+		},
 	})
 	_ = emit.Broadcast(codexschema.MethodThreadStatusChanged, map[string]any{
 		"threadId": req.ThreadID,

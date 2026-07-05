@@ -2,7 +2,7 @@
 id: task-20260705-fakecodex-settings-updated
 kind: task
 title: fakecodex / stream fake に thread/settings/updated を追加
-status: todo
+status: done
 created: '2026-07-05'
 priority: high
 effort: small
@@ -26,6 +26,7 @@ source_paths:
 - docs/adr/adr-20260705-metadata-source-priority.md
 summary: authoritative metadata event を fake 両系統 (stdio/WS) の preset に追加し、FakeVsReal
   e2e で real codex の emit と照合する
+updated: '2026-07-05'
 ---
 
 # fakecodex / stream fake に thread/settings/updated を追加
@@ -64,3 +65,13 @@ commit 71d05a4 で顕在化した fake drift を解消する: `thread/settings/u
 - fake 両系統が settings/updated を emit でき、T1 伝搬テストが green
 - `make test-e2e` (REACTOR_E2E_CODEX_BIN 設定時) で FakeVsReal 照合が green
 - `go vet -tags e2e` green、`make lint` green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Started implementation and verification for fake thread/settings/updated coverage.
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented fake stdio/WS thread/settings/updated coverage and verification.
+{% /transition %}
