@@ -4,7 +4,7 @@ kind: note
 title: Testing
 status: published
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-05'
 tags:
 - agent
 - legacy-import
@@ -13,6 +13,12 @@ relations:
 - {type: referencedBy, target: note-20260624-agent-contributing}
 - {type: referencedBy, target: note-20260624-agent-overview}
 - {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: references, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
+- {type: references, target: adr-20260705-driver-conformance-registry-suite}
+- {type: references, target: adr-20260705-eventsink-seam-tap-relay-contracts}
+- {type: references, target: adr-20260705-fakedocker-path-injection}
+- {type: references, target: adr-20260705-test-tier-taxonomy}
+- {type: references, target: adr-20260705-wire-fixtures-pipeline}
 - {type: references, target: component-20260624-client-stream-backend-e2e}
 - {type: references, target: component-20260624-client-stream-backend-testing}
 - {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
@@ -20,6 +26,10 @@ relations:
 - {type: referencedBy, target: note-20260624-docs-overview}
 - {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
 - {type: referencedBy, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
+- {type: referencedBy, target: adr-20260705-driver-conformance-registry-suite}
+- {type: referencedBy, target: adr-20260705-fakedocker-path-injection}
+- {type: referencedBy, target: adr-20260705-test-tier-taxonomy}
+- {type: references, target: adr-20260705-metadata-source-priority}
 source_paths:
 - src/orchestrator/scheduler/
 - src/client/runtime/
@@ -47,6 +57,21 @@ Concrete patterns in use:
 - **Runtime-injected dependencies** are interfaces, not concrete types (e.g. `runtime/subsystem/stream.RuntimeHook`).
 - **`net.Pipe` + fake server** stands in for Unix sockets when verifying the proto client.
 
+## Test Tiers (T0-T3)
+
+The suite classifies tests by **kind of evidence**, not by package criticality. The canonical taxonomy is [ADR — Test tier taxonomy (T0-T3) and the external-dependency triple](../adr/adr-20260705-test-tier-taxonomy.md).
+
+| Tier | Kind | Typical target | Usual runtime |
+|------|------|----------------|---------------|
+| **T0** | Pure | `state.Reduce`, `Driver.Step`, parsers, codecs, `drivertest.Conformance` | always-on `go test` |
+| **T1** | Wired | runtime loop plus fake backend / fake CLI / fake docker | always-on `go test` |
+| **T2** | Contract / Fuzz | backend-independent invariants, routing, severance, fuzz | always-on `go test`, plus CI race/fuzz jobs |
+| **T3** | Fidelity | fake-vs-real CLI / daemon / docker backstops | opt-in `-tags e2e` and nightly |
+
+This is orthogonal to the S-D coverage tiers below: T0-T3 answers **what kind of test this is**, while S-D answers **how much coverage a package should carry**.
+
+New external dependencies follow the **triple**: ship an in-process fake, a `FakeVsReal*` T3 backstop, and a T2 contract that names the invariant. If T3 fails, fix the fake rather than weakening the assertion.
+
 ## Test patterns by layer
 
 Both decision-loop layers (`client/` and `orchestrator/scheduler`) share the Functional Core / Imperative Shell test style: the pure `Reduce` is verified by its return value with no mocks, and the shell is exercised by injecting fakes for its dependencies. `platform/`, a library layer, injects fakes through interface seams. Test files live beside the target as `*_test.go`.
@@ -54,6 +79,12 @@ Both decision-loop layers (`client/` and `orchestrator/scheduler`) share the Fun
 - **`state.Reduce` / `scheduler.Reduce` tests** — no mocks. Pure function tests that verify the return value `(state', []Effect)` of `Reduce(state, event, …)`. No goroutine / channel / timing dependencies; time enters as a value.
 - **`Driver.Step` tests** — no mocks. Directly verify the return value `(next, effects, view)` of `Step(prev, driverEvent)`.
 - **shell tests** (`client/runtime`, `orchestrator/scheduler` loop) — inject fakes for backend interfaces (`runtime.Config` `noopBackend`/`noopPersist`; scheduler `Deps{ Tracker, Spawn, Clock, … }` with a fake clock). Drive events through the loop and assert the published state.
+
+## Harness Catalog
+
+- **`runtimetest.Harness` (T1)** — boots a real `client/runtime` loop with injected fakes at `New(...)` time and provides `Runtime`, `Enqueue`, `WaitFor`, and `Quiesce` so propagation tests do not need ad-hoc runtime startup code.
+- **`drivertest.Conformance` (T0)** — runs the common `state.Driver` contract over every registered driver: Step purity, DriverEvent totality, View/Status totality, and Persist/Restore round-trip.
+- **`drivertest.MetadataSourcePriority` (T0)** — applies the authoritative-vs-fallback metadata contract to a driver-specific scenario; this is separate from registry conformance and must be invoked explicitly where the driver carries metadata state.
 
 ## Multiplexed-subsystem routing harness
 
@@ -68,6 +99,14 @@ contract, a wired fake app-server exercised under `-race`, a stdlib
 [stream backend testing](../component/component-20260624-client-stream-backend-testing.md). This is
 the test-pinned enforcement catalogued in
 [code-enforcement.md §6](../note/note-20260624-technical-code-enforcement.md).
+
+## Propagation and fidelity harnesses
+
+- **pty tap contract (T2)** — the tap path writes real OSC 0/2/9/133 sequences through a real pty and asserts that only the owning frame receives `EvFrameOsc` / `EvFramePrompt`, while malformed input is contained without killing the loop. Enforcement is catalogued in [code-enforcement.md §8](../note/note-20260624-technical-code-enforcement.md).
+- **relay severance contract (T2)** — `TerminalRelay` is driven with a deterministically saturated subscriber to prove that only the slow consumer is severed and all other subscribers keep ordered delivery. Enforcement is catalogued in [code-enforcement.md §9](../note/note-20260624-technical-code-enforcement.md).
+- **wire fixtures pipeline (T1 + CI gate)** — Go generates canonical wire JSON fixtures, vitest consumes the same files, and CI fails on regeneration drift. Enforcement is catalogued in [code-enforcement.md §11](../note/note-20260624-technical-code-enforcement.md).
+- **gateway scenario e2e (planned T1)** — the test-harness plan tracks a real-`server` + fake-agent scenario for `session create → WS viewUpdate`, but this backstop is not yet part of the always-on suite and should not be assumed present until the planned task lands.
+- **fakedocker + `FakeVsRealDocker` (T1 + T3)** — devcontainer lifecycle tests run against PATH-injected `fakedocker`, and an opt-in real-docker backstop verifies the fake's output shape. Enforcement is catalogued in [code-enforcement.md §10](../note/note-20260624-technical-code-enforcement.md).
 
 ## Fan-out isolation harness (termvt multiplexer)
 

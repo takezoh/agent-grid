@@ -4,7 +4,7 @@ kind: plan
 title: Web UI Terminal Mobile UX — Implementation Plan
 status: draft
 created: '2026-06-26'
-updated: '2026-07-04'
+updated: '2026-07-05'
 tags:
 - plan
 - legacy-import

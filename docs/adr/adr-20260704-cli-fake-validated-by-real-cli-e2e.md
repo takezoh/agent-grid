@@ -18,6 +18,7 @@ relations:
 - {type: implementedBy, target: component-20260704-platform-fakecodex}
 - {type: referencedBy, target: adr-20260705-test-tier-taxonomy}
 - {type: referencedBy, target: adr-20260705-fakedocker-path-injection}
+- {type: referencedBy, target: note-20260624-agent-testing}
 source_paths:
 - src/platform/lib/claude/fakeclaude
 - src/platform/agent/fakecodex

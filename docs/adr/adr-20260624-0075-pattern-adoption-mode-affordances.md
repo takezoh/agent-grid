@@ -6,7 +6,7 @@ title: ADR 0075 — modal editor 流の mode 分離 + Termius/a-Shell キーボ�
   primitive で a11y 仕様を集約する
 status: accepted
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-05'
 tags:
 - adr
 - legacy-import

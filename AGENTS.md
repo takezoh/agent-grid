@@ -36,6 +36,10 @@ Conformance: `docs/component/component-20260624-orchestrator-symphony-conformanc
 - Do not overwrite user config files (~/.agent-reactor/)
 - Always write tests for new features and bug fixes. Do not consider work complete without tests
 - Testability is a primary design constraint. Refactor production code (interface extraction, env-var override, dependency injection) when it's needed to enable a test. Per-package coverage targets and the Tier scheme are in `docs/note/note-20260624-agent-testing.md`
+- Tests that touch an external dependency must ship the full triple: fake, `FakeVsReal*` e2e backstop, and an invariant-naming contract test (see related ADRs in `docs/adr/`)
+- If `FakeVsReal*` fails, fix the fake; do not weaken the assertion
+- Use `runtimetest.Harness` for runtime propagation tests instead of ad-hoc bootstraps; use `drivertest.Conformance` / `drivertest.MetadataSourcePriority` for driver contract checks
+- Choose test placement by T0-T3 tier; see `docs/note/note-20260624-agent-testing.md`
 
 ## Library Selection
 

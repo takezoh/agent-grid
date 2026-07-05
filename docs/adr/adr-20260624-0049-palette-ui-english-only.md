@@ -4,7 +4,7 @@ kind: adr
 title: ADR 0049 — コマンドパレット UI 表面の固定文字列を英語に統一し i18n 基盤導入を見送る
 status: accepted
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-05'
 tags:
 - adr
 - legacy-import

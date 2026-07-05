@@ -4,7 +4,7 @@ kind: adr
 title: ADR 0032 — `RunStateBadge` の spinner を既存テキスト契約を温存して加法的に追加 (Web UI 問題5)
 status: accepted
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-05'
 tags:
 - adr
 - legacy-import

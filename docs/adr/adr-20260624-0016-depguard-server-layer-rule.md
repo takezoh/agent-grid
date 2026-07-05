@@ -4,7 +4,7 @@ kind: adr
 title: ADR 0016 — Codify `server/*` as a client-layer HTTP gateway in depguard
 status: accepted
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-05'
 tags:
 - adr
 - legacy-import

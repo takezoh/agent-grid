@@ -13,6 +13,10 @@ owners: []
 relations:
 - {type: partOf, target: plan-20260705-test-harness}
 - {type: references, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
+- {type: referencedBy, target: note-20260624-agent-testing}
+- {type: referencedBy, target: note-20260624-technical-code-enforcement}
+- {type: references, target: note-20260624-agent-testing}
+- {type: references, target: note-20260624-technical-code-enforcement}
 source_paths:
 - docs/note/note-20260624-agent-testing.md
 - src/platform/lib/claude/fakeclaude/

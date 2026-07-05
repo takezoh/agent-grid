@@ -4,7 +4,7 @@ kind: note
 title: Code & Architecture Enforcement
 status: published
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-05'
 tags:
 - technical
 - legacy-import
@@ -12,12 +12,23 @@ owners: []
 relations:
 - {type: referencedBy, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: referencedBy, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: referencedBy, target: adr-20260705-driver-conformance-registry-suite}
+- {type: referencedBy, target: adr-20260705-eventsink-seam-tap-relay-contracts}
+- {type: referencedBy, target: adr-20260705-fakedocker-path-injection}
+- {type: referencedBy, target: adr-20260705-test-tier-taxonomy}
+- {type: referencedBy, target: adr-20260705-wire-fixtures-pipeline}
 - {type: referencedBy, target: component-20260624-platform-overview}
 - {type: referencedBy, target: note-20260624-agent-contributing}
 - {type: referencedBy, target: note-20260624-agent-testing}
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
 - {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
+- {type: references, target: adr-20260705-driver-conformance-registry-suite}
+- {type: references, target: adr-20260705-eventsink-seam-tap-relay-contracts}
+- {type: references, target: adr-20260705-fakedocker-path-injection}
+- {type: references, target: adr-20260705-metadata-source-priority}
+- {type: references, target: adr-20260705-test-tier-taxonomy}
+- {type: references, target: adr-20260705-wire-fixtures-pipeline}
 - {type: references, target: component-20260624-client-overview}
 - {type: references, target: component-20260624-client-stream-backend-testing}
 - {type: references, target: component-20260624-orchestrator-overview}
@@ -89,6 +100,7 @@ flowchart TD
 | `proto-isolation` | `client/proto/**` | `driver/`, `platform/lib`, `runtime/` |
 | `runtime-no-driver` | `client/runtime/*.go` (root only) | `driver/` |
 | `codexclient-isolation` | `platform/agent/codexclient/**` | `client/`, `orchestrator/` |
+| `real-binary-e2e-only` | all Go files except allowlisted packages and explicit path exclusions | literal `exec.Command("claude"|"codex"|"docker")` / `exec.CommandContext(...)` outside `platform/lib/**`, fake packages, `*_e2e_test.go`, and excluded devcontainer paths; `REACTOR_E2E_*` reads outside `*_e2e_test.go` except path-excluded helpers |
 
 Key intents:
 
@@ -96,6 +108,7 @@ Key intents:
 - **`state/` purity**: the state machine has no I/O and no side effects — a pure functional core. It cannot import driver/runtime at all.
 - **`runtime-no-driver`**: only the runtime **root** is forbidden from importing driver. Tool-specific backends move to `runtime/subsystem/<kind>/`. Exception: `client/driver/vt` is explicitly allowed in `exclusions.rules`.
 - **`codexclient` reusability**: a shared protocol transport, so it knows nothing of agent-reactor internals.
+- **real-binary isolation**: the last row is enforced by ruleguard, not depguard, because it constrains process execution rather than imports. In the current implementation, real `claude` / `codex` / `docker` exec is allowlisted for `platform/lib/**`, the fake packages, `*_e2e_test.go`, plus explicit `.golangci.yml` exclusions such as `platform/sandbox/devcontainer/**`; `REACTOR_E2E_*` env reads are stricter and stay in `*_e2e_test.go` except for path-excluded helpers like `platform/lib/claude/fakeclaude/e2e_support.go`.
 
 ## 2. Pure-core purity (forbidigo + ruleguard)
 
@@ -156,6 +169,36 @@ The PTY multiplexer `platform/termvt` is the same shape as §6 — one source (a
 Like §6 this is a runtime property, not lint/compile-catchable, so it is **test-pinned**: the [fan-out isolation contract](../component/component-20260624-platform-termvt-multiplexer-testing.md) (`TestFanoutDeliversToEverySubscriber`, `TestManagerSessionsDoNotCrossTalk`, `TestSlowSubscriberDoesNotStarveFast`, `TestControlPrecedesOutputInChunk`) runs against a real pty under `-race`, and `server/web`'s `FuzzInbound` pins the untrusted client→server frame decode (no panic, no non-positive resize). Rationale: [ADR 0003](../adr/adr-20260624-0003-termvt-fanout-isolation.md). Unlike §6 there is no opt-in e2e tier — termvt has no in-process fake to validate (its only backend is a real pty).
 
 Exception: none — a multiplexer that cannot satisfy fan-out isolation is a defect, not a candidate for opt-out.
+
+## 8. Pty-tap routing and liveness (test-pinned)
+
+The pty tap path (`pty → PtyFrameTap.forwardEvents → readTap → VT emulator → EvFrameOsc/EvFramePrompt`) must enqueue only events for the originating frame and must survive malformed OSC / prompt sequences without killing the event loop. This prevents cross-talk and liveness loss in the tap path, which is another "one source → many sessions" boundary.
+
+Where defined: [ADR — EventSink seam and contract pins for the pty-tap and surface-relay paths](../adr/adr-20260705-eventsink-seam-tap-relay-contracts.md) and spec FR-003 / AC-004. How it is enforced: the `EventSink` seam lets `client/runtime` run a real-pty T2 contract that writes OSC 0/2/9/133 and asserts `FrameID` ownership plus panic containment, backed by stdlib fuzz for `parseOscNotification` / `vtPromptPhase`. Exception: none — incorrect routing or panic-on-input in the tap path is a defect.
+
+## 9. Relay severance and ordering (test-pinned)
+
+`TerminalRelay` must sever only the slow subscriber and preserve delivery order for the other subscribers and other sessions. This prevents one blocked consumer from corrupting or wedging unrelated surfaces.
+
+Where defined: [ADR — EventSink seam and contract pins for the pty-tap and surface-relay paths](../adr/adr-20260705-eventsink-seam-tap-relay-contracts.md) and spec FR-004 / AC-006. How it is enforced: the relay constructor accepts test-only channel capacity so the T2 contract can deterministically saturate one subscriber, assert severance, and verify order preservation for the rest under `-race`. Exception: none — relaxing severance or ordering to "best effort" would reintroduce hidden cross-session interference.
+
+## 10. Docker fake fidelity (test-pinned)
+
+The devcontainer docker integration must not rely on unvalidated canned output. This prevents the only remaining external CLI dependency from drifting into a fake-only world where argv or output-shape regressions surface only in production.
+
+Where defined: [ADR — fakedocker: PATH-injected docker CLI fake with real-docker backstop](../adr/adr-20260705-fakedocker-path-injection.md), [ADR — Claude CLI and Codex stdio fakes are validated by opt-in real-CLI e2e](../adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md), and spec FR-008. How it is enforced: T1 lifecycle tests run against PATH-injected `fakedocker`; T3 `FakeVsRealDocker` compares the same scenario against `REACTOR_E2E_DOCKER_BIN`; ruleguard confines real docker exec to the allowlist from §1. Exception: only the T3 execution posture is opt-in/nightly; the fake-vs-real contract itself is not optional once the dependency exists.
+
+## 11. Cross-language wire fixture gate (test-pinned)
+
+The Go encoder and TypeScript codec must consume the same committed wire fixtures. This prevents drift between `server/web` JSON output and the browser decoder when fields are added, cleared, or reshaped.
+
+Where defined: [ADR — Cross-language wire fixtures: Go-generated, TS-consumed, CI-gated](../adr/adr-20260705-wire-fixtures-pipeline.md) and spec FR-006 / AC-002. How it is enforced: Go generates canonical `hello` / `view-update` / `output` / `control` fixtures into `src/client/web/src/wire/testdata/`; vitest consumes those exact JSON files; CI regenerates and fails on `git diff --exit-code`. Exception: none — hand-synchronized fixtures are explicitly rejected by the ADR.
+
+## 12. Driver conformance and metadata source priority (test-pinned)
+
+Every registered driver must satisfy the same minimum contract, including authoritative metadata precedence. This prevents driver-specific tests from silently omitting invariants such as totality, persist/restore round-trips, or "fallback must not overwrite authoritative metadata".
+
+Where defined: [ADR — Driver conformance suite enforced via registry iteration](../adr/adr-20260705-driver-conformance-registry-suite.md), [ADR — Metadata source priority for Claude and Codex session state](../adr/adr-20260705-metadata-source-priority.md), and spec FR-005 / AC-001. How it is enforced: `drivertest.Conformance` is applied by registry iteration to every `state.Register`ed driver and checks Step purity, DriverEvent totality, View/Status totality, and Persist/Restore round-trip. Metadata authority is pinned separately by explicit `drivertest.MetadataSourcePriority` scenarios in the driver conformance tests for drivers that carry `model` / `effort` state. Exception: none — opting a driver out would mean it is not a conforming `state.Driver`.
 
 ## Related
 
