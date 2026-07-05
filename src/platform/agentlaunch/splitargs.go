@@ -10,6 +10,12 @@ type ArgToken struct {
 	Value string
 }
 
+const (
+	stateBare = iota
+	stateSingle
+	stateDouble
+)
+
 // SplitArgs tokenizes a POSIX-style shell command string into an argv slice.
 // Handles single-quoted and double-quoted spans; backslash-escape inside
 // double quotes. Intended for simple codex/claude command strings read from
@@ -30,15 +36,21 @@ func SplitArgs(command string) ([]string, error) {
 // Raw preserves the original token text so callers rewriting only a subset of
 // flags can keep unrelated quoting and expansions byte-for-byte intact.
 func LexArgs(command string) ([]ArgToken, error) {
+	args, err := lexCookedArgs(command)
+	if err != nil {
+		return nil, err
+	}
+	return lexRawSpans(command, args)
+}
+
+// lexCookedArgs resolves command into cooked argv values (quotes consumed,
+// backslash-escapes applied). It is the first of LexArgs' two passes; the
+// second (lexRawSpans) walks the same grammar again to recover each token's
+// original byte span, keyed by position in this slice.
+func lexCookedArgs(command string) ([]string, error) {
 	var args []string
 	var cur strings.Builder
 	inToken := false
-	tokenStart := -1
-	const (
-		stateBare = iota
-		stateSingle
-		stateDouble
-	)
 	mode := stateBare
 
 	for i := 0; i < len(command); {
@@ -78,39 +90,26 @@ func LexArgs(command string) ([]ArgToken, error) {
 				args = append(args, cur.String())
 				cur.Reset()
 				inToken = false
-				tokenStart = -1
 			}
 			i++
 		case '\'':
-			if !inToken {
-				inToken = true
-				tokenStart = i
-			}
+			inToken = true
 			mode = stateSingle
 			i++
 		case '"':
-			if !inToken {
-				inToken = true
-				tokenStart = i
-			}
+			inToken = true
 			mode = stateDouble
 			i++
 		case '\\':
 			if i+1 >= len(command) {
 				return nil, fmt.Errorf("agentlaunch: unterminated escape in %q", command)
 			}
-			if !inToken {
-				inToken = true
-				tokenStart = i
-			}
+			inToken = true
 			i++
 			cur.WriteByte(command[i])
 			i++
 		default:
-			if !inToken {
-				inToken = true
-				tokenStart = i
-			}
+			inToken = true
 			cur.WriteByte(c)
 			i++
 		}
@@ -124,12 +123,16 @@ func LexArgs(command string) ([]ArgToken, error) {
 	if inToken {
 		args = append(args, cur.String())
 	}
+	return args, nil
+}
 
+// lexRawSpans re-walks command to recover each token's original byte span
+// (Raw), pairing it with the matching cooked value from args by position.
+func lexRawSpans(command string, args []string) ([]ArgToken, error) {
 	rawTokens := make([]ArgToken, 0, len(args))
-	cur.Reset()
-	inToken = false
-	mode = stateBare
-	tokenStart = -1
+	inToken := false
+	mode := stateBare
+	tokenStart := -1
 	valueIdx := 0
 	for i := 0; i < len(command); {
 		c := command[i]

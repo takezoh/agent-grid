@@ -130,6 +130,44 @@ func (d CodexDriver) NewState(now time.Time) state.DriverState {
 	}
 }
 
+// resolveCodexModelEffort applies model/effort precedence (session state
+// wins over the incoming command's flags, and vice versa on first
+// observation) to stripped, returning the possibly-updated CodexState and
+// command string.
+func resolveCodexModelEffort(cs CodexState, stripped string) (CodexState, string) {
+	argv, err := agentlaunch.SplitArgs(stripped)
+	if err != nil {
+		return cs, stripped
+	}
+	cfg, err := libcodex.ParseCommand(argv)
+	if err != nil {
+		return cs, stripped
+	}
+	if !cs.ModelSet && cfg.Model != "" {
+		cs.Model = cfg.Model
+		cs.ModelSet = true
+	}
+	if !cs.EffortSet && cfg.Effort != "" {
+		cs.Effort = cfg.Effort
+		cs.EffortSet = true
+	}
+	if cs.ModelSet {
+		if cs.Model == "" {
+			stripped = stripFlagValues(stripped, []string{"--model", "-m"})
+		} else {
+			stripped = replaceFlagValue(stripped, []string{"--model", "-m"}, cs.Model)
+		}
+	}
+	if cs.EffortSet {
+		if cs.Effort == "" {
+			stripped = stripFlagValues(stripped, []string{"--effort"})
+		} else {
+			stripped = replaceFlagValue(stripped, []string{"--effort"}, cs.Effort)
+		}
+	}
+	return cs, stripped
+}
+
 func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, sandboxed bool) (state.LaunchPlan, error) {
 	cs, ok := s.(CodexState)
 	if !ok {
@@ -150,32 +188,7 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 	if len(fields) == 0 || fields[0] != CodexDriverName {
 		return state.LaunchPlan{Command: strings.TrimSpace(baseCommand), StartDir: startDir, Options: options, Stdin: options.InitialInput}, nil
 	}
-	if argv, err := agentlaunch.SplitArgs(stripped); err == nil {
-		if cfg, err := libcodex.ParseCommand(argv); err == nil {
-			if !cs.ModelSet && cfg.Model != "" {
-				cs.Model = cfg.Model
-				cs.ModelSet = true
-			}
-			if !cs.EffortSet && cfg.Effort != "" {
-				cs.Effort = cfg.Effort
-				cs.EffortSet = true
-			}
-			if cs.ModelSet {
-				if cs.Model == "" {
-					stripped = stripFlagValues(stripped, []string{"--model", "-m"})
-				} else {
-					stripped = replaceFlagValue(stripped, []string{"--model", "-m"}, cs.Model)
-				}
-			}
-			if cs.EffortSet {
-				if cs.Effort == "" {
-					stripped = stripFlagValues(stripped, []string{"--effort"})
-				} else {
-					stripped = replaceFlagValue(stripped, []string{"--effort"}, cs.Effort)
-				}
-			}
-		}
-	}
+	cs, stripped = resolveCodexModelEffort(cs, stripped)
 	base := strings.TrimSpace(stripped)
 	stream := state.StreamLaunchOptions{}
 	if sandboxed {

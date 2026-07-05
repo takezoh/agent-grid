@@ -158,25 +158,13 @@ func (d ClaudeDriver) NewState(now time.Time) state.DriverState {
 	}
 }
 
-// SpawnCommand returns "claude --resume <id>" when an agent session ID
-// is known so cold-boot recovery picks up the prior conversation.
-// Mirrors lib/claude/cli.ResumeCommand exactly so we don't take a
-// dependency on lib/claude/cli from the pure-state layer.
-func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, sandboxed bool) (state.LaunchPlan, error) {
-	cs, ok := s.(ClaudeState)
-	if !ok {
-		cs = ClaudeState{}
-	}
-	if cs.Model != "" {
-		cs.ModelSet = true
-	}
-	if cs.Effort != "" {
-		cs.EffortSet = true
-	}
-	startDir := project
-	if cs.StartDir != "" {
-		startDir = cs.StartDir
-	}
+// resolveLaunchCommand applies worktree flag resolution, model/effort
+// precedence (session state wins over the incoming command's flags, and
+// vice versa on first observation), and sandbox flags to baseCommand. It
+// returns the possibly-updated ClaudeState (Model/Effort/*Set fields) and
+// the finished command string alongside the worktree request extracted
+// from it.
+func resolveLaunchCommand(cs ClaudeState, baseCommand string, options state.LaunchOptions, sandboxed bool) (ClaudeState, string, worktreeRequest) {
 	req, command := resolveWorktreeRequest(baseCommand, options, "--worktree")
 	command = strings.TrimSpace(command)
 	if argv, err := agentlaunch.SplitArgs(command); err == nil {
@@ -206,6 +194,29 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 		}
 	}
 	command = claudecli.SandboxFlags(command, sandboxed)
+	return cs, command, req
+}
+
+// SpawnCommand returns "claude --resume <id>" when an agent session ID
+// is known so cold-boot recovery picks up the prior conversation.
+// Mirrors lib/claude/cli.ResumeCommand exactly so we don't take a
+// dependency on lib/claude/cli from the pure-state layer.
+func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, sandboxed bool) (state.LaunchPlan, error) {
+	cs, ok := s.(ClaudeState)
+	if !ok {
+		cs = ClaudeState{}
+	}
+	if cs.Model != "" {
+		cs.ModelSet = true
+	}
+	if cs.Effort != "" {
+		cs.EffortSet = true
+	}
+	startDir := project
+	if cs.StartDir != "" {
+		startDir = cs.StartDir
+	}
+	cs, command, req := resolveLaunchCommand(cs, baseCommand, options, sandboxed)
 	if mode != state.LaunchModeColdStart || cs.ClaudeSessionID == "" {
 		if mode == state.LaunchModeColdStart {
 			if cs.ForkParentID != "" && isAlphanumHyphen(cs.ForkParentID) {

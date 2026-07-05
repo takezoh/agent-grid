@@ -81,7 +81,7 @@ func TestStreamRoutingE2EBackstopFidelity(t *testing.T) {
 }
 
 func newE2EBackend(rt RuntimeHook, be e2eBackend, listen string) *Backend {
-	return New(rt, nil, "sid", "e2e", "/p", be.bin, be.args, "", false, true, listen, 30*time.Second)
+	return New(rt, nil, "sid", "e2e", "/p", be.bin, be.args, "", "", false, true, listen, 30*time.Second)
 }
 
 // runE2EIsolation launches a real app-server and asserts that two frames in

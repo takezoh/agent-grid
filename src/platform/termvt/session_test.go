@@ -53,8 +53,13 @@ func TestSessionEchoesInput(t *testing.T) {
 
 func TestSessionCapturesOSC9(t *testing.T) {
 	// printf emits an OSC 9 desktop-notification sequence; the session must
-	// surface it as a Control event rather than raw bytes.
-	s, err := NewSession(Spec{Argv: []string{"bash", "-c", `printf '\033]9;hello-notif\a'; sleep 0.3`}})
+	// surface it as a Control event rather than raw bytes. The leading sleep
+	// gives the test time to Subscribe before the sequence fires — mainLoop
+	// only fans Control events out to subscribers live at the time of the
+	// write, it does not replay them for late subscribers, so without this
+	// margin a slow-scheduled test goroutine (e.g. under -race) can lose the
+	// race against the unthrottled child process and miss the event entirely.
+	s, err := NewSession(Spec{Argv: []string{"bash", "-c", `sleep 0.2; printf '\033]9;hello-notif\a'; sleep 0.3`}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +70,8 @@ func TestSessionCapturesOSC9(t *testing.T) {
 }
 
 func TestSessionCapturesOSC133Prompt(t *testing.T) {
-	s, err := NewSession(Spec{Argv: []string{"bash", "-c", `printf '\033]133;A\a'; sleep 0.3`}})
+	// See TestSessionCapturesOSC9 for why the leading sleep is required.
+	s, err := NewSession(Spec{Argv: []string{"bash", "-c", `sleep 0.2; printf '\033]133;A\a'; sleep 0.3`}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +82,8 @@ func TestSessionCapturesOSC133Prompt(t *testing.T) {
 }
 
 func TestSessionCapturesTitle(t *testing.T) {
-	s, err := NewSession(Spec{Argv: []string{"bash", "-c", `printf '\033]0;my-title\a'; sleep 0.3`}})
+	// See TestSessionCapturesOSC9 for why the leading sleep is required.
+	s, err := NewSession(Spec{Argv: []string{"bash", "-c", `sleep 0.2; printf '\033]0;my-title\a'; sleep 0.3`}})
 	if err != nil {
 		t.Fatal(err)
 	}
