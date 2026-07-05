@@ -18,6 +18,13 @@ type SurfaceBackend interface {
 	ResizeSurface(frameID string, cols, rows int) error
 }
 
+// bufferedSurfaceBackend optionally accepts a caller-specified subscriber
+// buffer size. Production backends may ignore this seam and fall back to their
+// default contract; tests use it to drive overflow deterministically.
+type bufferedSurfaceBackend interface {
+	SubscribeSurfaceWithBuffer(frameID string, buffer int) (int, <-chan termvt.Event, error)
+}
+
 // surfaceKey is the map key for a per-(ConnID, SessionID) subscription.
 type surfaceKey struct {
 	connID    state.ConnID
@@ -53,17 +60,43 @@ type TerminalRelay struct {
 
 	mu   sync.Mutex
 	subs map[surfaceKey]*surfaceSub
+
+	subscriberBuffer int
+}
+
+const defaultTerminalRelaySubscriberBuffer = 256
+
+type TerminalRelayOption func(*TerminalRelay)
+
+// WithTerminalRelaySubscriberBuffer overrides the backend subscriber buffer
+// TerminalRelay requests when the backend supports it. Non-positive values are
+// ignored so the production default remains unchanged.
+func WithTerminalRelaySubscriberBuffer(size int) TerminalRelayOption {
+	return func(tr *TerminalRelay) {
+		if size > 0 {
+			tr.subscriberBuffer = size
+		}
+	}
 }
 
 // NewTerminalRelay creates a TerminalRelay that forwards surface events via send.
 // send is typically rt.enqueueInternal, bound at construction time.
-func NewTerminalRelay(b SurfaceBackend, send func(internalEvent) bool) *TerminalRelay {
-	return &TerminalRelay{
-		backend: b,
-		send:    send,
-		startTS: time.Now(),
-		subs:    make(map[surfaceKey]*surfaceSub),
+func NewTerminalRelay(
+	b SurfaceBackend,
+	send func(internalEvent) bool,
+	opts ...TerminalRelayOption,
+) *TerminalRelay {
+	tr := &TerminalRelay{
+		backend:          b,
+		send:             send,
+		startTS:          time.Now(),
+		subs:             make(map[surfaceKey]*surfaceSub),
+		subscriberBuffer: defaultTerminalRelaySubscriberBuffer,
 	}
+	for _, opt := range opts {
+		opt(tr)
+	}
+	return tr
 }
 
 // Subscribe starts a fan-out goroutine for (connID, sessionID) on frameID.
@@ -78,7 +111,7 @@ func (tr *TerminalRelay) Subscribe(connID state.ConnID, sessionID state.SessionI
 	}
 	tr.mu.Unlock()
 
-	id, ch, err := tr.backend.SubscribeSurface(frameID)
+	id, ch, err := tr.subscribeSurface(frameID)
 	if err != nil {
 		return err
 	}
@@ -101,6 +134,13 @@ func (tr *TerminalRelay) Subscribe(connID state.ConnID, sessionID state.SessionI
 
 	go tr.fanOut(key, sub, ch)
 	return nil
+}
+
+func (tr *TerminalRelay) subscribeSurface(frameID string) (int, <-chan termvt.Event, error) {
+	if backend, ok := tr.backend.(bufferedSurfaceBackend); ok {
+		return backend.SubscribeSurfaceWithBuffer(frameID, tr.subscriberBuffer)
+	}
+	return tr.backend.SubscribeSurface(frameID)
 }
 
 // Unsubscribe stops the fan-out goroutine for (connID, sessionID) and

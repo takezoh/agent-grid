@@ -2,7 +2,7 @@
 id: task-20260705-relay-severance-contract
 kind: task
 title: TerminalRelay severance contract
-status: todo
+status: done
 created: '2026-07-05'
 priority: normal
 effort: small
@@ -21,6 +21,7 @@ source_paths:
 - docs/component/component-20260624-platform-termvt-multiplexer-testing.md
 summary: subscriber channel 容量をコンストラクタ注入化し、slow subscriber の sever が他 subscriber/session
   を阻害しないことを contract で pin
+updated: '2026-07-05'
 ---
 
 # TerminalRelay severance contract
@@ -55,3 +56,13 @@ isolation と対になる relay 層の不変条件を T2 contract として pin 
 - 新 contract が `-race` で決定的に green (sleep 依存・データ量依存の駆動をしない)
 - 既存 relay テストが無修正で green (production 既定値の非変更)
 - `make lint` green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Started implementation of TerminalRelay subscriber-buffer injection and severance contract test.
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented TerminalRelay subscriber-buffer injection and severance contract test; go test -race ./client/runtime -run TestTerminalRelay and make lint green.
+{% /transition %}

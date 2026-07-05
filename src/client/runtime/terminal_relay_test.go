@@ -17,9 +17,16 @@ import (
 type fakeSurfaceBackend struct {
 	mu      sync.Mutex
 	nextID  atomic.Int32
-	subs    map[int]chan termvt.Event // id → channel
+	subs    map[int]fakeSurfaceSub // id → subscription
 	written []writeCall
 	resized []resizeCall
+
+	defaultBuffer int
+}
+
+type fakeSurfaceSub struct {
+	frameID string
+	ch      chan termvt.Event
 }
 
 type writeCall struct {
@@ -34,21 +41,37 @@ type resizeCall struct {
 }
 
 func newFakeSurfaceBackend() *fakeSurfaceBackend {
-	return &fakeSurfaceBackend{subs: make(map[int]chan termvt.Event)}
+	return &fakeSurfaceBackend{
+		subs:          make(map[int]fakeSurfaceSub),
+		defaultBuffer: 32,
+	}
 }
 
 func (f *fakeSurfaceBackend) SubscribeSurface(frameID string) (int, <-chan termvt.Event, error) {
+	return f.SubscribeSurfaceWithBuffer(frameID, f.defaultBuffer)
+}
+
+func (f *fakeSurfaceBackend) SubscribeSurfaceWithBuffer(
+	frameID string,
+	buffer int,
+) (int, <-chan termvt.Event, error) {
 	id := int(f.nextID.Add(1))
-	ch := make(chan termvt.Event, 32)
+	if buffer <= 0 {
+		buffer = f.defaultBuffer
+	}
+	ch := make(chan termvt.Event, buffer)
 	f.mu.Lock()
-	f.subs[id] = ch
+	f.subs[id] = fakeSurfaceSub{frameID: frameID, ch: ch}
 	f.mu.Unlock()
 	return id, ch, nil
 }
 
 func (f *fakeSurfaceBackend) UnsubscribeSurface(frameID string, id int) error {
 	f.mu.Lock()
-	delete(f.subs, id)
+	sub, ok := f.subs[id]
+	if ok && sub.frameID == frameID {
+		delete(f.subs, id)
+	}
 	f.mu.Unlock()
 	return nil
 }
@@ -70,10 +93,30 @@ func (f *fakeSurfaceBackend) ResizeSurface(frameID string, cols, rows int) error
 // Send pushes ev into the channel for the given subscriber id.
 func (f *fakeSurfaceBackend) Send(id int, ev termvt.Event) {
 	f.mu.Lock()
-	ch := f.subs[id]
+	sub, ok := f.subs[id]
 	f.mu.Unlock()
-	if ch != nil {
-		ch <- ev
+	if ok {
+		select {
+		case sub.ch <- ev:
+		default:
+			f.CloseID(id)
+		}
+	}
+}
+
+// Broadcast pushes ev to every subscriber on frameID. Subscribers whose
+// buffers are full are severed, mirroring termvt's fan-out contract.
+func (f *fakeSurfaceBackend) Broadcast(frameID string, ev termvt.Event) {
+	f.mu.Lock()
+	ids := make([]int, 0, len(f.subs))
+	for id, sub := range f.subs {
+		if sub.frameID == frameID {
+			ids = append(ids, id)
+		}
+	}
+	f.mu.Unlock()
+	for _, id := range ids {
+		f.Send(id, ev)
 	}
 }
 
@@ -81,13 +124,13 @@ func (f *fakeSurfaceBackend) Send(id int, ev termvt.Event) {
 // slow-close on process exit.
 func (f *fakeSurfaceBackend) CloseID(id int) {
 	f.mu.Lock()
-	ch, ok := f.subs[id]
+	sub, ok := f.subs[id]
 	if ok {
 		delete(f.subs, id)
 	}
 	f.mu.Unlock()
 	if ok {
-		close(ch)
+		close(sub.ch)
 	}
 }
 
@@ -116,6 +159,16 @@ func newTestTerminalRelay(t *testing.T, b SurfaceBackend) (*TerminalRelay, <-cha
 	ch := make(chan internalEvent, 64)
 	send := func(ev internalEvent) bool { ch <- ev; return true }
 	return NewTerminalRelay(b, send), ch
+}
+
+func newTestTerminalRelayWithOptions(
+	t *testing.T,
+	b SurfaceBackend,
+	send func(internalEvent) bool,
+	opts ...TerminalRelayOption,
+) *TerminalRelay {
+	t.Helper()
+	return NewTerminalRelay(b, send, opts...)
 }
 
 const (
@@ -378,5 +431,159 @@ func TestTerminalRelay_TwoConnsIndependent(t *testing.T) {
 	// conn2 must start at Sequence 0, not carry over conn1's counter.
 	if seqByConn[conn2][0] != 0 {
 		t.Errorf("conn2 first Sequence = %d, want 0", seqByConn[conn2][0])
+	}
+}
+
+type relayEventRouter struct {
+	mu       sync.Mutex
+	channels map[surfaceKey]chan internalEvent
+}
+
+func newRelayEventRouter() *relayEventRouter {
+	return &relayEventRouter{
+		channels: make(map[surfaceKey]chan internalEvent),
+	}
+}
+
+func (r *relayEventRouter) send(ev internalEvent) bool {
+	key, ok := relayEventKey(ev)
+	if !ok {
+		return false
+	}
+
+	r.mu.Lock()
+	ch := r.channels[key]
+	r.mu.Unlock()
+	if ch == nil {
+		return false
+	}
+
+	ch <- ev
+	return true
+}
+
+func (r *relayEventRouter) setChannel(key surfaceKey, ch chan internalEvent) {
+	r.mu.Lock()
+	r.channels[key] = ch
+	r.mu.Unlock()
+}
+
+func relayEventKey(ev internalEvent) (surfaceKey, bool) {
+	switch v := ev.(type) {
+	case internalBroadcastSurface:
+		return surfaceKey{connID: v.ConnID, sessionID: v.SessionID}, true
+	case internalSurfaceClosed:
+		return surfaceKey{connID: v.ConnID, sessionID: v.SessionID}, true
+	default:
+		return surfaceKey{}, false
+	}
+}
+
+func awaitEvent(
+	t *testing.T,
+	ch <-chan internalEvent,
+	timeout time.Duration,
+) internalEvent {
+	t.Helper()
+	select {
+	case ev := <-ch:
+		return ev
+	case <-time.After(timeout):
+		t.Fatal("timeout waiting for event")
+		return nil
+	}
+}
+
+func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
+	b := newFakeSurfaceBackend()
+	router := newRelayEventRouter()
+	tr := newTestTerminalRelayWithOptions(
+		t,
+		b,
+		router.send,
+		WithTerminalRelaySubscriberBuffer(1),
+	)
+	defer tr.Close()
+
+	blockedKey := surfaceKey{connID: conn1, sessionID: sess1}
+	fastSameSessionKey := surfaceKey{connID: conn2, sessionID: sess1}
+	otherSessionKey := surfaceKey{connID: conn1, sessionID: sess2}
+
+	blockedCh := make(chan internalEvent)
+	blockedDrain := make(chan internalEvent, 8)
+	fastSameSessionCh := make(chan internalEvent, 8)
+	otherSessionCh := make(chan internalEvent, 8)
+	router.setChannel(blockedKey, blockedCh)
+	router.setChannel(fastSameSessionKey, fastSameSessionCh)
+	router.setChannel(otherSessionKey, otherSessionCh)
+
+	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+		t.Fatalf("Subscribe blocked key: %v", err)
+	}
+	if err := tr.Subscribe(conn2, sess1, "%1"); err != nil {
+		t.Fatalf("Subscribe fast same-session key: %v", err)
+	}
+	if err := tr.Subscribe(conn1, sess2, "%2"); err != nil {
+		t.Fatalf("Subscribe other-session key: %v", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		b.Broadcast("%1", termvt.Event{Kind: termvt.EventOutput, Data: []byte{byte('a' + i)}})
+		b.Broadcast("%2", termvt.Event{Kind: termvt.EventOutput, Data: []byte{byte('x' + i)}})
+
+		evSame := awaitEvent(t, fastSameSessionCh, time.Second)
+		bsSame, ok := evSame.(internalBroadcastSurface)
+		if !ok {
+			t.Fatalf("same-session event[%d] type = %T, want internalBroadcastSurface", i, evSame)
+		}
+		if bsSame.Sequence != uint64(i) {
+			t.Fatalf("same-session event[%d] sequence = %d, want %d", i, bsSame.Sequence, i)
+		}
+		if want := []byte{byte('a' + i)}; string(bsSame.Data) != string(want) {
+			t.Fatalf("same-session event[%d] data = %q, want %q", i, bsSame.Data, want)
+		}
+
+		evOther := awaitEvent(t, otherSessionCh, time.Second)
+		bsOther, ok := evOther.(internalBroadcastSurface)
+		if !ok {
+			t.Fatalf("other-session event[%d] type = %T, want internalBroadcastSurface", i, evOther)
+		}
+		if bsOther.Sequence != uint64(i) {
+			t.Fatalf("other-session event[%d] sequence = %d, want %d", i, bsOther.Sequence, i)
+		}
+		if want := []byte{byte('x' + i)}; string(bsOther.Data) != string(want) {
+			t.Fatalf("other-session event[%d] data = %q, want %q", i, bsOther.Data, want)
+		}
+	}
+
+	go func() {
+		for ev := range blockedCh {
+			blockedDrain <- ev
+		}
+	}()
+
+	gotBlocked := collectEvents(t, blockedDrain, 3, time.Second)
+	if len(gotBlocked) != 3 {
+		t.Fatalf("blocked key events = %d, want 3", len(gotBlocked))
+	}
+	if _, ok := gotBlocked[2].(internalSurfaceClosed); !ok {
+		t.Fatalf("third blocked event type = %T, want internalSurfaceClosed", gotBlocked[2])
+	}
+
+	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+		t.Fatalf("re-Subscribe blocked key: %v", err)
+	}
+	b.Broadcast("%1", termvt.Event{Kind: termvt.EventOutput, Data: []byte("r")})
+
+	ev := awaitEvent(t, blockedDrain, time.Second)
+	bs, ok := ev.(internalBroadcastSurface)
+	if !ok {
+		t.Fatalf("re-subscribed event type = %T, want internalBroadcastSurface", ev)
+	}
+	if bs.Sequence != 0 {
+		t.Fatalf("re-subscribed sequence = %d, want 0", bs.Sequence)
+	}
+	if string(bs.Data) != "r" {
+		t.Fatalf("re-subscribed data = %q, want %q", bs.Data, "r")
 	}
 }
