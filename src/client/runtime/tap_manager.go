@@ -149,10 +149,12 @@ func newFrameTapTerminal(frameID state.FrameID, enqueue func(state.Event)) *vt.T
 // and EvFramePrompt events for each OSC sequence detected.
 // Runs in its own goroutine; exits when ch is closed or ctx is cancelled.
 //
-// Feed is deliberately unguarded: the forks/ bounds fixes make the emulator
-// survive the scroll/cursor sequences that used to panic at 1×1 (pinned by
-// TestFeed1x1SurvivesScrollAndCursorSequences), and recovering here would
-// silently drop the chunk's OSC 133 / prompt / notification payloads.
+// Feed is deliberately unguarded: the upstream scroll-region bounds fixes
+// (see issues/2026-07-02-vt-emulator-insertlinearea-panic.md) make the
+// emulator survive the scroll/cursor sequences that used to panic at 1×1
+// (pinned by TestFeed1x1SurvivesScrollAndCursorSequences), and recovering
+// here would silently drop the chunk's OSC 133 / prompt / notification
+// payloads.
 func readTap(ctx context.Context, frameID state.FrameID, target string, ch <-chan []byte, enqueue func(state.Event)) {
 	term := newFrameTapTerminal(frameID, enqueue)
 	for {

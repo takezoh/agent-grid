@@ -17,7 +17,7 @@ import (
 // We drive a Session with the real *vt.Emulator so the chunk flows through
 // the same processChunk path that crashed. The actor serializes chunks and
 // Resize on one goroutine, so feeding the stale-margin chunk after Resize
-// reproduces the exact interleaving. Without the forks/ bounds fixes this
+// reproduces the exact interleaving. Without the upstream bounds fixes this
 // panics (the actor has no recover, by design); with them the session keeps
 // serving snapshots.
 func TestSession_StaleScrollRegionAfterResizeDoesNotPanic(t *testing.T) {

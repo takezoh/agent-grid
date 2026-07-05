@@ -5,7 +5,7 @@ import "testing"
 // These regression tests pin the reason tap_manager could drop feedSafe's
 // recover: a 1×1 tap terminal used to panic inside the upstream emulator on
 // scroll/cursor sequences that any full-screen TUI emits at startup
-// (issues/2026-07-02-vt-emulator-insertlinearea-panic.md). With the forks/
+// (issues/2026-07-02-vt-emulator-insertlinearea-panic.md). With the upstream
 // bounds fixes the raw Feed must survive them all; if one of these starts
 // panicking again, the tap goroutine takes down the whole daemon.
 

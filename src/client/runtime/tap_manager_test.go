@@ -154,8 +154,9 @@ func TestReadTapCancelStops(t *testing.T) {
 // Regression: the frame tap VT emulator runs at 1x1 dimensions and the
 // upstream charmbracelet/x/vt library used to panic with "index out of
 // range" when scroll/cursor sequences (e.g. CSI M / DECRC / ESC M) drove
-// Buffer.InsertLineArea past the buffer bounds. The forks/ bounds fixes
-// eliminated the panic, which is what let readTap drop its recover-based
+// Buffer.InsertLineArea past the buffer bounds. The upstream bounds fixes
+// (issues/2026-07-02-vt-emulator-insertlinearea-panic.md) eliminated the
+// panic, which is what let readTap drop its recover-based
 // feedSafe wrapper (recovering silently lost the chunk's OSC payloads).
 // This pins the replacement contract: scroll sequences and the OSC events
 // that follow them in the same terminal must all be processed.
@@ -185,7 +186,7 @@ func TestFrameTapTerminal_ProcessesOscAfterScrollSequences(t *testing.T) {
 }
 
 // readTap must survive a chunk full of scroll sequences at 1x1 and still
-// deliver the OSC payload from the following chunk. Before the forks/
+// deliver the OSC payload from the following chunk. Before the upstream
 // bounds fixes this was the daemon-killing path: the emulator panicked in
 // the per-frame goroutine and took down the whole process.
 func TestReadTap_SurvivesScrollSequences(t *testing.T) {
