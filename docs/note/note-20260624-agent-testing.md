@@ -30,6 +30,7 @@ relations:
 - {type: referencedBy, target: adr-20260705-fakedocker-path-injection}
 - {type: referencedBy, target: adr-20260705-test-tier-taxonomy}
 - {type: references, target: adr-20260705-metadata-source-priority}
+- {type: references, target: component-20260705-client-web-browser-harness}
 source_paths:
 - src/orchestrator/scheduler/
 - src/client/runtime/
@@ -105,7 +106,8 @@ the test-pinned enforcement catalogued in
 - **pty tap contract (T2)** — the tap path writes real OSC 0/2/9/133 sequences through a real pty and asserts that only the owning frame receives `EvFrameOsc` / `EvFramePrompt`, while malformed input is contained without killing the loop. Enforcement is catalogued in [code-enforcement.md §8](../note/note-20260624-technical-code-enforcement.md).
 - **relay severance contract (T2)** — `TerminalRelay` is driven with a deterministically saturated subscriber to prove that only the slow consumer is severed and all other subscribers keep ordered delivery. Enforcement is catalogued in [code-enforcement.md §9](../note/note-20260624-technical-code-enforcement.md).
 - **wire fixtures pipeline (T1 + CI gate)** — Go generates canonical wire JSON fixtures, vitest consumes the same files, and CI fails on regeneration drift. Enforcement is catalogued in [code-enforcement.md §11](../note/note-20260624-technical-code-enforcement.md).
-- **gateway scenario e2e (planned T1)** — the test-harness plan tracks a real-`server` + fake-agent scenario for `session create → WS viewUpdate`, but this backstop is not yet part of the always-on suite and should not be assumed present until the planned task lands.
+- **gateway scenario e2e (T1)** — a real-`server` + fake-agent scenario now verifies `session create → WS viewUpdate` in the always-on Go suite for the server→view path.
+- **client/web browser smoke (T1)** — Playwright runs a deterministic fake-backend browser harness for session hydrate, command palette open, and new-session submit. This covers browser wiring that happy-dom cannot prove, while keeping real soft keyboard / assistive-tech flows on the manual-device checklist.
 - **fakedocker + `FakeVsRealDocker` (T1 + T3)** — devcontainer lifecycle tests run against PATH-injected `fakedocker`, and an opt-in real-docker backstop verifies the fake's output shape. Enforcement is catalogued in [code-enforcement.md §10](../note/note-20260624-technical-code-enforcement.md).
 
 ## Fan-out isolation harness (termvt multiplexer)

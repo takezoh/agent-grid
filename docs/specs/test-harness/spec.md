@@ -69,6 +69,12 @@ functional_requirements:
     / 入力 State の不変) を維持しなければならない
   priority: could
   rationale: 個別 reducer テストが到達しない event 順序の組合せを fuzz で覆う
+- id: FR-013
+  statement: システムは deterministic fake backend を用いた browser smoke により、client/web の
+    session hydrate・command palette・new-session submit を常時 CI で検証しなければならない
+  priority: must
+  rationale: happy-dom では browser 起動経路・keyboard shortcut・fake WebSocket bootstrap
+    を証明できない
 non_functional_requirements:
 - id: NFR-001
   type: maintainability
@@ -121,8 +127,15 @@ acceptance:
   then: 停止 subscriber は sever され、他 subscriber は全 event を順序どおり受信する
   requirement_refs:
   - FR-004
+- id: AC-007
+  given: deterministic fake backend を注入した `client/web` Playwright harness
+  when: browser を起動して session hydrate 後に command palette を開き、新規 session を submit する
+  then: 既存 session 表示・palette open・新規 session 作成後の view 反映がすべて成立する
+  requirement_refs:
+  - FR-013
 relations:
 - {type: implementedBy, target: plan-20260705-test-harness}
+- {type: referencedBy, target: component-20260705-client-web-browser-harness}
 source_paths:
 - src/client/runtime/
 - src/client/driver/
@@ -132,10 +145,13 @@ source_paths:
 - src/platform/sandbox/devcontainer/
 - src/server/web/
 - src/client/web/src/wire/
+- src/client/web/playwright.config.ts
+- src/client/web/e2e/
+- src/client/web/package.json
 - src/gorules/
 - scripts/check-coverage.sh
 summary: 4 tier のテスト体系 (pure/wired/contract/fidelity) を正式化し、pty→OSC・surface relay・driver
-  conformance・docker・Go↔TS wire の欠落象限を埋める
+  conformance・docker・Go↔TS wire・browser wiring smoke の欠落象限を埋める
 updated: '2026-07-05'
 ---
 
@@ -152,6 +168,7 @@ T3 fidelity** として正式化し、パターンから漏れている 4 つの
 2. **surface relay (TerminalRelay)** — severance 分岐が飽和を要して駆動困難
 3. **docker (devcontainer)** — fake も real e2e も無い唯一の外部依存
 4. **Go↔TS wire** — ADR 0021 の fixture 機構が未実装のまま手動同期が常態化
+5. **browser wiring (`client/web`)** — happy-dom では browser 起動経路と keyboard shortcut の配線が pin されない
 
 また保証構造を「fake は契約 (T2) で保証され、契約は e2e (T3) で保証される」という二層として静的制約 (lint / CI /
 coverage floor) と LLM 制約 (AGENTS.md / enforcement note) の両方に pin する。
@@ -224,6 +241,12 @@ replay に再利用できる。
 整合 / MRU 整合 / 入力 State の不変を維持しなければならない (stdlib fuzz)。
 {% /req %}
 
+{% req id="FR-013" %}
+**browser wiring smoke** — deterministic fake backend を用いた browser smoke により、`client/web` の
+session hydrate・command palette・new-session submit を常時 CI で検証しなければならない。目的は
+browser 起動経路、fake WebSocket bootstrap、keyboard shortcut 経路を happy-dom の外で pin することにある。
+{% /req %}
+
 {% req id="NFR-001" %}
 新 driver 追加時、conformance suite への加入は registry 走査により自動で、手作業を要しない。
 {% /req %}
@@ -268,13 +291,20 @@ Given: 容量 1 に注入した subscriber channel と受信停止 subscriber。
 停止 subscriber は sever され、他 subscriber は全 event を順序どおり受信する。
 {% /acceptance %}
 
+{% acceptance id="AC-007" %}
+Given: deterministic fake backend を注入した `client/web` Playwright harness。When: browser を起動して
+session hydrate 後に command palette を開き、新規 session を submit する。Then: 既存 session 表示、
+palette open、新規 session 作成後の view 反映がすべて成立する。
+{% /acceptance %}
+
 ## Out of Scope
 
 - **behavioral eval (T4)** — 駆動されたエージェントがタスクを完遂するかの成果 eval
   (note-20260624-technical-harness-engineering-assessment P1)。本 spec の T3 録音基盤 (FR-011) の上に将来構築できるが、別議題。
 - **termvt への fake 導入** — real pty が安価かつ hermetic なため、termvt は fake を持たず T2 を real pty
   で走らせる現行 posture を維持する (adr-20260705-test-tier-taxonomy に明文化)。
-- **playwright 等ブラウザ e2e の導入** — vitest + happy-dom で wire〜store まで届いており、現段階では費用対効果が薄い。
+- **visual regression / 実機 browser fidelity** — screenshot diff、実 soft keyboard、実 assistive-tech
+  のような高忠実度 browser 検証はこの spec の対象外。browser smoke は wiring の常時 gate までに留める。
 - **orchestrator 層の scheduler 系テスト強化** — 既に symphony-conformance で SPEC ↔ test 対応が正本化されており、本
   spec の対象外。
 

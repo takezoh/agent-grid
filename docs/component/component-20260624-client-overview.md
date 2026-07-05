@@ -21,6 +21,7 @@ relations:
 - {type: referencedBy, target: note-20260624-docs-overview}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: note-20260624-technical-overview}
+- {type: referencedBy, target: component-20260705-client-web-browser-harness}
 source_paths:
 - src/client/web/
 - src/cmd/server/

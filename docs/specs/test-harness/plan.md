@@ -18,45 +18,45 @@ scope_in:
 scope_out:
 - behavioral eval (T4)
 - termvt への fake 導入 (real pty posture を維持)
-- playwright 等ブラウザ e2e
 - orchestrator/scheduler 系の再設計
+- visual regression / 実機 browser fidelity
 milestones:
-  - id: m1
-    title: runtimetest loop harness + EventSink seam
-    status: done
-  - id: m2
-    title: pty→OSC tap contract + FuzzParseOsc
-    status: done
-  - id: m3
-    title: TerminalRelay severance contract
-    status: done
-  - id: m4
-    title: drivertest.Conformance + registry 走査
-    status: done
-  - id: m5
-    title: fakecodex/stream fake settings-updated preset
-    status: done
-  - id: m6
-    title: Go 生成 wire fixtures + vitest 消費 + CI gate
-    status: done
-  - id: m7
-    title: gateway scenario e2e (fake CLI 貫通)
-    status: done
-  - id: m8
-    title: fakedocker + real-docker backstop
-    status: done
-  - id: m9
-    title: 静的 enforcement 一式 + nightly e2e
-    status: done
-  - id: m10
-    title: FuzzReduce
-    status: done
-  - id: m11
-    title: 録音駆動 fake (record/replay)
-    status: done
-  - id: m12
-    title: AGENTS.md / note 群への規範反映 (最終統合)
-    status: done
+- id: m1
+  title: runtimetest loop harness + EventSink seam
+  status: done
+- id: m2
+  title: pty→OSC tap contract + FuzzParseOsc
+  status: done
+- id: m3
+  title: TerminalRelay severance contract
+  status: done
+- id: m4
+  title: drivertest.Conformance + registry 走査
+  status: done
+- id: m5
+  title: fakecodex/stream fake settings-updated preset
+  status: done
+- id: m6
+  title: Go 生成 wire fixtures + vitest 消費 + CI gate
+  status: done
+- id: m7
+  title: gateway scenario e2e (fake CLI 貫通)
+  status: done
+- id: m8
+  title: fakedocker + real-docker backstop
+  status: done
+- id: m9
+  title: 静的 enforcement 一式 + nightly e2e
+  status: done
+- id: m10
+  title: FuzzReduce
+  status: done
+- id: m11
+  title: 録音駆動 fake (record/replay)
+  status: done
+- id: m12
+  title: AGENTS.md / note 群への規範反映 (最終統合)
+  status: done
 contracts:
 - 'tap OSC routing: frame F の pty 出力由来 OSC event は FrameID==F のみ'
 - 'relay severance: slow subscriber は sever、他 subscriber/session の配送順序維持'
@@ -112,6 +112,10 @@ Why は各 ADR (adr-20260705-test-tier-taxonomy ほか 5 本) に、要件は sp
 
 各 milestone は `docs/task/task-20260705-*.md` の task doc と 1:1 対応し、依存は task frontmatter の
 `dependsOn` relation が正本。**依存が無い milestone 同士は別セッションで並行実装できる。**
+
+この plan の browser posture は historical record として保持する。後続で追加された
+`client/web` の Playwright browser smoke は別系統の browser wiring harness であり、ここで扱う
+Go 側の gateway scenario e2e を置き換えるものではなく補完関係にある。
 
 ## Implementation Sequence
 
