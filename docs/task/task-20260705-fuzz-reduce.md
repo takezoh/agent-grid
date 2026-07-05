@@ -2,7 +2,7 @@
 id: task-20260705-fuzz-reduce
 kind: task
 title: 'FuzzReduce: ランダム event 列に対する Reduce 大域不変条件'
-status: todo
+status: done
 created: '2026-07-05'
 priority: low
 effort: small
@@ -20,6 +20,7 @@ source_paths:
 - src/client/state/state.go
 summary: stdlib fuzz で event 列を Reduce に fold し、no-panic / HeadFrameID 整合 / MRU 整合
   / 旧 State 不変を assert
+updated: '2026-07-05'
 ---
 
 # FuzzReduce: ランダム event 列に対する Reduce 大域不変条件
@@ -54,3 +55,13 @@ summary: stdlib fuzz で event 列を Reduce に fold し、no-panic / HeadFrame
 
 - fuzz が 30s green + 発見した不変条件違反があれば修正 or issue 化して seed に固定
 - `make lint` green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Started implementation
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented fuzz reducer invariants and verified with tests
+{% /transition %}

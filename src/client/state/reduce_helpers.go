@@ -126,6 +126,30 @@ func popMRU(sess Session) (FrameID, Session) {
 	return "", sess
 }
 
+func pruneMRU(sess Session) Session {
+	if len(sess.MRUFrameIDs) == 0 {
+		return sess
+	}
+	existing := make(map[FrameID]struct{}, len(sess.Frames))
+	for _, f := range sess.Frames {
+		existing[f.ID] = struct{}{}
+	}
+	pruned := make([]FrameID, 0, len(sess.MRUFrameIDs))
+	seen := make(map[FrameID]struct{}, len(sess.MRUFrameIDs))
+	for _, id := range sess.MRUFrameIDs {
+		if _, ok := existing[id]; !ok {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		pruned = append(pruned, id)
+	}
+	sess.MRUFrameIDs = pruned
+	return sess
+}
+
 // removeFrameByIndex removes the frame at position i, preserving all others.
 func removeFrameByIndex(sess Session, i int) (Session, SessionFrame) {
 	removed := sess.Frames[i]

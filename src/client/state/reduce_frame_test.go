@@ -64,3 +64,32 @@ func TestActivateDifferentFrameUpdatesAndPersistsAndBroadcasts(t *testing.T) {
 	}
 	mustOK(t, effs)
 }
+
+func TestEvictInactiveChildFramePrunesStaleMRU(t *testing.T) {
+	s := New()
+	s.Sessions["s1"] = Session{
+		ID:          "s1",
+		Project:     "/foo",
+		Command:     "stub",
+		Driver:      stubDriverState{},
+		HeadFrameID: "f1",
+		MRUFrameIDs: []FrameID{"f2", "f3"},
+		Frames: []SessionFrame{
+			{ID: "f1", Project: "/foo", Command: "stub", Driver: stubDriverState{}},
+			{ID: "f2", Project: "/foo", Command: "alt", Driver: stubDriverState{}},
+			{ID: "f3", Project: "/foo", Command: "alt", Driver: stubDriverState{}},
+		},
+	}
+
+	next, _, ok := evictFrame(s, "f2", false)
+	if !ok {
+		t.Fatal("evictFrame returned ok=false")
+	}
+	sess := next.Sessions["s1"]
+	if len(sess.MRUFrameIDs) != 1 || sess.MRUFrameIDs[0] != "f3" {
+		t.Fatalf("MRUFrameIDs = %v, want [f3]", sess.MRUFrameIDs)
+	}
+	if sess.HeadFrameID != "f1" {
+		t.Fatalf("HeadFrameID = %q, want f1", sess.HeadFrameID)
+	}
+}
