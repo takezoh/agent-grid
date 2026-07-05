@@ -135,6 +135,19 @@ func TestServer_DefaultTurn(t *testing.T) {
 	if _, ok := tu["modelContextWindow"]; !ok {
 		t.Errorf("tokenUsage missing modelContextWindow field")
 	}
+
+	rawStarted := nc.last(codexschema.MethodThreadStarted)
+	var started map[string]any
+	if err := json.Unmarshal(rawStarted, &started); err != nil {
+		t.Fatalf("unmarshal thread/started: %v", err)
+	}
+	thread, _ := started["thread"].(map[string]any)
+	if thread["cwd"] != "/ws" {
+		t.Fatalf("thread.cwd = %v, want /ws", thread["cwd"])
+	}
+	if thread["path"] != DefaultThreadPath {
+		t.Fatalf("thread.path = %v, want %s", thread["path"], DefaultThreadPath)
+	}
 }
 
 // TestServer_FailingTurn — a failing handler emits `error` instead of turn/completed.

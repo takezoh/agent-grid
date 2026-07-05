@@ -3,7 +3,7 @@ id: spec-20260705-test-harness
 kind: spec
 title: Robust test harness for event propagation, drivers, external-platform fidelity,
   and server-to-view
-status: draft
+status: implemented
 created: '2026-07-05'
 tags:
 - testing
@@ -11,18 +11,18 @@ tags:
 owners: []
 functional_requirements:
 - id: FR-001
-  statement: システムのテストスイートは、すべてのテストを T0 (pure) / T1 (wired) / T2 (contract・fuzz)
-    / T3 (fidelity) のいずれかの tier に分類できる状態を常に維持しなければならない
+  statement: システムのテストスイートは、すべてのテストを T0 (pure) / T1 (wired) / T2 (contract・fuzz) /
+    T3 (fidelity) のいずれかの tier に分類できる状態を常に維持しなければならない
   priority: must
   rationale: 暗黙に存在する 4 層構造を命名・規範化し、新規テストの置き場所判断を機械化する
 - id: FR-002
-  statement: 新しい外部プラットフォーム依存 (CLI / daemon / protocol) が導入されたとき、システムは in-process
-    fake・FakeVsReal e2e backstop・不変条件を名指しする contract test の 3 点を同時に備えなければならない
+  statement: 新しい外部プラットフォーム依存 (CLI / daemon / protocol) が導入されたとき、システムは in-process fake・FakeVsReal
+    e2e backstop・不変条件を名指しする contract test の 3 点を同時に備えなければならない
   priority: must
   rationale: adr-20260704-cli-fake-validated-by-real-cli-e2e の原則を claude/codex 固有から一般規範へ昇格する
 - id: FR-003
-  statement: frame の pty 出力に OSC / prompt シーケンスが含まれるとき、システムは当該 frame の FrameID
-    を持つ EvFrameOsc / EvFramePrompt のみを runtime へ enqueue しなければならない
+  statement: frame の pty 出力に OSC / prompt シーケンスが含まれるとき、システムは当該 frame の FrameID を持つ
+    EvFrameOsc / EvFramePrompt のみを runtime へ enqueue しなければならない
   priority: must
   rationale: 経路 A (pty→tap→OSC) は現状 end-to-end を駆動する口が無く、routing 正しさが pin されていない
 - id: FR-004
@@ -31,8 +31,8 @@ functional_requirements:
   priority: must
   rationale: TerminalRelay の severance 分岐は state.Reduce を通らない internal 経路で、現状駆動困難
 - id: FR-005
-  statement: システムは state.Register 済みのすべての driver に共通 conformance 契約 (Step 純粋性 /
-    DriverEvent totality / Persist-Restore round-trip / metadata source priority) を適用しなければならない
+  statement: システムは state.Register 済みのすべての driver に共通 conformance 契約 (Step 純粋性 / DriverEvent
+    totality / Persist-Restore round-trip / metadata source priority) を適用しなければならない
   priority: must
   rationale: driver 個別テストは厚いが共通契約が暗黙で、新 driver への波及が保証されない
 - id: FR-006
@@ -41,8 +41,8 @@ functional_requirements:
   priority: must
   rationale: ADR 0021 の fixture 機構は未実装のまま手動同期が常態化しており、直近の model/effort 追加でも手動同期が発生した
 - id: FR-007
-  statement: システムは fake CLI を agent とした server→view 貫通シナリオ (session create → WS
-    viewUpdate 受信) を常時 CI で検証しなければならない
+  statement: システムは fake CLI を agent とした server→view 貫通シナリオ (session create → WS viewUpdate
+    受信) を常時 CI で検証しなければならない
   priority: must
   rationale: server=>view の伝搬を wire レベルで貫く常時テストが存在しない
 - id: FR-008
@@ -65,8 +65,8 @@ functional_requirements:
   priority: could
   rationale: fake 忠実性の保証を「人がテストを書く」から「記録が契約になる」へ移行する
 - id: FR-012
-  statement: 任意の event 列に対して、state.Reduce は panic せず大域不変条件 (HeadFrameID 整合 / MRU
-    整合 / 入力 State の不変) を維持しなければならない
+  statement: 任意の event 列に対して、state.Reduce は panic せず大域不変条件 (HeadFrameID 整合 / MRU 整合
+    / 入力 State の不変) を維持しなければならない
   priority: could
   rationale: 個別 reducer テストが到達しない event 順序の組合せを fuzz で覆う
 non_functional_requirements:
@@ -88,32 +88,39 @@ acceptance:
   given: state.Register 済みの全 driver
   when: drivertest.Conformance を registry 走査テストで実行する
   then: 全 driver が共通契約を pass する
-  requirement_refs: [FR-005, NFR-001]
+  requirement_refs:
+  - FR-005
+  - NFR-001
 - id: AC-002
   given: Go wire encoder の型変更 (フィールド追加など)
   when: fixture を再生成せずに CI を走らせる
   then: fixtures diff gate が fail する
-  requirement_refs: [FR-006]
+  requirement_refs:
+  - FR-006
 - id: AC-003
   given: fakeclaude を agent CLI とした real server binary
   when: REST で session を create し WS で subscribe する
   then: driver View と一致する viewUpdate frame が subscriber に届く
-  requirement_refs: [FR-007]
+  requirement_refs:
+  - FR-007
 - id: AC-004
   given: real pty 上の frame
   when: OSC 0/2/9/133 シーケンスを pty へ書き込む
   then: 当該 FrameID を持つ EvFrameOsc / EvFramePrompt のみが enqueue され、event loop は生存し続ける
-  requirement_refs: [FR-003]
+  requirement_refs:
+  - FR-003
 - id: AC-005
   given: e2e build tag 外の Go ファイル
   when: exec.Command("docker") を追加して make lint を実行する
   then: lint が fail する
-  requirement_refs: [FR-009]
+  requirement_refs:
+  - FR-009
 - id: AC-006
   given: 容量 1 に注入した subscriber channel と受信停止した subscriber
   when: relay が fan-out を継続する
   then: 停止 subscriber は sever され、他 subscriber は全 event を順序どおり受信する
-  requirement_refs: [FR-004]
+  requirement_refs:
+  - FR-004
 relations:
 - {type: implementedBy, target: plan-20260705-test-harness}
 source_paths:
@@ -129,6 +136,7 @@ source_paths:
 - scripts/check-coverage.sh
 summary: 4 tier のテスト体系 (pure/wired/contract/fidelity) を正式化し、pty→OSC・surface relay・driver
   conformance・docker・Go↔TS wire の欠落象限を埋める
+updated: '2026-07-05'
 ---
 
 # Spec — Robust test harness
@@ -269,3 +277,13 @@ Given: 容量 1 に注入した subscriber channel と受信停止 subscriber。
 - **playwright 等ブラウザ e2e の導入** — vitest + happy-dom で wire〜store まで届いており、現段階では費用対効果が薄い。
 - **orchestrator 層の scheduler 系テスト強化** — 既に symphony-conformance で SPEC ↔ test 対応が正本化されており、本
   spec の対象外。
+
+
+{% transition from="draft" to="approved" date="2026-07-05" %}
+Test harness requirements have implementation coverage.
+{% /transition %}
+
+
+{% transition from="approved" to="implemented" date="2026-07-05" %}
+Implementation and tests now cover the accepted test harness requirements.
+{% /transition %}

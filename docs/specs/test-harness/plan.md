@@ -2,7 +2,7 @@
 id: plan-20260705-test-harness
 kind: plan
 title: Test harness implementation plan
-status: draft
+status: done
 created: '2026-07-05'
 goal: 4 tier テスト体系 (T0-T3) を正式化し、pty→OSC・surface relay・driver conformance・docker・Go↔TS
   wire の欠落象限を既存パターン (seam + fake + contract + fidelity backstop) の複製で埋め、規範を lint/CI/docs
@@ -21,42 +21,42 @@ scope_out:
 - playwright 等ブラウザ e2e
 - orchestrator/scheduler 系の再設計
 milestones:
-- id: m1
-  title: runtimetest loop harness + EventSink seam
-  status: todo
-- id: m2
-  title: pty→OSC tap contract + FuzzParseOsc
-  status: todo
-- id: m3
-  title: TerminalRelay severance contract
-  status: todo
-- id: m4
-  title: drivertest.Conformance + registry 走査
-  status: todo
-- id: m5
-  title: fakecodex/stream fake settings-updated preset
-  status: todo
-- id: m6
-  title: Go 生成 wire fixtures + vitest 消費 + CI gate
-  status: todo
-- id: m7
-  title: gateway scenario e2e (fake CLI 貫通)
-  status: todo
-- id: m8
-  title: fakedocker + real-docker backstop
-  status: todo
-- id: m9
-  title: 静的 enforcement 一式 + nightly e2e
-  status: todo
-- id: m10
-  title: FuzzReduce
-  status: todo
-- id: m11
-  title: 録音駆動 fake (record/replay)
-  status: todo
-- id: m12
-  title: AGENTS.md / note 群への規範反映 (最終統合)
-  status: todo
+  - id: m1
+    title: runtimetest loop harness + EventSink seam
+    status: done
+  - id: m2
+    title: pty→OSC tap contract + FuzzParseOsc
+    status: done
+  - id: m3
+    title: TerminalRelay severance contract
+    status: done
+  - id: m4
+    title: drivertest.Conformance + registry 走査
+    status: done
+  - id: m5
+    title: fakecodex/stream fake settings-updated preset
+    status: done
+  - id: m6
+    title: Go 生成 wire fixtures + vitest 消費 + CI gate
+    status: done
+  - id: m7
+    title: gateway scenario e2e (fake CLI 貫通)
+    status: done
+  - id: m8
+    title: fakedocker + real-docker backstop
+    status: done
+  - id: m9
+    title: 静的 enforcement 一式 + nightly e2e
+    status: done
+  - id: m10
+    title: FuzzReduce
+    status: done
+  - id: m11
+    title: 録音駆動 fake (record/replay)
+    status: done
+  - id: m12
+    title: AGENTS.md / note 群への規範反映 (最終統合)
+    status: done
 contracts:
 - 'tap OSC routing: frame F の pty 出力由来 OSC event は FrameID==F のみ'
 - 'relay severance: slow subscriber は sever、他 subscriber/session の配送順序維持'
@@ -99,6 +99,7 @@ source_paths:
 - .github/workflows/ci.yml
 summary: 'テストハーネス強化の実装計画: runtimetest 基盤 → 経路別 contract → conformance suite → wire
   fixtures → fakedocker → enforcement の依存順'
+updated: '2026-07-05'
 ---
 
 # Plan — Test harness implementation
@@ -222,3 +223,13 @@ Tier 体系を反映。実装が存在しない規範を先に書かないため
   `python3 <docs_cli> lint`
 - T3 系 (m5 / m7 の e2e 面 / m8 backstop / m11) は `make test-e2e` + 各 `REACTOR_E2E_*` env での
   local 実行、および m9 の nightly workflow で検証
+
+
+{% transition from="draft" to="active" date="2026-07-05" %}
+All implementation tasks have landed and are being closed.
+{% /transition %}
+
+
+{% transition from="active" to="done" date="2026-07-05" %}
+All 12 milestones are implemented and verification gates are present.
+{% /transition %}

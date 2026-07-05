@@ -127,7 +127,7 @@ func TestCIWorkflowRunsWebTestsAndDetectsUntrackedWireFixtures(t *testing.T) {
 		t.Fatalf("read workflow: %v", err)
 	}
 	text := string(raw)
-	if !strings.Contains(text, "npm test -- --run src/wire/codec.test.ts") {
+	if !strings.Contains(text, "npm test -- --run src/wire/codec.test.ts src/store/daemon.test.ts") {
 		t.Fatalf("CI does not run the TS wire fixture decoder test")
 	}
 	if !strings.Contains(text, "git status --porcelain -- client/web/src/wire/testdata") {

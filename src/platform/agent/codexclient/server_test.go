@@ -93,6 +93,22 @@ func TestServer_EmitThreadStarted(t *testing.T) {
 	}
 }
 
+func TestServer_EmitThreadStartedWithPath(t *testing.T) {
+	msg := emitAndCapture(t, func(s *codexclient.Server) {
+		if err := s.EmitThreadStartedWithPath("t1", "/work", "/tmp/rollout.jsonl"); err != nil {
+			t.Fatalf("EmitThreadStartedWithPath: %v", err)
+		}
+	})
+	params, _ := msg["params"].(map[string]any)
+	thread, _ := params["thread"].(map[string]any)
+	if thread["cwd"] != "/work" {
+		t.Fatalf("thread.cwd = %v, want /work", thread["cwd"])
+	}
+	if thread["path"] != "/tmp/rollout.jsonl" {
+		t.Fatalf("thread.path = %v, want /tmp/rollout.jsonl", thread["path"])
+	}
+}
+
 func TestServer_EmitAgentMessageDelta(t *testing.T) {
 	msg := emitAndCapture(t, func(s *codexclient.Server) {
 		if err := s.EmitAgentMessageDelta("t1", "partial text"); err != nil {

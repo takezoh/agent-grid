@@ -155,11 +155,9 @@ func TestReadTapCancelStops(t *testing.T) {
 // upstream charmbracelet/x/vt library used to panic with "index out of
 // range" when scroll/cursor sequences (e.g. CSI M / DECRC / ESC M) drove
 // Buffer.InsertLineArea past the buffer bounds. The upstream bounds fixes
-// (issues/2026-07-02-vt-emulator-insertlinearea-panic.md) eliminated the
-// panic, which is what let readTap drop its recover-based
-// feedSafe wrapper (recovering silently lost the chunk's OSC payloads).
-// This pins the replacement contract: scroll sequences and the OSC events
-// that follow them in the same terminal must all be processed.
+// (issues/2026-07-02-vt-emulator-insertlinearea-panic.md) eliminated this
+// deterministic panic. feedSafe remains only as the outer daemon-crash guard
+// for unknown emulator defects; known scroll sequences must not rely on it.
 func TestFrameTapTerminal_ProcessesOscAfterScrollSequences(t *testing.T) {
 	frameID := state.FrameID("f1")
 	var events []state.Event

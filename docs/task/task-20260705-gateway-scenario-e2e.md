@@ -2,7 +2,7 @@
 id: task-20260705-gateway-scenario-e2e
 kind: task
 title: 'gateway scenario e2e: fake CLI で server→view 貫通'
-status: todo
+status: done
 created: '2026-07-05'
 priority: normal
 effort: medium
@@ -24,6 +24,7 @@ source_paths:
 - src/server/web/gateway.go
 summary: real server binary + fakeclaude/fakecodex を agent CLI として session create
   → WS subscriber の viewUpdate frame 列を assert する常時実行テスト
+updated: '2026-07-05'
 ---
 
 # gateway scenario e2e: fake CLI で server→view 貫通
@@ -64,3 +65,13 @@ server のみ)。
 - fakeclaude / fake codex 両シナリオが CI 標準ジョブで green (API key 不要)
 - flaky でない (`-count=5` で安定)
 - `make lint` green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Reconciling implemented gateway scenario suite with docs lifecycle.
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented and verified gateway scenario suite; fake agent build failures now fail tests.
+{% /transition %}

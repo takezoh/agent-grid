@@ -31,6 +31,9 @@ import (
 // DefaultThreadID is used when Config.ThreadID is empty.
 const DefaultThreadID = "thread-abc"
 
+// DefaultThreadPath is used when Config.ThreadPath is empty.
+const DefaultThreadPath = "/tmp/fakecodex/rollout-thread-abc.jsonl"
+
 // DefaultTurnID is used when Config.TurnID is empty.
 const DefaultTurnID = "turn-xyz"
 
@@ -81,6 +84,10 @@ type Config struct {
 	// turn; set OnTurn to derive per-turn ids when needed.
 	ThreadID string
 	TurnID   string
+
+	// ThreadPath replaces the deterministic fake rollout path emitted as
+	// thread/started.thread.path.
+	ThreadPath string
 
 	// FailInit rejects initialize with a JSON-RPC error.
 	FailInit bool
@@ -251,8 +258,9 @@ func (s *Server) handleTurnStart(params json.RawMessage) {
 	}
 
 	tid := s.cfg.ThreadID
+	threadPath := fakeThreadPath(tid, s.cfg.ThreadPath)
 
-	_ = srv.EmitThreadStarted(tid, p.CWD)
+	_ = srv.EmitThreadStartedWithPath(tid, p.CWD, threadPath)
 	_ = srv.EmitTurnStarted(tid, turnID)
 
 	if s.cfg.HangTurn {
@@ -293,6 +301,16 @@ func (s *Server) handleTurnStart(params json.RawMessage) {
 		s.emitTokenUsage(srv, tid, turnID)
 		_ = srv.EmitTurnCompleted(tid, turnID, text)
 	}()
+}
+
+func fakeThreadPath(threadID, configured string) string {
+	if configured != "" {
+		return configured
+	}
+	if threadID == "" || threadID == DefaultThreadID {
+		return DefaultThreadPath
+	}
+	return "/tmp/fakecodex/rollout-" + threadID + ".jsonl"
 }
 
 // OnNotification handles legacy turn/start notifications.

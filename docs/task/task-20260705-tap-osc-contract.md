@@ -2,7 +2,7 @@
 id: task-20260705-tap-osc-contract
 kind: task
 title: pty→OSC tap contract test + FuzzParseOsc
-status: todo
+status: done
 created: '2026-07-05'
 priority: high
 effort: medium
@@ -24,6 +24,7 @@ source_paths:
 - src/platform/termvt/fanout_contract_test.go
 summary: real pty に OSC 列を書き込み EvFrameOsc/EvFramePrompt の FrameID routing と emulator
   panic 封じ込めを pin する contract、parseOscNotification の fuzz
+updated: '2026-07-05'
 ---
 
 # pty→OSC tap contract test + FuzzParseOsc
@@ -62,3 +63,13 @@ summary: real pty に OSC 列を書き込み EvFrameOsc/EvFramePrompt の FrameI
 - 新 contract が `-race` で決定的に green
 - FuzzParseOsc が CI fuzz job に追加され 30s で green
 - `make lint` green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Reconciling implemented tap contract with docs lifecycle.
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented and verified tap OSC/prompt routing, feedSafe boundary handling, and FuzzParseOsc.
+{% /transition %}

@@ -161,6 +161,9 @@ func newFrameTapTerminal(frameID state.FrameID, sink EventSink) *vt.Terminal {
 }
 
 func feedSafe(term tapTerminal, frameID state.FrameID, target string, data []byte) (err error) {
+	// The VT package has regression tests for known panic-producing streams.
+	// Keep this as the goroutine boundary guard for unknown emulator defects:
+	// terminal output is untrusted and must not crash the daemon.
 	defer func() {
 		if rec := recover(); rec != nil {
 			term.Reset()

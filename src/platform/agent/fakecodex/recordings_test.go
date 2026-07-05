@@ -88,7 +88,7 @@ func projectFakeDefaultTurnEvent(t *testing.T, method string, raw json.RawMessag
 		thread, _ := params["thread"].(map[string]any)
 		path := thread["path"]
 		if path == nil {
-			path = thread["cwd"]
+			t.Fatalf("thread/started missing thread.path: %v", thread)
 		}
 		return map[string]any{
 			"method": method,
