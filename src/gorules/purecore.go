@@ -56,3 +56,25 @@ func noDirectIOInPureCore(m dsl.Matcher) {
 					!m.File().Name.Matches(`^(scheduler|effects_exec|clock|watch)\.go$`)))).
 		Report(`the pure functional core must not perform I/O — emit an Effect instead (only bounded read-only os.Stat is allowed; see ARCHITECTURE.md)`)
 }
+
+// noRealBinaryExecOutsideE2E confines direct real-binary exec to the shared
+// platform/lib wrappers, fake packages that validate themselves against the
+// real binary, and *_e2e_test.go files.
+func noRealBinaryExecOutsideE2E(m dsl.Matcher) {
+	m.Match(`exec.Command($name, $*_)`, `exec.CommandContext($_, $name, $*_)`).
+		Where(m["name"].Text.Matches(`^"(claude|codex|docker)"$`) &&
+			!m.File().Name.Matches(`_e2e_test\.go$`) &&
+			!m.File().PkgPath.Matches(`/platform/lib(/|$)`) &&
+			!m.File().PkgPath.Matches(`/(fakeclaude|fakecodex|fakedocker)$`)).
+		Report(`real binary exec is restricted to platform/lib wrappers, fake packages, and *_e2e_test.go fidelity tests`)
+}
+
+// noE2EEnvOutsideE2E confines REACTOR_E2E_* env access to *_e2e_test.go files.
+// Non-test helpers that legitimately bridge into those suites are excluded by
+// path in .golangci.yml rather than per-line annotations.
+func noE2EEnvOutsideE2E(m dsl.Matcher) {
+	m.Match(`os.Getenv($name)`, `os.LookupEnv($name)`).
+		Where(m["name"].Text.Matches(`^"REACTOR_E2E_[A-Z0-9_]+"$`) &&
+			!m.File().Name.Matches(`_e2e_test\.go$`)).
+		Report(`REACTOR_E2E_* env access is restricted to *_e2e_test.go fidelity suites`)
+}

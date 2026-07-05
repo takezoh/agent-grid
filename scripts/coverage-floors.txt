@@ -62,6 +62,7 @@ github.com/takezoh/agent-reactor/orchestrator/workspace              80
 
 # platform/ — shared execution base
 github.com/takezoh/agent-reactor/platform/agent/codexclient          80
+github.com/takezoh/agent-reactor/platform/agent/fakecodex             80
 github.com/takezoh/agent-reactor/platform/tracker/linear             80
 github.com/takezoh/agent-reactor/platform/agent/codexschema/v1        0
 github.com/takezoh/agent-reactor/platform/agent/codexschema/v2        0

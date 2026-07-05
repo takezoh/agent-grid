@@ -3,7 +3,7 @@ id: task-20260705-static-enforcement
 kind: task
 title: '静的 enforcement: real-binary 隔離 lint + e2e sibling check + nightly e2e + floors
   修繕'
-status: todo
+status: done
 created: '2026-07-05'
 priority: high
 effort: medium
@@ -28,6 +28,7 @@ source_paths:
 - scripts/check-coverage.sh
 summary: ruleguard で real CLI exec を e2e/lib 外から排除、//go:build e2e の sibling fake テスト存在
   check、nightly fidelity workflow、coverage-floors の fakecodex 行補修
+updated: '2026-07-05'
 ---
 
 # 静的 enforcement 一式 + nightly e2e
@@ -70,3 +71,13 @@ package 名を先に予約して問題ない。
 - e2e ファイル外に `exec.Command("docker")` を足す negative テストで `make lint` が fail する (AC-005)
 - 既存コードベース全体が新 rule / check で green
 - nightly workflow が手動 dispatch (workflow_dispatch) で end-to-end 成功する
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Implementation completed and verification is being finalized in this changeset.
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented and verified lint enforcement, sibling check, nightly workflow, and coverage floor repair.
+{% /transition %}

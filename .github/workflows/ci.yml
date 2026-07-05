@@ -52,6 +52,10 @@ jobs:
           go vet -tags e2e ./platform/agent/fakecodex/...
           go vet -tags e2e ./client/lib/agenthook/...
 
+      - name: e2e sibling check
+        working-directory: .
+        run: scripts/check-e2e-siblings.sh
+
       - name: test
         run: go test ./...
 
