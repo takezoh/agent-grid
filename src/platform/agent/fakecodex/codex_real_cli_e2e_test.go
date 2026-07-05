@@ -64,6 +64,12 @@ type realEventRecorder struct {
 	mu      sync.Mutex
 	methods []string
 	params  map[string][]json.RawMessage
+	events  []recordedNotification
+}
+
+type recordedNotification struct {
+	Method string
+	Params json.RawMessage
 }
 
 func clonedHomeWithCodex(t *testing.T) string {
@@ -78,7 +84,9 @@ func newRealEventRecorder() *realEventRecorder {
 func (r *realEventRecorder) OnNotification(method string, params json.RawMessage) {
 	r.mu.Lock()
 	r.methods = append(r.methods, method)
-	r.params[method] = append(r.params[method], append(json.RawMessage(nil), params...))
+	raw := append(json.RawMessage(nil), params...)
+	r.params[method] = append(r.params[method], raw)
+	r.events = append(r.events, recordedNotification{Method: method, Params: raw})
 	r.mu.Unlock()
 }
 
@@ -108,6 +116,14 @@ func (r *realEventRecorder) count() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.methods)
+}
+
+func (r *realEventRecorder) snapshotEvents() []recordedNotification {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]recordedNotification, len(r.events))
+	copy(out, r.events)
+	return out
 }
 
 func waitForRecordedMethod(t *testing.T, rec *realEventRecorder, method string, timeout time.Duration) json.RawMessage {

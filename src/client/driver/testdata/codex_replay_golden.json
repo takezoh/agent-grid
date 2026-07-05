@@ -1,0 +1,35 @@
+[
+  {
+    "method": "thread/started",
+    "status": "idle",
+    "log_tab_ids": [
+      "TRANSCRIPT:codex_transcript"
+    ],
+    "info_labels": [
+      "Thread",
+      "Transcript"
+    ]
+  },
+  {
+    "method": "turn/started",
+    "status": "running",
+    "log_tab_ids": [
+      "TRANSCRIPT:codex_transcript"
+    ],
+    "info_labels": [
+      "Thread",
+      "Transcript"
+    ]
+  },
+  {
+    "method": "turn/completed",
+    "status": "waiting",
+    "log_tab_ids": [
+      "TRANSCRIPT:codex_transcript"
+    ],
+    "info_labels": [
+      "Thread",
+      "Transcript"
+    ]
+  }
+]

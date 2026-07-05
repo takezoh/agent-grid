@@ -1,0 +1,2 @@
+{"message":{"content":[{"id":"\u003cid\u003e","input":{"command":"echo tool-ok"},"name":"Bash","type":"tool_use"}]},"type":"assistant"}
+{"message":{"content":[{"content":"tool-ok","is_error":false,"tool_use_id":"\u003cid\u003e","type":"tool_result"}]},"type":"user"}

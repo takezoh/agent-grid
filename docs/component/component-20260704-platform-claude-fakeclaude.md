@@ -148,4 +148,20 @@ Do not clone fixtures into new tests — import them.
   `REACTOR_E2E_CLAUDE_BIN` is unset. Hook e2e lives under
   `client/lib/agenthook/` because it imports `agenthook`.
 
+## Recording refresh
+
+When the real Claude CLI wire contract changes, refresh the committed
+recordings before updating `lines.go`:
+
+```sh
+cd src
+REACTOR_E2E_CLAUDE_BIN=claude go test -tags e2e ./platform/lib/claude/fakeclaude -run 'Recorded.*Fixture' -record
+go test ./platform/lib/claude/fakeclaude
+```
+
+The `-record` run rewrites `testdata/recordings/*.jsonl` with normalized
+values (`session_id`, paths, timestamps, tokens). The non-e2e package tests
+then compare the committed recordings against the builder contracts in
+`lines.go`.
+
 ## Parts

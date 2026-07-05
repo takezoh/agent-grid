@@ -114,7 +114,7 @@ func settingsUpdatePayload(spec SettingsUpdatedSpec) map[string]any {
 		if spec.Effort == "" {
 			settings[field] = nil
 		} else {
-			settings[field] = map[string]any{"level": spec.Effort}
+			settings[field] = spec.Effort
 		}
 	}
 	return settings

@@ -14,22 +14,25 @@
 package fakeclaude
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/takezoh/agent-reactor/platform/e2etest"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/cli"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
 )
 
 // runClaudeOnce runs `claude` with the given prompt and returns every parsed
 // stream-json event on stdout, plus stderr for diagnostics.
-func runClaudeOnce(t *testing.T, bin, resumeSessionID, prompt string) (events []streamjson.Event, stderr string, err error) {
+func runClaudeOnce(t *testing.T, bin, resumeSessionID, prompt string) (events []streamjson.Event, rawLines []string, stderr string, err error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -40,24 +43,31 @@ func runClaudeOnce(t *testing.T, bin, resumeSessionID, prompt string) (events []
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	stderrBuf := &strings.Builder{}
 	cmd.Stderr = stderrBuf
 
 	if err := cmd.Start(); err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
-	scanner := streamjson.NewScanner(stdout)
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64<<10), 64<<20)
 	for scanner.Scan() {
-		events = append(events, scanner.Event())
+		line := scanner.Text()
+		ev, parseErr := streamjson.Parse([]byte(line))
+		if parseErr != nil || ev == nil {
+			continue
+		}
+		events = append(events, ev)
+		rawLines = append(rawLines, line)
 	}
 	waitErr := cmd.Wait()
 	if scanErr := scanner.Err(); scanErr != nil {
-		return events, stderrBuf.String(), scanErr
+		return events, rawLines, stderrBuf.String(), scanErr
 	}
-	return events, stderrBuf.String(), waitErr
+	return events, rawLines, stderrBuf.String(), waitErr
 }
 
 // TestE2E_ArgvContract is the smallest guard: does the argv produced by
@@ -65,7 +75,7 @@ func runClaudeOnce(t *testing.T, bin, resumeSessionID, prompt string) (events []
 // new required flag or deprecated stream-json, this fails first.
 func TestE2E_ArgvContract(t *testing.T) {
 	bin := E2EClaudeBin(t)
-	events, stderr, err := runClaudeOnce(t, bin, "", "Reply with a single word: pong")
+	events, _, stderr, err := runClaudeOnce(t, bin, "", "Reply with a single word: pong")
 	if err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
@@ -82,7 +92,7 @@ func TestE2E_ArgvContract(t *testing.T) {
 // (SystemInit with a non-empty session id, and Result) both appear.
 func TestE2E_StreamJSONLexicon(t *testing.T) {
 	bin := E2EClaudeBin(t)
-	events, stderr, err := runClaudeOnce(t, bin, "", "Say 'hi'.")
+	events, _, stderr, err := runClaudeOnce(t, bin, "", "Say 'hi'.")
 	if err != nil {
 		t.Fatalf("run claude: %v\nstderr: %s", err, stderr)
 	}
@@ -122,7 +132,7 @@ func TestE2E_StreamJSONLexicon(t *testing.T) {
 // accepted by --resume for turn 2. This is the shim's continuation contract.
 func TestE2E_SessionResume(t *testing.T) {
 	bin := E2EClaudeBin(t)
-	events1, stderr1, err := runClaudeOnce(t, bin, "", "Say 'first'.")
+	events1, _, stderr1, err := runClaudeOnce(t, bin, "", "Say 'first'.")
 	if err != nil {
 		t.Fatalf("turn1: %v\nstderr: %s", err, stderr1)
 	}
@@ -137,7 +147,7 @@ func TestE2E_SessionResume(t *testing.T) {
 		t.Fatalf("turn1 has no session id — cannot exercise resume")
 	}
 
-	events2, stderr2, err := runClaudeOnce(t, bin, sid, "Say 'second'.")
+	events2, _, stderr2, err := runClaudeOnce(t, bin, sid, "Say 'second'.")
 	if err != nil {
 		t.Fatalf("turn2 resume: %v\nstderr: %s", err, stderr2)
 	}
@@ -158,7 +168,7 @@ func TestE2E_SessionResume(t *testing.T) {
 // output. If real claude changes the type breakdown, the fake needs updating.
 func TestE2E_FakeVsRealShape(t *testing.T) {
 	bin := E2EClaudeBin(t)
-	events, stderr, err := runClaudeOnce(t, bin, "", "Reply with a single word: pong")
+	events, _, stderr, err := runClaudeOnce(t, bin, "", "Reply with a single word: pong")
 	if err != nil {
 		t.Fatalf("run: %v\nstderr: %s", err, stderr)
 	}
@@ -191,7 +201,7 @@ func TestE2E_FakeVsRealShape(t *testing.T) {
 func TestE2E_ToolUseLexicon(t *testing.T) {
 	bin := E2EClaudeBin(t)
 	// Explicitly ask claude to run a shell command so tool_use shows up.
-	events, stderr, err := runClaudeOnce(t, bin, "",
+	events, _, stderr, err := runClaudeOnce(t, bin, "",
 		"Run the shell command 'echo tool-ok' via the Bash tool and stop.")
 	if err != nil {
 		t.Fatalf("run: %v\nstderr: %s", err, stderr)
@@ -217,6 +227,173 @@ func TestE2E_ToolUseLexicon(t *testing.T) {
 	if !haveToolResult {
 		t.Errorf("saw tool_use but no tool_result — fake would emit both, real did not")
 	}
+}
+
+func TestE2E_RecordedMinimalFixture(t *testing.T) {
+	bin := E2EClaudeBin(t)
+	_, rawLines, stderr, err := runClaudeOnce(t, bin, "", "Reply with exactly one word: pong")
+	if err != nil {
+		t.Fatalf("run claude: %v\nstderr: %s", err, stderr)
+	}
+	var (
+		initEntry      any
+		assistantEntry any
+		resultEntry    any
+	)
+	for _, line := range rawLines {
+		projected, ok := projectedMinimalClaudeEvent(t, []byte(line))
+		if !ok {
+			continue
+		}
+		switch projected.(map[string]any)["type"] {
+		case "system":
+			if initEntry == nil {
+				initEntry = projected
+			}
+		case "assistant":
+			if assistantEntry == nil {
+				assistantEntry = projected
+			}
+		case "result":
+			if resultEntry == nil {
+				resultEntry = projected
+			}
+		}
+	}
+	if initEntry == nil || assistantEntry == nil || resultEntry == nil {
+		t.Fatalf("missing projected minimal entries: init=%v assistant=%v result=%v", initEntry != nil, assistantEntry != nil, resultEntry != nil)
+	}
+	e2etest.AssertJSONLFixture(t, filepath.Join("testdata", "recordings", "minimal.jsonl"), []any{initEntry, assistantEntry, resultEntry})
+}
+
+func TestE2E_RecordedToolUseFixture(t *testing.T) {
+	bin := E2EClaudeBin(t)
+	_, rawLines, stderr, err := runClaudeOnce(t, bin, "",
+		"Run the shell command 'echo tool-ok' via the Bash tool and stop.")
+	if err != nil {
+		t.Fatalf("run claude: %v\nstderr: %s", err, stderr)
+	}
+	var entries []any
+	for _, line := range rawLines {
+		projected, ok := projectedToolClaudeEvent(t, []byte(line))
+		if ok {
+			entries = append(entries, projected)
+		}
+	}
+	if len(entries) < 2 {
+		t.Skip("claude did not emit both tool_use and tool_result")
+	}
+	e2etest.AssertJSONLFixture(t, filepath.Join("testdata", "recordings", "tool-use.jsonl"), entries[:2])
+}
+
+func projectedMinimalClaudeEvent(t *testing.T, raw []byte) (any, bool) {
+	t.Helper()
+	norm, err := e2etest.NormalizeJSON(raw)
+	if err != nil {
+		t.Fatalf("NormalizeJSON: %v", err)
+	}
+	switch norm["type"] {
+	case "system":
+		if norm["subtype"] == "init" {
+			return map[string]any{
+				"type":       "system",
+				"subtype":    "init",
+				"session_id": norm["session_id"],
+			}, true
+		}
+	case "assistant":
+		if text, ok := firstContentBlockField(norm, "text"); ok {
+			return map[string]any{
+				"type": "assistant",
+				"message": map[string]any{
+					"content": []any{
+						map[string]any{"type": "text", "text": text},
+					},
+				},
+			}, true
+		}
+	case "result":
+		usage := map[string]any{}
+		if rawUsage, ok := norm["usage"].(map[string]any); ok {
+			if _, ok := rawUsage["input_tokens"]; ok {
+				usage["input_tokens"] = "<count>"
+			}
+			if _, ok := rawUsage["output_tokens"]; ok {
+				usage["output_tokens"] = "<count>"
+			}
+		}
+		return map[string]any{
+			"type":     "result",
+			"subtype":  norm["subtype"],
+			"result":   norm["result"],
+			"is_error": norm["is_error"],
+			"usage":    usage,
+		}, true
+	}
+	return nil, false
+}
+
+func projectedToolClaudeEvent(t *testing.T, raw []byte) (any, bool) {
+	t.Helper()
+	norm, err := e2etest.NormalizeJSON(raw)
+	if err != nil {
+		t.Fatalf("NormalizeJSON: %v", err)
+	}
+	if tool, ok := firstContentBlock(norm, "tool_use"); ok {
+		input, _ := tool["input"].(map[string]any)
+		projected := map[string]any{
+			"type": "assistant",
+			"message": map[string]any{
+				"content": []any{
+					map[string]any{
+						"type":  "tool_use",
+						"id":    tool["id"],
+						"name":  tool["name"],
+						"input": map[string]any{"command": input["command"]},
+					},
+				},
+			},
+		}
+		return projected, true
+	}
+	if tool, ok := firstContentBlock(norm, "tool_result"); ok {
+		projected := map[string]any{
+			"type": "user",
+			"message": map[string]any{
+				"content": []any{
+					map[string]any{
+						"type":        "tool_result",
+						"tool_use_id": tool["tool_use_id"],
+						"content":     tool["content"],
+						"is_error":    tool["is_error"],
+					},
+				},
+			},
+		}
+		return projected, true
+	}
+	return nil, false
+}
+
+func firstContentBlock(entry map[string]any, want string) (map[string]any, bool) {
+	message, _ := entry["message"].(map[string]any)
+	content, _ := message["content"].([]any)
+	for _, item := range content {
+		block, _ := item.(map[string]any)
+		if block["type"] == want {
+			return block, true
+		}
+	}
+	return nil, false
+}
+
+func firstContentBlockField(entry map[string]any, field string) (any, bool) {
+	block, ok := firstContentBlock(entry, "text")
+	if !ok {
+		return nil, false
+	}
+	value, ok := block[field]
+	return value, ok
 }
 
 func keys(m map[string]bool) []string {

@@ -336,8 +336,8 @@ func TestServer_SettingsUpdatedHandlerSupportsVariants(t *testing.T) {
 		t.Fatalf("first settings = %+v, want model update", firstSettings)
 	}
 	secondSettings, _ := payloads[1]["threadSettings"].(map[string]any)
-	if _, ok := secondSettings["reasoning_effort"]; !ok {
-		t.Fatalf("second settings = %+v, want reasoning_effort field", secondSettings)
+	if value, ok := secondSettings["reasoning_effort"]; !ok || value != "medium" {
+		t.Fatalf("second settings = %+v, want reasoning_effort:medium", secondSettings)
 	}
 	thirdSettings, _ := payloads[2]["threadSettings"].(map[string]any)
 	if value, ok := thirdSettings["effort"]; !ok || value != nil {

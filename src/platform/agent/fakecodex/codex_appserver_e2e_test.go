@@ -29,6 +29,7 @@ import (
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
 	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
+	"github.com/takezoh/agent-reactor/platform/e2etest"
 )
 
 func realAppServerExtra(extra ...string) []string {
@@ -172,6 +173,21 @@ func TestE2E_FakeVsRealThreadSettingsUpdated(t *testing.T) {
 	}
 }
 
+func TestE2E_RecordedDefaultTurnFixture(t *testing.T) {
+	bin := e2eCodexBin(t)
+	scenario := runRealAppServerScenario(t, bin, realAppServerExtra(), "Reply with exactly one word: pong")
+	entries := projectRecordedDefaultTurn(t, scenario.rec.snapshotEvents(),
+		codexschema.MethodThreadStarted,
+		codexschema.MethodTurnStarted,
+		codexschema.MethodThreadSettingsUpdated,
+		codexschema.MethodTurnCompleted,
+	)
+	if len(entries) < 3 {
+		t.Fatalf("recorded entries = %d, want at least 3", len(entries))
+	}
+	e2etest.AssertJSONLFixture(t, filepath.Join("testdata", "recordings", "default-turn.jsonl"), entries)
+}
+
 // runFakeScenario drives the fake through the same lifecycle as the real
 // scenario and returns the emitted method set.
 func runFakeScenario(t *testing.T, fake *Server) map[string]bool {
@@ -236,6 +252,98 @@ func formatSet(s map[string]bool) string {
 	return out + "}"
 }
 
+func projectRecordedDefaultTurn(t *testing.T, events []recordedNotification, methods ...string) []any {
+	t.Helper()
+	allowed := map[string]bool{}
+	for _, method := range methods {
+		allowed[method] = true
+	}
+	out := make([]any, 0, len(methods))
+	for _, event := range events {
+		if !allowed[event.Method] {
+			continue
+		}
+		out = append(out, projectedDefaultTurnEvent(t, event.Method, event.Params))
+	}
+	return out
+}
+
+func projectedDefaultTurnEvent(t *testing.T, method string, raw json.RawMessage) any {
+	t.Helper()
+	switch method {
+	case codexschema.MethodThreadStarted:
+		thread, err := codexschemav2.UnmarshalThreadStartedNotification(raw)
+		if err != nil {
+			t.Fatalf("UnmarshalThreadStartedNotification: %v", err)
+		}
+		path := ""
+		if thread.Thread.Path != nil {
+			path = *thread.Thread.Path
+		}
+		return map[string]any{
+			"method": method,
+			"params": map[string]any{
+				"thread": map[string]any{
+					"id":   thread.Thread.ID,
+					"path": path,
+				},
+			},
+		}
+	case codexschema.MethodTurnStarted:
+		var payload struct {
+			ThreadID string `json:"threadId"`
+			Turn     struct {
+				ID string `json:"id"`
+			} `json:"turn"`
+		}
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			t.Fatalf("unmarshal turn/started: %v", err)
+		}
+		return map[string]any{
+			"method": method,
+			"params": map[string]any{
+				"threadId": payload.ThreadID,
+				"turnId":   payload.Turn.ID,
+			},
+		}
+	case codexschema.MethodThreadSettingsUpdated:
+		var payload struct {
+			ThreadID       string         `json:"threadId"`
+			ThreadSettings map[string]any `json:"threadSettings"`
+		}
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			t.Fatalf("unmarshal thread/settings/updated: %v", err)
+		}
+		projected := map[string]any{
+			"threadId": payload.ThreadID,
+		}
+		if len(payload.ThreadSettings) > 0 {
+			projected["threadSettings"] = payload.ThreadSettings
+		}
+		return map[string]any{"method": method, "params": projected}
+	case codexschema.MethodTurnCompleted:
+		var payload struct {
+			ThreadID string `json:"threadId"`
+			TurnID   string `json:"turnId"`
+			Text     string `json:"text"`
+		}
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			t.Fatalf("unmarshal turn/completed: %v", err)
+		}
+		return map[string]any{
+			"method": method,
+			"params": map[string]any{
+				"threadId": payload.ThreadID,
+				"turnId":   payload.TurnID,
+				"text":     payload.Text,
+			},
+		}
+	default:
+		t.Fatalf("unsupported projection method: %s", method)
+		return nil
+	}
+}
+
 type threadSettingsShape struct {
 	Model       string
 	ModelSet    bool
@@ -269,6 +377,11 @@ func decodeThreadSettingsShape(raw json.RawMessage) (threadSettingsShape, error)
 		shape.EffortSet = true
 		shape.EffortField = field
 		if string(effortRaw) == "null" {
+			return shape, nil
+		}
+		var effort string
+		if err := json.Unmarshal(effortRaw, &effort); err == nil {
+			shape.Effort = effort
 			return shape, nil
 		}
 		var payload struct {

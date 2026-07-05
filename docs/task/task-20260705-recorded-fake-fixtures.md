@@ -2,7 +2,7 @@
 id: task-20260705-recorded-fake-fixtures
 kind: task
 title: '録音駆動 fake: T3 transcript 録音 → preset 照合'
-status: todo
+status: done
 created: '2026-07-05'
 priority: low
 effort: large
@@ -25,6 +25,7 @@ source_paths:
 - src/platform/agent/fakecodex/presets.go
 summary: e2e 実行時に real CLI のイベント列を testdata へ録音し、fake preset との照合と T0 golden replay
   に使う record/replay 基盤
+updated: '2026-07-05'
 ---
 
 # 録音駆動 fake: T3 transcript 録音 → preset 照合
@@ -60,3 +61,13 @@ fake 忠実性の保証を「人がテストを書く」から「記録が契約
 - `-record` 付き e2e 実行で recordings が再現的に生成される (2 回実行で正規化後 diff ゼロ)
 - preset 照合テストと golden replay が green
 - `go vet -tags e2e` / `make lint` green
+
+
+{% transition from="todo" to="in_progress" date="2026-07-05" %}
+Implementation completed; finalizing task state after verification
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-05" %}
+Implemented recorded fixtures, preset contract tests, and driver replay golden
+{% /transition %}

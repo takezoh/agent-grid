@@ -133,4 +133,20 @@ whole turn lifecycle over one pipe.
 - The e2e test is `//go:build e2e`; skipped when `REACTOR_E2E_CODEX_BIN` is
   unset.
 
+## Recording refresh
+
+When a Codex app-server upgrade changes notification shape or ordering, refresh
+the committed recordings first and then adjust `presets.go` if needed:
+
+```sh
+cd src
+REACTOR_E2E_CODEX_BIN=codex go test -tags e2e ./platform/agent/fakecodex -run 'Recorded.*Fixture' -record
+go test ./platform/agent/fakecodex ./client/driver -run 'Recorded|Replay'
+```
+
+The `-record` run rewrites `testdata/recordings/*.jsonl` with normalized
+thread ids, rollout paths, timestamps, and secrets. The follow-up package
+tests verify both preset-contract parity and the `Driver.Step` replay golden
+derived from the recording.
+
 ## Parts
