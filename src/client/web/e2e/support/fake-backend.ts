@@ -230,7 +230,10 @@ export async function installFakeBackend(
   return {
     async waitForSocketOpen() {
       await page.waitForFunction(() => {
-        const isOpenGatewaySocket = (socket: { readyState: number; url?: string | null }): boolean => {
+        const isOpenGatewaySocket = (socket: {
+          readyState: number;
+          url?: string | null;
+        }): boolean => {
           if (socket.readyState !== 1 || !socket.url) return false;
           try {
             const parsed = new URL(socket.url, "http://127.0.0.1");

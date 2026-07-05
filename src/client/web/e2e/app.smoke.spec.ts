@@ -79,7 +79,9 @@ test("renders live sessions and completes a new-session submission against the f
         expect.objectContaining({ id: "session-new" }),
       ],
     });
-  const latestViewUpdate = (await backend.emittedFrames()).filter((frame) => frame.k === "v").at(-1);
+  const latestViewUpdate = (await backend.emittedFrames())
+    .filter((frame) => frame.k === "v")
+    .at(-1);
   expect(latestViewUpdate).toBeDefined();
   expect(latestViewUpdate).not.toHaveProperty("activeSessionID");
 
