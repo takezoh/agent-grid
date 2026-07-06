@@ -99,6 +99,9 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 	if s1.FrameMessaging == nil || len(s1.FrameMessaging.Messages) != 1 {
 		t.Fatalf("FrameMessaging not restored on cold start: %+v", s1.FrameMessaging)
 	}
+	if !s1.FrameMessaging.Messages[0].CreatedAt.Equal(time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("message CreatedAt = %v, want 2026-07-06T00:00:00Z", s1.FrameMessaging.Messages[0].CreatedAt)
+	}
 
 	// Reset and try warm start with a fresh snap map
 	r.state.Sessions = make(map[state.SessionID]state.Session)
@@ -130,6 +133,89 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 	}
 	if s1.FrameMessaging == nil || s1.FrameMessaging.Summary.UnreadCount != 3 {
 		t.Fatalf("FrameMessaging not restored on warm start: %+v", s1.FrameMessaging)
+	}
+}
+
+func TestLoadSnapshot_RestoresFrameMessagingReplyAndReadState(t *testing.T) {
+	persist := &snapLoader{snaps: []SessionSnapshot{{
+		ID: "s1",
+		Frames: []SessionFrameSnapshot{{
+			ID:      "f1",
+			Command: "generic",
+			DriverState: map[string]string{
+				"status": "waiting",
+			},
+		}},
+		FrameMessaging: &SessionFrameMessagingSnapshot{
+			Summary: FrameMessagingSummarySnapshot{
+				UnreadCount:          1,
+				LatestMessagePreview: "Need review",
+				LatestReplyPreview:   "done",
+				PendingDeliveryCount: 0,
+				LastDeliveryStatus:   "delivered",
+			},
+			Messages: []FrameMessageSnapshot{
+				{
+					ID:             "m1",
+					SourceFrameID:  "f1",
+					TargetFrameID:  "f2",
+					Body:           "first",
+					CreatedAt:      "2026-07-06T00:00:00Z",
+					Read:           true,
+					ReplyStatus:    "resolved",
+					DeliveryStatus: "delivered",
+					Reply: &FrameReplySnapshot{
+						ID:                 "r1",
+						SourceFrameID:      "f2",
+						Body:               "done",
+						CreatedAt:          "2026-07-06T00:01:00Z",
+						Resolution:         "resolved",
+						FinalAnswerPreview: "done",
+					},
+				},
+				{
+					ID:            "m2",
+					SourceFrameID: "f3",
+					TargetFrameID: "f1",
+					Body:          "second",
+					CreatedAt:     "2026-07-06T00:02:00Z",
+				},
+			},
+		},
+	}}}
+	r := New(Config{Persist: persist})
+
+	if err := r.LoadSnapshot(true); err != nil {
+		t.Fatalf("LoadSnapshot(true): %v", err)
+	}
+
+	s1 := r.state.Sessions["s1"]
+	if s1.FrameMessaging == nil {
+		t.Fatal("FrameMessaging not restored")
+	}
+	if got := s1.FrameMessaging.Summary.UnreadCount; got != 1 {
+		t.Fatalf("UnreadCount = %d, want 1", got)
+	}
+	if got := s1.FrameMessaging.Summary.LatestReplyPreview; got != "done" {
+		t.Fatalf("LatestReplyPreview = %q, want done", got)
+	}
+	if len(s1.FrameMessaging.Messages) != 2 {
+		t.Fatalf("messages len = %d, want 2", len(s1.FrameMessaging.Messages))
+	}
+	if !s1.FrameMessaging.Messages[0].Read {
+		t.Fatal("first message read state not restored")
+	}
+	if s1.FrameMessaging.Messages[1].Read {
+		t.Fatal("second message should remain unread")
+	}
+	if s1.FrameMessaging.Messages[0].Reply == nil {
+		t.Fatal("reply not restored")
+	}
+	if got := s1.FrameMessaging.Messages[0].Reply.FinalAnswerPreview; got != "done" {
+		t.Fatalf("FinalAnswerPreview = %q, want done", got)
+	}
+	if got := s1.FrameMessaging.Messages[0].Reply.Resolution; got != "resolved" {
+		t.Fatalf("Resolution = %q, want resolved", got)
 	}
 }
 

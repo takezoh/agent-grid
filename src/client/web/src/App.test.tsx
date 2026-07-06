@@ -9,6 +9,7 @@ import { App } from "./App";
 import { isMacPlatform } from "./lib/platform";
 import { Connection } from "./socket/connection";
 import { selectDaemonSnapshot, useDaemonStore } from "./store/daemon";
+import { useFrameMessagingStore } from "./store/frameMessaging";
 import { useNotificationsStore } from "./store/notifications";
 import { usePaletteStore } from "./store/palette";
 import { mkSnapshot } from "./test/fixtures/daemon";
@@ -22,6 +23,7 @@ describe("App", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-20T00:00:00Z"));
     useDaemonStore.getState().reset();
+    useFrameMessagingStore.getState().reset();
     useNotificationsStore.setState({ items: [] });
     // FR-002 / FR-001: Header の Command ボタンと useGlobalHotkey() は
     // usePaletteStore に書き込むため、テスト間で open=true の漏れを防ぐ。
@@ -96,6 +98,47 @@ describe("App", () => {
     // TERMINAL is prepended as a synthetic tab in front of driver log_tabs.
     const tabs = screen.getAllByRole("tab");
     expect(tabs.map((t) => t.textContent)).toEqual(["TERMINAL", "Output"]);
+  });
+
+  it("keeps TERMINAL and driver tabs while inserting MESSAGES from frame messaging summary", () => {
+    useDaemonStore.setState({
+      sessions: [
+        {
+          id: "s-msg",
+          project: "p",
+          command: "claude",
+          created_at: "2026-07-06T00:00:00Z",
+          view: {
+            card: { title: "Message session" },
+            status: "running",
+            log_tabs: [
+              {
+                label: "TRANSCRIPT",
+                path: "/var/lib/agent-grid/s-msg.transcript",
+                kind: "text",
+              },
+              { label: "EVENTS", path: "/var/log/agent-grid/s-msg.log", kind: "text" },
+            ],
+            frame_messaging_summary: {
+              unread_count: 2,
+              latest_message_preview: "Need review",
+              pending_delivery_count: 1,
+            },
+          },
+        },
+      ],
+      activeSessionID: "s-msg",
+    });
+
+    render(<App />);
+
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual([
+      "TERMINAL",
+      "MESSAGES",
+      "TRANSCRIPT",
+      "EVENTS",
+    ]);
   });
 
   // Regression 2026-06-24: 実 driver (claude_view.go 等) は log_tabs に

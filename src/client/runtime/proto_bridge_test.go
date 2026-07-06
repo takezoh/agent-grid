@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -281,5 +282,84 @@ func TestStateMessagePreview_TruncatesByRune(t *testing.T) {
 	}
 	if strings.ContainsRune(preview, '終') {
 		t.Fatalf("preview must be truncated before trailing runes: %q", preview)
+	}
+}
+
+func TestBuildSessionMessagesIncludesReplyMetadataOnly(t *testing.T) {
+	now := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
+	replyAt := now.Add(time.Minute)
+	r := New(Config{Backend: newFakeBackend()})
+	r.state.Sessions = map[state.SessionID]state.Session{
+		"s1": {
+			ID:        "s1",
+			CreatedAt: now,
+			FrameMessaging: &state.SessionFrameMessaging{
+				Summary: state.FrameMessagingSummary{
+					UnreadCount:          1,
+					LatestMessagePreview: "Need review",
+					LatestReplyPreview:   "done",
+					PendingDeliveryCount: 0,
+					LastDeliveryStatus:   "delivered",
+				},
+				Messages: []state.FrameMessage{{
+					ID:             "m1",
+					SourceFrameID:  "frame-a",
+					TargetFrameID:  "frame-b",
+					Topic:          "Review",
+					Body:           "Please review this patch",
+					CreatedAt:      now,
+					Read:           true,
+					DeliveryStatus: "delivered",
+					Reply: &state.FrameReply{
+						ID:                 "r1",
+						SourceFrameID:      "frame-b",
+						Body:               "done",
+						CreatedAt:          replyAt,
+						Resolution:         "resolved",
+						FinalAnswerPreview: "done",
+					},
+				}},
+			},
+		},
+	}
+
+	resp := r.buildSessionMessages(state.SessionMessagesReply{SessionID: "s1"})
+	got, ok := resp.(proto.RespSessionMessages)
+	if !ok {
+		t.Fatalf("response = %T, want proto.RespSessionMessages", resp)
+	}
+	if got.Summary == nil {
+		t.Fatal("summary missing")
+	}
+	if got.Summary.UnreadCount != 1 {
+		t.Fatalf("UnreadCount = %d, want 1", got.Summary.UnreadCount)
+	}
+	if len(got.Messages) != 1 {
+		t.Fatalf("messages len = %d, want 1", len(got.Messages))
+	}
+	msg := got.Messages[0]
+	if msg.Reply == nil {
+		t.Fatal("reply missing from response")
+	}
+	if msg.ReplyStatus != "resolved" {
+		t.Fatalf("ReplyStatus = %q, want resolved", msg.ReplyStatus)
+	}
+	if msg.FinalAnswerPreview != "done" {
+		t.Fatalf("FinalAnswerPreview = %q, want done", msg.FinalAnswerPreview)
+	}
+	if msg.Reply.BodyPreview != "done" {
+		t.Fatalf("BodyPreview = %q, want done", msg.Reply.BodyPreview)
+	}
+	if msg.Reply.CreatedAt != "2026-07-06T00:01:00Z" {
+		t.Fatalf("Reply.CreatedAt = %q, want 2026-07-06T00:01:00Z", msg.Reply.CreatedAt)
+	}
+
+	replyType := reflect.TypeOf(*msg.Reply)
+	if _, ok := replyType.FieldByName("RawTranscript"); ok {
+		t.Fatal("SessionMessageReply must not expose RawTranscript")
+	}
+	msgType := reflect.TypeOf(msg)
+	if _, ok := msgType.FieldByName("RawTranscript"); ok {
+		t.Fatal("SessionMessage must not expose RawTranscript")
 	}
 }
