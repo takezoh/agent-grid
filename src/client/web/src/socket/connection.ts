@@ -1,4 +1,5 @@
 import { useDaemonStore } from "../store/daemon";
+import { useFrameMessagingStore } from "../store/frameMessaging";
 import { useNotificationsStore } from "../store/notifications";
 import { useTranscriptStore } from "../store/transcripts";
 import type { ClientFrame } from "../wire/client";
@@ -142,9 +143,11 @@ export class Connection {
     switch (frame.k) {
       case "h":
         useDaemonStore.getState().seedHello(frame);
+        useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
         break;
       case "v":
         useDaemonStore.getState().applyViewUpdate(frame);
+        useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
         break;
       case "tt":
         useTranscriptStore.getState().appendLine(frame.sessionId, "transcript", frame.line);

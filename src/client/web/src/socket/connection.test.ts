@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDaemonStore } from "../store/daemon";
+import { useFrameMessagingStore } from "../store/frameMessaging";
 import { useNotificationsStore } from "../store/notifications";
 import { useTranscriptStore } from "../store/transcripts";
 import { Connection } from "./connection";
@@ -34,6 +35,7 @@ describe("Connection", () => {
   beforeEach(() => {
     FakeWS.instances = [];
     useDaemonStore.getState().reset();
+    useFrameMessagingStore.getState().reset();
     useTranscriptStore.getState().reset();
     useNotificationsStore.getState().clear();
   });
@@ -265,5 +267,59 @@ describe("Connection", () => {
   it("TestUnsupportedKindIgnored: unknown frame kind does not throw", async () => {
     const { ws } = await makeConnectedWS();
     expect(() => ws.receive(JSON.stringify({ k: "zz", data: "unknown" }))).not.toThrow();
+  });
+
+  it("brokers frame messaging summaries from hello/view-update into the dedicated store", async () => {
+    const { ws } = await makeConnectedWS();
+    ws.receive(
+      JSON.stringify({
+        k: "h",
+        sessions: [
+          {
+            id: "s1",
+            project: "/repo/app",
+            command: "codex",
+            created_at: "2026-07-06T00:00:00Z",
+            view: {
+              card: { title: "Agent" },
+              frame_messaging_summary: {
+                unreadCount: 2,
+                latestMessagePreview: "Review this",
+                pendingDeliveryCount: 1,
+                lastDeliveryStatus: "pending",
+              },
+            },
+          },
+        ],
+        features: ["surface"],
+        serverTime: 1,
+      }),
+    );
+    expect(useFrameMessagingStore.getState().summaries).toEqual({
+      s1: {
+        unreadCount: 2,
+        latestMessagePreview: "Review this",
+        pendingDeliveryCount: 1,
+        lastDeliveryStatus: "pending",
+      },
+    });
+
+    ws.receive(
+      JSON.stringify({
+        k: "v",
+        sessions: [
+          {
+            id: "s1",
+            project: "/repo/app",
+            command: "codex",
+            created_at: "2026-07-06T00:00:00Z",
+            view: {
+              card: { title: "Agent" },
+            },
+          },
+        ],
+      }),
+    );
+    expect(useFrameMessagingStore.getState().summaries).toEqual({});
   });
 });

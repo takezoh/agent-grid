@@ -41,12 +41,21 @@ export type View = {
   display_name?: string;
   log_tabs?: LogTab[];
   info_extras?: InfoLine[];
+  frame_messaging_summary?: FrameMessagingSummary;
   suppress_info?: boolean;
   status_line?: string;
   model?: string;
   effort?: string;
   status?: string; // "running" | "waiting" | "idle" | "stopped" | "pending"
   status_changed_at?: string; // RFC3339
+};
+
+export type FrameMessagingSummary = {
+  unreadCount: number;
+  latestMessagePreview?: string;
+  latestReplyPreview?: string;
+  pendingDeliveryCount: number;
+  lastDeliveryStatus?: string;
 };
 
 // SessionInfo mirrors proto.SessionInfo — Go JSON tags used as-is (snake_case).
