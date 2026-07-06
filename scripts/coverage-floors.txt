@@ -83,6 +83,7 @@ github.com/takezoh/agent-reactor/platform/lib/claude/fakeclaude      80
 github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload     40
 github.com/takezoh/agent-reactor/platform/lib/claude/streamjson      85
 github.com/takezoh/agent-reactor/platform/lib/codex                  75
+github.com/takezoh/agent-reactor/platform/lib/dockercli              95
 github.com/takezoh/agent-reactor/platform/lib/git                    70
 github.com/takezoh/agent-reactor/platform/lib/github                 85
 github.com/takezoh/agent-reactor/platform/lib/openurl                60
