@@ -128,10 +128,9 @@ enforcement: [code-enforcement.md §7](../note/note-20260624-technical-code-enfo
 
 ## Race detector
 
-`make test` runs without `-race` because some legacy packages have not been
-audited under the detector yet and would surface noise unrelated to the change
-in flight. The concurrency-sensitive subtrees are instead validated via an
-opt-in target:
+`make test` stays non-`-race` for the full tree, but the audited
+concurrency-sensitive subtrees are pinned behind a dedicated target so race
+signal stays actionable instead of drowning in unrelated startup paths:
 
 ```sh
 make test-race
@@ -154,7 +153,7 @@ Coverage targets are tiered by architectural blast radius. A regression in `stat
 | Tier | Target | Layer | Members |
 |------|--------|-------|---------|
 | **S** | ≥85% | Pure domain layer & wire types | `state`, `state/view`, `proto`, `features`, `orchestrator/scheduler` (pure `Reduce` + transitions) |
-| **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/*`, `driver`, `driver/vt`, `config`, `sandbox/devcontainer`, `platform/termvt`, `server/session`, `server/web` |
+| **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/*`, `driver`, `driver/vt`, `config`, `sandbox/devcontainer`, `platform/termvt`, `server/session`, `server/web` (gateway scenario + browser smoke keep this tier honest) |
 | **B** | ≥60% | Infrastructure integrations | `lib/*` (except thin CLI wrappers), `proto/sessions`, `hostexec`, `mcpproxy`, `tools` |
 | **C** | ≥40% | Thin CLI & wiring | `main`, `cli`, `lib/gemini`, `lib/notify` |
 | **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/bridge` |
@@ -180,13 +179,13 @@ go tool cover -func=/tmp/c.out
 
 CI runs `scripts/check-coverage.sh` (the `coverage` step in `.github/workflows/ci.yml`), which executes the full test suite with coverage and compares each package against the floor declared in `scripts/coverage-floors.txt`. Any package below its floor — or any covered package missing from that file — fails the build.
 
-Floors sit a few points below current measurement so legitimate variance does not break the build; the *target* in the Tier table above is the aspiration. When coverage gains stick, raise the floor in the same PR — never lower one without a written justification.
+Floors sit a few points below current measurement so legitimate variance does not break the build; the *target* in the Tier table above is the aspiration. When coverage gains stick, raise the floor in the same PR. If a floor must move down, record the measured replacement ceiling in `scripts/coverage-floors.txt` alongside the new value so the recalibration is reviewable.
 
 The `Simplify` workflow (`.github/workflows/simplify.yml`) runs on every pull request and applies the `/simplify` skill (parallel reuse / quality / efficiency review agents) to the diff, fixing defects, leaky abstractions, narration-only comments, no-assert tests, and concrete duplication. Treat its results like any other reviewer.
 
 ## When Coverage Can't Be Reached
 
-Some packages can't hit their Tier target in CI because the dependency is the OS itself — `cmd/reactor-bridge` is a process entry point, `platform/sandbox/devcontainer` shells out to docker. For these:
+Some packages still can't hit their Tier target in CI because the dependency is the OS itself — `cmd/reactor-bridge` is a process entry point, and low-level helpers such as `platform/lib/tlsdev` still depend on environment-shaped behavior. `platform/sandbox/devcontainer` is no longer the canonical example here: always-on `fakedocker` coverage plus `FakeVsRealDocker` now carry that package's structural backstop. For the remaining low-ceiling packages:
 
 1. Cover everything that doesn't require the external process (pure parsing, command-string assembly, etc.).
 2. Document the structural ceiling in the package's test file.

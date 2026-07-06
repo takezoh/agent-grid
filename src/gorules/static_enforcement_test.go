@@ -170,6 +170,32 @@ func TestNightlyE2EWorkflowExportsAllRealBinaryEnvVars(t *testing.T) {
 	if !strings.Contains(text, "REACTOR_E2E_DOCKER_BIN: ${{ steps.suite_env.outputs.reactor_e2e_docker_bin }}") {
 		t.Fatalf("nightly workflow does not pass REACTOR_E2E_DOCKER_BIN to make test-e2e")
 	}
+	if !strings.Contains(text, "name: Require full nightly suite coverage") {
+		t.Fatalf("nightly workflow still allows skip-green when required suites are unavailable")
+	}
+}
+
+func TestSimplifyWorkflowUsesSupportedVerificationCommands(t *testing.T) {
+	workflowPath := filepath.Join(repoRoot(t), ".github", "workflows", "simplify.yml")
+	raw, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatalf("read workflow: %v", err)
+	}
+	text := string(raw)
+	for _, want := range []string{
+		"make vet",
+		"cd src && go test ./...",
+		"make build-all",
+		"scripts/check-coverage.sh",
+		"make lint",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("simplify workflow missing verification command %q", want)
+		}
+	}
+	if strings.Contains(text, "go build -o ../arc .") {
+		t.Fatalf("simplify workflow still uses broken src-root go build command")
+	}
 }
 
 func repoRoot(t *testing.T) string {

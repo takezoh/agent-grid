@@ -63,6 +63,9 @@ github.com/takezoh/agent-reactor/orchestrator/workspace              80
 # platform/ — shared execution base
 github.com/takezoh/agent-reactor/platform/agent/codexclient          80
 github.com/takezoh/agent-reactor/platform/agent/codexschema           0
+# 2026-07-05 floor recalibration: always-on fakecodex contract coverage now
+# measures ~75% in short mode, so the enforced floor was reset from 80 to 70
+# to reflect steady-state coverage rather than an aspirational target.
 github.com/takezoh/agent-reactor/platform/agent/fakecodex             70
 github.com/takezoh/agent-reactor/platform/tracker/linear             80
 github.com/takezoh/agent-reactor/platform/agent/codexschema/v1        0
@@ -85,6 +88,9 @@ github.com/takezoh/agent-reactor/platform/lib/github                 85
 github.com/takezoh/agent-reactor/platform/lib/openurl                60
 github.com/takezoh/agent-reactor/platform/lib/plastic                45
 github.com/takezoh/agent-reactor/platform/lib/systemdnotify          95
+# 2026-07-05 floor recalibration: tlsdev's short-mode coverage stabilizes near
+# 25%, so the enforced floor was reset from 30 to 20 pending more fidelity
+# tests.
 github.com/takezoh/agent-reactor/platform/lib/tlsdev                 20
 github.com/takezoh/agent-reactor/platform/lib/vcs                    85
 github.com/takezoh/agent-reactor/platform/lib/wsl                    45
@@ -104,5 +110,8 @@ github.com/takezoh/agent-reactor/platform/termvt                     85
 github.com/takezoh/agent-reactor/platform/tracker                    0
 
 # server/ — pty session daemon + co-resident web gateway
+# 2026-07-05 floor recalibration: after the browser smoke and gateway scenario
+# backstops landed, short-mode coverage stabilized near 77%, so the enforced
+# floor was reset from 90 to 75 to match measured coverage.
 github.com/takezoh/agent-reactor/server/web                          75
 github.com/takezoh/agent-reactor/server/web/testsupport/fakeagents    0

@@ -114,7 +114,7 @@ func TestRuntimeHarness_CreateSessionFlow(t *testing.T) {
 	backend := newBlockingBackend()
 	h := runtimetest.New(t, runtimetest.WithBackend(backend))
 
-	h.Enqueue(state.EvEvent{
+	h.Enqueue(t, state.EvEvent{
 		ConnID: 1, ReqID: "create", Event: state.EventCreateSession,
 		Payload: createSessionPayload("/tmp/harness-create", "stub-fallback"),
 	})
@@ -138,13 +138,13 @@ func TestRuntimeHarness_RequestShutdownTimeoutWhenLoopIsBlocked(t *testing.T) {
 	backend := newBlockingBackend()
 	h := runtimetest.New(t, runtimetest.WithBackend(backend))
 
-	h.Enqueue(state.EvEvent{
+	h.Enqueue(t, state.EvEvent{
 		ConnID: 1, ReqID: "create", Event: state.EventCreateSession,
 		Payload: createSessionPayload("/tmp/harness-shutdown", "stub-fallback"),
 	})
 	_, sessionID := waitForSingleSession(t, h)
 
-	h.Enqueue(state.EvEvent{
+	h.Enqueue(t, state.EvEvent{
 		ConnID: 1, ReqID: "stop", Event: state.EventStopSession,
 		Payload: stopSessionPayload(sessionID),
 	})
@@ -164,22 +164,22 @@ func TestRuntimeHarness_EnqueueDropsWhenEventQueueIsFull(t *testing.T) {
 	backend := newBlockingBackend()
 	h := runtimetest.New(t, runtimetest.WithBackend(backend))
 
-	h.Enqueue(state.EvEvent{
+	h.Enqueue(t, state.EvEvent{
 		ConnID: 1, ReqID: "create", Event: state.EventCreateSession,
 		Payload: createSessionPayload("/tmp/harness-fill", "stub-fallback"),
 	})
 	_, sessionID := waitForSingleSession(t, h)
 
-	h.Enqueue(state.EvEvent{
+	h.Enqueue(t, state.EvEvent{
 		ConnID: 1, ReqID: "stop", Event: state.EventStopSession,
 		Payload: stopSessionPayload(sessionID),
 	})
 	backend.WaitForCapture(t)
 
 	for i := 0; i < h.Runtime().TestEventQueueCapacity(); i++ {
-		h.Enqueue(state.EvTick{Now: time.Unix(int64(i), 0), N: uint64(i + 1)})
+		h.Runtime().Enqueue(state.EvTick{Now: time.Unix(int64(i), 0), N: uint64(i + 1)})
 	}
-	h.Enqueue(state.EvEvent{
+	h.Runtime().Enqueue(state.EvEvent{
 		ConnID: 1, ReqID: "drop", Event: state.EventCreateSession,
 		Payload: createSessionPayload("/tmp/harness-dropped", "stub-fallback"),
 	})
@@ -205,7 +205,7 @@ func TestRuntimeHarness_ShellCreateSessionSpawnsCommand(t *testing.T) {
 	backend := newBlockingBackend()
 	h := runtimetest.New(t, runtimetest.WithBackend(backend))
 
-	h.Enqueue(state.EvEvent{
+	h.Enqueue(t, state.EvEvent{
 		ConnID: 1, ReqID: "create", Event: state.EventCreateSession,
 		Payload: createSessionPayload("/tmp/harness-shell", "shell"),
 	})

@@ -105,7 +105,12 @@ func New(t *testing.T, opts ...Option) *Harness {
 
 func (h *Harness) Runtime() *runtime.Runtime { return h.runtime }
 
-func (h *Harness) Enqueue(ev state.Event) { h.runtime.Enqueue(ev) }
+func (h *Harness) Enqueue(t *testing.T, ev state.Event) {
+	t.Helper()
+	if err := h.runtime.TestEnqueue(ev, h.waitTimeout); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func (h *Harness) WaitFor(t *testing.T, pred func(state.State) bool) state.State {
 	t.Helper()

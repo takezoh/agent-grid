@@ -33,10 +33,11 @@ func (DirectDispatcher) IsContainer(_ string) bool { return false }
 func (DirectDispatcher) BeginColdStart() {}
 func (DirectDispatcher) EndColdStart()   {}
 
-// stripContainerOnlyEnv returns a copy of env without ROOST_SOCKET_TOKEN.
+// stripContainerOnlyEnv returns a copy of env with ROOST_SOCKET_TOKEN forced
+// empty so host-direct launches mask any ambient parent token.
 func stripContainerOnlyEnv(env map[string]string) map[string]string {
-	out := cloneEnvMap(env, 0)
-	delete(out, "ROOST_SOCKET_TOKEN")
+	out := cloneEnvMap(env, 1)
+	out["ROOST_SOCKET_TOKEN"] = ""
 	return out
 }
 

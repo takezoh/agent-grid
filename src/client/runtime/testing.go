@@ -29,6 +29,20 @@ func (r *Runtime) TestEventQueueCapacity() int {
 	return cap(r.eventCh)
 }
 
+// TestEnqueue submits an external event with a bounded blocking send so tests
+// can fail loudly instead of inheriting Runtime.Enqueue's best-effort drop
+// semantics.
+func (r *Runtime) TestEnqueue(ev state.Event, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case r.eventCh <- ev:
+		return nil
+	case <-timer.C:
+		return fmt.Errorf("runtime test enqueue timed out after %v for %s", timeout, eventTypeName(ev))
+	}
+}
+
 // TestQuiesce blocks until both runtime queues are empty at a barrier point or
 // returns an error after timeout.
 func (r *Runtime) TestQuiesce(timeout time.Duration) error {

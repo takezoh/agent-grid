@@ -61,6 +61,12 @@ jobs:
           [[ -n "${{ steps.suite_env.outputs.reactor_e2e_claude_bin }}" ]] || echo "Skipping Claude-backed e2e suites: ANTHROPIC_API_KEY is not configured."
           [[ -n "${{ steps.suite_env.outputs.reactor_e2e_docker_bin }}" ]] || echo "Skipping Docker-backed e2e suites: docker is not available on this runner."
 
+      - name: Require full nightly suite coverage
+        run: |
+          [[ -n "${{ steps.suite_env.outputs.reactor_e2e_codex_bin }}" ]] || { echo "Nightly e2e requires Codex coverage."; exit 1; }
+          [[ -n "${{ steps.suite_env.outputs.reactor_e2e_claude_bin }}" ]] || { echo "Nightly e2e requires Claude coverage."; exit 1; }
+          [[ -n "${{ steps.suite_env.outputs.reactor_e2e_docker_bin }}" ]] || { echo "Nightly e2e requires Docker coverage."; exit 1; }
+
       - name: Run nightly e2e
         working-directory: .
         env:

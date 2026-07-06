@@ -171,7 +171,14 @@ func TestStdioTransport_LargeMessage(t *testing.T) {
 	defer cancel()
 
 	payload := strings.Repeat("x", 1<<20) // 1 MiB, well past the 64 KiB default
-	msg, err := json.Marshal(map[string]any{"method": "turn/completed", "text": payload})
+	msg, err := json.Marshal(map[string]any{
+		"method": "turn/completed",
+		"params": map[string]any{
+			"threadId": "thread-1",
+			"turnId":   "turn-1",
+			"text":     payload,
+		},
+	})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}

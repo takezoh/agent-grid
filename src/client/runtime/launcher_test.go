@@ -77,11 +77,29 @@ func TestDirectLauncher_stripsContainerToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WrapLaunch: %v", err)
 	}
-	if _, ok := got.Env["ROOST_SOCKET_TOKEN"]; ok {
-		t.Error("ROOST_SOCKET_TOKEN should be stripped by DirectLauncher")
+	if got.Env["ROOST_SOCKET_TOKEN"] != "" {
+		t.Errorf("ROOST_SOCKET_TOKEN = %q, want empty", got.Env["ROOST_SOCKET_TOKEN"])
 	}
 	if got.Env["OTHER"] != "keep" {
 		t.Errorf("OTHER env lost: %v", got.Env)
+	}
+}
+
+func TestDirectLauncher_masksAmbientContainerTokenFromSpawnEnv(t *testing.T) {
+	t.Setenv("ROOST_SOCKET_TOKEN", "ambient-token")
+
+	l := DirectLauncher{}
+	got, err := l.WrapLaunch("f1", state.LaunchPlan{Command: "claude"}, nil)
+	if err != nil {
+		t.Fatalf("WrapLaunch: %v", err)
+	}
+
+	values, counts := envSliceToMap(t, envSlice(got.Env))
+	if values["ROOST_SOCKET_TOKEN"] != "" {
+		t.Fatalf("spawn env ROOST_SOCKET_TOKEN = %q, want empty", values["ROOST_SOCKET_TOKEN"])
+	}
+	if counts["ROOST_SOCKET_TOKEN"] != 1 {
+		t.Fatalf("spawn env ROOST_SOCKET_TOKEN count = %d, want 1", counts["ROOST_SOCKET_TOKEN"])
 	}
 }
 

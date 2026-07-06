@@ -299,8 +299,8 @@ func TestFrameLaunch_ColdStart_Host(t *testing.T) {
 	if env["ROOST_SESSION_ID"] != "s1" || env["ROOST_FRAME_ID"] != "f1" {
 		t.Errorf("identity env not baked into host spawn: %v", env)
 	}
-	if _, ok := env["ROOST_SOCKET_TOKEN"]; ok {
-		t.Error("host launch must not carry a container bearer token")
+	if env["ROOST_SOCKET_TOKEN"] != "" {
+		t.Errorf("host launch ROOST_SOCKET_TOKEN = %q, want empty", env["ROOST_SOCKET_TOKEN"])
 	}
 	if _, ok := h.r.frameReg.GetMounts("f1"); ok {
 		t.Error("host launch must not register mounts")
@@ -519,8 +519,8 @@ func TestFrameLaunch_NewSession_Host(t *testing.T) {
 	if env["ROOST_SOCKET"] != h.sockPath {
 		t.Errorf("ROOST_SOCKET = %q, want %q", env["ROOST_SOCKET"], h.sockPath)
 	}
-	if _, ok := env["ROOST_SOCKET_TOKEN"]; ok {
-		t.Error("host spawn env must not carry a container bearer token")
+	if env["ROOST_SOCKET_TOKEN"] != "" {
+		t.Errorf("host spawn ROOST_SOCKET_TOKEN = %q, want empty", env["ROOST_SOCKET_TOKEN"])
 	}
 	if len(h.r.containerEndpoints) != 0 {
 		t.Error("host new-session must not start a container endpoint")

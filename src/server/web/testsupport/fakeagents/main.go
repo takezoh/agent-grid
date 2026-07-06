@@ -17,8 +17,6 @@ import (
 	"time"
 
 	streamfake "github.com/takezoh/agent-reactor/client/runtime/subsystem/stream/fake"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/fakeclaude"
 	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
 )
@@ -191,7 +189,7 @@ func runCodex(args []string) error {
 		if err != nil {
 			return err
 		}
-		srv := streamfake.New(streamfake.Config{Sock: sock, TurnHandler: codexTurnHandler})
+		srv := streamfake.New(streamfake.Config{Sock: sock})
 		if err := srv.Start(); err != nil {
 			return err
 		}
@@ -202,7 +200,7 @@ func runCodex(args []string) error {
 	if err != nil {
 		return err
 	}
-	return runCodexCLI(cliArgs)
+	return streamfake.RunCLI(cliArgs)
 }
 
 func codexListenSock(args []string) (string, error) {
@@ -254,125 +252,6 @@ func parseCodexCLIArgs(args []string) (streamfake.CLIArgs, error) {
 		return streamfake.CLIArgs{}, errors.New("codex: missing --remote unix:// path")
 	}
 	return cfg, nil
-}
-
-func runCodexCLI(args streamfake.CLIArgs) error {
-	tr, err := codexclient.DialUDS(args.Sock, 3*time.Second)
-	if err != nil {
-		return fmt.Errorf("codex cli: dial %s: %w", args.Sock, err)
-	}
-	conn := codexclient.NewConn(tr, 30*time.Second)
-	obs := &cliObserver{stdout: args.Stdout}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	runErr := make(chan error, 1)
-	go func() { runErr <- conn.Run(ctx, obs) }()
-
-	if err := codexclient.Initialize(conn); err != nil {
-		return fmt.Errorf("codex cli: initialize: %w", err)
-	}
-
-	var threadID string
-	if args.Resume != "" {
-		sess, err := codexclient.ResumeThread(conn, codexclient.ResumeOptions{
-			ThreadID: args.Resume,
-			Cwd:      args.Cwd,
-		})
-		if err != nil {
-			return fmt.Errorf("codex cli: resume %s: %w", args.Resume, err)
-		}
-		threadID = sess.ThreadID
-	} else {
-		sess, err := codexclient.StartThread(conn, args.Cwd, nil, codexclient.ThreadOptions{})
-		if err != nil {
-			return fmt.Errorf("codex cli: thread/start: %w", err)
-		}
-		threadID = sess.ThreadID
-	}
-	fmt.Fprintf(args.Stdout, "[READY] threadId=%s\n", threadID)
-
-	triggerTurn := func(input string) error {
-		return codexclient.StartTurn(conn, threadID, args.Cwd, []byte(input), codexclient.TurnOptions{})
-	}
-	if err := triggerTurn("background turn"); err != nil {
-		return fmt.Errorf("codex cli: background turn: %w", err)
-	}
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				_ = triggerTurn("background turn")
-			}
-		}
-	}()
-
-	scanner := bufio.NewScanner(args.Stdin)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		if err := triggerTurn(line); err != nil {
-			return fmt.Errorf("codex cli: turn/start: %w", err)
-		}
-	}
-	if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
-		return fmt.Errorf("codex cli: read stdin: %w", err)
-	}
-
-	select {
-	case err := <-runErr:
-		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) {
-			return fmt.Errorf("codex cli: read loop: %w", err)
-		}
-	case <-time.After(500 * time.Millisecond):
-	}
-	return nil
-}
-
-func codexTurnHandler(req streamfake.TurnRequest, emit streamfake.Emitter) {
-	_ = emit.Emit(codexschema.MethodTurnStarted, map[string]any{
-		"threadId": req.ThreadID,
-		"turnId":   req.TurnID,
-		"preview":  req.Input,
-	})
-	_ = emit.Emit(codexschema.MethodThreadSettingsUpdated, map[string]any{
-		"threadId": req.ThreadID,
-		"threadSettings": map[string]any{
-			"model":  "gpt-5-codex",
-			"effort": map[string]any{"level": "high"},
-		},
-	})
-	_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
-		"threadId": req.ThreadID,
-		"status":   map[string]any{"type": "active"},
-	})
-	_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
-		"threadId": req.ThreadID,
-		"turnId":   req.TurnID,
-		"text":     "echo: " + req.Input,
-	})
-	_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
-		"threadId": req.ThreadID,
-		"status":   map[string]any{"type": "idle"},
-	})
-}
-
-type cliObserver struct {
-	stdout io.Writer
-}
-
-func (o *cliObserver) OnNotification(method string, params json.RawMessage) {
-	fmt.Fprintf(o.stdout, "[EVENT] method=%s params=%s\n", method, string(params))
-}
-
-func (o *cliObserver) OnServerRequest(_ int64, method string, params json.RawMessage) {
-	fmt.Fprintf(o.stdout, "[REQUEST] method=%s params=%s\n", method, string(params))
 }
 
 func waitForSignal() error {

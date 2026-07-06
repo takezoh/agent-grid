@@ -132,8 +132,15 @@ func startServerDaemon(t *testing.T) daemonInstance {
 func startServerDaemonWithOptions(t *testing.T, opts daemonLaunchOptions) daemonInstance {
 	t.Helper()
 	bin := buildServerOnce(t)
-	dataDir := t.TempDir()
-	homeDir := t.TempDir()
+	dataDir, err := os.MkdirTemp("", "server-e2e-data-")
+	if err != nil {
+		t.Fatalf("mkdir data dir: %v", err)
+	}
+	homeDir, err := os.MkdirTemp("", "server-e2e-home-")
+	if err != nil {
+		_ = os.RemoveAll(dataDir)
+		t.Fatalf("mkdir home dir: %v", err)
+	}
 	addr := opts.addr
 	if addr == "" {
 		addr = "127.0.0.1:0"
@@ -145,9 +152,11 @@ func startServerDaemonWithOptions(t *testing.T, opts daemonLaunchOptions) daemon
 		"-no-auth",
 		"-addr", addr,
 	)
-	cmd.Env = appendEnv(replaceEnv(os.Environ(), "HOME", homeDir), opts.extraEnv...)
+	cmd.Env = appendEnv(replaceEnv(stripEnvPrefix(os.Environ(), "ROOST_"), "HOME", homeDir), opts.extraEnv...)
 	logFile, err := os.Create(filepath.Join(dataDir, "server.log"))
 	if err != nil {
+		_ = os.RemoveAll(homeDir)
+		_ = os.RemoveAll(dataDir)
 		t.Fatalf("create log: %v", err)
 	}
 	cmd.Stdout = logFile
@@ -159,6 +168,8 @@ func startServerDaemonWithOptions(t *testing.T, opts daemonLaunchOptions) daemon
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
 		_ = logFile.Close()
+		_ = os.RemoveAll(homeDir)
+		_ = os.RemoveAll(dataDir)
 	})
 
 	sockPath := filepath.Join(dataDir, "server.sock")
@@ -210,6 +221,18 @@ func replaceEnv(env []string, key, value string) []string {
 		out = append(out, entry)
 	}
 	return append(out, prefix+value)
+}
+
+func stripEnvPrefix(env []string, prefix string) []string {
+	out := make([]string, 0, len(env))
+	for _, entry := range env {
+		key, _, ok := strings.Cut(entry, "=")
+		if ok && strings.HasPrefix(key, prefix) {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 func appendEnv(env []string, extra ...string) []string {

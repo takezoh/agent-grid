@@ -57,6 +57,12 @@ func TestServer_EmitTurnCompleted(t *testing.T) {
 	if params["threadId"] != "tid1" {
 		t.Fatalf("params = %v", params)
 	}
+	if params["text"] != "hello" {
+		t.Fatalf("params.text = %v, want hello", params["text"])
+	}
+	if _, ok := msg["text"]; ok {
+		t.Fatalf("turn/completed leaked top-level text field: %v", msg)
+	}
 }
 
 func TestServer_EmitTurnFailed(t *testing.T) {

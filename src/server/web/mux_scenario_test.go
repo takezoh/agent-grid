@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -164,6 +165,55 @@ func waitForSessionIDByProject(
 	return ""
 }
 
+func listSessionsViaAPI(t *testing.T, daemon daemonInstance) []apiSessionInfo {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, daemon.httpURL+"/api/sessions", nil)
+	if err != nil {
+		t.Fatalf("new list request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("list sessions: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("list sessions status = %d, want 200 (body %q)", resp.StatusCode, string(body))
+	}
+	var sessions []apiSessionInfo
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	return sessions
+}
+
+func waitForSessionListed(
+	t *testing.T,
+	daemon daemonInstance,
+	sessionID string,
+	timeout time.Duration,
+	wantPresent bool,
+) []apiSessionInfo {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		sessions := listSessionsViaAPI(t, daemon)
+		found := false
+		for _, session := range sessions {
+			if session.ID == sessionID {
+				found = true
+				break
+			}
+		}
+		if found == wantPresent {
+			return sessions
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for session %q presence=%v", sessionID, wantPresent)
+	return nil
+}
+
 func deleteSessionViaAPI(t *testing.T, daemon daemonInstance, sessionID string) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodDelete, daemon.httpURL+"/api/sessions/"+sessionID, nil)
@@ -200,6 +250,13 @@ func readWSPayload(t *testing.T, c *websocket.Conn, timeout time.Duration) []byt
 		t.Fatalf("read ws frame: %v", err)
 	}
 	return data
+}
+
+func tryReadWSPayload(c *websocket.Conn, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	_, data, err := c.Read(ctx)
+	return data, err
 }
 
 func waitForSessionFrame(
@@ -249,6 +306,48 @@ func waitForOutputFrame(t *testing.T, c *websocket.Conn, timeout time.Duration) 
 	return nil
 }
 
+func decodeOutputFrameText(t *testing.T, frame []any) string {
+	t.Helper()
+	if len(frame) != 4 {
+		t.Fatalf("output length = %d, want 4", len(frame))
+	}
+	dataB64, _ := frame[2].(string)
+	if dataB64 == "" {
+		t.Fatal("output frame missing base64 payload")
+	}
+	data, err := base64.StdEncoding.DecodeString(dataB64)
+	if err != nil {
+		t.Fatalf("decode output payload: %v", err)
+	}
+	return string(data)
+}
+
+func collectSurfaceOutputOrLog(
+	t *testing.T,
+	daemon daemonInstance,
+	c *websocket.Conn,
+	timeout time.Duration,
+	frames int,
+) string {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var b strings.Builder
+	for i := 0; i < frames && time.Now().Before(deadline); i++ {
+		data, err := tryReadWSPayload(c, time.Until(deadline))
+		if err != nil {
+			logTail, _ := os.ReadFile(filepath.Join(filepath.Dir(daemon.sockPath), "server.log"))
+			t.Fatalf("read ws frame: %v\nserver.log:\n%s", err, string(logTail))
+		}
+		var frame []any
+		if err := json.Unmarshal(data, &frame); err != nil {
+			t.Fatalf("unmarshal output frame %q: %v", data, err)
+		}
+		assertOutputFrameShapeFromFixture(t, frame)
+		b.WriteString(decodeOutputFrameText(t, frame))
+	}
+	return b.String()
+}
+
 type lifecycleFeed struct {
 	frames <-chan map[string]any
 	errs   <-chan error
@@ -287,6 +386,7 @@ func waitForFeedFrame(
 	t.Helper()
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
+	var lastFrame map[string]any
 	for {
 		select {
 		case frame, ok := <-feed.frames:
@@ -298,6 +398,7 @@ func waitForFeedFrame(
 					t.Fatal("lifecycle feed closed")
 				}
 			}
+			lastFrame = frame
 			session := sessionFromFrame(frame, sessionID)
 			if session != nil && pred(session) {
 				return frame
@@ -305,7 +406,7 @@ func waitForFeedFrame(
 		case err := <-feed.errs:
 			t.Fatalf("lifecycle feed read: %v", err)
 		case <-timer.C:
-			t.Fatalf("timed out waiting for lifecycle feed frame for session %q", sessionID)
+			t.Fatalf("timed out waiting for lifecycle feed frame for session %q; last frame=%v", sessionID, lastFrame)
 		}
 	}
 }
@@ -499,46 +600,30 @@ func TestE2E_GatewayScenarioFakeClaudeLifecycleAndSurface(t *testing.T) {
 	waitForSessionAbsent(t, lifecycle, 5*time.Second, sessionID)
 }
 
-func TestE2E_GatewayScenarioFakeCodexLifecycleAndSurface(t *testing.T) {
+func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping real-daemon scenario e2e in -short mode")
 	}
 	t.Parallel()
-	t.Skip("codex lifecycle view updates are not emitted on the real gateway in this build")
 
 	daemon := startScenarioServer(t, installFakeAgents(t))
-	lifecycle := dialGatewayWS(t, daemon, "")
-	feed := startLifecycleFeed(t, lifecycle)
-	<-feed.frames // initial empty hello
-
 	project := t.TempDir()
 	sessionID := createSessionViaAPI(t, daemon, project, "codex")
-
-	initial := waitForFeedFrame(t, feed, 5*time.Second, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "idle"
-	})
-	assertSessionView(t, initial, sessionID, "", "idle", "", "")
+	waitForSessionListed(t, daemon, sessionID, 5*time.Second, true)
 
 	surface := dialGatewayWS(t, daemon, sessionID)
-	output := waitForOutputFrame(t, surface, 5*time.Second)
-	assertOutputFrameShapeFromFixture(t, output)
-
 	sendSurfaceInput(t, surface, "implement wire test\n")
-	running := waitForFeedFrame(t, feed, 5*time.Second, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "running" && view["model"] == "gpt-5-codex"
-	})
-	assertSessionView(t, running, sessionID, "*", "running", "gpt-5-codex", "high")
-	assertTitlePresent(t, running, sessionID)
-
-	waiting := waitForFeedFrame(t, feed, 5*time.Second, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "waiting"
-	})
-	assertSessionView(t, waiting, sessionID, "*", "waiting", "gpt-5-codex", "high")
-	assertTitlePresent(t, waiting, sessionID)
+	output := collectSurfaceOutputOrLog(t, daemon, surface, 10*time.Second, 6)
+	if !strings.Contains(output, "implement wire test") {
+		t.Fatalf("surface output missing prompt text: %q", output)
+	}
+	if !strings.Contains(output, "method=turn/started") {
+		t.Fatalf("surface output missing turn/started event: %q", output)
+	}
+	if !strings.Contains(output, "[READY] threadId=") {
+		t.Fatalf("surface output missing ready marker: %q", output)
+	}
 
 	deleteSessionViaAPI(t, daemon, sessionID)
-	waitForFeedSessionAbsent(t, feed, 5*time.Second, sessionID)
+	waitForSessionListed(t, daemon, sessionID, 5*time.Second, false)
 }

@@ -100,12 +100,13 @@ func (DirectLauncher) IsContainer(_ string) bool { return false }
 func (DirectLauncher) BeginColdStart() {}
 func (DirectLauncher) EndColdStart()   {}
 
-// stripContainerOnlyEnv returns a copy of env without ROOST_SOCKET_TOKEN.
-// Token injection is only valid inside containers; DirectLauncher drops it
-// so host processes are never given a container credential.
+// stripContainerOnlyEnv returns a copy of env with ROOST_SOCKET_TOKEN forced
+// empty. Token injection is only valid inside containers; DirectLauncher must
+// mask any ambient parent token as well as removing an explicit override so
+// host processes are never given a container credential.
 func stripContainerOnlyEnv(env map[string]string) map[string]string {
-	out := cloneEnvMap(env, 0)
-	delete(out, "ROOST_SOCKET_TOKEN")
+	out := cloneEnvMap(env, 1)
+	out["ROOST_SOCKET_TOKEN"] = ""
 	return out
 }
 
