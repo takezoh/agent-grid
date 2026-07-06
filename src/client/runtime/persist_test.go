@@ -4,6 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/takezoh/agent-grid/client/driver"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func TestFilePersistRoundTrip(t *testing.T) {
@@ -27,6 +31,31 @@ func TestFilePersistRoundTrip(t *testing.T) {
 					"session_id": "uuid",
 				},
 			}},
+			FrameMessaging: &SessionFrameMessagingSnapshot{
+				Summary: FrameMessagingSummarySnapshot{
+					UnreadCount:          1,
+					LatestMessagePreview: "Need review",
+					PendingDeliveryCount: 1,
+					LastDeliveryStatus:   "pending",
+				},
+				Messages: []FrameMessageSnapshot{{
+					ID:             "m1",
+					SourceFrameID:  "f1",
+					TargetFrameID:  "f2",
+					Body:           "hello",
+					CreatedAt:      "2026-04-10T12:01:00Z",
+					ReplyStatus:    "pending",
+					DeliveryStatus: "pending",
+					Reply: &FrameReplySnapshot{
+						ID:                 "r1",
+						SourceFrameID:      "f2",
+						Body:               "done",
+						CreatedAt:          "2026-04-10T12:02:00Z",
+						Resolution:         "resolved",
+						FinalAnswerPreview: "done",
+					},
+				}},
+			},
 		},
 	}
 	if err := p.Save(want); err != nil {
@@ -57,6 +86,61 @@ func TestFilePersistRoundTrip(t *testing.T) {
 	}
 	if got[0].Frames[0].SubsystemID != "cli:f1" || got[0].Frames[0].TargetID != "f1" {
 		t.Errorf("frame identity = %+v", got[0].Frames[0])
+	}
+	if got[0].FrameMessaging == nil || got[0].FrameMessaging.Messages[0].Reply == nil {
+		t.Fatalf("FrameMessaging did not round-trip: %+v", got[0].FrameMessaging)
+	}
+	if got[0].FrameMessaging.Messages[0].Reply.FinalAnswerPreview != "done" {
+		t.Errorf("reply preview = %q, want done", got[0].FrameMessaging.Messages[0].Reply.FinalAnswerPreview)
+	}
+}
+
+func TestSnapshotSessionsPersistsFrameMessaging(t *testing.T) {
+	r := New(Config{
+		TickInterval: 10 * time.Second,
+		Backend:      newFakeBackend(),
+		Persist:      noopPersist{},
+	})
+	now := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
+	sid := state.SessionID("s-msg")
+	r.state.Sessions[sid] = state.Session{
+		ID:        sid,
+		Project:   "/repo",
+		CreatedAt: now,
+		Command:   "shell",
+		Driver:    driver.NewGenericDriver("shell", "shell", 0).NewState(now),
+		Frames: []state.SessionFrame{{
+			ID:        "f1",
+			Project:   "/repo",
+			Command:   "shell",
+			CreatedAt: now,
+			Driver:    driver.NewGenericDriver("shell", "shell", 0).NewState(now),
+		}},
+		FrameMessaging: &state.SessionFrameMessaging{
+			Summary: state.FrameMessagingSummary{
+				UnreadCount:          2,
+				LatestMessagePreview: "Need review",
+				PendingDeliveryCount: 1,
+			},
+			Messages: []state.FrameMessage{{
+				ID:            "m1",
+				SourceFrameID: "f1",
+				TargetFrameID: "f2",
+				Body:          "hello",
+				CreatedAt:     now,
+			}},
+		},
+	}
+
+	snaps := r.snapshotSessions()
+	if len(snaps) != 1 || snaps[0].FrameMessaging == nil {
+		t.Fatalf("snapshot missing frame messaging: %+v", snaps)
+	}
+	if snaps[0].FrameMessaging.Summary.UnreadCount != 2 {
+		t.Fatalf("UnreadCount = %d, want 2", snaps[0].FrameMessaging.Summary.UnreadCount)
+	}
+	if snaps[0].FrameMessaging.Messages[0].ID != "m1" {
+		t.Fatalf("message id = %q, want m1", snaps[0].FrameMessaging.Messages[0].ID)
 	}
 }
 

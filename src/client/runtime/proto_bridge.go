@@ -3,9 +3,12 @@ package runtime
 import (
 	"log/slog"
 	"sort"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/takezoh/agent-grid/client/proto"
 	"github.com/takezoh/agent-grid/client/state"
+	stateview "github.com/takezoh/agent-grid/client/state/view"
 )
 
 // Bridge functions that translate state-package payloads (which are
@@ -73,6 +76,8 @@ func (r *Runtime) translateResponseBody(body any) proto.Response {
 		return r.buildSurfaceText(b)
 	case state.DriverListReply:
 		return r.buildDriverList()
+	case state.SessionMessagesReply:
+		return r.buildSessionMessages(b)
 	}
 	slog.Warn("runtime: unknown response body type, sending RespOK",
 		"type", typeNameOf(body))
@@ -264,6 +269,16 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 	if sess.Sandbox == state.SandboxOverrideHost {
 		view.Card.Tags = append(view.Card.Tags, state.HostTag())
 	}
+	if sess.FrameMessaging != nil {
+		summary := sess.FrameMessaging.Summary
+		view.FrameMessagingSummary = &stateview.FrameMessagingSummary{
+			UnreadCount:          summary.UnreadCount,
+			LatestMessagePreview: summary.LatestMessagePreview,
+			LatestReplyPreview:   summary.LatestReplyPreview,
+			PendingDeliveryCount: summary.PendingDeliveryCount,
+			LastDeliveryStatus:   summary.LastDeliveryStatus,
+		}
+	}
 	frames := make([]proto.FrameInfo, 0, len(sess.Frames))
 	for _, sf := range sess.Frames {
 		frames = append(frames, proto.FrameInfo{
@@ -338,6 +353,73 @@ func (r *Runtime) buildDriverList() proto.Response {
 	return proto.RespDriverList{Drivers: infos}
 }
 
+func (r *Runtime) buildSessionMessages(b state.SessionMessagesReply) proto.Response {
+	sess, ok := r.state.Sessions[b.SessionID]
+	if !ok || sess.FrameMessaging == nil {
+		return proto.RespSessionMessages{SessionID: string(b.SessionID), Messages: []proto.SessionMessage{}}
+	}
+	msgs := make([]proto.SessionMessage, 0, len(sess.FrameMessaging.Messages))
+	for _, msg := range sess.FrameMessaging.Messages {
+		wire := proto.SessionMessage{
+			ID:             msg.ID,
+			SourceFrameID:  string(msg.SourceFrameID),
+			TargetFrameID:  string(msg.TargetFrameID),
+			Topic:          msg.Topic,
+			Body:           msg.Body,
+			BodyPreview:    stateMessagePreview(msg.Body),
+			CreatedAt:      msg.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+			Read:           msg.Read,
+			ReplyStatus:    msg.ReplyStatus,
+			DeliveryStatus: msg.DeliveryStatus,
+		}
+		if wire.ReplyStatus == "" {
+			if msg.Reply != nil && msg.Reply.Resolution != "" {
+				wire.ReplyStatus = msg.Reply.Resolution
+			} else if msg.Reply != nil {
+				wire.ReplyStatus = "replied"
+			} else if msg.DeliveryStatus != "" {
+				wire.ReplyStatus = msg.DeliveryStatus
+			} else {
+				wire.ReplyStatus = "pending"
+			}
+		}
+		if msg.Reply != nil {
+			wire.FinalAnswerPreview = msg.Reply.FinalAnswerPreview
+			wire.Reply = &proto.SessionMessageReply{
+				ID:                 msg.Reply.ID,
+				SourceFrameID:      string(msg.Reply.SourceFrameID),
+				Body:               msg.Reply.Body,
+				BodyPreview:        stateMessagePreview(msg.Reply.Body),
+				CreatedAt:          msg.Reply.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+				Resolution:         msg.Reply.Resolution,
+				FinalAnswerPreview: msg.Reply.FinalAnswerPreview,
+			}
+		}
+		msgs = append(msgs, wire)
+	}
+	summary := sess.FrameMessaging.Summary
+	return proto.RespSessionMessages{
+		SessionID: string(b.SessionID),
+		Summary: &proto.FrameMessagingSummary{
+			UnreadCount:          summary.UnreadCount,
+			LatestMessagePreview: summary.LatestMessagePreview,
+			LatestReplyPreview:   summary.LatestReplyPreview,
+			PendingDeliveryCount: summary.PendingDeliveryCount,
+			LastDeliveryStatus:   summary.LastDeliveryStatus,
+		},
+		Messages: msgs,
+	}
+}
+
+func stateMessagePreview(body string) string {
+	body = strings.Join(strings.Fields(body), " ")
+	if utf8.RuneCountInString(body) <= 120 {
+		return body
+	}
+	runes := []rune(body)
+	return string(runes[:117]) + "..."
+}
+
 func typeNameOf(v any) string {
 	switch v.(type) {
 	case nil:
@@ -350,6 +432,8 @@ func typeNameOf(v any) string {
 		return "state.SurfaceReadTextReply"
 	case state.DriverListReply:
 		return "state.DriverListReply"
+	case state.SessionMessagesReply:
+		return "state.SessionMessagesReply"
 	}
 	return "unknown"
 }

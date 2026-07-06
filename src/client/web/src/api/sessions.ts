@@ -100,11 +100,50 @@ export interface SessionConfig {
   pushCommands: string[];
 }
 
+export interface SessionMessageReply {
+  id: string;
+  source_frame_id: string;
+  body?: string;
+  body_preview?: string;
+  created_at: string;
+  resolution?: string;
+  final_answer_preview?: string;
+}
+
+export interface SessionMessage {
+  id: string;
+  source_frame_id: string;
+  target_frame_id: string;
+  topic?: string;
+  body?: string;
+  body_preview?: string;
+  created_at: string;
+  read?: boolean;
+  reply_status?: string;
+  delivery_status?: string;
+  final_answer_preview?: string;
+  reply?: SessionMessageReply;
+}
+
+export interface SessionMessagesResponse {
+  session_id: string;
+  summary?: {
+    unread_count: number;
+    latest_message_preview?: string;
+    latest_reply_preview?: string;
+    pending_delivery_count: number;
+    last_delivery_status?: string;
+  };
+  messages: SessionMessage[];
+}
+
 export interface SessionsApi {
   createSession(payload: CreateSessionPayload): Promise<{ id: string }>;
   deleteSession(id: string): Promise<void>;
   pushCommand(sessionId: string, command: string): Promise<void>;
   getSessionConfig(): Promise<SessionConfig>;
+  getSessionMessages(sessionId: string): Promise<SessionMessagesResponse>;
+  markSessionMessagesRead(sessionId: string, lastReadMessageId?: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -477,6 +516,38 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
         commands,
         pushCommands,
       };
+    },
+
+    async getSessionMessages(sessionId: string): Promise<SessionMessagesResponse> {
+      const url = `/api/sessions/${encodeURIComponent(sessionId)}/messages`;
+      const res = await request(f, url, {
+        method: "GET",
+        headers: { ...authHeader(url) },
+      });
+      const body = await parseJsonBody(url, res);
+      const messages = Array.isArray(body.messages) ? (body.messages as SessionMessage[]) : [];
+      return {
+        session_id: typeof body.session_id === "string" ? body.session_id : sessionId,
+        summary:
+          body.summary && typeof body.summary === "object"
+            ? (body.summary as SessionMessagesResponse["summary"])
+            : undefined,
+        messages,
+      };
+    },
+
+    async markSessionMessagesRead(sessionId: string, lastReadMessageId?: string): Promise<void> {
+      const url = `/api/sessions/${encodeURIComponent(sessionId)}/messages/read`;
+      await request(f, url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeader(url),
+        },
+        body: JSON.stringify(
+          lastReadMessageId ? { last_read_message_id: lastReadMessageId } : {},
+        ),
+      });
     },
   };
 }

@@ -132,7 +132,51 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 		mru = append(mru, state.FrameID(id))
 	}
 	sess.MRUFrameIDs = mru
+	sess.FrameMessaging = restoreFrameMessaging(snap.FrameMessaging)
 	return sess, true
+}
+
+func restoreFrameMessaging(in *SessionFrameMessagingSnapshot) *state.SessionFrameMessaging {
+	if in == nil {
+		return nil
+	}
+	out := &state.SessionFrameMessaging{
+		Summary: state.FrameMessagingSummary{
+			UnreadCount:          in.Summary.UnreadCount,
+			LatestMessagePreview: in.Summary.LatestMessagePreview,
+			LatestReplyPreview:   in.Summary.LatestReplyPreview,
+			PendingDeliveryCount: in.Summary.PendingDeliveryCount,
+			LastDeliveryStatus:   in.Summary.LastDeliveryStatus,
+		},
+		Messages: make([]state.FrameMessage, 0, len(in.Messages)),
+	}
+	for _, msg := range in.Messages {
+		createdAt, _ := time.Parse(time.RFC3339, msg.CreatedAt)
+		frameMsg := state.FrameMessage{
+			ID:             msg.ID,
+			SourceFrameID:  state.FrameID(msg.SourceFrameID),
+			TargetFrameID:  state.FrameID(msg.TargetFrameID),
+			Topic:          msg.Topic,
+			Body:           msg.Body,
+			CreatedAt:      createdAt,
+			Read:           msg.Read,
+			ReplyStatus:    msg.ReplyStatus,
+			DeliveryStatus: msg.DeliveryStatus,
+		}
+		if msg.Reply != nil {
+			replyCreatedAt, _ := time.Parse(time.RFC3339, msg.Reply.CreatedAt)
+			frameMsg.Reply = &state.FrameReply{
+				ID:                 msg.Reply.ID,
+				SourceFrameID:      state.FrameID(msg.Reply.SourceFrameID),
+				Body:               msg.Reply.Body,
+				CreatedAt:          replyCreatedAt,
+				Resolution:         msg.Reply.Resolution,
+				FinalAnswerPreview: msg.Reply.FinalAnswerPreview,
+			}
+		}
+		out.Messages = append(out.Messages, frameMsg)
+	}
+	return out
 }
 
 // PtyBackend pairs one pty session per frame so a main-frame-owner concept

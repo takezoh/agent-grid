@@ -202,6 +202,8 @@ func apiHandler(d *DaemonClient, tickets *ticketStore) http.Handler {
 	mux.HandleFunc("GET /api/sessions", handleListSessions(d))
 	mux.HandleFunc("POST /api/sessions", handleCreateSession(d))
 	mux.HandleFunc("POST /api/sessions/{id}/push", handlePushCommand(d))
+	mux.HandleFunc("GET /api/sessions/{id}/messages", handleGetSessionMessages(d))
+	mux.HandleFunc("POST /api/sessions/{id}/messages/read", handleReadSessionMessages(d))
 	mux.HandleFunc("DELETE /api/sessions/{id}", handleDeleteSession(d))
 	mux.HandleFunc("GET /api/sessions/{id}/transcript", handleGetTranscript(d))
 	mux.HandleFunc("GET /api/sessions/{id}/event-log", handleGetEventLog(d))

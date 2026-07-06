@@ -164,6 +164,9 @@ func DecodeResponseByCommand(env Envelope) (Response, error) {
 		return RespOK{}, nil
 	}
 	switch {
+	case has(probe, "messages"):
+		var r RespSessionMessages
+		return decodeResponse(env.Data, &r)
 	case has(probe, "session_id"):
 		var r RespCreateSession
 		return decodeResponse(env.Data, &r)

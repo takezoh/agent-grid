@@ -118,13 +118,14 @@ type PersistBackend interface {
 // bag (opaque map of strings). Frame ids are tracked in session env
 // vars (AG_SESSION_<sid>); sessions.json stays frame-id free.
 type SessionSnapshot struct {
-	ID          string                 `json:"id"`
-	Project     string                 `json:"project"`
-	CreatedAt   string                 `json:"created_at"`
-	Frames      []SessionFrameSnapshot `json:"frames"`
-	HeadFrameID string                 `json:"head_frame_id,omitempty"`
-	MRUFrameIDs []string               `json:"mru_frame_ids,omitempty"`
-	Sandbox     state.SandboxOverride  `json:"sandbox,omitempty"`
+	ID             string                         `json:"id"`
+	Project        string                         `json:"project"`
+	CreatedAt      string                         `json:"created_at"`
+	Frames         []SessionFrameSnapshot         `json:"frames"`
+	HeadFrameID    string                         `json:"head_frame_id,omitempty"`
+	MRUFrameIDs    []string                       `json:"mru_frame_ids,omitempty"`
+	Sandbox        state.SandboxOverride          `json:"sandbox,omitempty"`
+	FrameMessaging *SessionFrameMessagingSnapshot `json:"frame_messaging,omitempty"`
 }
 
 type SessionFrameSnapshot struct {
@@ -137,6 +138,41 @@ type SessionFrameSnapshot struct {
 	CreatedAt     string              `json:"created_at"`
 	Driver        string              `json:"driver"`
 	DriverState   map[string]string   `json:"driver_state"`
+}
+
+type SessionFrameMessagingSnapshot struct {
+	Summary  FrameMessagingSummarySnapshot `json:"summary"`
+	Messages []FrameMessageSnapshot        `json:"messages,omitempty"`
+}
+
+type FrameMessagingSummarySnapshot struct {
+	UnreadCount          int    `json:"unread_count"`
+	LatestMessagePreview string `json:"latest_message_preview,omitempty"`
+	LatestReplyPreview   string `json:"latest_reply_preview,omitempty"`
+	PendingDeliveryCount int    `json:"pending_delivery_count"`
+	LastDeliveryStatus   string `json:"last_delivery_status,omitempty"`
+}
+
+type FrameMessageSnapshot struct {
+	ID             string              `json:"id"`
+	SourceFrameID  string              `json:"source_frame_id"`
+	TargetFrameID  string              `json:"target_frame_id"`
+	Topic          string              `json:"topic,omitempty"`
+	Body           string              `json:"body,omitempty"`
+	CreatedAt      string              `json:"created_at"`
+	Read           bool                `json:"read,omitempty"`
+	ReplyStatus    string              `json:"reply_status,omitempty"`
+	DeliveryStatus string              `json:"delivery_status,omitempty"`
+	Reply          *FrameReplySnapshot `json:"reply,omitempty"`
+}
+
+type FrameReplySnapshot struct {
+	ID                 string `json:"id"`
+	SourceFrameID      string `json:"source_frame_id"`
+	Body               string `json:"body,omitempty"`
+	CreatedAt          string `json:"created_at"`
+	Resolution         string `json:"resolution,omitempty"`
+	FinalAnswerPreview string `json:"final_answer_preview,omitempty"`
 }
 
 // EventLogBackend writes per-session event log lines. The

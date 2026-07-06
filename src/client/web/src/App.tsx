@@ -19,6 +19,11 @@ import { useMobileGate } from "./hooks/useMobileGate";
 import { useTerminateSession } from "./hooks/useTerminateSession";
 import { Connection } from "./socket/connection";
 import { useDaemonStore } from "./store/daemon";
+import {
+  normalizeFrameMessagingSummary,
+  selectFrameMessagingSummary,
+  useFrameMessagingStore,
+} from "./store/frameMessaging";
 import { useNotificationsStore } from "./store/notifications";
 
 export function App() {
@@ -99,6 +104,9 @@ export function App() {
   const activeSession = useDaemonStore((s) =>
     s.activeSessionID ? (s.sessions.find((x) => x.id === s.activeSessionID) ?? null) : null,
   );
+  const activeFrameMessagingSummary = useFrameMessagingStore((s) =>
+    activeSessionID ? selectFrameMessagingSummary(s, activeSessionID) : undefined,
+  );
 
   // セッション終了 confirm dialog の state. 単一インスタンスを App 直下で
   // 持ち overlays に mount する. dialog の variant は mobile gate に応じて
@@ -149,6 +157,10 @@ export function App() {
       )}
       <MainTabs
         tabs={activeSession?.view.log_tabs ?? []}
+        messagesSummary={
+          activeFrameMessagingSummary ??
+          normalizeFrameMessagingSummary(activeSession?.view.frame_messaging_summary)
+        }
         sessionId={activeSession?.id}
         bearerToken={token}
         suppressInfo={activeSession?.view.suppress_info ?? false}

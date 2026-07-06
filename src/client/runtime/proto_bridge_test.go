@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/takezoh/agent-grid/client/driver"
@@ -260,5 +262,24 @@ func TestBroadcastPromptEvent_PerSessionSubs(t *testing.T) {
 	case <-outboxes[3]:
 		t.Error("conn 3 received unexpected prompt event")
 	default:
+	}
+}
+
+func TestStateMessagePreview_TruncatesByRune(t *testing.T) {
+	body := strings.Repeat("あ", 119) + "終端"
+
+	preview := stateMessagePreview(body)
+
+	if !utf8.ValidString(preview) {
+		t.Fatal("preview must remain valid UTF-8")
+	}
+	if got := utf8.RuneCountInString(preview); got != 120 {
+		t.Fatalf("preview rune count = %d, want 120", got)
+	}
+	if !strings.HasSuffix(preview, "...") {
+		t.Fatalf("preview = %q, want suffix ...", preview)
+	}
+	if strings.ContainsRune(preview, '終') {
+		t.Fatalf("preview must be truncated before trailing runes: %q", preview)
 	}
 }

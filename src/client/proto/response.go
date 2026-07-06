@@ -3,6 +3,7 @@ package proto
 import (
 	"time"
 
+	"github.com/takezoh/agent-grid/client/state"
 	stateview "github.com/takezoh/agent-grid/client/state/view"
 )
 
@@ -114,6 +115,41 @@ func (RespDriverList) isResponse() {}
 type DriverInfo struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
+}
+
+type FrameMessagingSummary = state.FrameMessagingSummary
+
+type RespSessionMessages struct {
+	SessionID string                 `json:"session_id"`
+	Summary   *FrameMessagingSummary `json:"summary,omitempty"`
+	Messages  []SessionMessage       `json:"messages"`
+}
+
+func (RespSessionMessages) isResponse() {}
+
+type SessionMessage struct {
+	ID                 string               `json:"id"`
+	SourceFrameID      string               `json:"source_frame_id"`
+	TargetFrameID      string               `json:"target_frame_id"`
+	Topic              string               `json:"topic,omitempty"`
+	Body               string               `json:"body,omitempty"`
+	BodyPreview        string               `json:"body_preview,omitempty"`
+	CreatedAt          string               `json:"created_at"`
+	Read               bool                 `json:"read,omitempty"`
+	ReplyStatus        string               `json:"reply_status,omitempty"`
+	DeliveryStatus     string               `json:"delivery_status,omitempty"`
+	FinalAnswerPreview string               `json:"final_answer_preview,omitempty"`
+	Reply              *SessionMessageReply `json:"reply,omitempty"`
+}
+
+type SessionMessageReply struct {
+	ID                 string `json:"id"`
+	SourceFrameID      string `json:"source_frame_id"`
+	Body               string `json:"body,omitempty"`
+	BodyPreview        string `json:"body_preview,omitempty"`
+	CreatedAt          string `json:"created_at"`
+	Resolution         string `json:"resolution,omitempty"`
+	FinalAnswerPreview string `json:"final_answer_preview,omitempty"`
 }
 
 // baseName mirrors filepath.Base without importing filepath, so the

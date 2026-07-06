@@ -1,5 +1,6 @@
-import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
-import type { LogTab } from "../wire/server";
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { MessagesPanel } from "./MessagesPanel";
+import type { FrameMessagingSummary, LogTab } from "../wire/server";
 import { ContentArea, isSuppressed, kindOfTab } from "./LogTabs";
 import "../css/view.css";
 
@@ -33,6 +34,7 @@ import "../css/view.css";
  */
 export type MainTabsProps = {
   tabs: LogTab[];
+  messagesSummary?: FrameMessagingSummary;
   sessionId?: string;
   bearerToken?: string;
   fetchFn?: typeof fetch;
@@ -41,14 +43,27 @@ export type MainTabsProps = {
   terminalSlot: ReactNode;
 };
 
-type Active = { kind: "terminal" } | { kind: "log"; index: number };
+type Active = { kind: "terminal" } | { kind: "log"; key: string };
 
-function indexToActive(index: number, _tabCount: number): Active {
-  return index === 0 ? { kind: "terminal" } : { kind: "log", index: index - 1 };
+function tabKey(tab: LogTab): string {
+  if (tab.kind === "messages") return "messages";
+  return `${tab.kind}:${tab.label}:${tab.path}`;
+}
+
+function tabDOMID(tab: LogTab): string {
+  return tabKey(tab).replace(/[^a-zA-Z0-9_-]+/g, "-");
+}
+
+function indexToActive(index: number, tabs: readonly LogTab[]): Active {
+  if (index === 0) return { kind: "terminal" };
+  const tab = tabs[index - 1];
+  if (!tab) return { kind: "terminal" };
+  return { kind: "log", key: tabKey(tab) };
 }
 
 export function MainTabs({
   tabs,
+  messagesSummary,
   sessionId = "",
   bearerToken = "",
   fetchFn,
@@ -59,16 +74,38 @@ export function MainTabs({
   // focusedIndex tracks which tab has roving-tabindex focus (may differ from active)
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const tabsWithMessages: LogTab[] = messagesSummary
+    ? [{ label: "MESSAGES", path: "", kind: "messages" }, ...tabs]
+    : tabs;
 
-  const totalTabs = 1 + tabs.length; // TERMINAL + log tabs
+  const totalTabs = 1 + tabsWithMessages.length; // TERMINAL + stateful/driver tabs
 
   const isTerminalActive = active.kind === "terminal";
 
   function activate(index: number) {
-    const next = indexToActive(index, tabs.length);
+    const next = indexToActive(index, tabsWithMessages);
     setActive(next);
     setFocusedIndex(index);
   }
+
+  useEffect(() => {
+    if (active.kind === "terminal") {
+      if (focusedIndex >= totalTabs) {
+        setFocusedIndex(0);
+      }
+      return;
+    }
+    const activeTabIndex = tabsWithMessages.findIndex((tab) => tabKey(tab) === active.key);
+    if (activeTabIndex === -1) {
+      setActive({ kind: "terminal" });
+      setFocusedIndex(0);
+      return;
+    }
+    const nextFocusedIndex = activeTabIndex + 1;
+    if (focusedIndex !== nextFocusedIndex) {
+      setFocusedIndex(nextFocusedIndex);
+    }
+  }, [active, focusedIndex, tabsWithMessages, totalTabs]);
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     let next = focusedIndex;
@@ -124,14 +161,16 @@ export function MainTabs({
         >
           TERMINAL
         </button>
-        {tabs.map((t, i) => {
+        {tabsWithMessages.map((t, i) => {
           const tabIndex = i + 1;
-          const selected = active.kind === "log" && active.index === i;
-          const panelId = `main-tabpanel-log-${i}`;
-          const tabId = `main-tab-log-${i}`;
+          const key = tabKey(t);
+          const selected = active.kind === "log" && active.key === key;
+          const domID = tabDOMID(t);
+          const panelId = `main-tabpanel-log-${domID}`;
+          const tabId = `main-tab-log-${domID}`;
           return (
             <button
-              key={`${i}-${t.label}`}
+              key={key}
               ref={(el) => {
                 tabRefs.current[tabIndex] = el;
               }}
@@ -155,15 +194,39 @@ export function MainTabs({
             display:flex; others are display:none via the `hidden` attribute.
             Because only one is ever in flow at a time, they never compete for
             flex remainder with each other. */}
-        {tabs.map((t, i) => {
-          const selected = active.kind === "log" && active.index === i;
-          const panelId = `main-tabpanel-log-${i}`;
-          const tabId = `main-tab-log-${i}`;
+        {tabsWithMessages.map((t) => {
+          const key = tabKey(t);
+          const selected = active.kind === "log" && active.key === key;
+          const domID = tabDOMID(t);
+          const panelId = `main-tabpanel-log-${domID}`;
+          const tabId = `main-tab-log-${domID}`;
+          if (t.kind === "messages") {
+            return (
+              <div
+                key={`panel-${key}`}
+                id={panelId}
+                role="tabpanel"
+                aria-labelledby={tabId}
+                className={selected ? "tab-panel tab-panel--active" : "tab-panel"}
+                hidden={!selected ? true : undefined}
+              >
+                {selected && messagesSummary ? (
+                  <MessagesPanel
+                    sessionId={sessionId}
+                    summary={messagesSummary}
+                    fetchFn={fetchFn}
+                  />
+                ) : (
+                  <div className="log-tab-content" />
+                )}
+              </div>
+            );
+          }
           const tabKind = kindOfTab(t);
           const isSuppressedTab = isSuppressed(t, suppressInfo);
           return (
             <div
-              key={`panel-${i}-${t.label}`}
+              key={`panel-${key}`}
               id={panelId}
               role="tabpanel"
               aria-labelledby={tabId}

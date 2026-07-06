@@ -283,10 +283,10 @@ describe("Connection", () => {
             view: {
               card: { title: "Agent" },
               frame_messaging_summary: {
-                unreadCount: 2,
-                latestMessagePreview: "Review this",
-                pendingDeliveryCount: 1,
-                lastDeliveryStatus: "pending",
+                unread_count: 2,
+                latest_message_preview: "Review this",
+                pending_delivery_count: 1,
+                last_delivery_status: "pending",
               },
             },
           },

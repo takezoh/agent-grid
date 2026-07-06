@@ -350,14 +350,56 @@ func (r *Runtime) snapshotSessions() []SessionSnapshot {
 			mruIDs[i] = string(id)
 		}
 		out = append(out, SessionSnapshot{
-			ID:          string(sess.ID),
-			Project:     sess.Project,
-			CreatedAt:   sess.CreatedAt.UTC().Format(time.RFC3339),
-			Frames:      frames,
-			HeadFrameID: string(sess.HeadFrameID),
-			MRUFrameIDs: mruIDs,
-			Sandbox:     sess.Sandbox,
+			ID:             string(sess.ID),
+			Project:        sess.Project,
+			CreatedAt:      sess.CreatedAt.UTC().Format(time.RFC3339),
+			Frames:         frames,
+			HeadFrameID:    string(sess.HeadFrameID),
+			MRUFrameIDs:    mruIDs,
+			Sandbox:        sess.Sandbox,
+			FrameMessaging: snapshotFrameMessaging(sess.FrameMessaging),
 		})
+	}
+	return out
+}
+
+func snapshotFrameMessaging(in *state.SessionFrameMessaging) *SessionFrameMessagingSnapshot {
+	if in == nil {
+		return nil
+	}
+	out := &SessionFrameMessagingSnapshot{
+		Summary: FrameMessagingSummarySnapshot{
+			UnreadCount:          in.Summary.UnreadCount,
+			LatestMessagePreview: in.Summary.LatestMessagePreview,
+			LatestReplyPreview:   in.Summary.LatestReplyPreview,
+			PendingDeliveryCount: in.Summary.PendingDeliveryCount,
+			LastDeliveryStatus:   in.Summary.LastDeliveryStatus,
+		},
+		Messages: make([]FrameMessageSnapshot, 0, len(in.Messages)),
+	}
+	for _, msg := range in.Messages {
+		snap := FrameMessageSnapshot{
+			ID:             msg.ID,
+			SourceFrameID:  string(msg.SourceFrameID),
+			TargetFrameID:  string(msg.TargetFrameID),
+			Topic:          msg.Topic,
+			Body:           msg.Body,
+			CreatedAt:      msg.CreatedAt.UTC().Format(time.RFC3339),
+			Read:           msg.Read,
+			ReplyStatus:    msg.ReplyStatus,
+			DeliveryStatus: msg.DeliveryStatus,
+		}
+		if msg.Reply != nil {
+			snap.Reply = &FrameReplySnapshot{
+				ID:                 msg.Reply.ID,
+				SourceFrameID:      string(msg.Reply.SourceFrameID),
+				Body:               msg.Reply.Body,
+				CreatedAt:          msg.Reply.CreatedAt.UTC().Format(time.RFC3339),
+				Resolution:         msg.Reply.Resolution,
+				FinalAnswerPreview: msg.Reply.FinalAnswerPreview,
+			}
+		}
+		out.Messages = append(out.Messages, snap)
 	}
 	return out
 }

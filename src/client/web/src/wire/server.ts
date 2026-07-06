@@ -51,10 +51,15 @@ export type View = {
 };
 
 export type FrameMessagingSummary = {
-  unreadCount: number;
+  unread_count?: number;
+  unreadCount?: number;
+  latest_message_preview?: string;
   latestMessagePreview?: string;
+  latest_reply_preview?: string;
   latestReplyPreview?: string;
-  pendingDeliveryCount: number;
+  pending_delivery_count?: number;
+  pendingDeliveryCount?: number;
+  last_delivery_status?: string;
   lastDeliveryStatus?: string;
 };
 

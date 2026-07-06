@@ -9,14 +9,15 @@ import (
 // Driver.Step. JSON tags allow the proto layer to ship View values
 // directly across the wire without a parallel type hierarchy.
 type View struct {
-	Card         Card       `json:"card"`
-	DisplayName  string     `json:"display_name,omitempty"`
-	LogTabs      []LogTab   `json:"log_tabs,omitempty"`
-	InfoExtras   []InfoLine `json:"info_extras,omitempty"`
-	SuppressInfo bool       `json:"suppress_info,omitempty"`
-	StatusLine   string     `json:"status_line,omitempty"`
-	Model        string     `json:"model,omitempty"`
-	Effort       string     `json:"effort,omitempty"`
+	Card                  Card                   `json:"card"`
+	DisplayName           string                 `json:"display_name,omitempty"`
+	LogTabs               []LogTab               `json:"log_tabs,omitempty"`
+	InfoExtras            []InfoLine             `json:"info_extras,omitempty"`
+	FrameMessagingSummary *FrameMessagingSummary `json:"frame_messaging_summary,omitempty"`
+	SuppressInfo          bool                   `json:"suppress_info,omitempty"`
+	StatusLine            string                 `json:"status_line,omitempty"`
+	Model                 string                 `json:"model,omitempty"`
+	Effort                string                 `json:"effort,omitempty"`
 	// Status: NO omitempty. Status is `int` (iota) and StatusRunning == 0,
 	// so omitempty would drop the field for every running session and the
 	// web client would fall back to "unknown" (RunStateBadge).
@@ -71,4 +72,12 @@ const TabKindText TabKind = "text"
 type InfoLine struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
+}
+
+type FrameMessagingSummary struct {
+	UnreadCount          int    `json:"unread_count"`
+	LatestMessagePreview string `json:"latest_message_preview,omitempty"`
+	LatestReplyPreview   string `json:"latest_reply_preview,omitempty"`
+	PendingDeliveryCount int    `json:"pending_delivery_count"`
+	LastDeliveryStatus   string `json:"last_delivery_status,omitempty"`
 }

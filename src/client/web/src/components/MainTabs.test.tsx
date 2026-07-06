@@ -46,6 +46,136 @@ describe("MainTabs", () => {
     expect(buttons.map((b) => b.textContent)).toEqual(["TERMINAL", "TRANSCRIPT", "EVENTS"]);
   });
 
+  it("shows MESSAGES between TERMINAL and driver log tabs when a summary is present", () => {
+    render(
+      <MainTabs
+        tabs={TABS}
+        messagesSummary={{ unreadCount: 2, pendingDeliveryCount: 1 }}
+        sessionId="s1"
+        bearerToken="tok"
+        fetchFn={nopFetch}
+        terminalSlot={<TerminalStub />}
+      />,
+    );
+    const buttons = screen.getAllByRole("tab");
+    expect(buttons.map((b) => b.textContent)).toEqual([
+      "TERMINAL",
+      "MESSAGES",
+      "TRANSCRIPT",
+      "EVENTS",
+    ]);
+  });
+
+  it("preserves the active driver tab when MESSAGES is inserted later", () => {
+    useTranscriptStore.getState().appendBackfill("s1", "transcript", ["t-line"], 5);
+
+    const { rerender } = render(
+      <MainTabs
+        tabs={TABS}
+        sessionId="s1"
+        bearerToken="tok"
+        fetchFn={nopFetch}
+        terminalSlot={<TerminalStub />}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("tab", { name: "TRANSCRIPT" }));
+    });
+    expect(document.querySelector("pre")?.textContent).toBe("t-line");
+
+    rerender(
+      <MainTabs
+        tabs={TABS}
+        messagesSummary={{ unreadCount: 2, pendingDeliveryCount: 1 }}
+        sessionId="s1"
+        bearerToken="tok"
+        fetchFn={nopFetch}
+        terminalSlot={<TerminalStub />}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: "TRANSCRIPT" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    expect(screen.queryByText("Loading messages…")).toBeNull();
+    expect(document.querySelector("pre")?.textContent).toBe("t-line");
+  });
+
+  it("keeps keyboard focus on the active driver tab when MESSAGES is inserted later", () => {
+    const { rerender } = render(
+      <MainTabs
+        tabs={TABS}
+        sessionId="s1"
+        bearerToken="tok"
+        fetchFn={nopFetch}
+        terminalSlot={<TerminalStub />}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("tab", { name: "TRANSCRIPT" }));
+    });
+    const transcriptTab = screen.getByRole("tab", { name: "TRANSCRIPT" });
+    act(() => {
+      transcriptTab.focus();
+    });
+    expect(document.activeElement).toBe(transcriptTab);
+
+    rerender(
+      <MainTabs
+        tabs={TABS}
+        messagesSummary={{ unreadCount: 2, pendingDeliveryCount: 1 }}
+        sessionId="s1"
+        bearerToken="tok"
+        fetchFn={nopFetch}
+        terminalSlot={<TerminalStub />}
+      />,
+    );
+
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "TRANSCRIPT" }));
+  });
+
+  it("recomputes arrow-key focus when MESSAGES disappears", () => {
+    const { rerender } = render(
+      <MainTabs
+        tabs={TABS}
+        messagesSummary={{ unreadCount: 2, pendingDeliveryCount: 1 }}
+        sessionId="s1"
+        bearerToken="tok"
+        fetchFn={nopFetch}
+        terminalSlot={<TerminalStub />}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("tab", { name: "EVENTS" }));
+    });
+    const eventsTab = screen.getByRole("tab", { name: "EVENTS" });
+    act(() => {
+      eventsTab.focus();
+    });
+    expect(document.activeElement).toBe(eventsTab);
+
+    rerender(
+      <MainTabs
+        tabs={TABS}
+        sessionId="s1"
+        bearerToken="tok"
+        fetchFn={nopFetch}
+        terminalSlot={<TerminalStub />}
+      />,
+    );
+
+    act(() => {
+      fireEvent.keyDown(screen.getByRole("tablist", { name: "Session views" }), {
+        key: "ArrowLeft",
+      });
+    });
+
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "TRANSCRIPT" }));
+  });
+
   it("renders only TERMINAL when there are no driver log_tabs", () => {
     render(
       <MainTabs

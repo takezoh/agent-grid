@@ -66,6 +66,20 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 					"status": "running",
 				},
 			}},
+			FrameMessaging: &SessionFrameMessagingSnapshot{
+				Summary: FrameMessagingSummarySnapshot{
+					UnreadCount:          1,
+					LatestMessagePreview: "Need review",
+					PendingDeliveryCount: 0,
+				},
+				Messages: []FrameMessageSnapshot{{
+					ID:            "m1",
+					SourceFrameID: "f1",
+					TargetFrameID: "f2",
+					Body:          "hello",
+					CreatedAt:     "2026-07-06T00:00:00Z",
+				}},
+			},
 		},
 	}
 	persist := &snapLoader{snaps: snaps}
@@ -82,6 +96,9 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 	if drv.Status(s1.Driver) != state.StatusWaiting {
 		t.Errorf("Cold start status = %v, want waiting", drv.Status(s1.Driver))
 	}
+	if s1.FrameMessaging == nil || len(s1.FrameMessaging.Messages) != 1 {
+		t.Fatalf("FrameMessaging not restored on cold start: %+v", s1.FrameMessaging)
+	}
 
 	// Reset and try warm start with a fresh snap map
 	r.state.Sessions = make(map[state.SessionID]state.Session)
@@ -95,6 +112,13 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 					"status": "running",
 				},
 			}},
+			FrameMessaging: &SessionFrameMessagingSnapshot{
+				Summary: FrameMessagingSummarySnapshot{
+					UnreadCount:          3,
+					LatestMessagePreview: "Warm",
+					PendingDeliveryCount: 1,
+				},
+			},
 		},
 	}
 	if err := r.LoadSnapshot(false); err != nil {
@@ -103,6 +127,9 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 	s1 = r.state.Sessions["s1"]
 	if drv.Status(s1.Driver) != state.StatusRunning {
 		t.Errorf("Warm start status = %v, want running", drv.Status(s1.Driver))
+	}
+	if s1.FrameMessaging == nil || s1.FrameMessaging.Summary.UnreadCount != 3 {
+		t.Fatalf("FrameMessaging not restored on warm start: %+v", s1.FrameMessaging)
 	}
 }
 
