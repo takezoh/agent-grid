@@ -1,5 +1,5 @@
-# agent-reactor web — UI host. Serves the embedded browser bundle (React +
-# xterm.js) at / and reverse-proxies /api + /ws to agent-reactor-server. The
+# agent-grid web — UI host. Serves the embedded browser bundle (React +
+# xterm.js) at / and reverse-proxies /api + /ws to agent-grid-server. The
 # browser talks only to this origin, so the page's CSP and the WebSocket
 # origin check hold while the gateway can stay a headless API.
 #
@@ -9,23 +9,23 @@
 # host` from a workstation.
 
 [Unit]
-Description=agent-reactor web (UI host)
-# Operator guide: docs/note/note-20260624-user-systemd.md in the agent-reactor source repo.
+Description=agent-grid web (UI host)
+# Operator guide: docs/note/note-20260624-user-systemd.md in the agent-grid source repo.
 # After= + Requires= give start ordering and start-time coupling only.
 # Deliberately no BindsTo=: web and server are separate processes for fault
 # isolation, and BindsTo would stop web on a server crash — web then exits 0,
 # Restart=on-failure never fires, and the UI stays down even after server
 # auto-restarts. A crashed server just means the proxy 502s until systemd
 # brings server back.
-After=agent-reactor-server.service
-Requires=agent-reactor-server.service
+After=agent-grid-server.service
+Requires=agent-grid-server.service
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/agent-reactor-web \
+ExecStart=%h/.local/bin/agent-grid-web \
   -addr 127.0.0.1:8080 -insecure \
   -server http://127.0.0.1:8443
-EnvironmentFile=-%S/agent-reactor/web.env
+EnvironmentFile=-%S/agent-grid/web.env
 
 Restart=on-failure
 RestartSec=2s

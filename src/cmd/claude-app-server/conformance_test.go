@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
 
 // SPEC §17.5 — the claude-app-server shim emits the same §10.4 event method

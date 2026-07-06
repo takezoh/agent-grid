@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
 )
 
 // §17.2: before_run failure aborts the attempt.

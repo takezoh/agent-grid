@@ -3,7 +3,7 @@ package transcript
 import (
 	"os"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // KindTranscript is the TabKind for Claude JSONL transcript tabs.

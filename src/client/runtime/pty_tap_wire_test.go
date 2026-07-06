@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // eventSink buffers state.Events from a tap goroutine for assertions. The slice

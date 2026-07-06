@@ -3,7 +3,7 @@ package fakeclaude
 import (
 	"encoding/json"
 
-	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
+	"github.com/takezoh/agent-grid/platform/lib/claude/streamjson"
 )
 
 // Stream-json line constants — the six fixtures that shim_test.go / conformance_test.go

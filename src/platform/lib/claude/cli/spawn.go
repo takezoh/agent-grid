@@ -9,7 +9,7 @@ package cli
 import (
 	"strings"
 
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
 )
 
 // ResumeCommand returns the Claude CLI invocation that resumes a prior

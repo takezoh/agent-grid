@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	"github.com/takezoh/agent-reactor/platform/pathmap"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/pathmap"
 )
 
 // WrappedLaunch is the resolved launch specification after the launcher
@@ -22,7 +22,7 @@ type WrappedLaunch struct {
 	Env      map[string]string
 	Cleanup  func() error
 	// ContainerSockDir is set by devcontainer sandbox launchers to the host-side
-	// run directory that is bind-mounted into the container as /opt/agent-reactor/run.
+	// run directory that is bind-mounted into the container as /opt/agent-grid/run.
 	// When non-empty, the runtime starts the container endpoint for this project.
 	ContainerSockDir string
 	// Mounts is the set of bind mounts for the container instance.
@@ -54,7 +54,7 @@ type AgentLauncher interface {
 
 	// IsContainer reports whether the given project will be run inside a
 	// container by this launcher. The runtime uses this to decide whether to
-	// inject ROOST_SOCKET_TOKEN before calling WrapLaunch.
+	// inject AG_SOCKET_TOKEN before calling WrapLaunch.
 	IsContainer(project string) bool
 }
 
@@ -71,7 +71,7 @@ type ColdStartAware interface {
 
 // DirectLauncher is the no-op implementation: it passes the plan through
 // unchanged so behaviour is identical to the pre-launcher code path.
-// SockPath, when non-empty, is injected as ROOST_SOCKET so hook subprocesses
+// SockPath, when non-empty, is injected as AG_SOCKET so hook subprocesses
 // can reach the daemon without relying on baked-in or fallback paths.
 type DirectLauncher struct {
 	SockPath string
@@ -80,7 +80,7 @@ type DirectLauncher struct {
 func (d DirectLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
 	merged := stripContainerOnlyEnv(env)
 	if d.SockPath != "" {
-		merged = cloneAndSet(merged, "ROOST_SOCKET", d.SockPath)
+		merged = cloneAndSet(merged, "AG_SOCKET", d.SockPath)
 	}
 	return WrappedLaunch{
 		Command:  plan.Command,
@@ -100,13 +100,13 @@ func (DirectLauncher) IsContainer(_ string) bool { return false }
 func (DirectLauncher) BeginColdStart() {}
 func (DirectLauncher) EndColdStart()   {}
 
-// stripContainerOnlyEnv returns a copy of env with ROOST_SOCKET_TOKEN forced
+// stripContainerOnlyEnv returns a copy of env with AG_SOCKET_TOKEN forced
 // empty. Token injection is only valid inside containers; DirectLauncher must
 // mask any ambient parent token as well as removing an explicit override so
 // host processes are never given a container credential.
 func stripContainerOnlyEnv(env map[string]string) map[string]string {
 	out := cloneEnvMap(env, 1)
-	out["ROOST_SOCKET_TOKEN"] = ""
+	out["AG_SOCKET_TOKEN"] = ""
 	return out
 }
 
@@ -231,7 +231,7 @@ type wrapLaunchResult struct {
 }
 
 // wrapLaunchForSpawn calls WrapLaunch and (for container launchers) generates a
-// bearer token to inject as ROOST_SOCKET_TOKEN. It has no side effects on
+// bearer token to inject as AG_SOCKET_TOKEN. It has no side effects on
 // runtime state — token/mount registration and endpoint startup happen on the
 // event loop after the spawn goroutine completes (see registerContainerFrame).
 // For non-container launchers the token is never generated.
@@ -245,7 +245,7 @@ func wrapLaunchForSpawn(l AgentLauncher, frameID state.FrameID, project string, 
 	if err != nil {
 		return wrapLaunchResult{}, fmt.Errorf("token generate: %w", err)
 	}
-	env := cloneAndSet(baseEnv, "ROOST_SOCKET_TOKEN", token)
+	env := cloneAndSet(baseEnv, "AG_SOCKET_TOKEN", token)
 
 	wrapped, err := l.WrapLaunch(frameID, plan, env)
 	if err != nil {

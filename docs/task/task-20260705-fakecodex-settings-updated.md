@@ -63,7 +63,7 @@ commit 71d05a4 で顕在化した fake drift を解消する: `thread/settings/u
 ## 受け入れ条件
 
 - fake 両系統が settings/updated を emit でき、T1 伝搬テストが green
-- `make test-e2e` (REACTOR_E2E_CODEX_BIN 設定時) で FakeVsReal 照合が green
+- `make test-e2e` (AG_E2E_CODEX_BIN 設定時) で FakeVsReal 照合が green
 - `go vet -tags e2e` green、`make lint` green
 
 

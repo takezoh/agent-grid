@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/driver"
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem/stream/fake"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/client/driver"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem/stream/fake"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
 
 // newFakeServer boots an isolated FakeAppServer under t.TempDir() and returns

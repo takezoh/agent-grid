@@ -1,4 +1,4 @@
-module github.com/takezoh/agent-reactor
+module github.com/takezoh/agent-grid
 
 go 1.26.1
 

@@ -5,8 +5,8 @@ import (
 	"maps"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/metrics"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/platform/metrics"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // ErrDuplicateDispatch is returned when claim is attempted for an issue that is

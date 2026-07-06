@@ -18,12 +18,12 @@ import (
 
 	"github.com/creack/pty"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
-	"github.com/takezoh/agent-reactor/platform/e2etest"
-	codexcli "github.com/takezoh/agent-reactor/platform/lib/codex"
-	"github.com/takezoh/agent-reactor/platform/procgroup"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	codexschemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
+	"github.com/takezoh/agent-grid/platform/e2etest"
+	codexcli "github.com/takezoh/agent-grid/platform/lib/codex"
+	"github.com/takezoh/agent-grid/platform/procgroup"
 )
 
 func startRealCodex(t *testing.T, bin string) (*codexclient.Conn, func()) {

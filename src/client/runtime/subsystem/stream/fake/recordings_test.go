@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	"github.com/takezoh/agent-reactor/platform/e2etest"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/e2etest"
 )
 
 func TestRecordedDefaultTurnFixtureMatchesAppServerContract(t *testing.T) {

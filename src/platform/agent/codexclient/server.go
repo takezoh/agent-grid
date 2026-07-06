@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	codexschemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
 )
 
 // Server wraps a Conn for the server role (e.g. claude-app-server shim).

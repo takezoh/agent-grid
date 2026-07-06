@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-grid/platform/appid"
 	"golang.org/x/sys/unix"
 )
 
 // daemonLock is an exclusive advisory lock over the daemon's data
 // directory, backed by flock(2) on a pid file. It prevents two
-// coordinators from running against the same ~/.agent-reactor concurrently:
+// coordinators from running against the same ~/.agent-grid concurrently:
 // two daemons share the sessions directory and fight over persistence —
 // one rewrites session files the other has just deleted, so terminated
 // sessions resurrect on every cold start.

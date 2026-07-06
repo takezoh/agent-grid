@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/takezoh/agent-reactor/client/driver"
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/driver"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // newTestRelayAttached builds a Runtime with a standalone FileRelay

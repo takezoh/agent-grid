@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	codexschemav1 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v1"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	codexschemav1 "github.com/takezoh/agent-grid/platform/agent/codexschema/v1"
 )
 
 func main() {

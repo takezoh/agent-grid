@@ -3,8 +3,8 @@ package driver
 import (
 	"encoding/json"
 
-	codextranscript "github.com/takezoh/agent-reactor/client/lib/codex/transcript"
-	"github.com/takezoh/agent-reactor/client/state"
+	codextranscript "github.com/takezoh/agent-grid/client/lib/codex/transcript"
+	"github.com/takezoh/agent-grid/client/state"
 	"github.com/takezoh/fishpath-go"
 )
 

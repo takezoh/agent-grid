@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/lib/claude/transcript"
-	"github.com/takezoh/agent-reactor/client/state"
-	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
+	"github.com/takezoh/agent-grid/client/lib/claude/transcript"
+	"github.com/takezoh/agent-grid/client/state"
+	claudehookpayload "github.com/takezoh/agent-grid/platform/lib/claude/hookpayload"
 )
 
 const testHome = "/home/test"
@@ -1308,7 +1308,7 @@ func TestClaudePrepareCreateWithWorktree(t *testing.T) {
 
 func TestClaudePrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	cs.StartDir = "/repo/.agent-reactor/worktrees/feature"
+	cs.StartDir = "/repo/.agent-grid/worktrees/feature"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{
 		Worktree: state.WorktreeOption{Enabled: true},
 	}, false)
@@ -1318,14 +1318,14 @@ func TestClaudePrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	if plan.Command != "claude" {
 		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, "claude")
 	}
-	if plan.StartDir != "/repo/.agent-reactor/worktrees/feature" {
+	if plan.StartDir != "/repo/.agent-grid/worktrees/feature" {
 		t.Errorf("StartDir = %q", plan.StartDir)
 	}
 }
 
 func TestClaudeWorktreeLaunchAddsSandboxFlag(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	cs.StartDir = "/repo/.agent-reactor/worktrees/feature"
+	cs.StartDir = "/repo/.agent-grid/worktrees/feature"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{}, true)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
@@ -1334,7 +1334,7 @@ func TestClaudeWorktreeLaunchAddsSandboxFlag(t *testing.T) {
 	if plan.Command != want {
 		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
 	}
-	if plan.StartDir != "/repo/.agent-reactor/worktrees/feature" {
+	if plan.StartDir != "/repo/.agent-grid/worktrees/feature" {
 		t.Errorf("StartDir = %q, want worktree dir", plan.StartDir)
 	}
 }

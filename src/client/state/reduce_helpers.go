@@ -53,7 +53,7 @@ func spawnEffect(sessID SessionID, frameID FrameID, plan LaunchPlan, connID Conn
 		Subsystem:  plan.Subsystem,
 		Stream:     plan.Stream,
 		Stdin:      plan.Stdin,
-		Env:        map[string]string{"ROOST_SESSION_ID": string(sessID), "ROOST_FRAME_ID": string(frameID)},
+		Env:        map[string]string{"AG_SESSION_ID": string(sessID), "AG_FRAME_ID": string(frameID)},
 		ReplyConn:  connID,
 		ReplyReqID: reqID,
 	}

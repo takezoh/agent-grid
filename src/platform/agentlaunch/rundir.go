@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-grid/platform/appid"
 )
 
 // Container-side paths for files bind-mounted from the per-project run dir.
@@ -42,7 +42,7 @@ func ContainerSockPath(runDir string) string {
 	return filepath.Join(runDir, ContainerSockFileName)
 }
 
-// InstallBinaryInRunDir copies the reactor-bridge binary into runDir as
+// InstallBinaryInRunDir copies the bridge binary into runDir as
 // the bridge binary (mode 0o755).
 func InstallBinaryInRunDir(runDir string) (string, error) {
 	src, err := findHelperBinary(appid.BridgeBin)
@@ -60,7 +60,7 @@ func installBridgeInRunDir(src, runDir string) (string, error) {
 }
 
 // FindHelperFile returns the absolute path to a helper file if located
-// alongside the executable or in ~/.local/lib/agent-reactor/. Returns "" when not found.
+// alongside the executable or in ~/.local/lib/agent-grid/. Returns "" when not found.
 func FindHelperFile(name string) string {
 	exe, err := os.Executable()
 	if err != nil {

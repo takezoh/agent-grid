@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/takezoh/agent-reactor/orchestrator/prompt"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/prompt"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 func TestRender_interpolatesIssue(t *testing.T) {

@@ -118,7 +118,7 @@ func TestTranslateWorkDir(t *testing.T) {
 		{"empty → remoteWS", "", remoteWS},
 		{"project root → remoteWS", project, remoteWS},
 		{"sub-dir", project + "/backend/api", remoteWS + "/backend/api"},
-		{"worktree", project + "/.agent-reactor/worktree/feat", remoteWS + "/.agent-reactor/worktree/feat"},
+		{"worktree", project + "/.agent-grid/worktree/feat", remoteWS + "/.agent-grid/worktree/feat"},
 		{"outside project → remoteWS", "/home/take/other", remoteWS},
 		{"dotdot escape → remoteWS", project + "/../other", remoteWS},
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // TestState exposes the runtime's state for test assertions. Must

@@ -26,9 +26,9 @@ topic: user
 
 # User Guide
 
-Documentation for running Agent Reactor. Start here if you want to launch agents and watch their status, or run an unattended pipeline.
+Documentation for running Agent Grid. Start here if you want to launch agents and watch their status, or run an unattended pipeline.
 
-Agent Reactor ships three binaries that map onto the [three-layer architecture](../../ARCHITECTURE.md):
+Agent Grid ships three binaries that map onto the [three-layer architecture](../../ARCHITECTURE.md):
 
 | Binary | Layer | What it is for |
 |---|---|---|

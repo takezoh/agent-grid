@@ -28,22 +28,22 @@ func defaultDaemonFlags() *daemonFlagSet {
 
 // parseDaemonArgs extracts daemon-mode flags from args. Called from runMain
 // *before* logger init so the daemon log file lands in the flag-specified
-// directory rather than the default ~/.agent-reactor.
+// directory rather than the default ~/.agent-grid.
 //
 // Returns the parsed flag set. When -data-dir is non-empty the caller is
-// expected to export ROOST_DATA_DIR=<value> so config.ResolveDataDir (the
+// expected to export AG_DATA_DIR=<value> so config.ResolveDataDir (the
 // only path that resolves the runtime's data directory) returns the flag
 // value — that is how the flag overrides BOTH settings.toml data_dir AND any
-// stray ROOST_DATA_DIR already in the process env. Without this hop systemd's
+// stray AG_DATA_DIR already in the process env. Without this hop systemd's
 // `ExecStart=… -data-dir X` would silently lose to a developer's `export
-// ROOST_DATA_DIR=…` in their shell rc.
+// AG_DATA_DIR=…` in their shell rc.
 func parseDaemonArgs(args []string) (*daemonFlagSet, error) {
-	fs := flag.NewFlagSet("agent-reactor", flag.ContinueOnError)
+	fs := flag.NewFlagSet("agent-grid", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // surface parse errors via return value
 	out := defaultDaemonFlags()
 	fs.StringVar(&out.dataDir, "data-dir", "",
 		"directory for runtime state (socket, sessions, pid). "+
-			"Overrides settings.toml data_dir and any inherited ROOST_DATA_DIR env value.")
+			"Overrides settings.toml data_dir and any inherited AG_DATA_DIR env value.")
 	fs.StringVar(&out.addr, "addr", out.addr, "gateway listen address")
 	fs.StringVar(&out.token, "token", "",
 		"bearer token (generated and printed if empty); ignored with -no-auth")
@@ -62,7 +62,7 @@ func parseDaemonArgs(args []string) (*daemonFlagSet, error) {
 		return nil, err
 	}
 	if fs.NArg() > 0 {
-		return nil, fmt.Errorf("agent-reactor: unexpected positional argument %q", fs.Arg(0))
+		return nil, fmt.Errorf("agent-grid: unexpected positional argument %q", fs.Arg(0))
 	}
 	return out, nil
 }

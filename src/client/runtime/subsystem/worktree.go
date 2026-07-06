@@ -9,8 +9,8 @@ import (
 	"time"
 
 	petname "github.com/dustinkirkland/golang-petname"
-	"github.com/takezoh/agent-reactor/platform/appid"
-	roostgit "github.com/takezoh/agent-reactor/platform/lib/git"
+	"github.com/takezoh/agent-grid/platform/appid"
+	roostgit "github.com/takezoh/agent-grid/platform/lib/git"
 )
 
 const WorktreeNameAttempts = 5
@@ -61,7 +61,7 @@ func RemoveWorktree(path string) {
 	}()
 }
 
-// CleanupUntracked removes worktrees under <project>/.agent-reactor/worktrees/
+// CleanupUntracked removes worktrees under <project>/.agent-grid/worktrees/
 // that are not present in the tracked set.
 func CleanupUntracked(ctx context.Context, projects []string, tracked map[string]struct{}) {
 	for _, project := range projects {

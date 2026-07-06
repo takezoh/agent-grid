@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/platform/lib/wsl"
+	"github.com/takezoh/agent-grid/platform/lib/wsl"
 )
 
 // Open launches the host handler for target (file path or URL) and

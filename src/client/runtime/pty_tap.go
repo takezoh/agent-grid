@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/takezoh/agent-reactor/platform/termvt"
+	"github.com/takezoh/agent-grid/platform/termvt"
 )
 
 // PtyFrameTap implements FrameTap on top of a PtyBackend's termvt.Manager.

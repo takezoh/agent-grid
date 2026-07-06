@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/e2etest"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
+	"github.com/takezoh/agent-grid/platform/e2etest"
+	"github.com/takezoh/agent-grid/platform/lib/claude/streamjson"
 )
 
 func TestRecordedMinimalFixtureMatchesBuilderContracts(t *testing.T) {

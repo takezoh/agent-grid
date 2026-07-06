@@ -3,7 +3,7 @@ package runtime
 import (
 	"errors"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // ErrFrameMissing reports that the requested frame is not known to the backend.
@@ -116,7 +116,7 @@ type PersistBackend interface {
 // SessionSnapshot is the on-disk format for one session in
 // sessions.json. Includes the static metadata + the driver's persisted
 // bag (opaque map of strings). Frame ids are tracked in session env
-// vars (ROOST_SESSION_<sid>); sessions.json stays frame-id free.
+// vars (AG_SESSION_<sid>); sessions.json stays frame-id free.
 type SessionSnapshot struct {
 	ID          string                 `json:"id"`
 	Project     string                 `json:"project"`
@@ -150,7 +150,7 @@ type EventLogBackend interface {
 
 // ToolLogBackend writes per-project tool-use JSONL lines. Namespace
 // identifies the driver (opaque to the runtime). Project is the
-// projectDir() slug (e.g. "-workspace-agent-reactor"). Files are kept open
+// projectDir() slug (e.g. "-workspace-agent-grid"). Files are kept open
 // and flushed lazily; CloseAll must be called on shutdown.
 type ToolLogBackend interface {
 	Append(namespace, project, line string) error

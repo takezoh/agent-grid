@@ -59,7 +59,7 @@ acceptance: []
 
 ## Goal
 
-agent-reactor の Web UI に、2 フェーズ操作 (ファジー検索でツール選択 → パラメータ順次入力) を持つコマンドパレットを Cmd/Ctrl+K + 常設ボタンで起動できるモーダルとして実装する。standard スコープ (new-session / stop-session) と push スコープ (push_commands 配列) をセグメント切替で同居させ、push 送信経路 (POST /api/sessions/{id}/push) を本 spec で新設し、CreateSessionForm はパレット new-session に一本化して撤去する。push 可否判定は既存の daemon-global ActiveSessionID + ActiveOccupant を流用し、SessionInfo proto / wire への per-session occupant 追加は行わない。ADR-0030 (TerminalPane subscribe 唯一所有) / ADR-0033 (displayLabel 空文字=空) / WS は I/O 専用の既存規約を破らないことを設計制約とする。
+agent-grid の Web UI に、2 フェーズ操作 (ファジー検索でツール選択 → パラメータ順次入力) を持つコマンドパレットを Cmd/Ctrl+K + 常設ボタンで起動できるモーダルとして実装する。standard スコープ (new-session / stop-session) と push スコープ (push_commands 配列) をセグメント切替で同居させ、push 送信経路 (POST /api/sessions/{id}/push) を本 spec で新設し、CreateSessionForm はパレット new-session に一本化して撤去する。push 可否判定は既存の daemon-global ActiveSessionID + ActiveOccupant を流用し、SessionInfo proto / wire への per-session occupant 追加は行わない。ADR-0030 (TerminalPane subscribe 唯一所有) / ADR-0033 (displayLabel 空文字=空) / WS は I/O 専用の既存規約を破らないことを設計制約とする。
 
 ## Scope
 

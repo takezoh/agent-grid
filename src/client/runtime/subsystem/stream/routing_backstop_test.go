@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem/stream/fake"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem/stream/fake"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
 
 // backstopEmitter is the interface a backstop test provides to

@@ -1,8 +1,8 @@
-# Agent Reactor
+# Agent Grid
 
 **Run many AI agents in parallel without losing track of any of them.**
 
-Agent Reactor is a web control surface for running Claude, Codex, Gemini, and other CLI agents across all your projects at once. It replaces the manual work of opening tabs, remembering which agent is doing what, and checking back for completion — and it can also run agents unattended against an issue tracker.
+Agent Grid is a web control surface for running Claude, Codex, Gemini, and other CLI agents across all your projects at once. It replaces the manual work of opening tabs, remembering which agent is doing what, and checking back for completion — and it can also run agents unattended against an issue tracker.
 
 ### What it does
 

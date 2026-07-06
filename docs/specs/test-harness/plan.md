@@ -177,7 +177,7 @@ real server binary に対して session create → WS viewUpdate 受信を asser
 
 {% milestone id="m8" %}
 **fakedocker + real-docker backstop** — PATH 注入 fake docker CLI で devcontainer lifecycle を
-T1 検証し、`REACTOR_E2E_DOCKER_BIN` opt-in の FakeVsRealDocker を追加。詳細:
+T1 検証し、`AG_E2E_DOCKER_BIN` opt-in の FakeVsRealDocker を追加。詳細:
 {% task-ref id="task-20260705-fakedocker" /%}
 {% /milestone %}
 
@@ -225,7 +225,7 @@ Tier 体系を反映。実装が存在しない規範を先に書かないため
 - 受け入れ条件の正本は spec の `acceptance[]` (AC-001〜AC-006)
 - 横断確認: `cd src && go test ./...`、`make test-race`、`make lint`、`scripts/check-coverage.sh`、
   `python3 <docs_cli> lint`
-- T3 系 (m5 / m7 の e2e 面 / m8 backstop / m11) は `make test-e2e` + 各 `REACTOR_E2E_*` env での
+- T3 系 (m5 / m7 の e2e 面 / m8 backstop / m11) は `make test-e2e` + 各 `AG_E2E_*` env での
   local 実行、および m9 の nightly workflow で検証
 
 

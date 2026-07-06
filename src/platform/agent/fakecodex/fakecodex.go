@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
 
 // DefaultThreadID is used when Config.ThreadID is empty.

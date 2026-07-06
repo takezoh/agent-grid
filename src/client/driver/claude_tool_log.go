@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // toolLogEntry is the per-tool JSONL record written to

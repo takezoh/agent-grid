@@ -152,32 +152,32 @@ func TestRemoteAttachArgs(t *testing.T) {
 	}{
 		{
 			name:         "fresh cold start (no thread id) omits resume",
-			sock:         "/opt/agent-reactor/run/codex-sess1.sock",
-			wantContains: []string{"codex", "--remote", "unix:///opt/agent-reactor/run/codex-sess1.sock"},
+			sock:         "/opt/agent-grid/run/codex-sess1.sock",
+			wantContains: []string{"codex", "--remote", "unix:///opt/agent-grid/run/codex-sess1.sock"},
 			wantAbsent:   []string{"resume"},
 		},
 		{
 			name:         "recovery with thread id emits `resume <id>`",
-			sock:         "/opt/agent-reactor/run/codex-sess2.sock",
+			sock:         "/opt/agent-grid/run/codex-sess2.sock",
 			threadID:     "019f1c19-e1f3-78c3-ba3e-a37cb776e5fe",
-			wantContains: []string{"codex", "resume", "019f1c19-e1f3-78c3-ba3e-a37cb776e5fe", "--remote", "unix:///opt/agent-reactor/run/codex-sess2.sock"},
+			wantContains: []string{"codex", "resume", "019f1c19-e1f3-78c3-ba3e-a37cb776e5fe", "--remote", "unix:///opt/agent-grid/run/codex-sess2.sock"},
 		},
 		{
 			name:         "with startDir",
-			sock:         "/opt/agent-reactor/run/codex-sess3.sock",
+			sock:         "/opt/agent-grid/run/codex-sess3.sock",
 			startDir:     "/workspace/foo",
 			wantContains: []string{"-C", "/workspace/foo"},
 		},
 		{
 			name:         "with model and effort",
-			sock:         "/opt/agent-reactor/run/codex-sess5.sock",
+			sock:         "/opt/agent-grid/run/codex-sess5.sock",
 			model:        "gpt-5-codex",
 			effort:       "high",
 			wantContains: []string{"--model", "gpt-5-codex", "--effort", "high"},
 		},
 		{
 			name:       "no startDir omits -C",
-			sock:       "/opt/agent-reactor/run/codex-sess4.sock",
+			sock:       "/opt/agent-grid/run/codex-sess4.sock",
 			wantAbsent: []string{"-C"},
 		},
 	}

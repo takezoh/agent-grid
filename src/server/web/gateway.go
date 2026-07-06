@@ -10,7 +10,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-grid/client/proto"
 )
 
 // errDaemonGone is returned by writeOutbound when the daemon events channel

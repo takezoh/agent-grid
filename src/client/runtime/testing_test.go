@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/runtime/worker"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/runtime/worker"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 type testQuiesceJobInput struct{}

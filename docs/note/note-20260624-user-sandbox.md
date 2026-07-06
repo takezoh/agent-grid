@@ -44,7 +44,7 @@ docker build -t myproject:dev .
 
 At session start, the client reads the image name from devcontainer.json (`image:` takes precedence over `build.name`).
 
-Enable devcontainer mode in `~/.agent-reactor/settings.toml`:
+Enable devcontainer mode in `~/.agent-grid/settings.toml`:
 
 ```toml
 [sandbox]
@@ -115,10 +115,10 @@ The credential proxy brokers short-lived credentials over a per-project Unix soc
 
 The container needs `curl` available (present in standard base images).
 
-**AWS SSO — multi-profile.** Run `aws sso login` on the host before starting containers. List the profile names that should appear inside the container in the project's `.agent-reactor/settings.toml`:
+**AWS SSO — multi-profile.** Run `aws sso login` on the host before starting containers. List the profile names that should appear inside the container in the project's `.agent-grid/settings.toml`:
 
 ```toml
-# <project>/.agent-reactor/settings.toml
+# <project>/.agent-grid/settings.toml
 [sandbox.proxy]
 aws_profiles = ["default", "master", "general"]
 ```
@@ -139,7 +139,7 @@ Two modes, selected by the presence of `service_account`. Both require `account`
 **Service-account impersonation (recommended).** Container `gcloud` calls operate as the SA, scoped by its IAM bindings. Project boundaries are enforced.
 
 ```toml
-# <project>/.agent-reactor/settings.toml
+# <project>/.agent-grid/settings.toml
 [sandbox.proxy.gcp]
 account         = "user@example.com"
 active          = "proj-prod"
@@ -217,7 +217,7 @@ allow  = ["internal *"]                # allow required; omitting means default-
 
 Each overlay entry gets a unique broker alias derived from its target path, so two entries sharing a basename (e.g. `bin/gh` and `tools/gh`) remain independent and can carry different `allow`/`deny` rules. An empty `allow` list means default-deny (same as global `host_exec` allow semantics). User-scope and project-scope overlay lists are concatenated; entries with the same `target` are deduplicated with the project entry taking precedence.
 
-**MCP proxy.** Runs MCP servers on the host so credentials (GCP ADC, AWS, etc.) never enter the container. Servers are declared in `~/.agent-reactor/settings.toml` or the project's `.agent-reactor/settings.toml`:
+**MCP proxy.** Runs MCP servers on the host so credentials (GCP ADC, AWS, etc.) never enter the container. Servers are declared in `~/.agent-grid/settings.toml` or the project's `.agent-grid/settings.toml`:
 
 ```toml
 [sandbox.proxy.mcp_proxy.servers.observability]
@@ -250,7 +250,7 @@ TF_VAR_api_key=op://infra/api/key
 AWS_ACCESS_KEY_ID=AKIA...           # plain value, passed through
 ```
 
-Configure the **allowlist** in `~/.agent-reactor/settings.toml` (user scope) or `<project>/.agent-reactor/settings.toml` (project scope):
+Configure the **allowlist** in `~/.agent-grid/settings.toml` (user scope) or `<project>/.agent-grid/settings.toml` (project scope):
 
 ```toml
 [sandbox.proxy.secret_env]

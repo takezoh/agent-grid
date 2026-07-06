@@ -14,13 +14,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
-	"github.com/takezoh/agent-reactor/platform/pathmap"
-	"github.com/takezoh/agent-reactor/platform/procgroup"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-grid/platform/lib/codex"
+	"github.com/takezoh/agent-grid/platform/pathmap"
+	"github.com/takezoh/agent-grid/platform/procgroup"
 )
 
 const (
@@ -391,7 +391,7 @@ func attachSettingsFromCommand(command string) (model, effort string) {
 //
 // Asynchronously removes the managed worktree if no other frame in this
 // backend still references it. Without this the wrap/spawn failure path
-// (interpret_spawn.go, bootstrap_coldstart.go) leaves .agent-reactor/worktrees/<name>
+// (interpret_spawn.go, bootstrap_coldstart.go) leaves .agent-grid/worktrees/<name>
 // and its git worktree metadata on disk indefinitely — a repeat-failing
 // launch would accumulate one orphan per retry. Mirrors the CLI backend's
 // ReleaseFrame shape (client/runtime/subsystem/cli/backend.go).

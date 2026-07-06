@@ -3,7 +3,7 @@ package scheduler
 import (
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
 )
 
 // Reduce is the pure functional core of the scheduler. It folds one Event into the

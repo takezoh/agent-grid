@@ -3,7 +3,7 @@ package sessions_test
 import (
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-grid/client/proto"
 )
 
 func reply(t *testing.T, srv *fakeServer, resp proto.Response) {

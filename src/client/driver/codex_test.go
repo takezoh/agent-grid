@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	codextranscript "github.com/takezoh/agent-reactor/client/lib/codex/transcript"
-	"github.com/takezoh/agent-reactor/client/state"
+	codextranscript "github.com/takezoh/agent-grid/client/lib/codex/transcript"
+	"github.com/takezoh/agent-grid/client/state"
 	_ "modernc.org/sqlite"
 )
 
@@ -458,7 +458,7 @@ func TestCodexPrepareLaunchStripsWorktreeOnResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	rollout, sessionID := writeCodexRollout(t)
 	cs.ThreadID = sessionID
-	cs.StartDir = "/repo/.agent-reactor/worktrees/codex-1234"
+	cs.StartDir = "/repo/.agent-grid/worktrees/codex-1234"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
@@ -679,13 +679,13 @@ func TestCodexPrepareLaunchSkipsNonCodexBaseCommand(t *testing.T) {
 
 func TestCodexPrepareLaunchColdStartUsesPersistedStartDir(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	cs.StartDir = "/proj/.agent-reactor/worktrees/foo"
+	cs.StartDir = "/proj/.agent-grid/worktrees/foo"
 	for _, mode := range []state.LaunchMode{state.LaunchModeCreate, state.LaunchModeColdStart} {
 		plan, err := d.PrepareLaunch(cs, mode, "/proj", "codex", state.LaunchOptions{}, false)
 		if err != nil {
 			t.Fatalf("mode=%v PrepareLaunch error: %v", mode, err)
 		}
-		if plan.StartDir != "/proj/.agent-reactor/worktrees/foo" {
+		if plan.StartDir != "/proj/.agent-grid/worktrees/foo" {
 			t.Errorf("mode=%v StartDir = %q, want worktree path", mode, plan.StartDir)
 		}
 	}

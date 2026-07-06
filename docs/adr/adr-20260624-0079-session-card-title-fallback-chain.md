@@ -34,7 +34,7 @@ Related code: `src/client/driver/view_builder.go` (`resolveCardTitleSubtitle`), 
 
 ADR-0076 で Title slot は「AI 由来の `Card.Title` のみ、空なら `TITLE_PLACEHOLDER = "New Session"`」と決めた。Subtitle に user-prompt summary を入れる構造はうまく機能したが、Title slot 周りで 2 つの運用問題が発覚した:
 
-1. **Claude Code が transcript の title 行を `custom-title` → `ai-title` (`aiTitle` field) にリネーム** していた。agent-reactor の parser は legacy `customTitle` しか拾わないため、Claude セッションの `cs.Title` は永続的に空。結果、全 Claude セッションのカードが永遠に "New Session" のまま並び、識別不能になった (タイトルとしての機能を果たしていない状態)。
+1. **Claude Code が transcript の title 行を `custom-title` → `ai-title` (`aiTitle` field) にリネーム** していた。agent-grid の parser は legacy `customTitle` しか拾わないため、Claude セッションの `cs.Title` は永続的に空。結果、全 Claude セッションのカードが永遠に "New Session" のまま並び、識別不能になった (タイトルとしての機能を果たしていない状態)。
 2. **AI title が出るのは LLM が生成してから** (新規セッションでは数 turn 後、ものによっては全く出ない)。出るまでの間 Title slot が "New Session" で埋まり続けるのは ADR-0076 の "Title slot は常に何かを描画する" 原則に矛盾しないが、user-prompt summary という「より具体的な人間が読める文字列」が既に Subtitle slot に出ているのに Title slot だけ placeholder に張り付くのは情報損失。
 
 ## Decision

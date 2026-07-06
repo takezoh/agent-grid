@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-grid/client/proto"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
+	"github.com/takezoh/agent-grid/orchestrator/scheduler"
 )
 
 // snapshotTimeout bounds the per-request context for a snapshot read (SPEC §13.3).

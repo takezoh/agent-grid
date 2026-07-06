@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // errInitAdoptExpired is surfaced to Runtime via failFrame when reapExpiredSlots

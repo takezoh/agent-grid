@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	"github.com/takezoh/agent-reactor/platform/e2etest"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/e2etest"
 )
 
 var updateReplayGolden = flag.Bool("update", false, "rewrite driver replay golden fixtures")

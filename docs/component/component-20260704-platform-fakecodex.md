@@ -130,7 +130,7 @@ whole turn lifecycle over one pipe.
   `platform/agent/codexschema`. `client/*` / `orchestrator/*` are forbidden by
   depguard.
 - Consumers live in any layer.
-- The e2e test is `//go:build e2e`; skipped when `REACTOR_E2E_CODEX_BIN` is
+- The e2e test is `//go:build e2e`; skipped when `AG_E2E_CODEX_BIN` is
   unset.
 
 ## Recording refresh
@@ -140,7 +140,7 @@ the committed recordings first and then adjust `presets.go` if needed:
 
 ```sh
 cd src
-REACTOR_E2E_CODEX_BIN=codex go test -tags e2e ./platform/agent/fakecodex -run 'Recorded.*Fixture' -record
+AG_E2E_CODEX_BIN=codex go test -tags e2e ./platform/agent/fakecodex -run 'Recorded.*Fixture' -record
 go test ./platform/agent/fakecodex ./client/driver -run 'Recorded|Replay'
 ```
 

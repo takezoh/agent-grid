@@ -67,15 +67,15 @@ declare -A covered
 declare -A untested
 
 while IFS= read -r line; do
-    if [[ $line =~ ^(ok|---FAIL).*"github.com/takezoh/agent-reactor"[^[:space:]]*.*coverage:\ ([0-9.]+)% ]]; then
+    if [[ $line =~ ^(ok|---FAIL).*"github.com/takezoh/agent-grid"[^[:space:]]*.*coverage:\ ([0-9.]+)% ]]; then
         # parse "ok  <pkg> <time>  coverage: NN.N% of statements"
         pkg=$(awk '{print $2}' <<<"$line")
         pct="${BASH_REMATCH[2]}"
-    elif [[ $line =~ ^[[:space:]]+(github.com/takezoh/agent-reactor[^[:space:]]*).*coverage:\ ([0-9.]+)% ]]; then
+    elif [[ $line =~ ^[[:space:]]+(github.com/takezoh/agent-grid[^[:space:]]*).*coverage:\ ([0-9.]+)% ]]; then
         # "<tab>github.com/.../pkg<tab><tab>coverage: 0.0% of statements"
         pkg="${BASH_REMATCH[1]}"
         pct="${BASH_REMATCH[2]}"
-    elif [[ $line =~ ^\?[[:space:]]+(github.com/takezoh/agent-reactor[^[:space:]]*)[[:space:]]+\[no\ test\ files\] ]]; then
+    elif [[ $line =~ ^\?[[:space:]]+(github.com/takezoh/agent-grid[^[:space:]]*)[[:space:]]+\[no\ test\ files\] ]]; then
         pkg="${BASH_REMATCH[1]}"
         untested[$pkg]=1
         continue

@@ -12,10 +12,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/takezoh/agent-reactor/client/proto"
-	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/pathmap"
+	"github.com/takezoh/agent-grid/client/proto"
+	rsubsystem "github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/pathmap"
 )
 
 // ipcConn is one accepted client connection. The reader goroutine

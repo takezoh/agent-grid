@@ -160,7 +160,7 @@ sequenceDiagram
 
 - `forwardRequests` (`relay.go:54`) intercepts `tools/call` and gates it with `policy.CheckTool(name)` (`policy.go:43`, deny-first). A rejected call is answered directly to the container with an error and never forwarded upstream.
 - `forwardResponses` (`relay.go:86`) filters `tools/list` results by policy so disallowed tools are never shown to the container.
-- `ContainerSpec` (`provider.go:61`) takes the project's `.mcp.json` as a base and generates an overlay pointing each alias at the client shim (`writeMCPJSON`), then returns two bind mounts (broker socket + `.mcp.json` overlay) plus the `ROOST_MCP_SOCK` env. With no servers configured it returns an empty Spec.
+- `ContainerSpec` (`provider.go:61`) takes the project's `.mcp.json` as a base and generates an overlay pointing each alias at the client shim (`writeMCPJSON`), then returns two bind mounts (broker socket + `.mcp.json` overlay) plus the `AG_MCP_SOCK` env. With no servers configured it returns an empty Spec.
 
 ## secretenv — secret reference resolver
 
@@ -170,7 +170,7 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant SH as container shim<br/>(credproxy on PATH)
-    participant RB as reactor-bridge secret-run
+    participant RB as bridge secret-run
     participant BR as host broker
     participant GE as Gate
     participant CP as credproxy resolve<br/>(host binary)
@@ -191,9 +191,9 @@ sequenceDiagram
     end
 ```
 
-**Container shim** (`secretenv-shims/credproxy`): a shell script that calls `reactor-bridge secret-run "$@"`. It is written to `<projRunDir>/secretenv-shims/` and prepended to container `PATH`, so existing scripts that call `credproxy run` work without modification.
+**Container shim** (`secretenv-shims/credproxy`): a shell script that calls `bridge secret-run "$@"`. It is written to `<projRunDir>/secretenv-shims/` and prepended to container `PATH`, so existing scripts that call `credproxy run` work without modification.
 
-**Broker** (`platform/secretenv/broker.go`): per-project Unix socket server (`<projRunDir>/secretenv.sock`, bind-mounted at `/opt/agent-reactor/run/secretenv.sock`). Each connection is handled in its own goroutine. `gate`, `credproxyBin`, and `hostPathMountPrefix` are guarded by a `sync.RWMutex` so concurrent request handling during config reload is race-free.
+**Broker** (`platform/secretenv/broker.go`): per-project Unix socket server (`<projRunDir>/secretenv.sock`, bind-mounted at `/opt/agent-grid/run/secretenv.sock`). Each connection is handled in its own goroutine. `gate`, `credproxyBin`, and `hostPathMountPrefix` are guarded by a `sync.RWMutex` so concurrent request handling during config reload is race-free.
 
 Before the gate is checked, the broker applies path canonicalization in order:
 1. Reject non-absolute paths — the container shim performs `filepath.Abs` (container CWD); a relative path arriving at the broker means a shim bug or a direct socket attempt.

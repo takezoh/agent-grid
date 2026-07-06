@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // regression_persist_test.go pins persistence properties that the current

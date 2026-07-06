@@ -7,7 +7,7 @@ package subsystem
 import (
 	"context"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // BindRequest carries the frame-level launch context to Subsystem.BindFrame.

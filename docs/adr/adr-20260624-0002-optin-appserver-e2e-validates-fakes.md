@@ -56,8 +56,8 @@ gated so it never runs in normal CI:
 - `routing_e2e_test.go` carries the build tag `//go:build e2e` (excluded from
   default builds) and additionally **skips** unless at least one app-server is
   configured via the environment:
-  - `REACTOR_E2E_CODEX_BIN` — the codex app-server (convenience alias).
-  - `REACTOR_E2E_APPSERVER_BIN` (+ `…_NAME`, `…_ARGS`) — any other conforming
+  - `AG_E2E_CODEX_BIN` — the codex app-server (convenience alias).
+  - `AG_E2E_APPSERVER_BIN` (+ `…_NAME`, `…_ARGS`) — any other conforming
     server.
   Each configured backend runs as its own subtest; absent all of them the test
   warns-and-skips, never fails.

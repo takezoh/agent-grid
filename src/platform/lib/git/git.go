@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-grid/platform/appid"
 )
 
 var (
@@ -165,7 +165,7 @@ func commonGitRoot(ctx context.Context, dir string) (string, error) {
 }
 
 // CreateWorktree creates a new linked git worktree under
-// <repo>/.agent-reactor/worktrees/<name> and returns that path.
+// <repo>/.agent-grid/worktrees/<name> and returns that path.
 func CreateWorktree(ctx context.Context, dir, name string) (string, error) {
 	root, err := RepoRoot(ctx, dir)
 	if err != nil {
@@ -189,7 +189,7 @@ func CreateWorktree(ctx context.Context, dir, name string) (string, error) {
 }
 
 // RemoveWorktree removes a reactor-managed git worktree created under
-// <repo>/.agent-reactor/worktrees/<name>.
+// <repo>/.agent-grid/worktrees/<name>.
 func RemoveWorktree(ctx context.Context, path string) error {
 	clean := filepath.Clean(path)
 	root, err := commonGitRoot(ctx, clean)

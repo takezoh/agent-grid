@@ -52,7 +52,7 @@ contracts: []
 
 ## Goal
 
-agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計画を、ux.md (16 UAC / 4 flow / vs_legacy: must-fail 11 件) を起点に EARS 形式 FR と Nygard 4 節 ADR で固める。(1) 適応レイアウト (PC/タブレット/スマホ + dvh + safe-area)、(2) デザイントークン体系 + light/dark/system テーマ + xterm 配色連動、(3) palette で熟成済みの視覚言語と a11y パターン (unified listbox / focus trap / 単一 aria-live slot / disabled visible+skip-navigation / IME 抑止) を全画面 (session list / MainTabs / toast / DriverViewPanel) へ波及させる、を観察可能な振る舞いとして実装する。既存 keyboard/ARIA/IME 資産・palette 内部状態機械・store pureness・wire 型 stdlib・activeSessionID client 単独管理・ADR-0029/0030/0032/0033/0034 を退行させない。
+agent-grid-new の Web client (src/client/web) UI/UX 全面刷新の実装計画を、ux.md (16 UAC / 4 flow / vs_legacy: must-fail 11 件) を起点に EARS 形式 FR と Nygard 4 節 ADR で固める。(1) 適応レイアウト (PC/タブレット/スマホ + dvh + safe-area)、(2) デザイントークン体系 + light/dark/system テーマ + xterm 配色連動、(3) palette で熟成済みの視覚言語と a11y パターン (unified listbox / focus trap / 単一 aria-live slot / disabled visible+skip-navigation / IME 抑止) を全画面 (session list / MainTabs / toast / DriverViewPanel) へ波及させる、を観察可能な振る舞いとして実装する。既存 keyboard/ARIA/IME 資産・palette 内部状態機械・store pureness・wire 型 stdlib・activeSessionID client 単独管理・ADR-0029/0030/0032/0033/0034 を退行させない。
 
 ## Components
 
@@ -257,7 +257,7 @@ agent-reactor-new の Web client (src/client/web) UI/UX 全面刷新の実装計
   - **Resolution**: NFR-CSS-001 を『2 ファイル → 3 ファイル (tokens.css + app.css + view.css)』に改定し FR-FRAMEWORK-001 で正典化。tokens を独立ファイルへ分離。
 - **Issue**: [minor] FR-PALETTE-FAIL-001 と ADR-0057 の関係
   - **Resolution**: FR-PALETTE-FAIL-001 の rationale に『ADR-0057 を extends せず単一 slot 方針を継承』を明示。ADR-0063 の Decision でも 3 region 独立 (palette InlineStatus = ADR-0057 と非衝突) を明示。
-- **Issue**: [minor] localStorage 'agent-reactor-theme' の data integrity (無効値 fallback)
+- **Issue**: [minor] localStorage 'agent-grid-theme' の data integrity (無効値 fallback)
   - **Resolution**: FR-THEME-001 を state_driven の condition に『値が system/light/dark のいずれにも一致しない間』を含め、無効値は system 等価扱い (fallback) を構造的に成立させる。
 - **Issue**: [minor] 左スワイプ取消経路と FR-DRAWER-005/006 の片肺
   - **Resolution**: FR-DRAWER-005 に左→右スワイプを追加し threshold (水平>=50 垂直<30) を明示。Components に SwipeHandler util を追加。

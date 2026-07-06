@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/orchestrator/workflowfile"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/workflowfile"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // projectMeta is the per-project configuration resolved from a Linear project's

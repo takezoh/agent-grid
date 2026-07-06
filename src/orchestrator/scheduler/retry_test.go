@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
 )
 
 func retryCfg(maxMS int) wfconfig.Config {

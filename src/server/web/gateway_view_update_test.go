@@ -12,8 +12,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/takezoh/agent-reactor/client/proto"
-	stateview "github.com/takezoh/agent-reactor/client/state/view"
+	"github.com/takezoh/agent-grid/client/proto"
+	stateview "github.com/takezoh/agent-grid/client/state/view"
 )
 
 // fakeLifecycleAttacher is a test double for Attacher that supports

@@ -3,7 +3,7 @@ package proto
 import (
 	"time"
 
-	stateview "github.com/takezoh/agent-reactor/client/state/view"
+	stateview "github.com/takezoh/agent-grid/client/state/view"
 )
 
 // Response is the closed sum type of every successful reply the

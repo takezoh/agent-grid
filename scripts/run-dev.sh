@@ -2,7 +2,7 @@
 # Launch a fully-isolated dev stack: the merged backend (cmd/server — daemon +
 # HTTP/WS gateway in one process) under a scratch data dir, plus the web-client
 # host (cmd/web). The scratch data dir means this never collides with another
-# user-scope agent-reactor backend ($HOME/.agent-reactor/) — they can run side
+# user-scope agent-grid backend ($HOME/.agent-grid/) — they can run side
 # by side.
 #
 # The backend owns all pty sessions and exposes them over its Unix socket; the
@@ -20,9 +20,9 @@
 #   CLEAN_DATA_DIR            1 = wipe SERVER_DATA_DIR on exit (default: preserve,
 #                             so sessions/ persists across restarts and the
 #                             next run restores the same session list)
-#   ROOST_DEVCONTAINER_PREFIX docker container/label prefix this daemon owns
+#   AG_DEVCONTAINER_PREFIX docker container/label prefix this daemon owns
 #                             (default: reactor-dev — distinct from any peer
-#                             agent-reactor backend's "reactor" so the two
+#                             agent-grid backend's "reactor" so the two
 #                             never compete for the same container name; if
 #                             they did, the mount-hash drift path would
 #                             `docker rm -f` the peer's container and kill its
@@ -40,7 +40,7 @@ BACKEND_ADDR="${BACKEND_ADDR:-127.0.0.1:8443}"
 WEB_ADDR="${WEB_ADDR:-127.0.0.1:8080}"
 SERVER_DATA_DIR="${SERVER_DATA_DIR:-$ROOT/.run-dev/server}"
 CLEAN_DATA_DIR="${CLEAN_DATA_DIR:-0}"
-ROOST_DEVCONTAINER_PREFIX="${ROOST_DEVCONTAINER_PREFIX:-reactor-dev}"
+AG_DEVCONTAINER_PREFIX="${AG_DEVCONTAINER_PREFIX:-reactor-dev}"
 SERVER_SOCKET="$SERVER_DATA_DIR/server.sock"
 SERVER_LOG="$SERVER_DATA_DIR/server.log"
 
@@ -61,16 +61,16 @@ cleanup() {
   # Always remove docker containers this backend spawned. Otherwise the
   # container outlives the backend with a bind mount pointing at the
   # previous $SERVER_DATA_DIR/run/<projectHash>/, and any Claude session
-  # re-attached to it on the next run sees a stale reactor-bridge — every
+  # re-attached to it on the next run sees a stale bridge — every
   # hook → bridge call would dial the dead socket.
   #
   # Label filter is prefix-scoped (see platform/sandbox/devcontainer/
-  # docker.go), so peer backends under a different ROOST_DEVCONTAINER_PREFIX
+  # docker.go), so peer backends under a different AG_DEVCONTAINER_PREFIX
   # are invisible. Killing the containers does NOT touch
   # $SERVER_DATA_DIR/sessions/, which is what we want to keep so the next
   # run-dev.sh restores the same sessions.
   local containers
-  containers=$(docker ps -aq --filter "label=${ROOST_DEVCONTAINER_PREFIX}-managed=1" 2>/dev/null || true)
+  containers=$(docker ps -aq --filter "label=${AG_DEVCONTAINER_PREFIX}-managed=1" 2>/dev/null || true)
   if [ -n "$containers" ]; then
     docker rm -f $containers >/dev/null 2>&1 || true
   fi
@@ -82,15 +82,15 @@ trap cleanup EXIT INT TERM
 
 # Launch the merged backend (daemon + gateway) under SERVER_DATA_DIR. Because
 # the data dir is unique to this script invocation, there is no flock
-# contention with any peer agent-reactor backend at ~/.agent-reactor/.
+# contention with any peer agent-grid backend at ~/.agent-grid/.
 #
-# ROOST_DEVCONTAINER_PREFIX additionally isolates this backend's docker
-# container namespace from peer agent-reactor backends on the same host:
+# AG_DEVCONTAINER_PREFIX additionally isolates this backend's docker
+# container namespace from peer agent-grid backends on the same host:
 # container names and reactor-* label keys all carry the prefix, so different
 # backend instances' containers cannot collide. Without this, `docker ps
 # --filter` would surface the peer's container, mount-hash drift would fire,
 # and `docker rm -f` would kill it.
-ROOST_DATA_DIR="$SERVER_DATA_DIR" ROOST_DEVCONTAINER_PREFIX="$ROOST_DEVCONTAINER_PREFIX" \
+AG_DATA_DIR="$SERVER_DATA_DIR" AG_DEVCONTAINER_PREFIX="$AG_DEVCONTAINER_PREFIX" \
   ./server -insecure -no-auth -addr "$BACKEND_ADDR" -data-dir "$SERVER_DATA_DIR" \
   >"$SERVER_LOG" 2>&1 &
 pids+=("$!")
@@ -112,12 +112,12 @@ pids+=("$!")
 
 cat <<EOF
 
-agent-reactor dev up (isolated from ~/.agent-reactor):
+agent-grid dev up (isolated from ~/.agent-grid):
   data         : $SERVER_DATA_DIR
   server sock  : $SERVER_SOCKET
   backend      : http://$BACKEND_ADDR  (auth disabled — loopback only)
   web          : http://$WEB_ADDR
-  dc prefix    : $ROOST_DEVCONTAINER_PREFIX  (docker container & label prefix)
+  dc prefix    : $AG_DEVCONTAINER_PREFIX  (docker container & label prefix)
 
   Open →   http://$WEB_ADDR/
 

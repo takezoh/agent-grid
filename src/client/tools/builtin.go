@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/lib/editor"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/features"
+	"github.com/takezoh/agent-grid/client/lib/editor"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/features"
 )
 
 var editorLaunch = editor.Launch

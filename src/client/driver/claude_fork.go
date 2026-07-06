@@ -3,8 +3,8 @@ package driver
 import (
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/cli"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/lib/claude/cli"
 )
 
 // ForkCommand returns the CLI invocation for forking the current Claude

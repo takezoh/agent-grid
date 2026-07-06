@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-grid/client/config"
 )
 
 func TestParseDaemonArgs(t *testing.T) {
@@ -83,7 +83,7 @@ func TestRunMainInjectsDataDirIntoConfig(t *testing.T) {
 }
 
 // TestRunMainExportsDataDirToEnv verifies that -data-dir is exported to
-// ROOST_DATA_DIR so a downstream fresh loadConfig() (runDaemon does this)
+// AG_DATA_DIR so a downstream fresh loadConfig() (runDaemon does this)
 // resolves the SAME path the flag specified. Without the setenv hop, the
 // runtime would log to the flag dir but place its socket/sessions/pid under
 // the bootstrap dir — the systemd cascade would 502-loop.
@@ -102,23 +102,23 @@ func TestRunMainExportsDataDirToEnv(t *testing.T) {
 	if code := runMain([]string{"-data-dir", flagDir}, &stdout, &stderr); code != 0 {
 		t.Fatalf("code = %d, want 0 (stderr=%q)", code, stderr.String())
 	}
-	if got := os.Getenv("ROOST_DATA_DIR"); got != flagDir {
-		t.Errorf("ROOST_DATA_DIR = %q, want %q (flag must be exported so a "+
+	if got := os.Getenv("AG_DATA_DIR"); got != flagDir {
+		t.Errorf("AG_DATA_DIR = %q, want %q (flag must be exported so a "+
 			"fresh ResolveDataDir() in runDaemon returns the same path)",
 			got, flagDir)
 	}
 }
 
-// TestRunMainFlagWinsOverStaleEnv verifies that a pre-existing ROOST_DATA_DIR
+// TestRunMainFlagWinsOverStaleEnv verifies that a pre-existing AG_DATA_DIR
 // in the process env (e.g. inherited from the operator's shell) does not
 // silently override an explicit -data-dir flag. systemd `systemctl --user
 // start` inherits the user's env, so the unit's ExecStart=… -data-dir would
-// otherwise be a no-op for any developer with ROOST_DATA_DIR in their rc.
+// otherwise be a no-op for any developer with AG_DATA_DIR in their rc.
 func TestRunMainFlagWinsOverStaleEnv(t *testing.T) {
 	restore := stubMainDeps(t)
 	defer restore()
 
-	t.Setenv("ROOST_DATA_DIR", "/should/be/overridden")
+	t.Setenv("AG_DATA_DIR", "/should/be/overridden")
 	flagDir := t.TempDir()
 	loadBootstrapConfig = func() (*config.Config, error) {
 		return config.DefaultConfig(), nil
@@ -137,8 +137,8 @@ func TestRunMainFlagWinsOverStaleEnv(t *testing.T) {
 	if capturedDir != flagDir {
 		t.Errorf("logger got %q, want %q (flag must beat stale env)", capturedDir, flagDir)
 	}
-	if got := os.Getenv("ROOST_DATA_DIR"); got != flagDir {
-		t.Errorf("ROOST_DATA_DIR = %q, want %q", got, flagDir)
+	if got := os.Getenv("AG_DATA_DIR"); got != flagDir {
+		t.Errorf("AG_DATA_DIR = %q, want %q", got, flagDir)
 	}
 }
 

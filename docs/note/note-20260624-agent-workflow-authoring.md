@@ -52,7 +52,7 @@ Available variables include:
 | `{{ project.branch }}` | Base branch from the project's content front matter (empty = repository default) |
 | `{{ project.prompt }}` | Additional prompt body from the project's content (substituted verbatim) |
 
-`{{ project.* }}` is derived from the issue's Linear project content (front matter + body); see [orchestrator configuration](../note/note-20260624-user-orchestrator.md#per-project-configuration). `branch` is also passed to hooks as `ROOST_PROJECT_BRANCH`.
+`{{ project.* }}` is derived from the issue's Linear project content (front matter + body); see [orchestrator configuration](../note/note-20260624-user-orchestrator.md#per-project-configuration). `branch` is also passed to hooks as `AG_PROJECT_BRANCH`.
 
 ## Invariants the prompt must enforce
 

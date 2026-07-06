@@ -211,7 +211,7 @@ The complete list is in `plans/.archive/symphony-orchestrator/05-conformance.md`
 | §15.5 | harness hardening is documentation-only | devcontainer + credproxy + mcpproxy are default |
 | §18.2 | persistence / tracker write / pluggable tracker | not implemented (maintaining SPEC §14.3 in-memory design) |
 | §11.2 | single project slugId (`eq`) | `tracker.project_slugs` is an array; filter uses `slugId: { in: [...] }` to span multiple projects |
-| §5.3.1 / §11.2 | tracker config is the only per-run config | per-project config read from each Linear project's `content` (front matter `branch` + additional prompt body), exposed as `{{ project.* }}` and `ROOST_PROJECT_BRANCH` |
+| §5.3.1 / §11.2 | tracker config is the only per-run config | per-project config read from each Linear project's `content` (front matter `branch` + additional prompt body), exposed as `{{ project.* }}` and `AG_PROJECT_BRANCH` |
 
 ---
 

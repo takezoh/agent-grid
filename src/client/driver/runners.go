@@ -3,8 +3,8 @@ package driver
 import (
 	"context"
 
-	"github.com/takezoh/agent-reactor/client/runtime/worker"
-	"github.com/takezoh/agent-reactor/platform/lib/vcs"
+	"github.com/takezoh/agent-grid/client/runtime/worker"
+	"github.com/takezoh/agent-grid/platform/lib/vcs"
 )
 
 // RegisterRunners registers all worker-pool runners for the driver package.

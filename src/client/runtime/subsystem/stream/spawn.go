@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-grid/platform/lib/codex"
 )
 
 // spawnServer wraps the app-server using the dispatcher, resolves the host dial

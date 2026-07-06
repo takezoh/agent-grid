@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/lib/agenthook"
+	"github.com/takezoh/agent-grid/client/lib/agenthook"
 )
 
 // TestRegisterOneHostAgentHook_WritesHookCmd verifies the per-agent helper
@@ -38,7 +38,7 @@ func TestRegisterOneHostAgentHook_WritesHookCmd(t *testing.T) {
 func TestRegisterOneHostAgentHook_ShellQuotesUnsafePaths(t *testing.T) {
 	home := t.TempDir()
 	exe := "/home/Alice User/.local/bin/server"
-	dataDir := "/var/lib/agent reactor"
+	dataDir := "/var/lib/agent grid"
 
 	registerOneHostAgentHook(home, exe, dataDir, agenthook.Claude)
 	settings := filepath.Join(home, agenthook.Claude.SettingsRel)
@@ -49,7 +49,7 @@ func TestRegisterOneHostAgentHook_ShellQuotesUnsafePaths(t *testing.T) {
 	if !strings.Contains(cmd, "'/home/Alice User/.local/bin/server'") {
 		t.Errorf("hook cmd %q does not contain quoted exe path", cmd)
 	}
-	if !strings.Contains(cmd, "'/var/lib/agent reactor'") {
+	if !strings.Contains(cmd, "'/var/lib/agent grid'") {
 		t.Errorf("hook cmd %q does not contain quoted data-dir", cmd)
 	}
 }

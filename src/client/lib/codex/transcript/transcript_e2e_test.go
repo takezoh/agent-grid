@@ -18,22 +18,22 @@ import (
 
 	"github.com/creack/pty"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
-	"github.com/takezoh/agent-reactor/platform/e2etest"
-	codexcli "github.com/takezoh/agent-reactor/platform/lib/codex"
-	"github.com/takezoh/agent-reactor/platform/procgroup"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	codexschemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
+	"github.com/takezoh/agent-grid/platform/e2etest"
+	codexcli "github.com/takezoh/agent-grid/platform/lib/codex"
+	"github.com/takezoh/agent-grid/platform/procgroup"
 )
 
 func e2eCodexBin(t *testing.T) string {
 	t.Helper()
-	bin := os.Getenv("REACTOR_E2E_CODEX_BIN")
+	bin := os.Getenv("AG_E2E_CODEX_BIN")
 	if bin == "" {
-		t.Skip("REACTOR_E2E_CODEX_BIN is not set")
+		t.Skip("AG_E2E_CODEX_BIN is not set")
 	}
 	if _, err := exec.LookPath(bin); err != nil {
-		t.Skipf("REACTOR_E2E_CODEX_BIN=%q is not executable: %v", bin, err)
+		t.Skipf("AG_E2E_CODEX_BIN=%q is not executable: %v", bin, err)
 	}
 	return bin
 }

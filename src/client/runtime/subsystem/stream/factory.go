@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
-	"github.com/takezoh/agent-reactor/platform/procgroup"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-grid/platform/lib/codex"
+	"github.com/takezoh/agent-grid/platform/procgroup"
 )
 
 // FactoryConfig holds runtime-supplied dependencies the Stream Factory needs

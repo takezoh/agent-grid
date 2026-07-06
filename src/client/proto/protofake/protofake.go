@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-grid/client/proto"
 )
 
 // ClientSide is the caller-facing end of the fake IPC connection.

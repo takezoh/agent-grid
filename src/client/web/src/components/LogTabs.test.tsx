@@ -48,7 +48,7 @@ describe("LogTabs", () => {
   it("TestRendersRealDriverEventsAndTranscriptTabs: TRANSCRIPT + EVENTS (real driver shape) both render", () => {
     const realDriverTabs: LogTab[] = [
       { label: "TRANSCRIPT", path: "/sessions/s1/x.transcript", kind: "text" },
-      { label: "EVENTS", path: "/var/log/agent-reactor/s1.log", kind: "text" },
+      { label: "EVENTS", path: "/var/log/agent-grid/s1.log", kind: "text" },
     ];
     render(<LogTabs tabs={realDriverTabs} sessionId="s1" bearerToken="tok" fetchFn={nopFetch} />);
     const buttons = screen.getAllByRole("tab");

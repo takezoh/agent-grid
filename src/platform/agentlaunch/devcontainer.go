@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/config"
-	"github.com/takezoh/agent-reactor/platform/credproxy"
-	"github.com/takezoh/agent-reactor/platform/mcpproxy"
-	"github.com/takezoh/agent-reactor/platform/pathmap"
-	"github.com/takezoh/agent-reactor/platform/sandbox"
-	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-grid/platform/config"
+	"github.com/takezoh/agent-grid/platform/credproxy"
+	"github.com/takezoh/agent-grid/platform/mcpproxy"
+	"github.com/takezoh/agent-grid/platform/pathmap"
+	"github.com/takezoh/agent-grid/platform/sandbox"
+	sandboxdc "github.com/takezoh/agent-grid/platform/sandbox/devcontainer"
 	"github.com/takezoh/credproxy/container"
 )
 
@@ -395,7 +395,7 @@ func frameScopeEnv(proxyEnv map[string]string) map[string]string {
 
 func isContainerScopeEnvKey(k string) bool {
 	switch k {
-	case "PATH", "ROOST_SOCKET", "ROOST_DATA_DIR", "SSH_AUTH_SOCK":
+	case "PATH", "AG_SOCKET", "AG_DATA_DIR", "SSH_AUTH_SOCK":
 		return true
 	}
 	return false
@@ -426,15 +426,15 @@ func buildOverlayEnv(scriptEnv map[string]string, proxySpec container.Spec) map[
 	for k, v := range proxySpec.Env {
 		env[k] = v
 	}
-	env["ROOST_SOCKET"] = ContainerSockFilePath
-	env["ROOST_DATA_DIR"] = ContainerRunDir
+	env["AG_SOCKET"] = ContainerSockFilePath
+	env["AG_DATA_DIR"] = ContainerRunDir
 	return env
 }
 
 // buildPostCreate assembles the postCreate shell script for the devcontainer.
 // Each BridgeSpec from credproxy providers is started as a background process
-// via "reactor-bridge sockbridge" in fixed-socket mode. postCreateSubcmds are run
-// via the installed reactor-bridge binary (setup hooks etc.).
+// via "bridge sockbridge" in fixed-socket mode. postCreateSubcmds are run
+// via the installed bridge binary (setup hooks etc.).
 //
 // `set -e` makes a foreground command failure abort the script with a
 // non-zero exit so devcontainer up surfaces the error instead of silently

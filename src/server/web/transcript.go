@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/client/state"
-	stateview "github.com/takezoh/agent-reactor/client/state/view"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/state"
+	stateview "github.com/takezoh/agent-grid/client/state/view"
 )
 
 // sessionIDPattern is the allowlist regex for session IDs (ADR 0026).

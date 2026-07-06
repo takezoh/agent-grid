@@ -11,26 +11,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/config"
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-grid/client/config"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/platform/appid"
 	"golang.org/x/term"
 )
 
 // Run implements `server event <eventType> [-data-dir DIR]`.
-// Reads stdin (if piped), captures ROOST_FRAME_ID and a timestamp,
+// Reads stdin (if piped), captures AG_FRAME_ID and a timestamp,
 // then sends a CmdEvent (host) or CmdHookEvent (container) to the daemon.
 //
-// Socket resolution order (host path; container path always uses ROOST_SOCKET):
-//  1. ROOST_SOCKET env var (set by the daemon when spawning agents; also the
+// Socket resolution order (host path; container path always uses AG_SOCKET):
+//  1. AG_SOCKET env var (set by the daemon when spawning agents; also the
 //     bind-mounted path inside sandbox containers)
 //  2. -data-dir flag value → "<dir>/<appid.SocketFileName>". Lets a hook
 //     installed in Claude/Gemini settings.json route to a non-default daemon
 //     when multiple daemons run with different -data-dir on the same host.
-//  3. ROOST_DATA_DIR env (consumed by config.Load → ResolveDataDir)
-//  4. ~/.agent-reactor/<appid.SocketFileName>
+//  3. AG_DATA_DIR env (consumed by config.Load → ResolveDataDir)
+//  4. ~/.agent-grid/<appid.SocketFileName>
 //
-// If neither ROOST_SOCKET nor -data-dir is set, the event is silently dropped
+// If neither AG_SOCKET nor -data-dir is set, the event is silently dropped
 // so that hooks fired in completely unrelated contexts (e.g. a Claude Code
 // invocation on a host with no daemon configured) do not spam dial errors.
 func Run(args []string) error {
@@ -42,11 +42,11 @@ func Run(args []string) error {
 		return err
 	}
 
-	if os.Getenv("ROOST_SOCKET") == "" && dataDir == "" {
+	if os.Getenv("AG_SOCKET") == "" && dataDir == "" {
 		slog.Debug("event: no socket context; dropping event", "type", eventType)
 		return nil
 	}
-	senderID := os.Getenv("ROOST_FRAME_ID")
+	senderID := os.Getenv("AG_FRAME_ID")
 	ts := time.Now()
 
 	var input []byte
@@ -60,11 +60,11 @@ func Run(args []string) error {
 		"input_len", len(input),
 	)
 
-	token := os.Getenv("ROOST_SOCKET_TOKEN")
+	token := os.Getenv("AG_SOCKET_TOKEN")
 	var sendErr error
 	if token != "" {
-		// Container path: ROOST_SOCKET is the bind-mounted UDS, the agent
-		// process inherits ROOST_SOCKET_TOKEN, and -data-dir does not apply
+		// Container path: AG_SOCKET is the bind-mounted UDS, the agent
+		// process inherits AG_SOCKET_TOKEN, and -data-dir does not apply
 		// (the daemon side is fixed by the mount). Pass "" to ignore it.
 		sendErr = sendHookEventToDaemon(token, eventType, ts, json.RawMessage(input))
 	} else {
@@ -121,17 +121,17 @@ func parseEventArgs(args []string) (eventType, dataDir string, err error) {
 }
 
 // ResolveSocketPath returns the server daemon UDS path. Resolution order:
-//  1. ROOST_SOCKET env var (always wins; set by the daemon and the sandbox mount)
+//  1. AG_SOCKET env var (always wins; set by the daemon and the sandbox mount)
 //  2. dataDirOverride argument when non-empty → "<dir>/<appid.SocketFileName>"
 //  3. config.Load().ResolveDataDir() → "<resolved>/<appid.SocketFileName>"
-//     (which honours ROOST_DATA_DIR env and config DataDir, falling back to
-//     ~/.agent-reactor/)
+//     (which honours AG_DATA_DIR env and config DataDir, falling back to
+//     ~/.agent-grid/)
 //
 // Pass "" for dataDirOverride when the caller has no explicit override (e.g.
 // the host-exec/mcp-exec sockbridge paths route through their own constants
-// and only need ROOST_SOCKET / config fallback).
+// and only need AG_SOCKET / config fallback).
 func ResolveSocketPath(dataDirOverride string) (string, error) {
-	if s := os.Getenv("ROOST_SOCKET"); s != "" {
+	if s := os.Getenv("AG_SOCKET"); s != "" {
 		return s, nil
 	}
 	if dataDirOverride != "" {
@@ -146,7 +146,7 @@ func ResolveSocketPath(dataDirOverride string) (string, error) {
 
 func sendHookEventToDaemon(token, hook string, ts time.Time, payload json.RawMessage) error {
 	// Container path: -data-dir is meaningless here (the daemon is reached
-	// through the bind-mounted socket pinned by ROOST_SOCKET), so pass "".
+	// through the bind-mounted socket pinned by AG_SOCKET), so pass "".
 	sockPath, err := ResolveSocketPath("")
 	if err != nil {
 		return err

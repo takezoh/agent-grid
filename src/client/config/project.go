@@ -9,11 +9,11 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/takezoh/agent-reactor/platform/appid"
-	platformconfig "github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/platform/appid"
+	platformconfig "github.com/takezoh/agent-grid/platform/config"
 )
 
-// ProjectConfig holds the contents of a project-level .agent-reactor/settings.toml.
+// ProjectConfig holds the contents of a project-level .agent-grid/settings.toml.
 type ProjectConfig struct {
 	Workspace ProjectWorkspaceConfig        `toml:"workspace"`
 	Sandbox   *platformconfig.SandboxConfig `toml:"sandbox"`
@@ -85,7 +85,7 @@ func (pc *ProjectConfig) Validate() error {
 	return nil
 }
 
-// findProjectSettings walks up from dir searching for .agent-reactor/settings.toml.
+// findProjectSettings walks up from dir searching for .agent-grid/settings.toml.
 func findProjectSettings(dir string) string {
 	dir = filepath.Clean(dir)
 	for {

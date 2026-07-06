@@ -1,7 +1,7 @@
 ---
 id: component-20260624-client-overview
 kind: component
-title: client/ — agent-reactor client (Session Lifecycle Manager)
+title: client/ — agent-grid client (Session Lifecycle Manager)
 status: active
 created: '2026-06-24'
 updated: '2026-07-04'
@@ -32,16 +32,16 @@ source_paths:
 - src/client/state/view/
 - src/client/driver/
 provides:
-- client-agent-reactor-client-session-lifecycle-manager
+- client-agent-grid-client-session-lifecycle-manager
 ---
 
 <!-- migrated_from: docs/technical/client/README.md -->
 
-# client/ — agent-reactor client (Session Lifecycle Manager)
+# client/ — agent-grid client (Session Lifecycle Manager)
 
 `client/` is all of the client: the in-process session daemon (state machine + runtime + drivers + IPC) and the browser frontend assets under `client/web/`. Both are shipped inside the `server` binary (`cmd/server`). It depends on `platform/` but **must not** import `orchestrator/` (enforced by the `depguard` rule `client-no-orchestrator`).
 
-The agent-reactor client is a *session lifecycle manager*, not an agent orchestrator. It gives you visibility and fast access to agents running across many projects; it does not decide what those agents do. The daemon owns sessions and exposes typed IPC over a Unix socket; the co-resident HTTP/WS gateway under `server/web/` translates browser REST + WebSocket traffic into IPC, so the browser is the operator's primary surface.
+The agent-grid client is a *session lifecycle manager*, not an agent orchestrator. It gives you visibility and fast access to agents running across many projects; it does not decide what those agents do. The daemon owns sessions and exposes typed IPC over a Unix socket; the co-resident HTTP/WS gateway under `server/web/` translates browser REST + WebSocket traffic into IPC, so the browser is the operator's primary surface.
 
 ## Functional Core / Imperative Shell
 

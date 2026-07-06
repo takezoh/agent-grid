@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/termvt"
+	"github.com/takezoh/agent-grid/platform/termvt"
 )
 
 // Compile-time proof that PtyBackend satisfies the full FrameBackend role set.

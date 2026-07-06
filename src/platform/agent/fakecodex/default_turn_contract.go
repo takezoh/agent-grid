@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	"github.com/takezoh/agent-reactor/platform/e2etest"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/e2etest"
 )
 
 func defaultTurnRecordedEvent(t *testing.T, method string, raw json.RawMessage) any {

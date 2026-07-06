@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	platformconfig "github.com/takezoh/agent-reactor/platform/config"
+	platformconfig "github.com/takezoh/agent-grid/platform/config"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -150,7 +150,7 @@ func TestListProjects_RootsAndPaths(t *testing.T) {
 }
 
 func TestResolveDataDir_Explicit(t *testing.T) {
-	t.Setenv("ROOST_DATA_DIR", "")
+	t.Setenv("AG_DATA_DIR", "")
 	cfg := &Config{DataDir: "/tmp/data"}
 	if got := cfg.ResolveDataDir(); got != "/tmp/data" {
 		t.Errorf("ResolveDataDir() = %q, want /tmp/data", got)
@@ -158,7 +158,7 @@ func TestResolveDataDir_Explicit(t *testing.T) {
 }
 
 func TestResolveDataDir_Fallback(t *testing.T) {
-	t.Setenv("ROOST_DATA_DIR", "")
+	t.Setenv("AG_DATA_DIR", "")
 	cfg := &Config{}
 	want := ConfigDirPath()
 	if got := cfg.ResolveDataDir(); got != want {
@@ -167,7 +167,7 @@ func TestResolveDataDir_Fallback(t *testing.T) {
 }
 
 func TestResolveDataDir_EnvOverride(t *testing.T) {
-	t.Setenv("ROOST_DATA_DIR", "/foo")
+	t.Setenv("AG_DATA_DIR", "/foo")
 	cfg := &Config{DataDir: "/bar"}
 	if got := cfg.ResolveDataDir(); got != "/foo" {
 		t.Errorf("ResolveDataDir() = %q, want /foo", got)
@@ -179,7 +179,7 @@ func TestResolveDataDir_EnvExpand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("ROOST_DATA_DIR", "~/x")
+	t.Setenv("AG_DATA_DIR", "~/x")
 	cfg := &Config{}
 	want := home + "/x"
 	if got := cfg.ResolveDataDir(); got != want {
@@ -435,7 +435,7 @@ func TestSandboxConfig_Validate_Isolation(t *testing.T) {
 // docker namespace from a primary daemon purely via env, while a config
 // override is honored when env is unset.
 func TestResolveDevcontainerPrefix(t *testing.T) {
-	const envVar = "ROOST_DEVCONTAINER_PREFIX"
+	const envVar = "AG_DEVCONTAINER_PREFIX"
 
 	t.Run("env wins over config", func(t *testing.T) {
 		t.Setenv(envVar, "reactor-dev")

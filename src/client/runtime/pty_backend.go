@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/takezoh/agent-reactor/platform/termvt"
+	"github.com/takezoh/agent-grid/platform/termvt"
 )
 
 // PtyBackend implements the FrameBackend role interfaces over platform/termvt,
@@ -312,7 +312,7 @@ func shellArgv(command string) []string {
 // see the same PATH / HOME / mise+cargo shims the daemon itself runs with.
 //
 // Host-direct launches (SandboxOverrideHost → DirectDispatcher) carry only
-// {ROOST_SESSION_ID, ROOST_FRAME_ID} as overrides; without inheritance they
+// {AG_SESSION_ID, AG_FRAME_ID} as overrides; without inheritance they
 // lose PATH and fail `exec claude` (~/.local/bin) with exit 127 (a5ec8f11
 // incident, 2026-06-27). Devcontainer launches are unaffected: their
 // in-container env is carried as `docker exec -e KEY=VAL …` arguments,

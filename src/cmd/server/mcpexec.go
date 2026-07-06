@@ -6,8 +6,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/takezoh/agent-reactor/client/runtime"
-	"github.com/takezoh/agent-reactor/platform/mcpproxy"
+	"github.com/takezoh/agent-grid/client/runtime"
+	"github.com/takezoh/agent-grid/platform/mcpproxy"
 )
 
 // runMCPExec dials the in-container mcpproxy broker UDS, asks the broker to

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/proto"
+	"github.com/takezoh/agent-grid/client/proto"
 )
 
 // The gateway's "wedged daemon" failure mode used to surface as a hung HTTP

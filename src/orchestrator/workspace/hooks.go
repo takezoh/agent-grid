@@ -12,10 +12,10 @@ import (
 
 // projectBranchEnvVar is the name of the hook environment variable carrying the
 // per-project base branch (empty when the project specifies no branch).
-const projectBranchEnvVar = "ROOST_PROJECT_BRANCH"
+const projectBranchEnvVar = "AG_PROJECT_BRANCH"
 
 // branchEnv builds the per-project hook environment. The variable is always
-// defined so hooks can use ${ROOST_PROJECT_BRANCH:-<default>} for the fallback.
+// defined so hooks can use ${AG_PROJECT_BRANCH:-<default>} for the fallback.
 func branchEnv(branch string) []string {
 	return []string{projectBranchEnvVar + "=" + branch}
 }

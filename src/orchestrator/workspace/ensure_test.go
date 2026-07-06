@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
 )
 
 // §17.2: missing directory is created; path returned.
@@ -83,7 +83,7 @@ func TestEnsure_AfterCreate_NewOnly(t *testing.T) {
 	}
 }
 
-// after_create receives the per-project branch via ROOST_PROJECT_BRANCH.
+// after_create receives the per-project branch via AG_PROJECT_BRANCH.
 func TestEnsure_AfterCreate_ReceivesProjectBranch(t *testing.T) {
 	root := t.TempDir()
 	out := filepath.Join(t.TempDir(), "branch.txt")
@@ -91,7 +91,7 @@ func TestEnsure_AfterCreate_ReceivesProjectBranch(t *testing.T) {
 		Workspace: wfconfig.WorkspaceConfig{Root: root},
 		Hooks: wfconfig.HooksConfig{
 			TimeoutMS:   5000,
-			AfterCreate: fmt.Sprintf("printf '%%s' \"$ROOST_PROJECT_BRANCH\" > %s", out),
+			AfterCreate: fmt.Sprintf("printf '%%s' \"$AG_PROJECT_BRANCH\" > %s", out),
 		},
 	})
 	if _, err := m.Ensure(context.Background(), "issue-1", "develop"); err != nil {
@@ -102,7 +102,7 @@ func TestEnsure_AfterCreate_ReceivesProjectBranch(t *testing.T) {
 		t.Fatalf("read hook output: %v", err)
 	}
 	if string(got) != "develop" {
-		t.Errorf("ROOST_PROJECT_BRANCH = %q, want develop", string(got))
+		t.Errorf("AG_PROJECT_BRANCH = %q, want develop", string(got))
 	}
 }
 

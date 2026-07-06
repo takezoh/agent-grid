@@ -1,8 +1,8 @@
 package driver
 
 import (
-	"github.com/takezoh/agent-reactor/client/state"
-	claudecli "github.com/takezoh/agent-reactor/platform/lib/claude/cli"
+	"github.com/takezoh/agent-grid/client/state"
+	claudecli "github.com/takezoh/agent-grid/platform/lib/claude/cli"
 )
 
 func (d ClaudeDriver) PrepareCreate(s state.DriverState, _ state.SessionID, project, command string, options state.LaunchOptions) (state.DriverState, state.CreateLaunch, error) {

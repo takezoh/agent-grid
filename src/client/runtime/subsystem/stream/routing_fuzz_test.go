@@ -13,7 +13,7 @@ package stream
 import (
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func FuzzStreamRouting(f *testing.F) {

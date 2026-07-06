@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	libcodex "github.com/takezoh/agent-grid/platform/lib/codex"
 )
 
 const (

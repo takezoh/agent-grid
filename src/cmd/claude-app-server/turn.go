@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/lib/claude/streamjson"
 )
 
 // turnReq carries a decoded turn/start notification payload.

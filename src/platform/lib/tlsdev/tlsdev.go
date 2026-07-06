@@ -1,5 +1,5 @@
 // Package tlsdev provides the shared dev-friendly TLS serving used by the
-// agent-reactor server binaries (cmd/server, cmd/web): serve plain HTTP
+// agent-grid server binaries (cmd/server, cmd/web): serve plain HTTP
 // (-insecure), with a supplied certificate, or with an in-memory self-signed
 // certificate for localhost when none is given.
 package tlsdev
@@ -65,7 +65,7 @@ func SelfSignedCert() (tls.Certificate, error) {
 	}
 	tmpl := x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano()),
-		Subject:      pkix.Name{CommonName: "agent-reactor-dev"},
+		Subject:      pkix.Name{CommonName: "agent-grid-dev"},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,

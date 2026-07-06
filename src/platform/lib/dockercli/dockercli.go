@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	platformconfig "github.com/takezoh/agent-reactor/platform/config"
+	platformconfig "github.com/takezoh/agent-grid/platform/config"
 )
 
 type SetupResult struct {

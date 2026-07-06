@@ -22,7 +22,7 @@ import { useThemeStore } from "../store/theme";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = "agent-reactor-theme";
+const STORAGE_KEY = "agent-grid-theme";
 const VALID_THEMES: ReadonlySet<string> = new Set(["system", "light", "dark"]);
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 

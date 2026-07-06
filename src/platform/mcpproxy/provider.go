@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/platform/config"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 )
@@ -100,7 +100,7 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 	mounts = append(mounts, overlayMounts...)
 
 	return container.Spec{
-		Env:    map[string]string{"ROOST_MCP_SOCK": b.cfg.ContainerSockPath},
+		Env:    map[string]string{"AG_MCP_SOCK": b.cfg.ContainerSockPath},
 		Mounts: mounts,
 	}, nil
 }

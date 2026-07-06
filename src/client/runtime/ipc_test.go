@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // startRuntimeWithIPC spins up a Runtime, opens a Unix socket in a

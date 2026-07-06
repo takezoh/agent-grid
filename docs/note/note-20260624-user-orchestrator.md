@@ -71,7 +71,7 @@ tracker:
 polling:
   interval_ms: 30000            # poll cadence
 workspace:
-  root: /path/to/.agent-reactor/worktrees   # per-issue workspace root
+  root: /path/to/.agent-grid/worktrees   # per-issue workspace root
 hooks:
   timeout_ms: 120000
   after_create: |               # initialization run after a workspace is created
@@ -108,7 +108,7 @@ branch: develop
 Extra instructions specific to this project.
 ```
 
-- **branch** — the base branch for this project's work. It is exposed to the prompt template as `{{ project.branch }}` and to hooks as the `ROOST_PROJECT_BRANCH` environment variable. When `branch` (or the whole front matter) is absent, the value is empty and the hook/prompt should fall back to the repository default branch (e.g. `base=${ROOST_PROJECT_BRANCH:-$(git ... rev-parse --abbrev-ref HEAD)}`).
+- **branch** — the base branch for this project's work. It is exposed to the prompt template as `{{ project.branch }}` and to hooks as the `AG_PROJECT_BRANCH` environment variable. When `branch` (or the whole front matter) is absent, the value is empty and the hook/prompt should fall back to the repository default branch (e.g. `base=${AG_PROJECT_BRANCH:-$(git ... rev-parse --abbrev-ref HEAD)}`).
 - The body after the front matter is exposed as `{{ project.prompt }}` (substituted verbatim — its own Liquid tags are not re-rendered). Place it wherever the prompt body should include the per-project instructions.
 - `{{ project.name }}` is the Linear project name.
 

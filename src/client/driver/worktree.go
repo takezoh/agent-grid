@@ -3,8 +3,8 @@ package driver
 import (
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
 )
 
 type worktreeRequest struct {

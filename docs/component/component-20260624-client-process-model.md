@@ -34,7 +34,7 @@ provides:
 
 ## Rendering Responsibilities
 
-agent-reactor rendering divides responsibilities between the driver and the browser frontend at the following boundaries. **When adding a new driver, you do not need to touch the runtime or the frontend code**. A driver only needs to implement `View(DriverState) state.View`.
+agent-grid rendering divides responsibilities between the driver and the browser frontend at the following boundaries. **When adding a new driver, you do not need to touch the runtime or the frontend code**. A driver only needs to implement `View(DriverState) state.View`.
 
 ### Driver-Owned (`SessionView`)
 
@@ -58,7 +58,7 @@ The browser frontend (`client/web` xterm.js bundle, served by the `web` host bin
 - Elapsed time formatting (relative notation like `5m ago`)
 - Card layout (ordering of each slot / margins / wrap / truncate)
 - INFO tab generic header (auto-generated from SessionInfo generic fields → driver's `InfoExtras` appended at the end)
-- LOG tab (always tails `~/.agent-reactor/server.log`)
+- LOG tab (always tails `~/.agent-grid/server.log`)
 - Filter / fold / cursor restoration
 
 ### Prohibitions
@@ -129,8 +129,8 @@ server event <eventType>           → Hook event receiver (short-lived process 
 server host-exec <bin> [args ...]  → Host-exec broker shim (run inside a sandboxed container)
 server mcp-exec <alias>            → MCP-proxy shim (run inside a sandboxed container)
 
-reactor-bridge claude-setup-hooks   → Claude hook registration inside the devcontainer
-reactor-bridge gemini-setup-hooks   → Gemini hook registration inside the devcontainer
+bridge claude-setup-hooks   → Claude hook registration inside the devcontainer
+bridge gemini-setup-hooks   → Gemini hook registration inside the devcontainer
                                       (both called from the devcontainer postCreate by coordinator.go;
                                        Codex has no hooks — it is integrated via the app-server protocol)
 ```
@@ -217,7 +217,7 @@ flowchart TB
         HUDS[("dataDir/run/CONTAINERKEY/<br/>codex-SID.sock<br/>(host path)")]
     end
     subgraph container["Devcontainer"]
-        CUDS[("/opt/agent-reactor/run/<br/>codex-SID.sock<br/>(container path)")]
+        CUDS[("/opt/agent-grid/run/<br/>codex-SID.sock<br/>(container path)")]
         APP["codex app-server<br/>--listen unix://SOCK"]
         TUI["codex --remote unix://SOCK<br/>(Ink TUI; docker-exec grandchild)"]
     end

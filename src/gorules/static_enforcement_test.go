@@ -26,7 +26,7 @@ import (
 
 func violate() {
 	const dockerBin = "docker"
-	_ = os.Getenv("REACTOR_E2E_CODEX_BIN")
+	_ = os.Getenv("AG_E2E_CODEX_BIN")
 	_ = exec.Command(dockerBin, "ps")
 	_, _ = exec.LookPath(dockerBin)
 }
@@ -45,8 +45,8 @@ func violate() {
 	if !strings.Contains(text, "real binary exec is restricted") {
 		t.Fatalf("expected real-binary enforcement failure, got:\n%s", text)
 	}
-	if !strings.Contains(text, "REACTOR_E2E_* env access is restricted") {
-		t.Fatalf("expected REACTOR_E2E env enforcement failure, got:\n%s", text)
+	if !strings.Contains(text, "AG_E2E_* env access is restricted") {
+		t.Fatalf("expected AG_E2E env enforcement failure, got:\n%s", text)
 	}
 }
 
@@ -130,7 +130,7 @@ func TestCheckCoverageScriptDedupsUnknownPackageReport(t *testing.T) {
 
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "scripts", "check-coverage.sh"), string(scriptRaw))
-	writeFile(t, filepath.Join(root, "scripts", "coverage-floors.txt"), "github.com/takezoh/agent-reactor/pkg/known 75\n")
+	writeFile(t, filepath.Join(root, "scripts", "coverage-floors.txt"), "github.com/takezoh/agent-grid/pkg/known 75\n")
 	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
 		t.Fatalf("mkdir src: %v", err)
 	}
@@ -144,16 +144,16 @@ set -euo pipefail
 
 if [[ ${1:-} == "list" ]]; then
 	cat <<'EOF'
-github.com/takezoh/agent-reactor/pkg/known 1 0
-github.com/takezoh/agent-reactor/pkg/unknown 1 0
+github.com/takezoh/agent-grid/pkg/known 1 0
+github.com/takezoh/agent-grid/pkg/unknown 1 0
 EOF
 	exit 0
 fi
 
 if [[ ${1:-} == "test" ]]; then
 	cat <<'EOF'
-ok  	github.com/takezoh/agent-reactor/pkg/known	0.001s	coverage: 80.0% of statements
-ok  	github.com/takezoh/agent-reactor/pkg/unknown	0.001s	coverage: 60.0% of statements
+ok  	github.com/takezoh/agent-grid/pkg/known	0.001s	coverage: 80.0% of statements
+ok  	github.com/takezoh/agent-grid/pkg/unknown	0.001s	coverage: 60.0% of statements
 EOF
 	exit 0
 fi
@@ -174,7 +174,7 @@ exit 1
 	}
 
 	text := string(out)
-	needle := "UNKNOWN  github.com/takezoh/agent-reactor/pkg/unknown"
+	needle := "UNKNOWN  github.com/takezoh/agent-grid/pkg/unknown"
 	if got := strings.Count(text, needle); got != 1 {
 		t.Fatalf("expected a single UNKNOWN report for missing floor, got %d:\n%s", got, text)
 	}
@@ -223,11 +223,11 @@ func TestNightlyE2EWorkflowExportsAllRealBinaryEnvVars(t *testing.T) {
 	}
 	text := string(raw)
 
-	if !strings.Contains(text, "echo \"reactor_e2e_docker_bin=$(command -v docker)\" >> \"$GITHUB_OUTPUT\"") {
-		t.Fatalf("nightly workflow does not export reactor_e2e_docker_bin in suite selection step")
+	if !strings.Contains(text, "echo \"ag_e2e_docker_bin=$(command -v docker)\" >> \"$GITHUB_OUTPUT\"") {
+		t.Fatalf("nightly workflow does not export ag_e2e_docker_bin in suite selection step")
 	}
-	if !strings.Contains(text, "REACTOR_E2E_DOCKER_BIN: ${{ steps.suite_env.outputs.reactor_e2e_docker_bin }}") {
-		t.Fatalf("nightly workflow does not pass REACTOR_E2E_DOCKER_BIN to make test-e2e")
+	if !strings.Contains(text, "AG_E2E_DOCKER_BIN: ${{ steps.suite_env.outputs.ag_e2e_docker_bin }}") {
+		t.Fatalf("nightly workflow does not pass AG_E2E_DOCKER_BIN to make test-e2e")
 	}
 	if !strings.Contains(text, "name: Require full nightly suite coverage") {
 		t.Fatalf("nightly workflow still allows skip-green when required suites are unavailable")

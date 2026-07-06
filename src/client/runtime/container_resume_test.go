@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/driver"
-	"github.com/takezoh/agent-reactor/client/event"
-	"github.com/takezoh/agent-reactor/client/runtime/framereg"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/driver"
+	"github.com/takezoh/agent-grid/client/event"
+	"github.com/takezoh/agent-grid/client/runtime/framereg"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // TestContainerResume_sessionIDSurvivesRegistrationWindow is the end-to-end

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func TestBackendKind(t *testing.T) {
@@ -47,7 +47,7 @@ func TestBindFrameNoWorktree(t *testing.T) {
 // OWN managed worktree on cold-start (Enabled=true) is registered for cleanup.
 func TestBindFrameColdStartOwnerReadoption(t *testing.T) {
 	b := New("/repo")
-	worktreePath := "/repo/.agent-reactor/worktrees/test-name"
+	worktreePath := "/repo/.agent-grid/worktrees/test-name"
 	req := subsystem.BindRequest{
 		FrameID: state.FrameID("f2"),
 		Plan: state.LaunchPlan{
@@ -81,7 +81,7 @@ func TestBindFrameColdStartOwnerReadoption(t *testing.T) {
 // This prevents cross-frame or cross-backend deletion of a shared worktree.
 func TestBindFrameBorrowerAdoption(t *testing.T) {
 	b := New("/repo")
-	worktreePath := "/repo/.agent-reactor/worktrees/shared-name"
+	worktreePath := "/repo/.agent-grid/worktrees/shared-name"
 	req := subsystem.BindRequest{
 		FrameID: state.FrameID("child"),
 		Plan: state.LaunchPlan{
@@ -112,7 +112,7 @@ func TestBindFrameBorrowerAdoption(t *testing.T) {
 
 func TestReleaseFrameRemovesTracking(t *testing.T) {
 	b := New("/repo")
-	worktreePath := "/repo/.agent-reactor/worktrees/some-name"
+	worktreePath := "/repo/.agent-grid/worktrees/some-name"
 	b.mu.Lock()
 	b.frames["f3"] = worktreePath
 	b.mu.Unlock()
@@ -137,10 +137,10 @@ func TestIsManagedWorktreePath(t *testing.T) {
 		path string
 		want bool
 	}{
-		{"/repo/.agent-reactor/worktrees/alpha-beta", true},
-		{"/repo/.agent-reactor/worktrees/x-y-z", true},
+		{"/repo/.agent-grid/worktrees/alpha-beta", true},
+		{"/repo/.agent-grid/worktrees/x-y-z", true},
 		{"/repo/main", false},
-		{"/repo/.agent-reactor/alpha", false},
+		{"/repo/.agent-grid/alpha", false},
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -168,7 +168,7 @@ func TestGenerateWorktreeNames(t *testing.T) {
 // releases — only when the last frame holding it releases.
 func TestReleaseFrameSharedWorktreeNotRemovedUntilLast(t *testing.T) {
 	b := New("/repo")
-	sharedPath := "/repo/.agent-reactor/worktrees/shared-tree"
+	sharedPath := "/repo/.agent-grid/worktrees/shared-tree"
 
 	// Manually register two frames pointing at the same worktree path
 	// (simulating root that created it and a child that adopted it).

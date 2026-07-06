@@ -1,4 +1,4 @@
-// reactor-bridge is the thin client binary deployed inside devcontainers.
+// bridge is the thin client binary deployed inside devcontainers.
 // It handles the container-side roles that need to reach the host client daemon:
 //
 //	event <type>          – agent hook (forwards CmdEvent / CmdHookEvent to daemon)
@@ -25,12 +25,12 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/takezoh/agent-reactor/client/event"
-	"github.com/takezoh/agent-reactor/client/lib/agenthook"
-	"github.com/takezoh/agent-reactor/platform/appid"
-	"github.com/takezoh/agent-reactor/platform/hostexec"
-	"github.com/takezoh/agent-reactor/platform/mcpproxy"
-	"github.com/takezoh/agent-reactor/platform/secretenv"
+	"github.com/takezoh/agent-grid/client/event"
+	"github.com/takezoh/agent-grid/client/lib/agenthook"
+	"github.com/takezoh/agent-grid/platform/appid"
+	"github.com/takezoh/agent-grid/platform/hostexec"
+	"github.com/takezoh/agent-grid/platform/mcpproxy"
+	"github.com/takezoh/agent-grid/platform/secretenv"
 )
 
 // hostExecSockPath is the Unix socket for the host-exec broker inside the container.
@@ -288,7 +288,7 @@ func splitPath(path string) []string {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `Usage: reactor-bridge <subcommand> [args...]
+	fmt.Fprint(os.Stderr, `Usage: bridge <subcommand> [args...]
 
 Subcommands:
   event <type>               Send an event to the client daemon
@@ -317,7 +317,7 @@ func lookupSetupHooksSpec(sub string) (agenthook.Spec, bool) {
 	return agenthook.Spec{}, false
 }
 
-// runAgentSetupHooks registers the in-container reactor-bridge as the given
+// runAgentSetupHooks registers the in-container bridge as the given
 // agent's hook handler in the container's settings.json. Wired into the
 // devcontainer postCreate by cmd/server/coordinator.go so every agent
 // process spawned inside the container immediately hits a settings.json
@@ -331,13 +331,13 @@ func lookupSetupHooksSpec(sub string) (agenthook.Spec, bool) {
 //	-settings PATH   Override the settings.json target. Default is
 //	                 $HOME/<spec.SettingsRel>.
 //	-data-dir DIR    Append `-data-dir DIR` to the hook command so a daemon
-//	                 running with a non-default ROOST_DATA_DIR is reachable.
-//	                 Inside the container ROOST_DATA_DIR resolves to the
+//	                 running with a non-default AG_DATA_DIR is reachable.
+//	                 Inside the container AG_DATA_DIR resolves to the
 //	                 bind-mounted ContainerRunDir already, so this is
 //	                 usually omitted.
 //
 // The hook command is always built against ContainerBinaryPath
-// (/opt/agent-reactor/run/reactor-bridge) — the canonical reactor-bridge
+// (/opt/agent-grid/run/bridge) — the canonical bridge
 // install path inside every devcontainer.
 //
 // HOME is read via os.UserHomeDir (passwd-aware) rather than the HOME env

@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/lib/claude/transcript"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/lib/claude/transcript"
+	"github.com/takezoh/agent-grid/client/state"
 	"github.com/takezoh/fishpath-go"
 )
 

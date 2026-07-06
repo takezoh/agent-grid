@@ -1,3 +1,3 @@
-module github.com/takezoh/agent-reactor/playground/firecracker/guest
+module github.com/takezoh/agent-grid/playground/firecracker/guest
 
 go 1.22

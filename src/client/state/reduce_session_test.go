@@ -259,8 +259,8 @@ func TestCreateSessionAllocatesAndSpawns(t *testing.T) {
 	if spawn.ReplyConn != 1 || spawn.ReplyReqID != "r" {
 		t.Error("spawn missing reply context")
 	}
-	if spawn.Env["ROOST_SESSION_ID"] != string(sess.ID) {
-		t.Errorf("env ROOST_SESSION_ID = %q", spawn.Env["ROOST_SESSION_ID"])
+	if spawn.Env["AG_SESSION_ID"] != string(sess.ID) {
+		t.Errorf("env AG_SESSION_ID = %q", spawn.Env["AG_SESSION_ID"])
 	}
 }
 
@@ -915,11 +915,11 @@ func TestPushDriverAppendsFrame(t *testing.T) {
 	if spawn.FrameID != newFrame.ID {
 		t.Errorf("spawn.FrameID = %q, want %q", spawn.FrameID, newFrame.ID)
 	}
-	if spawn.Env["ROOST_SESSION_ID"] != string(id) {
-		t.Errorf("env ROOST_SESSION_ID = %q", spawn.Env["ROOST_SESSION_ID"])
+	if spawn.Env["AG_SESSION_ID"] != string(id) {
+		t.Errorf("env AG_SESSION_ID = %q", spawn.Env["AG_SESSION_ID"])
 	}
-	if spawn.Env["ROOST_FRAME_ID"] != string(newFrame.ID) {
-		t.Errorf("env ROOST_FRAME_ID = %q", spawn.Env["ROOST_FRAME_ID"])
+	if spawn.Env["AG_FRAME_ID"] != string(newFrame.ID) {
+		t.Errorf("env AG_FRAME_ID = %q", spawn.Env["AG_FRAME_ID"])
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func newGenericState(t *testing.T, threshold time.Duration) (GenericDriver, GenericState, time.Time) {
@@ -54,7 +54,7 @@ func TestGenericPersistRoundTrip(t *testing.T) {
 	s.Status = state.StatusWaiting
 	s.StatusChangedAt = now
 	s.Summary = "summary text"
-	s.StartDir = "/repo/.agent-reactor/worktrees/alpha-beta"
+	s.StartDir = "/repo/.agent-grid/worktrees/alpha-beta"
 	s.WorktreeName = "alpha-beta"
 	bag := d.Persist(s)
 	if bag[keyStatus] != "waiting" {
@@ -66,7 +66,7 @@ func TestGenericPersistRoundTrip(t *testing.T) {
 	if bag[keySummary] != "summary text" {
 		t.Errorf("persisted summary = %q, want summary text", bag[keySummary])
 	}
-	if bag[keyStartDir] != "/repo/.agent-reactor/worktrees/alpha-beta" {
+	if bag[keyStartDir] != "/repo/.agent-grid/worktrees/alpha-beta" {
 		t.Errorf("persisted working dir = %q", bag[keyStartDir])
 	}
 	restored := d.Restore(bag, time.Now()).(GenericState)
@@ -79,7 +79,7 @@ func TestGenericPersistRoundTrip(t *testing.T) {
 	if restored.Summary != "summary text" {
 		t.Errorf("restored summary = %q, want summary text", restored.Summary)
 	}
-	if restored.StartDir != "/repo/.agent-reactor/worktrees/alpha-beta" || restored.WorktreeName != "alpha-beta" {
+	if restored.StartDir != "/repo/.agent-grid/worktrees/alpha-beta" || restored.WorktreeName != "alpha-beta" {
 		t.Errorf("restored worktree fields = %+v", restored)
 	}
 }
@@ -493,12 +493,12 @@ func TestGenericPrepareLaunchInheritedPlainStartDir(t *testing.T) {
 // is handled by BindFrame (IsManagedWorktreePath), not PrepareLaunch.
 func TestGenericPrepareLaunchManagedWorktreePathNoForcedEnable(t *testing.T) {
 	d, s, _ := newGenericState(t, 0)
-	s.StartDir = "/repo/.agent-reactor/worktrees/test-name"
+	s.StartDir = "/repo/.agent-grid/worktrees/test-name"
 	plan, err := d.PrepareLaunch(s, state.LaunchModeColdStart, "/repo", "bash", state.LaunchOptions{}, false)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
-	if plan.StartDir != "/repo/.agent-reactor/worktrees/test-name" {
+	if plan.StartDir != "/repo/.agent-grid/worktrees/test-name" {
 		t.Errorf("StartDir = %q, want managed worktree path", plan.StartDir)
 	}
 	if plan.Options.Worktree.Enabled {

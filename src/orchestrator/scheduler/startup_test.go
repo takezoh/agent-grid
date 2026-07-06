@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	ptrackerv "github.com/takezoh/agent-reactor/platform/tracker"
+	ptrackerv "github.com/takezoh/agent-grid/platform/tracker"
 )
 
 func newStartupScheduler(tr schedulerTrackerAPI, ws schedulerWorkspaceAPI) *Scheduler {

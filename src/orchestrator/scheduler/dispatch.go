@@ -3,7 +3,7 @@ package scheduler
 import (
 	"context"
 
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // CandidateSource abstracts the tracker poll for testability.

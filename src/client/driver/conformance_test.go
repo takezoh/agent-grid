@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/driver/drivertest"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/driver/drivertest"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func TestDriverRegistryConformanceCoversBuiltins(t *testing.T) {

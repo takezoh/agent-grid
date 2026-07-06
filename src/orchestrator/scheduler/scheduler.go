@@ -7,11 +7,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/metrics"
-	ptrackerv "github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/platform/metrics"
+	ptrackerv "github.com/takezoh/agent-grid/platform/tracker"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
-	"github.com/takezoh/agent-reactor/orchestrator/workflowfile"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/workflowfile"
 )
 
 // schedulerTrackerAPI is the tracker surface used by reconcile, revalidation, and startup cleanup.

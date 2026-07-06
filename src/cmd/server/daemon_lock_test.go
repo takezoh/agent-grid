@@ -11,7 +11,7 @@ import (
 // TestAcquireDaemonLock_RefusesSecond reproduces the multi-daemon bug:
 // two coordinators against the same data dir must not both start. The
 // first acquirer holds an exclusive lock; the second must fail rather
-// than proceed (which is what let two daemons fight over ~/.agent-reactor/sessions).
+// than proceed (which is what let two daemons fight over ~/.agent-grid/sessions).
 func TestAcquireDaemonLock_RefusesSecond(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "server.pid")
 

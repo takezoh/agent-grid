@@ -7,12 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/lineargql"
-	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	schemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
-	"github.com/takezoh/agent-reactor/platform/metrics"
+	"github.com/takezoh/agent-grid/orchestrator/lineargql"
+	"github.com/takezoh/agent-grid/orchestrator/scheduler"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	schemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
+	"github.com/takezoh/agent-grid/platform/metrics"
 )
 
 type sessionIDs struct {

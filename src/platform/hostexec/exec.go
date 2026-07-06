@@ -12,7 +12,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/platform/config"
 	"golang.org/x/term"
 )
 

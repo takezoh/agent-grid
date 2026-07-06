@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/lib/systemdnotify"
-	"github.com/takezoh/agent-reactor/platform/lib/tlsdev"
-	serverweb "github.com/takezoh/agent-reactor/server/web"
+	"github.com/takezoh/agent-grid/platform/lib/systemdnotify"
+	"github.com/takezoh/agent-grid/platform/lib/tlsdev"
+	serverweb "github.com/takezoh/agent-grid/server/web"
 )
 
 // shutdownGracePeriod bounds the time gateway.Shutdown waits for in-flight

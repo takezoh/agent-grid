@@ -132,7 +132,7 @@ func formatGenericSummaryPrompt(prev, command, workingDir, content string) strin
 	b.WriteString("the <working_directory> tag (where it is running), ")
 	b.WriteString("and the <terminal_output> tag (what is currently visible on screen). ")
 	b.WriteString("Combine them into a task-oriented summary of the activity in progress — ")
-	b.WriteString("for example \"reviewing git log in the agent-reactor repo\" or \"running make build, tests in progress\" — ")
+	b.WriteString("for example \"reviewing git log in the agent-grid repo\" or \"running make build, tests in progress\" — ")
 	b.WriteString("not a verbatim quote of the screen. ")
 	b.WriteString("Return only the body text, no headings, decoration, preamble, or quotes.\n\n")
 	if prev != "" {

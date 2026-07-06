@@ -43,7 +43,7 @@ The repo's canonical build/test/rules summary lives in [AGENTS.md](../../AGENTS.
 All three layers and their import boundaries are defined in [ARCHITECTURE.md](../../ARCHITECTURE.md). Before adding code, know which layer you are in:
 
 - `platform/` — shared infrastructure; must not import `client/` or `orchestrator/`
-- `client/` — agent-reactor's client; must not import `orchestrator/`
+- `client/` — agent-grid's client; must not import `orchestrator/`
 - `orchestrator/` — Symphony pipeline; must not import `client/`
 
 Layer internals: [platform/](../component/component-20260624-platform-overview.md) · [client/](../component/component-20260624-client-overview.md) · [orchestrator/](../component/component-20260624-orchestrator-overview.md).

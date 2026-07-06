@@ -1,4 +1,4 @@
-# agent-reactor server — merged pty session daemon + HTTP/WS gateway in one
+# agent-grid server — merged pty session daemon + HTTP/WS gateway in one
 # process. Owns sessions, sockets, and on-disk state under -data-dir.
 # Restarting this unit drops every attached browser tab; sessions are
 # recreated from disk on the next boot.
@@ -9,22 +9,22 @@
 # -no-auth is explicitly added to ExecStart (loopback-only guard still applies).
 
 [Unit]
-Description=agent-reactor server (session daemon + HTTP/WS gateway)
-# Operator guide: docs/note/note-20260624-user-systemd.md in the agent-reactor source repo.
+Description=agent-grid server (session daemon + HTTP/WS gateway)
+# Operator guide: docs/note/note-20260624-user-systemd.md in the agent-grid source repo.
 
 [Service]
 Type=notify
 NotifyAccess=main
-StateDirectory=agent-reactor
+StateDirectory=agent-grid
 # -data-dir tells the server where to write its socket, pid file, sessions
 # snapshot and logs. -token-file persists a bearer token across restarts so
 # bookmarked browser URLs survive a unit reload.
-ExecStart=%h/.local/bin/agent-reactor-server \
+ExecStart=%h/.local/bin/agent-grid-server \
   -addr 127.0.0.1:8443 -insecure \
-  -data-dir %S/agent-reactor \
-  -token-file %S/agent-reactor/server.token
+  -data-dir %S/agent-grid \
+  -token-file %S/agent-grid/server.token
 # Operator override file (TLS, alternate addr, etc.). Leading `-` tolerates absence.
-EnvironmentFile=-%S/agent-reactor/server.env
+EnvironmentFile=-%S/agent-grid/server.env
 
 Restart=on-failure
 RestartSec=2s

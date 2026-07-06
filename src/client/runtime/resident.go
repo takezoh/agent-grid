@@ -3,7 +3,7 @@ package runtime
 import (
 	"errors"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // resident.go holds the small grab-bag of frame helpers: frame-missing

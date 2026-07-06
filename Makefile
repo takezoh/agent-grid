@@ -1,19 +1,19 @@
-BRIDGE           := reactor-bridge
+BRIDGE           := bridge
 ORCHESTRATOR     := orchestrator
 CLAUDE_APP_SERVER := claude-app-server
 SERVER           := server
 WEB              := web
 SRC_DIR     := src
 INSTALL_DIR    := $(HOME)/.local/bin
-LIBEXEC_DIR    := $(HOME)/.local/lib/agent-reactor
+LIBEXEC_DIR    := $(HOME)/.local/lib/agent-grid
 SYSTEMD_USER_DIR := $(HOME)/.config/systemd/user
 
 # install-systemd renames the production binaries to their server/web roles so
 # the systemd unit file ExecStart= lines and `journalctl --user -u
-# agent-reactor-…` namespacing read in service vocabulary rather than the
+# agent-grid-…` namespacing read in service vocabulary rather than the
 # generic binary name. The binaries themselves are unchanged.
-SERVER_BIN  := agent-reactor-server
-WEB_BIN     := agent-reactor-web
+SERVER_BIN  := agent-grid-server
+WEB_BIN     := agent-grid-web
 
 CODEX_SCHEMA_DIR := $(SRC_DIR)/platform/agent/codexschema
 CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
@@ -27,7 +27,7 @@ CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 # build builds the main backend (cmd/server) — the merged daemon + HTTP/WS
 # gateway — plus the in-container helper binary.
 build: build-server
-	cd $(SRC_DIR) && go build -o ../$(BRIDGE) ./cmd/reactor-bridge
+	cd $(SRC_DIR) && go build -o ../$(BRIDGE) ./cmd/bridge
 
 build-orchestrator:
 	cd $(SRC_DIR) && go build -o ../$(ORCHESTRATOR) ./cmd/orchestrator
@@ -83,22 +83,22 @@ install: build
 
 # install-systemd composes install-server (server + bridge binaries) and
 # install-web (web binary) into the user-scope locations consumed by
-# deploy/systemd/agent-reactor-{server,web}.service, then copies those unit
+# deploy/systemd/agent-grid-{server,web}.service, then copies those unit
 # files into ~/.config/systemd/user/. Binaries are renamed to their service
-# role on disk (agent-reactor-server / agent-reactor-web) so unit-file
+# role on disk (agent-grid-server / agent-grid-web) so unit-file
 # ExecStart= lines and journald output stay in server/web vocabulary.
 #
 # After `make install-systemd`, run `systemctl --user daemon-reload && \
-# systemctl --user enable --now agent-reactor-web.service` to start the stack;
+# systemctl --user enable --now agent-grid-web.service` to start the stack;
 # see docs/note/note-20260624-user-systemd.md for the full procedure.
 install-systemd: install-server install-web
 	install -d $(SYSTEMD_USER_DIR)
-	install -m 644 deploy/systemd/agent-reactor-server.service  $(SYSTEMD_USER_DIR)/
-	install -m 644 deploy/systemd/agent-reactor-web.service     $(SYSTEMD_USER_DIR)/
+	install -m 644 deploy/systemd/agent-grid-server.service  $(SYSTEMD_USER_DIR)/
+	install -m 644 deploy/systemd/agent-grid-web.service     $(SYSTEMD_USER_DIR)/
 	systemctl --user daemon-reload
 	@echo
 	@echo "Installed. Next:"
-	@echo "  systemctl --user enable --now agent-reactor-web.service"
+	@echo "  systemctl --user enable --now agent-grid-web.service"
 	@echo "  loginctl enable-linger $$USER   # boot-time autostart"
 	@echo "See docs/note/note-20260624-user-systemd.md for the full guide."
 
@@ -108,7 +108,7 @@ install-web: build-web
 	install -d $(INSTALL_DIR)
 	install -m 755 $(WEB) $(INSTALL_DIR)/$(WEB_BIN)
 
-# install-server builds and installs the server binary + reactor-bridge only
+# install-server builds and installs the server binary + bridge only
 # (no unit files, no web binary). Use after backend-only changes when the web
 # binary is already up to date.
 install-server: build
@@ -121,10 +121,10 @@ install-server: build
 # or a drop-in changed since the last start.
 update-web: install-web
 	systemctl --user daemon-reload
-	systemctl --user restart agent-reactor-web.service
+	systemctl --user restart agent-grid-web.service
 
-# update-server installs the server binary + reactor-bridge and restarts the
-# server unit. agent-reactor-web is BindsTo= server, so it cascades down with
+# update-server installs the server binary + bridge and restarts the
+# server unit. agent-grid-web is BindsTo= server, so it cascades down with
 # server's stop and back up after server's start — no need to restart it
 # separately. WARNING: this drops every attached browser tab and kills every
 # in-container session (their docker exec child of server is reaped); the
@@ -132,7 +132,7 @@ update-web: install-web
 # processes inside containers do not survive.
 update-server: install-server
 	systemctl --user daemon-reload
-	systemctl --user restart agent-reactor-server.service
+	systemctl --user restart agent-grid-server.service
 
 test:
 	cd $(SRC_DIR) && go test ./...
@@ -154,8 +154,8 @@ lint:
 
 # Opt-in fidelity backstop: real-CLI e2e for the fakes.
 #
-# Configure via REACTOR_E2E_CODEX_BIN / REACTOR_E2E_CLAUDE_BIN /
-# REACTOR_E2E_APPSERVER_BIN; each subtest skips when its binary is not set,
+# Configure via AG_E2E_CODEX_BIN / AG_E2E_CLAUDE_BIN /
+# AG_E2E_APPSERVER_BIN; each subtest skips when its binary is not set,
 # so partial configurations are fine. Every fake in this list is validated
 # against the wire form of a real CLI — see:
 #
@@ -172,8 +172,8 @@ test-e2e:
 		./platform/sandbox/devcontainer/...
 
 verify-bridge-deps:
-	@echo "Checking that reactor-bridge does not import client/state, client/uiproc, or platform/features..."
-	@cd $(SRC_DIR) && go list -deps ./cmd/reactor-bridge | grep -E 'takezoh/agent-reactor/(client/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
+	@echo "Checking that bridge does not import client/state, client/uiproc, or platform/features..."
+	@cd $(SRC_DIR) && go list -deps ./cmd/bridge | grep -E 'takezoh/agent-grid/(client/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
 
 clean:
 	rm -f $(SERVER) $(WEB) $(BRIDGE) $(ORCHESTRATOR) $(CLAUDE_APP_SERVER)

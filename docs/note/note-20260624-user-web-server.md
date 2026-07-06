@@ -59,7 +59,7 @@ make run-dev
 ```
 
 The scratch data dir means `make run-dev` never collides with the user's
-production `server` backend (`~/.agent-reactor/`); the two can run side by
+production `server` backend (`~/.agent-grid/`); the two can run side by
 side. Overrides: `BACKEND_ADDR`, `WEB_ADDR`, `SERVER_DATA_DIR` (custom
 isolated dir), `CLEAN_DATA_DIR=1` (wipe the scratch dir on exit).
 
@@ -72,8 +72,8 @@ make build-server build-web      # → ./server ./web
 # one process under -data-dir. SIGTERM tears down both. Pick any writable
 # path; the example uses an XDG-style cache dir so the command works for
 # non-root users out of the box.
-./server -addr :8443 -data-dir "$HOME/.cache/agent-reactor-web"
-#   → "agent-reactor backend on https://:8443  sock=…/server.sock"
+./server -addr :8443 -data-dir "$HOME/.cache/agent-grid-web"
+#   → "agent-grid backend on https://:8443  sock=…/server.sock"
 
 # Web-client host, pointed at the backend:
 ./web -addr :8080 -server https://127.0.0.1:8443
@@ -83,7 +83,7 @@ The backend always owns its socket — there is no "attach mode" because the
 gateway is in-process. The socket path is derived from `-data-dir`
 (`<data-dir>/server.sock`); two backends with distinct `-data-dir` values
 run independently, which is what `make run-dev` relies on to stay isolated
-from a user-scope `~/.agent-reactor/` install.
+from a user-scope `~/.agent-grid/` install.
 
 Open `http://<web-host>:8080/#token=<token>` in a browser. The token goes in the
 URL **fragment** (`#…`), not the query string, so it is never sent to a server,

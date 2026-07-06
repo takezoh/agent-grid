@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/socketpath"
+	"github.com/takezoh/agent-grid/platform/socketpath"
 )
 
 func TestResolveDaemonSocket_FlagPriority(t *testing.T) {
@@ -30,7 +30,7 @@ func TestResolveDaemonSocket_HomeFallback(t *testing.T) {
 	t.Setenv("HOME", tmp)
 	t.Setenv("ARC_SOCK", "") // ensure env path is not taken
 	got := socketpath.ResolveDaemonSocket("", "ARC_SOCK", "server.sock")
-	want := filepath.Join(tmp, ".agent-reactor", "server.sock")
+	want := filepath.Join(tmp, ".agent-grid", "server.sock")
 	if got != want {
 		t.Errorf("expected %s, got %s", want, got)
 	}

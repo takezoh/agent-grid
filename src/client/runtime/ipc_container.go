@@ -9,10 +9,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/client/runtime/framereg"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/pathmap"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/runtime/framereg"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/pathmap"
 )
 
 const (
@@ -22,10 +22,10 @@ const (
 )
 
 // containerEndpoint listens on the per-project Unix socket that is
-// bind-mounted into the devcontainer at /opt/agent-reactor/run/server.sock.
+// bind-mounted into the devcontainer at /opt/agent-grid/run/server.sock.
 // It accepts hook-event and subsystem-event commands.
 //
-// Authentication is via a bearer token (ROOST_SOCKET_TOKEN) carried
+// Authentication is via a bearer token (AG_SOCKET_TOKEN) carried
 // in each CmdHookEvent. A valid token resolves to the FrameID of the
 // spawning frame, which becomes the event SenderID.
 type containerEndpoint struct {

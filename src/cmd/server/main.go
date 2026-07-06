@@ -1,9 +1,9 @@
-// Command server is the agent-reactor backend: one binary, one resident
+// Command server is the agent-grid backend: one binary, one resident
 // process, that owns both the pty session daemon (typed proto IPC over a
 // Unix socket under -data-dir) and the HTTP/WS gateway translating browser
 // REST/WS traffic into in-process daemon calls.
 //
-// Runtime files under -data-dir (default ~/.agent-reactor) follow the
+// Runtime files under -data-dir (default ~/.agent-grid) follow the
 // `server.*` naming defined in platform/appid: server.sock, server.pid,
 // server.log.
 //
@@ -54,11 +54,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/config"
-	"github.com/takezoh/agent-reactor/client/event"
-	"github.com/takezoh/agent-reactor/client/procio"
-	"github.com/takezoh/agent-reactor/platform/appid"
-	"github.com/takezoh/agent-reactor/platform/logger"
+	"github.com/takezoh/agent-grid/client/config"
+	"github.com/takezoh/agent-grid/client/event"
+	"github.com/takezoh/agent-grid/client/procio"
+	"github.com/takezoh/agent-grid/platform/appid"
+	"github.com/takezoh/agent-grid/platform/logger"
 )
 
 var (
@@ -80,9 +80,9 @@ func runMain(args []string, stdout, stderr io.Writer) (code int) {
 
 	// Resolve the daemon flag set once at the top so EVERY downstream call to
 	// config.ResolveDataDir() returns the flag-specified path. We export
-	// ROOST_DATA_DIR (the highest-precedence branch inside ResolveDataDir) so
+	// AG_DATA_DIR (the highest-precedence branch inside ResolveDataDir) so
 	// the flag wins over a stale shell env (systemd --user inherits the user's
-	// env, so `export ROOST_DATA_DIR=…` in a developer's rc would otherwise
+	// env, so `export AG_DATA_DIR=…` in a developer's rc would otherwise
 	// silently override the unit's explicit ExecStart= -data-dir).
 	//
 	// Parse runs regardless of cfgErr / cfg==nil so a malformed settings.toml
@@ -96,7 +96,7 @@ func runMain(args []string, stdout, stderr io.Writer) (code int) {
 		}
 		dFlags = parsed
 		if parsed.dataDir != "" {
-			_ = os.Setenv("ROOST_DATA_DIR", parsed.dataDir)
+			_ = os.Setenv("AG_DATA_DIR", parsed.dataDir)
 			if cfg != nil {
 				cfg.DataDir = parsed.dataDir
 			}
@@ -220,7 +220,7 @@ func isHelpCommand(arg string) bool {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintf(w, "%s - agent-reactor backend (daemon + HTTP/WS gateway)\n", appid.ClientBin)
+	fmt.Fprintf(w, "%s - agent-grid backend (daemon + HTTP/WS gateway)\n", appid.ClientBin)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintf(w, "  %s                              Run the daemon and HTTP/WS gateway\n", appid.ClientBin)

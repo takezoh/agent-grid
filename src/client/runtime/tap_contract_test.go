@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/driver/vt"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/driver/vt"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func TestPtyTapContract_RoutesOscAndPromptPerFrame(t *testing.T) {

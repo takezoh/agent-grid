@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/tracker/linear"
+	"github.com/takezoh/agent-grid/platform/tracker/linear"
 )
 
 // TestSPEC_17_8_RealLinearFetchCandidates is the §17.8 Real Integration Profile.

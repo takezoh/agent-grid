@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/client/runtime/framereg"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/pathmap"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/runtime/framereg"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/pathmap"
 )
 
 func sendRawCommand(t *testing.T, sockPath string, cmd proto.Command) (proto.Envelope, error) {

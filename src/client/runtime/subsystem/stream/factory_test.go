@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func TestFactoryMakeIDIsSessionKeyed(t *testing.T) {
@@ -105,7 +105,7 @@ func TestFactory_RemoveStopsAndDeletesBackend(t *testing.T) {
 func TestBackend_BindThreadRegistersMultipleFrameBindings(t *testing.T) {
 	b := New(nil, nil, "stream:session:sess1", "sess1", "/workspace/agent-roost",
 		"codex", nil, "", "", false, false,
-		"/opt/agent-reactor/run/codex.sock",
+		"/opt/agent-grid/run/codex.sock",
 		0,
 	)
 

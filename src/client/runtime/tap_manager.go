@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/driver/vt"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/driver/vt"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // EventSink is the enqueue seam used by tap goroutines and test harnesses.

@@ -145,7 +145,7 @@ Do not clone fixtures into new tests — import them.
   depguard `platform-no-client-or-orchestrator`.
 - Consumers may live in any layer.
 - The e2e tests under this package are `//go:build e2e`; skipped when
-  `REACTOR_E2E_CLAUDE_BIN` is unset. Hook e2e lives under
+  `AG_E2E_CLAUDE_BIN` is unset. Hook e2e lives under
   `client/lib/agenthook/` because it imports `agenthook`.
 
 ## Recording refresh
@@ -155,7 +155,7 @@ recordings before updating `lines.go`:
 
 ```sh
 cd src
-REACTOR_E2E_CLAUDE_BIN=claude go test -tags e2e ./platform/lib/claude/fakeclaude -run 'Recorded.*Fixture' -record
+AG_E2E_CLAUDE_BIN=claude go test -tags e2e ./platform/lib/claude/fakeclaude -run 'Recorded.*Fixture' -record
 go test ./platform/lib/claude/fakeclaude
 ```
 

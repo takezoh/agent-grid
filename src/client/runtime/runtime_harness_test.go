@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/runtime/runtimetest"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/shellalias"
+	"github.com/takezoh/agent-grid/client/runtime/runtimetest"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/shellalias"
 )
 
 type blockingBackend struct {

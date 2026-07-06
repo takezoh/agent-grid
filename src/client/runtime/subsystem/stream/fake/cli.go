@@ -20,7 +20,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
 )
 
 // CLIArgs configures a FakeCLI invocation.

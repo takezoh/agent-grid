@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // reduceRetryResolved acts on the candidate list fetched after a retry timer fired (SPEC §8.4).

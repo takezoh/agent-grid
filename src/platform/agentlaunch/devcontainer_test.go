@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/config"
-	"github.com/takezoh/agent-reactor/platform/sandbox"
-	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-grid/platform/config"
+	"github.com/takezoh/agent-grid/platform/sandbox"
+	sandboxdc "github.com/takezoh/agent-grid/platform/sandbox/devcontainer"
 	"github.com/takezoh/credproxy/container"
 )
 
@@ -119,7 +119,7 @@ func TestBuildMounts_OmitsRunDirWhenEmpty(t *testing.T) {
 }
 
 func TestBuildPostCreate_MultipleSubcmds(t *testing.T) {
-	bin := "/opt/agent-reactor/run/reactor-bridge"
+	bin := "/opt/agent-grid/run/bridge"
 	subcmds := []string{"setup claude", "setup codex", "setup gemini"}
 	got := buildPostCreate(bin, subcmds, nil)
 	if len(got) != 3 || got[0] != "bash" || got[1] != "-lc" {
@@ -136,7 +136,7 @@ func TestBuildPostCreate_MultipleSubcmds(t *testing.T) {
 }
 
 func TestBuildPostCreate_EmptySubcmds(t *testing.T) {
-	got := buildPostCreate("/opt/agent-reactor/run/reactor-bridge", nil, nil)
+	got := buildPostCreate("/opt/agent-grid/run/bridge", nil, nil)
 	if got != nil {
 		t.Errorf("expected nil for empty input, got %v", got)
 	}
@@ -144,11 +144,11 @@ func TestBuildPostCreate_EmptySubcmds(t *testing.T) {
 
 func TestBuildOverlayEnv_ContainerPaths(t *testing.T) {
 	env := buildOverlayEnv(nil, container.Spec{})
-	if got := env["ROOST_SOCKET"]; got != ContainerSockFilePath {
-		t.Errorf("ROOST_SOCKET = %q, want %q", got, ContainerSockFilePath)
+	if got := env["AG_SOCKET"]; got != ContainerSockFilePath {
+		t.Errorf("AG_SOCKET = %q, want %q", got, ContainerSockFilePath)
 	}
-	if got := env["ROOST_DATA_DIR"]; got != ContainerRunDir {
-		t.Errorf("ROOST_DATA_DIR = %q, want %q", got, ContainerRunDir)
+	if got := env["AG_DATA_DIR"]; got != ContainerRunDir {
+		t.Errorf("AG_DATA_DIR = %q, want %q", got, ContainerRunDir)
 	}
 }
 
@@ -230,7 +230,7 @@ func TestSharedWorkspaceBindMounts_ProjectMode_ReturnsNothing(t *testing.T) {
 // runBase/container.ProjectRunHash(OverlayProject); the overlay bind-mounts
 // ProjectRunDir(runBase, ContainerKey) to ContainerRunDir. For the shared
 // container these MUST resolve to the same host directory, or the proxy
-// sockets never appear under /opt/agent-reactor/run and gh/ssh fail. IsolationPlan
+// sockets never appear under /opt/agent-grid/run and gh/ssh fail. IsolationPlan
 // defines OverlayProject as ContainerKey, so the two can no longer diverge;
 // this guards a future refactor that re-splits them.
 func TestSharedOverlay_ProxyDirMatchesRunDir(t *testing.T) {
@@ -378,7 +378,7 @@ func stubHelperBinaries(t *testing.T) {
 		t.Skipf("os.Executable: %v", err)
 	}
 	dir := filepath.Dir(exe)
-	for _, name := range []string{"reactor-bridge"} {
+	for _, name := range []string{"bridge"} {
 		p := filepath.Join(dir, name)
 		if _, err := os.Stat(p); err == nil {
 			continue
@@ -427,10 +427,10 @@ func TestResolveFrameContext_SharedMode_DropsProject(t *testing.T) {
 
 func TestFrameScopeEnv_DropsContainerScopeAndPlaceholders(t *testing.T) {
 	in := map[string]string{
-		"PATH":               "/opt/agent-reactor/run/hostexec-shims:$PATH",
-		"ROOST_SOCKET":       "/opt/agent-reactor/run/server.sock",
-		"ROOST_DATA_DIR":     "/opt/agent-reactor/run",
-		"SSH_AUTH_SOCK":      "/opt/agent-reactor/run/agent.sock",
+		"PATH":               "/opt/agent-grid/run/hostexec-shims:$PATH",
+		"AG_SOCKET":          "/opt/agent-grid/run/server.sock",
+		"AG_DATA_DIR":        "/opt/agent-grid/run",
+		"SSH_AUTH_SOCK":      "/opt/agent-grid/run/agent.sock",
 		"AWS_PROFILE":        "prod",
 		"GCP_PROJECT":        "my-proj",
 		"NESTED_PLACEHOLDER": "${SOME_OTHER}/bin:/usr/bin",
@@ -443,7 +443,7 @@ func TestFrameScopeEnv_DropsContainerScopeAndPlaceholders(t *testing.T) {
 			t.Errorf("expected %s to pass through frameScopeEnv, got %v", k, out)
 		}
 	}
-	mustDrop := []string{"PATH", "ROOST_SOCKET", "ROOST_DATA_DIR", "SSH_AUTH_SOCK", "NESTED_PLACEHOLDER"}
+	mustDrop := []string{"PATH", "AG_SOCKET", "AG_DATA_DIR", "SSH_AUTH_SOCK", "NESTED_PLACEHOLDER"}
 	for _, k := range mustDrop {
 		if _, ok := out[k]; ok {
 			t.Errorf("expected %s to be dropped by frameScopeEnv, got %v", k, out)

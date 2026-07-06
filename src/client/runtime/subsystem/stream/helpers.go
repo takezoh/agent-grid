@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
+	"github.com/takezoh/agent-grid/client/state"
+	codexschemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
 )
 
 type subsystemEmission struct {

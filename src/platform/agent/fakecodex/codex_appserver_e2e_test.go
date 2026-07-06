@@ -10,7 +10,7 @@
 // file validates the stdio transport, which orchestrator/agent uses directly.
 //
 // Skipped in normal builds by the `e2e` tag. Skipped at runtime unless
-// REACTOR_E2E_CODEX_BIN points at an executable.
+// AG_E2E_CODEX_BIN points at an executable.
 
 package fakecodex
 
@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	"github.com/takezoh/agent-reactor/platform/e2etest"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/e2etest"
 )
 
 func realAppServerExtra(extra ...string) []string {
@@ -40,12 +40,12 @@ func realAppServerExtra(extra ...string) []string {
 // e2eCodexBin returns the codex binary path, or skips the test.
 func e2eCodexBin(t *testing.T) string {
 	t.Helper()
-	bin := os.Getenv("REACTOR_E2E_CODEX_BIN")
+	bin := os.Getenv("AG_E2E_CODEX_BIN")
 	if bin == "" {
-		t.Skip("REACTOR_E2E_CODEX_BIN is not set — skipping real-codex e2e")
+		t.Skip("AG_E2E_CODEX_BIN is not set — skipping real-codex e2e")
 	}
 	if _, err := exec.LookPath(bin); err != nil {
-		t.Skipf("REACTOR_E2E_CODEX_BIN=%q is not executable: %v", bin, err)
+		t.Skipf("AG_E2E_CODEX_BIN=%q is not executable: %v", bin, err)
 	}
 	return bin
 }

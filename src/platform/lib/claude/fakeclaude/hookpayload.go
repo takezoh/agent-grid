@@ -3,7 +3,7 @@ package fakeclaude
 import (
 	"encoding/json"
 
-	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
+	claudehookpayload "github.com/takezoh/agent-grid/platform/lib/claude/hookpayload"
 )
 
 // HookPayload is Claude's hook stdin payload schema shared with the

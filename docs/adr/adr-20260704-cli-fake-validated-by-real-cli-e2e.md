@@ -90,7 +90,7 @@ Extend ADR 0002's principle to both remaining surfaces:
      methods, (c) the fake's method set is a subset of the real one.
 
 3. **Gate every e2e file with `//go:build e2e` and skip unless
-   `REACTOR_E2E_CLAUDE_BIN` / `REACTOR_E2E_CODEX_BIN` is set** (routing
+   `AG_E2E_CLAUDE_BIN` / `AG_E2E_CODEX_BIN` is set** (routing
    `_e2e_test.go` pattern). CI runs `go vet -tags e2e ./...` only; execution is
    local / opt-in to keep API-key spend off the CI path.
 

@@ -3,7 +3,7 @@ package driver
 import (
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // handleStatusLineClick fires when the user clicks a named region in the

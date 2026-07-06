@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/config"
 )
 
 // fakeDispatcher records calls for assertion in tests.

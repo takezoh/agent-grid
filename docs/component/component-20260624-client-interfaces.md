@@ -305,14 +305,14 @@ On cold start, the bootstrap walks each session's frames in root-to-tail order a
 
 | Path | Format | Contents | Lifecycle |
 |------|--------|----------|-----------|
-| `~/.agent-reactor/config.toml` | TOML | User settings (see below) | Created by user. Falls back to default values if absent |
-| `~/.agent-reactor/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, `subsystem_id`, `target_id`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / hook / subsystem event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
-| `~/.agent-reactor/events/{frameID}.log` | Text | Per-frame agent hook event log | Appended via `EffEventLogAppend`. The runtime's EventLogBackend manages file handles with lazy-open |
-| `~/.agent-reactor/server.log` | slog | Application log | Created/appended at daemon startup |
-| `~/.agent-reactor/server.sock` | Unix socket | Host IPC endpoint (SO_PEERCRED auth) — co-resident HTTP/WS gateway, `server event/host-exec/mcp-exec` subcommands | Created at daemon startup. Deleted on exit |
-| `~/.agent-reactor/run/<project-hash>/server.sock` | Unix socket | Container IPC endpoint (bearer-token auth) — sandboxed agents only; implements `hook-event` and `subsystem-event` | Started on first container spawn for a project. Bind-mounted into the container as `/opt/agent-reactor/run/server.sock` |
-| `~/.agent-reactor/run/credproxy.sock` | Unix socket | Credential proxy endpoint (single instance per daemon; bearer token per project) | Listens whenever sandbox mode is `devcontainer`. Bind-mounted per project into the container as `/opt/agent-reactor/run/credproxy.sock` |
-| `~/.agent-reactor/warm/<frameID>.json` | JSON | Per-frame container bearer token (atomic, `0o600`) | Written when a sandboxed frame is launched; replayed by `RecoverSandboxFrames` on warm restart. Wiped at cold start |
+| `~/.agent-grid/config.toml` | TOML | User settings (see below) | Created by user. Falls back to default values if absent |
+| `~/.agent-grid/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, `subsystem_id`, `target_id`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / hook / subsystem event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
+| `~/.agent-grid/events/{frameID}.log` | Text | Per-frame agent hook event log | Appended via `EffEventLogAppend`. The runtime's EventLogBackend manages file handles with lazy-open |
+| `~/.agent-grid/server.log` | slog | Application log | Created/appended at daemon startup |
+| `~/.agent-grid/server.sock` | Unix socket | Host IPC endpoint (SO_PEERCRED auth) — co-resident HTTP/WS gateway, `server event/host-exec/mcp-exec` subcommands | Created at daemon startup. Deleted on exit |
+| `~/.agent-grid/run/<project-hash>/server.sock` | Unix socket | Container IPC endpoint (bearer-token auth) — sandboxed agents only; implements `hook-event` and `subsystem-event` | Started on first container spawn for a project. Bind-mounted into the container as `/opt/agent-grid/run/server.sock` |
+| `~/.agent-grid/run/credproxy.sock` | Unix socket | Credential proxy endpoint (single instance per daemon; bearer token per project) | Listens whenever sandbox mode is `devcontainer`. Bind-mounted per project into the container as `/opt/agent-grid/run/credproxy.sock` |
+| `~/.agent-grid/warm/<frameID>.json` | JSON | Per-frame container bearer token (atomic, `0o600`) | Written when a sandboxed frame is launched; replayed by `RecoverSandboxFrames` on warm restart. Wiped at cold start |
 
 Base path can be changed via `Config.DataDir` (set to TempDir during tests).
 
@@ -344,7 +344,7 @@ src/
 │   └── mcpexec.go          `server mcp-exec` shim (in-container glue)
 ├── cmd/web/             Web frontend host binary — serves embedded client/web/dist
 │                        and reverse-proxies /api + /ws to the server gateway
-├── cmd/reactor-bridge/  Bridge binary (thin container-side client; uses client/proto)
+├── cmd/bridge/  Bridge binary (thin container-side client; uses client/proto)
 ├── cmd/claude-app-server/  Codex app-server stdio shim for Claude
 ├── client/event/
 │   └── event.go         Event sender (writes proto.CmdEvent over the host socket)
@@ -397,7 +397,7 @@ src/
 │   ├── notify.go        Notification rule data structures
 │   ├── clone.go         Copy-on-write helpers for State
 │   └── view/            Wire-safe view types (stdlib-only; no state import; safe
-│       │                for proto and reactor-bridge)
+│       │                for proto and bridge)
 │       ├── status.go    Status enum + StatusInfo — canonical definition
 │       │                (Running/Waiting/Idle/Stopped/Pending)
 │       └── view.go      View / Card / Tag / LogTab / TabKind / InfoLine
@@ -443,7 +443,7 @@ src/
 │   ├── warm_state.go    Persists / replays container tokens across daemon
 │   │                    warm-restart (`<dataDir>/warm/`)
 │   ├── rundir.go        Per-project run directory (host-side dir bind-mounted as
-│   │                    `/opt/agent-reactor/run`)
+│   │                    `/opt/agent-grid/run`)
 │   ├── launcher.go      AgentLauncher interface + DirectLauncher + WrappedLaunch +
 │   │                    container-token wrap
 │   ├── notifier.go      Notification dispatch wiring (driven by EffRecordNotification)
@@ -491,7 +491,7 @@ src/
 │       └── registry.go       RegisterRunner[In,Out] + Dispatch
 │                             (JobKind-based runner registry)
 ├── client/proto/        Typed IPC wire layer — imports state/view only
-│                        (safe for reactor-bridge)
+│                        (safe for bridge)
 │   ├── envelope.go      Envelope wire format ({type, req_id, cmd|name, data})
 │   ├── command.go       Command closed sum type (CmdSubscribe, CmdUnsubscribe,
 │   │                    CmdEvent, CmdHookEvent (container-only), CmdSurface*,
@@ -506,14 +506,14 @@ src/
 │   ├── event.go         ServerEvent closed sum type
 │   ├── codec.go         NDJSON encode/decode
 │   ├── client.go        proto.Client (Dial / DialConn / Send / Events); used by
-│   │                    the operator CLI, reactor-bridge, HTTP/WS gateway
+│   │                    the operator CLI, bridge, HTTP/WS gateway
 │   ├── client_helpers.go     Peer helpers (PeerSend/List/SetSummary/DrainInbox),
 │   │                         SendEvent, SendHookEvent
 │   ├── reqid.go         Request ID generation
 │   ├── errors.go        ErrCode enum
 │   └── protofake/       In-memory proto.Client fake for tests
 ├── client/proto/sessions/    Session management layer — imports proto + state
-│                             (NOT used by reactor-bridge)
+│                             (NOT used by bridge)
 │   ├── client.go        sessions.Client wraps *proto.Client; session helpers
 │   │                    (CreateSession, StopSession, ListSessions, PushDriver,
 │   │                    ActivateFrame, ...)
@@ -543,17 +543,17 @@ src/
 ├── client/tools/
 │   ├── tools.go         Tool + Param + ToolContext + Registry + DefaultRegistry
 │   └── builtin.go       Built-in tool registrations
-├── client/lib/          Client-only helpers (not used by reactor-bridge)
+├── client/lib/          Client-only helpers (not used by bridge)
 │   ├── claude/          Claude CLI + transcript glue
 │   ├── codex/           Codex CLI glue
 │   ├── editor/          $EDITOR launcher
 │   └── peers/           Peer-mesh client helpers
 ├── client/config/
-│   ├── config.go        TOML configuration loading (`ROOST_DATA_DIR` env override).
+│   ├── config.go        TOML configuration loading (`AG_DATA_DIR` env override).
 │   │                    Source of truth for user-facing settings.toml fields
 │   ├── notify.go        Notification rule matching
 │   ├── project.go       Project enumeration from `project_roots` / `project_paths`
-│   └── workspace_resolver.go  Reads each project's `.agent-reactor/settings.toml`
+│   └── workspace_resolver.go  Reads each project's `.agent-grid/settings.toml`
 │                              for workspace grouping
 ├── platform/agentlaunch/
 │   ├── spawn.go         Spawn — argv-direct process launch (no host shell),

@@ -52,7 +52,7 @@ Reactor does not build images. The image name is declared by the user in `devcon
 | `credproxy` library (`providers/<name>/`) | AWS SSO / gcloud / ssh-agent providers. Tool-specific env var names (`AWS_*`, `GOOGLE_*`, `SSH_AUTH_SOCK`) live exclusively here |
 | `hostexec/` | Host-exec broker — runs allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding |
 
-`sandbox/` is tool-agnostic. It does not contain knowledge of any specific tool (e.g. Claude). Tool-specific host paths are declared by the user in `devcontainer.json` or `~/.agent-reactor/settings.toml`; they are never hardcoded in Go source.
+`sandbox/` is tool-agnostic. It does not contain knowledge of any specific tool (e.g. Claude). Tool-specific host paths are declared by the user in `devcontainer.json` or `~/.agent-grid/settings.toml`; they are never hardcoded in Go source.
 
 ## Design Decisions
 
@@ -131,11 +131,11 @@ Variable substitution in string values: `${localWorkspaceFolder}`, `${localWorks
 
 ## Container IPC Endpoint
 
-Each sandboxed project gets a dedicated Unix socket at `<dataDir>/run/<project-hash>/server.sock` on the host. It is bind-mounted read-write into the container at `/opt/agent-reactor/run/server.sock` (via the per-project run dir mount that already exists for credential helper files). The container agent reads `ROOST_SOCKET` (set to `/opt/agent-reactor/run/server.sock`) to locate it.
+Each sandboxed project gets a dedicated Unix socket at `<dataDir>/run/<project-hash>/server.sock` on the host. It is bind-mounted read-write into the container at `/opt/agent-grid/run/server.sock` (via the per-project run dir mount that already exists for credential helper files). The container agent reads `AG_SOCKET` (set to `/opt/agent-grid/run/server.sock`) to locate it.
 
 **API surface**: `hook-event` and `subsystem-event` are implemented. Commands such as `event`, `surface.send_text`, `peer.send`, `shutdown`, and all others are structurally absent — no handler is registered, so they receive a protocol error without touching state.
 
-**Authentication**: at frame spawn time, a 32-byte `crypto/rand` token is generated and injected into the container via `ROOST_SOCKET_TOKEN`. Every `hook-event` and `subsystem-event` message carries the token; server-side Lookup resolves it to the owning frame ID. No client-supplied frame ID is trusted.
+**Authentication**: at frame spawn time, a 32-byte `crypto/rand` token is generated and injected into the container via `AG_SOCKET_TOKEN`. Every `hook-event` and `subsystem-event` message carries the token; server-side Lookup resolves it to the owning frame ID. No client-supplied frame ID is trusted.
 
 **Warm-start recovery**: tokens are persisted to `<dataDir>/warm/<frameID>.json` (atomic write, `0o600`). On daemon warm restart (containers survive, daemon replaces), `RecoverSandboxFrames` reads `warm/*.json` and re-registers each token for live frames so hook events continue to work immediately. The `warm/` directory is never bind-mounted into containers — a container process cannot read other frames' tokens.
 
@@ -151,7 +151,7 @@ Bind-mounts are declared in devcontainer.json `mounts`. `sandbox/` does not have
 
 ## Credential Proxy
 
-In devcontainer mode the client always runs an in-process HTTP server backed by the `credproxy` library. The server listens on `<dataDir>/run/credproxy.sock` on the host and is bind-mounted per project into each container at `/opt/agent-reactor/run/credproxy.sock`. Its lifetime is tied to the client process — no external daemon is needed. Each provider self-gates on its own configuration and contributes nothing to the container when its settings are empty.
+In devcontainer mode the client always runs an in-process HTTP server backed by the `credproxy` library. The server listens on `<dataDir>/run/credproxy.sock` on the host and is bind-mounted per project into each container at `/opt/agent-grid/run/credproxy.sock`. Its lifetime is tied to the client process — no external daemon is needed. Each provider self-gates on its own configuration and contributes nothing to the container when its settings are empty.
 
 Providers come from two sources: the external `credproxy` library's `providers/<name>/` packages (AWS SSO, gcloud, ssh-agent) and local packages — `hostexec/` (host-exec broker), `mcpproxy/` (MCP proxy), `secretenv/` (secret env resolver) — all using the same `container.Provider` interface. Each provider contributes to the runtime by:
 
@@ -176,7 +176,7 @@ The `hostexec` provider lets container processes invoke host binaries (e.g. `gh`
 
 **Mechanism:**
 
-1. The host starts a per-project Unix socket broker (`<dataDir>/run/<project-hash>/hostexec.sock`) bind-mounted at `/opt/agent-reactor/run/hostexec.sock` inside the container.
+1. The host starts a per-project Unix socket broker (`<dataDir>/run/<project-hash>/hostexec.sock`) bind-mounted at `/opt/agent-grid/run/hostexec.sock` inside the container.
 2. Shell shim scripts are written to `<dataDir>/run/<project-hash>/hostexec-shims/<name>` and prepended to `PATH` inside the container. Each shim calls `server host-exec <name> "$@"`.
 3. If `overlay` paths are configured, additional shims are written to `<dataDir>/run/<project-hash>/hostexec-overlay/<name>` and bind-mounted read-only at each path. Each entry is a project-relative path (resolved against the container-side workspace folder, `..` allowed) or an absolute path. This lets existing scripts that invoke binaries via relative paths (`./bin/gh`) or scripts in parent directories mounted via `extra_create_args` route through the same broker.
 4. The shim sends the request (binary name, args, cwd) plus the three stdio fds via SCM_RIGHTS over the socket.
@@ -204,14 +204,14 @@ The `mcpproxy` provider runs MCP server processes on the host and relays JSON-RP
 
 **Mechanism:**
 
-1. The host starts a per-project Unix socket broker bind-mounted at `/opt/agent-reactor/run/mcp.sock` inside the container.
+1. The host starts a per-project Unix socket broker bind-mounted at `/opt/agent-grid/run/mcp.sock` inside the container.
 2. At container launch, the client generates a `.mcp.json` in the project workspace (read-only bind-mount) that overrides any project-local `.mcp.json` for configured aliases, routing them through `server mcp-exec <alias>`.
 3. `server mcp-exec <alias>` (the in-container shim) sends its three stdio fds via SCM_RIGHTS over the socket.
 4. The broker starts the actual MCP server process on the host and relays JSON-RPC messages. `tools/call` requests are policy-checked before forwarding; `tools/list` responses are filtered to the allowed set.
 
 **Policy (deny-first, default-deny):** patterns match the tool name directly with `*` as wildcard. User-scope and project-scope server definitions are merged; project entries override user entries on the same alias.
 
-**Container env var:** `ROOST_MCP_SOCK=/opt/agent-reactor/run/mcp.sock` (set when any server is configured).
+**Container env var:** `AG_MCP_SOCK=/opt/agent-grid/run/mcp.sock` (set when any server is configured).
 
 ### Secret env resolver
 
@@ -221,7 +221,7 @@ This is an **intentional exception** to the "long-lived secrets stay on host" in
 
 **Bare-host** (no devcontainer, trusted user): the real `credproxy` binary resolves locally via the configured hook. No gate.
 
-**Container**: a shim script named `credproxy` (placed in `<projRunDir>/secretenv-shims/`, prepended to `PATH`) impersonates `credproxy run`. The shim calls `reactor-bridge secret-run`, which connects to a per-project host broker socket. The broker:
+**Container**: a shim script named `credproxy` (placed in `<projRunDir>/secretenv-shims/`, prepended to `PATH`) impersonates `credproxy run`. The shim calls `bridge secret-run`, which connects to a per-project host broker socket. The broker:
 
 1. Gates the request by checking the env-file path against a per-project `filepath.Match` allowlist (default-deny, host config, container cannot modify).
 2. Delegates resolution to the host `credproxy resolve --env-file <path>` binary.
@@ -236,4 +236,4 @@ The container sends only the env-file path. Hook backend (op/mise/vault) and its
 
 Some tools (Claude Code, etc.) authenticate via OAuth flows that store refresh tokens in user-config files. The credential proxy cannot synthesise these — they require a real interactive login. The user opts in by declaring a bind-mount in devcontainer.json for the credential file/directory. This exposes the OAuth refresh token to the container; the trade-off is the user's call.
 
-**Container reuse**: `/opt/agent-reactor/run` is bind-mounted at container-creation time. If an existing container lacks this mount (created with an older client version), remove it with `docker rm -f reactor-<hash>` and relaunch.
+**Container reuse**: `/opt/agent-grid/run` is bind-mounted at container-creation time. If an existing container lacks this mount (created with an older client version), remove it with `docker rm -f reactor-<hash>` and relaunch.

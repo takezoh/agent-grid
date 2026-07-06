@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/lineargql"
-	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
-	"github.com/takezoh/agent-reactor/orchestrator/workspace"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/lineargql"
+	"github.com/takezoh/agent-grid/orchestrator/scheduler"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/workspace"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // stateRefresher fetches current issue states between turns (SPEC §16.5).

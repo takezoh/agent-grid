@@ -24,7 +24,7 @@ source_paths:
 - src/platform/sandbox/devcontainer/docker.go
 - src/platform/sandbox/devcontainer/manager_test.go
 - docs/adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md
-summary: PATH 注入 fake docker CLI で devcontainer lifecycle を T1 検証し、REACTOR_E2E_DOCKER_BIN
+summary: PATH 注入 fake docker CLI で devcontainer lifecycle を T1 検証し、AG_E2E_DOCKER_BIN
   opt-in の FakeVsRealDocker を追加
 updated: '2026-07-05'
 ---
@@ -44,7 +44,7 @@ updated: '2026-07-05'
 2. lifecycle T1 テストを新設する: `PATH` 先頭に fakedocker を置き、manager の create → hook 実行 →
    run → remove を貫通駆動する。argv 記録に対して引数組み立て (workdir 翻訳・mount・label) を assert する。
    失敗系 (docker 非ゼロ exit、途中死) の伝搬も駆動する。
-3. `FakeVsRealDocker` (T3, `//go:build e2e`) を新設する: `REACTOR_E2E_DOCKER_BIN` 設定時のみ、同一
+3. `FakeVsRealDocker` (T3, `//go:build e2e`) を新設する: `AG_E2E_DOCKER_BIN` 設定時のみ、同一
    シナリオを real docker に流し、canned 応答 (ps line / inspect JSON の形) と real 出力の形一致を照合
    する。未設定は Skip。使用イメージは最小 (alpine 等) に固定。
 4. coverage-floors.txt の `platform/sandbox/devcontainer` floor を計測に基づいて引き上げ、
@@ -63,7 +63,7 @@ updated: '2026-07-05'
 ## 受け入れ条件
 
 - lifecycle T1 テストが docker 非依存で green (CI 標準ジョブ)
-- real docker のある環境で `make test-e2e` + `REACTOR_E2E_DOCKER_BIN` が green
+- real docker のある環境で `make test-e2e` + `AG_E2E_DOCKER_BIN` が green
 - floor 引き上げ後 `scripts/check-coverage.sh` green、`make lint` green
 
 

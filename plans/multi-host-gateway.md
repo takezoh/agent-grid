@@ -307,7 +307,7 @@ STUN は単独 tier ではなく **2 (P2P 成立) を可能にするためのプ
 
 #### 4.1.1 責務 (relay / tunnel / authorizer のみ、ドメインフリー)
 
-Gateway は **agent-reactor のドメイン (session / frame / driver / agent / capability / host display name / ACL 中身) を持たないし解釈しない**。下記すべては relay / tunnel / authorizer のいずれかの責務に分類される。
+Gateway は **agent-grid のドメイン (session / frame / driver / agent / capability / host display name / ACL 中身) を持たないし解釈しない**。下記すべては relay / tunnel / authorizer のいずれかの責務に分類される。
 
 - **[Tunnel] Control tunnel terminator**: host からの outbound gRPC bidi stream を保持。用途は heartbeat + signaling 中継 + user 署名済 ACL op の opaque な push + (optional) opaque relay fallback。**session_id ベースの routing は持たない** (P2P-first のため session は host ↔ browser 直結)。
 - **[Tunnel] Host directory**: 登録済 host の **pubkey fingerprint + signaling hints (ICE / LAN endpoint + TURN URI) + online 状態** のみを保持し browser に push。**display name や capability snapshot は持たない**。display name は pairing 時に browser localStorage に保存される (gateway を経由しない、§4.3.2)。capability は host channel 経由で host が直接 browser に出す (Q17 案 A 確定)。
@@ -365,7 +365,7 @@ cmd/gateway/
 
 #### 4.1.4 設定
 
-- `~/.agent-reactor/gateway.yaml` or `--config` (既存 dotfile 規約に乗る)。
+- `~/.agent-grid/gateway.yaml` or `--config` (既存 dotfile 規約に乗る)。
 - TLS cert は ACME (Let's Encrypt) 自動 / 手動 cert 両対応。dev は self-signed。
 - Bind: browser edge は `:443`、host edge は `:8443` (gRPC) を既定。**STUN/TURN は同一 process で `:3478` (UDP/TCP、STUN binding + TURN allocation 両方を 1 port で待ち受け) + `:5349` (TURNS = TLS over TCP)** を既定 (RFC 5389/5766 標準 port)。外部 STUN/TURN を指す構成 (Q20 案 b) では gateway 自身は STUN/TURN port を bind せず、SignalingHints に外部 URI を載せて credential のみ発行する。
 
@@ -385,7 +385,7 @@ cmd/gateway/
 - **Per-browser session server** (`client/hostchan/`): 1 browser connection ≒ 1 host channel として `HostHello` / `HostViewUpdate` / `OutputFrame` を serve。state は既存 `client/state/` を流用、view-update broadcast に **host_id を常に付与**。**capability snapshot もここの `HostHelloFrame` で配布する** (gateway は capability を持たない、Q17 案 A 確定)。
 - **Host identity** (`client/identity/`): Ed25519 鍵生成、pubkey export、pairing 応答。
 - **Client allowlist (authz authoritative)** (`client/authz/`): 自 host に接続を許す client pubkey 集合。gateway が opaque に forward する user 署名済 op を host が自分で verify して取り込む。最終決定は host 側 (signed-by-user op のみ accept、unsigned や gateway 単独の push は reject)。
-- **mDNS advertiser** (LAN 直結用): `_agent-reactor._tcp.local.` を advertise。鍵 fingerprint を TXT に乗せる (display name は TXT に出さない、それを引き当てる nickname は browser 側にある)。
+- **mDNS advertiser** (LAN 直結用): `_agent-grid._tcp.local.` を advertise。鍵 fingerprint を TXT に乗せる (display name は TXT に出さない、それを引き当てる nickname は browser 側にある)。
 
 #### 4.2.3 既存責務 (維持)
 
@@ -529,7 +529,7 @@ message UserSignedOp {            // ACL 等の op を gateway が opaque に fo
 
 #### 6.2.1 Host → Gateway
 
-1. host 起動時に Ed25519 鍵をローカル生成 (`~/.agent-reactor/host.key`、0600)。
+1. host 起動時に Ed25519 鍵をローカル生成 (`~/.agent-grid/host.key`、0600)。
 2. 初回 pairing: gateway が発行した join-token (`AR-PAIR-XXXXX-XXXXX`、TTL 10 分) を host 側 CLI に投入 → host が pubkey を gateway に登録。
 3. 以降は **mTLS** で host cert ↔ gateway cert 双方向検証 + 起動時 `HostHello` で nonce 署名。
 
@@ -659,7 +659,7 @@ P2P は **MVP からの一次データプレーン**。Phase 2 ではなく wire
 
 ### 9.1 発見
 
-- Host が `_agent-reactor._tcp.local.` を mDNS advertise。TXT に `fp=<sha256-pubkey-prefix>` と `port=8081` のみ。**display name は TXT に出さない** (nickname は browser localStorage、gateway/host 双方が知らない、§4.3.2 / §6.3)。
+- Host が `_agent-grid._tcp.local.` を mDNS advertise。TXT に `fp=<sha256-pubkey-prefix>` と `port=8081` のみ。**display name は TXT に出さない** (nickname は browser localStorage、gateway/host 双方が知らない、§4.3.2 / §6.3)。
 - Browser は LAN 上にいる場合 (gateway 接続失敗 or ユーザが明示選択時) mDNS proxy 経由で発見。**mDNS は browser から直接叩けないため**、LAN 用の小さい discovery helper が必要 (Decision 必要 — §16)。
 - 発見した host の表示名は browser localStorage の `nicknames[fp]` を引き当てる。未知 fp は TOFU フローで nickname 入力。
 
@@ -814,7 +814,7 @@ platform.transport:
 
 ### 13.3 Binary 数
 
-3 → 4 (server / orchestrator / claude-app-server / gateway)。`make build-all` に gateway を追加。`reactor-bridge` は変更なし。
+3 → 4 (server / orchestrator / claude-app-server / gateway)。`make build-all` に gateway を追加。`bridge` は変更なし。
 
 ### 13.4 Makefile target
 

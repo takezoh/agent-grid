@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func TestDirectLauncher_passthrough(t *testing.T) {
@@ -12,7 +12,7 @@ func TestDirectLauncher_passthrough(t *testing.T) {
 		Command:  "claude --resume abc",
 		StartDir: "/tmp/work",
 	}
-	env := map[string]string{"ROOST_FRAME_ID": "f1"}
+	env := map[string]string{"AG_FRAME_ID": "f1"}
 
 	got, err := l.WrapLaunch("f1", plan, env)
 	if err != nil {
@@ -24,7 +24,7 @@ func TestDirectLauncher_passthrough(t *testing.T) {
 	if got.StartDir != plan.StartDir {
 		t.Errorf("StartDir: want %q, got %q", plan.StartDir, got.StartDir)
 	}
-	if got.Env["ROOST_FRAME_ID"] != "f1" {
+	if got.Env["AG_FRAME_ID"] != "f1" {
 		t.Errorf("Env not forwarded, got %v", got.Env)
 	}
 	if got.Cleanup != nil {
@@ -32,31 +32,31 @@ func TestDirectLauncher_passthrough(t *testing.T) {
 	}
 }
 
-func TestDirectLauncher_injectsROOST_SOCKET(t *testing.T) {
-	l := DirectLauncher{SockPath: "/opt/agent-reactor/run/server.sock"}
+func TestDirectLauncher_injectsAG_SOCKET(t *testing.T) {
+	l := DirectLauncher{SockPath: "/opt/agent-grid/run/server.sock"}
 	plan := state.LaunchPlan{Command: "claude", StartDir: "/work"}
-	env := map[string]string{"ROOST_FRAME_ID": "f1"}
+	env := map[string]string{"AG_FRAME_ID": "f1"}
 
 	got, err := l.WrapLaunch("f1", plan, env)
 	if err != nil {
 		t.Fatalf("WrapLaunch returned error: %v", err)
 	}
-	if got.Env["ROOST_SOCKET"] != "/opt/agent-reactor/run/server.sock" {
-		t.Errorf("ROOST_SOCKET = %q, want /opt/agent-reactor/run/server.sock", got.Env["ROOST_SOCKET"])
+	if got.Env["AG_SOCKET"] != "/opt/agent-grid/run/server.sock" {
+		t.Errorf("AG_SOCKET = %q, want /opt/agent-grid/run/server.sock", got.Env["AG_SOCKET"])
 	}
-	if got.Env["ROOST_FRAME_ID"] != "f1" {
-		t.Errorf("ROOST_FRAME_ID lost, got %v", got.Env)
+	if got.Env["AG_FRAME_ID"] != "f1" {
+		t.Errorf("AG_FRAME_ID lost, got %v", got.Env)
 	}
 }
 
-func TestDirectLauncher_noSockPath_noROOST_SOCKET(t *testing.T) {
+func TestDirectLauncher_noSockPath_noAG_SOCKET(t *testing.T) {
 	l := DirectLauncher{}
 	got, err := l.WrapLaunch("f1", state.LaunchPlan{Command: "claude"}, nil)
 	if err != nil {
 		t.Fatalf("WrapLaunch returned error: %v", err)
 	}
-	if _, ok := got.Env["ROOST_SOCKET"]; ok {
-		t.Errorf("ROOST_SOCKET should not be set when SockPath is empty, got %v", got.Env)
+	if _, ok := got.Env["AG_SOCKET"]; ok {
+		t.Errorf("AG_SOCKET should not be set when SockPath is empty, got %v", got.Env)
 	}
 }
 
@@ -70,15 +70,15 @@ func TestDirectLauncher_IsContainer(t *testing.T) {
 func TestDirectLauncher_stripsContainerToken(t *testing.T) {
 	l := DirectLauncher{}
 	env := map[string]string{
-		"ROOST_SOCKET_TOKEN": "secret-token",
-		"OTHER":              "keep",
+		"AG_SOCKET_TOKEN": "secret-token",
+		"OTHER":           "keep",
 	}
 	got, err := l.WrapLaunch("f1", state.LaunchPlan{Command: "claude"}, env)
 	if err != nil {
 		t.Fatalf("WrapLaunch: %v", err)
 	}
-	if got.Env["ROOST_SOCKET_TOKEN"] != "" {
-		t.Errorf("ROOST_SOCKET_TOKEN = %q, want empty", got.Env["ROOST_SOCKET_TOKEN"])
+	if got.Env["AG_SOCKET_TOKEN"] != "" {
+		t.Errorf("AG_SOCKET_TOKEN = %q, want empty", got.Env["AG_SOCKET_TOKEN"])
 	}
 	if got.Env["OTHER"] != "keep" {
 		t.Errorf("OTHER env lost: %v", got.Env)
@@ -86,7 +86,7 @@ func TestDirectLauncher_stripsContainerToken(t *testing.T) {
 }
 
 func TestDirectLauncher_masksAmbientContainerTokenFromSpawnEnv(t *testing.T) {
-	t.Setenv("ROOST_SOCKET_TOKEN", "ambient-token")
+	t.Setenv("AG_SOCKET_TOKEN", "ambient-token")
 
 	l := DirectLauncher{}
 	got, err := l.WrapLaunch("f1", state.LaunchPlan{Command: "claude"}, nil)
@@ -95,18 +95,18 @@ func TestDirectLauncher_masksAmbientContainerTokenFromSpawnEnv(t *testing.T) {
 	}
 
 	values, counts := envSliceToMap(t, envSlice(got.Env))
-	if values["ROOST_SOCKET_TOKEN"] != "" {
-		t.Fatalf("spawn env ROOST_SOCKET_TOKEN = %q, want empty", values["ROOST_SOCKET_TOKEN"])
+	if values["AG_SOCKET_TOKEN"] != "" {
+		t.Fatalf("spawn env AG_SOCKET_TOKEN = %q, want empty", values["AG_SOCKET_TOKEN"])
 	}
-	if counts["ROOST_SOCKET_TOKEN"] != 1 {
-		t.Fatalf("spawn env ROOST_SOCKET_TOKEN count = %d, want 1", counts["ROOST_SOCKET_TOKEN"])
+	if counts["AG_SOCKET_TOKEN"] != 1 {
+		t.Fatalf("spawn env AG_SOCKET_TOKEN count = %d, want 1", counts["AG_SOCKET_TOKEN"])
 	}
 }
 
 func TestDirectLauncher_keepsDirectStreamCommand(t *testing.T) {
 	l := DirectLauncher{}
 	plan := state.LaunchPlan{
-		Command: "codex resume thr_123 --remote unix:///opt/agent-reactor/run/codex-foo.sock",
+		Command: "codex resume thr_123 --remote unix:///opt/agent-grid/run/codex-foo.sock",
 	}
 	got, err := l.WrapLaunch("f1", plan, nil)
 	if err != nil {

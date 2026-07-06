@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"testing"
 
-	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
+	claudehookpayload "github.com/takezoh/agent-grid/platform/lib/claude/hookpayload"
+	"github.com/takezoh/agent-grid/platform/lib/claude/streamjson"
 )
 
 // TestLines_RoundTrip verifies every fake stream-json line parses back to the

@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // Factory provides CLI Backend instances keyed by project. A single Backend

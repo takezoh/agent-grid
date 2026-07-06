@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/lib/agenthook"
-	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-grid/client/lib/agenthook"
+	"github.com/takezoh/agent-grid/platform/appid"
 )
 
 // TestLookupSetupHooksSpec_DispatchTable locks the bridge dispatch table to
@@ -38,7 +38,7 @@ func TestLookupSetupHooksSpec_DispatchTable(t *testing.T) {
 
 // TestRunAgentSetupHooks_WritesContainerPath verifies the hookCmd carries
 // the canonical in-container bridge path (not the test binary's path) so
-// the registered settings.json points at /opt/agent-reactor/run/reactor-bridge
+// the registered settings.json points at /opt/agent-grid/run/bridge
 // regardless of where the test binary lives.
 func TestRunAgentSetupHooks_WritesContainerPath(t *testing.T) {
 	dir := t.TempDir()
@@ -69,14 +69,14 @@ func TestRunAgentSetupHooks_WritesContainerPath(t *testing.T) {
 }
 
 // TestRunAgentSetupHooks_DataDirIsQuoted verifies the -data-dir flag value
-// is shell-quoted in the persisted hookCmd, so a non-default ROOST_DATA_DIR
+// is shell-quoted in the persisted hookCmd, so a non-default AG_DATA_DIR
 // with spaces survives the agent's shell-dispatch round-trip.
 func TestRunAgentSetupHooks_DataDirIsQuoted(t *testing.T) {
 	dir := t.TempDir()
 	settings := filepath.Join(dir, "settings.json")
 
 	if err := runAgentSetupHooks(
-		[]string{"-settings", settings, "-data-dir", "/var/lib/agent reactor"},
+		[]string{"-settings", settings, "-data-dir", "/var/lib/agent grid"},
 		agenthook.Claude,
 	); err != nil {
 		t.Fatalf("runAgentSetupHooks: %v", err)
@@ -87,7 +87,7 @@ func TestRunAgentSetupHooks_DataDirIsQuoted(t *testing.T) {
 	_ = json.Unmarshal(raw, &root)
 	cmd := firstCommand(t, root, "SessionStart")
 
-	want := appid.ContainerBinaryPath + " event claude -data-dir '/var/lib/agent reactor'"
+	want := appid.ContainerBinaryPath + " event claude -data-dir '/var/lib/agent grid'"
 	if cmd != want {
 		t.Errorf("SessionStart command = %q, want %q (data-dir must be quoted)", cmd, want)
 	}

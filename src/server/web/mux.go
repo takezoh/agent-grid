@@ -18,10 +18,10 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/takezoh/agent-reactor/client/config"
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/client/state"
-	platformconfig "github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/client/config"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/state"
+	platformconfig "github.com/takezoh/agent-grid/platform/config"
 )
 
 // isAbsoluteProjectPath reports whether p is suitable as a session project
@@ -214,8 +214,8 @@ func apiHandler(d *DaemonClient, tickets *ticketStore) http.Handler {
 
 // loadSessionConfig is the package-level hook used by handleSessionConfig.
 // Tests swap it via withSessionConfigLoader so they don't have to lay down a
-// real ~/.agent-reactor/settings.toml on disk. Production uses config.Load,
-// which reads from $HOME/.agent-reactor/settings.toml (same file the daemon
+// real ~/.agent-grid/settings.toml on disk. Production uses config.Load,
+// which reads from $HOME/.agent-grid/settings.toml (same file the daemon
 // reads — see client/config.ConfigDirPath); missing-file is non-fatal and
 // returns DefaultConfig().
 var loadSessionConfig = config.Load

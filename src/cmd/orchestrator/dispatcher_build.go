@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	platformconfig "github.com/takezoh/agent-reactor/platform/config"
-	"github.com/takezoh/agent-reactor/platform/credproxy"
-	"github.com/takezoh/agent-reactor/platform/lib/dockercli"
-	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	platformconfig "github.com/takezoh/agent-grid/platform/config"
+	"github.com/takezoh/agent-grid/platform/credproxy"
+	"github.com/takezoh/agent-grid/platform/lib/dockercli"
+	sandboxdc "github.com/takezoh/agent-grid/platform/sandbox/devcontainer"
 )
 
 // credproxyShutdownTimeout bounds how long graceful teardown waits for the
@@ -19,7 +19,7 @@ import (
 const credproxyShutdownTimeout = 5 * time.Second
 
 // buildDispatcher constructs the Dispatcher for the orchestrator.
-// It loads the shared sandbox config from ~/.agent-reactor/settings.toml and enables
+// It loads the shared sandbox config from ~/.agent-grid/settings.toml and enables
 // the devcontainer backend when the workspace project is configured for it.
 // Returns the dispatcher and a cleanup func that stops any background services.
 func buildDispatcher(ctx context.Context, workspaceRoot string) (agentlaunch.Dispatcher, func(), error) {

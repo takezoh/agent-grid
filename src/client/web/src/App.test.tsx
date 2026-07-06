@@ -118,10 +118,10 @@ describe("App", () => {
             log_tabs: [
               {
                 label: "TRANSCRIPT",
-                path: "/var/lib/agent-reactor/sess-abc.transcript",
+                path: "/var/lib/agent-grid/sess-abc.transcript",
                 kind: "text",
               },
-              { label: "EVENTS", path: "/var/log/agent-reactor/sess-abc.log", kind: "text" },
+              { label: "EVENTS", path: "/var/log/agent-grid/sess-abc.log", kind: "text" },
             ],
           },
         },

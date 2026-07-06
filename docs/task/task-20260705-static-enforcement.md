@@ -43,7 +43,7 @@ updated: '2026-07-05'
 1. **ruleguard: real-binary 隔離** — `src/gorules/` に追加: `exec.Command` /
    `exec.CommandContext` の第 1 引数 (または command 名) が `"claude"` / `"codex"` / `"docker"` の
    literal である呼び出しを、`platform/lib/**`・fake package (`fakeclaude` / `fakecodex` /
-   `fakedocker`)・`*_e2e_test.go` 以外で禁止する。`REACTOR_E2E_*` env の参照も同様に e2e ファイル外で
+   `fakedocker`)・`*_e2e_test.go` 以外で禁止する。`AG_E2E_*` env の参照も同様に e2e ファイル外で
    禁止する。既存コードが rule に通ることを確認し、正当な例外は `.golangci.yml` の exclusions に path
    pattern で宣言する (in-code annotation は使わない — 既存方針)。
 2. **e2e sibling check** — `scripts/check-e2e-siblings.sh`: `//go:build e2e` を含む各 package に

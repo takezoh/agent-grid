@@ -3,8 +3,8 @@ package scheduler
 import (
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/metrics"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/platform/metrics"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // Event is an input to the pure Reduce function. Each event is a self-contained

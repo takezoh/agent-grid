@@ -37,7 +37,7 @@ JSON messaging over Unix domain sockets. Two physical endpoints serve different 
 | Endpoint | Path | Auth | Clients |
 |---|---|---|---|
 | **Host** | `<dataDir>/server.sock` | SO_PEERCRED UID check | co-resident HTTP/WS gateway, `server event` hook bridges, the `scripts/setup-{claude,codex,gemini}.sh` setup scripts (indirectly via the running backend) |
-| **Container** | `<dataDir>/run/<project-hash>/server.sock` | Bearer token (`ROOST_SOCKET_TOKEN`) | Sandboxed agent processes inside devcontainers |
+| **Container** | `<dataDir>/run/<project-hash>/server.sock` | Bearer token (`AG_SOCKET_TOKEN`) | Sandboxed agent processes inside devcontainers |
 
 The host endpoint exposes the full command surface. The container endpoint accepts `hook-event` and `subsystem-event`; all other commands are structurally absent (no handler registered, not a filter). See [Sandbox Backends](../component/component-20260624-platform-sandbox.md#container-ipc-endpoint) for security properties.
 

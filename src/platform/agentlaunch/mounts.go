@@ -1,6 +1,6 @@
 package agentlaunch
 
-import "github.com/takezoh/agent-reactor/platform/pathmap"
+import "github.com/takezoh/agent-grid/platform/pathmap"
 
 // HostPath translates a container-absolute path to its host-side path using the
 // launch's bind mounts, so the daemon can dial a UDS that an in-container

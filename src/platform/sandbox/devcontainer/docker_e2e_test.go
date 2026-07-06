@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/sandbox/devcontainer/fakedocker"
+	"github.com/takezoh/agent-grid/platform/sandbox/devcontainer/fakedocker"
 )
 
 func TestE2E_FakeVsRealDocker(t *testing.T) {
@@ -99,12 +99,12 @@ func TestE2E_FakeVsRealDocker(t *testing.T) {
 
 func e2eDockerBin(t *testing.T) string {
 	t.Helper()
-	bin := os.Getenv("REACTOR_E2E_DOCKER_BIN")
+	bin := os.Getenv("AG_E2E_DOCKER_BIN")
 	if bin == "" {
-		t.Skip("REACTOR_E2E_DOCKER_BIN is not set — skipping real-docker e2e")
+		t.Skip("AG_E2E_DOCKER_BIN is not set — skipping real-docker e2e")
 	}
 	if _, err := exec.LookPath(bin); err != nil {
-		t.Skipf("REACTOR_E2E_DOCKER_BIN=%q is not executable: %v", bin, err)
+		t.Skipf("AG_E2E_DOCKER_BIN=%q is not executable: %v", bin, err)
 	}
 	return bin
 }

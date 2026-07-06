@@ -3,7 +3,7 @@ package scheduler
 import (
 	"strings"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
 )
 
 // retryReclaimHasSlot reports whether a RetryQueued issue may re-dispatch into a slot when

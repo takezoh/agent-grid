@@ -16,13 +16,13 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem/stream/fake"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	libcodex "github.com/takezoh/agent-reactor/platform/lib/codex"
-	"github.com/takezoh/agent-reactor/platform/pathmap"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem/stream/fake"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	libcodex "github.com/takezoh/agent-grid/platform/lib/codex"
+	"github.com/takezoh/agent-grid/platform/pathmap"
 )
 
 // Stream subsystem launch-flow tests: the codex app-server is faked so no real
@@ -212,7 +212,7 @@ func writeRollout(t *testing.T) string {
 //     id up front), initState untouched, Command shape has `resume <id>`.
 
 func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
-	const listen = "/opt/agent-reactor/run/codex-sess1.sock"
+	const listen = "/opt/agent-grid/run/codex-sess1.sock"
 	h := newBoundBackend(t, listen)
 
 	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
@@ -248,7 +248,7 @@ func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
 }
 
 func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
-	const listen = "/opt/agent-reactor/run/codex-sess2.sock"
+	const listen = "/opt/agent-grid/run/codex-sess2.sock"
 	h := newBoundBackend(t, listen)
 
 	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
@@ -287,7 +287,7 @@ func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
 }
 
 func TestBackendBindFrame_RecoveryRestoresModelEffortIntoAttachCommand(t *testing.T) {
-	const listen = "/opt/agent-reactor/run/codex-sess-model.sock"
+	const listen = "/opt/agent-grid/run/codex-sess-model.sock"
 	h := newBoundBackend(t, listen)
 
 	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
@@ -312,7 +312,7 @@ func TestBackendBindFrame_RecoveryRestoresModelEffortIntoAttachCommand(t *testin
 }
 
 func TestBackendBindFrame_RecoveryUsesPerFrameSettingsNotAnotherThreadsSettings(t *testing.T) {
-	const listen = "/opt/agent-reactor/run/codex-sess-isolated.sock"
+	const listen = "/opt/agent-grid/run/codex-sess-isolated.sock"
 	h := newBoundBackend(t, listen)
 	h.backend.mu.Lock()
 	h.backend.frames["other"] = &frameBinding{frameID: "other", threadID: "thread-other", model: "gpt-4.1", effort: "low"}
@@ -341,7 +341,7 @@ func TestBackendBindFrame_RecoveryUsesPerFrameSettingsNotAnotherThreadsSettings(
 }
 
 func TestBackendBindFrame_RecoveryTranslatesHostRolloutPathForContainer(t *testing.T) {
-	const listen = "/opt/agent-reactor/run/codex-sess3.sock"
+	const listen = "/opt/agent-grid/run/codex-sess3.sock"
 	h := newBoundBackend(t, listen)
 	h.backend.mounts = pathmap.Mounts{{Host: "/host/work", Container: "/work"}}
 	h.backend.sandboxed = true
@@ -376,7 +376,7 @@ func TestBackendBindFrame_RolloutOnly_TreatedAsFresh(t *testing.T) {
 	// pins that behaviour so callers that rely on ThreadID-derived rollout
 	// resolution (see codex_resume.go's resolveCodexRolloutPath) know they
 	// must populate ThreadID upstream.
-	const listen = "/opt/agent-reactor/run/codex-sess4.sock"
+	const listen = "/opt/agent-grid/run/codex-sess4.sock"
 	h := newBoundBackend(t, listen)
 
 	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{

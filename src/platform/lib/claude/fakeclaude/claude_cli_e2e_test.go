@@ -8,7 +8,7 @@
 // the thing to update — not the assertion.
 //
 // Skipped in normal builds by the `e2e` tag. Skipped at runtime unless
-// REACTOR_E2E_CLAUDE_BIN points at an executable. Successful runs require a
+// AG_E2E_CLAUDE_BIN points at an executable. Successful runs require a
 // live Anthropic API key (ANTHROPIC_API_KEY or claude's existing login).
 
 package fakeclaude
@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/e2etest"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/cli"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
+	"github.com/takezoh/agent-grid/platform/e2etest"
+	"github.com/takezoh/agent-grid/platform/lib/claude/cli"
+	"github.com/takezoh/agent-grid/platform/lib/claude/streamjson"
 )
 
 // runClaudeOnce runs `claude` with the given prompt and returns every parsed

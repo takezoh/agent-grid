@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
+	rsubsystem "github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // panickingFactory is a subsystem factory whose Ensure() panics. Used to

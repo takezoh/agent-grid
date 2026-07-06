@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	codexschemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
 )
 
 func TestServer_EmitTurnCompletedTracksStartedAt(t *testing.T) {

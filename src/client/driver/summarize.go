@@ -26,14 +26,14 @@ func summarizeWithCommand(ctx context.Context, prompt, command string) (string, 
 	return strings.TrimSpace(stripHookLines(stdout.String())), nil
 }
 
-// filteredRoostEnv returns a copy of src with ROOST_SOCKET removed so
+// filteredRoostEnv returns a copy of src with AG_SOCKET removed so
 // hook subprocesses spawned inside the summarizer cannot reach the daemon.
-// ROOST_SOCKET is the gate checked by `server event`; removing it is
-// sufficient to prevent impersonation without stripping all ROOST_* vars.
+// AG_SOCKET is the gate checked by `server event`; removing it is
+// sufficient to prevent impersonation without stripping all AG_* vars.
 func filteredRoostEnv(src []string) []string {
 	out := make([]string, 0, len(src))
 	for _, kv := range src {
-		if strings.HasPrefix(kv, "ROOST_SOCKET=") {
+		if strings.HasPrefix(kv, "AG_SOCKET=") {
 			continue
 		}
 		out = append(out, kv)

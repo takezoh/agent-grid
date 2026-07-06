@@ -21,18 +21,18 @@ tracker:
 polling:
   interval_ms: 30000
 workspace:
-  root: /workspace/agent-reactor-orchestrator/.agent-reactor/worktrees
+  root: /workspace/agent-grid-orchestrator/.agent-grid/worktrees
 hooks:
   timeout_ms: 120000
   # GitHub から base ブランチを clone し symphony ブランチを切る。
-  # base はプロジェクト frontmatter の branch($ROOST_PROJECT_BRANCH)を優先し、
+  # base はプロジェクト frontmatter の branch($AG_PROJECT_BRANCH)を優先し、
   # 未指定なら source repo の現在ブランチ(= default branch)を使う。
   # base は git config symphony.base に記録し、PR 作成時に参照する。
   # origin=GitHub なので agent はそのまま push / PR 作成できる(push は SSH ブローカー、gh は host_exec 経由)。
   after_create: |
     set -e
-    src=/workspace/agent-reactor-orchestrator
-    base=${ROOST_PROJECT_BRANCH:-$(git -C "$src" rev-parse --abbrev-ref HEAD)}
+    src=/workspace/agent-grid-orchestrator
+    base=${AG_PROJECT_BRANCH:-$(git -C "$src" rev-parse --abbrev-ref HEAD)}
     url=$(git -C "$src" remote get-url origin)
     git clone --depth 1 --branch "$base" "$url" "$PWD"
     git -C "$PWD" checkout -b "symphony/$(basename "$PWD")"
@@ -48,9 +48,9 @@ server:
   port: 8080
   bind: 127.0.0.1
 ---
-# agent-reactor project agent
+# agent-grid project agent
 
-あなたは agent-reactor / orchestrator リポジトリ(Go モノレポ。server / orchestrator /
+あなたは agent-grid / orchestrator リポジトリ(Go モノレポ。server / orchestrator /
 claude-app-server の3バイナリ)の課題に取り組む自律エージェントです。人間の介在なく作業を
 完結させ、進捗は自分で Linear に反映してください。
 
@@ -73,7 +73,7 @@ claude-app-server の3バイナリ)の課題に取り組む自律エージェン
 - これは無人オーケストレーションセッション。人間に follow-up を依頼しない。判断は自分で行い、
   状態遷移で進捗を表現する。入力待ち・確認待ちにならない(真のブロッカー=必須の認証/権限/secret 不足時のみ停止)。
 - 作業は与えられた clone(`symphony/{{ issue.identifier }}` チェックアウト済み、origin=GitHub
-  `takezoh/agent-reactor`)内のみ。他のパスは触らない。
+  `takezoh/agent-grid`)内のみ。他のパスは触らない。
 - 使えるもの: `git push`(SSH ブローカー経由で GitHub へ push 可)、`gh`(host_exec 経由でホスト実行。
   `gh pr create` / `gh pr merge` 等が使える)、`linear_graphql`(Linear の状態遷移・コメント)。
 

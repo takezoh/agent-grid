@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/osteele/liquid"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 const defaultPrompt = "You are working on an issue from Linear."

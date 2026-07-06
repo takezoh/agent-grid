@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
 )
 
 const (

@@ -76,7 +76,7 @@ Client device (1 PC)
 | 方式 | 利点 | 欠点 | 採否 |
 |---|---|---|---|
 | **(a) `localhost` 固定エントリ** (browser が常に `127.0.0.1:<default-port>` を試す) | 0-configuration、setup 手順最小 | port 衝突時に動かない、複数 local host instance を扱えない | **採用** (MVP の primary path) |
-| (b) mDNS (`_agent-reactor._tcp.local.`) | 複数 instance / 任意 port に対応、remote LAN host と同じ機構 | browser から mDNS を直接叩けない (Q3 と同じ制約) | 補助 (gateway 登録 + LAN endpoint 経由) |
+| (b) mDNS (`_agent-grid._tcp.local.`) | 複数 instance / 任意 port に対応、remote LAN host と同じ機構 | browser から mDNS を直接叩けない (Q3 と同じ制約) | 補助 (gateway 登録 + LAN endpoint 経由) |
 | (c) Gateway directory 登録 | gateway 併用構成ではそのまま機能 | gateway を起動しないと使えない (standalone 用途で破綻) | gateway 併用時のみ |
 
 MVP は **(a) + (c)**: browser が起動時に `127.0.0.1` の default port (例 8081) を tap し、応答があれば local host として `connections` に追加。Gateway を併用している場合は (c) が並行に効く (gateway directory に local host pubkey fp が出る、両経路で同じ host pubkey fp に到達するため重複登録しない)。
@@ -85,7 +85,7 @@ MVP は **(a) + (c)**: browser が起動時に `127.0.0.1` の default port (例
 
 ```
 server --listen 127.0.0.1:8081 --bind loopback    # MVP default
-server --listen unix:/tmp/agent-reactor.sock --bind unix-socket-uid <uid>   # 強化案 (Q3 で検討)
+server --listen unix:/tmp/agent-grid.sock --bind unix-socket-uid <uid>   # 強化案 (Q3 で検討)
 server --listen 0.0.0.0:8081 --bind lan           # 既存 remote host 用 (LAN direct)
 ```
 
@@ -164,7 +164,7 @@ server --listen 127.0.0.1:8081 --bind loopback
 
 ### Phase 4 — Auto-launch (将来、別 plan)
 
-- systemd-user / launchd / Windows サービス unit。Installer / `agent-reactor up` のような CLI bootstrap。本 plan の外。
+- systemd-user / launchd / Windows サービス unit。Installer / `agent-grid up` のような CLI bootstrap。本 plan の外。
 
 ## 6. Open Questions
 

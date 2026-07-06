@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/config"
+	"github.com/takezoh/agent-grid/client/config"
 )
 
 // === randToken / isLoopbackAddr — gateway helpers ===
@@ -198,7 +198,7 @@ func TestRunMainClassifies(t *testing.T) {
 
 func stubMainDeps(t *testing.T) func() {
 	t.Helper()
-	t.Setenv("ROOST_DATA_DIR", "")
+	t.Setenv("AG_DATA_DIR", "")
 	prevLoadBootstrapConfig := loadBootstrapConfig
 	prevInitLogger := initLoggerWithDataDir
 	prevCloseLogger := closeLogger

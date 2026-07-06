@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 func cfg2() wfconfig.Config {

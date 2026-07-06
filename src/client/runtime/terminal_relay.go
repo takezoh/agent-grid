@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/termvt"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/termvt"
 )
 
 // SurfaceBackend is the subset of PtyBackend that TerminalRelay depends on.

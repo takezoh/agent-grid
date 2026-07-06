@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/logger"
+	"github.com/takezoh/agent-grid/platform/logger"
 )
 
 // SPEC §17.1 — explicit --workflow path is used when provided; the cwd default

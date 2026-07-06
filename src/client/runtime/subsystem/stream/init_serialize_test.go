@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // rawStarted mimics the app-server thread/started payload shape (nested
@@ -360,7 +360,7 @@ func TestBindFrame_WorktreeCleanupOnError(t *testing.T) {
 	prevCreate := createWorktree
 	createWorktree = func(_ context.Context, in subsystem.WorktreeInput) (subsystem.WorktreeResult, error) {
 		return subsystem.WorktreeResult{
-			StartDir: "/repo/.agent-reactor/worktrees/wt-fake",
+			StartDir: "/repo/.agent-grid/worktrees/wt-fake",
 			Name:     "wt-fake",
 		}, nil
 	}
@@ -395,7 +395,7 @@ func TestBindFrame_WorktreeCleanupOnError(t *testing.T) {
 	}
 	select {
 	case path := <-removed:
-		if path != "/repo/.agent-reactor/worktrees/wt-fake" {
+		if path != "/repo/.agent-grid/worktrees/wt-fake" {
 			t.Errorf("removeWorktree called with %q, want the stub worktree path", path)
 		}
 	case <-time.After(100 * time.Millisecond):
@@ -417,7 +417,7 @@ func TestReapExpiredSlot_GoesThroughReleaseFrame(t *testing.T) {
 	removeWorktree = func(path string) { got <- path }
 	t.Cleanup(func() { removeWorktree = prev })
 
-	b.registerPendingFrame("F-stuck", "/work", "/repo/.agent-reactor/worktrees/wt-42", "", "")
+	b.registerPendingFrame("F-stuck", "/work", "/repo/.agent-grid/worktrees/wt-42", "", "")
 	b.initState.mu.Lock()
 	b.initState.slot = &pendingSlot{
 		frameID:  "F-stuck",
@@ -439,7 +439,7 @@ func TestReapExpiredSlot_GoesThroughReleaseFrame(t *testing.T) {
 	}
 	select {
 	case path := <-got:
-		if path != "/repo/.agent-reactor/worktrees/wt-42" {
+		if path != "/repo/.agent-grid/worktrees/wt-42" {
 			t.Errorf("removeWorktree called with %q, want the reaped frame's worktreePath", path)
 		}
 	case <-time.After(100 * time.Millisecond):

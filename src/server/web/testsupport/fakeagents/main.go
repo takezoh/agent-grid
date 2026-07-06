@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
-	streamfake "github.com/takezoh/agent-reactor/client/runtime/subsystem/stream/fake"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/fakeclaude"
-	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
+	streamfake "github.com/takezoh/agent-grid/client/runtime/subsystem/stream/fake"
+	"github.com/takezoh/agent-grid/platform/lib/claude/fakeclaude"
+	claudehookpayload "github.com/takezoh/agent-grid/platform/lib/claude/hookpayload"
 )
 
 func main() {

@@ -34,7 +34,7 @@ topic: docs
 
 # Documentation
 
-Agent Reactor is one Go module that ships **three binaries** built on a **three-layer architecture**. This documentation is organized along two axes. The files are now stored as docs-skill structured records (`adr`, `spec`, `plan`, `ux`, `note`, and `component`):
+Agent Grid is one Go module that ships **three binaries** built on a **three-layer architecture**. This documentation is organized along two axes. The files are now stored as docs-skill structured records (`adr`, `spec`, `plan`, `ux`, `note`, and `component`):
 
 - **Audience** — who is reading: an end **user** running the tools, an **agent** (AI agent or contributor) doing work in the repo, or a developer who needs the **technical** internals.
 - **Architecture layer** — which part of the system: `platform/` (shared infrastructure), `client/` (the session daemon + web frontend), or `orchestrator/` (the autonomous Symphony pipeline).
@@ -74,5 +74,5 @@ You are an AI agent or a contributor changing the code, or authoring the workflo
 You need to understand how a layer is built.
 
 - [platform/](../component/component-20260624-platform-overview.md) — shared infrastructure: sandbox, brokers, credential proxy, logger, trackers, tool wrappers
-- [client/](../component/component-20260624-client-overview.md) — agent-reactor's session daemon: Functional Core / Imperative Shell, the state machine, drivers, subsystems, IPC, web frontend
+- [client/](../component/component-20260624-client-overview.md) — agent-grid's session daemon: Functional Core / Imperative Shell, the state machine, drivers, subsystems, IPC, web frontend
 - [orchestrator/](../component/component-20260624-orchestrator-overview.md) — the poll / dispatch / reconcile pipeline and Symphony SPEC conformance

@@ -39,7 +39,7 @@ source_paths:
 - Makefile
 - scripts/check-coverage.sh
 - scripts/coverage-floors.txt
-- src/cmd/reactor-bridge/
+- src/cmd/bridge/
 topic: agent
 ---
 
@@ -156,7 +156,7 @@ Coverage targets are tiered by architectural blast radius. A regression in `stat
 | **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/stream`, `driver`, `config`, `sandbox/devcontainer`, `platform/termvt`, `client/web`, `server/web` (gateway scenario + browser smoke keep this tier honest) |
 | **B** | ≥60% | Infrastructure integrations | `lib/*` (except thin CLI wrappers), `proto/sessions`, `hostexec`, `mcpproxy`, `tools`, `platform/agent/fakecodex` |
 | **C** | ≥40% | Thin CLI & wiring | `cmd/claude-app-server`, `cmd/orchestrator`, `runtime/subsystem/cli`, `client/lib/claude/transcript`, `client/lib/codex/transcript` |
-| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/web`, `cmd/reactor-bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli` |
+| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/web`, `cmd/bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli` |
 
 Tier S and A packages must not lose coverage in a PR. Tier B packages should improve over time; new B-tier code arrives with tests. Tier C packages aim for the goldenpath; full coverage isn't expected. Tier D packages need at least one test that exercises the package surface.
 
@@ -185,7 +185,7 @@ The `Simplify` workflow (`.github/workflows/simplify.yml`) runs on every pull re
 
 ## When Coverage Can't Be Reached
 
-Some packages still can't hit their Tier target in CI because the dependency is the OS itself — `cmd/reactor-bridge` is a process entry point, and low-level helpers such as `platform/lib/tlsdev` still depend on environment-shaped behavior. `platform/sandbox/devcontainer` is no longer the canonical example here: always-on `fakedocker` coverage plus `FakeVsRealDocker` now carry that package's structural backstop. For the remaining low-ceiling packages:
+Some packages still can't hit their Tier target in CI because the dependency is the OS itself — `cmd/bridge` is a process entry point, and low-level helpers such as `platform/lib/tlsdev` still depend on environment-shaped behavior. `platform/sandbox/devcontainer` is no longer the canonical example here: always-on `fakedocker` coverage plus `FakeVsRealDocker` now carry that package's structural backstop. For the remaining low-ceiling packages:
 
 1. Cover everything that doesn't require the external process (pure parsing, command-string assembly, etc.).
 2. Document the structural ceiling in the package's test file.

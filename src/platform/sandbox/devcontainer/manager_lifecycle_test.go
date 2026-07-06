@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/sandbox"
-	"github.com/takezoh/agent-reactor/platform/sandbox/devcontainer/fakedocker"
+	"github.com/takezoh/agent-grid/platform/sandbox"
+	"github.com/takezoh/agent-grid/platform/sandbox/devcontainer/fakedocker"
 )
 
 func TestManagerLifecycle_FakeDocker(t *testing.T) {

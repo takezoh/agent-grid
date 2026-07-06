@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/platform/sandbox"
+	"github.com/takezoh/agent-grid/platform/sandbox"
 )
 
 // ErrMissingImage is returned when devcontainer.json has neither image nor build.name.
@@ -110,9 +110,9 @@ func projectHash(projectPath string) string {
 //
 // Earlier this only hashed ExtraWorkspaces, which missed run-dir source path
 // changes after the SharedContainerKey unification: a container created with
-// /opt/agent-reactor/run -> /home/take/.agent-reactor/run/<random-hash> was happily reused
+// /opt/agent-grid/run -> /home/take/.agent-grid/run/<random-hash> was happily reused
 // by a binary that now writes the codex socket under
-// /home/take/.agent-reactor/run/__shared__, and codex frames failed to reach the
+// /home/take/.agent-grid/run/__shared__, and codex frames failed to reach the
 // in-container sockbridge.
 func (s *DevcontainerSpec) MountConfigurationHash() string {
 	entries := make([]string, 0, len(s.ExtraWorkspaces)+len(s.Mounts))

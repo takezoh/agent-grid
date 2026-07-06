@@ -25,7 +25,7 @@ source_paths:
 - src/client/web/src/
 - src/client/web/src/components/
 - src/client/web/src/css/
-goal: agent-reactor-new の Web client (src/client/web) を、情報設計・認知負荷・一貫性・アクセシビリティ・ 既存プラットフォーム慣習の観点でモダンに全面刷新する。PC
+goal: agent-grid-new の Web client (src/client/web) を、情報設計・認知負荷・一貫性・アクセシビリティ・ 既存プラットフォーム慣習の観点でモダンに全面刷新する。PC
   / スマホ / タブレットの 3 デバイスすべてで 破綻しない適応レイアウトを実現し、デザイントークン体系 + タイポグラフィ階層 + WCAG AA コントラストを
   確立し、コマンドパレットで熟成済みの視覚言語・a11y パターン (unified listbox / focus trap / 単一 aria-live slot
   / disabled visible+skip-navigation / IME 抑止) を全画面 (セッション一覧・ターミナル ホスト・メインタブ・通知トースト・ステータスバナー・DriverViewPanel)
@@ -512,7 +512,7 @@ legacy_context:
 
 ## Goal
 
-agent-reactor-new の Web client (`src/client/web`) を、**情報設計・認知負荷・一貫性・アクセシビリティ・既存プラットフォーム慣習** の観点でモダンに全面刷新する。最重視するのは UX。対象は PC・スマホ・タブレットの 3 デバイスすべてで、いずれでも破綻しない**適応レイアウト**を実現する。
+agent-grid-new の Web client (`src/client/web`) を、**情報設計・認知負荷・一貫性・アクセシビリティ・既存プラットフォーム慣習** の観点でモダンに全面刷新する。最重視するのは UX。対象は PC・スマホ・タブレットの 3 デバイスすべてで、いずれでも破綻しない**適応レイアウト**を実現する。
 
 刷新は 3 つの柱で成る。(1) **適応レイアウト** — sidebar を PC=常設 / タブレット=折り畳み可 / スマホ=off-canvas drawer に振り分け、named grid areas を breakpoint で差し替える骨格、dvh + safe-area-inset、44px タッチターゲット。(2) **デザイントークン体系 + テーマ** — semantic な CSS custom property (`--fg` / `--fg-muted` / `--bg` / `--bg-elevated` / `--accent` / `--status-*`)、タイポグラフィ階層、WCAG AA コントラスト、light / dark / system(既定)の 3 テーマと segmented control 明示トグル + xterm 配色連動。(3) **視覚的一貫性 + a11y 波及** — コマンドパレットで熟成済みの視覚言語 (border/radius/spacing/タイポ token) と a11y パターン (unified listbox / focus trap / 単一 aria-live slot / disabled visible+skip-navigation / IME 抑止) を session list・MainTabs・toast 等の全画面へ波及させる。
 

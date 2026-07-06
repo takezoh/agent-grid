@@ -70,12 +70,12 @@ func noRealBinaryExecOutsideE2E(m dsl.Matcher) {
 		Report(`real binary exec is restricted to platform/lib wrappers, fake packages, and *_e2e_test.go fidelity tests`)
 }
 
-// noE2EEnvOutsideE2E confines REACTOR_E2E_* env access to *_e2e_test.go files.
+// noE2EEnvOutsideE2E confines AG_E2E_* env access to *_e2e_test.go files.
 // Non-test helpers that legitimately bridge into those suites are excluded by
 // path in .golangci.yml rather than per-line annotations.
 func noE2EEnvOutsideE2E(m dsl.Matcher) {
 	m.Match(`os.Getenv($name)`, `os.LookupEnv($name)`).
-		Where(m["name"].Text.Matches(`^"REACTOR_E2E_[A-Z0-9_]+"$`) &&
+		Where(m["name"].Text.Matches(`^"AG_E2E_[A-Z0-9_]+"$`) &&
 			!m.File().Name.Matches(`_e2e_test\.go$`)).
-		Report(`REACTOR_E2E_* env access is restricted to *_e2e_test.go fidelity suites`)
+		Report(`AG_E2E_* env access is restricted to *_e2e_test.go fidelity suites`)
 }

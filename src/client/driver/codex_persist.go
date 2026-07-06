@@ -3,7 +3,7 @@ package driver
 import (
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 func (CodexDriver) Persist(s state.DriverState) map[string]string {

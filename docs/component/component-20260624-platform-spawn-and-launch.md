@@ -97,7 +97,7 @@ flowchart TD
 
 | Implementation | Behaviour |
 |---|---|
-| `DirectDispatcher` (`direct.go`) | Pass-through. Strips `ROOST_SOCKET_TOKEN` (`stripContainerOnlyEnv`); injects `ROOST_SOCKET` when configured |
+| `DirectDispatcher` (`direct.go`) | Pass-through. Strips `AG_SOCKET_TOKEN` (`stripContainerOnlyEnv`); injects `AG_SOCKET` when configured |
 | `DevcontainerLauncher` (`devcontainer.go`) | Ensures a container via `sandbox.Manager`, rewrites to a `docker exec` command, builds mounts via pathmap, and injects the credproxy token |
 | `SandboxDispatcher` (`dispatcher_mode.go`) | Resolves the per-project mode via `SandboxResolver` and delegates to Direct / Devcontainer. `ForceHost` always goes Direct |
 

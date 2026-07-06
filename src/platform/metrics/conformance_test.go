@@ -3,7 +3,7 @@ package metrics_test
 import (
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/metrics"
+	"github.com/takezoh/agent-grid/platform/metrics"
 )
 
 // SPEC §17.5 — absolute thread totals are used; same absolute value from the same

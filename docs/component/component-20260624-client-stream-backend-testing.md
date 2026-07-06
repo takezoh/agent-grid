@@ -117,7 +117,7 @@ cd src && go test -run x -fuzz 'FuzzStreamRouting$' -fuzztime=30s \
   ./client/runtime/subsystem/stream/
 
 # fidelity backstop against a real app-server (opt-in; see stream-backend-e2e.md)
-REACTOR_E2E_CODEX_BIN=$(which codex) \
+AG_E2E_CODEX_BIN=$(which codex) \
   go test -tags e2e -run TestStreamRoutingE2E ./client/runtime/subsystem/stream/
 ```
 

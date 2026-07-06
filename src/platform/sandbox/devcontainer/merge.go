@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/takezoh/agent-reactor/platform/sandbox"
+	"github.com/takezoh/agent-grid/platform/sandbox"
 )
 
 const devcontainerSubdir = ".devcontainer"

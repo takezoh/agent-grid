@@ -3,7 +3,7 @@ package stream
 import (
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/driver"
+	"github.com/takezoh/agent-grid/client/driver"
 )
 
 // Re-exported from driver/ so callers need not import both packages.

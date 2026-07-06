@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-grid/platform/appid"
 )
 
 // Container-side paths for files bind-mounted from the per-project run dir.
@@ -47,7 +47,7 @@ func ContainerSockPath(runDir string) string {
 
 // FindHelperFile returns the absolute path to a helper file (binary, script,
 // asset) if it can be located alongside the executable or in the libexec
-// directory (~/.local/lib/agent-reactor/). Returns "" when not found at either location.
+// directory (~/.local/lib/agent-grid/). Returns "" when not found at either location.
 func FindHelperFile(name string) string {
 	exe, err := os.Executable()
 	if err != nil {

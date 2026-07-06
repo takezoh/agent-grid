@@ -45,7 +45,7 @@ Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/s
 
 ## Context
 
-web UI のターミナル中身は `src/platform/termvt/session.go` の `exec.Command(spec.Argv[0], ...)` で起動された agent CLI (claude / codex 等) そのもので、agent-reactor は PTY を中継する dumb pipe にすぎない。これら CLI は mouse reporting を有効化していないため、xterm.js の SGR mouse encoding を流しても CLI 側で解釈されず、タップでカーソル直接ジャンプは原理的に不可能。
+web UI のターミナル中身は `src/platform/termvt/session.go` の `exec.Command(spec.Argv[0], ...)` で起動された agent CLI (claude / codex 等) そのもので、agent-grid は PTY を中継する dumb pipe にすぎない。これら CLI は mouse reporting を有効化していないため、xterm.js の SGR mouse encoding を流しても CLI 側で解釈されず、タップでカーソル直接ジャンプは原理的に不可能。
 
 ADR 0071 で実装した pinch → fontSize は、表面的な可視性は高いが core UX (履歴呼び出し / カーソル左右移動) には寄与しない。一方、Termius モバイル流の『水平 swipe → arrow key 連射』は agent CLI の readline 互換入力欄 (Ink `<TextInput>`, bubbletea textinput 等) に対して CLI 改変ゼロで通る最も leverage の高いジェスチャ。
 

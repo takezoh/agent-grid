@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	platformconfig "github.com/takezoh/agent-reactor/platform/config"
-	"github.com/takezoh/agent-reactor/platform/sandbox"
-	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
+	rsubsystem "github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	platformconfig "github.com/takezoh/agent-grid/platform/config"
+	"github.com/takezoh/agent-grid/platform/sandbox"
+	sandboxdc "github.com/takezoh/agent-grid/platform/sandbox/devcontainer"
 )
 
 // Frame-launch matrix driven through the REAL launcher stack
@@ -25,7 +25,7 @@ import (
 //	lifecycle : new-session / cold-start / warm-start
 //
 // What each cell proves:
-//   - host    → DirectDispatcher injects ROOST_SOCKET, strips the container
+//   - host    → DirectDispatcher injects AG_SOCKET, strips the container
 //     token, registers no frame token / mounts / endpoint.
 //   - container → wrapLaunchForSpawn generates a bearer token, the launcher
 //     hands it to the Manager's BuildLaunchCommand (it rides the docker-exec
@@ -38,7 +38,7 @@ import (
 //
 // The subsystem backends are faked (recSubsysFactory) so no real codex
 // app-server starts here; the codex command/socket rewrite is covered at the
-// stream-package altitude. The reactor-bridge binary copy and the container
+// stream-package altitude. The bridge binary copy and the container
 // workspace bind-mount are covered by platform/agentlaunch tests — here the
 // faked Manager returns a nil ContainerState (all its methods are nil-safe).
 
@@ -293,14 +293,14 @@ func TestFrameLaunch_ColdStart_Host(t *testing.T) {
 	}
 
 	env := h.spawnEnv(t)
-	if env["ROOST_SOCKET"] != h.sockPath {
-		t.Errorf("ROOST_SOCKET = %q, want %q", env["ROOST_SOCKET"], h.sockPath)
+	if env["AG_SOCKET"] != h.sockPath {
+		t.Errorf("AG_SOCKET = %q, want %q", env["AG_SOCKET"], h.sockPath)
 	}
-	if env["ROOST_SESSION_ID"] != "s1" || env["ROOST_FRAME_ID"] != "f1" {
+	if env["AG_SESSION_ID"] != "s1" || env["AG_FRAME_ID"] != "f1" {
 		t.Errorf("identity env not baked into host spawn: %v", env)
 	}
-	if env["ROOST_SOCKET_TOKEN"] != "" {
-		t.Errorf("host launch ROOST_SOCKET_TOKEN = %q, want empty", env["ROOST_SOCKET_TOKEN"])
+	if env["AG_SOCKET_TOKEN"] != "" {
+		t.Errorf("host launch AG_SOCKET_TOKEN = %q, want empty", env["AG_SOCKET_TOKEN"])
 	}
 	if _, ok := h.r.frameReg.GetMounts("f1"); ok {
 		t.Error("host launch must not register mounts")
@@ -326,11 +326,11 @@ func TestFrameLaunch_ColdStart_PerProject(t *testing.T) {
 	// The bearer token rides the docker-exec command (Manager env), not the
 	// backend spawn env. It must reach BuildLaunchCommand and be registered.
 	buildEnv := h.mgr.buildEnv()
-	tok := buildEnv["ROOST_SOCKET_TOKEN"]
+	tok := buildEnv["AG_SOCKET_TOKEN"]
 	if tok == "" {
 		t.Fatal("container launch must hand a bearer token to BuildLaunchCommand")
 	}
-	if buildEnv["ROOST_SESSION_ID"] != "s1" || buildEnv["ROOST_FRAME_ID"] != "f1" {
+	if buildEnv["AG_SESSION_ID"] != "s1" || buildEnv["AG_FRAME_ID"] != "f1" {
 		t.Errorf("identity env not handed to the container: %v", buildEnv)
 	}
 	if id, ok := h.r.frameReg.Lookup(tok); !ok || id != "f1" {
@@ -366,7 +366,7 @@ func TestFrameLaunch_ColdStart_Shared(t *testing.T) {
 	if _, err := os.Stat(h.runDir(project)); err == nil {
 		t.Errorf("shared mode must not create a per-project run dir at %s", h.runDir(project))
 	}
-	if h.mgr.buildEnv()["ROOST_SOCKET_TOKEN"] == "" {
+	if h.mgr.buildEnv()["AG_SOCKET_TOKEN"] == "" {
 		t.Error("shared container launch must still inject a bearer token")
 	}
 }
@@ -509,18 +509,18 @@ func TestFrameLaunch_NewSession_Host(t *testing.T) {
 
 	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
 		SessionID: "s1", FrameID: "f1", Project: "/proj/host", Command: "minimal-test",
-		Env: map[string]string{"ROOST_SESSION_ID": "s1", "ROOST_FRAME_ID": "f1"},
+		Env: map[string]string{"AG_SESSION_ID": "s1", "AG_FRAME_ID": "f1"},
 	})
 
 	if sc.token != "" {
 		t.Errorf("host spawn must produce an empty token, got %q", sc.token)
 	}
 	env := h.spawnEnv(t)
-	if env["ROOST_SOCKET"] != h.sockPath {
-		t.Errorf("ROOST_SOCKET = %q, want %q", env["ROOST_SOCKET"], h.sockPath)
+	if env["AG_SOCKET"] != h.sockPath {
+		t.Errorf("AG_SOCKET = %q, want %q", env["AG_SOCKET"], h.sockPath)
 	}
-	if env["ROOST_SOCKET_TOKEN"] != "" {
-		t.Errorf("host spawn ROOST_SOCKET_TOKEN = %q, want empty", env["ROOST_SOCKET_TOKEN"])
+	if env["AG_SOCKET_TOKEN"] != "" {
+		t.Errorf("host spawn AG_SOCKET_TOKEN = %q, want empty", env["AG_SOCKET_TOKEN"])
 	}
 	if len(h.r.containerEndpoints) != 0 {
 		t.Error("host new-session must not start a container endpoint")
@@ -534,14 +534,14 @@ func TestFrameLaunch_NewSession_PerProject(t *testing.T) {
 	const project = "/proj/box"
 	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
 		SessionID: "s1", FrameID: "f1", Project: project, Command: "minimal-test",
-		Env: map[string]string{"ROOST_SESSION_ID": "s1", "ROOST_FRAME_ID": "f1"},
+		Env: map[string]string{"AG_SESSION_ID": "s1", "AG_FRAME_ID": "f1"},
 	})
 
 	if sc.token == "" {
 		t.Fatal("container spawn must produce a bearer token")
 	}
-	if h.mgr.buildEnv()["ROOST_SOCKET_TOKEN"] != sc.token {
-		t.Errorf("token handed to BuildLaunchCommand = %q, want %q", h.mgr.buildEnv()["ROOST_SOCKET_TOKEN"], sc.token)
+	if h.mgr.buildEnv()["AG_SOCKET_TOKEN"] != sc.token {
+		t.Errorf("token handed to BuildLaunchCommand = %q, want %q", h.mgr.buildEnv()["AG_SOCKET_TOKEN"], sc.token)
 	}
 	if id, ok := h.r.frameReg.Lookup(sc.token); !ok || id != "f1" {
 		t.Errorf("frameReg.Lookup(token) = (%q, %v), want (f1, true)", id, ok)

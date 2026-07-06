@@ -1,4 +1,4 @@
-// Command web is the agent-reactor web-client host: it serves the embedded
+// Command web is the agent-grid web-client host: it serves the embedded
 // browser UI (xterm.js) and reverse-proxies the data plane (/api, /ws) to the
 // backend (cmd/server). The browser talks only to this origin, so the page's
 // strict CSP and the WebSocket origin check hold while the backend stays a
@@ -19,8 +19,8 @@ import (
 	"syscall"
 	"time"
 
-	clientweb "github.com/takezoh/agent-reactor/client/web"
-	"github.com/takezoh/agent-reactor/platform/lib/tlsdev"
+	clientweb "github.com/takezoh/agent-grid/client/web"
+	"github.com/takezoh/agent-grid/platform/lib/tlsdev"
 )
 
 func main() {
@@ -56,7 +56,7 @@ func run() error {
 	if *insecure {
 		scheme = "http"
 	}
-	log.Printf("agent-reactor web client on %s://%s  → backend %s", scheme, *addr, *backend)
+	log.Printf("agent-grid web client on %s://%s  → backend %s", scheme, *addr, *backend)
 	if err := tlsdev.Serve(srv, *insecure, *certFile, *keyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

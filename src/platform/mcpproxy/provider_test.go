@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/platform/config"
 )
 
 func TestWriteMCPJSON_noProject(t *testing.T) {

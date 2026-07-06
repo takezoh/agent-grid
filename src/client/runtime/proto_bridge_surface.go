@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // broadcastSurfaceOutput fans a chunk of frame surface output to all ConnIDs subscribed

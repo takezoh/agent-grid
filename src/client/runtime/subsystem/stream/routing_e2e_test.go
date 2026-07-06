@@ -12,10 +12,10 @@ package stream
 // JSON-RPC), not a specific binary, so this is NOT codex-only: any conforming
 // app-server is a valid target. Backends are discovered from the environment:
 //
-//   - REACTOR_E2E_CODEX_BIN      → the codex app-server (convenience alias)
-//   - REACTOR_E2E_APPSERVER_BIN  → any other conforming app-server
-//     REACTOR_E2E_APPSERVER_NAME → subtest label for it (default "appserver")
-//     REACTOR_E2E_APPSERVER_ARGS → extra argv passed to it, space-split
+//   - AG_E2E_CODEX_BIN      → the codex app-server (convenience alias)
+//   - AG_E2E_APPSERVER_BIN  → any other conforming app-server
+//     AG_E2E_APPSERVER_NAME → subtest label for it (default "appserver")
+//     AG_E2E_APPSERVER_ARGS → extra argv passed to it, space-split
 //
 // Gated two ways so it never runs in normal CI: the build tag `e2e` excludes
 // this file from default builds, and the test skips unless at least one backend
@@ -29,8 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // e2eBackend is one real app-server implementation to validate the fake against.
@@ -43,18 +43,18 @@ type e2eBackend struct {
 // configuredE2EBackends collects every app-server the environment points at.
 func configuredE2EBackends() []e2eBackend {
 	var out []e2eBackend
-	if bin := os.Getenv("REACTOR_E2E_CODEX_BIN"); bin != "" {
+	if bin := os.Getenv("AG_E2E_CODEX_BIN"); bin != "" {
 		out = append(out, e2eBackend{name: "codex", bin: bin})
 	}
-	if bin := os.Getenv("REACTOR_E2E_APPSERVER_BIN"); bin != "" {
-		name := os.Getenv("REACTOR_E2E_APPSERVER_NAME")
+	if bin := os.Getenv("AG_E2E_APPSERVER_BIN"); bin != "" {
+		name := os.Getenv("AG_E2E_APPSERVER_NAME")
 		if name == "" {
 			name = "appserver"
 		}
 		out = append(out, e2eBackend{
 			name: name,
 			bin:  bin,
-			args: strings.Fields(os.Getenv("REACTOR_E2E_APPSERVER_ARGS")),
+			args: strings.Fields(os.Getenv("AG_E2E_APPSERVER_ARGS")),
 		})
 	}
 	return out
@@ -63,7 +63,7 @@ func configuredE2EBackends() []e2eBackend {
 func TestStreamRoutingE2EIsolation(t *testing.T) {
 	backends := configuredE2EBackends()
 	if len(backends) == 0 {
-		t.Skip("no real app-server configured; set REACTOR_E2E_CODEX_BIN and/or REACTOR_E2E_APPSERVER_BIN")
+		t.Skip("no real app-server configured; set AG_E2E_CODEX_BIN and/or AG_E2E_APPSERVER_BIN")
 	}
 	for _, be := range backends {
 		t.Run(be.name, func(t *testing.T) { runE2EIsolation(t, be) })

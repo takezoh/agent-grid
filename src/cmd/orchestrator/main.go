@@ -11,14 +11,14 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/takezoh/agent-reactor/orchestrator/agent"
-	"github.com/takezoh/agent-reactor/orchestrator/httpserver"
-	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
-	"github.com/takezoh/agent-reactor/orchestrator/tracker"
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
-	"github.com/takezoh/agent-reactor/orchestrator/workflowfile"
-	"github.com/takezoh/agent-reactor/orchestrator/workspace"
-	"github.com/takezoh/agent-reactor/platform/logger"
+	"github.com/takezoh/agent-grid/orchestrator/agent"
+	"github.com/takezoh/agent-grid/orchestrator/httpserver"
+	"github.com/takezoh/agent-grid/orchestrator/scheduler"
+	"github.com/takezoh/agent-grid/orchestrator/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/workflowfile"
+	"github.com/takezoh/agent-grid/orchestrator/workspace"
+	"github.com/takezoh/agent-grid/platform/logger"
 )
 
 func main() {

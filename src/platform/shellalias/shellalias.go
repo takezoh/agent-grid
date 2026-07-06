@@ -25,8 +25,8 @@ import (
 const LoginShellCommand = `"$(getent passwd "$(id -un)" | cut -d: -f7)"`
 
 const (
-	aliasBegin   = "__ROOST_ALIAS_BEGIN__"
-	aliasEnd     = "__ROOST_ALIAS_END__"
+	aliasBegin   = "__AG_ALIAS_BEGIN__"
+	aliasEnd     = "__AG_ALIAS_END__"
 	queryTimeout = 10 * time.Second
 )
 

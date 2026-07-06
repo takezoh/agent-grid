@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
-	ptracker "github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
+	ptracker "github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // fakeAdapter records calls for assertions.

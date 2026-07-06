@@ -6,8 +6,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	rsubsystem "github.com/takezoh/agent-reactor/client/runtime/subsystem"
-	"github.com/takezoh/agent-reactor/client/state"
+	rsubsystem "github.com/takezoh/agent-grid/client/runtime/subsystem"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 const coldStartContainerConcurrency = 4
@@ -148,8 +148,8 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 	launch = bindResult.Plan
 
 	baseEnv := map[string]string{
-		"ROOST_SESSION_ID": string(id),
-		"ROOST_FRAME_ID":   string(frame.ID),
+		"AG_SESSION_ID": string(id),
+		"AG_FRAME_ID":   string(frame.ID),
 	}
 	wrapResult, err := wrapLaunchForSpawn(launcher(r.cfg), frame.ID, frame.Project, launch, baseEnv)
 	if err != nil {

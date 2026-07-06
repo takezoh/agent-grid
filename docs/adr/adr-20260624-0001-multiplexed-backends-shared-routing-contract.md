@@ -82,7 +82,7 @@ Mechanics (all in `client/runtime/subsystem/stream`):
   binds/starts/active-switches/messages.
 
 The bug-reproducing ("cross-talk") cases are **RED** on the current demux and are
-gated behind `REACTOR_ROUTING_PINS` so CI stays green until the fix; the
+gated behind `AG_ROUTING_PINS` so CI stays green until the fix; the
 GREEN regression guards (distinct-cwd routing, release cleanup, …) run always.
 The fix that binds threads by their initiating request flips the pins GREEN, at
 which point the gate is removed and the cases become permanent regression cover.
@@ -108,7 +108,7 @@ synchronously via a `thread/start` request and binds the returned id (mirroring
 resume), so binding no longer depends on an async `thread.started` or the start
 cwd. `resolveFrameForStartedThread` and the `activeLookup` fallback are removed;
 `handleThreadStarted` only confirms an already-bound thread and drops unknown
-ones. The `REACTOR_ROUTING_PINS` gate is gone — the cases are now permanent
+ones. The `AG_ROUTING_PINS` gate is gone — the cases are now permanent
 regression guards (same-cwd frames get distinct ids and cannot cross-talk).
 Because the spawned frame now resumes the daemon-created thread (cold start uses
 `codex resume <id> --remote`), this change to the spawn/attach contract must be

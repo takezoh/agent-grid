@@ -6,8 +6,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
+	"github.com/takezoh/agent-grid/client/state"
+	claudehookpayload "github.com/takezoh/agent-grid/platform/lib/claude/hookpayload"
 )
 
 // Hook event handling for the Claude driver. The hook bridge sends the

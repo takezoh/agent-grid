@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/runtime/worker"
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/runtime/worker"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // execute is the side-effect interpreter. Each Effect type has a

@@ -4,7 +4,7 @@ import (
 	"os"
 	"regexp"
 
-	platformcfg "github.com/takezoh/agent-reactor/platform/config"
+	platformcfg "github.com/takezoh/agent-grid/platform/config"
 )
 
 // varPattern matches exactly "$NAME" (anchored, uppercase/underscore).

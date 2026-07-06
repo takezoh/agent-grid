@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	codexschemav1 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v1"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	codexschemav1 "github.com/takezoh/agent-grid/platform/agent/codexschema/v1"
 )
 
 func newTestTransport(input string, out *bytes.Buffer) codexclient.Transport {
@@ -17,7 +17,7 @@ func newTestTransport(input string, out *bytes.Buffer) codexclient.Transport {
 
 // isolateHome points HOME at a temp dir so runWith's logger.Init writes the
 // server.log under a writable temp path instead of the developer's (or the
-// sandbox's read-only) ~/.agent-reactor. Without this, logger.Init fails, runWith
+// sandbox's read-only) ~/.agent-grid. Without this, logger.Init fails, runWith
 // returns early before the read loop starts, and any client write blocks
 // forever on a pipe with no reader. logger.Init resolves paths via os.UserHomeDir().
 func isolateHome(t *testing.T) {

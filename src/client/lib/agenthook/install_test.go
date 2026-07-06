@@ -547,7 +547,7 @@ func TestBuildHookCmd_QuotesUnsafePaths(t *testing.T) {
 		// Spaces in bin path: must be quoted as ONE shell token.
 		{"/home/Alice User/bin/server", "", "'/home/Alice User/bin/server' event claude"},
 		// Spaces in data-dir: same treatment.
-		{"/usr/bin/server", "/var/lib/agent reactor", "/usr/bin/server event claude -data-dir '/var/lib/agent reactor'"},
+		{"/usr/bin/server", "/var/lib/agent grid", "/usr/bin/server event claude -data-dir '/var/lib/agent grid'"},
 		// Shell metachars in bin path: also quoted.
 		{"/opt/srv$1/server", "", "'/opt/srv$1/server' event claude"},
 	}
@@ -561,7 +561,7 @@ func TestBuildHookCmd_QuotesUnsafePaths(t *testing.T) {
 func TestAll_SpecCoverage(t *testing.T) {
 	// Lock the supported-agent list and the (Name, SubcmdName, SettingsRel)
 	// triple. Drift here is the failure mode the unified All slice was
-	// added to prevent — both cmd/server and cmd/reactor-bridge consume
+	// added to prevent — both cmd/server and cmd/bridge consume
 	// this same slice, so omissions surface here, not as silent partial
 	// coverage at runtime.
 	want := []Spec{Claude, Gemini}

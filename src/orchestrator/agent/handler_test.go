@@ -12,12 +12,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/takezoh/agent-reactor/orchestrator/lineargql"
-	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/lineargql"
+	"github.com/takezoh/agent-grid/orchestrator/scheduler"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // --- Activity tracking tests (§13.5 / §8.5) ---

@@ -152,7 +152,7 @@ func startServerDaemonWithOptions(t *testing.T, opts daemonLaunchOptions) daemon
 		"-no-auth",
 		"-addr", addr,
 	)
-	cmd.Env = appendEnv(replaceEnv(stripEnvPrefix(os.Environ(), "ROOST_"), "HOME", homeDir), opts.extraEnv...)
+	cmd.Env = appendEnv(replaceEnv(stripEnvPrefix(os.Environ(), "AG_"), "HOME", homeDir), opts.extraEnv...)
 	logFile, err := os.Create(filepath.Join(dataDir, "server.log"))
 	if err != nil {
 		_ = os.RemoveAll(homeDir)

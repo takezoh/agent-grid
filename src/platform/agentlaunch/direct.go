@@ -3,7 +3,7 @@ package agentlaunch
 import "context"
 
 // DirectDispatcher is the no-op Dispatcher: it passes the plan through unchanged.
-// SockPath, when non-empty, is injected as ROOST_SOCKET so hook subprocesses
+// SockPath, when non-empty, is injected as AG_SOCKET so hook subprocesses
 // can reach the daemon without relying on baked-in or fallback paths.
 type DirectDispatcher struct {
 	SockPath string
@@ -12,7 +12,7 @@ type DirectDispatcher struct {
 func (d DirectDispatcher) Wrap(_ context.Context, _ string, plan LaunchPlan) (WrappedLaunch, error) {
 	merged := stripContainerOnlyEnv(plan.Env)
 	if d.SockPath != "" {
-		merged = cloneAndSet(merged, "ROOST_SOCKET", d.SockPath)
+		merged = cloneAndSet(merged, "AG_SOCKET", d.SockPath)
 	}
 	return WrappedLaunch{
 		Command:  plan.Command,
@@ -33,11 +33,11 @@ func (DirectDispatcher) IsContainer(_ string) bool { return false }
 func (DirectDispatcher) BeginColdStart() {}
 func (DirectDispatcher) EndColdStart()   {}
 
-// stripContainerOnlyEnv returns a copy of env with ROOST_SOCKET_TOKEN forced
+// stripContainerOnlyEnv returns a copy of env with AG_SOCKET_TOKEN forced
 // empty so host-direct launches mask any ambient parent token.
 func stripContainerOnlyEnv(env map[string]string) map[string]string {
 	out := cloneEnvMap(env, 1)
-	out["ROOST_SOCKET_TOKEN"] = ""
+	out["AG_SOCKET_TOKEN"] = ""
 	return out
 }
 

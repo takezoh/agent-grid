@@ -14,12 +14,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
-	"github.com/takezoh/agent-reactor/orchestrator/workspace"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agent/fakecodex"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/orchestrator/workspace"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/fakecodex"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 const (
@@ -379,7 +379,7 @@ func TestSpawn_dispatcherWrapInvoked(t *testing.T) {
 	// container; the per-issue cwd is carried by StartDir, which pathmap
 	// translates to a subdir of the project mount inside the container.
 	// SandboxResolver.ResolveProjectScope still resolves correctly because the
-	// upward search from the root reaches the same .agent-reactor/settings.toml.
+	// upward search from the root reaches the same .agent-grid/settings.toml.
 	assert.Equal(t, filepath.Clean(wsRoot), calls[0].plan.Project)
 	assert.Equal(t, filepath.Join(wsRoot, "PROJ-D1"), calls[0].plan.StartDir)
 }

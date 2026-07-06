@@ -6,7 +6,7 @@
 // back into a HookPayload with the expected key set.
 //
 // Skipped in normal builds by the `e2e` tag. Skipped at runtime unless
-// REACTOR_E2E_CLAUDE_BIN is set.
+// AG_E2E_CLAUDE_BIN is set.
 
 package agenthook
 
@@ -27,10 +27,10 @@ import (
 
 	"github.com/creack/pty"
 
-	"github.com/takezoh/agent-reactor/platform/e2etest"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/cli"
-	"github.com/takezoh/agent-reactor/platform/lib/claude/fakeclaude"
-	claudehookpayload "github.com/takezoh/agent-reactor/platform/lib/claude/hookpayload"
+	"github.com/takezoh/agent-grid/platform/e2etest"
+	"github.com/takezoh/agent-grid/platform/lib/claude/cli"
+	"github.com/takezoh/agent-grid/platform/lib/claude/fakeclaude"
+	claudehookpayload "github.com/takezoh/agent-grid/platform/lib/claude/hookpayload"
 )
 
 // requireHome forces $HOME to a fresh TempDir so Install never

@@ -23,7 +23,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/client/state"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // recordingRuntime captures every EvSubsystem the backend enqueues. It is the

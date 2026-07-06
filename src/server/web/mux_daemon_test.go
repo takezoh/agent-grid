@@ -20,10 +20,10 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/takezoh/agent-reactor/client/config"
-	"github.com/takezoh/agent-reactor/client/proto"
-	"github.com/takezoh/agent-reactor/client/state"
-	platformconfig "github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/client/config"
+	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/state"
+	platformconfig "github.com/takezoh/agent-grid/platform/config"
 )
 
 // --- fake daemon helpers ---
@@ -801,7 +801,7 @@ func TestMux_DeleteMapsErrorToHTTPCode(t *testing.T) {
 // TestMux_SessionConfigSurfacesConfigFields verifies that GET /api/session-config
 // surfaces default_command / commands / projects sourced from settings.toml.
 // The loader is stubbed so the test doesn't depend on the developer's
-// ~/.agent-reactor/settings.toml.
+// ~/.agent-grid/settings.toml.
 // Not t.Parallel(): handleSessionConfig swaps a package-level loader via
 // withSessionConfigLoader; two concurrent overrides would race the way they
 // did when both this test and TestMux_SessionConfigSurfacesLoadError ran

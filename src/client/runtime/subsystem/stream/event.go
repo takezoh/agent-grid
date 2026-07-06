@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	codexschemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
 )
 
 func (b *Backend) handleNotification(method string, params json.RawMessage) {

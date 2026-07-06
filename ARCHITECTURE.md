@@ -4,7 +4,7 @@ This is the canonical overview of the system: its scope, design principles, and 
 
 ## Scope
 
-agent-reactor's client (shipped as the `server` binary that runs both the daemon and the HTTP/WS gateway in one process) is a **session lifecycle manager — not an agent orchestrator**. It does not control what agents do; it gives you visibility and fast access to every agent session through the embedded HTTP/WS gateway and its browser UI (driven by an in-process pty multiplexer — see ADR 0004). The separate `orchestrator` binary *does* drive agents autonomously against an issue tracker — a different concern in a different layer. This split is the top-level boundary the layer structure below enforces.
+agent-grid's client (shipped as the `server` binary that runs both the daemon and the HTTP/WS gateway in one process) is a **session lifecycle manager — not an agent orchestrator**. It does not control what agents do; it gives you visibility and fast access to every agent session through the embedded HTTP/WS gateway and its browser UI (driven by an in-process pty multiplexer — see ADR 0004). The separate `orchestrator` binary *does* drive agents autonomously against an issue tracker — a different concern in a different layer. This split is the top-level boundary the layer structure below enforces.
 
 ## Design Principles
 
@@ -39,7 +39,7 @@ platform/      Shared infrastructure — the client, server, and orchestrator al
 client/        client-specific code — state machine, runtime, drivers, IPC, web frontend
 orchestrator/  Symphony SPEC implementation — poll/dispatch/reconcile + observability HTTP
 server/        HTTP/WS gateway — stateless proxy fronting the in-process daemon over its Unix socket
-cmd/           Binary entry points — cmd/server/, cmd/reactor-bridge/, cmd/orchestrator/, cmd/claude-app-server/
+cmd/           Binary entry points — cmd/server/, cmd/bridge/, cmd/orchestrator/, cmd/claude-app-server/
 ```
 
 **Import direction**: `cmd/*` → `client/*` + `orchestrator/*` + `server/*` + `platform/*` → (no reverse). The layer boundaries are enforced by `depguard` (see `src/.golangci.yml`, rules `platform-no-client-or-orchestrator`, `client-no-orchestrator`, and `server-layer`):
@@ -89,7 +89,7 @@ native clients with consistent behaviour.
 - `cmd/server/main.go` is the binary entry point for the merged backend: it
   boots the coordinator (event loop + IPC socket listener + persistence) and
   a co-resident gateway goroutine. The gateway dials the daemon socket
-  (default `~/.agent-reactor/server.sock`, overridable via `-server-sock`)
+  (default `~/.agent-grid/server.sock`, overridable via `-server-sock`)
   with `DaemonClient`, and serves `server/web.NewMux(daemon, token)` behind
   a bearer-token + ws-ticket gate.
 - `server/session` was removed in A1-ε

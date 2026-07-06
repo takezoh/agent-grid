@@ -16,7 +16,7 @@ import { ThemeProvider, useXtermTheme } from "./ThemeProvider";
 import { ThemeSegmentedControl } from "./ThemeSegmentedControl";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
-const STORAGE_KEY = "agent-reactor-theme";
+const STORAGE_KEY = "agent-grid-theme";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

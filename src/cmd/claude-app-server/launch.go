@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	claudecli "github.com/takezoh/agent-reactor/platform/lib/claude/cli"
-	"github.com/takezoh/agent-reactor/platform/procgroup"
+	claudecli "github.com/takezoh/agent-grid/platform/lib/claude/cli"
+	"github.com/takezoh/agent-grid/platform/procgroup"
 )
 
 // claudeLauncher starts a claude process and returns its stdout, a wait func,

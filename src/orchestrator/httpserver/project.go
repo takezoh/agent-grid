@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
+	"github.com/takezoh/agent-grid/orchestrator/scheduler"
 )
 
 // projectState projects a StateSnapshot into a stateResponse DTO.

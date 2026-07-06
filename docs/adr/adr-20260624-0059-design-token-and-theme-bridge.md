@@ -40,7 +40,7 @@ Related requirements: FR-THEME-001, FR-THEME-002, FR-THEME-003, FR-THEME-004, FR
 ## Decision
 
 (1) tokens.css を新設し semantic CSS custom property 階層を集約する (NFR-CSS-001 を tokens.css + app.css + view.css の 3 ファイルに改定)。
-(2) ThemeProvider が data-theme 属性で document.documentElement を切替え、localStorage キー 'agent-reactor-theme' に永続化する (system 選択時は削除、無効値は system にフォールバック)。
+(2) ThemeProvider が data-theme 属性で document.documentElement を切替え、localStorage キー 'agent-grid-theme' に永続化する (system 選択時は削除、無効値は system にフォールバック)。
 (3) xterm との連動は『ハイブリッド bridge』を採る: xterm 要素の DOM background は CSS で background: var(--bg) を直接付与し、xterm.options.theme には fg / cursor / selection / 黒系のみを ITheme オブジェクトで渡す (背景は透明にし CSS の bg を見せる)。ITheme の値は ThemeProvider が useLayoutEffect + 1 rAF guard で getComputedStyle で tokens を読み構築する。
 (4) muted は opacity でなく独立 token (--fg-muted) で表現する。
 (5) WCAG AA は token 定義時に実測値で割当てる。

@@ -32,7 +32,7 @@ This expands the summary in [AGENTS.md](../../AGENTS.md). Read [ARCHITECTURE.md]
 ## Build & test
 
 ```sh
-make build-server            # Build src/ → ./server (+ reactor-bridge)
+make build-server            # Build src/ → ./server (+ bridge)
 make build-orchestrator      # → ./orchestrator
 make build-claude-app-server # → ./claude-app-server
 make build-all               # All 3 main binaries
@@ -64,7 +64,7 @@ The structural integrity of the project is enforced mechanically. Refer to [Code
 - **Follow the design principles in [ARCHITECTURE.md](../../ARCHITECTURE.md).** The four [core principles](../../ARCHITECTURE.md#core-principles-all-layers) (testability, single-writer event loop, decisions-separated-from-I/O, no fabricated fallbacks) hold in every layer.
 - **Treat file/function length limits as responsibility heuristics, not outcomes.** The default targets are 500 lines per file and 80 lines per function, but a cohesive responsibility may keep a documented path-based lint exception when forced splitting would make the code worse.
 - **Actively use libraries.** Do not implement from scratch what an existing dependency covers.
-- **Do not overwrite user config files** (`~/.agent-reactor/`). Setup commands must be idempotent.
+- **Do not overwrite user config files** (`~/.agent-grid/`). Setup commands must be idempotent.
 - **Always write tests** for new features and bug fixes. Work is not complete without tests. Testability is the first core principle: refactor production code (interface extraction, env-var override, dependency injection) when needed to enable a test. Per-package coverage targets and the Tier scheme are in [testing](../note/note-20260624-agent-testing.md).
 
 ## Conventions

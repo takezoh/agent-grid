@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/features"
+	"github.com/takezoh/agent-grid/platform/features"
 )
 
 func TestHiddenToolExcludedFromAll(t *testing.T) {

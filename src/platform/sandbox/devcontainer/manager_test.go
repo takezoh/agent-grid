@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/sandbox"
+	"github.com/takezoh/agent-grid/platform/sandbox"
 )
 
 func TestBuildLaunchCommand_subdir(t *testing.T) {
@@ -159,11 +159,11 @@ func TestDevcontainerSpec_buildCreateArgs_extraCreateArgsBeforeImage(t *testing.
 	spec := &DevcontainerSpec{
 		ProjectPath:     "/workspace/myapp",
 		ContainerEnv:    map[string]string{},
-		ExtraCreateArgs: []string{"--mount", "type=bind,source=/home/take/.agent-reactor,target=/home/ubuntu/.agent-reactor,readonly"},
+		ExtraCreateArgs: []string{"--mount", "type=bind,source=/home/take/.agent-grid,target=/home/ubuntu/.agent-grid,readonly"},
 	}
 	args := spec.BuildCreateArgs("myimage:latest")
 	assertArgBeforeImage(t, args, "myimage:latest", func(a string) bool {
-		return strings.Contains(a, ".agent-reactor")
+		return strings.Contains(a, ".agent-grid")
 	})
 }
 
@@ -194,14 +194,14 @@ func TestBuildLaunchCommand_streamDirectCommand(t *testing.T) {
 	m := &Manager{}
 	plan := sandbox.LaunchSpec{
 		StartDir: project,
-		Command:  "codex resume thr_123 --remote unix:///opt/agent-reactor/run/codex-foo.sock",
+		Command:  "codex resume thr_123 --remote unix:///opt/agent-grid/run/codex-foo.sock",
 	}
 
 	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
-	if !strings.Contains(got, "codex resume thr_123 --remote unix:///opt/agent-reactor/run/codex-foo.sock") {
+	if !strings.Contains(got, "codex resume thr_123 --remote unix:///opt/agent-grid/run/codex-foo.sock") {
 		t.Errorf("expected direct codex remote command, got: %s", got)
 	}
 }
@@ -286,8 +286,8 @@ func TestBuildLaunchCommand_SharedInstance_PerFrameIsolation(t *testing.T) {
 		FrameID: "frame-a",
 		WorkDir: "/workspace/agent-roost",
 		Env: map[string]string{
-			"ROOST_FRAME_ID":     "frame-a",
-			"ROOST_SOCKET_TOKEN": "tok-aaa",
+			"AG_FRAME_ID":     "frame-a",
+			"AG_SOCKET_TOKEN": "tok-aaa",
 		},
 	}
 	cmdA, _, err := m.BuildLaunchCommand(inst, planA, ctxA, nil)
@@ -301,8 +301,8 @@ func TestBuildLaunchCommand_SharedInstance_PerFrameIsolation(t *testing.T) {
 		FrameID: "frame-b",
 		WorkDir: "/workspace/credproxy",
 		Env: map[string]string{
-			"ROOST_FRAME_ID":     "frame-b",
-			"ROOST_SOCKET_TOKEN": "tok-bbb",
+			"AG_FRAME_ID":     "frame-b",
+			"AG_SOCKET_TOKEN": "tok-bbb",
 		},
 	}
 	cmdB, _, err := m.BuildLaunchCommand(inst, planB, ctxB, nil)
@@ -325,16 +325,16 @@ func TestBuildLaunchCommand_SharedInstance_PerFrameIsolation(t *testing.T) {
 	}
 
 	// Per-frame env must not cross-contaminate.
-	if !strings.Contains(cmdA, "ROOST_FRAME_ID=frame-a") || strings.Contains(cmdA, "frame-b") {
+	if !strings.Contains(cmdA, "AG_FRAME_ID=frame-a") || strings.Contains(cmdA, "frame-b") {
 		t.Errorf("frame A env leak; got: %s", cmdA)
 	}
-	if !strings.Contains(cmdA, "ROOST_SOCKET_TOKEN=tok-aaa") || strings.Contains(cmdA, "tok-bbb") {
+	if !strings.Contains(cmdA, "AG_SOCKET_TOKEN=tok-aaa") || strings.Contains(cmdA, "tok-bbb") {
 		t.Errorf("frame A token leak; got: %s", cmdA)
 	}
-	if !strings.Contains(cmdB, "ROOST_FRAME_ID=frame-b") || strings.Contains(cmdB, "frame-a") {
+	if !strings.Contains(cmdB, "AG_FRAME_ID=frame-b") || strings.Contains(cmdB, "frame-a") {
 		t.Errorf("frame B env leak; got: %s", cmdB)
 	}
-	if !strings.Contains(cmdB, "ROOST_SOCKET_TOKEN=tok-bbb") || strings.Contains(cmdB, "tok-aaa") {
+	if !strings.Contains(cmdB, "AG_SOCKET_TOKEN=tok-bbb") || strings.Contains(cmdB, "tok-aaa") {
 		t.Errorf("frame B token leak; got: %s", cmdB)
 	}
 
@@ -635,7 +635,7 @@ func TestApplyPathOverlayPrependsToUserPath(t *testing.T) {
 		ContainerEnv: map[string]string{"PATH": userPath},
 		RemoteEnv:    map[string]string{"PATH": remotePath},
 	}
-	shimsDir := "/opt/agent-reactor/run/hostexec-shims"
+	shimsDir := "/opt/agent-grid/run/hostexec-shims"
 	s.Apply(SpecOverlay{Env: map[string]string{"PATH": shimsDir + ":$PATH"}})
 
 	if got := s.ContainerEnv["PATH"]; got != shimsDir+":"+userPath {
@@ -664,11 +664,11 @@ func TestApplyNonPathOverlayOverridesExisting(t *testing.T) {
 		ContainerEnv: map[string]string{"SSH_AUTH_SOCK": "/old/agent.sock"},
 		RemoteEnv:    map[string]string{"SSH_AUTH_SOCK": "/old/agent.sock"},
 	}
-	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-reactor/run/agent.sock"}})
-	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-reactor/run/agent.sock" {
+	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-grid/run/agent.sock"}})
+	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-grid/run/agent.sock" {
 		t.Errorf("ContainerEnv[SSH_AUTH_SOCK] = %q, want override", got)
 	}
-	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-reactor/run/agent.sock" {
+	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-grid/run/agent.sock" {
 		t.Errorf("RemoteEnv[SSH_AUTH_SOCK] = %q, want override", got)
 	}
 }
@@ -678,16 +678,16 @@ func TestApplyMergesOverlayEnvIntoBothContainerAndRemoteEnv(t *testing.T) {
 		ContainerEnv: map[string]string{"EXISTING": "yes"},
 		RemoteEnv:    map[string]string{"USER_VAR": "from-dc-json"},
 	}
-	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-reactor/run/agent.sock", "FOO": "bar"}})
+	s.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-grid/run/agent.sock", "FOO": "bar"}})
 
-	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-reactor/run/agent.sock" {
-		t.Errorf("ContainerEnv[SSH_AUTH_SOCK] = %q, want /opt/agent-reactor/run/agent.sock", got)
+	if got := s.ContainerEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-grid/run/agent.sock" {
+		t.Errorf("ContainerEnv[SSH_AUTH_SOCK] = %q, want /opt/agent-grid/run/agent.sock", got)
 	}
 	if got := s.ContainerEnv["FOO"]; got != "bar" {
 		t.Errorf("ContainerEnv[FOO] = %q, want bar", got)
 	}
-	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-reactor/run/agent.sock" {
-		t.Errorf("RemoteEnv[SSH_AUTH_SOCK] = %q, want /opt/agent-reactor/run/agent.sock", got)
+	if got := s.RemoteEnv["SSH_AUTH_SOCK"]; got != "/opt/agent-grid/run/agent.sock" {
+		t.Errorf("RemoteEnv[SSH_AUTH_SOCK] = %q, want /opt/agent-grid/run/agent.sock", got)
 	}
 	if got := s.RemoteEnv["FOO"]; got != "bar" {
 		t.Errorf("RemoteEnv[FOO] = %q, want bar", got)
@@ -709,7 +709,7 @@ func TestApplyOverlayEnvAppearsInBuildLaunchCommand(t *testing.T) {
 		RemoteEnv:       map[string]string{},
 		WorkspaceFolder: "/workspaces/myapp",
 	}
-	spec.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-reactor/run/agent.sock"}})
+	spec.Apply(SpecOverlay{Env: map[string]string{"SSH_AUTH_SOCK": "/opt/agent-grid/run/agent.sock"}})
 
 	inst := &sandbox.Instance[*ContainerState]{
 		ProjectPath: project,
@@ -722,7 +722,7 @@ func TestApplyOverlayEnvAppearsInBuildLaunchCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
-	if !strings.Contains(got, "SSH_AUTH_SOCK=/opt/agent-reactor/run/agent.sock") {
+	if !strings.Contains(got, "SSH_AUTH_SOCK=/opt/agent-grid/run/agent.sock") {
 		t.Errorf("docker exec command missing SSH_AUTH_SOCK: %s", got)
 	}
 }
@@ -768,10 +768,10 @@ func TestResolveContainerEnvPlaceholders_DeduplicatesPath(t *testing.T) {
 	}
 	spec := &DevcontainerSpec{
 		ContainerEnv: map[string]string{
-			"PATH": "/opt/agent-reactor/run/hostexec-shims:/home/ubuntu/.local/bin:/home/ubuntu/.local/share/mise/shims:/home/ubuntu/.local/share/google-cloud-sdk/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${containerEnv:PATH}",
+			"PATH": "/opt/agent-grid/run/hostexec-shims:/home/ubuntu/.local/bin:/home/ubuntu/.local/share/mise/shims:/home/ubuntu/.local/share/google-cloud-sdk/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${containerEnv:PATH}",
 		},
 		RemoteEnv: map[string]string{
-			"PATH": "/opt/agent-reactor/run/hostexec-shims:/home/ubuntu/.local/share/mise/shims:${containerEnv:PATH}",
+			"PATH": "/opt/agent-grid/run/hostexec-shims:/home/ubuntu/.local/share/mise/shims:${containerEnv:PATH}",
 		},
 	}
 	spec.ResolveContainerEnvPlaceholders(imageEnv)
@@ -1191,7 +1191,7 @@ func TestEnsureInstance_ProjectMode_MountDriftRecreates(t *testing.T) {
 		// Simulates the credproxy/hostexec overlay adding a bind mount once
 		// project-scope host_exec is resolved.
 		return SpecOverlay{Mounts: []string{
-			"type=bind,source=/host/run/hostexec/op,target=/opt/agent-reactor/run/hostexec-shims/op,readonly",
+			"type=bind,source=/host/run/hostexec/op,target=/opt/agent-grid/run/hostexec-shims/op,readonly",
 		}}, nil
 	}
 	var removed, created bool
@@ -1223,7 +1223,7 @@ func TestEnsureInstance_ProjectMode_MountDriftRecreates(t *testing.T) {
 // already matches the resolved spec, it must be reused (no spurious recreate).
 func TestEnsureInstance_ProjectMode_MountMatchReuses(t *testing.T) {
 	project := setupTestSpec(t)
-	theMount := "type=bind,source=/host/run/hostexec/op,target=/opt/agent-reactor/run/hostexec-shims/op,readonly"
+	theMount := "type=bind,source=/host/run/hostexec/op,target=/opt/agent-grid/run/hostexec-shims/op,readonly"
 	overlay := func(sandbox.IsolationPlan, string, string) (SpecOverlay, error) {
 		return SpecOverlay{Mounts: []string{theMount}}, nil
 	}
@@ -1846,9 +1846,9 @@ func TestMountConfigurationHash_DifferentSets(t *testing.T) {
 
 // Regression for "codex frame fails to connect to remote app server after a
 // roost binary upgrade": the host-side stream backend now writes its socket
-// under ~/.agent-reactor/run/__shared__/ while a pre-existing reactor-shared container
-// still has /opt/agent-reactor/run bind-mounted to the older random-hash directory
-// (~/.agent-reactor/run/<hash>/). The Manager's mount-hash label hasn't changed —
+// under ~/.agent-grid/run/__shared__/ while a pre-existing reactor-shared container
+// still has /opt/agent-grid/run bind-mounted to the older random-hash directory
+// (~/.agent-grid/run/<hash>/). The Manager's mount-hash label hasn't changed —
 // because it only covered ExtraWorkspaces — so the stale container is
 // reused, the in-container sockbridge talks to the old host path, and codex
 // CLI gets "failed to connect to remote app server".
@@ -1862,7 +1862,7 @@ func TestMountConfigurationHash_DetectsRunDirMountChange(t *testing.T) {
 			{Source: "/workspace/a", Target: "/workspace/a"},
 		},
 		Mounts: []string{
-			"type=bind,source=/home/take/.agent-reactor/run/4342aed7adbf,target=/opt/agent-reactor/run",
+			"type=bind,source=/home/take/.agent-grid/run/4342aed7adbf,target=/opt/agent-grid/run",
 		},
 	}
 	specNew := &DevcontainerSpec{
@@ -1870,7 +1870,7 @@ func TestMountConfigurationHash_DetectsRunDirMountChange(t *testing.T) {
 			{Source: "/workspace/a", Target: "/workspace/a"},
 		},
 		Mounts: []string{
-			"type=bind,source=/home/take/.agent-reactor/run/__shared__,target=/opt/agent-reactor/run",
+			"type=bind,source=/home/take/.agent-grid/run/__shared__,target=/opt/agent-grid/run",
 		},
 	}
 	if got := specOld.MountConfigurationHash(); got == specNew.MountConfigurationHash() {
@@ -1881,7 +1881,7 @@ func TestMountConfigurationHash_DetectsRunDirMountChange(t *testing.T) {
 // Adding an arbitrary mount (e.g. credproxy AWS sock) must also change the
 // hash so an upgrade that introduces a new bind-mount triggers recreate.
 func TestMountConfigurationHash_DetectsAddedMount(t *testing.T) {
-	baseMounts := []string{"type=bind,source=/host/run,target=/opt/agent-reactor/run"}
+	baseMounts := []string{"type=bind,source=/host/run,target=/opt/agent-grid/run"}
 	specOld := &DevcontainerSpec{Mounts: baseMounts}
 	specNew := &DevcontainerSpec{Mounts: append(
 		append([]string{}, baseMounts...),
@@ -1959,7 +1959,7 @@ func TestBuildCreateArgs_project_includes_mount_hash_label(t *testing.T) {
 		ProjectPath:  "/workspace/myapp",
 		Isolation:    IsolationProject,
 		ContainerEnv: map[string]string{},
-		Mounts:       []string{"type=bind,source=/host/run,target=/opt/agent-reactor/run"},
+		Mounts:       []string{"type=bind,source=/host/run,target=/opt/agent-grid/run"},
 	}
 	args := spec.BuildCreateArgs("img:latest")
 	want := "reactor-mount-hash=" + spec.MountConfigurationHash()

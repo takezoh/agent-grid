@@ -3,8 +3,8 @@ package scheduler
 import (
 	"strings"
 
-	"github.com/takezoh/agent-reactor/orchestrator/wfconfig"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/wfconfig"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 // reduceCandidates implements one dispatch pass (SPEC §8.1–§8.3): filter eligible, sort,

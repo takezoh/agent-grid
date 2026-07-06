@@ -9,7 +9,7 @@ import (
 
 // Ensure idempotently creates the workspace directory for identifier and runs
 // the after_create hook only when newly created per §9.2. branch is exposed to
-// the hook as ROOST_PROJECT_BRANCH (empty when the project specifies none).
+// the hook as AG_PROJECT_BRANCH (empty when the project specifies none).
 // Returns the absolute workspace path.
 func (m *Manager) Ensure(ctx context.Context, identifier, branch string) (string, error) {
 	p, err := m.Path(identifier)

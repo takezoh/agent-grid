@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-grid/platform/appid"
 )
 
 var (
@@ -24,7 +24,7 @@ var (
 // LogFilePath returns the on-disk path of the global daemon log file.
 // After Init(level) or InitWithDataDir(level, dataDir) has been called,
 // this returns the resolved path. Before Init it returns the default
-// (~/.agent-reactor/server.log).
+// (~/.agent-grid/server.log).
 func LogFilePath() string {
 	if logPath != "" {
 		return logPath
@@ -34,7 +34,7 @@ func LogFilePath() string {
 }
 
 // Init opens the log file under the default data directory
-// (~/.agent-reactor/) and installs a slog text handler at the given level.
+// (~/.agent-grid/) and installs a slog text handler at the given level.
 func Init(level string) error {
 	return InitWithDataDir(level, "")
 }

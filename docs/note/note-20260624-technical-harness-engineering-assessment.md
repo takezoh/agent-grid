@@ -32,7 +32,7 @@ topic: technical
 
 # Harness Engineering Assessment
 
-A point-in-time assessment (2026-05-31) of agent-reactor evaluated as a piece of
+A point-in-time assessment (2026-05-31) of agent-grid evaluated as a piece of
 **harness engineering** — judged not on the agent's internal reasoning, but on
 how well the system *uses* the coding agents it drives.
 
@@ -49,17 +49,17 @@ tool calls, context management, memory, guardrails, and tracing
 ([O'Reilly](https://www.oreilly.com/radar/agent-harness-engineering/),
 [awesome-harness-engineering](https://github.com/ai-boost/awesome-harness-engineering)).
 
-For agent-reactor that scaffolding is split across a boundary worth naming explicitly:
+For agent-grid that scaffolding is split across a boundary worth naming explicitly:
 
 - **The inner harness is Claude Code / Codex.** They own the agent loop, their own
-  tools, context compaction, and the model's reasoning. agent-reactor does **not**
+  tools, context compaction, and the model's reasoning. agent-grid does **not**
   reimplement any of this — and deliberately so.
-- **The outer harness is agent-reactor.** The orchestrator + `claude-app-server` shim
+- **The outer harness is agent-grid.** The orchestrator + `claude-app-server` shim
   + the client are the orchestration layer that *launches, configures, drives, and
   observes* those inner harnesses.
 
 This split makes the assessment question precise: not "how good is the agent's
-internal harness" (that is delegated), but **"how well does agent-reactor engineer
+internal harness" (that is delegated), but **"how well does agent-grid engineer
 its use of Claude/Codex?"** — across design, implementation, test, documentation,
 and CI. The deliberate non-reimplementation of context management/memory inside
 the orchestrator is, under this framing, a *correct* design choice rather than a

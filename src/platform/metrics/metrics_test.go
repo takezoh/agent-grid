@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/takezoh/agent-reactor/platform/metrics"
+	"github.com/takezoh/agent-grid/platform/metrics"
 )
 
 func TestAccumulator_SingleThread_NoDoubleCount(t *testing.T) {

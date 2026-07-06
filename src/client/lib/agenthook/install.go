@@ -1,4 +1,4 @@
-// Package agenthook registers the reactor server / reactor-bridge as an
+// Package agenthook registers the reactor server / bridge as an
 // agent's hook handler in that agent's settings.json (~/.claude, ~/.gemini).
 //
 // Claude Code and Gemini CLI are both hook-driven: the daemon learns
@@ -12,7 +12,7 @@
 // directly from the runtime — once at server startup against the host's
 // settings.json for each supported agent, and once inside every
 // devcontainer's postCreate against the container's settings.json (via the
-// reactor-bridge `claude-setup-hooks` / `gemini-setup-hooks` subcommands).
+// bridge `claude-setup-hooks` / `gemini-setup-hooks` subcommands).
 // Registration is NOT delegated to external Make / shell / dotfiles glue:
 // it is a runtime invariant.
 //
@@ -41,7 +41,7 @@ import (
 // Spec captures one agent's hook-registration parameters. The same Install
 // function consumes any Spec, so adding a future agent CLI that uses the
 // same JSON shape needs only a new Spec value — no new code path, no parallel
-// edit in cmd/server/coordinator.go or cmd/reactor-bridge/main.go (both
+// edit in cmd/server/coordinator.go or cmd/bridge/main.go (both
 // consume `All` and use these fields directly).
 type Spec struct {
 	// Name labels the agent in log messages and error wrapping AND is the
@@ -60,12 +60,12 @@ type Spec struct {
 	// SettingsRel is the agent's settings.json path relative to $HOME
 	// (".claude/settings.json", ".gemini/settings.json"). Carrying it on
 	// the Spec keeps the (Name, Events, SettingsRel) triple in one place so
-	// callers in two binaries (cmd/server, cmd/reactor-bridge) don't drift
+	// callers in two binaries (cmd/server, cmd/bridge) don't drift
 	// — the original separation into per-caller `variant` structs duplicated
 	// this string in both binaries.
 	SettingsRel string
 
-	// SubcmdName is the reactor-bridge subcommand that triggers this Spec's
+	// SubcmdName is the bridge subcommand that triggers this Spec's
 	// in-container registration. Convention is "<Name>-setup-hooks". Lives
 	// on Spec so cmd/server/coordinator.go can derive devcontainer
 	// postCreate commands directly from agenthook.All — adding an agent no
@@ -86,7 +86,7 @@ type Spec struct {
 	//    rewrite each other's settings.json on every boot (the marker
 	//    matches both daemons' hookCmd). Single-daemon per host is the
 	//    supported topology; multi-daemon dev runs need a separate
-	//    settings.json (override via reactor-bridge's -settings flag).
+	//    settings.json (override via bridge's -settings flag).
 	//  - An entry whose inner hooks array holds BOTH the current command
 	//    and a stale one — a shape only manual editing produces — is
 	//    treated as "current entry" and the inner stale hook persists.
@@ -144,7 +144,7 @@ var Gemini = Spec{
 // All is the canonical list of agent Specs the runtime registers. Adding a
 // future agent (e.g. Codex hooks if/when they ship) means appending one
 // Spec here — every site that fans out across agents (host boot,
-// devcontainer postCreate subcmd list, reactor-bridge subcommand dispatch)
+// devcontainer postCreate subcmd list, bridge subcommand dispatch)
 // reads from this single list.
 var All = []Spec{Claude, Gemini}
 

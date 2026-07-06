@@ -10,9 +10,9 @@ func TestE2E_GatewayScenarioFakeClaudeLifecycleAndSurface_SanitizesAmbientRoostE
 		t.Skip("skipping real-daemon scenario e2e in -short mode")
 	}
 
-	t.Setenv("ROOST_SOCKET_TOKEN", "ambient-token")
-	t.Setenv("ROOST_SOCKET", "/tmp/ambient.sock")
-	t.Setenv("ROOST_FRAME_ID", "ambient-frame")
+	t.Setenv("AG_SOCKET_TOKEN", "ambient-token")
+	t.Setenv("AG_SOCKET", "/tmp/ambient.sock")
+	t.Setenv("AG_FRAME_ID", "ambient-frame")
 
 	daemon := startScenarioServer(t, installFakeAgents(t))
 	lifecycle := dialGatewayWS(t, daemon, "")

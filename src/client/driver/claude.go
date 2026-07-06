@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	claudecli "github.com/takezoh/agent-reactor/platform/lib/claude/cli"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	claudecli "github.com/takezoh/agent-grid/platform/lib/claude/cli"
 )
 
 // Claude driver: event-driven status producer for the Claude Code CLI.

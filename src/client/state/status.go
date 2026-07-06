@@ -1,6 +1,6 @@
 package state
 
-import v "github.com/takezoh/agent-reactor/client/state/view"
+import v "github.com/takezoh/agent-grid/client/state/view"
 
 // Status and related types are defined in state/view and re-exported here
 // as type aliases so existing state-internal and external code is unchanged.

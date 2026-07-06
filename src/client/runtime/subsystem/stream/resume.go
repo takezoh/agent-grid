@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	"github.com/takezoh/agent-reactor/platform/pathmap"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/pathmap"
 )
 
 // resolveDialSock returns the host-side path the daemon dials for an app-server

@@ -12,21 +12,21 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/config"
-	statedriver "github.com/takezoh/agent-reactor/client/driver"
-	"github.com/takezoh/agent-reactor/client/lib/agenthook"
-	"github.com/takezoh/agent-reactor/client/runtime"
-	"github.com/takezoh/agent-reactor/client/runtime/worker"
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	"github.com/takezoh/agent-reactor/platform/appid"
-	platformconfig "github.com/takezoh/agent-reactor/platform/config"
-	"github.com/takezoh/agent-reactor/platform/credproxy"
-	"github.com/takezoh/agent-reactor/platform/features"
-	"github.com/takezoh/agent-reactor/platform/lib/dockercli"
-	"github.com/takezoh/agent-reactor/platform/logger"
-	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
-	"github.com/takezoh/agent-reactor/platform/shellalias"
+	"github.com/takezoh/agent-grid/client/config"
+	statedriver "github.com/takezoh/agent-grid/client/driver"
+	"github.com/takezoh/agent-grid/client/lib/agenthook"
+	"github.com/takezoh/agent-grid/client/runtime"
+	"github.com/takezoh/agent-grid/client/runtime/worker"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/appid"
+	platformconfig "github.com/takezoh/agent-grid/platform/config"
+	"github.com/takezoh/agent-grid/platform/credproxy"
+	"github.com/takezoh/agent-grid/platform/features"
+	"github.com/takezoh/agent-grid/platform/lib/dockercli"
+	"github.com/takezoh/agent-grid/platform/logger"
+	sandboxdc "github.com/takezoh/agent-grid/platform/sandbox/devcontainer"
+	"github.com/takezoh/agent-grid/platform/shellalias"
 )
 
 // runDaemon boots the coordinator (event loop, IPC socket, persistence) and,
@@ -52,7 +52,7 @@ func runDaemon(df *daemonFlagSet) error {
 
 	// Take the single-daemon lock before touching the sessions directory. Two
 	// coordinators against the same data dir each run their own event loop and
-	// persistence pass, fighting over ~/.agent-reactor/sessions (one rewrites
+	// persistence pass, fighting over ~/.agent-grid/sessions (one rewrites
 	// session files the other has just deleted), which makes terminated
 	// sessions resurrect on every cold start.
 	lock, err := acquireDaemonLock(filepath.Join(dataDir, appid.PidFileName))
@@ -108,7 +108,7 @@ func registerDefaultDrivers(cfg *config.Config, dataDir string, idleThreshold ti
 	statedriver.RegisterRunners(cfg.Driver.SummarizeCommand)
 }
 
-// agentHookPostCreateSubcmds returns the reactor-bridge subcommand list the
+// agentHookPostCreateSubcmds returns the bridge subcommand list the
 // devcontainer postCreate runs to register reactor hooks inside the
 // container, derived from agenthook.All so adding an agent in one place
 // flows through to the container surface automatically.
@@ -130,8 +130,8 @@ func agentHookPostCreateSubcmds() []string {
 // which spawn the agent in the same filesystem namespace the daemon runs in.
 //
 // `-data-dir` is always appended. Yes, daemon-spawned agents inherit
-// ROOST_SOCKET in their env and win via that env, but an agent process the
-// user starts manually from a terminal (no ROOST_SOCKET) needs the flag to
+// AG_SOCKET in their env and win via that env, but an agent process the
+// user starts manually from a terminal (no AG_SOCKET) needs the flag to
 // reach this daemon's socket. The redundant flag for the daemon-spawn case
 // is cheaper than a missing flag for the manual-launch case — and the path
 // is explicit and self-documenting in the registered settings.json.
@@ -145,7 +145,7 @@ func agentHookPostCreateSubcmds() []string {
 //
 // Agent fan-out is driven by agenthook.All so adding a future agent CLI
 // (Codex hooks, …) is a one-Spec change at the package level, not a
-// parallel edit here AND in cmd/reactor-bridge.
+// parallel edit here AND in cmd/bridge.
 func registerHostAgentHooks(dataDir string) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
@@ -428,13 +428,13 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 		// leaves ctx live so the agent survives for warm restart.
 		// "{claude,gemini}-setup-hooks" run as devcontainer postCreate so the
 		// moment a container comes up, ~/.<agent>/settings.json inside it
-		// points every lifecycle event at /opt/agent-reactor/run/reactor-bridge.
+		// points every lifecycle event at /opt/agent-grid/run/bridge.
 		// Without these the daemon never learns SessionID for in-container
 		// sessions and card titles stick on "New Session" forever. Phase F-C
 		// had pushed this to scripts/setup-{claude,gemini}.sh; that delegation
 		// made hook state an out-of-band setup step rather than a runtime
 		// invariant, and the scripts have since been removed in favour of
-		// reactor-bridge owning the registration end-to-end via
+		// bridge owning the registration end-to-end via
 		// client/lib/agenthook.
 		overlayFn := agentlaunch.BuildContainerOverlay(func(project string) platformconfig.SandboxConfig {
 			return resolver.Resolve(project)

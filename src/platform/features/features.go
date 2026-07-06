@@ -1,7 +1,7 @@
 // Package features provides the two independent feature-flag mechanisms:
 //
 //   - Runtime flags: [Flag] typed constants + [Set] injected into [state.State].
-//     Toggled via ~/.agent-reactor/settings.toml [features.enabled]. Both branches are
+//     Toggled via ~/.agent-grid/settings.toml [features.enabled]. Both branches are
 //     always compiled into the binary — equivalent to a C if(){} guard.
 //
 //   - Compile-time flags: top-level bool constants guarded by build tags.

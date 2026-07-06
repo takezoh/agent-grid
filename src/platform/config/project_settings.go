@@ -6,7 +6,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/takezoh/agent-reactor/platform/appid"
+	"github.com/takezoh/agent-grid/platform/appid"
 )
 
 // ProjectConfig is the platform-side subset of project settings: only the
@@ -33,7 +33,7 @@ func LoadProjectFrom(path string) (*ProjectConfig, error) {
 	return cfg, nil
 }
 
-// findProjectSettings walks up from dir searching for .agent-reactor/settings.toml.
+// findProjectSettings walks up from dir searching for .agent-grid/settings.toml.
 func findProjectSettings(dir string) string {
 	dir = filepath.Clean(dir)
 	for {

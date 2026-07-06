@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/platform/config"
 )
 
 func newTestSpecBuilder(t *testing.T, wsDir string) (*SpecBuilder, string) {
@@ -15,8 +15,8 @@ func newTestSpecBuilder(t *testing.T, wsDir string) (*SpecBuilder, string) {
 	runBase := t.TempDir()
 	b := NewSpecBuilder(context.Background(), Config{
 		RunBase:            runBase,
-		ContainerRunDir:    "/opt/agent-reactor/run",
-		ContainerBinPath:   "/opt/agent-reactor/bin/roost",
+		ContainerRunDir:    "/opt/agent-grid/run",
+		ContainerBinPath:   "/opt/agent-grid/bin/roost",
 		WorkspaceFolderFor: func(string) string { return wsDir },
 	}, func(string) config.HostExecConfig { return config.HostExecConfig{} })
 	return b, runBase

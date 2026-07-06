@@ -51,7 +51,7 @@ acceptance: []
 
 ## Goal
 
-agent-reactor の Web UI (`src/client/web` — React + zustand + xterm.js) における 6 件の不具合 / UX 改善を **`client/web` 内で完結する変更** として修正する。EVENTS タブ空パネル検出バグ、セッション切替後のターミナル stale render、ターミナルのウィンドウ/レイアウト非追従(真因は flex 内 `height:100%`)、セッション一覧のステータス spinner 化、ラベル表示(`title→subtitle→id` チェーン、空文字も空とみなす)を **観測可能な振る舞い** として直し、各変更に vitest を付ける。
+agent-grid の Web UI (`src/client/web` — React + zustand + xterm.js) における 6 件の不具合 / UX 改善を **`client/web` 内で完結する変更** として修正する。EVENTS タブ空パネル検出バグ、セッション切替後のターミナル stale render、ターミナルのウィンドウ/レイアウト非追従(真因は flex 内 `height:100%`)、セッション一覧のステータス spinner 化、ラベル表示(`title→subtitle→id` チェーン、空文字も空とみなす)を **観測可能な振る舞い** として直し、各変更に vitest を付ける。
 
 wire shape (`src/client/web/src/wire/server.ts`) とサーバ/driver 側は変更しない。
 

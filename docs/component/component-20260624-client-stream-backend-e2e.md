@@ -55,10 +55,10 @@ configured server. With none set, it skips.
 
 | Env var | Meaning |
 |---|---|
-| `REACTOR_E2E_CODEX_BIN` | Path to a codex binary (convenience alias; subtest `codex`). |
-| `REACTOR_E2E_APPSERVER_BIN` | Path to any other conforming app-server. |
-| `REACTOR_E2E_APPSERVER_NAME` | Subtest label for the generic server (default `appserver`). |
-| `REACTOR_E2E_APPSERVER_ARGS` | Extra argv for the generic server, space-split. |
+| `AG_E2E_CODEX_BIN` | Path to a codex binary (convenience alias; subtest `codex`). |
+| `AG_E2E_APPSERVER_BIN` | Path to any other conforming app-server. |
+| `AG_E2E_APPSERVER_NAME` | Subtest label for the generic server (default `appserver`). |
+| `AG_E2E_APPSERVER_ARGS` | Extra argv for the generic server, space-split. |
 
 Build tag: `e2e` (this file is excluded from default builds).
 
@@ -70,16 +70,16 @@ turns — have whatever model credentials it needs to answer a prompt.
 
 ```sh
 # codex
-REACTOR_E2E_CODEX_BIN=$(which codex) make test-e2e
+AG_E2E_CODEX_BIN=$(which codex) make test-e2e
 
 # any other conforming app-server
-REACTOR_E2E_APPSERVER_BIN=/path/to/server \
-REACTOR_E2E_APPSERVER_NAME=myserver \
-REACTOR_E2E_APPSERVER_ARGS="--flag value" \
+AG_E2E_APPSERVER_BIN=/path/to/server \
+AG_E2E_APPSERVER_NAME=myserver \
+AG_E2E_APPSERVER_ARGS="--flag value" \
   go test -tags e2e -run TestStreamRoutingE2E ./client/runtime/subsystem/stream/ -v
 
 # both at once → one subtest each
-REACTOR_E2E_CODEX_BIN=$(which codex) REACTOR_E2E_APPSERVER_BIN=/path/to/server \
+AG_E2E_CODEX_BIN=$(which codex) AG_E2E_APPSERVER_BIN=/path/to/server \
   go test -tags e2e -run TestStreamRoutingE2E ./client/runtime/subsystem/stream/ -v
 ```
 

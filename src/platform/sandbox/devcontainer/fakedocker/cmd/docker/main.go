@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/takezoh/agent-reactor/platform/sandbox/devcontainer/fakedocker"
+	"github.com/takezoh/agent-grid/platform/sandbox/devcontainer/fakedocker"
 )
 
 func main() {

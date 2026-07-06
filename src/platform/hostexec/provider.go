@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/takezoh/agent-reactor/platform/config"
+	"github.com/takezoh/agent-grid/platform/config"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 )
@@ -19,7 +19,7 @@ import (
 type Config struct {
 	// RunBase is the parent of per-project run directories on the host.
 	RunBase string
-	// ContainerRunDir is the mount target inside the container (e.g. /opt/agent-reactor/run).
+	// ContainerRunDir is the mount target inside the container (e.g. /opt/agent-grid/run).
 	ContainerRunDir string
 	// ContainerBinPath is the client binary path inside the container.
 	ContainerBinPath string

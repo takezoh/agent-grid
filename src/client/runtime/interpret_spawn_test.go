@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/takezoh/agent-reactor/platform/shellalias"
+	"github.com/takezoh/agent-grid/platform/shellalias"
 )
 
 func TestBuildSpawnCommand(t *testing.T) {

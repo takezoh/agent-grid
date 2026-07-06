@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-reactor/client/state"
-	"github.com/takezoh/agent-reactor/platform/termvt"
+	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/termvt"
 )
 
 // fakeSurfaceBackend is a test double for SurfaceBackend. Each call to

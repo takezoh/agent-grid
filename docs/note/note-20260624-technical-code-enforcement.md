@@ -100,15 +100,15 @@ flowchart TD
 | `proto-isolation` | `client/proto/**` | `driver/`, `platform/lib`, `runtime/` |
 | `runtime-no-driver` | `client/runtime/*.go` (root only) | `driver/` |
 | `codexclient-isolation` | `platform/agent/codexclient/**` | `client/`, `orchestrator/` |
-| `real-binary-e2e-only` | all Go files except allowlisted packages and explicit path exclusions | literal `exec.Command("claude"|"codex"|"docker")` / `exec.CommandContext(...)` outside `platform/lib/**`, fake packages, `*_e2e_test.go`, and excluded devcontainer paths; `REACTOR_E2E_*` reads outside `*_e2e_test.go` except path-excluded helpers |
+| `real-binary-e2e-only` | all Go files except allowlisted packages and explicit path exclusions | literal `exec.Command("claude"|"codex"|"docker")` / `exec.CommandContext(...)` outside `platform/lib/**`, fake packages, `*_e2e_test.go`, and excluded devcontainer paths; `AG_E2E_*` reads outside `*_e2e_test.go` except path-excluded helpers |
 
 Key intents:
 
 - **Layer direction**: platform is the base and knows nothing above it; client does not know orchestrator (the converse is guaranteed by `platform-no-...`).
 - **`state/` purity**: the state machine has no I/O and no side effects — a pure functional core. It cannot import driver/runtime at all.
 - **`runtime-no-driver`**: only the runtime **root** is forbidden from importing driver. Tool-specific backends move to `runtime/subsystem/<kind>/`. Exception: `client/driver/vt` is explicitly allowed in `exclusions.rules`.
-- **`codexclient` reusability**: a shared protocol transport, so it knows nothing of agent-reactor internals.
-- **real-binary isolation**: the last row is enforced by ruleguard, not depguard, because it constrains process execution rather than imports. In the current implementation, real `claude` / `codex` / `docker` exec is allowlisted for `platform/lib/**`, the fake packages, `*_e2e_test.go`, plus explicit `.golangci.yml` exclusions such as `platform/sandbox/devcontainer/**`; `REACTOR_E2E_*` env reads are stricter and stay in `*_e2e_test.go` except for path-excluded helpers like `platform/lib/claude/fakeclaude/e2e_support.go`.
+- **`codexclient` reusability**: a shared protocol transport, so it knows nothing of agent-grid internals.
+- **real-binary isolation**: the last row is enforced by ruleguard, not depguard, because it constrains process execution rather than imports. In the current implementation, real `claude` / `codex` / `docker` exec is allowlisted for `platform/lib/**`, the fake packages, `*_e2e_test.go`, plus explicit `.golangci.yml` exclusions such as `platform/sandbox/devcontainer/**`; `AG_E2E_*` env reads are stricter and stay in `*_e2e_test.go` except for path-excluded helpers like `platform/lib/claude/fakeclaude/e2e_support.go`.
 
 ## 2. Pure-core purity (forbidigo + ruleguard)
 
@@ -146,7 +146,7 @@ Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code 
 
 | Kind | Mechanism | Toggle | Stays in the binary? | Use when |
 |---|---|---|---|---|
-| runtime | `Flag` constant + injected `Set` | `~/.agent-reactor/settings.toml` `[features.enabled]` | both branches compiled | the user should opt in without rebuilding |
+| runtime | `Flag` constant + injected `Set` | `~/.agent-grid/settings.toml` `[features.enabled]` | both branches compiled | the user should opt in without rebuilding |
 | compile-time | top-level `const` bool guarded by a build tag | `go build -tags <tag>` (e.g. `make build-experimental`) | off-side removed by dead-code elimination | the code is unfinished / unsafe or must not enter release binaries |
 
 **Runtime — add:** declare a `Flag` constant and list it in `All()`; read it as `st.Features.On(features.Peers)` (`features.go:36`). Gating is allowed in `state/` and `runtime/` — **not** in `driver/`, where driver-specific gating uses `config.Drivers[name]` instead. Users opt in under `[features.enabled]`. `FromConfig` **silently ignores unknown keys** (`features.go:46`), so when a flag stabilises you delete the constant and inline the enabled branch with no config migration.
@@ -189,7 +189,7 @@ Where defined: [ADR — EventSink seam and contract pins for the pty-tap and sur
 
 The devcontainer docker integration must not rely on unvalidated canned output. This prevents the only remaining external CLI dependency from drifting into a fake-only world where argv or output-shape regressions surface only in production.
 
-Where defined: [ADR — fakedocker: PATH-injected docker CLI fake with real-docker backstop](../adr/adr-20260705-fakedocker-path-injection.md), [ADR — Claude CLI and Codex stdio fakes are validated by opt-in real-CLI e2e](../adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md), and spec FR-008. How it is enforced: T1 lifecycle tests run against PATH-injected `fakedocker`; T3 `FakeVsRealDocker` compares the same scenario against `REACTOR_E2E_DOCKER_BIN`; ruleguard confines real docker exec to the allowlist from §1. Exception: only the T3 execution posture is opt-in/nightly; the fake-vs-real contract itself is not optional once the dependency exists.
+Where defined: [ADR — fakedocker: PATH-injected docker CLI fake with real-docker backstop](../adr/adr-20260705-fakedocker-path-injection.md), [ADR — Claude CLI and Codex stdio fakes are validated by opt-in real-CLI e2e](../adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md), and spec FR-008. How it is enforced: T1 lifecycle tests run against PATH-injected `fakedocker`; T3 `FakeVsRealDocker` compares the same scenario against `AG_E2E_DOCKER_BIN`; ruleguard confines real docker exec to the allowlist from §1. Exception: only the T3 execution posture is opt-in/nightly; the fake-vs-real contract itself is not optional once the dependency exists.
 
 ## 11. Cross-language wire fixture gate (test-pinned)
 

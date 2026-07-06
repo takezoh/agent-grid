@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takezoh/agent-reactor/orchestrator/prompt"
-	"github.com/takezoh/agent-reactor/orchestrator/scheduler"
-	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
-	"github.com/takezoh/agent-reactor/platform/agentlaunch"
-	"github.com/takezoh/agent-reactor/platform/tracker"
+	"github.com/takezoh/agent-grid/orchestrator/prompt"
+	"github.com/takezoh/agent-grid/orchestrator/scheduler"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/tracker"
 )
 
 const (
