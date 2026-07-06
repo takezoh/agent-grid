@@ -29,6 +29,7 @@ done <"$FLOORS_FILE"
 
 declare -A expected
 declare -A no_test_packages
+declare -A reported_unknown
 while read -r pkg test_files xtest_files; do
     [[ -z $pkg ]] && continue
     expected[$pkg]=1
@@ -57,6 +58,7 @@ done
 for pkg in "${!expected[@]}"; do
     if [[ -z ${floors[$pkg]+x} ]]; then
         printf 'UNKNOWN  %-60s missing from scripts/coverage-floors.txt\n' "$pkg"
+        reported_unknown[$pkg]=1
         unknown=$((unknown + 1))
     fi
 done
@@ -84,8 +86,11 @@ while IFS= read -r line; do
     checked=$((checked + 1))
     floor="${floors[$pkg]:-}"
     if [[ -z $floor ]]; then
-        printf 'UNKNOWN  %-60s %s%% — add an entry to scripts/coverage-floors.txt\n' "$pkg" "$pct"
-        unknown=$((unknown + 1))
+        if [[ -z ${reported_unknown[$pkg]+x} ]]; then
+            printf 'UNKNOWN  %-60s %s%% — add an entry to scripts/coverage-floors.txt\n' "$pkg" "$pct"
+            reported_unknown[$pkg]=1
+            unknown=$((unknown + 1))
+        fi
         continue
     fi
     # awk for float compare

@@ -121,6 +121,65 @@ func TestCheckE2ESiblingsScript(t *testing.T) {
 	})
 }
 
+func TestCheckCoverageScriptDedupsUnknownPackageReport(t *testing.T) {
+	scriptPath := filepath.Join(repoRoot(t), "scripts", "check-coverage.sh")
+	scriptRaw, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatalf("read coverage script: %v", err)
+	}
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "scripts", "check-coverage.sh"), string(scriptRaw))
+	writeFile(t, filepath.Join(root, "scripts", "coverage-floors.txt"), "github.com/takezoh/agent-reactor/pkg/known 75\n")
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatalf("mkdir src: %v", err)
+	}
+	if err := os.Chmod(filepath.Join(root, "scripts", "check-coverage.sh"), 0o755); err != nil {
+		t.Fatalf("chmod coverage script: %v", err)
+	}
+
+	goBin := filepath.Join(root, "bin", "go")
+	writeFile(t, goBin, `#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${1:-} == "list" ]]; then
+	cat <<'EOF'
+github.com/takezoh/agent-reactor/pkg/known 1 0
+github.com/takezoh/agent-reactor/pkg/unknown 1 0
+EOF
+	exit 0
+fi
+
+if [[ ${1:-} == "test" ]]; then
+	cat <<'EOF'
+ok  	github.com/takezoh/agent-reactor/pkg/known	0.001s	coverage: 80.0% of statements
+ok  	github.com/takezoh/agent-reactor/pkg/unknown	0.001s	coverage: 60.0% of statements
+EOF
+	exit 0
+fi
+
+echo "unexpected go invocation: $*" >&2
+exit 1
+`)
+	if err := os.Chmod(goBin, 0o755); err != nil {
+		t.Fatalf("chmod fake go: %v", err)
+	}
+
+	cmd := exec.Command(filepath.Join(root, "scripts", "check-coverage.sh"))
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "PATH="+filepath.Join(root, "bin")+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("script unexpectedly passed:\n%s", out)
+	}
+
+	text := string(out)
+	needle := "UNKNOWN  github.com/takezoh/agent-reactor/pkg/unknown"
+	if got := strings.Count(text, needle); got != 1 {
+		t.Fatalf("expected a single UNKNOWN report for missing floor, got %d:\n%s", got, text)
+	}
+}
+
 func TestCIWorkflowRunsWebTestsAndDetectsUntrackedWireFixtures(t *testing.T) {
 	workflowPath := filepath.Join(repoRoot(t), ".github", "workflows", "ci.yml")
 	raw, err := os.ReadFile(workflowPath)
