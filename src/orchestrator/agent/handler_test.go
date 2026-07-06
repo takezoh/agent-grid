@@ -107,7 +107,7 @@ func TestTurnHandler_TurnDurationTracked(t *testing.T) {
 	var got []scheduler.CodexActivity
 	h := newTestHandler(t, "iss-4", &got)
 
-	params, _ := json.Marshal(map[string]any{"turnId": "t1"})
+	params, _ := json.Marshal(codexclient.TurnStartedParams("thread1", "t1"))
 	h.OnNotification("turn/started", params)
 	time.Sleep(time.Millisecond)
 	h.OnNotification("turn/completed", nil)
@@ -136,12 +136,7 @@ func TestTurnHandler_AgentMessageDeltaRecorded(t *testing.T) {
 	var got []scheduler.CodexActivity
 	h := newTestHandler(t, "iss-5", &got)
 
-	params, _ := json.Marshal(map[string]any{
-		"delta":    "hello world",
-		"itemId":   "i1",
-		"threadId": "t1",
-		"turnId":   "u1",
-	})
+	params, _ := json.Marshal(codexclient.AgentMessageDeltaParams("t1", "u1", "i1", "hello world"))
 	h.OnNotification("item/agentMessage/delta", params)
 
 	require.Len(t, got, 1)
@@ -212,7 +207,7 @@ func (s *toolCallServer) runTurn() {
 			s.reply = raw
 		}
 		s.mu.Unlock()
-		_ = s.srv.EmitTurnCompleted(testThreadID, testTurnID, "done")
+		_ = s.srv.EmitTurnCompleted(testThreadID, testTurnID)
 	}()
 }
 

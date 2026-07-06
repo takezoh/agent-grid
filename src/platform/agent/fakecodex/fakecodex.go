@@ -72,11 +72,11 @@ type TurnEmitter interface {
 // TurnHandler drives one turn. Return err != nil to fail the turn: the fake
 // emits `error` with err.Error() and skips turn/completed. Return err == nil
 // to complete the turn: the fake emits thread/tokenUsage/updated followed by
-// turn/completed with the returned text.
+// turn/completed after any handler-emitted deltas/items.
 //
 // ctx is derived from Serve/Attach's context, so a handler that blocks on
 // external I/O should honour ctx.Done() to let stop() return cleanly.
-type TurnHandler func(ctx context.Context, req TurnRequest, e TurnEmitter) (text string, err error)
+type TurnHandler func(ctx context.Context, req TurnRequest, e TurnEmitter) (completedText string, err error)
 
 // Config configures a fake Codex app-server.
 type Config struct {
@@ -97,7 +97,7 @@ type Config struct {
 	HangTurn bool
 
 	// Handler runs inside every turn. When nil, DefaultTurnHandler runs
-	// (immediate turn/completed with text "done").
+	// (single agent delta + immediate turn/completed).
 	Handler TurnHandler
 
 	// TokenUsage controls the shape of thread/tokenUsage/updated. Zero value
@@ -145,7 +145,7 @@ func New(cfg Config) *Server {
 	if cfg.TurnID == "" {
 		cfg.TurnID = DefaultTurnID
 	}
-	if cfg.TokenUsage.Last.InputTokens == 0 && cfg.TokenUsage.Last.OutputTokens == 0 {
+	if cfg.TokenUsage.Last == (TokenBreakdown{}) {
 		cfg.TokenUsage.Last = TokenBreakdown{InputTokens: 10, OutputTokens: 5}
 	}
 	return &Server{cfg: cfg}
@@ -295,11 +295,15 @@ func (s *Server) handleTurnStart(params json.RawMessage) {
 			Raw:      params,
 		}, emitter)
 		if err != nil {
-			_ = srv.EmitTurnFailed(tid, err.Error())
+			_ = srv.EmitTurnFailed(tid, turnID, err.Error())
 			return
 		}
 		s.emitTokenUsage(srv, tid, turnID)
-		_ = srv.EmitTurnCompleted(tid, turnID, text)
+		if text != "" {
+			_ = srv.EmitTurnCompletedFinalAnswer(tid, turnID, "agent-"+turnID, text)
+			return
+		}
+		_ = srv.EmitTurnCompleted(tid, turnID)
 	}()
 }
 
@@ -441,7 +445,8 @@ type turnEmitter struct {
 }
 
 func (e *turnEmitter) AgentDelta(delta string) error {
-	return e.srv.EmitAgentMessageDelta(e.threadID, delta)
+	return e.srv.EmitNotification(codexschema.MethodItemAgentMessageDelta,
+		codexclient.AgentMessageDeltaParams(e.threadID, e.turnID, "agent-"+e.turnID, delta))
 }
 
 func (e *turnEmitter) ItemStarted(item map[string]any) error {

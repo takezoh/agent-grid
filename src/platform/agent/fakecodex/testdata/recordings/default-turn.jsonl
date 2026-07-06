@@ -1,3 +1,3 @@
-{"method":"thread/started","params":{"thread":{"id":"\u003cid\u003e","path":"\u003cpath\u003e"}}}
-{"method":"turn/started","params":{"threadId":"\u003cid\u003e","turnId":"\u003cid\u003e"}}
-{"method":"turn/completed","params":{"text":"","threadId":"\u003cid\u003e","turnId":""}}
+{"method":"thread/started","params":{"thread":{"agentNickname":null,"agentRole":null,"cliVersion":"string","createdAt":"number","cwd":"\u003cpath\u003e","ephemeral":false,"forkedFromId":null,"gitInfo":null,"id":"\u003cid\u003e","modelProvider":"openai","name":null,"parentThreadId":null,"path":"\u003cpath\u003e","preview":"","recencyAt":"number","sessionId":"\u003cid\u003e","source":"vscode","status":{"type":"idle"},"threadSource":null,"turns":[],"updatedAt":"number"}}}
+{"method":"turn/started","params":{"threadId":"\u003cid\u003e","turn":{"completedAt":null,"durationMs":null,"error":null,"id":"\u003cid\u003e","items":[],"itemsView":"notLoaded","startedAt":"number","status":"inProgress"}}}
+{"method":"turn/completed","params":{"threadId":"\u003cid\u003e","turn":{"completedAt":"number","durationMs":"number","error":null,"id":"\u003cid\u003e","items":[],"itemsView":"notLoaded","startedAt":"number","status":"completed"}}}

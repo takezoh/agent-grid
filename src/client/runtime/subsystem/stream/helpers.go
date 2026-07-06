@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/takezoh/agent-reactor/client/state"
+	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
 )
 
 type subsystemEmission struct {
@@ -198,6 +199,12 @@ func extractThreadSessionID(raw json.RawMessage) string {
 }
 
 func extractTurnID(raw json.RawMessage) string {
+	if turnStarted, err := codexschemav2.UnmarshalTurnStartedNotification(raw); err == nil && turnStarted.Turn.ID != "" {
+		return turnStarted.Turn.ID
+	}
+	if turnCompleted, err := codexschemav2.UnmarshalTurnCompletedNotification(raw); err == nil && turnCompleted.Turn.ID != "" {
+		return turnCompleted.Turn.ID
+	}
 	var data map[string]any
 	if json.Unmarshal(raw, &data) != nil {
 		return ""
@@ -261,6 +268,50 @@ func userMessageText(item map[string]any) string {
 	return strings.Join(parts, "\n")
 }
 
+func assistantMessageText(item map[string]any) string {
+	for _, key := range []string{"text", "content"} {
+		if text, _ := item[key].(string); text != "" {
+			return text
+		}
+	}
+	content, _ := item["content"].([]any)
+	var b strings.Builder
+	for _, contentRaw := range content {
+		if text, _ := contentRaw.(string); text != "" {
+			b.WriteString(text)
+			continue
+		}
+		c, _ := contentRaw.(map[string]any)
+		if c == nil || c["type"] != "text" {
+			continue
+		}
+		if text, _ := c["text"].(string); text != "" {
+			b.WriteString(text)
+		}
+	}
+	return b.String()
+}
+
+func turnAssistantText(turn map[string]any) string {
+	items, _ := turn["items"].([]any)
+	last := ""
+	for _, itemRaw := range items {
+		item, _ := itemRaw.(map[string]any)
+		if item == nil || item["type"] != "agentMessage" {
+			continue
+		}
+		text := assistantMessageText(item)
+		if text == "" {
+			continue
+		}
+		last = text
+		if item["phase"] == "final_answer" {
+			return text
+		}
+	}
+	return last
+}
+
 func extractText(raw json.RawMessage) string {
 	var data map[string]any
 	if json.Unmarshal(raw, &data) != nil {
@@ -272,10 +323,14 @@ func extractText(raw json.RawMessage) string {
 		}
 	}
 	if item, ok := data["item"].(map[string]any); ok {
-		for _, key := range []string{"text", "content"} {
-			if s, _ := item[key].(string); s != "" {
-				return s
-			}
+		if text := assistantMessageText(item); text != "" {
+			return text
+		}
+	}
+	turn, _ := data["turn"].(map[string]any)
+	if turn != nil {
+		if text := turnAssistantText(turn); text != "" {
+			return text
 		}
 	}
 	return ""

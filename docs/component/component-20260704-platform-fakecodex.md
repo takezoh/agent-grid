@@ -145,8 +145,12 @@ go test ./platform/agent/fakecodex ./client/driver -run 'Recorded|Replay'
 ```
 
 The `-record` run rewrites `testdata/recordings/*.jsonl` with normalized
-thread ids, rollout paths, timestamps, and secrets. The follow-up package
-tests verify both preset-contract parity and the `Driver.Step` replay golden
-derived from the recording.
+thread ids, rollout paths, timestamps, and secrets. The committed fixture now
+stores the normalized **raw params** from real Codex rather than a projection
+struct, so "field omitted" and "field present with zero value" remain
+distinguishable in the recording. The always-on package tests then project that
+raw fixture into the smaller fake contract they compare against, which keeps
+upstream metadata growth from forcing unrelated fake updates while still
+catching key-presence drift.
 
 ## Parts

@@ -2,7 +2,6 @@ package fakecodex
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -21,6 +20,7 @@ func TestRecordedDefaultTurnFixtureMatchesPresetContract(t *testing.T) {
 	}, []string{
 		codexschema.MethodThreadStarted,
 		codexschema.MethodTurnStarted,
+		codexschema.MethodItemAgentMessageDelta,
 		codexschema.MethodThreadTokenUsageUpdated,
 		codexschema.MethodTurnCompleted,
 	})
@@ -61,7 +61,12 @@ func recordFakeContracts(t *testing.T, cfg Config, wanted []string, expectedPref
 		if !allow[event.method] {
 			continue
 		}
-		out = append(out, e2etest.Contract(projectFakeDefaultTurnEvent(t, event.method, event.params)))
+		norm, err := e2etest.NormalizeJSON(event.params)
+		if err != nil {
+			t.Fatalf("NormalizeJSON(%s): %v", event.method, err)
+		}
+		norm = normalizeRecordedDefaultTurnParams(norm).(map[string]any)
+		out = append(out, e2etest.Contract(defaultTurnEventContractFromParams(t, event.method, norm)))
 	}
 	return out
 }
@@ -71,46 +76,7 @@ func loadCodexContracts(t *testing.T, path string) []any {
 	items := e2etest.ReadJSONLFixture(t, path)
 	out := make([]any, 0, len(items))
 	for _, item := range items {
-		out = append(out, e2etest.Contract(item))
+		out = append(out, e2etest.Contract(defaultTurnEventContractFromFixture(t, item)))
 	}
 	return out
-}
-
-func projectFakeDefaultTurnEvent(t *testing.T, method string, raw json.RawMessage) any {
-	t.Helper()
-	norm, err := e2etest.NormalizeJSON(raw)
-	if err != nil {
-		t.Fatalf("NormalizeJSON(%s): %v", method, err)
-	}
-	params := norm
-	switch method {
-	case codexschema.MethodThreadStarted:
-		thread, _ := params["thread"].(map[string]any)
-		path := thread["path"]
-		if path == nil {
-			t.Fatalf("thread/started missing thread.path: %v", thread)
-		}
-		return map[string]any{
-			"method": method,
-			"params": map[string]any{
-				"thread": map[string]any{
-					"id":   thread["id"],
-					"path": path,
-				},
-			},
-		}
-	case codexschema.MethodTurnStarted:
-		return map[string]any{
-			"method": method,
-			"params": map[string]any{
-				"threadId": params["threadId"],
-				"turnId":   params["turnId"],
-			},
-		}
-	case codexschema.MethodThreadSettingsUpdated, codexschema.MethodTurnCompleted:
-		return map[string]any{"method": method, "params": params}
-	default:
-		t.Fatalf("unsupported fake projection method: %s", method)
-		return nil
-	}
 }

@@ -114,6 +114,7 @@ type frameBinding struct {
 	threadStatus    string
 	waitApproval    bool
 	activeTurnID    string
+	turnAssistant   string
 	lastAssistant   string
 	model           string
 	modelSet        bool

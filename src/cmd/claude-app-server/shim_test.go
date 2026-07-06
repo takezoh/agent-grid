@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
 	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/fakeclaude"
 	"github.com/takezoh/agent-reactor/platform/lib/claude/streamjson"
 )
@@ -258,7 +259,16 @@ func TestShim_SessionID(t *testing.T) {
 
 	turnCompletedParams := nc.lastParams(codexschema.MethodTurnCompleted)
 	assert.Equal(t, "thread-1-turn-1", turnCompletedParams["sessionId"])
-	assert.Equal(t, "done", turnCompletedParams["text"])
+	raw, err := json.Marshal(turnCompletedParams)
+	require.NoError(t, err)
+	decoded, err := codexschemav2.UnmarshalTurnCompletedNotification(raw)
+	require.NoError(t, err)
+	require.Len(t, decoded.Turn.Items, 1)
+	item := decoded.Turn.Items[0]
+	require.NotNil(t, item.Text)
+	assert.Equal(t, "done", *item.Text)
+	require.NotNil(t, item.Phase)
+	assert.Equal(t, codexschemav2.FinalAnswer, *item.Phase)
 }
 
 func TestShim_TurnStartResponseIDMatchesLifecycleEvents(t *testing.T) {
@@ -297,11 +307,13 @@ func TestShim_TurnStartResponseIDMatchesLifecycleEvents(t *testing.T) {
 
 	turnStartedParams := nc.lastParams(codexschema.MethodTurnStarted)
 	require.NotNil(t, turnStartedParams)
-	assert.Equal(t, response.Turn.ID, turnStartedParams["turnId"])
+	turnStarted, _ := turnStartedParams["turn"].(map[string]any)
+	assert.Equal(t, response.Turn.ID, turnStarted["id"])
 
 	turnCompletedParams := nc.lastParams(codexschema.MethodTurnCompleted)
 	require.NotNil(t, turnCompletedParams)
-	assert.Equal(t, response.Turn.ID, turnCompletedParams["turnId"])
+	turnCompleted, _ := turnCompletedParams["turn"].(map[string]any)
+	assert.Equal(t, response.Turn.ID, turnCompleted["id"])
 }
 
 func TestShim_TurnStartRequestFailsWhenQueueFull(t *testing.T) {

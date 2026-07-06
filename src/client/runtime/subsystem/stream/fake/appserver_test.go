@@ -186,6 +186,7 @@ func TestTurnStartDrivesDefaultLifecycleBroadcast(t *testing.T) {
 		codexschema.MethodTurnStarted,
 		codexschema.MethodThreadSettingsUpdated,
 		codexschema.MethodThreadStatusChanged,
+		codexschema.MethodItemAgentMessageDelta,
 		codexschema.MethodTurnCompleted,
 		codexschema.MethodThreadStatusChanged,
 	}
@@ -217,8 +218,20 @@ func TestTurnStartDrivesDefaultLifecycleBroadcast(t *testing.T) {
 	if got := payload["threadId"]; got != sess.ThreadID {
 		t.Fatalf("turn/completed threadId = %v, want %q", got, sess.ThreadID)
 	}
-	if got := payload["text"]; got != "echo: hello" {
-		t.Fatalf("turn/completed text = %v, want %q", got, "echo: hello")
+	turn, _ := payload["turn"].(map[string]any)
+	if got := turn["id"]; got != "fake-turn-1" {
+		t.Fatalf("turn/completed turn.id = %v, want %q", got, "fake-turn-1")
+	}
+	deltas := rec.filter(codexschema.MethodItemAgentMessageDelta)
+	if len(deltas) != 1 {
+		t.Fatalf("delta count = %d, want 1", len(deltas))
+	}
+	var deltaPayload map[string]any
+	if err := json.Unmarshal(deltas[0].Params, &deltaPayload); err != nil {
+		t.Fatalf("unmarshal delta: %v", err)
+	}
+	if got := deltaPayload["delta"]; got != "echo: hello" {
+		t.Fatalf("delta = %v, want %q", got, "echo: hello")
 	}
 }
 
@@ -277,14 +290,8 @@ func TestTurnStartTriggersHandlerScripting(t *testing.T) {
 func TestCustomTurnHandlerCannotLeakTurnNotificationsToObserver(t *testing.T) {
 	srv := startFake(t, Config{
 		TurnHandler: func(req TurnRequest, emit Emitter) {
-			_ = emit.Emit(codexschema.MethodTurnStarted, map[string]any{
-				"threadId": req.ThreadID,
-				"turnId":   req.TurnID,
-			})
-			_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
-				"threadId": req.ThreadID,
-				"turnId":   req.TurnID,
-			})
+			_ = emit.Emit(codexschema.MethodTurnStarted, codexclient.TurnStartedParams(req.ThreadID, req.TurnID))
+			_ = emit.Emit(codexschema.MethodTurnCompleted, codexclient.TurnCompletedParams(req.ThreadID, req.TurnID))
 			_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
 				"threadId": req.ThreadID,
 				"status":   map[string]any{"type": "idle"},

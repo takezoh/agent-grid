@@ -46,7 +46,7 @@ func emitAndCapture(t *testing.T, emit func(*codexclient.Server)) map[string]any
 
 func TestServer_EmitTurnCompleted(t *testing.T) {
 	msg := emitAndCapture(t, func(s *codexclient.Server) {
-		if err := s.EmitTurnCompleted("tid1", "turn1", "hello"); err != nil {
+		if err := s.EmitTurnCompleted("tid1", "turn1"); err != nil {
 			t.Fatalf("EmitTurnCompleted: %v", err)
 		}
 	})
@@ -57,17 +57,18 @@ func TestServer_EmitTurnCompleted(t *testing.T) {
 	if params["threadId"] != "tid1" {
 		t.Fatalf("params = %v", params)
 	}
-	if params["text"] != "hello" {
-		t.Fatalf("params.text = %v, want hello", params["text"])
+	turn, _ := params["turn"].(map[string]any)
+	if turn["id"] != "turn1" {
+		t.Fatalf("params.turn.id = %v, want turn1", turn["id"])
 	}
-	if _, ok := msg["text"]; ok {
-		t.Fatalf("turn/completed leaked top-level text field: %v", msg)
+	if _, ok := params["text"]; ok {
+		t.Fatalf("turn/completed leaked legacy text field: %v", params)
 	}
 }
 
 func TestServer_EmitTurnFailed(t *testing.T) {
 	msg := emitAndCapture(t, func(s *codexclient.Server) {
-		if err := s.EmitTurnFailed("tid1", "something broke"); err != nil {
+		if err := s.EmitTurnFailed("tid1", "turn1", "something broke"); err != nil {
 			t.Fatalf("EmitTurnFailed: %v", err)
 		}
 	})
@@ -186,6 +187,11 @@ func TestServer_EmitTurnStarted(t *testing.T) {
 	})
 	if msg["method"] != codexschema.MethodTurnStarted {
 		t.Fatalf("method = %v, want %v", msg["method"], codexschema.MethodTurnStarted)
+	}
+	params, _ := msg["params"].(map[string]any)
+	turn, _ := params["turn"].(map[string]any)
+	if turn["id"] != "turn1" {
+		t.Fatalf("params.turn.id = %v, want turn1", turn["id"])
 	}
 }
 

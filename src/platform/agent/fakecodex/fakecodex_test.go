@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -109,6 +110,7 @@ func TestServer_DefaultTurn(t *testing.T) {
 	waitFor(t, nc, []string{
 		codexschema.MethodThreadStarted,
 		codexschema.MethodTurnStarted,
+		codexschema.MethodItemAgentMessageDelta,
 		codexschema.MethodThreadTokenUsageUpdated,
 		codexschema.MethodTurnCompleted,
 	})
@@ -147,6 +149,56 @@ func TestServer_DefaultTurn(t *testing.T) {
 	}
 	if thread["path"] != DefaultThreadPath {
 		t.Fatalf("thread.path = %v, want %s", thread["path"], DefaultThreadPath)
+	}
+}
+
+func TestServer_DefaultTokenUsagePreservesCachedOnlyOverride(t *testing.T) {
+	s := New(Config{
+		TokenUsage: TokenUsageSpec{
+			Last: TokenBreakdown{CachedTokens: 7},
+		},
+	})
+	client, cleanup := pipeToClient(t, s)
+	defer cleanup()
+
+	nc := &notifRecorder{}
+	go func() { _ = client.Run(context.Background(), nc) }()
+
+	if err := codexclient.Initialize(client); err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	if err := codexclient.StartTurn(client, "", "/ws", []byte("hi"), codexclient.TurnOptions{}); err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	waitFor(t, nc, []string{
+		codexschema.MethodThreadStarted,
+		codexschema.MethodTurnStarted,
+		codexschema.MethodItemAgentMessageDelta,
+		codexschema.MethodThreadTokenUsageUpdated,
+		codexschema.MethodTurnCompleted,
+	})
+
+	rawUsage := nc.last(codexschema.MethodThreadTokenUsageUpdated)
+	var payload struct {
+		TokenUsage struct {
+			Last  map[string]float64 `json:"last"`
+			Total map[string]float64 `json:"total"`
+		} `json:"tokenUsage"`
+	}
+	if err := json.Unmarshal(rawUsage, &payload); err != nil {
+		t.Fatalf("unmarshal tokenUsage: %v", err)
+	}
+	if got := int(payload.TokenUsage.Last["inputTokens"]); got != 0 {
+		t.Fatalf("last.inputTokens = %d, want 0 when only CachedTokens is overridden", got)
+	}
+	if got := int(payload.TokenUsage.Last["outputTokens"]); got != 0 {
+		t.Fatalf("last.outputTokens = %d, want 0 when only CachedTokens is overridden", got)
+	}
+	if got := int(payload.TokenUsage.Last["cachedTokens"]); got != 7 {
+		t.Fatalf("last.cachedTokens = %d, want 7", got)
+	}
+	if got := int(payload.TokenUsage.Total["totalTokens"]); got != 0 {
+		t.Fatalf("total.totalTokens = %d, want 0 when only CachedTokens is counted separately", got)
 	}
 }
 
@@ -203,6 +255,77 @@ func TestServer_ThreadStartParams(t *testing.T) {
 	}
 }
 
+func TestDefaultTurnContractPreservesMissingKeys(t *testing.T) {
+	t.Run("missing_text_stays_missing", func(t *testing.T) {
+		contract := defaultTurnRecordedEvent(t, codexschema.MethodTurnCompleted, json.RawMessage(`{"threadId":"thread-1"}`))
+		want := map[string]any{
+			"method": codexschema.MethodTurnCompleted,
+			"params": map[string]any{
+				"threadId": "<id>",
+			},
+		}
+		if !reflect.DeepEqual(contract, want) {
+			t.Fatalf("contract = %#v, want %#v", contract, want)
+		}
+	})
+
+	t.Run("empty_text_stays_present", func(t *testing.T) {
+		contract := defaultTurnRecordedEvent(t, codexschema.MethodTurnCompleted, json.RawMessage(`{"threadId":"thread-1","text":""}`))
+		want := map[string]any{
+			"method": codexschema.MethodTurnCompleted,
+			"params": map[string]any{
+				"threadId": "<id>",
+				"text":     "",
+			},
+		}
+		if !reflect.DeepEqual(contract, want) {
+			t.Fatalf("contract = %#v, want %#v", contract, want)
+		}
+	})
+
+	t.Run("contract_projection_keeps_nested_turn", func(t *testing.T) {
+		contract := defaultTurnEventContract(t, codexschema.MethodTurnCompleted, json.RawMessage(`{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[{"type":"agentMessage","phase":"final_answer","text":"done"}]}}`))
+		want := map[string]any{
+			"method": codexschema.MethodTurnCompleted,
+			"params": map[string]any{
+				"threadId": "<id>",
+				"turn": map[string]any{
+					"id":     "<id>",
+					"status": "completed",
+					"items": []any{
+						map[string]any{
+							"type":  "agentMessage",
+							"phase": "final_answer",
+							"text":  "done",
+						},
+					},
+				},
+			},
+		}
+		if !reflect.DeepEqual(contract, want) {
+			t.Fatalf("contract = %#v, want %#v", contract, want)
+		}
+	})
+
+	t.Run("recorded_thread_started_normalizes_cli_version", func(t *testing.T) {
+		recorded := defaultTurnRecordedEvent(t, codexschema.MethodThreadStarted, json.RawMessage(`{"thread":{"id":"thread-1","cwd":"/tmp/work","path":"/tmp/work/rollout.jsonl","cliVersion":"0.999.0"}}`))
+		want := map[string]any{
+			"method": codexschema.MethodThreadStarted,
+			"params": map[string]any{
+				"thread": map[string]any{
+					"id":         "<id>",
+					"cwd":        "<path>",
+					"path":       "<path>",
+					"cliVersion": "string",
+				},
+			},
+		}
+		if !reflect.DeepEqual(recorded, want) {
+			t.Fatalf("recorded = %#v, want %#v", recorded, want)
+		}
+	})
+}
+
 // TestServer_ItemPairHandler — item/started + item/completed appear between
 // turn/started and thread/tokenUsage/updated.
 func TestServer_ItemPairHandler(t *testing.T) {
@@ -229,6 +352,62 @@ func TestServer_ItemPairHandler(t *testing.T) {
 		codexschema.MethodThreadTokenUsageUpdated,
 		codexschema.MethodTurnCompleted,
 	})
+}
+
+func TestServer_TextTurnHandlerPreservesCompletedTextAsFinalAnswer(t *testing.T) {
+	s := New(Config{Handler: TextTurnHandler("draft", "final")})
+	client, cleanup := pipeToClient(t, s)
+	defer cleanup()
+
+	nc := &notifRecorder{}
+	go func() { _ = client.Run(context.Background(), nc) }()
+
+	if err := codexclient.Initialize(client); err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	if err := codexclient.StartTurn(client, "", "/ws", []byte("hi"), codexclient.TurnOptions{}); err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	waitFor(t, nc, []string{
+		codexschema.MethodThreadStarted,
+		codexschema.MethodTurnStarted,
+		codexschema.MethodItemAgentMessageDelta,
+		codexschema.MethodThreadTokenUsageUpdated,
+		codexschema.MethodTurnCompleted,
+	})
+
+	rawCompleted := nc.last(codexschema.MethodTurnCompleted)
+	var payload struct {
+		Turn struct {
+			Items []struct {
+				Text  string `json:"text"`
+				Phase string `json:"phase"`
+			} `json:"items"`
+		} `json:"turn"`
+	}
+	if err := json.Unmarshal(rawCompleted, &payload); err != nil {
+		t.Fatalf("unmarshal turn/completed: %v", err)
+	}
+	if len(payload.Turn.Items) != 1 {
+		t.Fatalf("items = %d, want 1", len(payload.Turn.Items))
+	}
+	if got := payload.Turn.Items[0].Text; got != "final" {
+		t.Fatalf("completion item text = %q, want %q", got, "final")
+	}
+	if got := payload.Turn.Items[0].Phase; got != "final_answer" {
+		t.Fatalf("completion item phase = %q, want final_answer", got)
+	}
+
+	rawDelta := nc.last(codexschema.MethodItemAgentMessageDelta)
+	var delta struct {
+		Delta string `json:"delta"`
+	}
+	if err := json.Unmarshal(rawDelta, &delta); err != nil {
+		t.Fatalf("unmarshal delta: %v", err)
+	}
+	if delta.Delta != "draft" {
+		t.Fatalf("delta = %q, want %q", delta.Delta, "draft")
+	}
 }
 
 // TestServer_HangTurn — turn never resolves; assertion is that no

@@ -20,10 +20,13 @@ type SettingsUpdatedSpec struct {
 	EffortField string
 }
 
-// DefaultTurnHandler completes the turn immediately with the text "done".
+// DefaultTurnHandler streams a single final answer delta, then completes.
 // Used when Config.Handler is nil.
 func DefaultTurnHandler(_ context.Context, _ TurnRequest, e TurnEmitter) (string, error) {
-	return "done", nil
+	if err := e.AgentDelta("done"); err != nil {
+		return "", err
+	}
+	return "", nil
 }
 
 // FailingTurnHandler returns a TurnHandler that always fails with the given message.

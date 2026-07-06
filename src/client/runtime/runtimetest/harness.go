@@ -2,6 +2,7 @@ package runtimetest
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -114,22 +115,30 @@ func (h *Harness) Enqueue(t *testing.T, ev state.Event) {
 
 func (h *Harness) WaitFor(t *testing.T, pred func(state.State) bool) state.State {
 	t.Helper()
-	deadline := time.Now().Add(h.waitTimeout)
-	for {
-		snapshot := h.runtime.TestPublishedState()
-		if pred(snapshot) {
-			return snapshot
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("runtimetest: WaitFor timed out after %v", h.waitTimeout)
-		}
-		time.Sleep(5 * time.Millisecond)
+	snapshot, err := h.waitForSnapshot(pred)
+	if err != nil {
+		t.Fatal(err)
 	}
+	return snapshot
 }
 
 func (h *Harness) Quiesce(t *testing.T) {
 	t.Helper()
 	if err := h.runtime.TestQuiesce(h.quiesceTimeout); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func (h *Harness) waitForSnapshot(pred func(state.State) bool) (state.State, error) {
+	deadline := time.Now().Add(h.waitTimeout)
+	for {
+		snapshot := h.runtime.TestPublishedState()
+		if pred(snapshot) {
+			return snapshot, nil
+		}
+		if time.Now().After(deadline) {
+			return state.State{}, fmt.Errorf("runtimetest: WaitFor timed out after %v; snapshot=%#v", h.waitTimeout, snapshot)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

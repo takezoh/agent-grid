@@ -7,6 +7,7 @@ import (
 
 	"github.com/takezoh/agent-reactor/client/state"
 	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
+	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
 )
 
 func (b *Backend) handleNotification(method string, params json.RawMessage) {
@@ -47,9 +48,20 @@ func (b *Backend) handleNotification(method string, params json.RawMessage) {
 func (b *Backend) handleTurnStarted(raw json.RawMessage) {
 	meta := normalizeCodexThreadMetadata(raw)
 	threadID := firstNonEmpty(meta.threadID, extractThreadID(raw))
+	turnID := extractTurnID(raw)
+	frameID := b.frameForThread(threadID)
+	if frameID != "" {
+		b.mu.Lock()
+		if binding := b.frames[frameID]; binding != nil {
+			binding.activeTurnID = turnID
+			binding.turnAssistant = ""
+			binding.lastAssistant = ""
+		}
+		b.mu.Unlock()
+	}
 	b.emitMetadata(meta)
 	b.emitToThread(threadID, state.SubsystemTurnStarted, func(p *state.SubsystemPayload) {
-		p.TurnID = extractTurnID(raw)
+		p.TurnID = turnID
 	})
 }
 
@@ -157,16 +169,26 @@ func (b *Backend) handleTurnCompleted(raw json.RawMessage) {
 	if frameID == "" {
 		return
 	}
-	last := strings.TrimSpace(extractText(raw))
+	turnID := extractTurnID(raw)
+	completed := strings.TrimSpace(extractText(raw))
 	b.mu.Lock()
 	binding := b.frames[frameID]
 	if binding == nil {
 		b.mu.Unlock()
 		return
 	}
+	if turnID != "" && binding.activeTurnID != "" && turnID != binding.activeTurnID {
+		b.mu.Unlock()
+		return
+	}
 	binding.activeTurnID = ""
+	if completed == "" {
+		completed = strings.TrimSpace(binding.turnAssistant)
+	}
+	binding.turnAssistant = ""
+	binding.lastAssistant = completed
+	last := completed
 	if last != "" {
-		binding.lastAssistant = last
 		appendHistory(&binding.history, "assistant", last)
 	}
 	history := append([]state.SubsystemTurn(nil), binding.history...)
@@ -178,23 +200,15 @@ func (b *Backend) handleTurnCompleted(raw json.RawMessage) {
 }
 
 func (b *Backend) handleAgentMessageDelta(raw json.RawMessage) {
-	// Hot path: single unmarshal instead of two separate extract calls.
-	var params struct {
-		ThreadID string `json:"threadId"`
-		Delta    string `json:"delta"`
-		Text     string `json:"text"`
-	}
-	if json.Unmarshal(raw, &params) != nil {
+	params, ok := decodeAgentMessageDelta(raw)
+	if !ok {
 		return
 	}
-	text := params.Delta
-	if text == "" {
-		text = params.Text
-	}
+	text := params.text
 	if text == "" {
 		return
 	}
-	frameID := b.frameForThread(params.ThreadID)
+	frameID := b.frameForThread(params.threadID)
 	if frameID == "" {
 		return
 	}
@@ -204,14 +218,53 @@ func (b *Backend) handleAgentMessageDelta(raw json.RawMessage) {
 		b.mu.Unlock()
 		return
 	}
-	binding.lastAssistant += text
-	last := binding.lastAssistant
+	if params.turnID != "" && binding.activeTurnID != "" && params.turnID != binding.activeTurnID {
+		b.mu.Unlock()
+		return
+	}
+	binding.turnAssistant += text
+	last := binding.turnAssistant
 	history := append([]state.SubsystemTurn(nil), binding.history...)
 	b.mu.Unlock()
 	b.emit(frameID, state.SubsystemMessageUpdated, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
 		p.LastAssistantMessage = last
 		p.Message = &state.SubsystemMessage{RecentTurns: history}
 	}))
+}
+
+type decodedAgentMessageDelta struct {
+	threadID string
+	turnID   string
+	text     string
+}
+
+func decodeAgentMessageDelta(raw json.RawMessage) (decodedAgentMessageDelta, bool) {
+	notification, err := codexschemav2.UnmarshalAgentMessageDeltaNotification(raw)
+	if err == nil && notification.ThreadID != "" && notification.Delta != "" {
+		return decodedAgentMessageDelta{
+			threadID: notification.ThreadID,
+			turnID:   notification.TurnID,
+			text:     notification.Delta,
+		}, true
+	}
+	var legacy struct {
+		ThreadID string `json:"threadId"`
+		TurnID   string `json:"turnId"`
+		Delta    string `json:"delta"`
+		Text     string `json:"text"`
+	}
+	if json.Unmarshal(raw, &legacy) != nil || legacy.ThreadID == "" {
+		return decodedAgentMessageDelta{}, false
+	}
+	text := legacy.Delta
+	if text == "" {
+		text = legacy.Text
+	}
+	return decodedAgentMessageDelta{
+		threadID: legacy.ThreadID,
+		turnID:   legacy.TurnID,
+		text:     text,
+	}, true
 }
 
 func (b *Backend) handleThreadNameUpdated(raw json.RawMessage) {

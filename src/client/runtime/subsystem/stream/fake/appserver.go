@@ -426,10 +426,8 @@ func (s *serverConn) OnServerRequest(id int64, method string, params json.RawMes
 // subscriber; the fake mirrors that split so observers must rely on
 // thread/status/changed rather than illicit turn/* fan-out.
 func defaultTurnHandler(req TurnRequest, emit Emitter) {
-	_ = emit.Emit(codexschema.MethodTurnStarted, map[string]any{
-		"threadId": req.ThreadID,
-		"turnId":   req.TurnID,
-	})
+	startedAt := time.Now()
+	_ = emit.Emit(codexschema.MethodTurnStarted, codexclient.TurnStartedParamsAt(req.ThreadID, req.TurnID, startedAt))
 	_ = emit.Emit(codexschema.MethodThreadSettingsUpdated, map[string]any{
 		"threadId": req.ThreadID,
 		"threadSettings": map[string]any{
@@ -441,11 +439,10 @@ func defaultTurnHandler(req TurnRequest, emit Emitter) {
 		"threadId": req.ThreadID,
 		"status":   map[string]any{"type": "active"},
 	})
-	_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
-		"threadId": req.ThreadID,
-		"turnId":   req.TurnID,
-		"text":     "echo: " + req.Input,
-	})
+	_ = emit.Emit(codexschema.MethodItemAgentMessageDelta,
+		codexclient.AgentMessageDeltaParams(req.ThreadID, req.TurnID, "agent-"+req.TurnID, "echo: "+req.Input))
+	_ = emit.Emit(codexschema.MethodTurnCompleted,
+		codexclient.TurnCompletedParamsAt(req.ThreadID, req.TurnID, startedAt, time.Now()))
 	_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
 		"threadId": req.ThreadID,
 		"status":   map[string]any{"type": "idle"},

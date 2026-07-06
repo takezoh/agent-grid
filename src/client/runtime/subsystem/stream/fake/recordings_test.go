@@ -23,6 +23,7 @@ func TestRecordedDefaultTurnFixtureMatchesAppServerContract(t *testing.T) {
 		codexschema.MethodTurnStarted,
 		codexschema.MethodThreadSettingsUpdated,
 		codexschema.MethodThreadStatusChanged,
+		codexschema.MethodItemAgentMessageDelta,
 		codexschema.MethodTurnCompleted,
 	})
 	if !reflect.DeepEqual(recorded, fake) {
@@ -76,7 +77,12 @@ func loadRecordedContracts(t *testing.T, path string) []any {
 	items := e2etest.ReadJSONLFixture(t, path)
 	out := make([]any, 0, len(items))
 	for _, item := range items {
-		out = append(out, e2etest.Contract(item))
+		method, _ := item["method"].(string)
+		params, _ := item["params"].(map[string]any)
+		if params == nil {
+			t.Fatalf("fixture missing params for %s: %v", method, item)
+		}
+		out = append(out, e2etest.Contract(projectAppServerDefaultTurnParams(t, method, params)))
 	}
 	return out
 }
@@ -87,7 +93,12 @@ func projectAppServerDefaultTurnEvent(t *testing.T, method string, raw json.RawM
 	if err != nil {
 		t.Fatalf("NormalizeJSON(%s): %v", method, err)
 	}
-	params := norm
+	params := fakecodexNormalizeRecordedDefaultTurnParams(norm)
+	return projectAppServerDefaultTurnParams(t, method, params)
+}
+
+func projectAppServerDefaultTurnParams(t *testing.T, method string, params map[string]any) any {
+	t.Helper()
 	switch method {
 	case codexschema.MethodThreadStarted:
 		thread, _ := params["thread"].(map[string]any)
@@ -109,13 +120,64 @@ func projectAppServerDefaultTurnEvent(t *testing.T, method string, raw json.RawM
 			"method": method,
 			"params": map[string]any{
 				"threadId": params["threadId"],
-				"turnId":   params["turnId"],
+				"turn":     params["turn"],
 			},
 		}
 	case codexschema.MethodTurnCompleted:
-		return map[string]any{"method": method, "params": params}
+		return map[string]any{
+			"method": method,
+			"params": map[string]any{
+				"threadId": params["threadId"],
+				"turn":     params["turn"],
+			},
+		}
 	default:
 		t.Fatalf("unsupported app-server projection method: %s", method)
 		return nil
+	}
+}
+
+func fakecodexNormalizeRecordedDefaultTurnParams(v any) map[string]any {
+	params, _ := v.(map[string]any)
+	return normalizeRecordedDefaultTurnParamsLocal(params).(map[string]any)
+}
+
+func normalizeRecordedDefaultTurnParamsLocal(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, value := range x {
+			if isVolatileRecordedNumberKeyLocal(k) {
+				if _, ok := value.(float64); ok {
+					out[k] = "number"
+					continue
+				}
+			}
+			if k == "cliVersion" {
+				if _, ok := value.(string); ok {
+					out[k] = "string"
+					continue
+				}
+			}
+			out[k] = normalizeRecordedDefaultTurnParamsLocal(value)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i := range x {
+			out[i] = normalizeRecordedDefaultTurnParamsLocal(x[i])
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+func isVolatileRecordedNumberKeyLocal(key string) bool {
+	switch key {
+	case "createdAt", "updatedAt", "recencyAt", "startedAt", "completedAt", "durationMs":
+		return true
+	default:
+		return false
 	}
 }

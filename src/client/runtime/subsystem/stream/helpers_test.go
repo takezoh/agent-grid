@@ -165,6 +165,18 @@ func TestExtractText(t *testing.T) {
 	if got := extractText([]byte(`{"item":{"content":"c"}}`)); got != "c" {
 		t.Errorf("item.content: %q", got)
 	}
+	if got := extractText([]byte(`{"turn":{"items":[{"type":"agentMessage","text":"from turn"}]}}`)); got != "from turn" {
+		t.Errorf("turn.items.text: %q", got)
+	}
+	if got := extractText([]byte(`{"turn":{"items":[{"type":"agentMessage","content":[{"type":"text","text":"from content"}]}]}}`)); got != "from content" {
+		t.Errorf("turn.items.content: %q", got)
+	}
+	if got := extractText([]byte(`{"turn":{"items":[{"type":"agentMessage","content":[{"type":"text","text":"hello "},{"type":"text","text":"world"}]}]}}`)); got != "hello world" {
+		t.Errorf("turn.items.fragments: %q", got)
+	}
+	if got := extractText([]byte(`{"turn":{"items":[{"type":"agentMessage","phase":"commentary","text":"draft"},{"type":"agentMessage","phase":"final_answer","text":"final"}]}}`)); got != "final" {
+		t.Errorf("turn.items.phase: %q", got)
+	}
 	if got := extractText([]byte(`bad`)); got != "" {
 		t.Errorf("bad: %q", got)
 	}

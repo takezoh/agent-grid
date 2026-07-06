@@ -76,8 +76,8 @@ func (h *turnHandler) OnNotification(method string, params json.RawMessage) {
 		h.mu.Unlock()
 
 	case codexschema.MethodTurnStarted:
-		turnID := extractString(params, "turnId")
-		tid := extractString(params, "threadId")
+		turnID := extractTurnID(params)
+		tid := extractTopLevelThreadID(params)
 		h.mu.Lock()
 		if tid != "" {
 			// With explicit thread/start the thread id arrives here even if no
@@ -245,6 +245,31 @@ func extractThreadID(params json.RawMessage) string {
 	}
 	_ = json.Unmarshal(params, &p)
 	return p.Thread.ID
+}
+
+func extractTopLevelThreadID(params json.RawMessage) string {
+	var p struct {
+		ThreadID string `json:"threadId"`
+	}
+	_ = json.Unmarshal(params, &p)
+	return p.ThreadID
+}
+
+func extractTurnID(params json.RawMessage) string {
+	var p struct {
+		Turn struct {
+			ID string `json:"id"`
+		} `json:"turn"`
+	}
+	_ = json.Unmarshal(params, &p)
+	if p.Turn.ID != "" {
+		return p.Turn.ID
+	}
+	var legacy struct {
+		TurnID string `json:"turnId"`
+	}
+	_ = json.Unmarshal(params, &legacy)
+	return legacy.TurnID
 }
 
 func extractString(params json.RawMessage, key string) string {

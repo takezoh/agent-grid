@@ -202,10 +202,7 @@ func TestInteractiveFlow_SettingsUpdatedBroadcastReachesDriverMetadata(t *testin
 	srv := fake.New(fake.Config{
 		Sock: filepath.Join(t.TempDir(), "fake-settings.sock"),
 		TurnHandler: func(req fake.TurnRequest, emit fake.Emitter) {
-			_ = emit.Emit(codexschema.MethodTurnStarted, map[string]any{
-				"threadId": req.ThreadID,
-				"turnId":   req.TurnID,
-			})
+			_ = emit.Emit(codexschema.MethodTurnStarted, codexclient.TurnStartedParams(req.ThreadID, req.TurnID))
 			_ = emit.Emit(codexschema.MethodThreadSettingsUpdated, map[string]any{
 				"threadId": req.ThreadID,
 				"threadSettings": map[string]any{
@@ -213,11 +210,9 @@ func TestInteractiveFlow_SettingsUpdatedBroadcastReachesDriverMetadata(t *testin
 					"reasoning_effort": map[string]any{"level": "medium"},
 				},
 			})
-			_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
-				"threadId": req.ThreadID,
-				"turnId":   req.TurnID,
-				"text":     "done",
-			})
+			_ = emit.Emit(codexschema.MethodItemAgentMessageDelta,
+				codexclient.AgentMessageDeltaParams(req.ThreadID, req.TurnID, "agent-"+req.TurnID, "done"))
+			_ = emit.Emit(codexschema.MethodTurnCompleted, codexclient.TurnCompletedParams(req.ThreadID, req.TurnID))
 		},
 	})
 	if err := srv.Start(); err != nil {

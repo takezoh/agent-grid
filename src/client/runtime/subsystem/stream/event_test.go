@@ -93,6 +93,120 @@ func TestHandleTurnCompleted(t *testing.T) {
 	}
 }
 
+func TestHandleTurnCompletedFallsBackToDeltaStateWhenCompletionHasNoText(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleAgentMessageDelta([]byte(`{"threadId":"t1","delta":"hello "}`))
+	b.handleAgentMessageDelta([]byte(`{"threadId":"t1","delta":"world"}`))
+	b.handleTurnCompleted([]byte(`{"threadId":"t1","turn":{"id":"tu1","items":[],"itemsView":"notLoaded","status":"completed"}}`))
+
+	if got := len(fr.events); got != 3 {
+		t.Fatalf("events = %d, want 3", got)
+	}
+	ev, ok := fr.events[2].(state.EvSubsystem)
+	if !ok {
+		t.Fatalf("event = %T, want EvSubsystem", fr.events[2])
+	}
+	if ev.Payload.LastAssistantMessage != "hello world" {
+		t.Fatalf("LastAssistantMessage = %q, want %q", ev.Payload.LastAssistantMessage, "hello world")
+	}
+	b.mu.Lock()
+	last := b.frames["f1"].lastAssistant
+	history := append([]state.SubsystemTurn(nil), b.frames["f1"].history...)
+	b.mu.Unlock()
+	if last != "hello world" {
+		t.Fatalf("lastAssistant = %q, want %q", last, "hello world")
+	}
+	if len(history) != 1 || history[0].Role != "assistant" || history[0].Text != "hello world" {
+		t.Fatalf("history = %+v", history)
+	}
+}
+
+func TestHandleTurnCompletedUsesTurnItemsAssistantText(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleTurnCompleted([]byte(`{
+		"threadId":"t1",
+		"turn":{
+			"id":"tu1",
+			"items":[{"type":"agentMessage","content":[{"type":"text","text":"from items"}]}],
+			"status":"completed"
+		}
+	}`))
+
+	ev, ok := fr.events[0].(state.EvSubsystem)
+	if !ok {
+		t.Fatalf("event = %T, want EvSubsystem", fr.events[0])
+	}
+	if ev.Payload.LastAssistantMessage != "from items" {
+		t.Fatalf("LastAssistantMessage = %q, want %q", ev.Payload.LastAssistantMessage, "from items")
+	}
+}
+
+func TestHandleTurnCompletedDoesNotReusePreviousTurnAssistantWhenCurrentTurnIsEmpty(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1", lastAssistant: "previous turn"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleTurnCompleted([]byte(`{"threadId":"t1","turn":{"id":"tu2","items":[],"itemsView":"notLoaded","status":"completed"}}`))
+
+	if got := len(fr.events); got != 1 {
+		t.Fatalf("events = %d, want 1", got)
+	}
+	ev := fr.events[0].(state.EvSubsystem)
+	if ev.Payload.LastAssistantMessage != "" {
+		t.Fatalf("LastAssistantMessage = %q, want empty", ev.Payload.LastAssistantMessage)
+	}
+	b.mu.Lock()
+	last := b.frames["f1"].lastAssistant
+	history := append([]state.SubsystemTurn(nil), b.frames["f1"].history...)
+	b.mu.Unlock()
+	if last != "" {
+		t.Fatalf("lastAssistant = %q, want empty", last)
+	}
+	if len(history) != 0 {
+		t.Fatalf("history = %+v, want empty", history)
+	}
+}
+
+func TestHandleTurnCompletedDropsStaleCompletedTurn(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{
+		frameID:       "f1",
+		threadID:      "t1",
+		activeTurnID:  "turn-2",
+		turnAssistant: "current",
+	}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleTurnCompleted([]byte(`{"threadId":"t1","turn":{"id":"turn-1","items":[{"type":"agentMessage","text":"old"}],"status":"completed"}}`))
+
+	if len(fr.events) != 0 {
+		t.Fatalf("events = %d, want 0", len(fr.events))
+	}
+	b.mu.Lock()
+	binding := b.frames["f1"]
+	b.mu.Unlock()
+	if binding.activeTurnID != "turn-2" {
+		t.Fatalf("activeTurnID = %q, want turn-2", binding.activeTurnID)
+	}
+	if binding.turnAssistant != "current" {
+		t.Fatalf("turnAssistant = %q, want current", binding.turnAssistant)
+	}
+}
+
 func TestHandleTurnCompletedUnknownThread(t *testing.T) {
 	b, fr := newTestBackend()
 	b.handleTurnCompleted([]byte(`{"threadId":"unknown"}`))
@@ -111,13 +225,86 @@ func TestHandleAgentMessageDelta(t *testing.T) {
 	b.handleAgentMessageDelta([]byte(`{"threadId":"t1","delta":"abc"}`))
 	b.handleAgentMessageDelta([]byte(`{"threadId":"t1","delta":"def"}`))
 	b.mu.Lock()
+	turn := b.frames["f1"].turnAssistant
 	last := b.frames["f1"].lastAssistant
 	b.mu.Unlock()
-	if last != "abcdef" {
-		t.Errorf("lastAssistant = %q", last)
+	if turn != "abcdef" {
+		t.Errorf("turnAssistant = %q", turn)
+	}
+	if last != "" {
+		t.Errorf("lastAssistant = %q, want empty before completion", last)
 	}
 	if len(fr.events) != 2 {
 		t.Errorf("expected 2 events, got %d", len(fr.events))
+	}
+}
+
+func TestHandleAgentMessageDeltaLegacyTextOnly(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleAgentMessageDelta([]byte(`{"threadId":"t1","text":"legacy"}`))
+
+	b.mu.Lock()
+	turn := b.frames["f1"].turnAssistant
+	b.mu.Unlock()
+	if turn != "legacy" {
+		t.Fatalf("turnAssistant = %q, want %q", turn, "legacy")
+	}
+	if len(fr.events) != 1 {
+		t.Fatalf("events = %d, want 1", len(fr.events))
+	}
+	ev := fr.events[0].(state.EvSubsystem)
+	if ev.Payload.LastAssistantMessage != "legacy" {
+		t.Fatalf("LastAssistantMessage = %q, want %q", ev.Payload.LastAssistantMessage, "legacy")
+	}
+}
+
+func TestHandleAgentMessageDeltaDropsStaleTurnDelta(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1", activeTurnID: "turn-2"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleAgentMessageDelta([]byte(`{"threadId":"t1","turnId":"turn-1","delta":"stale"}`))
+
+	b.mu.Lock()
+	turn := b.frames["f1"].turnAssistant
+	b.mu.Unlock()
+	if turn != "" {
+		t.Fatalf("turnAssistant = %q, want empty", turn)
+	}
+	if len(fr.events) != 0 {
+		t.Fatalf("events = %d, want 0", len(fr.events))
+	}
+}
+
+func TestHandleTurnCompletedIgnoresStaleDeltaFromPreviousTurn(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleTurnStarted([]byte(`{"threadId":"t1","turn":{"id":"turn-1","items":[],"status":"inProgress"}}`))
+	b.handleAgentMessageDelta([]byte(`{"threadId":"t1","turnId":"turn-1","delta":"first"}`))
+	b.handleTurnStarted([]byte(`{"threadId":"t1","turn":{"id":"turn-2","items":[],"status":"inProgress"}}`))
+	b.handleAgentMessageDelta([]byte(`{"threadId":"t1","turnId":"turn-1","delta":" stale"}`))
+	b.handleTurnCompleted([]byte(`{"threadId":"t1","turn":{"id":"turn-2","items":[],"itemsView":"notLoaded","status":"completed"}}`))
+
+	ev := fr.events[len(fr.events)-1].(state.EvSubsystem)
+	if ev.Payload.LastAssistantMessage != "" {
+		t.Fatalf("LastAssistantMessage = %q, want empty", ev.Payload.LastAssistantMessage)
+	}
+	b.mu.Lock()
+	history := append([]state.SubsystemTurn(nil), b.frames["f1"].history...)
+	b.mu.Unlock()
+	if len(history) != 0 {
+		t.Fatalf("history = %+v, want empty", history)
 	}
 }
 

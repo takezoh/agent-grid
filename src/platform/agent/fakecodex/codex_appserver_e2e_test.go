@@ -28,7 +28,6 @@ import (
 
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
 	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
-	codexschemav2 "github.com/takezoh/agent-reactor/platform/agent/codexschema/v2"
 	"github.com/takezoh/agent-reactor/platform/e2etest"
 )
 
@@ -256,85 +255,9 @@ func projectRecordedDefaultTurn(t *testing.T, events []recordedNotification, met
 		if !allowed[event.Method] {
 			continue
 		}
-		out = append(out, projectedDefaultTurnEvent(t, event.Method, event.Params))
+		out = append(out, defaultTurnRecordedEvent(t, event.Method, event.Params))
 	}
 	return out
-}
-
-func projectedDefaultTurnEvent(t *testing.T, method string, raw json.RawMessage) any {
-	t.Helper()
-	switch method {
-	case codexschema.MethodThreadStarted:
-		thread, err := codexschemav2.UnmarshalThreadStartedNotification(raw)
-		if err != nil {
-			t.Fatalf("UnmarshalThreadStartedNotification: %v", err)
-		}
-		path := ""
-		if thread.Thread.Path != nil {
-			path = *thread.Thread.Path
-		}
-		return map[string]any{
-			"method": method,
-			"params": map[string]any{
-				"thread": map[string]any{
-					"id":   thread.Thread.ID,
-					"path": path,
-				},
-			},
-		}
-	case codexschema.MethodTurnStarted:
-		var payload struct {
-			ThreadID string `json:"threadId"`
-			Turn     struct {
-				ID string `json:"id"`
-			} `json:"turn"`
-		}
-		if err := json.Unmarshal(raw, &payload); err != nil {
-			t.Fatalf("unmarshal turn/started: %v", err)
-		}
-		return map[string]any{
-			"method": method,
-			"params": map[string]any{
-				"threadId": payload.ThreadID,
-				"turnId":   payload.Turn.ID,
-			},
-		}
-	case codexschema.MethodThreadSettingsUpdated:
-		var payload struct {
-			ThreadID       string         `json:"threadId"`
-			ThreadSettings map[string]any `json:"threadSettings"`
-		}
-		if err := json.Unmarshal(raw, &payload); err != nil {
-			t.Fatalf("unmarshal thread/settings/updated: %v", err)
-		}
-		projected := map[string]any{
-			"threadId": payload.ThreadID,
-		}
-		if len(payload.ThreadSettings) > 0 {
-			projected["threadSettings"] = payload.ThreadSettings
-		}
-		return map[string]any{"method": method, "params": projected}
-	case codexschema.MethodTurnCompleted:
-		var payload struct {
-			ThreadID string `json:"threadId"`
-			TurnID   string `json:"turnId"`
-			Text     string `json:"text"`
-		}
-		if err := json.Unmarshal(raw, &payload); err != nil {
-			t.Fatalf("unmarshal turn/completed: %v", err)
-		}
-		return map[string]any{
-			"method": method,
-			"params": map[string]any{
-				"threadId": payload.ThreadID,
-				"turnId":   payload.TurnID,
-				"text":     payload.Text,
-			},
-		}
-	default:
-		t.Fatalf("unsupported projection method: %s", method)
-		return nil
-	}
 }
 
 type threadSettingsShape struct {

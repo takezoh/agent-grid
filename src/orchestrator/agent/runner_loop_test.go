@@ -42,9 +42,9 @@ func (s *scriptedServer) runTurn() {
 	turnID := fmt.Sprintf("turn-%d", n+1)
 	_ = s.srv.EmitTurnStarted(testThreadID, turnID)
 	if fail {
-		_ = s.srv.EmitTurnFailed(testThreadID, "scripted failure")
+		_ = s.srv.EmitTurnFailed(testThreadID, turnID, "scripted failure")
 	} else {
-		_ = s.srv.EmitTurnCompleted(testThreadID, turnID, "done")
+		_ = s.srv.EmitTurnCompleted(testThreadID, turnID)
 	}
 }
 

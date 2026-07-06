@@ -84,7 +84,7 @@ Both decision-loop layers (`client/` and `orchestrator/scheduler`) share the Fun
 ## Harness Catalog
 
 - **`runtimetest.Harness` (T1)** — boots a real `client/runtime` loop with injected fakes at `New(...)` time and provides `Runtime`, `Enqueue`, `WaitFor`, and `Quiesce` so propagation tests do not need ad-hoc runtime startup code.
-- **`drivertest.Conformance` (T0)** — runs the common `state.Driver` contract over every registered driver: Step purity, DriverEvent totality, View/Status totality, and Persist/Restore round-trip.
+- **`drivertest.Conformance` (T0)** — runs the common `state.Driver` contract over every registered driver: Step purity, DriverEvent totality, View/Status totality, and Persist/Restore round-trip. The Step-purity check snapshots the pre-Step state with a JSON clone, so driver state must stay JSON-round-trippable by value; this matches the same `Persist`/`Restore` contract the suite asserts immediately afterward.
 - **`drivertest.MetadataSourcePriority` (T0)** — applies the authoritative-vs-fallback metadata contract to a driver-specific scenario; this is separate from registry conformance and must be invoked explicitly where the driver carries metadata state.
 
 ## Multiplexed-subsystem routing harness

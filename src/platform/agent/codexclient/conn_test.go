@@ -171,13 +171,11 @@ func TestStdioTransport_LargeMessage(t *testing.T) {
 	defer cancel()
 
 	payload := strings.Repeat("x", 1<<20) // 1 MiB, well past the 64 KiB default
+	params := codexclient.TurnCompletedParams("thread-1", "turn-1")
+	params["padding"] = payload
 	msg, err := json.Marshal(map[string]any{
 		"method": "turn/completed",
-		"params": map[string]any{
-			"threadId": "thread-1",
-			"turnId":   "turn-1",
-			"text":     payload,
-		},
+		"params": params,
 	})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

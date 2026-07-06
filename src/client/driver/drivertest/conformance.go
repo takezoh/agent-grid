@@ -133,6 +133,10 @@ func cloneDriverState(in state.DriverState) state.DriverState {
 	if in == nil {
 		return nil
 	}
+	// Step purity is checked by value via a JSON round-trip clone so the
+	// previous state cannot alias the post-Step state. DriverState therefore
+	// needs to remain JSON-round-trippable, which matches the Persist/Restore
+	// contract this suite also checks.
 	raw, err := json.Marshal(in)
 	if err != nil {
 		panic(err)

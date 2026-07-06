@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/takezoh/agent-reactor/platform/agent/codexclient"
 	"github.com/takezoh/agent-reactor/platform/agent/codexschema"
@@ -71,6 +72,7 @@ func (r *turnRunner) runTurn(req turnReq) {
 	}
 	isNewThread := req.startThread
 	sessionID := threadID + "-" + turnID
+	turnStartedAt := time.Now()
 
 	if req.approvalPolicy != "" || req.sandboxPolicy != "" {
 		slog.Warn("approval/sandbox policy received but not enforced by shim; container is the boundary",
@@ -86,9 +88,9 @@ func (r *turnRunner) runTurn(req turnReq) {
 		}
 	}
 	if err := r.emit(func() error {
-		return r.srv.Conn().Notify(codexschema.MethodTurnStarted, map[string]any{
-			"threadId": threadID, "turnId": turnID, "sessionId": sessionID,
-		})
+		params := codexclient.TurnStartedParamsAt(threadID, turnID, turnStartedAt)
+		params["sessionId"] = sessionID
+		return r.srv.EmitNotification(codexschema.MethodTurnStarted, params)
 	}); err != nil {
 		slog.Error("emit turn/started", "err", err)
 		return
@@ -110,13 +112,13 @@ func (r *turnRunner) runTurn(req turnReq) {
 		bridge, err = newToolBridge(r.srv.Conn(), threadID, turnID, r.newID)
 		if err != nil {
 			slog.Error("start tool bridge", "err", err)
-			_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, err.Error()) })
+			_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, turnID, err.Error()) })
 			return
 		}
 		defer bridge.Close()
 	}
 
-	r.runTurnLoop(threadID, turnID, sessionID, req.cwd, req.prompt, sysPrompt, bridge)
+	r.runTurnLoop(threadID, turnID, sessionID, turnStartedAt, req.cwd, req.prompt, sysPrompt, bridge)
 }
 
 // runTurnLoop drives one codex turn as a single claude invocation.  When
@@ -124,7 +126,7 @@ func (r *turnRunner) runTurn(req turnReq) {
 // and passes TOOL_BRIDGE_SOCKET to claude.  claude calls the tools via its
 // native Bash tool; the bridge forwards each call to the orchestrator as
 // item/tool/call.  No sentinel detection or --resume loop is needed.
-func (r *turnRunner) runTurnLoop(threadID, turnID, sessionID, cwd, prompt, sysPrompt string, bridge *toolBridge) {
+func (r *turnRunner) runTurnLoop(threadID, turnID, sessionID string, turnStartedAt time.Time, cwd, prompt, sysPrompt string, bridge *toolBridge) {
 	var extraEnv []string
 	if bridge != nil {
 		extraEnv = append(extraEnv, "TOOL_BRIDGE_SOCKET="+bridge.SocketPath())
@@ -137,7 +139,7 @@ func (r *turnRunner) runTurnLoop(threadID, turnID, sessionID, cwd, prompt, sysPr
 	stdout, wait, err := r.launch(r.ctx, cwd, resumeID, sysPrompt, prompt, extraEnv)
 	if err != nil {
 		slog.Error("launch claude", "err", err)
-		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, err.Error()) })
+		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, turnID, err.Error()) })
 		return
 	}
 	scan := r.scanStream(threadID, turnID, streamjson.NewScanner(stdout))
@@ -150,14 +152,14 @@ func (r *turnRunner) runTurnLoop(threadID, turnID, sessionID, cwd, prompt, sysPr
 		if werr != nil {
 			msg = fmt.Sprintf("claude exited: %v", werr)
 		}
-		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, msg) })
+		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, turnID, msg) })
 		return
 	}
 	if scan.isError {
-		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, scan.resultText) })
+		_ = r.emit(func() error { return r.srv.EmitTurnFailed(threadID, turnID, scan.resultText) })
 		return
 	}
-	r.completeTurn(threadID, turnID, sessionID, scan.usage, scan.resultText)
+	r.completeTurn(threadID, turnID, sessionID, turnStartedAt, scan.usage, scan.resultText)
 }
 
 // turnScanResult captures the outcome of scanning one claude invocation.
@@ -184,7 +186,10 @@ func (r *turnRunner) scanStream(threadID, turnID string, sc *streamjson.Scanner)
 
 		case streamjson.AssistantMessage:
 			if ev.Text != "" {
-				_ = r.emit(func() error { return r.srv.EmitAgentMessageDelta(threadID, ev.Text) })
+				_ = r.emit(func() error {
+					return r.srv.EmitNotification(codexschema.MethodItemAgentMessageDelta,
+						codexclient.AgentMessageDeltaParams(threadID, turnID, "agent-"+turnID, ev.Text))
+				})
 			}
 			for _, tu := range ev.ToolUses {
 				toolNames[tu.ID] = tu.Name
@@ -236,7 +241,7 @@ func (r *turnRunner) emitToolResult(threadID, turnID string, toolNames map[strin
 
 // completeTurn accumulates token usage for the thread and emits the final
 // thread/tokenUsage/updated + turn/completed for the turn.
-func (r *turnRunner) completeTurn(threadID, turnID, sessionID string, u streamjson.Usage, text string) {
+func (r *turnRunner) completeTurn(threadID, turnID, sessionID string, turnStartedAt time.Time, u streamjson.Usage, text string) {
 	r.mu.Lock()
 	cum := addUsage(r.cumUsage[threadID], u)
 	r.cumUsage[threadID] = cum
@@ -245,9 +250,16 @@ func (r *turnRunner) completeTurn(threadID, turnID, sessionID string, u streamjs
 	last, total := usageBreakdown(u), usageBreakdown(cum)
 	_ = r.emit(func() error { return r.srv.EmitTokenUsage(threadID, turnID, last, total) })
 	_ = r.emit(func() error {
-		return r.srv.Conn().Notify(codexschema.MethodTurnCompleted, map[string]any{
-			"threadId": threadID, "turnId": turnID, "sessionId": sessionID, "text": text,
-		})
+		params := codexclient.TurnCompletedFinalAnswerParamsAt(
+			threadID,
+			turnID,
+			sessionID,
+			turnStartedAt,
+			time.Now(),
+			"agent-"+turnID,
+			text,
+		)
+		return r.srv.EmitNotification(codexschema.MethodTurnCompleted, params)
 	})
 }
 
