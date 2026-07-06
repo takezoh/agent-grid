@@ -19,6 +19,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: 既存 header は Command (⌘K) + New Session の 2 ボタン構成で、テーマトグルは存在しない (ダーク固定)。ux.md
+  は Raycast/Linear/Spotlight 風の search-bar-as-entry-point を modeled_on とし、New Session
+  を palette 内 suggested action として吸収する案 (Open Q4)
 ---
 
 <!-- migrated_from: docs/adr/0062-search-bar-trigger-and-palette-theme-entry.md -->

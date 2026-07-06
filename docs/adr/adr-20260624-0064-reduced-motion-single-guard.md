@@ -26,6 +26,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: '既存 view.css の .run-state-spinner / .session-status-spinner は animation:
+  run-state-spin 0.8s linear infinite を無条件適用しており、prefers-reduced-motion: reduce 環境でも回り続ける
+  (UAC-016 vs_legacy: must-fail)。palette 系には'
 ---
 
 <!-- migrated_from: docs/adr/0064-reduced-motion-single-guard.md -->

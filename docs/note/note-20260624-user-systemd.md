@@ -18,6 +18,9 @@ source_paths:
 - deploy/systemd/
 - Makefile
 topic: user
+summary: This guide brings the two-process production stack (server, web) up as per-user
+  systemd units. The dev launcher (scripts/run-dev.sh) remains the right tool for
+  ad-hoc work — the systemd path is for hosts that should
 ---
 
 <!-- migrated_from: docs/user/systemd.md -->

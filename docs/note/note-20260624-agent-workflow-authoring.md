@@ -24,6 +24,9 @@ source_paths:
 - src/orchestrator/workflowfile/
 - src/orchestrator/prompt/
 topic: agent
+summary: 'WORKFLOW.md has two parts: a YAML front-matter block (configuration) and
+  a Markdown body (the prompt template handed to each dispatched agent). This page
+  covers the body — how to write the prompt that drives the'
 ---
 
 <!-- migrated_from: docs/agent/workflow-authoring.md -->

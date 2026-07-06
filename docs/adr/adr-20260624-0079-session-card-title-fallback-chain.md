@@ -19,6 +19,8 @@ source_paths:
 - src/client/tools/builtin.go
 decision_makers:
 - unknown
+summary: 'Supersedes: ADR-0076 (Title slot に関する部分のみ) Related code: src/client/driver/view_builder.go
+  (resolveCardTitleSubtitle), src/client/driver/{claude_view.go,codex_view.go,gemini_view.go,generic_view.go,shell_view.go},'
 ---
 
 <!-- migrated_from: docs/adr/0079-session-card-title-fallback-chain.md -->

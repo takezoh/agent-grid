@@ -21,6 +21,8 @@ source_paths:
 - AGENTS.md
 decision_makers:
 - unknown
+summary: Web UI のセッション一覧でステータスを spinner で表現したい (Web UI 問題5)。現状の src/client/web/src/components/RunStateBadge.tsx
+  は status 文字列 (running / waiting / idle / stopped / pending / unknown) をテキストバッジとして表示する。
 ---
 
 <!-- migrated_from: docs/adr/0032-runstate-spinner-additive.md -->

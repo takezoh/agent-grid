@@ -38,6 +38,9 @@ scope_in: []
 scope_out: []
 milestones: []
 contracts: []
+summary: accepted な ux.md (UAC-001〜UAC-018, F-001〜F-008) と ADR-0050〜0053 を入力に、src/client/web/
+  配下の command palette を「scope 統合 + disabled visible + hover follow + active context
+  header + chip 3 経路 toggle + push 送信先明示 toast +
 ---
 
 <!-- migrated_from: docs/specs/2026-06-25-web-palette-redesign/plan.md -->

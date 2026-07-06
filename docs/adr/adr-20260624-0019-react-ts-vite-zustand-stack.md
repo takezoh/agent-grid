@@ -15,6 +15,9 @@ source_paths:
 - src/client/web/
 decision_makers:
 - unknown
+summary: A1-β replaces client/web's vanilla JS UI with a typed SPA. Master Plan (plans-cheerful-thompson.md
+  §A1-β) named the stack as React + TypeScript + Vite + Zustand + xterm.js. We document
+  the choice and pin the exact tools
 ---
 
 <!-- migrated_from: docs/adr/0019-react-ts-vite-zustand-stack.md -->

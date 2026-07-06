@@ -19,6 +19,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: 'FR-009 / UAC-001 / UAC-013 は Active context header に "Active: <projBase>
+  / <sid8>" を表示することを要求する。activeSessionID から projBase を引くには、(1) sessions[].sessionID
+  === activeSessionID の SessionInfo を引き、(2) その SessionInfo の'
 ---
 
 <!-- migrated_from: docs/adr/0058-palette-active-context-data-path.md -->

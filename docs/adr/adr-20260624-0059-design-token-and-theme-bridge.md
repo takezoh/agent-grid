@@ -22,6 +22,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: 既存 web client は css/{app.css, view.css} の 2 ファイルで、:root に --bg:#1e1e1e/--fg/--accent/--warn
+  のみ、メディアクエリ 0 件、ダーク固定。xterm.js は options.theme へハードコード色を渡している。app.css は 469 行で 500
+  行制約に逼迫している。ux.md は light/dark/system の 3 テーマと
 ---
 
 <!-- migrated_from: docs/adr/0059-design-token-and-theme-bridge.md -->

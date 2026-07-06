@@ -26,6 +26,9 @@ source_paths:
 - src/platform/sandbox/devcontainer/
 provides:
 - sandbox-backends
+summary: User-facing setup (devcontainer.json, [sandbox.*] settings, credential proxy
+  provider config) lives in the user guide docs/user/sandbox.md. This document covers
+  the architecture, security model, and lifecycle.
 ---
 
 <!-- migrated_from: docs/technical/platform/sandbox.md -->

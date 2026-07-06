@@ -34,6 +34,9 @@ source_paths:
 - src/orchestrator/prompt/
 - src/orchestrator/scheduler/preflight.go
 topic: technical
+summary: 'The orchestrator runs coding agents unattended against an issue tracker.
+  Guardrails are the mechanisms that keep those agents inside safe, intended bounds
+  without a human in the loop. They answer five questions:'
 ---
 
 <!-- migrated_from: docs/technical/guardrails.md -->

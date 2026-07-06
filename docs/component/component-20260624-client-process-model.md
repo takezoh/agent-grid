@@ -26,6 +26,9 @@ source_paths:
 - src/platform/termvt/session.go
 provides:
 - process-model-frame-model-and-rendering-responsibilities
+summary: agent-grid rendering divides responsibilities between the driver and the
+  browser frontend at the following boundaries. When adding a new driver, you do not
+  need to touch the runtime or the frontend code. A driver only
 ---
 
 <!-- migrated_from: docs/technical/client/process-model.md -->

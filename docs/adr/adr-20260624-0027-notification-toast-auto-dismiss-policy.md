@@ -15,6 +15,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: EvtAgentNotification (OSC 9 / 99 / 777) fires when an agent wants the user's
+  attention — typically "task complete" or "ready for input". Drivers fire these freely,
+  so the UX must tolerate bursts (several in a row)
 ---
 
 <!-- migrated_from: docs/adr/0027-notification-toast-auto-dismiss-policy.md -->

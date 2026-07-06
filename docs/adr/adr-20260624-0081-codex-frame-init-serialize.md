@@ -19,6 +19,9 @@ source_paths:
 - src/client/runtime/subsystem/stream/
 decision_makers:
 - unknown
+summary: The stream backend fronts a per-session codex app-server (stream:session:<sessionID>
+  — see factory.go) and multiplexes N frames over one WebSocket connection. thread/started
+  notifications broadcast to every connected
 ---
 
 <!-- migrated_from: docs/adr/0081-codex-frame-init-serialize.md -->

@@ -18,6 +18,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: commit 9287c7f の CommandPalette は active session の情報を palette 内に一切表示しない。push
+  系 tool は active session を送信宛先とするため、ユーザーは「いま push が誰宛に飛ぶか」を palette を閉じてから session
+  list を見て確認する必要がある。さらに複数 client (別ブラウザタブ / 別 window) が同じ
 ---
 
 <!-- migrated_from: docs/adr/0052-palette-active-context-header-with-change-feedback.md -->

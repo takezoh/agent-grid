@@ -17,6 +17,8 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: focus-trap-react など外部ライブラリは shadow DOM / portal の境界バグや bundle 増を招きやすい。一方、自前で大規模な
+  trap を書くと境界バグの保守を抱える。
 ---
 
 <!-- migrated_from: docs/adr/0039-palette-focus-trap-minimal.md -->

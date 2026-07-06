@@ -29,6 +29,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: ux.md reference_ux[].stance:modeled_on で 6 つの業界パターン (modal editor 流の閲覧/挿入
+  mode separation / Termius・a-Shell keyboard toggle / Slack・Telegram jump-to-latest
+  FAB / Material Design FAB primitive / iOS inputAccessoryView
 ---
 
 <!-- migrated_from: docs/adr/0075-pattern-adoption-mode-affordances.md -->

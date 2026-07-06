@@ -14,6 +14,9 @@ source_paths:
 - src/platform/termvt/
 decision_makers:
 - unknown
+summary: PtyBackend holds mgr *termvt.Manager as an unexported field. The web gateway's
+  terminal_relay needs to reach termvt.Session.Subscribe to fan output out to subscribed
+  connections, but it sits behind the cfg.Backend
 ---
 
 <!-- migrated_from: docs/adr/0009-ptybackend-subscribe-surface-accessor.md -->

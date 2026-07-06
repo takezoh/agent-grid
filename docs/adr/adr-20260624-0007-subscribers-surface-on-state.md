@@ -13,6 +13,9 @@ relations: []
 source_paths: []
 decision_makers:
 - unknown
+summary: A1-α broadcasts EvtSurfaceOutput to a specific subset of connections — only
+  those that issued CmdSurfaceSubscribe for the matching session. We must decide where
+  the (ConnID, SessionID) → subscribed? relation lives.
 ---
 
 <!-- migrated_from: docs/adr/0007-subscribers-surface-on-state.md -->

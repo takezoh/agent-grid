@@ -23,6 +23,9 @@ source_paths:
 - src/client/runtime/subsystem/stream/
 provides:
 - stream-backend-routing-isolation-test-harness
+summary: 'The stream subsystem backend multiplexes many frames (agents) over a single
+  codex app-server connection. Its one safety-critical property is routing isolation:
+  an event from a thread must reach only the frame that owns'
 ---
 
 <!-- migrated_from: docs/technical/client/stream-backend-testing.md -->

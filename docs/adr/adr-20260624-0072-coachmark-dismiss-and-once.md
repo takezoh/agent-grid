@@ -24,6 +24,9 @@ source_paths:
 - src/client/web/src/components/
 decision_makers:
 - unknown
+summary: ux.md UAC (F-001 step 3) は『dismissible coachmark で tap または数秒で消える』とし、Open
+  Question 4 で dismiss タイミングが 3 つ (5s 自動 / 初回 tap / 両方) の選択肢として残った。再表示しない冪等性 (hintSeen
+  書込タイミング) と『起動直後の離脱で coachmark を見ない可能性』のトレードオフが ADR
 ---
 
 <!-- migrated_from: docs/adr/0072-coachmark-dismiss-and-once.md -->

@@ -31,6 +31,8 @@ source_paths:
 - src/client/web/src/components/TerminalPane.tsx
 decision_makers:
 - unknown
+summary: ux.md assumption §3 が『閲覧モードで tap がキーボードを出さない load-bearing 機構は helper textarea
+  への focus 移動をブロックすること (readonly は defense-in-depth)』と固定したが、
 ---
 
 <!-- migrated_from: docs/adr/0068-mode-separation-focus-block-and-zoom-guard.md -->

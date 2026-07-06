@@ -28,6 +28,9 @@ source_paths:
 - src/client/web/src/hooks/useMobileGate.ts
 decision_makers:
 - unknown
+summary: ux.md assumption §1 で gate の確定値は与えられていたが、CSS @media と JS 判定のどちらを真実源にするかが未確定だった。CSS
+  display:none 切替では a11y tree から overlay を除外できず、また UAC-022 counterexample (幅のみ gate
+  で narrow desktop window が誤 mobile 化する PC regression)
 ---
 
 <!-- migrated_from: docs/adr/0067-mobile-gate-matchmedia.md -->

@@ -18,6 +18,8 @@ source_paths:
 - src/client/runtime/backends.go
 decision_makers:
 - unknown
+summary: A pty-backed web stack — platform/termvt, server/session, server/web, client/web
+  — operates pty sessions and streams them to the browser.
 ---
 
 <!-- migrated_from: docs/adr/0004-ptybackend-reuses-pure-core.md -->

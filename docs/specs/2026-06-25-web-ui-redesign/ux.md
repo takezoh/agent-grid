@@ -506,6 +506,8 @@ legacy_context:
     reduce) で spinner/flash/slide/transition を一律抑制'
   - TagPill が driver 任意色を inline 直当てしコントラスト無保証 → 任意色のコントラスト比を計算し閾値未満なら縁取り/前景反転 fallback
     を当てる
+summary: agent-grid-new の Web client (src/client/web) を、情報設計・認知負荷・一貫性・アクセシビリティ・既存プラットフォーム慣習
+  の観点でモダンに全面刷新する。最重視するのは UX。対象は PC・スマホ・タブレットの 3 デバイスすべてで、いずれでも破綻しない適応レイアウトを実現する。
 ---
 
 <!-- migrated_from: docs/specs/2026-06-25-web-ui-redesign/ux.md -->

@@ -46,6 +46,9 @@ source_paths:
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []
+summary: agent-grid の Web UI に、2 フェーズ操作 (ファジー検索でツール選択 → パラメータ順次入力) を持つコマンドパレットを Cmd/Ctrl+K
+  + 常設ボタンで起動できるモーダルとして実装する。standard スコープ (new-session / stop-session) と push スコープ
+  (push_commands 配列) をセグメント切替で同居させ、push 送信経路 (POST
 ---
 
 <!-- migrated_from: docs/specs/2026-06-24-web-ui-command-palette/spec.md -->

@@ -14,6 +14,8 @@ source_paths:
 - src/cmd/server/
 decision_makers:
 - unknown
+summary: 'A1-α removes cmd/server''s dependency on server/session.Service. Three options
+  for handling the now-unused package:'
 ---
 
 <!-- migrated_from: docs/adr/0014-server-session-legacy-build-tag.md -->

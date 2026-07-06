@@ -21,6 +21,9 @@ source_paths:
 - src/cmd/server/
 decision_makers:
 - unknown
+summary: AGENTS.md enumerates three layers — platform / client / orchestrator — but
+  server/* is not assigned to any of them in either the docs or src/.golangci.yml.
+  Historically server/web and server/session touched only
 ---
 
 <!-- migrated_from: docs/adr/0016-depguard-server-layer-rule.md -->

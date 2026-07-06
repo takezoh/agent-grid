@@ -17,6 +17,8 @@ source_paths:
 - src/server/web/
 decision_makers:
 - unknown
+summary: 'cmd/server needs a proto.Client connection to the session daemon. Two properties
+  are non-negotiable:'
 ---
 
 <!-- migrated_from: docs/adr/0012-daemon-client-eager-dial-supervisor.md -->

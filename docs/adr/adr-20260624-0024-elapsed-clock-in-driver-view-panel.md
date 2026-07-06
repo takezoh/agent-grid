@@ -13,6 +13,9 @@ relations: []
 source_paths: []
 decision_makers:
 - unknown
+summary: view.View.StatusLine is a free-form string driver authors fill with the current
+  status text. view.View.StatusChangedAt is an absolute timestamp indicating when
+  the run state last changed. A faithful elapsed-time display
 ---
 
 <!-- migrated_from: docs/adr/0024-elapsed-clock-in-driver-view-panel.md -->

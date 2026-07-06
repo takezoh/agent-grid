@@ -19,6 +19,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: 'ADR-0064 で view.css 末尾の @media (prefers-reduced-motion: reduce) ブロックに、.run-state-spinner
+  / .session-status-spinner / その後 ADR-0078 で導入された .status-icon--running / --pending
+  / --waiting .status-icon__dot / --idle'
 ---
 
 <!-- migrated_from: docs/adr/0080-status-indicator-exempt-from-reduced-motion.md -->

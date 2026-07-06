@@ -25,6 +25,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: 'ADR-0029 で .terminal-host を flex: 1 1 0; min-height: 0 の flex child にして残余高さを取らせ、ADR-0030
+  で TerminalPane は <TerminalPane key={activeSessionID}> の keyed remount で subscribe
+  所有権を保持し、ADR-0034 で ResizeObserver + rAF coalesce'
 ---
 
 <!-- migrated_from: docs/adr/0065-terminal-slot-absolute-overlay.md -->

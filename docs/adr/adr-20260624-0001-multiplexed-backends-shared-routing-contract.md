@@ -24,6 +24,9 @@ source_paths:
 - ARCHITECTURE.md
 decision_makers:
 - unknown
+summary: The stream subsystem backend (client/runtime/subsystem/stream) fronts one
+  codex app-server connection but multiplexes many frames (agents) over it. Inbound
+  server events are demultiplexed by threadID → frameID
 ---
 
 <!-- migrated_from: docs/adr/0001-multiplexed-backends-shared-routing-contract.md -->

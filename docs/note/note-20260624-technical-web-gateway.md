@@ -28,6 +28,9 @@ source_paths:
 - src/client/web/src/wire/server.ts
 - src/client/web/src/wire/client.ts
 topic: technical
+summary: 'server/web is the HTTP/WebSocket gateway that bridges a browser to the session
+  daemon. It is a stateless proxy: session state lives entirely in the daemon goroutines;
+  this layer only translates between the browser wire'
 ---
 
 <!-- migrated_from: docs/technical/web-gateway.md -->

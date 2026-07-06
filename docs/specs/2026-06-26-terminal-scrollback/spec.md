@@ -20,6 +20,9 @@ source_paths:
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []
+summary: Web UI で terminal タブを開いた後、別デバイス (別ブラウザ / 別タブ) で同じセッションへ後から接続したとき、claude /
+  codex / bash の 画面外に流れた行を遡って読める ようにする。逆に vim / less 等の全画面プログラムについては「現在画面だけ届く」既存挙動を維持する
+  (xterm 系の端末多重化器と同じ意味論)。サーバ側 VT エミュレータの scrollback
 ---
 
 <!-- migrated_from: docs/specs/2026-06-26-terminal-scrollback/spec.md -->

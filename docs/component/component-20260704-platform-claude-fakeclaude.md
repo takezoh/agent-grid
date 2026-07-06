@@ -15,6 +15,9 @@ source_paths:
 - src/platform/lib/claude/fakeclaude
 relations:
 - {type: implements, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
+summary: 'Reusable in-memory fake for the two wire surfaces the Claude CLI exposes:
+  the -p --output-format stream-json output stream, and the JSON payload Claude writes
+  to hook stdin. Made public as part of the decision in'
 ---
 
 ## Overview

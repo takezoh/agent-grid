@@ -19,6 +19,9 @@ source_paths:
 - src/client/runtime/
 decision_makers:
 - unknown
+summary: platform/termvt.Session originally held one sync.Mutex that guarded the VT
+  emulator, the subscriber map, the pending control buffer, and the dimensions. readLoop
+  held the mutex while calling em.Write(chunk); every other
 ---
 
 <!-- migrated_from: docs/adr/0028-termvt-session-actor-model.md -->

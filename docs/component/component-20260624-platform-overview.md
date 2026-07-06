@@ -33,6 +33,9 @@ source_paths:
 - src/platform/metrics/
 provides:
 - platform-shared-infrastructure
+summary: platform/ is the base layer. Both the server backend (client/) and the orchestrator/
+  depend on it; it depends on neither of them (enforced by the depguard rule platform-no-client-or-orchestrator).
+  Wire-format and
 ---
 
 <!-- migrated_from: docs/technical/platform/README.md -->

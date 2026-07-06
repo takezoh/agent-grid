@@ -26,6 +26,9 @@ source_paths:
 - src/orchestrator/agent/runner_test.go
 - scripts/check-coverage.sh
 topic: technical
+summary: A point-in-time assessment (2026-05-31) of agent-grid evaluated as a piece
+  of harness engineering — judged not on the agent's internal reasoning, but on how
+  well the system *uses* the coding agents it drives.
 ---
 
 <!-- migrated_from: docs/technical/harness-engineering-assessment.md -->

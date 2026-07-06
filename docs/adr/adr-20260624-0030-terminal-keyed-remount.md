@@ -23,6 +23,8 @@ source_paths:
 - src/client/web/src/App.tsx
 decision_makers:
 - unknown
+summary: src/client/web/src/components/TerminalPane.tsx は 単一 xterm インスタンスを全セッションで共有
+  している。コメント L84-92 に
 ---
 
 <!-- migrated_from: docs/adr/0030-terminal-keyed-remount.md -->

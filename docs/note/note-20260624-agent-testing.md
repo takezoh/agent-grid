@@ -41,6 +41,9 @@ source_paths:
 - scripts/coverage-floors.txt
 - src/cmd/bridge/
 topic: agent
+summary: Testability is a primary design constraint, not an afterthought. When a function
+  reaches for os/exec, the filesystem, a socket, or any other external dependency,
+  the path that hits the dependency lives behind an
 ---
 
 <!-- migrated_from: docs/agent/testing.md -->

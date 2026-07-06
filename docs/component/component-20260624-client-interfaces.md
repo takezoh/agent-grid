@@ -26,6 +26,9 @@ source_paths:
 - src/cmd/web/
 provides:
 - interfaces-data-files-and-file-structure
+summary: All state, runtime, and driver layers are defined as interfaces for testability.
+  The state layer consists of pure value types and pure functions, while the runtime
+  layer can be swapped with fakes during testing via
 ---
 
 <!-- migrated_from: docs/technical/client/interfaces.md -->

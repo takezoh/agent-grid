@@ -31,6 +31,9 @@ source_paths:
 - src/server/web/transcript.go
 decision_makers:
 - unknown
+summary: 'Web UI で terminal タブを開いた後に別デバイス (別ブラウザ / 別タブ) で同じセッションへ接続すると、初期表示は 現在の可視グリッドのみ
+  になっていた。termvt.Session.Subscribe() の seed event が EventOutput{Data: em.Render()}
+  の 1 本だけで、画面外へ流れた行 (scrollback) は保持されていなかったため、claude / codex'
 ---
 
 <!-- migrated_from: docs/adr/0066-terminal-scrollback-via-vt-buffer.md -->

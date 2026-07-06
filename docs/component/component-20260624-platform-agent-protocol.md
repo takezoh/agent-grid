@@ -30,6 +30,9 @@ source_paths:
 - src/cmd/claude-app-server/main.go
 provides:
 - agent-protocol-the-codex-app-server-protocol-layer
+summary: The shared stdio JSON-RPC protocol the orchestrator uses to drive an agent
+  (Codex / Claude). This layer is what lets the scheduler stay agent-agnostic — Codex
+  and Claude emit the same event sequence, so nothing above
 ---
 
 <!-- migrated_from: docs/technical/platform/agent-protocol.md -->

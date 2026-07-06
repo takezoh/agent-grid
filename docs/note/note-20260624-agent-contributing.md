@@ -21,6 +21,8 @@ source_paths:
 - Makefile
 - src/.golangci.yml
 topic: agent
+summary: This expands the summary in AGENTS.md. Read ARCHITECTURE.md first — every
+  rule below exists to keep the three-layer structure intact.
 ---
 
 <!-- migrated_from: docs/agent/contributing.md -->

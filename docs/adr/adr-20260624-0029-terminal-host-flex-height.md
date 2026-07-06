@@ -27,6 +27,8 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: src/client/web/src/css/app.css の .terminal は grid row (1fr) 内の flex-column
+  で、DriverViewPanel / LogTabs / TerminalPane が縦に並ぶ。.terminal-host は
 ---
 
 <!-- migrated_from: docs/adr/0029-terminal-host-flex-height.md -->

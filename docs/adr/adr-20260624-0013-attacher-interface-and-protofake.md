@@ -19,6 +19,8 @@ source_paths:
 - src/server/web/
 decision_makers:
 - unknown
+summary: 'server/web/gateway.go currently exposes Attacher as the seam between the
+  WebSocket handler and the session backend. Three options were considered for A1-α:'
 ---
 
 <!-- migrated_from: docs/adr/0013-attacher-interface-and-protofake.md -->

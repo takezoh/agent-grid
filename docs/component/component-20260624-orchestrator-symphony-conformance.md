@@ -27,6 +27,8 @@ source_paths:
 - src/orchestrator/workflowfile/
 provides:
 - symphony-spec-conformance
+summary: Authoritative conformance document against Symphony SPEC v1 Draft. plans/.archive/symphony-orchestrator/05-conformance.md
+  is the working doc; this file serves as the M4 snapshot.
 ---
 
 <!-- migrated_from: docs/technical/orchestrator/symphony-conformance.md -->

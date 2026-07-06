@@ -33,6 +33,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: ADR 0029 (terminal-host flex:1 1 0 / dvh)、ADR 0065 (terminal-slot absolute
+  overlay)、FR-LAYOUT-004 (safe-area single-source via .app-shell) を壊さず、KeyboardFAB
+  / JumpToLatestFAB / FontSizeControl / Coachmark /
 ---
 
 <!-- migrated_from: docs/adr/0069-fab-overlay-layout-and-visualviewport-lift.md -->

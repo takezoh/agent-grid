@@ -17,6 +17,7 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: ツール候補数は最大でも数十程度、自由入力 options のフィルタも軽量。fuse.js などのライブラリを新規導入すると bundle と維持コストが増える。
 ---
 
 <!-- migrated_from: docs/adr/0038-palette-fuzzy-pure-function.md -->

@@ -28,6 +28,9 @@ source_paths:
 - src/client/web/src/components/TerminalPane.tsx
 decision_makers:
 - unknown
+summary: UX Open Question 1 を plan-how で決着させる (POC 先送り禁止)。.xterm-viewport 上で swipe
+  / long-press / pinch が同じ touch source を共有するため、別々の listener を attach すると順序依存と double-preventDefault
+  のバグ温床になる。xterm.js 5.x は viewport 上の touchstart
 ---
 
 <!-- migrated_from: docs/adr/0071-touch-gesture-arbitration-and-long-press-selection.md -->

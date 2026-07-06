@@ -38,6 +38,9 @@ source_paths:
 - src/orchestrator/agent/
 provides:
 - orchestrator-symphony-spec-implementation
+summary: The orchestrator is a headless, single-authority background service that
+  implements the Symphony SPEC. It polls a Linear tracker, dispatches coding agents
+  to per-issue workspaces, reconciles running/stalled sessions,
 ---
 
 <!-- migrated_from: docs/technical/orchestrator/README.md -->

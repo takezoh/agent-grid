@@ -16,6 +16,8 @@ source_paths:
 relations:
 - {type: implements, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
+summary: Reusable in-memory fake of the Codex app-server (stdio JSON-RPC v2). Made
+  public as part of the decision in adr-20260704-cli-fake-validated-by-real-cli-e2e.
 ---
 
 ## Overview

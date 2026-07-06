@@ -31,6 +31,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: ux.md legacy_context.source_implementation で『src/client/web/src/components/TerminalPane.tsx
+  (163 行, xterm.js 5.5.0 + @xterm/addon-fit のみ)』が現状 PC 専用 UX として固定された。replaced_behaviors[]
+  に 7 件の置換項目 (focus-block / pan-y swipe
 ---
 
 <!-- migrated_from: docs/adr/0074-migration-pc-only-to-pc-plus-mobile.md -->

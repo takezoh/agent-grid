@@ -28,6 +28,9 @@ source_paths:
 - ARCHITECTURE.md
 - WORKFLOW.md
 topic: docs
+summary: Agent Grid is one Go module that ships three binaries built on a three-layer
+  architecture. This documentation is organized along two axes. The files are now
+  stored as docs-skill structured records (adr, spec, plan, ux,
 ---
 
 <!-- migrated_from: docs/README.md -->

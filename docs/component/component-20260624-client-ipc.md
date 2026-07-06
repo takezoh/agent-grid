@@ -24,6 +24,8 @@ source_paths:
 - src/client/proto/sessions/
 provides:
 - inter-process-communication-ipc-and-tool-system
+summary: 'JSON messaging over Unix domain sockets. Two physical endpoints serve different
+  client classes:'
 ---
 
 <!-- migrated_from: docs/technical/client/ipc.md -->

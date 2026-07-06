@@ -22,6 +22,9 @@ source_paths:
 - AGENTS.md
 - ARCHITECTURE.md
 topic: agent
+summary: Documentation for agents — AI agents and human contributors doing work in
+  this repository. If you are changing code, read contributing. If you are authoring
+  the workflow that drives the autonomous orchestrator, read
 ---
 
 <!-- migrated_from: docs/agent/README.md -->

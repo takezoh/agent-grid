@@ -18,6 +18,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: commit 9287c7f は ParamDef.options を静的配列で宣言する設計を導入したが、project options はランタイムの
+  daemon snapshot に依存する。静的宣言では options が常に [] となり、New Session の listbox が無言の空 listbox
+  を描画して FR-A1〜A4 を満たさない。さらに openPalette の preselect resolve
 ---
 
 <!-- migrated_from: docs/adr/0048-paramselect-display-layer-materialize.md -->

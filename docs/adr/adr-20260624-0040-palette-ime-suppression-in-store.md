@@ -17,6 +17,7 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: Enter / ↑↓ / Ctrl+P/N の各ハンドラで個別に composition 判定すると分散しテストカバレッジが落ちる。
 ---
 
 <!-- migrated_from: docs/adr/0040-palette-ime-suppression-in-store.md -->

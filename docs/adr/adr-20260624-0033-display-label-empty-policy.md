@@ -22,6 +22,8 @@ source_paths:
 - src/client/web/src/components/DriverViewPanel.tsx
 decision_makers:
 - unknown
+summary: Web UI のセッション一覧でセッションを ID ではなく、driver が付与したタイトル / 要約 / 最終入力プロンプトで表示したい (Web
+  UI 問題6)。driver (client/driver/claude_view.go 等) は
 ---
 
 <!-- migrated_from: docs/adr/0033-display-label-empty-policy.md -->

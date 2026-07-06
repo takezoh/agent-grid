@@ -17,6 +17,8 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: Spec 要件として『CreateSessionForm を撤去しパレット new-session に一本化』と明記されている。共存させると挙動差テストと
+  UX 混乱を生む。
 ---
 
 <!-- migrated_from: docs/adr/0043-palette-createsessionform-replacement.md -->

@@ -21,6 +21,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: '既存 App.tsx は grid-template-columns: 280px 1fr auto + auto-placement で、メディアクエリ
+  0 件・100vh 依存。.app-header セレクタは app.css に未定義で grid auto-placement 任せ。ux.md UAC-001/002/004/013/015
+  は『375px で sidebar off-canvas + ハンバーガー +'
 ---
 
 <!-- migrated_from: docs/adr/0060-adaptive-layout-and-drawer.md -->

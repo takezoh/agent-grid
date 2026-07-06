@@ -14,6 +14,9 @@ source_paths:
 - src/client/web/
 decision_makers:
 - unknown
+summary: The Go side uses golangci-lint as a single binary covering vet, depguard,
+  funlen, staticcheck, and friends. Bringing in two toolchains for the frontend —
+  eslint + typescript-eslint for lint plus prettier for format —
 ---
 
 <!-- migrated_from: docs/adr/0020-biome-as-frontend-lint.md -->

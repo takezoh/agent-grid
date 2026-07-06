@@ -22,6 +22,8 @@ source_paths:
 - src/platform/sandbox/
 - src/platform/credproxy/
 topic: user
+summary: Each agent runs inside a project-scoped devcontainer instead of the host
+  shell, isolating filesystem, network, and credentials per project.
 ---
 
 <!-- migrated_from: docs/user/sandbox.md -->

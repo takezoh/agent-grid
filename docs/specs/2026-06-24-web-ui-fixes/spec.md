@@ -38,6 +38,9 @@ source_paths:
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []
+summary: agent-grid の Web UI (src/client/web — React + zustand + xterm.js) における 6
+  件の不具合 / UX 改善を client/web 内で完結する変更 として修正する。EVENTS タブ空パネル検出バグ、セッション切替後のターミナル stale
+  render、ターミナルのウィンドウ/レイアウト非追従(真因は flex 内
 ---
 
 <!-- migrated_from: docs/specs/2026-06-24-web-ui-fixes/spec.md -->

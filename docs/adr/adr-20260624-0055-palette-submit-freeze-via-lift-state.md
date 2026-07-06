@@ -20,6 +20,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: FR-012〜014 / UAC-017〜018 は submit 中に Active context / sorted list / status
+  badge / chip visibility / toast 送信先がすべて「submit 開始時点の snapshot」に凍結されることを要求する。現状 ToolSelectPhase
+  / ParamSelectPhase / ActiveContextHeader はそれぞれ
 ---
 
 <!-- migrated_from: docs/adr/0055-palette-submit-freeze-via-lift-state.md -->

@@ -25,6 +25,9 @@ source_paths:
 - src/server/web/
 provides:
 - termvt-multiplexer-fan-out-isolation-test-harness
+summary: 'platform/termvt is the PTY multiplexer primitive: it runs a command in a
+  pty, parses the output through a server-side VT emulator (OSC handling + reattach
+  snapshots), and fans typed Events out to any number of'
 ---
 
 <!-- migrated_from: docs/technical/platform/termvt-multiplexer-testing.md -->

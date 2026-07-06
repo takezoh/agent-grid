@@ -13,6 +13,9 @@ relations: []
 source_paths: []
 decision_makers:
 - unknown
+summary: 'A1-δ introduces REST endpoints with a session ID in the path: GET /api/sessions/{id}/{transcript|event-log}.
+  The handler resolves the path to <dataDir>/events/<frameID>.{transcript,jsonl}.
+  Without sanitization, a'
 ---
 
 <!-- migrated_from: docs/adr/0026-path-traversal-defense-allowlist.md -->

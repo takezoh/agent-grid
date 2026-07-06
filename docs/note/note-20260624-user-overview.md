@@ -20,6 +20,8 @@ relations:
 source_paths:
 - WORKFLOW.md
 topic: user
+summary: Documentation for running Agent Grid. Start here if you want to launch agents
+  and watch their status, or run an unattended pipeline.
 ---
 
 <!-- migrated_from: docs/user/README.md -->

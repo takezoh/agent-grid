@@ -16,6 +16,9 @@ source_paths:
 - src/client/web/src/socket/retry.ts
 decision_makers:
 - unknown
+summary: ADR 0018 deferred subscribe race handling to β. The α reducer returns RespErr{Code:'frame-not-ready'}
+  when Sessions[sid].ActiveFrame() == nil. β must observe this and retry until the
+  frame is ready (or until the user
 ---
 
 <!-- migrated_from: docs/adr/0022-subscribe-retry-in-socket-layer.md -->

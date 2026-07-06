@@ -48,6 +48,9 @@ source_paths:
 - src/gorules/purecore.go
 - src/platform/features/features.go
 topic: technical
+summary: 'The mechanisms that keep the codebase true to its intended architecture.
+  Unlike review-dependent conventions, most are rejected mechanically at lint or compile
+  time. For each: what it prevents, where it is defined, how'
 ---
 
 <!-- migrated_from: docs/technical/code-enforcement.md -->

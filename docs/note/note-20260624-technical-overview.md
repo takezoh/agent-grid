@@ -31,6 +31,9 @@ source_paths:
 - ARCHITECTURE.md
 - src/.golangci.yml
 topic: technical
+summary: Internals organized by the three architecture layers. The canonical overview
+  — scope, design principles, the layer trees, and import boundaries — is in ARCHITECTURE.md.
+  This directory holds the per-layer deep dives.
 ---
 
 <!-- migrated_from: docs/technical/README.md -->

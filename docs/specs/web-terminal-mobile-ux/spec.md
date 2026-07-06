@@ -42,6 +42,9 @@ source_paths:
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []
+summary: Web UI TerminalPane (xterm.js 5.5.0 + addon-fit) のモバイル UX を ux.md の 7 flow
+  / 26 UAC で固定された観察契約どおりに、PC (pointer:fine) 完全現状維持 + 既存 ADR 0029 / 0030 / 0034 / 0059
+  / 0063 / 0064 / 0065 / 0066 衝突回避を絶対制約として実装する技術計画と、UX Open
 ---
 
 <!-- migrated_from: docs/specs/web-terminal-mobile-ux/spec.md -->

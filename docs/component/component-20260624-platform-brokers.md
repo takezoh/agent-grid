@@ -27,6 +27,8 @@ source_paths:
 - src/platform/secretenv/gate.go
 provides:
 - brokers-host-mediation-and-policy-enforcement
+summary: Implementation deep dive of the three brokers that give an in-container agent
+  limited access to host privileges, credentials, and MCP servers.
 ---
 
 <!-- migrated_from: docs/technical/platform/brokers.md -->

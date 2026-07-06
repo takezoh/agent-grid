@@ -24,6 +24,9 @@ source_paths:
 - src/client/runtime/subsystem/stream/
 decision_makers:
 - unknown
+summary: 'The routing-isolation contract (ADR 0001) runs against an in-process fake
+  app-server (the wired harness in routing_wired_test.go: the existing bindServer
+  handler plus a codexclient.Server emitter). A fake is only as'
 ---
 
 <!-- migrated_from: docs/adr/0002-optin-appserver-e2e-validates-fakes.md -->

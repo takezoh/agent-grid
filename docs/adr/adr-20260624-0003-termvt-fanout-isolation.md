@@ -24,6 +24,9 @@ source_paths:
 - src/server/web/
 decision_makers:
 - unknown
+summary: 'platform/termvt is the pty-multiplexer primitive behind the web client⇄server:
+  one pty-backed Session parses its program''s output through a server-side VT emulator
+  and fans typed Events out to N subscribers (browser'
 ---
 
 <!-- migrated_from: docs/adr/0003-termvt-fanout-isolation.md -->

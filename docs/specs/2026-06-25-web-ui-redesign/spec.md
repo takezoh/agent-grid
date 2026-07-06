@@ -38,6 +38,9 @@ source_paths:
 functional_requirements: []
 non_functional_requirements: []
 acceptance: []
+summary: 'agent-grid-new の Web client (src/client/web) UI/UX 全面刷新を、ux.md (16 UAC /
+  4 flow / vs_legacy: must-fail 11 件) を起点に EARS 形式 FR と Nygard 4 節 ADR で固める。(1) 適応レイアウト
+  (PC/タブレット/スマホ + dvh + safe-area)、(2) デザイントークン体系 +'
 ---
 
 <!-- migrated_from: docs/specs/2026-06-25-web-ui-redesign/spec.md -->

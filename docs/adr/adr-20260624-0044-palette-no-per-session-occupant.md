@@ -18,6 +18,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: 初稿は SessionInfo に Occupant ('main'|'log'|'frame') を追加して push スコープ可否判定に使う設計だったが、否定役指摘の通り
+  (1) daemon に session 単位の occupant モデルは存在しない (現行は state.State.ActiveOccupant という
+  global 値のみ)、(2) viewUpdateFrame は activeSessionID
 ---
 
 <!-- migrated_from: docs/adr/0044-palette-no-per-session-occupant.md -->

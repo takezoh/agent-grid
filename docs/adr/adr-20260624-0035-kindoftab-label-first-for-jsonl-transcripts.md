@@ -19,6 +19,8 @@ source_paths:
 - src/client/web/src/wire/server.ts
 decision_makers:
 - unknown
+summary: ADR 0031 で kindOfTab に .log / .jsonl path 末尾 → event-log ルールを追加し、検出順は path
+  優先 → label fallback とした。
 ---
 
 <!-- migrated_from: docs/adr/0035-kindoftab-label-first-for-jsonl-transcripts.md -->

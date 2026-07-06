@@ -17,6 +17,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: commit 9287c7f は CommandPalette UI に ScopeSegment.tsx を導入し、standard / push
+  の 2 tab で tool を分離した。しかし Web の command palette UX 標準 (Raycast / Linear / VSCode
+  Quick Pick) は 1 list 混在 + fuzzy filter による横断検索で、tab 分割は無い。
 ---
 
 <!-- migrated_from: docs/adr/0050-palette-scope-unify-with-disabled-policy.md -->

@@ -30,6 +30,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: FR-MOB-MODE-006 と FR-MOB-JUMP-004 は『1 回 setText』を契約化したが、慣性 scroll / kinetic
+  swipe で JumpToLatestFAB が mount / unmount を繰り返し aria-live polite 連続 emit が SR ユーザーで
+  ear-fatigue を起こす。
 ---
 
 <!-- migrated_from: docs/adr/0073-arialive-debounce-and-jump-fab-seed-stability.md -->

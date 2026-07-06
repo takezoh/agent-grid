@@ -28,6 +28,8 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: ux.md の UAC-018 (20px 永続化) / UAC-019 (999 → 28 max clamp) / UAC-017 (8 下限)
+  を満たし、private mode の localStorage 例外で起動が壊れない契約が必要。
 ---
 
 <!-- migrated_from: docs/adr/0070-fontsize-persist-clamp.md -->

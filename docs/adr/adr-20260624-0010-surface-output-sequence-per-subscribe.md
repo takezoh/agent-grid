@@ -15,6 +15,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: 'termvt.Session.Subscribe has a documented side effect: the first event delivered
+  to a new subscriber is a reattach snapshot — the full current screen state — emitted
+  before any live EventOutput chunks. This is essential'
 ---
 
 <!-- migrated_from: docs/adr/0010-surface-output-sequence-per-subscribe.md -->

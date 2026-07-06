@@ -19,6 +19,8 @@ source_paths:
 - src/server/web/
 decision_makers:
 - unknown
+summary: 'When the daemon unix socket becomes unreachable, every active WebSocket
+  on cmd/server must terminate cleanly. We considered three options:'
 ---
 
 <!-- migrated_from: docs/adr/0011-two-step-ws-close-on-daemon-disconnect.md -->

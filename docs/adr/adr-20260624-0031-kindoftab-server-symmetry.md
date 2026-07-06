@@ -23,6 +23,8 @@ source_paths:
 - src/server/web/transcript.go
 decision_makers:
 - unknown
+summary: Web UI で EVENTS タブが空パネルになる (Web UI 問題1・2) 真因は、client 側の src/client/web/src/components/LogTabs.tsx
+  の kindOfTab が event-log を解決できないこと。
 ---
 
 <!-- migrated_from: docs/adr/0031-kindoftab-server-symmetry.md -->

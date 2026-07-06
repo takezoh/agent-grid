@@ -22,6 +22,9 @@ source_paths:
 - src/client/web/src/css/view.css
 decision_makers:
 - unknown
+summary: 'Supersedes: ADR-0033 Superseded by: ADR-0079 — Title slot に「AI title → user-prompt
+  summary → placeholder」のフォールバックチェーンを導入。本 ADR の Alternatives で却下した「Subtitle が空のときに
+  Title slot に Subtitle を上げる」案は、Title slot は AI'
 ---
 
 <!-- migrated_from: docs/adr/0076-session-card-title-subtitle-two-slot.md -->

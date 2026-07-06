@@ -15,6 +15,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: A1-α landed the wire transport but never broadcast driver views to the browser;
+  A1-β built the React/Zustand client that *expects* a view-update frame. A1-γ connects
+  the two. The choice is how to shape the broadcast.
 ---
 
 <!-- migrated_from: docs/adr/0023-view-update-broadcast-shape.md -->

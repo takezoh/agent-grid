@@ -28,6 +28,9 @@ source_paths:
 - src/client/state/
 provides:
 - spawn-launch-centralized-agent-process-launching
+summary: The platform/ layer owns the single answer to "how does a command string
+  become a running process?". Centralized out of client/ and orchestrator/ by the
+  recent "platform spawn/command centralization" work, three
 ---
 
 <!-- migrated_from: docs/technical/platform/spawn-and-launch.md -->

@@ -24,6 +24,9 @@ source_paths:
 - src/platform/agent/fakecodex
 - src/client/lib/agenthook
 updated: '2026-07-04'
+summary: ADR 0002 established that the in-process fake of the codex app-server (WebSocket
+  transport) is validated by an opt-in //go:build e2e test suite that runs the same
+  isolation invariant against a real app-server binary.
 ---
 
 # ADR — Claude CLI and Codex stdio fakes are validated by opt-in real-CLI e2e

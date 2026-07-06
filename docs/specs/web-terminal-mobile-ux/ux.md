@@ -540,6 +540,9 @@ legacy_context:
   - 2 本指 pinch で fontSize を比率連続追従 + min8/max28 clamp で変更し refit、device-scoped localStorage
     に永続化、復元時も clamp 検証。pinch 不能ユーザー向けに font-size 制御 (＋/－/リセット) を代替提供
   - 入力モード中、FAB 群を visualViewport 上端より上に保つ (iOS soft keyboard で入力行/退出 affordance が隠れるのを防ぐ)
+summary: Web UI のターミナルタブ (src/client/web/src/components/TerminalPane.tsx) は現状 xterm.js
+  5.5.0 + addon-fit のみの PC 前提 UX で、.terminal-host が height:var(--dvh) で全画面を占有し touch-action
+  等のタッチ向け指定を持たない。スマホでは (1) tap
 ---
 
 <!-- migrated_from: docs/specs/web-terminal-mobile-ux/ux.md -->

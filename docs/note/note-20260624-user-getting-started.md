@@ -23,6 +23,7 @@ source_paths:
 - src/cmd/orchestrator/
 - src/cmd/claude-app-server/
 topic: user
+summary: Installs server to ~/.local/bin/server (with support files under ~/.local/lib/agent-grid/).
 ---
 
 <!-- migrated_from: docs/user/getting-started.md -->

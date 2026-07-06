@@ -27,6 +27,9 @@ scope_in: []
 scope_out: []
 milestones: []
 contracts: []
+summary: commit 9287c7f で導入された Web UI コマンドパレットの実害 (New Session 不全 / 撤去予定 stop-session
+  の残存 / 日本語混在 / navigator.platform 依存) を 1 PR で解消する。具体的には (A) ParamDef を判別共用体化し、dynamic-options
+  系 param を ParamSelectPhase の純関数
 ---
 
 <!-- migrated_from: docs/specs/2026-06-25-palette-bugfix/plan.md -->

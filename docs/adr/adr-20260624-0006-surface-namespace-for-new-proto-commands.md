@@ -15,6 +15,9 @@ source_paths:
 - src/client/proto/
 decision_makers:
 - unknown
+summary: A1-α adds four new commands (subscribe / unsubscribe / resize / write-raw)
+  and two new events (terminal output / prompt event) to client/proto. The existing
+  surface family already includes CmdSurfaceSendText and
 ---
 
 <!-- migrated_from: docs/adr/0006-surface-namespace-for-new-proto-commands.md -->

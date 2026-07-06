@@ -39,6 +39,7 @@ scope_in: []
 scope_out: []
 milestones: []
 contracts: []
+summary: '依存方向: test-infra-and-pure-logic → (display-layer ∥ terminal-lifecycle)'
 ---
 
 <!-- migrated_from: docs/specs/2026-06-24-web-ui-fixes/plan.md -->

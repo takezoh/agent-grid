@@ -18,6 +18,8 @@ source_paths:
 - src/server/web/
 decision_makers:
 - unknown
+summary: ScopeSegment の disabled 表示と submit pre-check で同じ判定ロジック (activeSessionID 有無
+  + ActiveOccupant === 'frame') を 2 箇所に書くと DRY が崩れ、片方更新で挙動差が出る。
 ---
 
 <!-- migrated_from: docs/adr/0047-palette-disabledreason-single-source.md -->

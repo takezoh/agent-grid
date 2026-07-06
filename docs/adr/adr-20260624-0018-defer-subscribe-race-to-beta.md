@@ -16,6 +16,9 @@ source_paths:
 - src/cmd/server/
 decision_makers:
 - unknown
+summary: When the browser sends CmdSurfaceSubscribe{SessionID} immediately after POST
+  /api/sessions returns, the daemon's EffSpawnFrame may not yet have run. Sessions[sid].ActiveFrame()
+  is nil, and terminal_relay cannot resolve
 ---
 
 <!-- migrated_from: docs/adr/0018-defer-subscribe-race-to-beta.md -->

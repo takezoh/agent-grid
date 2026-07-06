@@ -24,6 +24,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: '既存 NotificationToast は各 item が個別 <output aria-live=''polite''> を持ち、position:
+  fixed; top:16px; right:16px、inline ハードコード配色、5s auto-dismiss、最大 3 件。ADR-0057 が palette
+  で単一 aria-live slot を確立済み。ux.md は『コンテナ 1 つに集約 + bottom 寄せ +'
 ---
 
 <!-- migrated_from: docs/adr/0063-toast-single-live-and-undosnackbar.md -->

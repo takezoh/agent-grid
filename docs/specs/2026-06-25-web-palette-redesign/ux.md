@@ -319,6 +319,9 @@ edge_cases:
 - submitting 中の context shift は palette UI を凍結 (Active context 行 / listbox / status
   badge を変更しない)。送信解決後の次回 palette open で新 active を反映 (silent context switch + 送信先ズレを防ぐ)
 assumptions: []
+summary: Web UI コマンドパレットは commit 9287c7f の時点で Web UX 標準と複数箇所で乖離している。具体的には (i) ScopeSegment
+  による standard / push の tab 分割、(ii) push tool が disabled のとき push tab 全体が空 list になり理由がユーザーに見えない、(iii)
+  Worktree / Host chip の toggle が Tab /
 ---
 
 <!-- migrated_from: docs/specs/2026-06-25-web-palette-redesign/ux.md -->

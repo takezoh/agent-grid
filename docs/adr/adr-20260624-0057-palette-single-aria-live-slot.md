@@ -23,6 +23,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: InlineStatus (disabled-attempt feedback) / ActiveContextHeader (active session
+  変化) / StatusBadge (Sending… / Unavailable) はそれぞれ独立に role='status' aria-live='polite'
+  を持たせる候補があったが、aria-live region が複数共存すると screen reader の
 ---
 
 <!-- migrated_from: docs/adr/0057-palette-single-aria-live-slot.md -->

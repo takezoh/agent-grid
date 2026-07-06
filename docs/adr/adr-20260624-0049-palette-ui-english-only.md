@@ -20,6 +20,8 @@ source_paths:
 - AGENTS.md
 decision_makers:
 - unknown
+summary: commit 9287c7f はパレット UI に日本語文字列と英語文字列を混在させた。一方で本リポジトリには i18n 基盤が存在せず、対象ユーザーも開発者向け
+  CLI コンパニオンに限られているため、当面の言語は単一でよい。stop-session 撤去 (本 PR) や Header New Session ボタンの修正で複数ファイルにわたる文言変更が同時発生するため、置換漏れと将来の混入を防ぐ機械的ガードが必要。
 ---
 
 <!-- migrated_from: docs/adr/0049-palette-ui-english-only.md -->

@@ -22,6 +22,9 @@ source_paths:
 - src/client/runtime/subsystem/stream/
 provides:
 - stream-backend-real-app-server-e2e-fidelity-backstop
+summary: The routing-isolation harness (stream-backend-testing.md) runs against an
+  in-process fake app-server. This e2e runs the *same* routing isolation invariant
+  against a real app-server, so the fake is proven faithful to the
 ---
 
 <!-- migrated_from: docs/technical/client/stream-backend-e2e.md -->

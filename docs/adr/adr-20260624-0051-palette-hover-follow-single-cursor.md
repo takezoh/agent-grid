@@ -17,6 +17,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: commit 9287c7f の CommandPalette は keyboard cursor (ToolSelectPhase / ParamSelectPhase
+  の cursor state) と pointer hover (CSS :hover) を独立に扱う。keyboard で 4 行目に cursor を置いたあと
+  pointer で 6 行目に hover すると、画面上には 2 つの highlight
 ---
 
 <!-- migrated_from: docs/adr/0051-palette-hover-follow-single-cursor.md -->

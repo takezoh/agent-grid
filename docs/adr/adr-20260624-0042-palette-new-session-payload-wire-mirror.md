@@ -17,6 +17,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: '本機能の host トグル ON は sandbox bypass を意味する。一方、既存 POST /api/sessions の apiCreateReq
+  は sandbox?: ''auto'' | ''host'' という string enum を採用している。本 spec で host?:bool を新設すると
+  wire 形式が二重化する。'
 ---
 
 <!-- migrated_from: docs/adr/0042-palette-new-session-payload-wire-mirror.md -->

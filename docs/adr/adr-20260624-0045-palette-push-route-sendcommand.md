@@ -18,6 +18,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: web gateway の daemon_client.go は SendCommand(ctx, proto.Command) を共通 RPC
+  エントリとして使う設計で、handleCreateSession は EventCreateSession を SendCommand 経由で発行する。PushDriver
+  専用 RPC ラッパを追加すると 2 経路化する。
 ---
 
 <!-- migrated_from: docs/adr/0045-palette-push-route-sendcommand.md -->

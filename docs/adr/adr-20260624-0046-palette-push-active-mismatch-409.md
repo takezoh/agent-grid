@@ -19,6 +19,9 @@ source_paths:
 - src/server/web/
 decision_makers:
 - unknown
+summary: push は daemon-global active session への操作という意味論。client から path id を明示的に渡すことで
+  race を検出可能にしたいが、照合相手 (daemon-global active か / 各 web client の活動 active か) を明確化する必要がある
+  (MEMORY/web-active-session-ownership で client
 ---
 
 <!-- migrated_from: docs/adr/0046-palette-push-active-mismatch-409.md -->

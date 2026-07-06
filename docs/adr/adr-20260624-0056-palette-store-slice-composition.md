@@ -19,6 +19,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: 現状 palette.ts は 489 行で 500 行制約に余裕 11 行。本 PR で active_context / inline_status
+  / freeze 関連 state と action を追加すると確実に超過する。zustand の StateCreator slice パターンを採用すれば、複数ファイルに分割しつつ単一
+  store を維持できる。
 ---
 
 <!-- migrated_from: docs/adr/0056-palette-store-slice-composition.md -->

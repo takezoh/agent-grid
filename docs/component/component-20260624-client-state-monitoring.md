@@ -22,6 +22,9 @@ source_paths:
 - src/client/runtime/
 provides:
 - state-monitoring
+summary: For the interactive operation processing flow (client → IPC → Reduce → Effect),
+  see ipc.md. The following describes the background status update pipeline and state
+  monitoring by Drivers.
 ---
 
 <!-- migrated_from: docs/technical/client/state-monitoring.md -->

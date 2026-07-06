@@ -19,6 +19,9 @@ source_paths:
 - src/platform/socketpath/
 decision_makers:
 - unknown
+summary: 'A1-α touches three concern layers: wire format (client/proto), pure logic
+  (client/state), and I/O (client/runtime + server/web). Bundling them into a single
+  PR creates a review where wire shape, reducer semantics, and'
 ---
 
 <!-- migrated_from: docs/adr/0015-a1-alpha-three-pr-split.md -->

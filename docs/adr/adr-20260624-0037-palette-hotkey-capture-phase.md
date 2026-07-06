@@ -17,6 +17,8 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: xterm.js は textarea 上で keydown を消費するため bubble phase では hotkey が奪われる。一方 Firefox
+  の Ctrl+K (検索バー) など preventDefault 不能なブラウザ実装が残る。
 ---
 
 <!-- migrated_from: docs/adr/0037-palette-hotkey-capture-phase.md -->

@@ -14,6 +14,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: The historical "paneID" abstraction described in earlier revisions of this
+  ADR no longer exists. termvt.Manager keys on string(FrameID) directly, and there
+  is no separate physical-handle namespace inside the backend.
 ---
 
 <!-- migrated_from: docs/adr/0008-session-id-to-pane-id-resolution-in-runtime.md -->

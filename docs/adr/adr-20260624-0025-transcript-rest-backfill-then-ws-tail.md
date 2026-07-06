@@ -18,6 +18,9 @@ source_paths:
 - src/server/web/
 decision_makers:
 - unknown
+summary: A1-δ exposes per-session transcripts and event-logs to the browser. The files
+  live on the daemon side under <dataDir>/events/<frameID>.transcript and .jsonl.
+  They grow append-only as the session runs.
 ---
 
 <!-- migrated_from: docs/adr/0025-transcript-rest-backfill-then-ws-tail.md -->

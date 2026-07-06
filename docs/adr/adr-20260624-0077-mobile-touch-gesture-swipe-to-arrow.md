@@ -30,6 +30,8 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: 'Supersedes: ADR 0070, ADR 0071 Related: ADR 0034, ADR 0068, ADR 0069 Related
+  code: src/client/web/src/hooks/useTerminalTouchGestures.ts, src/client/web/src/components/TerminalMobileOverlay.tsx,'
 ---
 
 <!-- migrated_from: docs/adr/0077-mobile-touch-gesture-swipe-to-arrow.md -->

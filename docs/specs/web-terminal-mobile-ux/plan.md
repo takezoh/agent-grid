@@ -43,6 +43,9 @@ scope_in: []
 scope_out: []
 milestones: []
 contracts: []
+summary: Web UI TerminalPane (xterm.js 5.5.0 + addon-fit) のモバイル UX を ux.md の 7 flow
+  / 26 UAC で固定された観察契約どおりに、PC (pointer:fine) 完全現状維持 + 既存 ADR 衝突回避を絶対制約として実装する。UX Open
+  Questions 1〜4 はすべて plan-how 段階で決着 (POC 先送り禁止) — 詳細は ADR 0067
 ---
 
 <!-- migrated_from: docs/specs/web-terminal-mobile-ux/plan.md -->

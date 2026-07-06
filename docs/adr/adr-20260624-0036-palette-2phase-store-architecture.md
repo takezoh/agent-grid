@@ -17,6 +17,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: 2 フェーズパレット (toolSelect → paramSelect) を Web に実装するにあたり、phase / scope / paramValues
+  / submitting / error / opener を散らさず 1 箇所に集約する必要がある。同時に I/O (HTTP / store/daemon
+  read) と UI state 遷移を混ぜると test 容易性が落ちる。
 ---
 
 <!-- migrated_from: docs/adr/0036-palette-2phase-store-architecture.md -->

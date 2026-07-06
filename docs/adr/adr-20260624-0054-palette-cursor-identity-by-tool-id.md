@@ -19,6 +19,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: 現状 palette store の paramCursor は toolSelect / paramSelect 双方の cursor index
+  を兼ねている。ADR-0050 (scope 統合) と FR-026 (active 切替で行位置が動いたら cursor を re-anchor) を満たすには
+  cursor identity を index か id のいずれかに正規化する必要がある。index ベースで継続すると
 ---
 
 <!-- migrated_from: docs/adr/0054-palette-cursor-identity-by-tool-id.md -->

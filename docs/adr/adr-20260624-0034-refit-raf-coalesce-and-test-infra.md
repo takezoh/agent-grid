@@ -27,6 +27,8 @@ source_paths:
 - src/client/web/src/test-setup.ts
 decision_makers:
 - unknown
+summary: Web UI 問題4 (ターミナルがウィンドウ / レイアウトにフィットしない) の従属対策として、src/client/web/src/components/TerminalPane.tsx
+  は
 ---
 
 <!-- migrated_from: docs/adr/0034-refit-raf-coalesce-and-test-infra.md -->

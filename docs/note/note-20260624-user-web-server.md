@@ -22,6 +22,9 @@ source_paths:
 - src/server/web/
 - src/client/web/
 topic: user
+summary: the pty session daemon (typed proto over a Unix socket, -data-dir rooted)
+  and the HTTP/WS gateway that translates browser REST/WebSocket traffic into in-process
+  daemon calls. Every session is a pty managed in the same
 ---
 
 <!-- migrated_from: docs/user/web-server.md -->

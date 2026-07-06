@@ -17,6 +17,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: 'commit 9287c7f の ParamSelectPhase は new-session の Worktree / Host chip を
+  Tab で Worktree toggle / Shift+Tab で Host toggle というキーバインドで操作する。しかし Web の Tab は『focus
+  を次の interactive 要素に動かす』というブラウザ標準動作を持ち、Tab を chip toggle に奪うと:'
 ---
 
 <!-- migrated_from: docs/adr/0053-palette-chip-toggle-keybinding-redesign.md -->

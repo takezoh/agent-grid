@@ -18,6 +18,9 @@ source_paths:
 - src/client/web/src/wire/
 decision_makers:
 - unknown
+summary: 'A1-α landed a typed wire on the Go side (client/proto/surface_command.go
+  and surface_event.go). The β frontend must consume and produce this wire in TypeScript.
+  Two approaches:'
 ---
 
 <!-- migrated_from: docs/adr/0021-frontend-wire-types-hand-written.md -->

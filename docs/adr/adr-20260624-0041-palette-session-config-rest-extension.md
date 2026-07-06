@@ -18,6 +18,9 @@ relations:
 source_paths: []
 decision_makers:
 - unknown
+summary: 現状 handleSessionConfig は cfg.Session.Commands と projects (path 配列) のみ返す。push_commands
+  と projectIsGit / projectIsSandboxed の判定源を web に届ける経路が存在しない。hello フレームや view-update
+  に乗せると WS が静的構成情報を運ぶことになり、view-update は
 ---
 
 <!-- migrated_from: docs/adr/0041-palette-session-config-rest-extension.md -->

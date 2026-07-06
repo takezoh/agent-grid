@@ -33,6 +33,9 @@ source_paths:
 - src/client/driver/
 provides:
 - client-agent-grid-client-session-lifecycle-manager
+summary: 'client/ is all of the client: the in-process session daemon (state machine
+  + runtime + drivers + IPC) and the browser frontend assets under client/web/. Both
+  are shipped inside the server binary (cmd/server). It depends'
 ---
 
 <!-- migrated_from: docs/technical/client/README.md -->

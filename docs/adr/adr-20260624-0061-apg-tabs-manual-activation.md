@@ -21,6 +21,9 @@ source_paths:
 - src/client/web/src/
 decision_makers:
 - unknown
+summary: '既存 MainTabs は role=''tab''/tablist/tabpanel を持つが onKeyDown 0 件 / roving
+  tabindex 未実装で、矢印キーでのタブ移動が不可 (UAC-014 vs_legacy: must-fail)。terminal は常時 mount +
+  CSS 可視切替で scrollback を保持する (legacy で成立)。ux.md UAC-014 の When'
 ---
 
 <!-- migrated_from: docs/adr/0061-apg-tabs-manual-activation.md -->
