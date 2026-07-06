@@ -314,21 +314,27 @@ func decodeOutputFrameText(t *testing.T, frame []any) string {
 	return string(data)
 }
 
-func collectSurfaceOutputOrLog(
+// collectSurfaceOutputContaining reads output frames until the accumulated
+// text contains every string in want, or timeout elapses. The pty driving
+// this surface batches bytes into frames however the OS scheduler happens to
+// flush them, so the number of frames needed to observe a fixed set of
+// substrings is not deterministic — polling for content rather than a fixed
+// frame count avoids flaking on that batching variance.
+func collectSurfaceOutputContaining(
 	t *testing.T,
 	daemon daemonInstance,
 	c *websocket.Conn,
 	timeout time.Duration,
-	frames int,
+	want ...string,
 ) string {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	var b strings.Builder
-	for i := 0; i < frames && time.Now().Before(deadline); i++ {
+	for time.Now().Before(deadline) {
 		data, err := tryReadWSPayload(c, time.Until(deadline))
 		if err != nil {
 			logTail, _ := os.ReadFile(filepath.Join(filepath.Dir(daemon.sockPath), "server.log"))
-			t.Fatalf("read ws frame: %v\nserver.log:\n%s", err, string(logTail))
+			t.Fatalf("read ws frame: %v (collected so far %q)\nserver.log:\n%s", err, b.String(), string(logTail))
 		}
 		var frame []any
 		if err := json.Unmarshal(data, &frame); err != nil {
@@ -336,8 +342,21 @@ func collectSurfaceOutputOrLog(
 		}
 		assertOutputFrameShapeFromFixture(t, frame)
 		b.WriteString(decodeOutputFrameText(t, frame))
+		if containsAll(b.String(), want) {
+			return b.String()
+		}
 	}
-	return b.String()
+	t.Fatalf("timed out waiting for output containing %v (collected so far %q)", want, b.String())
+	return ""
+}
+
+func containsAll(s string, substrs []string) bool {
+	for _, sub := range substrs {
+		if !strings.Contains(s, sub) {
+			return false
+		}
+	}
+	return true
 }
 
 func sessionFromFrame(frame map[string]any, sessionID string) map[string]any {
@@ -482,16 +501,8 @@ func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState(t *testing.T) {
 
 	surface := dialGatewayWS(t, daemon, sessionID)
 	sendSurfaceInput(t, surface, "implement wire test\n")
-	output := collectSurfaceOutputOrLog(t, daemon, surface, 10*time.Second, 6)
-	if !strings.Contains(output, "implement wire test") {
-		t.Fatalf("surface output missing prompt text: %q", output)
-	}
-	if !strings.Contains(output, "method=turn/started") {
-		t.Fatalf("surface output missing turn/started event: %q", output)
-	}
-	if !strings.Contains(output, "[READY] threadId=") {
-		t.Fatalf("surface output missing ready marker: %q", output)
-	}
+	collectSurfaceOutputContaining(t, daemon, surface, 10*time.Second,
+		"implement wire test", "method=turn/started", "[READY] threadId=")
 
 	deleteSessionViaAPI(t, daemon, sessionID)
 	waitForSessionListed(t, daemon, sessionID, 5*time.Second, false)
