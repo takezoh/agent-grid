@@ -31,7 +31,7 @@ Conformance: `docs/component/component-20260624-orchestrator-symphony-conformanc
 
 - Follow the design principles in [ARCHITECTURE.md](ARCHITECTURE.md)
 - All structural & architectural rules are enforced at lint or compile time. The comprehensive catalogue — each rule, where it is defined, and how to handle exceptions — is [docs/note/note-20260624-technical-code-enforcement.md](docs/note/note-20260624-technical-code-enforcement.md)
-- Keep files under 500 lines and functions under 80 lines. State-machine reducers in `client/state/reduce_*.go` are exempt from the function-length limit — dispatch tables stay cohesive (see ARCHITECTURE.md "Layer Structure")
+- Treat file/function length limits as responsibility-splitting heuristics, not goals by themselves. Default targets are files under 500 lines and functions under 80 lines; when a cohesive responsibility would be harmed by forced splitting, document and adjust the specific lint rule/path instead. State-machine reducers in `client/state/reduce_*.go` are exempt from the function-length limit — dispatch tables stay cohesive (see ARCHITECTURE.md "Layer Structure")
 - Actively use libraries. Do not implement from scratch
 - Do not overwrite user config files (~/.agent-reactor/)
 - Always write tests for new features and bug fixes. Do not consider work complete without tests

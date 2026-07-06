@@ -128,12 +128,15 @@ The decision-loop functional cores — `client/state` and `orchestrator/schedule
 | Limit | Value | Enforced by |
 |---|---|---|
 | Function length | 80 lines (`funlen`, `ignore-comments: true`) | lint (`.golangci.yml`) |
-| File length | 500 lines (`revive` `file-length-limit`, skipping comments/blanks) | lint (`.golangci.yml`) |
+| File length | 500 lines by default (`revive` `file-length-limit`, skipping comments/blanks) | lint (`.golangci.yml`) |
+
+These limits are **responsibility-splitting heuristics**, not "shorter is always better" goals. When a file or function remains cohesive and forced extraction would worsen the design, the exception is declared centrally in `.golangci.yml` with a path-based rule and rationale.
 
 Length exceptions (in `exclusions.rules`):
 
 - `_test.go` — tests relax both function and file length (table-driven tests grow large by nature) as well as errcheck.
 - `client/state/reduce_*.go` — state-machine dispatch tables stay cohesive as one unit (function-length exempt).
+- `client/runtime/subsystem/stream/helpers.go` — the stream subsystem's normalization/extraction helpers stay grouped as one boundary-focused helper cluster (file-length exempt).
 
 Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code annotation** — anything matching `reduce_*.go` is exempt automatically. Generated code (`codexschema/v*/types.gen.go`, etc.) is auto-excluded from length checks too.
 

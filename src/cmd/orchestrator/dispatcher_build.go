@@ -10,6 +10,7 @@ import (
 	"github.com/takezoh/agent-reactor/platform/agentlaunch"
 	platformconfig "github.com/takezoh/agent-reactor/platform/config"
 	"github.com/takezoh/agent-reactor/platform/credproxy"
+	"github.com/takezoh/agent-reactor/platform/lib/dockercli"
 	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
 )
 
@@ -52,19 +53,13 @@ func buildDevcontainerLauncher(
 	resolver *platformconfig.SandboxResolver,
 	dataDir string,
 ) (*agentlaunch.DevcontainerLauncher, func(), error) {
-	if err := sandboxdc.CheckAvailable(); err != nil {
+	setup, err := dockercli.Setup(func(p string) bool { _, err := os.Stat(p); return err == nil })
+	if err != nil {
 		return nil, nil, err
 	}
-
-	currentHost := os.Getenv("DOCKER_HOST")
-	if host := platformconfig.ResolveDockerHost(
-		currentHost,
-		os.Getenv("XDG_RUNTIME_DIR"),
-		func(p string) bool { _, err := os.Stat(p); return err == nil },
-	); host != "" {
-		_ = os.Setenv("DOCKER_HOST", host)
-		slog.Info("sandbox: rootless docker detected", "DOCKER_HOST", host)
-	} else if currentHost == "" {
+	if setup.UsingRootless {
+		slog.Info("sandbox: rootless docker detected", "DOCKER_HOST", setup.DOCKERHOST)
+	} else if setup.UsingDefaultSock {
 		slog.Info("sandbox: using default docker socket (rootless not detected)")
 	}
 

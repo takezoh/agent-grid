@@ -23,6 +23,7 @@ import (
 	platformconfig "github.com/takezoh/agent-reactor/platform/config"
 	"github.com/takezoh/agent-reactor/platform/credproxy"
 	"github.com/takezoh/agent-reactor/platform/features"
+	"github.com/takezoh/agent-reactor/platform/lib/dockercli"
 	"github.com/takezoh/agent-reactor/platform/logger"
 	sandboxdc "github.com/takezoh/agent-reactor/platform/sandbox/devcontainer"
 	"github.com/takezoh/agent-reactor/platform/shellalias"
@@ -404,18 +405,13 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 	d := newDispatcher()
 	sd := newDispatcher()
 	if sb.Mode == "devcontainer" {
-		if err := sandboxdc.CheckAvailable(); err != nil {
+		setup, err := dockercli.Setup(func(p string) bool { _, err := os.Stat(p); return err == nil })
+		if err != nil {
 			return nil, nil, err
 		}
-		currentHost := os.Getenv("DOCKER_HOST")
-		if host := platformconfig.ResolveDockerHost(
-			currentHost,
-			os.Getenv("XDG_RUNTIME_DIR"),
-			func(p string) bool { _, err := os.Stat(p); return err == nil },
-		); host != "" {
-			_ = os.Setenv("DOCKER_HOST", host)
-			slog.Info("sandbox: rootless docker detected", "DOCKER_HOST", host)
-		} else if currentHost == "" {
+		if setup.UsingRootless {
+			slog.Info("sandbox: rootless docker detected", "DOCKER_HOST", setup.DOCKERHOST)
+		} else if setup.UsingDefaultSock {
 			slog.Info("sandbox: using default docker socket (rootless not detected)")
 		}
 		runner, err := credproxy.Start(ctx, dataDir, resolver.Resolve, agentlaunch.BuildProviderHooks(resolver.Resolve, projects), credproxy.Paths{

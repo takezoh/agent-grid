@@ -91,17 +91,6 @@ func copyIfPresent(dst map[string]any, dstKey string, src map[string]any, srcKey
 	}
 }
 
-func copyNestedIfPresent(dst map[string]any, dstKey string, src map[string]any, parentKey string, childKey string) {
-	parent, _ := src[parentKey].(map[string]any)
-	if parent == nil {
-		return
-	}
-	if _, exists := dst[dstKey]; exists {
-		return
-	}
-	copyIfPresent(dst, dstKey, parent, childKey)
-}
-
 func normalizeRecordedDefaultTurnParams(v any) any {
 	switch x := v.(type) {
 	case map[string]any:

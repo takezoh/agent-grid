@@ -113,6 +113,6 @@ Related ADRs: [0011](docs/adr/adr-20260624-0011-two-step-ws-close-on-daemon-disc
 [0014](docs/adr/adr-20260624-0014-server-session-legacy-build-tag.md) (legacy_session build tag) ·
 [0016](docs/adr/adr-20260624-0016-depguard-server-layer-rule.md) (depguard server layer rule).
 
-Files matching `client/state/reduce_*.go` host state-machine dispatch tables. They are exempt from the 80-line function limit (see [AGENTS.md](AGENTS.md)) because forced extraction of dispatch arms fragments the state machine without adding clarity. File-length (500 lines) and naming rules still apply.
+Files matching `client/state/reduce_*.go` host state-machine dispatch tables. They are exempt from the 80-line function limit (see [AGENTS.md](AGENTS.md)) because forced extraction of dispatch arms fragments the state machine without adding clarity. The default 500-line file limit remains a responsibility-splitting heuristic, but cohesive files may take a documented path-based exception when forced extraction would worsen the design.
 
 The daemon is reached by clients (the `server` HTTP/WS gateway and any future native client) via typed IPC (`proto`) over a Unix socket, with two physical endpoints (host + container). Details, the per-package breakdown, terminology, and the design-decision log are in the [client deep dive](docs/component/component-20260624-client-overview.md).

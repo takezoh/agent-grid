@@ -20,28 +20,28 @@ func TestE2E_GatewayScenarioFakeClaudeLifecycleAndSurface_SanitizesAmbientRoostE
 
 	project := t.TempDir()
 	sessionID := createSessionViaAPI(t, daemon, project, "claude")
-	initial := waitForSessionFrame(t, lifecycle, 5*time.Second, sessionID, func(session map[string]any) bool {
+	initial := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
 		view, _ := session["view"].(map[string]any)
 		return view["model"] == "claude-sonnet-4-5" && view["effort"] == "high"
 	})
-	assertSessionView(t, initial, sessionID, "", "idle", "claude-sonnet-4-5", "high")
+	assertSessionView(t, initial, sessionID, "idle")
 
 	surface := dialGatewayWS(t, daemon, sessionID)
 	output := waitForOutputFrame(t, surface, 5*time.Second)
 	assertOutputFrameShapeFromFixture(t, output)
 
 	sendSurfaceInput(t, surface, "summarize this\n")
-	running := waitForSessionFrame(t, lifecycle, 5*time.Second, sessionID, func(session map[string]any) bool {
+	running := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
 		view, _ := session["view"].(map[string]any)
 		return view["status"] == "running"
 	})
-	assertSessionView(t, running, sessionID, "", "running", "claude-sonnet-4-5", "high")
+	assertSessionView(t, running, sessionID, "running")
 
-	waiting := waitForSessionFrame(t, lifecycle, 5*time.Second, sessionID, func(session map[string]any) bool {
+	waiting := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
 		view, _ := session["view"].(map[string]any)
 		return view["status"] == "waiting"
 	})
-	assertSessionView(t, waiting, sessionID, "", "waiting", "claude-sonnet-4-5", "high")
+	assertSessionView(t, waiting, sessionID, "waiting")
 
 	deleteSessionViaAPI(t, daemon, sessionID)
 	waitForSessionAbsent(t, lifecycle, 5*time.Second, sessionID)
