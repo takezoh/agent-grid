@@ -225,6 +225,9 @@ func TestSpecBuilder_MergesProjectMCPJSON(t *testing.T) {
 	if _, ok := doc.MCPServers["existing"]; !ok {
 		t.Errorf("project server 'existing' must survive ContainerSpec, got %v", doc.MCPServers)
 	}
+	if _, ok := doc.MCPServers["agent_frames"]; ok {
+		t.Fatalf("unexpected built-in agent_frames alias in overlay: %v", doc.MCPServers)
+	}
 	var obs struct {
 		Command string `json:"command"`
 	}

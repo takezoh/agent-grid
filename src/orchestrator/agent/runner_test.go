@@ -649,7 +649,7 @@ func TestSpawn_advertisesLinearGraphqlWhenConfigured(t *testing.T) {
 
 	tools := threadStartDynamicTools(t, fs)
 	require.Len(t, tools, 1)
-	assert.Equal(t, "linear_graphql", tools[0]["name"])
+	assert.Equal(t, []string{"linear_graphql"}, toolNames(tools))
 }
 
 func TestSpawn_noDynamicToolsWhenLinearUnconfigured(t *testing.T) {
@@ -662,6 +662,16 @@ func TestSpawn_noDynamicToolsWhenLinearUnconfigured(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, threadStartDynamicTools(t, fs))
+}
+
+func toolNames(tools []map[string]any) []string {
+	out := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		if name, ok := tool["name"].(string); ok {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // TestCurrentTemplate_loaderTakesPrecedence verifies that PromptLoader overrides
