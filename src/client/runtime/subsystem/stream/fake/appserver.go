@@ -442,10 +442,9 @@ func defaultTurnHandler(req TurnRequest, emit Emitter) {
 		"status":   map[string]any{"type": "active"},
 	})
 	_ = emit.Emit(codexschema.MethodTurnCompleted, map[string]any{
-		"threadId":  req.ThreadID,
-		"sessionId": req.ThreadID,
-		"turnId":    req.TurnID,
-		"text":      "echo: " + req.Input,
+		"threadId": req.ThreadID,
+		"turnId":   req.TurnID,
+		"text":     "echo: " + req.Input,
 	})
 	_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
 		"threadId": req.ThreadID,
