@@ -205,6 +205,24 @@ func TestTurnStartDrivesDefaultLifecycleBroadcast(t *testing.T) {
 			t.Fatalf("event[%d] = %q, want %q (all=%v)", i, got[i], m, got)
 		}
 	}
+
+	completed := rec.filter(codexschema.MethodTurnCompleted)
+	if len(completed) != 1 {
+		t.Fatalf("turn/completed count = %d, want 1", len(completed))
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(completed[0].Params, &payload); err != nil {
+		t.Fatalf("unmarshal turn/completed: %v", err)
+	}
+	if got := payload["threadId"]; got != sess.ThreadID {
+		t.Fatalf("turn/completed threadId = %v, want %q", got, sess.ThreadID)
+	}
+	if got := payload["sessionId"]; got != sess.SessionID {
+		t.Fatalf("turn/completed sessionId = %v, want %q", got, sess.SessionID)
+	}
+	if got := payload["text"]; got != "echo: hello" {
+		t.Fatalf("turn/completed text = %v, want %q", got, "echo: hello")
+	}
 }
 
 func TestTurnStartScopesTurnNotificationsToInitiator(t *testing.T) {

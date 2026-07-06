@@ -153,10 +153,10 @@ Coverage targets are tiered by architectural blast radius. A regression in `stat
 | Tier | Target | Layer | Members |
 |------|--------|-------|---------|
 | **S** | ≥85% | Pure domain layer & wire types | `state`, `state/view`, `proto`, `features`, `orchestrator/scheduler` (pure `Reduce` + transitions) |
-| **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/*`, `driver`, `driver/vt`, `config`, `sandbox/devcontainer`, `platform/termvt`, `server/session`, `server/web` (gateway scenario + browser smoke keep this tier honest) |
-| **B** | ≥60% | Infrastructure integrations | `lib/*` (except thin CLI wrappers), `proto/sessions`, `hostexec`, `mcpproxy`, `tools` |
-| **C** | ≥40% | Thin CLI & wiring | `main`, `cli`, `lib/gemini`, `lib/notify` |
-| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/bridge` |
+| **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/stream`, `driver`, `config`, `sandbox/devcontainer`, `platform/termvt`, `client/web`, `server/web` (gateway scenario + browser smoke keep this tier honest) |
+| **B** | ≥60% | Infrastructure integrations | `lib/*` (except thin CLI wrappers), `proto/sessions`, `hostexec`, `mcpproxy`, `tools`, `platform/agent/fakecodex` |
+| **C** | ≥40% | Thin CLI & wiring | `cmd/claude-app-server`, `cmd/orchestrator`, `runtime/subsystem/cli`, `client/lib/claude/transcript`, `client/lib/codex/transcript` |
+| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/web`, `cmd/reactor-bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli` |
 
 Tier S and A packages must not lose coverage in a PR. Tier B packages should improve over time; new B-tier code arrives with tests. Tier C packages aim for the goldenpath; full coverage isn't expected. Tier D packages need at least one test that exercises the package surface.
 

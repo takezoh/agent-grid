@@ -175,6 +175,39 @@ func TestNightlyE2EWorkflowExportsAllRealBinaryEnvVars(t *testing.T) {
 	}
 }
 
+func TestGatewayScenarioTestsOnlySkipInShortMode(t *testing.T) {
+	repo := repoRoot(t)
+
+	codexScenarioPath := filepath.Join(repo, "src", "server", "web", "mux_scenario_test.go")
+	codexRaw, err := os.ReadFile(codexScenarioPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", codexScenarioPath, err)
+	}
+	codexText := string(codexRaw)
+	if !strings.Contains(codexText, "func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState") {
+		t.Fatalf("gateway codex scenario test missing from %s", codexScenarioPath)
+	}
+	if strings.Count(codexText, `t.Skip("skipping real-daemon scenario e2e in -short mode")`) != 2 {
+		t.Fatalf("gateway scenario suite must only use the shared -short skip in %s", codexScenarioPath)
+	}
+	if strings.Count(codexText, "t.Skip(") != 2 {
+		t.Fatalf("unexpected additional skip found in %s", codexScenarioPath)
+	}
+
+	roostScenarioPath := filepath.Join(repo, "src", "server", "web", "mux_scenario_roost_test.go")
+	roostRaw, err := os.ReadFile(roostScenarioPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", roostScenarioPath, err)
+	}
+	roostText := string(roostRaw)
+	if strings.Count(roostText, `t.Skip("skipping real-daemon scenario e2e in -short mode")`) != 1 {
+		t.Fatalf("roost gateway scenario must keep only the shared -short skip in %s", roostScenarioPath)
+	}
+	if strings.Count(roostText, "t.Skip(") != 1 {
+		t.Fatalf("unexpected additional skip found in %s", roostScenarioPath)
+	}
+}
+
 func TestSimplifyWorkflowUsesSupportedVerificationCommands(t *testing.T) {
 	workflowPath := filepath.Join(repoRoot(t), ".github", "workflows", "simplify.yml")
 	raw, err := os.ReadFile(workflowPath)
