@@ -6,12 +6,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -19,6 +21,22 @@ import (
 	"github.com/takezoh/agent-grid/platform/agent/codexclient"
 	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 	libcodex "github.com/takezoh/agent-grid/platform/lib/codex"
+)
+
+// Daemon-dial retry envelope. The daemon container endpoint is created
+// lazily by the runtime (bootstrap.go / cleanup.go call
+// startContainerEndpointIfNeeded), and its startup can arrive after this
+// shim is spawned as the codex subsystem — a 41s gap has been observed in
+// production. Retrying until the endpoint appears keeps the shim from
+// hard-exiting into a 15s daemon-side DialUDS timeout that surfaces to
+// the browser as `504 daemon_timeout` on POST /api/sessions.
+//
+// If retry ultimately fails the shim continues with a nil daemon client;
+// only frame-messaging tool calls (agent_frames.*) then error at call
+// time. Primary codex app-server proxying is unaffected.
+var (
+	daemonDialTotalTimeout  = 60 * time.Second
+	daemonDialRetryInterval = 200 * time.Millisecond
 )
 
 type shimConfig struct {
@@ -39,11 +57,6 @@ func runCodexAppServerShim(args []string) error {
 	if daemonSock == "" {
 		return errors.New("AG_SOCKET is required")
 	}
-	daemon, err := proto.Dial(daemonSock)
-	if err != nil {
-		return err
-	}
-	defer daemon.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -62,13 +75,60 @@ func runCodexAppServerShim(args []string) error {
 		removeShimSockets(cfg.upstreamSock)
 	}()
 
+	// Dial the daemon container endpoint in the background so the downstream
+	// listener (srv.serve below) can come up immediately. The daemon's
+	// DialUDS to our listen socket has a 15s cap; blocking on a synchronous
+	// daemon dial here — as prior to this fix — is what caused POST
+	// /api/sessions to reach the HTTP 10s deadline and return 504.
+	var daemonPtr atomic.Pointer[proto.Client]
+	daemonReady := make(chan struct{})
+	go func() {
+		defer close(daemonReady)
+		c := dialDaemonWithRetry(ctx, daemonSock, daemonDialTotalTimeout, daemonDialRetryInterval)
+		if c == nil {
+			slog.Warn("codex-app-server-shim: daemon dial exhausted retry; frame-messaging tools will error at call time",
+				"sock", daemonSock)
+			return
+		}
+		daemonPtr.Store(c)
+	}()
+	defer func() {
+		cancel()
+		<-daemonReady
+		if c := daemonPtr.Swap(nil); c != nil {
+			_ = c.Close()
+		}
+	}()
+
 	srv := &codexShimServer{
-		cfg:     cfg,
-		daemon:  daemon,
-		httpSrv: &http.Server{},
+		cfg:       cfg,
+		daemonPtr: &daemonPtr,
+		httpSrv:   &http.Server{},
 	}
 	srv.httpSrv.Handler = http.HandlerFunc(srv.serveHTTP)
 	return srv.serve(ctx)
+}
+
+// dialDaemonWithRetry attempts proto.Dial(sock) at fixed intervals until
+// totalTimeout elapses or ctx is done. Returns nil on failure so the shim
+// can continue serving the codex app-server proxy without a live daemon
+// connection.
+func dialDaemonWithRetry(ctx context.Context, sock string, totalTimeout, interval time.Duration) *proto.Client {
+	deadline := time.After(totalTimeout)
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+	for {
+		if c, err := proto.Dial(sock); err == nil {
+			return c
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-deadline:
+			return nil
+		case <-tick.C:
+		}
+	}
 }
 
 func removeShimSockets(paths ...string) {
@@ -106,9 +166,9 @@ func parseCodexShimArgs(args []string) (shimConfig, error) {
 }
 
 type codexShimServer struct {
-	cfg     shimConfig
-	daemon  *proto.Client
-	httpSrv *http.Server
+	cfg       shimConfig
+	daemonPtr *atomic.Pointer[proto.Client]
+	httpSrv   *http.Server
 }
 
 func (s *codexShimServer) serve(ctx context.Context) error {
@@ -146,10 +206,14 @@ func (s *codexShimServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	downstream := codexclient.NewConn(&shimWSTransport{c: ws}, 30*time.Second)
 	upstream := codexclient.NewConn(upstreamTransport, 30*time.Second)
+	// Snapshot the daemon pointer at connection time. Retry may still be in
+	// flight (nil result here), or may complete later; the session honors a
+	// nil daemon by erroring individual agent_frames.* tool calls instead of
+	// tearing down the whole proxy.
 	session := &codexShimSession{
 		downstream: downstream,
 		upstream:   upstream,
-		daemon:     s.daemon,
+		daemon:     s.daemonPtr.Load(),
 		sessionID:  s.cfg.sessionID,
 	}
 	ctx, cancel := context.WithCancel(r.Context())
@@ -189,6 +253,14 @@ func (h shimDownstreamHandler) OnServerRequest(id int64, method string, params j
 
 func shouldInjectFrameMessagingTools(method string) bool {
 	return method == codexschema.MethodThreadStart || method == codexschema.MethodThreadResume
+}
+
+func isFrameMessagingTool(name string) bool {
+	switch name {
+	case "agent_frames.list", "agent_frames.read", "agent_frames.send_message", "agent_frames.reply":
+		return true
+	}
+	return false
 }
 
 func (h shimUpstreamHandler) OnNotification(method string, params json.RawMessage) {
@@ -249,6 +321,12 @@ func (s *codexShimSession) handleToolCall(raw json.RawMessage) (bool, shimToolCa
 	var params shimToolCallParams
 	if err := json.Unmarshal(raw, &params); err != nil {
 		return true, shimToolCallReply{}, err
+	}
+	if isFrameMessagingTool(params.Tool) && s.daemon == nil {
+		// Daemon container endpoint wasn't reachable when this WebSocket
+		// session started (see runCodexAppServerShim). Surface a clean tool
+		// error to Codex instead of nil-dereferencing on Send.
+		return true, shimToolCallReply{}, errors.New("agent-grid daemon unavailable: frame-messaging tools are disabled for this session")
 	}
 	var (
 		resp proto.Response

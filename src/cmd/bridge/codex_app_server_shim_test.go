@@ -232,3 +232,97 @@ func TestShimToolCallContextDeadlineSafe(t *testing.T) {
 	_, _, _ = session.handleToolCall(json.RawMessage(`{"tool":"agent_frames.list","threadId":"thread-1","arguments":{}}`))
 	_ = context.Background()
 }
+
+// If the daemon container endpoint is not yet listening when the shim boots
+// (subsystem spawn races the endpoint startup — observed 41s gap in prod),
+// the shim must NOT exit. It must continue proxying the codex app-server so
+// the daemon's DialUDS to the shim's listen socket succeeds within its 15s
+// cap, avoiding the 504 daemon_timeout on POST /api/sessions. Retry the
+// daemon dial for up to totalTimeout; return nil so callers degrade
+// frame-messaging tools to error at call time rather than kill the shim.
+func TestDialDaemonWithRetry_ReturnsNilWhenSocketNeverAppears(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "absent.sock")
+	start := time.Now()
+	client := dialDaemonWithRetry(context.Background(), sock, 200*time.Millisecond, 20*time.Millisecond)
+	elapsed := time.Since(start)
+	if client != nil {
+		t.Fatalf("expected nil client when sock never appears, got %v", client)
+	}
+	if elapsed < 200*time.Millisecond {
+		t.Fatalf("returned too early: %v < 200ms", elapsed)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("did not honor totalTimeout: %v", elapsed)
+	}
+}
+
+func TestDialDaemonWithRetry_ConnectsWhenSocketAppearsMidway(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "late.sock")
+	ready := make(chan struct{})
+	go func() {
+		time.Sleep(80 * time.Millisecond)
+		ln, err := net.Listen("unix", sock)
+		if err != nil {
+			t.Errorf("net.Listen: %v", err)
+			close(ready)
+			return
+		}
+		close(ready)
+		defer ln.Close()
+		conn, err := ln.Accept()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}()
+	client := dialDaemonWithRetry(context.Background(), sock, 2*time.Second, 20*time.Millisecond)
+	<-ready
+	if client == nil {
+		t.Fatal("expected non-nil client once sock appears mid-retry")
+	}
+	_ = client.Close()
+}
+
+func TestDialDaemonWithRetry_HonorsContextCancel(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "cancelled.sock")
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+	start := time.Now()
+	client := dialDaemonWithRetry(ctx, sock, 10*time.Second, 20*time.Millisecond)
+	elapsed := time.Since(start)
+	if client != nil {
+		t.Fatal("expected nil client after context cancel")
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("did not exit promptly on cancel: %v", elapsed)
+	}
+}
+
+// When daemon dial ultimately failed (retry exhausted), a shim tool call for
+// agent_frames.* must return an error surface — not nil-deref — so the
+// Codex user sees a clean tool-call failure while the primary code path
+// keeps working.
+func TestCodexShimHandleToolCall_NilDaemonReturnsError(t *testing.T) {
+	session := &codexShimSession{daemon: nil, sessionID: "sess-1"}
+	for _, tc := range []struct {
+		name string
+		raw  string
+	}{
+		{"list", `{"tool":"agent_frames.list","threadId":"thread-1","arguments":{}}`},
+		{"read", `{"tool":"agent_frames.read","threadId":"thread-1","arguments":{}}`},
+		{"send", `{"tool":"agent_frames.send_message","threadId":"thread-1","arguments":{"targetFrameId":"f2","body":"x"}}`},
+		{"reply", `{"tool":"agent_frames.reply","threadId":"thread-1","arguments":{"messageId":"m1"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handled, _, err := session.handleToolCall(json.RawMessage(tc.raw))
+			if !handled {
+				t.Fatal("agent_frames tool must still be recognized as handled")
+			}
+			if err == nil {
+				t.Fatal("expected error when daemon is unavailable")
+			}
+		})
+	}
+}
