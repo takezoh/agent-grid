@@ -75,17 +75,30 @@ type ColdStartAware interface {
 // can reach the daemon without relying on baked-in or fallback paths.
 type DirectLauncher struct {
 	SockPath string
+	SelfBin  string
+	DataDir  string
 }
 
-func (d DirectLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
-	merged := stripContainerOnlyEnv(env)
+func (d DirectLauncher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
+	merged := stripContainerOnlyEnv(env, plan.ManagedFrameMessaging)
+	var cleanup func() error
 	if d.SockPath != "" {
 		merged = cloneAndSet(merged, "AG_SOCKET", d.SockPath)
+	}
+	if plan.ManagedFrameMessaging {
+		var rawCleanup func(context.Context) error
+		var err error
+		merged, rawCleanup, err = agentlaunch.PrepareManagedClaudeHome(string(frameID), d.SelfBin, d.SockPath, d.DataDir, merged)
+		if err != nil {
+			return WrappedLaunch{}, err
+		}
+		cleanup = adaptCleanup(rawCleanup)
 	}
 	return WrappedLaunch{
 		Command:  plan.Command,
 		StartDir: plan.StartDir,
 		Env:      merged,
+		Cleanup:  cleanup,
 	}, nil
 }
 
@@ -101,12 +114,14 @@ func (DirectLauncher) BeginColdStart() {}
 func (DirectLauncher) EndColdStart()   {}
 
 // stripContainerOnlyEnv returns a copy of env with AG_SOCKET_TOKEN forced
-// empty. Token injection is only valid inside containers; DirectLauncher must
-// mask any ambient parent token as well as removing an explicit override so
-// host processes are never given a container credential.
-func stripContainerOnlyEnv(env map[string]string) map[string]string {
+// empty unless the launch explicitly needs host-side frame-messaging access.
+// This keeps host processes from inheriting an ambient container credential
+// while still allowing managed host Claude launches to use agent_frames.
+func stripContainerOnlyEnv(env map[string]string, keepFrameMessagingToken bool) map[string]string {
 	out := cloneEnvMap(env, 1)
-	out["AG_SOCKET_TOKEN"] = ""
+	if !keepFrameMessagingToken {
+		out["AG_SOCKET_TOKEN"] = ""
+	}
 	return out
 }
 
@@ -124,11 +139,12 @@ type dispatcherAdapter struct {
 
 func (a dispatcherAdapter) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
 	pp := agentlaunch.LaunchPlan{
-		Command:   plan.Command,
-		Env:       env,
-		StartDir:  plan.StartDir,
-		Project:   plan.Project,
-		ForceHost: plan.Sandbox == state.SandboxOverrideHost,
+		Command:               plan.Command,
+		Env:                   env,
+		StartDir:              plan.StartDir,
+		Project:               plan.Project,
+		ForceHost:             plan.Sandbox == state.SandboxOverrideHost,
+		ManagedFrameMessaging: plan.ManagedFrameMessaging,
 	}
 	w, err := a.d.Wrap(context.Background(), string(frameID), pp)
 	if err != nil {
@@ -230,13 +246,15 @@ type wrapLaunchResult struct {
 	token string
 }
 
-// wrapLaunchForSpawn calls WrapLaunch and (for container launchers) generates a
-// bearer token to inject as AG_SOCKET_TOKEN. It has no side effects on
-// runtime state — token/mount registration and endpoint startup happen on the
-// event loop after the spawn goroutine completes (see registerContainerFrame).
-// For non-container launchers the token is never generated.
+// wrapLaunchForSpawn calls WrapLaunch and generates a bearer token when the
+// launched process needs frame-messaging authority. Today that means either a
+// container launch (token terminates at the container endpoint) or a host
+// Claude launch with managed agent_frames exposure (token terminates at the
+// host IPC socket). It has no side effects on runtime state — token
+// registration happens after spawn completes on the event loop.
 func wrapLaunchForSpawn(l AgentLauncher, frameID state.FrameID, project string, plan state.LaunchPlan, baseEnv map[string]string) (wrapLaunchResult, error) {
-	if !l.IsContainer(project) {
+	needsToken := l.IsContainer(project) || plan.ManagedFrameMessaging
+	if !needsToken {
 		wrapped, err := l.WrapLaunch(frameID, plan, baseEnv)
 		return wrapLaunchResult{wrapped: wrapped}, err
 	}

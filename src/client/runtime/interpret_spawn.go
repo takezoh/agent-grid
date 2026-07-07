@@ -179,7 +179,10 @@ func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
 	r.frameSubsystemIDs[e.effect.FrameID] = e.subsystemID
 	r.storeFrameCleanup(e.effect.FrameID, e.cleanup)
 
-	if e.token != "" {
+	if e.token != "" && e.containerSockDir == "" {
+		r.registerFrameToken(e.effect.FrameID, e.token)
+	}
+	if e.token != "" && e.containerSockDir != "" {
 		r.registerContainerFrame(e.effect.FrameID, e.effect.Project, e.containerSockDir, e.token, e.mounts)
 	}
 

@@ -9,12 +9,13 @@ import "context"
 // Command is the shell-joined string form used by backend frame launchers.
 // Both are populated by per-agent lib builders; callers choose which to use.
 type LaunchPlan struct {
-	Command   string
-	Argv      []string
-	Env       map[string]string
-	StartDir  string
-	Project   string
-	ForceHost bool
+	Command               string
+	Argv                  []string
+	Env                   map[string]string
+	StartDir              string
+	Project               string
+	ForceHost             bool
+	ManagedFrameMessaging bool
 }
 
 // Mount is a host↔container path pair used to translate paths at the IPC boundary.

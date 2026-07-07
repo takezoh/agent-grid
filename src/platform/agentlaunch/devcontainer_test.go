@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/takezoh/agent-grid/platform/config"
@@ -547,6 +548,32 @@ func TestBuildContainerOverlay_ProjectMode_WorkspaceFallbackUsesProject(t *testi
 	if ov.WorkspaceFolderFallback != "/mnt/workspace/myapp" {
 		t.Errorf("project mode WorkspaceFolderFallback = %q, want /mnt/workspace/myapp",
 			ov.WorkspaceFolderFallback)
+	}
+}
+
+func TestBuildContainerOverlay_ProjectMode_AddsManagedAgentFramesWithoutProxy(t *testing.T) {
+	stubHelperBinaries(t)
+	resolveSandbox := func(string) config.SandboxConfig {
+		return config.SandboxConfig{
+			Devcontainer: config.DevcontainerConfig{HostPathMountPrefix: "/mnt"},
+		}
+	}
+	dataDir := t.TempDir()
+	overlay := BuildContainerOverlay(resolveSandbox, config.ProjectsConfig{}, nil, dataDir, nil)
+
+	ov, err := overlay(sandbox.IsolationPlan{Kind: sandbox.IsolationProject}, "/workspace/myapp", "/tmp/dc")
+	if err != nil {
+		t.Fatalf("overlay: %v", err)
+	}
+	found := false
+	for _, mount := range ov.Mounts {
+		if strings.Contains(mount, "target=/mnt/workspace/myapp/.mcp.json,readonly") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("managed agent_frames overlay missing without proxy: %+v", ov.Mounts)
 	}
 }
 

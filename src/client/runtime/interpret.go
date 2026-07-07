@@ -63,6 +63,18 @@ func (r *Runtime) executeMiscEffect(eff state.Effect) {
 				"namespace", e.Namespace, "project", e.Project, "err", err)
 		}
 
+	case state.EffFrameMessagingPersistRead:
+		if len(e.MessageIDs) == 0 {
+			break
+		}
+		if err := r.appendFrameMessagingRecord(e.SessionID, frameMessagingJournalRecord{
+			Kind:       frameMessagingKindRead,
+			Timestamp:  time.Now().UTC().Format(time.RFC3339),
+			MessageIDs: append([]string(nil), e.MessageIDs...),
+		}); err != nil {
+			slog.Warn("frame messaging: append read failed", "session", e.SessionID, "messages", len(e.MessageIDs), "err", err)
+		}
+
 	case state.EffStartJob:
 		r.submitJob(e)
 
@@ -384,6 +396,7 @@ func snapshotFrameMessaging(in *state.SessionFrameMessaging) *SessionFrameMessag
 			TargetFrameID:  string(msg.TargetFrameID),
 			Topic:          msg.Topic,
 			Body:           msg.Body,
+			Priority:       msg.Priority,
 			CreatedAt:      msg.CreatedAt.UTC().Format(time.RFC3339),
 			Read:           msg.Read,
 			ReplyStatus:    msg.ReplyStatus,
@@ -394,8 +407,10 @@ func snapshotFrameMessaging(in *state.SessionFrameMessaging) *SessionFrameMessag
 				ID:                 msg.Reply.ID,
 				SourceFrameID:      string(msg.Reply.SourceFrameID),
 				Body:               msg.Reply.Body,
+				FinalAnswer:        msg.Reply.FinalAnswer,
 				CreatedAt:          msg.Reply.CreatedAt.UTC().Format(time.RFC3339),
 				Resolution:         msg.Reply.Resolution,
+				Confidence:         msg.Reply.Confidence,
 				FinalAnswerPreview: msg.Reply.FinalAnswerPreview,
 			}
 		}

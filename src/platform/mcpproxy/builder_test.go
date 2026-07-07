@@ -51,6 +51,50 @@ func TestSpecBuilderEmptyServers(t *testing.T) {
 	}
 }
 
+func TestSpecBuilderManagedAgentFramesWithoutBrokerServers(t *testing.T) {
+	ctx := t.Context()
+	t.Setenv("TMPDIR", "/tmp")
+	runBase := t.TempDir()
+	cfg := Config{
+		RunBase:           runBase,
+		ContainerSockPath: "/tmp/incontainer/mcp.sock",
+		ContainerBinPath:  "/bin/roost",
+		WorkspaceTargetsFor: func(p string) []WorkspaceTarget {
+			return []WorkspaceTarget{{HostRoot: p, ContainerWS: "/workspace"}}
+		},
+	}
+	b := NewSpecBuilder(ctx, cfg, func(string) config.MCPProxyConfig {
+		return config.MCPProxyConfig{}
+	})
+	spec, err := b.ContainerSpec(ctx, "/myproj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spec.Env) != 0 {
+		t.Fatalf("expected no broker env, got %+v", spec.Env)
+	}
+	if len(spec.Mounts) != 1 {
+		t.Fatalf("expected 1 overlay mount, got %d: %+v", len(spec.Mounts), spec.Mounts)
+	}
+	srcs := overlaySources(spec.Mounts)
+	if len(srcs) != 1 {
+		t.Fatalf("expected 1 overlay source, got %v", srcs)
+	}
+	raw, err := os.ReadFile(srcs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := doc.MCPServers["agent_frames"]; !ok {
+		t.Fatalf("managed agent_frames missing from overlay: %v", doc.MCPServers)
+	}
+}
+
 func TestSpecBuilderWithServers(t *testing.T) {
 	ctx := t.Context()
 	t.Setenv("TMPDIR", "/tmp")
@@ -225,9 +269,6 @@ func TestSpecBuilder_MergesProjectMCPJSON(t *testing.T) {
 	if _, ok := doc.MCPServers["existing"]; !ok {
 		t.Errorf("project server 'existing' must survive ContainerSpec, got %v", doc.MCPServers)
 	}
-	if _, ok := doc.MCPServers["agent_frames"]; ok {
-		t.Fatalf("unexpected built-in agent_frames alias in overlay: %v", doc.MCPServers)
-	}
 	var obs struct {
 		Command string `json:"command"`
 	}
@@ -236,6 +277,55 @@ func TestSpecBuilder_MergesProjectMCPJSON(t *testing.T) {
 	}
 	if obs.Command != "/bin/roost" {
 		t.Errorf("obs must be overridden by broker shim, command = %q", obs.Command)
+	}
+}
+
+func TestSpecBuilder_PreservesExistingAgentFramesAlias(t *testing.T) {
+	ctx := t.Context()
+	t.Setenv("TMPDIR", "/tmp")
+	runBase := t.TempDir()
+	hostRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(hostRoot, ".mcp.json"),
+		[]byte(`{"mcpServers":{"agent_frames":{"command":"custom-agent-frames"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{
+		RunBase:           runBase,
+		ContainerSockPath: "/opt/agent-grid/run/mcp.sock",
+		ContainerBinPath:  "/bin/roost",
+		WorkspaceTargetsFor: func(string) []WorkspaceTarget {
+			return []WorkspaceTarget{{HostRoot: hostRoot, ContainerWS: "/workspace/app"}}
+		},
+	}
+	b := NewSpecBuilder(ctx, cfg, func(string) config.MCPProxyConfig {
+		return config.MCPProxyConfig{Servers: map[string]config.MCPProxyServer{"obs": {Command: "true"}}}
+	})
+	spec, err := b.ContainerSpec(ctx, "/proj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srcs := overlaySources(spec.Mounts)
+	if len(srcs) != 1 {
+		t.Fatalf("expected 1 overlay source, got %v", srcs)
+	}
+	raw, err := os.ReadFile(srcs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	var entry struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(doc.MCPServers["agent_frames"], &entry); err != nil {
+		t.Fatal(err)
+	}
+	if entry.Command != "custom-agent-frames" {
+		t.Fatalf("agent_frames.command = %q, want custom-agent-frames", entry.Command)
 	}
 }
 

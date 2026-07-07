@@ -148,6 +148,19 @@ var Gemini = Spec{
 // reads from this single list.
 var All = []Spec{Claude, Gemini}
 
+type MCPServerEntry struct {
+	Alias            string
+	Type             string
+	Command          string
+	Args             []string
+	PreserveExisting bool
+	// RewriteArgsPrefix identifies an existing alias entry as daemon-owned
+	// even if its command path or socket arg is stale. When PreserveExisting
+	// is true, entries whose args begin with this prefix are rewritten in
+	// place; other pre-existing aliases remain user-owned and are preserved.
+	RewriteArgsPrefix []string
+}
+
 // Install ensures every event in spec.Events has a hook entry pointing at
 // hookCmd in settingsPath. Idempotent: an event already carrying hookCmd
 // verbatim is skipped; an event carrying a stale reactor command (any
@@ -202,6 +215,42 @@ func Install(settingsPath, hookCmd string, spec Spec) ([]string, error) {
 		return registered, err
 	}
 	return registered, nil
+}
+
+func InstallMCPServers(settingsPath string, entries []MCPServerEntry) (bool, error) {
+	if settingsPath == "" {
+		return false, fmt.Errorf("agenthook: settingsPath is empty")
+	}
+	if len(entries) == 0 {
+		return false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return false, fmt.Errorf("agenthook: mkdir parent of %s: %w", settingsPath, err)
+	}
+	lock, err := acquireSettingsLock(settingsPath, "mcp")
+	if err != nil {
+		return false, err
+	}
+	defer lock.release()
+	prev, err := readOrInit(settingsPath, "mcp")
+	if err != nil {
+		return false, err
+	}
+	var root map[string]any
+	if err := json.Unmarshal(prev, &root); err != nil {
+		return false, fmt.Errorf("agenthook[mcp]: parse %s: %w", settingsPath, err)
+	}
+	if root == nil {
+		root = map[string]any{}
+	}
+	changed := applyMCPServers(root, entries)
+	if !changed {
+		return false, nil
+	}
+	if err := backupAndWrite(settingsPath, prev, root, "mcp"); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 type settingsLock struct {
@@ -441,6 +490,81 @@ func mapField(root map[string]any, key string) map[string]any {
 func listField(m map[string]any, key string) []any {
 	existing, _ := m[key].([]any)
 	return existing
+}
+
+func applyMCPServers(root map[string]any, entries []MCPServerEntry) bool {
+	if len(entries) == 0 {
+		return false
+	}
+	servers := mapField(root, "mcpServers")
+	changed := false
+	for _, entry := range entries {
+		if strings.TrimSpace(entry.Alias) == "" || strings.TrimSpace(entry.Command) == "" {
+			continue
+		}
+		existing, exists := servers[entry.Alias]
+		if exists && entry.PreserveExisting && !mcpServerOwnedBy(existing, entry.RewriteArgsPrefix) {
+			continue
+		}
+		value := map[string]any{
+			"type":    entry.Type,
+			"command": entry.Command,
+		}
+		if len(entry.Args) > 0 {
+			value["args"] = append([]string(nil), entry.Args...)
+		}
+		if exists && mcpServerEqual(existing, value) {
+			continue
+		}
+		servers[entry.Alias] = value
+		changed = true
+	}
+	return changed
+}
+
+func mcpServerOwnedBy(existing any, argsPrefix []string) bool {
+	if len(argsPrefix) == 0 {
+		return false
+	}
+	entry, _ := existing.(map[string]any)
+	if entry == nil {
+		return false
+	}
+	rawArgs, _ := entry["args"].([]any)
+	if len(rawArgs) < len(argsPrefix) {
+		return false
+	}
+	for i, want := range argsPrefix {
+		got, _ := rawArgs[i].(string)
+		if got != want {
+			return false
+		}
+	}
+	return true
+}
+
+func mcpServerEqual(existing any, want map[string]any) bool {
+	entry, _ := existing.(map[string]any)
+	if entry == nil {
+		return false
+	}
+	if got, _ := entry["type"].(string); got != want["type"] {
+		return false
+	}
+	if got, _ := entry["command"].(string); got != want["command"] {
+		return false
+	}
+	gotArgs, _ := entry["args"].([]any)
+	wantArgs, _ := want["args"].([]string)
+	if len(gotArgs) != len(wantArgs) {
+		return false
+	}
+	for i, got := range gotArgs {
+		if s, _ := got.(string); s != wantArgs[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // readOrInit reads settingsPath. If the file is missing, `{}` bytes are

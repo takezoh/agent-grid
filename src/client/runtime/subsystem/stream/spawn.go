@@ -16,6 +16,9 @@ import (
 // only after the process is reaped (res.Wait) so the copier goroutine is done.
 func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *strings.Builder, error) {
 	argv := libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.serverArgs, b.sandboxed)
+	if b.shouldUseShim() {
+		argv = b.shimArgs()
+	}
 
 	plan := agentlaunch.LaunchPlan{
 		Command:  strings.Join(argv, " "),
@@ -52,6 +55,36 @@ func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *st
 		b.cleanupSpawn(context.Background())
 	}
 	return res, errBuf, err
+}
+
+func (b *Backend) shouldUseShim() bool {
+	return b.isContainer || b.helperBin != ""
+}
+
+func (b *Backend) shimArgs() []string {
+	upstreamSock := b.listenSock + ".upstream"
+	helperBin := b.helperBin
+	if b.isContainer {
+		helperBin = agentlaunch.ContainerBinaryPath
+	}
+	args := []string{
+		helperBin,
+		"codex-app-server-shim",
+		"--listen", "unix://" + b.listenSock,
+		"--upstream", "unix://" + upstreamSock,
+		"--server-bin", b.serverBin,
+		"--session-id", string(b.sessionID),
+	}
+	for _, arg := range b.serverArgs {
+		args = append(args, "--server-arg", arg)
+	}
+	if b.sandboxed {
+		args = append(args, "--sandbox-external")
+	}
+	if b.serverBin == "" {
+		return libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.serverArgs, b.sandboxed)
+	}
+	return args
 }
 
 // trackProcessGroups records the app-server pgid so a future boot's

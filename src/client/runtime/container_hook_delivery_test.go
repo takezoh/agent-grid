@@ -31,7 +31,7 @@ func TestContainerHook_deliveredWhenEndpointStartsLate(t *testing.T) {
 	epCh := make(chan *containerEndpoint, 1)
 	go func() {
 		time.Sleep(120 * time.Millisecond)
-		ep, err := startContainerEndpoint(sock, reg, func(ev state.Event) { evCh <- ev })
+		ep, err := startContainerEndpoint(sock, reg, func(ev state.Event) { evCh <- ev }, nil)
 		if err != nil {
 			epCh <- nil
 			return
@@ -57,7 +57,7 @@ func TestContainerHook_deliveredWhenTokenRegisteredLate(t *testing.T) {
 	reg := framereg.New()
 
 	evCh := make(chan state.Event, 1)
-	ep, err := startContainerEndpoint(sock, reg, func(ev state.Event) { evCh <- ev })
+	ep, err := startContainerEndpoint(sock, reg, func(ev state.Event) { evCh <- ev }, nil)
 	if err != nil {
 		t.Fatalf("startContainerEndpoint: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestContainerHook_deliveredImmediately(t *testing.T) {
 	reg.RegisterWithMounts(fid, tok, nil)
 
 	evCh := make(chan state.Event, 1)
-	ep, err := startContainerEndpoint(sock, reg, func(ev state.Event) { evCh <- ev })
+	ep, err := startContainerEndpoint(sock, reg, func(ev state.Event) { evCh <- ev }, nil)
 	if err != nil {
 		t.Fatalf("startContainerEndpoint: %v", err)
 	}

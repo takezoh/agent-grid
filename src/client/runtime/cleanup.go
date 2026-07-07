@@ -39,6 +39,10 @@ func (r *Runtime) registerContainerFrame(frameID state.FrameID, project, sockDir
 	}
 }
 
+func (r *Runtime) registerFrameToken(frameID state.FrameID, token string) {
+	r.frameReg.Register(frameID, token)
+}
+
 // invokeFrameCleanup removes the frame's container registration, retrieves the
 // registered sandbox cleanup, deletes it from the map, and runs it in a
 // goroutine so the event loop is not blocked. Must be called from the event

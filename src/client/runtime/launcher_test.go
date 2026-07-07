@@ -1,9 +1,12 @@
 package runtime
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
 )
 
 func TestDirectLauncher_passthrough(t *testing.T) {
@@ -85,6 +88,33 @@ func TestDirectLauncher_stripsContainerToken(t *testing.T) {
 	}
 }
 
+func TestDirectLauncher_keepsManagedFrameMessagingToken(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	l := DirectLauncher{SockPath: "/run/server.sock", SelfBin: "/usr/bin/server", DataDir: t.TempDir()}
+	got, err := l.WrapLaunch("f1", state.LaunchPlan{
+		Command:               "claude",
+		ManagedFrameMessaging: true,
+	}, map[string]string{"AG_SOCKET_TOKEN": "frame-token", "HOME": home})
+	if err != nil {
+		t.Fatalf("WrapLaunch: %v", err)
+	}
+	if got.Env["AG_SOCKET_TOKEN"] != "frame-token" {
+		t.Fatalf("AG_SOCKET_TOKEN = %q, want frame-token", got.Env["AG_SOCKET_TOKEN"])
+	}
+	if got.Env["HOME"] == home {
+		t.Fatal("managed frame messaging should use an overlay HOME")
+	}
+	if got.Env[agentlaunch.ManagedClaudeRealHomeEnv] != home {
+		t.Fatalf("%s = %q, want %q", agentlaunch.ManagedClaudeRealHomeEnv, got.Env[agentlaunch.ManagedClaudeRealHomeEnv], home)
+	}
+	if got.Cleanup == nil {
+		t.Fatal("managed frame messaging should install cleanup")
+	}
+}
+
 func TestDirectLauncher_masksAmbientContainerTokenFromSpawnEnv(t *testing.T) {
 	t.Setenv("AG_SOCKET_TOKEN", "ambient-token")
 
@@ -100,6 +130,23 @@ func TestDirectLauncher_masksAmbientContainerTokenFromSpawnEnv(t *testing.T) {
 	}
 	if counts["AG_SOCKET_TOKEN"] != 1 {
 		t.Fatalf("spawn env AG_SOCKET_TOKEN count = %d, want 1", counts["AG_SOCKET_TOKEN"])
+	}
+}
+
+func TestWrapLaunchForSpawn_GeneratesTokenForManagedHostFrameMessaging(t *testing.T) {
+	l := DirectLauncher{}
+	res, err := wrapLaunchForSpawn(l, "f1", "/repo", state.LaunchPlan{
+		Command:               "claude",
+		ManagedFrameMessaging: true,
+	}, map[string]string{"AG_FRAME_ID": "f1"})
+	if err != nil {
+		t.Fatalf("wrapLaunchForSpawn: %v", err)
+	}
+	if res.token == "" {
+		t.Fatal("token not generated for managed host frame messaging")
+	}
+	if res.wrapped.Env["AG_SOCKET_TOKEN"] != res.token {
+		t.Fatalf("wrapped env token = %q, want %q", res.wrapped.Env["AG_SOCKET_TOKEN"], res.token)
 	}
 }
 

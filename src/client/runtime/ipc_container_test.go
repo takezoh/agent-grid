@@ -47,7 +47,7 @@ func TestContainerEndpointAcceptsHookEvent(t *testing.T) {
 	tok := "tok-frame-hook"
 	reg.Register(fid, tok)
 	evCh := make(chan state.Event, 4)
-	ep, err := startContainerEndpoint(sp, reg, func(ev state.Event) { evCh <- ev })
+	ep, err := startContainerEndpoint(sp, reg, func(ev state.Event) { evCh <- ev }, nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestContainerEndpointRejectsUnknownCommands(t *testing.T) {
 	dir := t.TempDir()
 	sp := filepath.Join(dir, "server.sock")
 	reg := framereg.New()
-	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {})
+	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {}, nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestContainerEndpointRejectsInvalidToken(t *testing.T) {
 	sp := filepath.Join(dir, "server.sock")
 	reg := framereg.New()
 	reg.Register(state.FrameID("f1"), "tok-f1")
-	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {})
+	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {}, nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestContainerEndpointRejectsRevokedToken(t *testing.T) {
 	reg.Register(fid, tok)
 	reg.Delete(fid)
 
-	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {})
+	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {}, nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestContainerEndpointTranslatesCwd(t *testing.T) {
 	reg.RegisterWithMounts(frameID, tok, ms)
 
 	evCh := make(chan state.Event, 4)
-	ep, err := startContainerEndpoint(sp, reg, func(ev state.Event) { evCh <- ev })
+	ep, err := startContainerEndpoint(sp, reg, func(ev state.Event) { evCh <- ev }, nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -324,7 +324,7 @@ func TestContainerEndpointSocketPermissions(t *testing.T) {
 	dir := t.TempDir()
 	sp := filepath.Join(dir, "server.sock")
 	reg := framereg.New()
-	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {})
+	ep, err := startContainerEndpoint(sp, reg, func(state.Event) {}, nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}

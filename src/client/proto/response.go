@@ -132,6 +132,7 @@ type SessionMessage struct {
 	SourceFrameID      string               `json:"source_frame_id"`
 	TargetFrameID      string               `json:"target_frame_id"`
 	Topic              string               `json:"topic,omitempty"`
+	Priority           string               `json:"priority,omitempty"`
 	Body               string               `json:"body,omitempty"`
 	BodyPreview        string               `json:"body_preview,omitempty"`
 	CreatedAt          string               `json:"created_at"`
@@ -147,10 +148,48 @@ type SessionMessageReply struct {
 	SourceFrameID      string `json:"source_frame_id"`
 	Body               string `json:"body,omitempty"`
 	BodyPreview        string `json:"body_preview,omitempty"`
+	FinalAnswer        string `json:"final_answer,omitempty"`
 	CreatedAt          string `json:"created_at"`
 	Resolution         string `json:"resolution,omitempty"`
+	Confidence         string `json:"confidence,omitempty"`
 	FinalAnswerPreview string `json:"final_answer_preview,omitempty"`
 }
+
+type RespFrameList struct {
+	Frames []FrameRef `json:"frames"`
+}
+
+func (RespFrameList) isResponse() {}
+
+type FrameRef struct {
+	SessionID string `json:"session_id"`
+	FrameID   string `json:"frame_id"`
+	Command   string `json:"command"`
+	Project   string `json:"project,omitempty"`
+	Sendable  bool   `json:"sendable"`
+}
+
+type RespFrameRead struct {
+	SessionID string           `json:"session_id"`
+	Messages  []SessionMessage `json:"messages"`
+}
+
+func (RespFrameRead) isResponse() {}
+
+type RespFrameSend struct {
+	SessionID string         `json:"session_id"`
+	Message   SessionMessage `json:"message"`
+}
+
+func (RespFrameSend) isResponse() {}
+
+type RespFrameReply struct {
+	SessionID string              `json:"session_id"`
+	MessageID string              `json:"message_id"`
+	Reply     SessionMessageReply `json:"reply"`
+}
+
+func (RespFrameReply) isResponse() {}
 
 // baseName mirrors filepath.Base without importing filepath, so the
 // proto package stays trim. Handles both "/" and OS-native separators.

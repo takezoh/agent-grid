@@ -46,6 +46,9 @@ func (r *Runtime) LoadSnapshot(coldStart bool) error {
 				if err := r.cfg.Persist.Delete(snap.ID); err != nil {
 					slog.Warn("bootstrap: drop unrecoverable snapshot failed", "id", snap.ID, "err", err)
 				} else {
+					if err := r.deleteFrameMessagingSession(state.SessionID(snap.ID)); err != nil {
+						slog.Warn("bootstrap: delete unrecoverable frame messaging store failed", "id", snap.ID, "err", err)
+					}
 					slog.Info("bootstrap: deleted unrecoverable snapshot",
 						"id", snap.ID, "frames", len(snap.Frames))
 				}
@@ -54,6 +57,7 @@ func (r *Runtime) LoadSnapshot(coldStart bool) error {
 		}
 		r.state.Sessions[sess.ID] = sess
 	}
+	r.restoreFrameMessagingStores()
 	slog.Info("bootstrap: snapshot loaded", "count", len(snaps)-dropped, "dropped_stopped", dropped)
 	return nil
 }
@@ -132,11 +136,11 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 		mru = append(mru, state.FrameID(id))
 	}
 	sess.MRUFrameIDs = mru
-	sess.FrameMessaging = restoreFrameMessaging(snap.FrameMessaging)
+	sess.FrameMessaging = restoreFrameMessaging(snap.FrameMessaging, liveFrameSet(sess.Frames))
 	return sess, true
 }
 
-func restoreFrameMessaging(in *SessionFrameMessagingSnapshot) *state.SessionFrameMessaging {
+func restoreFrameMessaging(in *SessionFrameMessagingSnapshot, liveFrames map[state.FrameID]struct{}) *state.SessionFrameMessaging {
 	if in == nil {
 		return nil
 	}
@@ -158,6 +162,7 @@ func restoreFrameMessaging(in *SessionFrameMessagingSnapshot) *state.SessionFram
 			TargetFrameID:  state.FrameID(msg.TargetFrameID),
 			Topic:          msg.Topic,
 			Body:           msg.Body,
+			Priority:       msg.Priority,
 			CreatedAt:      createdAt,
 			Read:           msg.Read,
 			ReplyStatus:    msg.ReplyStatus,
@@ -169,14 +174,16 @@ func restoreFrameMessaging(in *SessionFrameMessagingSnapshot) *state.SessionFram
 				ID:                 msg.Reply.ID,
 				SourceFrameID:      state.FrameID(msg.Reply.SourceFrameID),
 				Body:               msg.Reply.Body,
+				FinalAnswer:        msg.Reply.FinalAnswer,
 				CreatedAt:          replyCreatedAt,
 				Resolution:         msg.Reply.Resolution,
+				Confidence:         msg.Reply.Confidence,
 				FinalAnswerPreview: msg.Reply.FinalAnswerPreview,
 			}
 		}
 		out.Messages = append(out.Messages, frameMsg)
 	}
-	return out
+	return sanitizeFrameMessaging(out, liveFrames)
 }
 
 // PtyBackend pairs one pty session per frame so a main-frame-owner concept

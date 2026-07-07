@@ -77,6 +77,8 @@ type Backend struct {
 	project      string
 	serverBin    string
 	serverArgs   []string
+	helperBin    string
+	isContainer  bool
 	sandboxed    bool
 	autoApprove  bool
 	readTimeout  time.Duration
@@ -153,6 +155,10 @@ func New(
 		threads:     map[string]state.FrameID{},
 		initState:   newInitState(),
 	}
+}
+
+func (b *Backend) FrameForThread(threadID string) state.FrameID {
+	return b.frameForThread(threadID)
 }
 
 // Kind implements subsystem.Subsystem.

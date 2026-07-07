@@ -48,6 +48,28 @@ func (d *cleanupDispatcher) EnsureProject(context.Context, string) error { retur
 
 func (d *cleanupDispatcher) IsContainer(string) bool { return true }
 
+type capturePlanDispatcher struct {
+	capturedArgv []string
+	forwardArgv  []string
+}
+
+func (d *capturePlanDispatcher) Wrap(_ context.Context, _ string, plan agentlaunch.LaunchPlan) (agentlaunch.WrappedLaunch, error) {
+	d.capturedArgv = append([]string(nil), plan.Argv...)
+	argv := d.forwardArgv
+	if len(argv) == 0 {
+		argv = plan.Argv
+	}
+	return agentlaunch.WrappedLaunch{Argv: argv, StartDir: plan.StartDir}, nil
+}
+
+func (d *capturePlanDispatcher) AdoptFrame(context.Context, string, string) (func(context.Context) error, []agentlaunch.Mount, error) {
+	return nil, nil, nil
+}
+
+func (d *capturePlanDispatcher) EnsureProject(context.Context, string) error { return nil }
+
+func (d *capturePlanDispatcher) IsContainer(string) bool { return true }
+
 func TestStopBeforeStartIsNoop(t *testing.T) {
 	b, _ := newTestBackend()
 	// Never Started: cancel and done are nil. Stop must not panic or block.
@@ -132,6 +154,62 @@ func TestSpawnServerRunsCleanupWhenProcessStartFails(t *testing.T) {
 	}
 	if got := dispatcher.cleanupCalls.Load(); got != 1 {
 		t.Fatalf("cleanup calls = %d, want 1", got)
+	}
+}
+
+func TestShimArgs_UsesContainerBridgePathInDevcontainer(t *testing.T) {
+	b, _ := newTestBackend()
+	b.helperBin = "/host/bin/bridge"
+	b.isContainer = true
+	b.listenSock = "/opt/agent-grid/run/codex.sock"
+	b.serverBin = "codex"
+	args := b.shimArgs()
+	if len(args) == 0 {
+		t.Fatal("shimArgs returned empty argv")
+	}
+	if got := args[0]; got != agentlaunch.ContainerBinaryPath {
+		t.Fatalf("shim argv[0] = %q, want %q", got, agentlaunch.ContainerBinaryPath)
+	}
+}
+
+func TestShimArgs_UsesHostHelperPathOutsideContainer(t *testing.T) {
+	b, _ := newTestBackend()
+	b.helperBin = "/host/bin/bridge"
+	b.isContainer = false
+	b.listenSock = "/tmp/codex.sock"
+	b.serverBin = "codex"
+	args := b.shimArgs()
+	if len(args) == 0 {
+		t.Fatal("shimArgs returned empty argv")
+	}
+	if got := args[0]; got != "/host/bin/bridge" {
+		t.Fatalf("shim argv[0] = %q, want host helper path", got)
+	}
+}
+
+func TestSpawnServer_UsesShimInContainerWithoutHostHelper(t *testing.T) {
+	b, _ := newTestBackend()
+	b.isContainer = true
+	b.helperBin = ""
+	b.listenSock = "/opt/agent-grid/run/codex.sock"
+	b.serverBin = "codex"
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	defer b.cancel()
+
+	dispatcher := &capturePlanDispatcher{
+		forwardArgv: []string{filepath.Join(t.TempDir(), "missing-app-server")},
+	}
+	b.dispatcher = dispatcher
+
+	_, _, err := b.spawnServer(context.Background())
+	if err == nil {
+		t.Fatal("spawnServer must fail for a missing shim binary in test dispatcher")
+	}
+	if len(dispatcher.capturedArgv) == 0 {
+		t.Fatal("dispatcher did not capture argv")
+	}
+	if got := dispatcher.capturedArgv[0]; got != agentlaunch.ContainerBinaryPath {
+		t.Fatalf("captured argv[0] = %q, want %q", got, agentlaunch.ContainerBinaryPath)
 	}
 }
 

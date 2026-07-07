@@ -32,9 +32,17 @@ type containerEndpoint struct {
 	listener net.Listener
 	reg      *framereg.Registry
 	enqueue  func(state.Event)
+	broker   frameMessagingBroker
 }
 
-func startContainerEndpoint(sockPath string, reg *framereg.Registry, enqueue func(state.Event)) (*containerEndpoint, error) {
+type frameMessagingBroker interface {
+	List(source state.FrameID) (proto.RespFrameList, error)
+	Read(source, peer state.FrameID) (proto.RespFrameRead, error)
+	Send(source, target state.FrameID, topic, body, priority string) (proto.RespFrameSend, error)
+	Reply(source state.FrameID, messageID, body, finalAnswer, resolution, confidence string) (proto.RespFrameReply, error)
+}
+
+func startContainerEndpoint(sockPath string, reg *framereg.Registry, enqueue func(state.Event), broker frameMessagingBroker) (*containerEndpoint, error) {
 	_ = os.Remove(sockPath)
 	ln, err := net.Listen("unix", sockPath)
 	if err != nil {
@@ -46,7 +54,7 @@ func startContainerEndpoint(sockPath string, reg *framereg.Registry, enqueue fun
 		_ = ln.Close()
 		return nil, err
 	}
-	ep := &containerEndpoint{listener: ln, reg: reg, enqueue: enqueue}
+	ep := &containerEndpoint{listener: ln, reg: reg, enqueue: enqueue, broker: broker}
 	go ep.accept()
 	slog.Info("runtime: container endpoint listening", "sock", sockPath)
 	return ep, nil
@@ -94,6 +102,14 @@ func (ep *containerEndpoint) handle(w *bufio.Writer, env proto.Envelope) {
 		ep.handleHook(w, env)
 	case proto.CmdNameSubsystem:
 		ep.handleSubsystem(w, env)
+	case proto.CmdNameFrameList:
+		ep.handleFrameList(w, env)
+	case proto.CmdNameFrameRead:
+		ep.handleFrameRead(w, env)
+	case proto.CmdNameFrameSend:
+		ep.handleFrameSend(w, env)
+	case proto.CmdNameFrameReply:
+		ep.handleFrameReply(w, env)
 	default:
 		containerWriteError(w, env.ReqID, proto.ErrUnsupported, "unsupported command")
 	}
@@ -171,6 +187,108 @@ func (ep *containerEndpoint) handleSubsystem(w *bufio.Writer, env proto.Envelope
 		Payload:   decoded,
 	})
 	containerWriteOK(w, env.ReqID)
+}
+
+func (ep *containerEndpoint) resolveSource(token string) (state.FrameID, bool) {
+	if token == "" {
+		return "", false
+	}
+	return ep.reg.Lookup(token)
+}
+
+func (ep *containerEndpoint) writeResponse(w *bufio.Writer, reqID string, resp proto.Response) {
+	wire, err := proto.EncodeResponse(reqID, resp)
+	if err != nil {
+		containerWriteError(w, reqID, proto.ErrInternal, "encode response failed")
+		return
+	}
+	_, _ = w.Write(wire)
+	_ = w.WriteByte('\n')
+	_ = w.Flush()
+}
+
+func (ep *containerEndpoint) handleFrameList(w *bufio.Writer, env proto.Envelope) {
+	var cmd proto.CmdFrameList
+	if len(env.Data) > 0 {
+		if err := json.Unmarshal(env.Data, &cmd); err != nil {
+			containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "bad payload")
+			return
+		}
+	}
+	source, ok := ep.resolveSource(cmd.Token)
+	if !ok {
+		containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "invalid token")
+		return
+	}
+	resp, err := ep.broker.List(source)
+	if err != nil {
+		containerWriteProtoError(w, env.ReqID, err)
+		return
+	}
+	ep.writeResponse(w, env.ReqID, resp)
+}
+
+func (ep *containerEndpoint) handleFrameRead(w *bufio.Writer, env proto.Envelope) {
+	var cmd proto.CmdFrameRead
+	if len(env.Data) > 0 {
+		if err := json.Unmarshal(env.Data, &cmd); err != nil {
+			containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "bad payload")
+			return
+		}
+	}
+	source, ok := ep.resolveSource(cmd.Token)
+	if !ok {
+		containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "invalid token")
+		return
+	}
+	resp, err := ep.broker.Read(source, state.FrameID(cmd.PeerFrameID))
+	if err != nil {
+		containerWriteProtoError(w, env.ReqID, err)
+		return
+	}
+	ep.writeResponse(w, env.ReqID, resp)
+}
+
+func (ep *containerEndpoint) handleFrameSend(w *bufio.Writer, env proto.Envelope) {
+	var cmd proto.CmdFrameSend
+	if len(env.Data) > 0 {
+		if err := json.Unmarshal(env.Data, &cmd); err != nil {
+			containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "bad payload")
+			return
+		}
+	}
+	source, ok := ep.resolveSource(cmd.Token)
+	if !ok {
+		containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "invalid token")
+		return
+	}
+	resp, err := ep.broker.Send(source, state.FrameID(cmd.TargetFrameID), cmd.Topic, cmd.Body, cmd.Priority)
+	if err != nil {
+		containerWriteProtoError(w, env.ReqID, err)
+		return
+	}
+	ep.writeResponse(w, env.ReqID, resp)
+}
+
+func (ep *containerEndpoint) handleFrameReply(w *bufio.Writer, env proto.Envelope) {
+	var cmd proto.CmdFrameReply
+	if len(env.Data) > 0 {
+		if err := json.Unmarshal(env.Data, &cmd); err != nil {
+			containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "bad payload")
+			return
+		}
+	}
+	source, ok := ep.resolveSource(cmd.Token)
+	if !ok {
+		containerWriteError(w, env.ReqID, proto.ErrInvalidArgument, "invalid token")
+		return
+	}
+	resp, err := ep.broker.Reply(source, cmd.MessageID, cmd.Body, cmd.FinalAnswer, cmd.Resolution, cmd.Confidence)
+	if err != nil {
+		containerWriteProtoError(w, env.ReqID, err)
+		return
+	}
+	ep.writeResponse(w, env.ReqID, resp)
 }
 
 // translatePayloadPaths rewrites known path fields in a hook payload from
@@ -316,7 +434,7 @@ func (r *Runtime) startContainerEndpointIfNeeded(project, sockPath string) {
 	if _, exists := r.containerEndpoints[project]; exists {
 		return
 	}
-	ep, err := startContainerEndpoint(sockPath, r.frameReg, r.Enqueue)
+	ep, err := startContainerEndpoint(sockPath, r.frameReg, r.Enqueue, r)
 	if err != nil {
 		slog.Error("runtime: container endpoint start failed", "project", project, "sock", sockPath, "err", err)
 		return
@@ -352,4 +470,13 @@ func containerWriteError(w *bufio.Writer, reqID string, code proto.ErrCode, msg 
 	_, _ = w.Write(wire)
 	_ = w.WriteByte('\n')
 	_ = w.Flush()
+}
+
+func containerWriteProtoError(w *bufio.Writer, reqID string, err error) {
+	var body *proto.ErrorBody
+	if errors.As(err, &body) {
+		containerWriteError(w, reqID, body.Code, body.Message)
+		return
+	}
+	containerWriteError(w, reqID, proto.ErrInternal, err.Error())
 }

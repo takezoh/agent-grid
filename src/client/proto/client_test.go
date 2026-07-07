@@ -200,6 +200,11 @@ func TestDecodeResponseByCommandHeuristics(t *testing.T) {
 			want: "RespDriverList",
 		},
 		{
+			name: "session-messages-empty",
+			data: mustMarshal(RespSessionMessages{SessionID: "s1", Summary: &FrameMessagingSummary{}, Messages: []SessionMessage{}}),
+			want: "RespSessionMessages",
+		},
+		{
 			name: "empty",
 			data: nil,
 			want: "RespOK",
@@ -240,6 +245,8 @@ func typeName(r Response) string {
 		return "RespSurfaceText"
 	case RespDriverList:
 		return "RespDriverList"
+	case RespSessionMessages:
+		return "RespSessionMessages"
 	}
 	return "unknown"
 }

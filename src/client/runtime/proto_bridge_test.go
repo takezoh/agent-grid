@@ -363,3 +363,30 @@ func TestBuildSessionMessagesIncludesReplyMetadataOnly(t *testing.T) {
 		t.Fatal("SessionMessage must not expose RawTranscript")
 	}
 }
+
+func TestBuildSessionMessages_EmptyStillIncludesSummary(t *testing.T) {
+	r := New(Config{Backend: newFakeBackend()})
+	r.state.Sessions = map[state.SessionID]state.Session{
+		"s1": {
+			ID: "s1",
+			FrameMessaging: &state.SessionFrameMessaging{
+				Summary: state.FrameMessagingSummary{},
+			},
+		},
+	}
+
+	resp := r.buildSessionMessages(state.SessionMessagesReply{SessionID: "s1"})
+	got, ok := resp.(proto.RespSessionMessages)
+	if !ok {
+		t.Fatalf("response = %T, want proto.RespSessionMessages", resp)
+	}
+	if got.Summary == nil {
+		t.Fatal("summary missing for empty inbox")
+	}
+	if got.Messages == nil {
+		t.Fatal("messages must be an empty slice")
+	}
+	if len(got.Messages) != 0 {
+		t.Fatalf("messages len = %d, want 0", len(got.Messages))
+	}
+}

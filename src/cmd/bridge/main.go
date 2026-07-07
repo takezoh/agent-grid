@@ -4,6 +4,8 @@
 //	event <type>          – agent hook (forwards CmdEvent / CmdHookEvent to daemon)
 //	host-exec <bin>       – PATH shim target (proxies stdio to host via SCM_RIGHTS)
 //	mcp-exec <alias>      – MCP proxy client (relays stdio to host MCP server via SCM_RIGHTS)
+//	agent-frames-mcp      – managed frame-messaging MCP server over AG_SOCKET_TOKEN
+//	codex-app-server-shim – injects managed dynamicTools in front of codex app-server
 //	secret-run run ...    – secret env-file resolver shim (impersonates "credproxy run")
 //	claude-setup-hooks    – register reactor as Claude Code's hook handler in
 //	                        the container's ~/.claude/settings.json
@@ -59,6 +61,10 @@ func main() {
 		err = runHostExec(rest)
 	case "mcp-exec":
 		err = runMCPExec(rest)
+	case "agent-frames-mcp":
+		err = runAgentFramesMCP(rest)
+	case "codex-app-server-shim":
+		err = runCodexAppServerShim(rest)
 	case "secret-run":
 		err = runSecretRun(rest)
 	case "sockbridge":
@@ -127,7 +133,7 @@ func runMCPExec(args []string) error {
 	}
 	uc := conn.(*net.UnixConn)
 
-	req := mcpproxy.Request{Alias: args[0]}
+	req := mcpproxy.Request{Alias: args[0], Token: os.Getenv("AG_SOCKET_TOKEN")}
 	fds := [3]int{int(os.Stdin.Fd()), int(os.Stdout.Fd()), int(os.Stderr.Fd())}
 	if err := mcpproxy.SendRequest(uc, req, fds); err != nil {
 		conn.Close()
@@ -294,6 +300,7 @@ Subcommands:
   event <type>               Send an event to the client daemon
   host-exec <bin>            Execute a host binary via the hostexec broker
   mcp-exec <alias>           Relay stdio to a host MCP server via the mcpproxy broker
+  codex-app-server-shim      Inject managed frame-messaging dynamicTools for Codex
   secret-run run --env-file  Resolve secret env-file and exec command (credproxy shim)
   sockbridge                 TCP↔unix socket bridge (fixed-socket; credproxy broker)
   claude-setup-hooks         Register reactor as Claude Code's hook handler

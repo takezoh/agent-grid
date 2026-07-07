@@ -159,6 +159,7 @@ type FrameMessageSnapshot struct {
 	TargetFrameID  string              `json:"target_frame_id"`
 	Topic          string              `json:"topic,omitempty"`
 	Body           string              `json:"body,omitempty"`
+	Priority       string              `json:"priority,omitempty"`
 	CreatedAt      string              `json:"created_at"`
 	Read           bool                `json:"read,omitempty"`
 	ReplyStatus    string              `json:"reply_status,omitempty"`
@@ -170,8 +171,10 @@ type FrameReplySnapshot struct {
 	ID                 string `json:"id"`
 	SourceFrameID      string `json:"source_frame_id"`
 	Body               string `json:"body,omitempty"`
+	FinalAnswer        string `json:"final_answer,omitempty"`
 	CreatedAt          string `json:"created_at"`
 	Resolution         string `json:"resolution,omitempty"`
+	Confidence         string `json:"confidence,omitempty"`
 	FinalAnswerPreview string `json:"final_answer_preview,omitempty"`
 }
 

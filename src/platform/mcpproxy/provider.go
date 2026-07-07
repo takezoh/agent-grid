@@ -1,7 +1,6 @@
 package mcpproxy
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,7 +10,9 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/takezoh/agent-grid/platform/appid"
 	"github.com/takezoh/agent-grid/platform/config"
+	"github.com/takezoh/agent-grid/platform/mcpoverlay"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 )
@@ -75,7 +76,9 @@ func (b *SpecBuilder) Routes() []credproxylib.Route { return nil }
 // .mcp.json overlay. Returns an empty Spec when no servers are configured.
 func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (container.Spec, error) {
 	cfg := b.cfgFor(projectPath)
-	if len(cfg.Servers) == 0 {
+	targets := b.workspaceTargets(projectPath)
+	servers := b.brokerServers(cfg)
+	if len(servers) == 0 && b.cfg.ContainerBinPath == "" {
 		return container.Spec{}, nil
 	}
 
@@ -84,25 +87,34 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 		return container.Spec{}, fmt.Errorf("mcpproxy: mkdir run dir: %w", err)
 	}
 
-	if err := b.ensureBroker(projectPath, projRunDir, cfg); err != nil {
-		return container.Spec{}, err
+	var mounts []string
+	if len(servers) > 0 {
+		if err := b.ensureBroker(projectPath, projRunDir, servers); err != nil {
+			return container.Spec{}, err
+		}
+		sockHostPath := filepath.Join(projRunDir, filepath.Base(b.cfg.ContainerSockPath))
+		mounts = append(mounts, fmt.Sprintf("type=bind,source=%s,target=%s", sockHostPath, b.cfg.ContainerSockPath))
 	}
 
-	sockHostPath := filepath.Join(projRunDir, filepath.Base(b.cfg.ContainerSockPath))
-	mounts := []string{
-		fmt.Sprintf("type=bind,source=%s,target=%s", sockHostPath, b.cfg.ContainerSockPath),
-	}
-
-	overlayMounts, err := b.overlayMounts(projRunDir, projectPath, cfg.Servers)
+	overlayMounts, err := b.overlayMounts(projRunDir, projectPath, targets, servers)
 	if err != nil {
 		return container.Spec{}, err
 	}
 	mounts = append(mounts, overlayMounts...)
 
-	return container.Spec{
-		Env:    map[string]string{"AG_MCP_SOCK": b.cfg.ContainerSockPath},
-		Mounts: mounts,
-	}, nil
+	spec := container.Spec{Mounts: mounts}
+	if len(servers) > 0 {
+		spec.Env = map[string]string{"AG_MCP_SOCK": b.cfg.ContainerSockPath}
+	}
+	return spec, nil
+}
+
+func (b *SpecBuilder) brokerServers(cfg config.MCPProxyConfig) map[string]config.MCPProxyServer {
+	out := make(map[string]config.MCPProxyServer, len(cfg.Servers)+1)
+	for alias, server := range cfg.Servers {
+		out[alias] = server
+	}
+	return out
 }
 
 // overlayMounts writes one merged .mcp.json per workspace target under projRunDir
@@ -110,8 +122,7 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 // not absolute are skipped with a warning rather than emitted — Docker rejects a
 // relative mount target, and a non-absolute value means a sentinel (e.g. the
 // shared-container key) leaked through unresolved.
-func (b *SpecBuilder) overlayMounts(projRunDir, projectKey string, servers map[string]config.MCPProxyServer) ([]string, error) {
-	targets := b.workspaceTargets(projectKey)
+func (b *SpecBuilder) overlayMounts(projRunDir, projectKey string, targets []WorkspaceTarget, servers map[string]config.MCPProxyServer) ([]string, error) {
 	mounts := make([]string, 0, len(targets))
 	for _, t := range targets {
 		if !filepath.IsAbs(t.ContainerWS) {
@@ -149,52 +160,40 @@ func mcpJSONFileName(containerWS string) string {
 // Entries not in servers pass through unchanged.
 // Skips the write when the file already contains identical content.
 func writeMCPJSON(path, projectMCPJSON string, servers map[string]config.MCPProxyServer, containerBin string) error {
-	// Start with the project's existing mcpServers entries (arbitrary JSON preserved).
-	merged := make(map[string]json.RawMessage)
-	if raw, err := os.ReadFile(projectMCPJSON); err == nil {
-		var doc struct {
-			MCPServers map[string]json.RawMessage `json:"mcpServers"`
-		}
-		if json.Unmarshal(raw, &doc) == nil {
-			for k, v := range doc.MCPServers {
-				merged[k] = v
-			}
-		}
-	}
-
-	// Override broker-managed aliases with shim entries.
-	type mcpEntry struct {
-		Type    string   `json:"type"`
-		Command string   `json:"command"`
-		Args    []string `json:"args"`
-	}
+	aliases := make(map[string]mcpoverlay.AliasEntry, len(servers)+1)
 	for alias := range servers {
-		shim, err := json.Marshal(mcpEntry{Type: "stdio", Command: containerBin, Args: []string{"mcp-exec", alias}})
+		shim, err := json.Marshal(map[string]any{
+			"type":    "stdio",
+			"command": containerBin,
+			"args":    []string{"mcp-exec", alias},
+		})
 		if err != nil {
 			return err
 		}
-		merged[alias] = shim
+		aliases[alias] = mcpoverlay.AliasEntry{Value: shim, Override: true}
 	}
-
-	data, err := json.MarshalIndent(map[string]any{"mcpServers": merged}, "", "  ")
-	if err != nil {
-		return err
+	if containerBin != "" {
+		entry, err := json.Marshal(map[string]any{
+			"type":    "stdio",
+			"command": containerBin,
+			"args":    []string{"agent-frames-mcp", "--sock", appid.ContainerSockFilePath},
+		})
+		if err != nil {
+			return err
+		}
+		aliases["agent_frames"] = mcpoverlay.AliasEntry{Value: entry}
 	}
-	data = append(data, '\n')
-	if existing, err := os.ReadFile(path); err == nil && bytes.Equal(existing, data) {
-		return nil
-	}
-	return os.WriteFile(path, data, 0o600)
+	return mcpoverlay.WriteJSON(path, projectMCPJSON, aliases)
 }
 
-func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, cfg config.MCPProxyConfig) error {
+func (b *SpecBuilder) ensureBroker(projectPath, projRunDir string, serversCfg map[string]config.MCPProxyServer) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if _, ok := b.brokers[projectPath]; ok {
 		return nil
 	}
 
-	servers, err := compileServers(cfg)
+	servers, err := compileServers(config.MCPProxyConfig{Servers: serversCfg})
 	if err != nil {
 		return err
 	}

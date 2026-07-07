@@ -356,7 +356,11 @@ func (r *Runtime) buildDriverList() proto.Response {
 func (r *Runtime) buildSessionMessages(b state.SessionMessagesReply) proto.Response {
 	sess, ok := r.state.Sessions[b.SessionID]
 	if !ok || sess.FrameMessaging == nil {
-		return proto.RespSessionMessages{SessionID: string(b.SessionID), Messages: []proto.SessionMessage{}}
+		return proto.RespSessionMessages{
+			SessionID: string(b.SessionID),
+			Summary:   &proto.FrameMessagingSummary{},
+			Messages:  []proto.SessionMessage{},
+		}
 	}
 	msgs := make([]proto.SessionMessage, 0, len(sess.FrameMessaging.Messages))
 	for _, msg := range sess.FrameMessaging.Messages {
@@ -373,13 +377,14 @@ func (r *Runtime) buildSessionMessages(b state.SessionMessagesReply) proto.Respo
 			DeliveryStatus: msg.DeliveryStatus,
 		}
 		if wire.ReplyStatus == "" {
-			if msg.Reply != nil && msg.Reply.Resolution != "" {
+			switch {
+			case msg.Reply != nil && msg.Reply.Resolution != "":
 				wire.ReplyStatus = msg.Reply.Resolution
-			} else if msg.Reply != nil {
+			case msg.Reply != nil:
 				wire.ReplyStatus = "replied"
-			} else if msg.DeliveryStatus != "" {
+			case msg.DeliveryStatus != "":
 				wire.ReplyStatus = msg.DeliveryStatus
-			} else {
+			default:
 				wire.ReplyStatus = "pending"
 			}
 		}
@@ -390,8 +395,10 @@ func (r *Runtime) buildSessionMessages(b state.SessionMessagesReply) proto.Respo
 				SourceFrameID:      string(msg.Reply.SourceFrameID),
 				Body:               msg.Reply.Body,
 				BodyPreview:        stateMessagePreview(msg.Reply.Body),
+				FinalAnswer:        msg.Reply.FinalAnswer,
 				CreatedAt:          msg.Reply.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 				Resolution:         msg.Reply.Resolution,
+				Confidence:         msg.Reply.Confidence,
 				FinalAnswerPreview: msg.Reply.FinalAnswerPreview,
 			}
 		}

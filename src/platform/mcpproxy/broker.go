@@ -79,10 +79,10 @@ func (b *broker) dispatch(req Request, fds [3]int) int {
 		os.NewFile(uintptr(fds[1]), "stdout").Close()
 		return 127
 	}
-	return b.runMCP(srv, fds)
+	return b.runMCP(req, srv, fds)
 }
 
-func (b *broker) runMCP(srv *serverEntry, fds [3]int) int {
+func (b *broker) runMCP(req Request, srv *serverEntry, fds [3]int) int {
 	containerStdin := os.NewFile(uintptr(fds[0]), "stdin")
 	containerStdout := os.NewFile(uintptr(fds[1]), "stdout")
 	containerStderr := os.NewFile(uintptr(fds[2]), "stderr")
@@ -90,7 +90,7 @@ func (b *broker) runMCP(srv *serverEntry, fds [3]int) int {
 	defer containerStdout.Close()
 	defer containerStderr.Close()
 
-	stdinW, stdoutR, cmd, err := b.startMCPProcess(srv, containerStderr)
+	stdinW, stdoutR, cmd, err := b.startMCPProcess(req, srv, containerStderr)
 	if err != nil {
 		return 1
 	}
@@ -116,7 +116,7 @@ func (b *broker) runMCP(srv *serverEntry, fds [3]int) int {
 
 // startMCPProcess creates pipes, starts the MCP host process, and returns the
 // write end of its stdin pipe and the read end of its stdout pipe.
-func (b *broker) startMCPProcess(srv *serverEntry, stderr *os.File) (*os.File, *os.File, *exec.Cmd, error) {
+func (b *broker) startMCPProcess(_ Request, srv *serverEntry, stderr *os.File) (*os.File, *os.File, *exec.Cmd, error) {
 	stdinR, stdinW, err := os.Pipe()
 	if err != nil {
 		fmt.Fprintf(stderr, "mcp-exec: pipe: %v\n", err)
@@ -131,7 +131,7 @@ func (b *broker) startMCPProcess(srv *serverEntry, stderr *os.File) (*os.File, *
 	}
 	// procgroup.Command puts the MCP host in its own process group so ctx
 	// cancellation SIGKILLs its descendants (npm/node-launched servers) too.
-	cmd := procgroup.Command(procgroup.Spec{Ctx: b.ctx, Bin: srv.command, Args: srv.args, Env: srv.env})
+	cmd := procgroup.Command(procgroup.Spec{Ctx: b.ctx, Bin: srv.command, Args: srv.args, Env: append([]string(nil), srv.env...)})
 	cmd.Stdin = stdinR
 	cmd.Stdout = stdoutW
 	cmd.Stderr = stderr

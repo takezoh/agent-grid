@@ -1,9 +1,6 @@
 package state
 
-import (
-	"strings"
-	"time"
-)
+import "time"
 
 // SessionFrameMessaging is the session-scoped durable messaging payload the
 // web surface reads. Phase 1 keeps the state intentionally minimal: the broker
@@ -28,6 +25,7 @@ type FrameMessage struct {
 	TargetFrameID  FrameID     `json:"target_frame_id"`
 	Topic          string      `json:"topic,omitempty"`
 	Body           string      `json:"body,omitempty"`
+	Priority       string      `json:"priority,omitempty"`
 	CreatedAt      time.Time   `json:"created_at"`
 	Read           bool        `json:"read,omitempty"`
 	ReplyStatus    string      `json:"reply_status,omitempty"`
@@ -39,8 +37,10 @@ type FrameReply struct {
 	ID                 string    `json:"id"`
 	SourceFrameID      FrameID   `json:"source_frame_id"`
 	Body               string    `json:"body,omitempty"`
+	FinalAnswer        string    `json:"final_answer,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 	Resolution         string    `json:"resolution,omitempty"`
+	Confidence         string    `json:"confidence,omitempty"`
 	FinalAnswerPreview string    `json:"final_answer_preview,omitempty"`
 }
 
@@ -60,6 +60,12 @@ func cloneSessionFrameMessaging(in *SessionFrameMessaging) *SessionFrameMessagin
 		}
 	}
 	return out
+}
+
+// CloneSessionFrameMessaging returns a deep copy suitable for runtime-side
+// broker mutations that must not alias prior state.
+func CloneSessionFrameMessaging(in *SessionFrameMessaging) *SessionFrameMessaging {
+	return cloneSessionFrameMessaging(in)
 }
 
 func markSessionMessagesReadThroughID(in *SessionFrameMessaging, lastReadMessageID string) (*SessionFrameMessaging, bool) {
@@ -95,12 +101,4 @@ func markSessionMessagesReadThroughID(in *SessionFrameMessaging, lastReadMessage
 	}
 	out.Summary.UnreadCount = unreadCount
 	return out, true
-}
-
-func messagePreview(body string) string {
-	body = strings.Join(strings.Fields(body), " ")
-	if len(body) <= 120 {
-		return body
-	}
-	return body[:117] + "..."
 }

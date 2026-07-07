@@ -184,6 +184,13 @@ type EffToolLogAppend struct {
 	Line      string
 }
 
+// EffFrameMessagingPersistRead appends read markers to the append-only
+// frame-messaging journal for messages newly marked read by the reducer.
+type EffFrameMessagingPersistRead struct {
+	SessionID  SessionID
+	MessageIDs []string
+}
+
 // === Reconciliation ===
 
 // EffReconcileWindows asks the runtime to compare the live backend
@@ -231,29 +238,30 @@ type EffStartJob struct {
 
 // === isEffect markers ===
 
-func (EffSpawnFrame) isEffect()               {}
-func (EffKillFrame) isEffect()                {}
-func (EffRegisterFrame) isEffect()            {}
-func (EffUnregisterFrame) isEffect()          {}
-func (EffSetSessionEnv) isEffect()            {}
-func (EffUnsetSessionEnv) isEffect()          {}
-func (EffReleaseFrameSandboxes) isEffect()    {}
-func (EffReleaseFrameSandbox) isEffect()      {}
-func (EffSendResponse) isEffect()             {}
-func (EffSendResponseSync) isEffect()         {}
-func (EffSendError) isEffect()                {}
-func (EffBroadcastSessionsChanged) isEffect() {}
-func (EffBroadcastEvent) isEffect()           {}
-func (EffCloseConn) isEffect()                {}
-func (EffPersistSnapshot) isEffect()          {}
-func (EffWatchFile) isEffect()                {}
-func (EffUnwatchFile) isEffect()              {}
-func (EffEventLogAppend) isEffect()           {}
-func (EffToolLogAppend) isEffect()            {}
-func (EffReconcileWindows) isEffect()         {}
-func (EffStartJob) isEffect()                 {}
-func (EffRecordNotification) isEffect()       {}
-func (EffSendFrameKeys) isEffect()            {}
+func (EffSpawnFrame) isEffect()                {}
+func (EffKillFrame) isEffect()                 {}
+func (EffRegisterFrame) isEffect()             {}
+func (EffUnregisterFrame) isEffect()           {}
+func (EffSetSessionEnv) isEffect()             {}
+func (EffUnsetSessionEnv) isEffect()           {}
+func (EffReleaseFrameSandboxes) isEffect()     {}
+func (EffReleaseFrameSandbox) isEffect()       {}
+func (EffSendResponse) isEffect()              {}
+func (EffSendResponseSync) isEffect()          {}
+func (EffSendError) isEffect()                 {}
+func (EffBroadcastSessionsChanged) isEffect()  {}
+func (EffBroadcastEvent) isEffect()            {}
+func (EffCloseConn) isEffect()                 {}
+func (EffPersistSnapshot) isEffect()           {}
+func (EffWatchFile) isEffect()                 {}
+func (EffUnwatchFile) isEffect()               {}
+func (EffEventLogAppend) isEffect()            {}
+func (EffToolLogAppend) isEffect()             {}
+func (EffFrameMessagingPersistRead) isEffect() {}
+func (EffReconcileWindows) isEffect()          {}
+func (EffStartJob) isEffect()                  {}
+func (EffRecordNotification) isEffect()        {}
+func (EffSendFrameKeys) isEffect()             {}
 
 // === Surface streaming (PR-2 reducer-only; runtime wires in PR-3) ===
 

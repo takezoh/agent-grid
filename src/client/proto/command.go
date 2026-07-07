@@ -16,10 +16,18 @@ type Command interface {
 // Command name constants — used by both Encode and Decode so a typo
 // breaks both ends symmetrically.
 const (
-	CmdNameSubscribe   = "subscribe"
-	CmdNameUnsubscribe = "unsubscribe"
-	CmdNameEvent       = "event"
-	CmdNameSubsystem   = "subsystem-event"
+	CmdNameSubscribe          = "subscribe"
+	CmdNameUnsubscribe        = "unsubscribe"
+	CmdNameEvent              = "event"
+	CmdNameSubsystem          = "subsystem-event"
+	CmdNameFrameList          = "frame-messaging.list"
+	CmdNameFrameRead          = "frame-messaging.read"
+	CmdNameFrameSend          = "frame-messaging.send"
+	CmdNameFrameReply         = "frame-messaging.reply"
+	CmdNameFrameListByThread  = "frame-messaging.list_by_thread"
+	CmdNameFrameReadByThread  = "frame-messaging.read_by_thread"
+	CmdNameFrameSendByThread  = "frame-messaging.send_by_thread"
+	CmdNameFrameReplyByThread = "frame-messaging.reply_by_thread"
 
 	// surface.* — frame I/O operations
 	CmdNameSurfaceReadText = "surface.read_text"
@@ -119,3 +127,96 @@ type CmdHookEvent struct {
 
 func (CmdHookEvent) isCommand()          {}
 func (CmdHookEvent) CommandName() string { return CmdNameHookEvent }
+
+// CmdFrameList lists same-session claude/codex frames visible to the source
+// frame identified by Token. Only the container endpoint accepts this command.
+type CmdFrameList struct {
+	Token string `json:"token"`
+}
+
+func (CmdFrameList) isCommand()          {}
+func (CmdFrameList) CommandName() string { return CmdNameFrameList }
+
+// CmdFrameRead reads same-session frame messages visible to the source frame.
+// Optional PeerFrameID narrows the result set to a specific conversation peer.
+type CmdFrameRead struct {
+	Token       string `json:"token"`
+	PeerFrameID string `json:"peer_frame_id,omitempty"`
+}
+
+func (CmdFrameRead) isCommand()          {}
+func (CmdFrameRead) CommandName() string { return CmdNameFrameRead }
+
+// CmdFrameSend stores an inbox message for a same-session target frame.
+type CmdFrameSend struct {
+	Token         string `json:"token"`
+	TargetFrameID string `json:"target_frame_id"`
+	Topic         string `json:"topic,omitempty"`
+	Body          string `json:"body"`
+	Priority      string `json:"priority,omitempty"`
+}
+
+func (CmdFrameSend) isCommand()          {}
+func (CmdFrameSend) CommandName() string { return CmdNameFrameSend }
+
+// CmdFrameReply appends a reply to an existing message.
+type CmdFrameReply struct {
+	Token       string `json:"token"`
+	MessageID   string `json:"message_id"`
+	Body        string `json:"body,omitempty"`
+	FinalAnswer string `json:"final_answer,omitempty"`
+	Resolution  string `json:"resolution,omitempty"`
+	Confidence  string `json:"confidence,omitempty"`
+}
+
+func (CmdFrameReply) isCommand()          {}
+func (CmdFrameReply) CommandName() string { return CmdNameFrameReply }
+
+// CmdFrameListByThread lists same-session claude/codex frames visible to the
+// frame bound to ThreadID. Accepted on the host IPC socket for managed helper
+// processes such as the Codex app-server shim.
+type CmdFrameListByThread struct {
+	SessionID string `json:"session_id"`
+	ThreadID  string `json:"thread_id"`
+}
+
+func (CmdFrameListByThread) isCommand()          {}
+func (CmdFrameListByThread) CommandName() string { return CmdNameFrameListByThread }
+
+// CmdFrameReadByThread reads frame messages visible to the frame bound to
+// ThreadID. Optional PeerFrameID narrows the result set.
+type CmdFrameReadByThread struct {
+	SessionID   string `json:"session_id"`
+	ThreadID    string `json:"thread_id"`
+	PeerFrameID string `json:"peer_frame_id,omitempty"`
+}
+
+func (CmdFrameReadByThread) isCommand()          {}
+func (CmdFrameReadByThread) CommandName() string { return CmdNameFrameReadByThread }
+
+// CmdFrameSendByThread stores an inbox message for the frame bound to ThreadID.
+type CmdFrameSendByThread struct {
+	SessionID     string `json:"session_id"`
+	ThreadID      string `json:"thread_id"`
+	TargetFrameID string `json:"target_frame_id"`
+	Topic         string `json:"topic,omitempty"`
+	Body          string `json:"body"`
+	Priority      string `json:"priority,omitempty"`
+}
+
+func (CmdFrameSendByThread) isCommand()          {}
+func (CmdFrameSendByThread) CommandName() string { return CmdNameFrameSendByThread }
+
+// CmdFrameReplyByThread appends a reply using the frame bound to ThreadID.
+type CmdFrameReplyByThread struct {
+	SessionID   string `json:"session_id"`
+	ThreadID    string `json:"thread_id"`
+	MessageID   string `json:"message_id"`
+	Body        string `json:"body,omitempty"`
+	FinalAnswer string `json:"final_answer,omitempty"`
+	Resolution  string `json:"resolution,omitempty"`
+	Confidence  string `json:"confidence,omitempty"`
+}
+
+func (CmdFrameReplyByThread) isCommand()          {}
+func (CmdFrameReplyByThread) CommandName() string { return CmdNameFrameReplyByThread }

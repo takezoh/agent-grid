@@ -25,7 +25,7 @@ func runMCPExec(args []string) error {
 	}
 	uc := conn.(*net.UnixConn)
 
-	req := mcpproxy.Request{Alias: args[0]}
+	req := mcpproxy.Request{Alias: args[0], Token: os.Getenv("AG_SOCKET_TOKEN")}
 	fds := [3]int{int(os.Stdin.Fd()), int(os.Stdout.Fd()), int(os.Stderr.Fd())}
 	if err := mcpproxy.SendRequest(uc, req, fds); err != nil {
 		conn.Close()

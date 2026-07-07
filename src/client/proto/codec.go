@@ -124,6 +124,30 @@ func DecodeCommand(env Envelope) (Command, error) {
 	case CmdNameHookEvent:
 		var c CmdHookEvent
 		return decodeInto(env.Data, &c)
+	case CmdNameFrameList:
+		var c CmdFrameList
+		return decodeInto(env.Data, &c)
+	case CmdNameFrameRead:
+		var c CmdFrameRead
+		return decodeInto(env.Data, &c)
+	case CmdNameFrameSend:
+		var c CmdFrameSend
+		return decodeInto(env.Data, &c)
+	case CmdNameFrameReply:
+		var c CmdFrameReply
+		return decodeInto(env.Data, &c)
+	case CmdNameFrameListByThread:
+		var c CmdFrameListByThread
+		return decodeInto(env.Data, &c)
+	case CmdNameFrameReadByThread:
+		var c CmdFrameReadByThread
+		return decodeInto(env.Data, &c)
+	case CmdNameFrameSendByThread:
+		var c CmdFrameSendByThread
+		return decodeInto(env.Data, &c)
+	case CmdNameFrameReplyByThread:
+		var c CmdFrameReplyByThread
+		return decodeInto(env.Data, &c)
 	}
 	return nil, fmt.Errorf("proto: unknown command: %q", env.Cmd)
 }
@@ -164,8 +188,21 @@ func DecodeResponseByCommand(env Envelope) (Response, error) {
 		return RespOK{}, nil
 	}
 	switch {
+	case has(probe, "reply"):
+		var r RespFrameReply
+		return decodeResponse(env.Data, &r)
+	case has(probe, "message"):
+		var r RespFrameSend
+		return decodeResponse(env.Data, &r)
+	case has(probe, "frames"):
+		var r RespFrameList
+		return decodeResponse(env.Data, &r)
 	case has(probe, "messages"):
-		var r RespSessionMessages
+		if has(probe, "summary") {
+			var r RespSessionMessages
+			return decodeResponse(env.Data, &r)
+		}
+		var r RespFrameRead
 		return decodeResponse(env.Data, &r)
 	case has(probe, "session_id"):
 		var r RespCreateSession

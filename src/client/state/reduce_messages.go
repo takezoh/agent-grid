@@ -45,12 +45,22 @@ func reduceReadSessionMessages(s State, connID ConnID, reqID string, p SessionMe
 	if !changed {
 		return s, []Effect{okResp(connID, reqID, nil)}
 	}
+	readIDs := make([]string, 0, len(nextFrameMessaging.Messages))
+	for i := range nextFrameMessaging.Messages {
+		if nextFrameMessaging.Messages[i].Read && !sess.FrameMessaging.Messages[i].Read {
+			readIDs = append(readIDs, nextFrameMessaging.Messages[i].ID)
+		}
+	}
 	s.Sessions = cloneSessions(s.Sessions)
 	sess.FrameMessaging = nextFrameMessaging
 	s.Sessions[sid] = sess
-	return s, []Effect{
+	effs := []Effect{
 		okResp(connID, reqID, nil),
 		EffPersistSnapshot{},
 		EffBroadcastSessionsChanged{},
 	}
+	if len(readIDs) > 0 {
+		effs = append(effs, EffFrameMessagingPersistRead{SessionID: sid, MessageIDs: readIDs})
+	}
+	return s, effs
 }

@@ -25,11 +25,14 @@ func TestWriteMCPJSON_noProject(t *testing.T) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.MCPServers) != 1 {
-		t.Fatalf("expected 1 server, got %d", len(doc.MCPServers))
+	if len(doc.MCPServers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(doc.MCPServers))
 	}
 	if _, ok := doc.MCPServers["obs"]; !ok {
 		t.Error("expected obs entry")
+	}
+	if _, ok := doc.MCPServers["agent_frames"]; !ok {
+		t.Error("expected managed agent_frames entry")
 	}
 }
 
@@ -52,8 +55,8 @@ func TestWriteMCPJSON_mergesProject(t *testing.T) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.MCPServers) != 2 {
-		t.Fatalf("expected 2 servers, got %d: %v", len(doc.MCPServers), doc.MCPServers)
+	if len(doc.MCPServers) != 3 {
+		t.Fatalf("expected 3 servers, got %d: %v", len(doc.MCPServers), doc.MCPServers)
 	}
 	if _, ok := doc.MCPServers["existing"]; !ok {
 		t.Error("project entry 'existing' should be preserved")
@@ -67,6 +70,19 @@ func TestWriteMCPJSON_mergesProject(t *testing.T) {
 	}
 	if obs.Command != "/bin/roost" {
 		t.Errorf("obs.command = %q, want shim /bin/roost", obs.Command)
+	}
+	var frames struct {
+		Command string   `json:"command"`
+		Args    []string `json:"args"`
+	}
+	if err := json.Unmarshal(doc.MCPServers["agent_frames"], &frames); err != nil {
+		t.Fatal(err)
+	}
+	if frames.Command != "/bin/roost" {
+		t.Fatalf("agent_frames.command = %q, want /bin/roost", frames.Command)
+	}
+	if len(frames.Args) != 3 || frames.Args[0] != "agent-frames-mcp" {
+		t.Fatalf("agent_frames.args = %v", frames.Args)
 	}
 }
 

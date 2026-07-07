@@ -152,3 +152,27 @@ func TestIPCDecodeUnknownCommandReturnsError(t *testing.T) {
 		t.Errorf("err = %+v", env.Error)
 	}
 }
+
+func TestIPCHookEventWithTokenAcceptedOnDirectSocket(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r, sock := startRuntimeWithIPC(t, ctx)
+	now := time.Now()
+	r.state.Sessions["s1"] = state.Session{
+		ID:        "s1",
+		Project:   "/repo",
+		CreatedAt: now,
+		Frames: []state.SessionFrame{
+			{ID: "f1", Project: "/repo", Command: "shell", CreatedAt: now, Driver: state.GetDriver("shell").NewState(now)},
+		},
+		HeadFrameID: "f1",
+		Driver:      state.GetDriver("shell").NewState(now),
+	}
+	r.registerFrameToken("f1", "tok-1")
+
+	c := dialClient(t, sock)
+	defer c.Close()
+	if err := c.SendHookEvent("tok-1", "SessionStart", time.Now(), json.RawMessage(`{"session_id":"abc"}`)); err != nil {
+		t.Fatalf("SendHookEvent: %v", err)
+	}
+}

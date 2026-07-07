@@ -178,7 +178,10 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 	if wrapped.Cleanup != nil {
 		r.storeFrameCleanup(frame.ID, wrapped.Cleanup)
 	}
-	if wrapResult.token != "" {
+	if wrapResult.token != "" && wrapped.ContainerSockDir == "" {
+		r.registerFrameToken(frame.ID, wrapResult.token)
+	}
+	if wrapResult.token != "" && wrapped.ContainerSockDir != "" {
 		r.registerContainerFrame(frame.ID, frame.Project, wrapped.ContainerSockDir, wrapResult.token, wrapped.Mounts)
 	}
 	return nil

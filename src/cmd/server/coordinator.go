@@ -396,10 +396,22 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 // peer daemons (primary vs. run-dev gateway) under distinct prefixes never
 // compete for the same docker container name.
 func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, resolver *platformconfig.SandboxResolver, projects platformconfig.ProjectsConfig, dataDir, sockPath, namePrefix string) (runtime.AgentLauncher, agentlaunch.Dispatcher, error) {
+	selfBin, err := os.Executable()
+	if err == nil {
+		if resolved, rerr := filepath.EvalSymlinks(selfBin); rerr == nil {
+			selfBin = resolved
+		}
+	} else {
+		selfBin = ""
+	}
 	newDispatcher := func() *agentlaunch.SandboxDispatcher {
 		return &agentlaunch.SandboxDispatcher{
 			Resolver: resolver,
-			Direct:   agentlaunch.DirectDispatcher{SockPath: sockPath},
+			Direct: agentlaunch.DirectDispatcher{
+				SockPath: sockPath,
+				SelfBin:  selfBin,
+				DataDir:  dataDir,
+			},
 		}
 	}
 	d := newDispatcher()

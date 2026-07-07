@@ -214,7 +214,12 @@ func buildToolProviders(
 		func(p string) config.HostExecConfig { return resolveSandbox(p).Proxy.HostExec },
 	)
 	mcp := mcpproxy.NewSpecBuilder(ctx,
-		mcpproxy.Config{RunBase: runBase, ContainerSockPath: paths.MCPSock, ContainerBinPath: paths.BinPath, WorkspaceTargetsFor: hooks.MCPWorkspaceTargets},
+		mcpproxy.Config{
+			RunBase:             runBase,
+			ContainerSockPath:   paths.MCPSock,
+			ContainerBinPath:    paths.BinPath,
+			WorkspaceTargetsFor: hooks.MCPWorkspaceTargets,
+		},
 		func(p string) config.MCPProxyConfig { return resolveSandbox(p).Proxy.MCPProxy },
 	)
 	se := secretenv.NewSpecBuilder(ctx,

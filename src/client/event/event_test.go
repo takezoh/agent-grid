@@ -1,10 +1,12 @@
 package event
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
 	"github.com/takezoh/agent-grid/platform/appid"
 )
 
@@ -172,5 +174,28 @@ func TestParseEventArgs(t *testing.T) {
 				t.Errorf("dir=%q want %q", gotDir, tc.wantDir)
 			}
 		})
+	}
+}
+
+func TestRewriteManagedClaudePayload_RewritesTranscriptPath(t *testing.T) {
+	t.Setenv(agentlaunch.ManagedClaudeOverlayHomeEnv, "/tmp/overlay-home")
+	t.Setenv(agentlaunch.ManagedClaudeRealHomeEnv, "/home/user")
+	out := rewriteManagedClaudePayload([]byte(`{"transcript_path":"/tmp/overlay-home/.claude/projects/p/s.jsonl","session_id":"x"}`))
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("unmarshal rewritten payload: %v", err)
+	}
+	if got := payload["transcript_path"]; got != "/home/user/.claude/projects/p/s.jsonl" {
+		t.Fatalf("transcript_path = %v, want rewritten real HOME path", got)
+	}
+}
+
+func TestRewriteManagedClaudePayload_IgnoresUnrelatedPayload(t *testing.T) {
+	t.Setenv(agentlaunch.ManagedClaudeOverlayHomeEnv, "/tmp/overlay-home")
+	t.Setenv(agentlaunch.ManagedClaudeRealHomeEnv, "/home/user")
+	in := []byte(`{"transcript_path":"/tmp/other-home/.claude/projects/p/s.jsonl"}`)
+	out := rewriteManagedClaudePayload(in)
+	if string(out) != string(in) {
+		t.Fatalf("payload changed unexpectedly: %s", out)
 	}
 }

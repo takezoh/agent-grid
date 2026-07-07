@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -35,6 +36,9 @@ type FactoryConfig struct {
 	// ReadTimeout overrides the per-request JSON-RPC timeout.  Zero uses the
 	// default (15 seconds).  Corresponds to the codex.read_timeout_ms config key.
 	ReadTimeout time.Duration
+	// HelperBinaryPath resolves helper binaries such as the bridge shim that
+	// fronts Codex app-server dynamicTools.
+	HelperBinaryPath func(name string) (string, error)
 	// Tracker records the app-server process-group pgids so a future boot can
 	// reap them if this daemon dies without a graceful Stop.
 	// Nil disables crash-path tracking (e.g. tests, non-Linux).
@@ -79,6 +83,14 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 	if err != nil {
 		return nil, "", fmt.Errorf("stream factory: resolve sock path: %w", err)
 	}
+	helperBin := ""
+	if f.cfg.HelperBinaryPath != nil {
+		if candidate, resolveErr := f.cfg.HelperBinaryPath("bridge"); resolveErr == nil {
+			if _, statErr := os.Stat(candidate); statErr == nil {
+				helperBin = candidate
+			}
+		}
+	}
 	b := New(
 		f.cfg.Runtime,
 		f.cfg.Dispatcher,
@@ -94,6 +106,10 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 		listen,
 		f.cfg.ReadTimeout,
 	)
+	b.helperBin = helperBin
+	if f.cfg.IsContainer != nil {
+		b.isContainer = f.cfg.IsContainer(project)
+	}
 	b.tracker = f.cfg.Tracker
 
 	f.mu.Lock()
@@ -111,6 +127,19 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 		return nil, "", err
 	}
 	return b, id, nil
+}
+
+func (f *Factory) FindFrameByThread(sessionID state.SessionID, threadID string) (state.FrameID, bool) {
+	f.mu.Lock()
+	b := f.backends[f.makeID(sessionID)]
+	f.mu.Unlock()
+	if b == nil {
+		return "", false
+	}
+	if frameID := b.FrameForThread(threadID); frameID != "" {
+		return frameID, true
+	}
+	return "", false
 }
 
 // Remove implements subsystem.Reaper. It stops the backend for the given

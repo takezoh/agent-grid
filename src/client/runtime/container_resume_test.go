@@ -38,7 +38,7 @@ func TestContainerResume_sessionIDSurvivesRegistrationWindow(t *testing.T) {
 		// Endpoint comes up only after the agent has already emitted its first
 		// hook — the registration window the spawn refactor opened.
 		time.Sleep(120 * time.Millisecond)
-		ep, err := startContainerEndpoint(sock, reg, func(ev state.Event) { evCh <- ev })
+		ep, err := startContainerEndpoint(sock, reg, func(ev state.Event) { evCh <- ev }, nil)
 		if err != nil {
 			epCh <- nil
 			return

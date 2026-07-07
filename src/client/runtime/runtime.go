@@ -179,6 +179,10 @@ type Runtime struct {
 	// ConnIDs. Nil when cfg.Backend does not implement SurfaceBackend.
 	terminalRelay *TerminalRelay
 
+	// appendFrameMessagingJSONL overrides JSONL appends for frame-messaging
+	// journals/audits in tests that need deterministic write failures.
+	appendFrameMessagingJSONL func(path string, record any) error
+
 	// internalDrops counts per-event-type drops from enqueueInternal so a future
 	// saturation incident can be attributed to a specific producer. Snapshot via
 	// InternalDropStats.
@@ -295,12 +299,13 @@ func (r *Runtime) registerSubsystemFactories() {
 	r.subsystemFactories = map[state.LaunchSubsystem]rsubsystem.Factory{
 		state.LaunchSubsystemCLI: clisubsystem.NewFactory(),
 		state.LaunchSubsystemStream: cstream.NewFactory(cstream.FactoryConfig{
-			Runtime:         r,
-			Dispatcher:      r.cfg.StreamDispatcher,
-			ResolveSockPath: r.resolveStreamListenPath,
-			IsContainer:     func(project string) bool { return launcher(r.cfg).IsContainer(project) },
-			ReadTimeout:     r.cfg.StreamReadTimeout,
-			Tracker:         r.pgidTracker,
+			Runtime:          r,
+			Dispatcher:       r.cfg.StreamDispatcher,
+			ResolveSockPath:  r.resolveStreamListenPath,
+			IsContainer:      func(project string) bool { return launcher(r.cfg).IsContainer(project) },
+			ReadTimeout:      r.cfg.StreamReadTimeout,
+			HelperBinaryPath: r.HelperBinaryPath,
+			Tracker:          r.pgidTracker,
 		}),
 	}
 }
@@ -641,6 +646,9 @@ func (r *Runtime) reconcilePersist(prev, next map[state.SessionID]state.Session,
 			removed = append(removed, string(id))
 			if err := r.cfg.Persist.Delete(string(id)); err != nil {
 				slog.Warn("runtime: persist delete failed", "id", id, "err", err)
+			}
+			if err := r.deleteFrameMessagingSession(id); err != nil {
+				slog.Warn("runtime: frame messaging delete failed", "id", id, "err", err)
 			}
 		}
 	}

@@ -10,6 +10,7 @@ import (
 // Request is the control message sent by the container-side mcp-exec client.
 type Request struct {
 	Alias string `json:"alias"`
+	Token string `json:"token,omitempty"`
 }
 
 // Response is returned by the broker after the MCP host process exits.

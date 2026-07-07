@@ -372,14 +372,15 @@ type StreamLaunchOptions struct {
 }
 
 type LaunchPlan struct {
-	Command   string
-	StartDir  string
-	Project   string          // canonical project root passed opaquely to the sandbox launcher
-	Sandbox   SandboxOverride // session-level sandbox mode, written by reducer before dispatch
-	Options   LaunchOptions
-	Subsystem LaunchSubsystem
-	Stream    StreamLaunchOptions
-	Stdin     []byte // content piped into the spawned command; nil = no stdin
+	Command               string
+	StartDir              string
+	Project               string          // canonical project root passed opaquely to the sandbox launcher
+	Sandbox               SandboxOverride // session-level sandbox mode, written by reducer before dispatch
+	Options               LaunchOptions
+	Subsystem             LaunchSubsystem
+	Stream                StreamLaunchOptions
+	ManagedFrameMessaging bool   // true when the launched process must receive a frame-scoped AG_SOCKET_TOKEN for agent_frames
+	Stdin                 []byte // content piped into the spawned command; nil = no stdin
 }
 
 type LaunchPreparer interface {

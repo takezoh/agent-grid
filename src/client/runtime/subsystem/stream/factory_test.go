@@ -141,3 +141,24 @@ func TestBackend_BindThreadRegistersMultipleFrameBindings(t *testing.T) {
 		t.Errorf("frameB → thread-b mapping lost after releasing A")
 	}
 }
+
+func TestFactory_FindFrameByThread_ScopesLookupToSession(t *testing.T) {
+	f := NewFactory(FactoryConfig{})
+
+	a := New(nil, nil, "stream:session:sess-a", "sess-a", "/workspace/a", "codex", nil, "", "", false, false, "/tmp/a.sock", 0)
+	a.frames["frame-a"] = &frameBinding{frameID: "frame-a", threadID: "shared-thread"}
+	a.threads["shared-thread"] = "frame-a"
+	f.backends["stream:session:sess-a"] = a
+
+	b := New(nil, nil, "stream:session:sess-b", "sess-b", "/workspace/b", "codex", nil, "", "", false, false, "/tmp/b.sock", 0)
+	b.frames["frame-b"] = &frameBinding{frameID: "frame-b", threadID: "shared-thread"}
+	b.threads["shared-thread"] = "frame-b"
+	f.backends["stream:session:sess-b"] = b
+
+	if got, ok := f.FindFrameByThread("sess-a", "shared-thread"); !ok || got != "frame-a" {
+		t.Fatalf("sess-a/shared-thread = %q ok=%v, want frame-a/true", got, ok)
+	}
+	if got, ok := f.FindFrameByThread("sess-b", "shared-thread"); !ok || got != "frame-b" {
+		t.Fatalf("sess-b/shared-thread = %q ok=%v, want frame-b/true", got, ok)
+	}
+}

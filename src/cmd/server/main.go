@@ -200,6 +200,8 @@ func runCommand(args []string, df *daemonFlagSet, stdout io.Writer) error {
 		return runHostExec(args[1:])
 	case "mcp-exec":
 		return runMCPExec(args[1:])
+	case "agent-frames-mcp":
+		return runAgentFramesMCP(args[1:])
 	}
 	return fmt.Errorf("unknown command: %s (run `%s help` for usage)", args[0], appid.ClientBin)
 }
@@ -236,5 +238,6 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s event <type>                 Send an event to a running daemon\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s host-exec <binary> [args...] Run a host binary via the hostexec broker\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s mcp-exec <alias>             Relay stdio to a host MCP server\n", appid.ClientBin)
+	fmt.Fprintf(w, "  %s agent-frames-mcp --sock <path>  Run the managed agent_frames MCP server\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s help                         Show this help message\n", appid.ClientBin)
 }

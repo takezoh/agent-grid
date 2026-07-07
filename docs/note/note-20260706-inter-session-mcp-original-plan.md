@@ -1,3 +1,44 @@
+---
+id: note-20260706-inter-session-mcp-original-plan
+kind: note
+title: Original inter-session MCP planning note
+status: draft
+created: '2026-07-06'
+tags:
+- mcp
+- frame-messaging
+- archive
+owners: []
+relations:
+- {type: references, target: spec-20260706-frame-messaging}
+- {type: references, target: adr-20260706-frame-messaging-daemon-broker}
+- {type: references, target: adr-20260706-frame-messaging-structured-response-sources}
+- {type: references, target: adr-20260706-frame-messaging-managed-tool-exposure}
+- {type: references, target: plan-20260706-frame-messaging}
+source_paths:
+- docs/specs/frame-messaging/spec.md
+- docs/specs/frame-messaging/plan.md
+- docs/adr/adr-20260706-frame-messaging-daemon-broker.md
+- docs/adr/adr-20260706-frame-messaging-structured-response-sources.md
+- docs/adr/adr-20260706-frame-messaging-managed-tool-exposure.md
+summary: docs/specs/frame-messaging へ昇格する前の inter-session MCP 旧 plan を履歴資料として保存する
+---
+
+# Original inter-session MCP planning note
+
+## Summary
+
+この note は `plans/inter-session-mcp.md` から `docs/specs/frame-messaging/` へ昇格する前の旧 plan を履歴資料として保存する。正本は `spec-20260706-frame-messaging`、`plan-20260706-frame-messaging`、および関連 ADR / task である。
+
+旧 plan に含まれていた設計判断のうち、将来の判断根拠として必要なものは次の ADR に分離済み。
+
+- `adr-20260706-frame-messaging-daemon-broker`
+- `adr-20260706-frame-messaging-structured-response-sources`
+- `adr-20260706-frame-messaging-managed-tool-exposure`
+
+## Archived Plan
+
+```markdown
 # Plan - Agent frame 間コミュニケーション MCP
 
 - **作成日**: 2026-06-29
@@ -888,3 +929,5 @@ MCP:
 ## 11. 未解決事項
 
 1. human approval の UX を既存 approval surface と統合するか。
+
+```

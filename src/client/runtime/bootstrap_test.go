@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -59,13 +61,22 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 	snaps := []SessionSnapshot{
 		{
 			ID: "s1",
-			Frames: []SessionFrameSnapshot{{
-				ID:      "f1",
-				Command: "generic",
-				DriverState: map[string]string{
-					"status": "running",
+			Frames: []SessionFrameSnapshot{
+				{
+					ID:      "f1",
+					Command: "generic",
+					DriverState: map[string]string{
+						"status": "running",
+					},
 				},
-			}},
+				{
+					ID:      "f2",
+					Command: "generic",
+					DriverState: map[string]string{
+						"status": "waiting",
+					},
+				},
+			},
 			FrameMessaging: &SessionFrameMessagingSnapshot{
 				Summary: FrameMessagingSummarySnapshot{
 					UnreadCount:          1,
@@ -108,18 +119,51 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 	persist.snaps = []SessionSnapshot{
 		{
 			ID: "s1",
-			Frames: []SessionFrameSnapshot{{
-				ID:      "f1",
-				Command: "generic",
-				DriverState: map[string]string{
-					"status": "running",
+			Frames: []SessionFrameSnapshot{
+				{
+					ID:      "f1",
+					Command: "generic",
+					DriverState: map[string]string{
+						"status": "running",
+					},
 				},
-			}},
+				{
+					ID:      "f2",
+					Command: "generic",
+					DriverState: map[string]string{
+						"status": "waiting",
+					},
+				},
+			},
 			FrameMessaging: &SessionFrameMessagingSnapshot{
 				Summary: FrameMessagingSummarySnapshot{
 					UnreadCount:          3,
 					LatestMessagePreview: "Warm",
 					PendingDeliveryCount: 1,
+				},
+				Messages: []FrameMessageSnapshot{
+					{
+						ID:            "m1",
+						SourceFrameID: "f2",
+						TargetFrameID: "f1",
+						Body:          "Warm one",
+						CreatedAt:     "2026-07-06T00:00:00Z",
+					},
+					{
+						ID:             "m2",
+						SourceFrameID:  "f2",
+						TargetFrameID:  "f1",
+						Body:           "Warm two",
+						CreatedAt:      "2026-07-06T00:01:00Z",
+						DeliveryStatus: "pending",
+					},
+					{
+						ID:            "m3",
+						SourceFrameID: "f2",
+						TargetFrameID: "f1",
+						Body:          "Warm",
+						CreatedAt:     "2026-07-06T00:02:00Z",
+					},
 				},
 			},
 		},
@@ -139,13 +183,29 @@ func TestLoadSnapshot_ColdStartConvertsRunningToWaiting(t *testing.T) {
 func TestLoadSnapshot_RestoresFrameMessagingReplyAndReadState(t *testing.T) {
 	persist := &snapLoader{snaps: []SessionSnapshot{{
 		ID: "s1",
-		Frames: []SessionFrameSnapshot{{
-			ID:      "f1",
-			Command: "generic",
-			DriverState: map[string]string{
-				"status": "waiting",
+		Frames: []SessionFrameSnapshot{
+			{
+				ID:      "f1",
+				Command: "generic",
+				DriverState: map[string]string{
+					"status": "waiting",
+				},
 			},
-		}},
+			{
+				ID:      "f2",
+				Command: "generic",
+				DriverState: map[string]string{
+					"status": "waiting",
+				},
+			},
+			{
+				ID:      "f3",
+				Command: "generic",
+				DriverState: map[string]string{
+					"status": "waiting",
+				},
+			},
+		},
 		FrameMessaging: &SessionFrameMessagingSnapshot{
 			Summary: FrameMessagingSummarySnapshot{
 				UnreadCount:          1,
@@ -216,6 +276,65 @@ func TestLoadSnapshot_RestoresFrameMessagingReplyAndReadState(t *testing.T) {
 	}
 	if got := s1.FrameMessaging.Messages[0].Reply.Resolution; got != "resolved" {
 		t.Fatalf("Resolution = %q, want resolved", got)
+	}
+}
+
+func TestLoadSnapshot_ColdStartFiltersGhostFrameMessages(t *testing.T) {
+	persist := &snapLoader{snaps: []SessionSnapshot{{
+		ID: "s1",
+		Frames: []SessionFrameSnapshot{
+			{
+				ID:      "f-live",
+				Command: "generic",
+				DriverState: map[string]string{
+					"status": "waiting",
+				},
+			},
+			{
+				ID:      "f-dead",
+				Command: "generic",
+				DriverState: map[string]string{
+					"status": "stopped",
+				},
+			},
+		},
+		FrameMessaging: &SessionFrameMessagingSnapshot{
+			Messages: []FrameMessageSnapshot{
+				{
+					ID:            "m-dead-src",
+					SourceFrameID: "f-dead",
+					TargetFrameID: "f-live",
+					Body:          "from dead frame",
+					CreatedAt:     "2026-07-06T00:00:00Z",
+				},
+				{
+					ID:            "m-dead-target",
+					SourceFrameID: "f-live",
+					TargetFrameID: "f-dead",
+					Body:          "to dead frame",
+					CreatedAt:     "2026-07-06T00:01:00Z",
+				},
+			},
+		},
+	}}}
+	r := New(Config{Persist: persist})
+
+	if err := r.LoadSnapshot(true); err != nil {
+		t.Fatalf("LoadSnapshot(true): %v", err)
+	}
+
+	s1 := r.state.Sessions["s1"]
+	if len(s1.Frames) != 1 || s1.Frames[0].ID != "f-live" {
+		t.Fatalf("restored frames = %+v, want only f-live", s1.Frames)
+	}
+	if s1.FrameMessaging == nil {
+		t.Fatal("FrameMessaging not restored")
+	}
+	if len(s1.FrameMessaging.Messages) != 0 {
+		t.Fatalf("messages len = %d, want 0 after ghost filtering", len(s1.FrameMessaging.Messages))
+	}
+	if s1.FrameMessaging.Summary.UnreadCount != 0 {
+		t.Fatalf("UnreadCount = %d, want 0", s1.FrameMessaging.Summary.UnreadCount)
 	}
 }
 
@@ -341,6 +460,33 @@ func TestLoadSnapshot_ColdStartDropsStoppedGenericFrame(t *testing.T) {
 	}
 	if _, ok := r.state.Sessions["generic-sess"]; ok {
 		t.Error("stopped generic frame (no durable state) must still be dropped on cold start")
+	}
+}
+
+func TestLoadSnapshot_ColdStartDropDeletesFrameMessagingStore(t *testing.T) {
+	dir := t.TempDir()
+	storeDir := filepath.Join(dir, "frame-messaging", "generic-sess")
+	if err := os.MkdirAll(storeDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(storeDir, "messages.jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	persist := &snapLoader{snaps: []SessionSnapshot{{
+		ID: "generic-sess",
+		Frames: []SessionFrameSnapshot{{
+			ID:          "f1",
+			Command:     "generic",
+			DriverState: map[string]string{"status": "stopped"},
+		}},
+	}}}
+	r := New(Config{Persist: persist, DataDir: dir})
+
+	if err := r.LoadSnapshot(true); err != nil {
+		t.Fatalf("LoadSnapshot(true): %v", err)
+	}
+	if _, err := os.Stat(storeDir); !os.IsNotExist(err) {
+		t.Fatalf("frame messaging store still exists, err=%v", err)
 	}
 }
 

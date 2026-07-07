@@ -19,6 +19,14 @@ func TestCommandNames(t *testing.T) {
 		{CmdSurfaceSendKey{}, CmdNameSurfaceSendKey},
 		{CmdDriverList{}, CmdNameDriverList},
 		{CmdHookEvent{}, CmdNameHookEvent},
+		{CmdFrameList{}, CmdNameFrameList},
+		{CmdFrameRead{}, CmdNameFrameRead},
+		{CmdFrameSend{}, CmdNameFrameSend},
+		{CmdFrameReply{}, CmdNameFrameReply},
+		{CmdFrameListByThread{}, CmdNameFrameListByThread},
+		{CmdFrameReadByThread{}, CmdNameFrameReadByThread},
+		{CmdFrameSendByThread{}, CmdNameFrameSendByThread},
+		{CmdFrameReplyByThread{}, CmdNameFrameReplyByThread},
 	}
 	for _, c := range cases {
 		if got := c.c.CommandName(); got != c.name {
@@ -51,6 +59,10 @@ func TestResponseInterface(t *testing.T) {
 	var _ Response = RespSessions{}
 	var _ Response = RespSurfaceText{}
 	var _ Response = RespDriverList{}
+	var _ Response = RespFrameList{}
+	var _ Response = RespFrameRead{}
+	var _ Response = RespFrameSend{}
+	var _ Response = RespFrameReply{}
 }
 
 func TestBaseName(t *testing.T) {

@@ -280,6 +280,14 @@ func BuildContainerOverlay(
 		mounts := append([]string{
 			fmt.Sprintf("type=bind,source=%s,target=%s", runDir, ContainerRunDir),
 		}, proxySpec.Mounts...)
+		targets := []mcpproxy.WorkspaceTarget{{HostRoot: projectPath, ContainerWS: resolveWorkspaceFallback(projectPath, dc.HostPathMountPrefix)}}
+		if plan.IsShared() {
+			targets = sharedMCPTargets(projects, dc.HostPathMountPrefix)
+		}
+		mounts, err = mergeManagedAgentFramesMounts(runDir, mounts, targets)
+		if err != nil {
+			return sandboxdc.SpecOverlay{}, fmt.Errorf("devcontainer: managed agent_frames overlay: %w", err)
+		}
 
 		postCreate := buildPostCreate(binPath, postCreateSubcmds, proxySpec.BridgeSpecs)
 

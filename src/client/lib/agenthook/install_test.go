@@ -449,6 +449,90 @@ func TestInstall_HookCmdRoundtripsThroughJSON(t *testing.T) {
 	}
 }
 
+func TestInstallMCPServers_RewritesOwnedManagedEntry(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	seed := map[string]any{
+		"mcpServers": map[string]any{
+			"agent_frames": map[string]any{
+				"type":    "stdio",
+				"command": "/old/bin/server",
+				"args":    []any{"agent-frames-mcp", "--sock", "/old/run/server.sock"},
+			},
+		},
+	}
+	raw, _ := json.MarshalIndent(seed, "", "  ")
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("write seed: %v", err)
+	}
+
+	changed, err := InstallMCPServers(path, []MCPServerEntry{{
+		Alias:             "agent_frames",
+		Type:              "stdio",
+		Command:           "/new/bin/server",
+		Args:              []string{"agent-frames-mcp", "--sock", "/new/run/server.sock"},
+		PreserveExisting:  true,
+		RewriteArgsPrefix: []string{"agent-frames-mcp", "--sock"},
+	}})
+	if err != nil {
+		t.Fatalf("InstallMCPServers: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected managed MCP entry rewrite")
+	}
+
+	settings := readSettings(t, path)
+	servers, _ := settings["mcpServers"].(map[string]any)
+	entry, _ := servers["agent_frames"].(map[string]any)
+	if got, _ := entry["command"].(string); got != "/new/bin/server" {
+		t.Fatalf("command = %q, want /new/bin/server", got)
+	}
+	args, _ := entry["args"].([]any)
+	if len(args) != 3 || args[2] != "/new/run/server.sock" {
+		t.Fatalf("args = %v, want updated socket path", args)
+	}
+}
+
+func TestInstallMCPServers_PreservesCustomAliasWhenPreserveExisting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	seed := map[string]any{
+		"mcpServers": map[string]any{
+			"agent_frames": map[string]any{
+				"type":    "stdio",
+				"command": "custom-agent-frames",
+				"args":    []any{"serve"},
+			},
+		},
+	}
+	raw, _ := json.MarshalIndent(seed, "", "  ")
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("write seed: %v", err)
+	}
+
+	changed, err := InstallMCPServers(path, []MCPServerEntry{{
+		Alias:             "agent_frames",
+		Type:              "stdio",
+		Command:           "/new/bin/server",
+		Args:              []string{"agent-frames-mcp", "--sock", "/new/run/server.sock"},
+		PreserveExisting:  true,
+		RewriteArgsPrefix: []string{"agent-frames-mcp", "--sock"},
+	}})
+	if err != nil {
+		t.Fatalf("InstallMCPServers: %v", err)
+	}
+	if changed {
+		t.Fatal("custom alias should be preserved")
+	}
+
+	settings := readSettings(t, path)
+	servers, _ := settings["mcpServers"].(map[string]any)
+	entry, _ := servers["agent_frames"].(map[string]any)
+	if got, _ := entry["command"].(string); got != "custom-agent-frames" {
+		t.Fatalf("command = %q, want custom-agent-frames", got)
+	}
+}
+
 func TestInstall_MalformedHooksFieldIsRepaired(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")

@@ -163,9 +163,9 @@ type internalSpawnComplete struct {
 	subsystemID      state.SubsystemID
 	sub              rsubsystem.Subsystem
 	cleanup          func() error
-	token            string         // empty for non-container frames
+	token            string         // empty when the frame exposes no frame-messaging authority
 	mounts           pathmap.Mounts // nil for non-container frames
-	containerSockDir string         // raw ContainerSockDir from WrappedLaunch; empty for non-container
+	containerSockDir string         // raw ContainerSockDir from WrappedLaunch; empty for host frames
 	bindResult       rsubsystem.BindResult
 }
 
@@ -190,6 +190,22 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 		e.drained <- r.quiesced()
 	case internalSpawnComplete:
 		r.handleSpawnComplete(e)
+	case internalFrameListRequest:
+		e.reply <- r.frameMessagingList(e.source)
+	case internalFrameReadRequest:
+		e.reply <- r.frameMessagingRead(e.source, e.peerFrameID)
+	case internalFrameSendRequest:
+		e.reply <- r.frameMessagingSend(e.source, e.targetFrameID, e.topic, e.body, e.priority)
+	case internalFrameReplyRequest:
+		e.reply <- r.frameMessagingReply(e.source, e.messageID, e.body, e.finalAnswer, e.resolution, e.confidence)
+	case internalFrameListByThreadRequest:
+		e.reply <- r.frameMessagingListByThread(e.sessionID, e.threadID)
+	case internalFrameReadByThreadRequest:
+		e.reply <- r.frameMessagingReadByThread(e.sessionID, e.threadID, e.peerFrameID)
+	case internalFrameSendByThreadRequest:
+		e.reply <- r.frameMessagingSendByThread(e.sessionID, e.threadID, e.targetFrameID, e.topic, e.body, e.priority)
+	case internalFrameReplyByThreadRequest:
+		e.reply <- r.frameMessagingReplyByThread(e.sessionID, e.threadID, e.messageID, e.body, e.finalAnswer, e.resolution, e.confidence)
 	case internalBroadcastSurface:
 		r.broadcastSurfaceFromInternal(e)
 	case internalSurfaceClosed:
@@ -254,15 +270,23 @@ func (r *Runtime) enqueueInternal(ev internalEvent) bool {
 // labels) and newInternalDropCounter (for the pre-populated counter map).
 // Keeping them as const makes the catalogue greppable.
 const (
-	internalEventConnOpen          = "conn-open"
-	internalEventConnClose         = "conn-close"
-	internalEventBroadcastWire     = "broadcast-wire"
-	internalEventBroadcastSurface  = "broadcast-surface"
-	internalEventSurfaceClosed     = "surface-closed"
-	internalEventSetRelay          = "set-relay"
-	internalEventStartRestoredTaps = "start-restored-taps"
-	internalEventSpawnComplete     = "spawn-complete"
-	internalEventUnknown           = "unknown"
+	internalEventConnOpen           = "conn-open"
+	internalEventConnClose          = "conn-close"
+	internalEventBroadcastWire      = "broadcast-wire"
+	internalEventBroadcastSurface   = "broadcast-surface"
+	internalEventSurfaceClosed      = "surface-closed"
+	internalEventSetRelay           = "set-relay"
+	internalEventStartRestoredTaps  = "start-restored-taps"
+	internalEventSpawnComplete      = "spawn-complete"
+	internalEventFrameList          = "frame-list"
+	internalEventFrameRead          = "frame-read"
+	internalEventFrameSend          = "frame-send"
+	internalEventFrameReply         = "frame-reply"
+	internalEventFrameListByThread  = "frame-list-by-thread"
+	internalEventFrameReadByThread  = "frame-read-by-thread"
+	internalEventFrameSendByThread  = "frame-send-by-thread"
+	internalEventFrameReplyByThread = "frame-reply-by-thread"
+	internalEventUnknown            = "unknown"
 )
 
 // internalEventName returns a short identifier for an internal event, used
@@ -285,6 +309,22 @@ func internalEventName(ev internalEvent) string {
 		return internalEventStartRestoredTaps
 	case internalSpawnComplete:
 		return internalEventSpawnComplete
+	case internalFrameListRequest:
+		return internalEventFrameList
+	case internalFrameReadRequest:
+		return internalEventFrameRead
+	case internalFrameSendRequest:
+		return internalEventFrameSend
+	case internalFrameReplyRequest:
+		return internalEventFrameReply
+	case internalFrameListByThreadRequest:
+		return internalEventFrameListByThread
+	case internalFrameReadByThreadRequest:
+		return internalEventFrameReadByThread
+	case internalFrameSendByThreadRequest:
+		return internalEventFrameSendByThread
+	case internalFrameReplyByThreadRequest:
+		return internalEventFrameReplyByThread
 	default:
 		return internalEventUnknown
 	}
@@ -308,6 +348,14 @@ func newInternalDropCounter() *internalDropCounter {
 		internalEventSetRelay,
 		internalEventStartRestoredTaps,
 		internalEventSpawnComplete,
+		internalEventFrameList,
+		internalEventFrameRead,
+		internalEventFrameSend,
+		internalEventFrameReply,
+		internalEventFrameListByThread,
+		internalEventFrameReadByThread,
+		internalEventFrameSendByThread,
+		internalEventFrameReplyByThread,
 		internalEventUnknown,
 	}
 	m := make(map[string]*atomic.Uint64, len(names))
@@ -397,6 +445,9 @@ func (r *Runtime) connReader(cc *ipcConn) {
 			r.sendErrorImmediate(cc, env.ReqID, proto.ErrInvalidArgument, err.Error())
 			continue
 		}
+		if r.handleDirectIPCCommand(cc, env.ReqID, cmd) {
+			continue
+		}
 		ev := commandToStateEvent(cc.id, env.ReqID, cmd)
 		if ev == nil {
 			r.sendErrorImmediate(cc, env.ReqID, proto.ErrUnsupported, "unknown command")
@@ -404,6 +455,105 @@ func (r *Runtime) connReader(cc *ipcConn) {
 		}
 		r.Enqueue(ev)
 	}
+}
+
+func (r *Runtime) handleDirectIPCCommand(cc *ipcConn, reqID string, cmd proto.Command) bool {
+	var (
+		resp proto.Response
+		err  error
+		ok   bool
+	)
+	switch c := cmd.(type) {
+	case proto.CmdHookEvent:
+		resp, err = r.directHookEvent(c.Token, c.Hook, c.Timestamp, c.Payload)
+		ok = true
+	case proto.CmdFrameList:
+		resp, err = r.directFrameList(c.Token)
+		ok = true
+	case proto.CmdFrameRead:
+		resp, err = r.directFrameRead(c.Token, state.FrameID(c.PeerFrameID))
+		ok = true
+	case proto.CmdFrameSend:
+		resp, err = r.directFrameSend(c.Token, state.FrameID(c.TargetFrameID), c.Topic, c.Body, c.Priority)
+		ok = true
+	case proto.CmdFrameReply:
+		resp, err = r.directFrameReply(c.Token, c.MessageID, c.Body, c.FinalAnswer, c.Resolution, c.Confidence)
+		ok = true
+	case proto.CmdFrameListByThread:
+		resp, err = r.ListByThread(state.SessionID(c.SessionID), c.ThreadID)
+		ok = true
+	case proto.CmdFrameReadByThread:
+		resp, err = r.ReadByThread(state.SessionID(c.SessionID), c.ThreadID, state.FrameID(c.PeerFrameID))
+		ok = true
+	case proto.CmdFrameSendByThread:
+		resp, err = r.SendByThread(state.SessionID(c.SessionID), c.ThreadID, state.FrameID(c.TargetFrameID), c.Topic, c.Body, c.Priority)
+		ok = true
+	case proto.CmdFrameReplyByThread:
+		resp, err = r.ReplyByThread(state.SessionID(c.SessionID), c.ThreadID, c.MessageID, c.Body, c.FinalAnswer, c.Resolution, c.Confidence)
+		ok = true
+	}
+	if !ok {
+		return false
+	}
+	if err != nil {
+		var body *proto.ErrorBody
+		if errors.As(err, &body) {
+			r.sendErrorImmediate(cc, reqID, body.Code, body.Message)
+			return true
+		}
+		r.sendErrorImmediate(cc, reqID, proto.ErrInternal, err.Error())
+		return true
+	}
+	wire, encErr := proto.EncodeResponse(reqID, resp)
+	if encErr != nil {
+		r.sendErrorImmediate(cc, reqID, proto.ErrInternal, encErr.Error())
+		return true
+	}
+	r.queueWire(cc, wire)
+	return true
+}
+
+func (r *Runtime) directFrameList(token string) (proto.Response, error) {
+	source, err := r.frameSourceForToken(token)
+	if err != nil {
+		return nil, err
+	}
+	return r.List(source)
+}
+
+func (r *Runtime) directFrameRead(token string, peer state.FrameID) (proto.Response, error) {
+	source, err := r.frameSourceForToken(token)
+	if err != nil {
+		return nil, err
+	}
+	return r.Read(source, peer)
+}
+
+func (r *Runtime) directFrameSend(token string, target state.FrameID, topic, body, priority string) (proto.Response, error) {
+	source, err := r.frameSourceForToken(token)
+	if err != nil {
+		return nil, err
+	}
+	return r.Send(source, target, topic, body, priority)
+}
+
+func (r *Runtime) directFrameReply(token, messageID, body, finalAnswer, resolution, confidence string) (proto.Response, error) {
+	source, err := r.frameSourceForToken(token)
+	if err != nil {
+		return nil, err
+	}
+	return r.Reply(source, messageID, body, finalAnswer, resolution, confidence)
+}
+
+func (r *Runtime) frameSourceForToken(token string) (state.FrameID, error) {
+	if token == "" {
+		return "", &proto.ErrorBody{Code: proto.ErrInvalidArgument, Message: "invalid token"}
+	}
+	source, ok := r.frameReg.Lookup(token)
+	if !ok {
+		return "", &proto.ErrorBody{Code: proto.ErrInvalidArgument, Message: "invalid token"}
+	}
+	return source, nil
 }
 
 // connWriter drains the outbox and writes wire bytes to the socket.
