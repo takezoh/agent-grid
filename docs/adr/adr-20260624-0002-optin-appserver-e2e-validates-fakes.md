@@ -20,6 +20,7 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
 - {type: referencedBy, target: component-20260704-platform-fakecodex}
+- {type: referencedBy, target: adr-20260707-fakevsreal-shim-inversion}
 source_paths:
 - src/client/runtime/subsystem/stream/
 decision_makers:
