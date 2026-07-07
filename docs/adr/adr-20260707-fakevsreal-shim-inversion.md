@@ -17,6 +17,7 @@ relations:
 - {type: references, target: spec-20260707-codexclient-jsonrpc-id-opaque}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
 - {type: references, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
+- {type: referencedBy, target: note-20260707-technical-jsonrpc-id-opacity}
 source_paths:
 - src/platform/agent/fakecodex/codex_real_cli_e2e_test.go
 - src/cmd/bridge/codex_app_server_shim.go

@@ -15,6 +15,7 @@ decision_makers:
 relations:
 - {type: partOf, target: plan-20260707-codexclient-jsonrpc-id-opaque}
 - {type: references, target: spec-20260707-codexclient-jsonrpc-id-opaque}
+- {type: referencedBy, target: note-20260707-technical-jsonrpc-id-opacity}
 source_paths:
 - src/platform/agent/codexclient/conn.go
 - src/platform/agent/codexclient/client.go
