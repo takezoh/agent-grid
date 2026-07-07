@@ -2,7 +2,7 @@
 id: plan-20260707-codexclient-jsonrpc-id-opaque
 kind: plan
 title: codexclient JSON-RPC id opaque forwarding plan
-status: draft
+status: active
 created: '2026-07-07'
 goal: codexclient.Conn の JSON-RPC id を bytes-preserving な opaque 値 (named type `codexclient.RequestID`)
   にし、shim が codex-cli 0.142.5 の string id を透過して initialize を成立させる SSOT 単一化と 3 点セット
@@ -75,6 +75,16 @@ relations:
 - {type: hasPart, target: adr-20260707-shim-bytes-preserving-id-proxy}
 - {type: hasPart, target: adr-20260707-codexclient-observability-log}
 - {type: hasPart, target: adr-20260707-fakevsreal-shim-inversion}
+- {type: hasPart, target: task-20260707-codexclient-ssot-t0}
+- {type: hasPart, target: task-20260707-codexclient-observability-log}
+- {type: hasPart, target: task-20260707-handler-follow-backend}
+- {type: hasPart, target: task-20260707-handler-follow-orchestrator}
+- {type: hasPart, target: task-20260707-handler-follow-claude-app-server}
+- {type: hasPart, target: task-20260707-fake-appserver-string-id}
+- {type: hasPart, target: task-20260707-fakecodex-string-id}
+- {type: hasPart, target: task-20260707-shim-2way-proxy}
+- {type: hasPart, target: task-20260707-fakevsreal-shim-inversion}
+- {type: hasPart, target: task-20260707-handler-follow-transcript}
 source_paths:
 - src/platform/agent/codexclient
 - src/cmd/bridge
@@ -85,6 +95,7 @@ source_paths:
 - src/cmd/claude-app-server
 summary: id を bytes-preserving な opaque 値にする SSOT 単一化と、shim proxy / fake × 2 / caller
   の追従、observability log、opt-in FakeVsReal 相乗り拡張を 5 milestone / 1 PR で行う実装計画
+updated: '2026-07-07'
 ---
 
 # Plan — codexclient JSON-RPC id opaque forwarding
@@ -198,3 +209,8 @@ log 出力先は既存の `slog.Default()` (もしくは Conn に注入された
 - 構造化 log の rate limit をこの PR で入れるか、後続 PR で扱うか (現状は付けない方針 = 事案発生頻度が低く rate limit の要求が薄いため)
 - Conn に logger を注入する I/F を追加するか、`slog.Default()` を直接使うか (NFR-002 の 500 行 target を優先し、後者を第一候補とする)
 - Handler I/F を破壊的に変更するタイミングで internal use 限定の型 alias を残すか (現状 alias は残さない方針 — DP-d3 A / 改善案 5 に整合)
+
+
+{% transition from="draft" to="active" date="2026-07-07" %}
+plan-impl 開始
+{% /transition %}
