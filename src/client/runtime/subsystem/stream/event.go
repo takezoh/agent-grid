@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
 	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 	codexschemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
 )
@@ -65,7 +66,7 @@ func (b *Backend) handleTurnStarted(raw json.RawMessage) {
 	})
 }
 
-func (b *Backend) handleRequest(id int64, method string, params json.RawMessage) {
+func (b *Backend) handleRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	switch method {
 	case codexschema.MethodItemCommandExecutionRequestApproval, codexschema.MethodItemFileChangeRequestApproval:
 		threadID := extractThreadID(params)

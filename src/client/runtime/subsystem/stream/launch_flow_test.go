@@ -131,7 +131,7 @@ type bindServer struct {
 
 func (s *bindServer) OnNotification(string, json.RawMessage) {}
 
-func (s *bindServer) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (s *bindServer) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	if method == codexschema.MethodThreadStart {
 		s.mu.Lock()
 		s.threadSeq++

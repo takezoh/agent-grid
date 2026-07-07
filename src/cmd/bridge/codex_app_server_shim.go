@@ -239,7 +239,7 @@ func (h shimDownstreamHandler) OnNotification(method string, params json.RawMess
 	_ = h.session.upstream.Notify(method, params)
 }
 
-func (h shimDownstreamHandler) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (h shimDownstreamHandler) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	if shouldInjectFrameMessagingTools(method) {
 		params = injectFrameMessagingDynamicTools(params)
 	}
@@ -267,7 +267,7 @@ func (h shimUpstreamHandler) OnNotification(method string, params json.RawMessag
 	_ = h.session.downstream.Notify(method, params)
 }
 
-func (h shimUpstreamHandler) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (h shimUpstreamHandler) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	if method == codexschema.MethodItemToolCall {
 		handled, reply, err := h.session.handleToolCall(params)
 		if err != nil {

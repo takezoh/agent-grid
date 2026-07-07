@@ -59,7 +59,7 @@ func (r *e2eRecorder) OnNotification(method string, params json.RawMessage) {
 	r.mu.Unlock()
 }
 
-func (r *e2eRecorder) OnServerRequest(_ int64, _ string, _ json.RawMessage) {}
+func (r *e2eRecorder) OnServerRequest(_ codexclient.RequestID, _ string, _ json.RawMessage) {}
 
 func startRealCodexAppServer(t *testing.T, bin, home, sock string, extra []string) func() {
 	t.Helper()

@@ -130,7 +130,7 @@ type cliObserver struct {
 func (o *cliObserver) OnNotification(method string, params json.RawMessage) {
 	fmt.Fprintf(o.stdout, "[EVENT] method=%s params=%s\n", method, string(params))
 }
-func (o *cliObserver) OnServerRequest(_ int64, method string, params json.RawMessage) {
+func (o *cliObserver) OnServerRequest(_ codexclient.RequestID, method string, params json.RawMessage) {
 	fmt.Fprintf(o.stdout, "[REQUEST] method=%s params=%s\n", method, string(params))
 }
 

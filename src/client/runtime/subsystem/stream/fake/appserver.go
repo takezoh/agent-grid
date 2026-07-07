@@ -372,7 +372,7 @@ func (s *serverConn) OnNotification(method string, params json.RawMessage) {
 	s.handleTurnStart(params)
 }
 
-func (s *serverConn) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (s *serverConn) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	s.app.recordRequest(method, params)
 	switch method {
 	case codexschema.MethodInitialize:

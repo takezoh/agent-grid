@@ -485,7 +485,7 @@ func (b *Backend) OnNotification(method string, params json.RawMessage) {
 }
 
 // OnServerRequest implements codexclient.Handler.
-func (b *Backend) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (b *Backend) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	b.handleRequest(id, method, params)
 }
 

@@ -209,7 +209,7 @@ const handlerJoinBudget = 500 * time.Millisecond
 // ---- codexclient.Handler ----
 
 // OnServerRequest replies to initialize / thread/start / thread/resume.
-func (s *Server) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (s *Server) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	s.mu.Lock()
 	srv := s.srv
 	s.mu.Unlock()

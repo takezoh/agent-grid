@@ -271,6 +271,50 @@ func TestInteractiveFlow_SettingsUpdatedBroadcastReachesDriverMetadata(t *testin
 	}
 }
 
+// TestInteractiveFlow_ThreadStatusChangedBroadcastReachesBackend pins the
+// wire-level dispatch of thread/status/changed (AC-007): a notification with
+// no `id` member must still decode and route to handleThreadStatusChanged
+// through the real Conn.Run loop after RequestID replaced the fixed-width
+// int64 id. Isolated from turn/started and turn/completed so the assertion is
+// specifically about the thread/status/changed → SubsystemTurnStarted path.
+func TestInteractiveFlow_ThreadStatusChangedBroadcastReachesBackend(t *testing.T) {
+	srv := fake.New(fake.Config{
+		Sock: filepath.Join(t.TempDir(), "fake-status.sock"),
+		TurnHandler: func(req fake.TurnRequest, emit fake.Emitter) {
+			_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
+				"threadId": req.ThreadID,
+				"status":   map[string]any{"type": "active", "activeFlags": []any{}},
+			})
+		},
+	})
+	if err := srv.Start(); err != nil {
+		t.Fatalf("fake.Start: %v", err)
+	}
+	t.Cleanup(srv.Stop)
+	b, rt := attachBackend(t, srv)
+
+	frameID := state.FrameID("frame-status")
+	if _, err := b.BindFrame(context.Background(), subsystem.BindRequest{
+		FrameID: frameID,
+		Plan:    state.LaunchPlan{StartDir: "/work"},
+	}); err != nil {
+		t.Fatalf("BindFrame: %v", err)
+	}
+
+	cli := fake.SpawnCLI(t, "--remote", "unix://"+srv.SockPath(), "--cd", "/work")
+	_ = cli.Ready(t, 3*time.Second)
+	cli.SendPrompt(t, "trigger status change")
+
+	waitForEvent(t, rt, 3*time.Second, func(evs []state.EvSubsystem) bool {
+		for _, e := range evs {
+			if e.FrameID == frameID && e.Kind == state.SubsystemTurnStarted {
+				return true
+			}
+		}
+		return false
+	}, "SubsystemTurnStarted from thread/status/changed")
+}
+
 func countFrameEvents(evs []state.EvSubsystem, frameID state.FrameID) int {
 	n := 0
 	for _, e := range evs {

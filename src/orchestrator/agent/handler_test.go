@@ -169,7 +169,7 @@ type toolCallServer struct {
 	replyErr string
 }
 
-func (s *toolCallServer) OnServerRequest(id int64, method string, _ json.RawMessage) {
+func (s *toolCallServer) OnServerRequest(id codexclient.RequestID, method string, _ json.RawMessage) {
 	switch method {
 	case codexschema.MethodInitialize:
 		_ = s.srv.Conn().Reply(id, map[string]any{})
@@ -343,7 +343,7 @@ type userInputRequiredServer struct {
 	done     chan struct{}
 }
 
-func (s *userInputRequiredServer) OnServerRequest(id int64, method string, _ json.RawMessage) {
+func (s *userInputRequiredServer) OnServerRequest(id codexclient.RequestID, method string, _ json.RawMessage) {
 	switch method {
 	case codexschema.MethodInitialize:
 		_ = s.srv.Conn().Reply(id, map[string]any{})

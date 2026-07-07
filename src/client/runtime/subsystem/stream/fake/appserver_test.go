@@ -30,7 +30,7 @@ func (r *recorderClient) OnNotification(method string, params json.RawMessage) {
 	defer r.mu.Unlock()
 	r.events = append(r.events, recordedEvent{Method: method, Params: append(json.RawMessage(nil), params...)})
 }
-func (r *recorderClient) OnServerRequest(int64, string, json.RawMessage) {}
+func (r *recorderClient) OnServerRequest(codexclient.RequestID, string, json.RawMessage) {}
 
 func (r *recorderClient) filter(method string) []recordedEvent {
 	r.mu.Lock()
@@ -346,6 +346,47 @@ func TestThreadResumeReloadsPreviouslyCreatedThread(t *testing.T) {
 	}
 	if resumed.RolloutPath == "" {
 		t.Fatalf("resume returned empty rollout path; RolloutDir=%s", dir)
+	}
+}
+
+// TestOnServerRequestEchoesOpaqueRequestIDBytes pins FR-007: serverConn's
+// Handler implementation must pass the wire "id" member through to Reply
+// verbatim rather than decoding it into a fixed int64, so a JSON string id
+// (and, separately, the historic decimal id) both round-trip as the exact
+// same bytes. Dials with the raw Transport (bypassing codexclient.Conn's own
+// request bookkeeping, which always mints decimal ids) so the id on the wire
+// is fully under the test's control.
+func TestOnServerRequestEchoesOpaqueRequestIDBytes(t *testing.T) {
+	srv := startFake(t, Config{})
+
+	tr, err := codexclient.DialUDS(srv.SockPath(), 3*time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = tr.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	for _, wireID := range []string{`"initialize"`, `42`} {
+		req := []byte(`{"jsonrpc":"2.0","id":` + wireID + `,"method":"initialize","params":{}}`)
+		if err := tr.WriteMessage(ctx, req); err != nil {
+			t.Fatalf("WriteMessage(id=%s): %v", wireID, err)
+		}
+
+		data, err := tr.ReadMessage(ctx)
+		if err != nil {
+			t.Fatalf("ReadMessage(id=%s): %v", wireID, err)
+		}
+		var resp struct {
+			ID json.RawMessage `json:"id"`
+		}
+		if err := json.Unmarshal(data, &resp); err != nil {
+			t.Fatalf("unmarshal reply(id=%s): %v", wireID, err)
+		}
+		if string(resp.ID) != wireID {
+			t.Fatalf("reply id = %s, want %s (echoed bytes must match request exactly)", resp.ID, wireID)
+		}
 	}
 }
 

@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
 	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
 
@@ -136,6 +139,166 @@ func TestCodexShimHandleToolCall_NonFrameToolPassesThrough(t *testing.T) {
 	}
 	if handled {
 		t.Fatalf("handled = true, reply = %+v; want pass-through", reply)
+	}
+}
+
+// pipeTransportPair wires two in-process transports back-to-back so a test
+// can play the role of one side of a codexclient.Conn while the shim owns
+// the other.
+func pipeTransportPair() (codexclient.Transport, codexclient.Transport) {
+	pr1, pw1 := io.Pipe()
+	pr2, pw2 := io.Pipe()
+	return codexclient.StdioTransport(pr1, pw2), codexclient.StdioTransport(pr2, pw1)
+}
+
+// wireEnvelope is a minimal JSON-RPC 2.0 envelope for tests to inspect/build
+// wire messages directly, preserving the "id" member's raw bytes rather than
+// decoding it into a fixed Go type.
+type wireEnvelope struct {
+	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method,omitempty"`
+	Params json.RawMessage `json:"params,omitempty"`
+	Result json.RawMessage `json:"result,omitempty"`
+}
+
+// newShimTestSession wires a codexShimSession's downstream/upstream Conns to
+// in-process transports, returning the peer-facing Transport halves so a
+// test can play the downstream CLI on one side and the real upstream
+// codex-app-server on the other. Call run(ctx) to start both read loops.
+func newShimTestSession(t *testing.T) (downstreamPeer, upstreamPeer codexclient.Transport, run func(ctx context.Context)) {
+	t.Helper()
+	downstreamSelf, downstreamPeerT := pipeTransportPair()
+	upstreamSelf, upstreamPeerT := pipeTransportPair()
+	session := &codexShimSession{
+		downstream: codexclient.NewConn(downstreamSelf, 5*time.Second),
+		upstream:   codexclient.NewConn(upstreamSelf, 5*time.Second),
+	}
+	run = func(ctx context.Context) {
+		go func() { _ = session.downstream.Run(ctx, shimDownstreamHandler{session: session}) }()
+		go func() { _ = session.upstream.Run(ctx, shimUpstreamHandler{session: session}) }()
+	}
+	return downstreamPeerT, upstreamPeerT, run
+}
+
+// TestCodexShimDownstreamToUpstream_PreservesStringIDBytes pins AC-001: a
+// downstream-initiated request (e.g. codex-cli's "initialize") carrying a
+// JSON string id must be forwarded upstream under a freshly minted numeric
+// id (the upstream Conn's own numbering), and the upstream reply must come
+// back to the downstream peer with the ORIGINAL string id bytes preserved
+// verbatim — not coerced to a number or renumbered — so codex-cli 0.142.5's
+// initialize round trip resolves instead of hitting its 10s timeout.
+func TestCodexShimDownstreamToUpstream_PreservesStringIDBytes(t *testing.T) {
+	downstreamPeer, upstreamPeer, run := newShimTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	run(ctx)
+
+	if err := downstreamPeer.WriteMessage(ctx, []byte(`{"id":"abc","method":"initialize","params":{}}`)); err != nil {
+		t.Fatalf("write downstream request: %v", err)
+	}
+
+	fwd, err := upstreamPeer.ReadMessage(ctx)
+	if err != nil {
+		t.Fatalf("read forwarded upstream request: %v", err)
+	}
+	var fwdEnv wireEnvelope
+	if err := json.Unmarshal(fwd, &fwdEnv); err != nil {
+		t.Fatalf("unmarshal forwarded request: %v", err)
+	}
+	if fwdEnv.Method != "initialize" {
+		t.Fatalf("forwarded method = %q, want initialize", fwdEnv.Method)
+	}
+	if _, err := strconv.ParseInt(string(fwdEnv.ID), 10, 64); err != nil {
+		t.Fatalf("forwarded id %s is not a freshly minted decimal numeric id: %v", fwdEnv.ID, err)
+	}
+
+	reply, err := json.Marshal(wireEnvelope{ID: fwdEnv.ID, Result: json.RawMessage(`{"ok":true}`)})
+	if err != nil {
+		t.Fatalf("marshal upstream reply: %v", err)
+	}
+	if err := upstreamPeer.WriteMessage(ctx, reply); err != nil {
+		t.Fatalf("write upstream reply: %v", err)
+	}
+
+	got, err := downstreamPeer.ReadMessage(ctx)
+	if err != nil {
+		t.Fatalf("read downstream reply: %v", err)
+	}
+	var gotEnv wireEnvelope
+	if err := json.Unmarshal(got, &gotEnv); err != nil {
+		t.Fatalf("unmarshal downstream reply: %v", err)
+	}
+	if string(gotEnv.ID) != `"abc"` {
+		t.Fatalf("downstream reply id = %s, want original string id bytes \"abc\" preserved verbatim", gotEnv.ID)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(gotEnv.Result, &result); err != nil {
+		t.Fatalf("unmarshal downstream reply result: %v", err)
+	}
+	if result["ok"] != true {
+		t.Fatalf("downstream reply result = %v, want ok=true", result)
+	}
+}
+
+// TestCodexShimUpstreamToDownstream_RenumbersAndEchoesID pins AC-004: an
+// upstream server-initiated request must be forwarded downstream under a
+// freshly minted numeric id (the downstream Conn's own numbering, distinct
+// from whatever id shape the real codex-app-server used), and the
+// downstream reply must be echoed back to the upstream peer under the
+// ORIGINAL upstream request id bytes.
+func TestCodexShimUpstreamToDownstream_RenumbersAndEchoesID(t *testing.T) {
+	downstreamPeer, upstreamPeer, run := newShimTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	run(ctx)
+
+	if err := upstreamPeer.WriteMessage(ctx, []byte(`{"id":7,"method":"session/request_permission","params":{"q":1}}`)); err != nil {
+		t.Fatalf("write upstream server-initiated request: %v", err)
+	}
+
+	fwd, err := downstreamPeer.ReadMessage(ctx)
+	if err != nil {
+		t.Fatalf("read forwarded downstream request: %v", err)
+	}
+	var fwdEnv wireEnvelope
+	if err := json.Unmarshal(fwd, &fwdEnv); err != nil {
+		t.Fatalf("unmarshal forwarded request: %v", err)
+	}
+	if fwdEnv.Method != "session/request_permission" {
+		t.Fatalf("forwarded method = %q, want session/request_permission", fwdEnv.Method)
+	}
+	if string(fwdEnv.ID) == "7" {
+		t.Fatalf("forwarded id = %s, want a freshly minted downstream numeric id, not the original upstream id 7", fwdEnv.ID)
+	}
+	if _, err := strconv.ParseInt(string(fwdEnv.ID), 10, 64); err != nil {
+		t.Fatalf("forwarded id %s is not a decimal numeric id: %v", fwdEnv.ID, err)
+	}
+
+	reply, err := json.Marshal(wireEnvelope{ID: fwdEnv.ID, Result: json.RawMessage(`{"granted":true}`)})
+	if err != nil {
+		t.Fatalf("marshal downstream reply: %v", err)
+	}
+	if err := downstreamPeer.WriteMessage(ctx, reply); err != nil {
+		t.Fatalf("write downstream reply: %v", err)
+	}
+
+	got, err := upstreamPeer.ReadMessage(ctx)
+	if err != nil {
+		t.Fatalf("read upstream reply: %v", err)
+	}
+	var gotEnv wireEnvelope
+	if err := json.Unmarshal(got, &gotEnv); err != nil {
+		t.Fatalf("unmarshal upstream reply: %v", err)
+	}
+	if string(gotEnv.ID) != "7" {
+		t.Fatalf("upstream reply id = %s, want original id bytes \"7\" echoed verbatim", gotEnv.ID)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(gotEnv.Result, &result); err != nil {
+		t.Fatalf("unmarshal upstream reply result: %v", err)
+	}
+	if result["granted"] != true {
+		t.Fatalf("upstream reply result = %v, want granted=true", result)
 	}
 }
 

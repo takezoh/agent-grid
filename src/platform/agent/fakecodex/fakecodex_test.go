@@ -51,7 +51,7 @@ func (r *notifRecorder) OnNotification(method string, params json.RawMessage) {
 	}{method, append(json.RawMessage(nil), params...)})
 	r.mu.Unlock()
 }
-func (r *notifRecorder) OnServerRequest(_ int64, _ string, _ json.RawMessage) {}
+func (r *notifRecorder) OnServerRequest(_ codexclient.RequestID, _ string, _ json.RawMessage) {}
 
 func (r *notifRecorder) methods() []string {
 	r.mu.Lock()
@@ -475,6 +475,53 @@ func TestServer_FailInit(t *testing.T) {
 	err := codexclient.Initialize(client)
 	if err == nil {
 		t.Fatalf("Initialize: want error, got nil")
+	}
+}
+
+// TestServer_StringIDRequestEchoesSameBytes pins FR-007: a request/id that
+// isn't the decimal-int64 shape codexclient.Conn.Request self-mints (a JSON
+// string id, as some real peers use) must still be accepted, and the reply
+// must echo the exact wire bytes of that id rather than reformat or drop it.
+// Writes/reads raw JSON-RPC frames directly (bypassing codexclient.Conn's
+// client-role Request, which only ever mints decimal ids) so the id shape is
+// under the test's control.
+func TestServer_StringIDRequestEchoesSameBytes(t *testing.T) {
+	s := New(Config{})
+	pr1, pw1 := io.Pipe()
+	pr2, pw2 := io.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop := s.Attach(ctx, pr2, pw1)
+	defer stop()
+
+	raw := codexclient.StdioTransport(pr1, pw2)
+
+	const wireID = `"req-abc-123"`
+	reqData, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      json.RawMessage(wireID),
+		"method":  codexschema.MethodInitialize,
+		"params":  map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	if err := raw.WriteMessage(ctx, reqData); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+
+	replyData, err := raw.ReadMessage(ctx)
+	if err != nil {
+		t.Fatalf("ReadMessage: %v", err)
+	}
+	var reply struct {
+		ID json.RawMessage `json:"id"`
+	}
+	if err := json.Unmarshal(replyData, &reply); err != nil {
+		t.Fatalf("unmarshal reply: %v", err)
+	}
+	if got := string(reply.ID); got != wireID {
+		t.Fatalf("reply id = %s, want %s (must echo request id bytes verbatim)", got, wireID)
 	}
 }
 

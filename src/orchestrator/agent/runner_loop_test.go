@@ -56,7 +56,7 @@ func (s *scriptedServer) OnNotification(method string, params json.RawMessage) {
 	s.runTurn()
 }
 
-func (s *scriptedServer) OnServerRequest(id int64, method string, _ json.RawMessage) {
+func (s *scriptedServer) OnServerRequest(id codexclient.RequestID, method string, _ json.RawMessage) {
 	switch method {
 	case codexschema.MethodInitialize:
 		_ = s.srv.Conn().Reply(id, map[string]any{})

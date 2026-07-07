@@ -163,7 +163,7 @@ func mapRateLimit(rl schemav2.AccountRateLimitsUpdatedNotificationRateLimits) me
 	return snap
 }
 
-func (h *turnHandler) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (h *turnHandler) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	switch method {
 	case codexschema.MethodItemCommandExecutionRequestApproval,
 		codexschema.MethodItemFileChangeRequestApproval:
@@ -178,7 +178,7 @@ func (h *turnHandler) OnServerRequest(id int64, method string, params json.RawMe
 }
 
 // SPEC §10.5: automated orchestration cannot provide user input; hard-fail the turn.
-func (h *turnHandler) handleUserInputRequired(id int64) {
+func (h *turnHandler) handleUserInputRequired(id codexclient.RequestID) {
 	_ = h.conn.ReplyError(id, "user input required: automated orchestration cannot provide user input")
 	if h.report != nil {
 		h.report(scheduler.CodexActivity{
@@ -193,7 +193,7 @@ func (h *turnHandler) handleUserInputRequired(id int64) {
 	}
 }
 
-func (h *turnHandler) handleToolCall(id int64, params json.RawMessage) {
+func (h *turnHandler) handleToolCall(id codexclient.RequestID, params json.RawMessage) {
 	var p toolCallParams
 	if err := json.Unmarshal(params, &p); err != nil {
 		_ = h.conn.ReplyError(id, "invalid tool call params")

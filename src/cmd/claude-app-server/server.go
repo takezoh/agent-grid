@@ -47,7 +47,7 @@ func newAppHandler(conn *codexclient.Conn, appCtx context.Context, launch claude
 	return h
 }
 
-func (h *appHandler) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (h *appHandler) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	switch method {
 	case codexschema.MethodInitialize:
 		h.writeMu.Lock()

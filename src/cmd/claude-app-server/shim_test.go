@@ -89,7 +89,8 @@ func (c *notificationCollector) OnNotification(method string, params json.RawMes
 	c.events = append(c.events, notifEvent{method, append([]byte{}, params...)})
 }
 
-func (c *notificationCollector) OnServerRequest(_ int64, _ string, _ json.RawMessage) {}
+func (c *notificationCollector) OnServerRequest(_ codexclient.RequestID, _ string, _ json.RawMessage) {
+}
 
 func (c *notificationCollector) received() []string {
 	c.mu.Lock()
@@ -693,8 +694,8 @@ func TestShim_ApprovalSandboxWarnLog(t *testing.T) {
 // nopHandler is a no-op codexclient.Handler used for drain goroutines.
 type nopHandler struct{}
 
-func (nopHandler) OnNotification(_ string, _ json.RawMessage)           {}
-func (nopHandler) OnServerRequest(_ int64, _ string, _ json.RawMessage) {}
+func (nopHandler) OnNotification(_ string, _ json.RawMessage)                           {}
+func (nopHandler) OnServerRequest(_ codexclient.RequestID, _ string, _ json.RawMessage) {}
 
 // newTestRunnerConn creates a turnRunner wired to a drained server for unit
 // tests that call runTurn directly (bypassing the full stdio stack).

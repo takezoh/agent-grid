@@ -150,7 +150,7 @@ func TestClient_Initialize(t *testing.T) {
 type initHandler struct{ conn *codexclient.Conn }
 
 func (h *initHandler) OnNotification(_ string, _ json.RawMessage) {}
-func (h *initHandler) OnServerRequest(id int64, _ string, _ json.RawMessage) {
+func (h *initHandler) OnServerRequest(id codexclient.RequestID, _ string, _ json.RawMessage) {
 	_ = h.conn.Reply(id, map[string]any{})
 }
 
@@ -238,7 +238,7 @@ func TestServer_EmitTokenUsage(t *testing.T) {
 type threadStartHandler struct{ conn *codexclient.Conn }
 
 func (h *threadStartHandler) OnNotification(_ string, _ json.RawMessage) {}
-func (h *threadStartHandler) OnServerRequest(id int64, method string, _ json.RawMessage) {
+func (h *threadStartHandler) OnServerRequest(id codexclient.RequestID, method string, _ json.RawMessage) {
 	if method == codexschema.MethodThreadStart {
 		_ = h.conn.Reply(id, map[string]any{"thread": map[string]any{"id": "th-42"}})
 	} else {
@@ -333,7 +333,7 @@ type turnStartHandler struct {
 }
 
 func (h *turnStartHandler) OnNotification(_ string, _ json.RawMessage) {}
-func (h *turnStartHandler) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (h *turnStartHandler) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	if method != codexschema.MethodTurnStart {
 		_ = h.conn.Reply(id, map[string]any{})
 		return

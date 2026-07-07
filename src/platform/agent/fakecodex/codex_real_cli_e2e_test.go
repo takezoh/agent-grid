@@ -4,9 +4,14 @@ package fakecodex
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/creack/pty"
 
 	"github.com/takezoh/agent-grid/platform/agent/codexclient"
@@ -90,7 +96,7 @@ func (r *realEventRecorder) OnNotification(method string, params json.RawMessage
 	r.mu.Unlock()
 }
 
-func (r *realEventRecorder) OnServerRequest(_ int64, method string, params json.RawMessage) {
+func (r *realEventRecorder) OnServerRequest(_ codexclient.RequestID, method string, params json.RawMessage) {
 	r.OnNotification("request:"+method, params)
 }
 
@@ -365,4 +371,319 @@ func formatCLIDebug(lines []string) string {
 		lines = lines[len(lines)-80:]
 	}
 	return fmt.Sprintf("%q", strings.Join(lines, "\n"))
+}
+
+// ---- shim-inverted driving (adr-20260707-fakevsreal-shim-inversion) ----
+//
+// Every harness above drives a real codex app-server from agent-grid's
+// client role. This section inverts that direction: real codex-cli 0.142.5
+// drives agent-grid's own shim surface (cmd/bridge/codex_app_server_shim.go)
+// as a `--remote` client, sending its "initialize" request under a JSON
+// string id — the direction in which that string id was observed silently
+// dropped (spec-20260707-codexclient-jsonrpc-id-opaque AC-005).
+//
+// codexShimSession/shimDownstreamHandler/shimUpstreamHandler live in package
+// main (cmd/bridge) and cannot be imported from this package, so this
+// rebuilds the same forward-and-preserve-the-id contract from codexclient's
+// exported Conn/RequestID primitives — the same primitives the real shim is
+// itself built on (see conn.go's RequestID doc comment). The upstream side
+// is an in-process fakecodex.Server rather than a second real binary, which
+// keeps this subtest hermetic and fast while still exercising the real
+// codex-cli 0.142.5 binary as the driving client (NFR-003: on failure,
+// suspect the shim/codexclient wiring below, not fakecodex).
+
+// shimInvertedListenerTransport adapts a coder/websocket connection accepted
+// on the shim-inverted listen socket to codexclient.Transport.
+type shimInvertedListenerTransport struct {
+	c  *websocket.Conn
+	mu sync.Mutex
+}
+
+func (t *shimInvertedListenerTransport) ReadMessage(ctx context.Context) ([]byte, error) {
+	_, data, err := t.c.Read(ctx)
+	return data, err
+}
+
+func (t *shimInvertedListenerTransport) WriteMessage(ctx context.Context, data []byte) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.c.Write(ctx, websocket.MessageText, data)
+}
+
+func (t *shimInvertedListenerTransport) Close() error { return t.c.CloseNow() }
+
+// wireIDEnvelope decodes just enough of a JSON-RPC 2.0 frame to observe its
+// "id" and "method" members without losing the id's raw wire bytes.
+type wireIDEnvelope struct {
+	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
+}
+
+// shimInvertedIDRecorder observes the raw wire bytes of real codex-cli's
+// "initialize" request and of the reply forwarded back to it, so the test
+// can assert the id round-trips byte-for-byte (AC-005) directly off the
+// wire, independent of codexclient.RequestID's own preserve-the-bytes
+// contract.
+type shimInvertedIDRecorder struct {
+	mu      sync.Mutex
+	reqID   json.RawMessage
+	replyID json.RawMessage
+	done    chan struct{}
+}
+
+func newShimInvertedIDRecorder() *shimInvertedIDRecorder {
+	return &shimInvertedIDRecorder{done: make(chan struct{})}
+}
+
+func (r *shimInvertedIDRecorder) observeInbound(raw []byte) {
+	var env wireIDEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil || env.Method != codexschema.MethodInitialize || len(env.ID) == 0 {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.reqID == nil {
+		r.reqID = append(json.RawMessage(nil), env.ID...)
+	}
+}
+
+func (r *shimInvertedIDRecorder) observeOutbound(raw []byte) {
+	var env wireIDEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil || env.Method != "" || len(env.ID) == 0 {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.reqID == nil || r.replyID != nil || !bytes.Equal(r.reqID, env.ID) {
+		return
+	}
+	r.replyID = append(json.RawMessage(nil), env.ID...)
+	close(r.done)
+}
+
+func (r *shimInvertedIDRecorder) snapshot() (reqID, replyID json.RawMessage) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.reqID, r.replyID
+}
+
+// shimInvertedErrSink collects errors surfaced by the shim-inverted harness's
+// background goroutines (the websocket accept loop, the downstream/upstream
+// Conn.Run loops, http.Server.Serve, and the downstream Reply/ReplyError/
+// Notify writes). Per NFR-003 a failure anywhere in this wiring must point
+// the reader at the shim/codexclient layer that broke rather than manifest
+// only as the top-level 30s rec.done timeout, so every call site that used to
+// discard its error with `_ =` now routes it here instead. Background
+// goroutines only ever call add (no *testing.T access), so it is safe for
+// them to keep running past the point the subtest body returns; reportTo is
+// called once, synchronously, from the subtest body itself.
+type shimInvertedErrSink struct {
+	mu   sync.Mutex
+	errs []string
+}
+
+func (s *shimInvertedErrSink) add(label string, err error) {
+	if err == nil || isBenignShimShutdown(err) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.errs = append(s.errs, fmt.Sprintf("%s: %v", label, err))
+}
+
+func (s *shimInvertedErrSink) reportTo(t *testing.T) {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.errs {
+		t.Errorf("shim-inverted harness error: %s", e)
+	}
+}
+
+// isBenignShimShutdown reports whether err is an expected consequence of
+// tearing the harness down (context cancellation, a closed pipe/socket,
+// http.ErrServerClosed) rather than a genuine failure in the wiring under
+// test.
+func isBenignShimShutdown(err error) bool {
+	switch {
+	case errors.Is(err, context.Canceled),
+		errors.Is(err, context.DeadlineExceeded),
+		errors.Is(err, io.EOF),
+		errors.Is(err, io.ErrClosedPipe),
+		errors.Is(err, net.ErrClosed),
+		errors.Is(err, http.ErrServerClosed):
+		return true
+	default:
+		return strings.Contains(err.Error(), "use of closed network connection")
+	}
+}
+
+// recordingTransport wraps a codexclient.Transport, feeding every inbound
+// read and outbound write to rec before passing the bytes through unchanged.
+type recordingTransport struct {
+	codexclient.Transport
+	rec *shimInvertedIDRecorder
+}
+
+func (t *recordingTransport) ReadMessage(ctx context.Context) ([]byte, error) {
+	data, err := t.Transport.ReadMessage(ctx)
+	if err == nil {
+		t.rec.observeInbound(data)
+	}
+	return data, err
+}
+
+func (t *recordingTransport) WriteMessage(ctx context.Context, data []byte) error {
+	t.rec.observeOutbound(data)
+	return t.Transport.WriteMessage(ctx, data)
+}
+
+// shimInvertedDownstreamHandler forwards a downstream (real codex-cli)
+// server-initiated request to the upstream (fakecodex) Conn and relays the
+// reply back under the ORIGINAL downstream request id — mirroring
+// cmd/bridge/codex_app_server_shim.go's shimDownstreamHandler, rebuilt here
+// from exported codexclient primitives only (package main is not
+// importable).
+type shimInvertedDownstreamHandler struct {
+	downstream *codexclient.Conn
+	upstream   *codexclient.Conn
+	errs       *shimInvertedErrSink
+}
+
+func (h shimInvertedDownstreamHandler) OnNotification(method string, params json.RawMessage) {
+	h.errs.add("upstream.Notify("+method+")", h.upstream.Notify(method, params))
+}
+
+func (h shimInvertedDownstreamHandler) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
+	result, err := h.upstream.Request(method, params)
+	if err != nil {
+		h.errs.add("downstream.ReplyError("+method+")", h.downstream.ReplyError(id, err.Error()))
+		return
+	}
+	h.errs.add("downstream.Reply("+method+")", h.downstream.Reply(id, result))
+}
+
+// shimInvertedUpstreamHandler is the fakecodex-facing side of the harness.
+// The initialize-only subtest here never drives fakecodex into emitting a
+// notification or a server-initiated request of its own — fakecodex only
+// ever replies to initialize/thread/start (see fakecodex.go's
+// OnServerRequest) before this subtest tears down — so this handler
+// intentionally has nothing to forward. It exists purely to keep the
+// upstream Conn's read loop (Conn.Run) running so replies to OUR requests
+// get dispatched out of the pending map.
+type shimInvertedUpstreamHandler struct{}
+
+func (shimInvertedUpstreamHandler) OnNotification(_ string, _ json.RawMessage) {}
+func (shimInvertedUpstreamHandler) OnServerRequest(_ codexclient.RequestID, _ string, _ json.RawMessage) {
+}
+
+// attachFakeUpstream wires an in-process fakecodex.Server as the shim's
+// upstream. Per adr-20260707-fakevsreal-shim-inversion, the fake stands in
+// for the real app-server on this side so the subtest stays hermetic while
+// real codex-cli 0.142.5 remains the actual driving client under test.
+func attachFakeUpstream(ctx context.Context, fake *Server, errs *shimInvertedErrSink) (upstream *codexclient.Conn, stop func()) {
+	pr1, pw1 := io.Pipe()
+	pr2, pw2 := io.Pipe()
+	stopFake := fake.Attach(ctx, pr2, pw1)
+	upstream = codexclient.NewConn(codexclient.StdioTransport(pr1, pw2), 30*time.Second)
+	go func() { errs.add("upstream.Run", upstream.Run(ctx, shimInvertedUpstreamHandler{})) }()
+	stop = func() {
+		stopFake()
+		_ = upstream.Close()
+	}
+	return upstream, stop
+}
+
+// startShimInvertedListener binds sock and, for every accepted downstream
+// (real codex-cli) connection, forwards requests to upstream so replies
+// preserve the caller's original id bytes verbatim.
+func startShimInvertedListener(t *testing.T, sock string, upstream *codexclient.Conn, rec *shimInvertedIDRecorder, errs *shimInvertedErrSink) func() {
+	t.Helper()
+	_ = os.Remove(sock)
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatalf("listen shim-inverted socket: %v", err)
+	}
+	httpSrv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			errs.add("websocket.Accept", err)
+			return
+		}
+		defer func() { _ = ws.CloseNow() }()
+		ws.SetReadLimit(-1)
+		downstream := codexclient.NewConn(&recordingTransport{
+			Transport: &shimInvertedListenerTransport{c: ws},
+			rec:       rec,
+		}, 30*time.Second)
+		errs.add("downstream.Run", downstream.Run(r.Context(), shimInvertedDownstreamHandler{downstream: downstream, upstream: upstream, errs: errs}))
+	})}
+	go func() { errs.add("httpSrv.Serve", httpSrv.Serve(ln)) }()
+	return func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = httpSrv.Shutdown(shutCtx)
+		_ = ln.Close()
+		_ = os.Remove(sock)
+	}
+}
+
+// TestE2E_ShimInvertedDriving pins adr-20260707-fakevsreal-shim-inversion.
+// Like every other test in this file it rides the existing AG_E2E_CODEX_BIN
+// gate (see e2eCodexBin in codex_appserver_e2e_test.go): unset, this test
+// t.Skip()s so normal `go test ./...` (no -tags e2e) never even builds this
+// file (AC-008); set to a real codex-cli 0.142.5 binary, it drives that
+// binary for real (AC-005). No new env var or build tag is introduced.
+func TestE2E_ShimInvertedDriving(t *testing.T) {
+	bin := e2eCodexBin(t) // gated on AG_E2E_CODEX_BIN
+
+	t.Run("shim_inverted_string_id_initialize", func(t *testing.T) {
+		home := clonedHomeWithCodex(t)
+		sock := filepath.Join(t.TempDir(), "codex-shim-inverted.sock")
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("getwd: %v", err)
+		}
+
+		// errs is reported first among these defers so it runs LAST (defers
+		// are LIFO): it is checked only after ctx/upstream/listener teardown
+		// has been kicked off, but the genuine round-trip already completed
+		// (or failed) earlier in the function body, so nothing substantive
+		// is missed.
+		errs := &shimInvertedErrSink{}
+		defer errs.reportTo(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		rec := newShimInvertedIDRecorder()
+		fake := New(Config{})
+		upstream, stopFake := attachFakeUpstream(ctx, fake, errs)
+		defer stopFake()
+
+		stopListener := startShimInvertedListener(t, sock, upstream, rec, errs)
+		defer stopListener()
+		e2etest.WaitForUnixSocketReady(t, sock, 10*time.Second)
+
+		cli := spawnRealRemoteCLI(t, bin, home, sock, cwd, nil, "")
+		defer cli.Close()
+
+		select {
+		case <-rec.done:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("shim never observed a completed initialize round trip driven by real codex-cli; cli output=%s", formatCLIDebug(cli.snapshot()))
+		}
+
+		reqID, replyID := rec.snapshot()
+		t.Logf("real codex-cli initialize id=%s shim-forwarded reply id=%s", reqID, replyID)
+		if len(reqID) == 0 {
+			t.Fatal("shim never observed real codex-cli's initialize request id")
+		}
+		if reqID[0] != '"' {
+			t.Fatalf("real codex-cli's initialize id = %s, want a JSON string id (the historically dropped shape)", reqID)
+		}
+		if !bytes.Equal(reqID, replyID) {
+			t.Fatalf("shim-forwarded initialize reply id = %s, want bytes-preserving match with request id %s", replyID, reqID)
+		}
+	})
 }

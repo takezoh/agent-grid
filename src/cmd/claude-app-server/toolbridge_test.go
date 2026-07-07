@@ -26,7 +26,7 @@ type mockOrchestrator struct {
 }
 
 func (m *mockOrchestrator) OnNotification(_ string, _ json.RawMessage) {}
-func (m *mockOrchestrator) OnServerRequest(id int64, method string, params json.RawMessage) {
+func (m *mockOrchestrator) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	if method != codexschema.MethodItemToolCall {
 		return
 	}
@@ -184,7 +184,7 @@ func TestToolBridge_OrchestratorError(t *testing.T) {
 type errorOrchestrator struct{ conn *codexclient.Conn }
 
 func (e *errorOrchestrator) OnNotification(_ string, _ json.RawMessage) {}
-func (e *errorOrchestrator) OnServerRequest(id int64, method string, _ json.RawMessage) {
+func (e *errorOrchestrator) OnServerRequest(id codexclient.RequestID, method string, _ json.RawMessage) {
 	if method == codexschema.MethodItemToolCall {
 		_ = e.conn.ReplyError(id, "tool execution failed")
 	}

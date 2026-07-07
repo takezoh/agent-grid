@@ -82,7 +82,7 @@ type startupFailServer struct {
 	killWriter func()
 }
 
-func (s *startupFailServer) OnServerRequest(id int64, method string, _ json.RawMessage) {
+func (s *startupFailServer) OnServerRequest(id codexclient.RequestID, method string, _ json.RawMessage) {
 	switch method {
 	case codexschema.MethodInitialize:
 		_ = s.srv.Conn().Reply(id, map[string]any{})
