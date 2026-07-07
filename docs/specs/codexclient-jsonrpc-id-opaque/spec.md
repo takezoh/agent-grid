@@ -2,7 +2,7 @@
 id: spec-20260707-codexclient-jsonrpc-id-opaque
 kind: spec
 title: codexclient JSON-RPC id opaque forwarding
-status: approved
+status: implemented
 created: '2026-07-07'
 tags:
 - codex
@@ -184,6 +184,8 @@ source_paths:
 - src/client/runtime/subsystem/stream/backend.go
 - src/orchestrator/agent/handler.go
 - src/cmd/claude-app-server
+- src/client/lib/codex/transcript
+- src/client/runtime/subsystem/stream
 summary: codexclient.Conn の JSON-RPC id を bytes-preserving な opaque 値として扱い、shim が任意
   id 型 (string / number / null) を透過して codex-cli 0.142.5 の initialize を transparent
   proxy する仕様
@@ -302,4 +304,9 @@ Conn.Run に invalid envelope (id=object / int64 overflow / method 空 + id=null
 
 {% transition from="draft" to="approved" date="2026-07-07" %}
 G1 通過
+{% /transition %}
+
+
+{% transition from="approved" to="implemented" date="2026-07-07" %}
+plan 完了
 {% /transition %}

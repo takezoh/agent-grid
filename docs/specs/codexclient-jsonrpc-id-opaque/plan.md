@@ -2,7 +2,7 @@
 id: plan-20260707-codexclient-jsonrpc-id-opaque
 kind: plan
 title: codexclient JSON-RPC id opaque forwarding plan
-status: active
+status: done
 created: '2026-07-07'
 goal: codexclient.Conn の JSON-RPC id を bytes-preserving な opaque 値 (named type `codexclient.RequestID`)
   にし、shim が codex-cli 0.142.5 の string id を透過して initialize を成立させる SSOT 単一化と 3 点セット
@@ -213,4 +213,9 @@ log 出力先は既存の `slog.Default()` (もしくは Conn に注入された
 
 {% transition from="draft" to="active" date="2026-07-07" %}
 plan-impl 開始
+{% /transition %}
+
+
+{% transition from="active" to="done" date="2026-07-07" %}
+全 task マージ・squash 完了
 {% /transition %}
