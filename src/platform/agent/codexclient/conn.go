@@ -30,6 +30,15 @@ const (
 	// nullIDLiteral is the wire representation of an explicit JSON "id":null
 	// member, as stored verbatim by RequestID.
 	nullIDLiteral = "null"
+
+	// InternalErrorCode is JSON-RPC 2.0's reserved code for server-side
+	// errors that the peer generated locally (a timeout, an internal
+	// invariant break) rather than forwarded from an upstream. It is the
+	// default fill for ReplyError, and for ReplyRPCError when the passed
+	// error is not an *RPCError. See
+	// docs/note/note-20260707-technical-jsonrpc-id-opacity.md for why
+	// bytes-preserving forwarding lives alongside this fallback.
+	InternalErrorCode = -32603
 )
 
 // RequestID is the JSON-RPC 2.0 "id" member, preserved as opaque wire bytes
@@ -114,6 +123,37 @@ func (m *rpcMessage) UnmarshalJSON(data []byte) error {
 	m.ID = &id
 	return nil
 }
+
+// RPCError is the typed error returned by Conn.Request when the peer
+// replied with a JSON-RPC 2.0 error response (as opposed to a local failure
+// like a transport read error or a request-side timeout).
+//
+// Data holds the peer's error object bytes verbatim — including code /
+// message / data as sent — so a proxy can bytes-preserve-forward the
+// upstream failure downstream via ReplyRPCError without stringify-and-
+// reparse loss. This is the error-object companion to the id-opacity SSOT
+// documented in docs/note/note-20260707-technical-jsonrpc-id-opacity.md:
+// the shim silently mangled inbound string ids until that fix, and it
+// silently synthesized outbound -32603 wraps for every real upstream
+// failure until this one.
+type RPCError struct {
+	Method string          // request method that failed
+	Data   json.RawMessage // peer's error object bytes, verbatim
+}
+
+// Error implements the error interface. The formatting mirrors what the
+// pre-typed-error Conn.Request used to return so log lines and existing
+// substring assertions ("codexclient: <method> error: ...") keep working.
+func (e *RPCError) Error() string {
+	return fmt.Sprintf("codexclient: %s error: %s", e.Method, string(e.Data))
+}
+
+// ErrorObject returns the peer's error object bytes, verbatim. Callers
+// forwarding upstream errors should hand these bytes to ReplyRPCError (or
+// pass the *RPCError itself) rather than re-encoding e.Error() through
+// ReplyError, which would collapse the upstream code/data to -32603 and
+// a formatted message.
+func (e *RPCError) ErrorObject() json.RawMessage { return e.Data }
 
 // Handler receives inbound messages dispatched by Conn.Run.
 type Handler interface {
@@ -231,7 +271,14 @@ func (c *Conn) Request(method string, params any) (json.RawMessage, error) {
 	select {
 	case msg := <-ch:
 		if len(msg.Error) > 0 && string(msg.Error) != "null" {
-			return msg.Result, fmt.Errorf("codexclient: %s error: %s", method, msg.Error)
+			// Preserve the peer's error object bytes verbatim so a proxy
+			// can bytes-forward via ReplyRPCError. errors.As(err,
+			// **RPCError) recovers the object; err.Error() keeps its
+			// historic "codexclient: <method> error: <json>" shape.
+			return msg.Result, &RPCError{
+				Method: method,
+				Data:   append(json.RawMessage(nil), msg.Error...),
+			}
 		}
 		return msg.Result, nil
 	case <-time.After(c.readTimeout):
@@ -252,9 +299,43 @@ func (c *Conn) Reply(id RequestID, result any) error {
 	return c.writeMsg(rpcMessage{ID: &id, Result: mustJSON(result)})
 }
 
-// ReplyError sends an error response to a server-initiated request.
+// ReplyError sends a JSON-RPC 2.0 error response to a server-initiated
+// request. The wire error object is always spec-compliant (v1 schema
+// JSONRPCErrorError requires "code" and "message"): code defaults to
+// InternalErrorCode (-32603) for locally-synthesized errors. Proxy sites
+// that want to bytes-forward an upstream JSON-RPC error object should use
+// ReplyRPCError, which preserves the upstream code / data verbatim.
 func (c *Conn) ReplyError(id RequestID, errMsg string) error {
-	return c.writeMsg(rpcMessage{ID: &id, Error: mustJSON(map[string]any{"message": errMsg})})
+	return c.writeMsg(rpcMessage{ID: &id, Error: internalErrorObject(errMsg)})
+}
+
+// ReplyRPCError forwards an error to a server-initiated request. If err is
+// (or wraps) an *RPCError — the case for any error returned by
+// Conn.Request when the peer replied with a JSON-RPC error — the peer's
+// error object bytes are echoed verbatim, preserving code / message / data
+// end-to-end. Otherwise (a local timeout, an I/O error, a shim-synthesized
+// error) it falls back to the ReplyError shape (code=-32603 + message).
+//
+// This is the error-object counterpart to bytes-preserving id forwarding
+// (see docs/note/note-20260707-technical-jsonrpc-id-opacity.md): together
+// they let a proxy relay peer↔peer JSON-RPC without losing either the
+// caller-chosen id shape or the responder's structured failure detail.
+func (c *Conn) ReplyRPCError(id RequestID, err error) error {
+	var rpcErr *RPCError
+	if errors.As(err, &rpcErr) && len(rpcErr.Data) > 0 {
+		return c.writeMsg(rpcMessage{ID: &id, Error: append(json.RawMessage(nil), rpcErr.Data...)})
+	}
+	return c.writeMsg(rpcMessage{ID: &id, Error: internalErrorObject(err.Error())})
+}
+
+// internalErrorObject builds a spec-compliant JSONRPCErrorError body with
+// InternalErrorCode. Shared by ReplyError and ReplyRPCError's fallback
+// path so the two never drift.
+func internalErrorObject(message string) json.RawMessage {
+	return mustJSON(map[string]any{
+		"code":    InternalErrorCode,
+		"message": message,
+	})
 }
 
 // Close tears down the underlying transport.

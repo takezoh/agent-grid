@@ -245,7 +245,15 @@ func (h shimDownstreamHandler) OnServerRequest(id codexclient.RequestID, method 
 	}
 	result, err := h.session.upstream.Request(method, params)
 	if err != nil {
-		_ = h.session.downstream.ReplyError(id, err.Error())
+		// ReplyRPCError bytes-preserves an upstream JSON-RPC error object
+		// end-to-end (code / message / data verbatim) and falls back to
+		// InternalErrorCode (-32603) for locally-synthesized errors (a
+		// timeout, transport failure). This is the error-object twin of
+		// bytes-preserving id forwarding — without it, an upstream
+		// -32602 "Invalid params" surfaces to codex-cli as an outbound
+		// object missing "code" and the whole reply fails to deserialize
+		// as JSONRPCMessage, taking the TUI bootstrap down.
+		_ = h.session.downstream.ReplyRPCError(id, err)
 		return
 	}
 	_ = h.session.downstream.Reply(id, result)
@@ -271,7 +279,10 @@ func (h shimUpstreamHandler) OnServerRequest(id codexclient.RequestID, method st
 	if method == codexschema.MethodItemToolCall {
 		handled, reply, err := h.session.handleToolCall(params)
 		if err != nil {
-			_ = h.session.upstream.ReplyError(id, err.Error())
+			// Locally-generated (frame-messaging tool) error — no
+			// upstream error object to preserve; ReplyRPCError's
+			// non-*RPCError branch fills in InternalErrorCode.
+			_ = h.session.upstream.ReplyRPCError(id, err)
 			return
 		}
 		if handled {
@@ -281,7 +292,11 @@ func (h shimUpstreamHandler) OnServerRequest(id codexclient.RequestID, method st
 	}
 	result, err := h.session.downstream.Request(method, params)
 	if err != nil {
-		_ = h.session.upstream.ReplyError(id, err.Error())
+		// downstream is the codex CLI; if it replied with a JSON-RPC
+		// error (e.g. approval decline), bytes-forward that object to
+		// the real app-server upstream so its structured code/data
+		// survive the proxy hop.
+		_ = h.session.upstream.ReplyRPCError(id, err)
 		return
 	}
 	_ = h.session.upstream.Reply(id, result)

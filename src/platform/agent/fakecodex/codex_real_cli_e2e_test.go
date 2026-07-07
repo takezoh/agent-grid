@@ -514,7 +514,16 @@ func isBenignShimShutdown(err error) bool {
 		errors.Is(err, http.ErrServerClosed):
 		return true
 	default:
-		return strings.Contains(err.Error(), "use of closed network connection")
+		s := err.Error()
+		// SIGKILL of the codex-cli subprocess at t.Cleanup drops the
+		// websocket abruptly and the accepting side's Read returns
+		// "connection reset by peer" as a syscall.ECONNRESET wrapping —
+		// not one of the sentinel errors above. This is race-dependent
+		// (whether the kernel delivers the RST before the CLI process
+		// finishes its own graceful close) and unrelated to what's under
+		// test, so it must count as a benign teardown artifact.
+		return strings.Contains(s, "use of closed network connection") ||
+			strings.Contains(s, "connection reset by peer")
 	}
 }
 
@@ -557,7 +566,15 @@ func (h shimInvertedDownstreamHandler) OnNotification(method string, params json
 func (h shimInvertedDownstreamHandler) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	result, err := h.upstream.Request(method, params)
 	if err != nil {
-		h.errs.add("downstream.ReplyError("+method+")", h.downstream.ReplyError(id, err.Error()))
+		// Mirror the real shim (cmd/bridge/codex_app_server_shim.go): use
+		// ReplyRPCError so upstream JSON-RPC error object bytes forward
+		// verbatim (code / message / data) and local synthesized errors
+		// still get a spec-compliant -32603 fill. Without this, the
+		// downstream (real codex-cli) rejects the reply as
+		// "invalid JSON-RPC: data did not match any variant of untagged
+		// enum JSONRPCMessage" because the error object lacks the
+		// required "code" field.
+		h.errs.add("downstream.ReplyRPCError("+method+")", h.downstream.ReplyRPCError(id, err))
 		return
 	}
 	h.errs.add("downstream.Reply("+method+")", h.downstream.Reply(id, result))
@@ -684,6 +701,96 @@ func TestE2E_ShimInvertedDriving(t *testing.T) {
 		}
 		if !bytes.Equal(reqID, replyID) {
 			t.Fatalf("shim-forwarded initialize reply id = %s, want bytes-preserving match with request id %s", replyID, reqID)
+		}
+	})
+
+	// shim_inverted_forwards_upstream_error pins the error-object
+	// bytes-preserving invariant that is the twin of the id-opacity SSOT
+	// (see docs/note/note-20260707-technical-jsonrpc-id-opacity.md). Before
+	// the fix, cmd/bridge/codex_app_server_shim.go's shimDownstreamHandler
+	// called ReplyError(id, err.Error()) on any upstream failure; the
+	// codexclient.ReplyError implementation in turn produced
+	// {"error":{"message":"..."}} without the "code" field required by
+	// codex-cli 0.142.5's JSONRPCErrorError schema, so any upstream failure
+	// during thread/start / initialize surfaced to real codex-cli as
+	// "sent invalid JSON-RPC: data did not match any variant of untagged
+	// enum JSONRPCMessage" and killed the TUI bootstrap. This subtest
+	// drives the fixed code path with fakecodex.FailInit=true: shim now
+	// uses ReplyRPCError (which bytes-preserves the peer's error object,
+	// or fills code=-32603 for local errors), and real codex-cli must
+	// receive a parseable JSON-RPC error rather than an envelope-shape
+	// rejection.
+	t.Run("shim_inverted_upstream_err", func(t *testing.T) {
+		home := clonedHomeWithCodex(t)
+		// t.TempDir() paths in this deeply-nested subtest exceed the
+		// 108-byte AF_UNIX sun_path limit; drop the socket in a short
+		// /tmp/ dir the test owns and cleans up.
+		sockDir, err := os.MkdirTemp("", "cxerr-")
+		if err != nil {
+			t.Fatalf("MkdirTemp: %v", err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+		sock := filepath.Join(sockDir, "s.sock")
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("getwd: %v", err)
+		}
+
+		errs := &shimInvertedErrSink{}
+		defer errs.reportTo(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		rec := newShimInvertedIDRecorder()
+		fake := New(Config{FailInit: true})
+		upstream, stopFake := attachFakeUpstream(ctx, fake, errs)
+		defer stopFake()
+
+		stopListener := startShimInvertedListener(t, sock, upstream, rec, errs)
+		defer stopListener()
+		e2etest.WaitForUnixSocketReady(t, sock, 10*time.Second)
+
+		cli := spawnRealRemoteCLI(t, bin, home, sock, cwd, nil, "")
+		defer cli.Close()
+
+		// codex-cli terminates quickly once it receives the initialize
+		// error reply, since --remote treats a rejected initialize as
+		// fatal. Wait for either the process to exit or a hard cap.
+		select {
+		case <-cli.wait:
+		case <-time.After(15 * time.Second):
+			t.Fatalf("codex-cli did not exit within 15s after upstream FailInit; output=%s", formatCLIDebug(cli.snapshot()))
+		}
+
+		out := strings.Join(cli.snapshot(), "\n")
+		// Regression signals — these substrings only appear in codex-cli
+		// output when it failed to deserialize a reply as JSONRPCMessage
+		// (the exact pre-fix failure mode: {"error":{"message":"..."}}
+		// without the required "code" field). A spec-compliant reply is
+		// parsed cleanly and codex-cli surfaces the app-level failure
+		// instead (its own "failed to connect to remote app server" line
+		// on init rejection). Their absence pins the fix.
+		regressionSignals := []string{
+			"invalid JSON-RPC",
+			"did not match any variant",
+			"JSONRPCMessage",
+		}
+		for _, s := range regressionSignals {
+			if strings.Contains(out, s) {
+				t.Fatalf("codex-cli reported %q — shim reply failed JSON-RPC envelope parsing; output=%s", s, formatCLIDebug(cli.snapshot()))
+			}
+		}
+		// Positive-liveness signal: codex-cli must have reached its own
+		// initialize-failure branch (not hung at the transport layer),
+		// meaning our reply arrived and parsed. codex-cli 0.142.5's TUI
+		// surfaces this as "failed to connect to remote app server" or
+		// similar; matching just "remote app server" keeps the assertion
+		// robust to phrasing tweaks across patch versions while still
+		// distinguishing "codex-cli got a reply and hard-failed init"
+		// from "codex-cli never received a parseable reply".
+		if !strings.Contains(out, "remote app server") {
+			t.Fatalf("codex-cli output has no app-server reaction line; either the shim never delivered a reply or the failure mode changed; output=%s", formatCLIDebug(cli.snapshot()))
 		}
 	})
 }
