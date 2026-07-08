@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -15,6 +16,8 @@ import (
 	"github.com/takezoh/agent-grid/platform/agent/codexclient"
 	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
+
+var responsesDynamicToolNameRE = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 func TestInjectFrameMessagingDynamicTools(t *testing.T) {
 	raw := injectFrameMessagingDynamicTools(json.RawMessage(`{"cwd":"/ws","dynamicTools":[{"name":"existing","inputSchema":{"type":"object"}}]}`))
@@ -38,13 +41,87 @@ func TestInjectFrameMessagingDynamicTools(t *testing.T) {
 		name, _ := m["name"].(string)
 		names[name] = true
 	}
-	for _, want := range []string{"existing", "agent_frames.list", "agent_frames.read", "agent_frames.send_message", "agent_frames.reply"} {
+	for _, want := range []string{"existing", "agent_frames_list", "agent_frames_read", "agent_frames_send_message", "agent_frames_reply"} {
 		if !names[want] {
 			t.Fatalf("missing tool %q", want)
 		}
 	}
 	if names["agent_frames.deliver_prompt"] {
 		t.Fatal("deliver_prompt must not be injected")
+	}
+}
+
+func TestCodexShimDownstreamThreadStart_InjectsResponsesCompatibleDynamicToolNames(t *testing.T) {
+	downstreamPeer, upstreamPeer, run := newShimTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	run(ctx)
+
+	req := `{"id":"thread-start","method":"thread/start","params":{"cwd":"/ws","dynamicTools":[{"name":"existing_tool","inputSchema":{"type":"object"}}]}}`
+	if err := downstreamPeer.WriteMessage(ctx, []byte(req)); err != nil {
+		t.Fatalf("write downstream thread/start: %v", err)
+	}
+
+	fwd, err := upstreamPeer.ReadMessage(ctx)
+	if err != nil {
+		t.Fatalf("read forwarded upstream request: %v", err)
+	}
+	var env wireEnvelope
+	if err := json.Unmarshal(fwd, &env); err != nil {
+		t.Fatalf("unmarshal forwarded request: %v", err)
+	}
+	if env.Method != codexschema.MethodThreadStart {
+		t.Fatalf("forwarded method = %q, want %q", env.Method, codexschema.MethodThreadStart)
+	}
+	var params struct {
+		DynamicTools []struct {
+			Name string `json:"name"`
+		} `json:"dynamicTools"`
+	}
+	if err := json.Unmarshal(env.Params, &params); err != nil {
+		t.Fatalf("unmarshal forwarded params: %v", err)
+	}
+	if len(params.DynamicTools) != 5 {
+		t.Fatalf("dynamicTools count = %d, want 5", len(params.DynamicTools))
+	}
+	names := map[string]bool{}
+	for _, tool := range params.DynamicTools {
+		names[tool.Name] = true
+		if !responsesDynamicToolNameRE.MatchString(tool.Name) {
+			t.Fatalf("dynamic tool name %q violates Responses API regex", tool.Name)
+		}
+	}
+	for _, want := range []string{
+		"existing_tool",
+		"agent_frames_list",
+		"agent_frames_read",
+		"agent_frames_send_message",
+		"agent_frames_reply",
+	} {
+		if !names[want] {
+			t.Fatalf("missing injected tool %q", want)
+		}
+	}
+	for _, forbidden := range []string{
+		"agent_frames.list",
+		"agent_frames.read",
+		"agent_frames.send_message",
+		"agent_frames.reply",
+	} {
+		if names[forbidden] {
+			t.Fatalf("canonical MCP tool name %q leaked into forwarded thread/start", forbidden)
+		}
+	}
+
+	reply, err := json.Marshal(wireEnvelope{ID: env.ID, Result: json.RawMessage(`{"threadId":"thread-1","sessionId":"thread-1","path":"/tmp/thread-1"}`)})
+	if err != nil {
+		t.Fatalf("marshal upstream reply: %v", err)
+	}
+	if err := upstreamPeer.WriteMessage(ctx, reply); err != nil {
+		t.Fatalf("write upstream reply: %v", err)
+	}
+	if _, err := downstreamPeer.ReadMessage(ctx); err != nil {
+		t.Fatalf("read downstream reply: %v", err)
 	}
 }
 
@@ -92,10 +169,10 @@ func TestCodexShimHandleToolCall_UsesThreadScopedDaemonCommands(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{"list", `{"tool":"agent_frames.list","threadId":"thread-1","arguments":{}}`},
-		{"read", `{"tool":"agent_frames.read","threadId":"thread-1","arguments":{"peerFrameId":"frame-2"}}`},
-		{"send", `{"tool":"agent_frames.send_message","threadId":"thread-1","arguments":{"targetFrameId":"frame-2","body":"hello"}}`},
-		{"reply", `{"tool":"agent_frames.reply","threadId":"thread-1","arguments":{"messageId":"msg-1","finalAnswer":"done"}}`},
+		{"list", `{"tool":"agent_frames_list","threadId":"thread-1","arguments":{}}`},
+		{"read", `{"tool":"agent_frames_read","threadId":"thread-1","arguments":{"peerFrameId":"frame-2"}}`},
+		{"send", `{"tool":"agent_frames_send_message","threadId":"thread-1","arguments":{"targetFrameId":"frame-2","body":"hello"}}`},
+		{"reply", `{"tool":"agent_frames_reply","threadId":"thread-1","arguments":{"messageId":"msg-1","finalAnswer":"done"}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			handled, reply, err := session.handleToolCall(json.RawMessage(tc.raw))
@@ -109,6 +186,26 @@ func TestCodexShimHandleToolCall_UsesThreadScopedDaemonCommands(t *testing.T) {
 				t.Fatalf("reply = %+v", reply)
 			}
 		})
+	}
+	<-done
+}
+
+func TestCodexShimHandleToolCall_LegacyCanonicalNamesStillWork(t *testing.T) {
+	server, client := protoPipe(t)
+	defer client.Close()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		expectFrameToolCall(t, server, proto.CmdFrameListByThread{SessionID: "sess-1", ThreadID: "thread-1"}, proto.RespFrameList{})
+	}()
+
+	session := &codexShimSession{daemon: client, sessionID: "sess-1"}
+	handled, _, err := session.handleToolCall(json.RawMessage(`{"tool":"agent_frames.list","threadId":"thread-1","arguments":{}}`))
+	if err != nil {
+		t.Fatalf("handleToolCall: %v", err)
+	}
+	if !handled {
+		t.Fatal("legacy canonical frame tool name must still be handled")
 	}
 	<-done
 }
@@ -473,10 +570,10 @@ func TestCodexShimHandleToolCall_NilDaemonReturnsError(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{"list", `{"tool":"agent_frames.list","threadId":"thread-1","arguments":{}}`},
-		{"read", `{"tool":"agent_frames.read","threadId":"thread-1","arguments":{}}`},
-		{"send", `{"tool":"agent_frames.send_message","threadId":"thread-1","arguments":{"targetFrameId":"f2","body":"x"}}`},
-		{"reply", `{"tool":"agent_frames.reply","threadId":"thread-1","arguments":{"messageId":"m1"}}`},
+		{"list", `{"tool":"agent_frames_list","threadId":"thread-1","arguments":{}}`},
+		{"read", `{"tool":"agent_frames_read","threadId":"thread-1","arguments":{}}`},
+		{"send", `{"tool":"agent_frames_send_message","threadId":"thread-1","arguments":{"targetFrameId":"f2","body":"x"}}`},
+		{"reply", `{"tool":"agent_frames_reply","threadId":"thread-1","arguments":{"messageId":"m1"}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			handled, _, err := session.handleToolCall(json.RawMessage(tc.raw))

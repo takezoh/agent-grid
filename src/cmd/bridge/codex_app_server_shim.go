@@ -263,12 +263,30 @@ func shouldInjectFrameMessagingTools(method string) bool {
 	return method == codexschema.MethodThreadStart || method == codexschema.MethodThreadResume
 }
 
-func isFrameMessagingTool(name string) bool {
-	switch name {
-	case "agent_frames.list", "agent_frames.read", "agent_frames.send_message", "agent_frames.reply":
-		return true
+type frameMessagingToolDef struct {
+	canonical string
+	dynamic   string
+}
+
+var frameMessagingToolDefs = []frameMessagingToolDef{
+	{canonical: "agent_frames.list", dynamic: "agent_frames_list"},
+	{canonical: "agent_frames.read", dynamic: "agent_frames_read"},
+	{canonical: "agent_frames.send_message", dynamic: "agent_frames_send_message"},
+	{canonical: "agent_frames.reply", dynamic: "agent_frames_reply"},
+}
+
+func canonicalFrameMessagingToolName(name string) (string, bool) {
+	for _, def := range frameMessagingToolDefs {
+		if name == def.canonical || name == def.dynamic {
+			return def.canonical, true
+		}
 	}
-	return false
+	return "", false
+}
+
+func isFrameMessagingTool(name string) bool {
+	_, ok := canonicalFrameMessagingToolName(name)
+	return ok
 }
 
 func (h shimUpstreamHandler) OnNotification(method string, params json.RawMessage) {
@@ -337,7 +355,8 @@ func (s *codexShimSession) handleToolCall(raw json.RawMessage) (bool, shimToolCa
 	if err := json.Unmarshal(raw, &params); err != nil {
 		return true, shimToolCallReply{}, err
 	}
-	if isFrameMessagingTool(params.Tool) && s.daemon == nil {
+	canonicalTool, isFrameTool := canonicalFrameMessagingToolName(params.Tool)
+	if isFrameTool && s.daemon == nil {
 		// Daemon container endpoint wasn't reachable when this WebSocket
 		// session started (see runCodexAppServerShim). Surface a clean tool
 		// error to Codex instead of nil-dereferencing on Send.
@@ -348,12 +367,12 @@ func (s *codexShimSession) handleToolCall(raw json.RawMessage) (bool, shimToolCa
 		err  error
 		ok   bool
 	)
-	switch params.Tool {
+	switch canonicalTool {
 	case "agent_frames.list":
-		ok = true
+		ok = isFrameTool
 		resp, err = s.daemon.Send(context.Background(), proto.CmdFrameListByThread{SessionID: s.sessionID, ThreadID: params.ThreadID})
 	case "agent_frames.read":
-		ok = true
+		ok = isFrameTool
 		var args shimFrameReadArgs
 		if err = decodeStrictJSON(params.Arguments, &args); err == nil {
 			resp, err = s.daemon.Send(context.Background(), proto.CmdFrameReadByThread{
@@ -363,7 +382,7 @@ func (s *codexShimSession) handleToolCall(raw json.RawMessage) (bool, shimToolCa
 			})
 		}
 	case "agent_frames.send_message":
-		ok = true
+		ok = isFrameTool
 		var args shimFrameSendArgs
 		if err = decodeStrictJSON(params.Arguments, &args); err == nil {
 			resp, err = s.daemon.Send(context.Background(), proto.CmdFrameSendByThread{
@@ -376,7 +395,7 @@ func (s *codexShimSession) handleToolCall(raw json.RawMessage) (bool, shimToolCa
 			})
 		}
 	case "agent_frames.reply":
-		ok = true
+		ok = isFrameTool
 		var args shimFrameReplyArgs
 		if err = decodeStrictJSON(params.Arguments, &args); err == nil {
 			resp, err = s.daemon.Send(context.Background(), proto.CmdFrameReplyByThread{
@@ -422,31 +441,30 @@ func injectFrameMessagingDynamicTools(raw json.RawMessage) json.RawMessage {
 }
 
 func frameMessagingDynamicToolSpecs() []any {
-	return []any{
-		map[string]any{
-			"name":        "agent_frames.list",
+	specs := make([]any, 0, len(frameMessagingToolDefs))
+	for _, def := range frameMessagingToolDefs {
+		spec := map[string]any{
+			"name":        def.dynamic,
 			"description": "List same-session claude/codex frames visible to this Codex thread.",
 			"inputSchema": map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
 				"properties":           map[string]any{},
 			},
-		},
-		map[string]any{
-			"name":        "agent_frames.read",
-			"description": "Read durable inbox messages for this Codex thread.",
-			"inputSchema": map[string]any{
+		}
+		switch def.canonical {
+		case "agent_frames.read":
+			spec["description"] = "Read durable inbox messages for this Codex thread."
+			spec["inputSchema"] = map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
 				"properties": map[string]any{
 					"peerFrameId": map[string]any{"type": "string"},
 				},
-			},
-		},
-		map[string]any{
-			"name":        "agent_frames.send_message",
-			"description": "Store a durable inbox message for a same-session claude/codex frame.",
-			"inputSchema": map[string]any{
+			}
+		case "agent_frames.send_message":
+			spec["description"] = "Store a durable inbox message for a same-session claude/codex frame."
+			spec["inputSchema"] = map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
 				"required":             []string{"targetFrameId", "body"},
@@ -456,12 +474,10 @@ func frameMessagingDynamicToolSpecs() []any {
 					"body":          map[string]any{"type": "string"},
 					"priority":      map[string]any{"type": "string"},
 				},
-			},
-		},
-		map[string]any{
-			"name":        "agent_frames.reply",
-			"description": "Reply to a durable frame message as this Codex thread.",
-			"inputSchema": map[string]any{
+			}
+		case "agent_frames.reply":
+			spec["description"] = "Reply to a durable frame message as this Codex thread."
+			spec["inputSchema"] = map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
 				"required":             []string{"messageId"},
@@ -472,9 +488,11 @@ func frameMessagingDynamicToolSpecs() []any {
 					"resolution":  map[string]any{"type": "string"},
 					"confidence":  map[string]any{"type": "string"},
 				},
-			},
-		},
+			}
+		}
+		specs = append(specs, spec)
 	}
+	return specs
 }
 
 func decodeStrictJSON(raw json.RawMessage, target any) error {

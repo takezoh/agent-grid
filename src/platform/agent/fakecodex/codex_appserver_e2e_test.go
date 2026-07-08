@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -102,6 +103,50 @@ func TestE2E_ThreadTurnLifecycle(t *testing.T) {
 	for _, m := range required {
 		waitForRecordedMethod(t, scenario.rec, m, 5*time.Second)
 	}
+}
+
+func TestE2E_DynamicToolNameContract(t *testing.T) {
+	bin := e2eCodexBin(t)
+	home := clonedHomeWithCodex(t)
+	sockDir := e2etest.NewWorkspaceTempDir(t, ".codex-e2e-sock-")
+	sock := filepath.Join(sockDir, "codex-dynamic-tools.sock")
+	stopServer := startRealCodexListener(t, bin, home, sock, realAppServerExtra())
+	defer stopServer()
+
+	client, _, stopObserver := startObserverConn(t, sock)
+	defer stopObserver()
+
+	t.Run("responses_compatible_name_is_accepted", func(t *testing.T) {
+		session, err := codexclient.StartThread(client, "", []any{
+			map[string]any{
+				"name":        "agent_frames_list",
+				"description": "List same-session frames.",
+				"inputSchema": map[string]any{"type": "object"},
+			},
+		}, codexclient.ThreadOptions{})
+		if err != nil {
+			t.Fatalf("StartThread(valid dynamic tool name): %v", err)
+		}
+		if strings.TrimSpace(session.ThreadID) == "" {
+			t.Fatal("thread/start with valid dynamic tool name returned empty thread id")
+		}
+	})
+
+	t.Run("mcp_style_dotted_name_is_rejected", func(t *testing.T) {
+		_, err := codexclient.StartThread(client, "", []any{
+			map[string]any{
+				"name":        "agent_frames.list",
+				"description": "List same-session frames.",
+				"inputSchema": map[string]any{"type": "object"},
+			},
+		}, codexclient.ThreadOptions{})
+		if err == nil {
+			t.Fatal("thread/start with dotted dynamic tool name unexpectedly succeeded")
+		}
+		if !strings.Contains(err.Error(), "dynamic tool name must match") {
+			t.Fatalf("thread/start error = %v, want dynamic tool name validation failure", err)
+		}
+	})
 }
 
 // TestE2E_FakeVsRealMethods runs the same scenario against both the fake and
