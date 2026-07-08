@@ -142,9 +142,17 @@ the committed recordings first and then adjust `presets.go` if needed:
 
 ```sh
 cd src
-AG_E2E_CODEX_BIN=codex go test -tags e2e ./platform/agent/fakecodex -run 'Recorded.*Fixture' -record
-go test ./platform/agent/fakecodex ./client/driver -run 'Recorded|Replay'
+mkdir -p ../.gocache-e2e
+GOCACHE=$(pwd)/../.gocache-e2e \
+  AG_E2E_CODEX_BIN=$(which codex) \
+  go test -tags e2e ./platform/agent/fakecodex -run 'Recorded.*Fixture' -record
+GOCACHE=$(pwd)/../.gocache-e2e \
+  go test ./platform/agent/fakecodex ./client/driver -run 'Recorded|Replay'
 ```
+
+`AG_E2E_CODEX_BIN` だけでなく writable な `GOCACHE` も必要。real-Codex
+E2E は isolated `HOME` と unix socket を workspace 配下に作るため、
+`/tmp` 前提の追加設定は不要。
 
 The `-record` run rewrites `testdata/recordings/*.jsonl` with normalized
 thread ids, rollout paths, timestamps, and secrets. The committed fixture now

@@ -92,8 +92,21 @@ func TestServer_EmitThreadStarted(t *testing.T) {
 	}
 	params, _ := msg["params"].(map[string]any)
 	thread, _ := params["thread"].(map[string]any)
+	if thread["id"] != "t1" {
+		t.Fatalf("thread.id = %v, want t1", thread["id"])
+	}
 	if thread["cwd"] != "/work" {
 		t.Fatalf("thread.cwd = %v, want /work", thread["cwd"])
+	}
+	if thread["sessionId"] != "t1" {
+		t.Fatalf("thread.sessionId = %v, want t1", thread["sessionId"])
+	}
+	if thread["source"] != "appServer" {
+		t.Fatalf("thread.source = %v, want appServer", thread["source"])
+	}
+	status, _ := thread["status"].(map[string]any)
+	if status["type"] != "idle" {
+		t.Fatalf("thread.status.type = %v, want idle", status["type"])
 	}
 	if _, ok := thread["path"]; ok {
 		t.Fatalf("thread.path must not be synthesized from cwd: %v", thread)
@@ -113,6 +126,42 @@ func TestServer_EmitThreadStartedWithPath(t *testing.T) {
 	}
 	if thread["path"] != "/tmp/rollout.jsonl" {
 		t.Fatalf("thread.path = %v, want /tmp/rollout.jsonl", thread["path"])
+	}
+}
+
+func TestThreadStartResponse(t *testing.T) {
+	resp := codexclient.ThreadStartResponse(codexclient.ThreadDescriptor{
+		ThreadID:    "t1",
+		SessionID:   "s1",
+		CWD:         "/work",
+		RolloutPath: "/tmp/rollout.jsonl",
+	})
+	if resp["approvalPolicy"] != "never" {
+		t.Fatalf("approvalPolicy = %v, want never", resp["approvalPolicy"])
+	}
+	if resp["approvalsReviewer"] != "user" {
+		t.Fatalf("approvalsReviewer = %v, want user", resp["approvalsReviewer"])
+	}
+	thread, _ := resp["thread"].(map[string]any)
+	if thread["sessionId"] != "s1" {
+		t.Fatalf("thread.sessionId = %v, want s1", thread["sessionId"])
+	}
+	if thread["path"] != "/tmp/rollout.jsonl" {
+		t.Fatalf("thread.path = %v, want /tmp/rollout.jsonl", thread["path"])
+	}
+}
+
+func TestTurnStartResponseAt(t *testing.T) {
+	resp := codexclient.TurnStartResponseAt("turn1", time.Unix(123, 0))
+	turn, _ := resp["turn"].(map[string]any)
+	if turn["id"] != "turn1" {
+		t.Fatalf("turn.id = %v, want turn1", turn["id"])
+	}
+	if turn["status"] != "inProgress" {
+		t.Fatalf("turn.status = %v, want inProgress", turn["status"])
+	}
+	if turn["startedAt"] != int64(123) {
+		t.Fatalf("turn.startedAt = %v, want 123", turn["startedAt"])
 	}
 }
 

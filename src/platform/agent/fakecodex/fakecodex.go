@@ -28,6 +28,15 @@ import (
 	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
 
+func nestedString(raw json.RawMessage, field string) string {
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return ""
+	}
+	value, _ := decoded[field].(string)
+	return value
+}
+
 // DefaultThreadID is used when Config.ThreadID is empty.
 const DefaultThreadID = "thread-abc"
 
@@ -227,14 +236,26 @@ func (s *Server) OnServerRequest(id codexclient.RequestID, method string, params
 		s.mu.Lock()
 		s.lastThreadParams = append(json.RawMessage(nil), params...)
 		s.mu.Unlock()
-		_ = srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": s.cfg.ThreadID}})
+		path := fakeThreadPath(s.cfg.ThreadID, s.cfg.ThreadPath)
+		_ = srv.Conn().Reply(id, codexclient.ThreadStartResponse(codexclient.ThreadDescriptor{
+			ThreadID:    s.cfg.ThreadID,
+			SessionID:   s.cfg.ThreadID,
+			CWD:         nestedString(params, "cwd"),
+			RolloutPath: path,
+		}))
 	case codexschema.MethodThreadResume:
 		s.mu.Lock()
 		s.lastResumeParams = append(json.RawMessage(nil), params...)
 		s.mu.Unlock()
-		_ = srv.Conn().Reply(id, map[string]any{"thread": map[string]any{"id": s.cfg.ThreadID}})
+		path := fakeThreadPath(s.cfg.ThreadID, s.cfg.ThreadPath)
+		_ = srv.Conn().Reply(id, codexclient.ThreadResumeResponse(codexclient.ThreadDescriptor{
+			ThreadID:    s.cfg.ThreadID,
+			SessionID:   s.cfg.ThreadID,
+			CWD:         nestedString(params, "cwd"),
+			RolloutPath: path,
+		}))
 	case codexschema.MethodTurnStart:
-		_ = srv.Conn().Reply(id, map[string]any{"turn": map[string]any{"id": s.cfg.TurnID}})
+		_ = srv.Conn().Reply(id, codexclient.TurnStartResponseAt(s.cfg.TurnID, time.Now()))
 		s.handleTurnStart(params)
 	}
 }

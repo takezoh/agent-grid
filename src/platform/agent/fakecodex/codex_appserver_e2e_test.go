@@ -74,7 +74,8 @@ func (b *syncBuf) String() string {
 func TestE2E_AppServerInit(t *testing.T) {
 	bin := e2eCodexBin(t)
 	home := clonedHomeWithCodex(t)
-	sock := filepath.Join(t.TempDir(), "codex-init.sock")
+	sockDir := e2etest.NewWorkspaceTempDir(t, ".codex-e2e-sock-")
+	sock := filepath.Join(sockDir, "codex-init.sock")
 	stopServer := startRealCodexListener(t, bin, home, sock, realAppServerExtra())
 	defer stopServer()
 

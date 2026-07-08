@@ -314,7 +314,8 @@ type realScenario struct {
 func runRealAppServerScenario(t *testing.T, bin string, appServerExtra []string, prompt string) realScenario {
 	t.Helper()
 	home := clonedHomeWithCodex(t)
-	sock := filepath.Join(t.TempDir(), "codex-appserver.sock")
+	sockDir := e2etest.NewWorkspaceTempDir(t, ".codex-e2e-sock-")
+	sock := filepath.Join(sockDir, "codex-appserver.sock")
 	stopServer := startRealCodexListener(t, bin, home, sock, appServerExtra)
 	t.Cleanup(stopServer)
 	initiator, initRec, stopInitiator := startObserverConn(t, sock)
@@ -656,7 +657,8 @@ func TestE2E_ShimInvertedDriving(t *testing.T) {
 
 	t.Run("shim_inverted_string_id_initialize", func(t *testing.T) {
 		home := clonedHomeWithCodex(t)
-		sock := filepath.Join(t.TempDir(), "codex-shim-inverted.sock")
+		sockDir := e2etest.NewWorkspaceTempDir(t, ".codex-e2e-sock-")
+		sock := filepath.Join(sockDir, "codex-shim-inverted.sock")
 		cwd, err := os.Getwd()
 		if err != nil {
 			t.Fatalf("getwd: %v", err)

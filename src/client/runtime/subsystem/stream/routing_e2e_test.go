@@ -31,6 +31,7 @@ import (
 
 	"github.com/takezoh/agent-grid/client/runtime/subsystem"
 	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/e2etest"
 )
 
 // e2eBackend is one real app-server implementation to validate the fake against.
@@ -91,7 +92,8 @@ func newE2EBackend(rt RuntimeHook, be e2eBackend, listen string) *Backend {
 // that the fake is faithful, not that the cross-talk bug is absent.
 func runE2EIsolation(t *testing.T, be e2eBackend) {
 	rt := &recordingRuntime{}
-	listen := filepath.Join(t.TempDir(), "appserver-e2e.sock")
+	sockDir := e2etest.NewWorkspaceTempDir(t, ".codex-e2e-sock-")
+	listen := filepath.Join(sockDir, "appserver-e2e.sock")
 	b := newE2EBackend(rt, be, listen)
 
 	ctx := context.Background()

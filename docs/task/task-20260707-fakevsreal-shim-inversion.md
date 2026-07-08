@@ -42,7 +42,7 @@ updated: '2026-07-07'
 4. 通常 CI (build tag なし) では自動 skip されることを確認 (AC-008)。
 5. 検証コマンド (opt-in 手動):
    ```
-   cd src && AG_E2E_CODEX_BIN=$(which codex) go test -tags e2e ./platform/agent/fakecodex/...
+   cd src && mkdir -p ../.gocache-e2e && GOCACHE=$(pwd)/../.gocache-e2e AG_E2E_CODEX_BIN=$(which codex) go test -tags e2e ./platform/agent/fakecodex/...
    ```
 
 ## 前提
@@ -60,7 +60,7 @@ updated: '2026-07-07'
 ## 受け入れ条件
 
 - `cd src && go test ./...` (build tag なし) で自動 skip される (AC-008)
-- `cd src && AG_E2E_CODEX_BIN=$(which codex) go test -tags e2e ./platform/agent/fakecodex/...` の手動実行で追加 subtest が pass する (AC-005)
+- `cd src && mkdir -p ../.gocache-e2e && GOCACHE=$(pwd)/../.gocache-e2e AG_E2E_CODEX_BIN=$(which codex) go test -tags e2e ./platform/agent/fakecodex/...` の手動実行で追加 subtest が pass する (AC-005)
 - 追加 subtest 名に `shim_inverted` または相当の keyword が含まれ、既存の non-inverted subtest と分離して読める
 - `grep -n "AG_E2E_CODEX_BIN" src/platform/agent/fakecodex/codex_real_cli_e2e_test.go` が gate 用に参照されている
 - `make lint` 緑

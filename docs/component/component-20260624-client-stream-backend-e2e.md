@@ -73,18 +73,23 @@ turns — have whatever model credentials it needs to answer a prompt.
 
 ```sh
 # codex
-AG_E2E_CODEX_BIN=$(which codex) make test-e2e
+mkdir -p .gocache-e2e
+GOCACHE=$(pwd)/.gocache-e2e AG_E2E_CODEX_BIN=$(which codex) make test-e2e
 
 # any other conforming app-server
-AG_E2E_APPSERVER_BIN=/path/to/server \
+GOCACHE=$(pwd)/.gocache-e2e AG_E2E_APPSERVER_BIN=/path/to/server \
 AG_E2E_APPSERVER_NAME=myserver \
 AG_E2E_APPSERVER_ARGS="--flag value" \
   go test -tags e2e -run TestStreamRoutingE2E ./client/runtime/subsystem/stream/ -v
 
 # both at once → one subtest each
-AG_E2E_CODEX_BIN=$(which codex) AG_E2E_APPSERVER_BIN=/path/to/server \
+GOCACHE=$(pwd)/.gocache-e2e AG_E2E_CODEX_BIN=$(which codex) AG_E2E_APPSERVER_BIN=/path/to/server \
   go test -tags e2e -run TestStreamRoutingE2E ./client/runtime/subsystem/stream/ -v
 ```
+
+real-Codex E2E は current workspace 配下に isolated `HOME` と unix socket
+を作る。`/tmp` は現行 Codex binary が helper bootstrap や socket bind を
+拒否しうるので、手動実行でも writable な `GOCACHE` だけ明示しておく。
 
 ## CI posture
 

@@ -265,10 +265,11 @@ func (a *AppServer) newThread(cwd string) *Thread {
 	// uniqueness + persistence across broadcast.
 	id := fmt.Sprintf("fake-thread-%03d", a.seq)
 	t := &Thread{
-		ID:        id,
-		SessionID: id,
-		Cwd:       cwd,
-		Status:    "idle",
+		ID:          id,
+		SessionID:   id,
+		Cwd:         cwd,
+		RolloutPath: filepath.Join(os.TempDir(), "rollout-"+id+".jsonl"),
+		Status:      "idle",
 	}
 	if a.rolloutDir != "" {
 		path := filepath.Join(a.rolloutDir, "rollout-"+id+".jsonl")
@@ -380,17 +381,14 @@ func (s *serverConn) OnServerRequest(id codexclient.RequestID, method string, pa
 	case codexschema.MethodThreadStart:
 		cwd := nestedString(params, "cwd")
 		t := s.app.newThread(cwd)
-		_ = s.conn.Reply(id, map[string]any{
-			"thread": map[string]any{
-				"id":        t.ID,
-				"sessionId": t.SessionID,
-				"path":      t.RolloutPath,
-				"cwd":       t.Cwd,
-			},
-		})
-		_ = s.app.Broadcast(codexschema.MethodThreadStarted, map[string]any{
-			"thread": map[string]any{"id": t.ID, "sessionId": t.SessionID, "path": t.RolloutPath, "cwd": t.Cwd},
-		})
+		thread := codexclient.ThreadDescriptor{
+			ThreadID:    t.ID,
+			SessionID:   t.SessionID,
+			CWD:         t.Cwd,
+			RolloutPath: t.RolloutPath,
+		}
+		_ = s.conn.Reply(id, codexclient.ThreadStartResponse(thread))
+		_ = s.app.Broadcast(codexschema.MethodThreadStarted, codexclient.ThreadStartedParams(thread))
 	case codexschema.MethodThreadResume:
 		threadID := nestedString(params, "threadId")
 		rolloutPath := nestedString(params, "path")
@@ -399,19 +397,16 @@ func (s *serverConn) OnServerRequest(id codexclient.RequestID, method string, pa
 			_ = s.conn.ReplyError(id, fmt.Sprintf("fake app-server: thread not found (threadId=%q rolloutPath=%q)", threadID, rolloutPath))
 			return
 		}
-		_ = s.conn.Reply(id, map[string]any{
-			"thread": map[string]any{
-				"id":        t.ID,
-				"sessionId": t.SessionID,
-				"path":      t.RolloutPath,
-				"cwd":       t.Cwd,
-			},
-		})
-		_ = s.app.Broadcast(codexschema.MethodThreadStarted, map[string]any{
-			"thread": map[string]any{"id": t.ID, "sessionId": t.SessionID, "path": t.RolloutPath, "cwd": t.Cwd},
-		})
+		thread := codexclient.ThreadDescriptor{
+			ThreadID:    t.ID,
+			SessionID:   t.SessionID,
+			CWD:         t.Cwd,
+			RolloutPath: t.RolloutPath,
+		}
+		_ = s.conn.Reply(id, codexclient.ThreadResumeResponse(thread))
+		_ = s.app.Broadcast(codexschema.MethodThreadStarted, codexclient.ThreadStartedParams(thread))
 	case codexschema.MethodTurnStart:
-		_ = s.conn.Reply(id, map[string]any{"turn": map[string]any{"id": "fake-turn"}})
+		_ = s.conn.Reply(id, codexclient.TurnStartResponseAt("fake-turn", time.Now()))
 		s.handleTurnStart(params)
 	default:
 		// Unknown methods: reply with an error rather than silently succeed so

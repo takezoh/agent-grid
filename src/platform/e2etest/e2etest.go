@@ -10,17 +10,31 @@ import (
 	"time"
 )
 
-// NewIsolatedHome creates a fresh HOME in the system temp directory.
-// Tests that must not inherit user config should use this rather than cloning
-// dot-directories from the developer's real home.
+// NewWorkspaceTempDir creates a temporary directory under the current
+// workspace rather than the system temp directory. Current Codex rejects some
+// helper-binary bootstrap operations under temporary directories, so real
+// Codex E2E needs writable non-/tmp paths for HOME and unix sockets.
+func NewWorkspaceTempDir(t *testing.T, prefix string) string {
+	t.Helper()
+	base, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd for workspace temp dir: %v", err)
+	}
+	dir, err := os.MkdirTemp(base, prefix)
+	if err != nil {
+		t.Fatalf("mkdir workspace temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
+// NewIsolatedHome creates a fresh HOME under the current workspace rather than
+// the system temp directory. Tests that must not inherit user config should
+// use this rather than cloning dot-directories from the developer's real
+// home.
 func NewIsolatedHome(t *testing.T, prefix string) string {
 	t.Helper()
-	home, err := os.MkdirTemp("", prefix)
-	if err != nil {
-		t.Fatalf("mkdir temp home: %v", err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(home) })
-	return home
+	return NewWorkspaceTempDir(t, prefix)
 }
 
 type copySpec struct {
@@ -36,7 +50,7 @@ var codexBootstrapSpec = []copySpec{
 	{relPath: filepath.Join(".codex", "hooks.json"), required: false},
 }
 
-// PrepareCodexHome creates a fresh HOME in the system temp directory and seeds
+// PrepareCodexHome creates a fresh isolated HOME and seeds
 // it with the minimum Codex bootstrap files required by real-Codex E2E tests.
 // If the developer machine is not prepared for authenticated Codex runs, the
 // caller is skipped instead of failing later with environment-dependent errors.

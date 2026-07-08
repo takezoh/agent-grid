@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/takezoh/agent-grid/platform/agent/codexclient"
@@ -62,7 +63,11 @@ func (h *appHandler) OnServerRequest(id codexclient.RequestID, method string, pa
 		threadID := h.runner.startThread(p.DynamicTools)
 		h.writeMu.Lock()
 		_ = h.runner.srv.EmitThreadStarted(threadID, p.CWD)
-		_ = h.conn.Reply(id, map[string]any{"thread": map[string]any{"id": threadID}})
+		_ = h.conn.Reply(id, codexclient.ThreadStartResponse(codexclient.ThreadDescriptor{
+			ThreadID:  threadID,
+			SessionID: threadID,
+			CWD:       p.CWD,
+		}))
 		h.writeMu.Unlock()
 	case codexschema.MethodThreadResume:
 		var p struct {
@@ -74,11 +79,11 @@ func (h *appHandler) OnServerRequest(id codexclient.RequestID, method string, pa
 		claudeSessionID := h.runner.threads[p.ThreadID]
 		h.runner.mu.Unlock()
 		h.writeMu.Lock()
-		_ = h.conn.Reply(id, map[string]any{
-			"threadId":        p.ThreadID,
-			"cwd":             p.CWD,
-			"claudeSessionId": claudeSessionID,
-		})
+		_ = h.conn.Reply(id, codexclient.ThreadResumeResponse(codexclient.ThreadDescriptor{
+			ThreadID:  p.ThreadID,
+			SessionID: claudeSessionID,
+			CWD:       p.CWD,
+		}))
 		h.writeMu.Unlock()
 	default:
 		if method == codexschema.MethodTurnStart {
@@ -89,7 +94,7 @@ func (h *appHandler) OnServerRequest(id codexclient.RequestID, method string, pa
 				_ = h.conn.ReplyError(id, err.Error())
 				return
 			}
-			_ = h.conn.Reply(id, map[string]any{"turn": map[string]any{"id": req.turnID}})
+			_ = h.conn.Reply(id, codexclient.TurnStartResponseAt(req.turnID, time.Now()))
 			return
 		}
 		h.writeMu.Lock()

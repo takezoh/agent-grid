@@ -317,6 +317,52 @@ func TestShim_TurnStartResponseIDMatchesLifecycleEvents(t *testing.T) {
 	assert.Equal(t, response.Turn.ID, turnCompleted["id"])
 }
 
+func TestShim_ThreadStartResponseCarriesCurrentRequiredFields(t *testing.T) {
+	var calls [][]string
+	launch := fakeLauncherSequence(&calls, []string{lineSystemInit, lineResultOK})
+	clientConn, _, _ := pipeShim(t, launch, []string{"thread-1"})
+	go func() { _ = clientConn.Run(context.Background(), &notificationCollector{}) }()
+
+	require.NoError(t, codexclient.Initialize(clientConn))
+	raw, err := clientConn.Request(codexschema.MethodThreadStart, map[string]any{"cwd": "/ws"})
+	require.NoError(t, err)
+
+	var response codexschemav2.ThreadStartResponse
+	require.NoError(t, json.Unmarshal(raw, &response))
+	assert.Equal(t, "/ws", response.Cwd)
+	assert.Equal(t, "claude", response.Model)
+	assert.Equal(t, "anthropic", response.ModelProvider)
+	assert.Equal(t, codexschemav2.ApprovalsReviewerUser, response.ApprovalsReviewer)
+	assert.Equal(t, "thread-1", response.Thread.ID)
+	assert.Equal(t, "thread-1", response.Thread.SessionID)
+	assert.Equal(t, "/ws", response.Thread.Cwd)
+	assert.NotNil(t, response.Thread.Source)
+}
+
+func TestShim_TurnStartResponseCarriesCurrentRequiredFields(t *testing.T) {
+	var calls [][]string
+	launch := fakeLauncherSequence(&calls, []string{lineSystemInit, lineResultOK})
+	clientConn, _, _ := pipeShim(t, launch, []string{"thread-1", "turn-1"})
+	go func() { _ = clientConn.Run(context.Background(), &notificationCollector{}) }()
+
+	require.NoError(t, codexclient.Initialize(clientConn))
+	raw, err := clientConn.Request(codexschema.MethodTurnStart, map[string]any{
+		"cwd": "/ws",
+		"input": []map[string]any{{
+			"type": "text",
+			"text": "hi",
+		}},
+	})
+	require.NoError(t, err)
+
+	var response codexschemav2.TurnStartResponse
+	require.NoError(t, json.Unmarshal(raw, &response))
+	assert.Equal(t, "turn-1", response.Turn.ID)
+	assert.Equal(t, codexschemav2.TurnStatusInProgress, response.Turn.Status)
+	assert.NotNil(t, response.Turn.StartedAt)
+	assert.Empty(t, response.Turn.Items)
+}
+
 func TestShim_TurnStartRequestFailsWhenQueueFull(t *testing.T) {
 	var calls [][]string
 	started := make(chan struct{}, 1)

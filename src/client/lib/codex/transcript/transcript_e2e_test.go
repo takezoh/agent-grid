@@ -290,7 +290,8 @@ func extractTurnContext(raw []byte) (json.RawMessage, string, bool) {
 func TestE2E_RealCodexRolloutUsesReasoningEffortSchema(t *testing.T) {
 	bin := e2eCodexBin(t)
 	home := clonedHomeWithCodex(t)
-	sock := filepath.Join(t.TempDir(), "codex-appserver.sock")
+	sockDir := e2etest.NewWorkspaceTempDir(t, ".codex-e2e-sock-")
+	sock := filepath.Join(sockDir, "codex-appserver.sock")
 	stopServer := startRealCodexAppServer(t, bin, home, sock, []string{
 		"-c", `sandbox_mode="danger-full-access"`,
 		"-c", `model_reasoning_effort="high"`,

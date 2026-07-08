@@ -43,13 +43,12 @@ func (s *Server) EmitThreadStarted(threadID, cwd string) error {
 // EmitThreadStartedWithPath emits `thread/started` with cwd and, when known,
 // the optional Codex rollout path.
 func (s *Server) EmitThreadStartedWithPath(threadID, cwd, path string) error {
-	thread := map[string]any{"id": threadID, "cwd": cwd}
-	if path != "" {
-		thread["path"] = path
-	}
-	return s.conn.Notify(codexschema.MethodThreadStarted, map[string]any{
-		"thread": thread,
-	})
+	return s.conn.Notify(codexschema.MethodThreadStarted, ThreadStartedParams(ThreadDescriptor{
+		ThreadID:    threadID,
+		SessionID:   threadID,
+		CWD:         cwd,
+		RolloutPath: path,
+	}))
 }
 
 // EmitTurnStarted emits `turn/started`.
