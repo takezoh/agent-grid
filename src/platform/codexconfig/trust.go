@@ -105,8 +105,17 @@ func writeAtomic(configPath string, data []byte) error {
 	return nil
 }
 
-// DefaultPath returns the container-local Codex configuration requested by
-// agent-grid. It intentionally does not alter the host's ~/.codex/config.toml.
+// ConfigPath returns the user config path read by Codex: CODEX_HOME/config.toml
+// when CODEX_HOME is set, otherwise HOME/.codex/config.toml.
+func ConfigPath(codexHome, home string) string {
+	if codexHome = strings.TrimSpace(codexHome); codexHome != "" {
+		return filepath.Join(codexHome, "config.toml")
+	}
+	return DefaultPath(home)
+}
+
+// DefaultPath returns Codex's conventional user config path when CODEX_HOME
+// is unset.
 func DefaultPath(home string) string {
-	return filepath.Join(strings.TrimSpace(home), ".codex", "codex", "config.toml")
+	return filepath.Join(strings.TrimSpace(home), ".codex", "config.toml")
 }

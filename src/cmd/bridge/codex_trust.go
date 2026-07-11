@@ -28,7 +28,7 @@ func runCodexTrustProject(args []string) error {
 		if err != nil {
 			return fmt.Errorf("codex-trust-project: resolve home: %w", err)
 		}
-		path = codexconfig.DefaultPath(home)
+		path = codexconfig.ConfigPath(os.Getenv("CODEX_HOME"), home)
 	}
 	return codexconfig.EnsureProjectTrusted(path, *project)
 }

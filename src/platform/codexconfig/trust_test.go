@@ -63,8 +63,17 @@ func TestEnsureProjectTrustedIsIdempotentAndUpgradesExistingEntry(t *testing.T) 
 	}
 }
 
-func TestDefaultPathUsesNestedContainerCodexHome(t *testing.T) {
-	if got, want := DefaultPath("/home/dev"), "/home/dev/.codex/codex/config.toml"; got != want {
+func TestDefaultPathUsesConventionalCodexHome(t *testing.T) {
+	if got, want := DefaultPath("/home/dev"), "/home/dev/.codex/config.toml"; got != want {
 		t.Fatalf("DefaultPath = %q, want %q", got, want)
+	}
+}
+
+func TestConfigPathCodexHomePriorityContract(t *testing.T) {
+	if got, want := ConfigPath(" /custom/codex ", "/home/dev"), "/custom/codex/config.toml"; got != want {
+		t.Fatalf("ConfigPath = %q, want %q", got, want)
+	}
+	if got, want := ConfigPath("", "/home/dev"), "/home/dev/.codex/config.toml"; got != want {
+		t.Fatalf("ConfigPath fallback = %q, want %q", got, want)
 	}
 }
