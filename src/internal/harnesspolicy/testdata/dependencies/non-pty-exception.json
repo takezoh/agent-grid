@@ -1,0 +1,1 @@
+{"version":1,"dependencies":[{"id":"database","seam":{},"fake":{},"contract":{},"fidelity":{},"exception":{"reason":"missing","owner":"team","expiry":"never","evidence":"docs/adr/adr-20260705-test-tier-taxonomy.md"}}]}

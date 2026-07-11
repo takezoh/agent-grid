@@ -14,6 +14,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -58,6 +60,56 @@ jobs:
       - name: e2e sibling check
         working-directory: .
         run: scripts/check-e2e-siblings.sh
+
+      - name: harness dependency admission
+        working-directory: .
+        run: scripts/check-harness-dependencies.sh
+
+      - name: harness skip inventory
+        working-directory: .
+        run: scripts/check-test-skips.sh
+
+      - name: repeat changed tests ten times
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 30
+        working-directory: .
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+          REPEAT_ARTIFACT: test-results-repeat.json
+        run: scripts/repeat-changed-tests.sh
+
+      - name: upload changed-test repeat result
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: changed-test-repeat-result
+          path: test-results-repeat.json
+
+      - name: trusted harness tampering gate
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        env:
+          HARNESS_TAMPERING_ARTIFACT: harness-tampering-result.json
+        run: scripts/run-trusted-harness-gate.sh "origin/${{ github.base_ref }}"
+
+      - name: upload harness tampering result
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-tampering-result
+          path: harness-tampering-result.json
+
+      - name: deterministic mutation pilot
+        timeout-minutes: 15
+        working-directory: .
+        run: scripts/run-mutation-pilot.sh
+
+      - name: upload mutation result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-pilot-result
+          path: mutation-results.json
 
       - name: test
         run: go test ./...

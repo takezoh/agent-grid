@@ -22,7 +22,7 @@ CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
         build-web-frontend \
         run-dev install install-systemd install-web install-server update-web update-server clean test test-race vet lint \
         verify-bridge-deps \
-        codex-schema-update codex-schema-check
+        codex-schema-update codex-schema-check verify-save verify-pre-push verify-pr verify-nightly
 
 # build builds the main backend (cmd/server) — the merged daemon + HTTP/WS
 # gateway — plus the in-container helper binary.
@@ -170,6 +170,18 @@ test-e2e:
 		./platform/agent/fakecodex/... \
 		./client/lib/agenthook/... \
 		./platform/sandbox/devcontainer/...
+
+verify-save:
+	./scripts/run-verification-profile.sh save
+
+verify-pre-push:
+	./scripts/run-verification-profile.sh pre-push
+
+verify-pr:
+	./scripts/run-verification-profile.sh pr
+
+verify-nightly:
+	./scripts/run-verification-profile.sh nightly
 
 verify-bridge-deps:
 	@echo "Checking that bridge does not import client/state, client/uiproc, or platform/features..."

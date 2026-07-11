@@ -11,8 +11,8 @@ import (
 
 func TestLintRejectsRealBinaryAndE2EEnvOutsideAllowedScopes(t *testing.T) {
 	srcRoot := repoSrcRoot(t)
-	pkgDir := filepath.Join(srcRoot, "zzlintstaticenforcement")
-	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+	pkgDir, err := os.MkdirTemp(srcRoot, "zzlintstaticenforcement")
+	if err != nil {
 		t.Fatalf("mkdir temp package: %v", err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(pkgDir) })
@@ -35,7 +35,7 @@ func violate() {
 		t.Fatalf("write temp package: %v", err)
 	}
 
-	cmd := exec.Command("go", "tool", "golangci-lint", "run", "--allow-parallel-runners", "./zzlintstaticenforcement")
+	cmd := exec.Command("go", "tool", "golangci-lint", "run", "--allow-parallel-runners", "./"+filepath.Base(pkgDir))
 	cmd.Dir = srcRoot
 	out, err := cmd.CombinedOutput()
 	if err == nil {
@@ -235,6 +235,38 @@ func TestNightlyE2EWorkflowExportsAllRealBinaryEnvVars(t *testing.T) {
 	if !strings.Contains(text, "npm install -g @openai/codex@0.142.5") {
 		t.Fatalf("nightly workflow does not run the Codex version pinned by FakeVsReal contracts")
 	}
+}
+
+func TestHarnessEnforcementCannotDisappearSilently(t *testing.T) {
+	repo := repoRoot(t)
+	assertFileContains := func(path string, markers ...string) {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(repo, path))
+		if err != nil {
+			t.Fatalf("required harness enforcement file %s: %v", path, err)
+		}
+		for _, marker := range markers {
+			if !strings.Contains(string(raw), marker) {
+				t.Fatalf("%s is missing required harness marker %q; see adr-20260711-test-harness-anti-tampering", path, marker)
+			}
+		}
+	}
+
+	assertFileContains("test-harness/protected.json", "required_markers")
+	assertFileContains("test-harness/dependencies.json", `"id": "pty"`)
+	assertFileContains(".github/CODEOWNERS", "test-harness/")
+	assertFileContains("scripts/check-harness-tampering.sh", "--mode tampering")
+	assertFileContains("scripts/run-trusted-harness-gate.sh", "check-harness-tampering.sh")
+	assertFileContains(".github/workflows/ci.yml",
+		"scripts/check-harness-dependencies.sh",
+		"scripts/check-test-skips.sh",
+		"scripts/repeat-changed-tests.sh",
+		"scripts/run-trusted-harness-gate.sh",
+		"scripts/run-mutation-pilot.sh",
+	)
+	assertFileContains(".github/workflows/e2e-nightly.yml", "scripts/run-verification-profile.sh nightly", "nightly-e2e-results.json")
+	assertFileContains("test-harness/profiles.json", "scripts/run-nightly-e2e-report.sh")
+	assertFileContains("scripts/run-nightly-e2e-report.sh", "go test -json -tags e2e", `event.Action==="skip"`)
 }
 
 func TestGatewayScenarioTestsOnlySkipInShortMode(t *testing.T) {

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "paths": [
+    {"path": "test-harness/protected.json", "category": "protected-manifest", "required_markers": ["required_markers"]},
+    {"path": "test-harness/dependencies.json", "category": "dependency-registry", "required_markers": ["\"id\": \"pty\""]},
+    {"path": "src/internal/harnesspolicy/dependency.go", "category": "checker", "required_markers": ["CheckDependencyRegistry"]},
+    {"path": "src/internal/harnesspolicy/tampering.go", "category": "checker", "required_markers": ["ClassifyProtectedChanges"]},
+    {"path": "src/cmd/harness-check/main.go", "category": "checker-entrypoint", "required_markers": ["runTampering"]},
+    {"path": "scripts/check-harness-dependencies.sh", "category": "checker-invocation", "required_markers": ["go run ./cmd/harness-check"]},
+    {"path": "scripts/check-harness-tampering.sh", "category": "checker-invocation", "required_markers": ["--mode tampering"]},
+    {"path": "scripts/run-trusted-harness-gate.sh", "category": "trusted-bootstrap", "required_markers": ["archive --format=tar", "check-harness-tampering.sh"]},
+    {"path": "scripts/coverage-floors.txt", "category": "coverage-floor", "required_markers": []},
+    {"path": "src/gorules/static_enforcement_test.go", "category": "independent-static-pin", "required_markers": ["TestCheckE2ESiblingsScript"]},
+    {"path": ".github/workflows/ci.yml", "category": "workflow", "required_markers": ["scripts/check-e2e-siblings.sh", "scripts/check-coverage.sh"]},
+    {"path": ".github/workflows/e2e-nightly.yml", "category": "workflow", "required_markers": ["@openai/codex@0.142.5"]},
+    {"path": ".github/CODEOWNERS", "category": "repository-ownership", "required_markers": ["test-harness/"]},
+    {"path": "test-harness/skips.json", "category": "skip-inventory", "required_markers": ["\"expires\""]},
+    {"path": "test-harness/mutants.json", "category": "mutation-contract", "required_markers": ["operator_set_version"]},
+    {"path": "test-harness/mutation-baseline.json", "category": "mutation-baseline", "required_markers": ["minimum_score"]},
+    {"path": "test-harness/profiles.json", "category": "verification-profiles", "required_markers": ["pre-push", "nightly"]},
+    {"path": "scripts/repeat-changed-tests.sh", "category": "checker-invocation", "required_markers": ["REPEAT=10", "SEED=20260711"]},
+    {"path": "scripts/run-mutation-pilot.sh", "category": "checker-invocation", "required_markers": ["mutation-baseline.json"]},
+    {"path": "scripts/run-nightly-e2e-report.sh", "category": "fidelity-report", "required_markers": ["go test -json -tags e2e", "event.Action===\"skip\""]}
+  ]
+}

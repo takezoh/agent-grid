@@ -73,7 +73,21 @@ jobs:
           AG_E2E_CODEX_BIN: ${{ steps.suite_env.outputs.ag_e2e_codex_bin }}
           AG_E2E_CLAUDE_BIN: ${{ steps.suite_env.outputs.ag_e2e_claude_bin }}
           AG_E2E_DOCKER_BIN: ${{ steps.suite_env.outputs.ag_e2e_docker_bin }}
-        run: make test-e2e
+        run: scripts/run-verification-profile.sh nightly
+
+      - name: Upload nightly profile result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-verification-profile
+          path: test-harness/profile-result.json
+
+      - name: Upload case-level nightly e2e result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-e2e-case-results
+          path: nightly-e2e-results.json
 
       - name: Open or update nightly e2e failure issue
         if: failure()

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "profiles": [
+    {"name":"save","tier":"T0","commands":["cd src && go test ./internal/harnesspolicy ./gorules"]},
+    {"name":"pre-push","tier":"T0-T2 changed","commands":["scripts/check-harness-dependencies.sh","scripts/check-test-skips.sh","scripts/repeat-changed-tests.sh"]},
+    {"name":"pr","tier":"T0-T2 full","commands":["scripts/check-harness-dependencies.sh","scripts/check-test-skips.sh","cd src && go test ./...","make test-race","scripts/check-coverage.sh","scripts/check-e2e-siblings.sh"]},
+    {"name":"nightly","tier":"T3","commands":["scripts/run-nightly-e2e-report.sh"]}
+  ]
+}

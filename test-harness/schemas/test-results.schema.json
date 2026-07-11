@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.local/test-harness/schemas/test-results.schema.json",
+  "title": "Agent Grid test harness results",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "seed", "repeat", "result", "suites"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "seed": {"const": 20260711},
+    "repeat": {"const": 10},
+    "result": {"enum": ["pass", "fail"]},
+    "suites": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/suite"}
+    }
+  },
+  "$defs": {
+    "suite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "required", "result", "duration_ms", "cases"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "required": {"type": "boolean"},
+        "result": {"enum": ["pass", "fail", "skip"]},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "skip_reason": {"type": "string", "minLength": 1},
+        "cases": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/case"}}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "required", "result", "duration_ms", "attempts"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "required": {"type": "boolean"},
+        "result": {"enum": ["pass", "fail", "skip", "timeout", "interrupted"]},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "skip_reason": {"type": "string", "minLength": 1},
+        "attempts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["attempt", "result", "duration_ms", "exit_code"],
+            "properties": {
+              "attempt": {"type": "integer", "minimum": 1, "maximum": 10},
+              "result": {"enum": ["pass", "fail", "timeout", "interrupted"]},
+              "duration_ms": {"type": "integer", "minimum": 0},
+              "exit_code": {"type": "integer"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

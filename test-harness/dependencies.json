@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "id": "linear-http",
+      "seam": {"path": "src/platform/tracker/linear/linear.go", "symbol": "Client"},
+      "fake": {"path": "src/platform/tracker/linear/linear_test.go", "symbol": "TestSPEC_17_3_CandidateFetchUsesActiveStates"},
+      "contract": {"path": "src/platform/tracker/linear/linear_test.go", "test": "TestSPEC_17_3_CandidateFetchUsesActiveStates", "invariant": "active states are encoded in the Linear request", "assertion": "active states missing from request"},
+      "fidelity": {"path": "src/platform/tracker/linear/integration_test.go", "test": "TestSPEC_17_8_RealLinearFetchCandidates", "shared_input": "FetchCandidates", "real_marker": "LINEAR_API_KEY"}
+    },
+    {
+      "id": "git-cli",
+      "seam": {"path": "src/platform/lib/git/git.go", "symbol": "DetectBranch"},
+      "fake": {"path": "src/platform/lib/git/git_test.go", "symbol": "TestDetectBranch_FromSubdirectory"},
+      "contract": {"path": "src/platform/lib/git/git_test.go", "test": "TestDetectRemoteHost_HTTPS", "invariant": "remote host parsing preserves the repository host", "assertion": "github.com"},
+      "fidelity": {"path": "src/platform/lib/git/git_test.go", "test": "TestDetectBranch_FromSubdirectory", "shared_input": "DetectBranch", "real_marker": "git"}
+    },
+    {
+      "id": "gh-cli",
+      "seam": {"path": "src/platform/lib/github/github.go", "symbol": "Runner"},
+      "fake": {"path": "src/platform/lib/github/runner_test.go", "symbol": "TestFetchSummaryHappyPath"},
+      "contract": {"path": "src/platform/lib/github/runner_test.go", "test": "TestFetchSummaryHappyPath", "invariant": "PR, issue, and run summaries are composed from runner output", "assertion": "FetchSummaryWith"},
+      "fidelity": {"path": "src/platform/lib/github/github.go", "test": "FetchSummary", "shared_input": "FetchSummaryWith", "real_marker": "execRunner"}
+    },
+    {
+      "id": "clock",
+      "seam": {"path": "src/orchestrator/scheduler/reduce.go", "symbol": "Reduce"},
+      "fake": {"path": "src/orchestrator/scheduler/retry_test.go", "symbol": "TestArmTimer_Fires"},
+      "contract": {"path": "src/orchestrator/scheduler/conformance_test.go", "test": "TestSPEC_17_4_ContinuationFixed1s", "invariant": "continuation delay is exactly one second", "assertion": "continuationDelay != 1000*time.Millisecond"},
+      "fidelity": {"path": "src/orchestrator/scheduler/retry_test.go", "test": "TestArmTimer_Fires", "shared_input": "armTimer", "real_marker": "clk.Advance"}
+    },
+    {
+      "id": "browser",
+      "seam": {"path": "src/client/web/e2e/support/fake-backend.ts", "symbol": "export async function installFakeBackend"},
+      "fake": {"path": "src/client/web/e2e/support/fake-backend.ts", "symbol": "export async function installFakeBackend"},
+      "contract": {"path": "src/client/web/e2e/app.smoke.spec.ts", "test": "test(", "invariant": "browser-visible application behavior is asserted", "assertion": "expect("},
+      "fidelity": {"path": "src/client/web/playwright.config.ts", "test": "defineConfig", "shared_input": "testDir", "real_marker": "chromium"}
+    },
+    {
+      "id": "claude-cli",
+      "seam": {"path": "src/platform/lib/claude/fakeclaude/fakeclaude.go", "symbol": "LauncherFunc"},
+      "fake": {"path": "src/platform/lib/claude/fakeclaude/fakeclaude.go", "symbol": "NewLauncher"},
+      "contract": {"path": "src/platform/lib/claude/fakeclaude/fakeclaude_test.go", "test": "TestLines_RoundTrip", "invariant": "stream-json lines round trip", "assertion": "RoundTrip"},
+      "fidelity": {"path": "src/platform/lib/claude/fakeclaude/claude_cli_e2e_test.go", "test": "TestE2E_FakeVsRealShape", "shared_input": "fakeLines", "real_marker": "realTypes"}
+    },
+    {
+      "id": "codex-app-server",
+      "seam": {"path": "src/platform/agent/fakecodex/fakecodex.go", "symbol": "TurnHandler"},
+      "fake": {"path": "src/platform/agent/fakecodex/fakecodex.go", "symbol": "New"},
+      "contract": {"path": "src/platform/agent/fakecodex/fakecodex_test.go", "test": "TestDefaultTurnContractPreservesMissingKeys", "invariant": "default turn wire keys remain stable", "assertion": "PreservesMissingKeys"},
+      "fidelity": {"path": "src/platform/agent/fakecodex/codex_appserver_e2e_test.go", "test": "TestE2E_FakeVsRealMethods", "shared_input": "runFakeScenario", "real_marker": "runRealAppServerScenario"}
+    },
+    {
+      "id": "docker-cli",
+      "seam": {"path": "src/platform/sandbox/devcontainer/manager.go", "symbol": "Manager"},
+      "fake": {"path": "src/platform/sandbox/devcontainer/fakedocker/config.go", "symbol": "LoadConfig"},
+      "contract": {"path": "src/platform/sandbox/devcontainer/manager_lifecycle_test.go", "test": "TestManager", "invariant": "container lifecycle commands preserve state", "assertion": "fakedocker"},
+      "fidelity": {"path": "src/platform/sandbox/devcontainer/docker_e2e_test.go", "test": "TestE2E_FakeVsRealDocker", "shared_input": "createArgs", "real_marker": "realBin"}
+    },
+    {
+      "id": "app-server-stdio",
+      "seam": {"path": "src/platform/agent/fakecodex/fakecodex.go", "symbol": "Server"},
+      "fake": {"path": "src/platform/agent/fakecodex/fakecodex.go", "symbol": "New"},
+      "contract": {"path": "src/platform/agent/fakecodex/codex_appserver_e2e_test.go", "test": "TestE2E_DynamicToolNameContract", "invariant": "dynamic tool names remain protocol compatible", "assertion": "DynamicToolNameContract"},
+      "fidelity": {"path": "src/platform/agent/fakecodex/codex_appserver_e2e_test.go", "test": "TestE2E_FakeVsRealThreadSettingsUpdated", "shared_input": "SettingsUpdatedSpec", "real_marker": "realShape"}
+    },
+    {
+      "id": "pty",
+      "seam": {}, "fake": {}, "contract": {}, "fidelity": {},
+      "exception": {"reason": "real terminal semantics are the accepted T2 contract", "owner": "client-runtime", "expiry": "permanent-until-taxonomy-adr-is-superseded", "evidence": "docs/adr/adr-20260705-test-tier-taxonomy.md"}
+    }
+  ]
+}
