@@ -12,6 +12,7 @@ relations:
 - {type: supersedes, target: adr-20260624-0022-subscribe-retry-in-socket-layer}
 - {type: partOf, target: plan-20260711-terminal-subscription-recovery}
 - {type: references, target: spec-20260711-terminal-subscription-recovery}
+- {type: referencedBy, target: adr-20260711-server-initiated-severance-signal}
 source_paths:
 - src/client/web/src/socket/
 - src/client/web/src/components/TerminalPane.tsx
