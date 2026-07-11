@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	rsubsystem "github.com/takezoh/agent-grid/client/runtime/subsystem"
 	"github.com/takezoh/agent-grid/client/state"
 	"github.com/takezoh/agent-grid/platform/pathmap"
 )
@@ -316,6 +317,44 @@ func TestEffReleaseFrameSandbox_invokesCleanup(t *testing.T) {
 	if !called.Load() {
 		t.Error("cleanup not called after EffReleaseFrameSandbox")
 	}
+}
+
+func TestEffReleaseFrameSandbox_releasesSubsystemFrame(t *testing.T) {
+	frameID := state.FrameID("f-vanished")
+	sub := &fakeSubsystem{id: "stream:vanished", kind: state.LaunchSubsystemStream}
+	reaped := make(chan state.SubsystemID, 1)
+	r := New(Config{Backend: noopBackend{}})
+	r.frameSubsystems[frameID] = sub
+	r.frameSubsystemIDs[frameID] = sub.id
+	r.subsystemFactories[state.LaunchSubsystemStream] = &reapingFakeFactory{sub: sub, reaped: reaped}
+
+	r.execute(state.EffReleaseFrameSandbox{FrameID: frameID})
+
+	if got := atomic.LoadInt32(&sub.releaseN); got != 1 {
+		t.Fatalf("subsystem ReleaseFrame calls = %d, want 1", got)
+	}
+	select {
+	case got := <-reaped:
+		if got != sub.id {
+			t.Fatalf("reaped subsystem = %q, want %q", got, sub.id)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("last frame release did not reap the stream subsystem")
+	}
+}
+
+type reapingFakeFactory struct {
+	sub    *fakeSubsystem
+	reaped chan<- state.SubsystemID
+}
+
+func (f *reapingFakeFactory) Ensure(_ context.Context, _ state.SessionID, _ string, _ state.LaunchPlan) (rsubsystem.Subsystem, state.SubsystemID, error) {
+	return f.sub, f.sub.id, nil
+}
+
+func (f *reapingFakeFactory) Remove(ctx context.Context, id state.SubsystemID) {
+	f.sub.Stop(ctx)
+	f.reaped <- id
 }
 
 // TestRequestShutdown_returnsAfterEffReleaseFrameSandboxes asserts the

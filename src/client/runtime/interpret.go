@@ -95,13 +95,10 @@ func (r *Runtime) executeMiscEffect(eff state.Effect) {
 		r.ackShutdown()
 
 	case state.EffReleaseFrameSandbox:
-		// Per-frame sandbox release. Fires the cleanup closure registered
-		// at handleSpawnComplete (devcontainer.makeCleanup runs
-		// Manager.ReleaseFrame → 0 なら DestroyInstance). The closure is a
-		// no-op when refCount stays positive (sibling frames keep the
-		// container alive), so emitting unconditionally per-frame is safe
-		// — per-project / shared container refcounting is owned by the
-		// sandbox manager.
+		// Release every resource owned on behalf of the frame. Subsystem
+		// release must live here rather than under EffKillFrame because a
+		// vanished backend intentionally skips the kill effect.
+		r.releaseFrameSubsystem(e.FrameID)
 		r.invokeFrameCleanup(e.FrameID)
 
 	default:
@@ -246,15 +243,16 @@ func (r *Runtime) executeKillSessionWindow(e state.EffKillFrame) {
 			slog.Warn("runtime: warm frame delete failed", "frame", e.FrameID, "err", err)
 		}
 	}
-	// Release subsystem resources (worktree removal, thread cleanup).
-	// Sandbox cleanup (container token+mounts removal, ReleaseFrame →
-	// DestroyInstance) is driven by a separate EffReleaseFrameSandbox
-	// emitted from the reducer for the same frame, so this handler is
-	// frame kill + subsystem release only.
-	if sub, ok := r.frameSubsystems[e.FrameID]; ok {
-		delete(r.frameSubsystems, e.FrameID)
-		sub.ReleaseFrame(e.FrameID)
-		r.reapSubsystemIfLast(sub, e.FrameID)
+	// Subsystem and sandbox cleanup are driven together by the separate
+	// EffReleaseFrameSandbox emitted for every frame teardown path.
+	// This handler only terminates the backend frame.
+}
+
+func (r *Runtime) releaseFrameSubsystem(frameID state.FrameID) {
+	if sub, ok := r.frameSubsystems[frameID]; ok {
+		delete(r.frameSubsystems, frameID)
+		sub.ReleaseFrame(frameID)
+		r.reapSubsystemIfLast(sub, frameID)
 	}
 }
 
