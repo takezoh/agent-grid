@@ -25,10 +25,12 @@ type bufferedSurfaceBackend interface {
 	SubscribeSurfaceWithBuffer(frameID string, buffer int) (int, <-chan termvt.Event, error)
 }
 
-// surfaceKey is the map key for a per-(ConnID, SessionID) subscription.
+// surfaceKey is the map key for one logical browser subscription. SubscriberID
+// distinguishes lifecycle WebSockets sharing the same daemon ConnID.
 type surfaceKey struct {
-	connID    state.ConnID
-	sessionID state.SessionID
+	connID       state.ConnID
+	sessionID    state.SessionID
+	subscriberID state.SubscriberID
 }
 
 // surfaceSub holds the live state of one fan-out goroutine.
@@ -39,7 +41,7 @@ type surfaceSub struct {
 	seq     uint64        // next Sequence value to emit (subscribe-scoped, resets on re-subscribe)
 }
 
-// TerminalRelay manages per-(ConnID, SessionID) subscriptions to termvt
+// TerminalRelay manages per-(ConnID, SessionID, SubscriberID) subscriptions to termvt
 // sessions and fans EventOutput chunks out as internalBroadcastSurface events
 // on the runtime event loop. It is a reducer-bypass goroutine in the same
 // spirit as FileRelay.
@@ -105,7 +107,11 @@ func NewTerminalRelay(
 // Subscribe starts a fan-out goroutine for (connID, sessionID) on frameID.
 // If a subscription already exists for that key it is a no-op (idempotent).
 func (tr *TerminalRelay) Subscribe(connID state.ConnID, sessionID state.SessionID, frameID string) error {
-	key := surfaceKey{connID: connID, sessionID: sessionID}
+	return tr.SubscribeOwned(connID, sessionID, "", frameID)
+}
+
+func (tr *TerminalRelay) SubscribeOwned(connID state.ConnID, sessionID state.SessionID, subscriberID state.SubscriberID, frameID string) error {
+	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
 
 	tr.mu.Lock()
 	if _, exists := tr.subs[key]; exists {
@@ -149,7 +155,11 @@ func (tr *TerminalRelay) subscribeSurface(frameID string) (int, <-chan termvt.Ev
 // Unsubscribe stops the fan-out goroutine for (connID, sessionID) and
 // releases the termvt subscriber. Idempotent — safe to call multiple times.
 func (tr *TerminalRelay) Unsubscribe(connID state.ConnID, sessionID state.SessionID) {
-	key := surfaceKey{connID: connID, sessionID: sessionID}
+	tr.UnsubscribeOwned(connID, sessionID, "")
+}
+
+func (tr *TerminalRelay) UnsubscribeOwned(connID state.ConnID, sessionID state.SessionID, subscriberID state.SubscriberID) {
+	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
 
 	tr.mu.Lock()
 	sub, ok := tr.subs[key]
@@ -169,8 +179,13 @@ func (tr *TerminalRelay) shouldApplySlowClose(
 	sessionID state.SessionID,
 	frameID string,
 	subID int,
+	subscriberIDs ...state.SubscriberID,
 ) bool {
-	key := surfaceKey{connID: connID, sessionID: sessionID}
+	var subscriberID state.SubscriberID
+	if len(subscriberIDs) > 0 {
+		subscriberID = subscriberIDs[0]
+	}
+	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
 
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
@@ -183,7 +198,11 @@ func (tr *TerminalRelay) shouldApplySlowClose(
 }
 
 func (tr *TerminalRelay) hasSubscription(connID state.ConnID, sessionID state.SessionID) bool {
-	key := surfaceKey{connID: connID, sessionID: sessionID}
+	return tr.hasOwnedSubscription(connID, sessionID, "")
+}
+
+func (tr *TerminalRelay) hasOwnedSubscription(connID state.ConnID, sessionID state.SessionID, subscriberID state.SubscriberID) bool {
+	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
 
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
@@ -213,7 +232,7 @@ func (tr *TerminalRelay) Close() {
 	tr.mu.Unlock()
 
 	for _, key := range keys {
-		tr.Unsubscribe(key.connID, key.sessionID)
+		tr.UnsubscribeOwned(key.connID, key.sessionID, key.subscriberID)
 	}
 }
 
@@ -235,10 +254,11 @@ func (tr *TerminalRelay) fanOut(key surfaceKey, sub *surfaceSub, ch <-chan termv
 				}
 				tr.mu.Unlock()
 				tr.sendNow(internalSurfaceClosed{
-					ConnID:    key.connID,
-					SessionID: key.sessionID,
-					FrameID:   sub.frameID,
-					SubID:     sub.subID,
+					ConnID:       key.connID,
+					SessionID:    key.sessionID,
+					SubscriberID: key.subscriberID,
+					FrameID:      sub.frameID,
+					SubID:        sub.subID,
 				})
 				return
 			}
@@ -258,11 +278,12 @@ func (tr *TerminalRelay) fanOut(key surfaceKey, sub *surfaceSub, ch <-chan termv
 			sub.seq++
 
 			_ = tr.send(internalBroadcastSurface{
-				ConnID:    key.connID,
-				SessionID: key.sessionID,
-				Data:      data,
-				TimeSec:   time.Since(tr.startTS).Seconds(),
-				Sequence:  seq,
+				ConnID:       key.connID,
+				SessionID:    key.sessionID,
+				SubscriberID: key.subscriberID,
+				Data:         data,
+				TimeSec:      time.Since(tr.startTS).Seconds(),
+				Sequence:     seq,
 			})
 		}
 	}
@@ -274,11 +295,12 @@ func (tr *TerminalRelay) fanOut(key surfaceKey, sub *surfaceSub, ch <-chan termv
 // EventOutput chunk. The event loop routes it to the single ConnID that
 // subscribed so that EvtSurfaceOutput is streamed over the wire.
 type internalBroadcastSurface struct {
-	ConnID    state.ConnID
-	SessionID state.SessionID
-	Data      []byte
-	TimeSec   float64
-	Sequence  uint64
+	ConnID       state.ConnID
+	SessionID    state.SessionID
+	SubscriberID state.SubscriberID
+	Data         []byte
+	TimeSec      float64
+	Sequence     uint64
 }
 
 func (internalBroadcastSurface) isInternalEvent() {}
@@ -287,10 +309,11 @@ func (internalBroadcastSurface) isInternalEvent() {}
 // subscriber channel (slow-close on process exit). The event loop uses it to
 // remove the entry from state.SurfaceSubs so the client knows the stream ended.
 type internalSurfaceClosed struct {
-	ConnID    state.ConnID
-	SessionID state.SessionID
-	FrameID   string
-	SubID     int
+	ConnID       state.ConnID
+	SessionID    state.SessionID
+	SubscriberID state.SubscriberID
+	FrameID      string
+	SubID        int
 }
 
 func (internalSurfaceClosed) isInternalEvent() {}

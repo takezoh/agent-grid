@@ -270,8 +270,9 @@ func (EffSendFrameKeys) isEffect()             {}
 // session exists and that the head frame is non-nil before emitting this.
 // The runtime is responsible for starting the relay goroutine.
 type EffSurfaceSubscribeStart struct {
-	ConnID    ConnID
-	SessionID SessionID
+	ConnID       ConnID
+	SessionID    SessionID
+	SubscriberID SubscriberID
 }
 
 func (EffSurfaceSubscribeStart) isEffect() {}
@@ -281,8 +282,9 @@ func (EffSurfaceSubscribeStart) isEffect() {}
 // explicit unsubscribe and on EvConnClosed for every still-subscribed
 // (ConnID, SessionID) pair.
 type EffSurfaceSubscribeStop struct {
-	ConnID    ConnID
-	SessionID SessionID
+	ConnID       ConnID
+	SessionID    SessionID
+	SubscriberID SubscriberID
 }
 
 func (EffSurfaceSubscribeStop) isEffect() {}

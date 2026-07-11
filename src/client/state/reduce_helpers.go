@@ -334,8 +334,10 @@ func postProcessEffect(s State, sessID SessionID, frameID FrameID, eff Effect) (
 // refresh) that only matters when a user is looking.
 func sessionWatched(s State, sid SessionID) bool {
 	for _, subs := range s.SurfaceSubs {
-		if _, ok := subs[sid]; ok {
-			return true
+		for sub := range subs {
+			if sub.SessionID == sid {
+				return true
+			}
 		}
 	}
 	return false

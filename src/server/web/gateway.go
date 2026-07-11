@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -16,6 +18,8 @@ import (
 // errDaemonGone is returned by writeOutbound when the daemon events channel
 // closes, indicating the daemon disconnected.
 var errDaemonGone = errors.New("server/web: daemon disconnected")
+
+var lifecycleSubscriberCounter atomic.Uint64
 
 // Attacher is the daemon-side surface AttachWS needs (proto.Client wrapper).
 // Implemented by DaemonAdapter; a fake is used in gateway_terminal_test.go.
@@ -31,7 +35,8 @@ type Attacher interface {
 	// WITHOUT registering a new event subscriber on the DaemonClient.
 	// Used by AttachLifecycleWS, which already holds a single event channel
 	// shared by every multiplexed session.
-	SendSurfaceSubscribe(ctx context.Context, sessionID string) error
+	SendSurfaceSubscribe(ctx context.Context, sessionID, subscriberID string) error
+	SendSurfaceUnsubscribe(ctx context.Context, sessionID, subscriberID string) error
 	WriteRaw(ctx context.Context, sessionID string, data []byte) error
 	Resize(ctx context.Context, sessionID string, cols, rows uint16) error
 	// SubscribeLifecycle subscribes to daemon-side lifecycle events
@@ -74,8 +79,13 @@ func (a *DaemonAdapter) UnsubscribeSurface(ctx context.Context, sid string) erro
 // SendSurfaceSubscribe forwards CmdSurfaceSubscribe to the daemon without
 // allocating a fresh DaemonClient subscriber. Used by AttachLifecycleWS,
 // which multiplexes subscribe requests over its single lifecycle event channel.
-func (a *DaemonAdapter) SendSurfaceSubscribe(ctx context.Context, sid string) error {
-	_, err := a.d.SendCommand(ctx, proto.CmdSurfaceSubscribe{SessionID: sid})
+func (a *DaemonAdapter) SendSurfaceSubscribe(ctx context.Context, sid, subscriberID string) error {
+	_, err := a.d.SendCommand(ctx, proto.CmdSurfaceSubscribe{SessionID: sid, SubscriberID: subscriberID})
+	return err
+}
+
+func (a *DaemonAdapter) SendSurfaceUnsubscribe(ctx context.Context, sid, subscriberID string) error {
+	_, err := a.d.SendCommand(ctx, proto.CmdSurfaceUnsubscribe{SessionID: sid, SubscriberID: subscriberID})
 	return err
 }
 
@@ -178,10 +188,9 @@ func encodeHelloFrame(sc proto.EvtSessionsChanged, serverTime int64) []byte {
 	return b
 }
 
-// lifecycleSubSet tracks the set of session IDs a single AttachLifecycleWS
-// connection has subscribed to. It is used both to filter EvtSurfaceOutput
-// (only forward events for currently subscribed sessions) and to issue
-// CmdSurfaceUnsubscribe for each on connection teardown.
+// lifecycleSubSet tracks the set of session IDs owned by one browser
+// AttachLifecycleWS connection. SubscriberID separates that browser at the
+// daemon/runtime layer; this set gates pending/active output and teardown.
 type lifecycleSubSet struct {
 	mu  sync.Mutex
 	ids map[string]struct{}
@@ -191,7 +200,13 @@ func newLifecycleSubSet() *lifecycleSubSet {
 	return &lifecycleSubSet{ids: make(map[string]struct{})}
 }
 
-func (s *lifecycleSubSet) add(id string)    { s.mu.Lock(); s.ids[id] = struct{}{}; s.mu.Unlock() }
+func (s *lifecycleSubSet) add(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, existed := s.ids[id]
+	s.ids[id] = struct{}{}
+	return !existed
+}
 func (s *lifecycleSubSet) remove(id string) { s.mu.Lock(); delete(s.ids, id); s.mu.Unlock() }
 func (s *lifecycleSubSet) contains(id string) bool {
 	s.mu.Lock()
@@ -231,14 +246,15 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 		return err
 	}
 	subs := newLifecycleSubSet()
+	subscriberID := "web-" + strconv.FormatUint(lifecycleSubscriberCounter.Add(1), 10)
 	defer func() {
 		// Cleanup: unsubscribe daemon-side for every session this WS held open.
 		for _, id := range subs.drain() {
-			_ = sess.UnsubscribeSurface(context.Background(), id)
+			_ = sess.SendSurfaceUnsubscribe(context.Background(), id, subscriberID)
 		}
 	}()
 
-	go func() { readLifecycleInbound(ctx, sess, c, subs); cancel() }()
+	go func() { readLifecycleInbound(ctx, sess, c, subs, subscriberID); cancel() }()
 
 	helloSent := false
 	for {
@@ -265,7 +281,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 			case proto.EvtSurfaceOutput:
 				// Multiplexed surface output: only forward if this WS has
 				// actively subscribed to the producing session.
-				if !subs.contains(e.SessionID) {
+				if e.SubscriberID != subscriberID || !subs.contains(e.SessionID) {
 					continue
 				}
 				frame = encodeServerEvent(e)
@@ -294,7 +310,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 // Without those responses the promise blocks until WS close, exhausting the
 // retry budget without ever surfacing the real error code (e.g.
 // "frame-not-ready" that drives the ADR 0018 backoff).
-func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn, subs *lifecycleSubSet) {
+func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn, subs *lifecycleSubSet, subscriberID string) {
 	for {
 		_, data, err := c.Read(ctx)
 		if err != nil {
@@ -306,9 +322,9 @@ func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn,
 		}
 		switch msg.K {
 		case "s":
-			handleLifecycleSubscribe(ctx, sess, c, &msg, subs)
+			handleLifecycleSubscribe(ctx, sess, c, &msg, subs, subscriberID)
 		case "u":
-			handleLifecycleUnsubscribe(ctx, sess, c, &msg, subs)
+			handleLifecycleUnsubscribe(ctx, sess, c, &msg, subs, subscriberID)
 		case "i":
 			if msg.SessionID == "" {
 				continue
@@ -330,19 +346,23 @@ func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn,
 // handleLifecycleSubscribe processes one {k:"s"} frame: forward the command,
 // then write a {k:"r"} or {k:"e"} response carrying the original reqId so the
 // React await-response promise can resolve.
-func handleLifecycleSubscribe(ctx context.Context, sess Attacher, c *websocket.Conn, msg *inbound, subs *lifecycleSubSet) {
+func handleLifecycleSubscribe(ctx context.Context, sess Attacher, c *websocket.Conn, msg *inbound, subs *lifecycleSubSet, subscriberID string) {
 	if msg.SessionID == "" {
 		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "sessionId required")
 		return
 	}
-	err := sess.SendSurfaceSubscribe(ctx, msg.SessionID)
+	added := subs.add(msg.SessionID)
+	err := sess.SendSurfaceSubscribe(ctx, msg.SessionID, subscriberID)
 	if err != nil {
+		var protocolErr *proto.ErrorBody
+		if added && errors.As(err, &protocolErr) {
+			subs.remove(msg.SessionID)
+		}
 		code, message := unwrapProtoError(err)
 		slog.Warn("server/web: lifecycle surface subscribe", "err", err, "sid", msg.SessionID)
 		writeRespErrFrame(ctx, c, msg.ReqID, code, message)
 		return
 	}
-	subs.add(msg.SessionID)
 	writeRespOKFrame(ctx, c, msg.ReqID)
 }
 
@@ -352,12 +372,12 @@ func handleLifecycleSubscribe(ctx context.Context, sess Attacher, c *websocket.C
 // stays in subs so the deferred subs.drain() teardown still issues the
 // matching CmdSurfaceUnsubscribe on WS close — otherwise the daemon would
 // leak the surface subscription resource until daemon restart.
-func handleLifecycleUnsubscribe(ctx context.Context, sess Attacher, c *websocket.Conn, msg *inbound, subs *lifecycleSubSet) {
+func handleLifecycleUnsubscribe(ctx context.Context, sess Attacher, c *websocket.Conn, msg *inbound, subs *lifecycleSubSet, subscriberID string) {
 	if msg.SessionID == "" {
 		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "sessionId required")
 		return
 	}
-	if err := sess.UnsubscribeSurface(ctx, msg.SessionID); err != nil {
+	if err := sess.SendSurfaceUnsubscribe(ctx, msg.SessionID, subscriberID); err != nil {
 		code, message := unwrapProtoError(err)
 		slog.Warn("server/web: lifecycle surface unsubscribe", "err", err, "sid", msg.SessionID)
 		writeRespErrFrame(ctx, c, msg.ReqID, code, message)

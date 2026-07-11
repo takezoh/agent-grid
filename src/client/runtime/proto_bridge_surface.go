@@ -21,18 +21,21 @@ func (r *Runtime) broadcastSurfaceOutput(e state.EffBroadcastSurfaceOutput) {
 		DataB64:   base64.StdEncoding.EncodeToString(e.Data),
 		Sequence:  0, // sequence managed by TerminalRelay fan-out goroutines
 	}
-	wire, err := proto.EncodeEvent(ev)
-	if err != nil {
-		slog.Error("runtime: encode surface output failed", "err", err)
-		return
-	}
 	// Iterate outer map (ConnID → set of SessionIDs) to find which connections
 	// are subscribed to this session.
-	for connID, sessions := range r.state.SurfaceSubs {
-		if _, ok := sessions[e.SessionID]; !ok {
-			continue
+	for connID, subscriptions := range r.state.SurfaceSubs {
+		for subscription := range subscriptions {
+			if subscription.SessionID != e.SessionID {
+				continue
+			}
+			ev.SubscriberID = string(subscription.SubscriberID)
+			wire, err := proto.EncodeEvent(ev)
+			if err != nil {
+				slog.Error("runtime: encode surface output failed", "err", err)
+				continue
+			}
+			r.queueWireToConn(connID, wire, proto.EvtNameSurfaceOutput)
 		}
-		r.queueWireToConn(connID, wire, proto.EvtNameSurfaceOutput)
 	}
 }
 
@@ -41,10 +44,11 @@ func (r *Runtime) broadcastSurfaceOutput(e state.EffBroadcastSurfaceOutput) {
 // fan-out goroutine enqueues a new chunk.
 func (r *Runtime) broadcastSurfaceFromInternal(ev internalBroadcastSurface) {
 	out := proto.EvtSurfaceOutput{
-		SessionID: string(ev.SessionID),
-		TimeSec:   ev.TimeSec,
-		DataB64:   base64.StdEncoding.EncodeToString(ev.Data),
-		Sequence:  ev.Sequence,
+		SessionID:    string(ev.SessionID),
+		SubscriberID: string(ev.SubscriberID),
+		TimeSec:      ev.TimeSec,
+		DataB64:      base64.StdEncoding.EncodeToString(ev.Data),
+		Sequence:     ev.Sequence,
 	}
 	wire, err := proto.EncodeEvent(out)
 	if err != nil {
@@ -75,10 +79,12 @@ func (r *Runtime) broadcastPromptEvent(e state.EffBroadcastPromptEvent) {
 		return
 	}
 	for connID, sessions := range r.state.SurfaceSubs {
-		if _, ok := sessions[sessionID]; !ok {
-			continue
+		for subscription := range sessions {
+			if subscription.SessionID == sessionID {
+				r.queueWireToConn(connID, wire, proto.EvtNamePromptEvent)
+				break
+			}
 		}
-		r.queueWireToConn(connID, wire, proto.EvtNamePromptEvent)
 	}
 }
 

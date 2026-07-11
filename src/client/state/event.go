@@ -81,17 +81,19 @@ type EvCmdSurfaceSendKey struct {
 // can be subscribed under one ConnID; the per-ConnID cap (see ADR 0007)
 // is enforced by the reducer.
 type EvCmdSurfaceSubscribe struct {
-	ConnID    ConnID
-	ReqID     string
-	SessionID SessionID
+	ConnID       ConnID
+	ReqID        string
+	SessionID    SessionID
+	SubscriberID SubscriberID
 }
 
 // EvCmdSurfaceUnsubscribe removes ConnID's subscription for SessionID.
 // Idempotent: unsubscribing an already-removed entry returns RespOK.
 type EvCmdSurfaceUnsubscribe struct {
-	ConnID    ConnID
-	ReqID     string
-	SessionID SessionID
+	ConnID       ConnID
+	ReqID        string
+	SessionID    SessionID
+	SubscriberID SubscriberID
 }
 
 // EvCmdSurfaceResize requests a logical frame surface resize to (Cols, Rows)

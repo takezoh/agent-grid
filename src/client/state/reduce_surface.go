@@ -81,6 +81,7 @@ func reduceDriverList(s State, e EvCmdDriverList) (State, []Effect) {
 
 func reduceSurfaceSubscribe(s State, e EvCmdSurfaceSubscribe) (State, []Effect) {
 	sid := e.SessionID
+	key := SurfaceSubscription{SessionID: sid, SubscriberID: e.SubscriberID}
 	sess, ok := s.Sessions[sid]
 	if !ok {
 		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeNotFound, "session not found: "+string(sid))}
@@ -89,38 +90,39 @@ func reduceSurfaceSubscribe(s State, e EvCmdSurfaceSubscribe) (State, []Effect) 
 		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeFrameNotReady, "frame-not-ready: "+string(sid))}
 	}
 	existing := s.SurfaceSubs[e.ConnID]
-	_, already := existing[sid]
+	_, already := existing[key]
 	if !already && len(existing) >= 8 {
 		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeResourceExhausted, "per-conn surface subscribe cap (8) exceeded")}
 	}
 	s.SurfaceSubs = cloneSurfaceSubs(s.SurfaceSubs)
 	inner := s.SurfaceSubs[e.ConnID]
 	if inner == nil {
-		inner = map[SessionID]struct{}{}
+		inner = map[SurfaceSubscription]struct{}{}
 		s.SurfaceSubs[e.ConnID] = inner
 	}
-	if _, already := inner[sid]; already {
+	if _, already := inner[key]; already {
 		return s, []Effect{okResp(e.ConnID, e.ReqID, nil)}
 	}
-	inner[sid] = struct{}{}
+	inner[key] = struct{}{}
 	return s, []Effect{
-		EffSurfaceSubscribeStart{ConnID: e.ConnID, SessionID: sid},
+		EffSurfaceSubscribeStart{ConnID: e.ConnID, SessionID: sid, SubscriberID: e.SubscriberID},
 		okResp(e.ConnID, e.ReqID, nil),
 	}
 }
 
 func reduceSurfaceUnsubscribe(s State, e EvCmdSurfaceUnsubscribe) (State, []Effect) {
 	sid := e.SessionID
-	if _, ok := s.SurfaceSubs[e.ConnID][sid]; !ok {
+	key := SurfaceSubscription{SessionID: sid, SubscriberID: e.SubscriberID}
+	if _, ok := s.SurfaceSubs[e.ConnID][key]; !ok {
 		return s, []Effect{okResp(e.ConnID, e.ReqID, nil)}
 	}
 	s.SurfaceSubs = cloneSurfaceSubs(s.SurfaceSubs)
-	delete(s.SurfaceSubs[e.ConnID], sid)
+	delete(s.SurfaceSubs[e.ConnID], key)
 	if len(s.SurfaceSubs[e.ConnID]) == 0 {
 		delete(s.SurfaceSubs, e.ConnID)
 	}
 	return s, []Effect{
-		EffSurfaceSubscribeStop{ConnID: e.ConnID, SessionID: sid},
+		EffSurfaceSubscribeStop{ConnID: e.ConnID, SessionID: sid, SubscriberID: e.SubscriberID},
 		okResp(e.ConnID, e.ReqID, nil),
 	}
 }

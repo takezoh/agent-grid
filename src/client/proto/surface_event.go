@@ -10,7 +10,8 @@ const (
 // to subscribed clients. Each message carries exactly one binary chunk
 // so the receiver can reconstruct the raw byte stream in order.
 type EvtSurfaceOutput struct {
-	SessionID string `json:"session_id"`
+	SessionID    string `json:"session_id"`
+	SubscriberID string `json:"subscriber_id,omitempty"`
 
 	// TimeSec is the wall-clock offset in seconds from the start of the
 	// recording at which this chunk was captured.

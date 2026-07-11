@@ -209,10 +209,10 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 	case internalBroadcastSurface:
 		r.broadcastSurfaceFromInternal(e)
 	case internalSurfaceClosed:
-		if r.terminalRelay != nil && !r.terminalRelay.shouldApplySlowClose(e.ConnID, e.SessionID, e.FrameID, e.SubID) {
+		if r.terminalRelay != nil && !r.terminalRelay.shouldApplySlowClose(e.ConnID, e.SessionID, e.FrameID, e.SubID, e.SubscriberID) {
 			return
 		}
-		r.dispatch(state.EvCmdSurfaceUnsubscribe{ConnID: e.ConnID, ReqID: "", SessionID: e.SessionID})
+		r.dispatch(state.EvCmdSurfaceUnsubscribe{ConnID: e.ConnID, ReqID: "", SessionID: e.SessionID, SubscriberID: e.SubscriberID})
 	}
 }
 

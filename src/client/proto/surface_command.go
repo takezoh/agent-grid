@@ -11,7 +11,8 @@ const (
 // CmdSurfaceSubscribe begins streaming the head frame surface output of
 // SessionID as EvtSurfaceOutput events to the caller.
 type CmdSurfaceSubscribe struct {
-	SessionID string `json:"session_id"`
+	SessionID    string `json:"session_id"`
+	SubscriberID string `json:"subscriber_id,omitempty"`
 }
 
 func (CmdSurfaceSubscribe) isCommand()          {}
@@ -19,7 +20,8 @@ func (CmdSurfaceSubscribe) CommandName() string { return CmdNameSurfaceSubscribe
 
 // CmdSurfaceUnsubscribe cancels an active surface.subscribe for SessionID.
 type CmdSurfaceUnsubscribe struct {
-	SessionID string `json:"session_id"`
+	SessionID    string `json:"session_id"`
+	SubscriberID string `json:"subscriber_id,omitempty"`
 }
 
 func (CmdSurfaceUnsubscribe) isCommand()          {}

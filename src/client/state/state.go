@@ -16,12 +16,13 @@ import (
 // Identifier types. Distinct named types prevent accidental mix-up at the
 // type level instead of at runtime.
 type (
-	SessionID   string
-	FrameID     string
-	SubsystemID string
-	TargetID    string
-	ConnID      uint64
-	JobID       uint64
+	SessionID    string
+	FrameID      string
+	SubsystemID  string
+	TargetID     string
+	ConnID       uint64
+	SubscriberID string
+	JobID        uint64
 )
 
 // State is the entire client domain state at one point in time. Reduce
@@ -33,7 +34,7 @@ type (
 type State struct {
 	Sessions    map[SessionID]Session
 	Subscribers map[ConnID]Subscriber
-	// SurfaceSubs records which (ConnID, SessionID) pairs are streaming
+	// SurfaceSubs records which (ConnID, SessionID, SubscriberID) tuples are streaming
 	// frame surface output via the surface.subscribe RPC. The outer map is keyed by
 	// ConnID so connection close can drop all subscriptions in one step
 	// (see reduceConnClosed). The inner set keeps lookup O(1).
@@ -42,9 +43,9 @@ type State struct {
 	// purpose. Subscriptions reset on daemon restart so clients must
 	// re-subscribe (matches the runtime's relay-goroutine lifecycle).
 	//
-	// Per-ConnID cap: the reducer enforces len(SurfaceSubs[ConnID]) <= 8
+	// Per-ConnID cap: the reducer enforces at most 8 logical subscriptions
 	// (ADR 0007); excess subscribe attempts get RespErr(resource_exhausted).
-	SurfaceSubs      map[ConnID]map[SessionID]struct{}
+	SurfaceSubs      map[ConnID]map[SurfaceSubscription]struct{}
 	Jobs             map[JobID]JobMeta
 	NextJobID        JobID
 	NextConnID       ConnID
@@ -110,7 +111,12 @@ func New() State {
 	return State{
 		Sessions:    map[SessionID]Session{},
 		Subscribers: map[ConnID]Subscriber{},
-		SurfaceSubs: map[ConnID]map[SessionID]struct{}{},
+		SurfaceSubs: map[ConnID]map[SurfaceSubscription]struct{}{},
 		Jobs:        map[JobID]JobMeta{},
 	}
+}
+
+type SurfaceSubscription struct {
+	SessionID    SessionID
+	SubscriberID SubscriberID
 }

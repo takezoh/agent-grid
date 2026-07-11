@@ -64,7 +64,7 @@ func TestTickProcessesRunningSessions(t *testing.T) {
 		Command: "stub",
 		Driver:  stubDriverState{status: StatusRunning},
 	}
-	s.SurfaceSubs[1] = map[SessionID]struct{}{"run1": {}}
+	s.SurfaceSubs[1] = map[SurfaceSubscription]struct{}{{SessionID: "run1"}: {}}
 
 	_, effs := Reduce(s, EvTick{Now: now})
 
@@ -101,7 +101,7 @@ func TestSiblingIndependence(t *testing.T) {
 			{ID: child2ID, Project: "/foo", Command: "stub", Driver: stubDriverState{}},
 		},
 	}
-	s.SurfaceSubs[1] = map[SessionID]struct{}{id: {}}
+	s.SurfaceSubs[1] = map[SurfaceSubscription]struct{}{{SessionID: id}: {}}
 
 	next, _ := Reduce(s, EvFrameVanished{FrameID: child1ID})
 
@@ -150,7 +150,7 @@ func TestMRUFallbackOnFrameDeath(t *testing.T) {
 		HeadFrameID: child2ID,
 		MRUFrameIDs: []FrameID{child1ID, rootID},
 	}
-	s.SurfaceSubs[1] = map[SessionID]struct{}{id: {}}
+	s.SurfaceSubs[1] = map[SurfaceSubscription]struct{}{{SessionID: id}: {}}
 
 	next, _ := Reduce(s, EvFrameVanished{FrameID: child2ID})
 

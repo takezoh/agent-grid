@@ -310,6 +310,27 @@ func TestTerminalRelay_SubscribeRestartsSequence(t *testing.T) {
 	}
 }
 
+func TestTerminalRelay_LogicalBrowserOwnersHaveIndependentSubscriptions(t *testing.T) {
+	b := newFakeSurfaceBackend()
+	tr, _ := newTestTerminalRelay(t, b)
+	defer tr.Close()
+
+	if err := tr.SubscribeOwned(conn1, sess1, "browser-a", "%1"); err != nil {
+		t.Fatalf("SubscribeOwned browser-a: %v", err)
+	}
+	if err := tr.SubscribeOwned(conn1, sess1, "browser-b", "%1"); err != nil {
+		t.Fatalf("SubscribeOwned browser-b: %v", err)
+	}
+	if got := b.nextID.Load(); got != 2 {
+		t.Fatalf("backend subscriptions = %d, want independent seed source for each browser", got)
+	}
+
+	tr.UnsubscribeOwned(conn1, sess1, "browser-a")
+	if !tr.hasOwnedSubscription(conn1, sess1, "browser-b") {
+		t.Fatal("unsubscribing browser A stopped browser B")
+	}
+}
+
 // TestTerminalRelay_SlowCloseEmitsClosedEvent: when the backend closes the
 // channel (process exit), exactly one internalSurfaceClosed is emitted.
 func TestTerminalRelay_SlowCloseEmitsClosedEvent(t *testing.T) {

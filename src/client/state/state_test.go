@@ -86,8 +86,8 @@ func TestCloneSessionsIndependence(t *testing.T) {
 }
 
 func TestCloneSurfaceSubsIndependence(t *testing.T) {
-	origInner := map[SessionID]struct{}{"s1": {}, "s2": {}}
-	orig := map[ConnID]map[SessionID]struct{}{
+	origInner := map[SurfaceSubscription]struct{}{{SessionID: "s1"}: {}, {SessionID: "s2"}: {}}
+	orig := map[ConnID]map[SurfaceSubscription]struct{}{
 		1: origInner,
 	}
 	cloned := cloneSurfaceSubs(orig)
@@ -98,13 +98,13 @@ func TestCloneSurfaceSubsIndependence(t *testing.T) {
 		t.Fatalf("clone inner len = %d, want 2", len(cloned[1]))
 	}
 	// Mutate cloned outer: add a new ConnID entry.
-	cloned[2] = map[SessionID]struct{}{"s3": {}}
+	cloned[2] = map[SurfaceSubscription]struct{}{{SessionID: "s3"}: {}}
 	if _, ok := orig[2]; ok {
 		t.Error("adding ConnID to clone leaked into original outer map")
 	}
 	// Mutate cloned inner: add a new SessionID inside ConnID 1.
-	cloned[1]["s99"] = struct{}{}
-	if _, ok := orig[1]["s99"]; ok {
+	cloned[1][SurfaceSubscription{SessionID: "s99"}] = struct{}{}
+	if _, ok := orig[1][SurfaceSubscription{SessionID: "s99"}]; ok {
 		t.Error("mutating clone inner map leaked into original inner map (shallow copy detected)")
 	}
 	if len(orig[1]) != 2 {

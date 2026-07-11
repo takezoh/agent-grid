@@ -158,7 +158,7 @@ func (r *Runtime) executeSurfaceEffect(eff state.Effect) {
 				"session", e.SessionID, "conn", e.ConnID)
 			return
 		}
-		if err := r.terminalRelay.Subscribe(e.ConnID, e.SessionID, frameID); err != nil {
+		if err := r.terminalRelay.SubscribeOwned(e.ConnID, e.SessionID, e.SubscriberID, frameID); err != nil {
 			slog.Warn("runtime: surface subscribe failed",
 				"session", e.SessionID, "conn", e.ConnID, "err", err)
 		}
@@ -167,7 +167,7 @@ func (r *Runtime) executeSurfaceEffect(eff state.Effect) {
 		if r.terminalRelay == nil {
 			return
 		}
-		r.terminalRelay.Unsubscribe(e.ConnID, e.SessionID)
+		r.terminalRelay.UnsubscribeOwned(e.ConnID, e.SessionID, e.SubscriberID)
 
 	case state.EffSurfaceResize:
 		if r.terminalRelay == nil {

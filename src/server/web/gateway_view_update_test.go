@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -20,8 +21,9 @@ import (
 // lifecycle subscriptions. SubscribeLifecycle returns a channel the
 // test controls; all surface/input methods are no-ops.
 type fakeLifecycleAttacher struct {
-	events       chan proto.ServerEvent
-	subscribeErr error
+	events          chan proto.ServerEvent
+	subscribeErr    error
+	seedOnSubscribe *proto.EvtSurfaceOutput
 }
 
 func newFakeLifecycleAttacher() *fakeLifecycleAttacher {
@@ -43,7 +45,27 @@ func (f *fakeLifecycleAttacher) SubscribeSurface(_ context.Context, _ string) (<
 
 func (f *fakeLifecycleAttacher) UnsubscribeSurface(_ context.Context, _ string) error { return nil }
 
-func (f *fakeLifecycleAttacher) SendSurfaceSubscribe(_ context.Context, _ string) error { return nil }
+func (f *fakeLifecycleAttacher) SendSurfaceSubscribe(ctx context.Context, _ string, subscriberID string) error {
+	if f.seedOnSubscribe == nil {
+		return nil
+	}
+	seed := *f.seedOnSubscribe
+	seed.SubscriberID = subscriberID
+	f.events <- seed
+	for len(f.events) != 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	return nil
+}
+
+func (f *fakeLifecycleAttacher) SendSurfaceUnsubscribe(_ context.Context, _, _ string) error {
+	return nil
+}
 
 func (f *fakeLifecycleAttacher) WriteRaw(_ context.Context, _ string, _ []byte) error { return nil }
 
@@ -204,6 +226,44 @@ func TestGatewayLifecycle_BroadcastsViewUpdate(t *testing.T) {
 	}
 	if viewObj["status"] != "idle" {
 		t.Errorf("sessions[0].view.status = %q, want \"idle\"", viewObj["status"])
+	}
+}
+
+// TestGatewayLifecycle_SubscribeSeedIsNotDropped pins the ordering contract at
+// the daemon/gateway boundary: a surface subscription may synchronously emit
+// its initial terminal snapshot before SendSurfaceSubscribe returns.
+func TestGatewayLifecycle_SubscribeSeedIsNotDropped(t *testing.T) {
+	t.Parallel()
+
+	encoded := base64.StdEncoding.EncodeToString([]byte("seed"))
+	fake := newFakeLifecycleAttacher()
+	fake.seedOnSubscribe = &proto.EvtSurfaceOutput{
+		SessionID: "s1",
+		TimeSec:   0.5,
+		DataB64:   encoded,
+	}
+	srv := startLifecycleServer(t, fake)
+	c := dialLifecycleWS(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := c.Write(ctx, websocket.MessageText, []byte(`{"k":"s","reqId":"r1","sessionId":"s1"}`)); err != nil {
+		t.Fatalf("write subscribe: %v", err)
+	}
+
+	var seedFrame []any
+	for range 2 {
+		_, data, err := c.Read(ctx)
+		if err != nil {
+			t.Fatalf("read subscribe result: %v", err)
+		}
+		var frame []any
+		if json.Unmarshal(data, &frame) == nil {
+			seedFrame = frame
+		}
+	}
+	if len(seedFrame) != 4 || seedFrame[1] != "o" || seedFrame[2] != encoded || seedFrame[3] != "s1" {
+		t.Fatalf("frames did not contain terminal seed for s1: %v", seedFrame)
 	}
 }
 

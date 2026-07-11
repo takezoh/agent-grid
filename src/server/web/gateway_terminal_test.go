@@ -59,7 +59,11 @@ func (f *fakeSessionAttacher) UnsubscribeSurface(_ context.Context, _ string) er
 	return nil
 }
 
-func (f *fakeSessionAttacher) SendSurfaceSubscribe(_ context.Context, _ string) error {
+func (f *fakeSessionAttacher) SendSurfaceSubscribe(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (f *fakeSessionAttacher) SendSurfaceUnsubscribe(_ context.Context, _, _ string) error {
 	return nil
 }
 

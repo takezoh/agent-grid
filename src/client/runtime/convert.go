@@ -60,9 +60,9 @@ func surfaceCommandToEvent(connID state.ConnID, reqID string, cmd proto.Command)
 	case proto.CmdSurfaceSendKey:
 		return state.EvCmdSurfaceSendKey{ConnID: connID, ReqID: reqID, SessionID: state.SessionID(c.SessionID), Key: c.Key}
 	case proto.CmdSurfaceSubscribe:
-		return state.EvCmdSurfaceSubscribe{ConnID: connID, ReqID: reqID, SessionID: state.SessionID(c.SessionID)}
+		return state.EvCmdSurfaceSubscribe{ConnID: connID, ReqID: reqID, SessionID: state.SessionID(c.SessionID), SubscriberID: state.SubscriberID(c.SubscriberID)}
 	case proto.CmdSurfaceUnsubscribe:
-		return state.EvCmdSurfaceUnsubscribe{ConnID: connID, ReqID: reqID, SessionID: state.SessionID(c.SessionID)}
+		return state.EvCmdSurfaceUnsubscribe{ConnID: connID, ReqID: reqID, SessionID: state.SessionID(c.SessionID), SubscriberID: state.SubscriberID(c.SubscriberID)}
 	case proto.CmdSurfaceResize:
 		return state.EvCmdSurfaceResize{ConnID: connID, ReqID: reqID, SessionID: state.SessionID(c.SessionID), Cols: c.Cols, Rows: c.Rows}
 	case proto.CmdSurfaceWriteRaw:

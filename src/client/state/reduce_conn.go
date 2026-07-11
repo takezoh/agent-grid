@@ -28,8 +28,8 @@ func reduceConnClosed(s State, e EvConnClosed) (State, []Effect) {
 		// Iteration order is non-deterministic — tests must compare as
 		// sets, not slices.
 		s.SurfaceSubs = cloneSurfaceSubs(s.SurfaceSubs)
-		for sid := range inner {
-			effs = append(effs, EffSurfaceSubscribeStop{ConnID: e.ConnID, SessionID: sid})
+		for sub := range inner {
+			effs = append(effs, EffSurfaceSubscribeStop{ConnID: e.ConnID, SessionID: sub.SessionID, SubscriberID: sub.SubscriberID})
 		}
 		delete(s.SurfaceSubs, e.ConnID)
 	}

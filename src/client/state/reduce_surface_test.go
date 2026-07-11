@@ -137,7 +137,7 @@ func TestReduceSurfaceSubscribeOK(t *testing.T) {
 	if _, ok := effs[1].(EffSendResponse); !ok {
 		t.Fatalf("effs[1] = %T, want EffSendResponse", effs[1])
 	}
-	if _, ok := next.SurfaceSubs[1]["sess-1"]; !ok {
+	if _, ok := next.SurfaceSubs[1][SurfaceSubscription{SessionID: "sess-1"}]; !ok {
 		t.Error("SurfaceSubs[1][sess-1] should be present after subscribe")
 	}
 }
@@ -152,6 +152,29 @@ func TestReduceSurfaceSubscribeIdempotent(t *testing.T) {
 	}
 	if _, ok := effs[0].(EffSendResponse); !ok {
 		t.Fatalf("effs[0] = %T, want EffSendResponse (okResp only)", effs[0])
+	}
+}
+
+func TestReduceSurfaceSubscribeSeparatesLogicalBrowserOwners(t *testing.T) {
+	s := newStateWithFramedSession()
+	a := EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "a", SessionID: "sess-1", SubscriberID: "browser-a"}
+	b := EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "b", SessionID: "sess-1", SubscriberID: "browser-b"}
+
+	s, aEffects := Reduce(s, a)
+	s, bEffects := Reduce(s, b)
+	if _, ok := aEffects[0].(EffSurfaceSubscribeStart); !ok {
+		t.Fatalf("browser A first effect = %T, want EffSurfaceSubscribeStart", aEffects[0])
+	}
+	startB, ok := bEffects[0].(EffSurfaceSubscribeStart)
+	if !ok || startB.SubscriberID != "browser-b" {
+		t.Fatalf("browser B first effect = %+v, want independent start", bEffects[0])
+	}
+
+	s, _ = Reduce(s, EvCmdSurfaceUnsubscribe{
+		ConnID: 1, ReqID: "ua", SessionID: "sess-1", SubscriberID: "browser-a",
+	})
+	if _, ok := s.SurfaceSubs[1][SurfaceSubscription{SessionID: "sess-1", SubscriberID: "browser-b"}]; !ok {
+		t.Fatal("unsubscribing browser A removed browser B ownership")
 	}
 }
 
@@ -199,10 +222,10 @@ func TestReduceSurfaceSubscribeNotFound(t *testing.T) {
 func TestReduceSurfaceSubscribeResourceExhausted(t *testing.T) {
 	s := New()
 	// Build 8 subscriptions for ConnID 1.
-	inner := map[SessionID]struct{}{}
+	inner := map[SurfaceSubscription]struct{}{}
 	for i := 1; i <= 8; i++ {
 		sid := SessionID("s" + string(rune('0'+i)))
-		inner[sid] = struct{}{}
+		inner[SurfaceSubscription{SessionID: sid}] = struct{}{}
 		s.Sessions[sid] = Session{
 			ID:          sid,
 			Frames:      []SessionFrame{{ID: "f1"}},
@@ -336,9 +359,9 @@ func TestReduceSurfaceWriteRaw(t *testing.T) {
 
 func TestReduceConnClosedClearsSurfaceSubs(t *testing.T) {
 	s := New()
-	s.SurfaceSubs[1] = map[SessionID]struct{}{
-		"s1": {},
-		"s2": {},
+	s.SurfaceSubs[1] = map[SurfaceSubscription]struct{}{
+		{SessionID: "s1"}: {},
+		{SessionID: "s2"}: {},
 	}
 
 	next, effs := Reduce(s, EvConnClosed{ConnID: 1})

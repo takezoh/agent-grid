@@ -559,17 +559,18 @@ func (r *Runtime) reconcileSurfaceRelay(ev state.Event) {
 	if !ok || r.terminalRelay == nil {
 		return
 	}
-	if _, ok := r.state.SurfaceSubs[e.ConnID][e.SessionID]; !ok {
+	key := state.SurfaceSubscription{SessionID: e.SessionID, SubscriberID: e.SubscriberID}
+	if _, ok := r.state.SurfaceSubs[e.ConnID][key]; !ok {
 		return
 	}
-	if r.terminalRelay.hasSubscription(e.ConnID, e.SessionID) {
+	if r.terminalRelay.hasOwnedSubscription(e.ConnID, e.SessionID, e.SubscriberID) {
 		return
 	}
 	frameID := r.sessionHeadFrameTarget(e.SessionID)
 	if frameID == "" {
 		return
 	}
-	if err := r.terminalRelay.Subscribe(e.ConnID, e.SessionID, frameID); err != nil {
+	if err := r.terminalRelay.SubscribeOwned(e.ConnID, e.SessionID, e.SubscriberID, frameID); err != nil {
 		slog.Warn("runtime: surface subscribe reconciliation failed",
 			"session", e.SessionID, "conn", e.ConnID, "err", err)
 	}
