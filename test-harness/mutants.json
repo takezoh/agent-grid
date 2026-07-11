@@ -12,9 +12,9 @@
       "working_dir": "src/client/web", "timeout_seconds": 300
     },
     {
-      "id": "src/client/runtime/subsystem/stream/backend.go@19257:19283#route-target-substitution#353366ecd186c9aba1d996b00586ff6851722104f552fb98b436f4e82414f27b",
-      "path": "src/client/runtime/subsystem/stream/backend.go", "start": 19257, "end": 19283,
-      "operator": "route-target-substitution", "source_hash": "353366ecd186c9aba1d996b00586ff6851722104f552fb98b436f4e82414f27b",
+      "id": "src/client/runtime/subsystem/stream/backend.go@19629:19655#route-target-substitution#e3348393b5c226102381f74c3ebe6218a5ddcc2467b20e3aaa8526e7f4f3dbf7",
+      "path": "src/client/runtime/subsystem/stream/backend.go", "start": 19629, "end": 19655,
+      "operator": "route-target-substitution", "source_hash": "e3348393b5c226102381f74c3ebe6218a5ddcc2467b20e3aaa8526e7f4f3dbf7",
       "before": "return b.threads[threadID]", "replacement": "return state.FrameID(threadID)",
       "command": ["go", "test", "./client/runtime/subsystem/stream", "-run", "^TestStreamRouting(WiredIsolation|Contract|FakeBackstop)$"], "working_dir": "src", "timeout_seconds": 300
     },
