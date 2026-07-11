@@ -151,8 +151,13 @@ func TestSlowSubscriberDoesNotStarveFast(t *testing.T) {
 // chunk, so the client applies state (e.g. a title) before rendering the bytes.
 func TestControlPrecedesOutputInChunk(t *testing.T) {
 	// One write emits an OSC 9 notification followed by visible text; the OSC is
-	// consumed into a Control event, "TAIL-TEXT" remains in the output.
-	s, err := NewSession(Spec{Argv: []string{"bash", "-c", `printf '\033]9;NOTE\aTAIL-TEXT'; sleep 0.3`}})
+	// consumed into a Control event, "TAIL-TEXT" remains in the output. The
+	// leading sleep gives Subscribe (below) time to register with mainLoop
+	// before the child writes anything — without it, a fast child can race
+	// ahead of Subscribe and land "TAIL-TEXT" in the reattach snapshot with no
+	// Control event ever delivered to this subscriber (see session_test.go's
+	// OSC tests for the same guard).
+	s, err := NewSession(Spec{Argv: []string{"bash", "-c", `sleep 0.2; printf '\033]9;NOTE\aTAIL-TEXT'; sleep 0.3`}})
 	if err != nil {
 		t.Fatal(err)
 	}

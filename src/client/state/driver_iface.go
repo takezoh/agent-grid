@@ -384,13 +384,13 @@ type LaunchPlan struct {
 	// Any non-zero exit aborts the launch and Argv is not executed.
 	PreCommands [][]string
 	// PreCommandTimeout is per-command deadline (default applied in the launcher).
-	PreCommandTimeout time.Duration
-	StartDir          string
-	Project           string          // canonical project root passed opaquely to the sandbox launcher
-	Sandbox           SandboxOverride // session-level sandbox mode, written by reducer before dispatch
-	Options           LaunchOptions
-	Subsystem         LaunchSubsystem
-	Stream            StreamLaunchOptions
+	PreCommandTimeout     time.Duration
+	StartDir              string
+	Project               string          // canonical project root passed opaquely to the sandbox launcher
+	Sandbox               SandboxOverride // session-level sandbox mode, written by reducer before dispatch
+	Options               LaunchOptions
+	Subsystem             LaunchSubsystem
+	Stream                StreamLaunchOptions
 	ManagedFrameMessaging bool   // true when the launched process must receive a frame-scoped AG_SOCKET_TOKEN for agent_frames
 	Stdin                 []byte // content piped into the spawned command; nil = no stdin
 }

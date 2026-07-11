@@ -46,7 +46,6 @@ const EnvVar = "AG_FRAME_SPEC"
 // implementations; unit tests replace these with capturing fakes.
 var (
 	execReplacer = syscall.Exec
-	now          = time.Now
 	readPasswd   = func() ([]byte, error) { return os.ReadFile("/etc/passwd") }
 	currentUser  = user.Current
 )
