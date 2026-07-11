@@ -69,7 +69,9 @@ describe("frameMessaging store", () => {
 
     useFrameMessagingStore
       .getState()
-      .replaceFromSessions([makeSession("s2", { unread_count: 0, pending_delivery_count: 1 } as never)]);
+      .replaceFromSessions([
+        makeSession("s2", { unread_count: 0, pending_delivery_count: 1 } as never),
+      ]);
 
     expect(useFrameMessagingStore.getState().summaries).toEqual({
       s2: { unreadCount: 0, pendingDeliveryCount: 1 },
@@ -79,22 +81,22 @@ describe("frameMessaging store", () => {
   it("replaceFromSessions removes an entry when the session no longer exposes a summary", () => {
     useFrameMessagingStore
       .getState()
-      .replaceFromSessions([makeSession("s1", { unread_count: 4, pending_delivery_count: 1 } as never)]);
+      .replaceFromSessions([
+        makeSession("s1", { unread_count: 4, pending_delivery_count: 1 } as never),
+      ]);
     useFrameMessagingStore.getState().replaceFromSessions([makeSession("s1")]);
 
     expect(selectFrameMessagingSummary(useFrameMessagingStore.getState(), "s1")).toBeUndefined();
   });
 
   it("markRead zeros unreadCount without dropping the rest of the summary", () => {
-    useFrameMessagingStore
-      .getState()
-      .replaceFromSessions([
-        makeSession("s1", {
-          unread_count: 4,
-          latest_message_preview: "Please check",
-          pending_delivery_count: 1,
-        } as never),
-      ]);
+    useFrameMessagingStore.getState().replaceFromSessions([
+      makeSession("s1", {
+        unread_count: 4,
+        latest_message_preview: "Please check",
+        pending_delivery_count: 1,
+      } as never),
+    ]);
 
     useFrameMessagingStore.getState().markRead("s1");
 
@@ -111,12 +113,16 @@ describe("frameMessaging store", () => {
   it("replaceFromSessions increments revision only for server-side summary changes", () => {
     useFrameMessagingStore
       .getState()
-      .replaceFromSessions([makeSession("s1", { unread_count: 1, pending_delivery_count: 0 } as never)]);
+      .replaceFromSessions([
+        makeSession("s1", { unread_count: 1, pending_delivery_count: 0 } as never),
+      ]);
     expect(selectFrameMessagingRevision(useFrameMessagingStore.getState(), "s1")).toBe(1);
 
     useFrameMessagingStore
       .getState()
-      .replaceFromSessions([makeSession("s1", { unread_count: 1, pending_delivery_count: 0 } as never)]);
+      .replaceFromSessions([
+        makeSession("s1", { unread_count: 1, pending_delivery_count: 0 } as never),
+      ]);
     expect(selectFrameMessagingRevision(useFrameMessagingStore.getState(), "s1")).toBe(1);
 
     useFrameMessagingStore.getState().markRead("s1");
@@ -124,7 +130,9 @@ describe("frameMessaging store", () => {
 
     useFrameMessagingStore
       .getState()
-      .replaceFromSessions([makeSession("s1", { unread_count: 2, pending_delivery_count: 0 } as never)]);
+      .replaceFromSessions([
+        makeSession("s1", { unread_count: 2, pending_delivery_count: 0 } as never),
+      ]);
     expect(selectFrameMessagingRevision(useFrameMessagingStore.getState(), "s1")).toBe(2);
   });
 });

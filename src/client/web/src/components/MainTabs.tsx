@@ -1,7 +1,7 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
-import { MessagesPanel } from "./MessagesPanel";
 import type { FrameMessagingSummary, LogTab } from "../wire/server";
 import { ContentArea, isSuppressed, kindOfTab } from "./LogTabs";
+import { MessagesPanel } from "./MessagesPanel";
 import "../css/view.css";
 
 /**

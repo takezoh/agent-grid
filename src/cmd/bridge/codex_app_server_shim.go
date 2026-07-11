@@ -284,11 +284,6 @@ func canonicalFrameMessagingToolName(name string) (string, bool) {
 	return "", false
 }
 
-func isFrameMessagingTool(name string) bool {
-	_, ok := canonicalFrameMessagingToolName(name)
-	return ok
-}
-
 func (h shimUpstreamHandler) OnNotification(method string, params json.RawMessage) {
 	_ = h.session.downstream.Notify(method, params)
 }

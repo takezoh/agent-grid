@@ -544,9 +544,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
           "Content-Type": "application/json",
           ...authHeader(url),
         },
-        body: JSON.stringify(
-          lastReadMessageId ? { last_read_message_id: lastReadMessageId } : {},
-        ),
+        body: JSON.stringify(lastReadMessageId ? { last_read_message_id: lastReadMessageId } : {}),
       });
     },
   };

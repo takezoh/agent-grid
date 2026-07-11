@@ -18,6 +18,15 @@ import (
 // responsible for cancelling the context to stop the loop.
 func startRuntimeWithIPC(t *testing.T, ctx context.Context) (*Runtime, string) { //nolint:unparam
 	t.Helper()
+	return startRuntimeWithIPCSeeded(t, ctx, func(*Runtime) {})
+}
+
+// startRuntimeWithIPCSeeded is like startRuntimeWithIPC but runs seed
+// against the Runtime before the event loop goroutine starts. Runtime.state
+// is loop-owned once Run is goroutine-launched (see runtime.go), so any
+// direct state mutation a test needs must happen here, not after.
+func startRuntimeWithIPCSeeded(t *testing.T, ctx context.Context, seed func(*Runtime)) (*Runtime, string) {
+	t.Helper()
 	dir := t.TempDir()
 	sock := filepath.Join(dir, "server.sock")
 	r := New(Config{
@@ -25,6 +34,7 @@ func startRuntimeWithIPC(t *testing.T, ctx context.Context) (*Runtime, string) {
 		TickInterval: 10 * time.Second,
 		Backend:      newFakeBackend(),
 	})
+	seed(r)
 	go func() {
 		_ = r.Run(ctx)
 	}()
@@ -156,19 +166,20 @@ func TestIPCDecodeUnknownCommandReturnsError(t *testing.T) {
 func TestIPCHookEventWithTokenAcceptedOnDirectSocket(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	r, sock := startRuntimeWithIPC(t, ctx)
 	now := time.Now()
-	r.state.Sessions["s1"] = state.Session{
-		ID:        "s1",
-		Project:   "/repo",
-		CreatedAt: now,
-		Frames: []state.SessionFrame{
-			{ID: "f1", Project: "/repo", Command: "shell", CreatedAt: now, Driver: state.GetDriver("shell").NewState(now)},
-		},
-		HeadFrameID: "f1",
-		Driver:      state.GetDriver("shell").NewState(now),
-	}
-	r.registerFrameToken("f1", "tok-1")
+	_, sock := startRuntimeWithIPCSeeded(t, ctx, func(r *Runtime) {
+		r.state.Sessions["s1"] = state.Session{
+			ID:        "s1",
+			Project:   "/repo",
+			CreatedAt: now,
+			Frames: []state.SessionFrame{
+				{ID: "f1", Project: "/repo", Command: "shell", CreatedAt: now, Driver: state.GetDriver("shell").NewState(now)},
+			},
+			HeadFrameID: "f1",
+			Driver:      state.GetDriver("shell").NewState(now),
+		}
+		r.registerFrameToken("f1", "tok-1")
+	})
 
 	c := dialClient(t, sock)
 	defer c.Close()

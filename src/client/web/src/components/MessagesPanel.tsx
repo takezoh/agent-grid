@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { makeSessionsApi, type SessionMessage } from "../api/sessions";
-import type { FrameMessagingSummary } from "../wire/server";
+import { type SessionMessage, makeSessionsApi } from "../api/sessions";
 import { selectFrameMessagingRevision, useFrameMessagingStore } from "../store/frameMessaging";
+import type { FrameMessagingSummary } from "../wire/server";
 import "../css/messages-panel.css";
 
 export type MessagesPanelProps = {
@@ -21,6 +21,7 @@ export function MessagesPanel({ sessionId, summary, fetchFn }: MessagesPanelProp
     selectFrameMessagingRevision(store, sessionId),
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: serverRevision is the intentional refetch trigger and isn't read in the body; summary.unread_count/unreadCount are read only as a one-time fallback default, not a reactive value
   useEffect(() => {
     let cancelled = false;
     const api = makeSessionsApi(fetchFn);

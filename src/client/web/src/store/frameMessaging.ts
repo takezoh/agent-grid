@@ -67,7 +67,10 @@ export function selectFrameMessagingSummary(
   return state.summaries[sessionId];
 }
 
-export function selectFrameMessagingRevision(state: FrameMessagingState, sessionId: string): number {
+export function selectFrameMessagingRevision(
+  state: FrameMessagingState,
+  sessionId: string,
+): number {
   return state.revisions[sessionId] ?? 0;
 }
 
@@ -81,8 +84,9 @@ export const useFrameMessagingStore = create<FrameMessagingState>()((set) => ({
       for (const [sessionID, nextSummary] of Object.entries(nextSummaries)) {
         const prevSummary = state.summaries[sessionID];
         const prevRevision = state.revisions[sessionID] ?? 0;
-        nextRevisions[sessionID] =
-          summariesEqual(prevSummary, nextSummary) ? prevRevision : prevRevision + 1;
+        nextRevisions[sessionID] = summariesEqual(prevSummary, nextSummary)
+          ? prevRevision
+          : prevRevision + 1;
       }
       return { summaries: nextSummaries, revisions: nextRevisions };
     }),
