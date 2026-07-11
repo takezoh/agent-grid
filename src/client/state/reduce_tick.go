@@ -84,10 +84,12 @@ func isIntentionalExit(code int) bool {
 // stick around forever as "Stopped" — the bug reproduced when the
 // the legacy web server detected dead frames only via reconcileWindows.
 //
-// The remaining idempotency check protects the crash path:
-// reconcileWindows may re-detect the same dead frame on subsequent
-// ticks, and once stepDriver has already advanced the driver to
-// StatusStopped we must not re-emit further effects.
+// The remaining idempotency check protects the crash path's driver state:
+// reconcileWindows may re-detect the same dead frame on subsequent ticks, so
+// once the driver is Stopped we skip stepDriver. Sandbox release is still
+// emitted because a hook such as Claude SessionEnd can set Stopped before the
+// first process-exit event. Runtime cleanup is itself idempotent: it removes
+// the callback from its map before invoking it.
 func reduceFrameCommandExited(s State, e EvFrameCommandExited) (State, []Effect) {
 	_, sess, idx, ok := findFrame(s, e.FrameID)
 	if !ok {
@@ -101,7 +103,7 @@ func reduceFrameCommandExited(s State, e EvFrameCommandExited) (State, []Effect)
 	frame := sess.Frames[idx]
 	drv := GetDriver(frame.Command)
 	if drv != nil && frame.Driver != nil && drv.Status(frame.Driver) == StatusStopped {
-		return s, nil
+		return s, []Effect{EffReleaseFrameSandbox{FrameID: e.FrameID}}
 	}
 
 	next, rawEffs, _ := stepDriver(s, e.FrameID, DEvCommandExited{

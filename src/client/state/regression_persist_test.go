@@ -137,20 +137,19 @@ func TestReduceFrameCommandExited_CrashExitCodesMarkStopped(t *testing.T) {
 	}
 }
 
-// Reconciliation runs every few ticks, so a dead frame fires the
-// event repeatedly. The reducer must be idempotent: once a frame is
-// already Stopped, subsequent EvFrameCommandExited events produce no
-// effects.
-func TestReduceFrameCommandExited_IdempotentAfterStopped(t *testing.T) {
+// Claude can emit SessionEnd before its process exits. SessionEnd has already
+// moved the driver to Stopped, but the later process-exit event still owns the
+// sandbox release responsibility even when its exit code is non-zero.
+func TestReduceFrameCommandExited_HookStoppedStillReleasesSandbox(t *testing.T) {
 	s := New()
-	id := SessionID("crashed")
+	id := SessionID("claude-session-end")
 	sess := newExitSession(id)
 	sess.Frames[0].Driver = frameExitState{status: StatusStopped}
 	s.Sessions[id] = sess
 
-	_, effs := Reduce(s, EvFrameCommandExited{FrameID: FrameID(id), ExitCode: 139})
-	if len(effs) != 0 {
-		t.Errorf("expected no effects on re-detection of stopped frame; got %d", len(effs))
+	_, effs := Reduce(s, EvFrameCommandExited{FrameID: FrameID(id), ExitCode: 1})
+	if _, ok := findEff[EffReleaseFrameSandbox](effs); !ok {
+		t.Fatalf("hook-stopped frame exit must release its sandbox; effects=%v", effectTypes(effs))
 	}
 }
 
