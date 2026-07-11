@@ -46,7 +46,7 @@ func main() {
 	if len(errs) != 0 {
 		os.Exit(1)
 	}
-	fmt.Printf("harness-check: %d external dependencies admitted\n", len(registry.Dependencies))
+	fmt.Fprintf(os.Stdout, "harness-check: %d external dependencies admitted\n", len(registry.Dependencies))
 }
 
 func runTampering(baseRoot, headRoot, manifestPath, requestPath, outputPath string) {
