@@ -88,6 +88,7 @@ relations:
 - {type: hasPart, target: task-20260705-fuzz-reduce}
 - {type: hasPart, target: task-20260705-recorded-fake-fixtures}
 - {type: hasPart, target: task-20260705-docs-llm-constraints}
+- {type: referencedBy, target: note-20260711-test-harness-assessment-20260711}
 source_paths:
 - src/client/runtime/
 - src/client/driver/

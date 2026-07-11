@@ -17,6 +17,7 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-agent-testing}
 - {type: references, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: note-20260711-test-harness-assessment-20260711}
 source_paths:
 - docs/note/note-20260624-agent-testing.md
 - src/platform/lib/claude/fakeclaude/

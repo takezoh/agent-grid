@@ -232,6 +232,9 @@ func TestNightlyE2EWorkflowExportsAllRealBinaryEnvVars(t *testing.T) {
 	if !strings.Contains(text, "name: Require full nightly suite coverage") {
 		t.Fatalf("nightly workflow still allows skip-green when required suites are unavailable")
 	}
+	if !strings.Contains(text, "npm install -g @openai/codex@0.142.5") {
+		t.Fatalf("nightly workflow does not run the Codex version pinned by FakeVsReal contracts")
+	}
 }
 
 func TestGatewayScenarioTestsOnlySkipInShortMode(t *testing.T) {

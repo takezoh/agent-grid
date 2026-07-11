@@ -35,8 +35,8 @@ jobs:
           npm ci
           npm run build
 
-      - name: Install codex 0.133.0
-        run: npm install -g @openai/codex@0.133.0
+      - name: Install codex 0.142.5
+        run: npm install -g @openai/codex@0.142.5
 
       - name: Install claude
         run: npm install -g @anthropic-ai/claude-code
