@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/takezoh/agent-grid/platform/framelaunch"
 )
 
 func TestDirectDispatcher_WrapManagedFrameMessagingUsesOverlayHome(t *testing.T) {
@@ -90,5 +92,56 @@ func TestDirectDispatcher_WrapManagedFrameMessagingUsesOverlayHome(t *testing.T)
 	}
 	if _, err := os.Stat(wrapped.Env["HOME"]); !os.IsNotExist(err) {
 		t.Fatalf("overlay home still exists after cleanup: %v", err)
+	}
+}
+
+func TestDirectDispatcher_ArgvPath_SpawnsSelfBinFrameExecWithSpec(t *testing.T) {
+	d := DirectDispatcher{SelfBin: "/usr/local/bin/server"}
+	wrapped, err := d.Wrap(context.Background(), "f1", LaunchPlan{
+		Argv:        []string{"codex", "--remote", "unix:///tmp/x.sock"},
+		PreCommands: [][]string{{ContainerBinaryPath, "codex-trust-project"}},
+		StartDir:    "/repo",
+		Env:         map[string]string{"KEEP": "1"},
+	})
+	if err != nil {
+		t.Fatalf("Wrap: %v", err)
+	}
+	if wrapped.Command != "/usr/local/bin/server frame-exec" {
+		t.Fatalf("Command = %q, want SelfBin frame-exec", wrapped.Command)
+	}
+	raw := wrapped.Env[framelaunch.EnvVar]
+	if raw == "" {
+		t.Fatal("AG_FRAME_SPEC not set")
+	}
+	var fs framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(raw), &fs); err != nil {
+		t.Fatalf("AG_FRAME_SPEC JSON: %v", err)
+	}
+	if len(fs.MainCommand) != 3 || fs.MainCommand[0] != "codex" {
+		t.Errorf("MainCommand = %#v", fs.MainCommand)
+	}
+	if wrapped.Env["KEEP"] != "1" {
+		t.Errorf("caller env lost: %v", wrapped.Env)
+	}
+}
+
+func TestDirectDispatcher_CommandStringBecomesFrameExecMain(t *testing.T) {
+	d := DirectDispatcher{SelfBin: "/usr/local/bin/server"}
+	wrapped, err := d.Wrap(context.Background(), "f1", LaunchPlan{
+		Command:  "claude --resume x",
+		StartDir: "/w",
+	})
+	if err != nil {
+		t.Fatalf("Wrap: %v", err)
+	}
+	if wrapped.Command != "/usr/local/bin/server frame-exec" {
+		t.Errorf("Command = %q", wrapped.Command)
+	}
+	var fs framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(wrapped.Env[framelaunch.EnvVar]), &fs); err != nil {
+		t.Fatalf("AG_FRAME_SPEC: %v", err)
+	}
+	if len(fs.MainCommand) < 2 || fs.MainCommand[0] != "claude" {
+		t.Errorf("MainCommand = %#v", fs.MainCommand)
 	}
 }

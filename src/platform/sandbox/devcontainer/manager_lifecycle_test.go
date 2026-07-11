@@ -40,7 +40,7 @@ func TestManagerLifecycle_FakeDocker(t *testing.T) {
 
 	runCmd, _, err := m.BuildLaunchCommand(
 		inst,
-		sandbox.LaunchSpec{StartDir: filepath.Join(project, "backend"), Command: "printf run ok"},
+		sandbox.LaunchSpec{StartDir: filepath.Join(project, "backend"), Argv: []string{"printf", "run", "ok"}},
 		sandbox.FrameContext{Env: map[string]string{"FRAME_ENV": "frame"}},
 		map[string]string{"TOKEN": "abc"},
 	)
@@ -120,7 +120,7 @@ func TestManagerLifecycle_FakeDockerRunFailurePropagates(t *testing.T) {
 	}
 	runCmd, _, err := m.BuildLaunchCommand(
 		inst,
-		sandbox.LaunchSpec{StartDir: filepath.Join(project, "backend"), Command: "printf boom"},
+		sandbox.LaunchSpec{StartDir: filepath.Join(project, "backend"), Argv: []string{"printf", "boom"}},
 		sandbox.FrameContext{},
 		nil,
 	)
@@ -252,11 +252,18 @@ func assertRunArgs(t *testing.T, args []string) {
 		"-e", "REMOTE_ENV=spec-remote",
 		"-e", "FRAME_ENV=frame",
 		"-e", "TOKEN=abc",
-		fakedocker.DefaultContainerID, "printf", "run", "ok",
+		fakedocker.DefaultContainerID, "frame-exec",
 	} {
 		if !slices.Contains(args, want) {
 			t.Fatalf("run args missing %q: %v", want, args)
 		}
+	}
+	// Main argv lives in AG_FRAME_SPEC, not as docker exec trailing tokens.
+	if !containsPrefix(args, "AG_FRAME_SPEC=") {
+		t.Fatalf("run args missing AG_FRAME_SPEC: %v", args)
+	}
+	if slices.Contains(args, "printf") {
+		t.Fatalf("main argv must not be docker exec tokens: %v", args)
 	}
 }
 

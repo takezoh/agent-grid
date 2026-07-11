@@ -372,13 +372,25 @@ type StreamLaunchOptions struct {
 }
 
 type LaunchPlan struct {
-	Command               string
-	StartDir              string
-	Project               string          // canonical project root passed opaquely to the sandbox launcher
-	Sandbox               SandboxOverride // session-level sandbox mode, written by reducer before dispatch
-	Options               LaunchOptions
-	Subsystem             LaunchSubsystem
-	Stream                StreamLaunchOptions
+	// Command is a shell-style command string from drivers. Launch boundaries
+	// (DirectDispatcher / DevcontainerLauncher) tokenize it into Argv via
+	// agentlaunch.NormalizePlanForFrameExec before frame-exec. Prefer Argv
+	// when the caller already has structured argv (e.g. codex stream attach).
+	Command string
+	// Argv, when non-empty, is the MainCommand for frame-exec. Takes precedence
+	// over Command at the launch boundary.
+	Argv []string
+	// PreCommands are argv列 run sequentially before Argv by frame-exec.
+	// Any non-zero exit aborts the launch and Argv is not executed.
+	PreCommands [][]string
+	// PreCommandTimeout is per-command deadline (default applied in the launcher).
+	PreCommandTimeout time.Duration
+	StartDir          string
+	Project           string          // canonical project root passed opaquely to the sandbox launcher
+	Sandbox           SandboxOverride // session-level sandbox mode, written by reducer before dispatch
+	Options           LaunchOptions
+	Subsystem         LaunchSubsystem
+	Stream            StreamLaunchOptions
 	ManagedFrameMessaging bool   // true when the launched process must receive a frame-scoped AG_SOCKET_TOKEN for agent_frames
 	Stdin                 []byte // content piped into the spawned command; nil = no stdin
 }

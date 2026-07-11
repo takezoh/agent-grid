@@ -9,7 +9,6 @@ import (
 
 	"github.com/takezoh/agent-grid/client/runtime/runtimetest"
 	"github.com/takezoh/agent-grid/client/state"
-	"github.com/takezoh/agent-grid/platform/shellalias"
 )
 
 type blockingBackend struct {
@@ -215,8 +214,10 @@ func TestRuntimeHarness_ShellCreateSessionSpawnsCommand(t *testing.T) {
 	if backend.SpawnCalls() != 1 {
 		t.Fatalf("SpawnFrame calls = %d, want 1", backend.SpawnCalls())
 	}
-	want := "exec " + shellalias.LoginShellCommand + " -l"
-	if command := backend.LastSpawnCommand(); command != want {
-		t.Fatalf("shell create-session command = %q, want %q", command, want)
+	// Shell sessions also go through frame-exec; login-shell expansion is the
+	// FrameSpec MainCommand, not the host spawn string.
+	command := backend.LastSpawnCommand()
+	if !strings.Contains(command, "frame-exec") {
+		t.Fatalf("shell create-session command = %q, want frame-exec", command)
 	}
 }

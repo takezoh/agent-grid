@@ -14,8 +14,9 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
+	"github.com/takezoh/agent-grid/platform/appid"
+	"github.com/takezoh/agent-grid/platform/framelaunch"
 	"github.com/takezoh/agent-grid/platform/sandbox"
-	"github.com/takezoh/agent-grid/platform/shellalias"
 )
 
 // SharedContainerKey is the containers map key used for shared-mode instances.
@@ -492,14 +493,22 @@ func (m *Manager) runPostCreate(containerID string, spec *DevcontainerSpec) {
 	}
 }
 
-// BuildLaunchCommand generates a "docker exec" command to run plan inside inst.
+// BuildLaunchCommand generates a "docker exec … bridge frame-exec" command.
 // frameCtx carries per-frame values (workDir, env) the launcher resolved at
 // launch time; in shared mode this is the only path by which per-frame state
 // reaches docker exec (the container-scoped spec stays user-scope only).
+//
+// The in-container payload is always `<bridge> frame-exec` with AG_FRAME_SPEC
+// carrying preExec / pre-commands / main argv — no shell composition of the
+// agent command (adr-20260711-0082). Callers must supply launchSpec.Argv
+// (agentlaunch.NormalizePlanForFrameExec converts Command → Argv upstream).
 func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], launchSpec sandbox.LaunchSpec, frameCtx sandbox.FrameContext, env map[string]string) (string, map[string]string, error) {
 	cs := inst.Internal
 	if cs == nil {
 		return "", nil, fmt.Errorf("devcontainer: nil ContainerState for %s", inst.ProjectPath)
+	}
+	if err := sandbox.ValidateLaunchSpec(launchSpec); err != nil {
+		return "", nil, err
 	}
 
 	cs.mu.Lock()
@@ -509,14 +518,28 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], la
 
 	workDir := resolveWorkDir(spec, frameCtx.WorkDir, launchSpec.StartDir, inst.ProjectPath)
 
-	command := launchSpec.Command
-	if command == "shell" {
-		command = "sh -c " + shellEscape("exec "+shellalias.LoginShellCommand+" -l")
+	execEnv := cloneEnv(env)
+	// PreExec: LaunchSpec wins; fall back to container devcontainer.json value
+	// so callers that only pass Argv still get the project preExecCommand.
+	preExec := launchSpec.PreExec
+	if preExec == "" && spec != nil {
+		preExec = spec.PreExec
 	}
-	if spec.PreExec != "" {
-		inner := shellEscape(spec.PreExec + "; exec " + command)
-		command = "sh -c " + shellEscape("exec "+shellalias.LoginShellCommand+" -lc "+inner)
+	fs := framelaunch.FrameSpec{
+		PreExec:     preExec,
+		LoginShell:  launchSpec.LoginShell,
+		PreCommands: launchSpec.PreCommands,
+		MainCommand: launchSpec.Argv,
 	}
+	if launchSpec.PreCommandTimeout > 0 {
+		fs.PreCommandTimeout = launchSpec.PreCommandTimeout.String()
+	}
+	specJSON, err := framelaunch.Encode(fs)
+	if err != nil {
+		return "", nil, fmt.Errorf("devcontainer: encode FrameSpec: %w", err)
+	}
+	execEnv[framelaunch.EnvVar] = specJSON
+	command := appid.ContainerBinaryPath + " frame-exec"
 
 	var sb strings.Builder
 	// -t (pseudo-TTY) only when the consumer drives an interactive terminal
@@ -534,8 +557,8 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], la
 	sb.WriteString(shellEscape(workDir))
 	// docker exec -e accepts repeated KEY=VAL; the last occurrence wins.
 	// Emit in priority order: spec (container default) → frameCtx (per-frame
-	// credential) → env (driver-specific token). Keys are sorted within each
-	// source to keep test output deterministic.
+	// credential) → env (driver-specific token + AG_FRAME_SPEC). Keys are
+	// sorted within each source to keep test output deterministic.
 	writeEnv := func(m map[string]string) {
 		keys := make([]string, 0, len(m))
 		for k := range m {
@@ -549,13 +572,16 @@ func (m *Manager) BuildLaunchCommand(inst *sandbox.Instance[*ContainerState], la
 	}
 	writeEnv(spec.RemoteEnv)
 	writeEnv(frameCtx.Env)
-	writeEnv(env)
+	writeEnv(execEnv)
 	sb.WriteString(" ")
 	sb.WriteString(containerID)
 	sb.WriteString(" ")
 	sb.WriteString(command)
 
-	return sb.String(), map[string]string{}, nil
+	// Return execEnv so callers (and tests) can inspect AG_FRAME_SPEC without
+	// re-parsing the docker exec string. AG_FRAME_SPEC is also embedded via
+	// docker -e above for the in-container process.
+	return sb.String(), execEnv, nil
 }
 
 // AcquireFrame increments the ref-count for the instance.

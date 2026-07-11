@@ -25,6 +25,7 @@
 //     - `server mcp-exec <alias>` — in-container shim that relays MCP
 //     stdio to a host-side MCP server through the per-project
 //     mcp-proxy broker.
+//     - `server frame-exec` — host-side frame launch sequencer (AG_FRAME_SPEC).
 //     - `server help` / `server -h` prints usage.
 //
 // Mixing a coordinator flag (e.g. -data-dir) with a subcommand on the same
@@ -58,6 +59,7 @@ import (
 	"github.com/takezoh/agent-grid/client/event"
 	"github.com/takezoh/agent-grid/client/procio"
 	"github.com/takezoh/agent-grid/platform/appid"
+	"github.com/takezoh/agent-grid/platform/framelaunch"
 	"github.com/takezoh/agent-grid/platform/logger"
 )
 
@@ -202,6 +204,11 @@ func runCommand(args []string, df *daemonFlagSet, stdout io.Writer) error {
 		return runMCPExec(args[1:])
 	case "agent-frames-mcp":
 		return runAgentFramesMCP(args[1:])
+	case "frame-exec":
+		if err := framelaunch.Run(); err != nil {
+			return err
+		}
+		return nil
 	}
 	return fmt.Errorf("unknown command: %s (run `%s help` for usage)", args[0], appid.ClientBin)
 }
@@ -239,5 +246,6 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s host-exec <binary> [args...] Run a host binary via the hostexec broker\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s mcp-exec <alias>             Relay stdio to a host MCP server\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s agent-frames-mcp --sock <path>  Run the managed agent_frames MCP server\n", appid.ClientBin)
+	fmt.Fprintf(w, "  %s frame-exec                   Run preExec/pre-commands then exec main\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s help                         Show this help message\n", appid.ClientBin)
 }

@@ -1,10 +1,17 @@
 package agentlaunch
 
-import "context"
+import (
+	"context"
+	"fmt"
 
-// DirectDispatcher is the no-op Dispatcher: it passes the plan through unchanged.
-// SockPath, when non-empty, is injected as AG_SOCKET so hook subprocesses
-// can reach the daemon without relying on baked-in or fallback paths.
+	"github.com/takezoh/agent-grid/platform/appid"
+	"github.com/takezoh/agent-grid/platform/framelaunch"
+)
+
+// DirectDispatcher is the host-side Dispatcher. Every launch goes through
+// `<SelfBin> frame-exec` with AG_FRAME_SPEC (same sequencing as the container
+// bridge path). SockPath, when non-empty, is injected as AG_SOCKET so hook
+// subprocesses can reach the daemon without relying on baked-in paths.
 type DirectDispatcher struct {
 	SockPath string
 	SelfBin  string
@@ -24,9 +31,24 @@ func (d DirectDispatcher) Wrap(_ context.Context, frameID string, plan LaunchPla
 			return WrappedLaunch{}, err
 		}
 	}
+
+	plan, err := NormalizePlanForFrameExec(plan)
+	if err != nil {
+		return WrappedLaunch{}, err
+	}
+	specJSON, err := EncodeFrameSpec(plan)
+	if err != nil {
+		return WrappedLaunch{}, fmt.Errorf("agentlaunch: encode FrameSpec: %w", err)
+	}
+	merged = cloneAndSet(merged, framelaunch.EnvVar, specJSON)
+	selfBin := d.SelfBin
+	if selfBin == "" {
+		selfBin = appid.ClientBin
+	}
+	cmd := JoinArgs([]string{selfBin, "frame-exec"})
 	return WrappedLaunch{
-		Command:  plan.Command,
-		Argv:     plan.Argv,
+		Command:  cmd,
+		Argv:     []string{selfBin, "frame-exec"},
 		StartDir: plan.StartDir,
 		Env:      merged,
 		Cleanup:  cleanup,

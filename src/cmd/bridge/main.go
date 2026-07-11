@@ -6,6 +6,7 @@
 //	mcp-exec <alias>      – MCP proxy client (relays stdio to host MCP server via SCM_RIGHTS)
 //	agent-frames-mcp      – managed frame-messaging MCP server over AG_SOCKET_TOKEN
 //	codex-app-server-shim – injects managed dynamicTools in front of codex app-server
+//	frame-exec            – in-container preExec + pre-command + main sequencing (AG_FRAME_SPEC)
 //	secret-run run ...    – secret env-file resolver shim (impersonates "credproxy run")
 //	claude-setup-hooks    – register reactor as Claude Code's hook handler in
 //	                        the container's ~/.claude/settings.json
@@ -30,6 +31,7 @@ import (
 	"github.com/takezoh/agent-grid/client/event"
 	"github.com/takezoh/agent-grid/client/lib/agenthook"
 	"github.com/takezoh/agent-grid/platform/appid"
+	"github.com/takezoh/agent-grid/platform/framelaunch"
 	"github.com/takezoh/agent-grid/platform/hostexec"
 	"github.com/takezoh/agent-grid/platform/mcpproxy"
 	"github.com/takezoh/agent-grid/platform/secretenv"
@@ -67,6 +69,11 @@ func main() {
 		err = runCodexAppServerShim(rest)
 	case "codex-trust-project":
 		err = runCodexTrustProject(rest)
+	case "frame-exec":
+		if err := framelaunch.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case "secret-run":
 		err = runSecretRun(rest)
 	case "sockbridge":
@@ -303,6 +310,7 @@ Subcommands:
   host-exec <bin>            Execute a host binary via the hostexec broker
   mcp-exec <alias>           Relay stdio to a host MCP server via the mcpproxy broker
   codex-app-server-shim      Inject managed frame-messaging dynamicTools for Codex
+  frame-exec                 Run preExec/pre-commands then exec main (AG_FRAME_SPEC)
   secret-run run --env-file  Resolve secret env-file and exec command (credproxy shim)
   sockbridge                 TCP↔unix socket bridge (fixed-socket; credproxy broker)
   claude-setup-hooks         Register reactor as Claude Code's hook handler

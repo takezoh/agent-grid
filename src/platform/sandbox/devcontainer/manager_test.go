@@ -2,6 +2,7 @@ package devcontainer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/takezoh/agent-grid/platform/appid"
+	"github.com/takezoh/agent-grid/platform/framelaunch"
 	"github.com/takezoh/agent-grid/platform/sandbox"
 )
 
@@ -192,17 +195,25 @@ func TestBuildLaunchCommand_streamDirectCommand(t *testing.T) {
 		Internal:    &ContainerState{containerID: "ctr42", spec: spec},
 	}
 	m := &Manager{}
+	main := []string{"codex", "resume", "thr_123", "--remote", "unix:///opt/agent-grid/run/codex-foo.sock"}
 	plan := sandbox.LaunchSpec{
 		StartDir: project,
-		Command:  "codex resume thr_123 --remote unix:///opt/agent-grid/run/codex-foo.sock",
+		Argv:     main,
 	}
 
-	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
+	got, outEnv, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
-	if !strings.Contains(got, "codex resume thr_123 --remote unix:///opt/agent-grid/run/codex-foo.sock") {
-		t.Errorf("expected direct codex remote command, got: %s", got)
+	if !strings.HasSuffix(got, " frame-exec") {
+		t.Errorf("expected frame-exec payload, got: %s", got)
+	}
+	var fs framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(outEnv[framelaunch.EnvVar]), &fs); err != nil {
+		t.Fatalf("AG_FRAME_SPEC: %v", err)
+	}
+	if len(fs.MainCommand) != len(main) || fs.MainCommand[0] != "codex" {
+		t.Errorf("MainCommand = %#v, want %#v", fs.MainCommand, main)
 	}
 }
 
@@ -219,20 +230,29 @@ func TestBuildLaunchCommand_shellUsesLoginShell(t *testing.T) {
 		Internal:    &ContainerState{containerID: "abc123", spec: spec},
 	}
 	m := &Manager{}
-	plan := sandbox.LaunchSpec{StartDir: project, Command: "shell"}
+	// Upstream NormalizePlanForFrameExec expands Command "shell" into this argv.
+	plan := sandbox.LaunchSpec{
+		StartDir: project,
+		Argv:     []string{"sh", "-c", `exec "$(getent passwd "$(id -un)" | cut -d: -f7)" -l`},
+	}
 
-	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
+	got, outEnv, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
 		t.Fatalf("BuildLaunchCommand error: %v", err)
 	}
-	if strings.Contains(got, "/bin/bash") {
-		t.Errorf("command must not hardcode /bin/bash: %s", got)
+	if !strings.HasSuffix(got, " frame-exec") {
+		t.Errorf("expected frame-exec, got: %s", got)
 	}
-	if !strings.Contains(got, "getent passwd") {
-		t.Errorf("command must look up login shell via getent passwd: %s", got)
+	var fs framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(outEnv[framelaunch.EnvVar]), &fs); err != nil {
+		t.Fatalf("AG_FRAME_SPEC: %v", err)
 	}
-	if !strings.Contains(got, "sh -c ") {
-		t.Errorf("command must wrap snippet in sh -c: %s", got)
+	joined := strings.Join(fs.MainCommand, " ")
+	if strings.Contains(joined, "/bin/bash") {
+		t.Errorf("main must not hardcode /bin/bash: %s", joined)
+	}
+	if !strings.Contains(joined, "getent passwd") {
+		t.Errorf("main must look up login shell via getent passwd: %s", joined)
 	}
 }
 
@@ -248,7 +268,7 @@ func TestBuildLaunchCommand_MergesFrameCtxEnv(t *testing.T) {
 		Internal:    &ContainerState{containerID: "ctr1", spec: spec},
 	}
 	m := &Manager{}
-	plan := sandbox.LaunchSpec{StartDir: project, Command: "bash"}
+	plan := sandbox.LaunchSpec{StartDir: project, Argv: []string{"bash"}}
 	frameCtx := sandbox.FrameContext{Env: map[string]string{"AWS_PROFILE": "prod"}}
 
 	got, _, err := m.BuildLaunchCommand(inst, plan, frameCtx, nil)
@@ -281,7 +301,7 @@ func TestBuildLaunchCommand_SharedInstance_PerFrameIsolation(t *testing.T) {
 	m := &Manager{}
 
 	// Frame A: /workspace/agent-roost
-	planA := sandbox.LaunchSpec{Command: "bash"}
+	planA := sandbox.LaunchSpec{Argv: []string{"bash"}}
 	ctxA := sandbox.FrameContext{
 		FrameID: "frame-a",
 		WorkDir: "/workspace/agent-roost",
@@ -296,7 +316,7 @@ func TestBuildLaunchCommand_SharedInstance_PerFrameIsolation(t *testing.T) {
 	}
 
 	// Frame B: /workspace/credproxy (different project, same Instance)
-	planB := sandbox.LaunchSpec{Command: "bash"}
+	planB := sandbox.LaunchSpec{Argv: []string{"bash"}}
 	ctxB := sandbox.FrameContext{
 		FrameID: "frame-b",
 		WorkDir: "/workspace/credproxy",
@@ -359,7 +379,7 @@ func TestBuildLaunchCommand_FrameCtxEnvWinsOnConflict(t *testing.T) {
 		Internal:    &ContainerState{containerID: "ctr1", spec: spec},
 	}
 	m := &Manager{}
-	plan := sandbox.LaunchSpec{StartDir: project, Command: "bash"}
+	plan := sandbox.LaunchSpec{StartDir: project, Argv: []string{"bash"}}
 	frameCtx := sandbox.FrameContext{Env: map[string]string{"AWS_PROFILE": "prod"}}
 
 	got, _, err := m.BuildLaunchCommand(inst, plan, frameCtx, nil)
@@ -391,7 +411,7 @@ func TestBuildLaunchCommand_RemoteEnv(t *testing.T) {
 		Internal:    &ContainerState{containerID: "ctr123", spec: spec},
 	}
 	m := &Manager{}
-	plan := sandbox.LaunchSpec{StartDir: project, Command: "bash"}
+	plan := sandbox.LaunchSpec{StartDir: project, Argv: []string{"bash"}}
 
 	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {
@@ -492,6 +512,118 @@ func TestResolveContainerEnvPlaceholders(t *testing.T) {
 	})
 }
 
+func TestBuildLaunchCommand_ArgvPath_DockerExecArgvContainsBridgeFrameExecOnly(t *testing.T) {
+	const project = "/workspace/myapp"
+	spec := &DevcontainerSpec{
+		ProjectPath:     project,
+		ContainerEnv:    map[string]string{},
+		WorkspaceFolder: "/workspaces/myapp",
+	}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: project,
+		Internal:    &ContainerState{containerID: "ctr-argv", spec: spec},
+	}
+	m := &Manager{}
+	got, _, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{
+		StartDir: project,
+		Argv:     []string{"codex", "--remote", "unix:///tmp/x.sock"},
+		PreCommands: [][]string{
+			{appid.ContainerBinaryPath, "codex-trust-project"},
+		},
+	}, sandbox.FrameContext{}, nil)
+	if err != nil {
+		t.Fatalf("BuildLaunchCommand: %v", err)
+	}
+	for _, bad := range []string{" -c ", " -lc ", "&&", ";"} {
+		// Exclude docker's own flags; focus on shell composition of the payload.
+		// The in-container command must be bridge frame-exec only.
+		_ = bad
+	}
+	// Payload after container id must be bridge frame-exec with no shell wrap.
+	wantSuffix := " " + appid.ContainerBinaryPath + " frame-exec"
+	if !strings.HasSuffix(got, wantSuffix) {
+		t.Fatalf("command must end with frame-exec only:\n  got: %s\n  want suffix: %s", got, wantSuffix)
+	}
+	// The main argv and pre-commands must not appear as shell fragments.
+	if strings.Contains(got, "codex --remote") {
+		t.Errorf("main argv must not be shell-composed into docker exec: %s", got)
+	}
+	if strings.Contains(got, "&&") || strings.Contains(got, "sh -c") || strings.Contains(got, " -lc ") {
+		t.Errorf("argv path must not use shell composition: %s", got)
+	}
+}
+
+func TestBuildLaunchCommand_ArgvPath_SetsAgFrameSpecEnvWithJson(t *testing.T) {
+	const project = "/workspace/myapp"
+	spec := &DevcontainerSpec{
+		ProjectPath:     project,
+		ContainerEnv:    map[string]string{},
+		WorkspaceFolder: "/workspaces/myapp",
+	}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: project,
+		Internal:    &ContainerState{containerID: "ctr-spec", spec: spec},
+	}
+	m := &Manager{}
+	preExec := "mise trust 2>/dev/null || true"
+	pre := [][]string{{appid.ContainerBinaryPath, "codex-trust-project"}}
+	main := []string{"codex", "--remote", "unix:///tmp/x.sock"}
+	got, outEnv, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{
+		StartDir:    project,
+		Argv:        main,
+		PreCommands: pre,
+		PreExec:     preExec,
+	}, sandbox.FrameContext{}, map[string]string{"AG_SOCKET_TOKEN": "tok"})
+	if err != nil {
+		t.Fatalf("BuildLaunchCommand: %v", err)
+	}
+	raw, ok := outEnv[framelaunch.EnvVar]
+	if !ok || raw == "" {
+		t.Fatalf("outEnv missing %s: %#v", framelaunch.EnvVar, outEnv)
+	}
+	var fs framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(raw), &fs); err != nil {
+		t.Fatalf("AG_FRAME_SPEC not valid JSON: %v (%s)", err, raw)
+	}
+	if fs.PreExec != preExec {
+		t.Errorf("PreExec = %q, want %q", fs.PreExec, preExec)
+	}
+	if len(fs.MainCommand) != len(main) || fs.MainCommand[0] != "codex" {
+		t.Errorf("MainCommand = %#v, want %#v", fs.MainCommand, main)
+	}
+	if len(fs.PreCommands) != 1 || fs.PreCommands[0][1] != "codex-trust-project" {
+		t.Errorf("PreCommands = %#v", fs.PreCommands)
+	}
+	if !strings.Contains(got, framelaunch.EnvVar+"=") {
+		t.Errorf("docker exec must pass -e AG_FRAME_SPEC: %s", got)
+	}
+	if outEnv["AG_SOCKET_TOKEN"] != "tok" {
+		t.Errorf("caller env not preserved in outEnv")
+	}
+}
+
+func TestBuildLaunchCommand_RejectsResidualCommandField(t *testing.T) {
+	const project = "/workspace/myapp"
+	spec := &DevcontainerSpec{
+		ProjectPath:     project,
+		ContainerEnv:    map[string]string{},
+		WorkspaceFolder: "/workspaces/myapp",
+	}
+	inst := &sandbox.Instance[*ContainerState]{
+		ProjectPath: project,
+		Internal:    &ContainerState{containerID: "ctr-legacy", spec: spec},
+	}
+	m := &Manager{}
+	_, _, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{
+		StartDir: project,
+		Command:  "codex resume thr_123",
+		Argv:     []string{"codex", "resume", "thr_123"},
+	}, sandbox.FrameContext{}, nil)
+	if err == nil {
+		t.Fatal("expected error when Command is set alongside Argv")
+	}
+}
+
 func TestBuildLaunchCommand_PreExec(t *testing.T) {
 	const project = "/workspace/myapp"
 	base := &DevcontainerSpec{
@@ -501,68 +633,78 @@ func TestBuildLaunchCommand_PreExec(t *testing.T) {
 	}
 	m := &Manager{}
 
-	t.Run("preExec wraps command with login shell, not bash", func(t *testing.T) {
+	t.Run("preExec lands in AG_FRAME_SPEC not shell wrap", func(t *testing.T) {
 		spec := *base
 		spec.PreExec = "mise trust 2>/dev/null || true"
 		inst := &sandbox.Instance[*ContainerState]{
 			ProjectPath: project,
 			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
 		}
-		got, _, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{StartDir: project, Command: "bash"}, sandbox.FrameContext{}, nil)
+		got, outEnv, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{StartDir: project, Argv: []string{"bash"}}, sandbox.FrameContext{}, nil)
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
-		if strings.Contains(got, "bash -lc") {
-			t.Errorf("pre-exec wrapper must not hardcode bash -lc: %s", got)
+		if strings.Contains(got, "bash -lc") || strings.Contains(got, " -lc ") {
+			t.Errorf("must not shell-wrap preExec: %s", got)
 		}
-		if !strings.Contains(got, "getent passwd") {
-			t.Errorf("pre-exec wrapper must resolve login shell via getent passwd: %s", got)
+		if !strings.HasSuffix(got, " frame-exec") {
+			t.Errorf("expected frame-exec, got: %s", got)
 		}
-		if !strings.Contains(got, " -lc ") {
-			t.Errorf("expected login shell invoked with -lc: %s", got)
+		var fs framelaunch.FrameSpec
+		if err := json.Unmarshal([]byte(outEnv[framelaunch.EnvVar]), &fs); err != nil {
+			t.Fatalf("AG_FRAME_SPEC: %v", err)
 		}
-		if !strings.Contains(got, "mise trust") {
-			t.Errorf("expected mise trust in command, got: %s", got)
+		if fs.PreExec != "mise trust 2>/dev/null || true" {
+			t.Errorf("PreExec = %q", fs.PreExec)
 		}
-		if !strings.Contains(got, "exec bash") {
-			t.Errorf("expected exec bash in command, got: %s", got)
+		if len(fs.MainCommand) != 1 || fs.MainCommand[0] != "bash" {
+			t.Errorf("MainCommand = %#v", fs.MainCommand)
 		}
 	})
 
-	t.Run("no preExec leaves command unchanged", func(t *testing.T) {
+	t.Run("no preExec still uses frame-exec", func(t *testing.T) {
 		spec := *base
 		inst := &sandbox.Instance[*ContainerState]{
 			ProjectPath: project,
 			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
 		}
-		got, _, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{StartDir: project, Command: "bash"}, sandbox.FrameContext{}, nil)
+		got, outEnv, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{StartDir: project, Argv: []string{"bash"}}, sandbox.FrameContext{}, nil)
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
-		if strings.Contains(got, "bash -lc") {
-			t.Errorf("unexpected bash -lc wrapper without PreExec: %s", got)
+		if !strings.HasSuffix(got, " frame-exec") {
+			t.Errorf("expected frame-exec, got: %s", got)
 		}
-		if !strings.HasSuffix(got, " bash") {
-			t.Errorf("expected command to end with 'bash', got: %s", got)
+		var fs framelaunch.FrameSpec
+		if err := json.Unmarshal([]byte(outEnv[framelaunch.EnvVar]), &fs); err != nil {
+			t.Fatalf("AG_FRAME_SPEC: %v", err)
+		}
+		if fs.PreExec != "" {
+			t.Errorf("PreExec = %q, want empty", fs.PreExec)
 		}
 	})
 
-	t.Run("preExec with shell command retains login shell lookup", func(t *testing.T) {
+	t.Run("explicit LaunchSpec.PreExec overrides container when set", func(t *testing.T) {
 		spec := *base
-		spec.PreExec = "mise trust 2>/dev/null || true"
+		spec.PreExec = "from-container"
 		inst := &sandbox.Instance[*ContainerState]{
 			ProjectPath: project,
 			Internal:    &ContainerState{containerID: "abc123", spec: &spec},
 		}
-		got, _, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{StartDir: project, Command: "shell"}, sandbox.FrameContext{}, nil)
+		_, outEnv, err := m.BuildLaunchCommand(inst, sandbox.LaunchSpec{
+			StartDir: project,
+			Argv:     []string{"bash"},
+			PreExec:  "from-launch",
+		}, sandbox.FrameContext{}, nil)
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
-		if !strings.Contains(got, "mise trust") {
-			t.Errorf("expected mise trust in shell command, got: %s", got)
+		var fs framelaunch.FrameSpec
+		if err := json.Unmarshal([]byte(outEnv[framelaunch.EnvVar]), &fs); err != nil {
+			t.Fatalf("AG_FRAME_SPEC: %v", err)
 		}
-		if !strings.Contains(got, "getent passwd") {
-			t.Errorf("expected login shell lookup in shell command, got: %s", got)
+		if fs.PreExec != "from-launch" {
+			t.Errorf("PreExec = %q, want from-launch", fs.PreExec)
 		}
 	})
 }
@@ -584,7 +726,7 @@ func TestBuildLaunchCommand_TTY(t *testing.T) {
 	}
 
 	t.Run("TTY false uses docker exec -i (no -t) for piped stdio", func(t *testing.T) {
-		got, _, err := m.BuildLaunchCommand(newInst(), sandbox.LaunchSpec{StartDir: project, Command: "bash", TTY: false}, sandbox.FrameContext{}, nil)
+		got, _, err := m.BuildLaunchCommand(newInst(), sandbox.LaunchSpec{StartDir: project, Argv: []string{"bash"}, TTY: false}, sandbox.FrameContext{}, nil)
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
@@ -597,7 +739,7 @@ func TestBuildLaunchCommand_TTY(t *testing.T) {
 	})
 
 	t.Run("TTY true uses docker exec -it for interactive frames", func(t *testing.T) {
-		got, _, err := m.BuildLaunchCommand(newInst(), sandbox.LaunchSpec{StartDir: project, Command: "bash", TTY: true}, sandbox.FrameContext{}, nil)
+		got, _, err := m.BuildLaunchCommand(newInst(), sandbox.LaunchSpec{StartDir: project, Argv: []string{"bash"}, TTY: true}, sandbox.FrameContext{}, nil)
 		if err != nil {
 			t.Fatalf("BuildLaunchCommand error: %v", err)
 		}
@@ -716,7 +858,7 @@ func TestApplyOverlayEnvAppearsInBuildLaunchCommand(t *testing.T) {
 		Internal:    &ContainerState{containerID: "ctr999", spec: spec},
 	}
 	m := &Manager{}
-	plan := sandbox.LaunchSpec{StartDir: project, Command: "claude"}
+	plan := sandbox.LaunchSpec{StartDir: project, Argv: []string{"claude"}}
 
 	got, _, err := m.BuildLaunchCommand(inst, plan, sandbox.FrameContext{}, nil)
 	if err != nil {

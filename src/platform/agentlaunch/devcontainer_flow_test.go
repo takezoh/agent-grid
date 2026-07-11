@@ -104,7 +104,7 @@ func TestWrap_PropagatesEnsureError(t *testing.T) {
 func TestWrap_HappyPath_AcquireFrameAndCleanup(t *testing.T) {
 	mgr := &mockMgr{}
 	l := newLauncherForTest(t, mgr, "")
-	plan := LaunchPlan{Project: "/workspace/myapp", StartDir: "/workspace/myapp"}
+	plan := LaunchPlan{Project: "/workspace/myapp", StartDir: "/workspace/myapp", Command: "claude"}
 	wl, err := l.Wrap(context.Background(), "frame-1", plan)
 	if err != nil {
 		t.Fatalf("Wrap: %v", err)
@@ -134,7 +134,7 @@ func TestWrap_HappyPath_AcquireFrameAndCleanup(t *testing.T) {
 func TestWrap_CleanupSkipsDestroyWhenRefCountPositive(t *testing.T) {
 	mgr := &mockMgr{releaseReturnZero: false}
 	l := newLauncherForTest(t, mgr, "")
-	wl, err := l.Wrap(context.Background(), "frame-1", LaunchPlan{Project: "/p"})
+	wl, err := l.Wrap(context.Background(), "frame-1", LaunchPlan{Project: "/p", Command: "claude"})
 	if err != nil {
 		t.Fatalf("Wrap: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestWrap_CleanupSkipsDestroyWhenRefCountPositive(t *testing.T) {
 func TestWrap_PassesFrameIDAndWorkDirThroughCtx(t *testing.T) {
 	mgr := &mockMgr{}
 	l := newLauncherForTest(t, mgr, "")
-	plan := LaunchPlan{Project: "/p", StartDir: "/p/sub"}
+	plan := LaunchPlan{Project: "/p", StartDir: "/p/sub", Command: "claude"}
 	if _, err := l.Wrap(context.Background(), "frame-abc", plan); err != nil {
 		t.Fatalf("Wrap: %v", err)
 	}

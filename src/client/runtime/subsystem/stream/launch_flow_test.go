@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -238,13 +239,17 @@ func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
 	if pendingCount(h.backend) != 1 {
 		t.Errorf("initState occupancy = %d, want 1", pendingCount(h.backend))
 	}
-	// Command must be `codex --remote unix://<sock>` with NO `resume`.
-	want := strings.Join(libcodex.RemoteAttachArgs(listen, "", "/repo", "", ""), " ")
-	if res.Plan.Command != want {
-		t.Fatalf("Command = %q, want %q", res.Plan.Command, want)
+	// Argv must be `codex --remote unix://<sock>` with NO `resume`.
+	wantArgv := libcodex.RemoteAttachArgs(listen, "", "/repo", "", "")
+	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
+		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
-	if strings.Contains(res.Plan.Command, " resume ") {
-		t.Errorf("fresh cold-start command must not contain `resume`: %q", res.Plan.Command)
+	if res.Plan.Command != "" {
+		t.Errorf("legacy Command must be empty in argv path: %q", res.Plan.Command)
+	}
+	joined := strings.Join(res.Plan.Argv, " ")
+	if strings.Contains(joined, " resume ") {
+		t.Errorf("fresh cold-start argv must not contain `resume`: %q", joined)
 	}
 }
 
@@ -261,10 +266,16 @@ func TestBackendBindFrame_ContainerTrustsResolvedWorkingDirectoryBeforeAttach(t 
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	wantAttach := strings.Join(libcodex.RemoteAttachArgs(listen, "", worktree, "", ""), " ")
-	want := agentlaunch.ContainerBinaryPath + " codex-trust-project && exec " + wantAttach
-	if res.Plan.Command != want {
-		t.Fatalf("Command = %q, want %q", res.Plan.Command, want)
+	wantArgv := libcodex.RemoteAttachArgs(listen, "", worktree, "", "")
+	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
+		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
+	}
+	wantPre := [][]string{{agentlaunch.ContainerBinaryPath, "codex-trust-project"}}
+	if !reflect.DeepEqual(res.Plan.PreCommands, wantPre) {
+		t.Fatalf("PreCommands = %#v, want %#v", res.Plan.PreCommands, wantPre)
+	}
+	if res.Plan.Command != "" {
+		t.Errorf("legacy Command must be empty in argv path: %q", res.Plan.Command)
 	}
 }
 
@@ -279,8 +290,12 @@ func TestBackendBindFrame_HostDoesNotWriteContainerCodexTrust(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	if strings.Contains(res.Plan.Command, "codex-trust-project") {
-		t.Fatalf("host command must not modify container Codex config: %q", res.Plan.Command)
+	if len(res.Plan.PreCommands) != 0 {
+		t.Fatalf("host PreCommands must not include codex-trust-project: %#v", res.Plan.PreCommands)
+	}
+	joined := strings.Join(res.Plan.Argv, " ")
+	if strings.Contains(joined, "codex-trust-project") {
+		t.Fatalf("host argv must not modify container Codex config: %q", joined)
 	}
 }
 
@@ -313,10 +328,10 @@ func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
 	if pendingCount(h.backend) != 0 {
 		t.Errorf("initState occupancy = %d, want 0 (recovery bypasses semaphore)", pendingCount(h.backend))
 	}
-	// Command must contain `resume thread-abc`.
-	want := strings.Join(libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", "", ""), " ")
-	if res.Plan.Command != want {
-		t.Fatalf("Command = %q, want %q", res.Plan.Command, want)
+	// Argv must contain `resume thread-abc`.
+	wantArgv := libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", "", "")
+	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
+		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
 	if res.Plan.Stream.ColdStartSessionID != "019e727e-fde4-7432-9036-ae6604ce1b27" {
 		t.Errorf("ColdStartSessionID = %q, want passthrough of caller value", res.Plan.Stream.ColdStartSessionID)
@@ -340,11 +355,12 @@ func TestBackendBindFrame_RecoveryRestoresModelEffortIntoAttachCommand(t *testin
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	if !strings.Contains(res.Plan.Command, "--model gpt-5-codex") {
-		t.Fatalf("Command = %q, want restored --model", res.Plan.Command)
+	joined := strings.Join(res.Plan.Argv, " ")
+	if !strings.Contains(joined, "--model gpt-5-codex") {
+		t.Fatalf("Argv = %q, want restored --model", joined)
 	}
-	if !strings.Contains(res.Plan.Command, "--effort high") {
-		t.Fatalf("Command = %q, want restored --effort", res.Plan.Command)
+	if !strings.Contains(joined, "--effort high") {
+		t.Fatalf("Argv = %q, want restored --effort", joined)
 	}
 }
 
@@ -369,11 +385,12 @@ func TestBackendBindFrame_RecoveryUsesPerFrameSettingsNotAnotherThreadsSettings(
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	if !strings.Contains(res.Plan.Command, "--model gpt-5-codex") || strings.Contains(res.Plan.Command, "--model gpt-4.1") {
-		t.Fatalf("Command = %q, want recovered thread settings only", res.Plan.Command)
+	joined := strings.Join(res.Plan.Argv, " ")
+	if !strings.Contains(joined, "--model gpt-5-codex") || strings.Contains(joined, "--model gpt-4.1") {
+		t.Fatalf("Argv = %q, want recovered thread settings only", joined)
 	}
-	if !strings.Contains(res.Plan.Command, "--effort high") || strings.Contains(res.Plan.Command, "--effort low") {
-		t.Fatalf("Command = %q, want recovered thread effort only", res.Plan.Command)
+	if !strings.Contains(joined, "--effort high") || strings.Contains(joined, "--effort low") {
+		t.Fatalf("Argv = %q, want recovered thread effort only", joined)
 	}
 }
 
@@ -425,8 +442,9 @@ func TestBackendBindFrame_RolloutOnly_TreatedAsFresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	if strings.Contains(res.Plan.Command, " resume ") {
-		t.Errorf("rollout-only fell back to fresh, but Command still has `resume`: %q", res.Plan.Command)
+	joined := strings.Join(res.Plan.Argv, " ")
+	if strings.Contains(joined, " resume ") {
+		t.Errorf("rollout-only fell back to fresh, but Argv still has `resume`: %q", joined)
 	}
 	if pendingCount(h.backend) != 1 {
 		t.Errorf("rollout-only should acquire initState (fresh fallback); count=%d", pendingCount(h.backend))

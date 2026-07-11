@@ -1,16 +1,18 @@
 package runtime
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/takezoh/agent-grid/client/state"
 	"github.com/takezoh/agent-grid/platform/agentlaunch"
+	"github.com/takezoh/agent-grid/platform/framelaunch"
 )
 
 func TestDirectLauncher_passthrough(t *testing.T) {
-	l := DirectLauncher{}
+	l := DirectLauncher{SelfBin: "/usr/bin/server"}
 	plan := state.LaunchPlan{
 		Command:  "claude --resume abc",
 		StartDir: "/tmp/work",
@@ -21,8 +23,11 @@ func TestDirectLauncher_passthrough(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WrapLaunch returned error: %v", err)
 	}
-	if got.Command != plan.Command {
-		t.Errorf("Command: want %q, got %q", plan.Command, got.Command)
+	if got.Command != "/usr/bin/server frame-exec" {
+		t.Errorf("Command: want frame-exec, got %q", got.Command)
+	}
+	if got.Env["AG_FRAME_SPEC"] == "" {
+		t.Error("AG_FRAME_SPEC must be set")
 	}
 	if got.StartDir != plan.StartDir {
 		t.Errorf("StartDir: want %q, got %q", plan.StartDir, got.StartDir)
@@ -150,8 +155,8 @@ func TestWrapLaunchForSpawn_GeneratesTokenForManagedHostFrameMessaging(t *testin
 	}
 }
 
-func TestDirectLauncher_keepsDirectStreamCommand(t *testing.T) {
-	l := DirectLauncher{}
+func TestDirectLauncher_CommandStringBecomesFrameExecMain(t *testing.T) {
+	l := DirectLauncher{SelfBin: "/usr/local/bin/server"}
 	plan := state.LaunchPlan{
 		Command: "codex resume thr_123 --remote unix:///opt/agent-grid/run/codex-foo.sock",
 	}
@@ -159,8 +164,51 @@ func TestDirectLauncher_keepsDirectStreamCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WrapLaunch: %v", err)
 	}
-	if got.Command != plan.Command {
-		t.Errorf("Command = %q, want %q", got.Command, plan.Command)
+	if got.Command != "/usr/local/bin/server frame-exec" {
+		t.Errorf("Command = %q, want frame-exec", got.Command)
+	}
+	var fs framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(got.Env["AG_FRAME_SPEC"]), &fs); err != nil {
+		t.Fatalf("AG_FRAME_SPEC: %v", err)
+	}
+	if len(fs.MainCommand) < 2 || fs.MainCommand[0] != "codex" {
+		t.Errorf("MainCommand = %#v", fs.MainCommand)
+	}
+}
+
+func TestDirectLauncher_ArgvPath_SpawnsSelfBinFrameExecWithSpec(t *testing.T) {
+	l := DirectLauncher{SelfBin: "/usr/local/bin/server"}
+	plan := state.LaunchPlan{
+		Argv:        []string{"codex", "--remote", "unix:///tmp/x.sock"},
+		PreCommands: [][]string{{"/opt/agent-grid/run/bridge", "codex-trust-project"}},
+		StartDir:    "/repo",
+	}
+	got, err := l.WrapLaunch("f1", plan, map[string]string{"KEEP": "1"})
+	if err != nil {
+		t.Fatalf("WrapLaunch: %v", err)
+	}
+	if got.Command != "/usr/local/bin/server frame-exec" {
+		t.Fatalf("Command = %q, want SelfBin frame-exec", got.Command)
+	}
+	raw := got.Env["AG_FRAME_SPEC"]
+	if raw == "" {
+		t.Fatal("AG_FRAME_SPEC not set")
+	}
+	var fs framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(raw), &fs); err != nil {
+		t.Fatalf("AG_FRAME_SPEC JSON: %v", err)
+	}
+	if len(fs.MainCommand) != 3 || fs.MainCommand[0] != "codex" {
+		t.Errorf("MainCommand = %#v", fs.MainCommand)
+	}
+	if len(fs.PreCommands) != 1 {
+		t.Errorf("PreCommands = %#v", fs.PreCommands)
+	}
+	if got.Env["KEEP"] != "1" {
+		t.Errorf("caller env lost: %v", got.Env)
+	}
+	if got.StartDir != "/repo" {
+		t.Errorf("StartDir = %q", got.StartDir)
 	}
 }
 

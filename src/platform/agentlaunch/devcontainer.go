@@ -97,7 +97,22 @@ func (l *DevcontainerLauncher) Wrap(ctx context.Context, frameID string, plan La
 	}
 	frameCtx.WorkDir = workDir
 
-	cmd, outEnv, err := l.mgr.BuildLaunchCommand(inst, sandbox.LaunchSpec{Command: plan.Command, StartDir: plan.StartDir, TTY: l.tty}, frameCtx, plan.Env)
+	// Always frame-exec: tokenize Command → Argv, then hand structured
+	// LaunchSpec to the sandbox manager (no shell composition of main).
+	plan, err = NormalizePlanForFrameExec(plan)
+	if err != nil {
+		return WrappedLaunch{}, fmt.Errorf("devcontainer launcher: normalize plan: %w", err)
+	}
+	plan.PreExec = inst.Internal.PreExec()
+	cmd, outEnv, err := l.mgr.BuildLaunchCommand(inst, sandbox.LaunchSpec{
+		Argv:              plan.Argv,
+		PreCommands:       plan.PreCommands,
+		PreExec:           plan.PreExec,
+		LoginShell:        plan.LoginShell,
+		PreCommandTimeout: plan.PreCommandTimeout,
+		StartDir:          plan.StartDir,
+		TTY:               l.tty,
+	}, frameCtx, plan.Env)
 	if err != nil {
 		return WrappedLaunch{}, fmt.Errorf("devcontainer launcher: build command: %w", err)
 	}

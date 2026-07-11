@@ -1,6 +1,9 @@
 package agentlaunch
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // LaunchPlan carries the pure launch parameters. ForceHost replaces the
 // client/state SandboxOverride == SandboxOverrideHost sentinel.
@@ -8,9 +11,15 @@ import "context"
 // Argv, when non-nil, holds the structured argv for Spawn (no host-side shell).
 // Command is the shell-joined string form used by backend frame launchers.
 // Both are populated by per-agent lib builders; callers choose which to use.
+// PreCommands / PreExec are consumed by the in-process frame-exec launcher
+// (see platform/framelaunch and adr-20260711-0082).
 type LaunchPlan struct {
 	Command               string
 	Argv                  []string
+	PreCommands           [][]string
+	PreExec               string // devcontainer.json preExecCommand; forwarded to bridge frame-exec
+	LoginShell            string // absolute path; optional override (empty → framelaunch resolves)
+	PreCommandTimeout     time.Duration
 	Env                   map[string]string
 	StartDir              string
 	Project               string

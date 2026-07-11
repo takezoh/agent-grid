@@ -2,7 +2,7 @@ package main
 
 // commandKind names the three top-level dispatch arms recognised by runMain.
 // Subcommand mode (`server event`, `server host-exec`, `server mcp-exec`,
-// `server agent-frames-mcp`)
+// `server agent-frames-mcp`, `server frame-exec`)
 // and help mode keep stdout pointed at the terminal; daemon mode routes
 // stdout/stderr into the log file.
 type commandKind int
@@ -34,7 +34,7 @@ func classifyCommand(args []string) commandKind {
 
 func isSubcommandName(name string) bool {
 	switch name {
-	case "event", "host-exec", "mcp-exec", "agent-frames-mcp":
+	case "event", "host-exec", "mcp-exec", "agent-frames-mcp", "frame-exec":
 		return true
 	}
 	return false

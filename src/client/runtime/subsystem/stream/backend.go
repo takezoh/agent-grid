@@ -221,8 +221,8 @@ func (b *Backend) Start(ctx context.Context) error {
 }
 
 // BindFrame implements subsystem.Subsystem. It resolves the frame's worktree,
-// registers a per-frame binding, and rewrites Plan.Command to the CLI attach
-// command. The Backend never invokes `thread/start` or `thread/resume`
+// registers a per-frame binding, and rewrites Plan.Argv to the CLI attach
+// argv (legacy Plan.Command is cleared). The Backend never invokes `thread/start` or `thread/resume`
 // itself — the codex CLI owns the thread lifecycle. For cold-start recovery
 // (persisted ThreadID present), Backend records the id up front so the
 // broadcast thread/started routes straight to this frame. For fresh
@@ -295,9 +295,17 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	bindOK = true
 
 	model, effort := b.bindingSettings(req.FrameID)
-	result.Plan.Command = strings.Join(libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir, model, effort), " ")
+	// Argv-first path: in-container bridge frame-exec runs PreCommands then
+	// syscall.Execs MainCommand. Avoid shell composition of trust && exec
+	// (adr-20260711-0082 / 0083). Host DirectLauncher also uses frame-exec
+	// when Argv is set.
+	attachArgv := libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir, model, effort)
+	result.Plan.Argv = attachArgv
+	result.Plan.Command = "" // legacy shell path unused for codex stream attach
 	if b.sandboxed {
-		result.Plan.Command = agentlaunch.ContainerBinaryPath + " codex-trust-project && exec " + result.Plan.Command
+		result.Plan.PreCommands = append(result.Plan.PreCommands, []string{
+			agentlaunch.ContainerBinaryPath, "codex-trust-project",
+		})
 	}
 	result.Plan.Stdin = nil
 	result.Plan.Stream.ResumeTarget = resumeTarget.rpc

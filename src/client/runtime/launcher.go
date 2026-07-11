@@ -94,8 +94,29 @@ func (d DirectLauncher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan,
 		}
 		cleanup = adaptCleanup(rawCleanup)
 	}
+
+	// Every launch goes through `<SelfBin> frame-exec` (adr-20260711-0082).
+	// Command strings from drivers are tokenized into Argv at this boundary.
+	normalized, err := agentlaunch.NormalizePlanForFrameExec(agentlaunch.LaunchPlan{
+		Command:           plan.Command,
+		Argv:              plan.Argv,
+		PreCommands:       plan.PreCommands,
+		PreCommandTimeout: plan.PreCommandTimeout,
+	})
+	if err != nil {
+		return WrappedLaunch{}, err
+	}
+	specJSON, err := agentlaunch.EncodeFrameSpec(normalized)
+	if err != nil {
+		return WrappedLaunch{}, fmt.Errorf("runtime: encode FrameSpec: %w", err)
+	}
+	merged = cloneAndSet(merged, "AG_FRAME_SPEC", specJSON)
+	selfBin := d.SelfBin
+	if selfBin == "" {
+		selfBin = "server"
+	}
 	return WrappedLaunch{
-		Command:  plan.Command,
+		Command:  agentlaunch.JoinArgs([]string{selfBin, "frame-exec"}),
 		StartDir: plan.StartDir,
 		Env:      merged,
 		Cleanup:  cleanup,
@@ -140,6 +161,9 @@ type dispatcherAdapter struct {
 func (a dispatcherAdapter) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
 	pp := agentlaunch.LaunchPlan{
 		Command:               plan.Command,
+		Argv:                  plan.Argv,
+		PreCommands:           plan.PreCommands,
+		PreCommandTimeout:     plan.PreCommandTimeout,
 		Env:                   env,
 		StartDir:              plan.StartDir,
 		Project:               plan.Project,

@@ -8,21 +8,45 @@ package sandbox
 
 import (
 	"context"
+	"fmt"
+	"time"
 )
 
 // FrameID identifies a frame within a sandbox session.
 type FrameID string
 
-// LaunchSpec carries the minimal launch parameters that BuildLaunchCommand
-// needs. Callers construct it from their own plan types at the boundary.
+// LaunchSpec carries the parameters that BuildLaunchCommand needs.
+// Callers construct it from their own plan types at the boundary.
+//
+// Argv is required (frame-exec MainCommand). Command is not accepted at this
+// boundary — convert via agentlaunch.NormalizePlanForFrameExec first.
 type LaunchSpec struct {
-	Command  string
-	StartDir string
+	// Command is deprecated at this boundary; ValidateLaunchSpec rejects a
+	// non-empty Command. Kept only so accidental field copies fail loudly.
+	Command           string
+	Argv              []string
+	PreCommands       [][]string
+	PreExec           string
+	LoginShell        string
+	PreCommandTimeout time.Duration
+	StartDir          string
 	// TTY requests a pseudo-TTY for the launch (docker exec -it). Interactive
 	// frame consumers set it; headless consumers that drive the agent over
 	// piped stdio (e.g. the orchestrator's JSON-RPC transport) must leave it
 	// false, because `docker exec -t` aborts when stdin is not a terminal.
 	TTY bool
+}
+
+// ValidateLaunchSpec requires Argv for the frame-exec path and rejects
+// residual Command strings (conversion belongs upstream).
+func ValidateLaunchSpec(spec LaunchSpec) error {
+	if spec.Command != "" {
+		return fmt.Errorf("sandbox: LaunchSpec.Command is not accepted; convert to Argv via agentlaunch.NormalizePlanForFrameExec")
+	}
+	if len(spec.Argv) == 0 {
+		return fmt.Errorf("sandbox: LaunchSpec.Argv is required for frame-exec")
+	}
+	return nil
 }
 
 // Instance represents a running sandbox for one project directory.
