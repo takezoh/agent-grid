@@ -1,7 +1,7 @@
 ---
 id: adr-20260711-0082-frame-exec-launcher
 kind: adr
-title: ADR 0082 — Container-side frame sequencing (including devcontainer preExec) is owned by `bridge frame-exec`, shell composition is removed from the daemon boundary entirely
+title: ADR 0082 — `bridge frame-exec` owns container-side frame sequencing
 status: accepted
 created: '2026-07-11'
 updated: '2026-07-11'
@@ -12,16 +12,20 @@ tags:
 - launcher
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-frame-exec-launcher}
+- {type: references, target: plan-20260711-frame-exec-launcher}
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0081-codex-frame-init-serialize}
+- {type: referencedBy, target: adr-20260711-0083-launchplan-argv-primary}
+- {type: referencedBy, target: adr-20260711-0084-frame-spec-transport}
+- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
 source_paths:
 - src/cmd/bridge/frame_exec.go
 - src/platform/sandbox/devcontainer/manager.go
 - src/client/runtime/subsystem/stream/backend.go
 decision_makers:
 - take.gn
-summary: sandbox frame launch の sequencing (devcontainer preExec 評価 + pre-command 逐次実行 + main への syscall.Exec) を container 内の Go プロセス `bridge frame-exec` が単独所有する。daemon → container の `docker exec` argv には shell fragment を組み立てず literal `bridge frame-exec` のみ渡す。shell 呼び出しは preExec 評価のために bridge の内部で 1 回発生するが境界には露出しない
+summary: sandbox frame launch の sequencing は `bridge frame-exec` が単独所有し、daemon → container
+  の docker exec argv から shell fragment を排除する。
 ---
 
 ## Context

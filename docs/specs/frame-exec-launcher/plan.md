@@ -1,14 +1,21 @@
 ---
 id: plan-20260711-frame-exec-launcher
 kind: plan
-title: Frame launch sequencing owned by an in-container Go launcher — implementation plan
+title: Frame launch sequencing owned by an in-container Go launcher — implementation
+  plan
 status: draft
 created: '2026-07-11'
-goal: shell composition を daemon 境界から排除し、container 内 Go 単一 owner (`bridge frame-exec`) で devcontainer preExec 評価 → pre-command 逐次実行 → main への syscall.Exec を行うことで、commit 28ad8999 と同型の shell semantics 回帰を構造的に不可能にする
+goal: shell composition を daemon 境界から排除し、container 内 Go 単一 owner (`bridge frame-exec`)
+  で devcontainer preExec 評価 → pre-command 逐次実行 → main への syscall.Exec を行うことで、commit
+  28ad8999 と同型の shell semantics 回帰を構造的に不可能にする
 scope_in:
-- container 内 `bridge frame-exec` subcommand の新設 (preExec 評価 + pre-command 逐次実行 + main への syscall.Exec + timeout + T0/T2 test)
-- `state.LaunchPlan` / `agentlaunch.LaunchPlan` / `sandbox.LaunchSpec` の argv-first 拡張 (`Argv []string` + `PreCommands [][]string` + `PreExec string` + `LoginShell string` + `PreCommandTimeout time.Duration`)
-- devcontainer 経路 (`BuildLaunchCommand`) を `docker exec ... bridge frame-exec` (shell wrap 無し) に置換
+- container 内 `bridge frame-exec` subcommand の新設 (preExec 評価 + pre-command 逐次実行 +
+  main への syscall.Exec + timeout + T0/T2 test)
+- '`state.LaunchPlan` / `agentlaunch.LaunchPlan` / `sandbox.LaunchSpec` の argv-first
+  拡張 (`Argv []string` + `PreCommands [][]string` + `PreExec string` + `LoginShell
+  string` + `PreCommandTimeout time.Duration`)'
+- devcontainer 経路 (`BuildLaunchCommand`) を `docker exec ... bridge frame-exec` (shell
+  wrap 無し) に置換
 - codex driver (backend.go) の trust step を PreCommands 経路 + Argv 経路に移行
 - host DirectLauncher に frame-exec 経路を敷設
 - 案 B'' の shell fragment 合成コード (`envelope.go` 丸ごと) と関連 test の廃棄
@@ -18,14 +25,16 @@ scope_out:
 - 現行 `Command string` の廃止 (別 PR で扱う)
 - preExec 契約を shell fragment から env delta に変更する ADR (ADR-0082 Alt C で却下)
 relations:
-- {type: partOf, target: spec-20260711-frame-exec-launcher}
-- {type: partOf, target: adr-20260711-0082-frame-exec-launcher}
-- {type: partOf, target: adr-20260711-0083-launchplan-argv-primary}
-- {type: partOf, target: adr-20260711-0084-frame-spec-transport}
+- {type: implements, target: spec-20260711-frame-exec-launcher}
+- {type: referencedBy, target: adr-20260711-0082-frame-exec-launcher}
+- {type: referencedBy, target: adr-20260711-0083-launchplan-argv-primary}
+- {type: referencedBy, target: adr-20260711-0084-frame-spec-transport}
 milestones:
 - id: m1
   title: bridge frame-exec + LaunchPlan argv 化 + devcontainer 経路移行 + 案 B'' 削除
-  status: draft
+  status: todo
+summary: bridge frame-exec と argv-first launch を導入し、shell composition 起因の Codex frame
+  launch 回帰を解消する実装計画。
 ---
 
 ## Goal

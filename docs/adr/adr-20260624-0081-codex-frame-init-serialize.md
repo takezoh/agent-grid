@@ -15,6 +15,8 @@ relations:
 - {type: referencedBy, target: component-20260624-client-overview}
 - {type: referencedBy, target: component-20260624-client-process-model}
 - {type: referencedBy, target: component-20260624-client-stream-backend-testing}
+- {type: referencedBy, target: adr-20260711-0082-frame-exec-launcher}
+- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
 source_paths:
 - src/client/runtime/subsystem/stream/
 decision_makers:

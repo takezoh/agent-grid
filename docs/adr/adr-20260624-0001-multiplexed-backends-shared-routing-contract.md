@@ -19,6 +19,8 @@ relations:
 - {type: referencedBy, target: adr-20260624-0081-codex-frame-init-serialize}
 - {type: referencedBy, target: component-20260624-client-stream-backend-testing}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
+- {type: referencedBy, target: adr-20260711-0082-frame-exec-launcher}
+- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
 source_paths:
 - src/client/runtime/subsystem/stream/
 - ARCHITECTURE.md

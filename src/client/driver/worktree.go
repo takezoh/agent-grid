@@ -172,7 +172,12 @@ func CommonPrepareCreate(c *CommonState, project, command string, options state.
 	return state.CreateLaunch{
 		Command:  strings.TrimSpace(stripped),
 		StartDir: project,
-		Options:  state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled}},
+		Options: state.LaunchOptions{
+			Worktree:     state.WorktreeOption{Enabled: req.Enabled},
+			InitialInput: options.InitialInput,
+			Cols:         options.Cols,
+			Rows:         options.Rows,
+		},
 	}, nil
 }
 

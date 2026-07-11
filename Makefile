@@ -154,7 +154,7 @@ lint:
 
 # Opt-in fidelity backstop: real-CLI e2e for the fakes.
 #
-# Configure via AG_E2E_CODEX_BIN / AG_E2E_CLAUDE_BIN /
+# Configure via AG_E2E_CODEX_BIN / AG_E2E_CLAUDE_BIN / AG_E2E_GROK_BIN /
 # AG_E2E_APPSERVER_BIN; each subtest skips when its binary is not set,
 # so partial configurations are fine. Every fake in this list is validated
 # against the wire form of a real CLI — see:
@@ -167,6 +167,7 @@ test-e2e:
 	cd $(SRC_DIR) && go test -tags e2e -v -count=1 \
 		./client/runtime/subsystem/stream/... \
 		./platform/lib/claude/fakeclaude/... \
+		./platform/lib/grok/... \
 		./platform/agent/fakecodex/... \
 		./client/lib/agenthook/... \
 		./platform/sandbox/devcontainer/...

@@ -1,7 +1,8 @@
 ---
 id: adr-20260711-0084-frame-spec-transport
 kind: adr
-title: ADR 0084 — Frame launch spec transport is env var (JSON); file-based transport reserved for secret-carrying evolutions
+title: ADR 0084 — Frame launch spec transport is env var (JSON); file-based transport
+  reserved for secret-carrying evolutions
 status: proposed
 created: '2026-07-11'
 tags:
@@ -11,14 +12,18 @@ tags:
 - launcher
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-frame-exec-launcher}
+- {type: references, target: plan-20260711-frame-exec-launcher}
 - {type: references, target: adr-20260711-0082-frame-exec-launcher}
+- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
 source_paths:
 - src/platform/sandbox/devcontainer/manager.go
 - src/cmd/bridge/frame_exec.go
 decision_makers:
 - take.gn
-summary: `bridge frame-exec` に渡す frame spec (pre-commands + main argv) を `AG_FRAME_SPEC` env var (JSON) で転送する。現行 spec 内容 (workspace path・argv・timeout) は非機密のため env transport で十分。将来 spec が secret を含むよう拡張された場合は per-frame 0600 spec file 経由に切り替える (evolvability を予約)
+summary: '`bridge frame-exec` に渡す frame spec (pre-commands + main argv) を `AG_FRAME_SPEC`
+  env var (JSON) で転送する。現行 spec 内容 (workspace path・argv・timeout) は非機密のため env transport
+  で十分。将来 spec が secret を含むよう拡張された場合は per-frame 0600 spec file 経由に切り替える (evolvability
+  を予約)'
 ---
 
 ## Context

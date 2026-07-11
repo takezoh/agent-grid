@@ -457,6 +457,13 @@ type Forkable interface {
 	ForkChildState(parent DriverState, now time.Time) DriverState
 }
 
+// ForkSessionIDSetter receives the newly allocated agent-grid session ID before
+// a fork launch. Drivers that require a distinct external session identity use
+// it to derive that child identity without generating randomness themselves.
+type ForkSessionIDSetter interface {
+	WithForkSessionID(s DriverState, sessionID SessionID) DriverState
+}
+
 // WarmStartRecoverer is an optional driver extension for restoring
 // driver-owned runtime state after a warm start. Drivers use this to
 // re-install watches and resume async parsing from already-restored

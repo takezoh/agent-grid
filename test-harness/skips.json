@@ -1,6 +1,7 @@
 {
   "version": 1,
   "entries": [
+	{"path":"src/platform/lib/grok/grok_real_e2e_test.go","kind":"go.Skip","match":"AG_E2E_GROK_BIN is not set","occurrences":1,"reason":"FakeVsRealGrok requires an explicitly configured real Grok Build binary.","owner":"harness-maintainers","expires":"2027-07-11","evidence":["adr-20260711-grok-home-automation-policy"]},
     {"path":"src/client/lib/codex/transcript/transcript_e2e_test.go","kind":"go.Skip","match":"AG_E2E_CODEX_BIN is not set","occurrences":1,"reason":"Real Codex fidelity test requires an explicitly configured binary.","owner":"harness-maintainers","expires":"2027-07-11","evidence":["adr-20260711-test-harness-skip-repeat"]},
     {"path":"src/client/lib/codex/transcript/transcript_e2e_test.go","kind":"go.Skipf","match":"AG_E2E_CODEX_BIN=%q is not executable","occurrences":1,"reason":"Real Codex fidelity test cannot run with a non-executable binary.","owner":"harness-maintainers","expires":"2027-07-11","evidence":["adr-20260704-cli-fake-validated-by-real-cli-e2e"]},
     {"path":"src/client/proto/sessions/canonical_test.go","kind":"go.Skip","match":"symlink creation failed","occurrences":1,"reason":"The host filesystem may not support symlink creation.","owner":"harness-maintainers","expires":"2027-07-11","evidence":["platform-portability"]},

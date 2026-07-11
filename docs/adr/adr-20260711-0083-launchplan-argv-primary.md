@@ -1,7 +1,8 @@
 ---
 id: adr-20260711-0083-launchplan-argv-primary
 kind: adr
-title: ADR 0083 — `LaunchPlan.Argv` + `PreCommands` は frame launch の primary 表現、`Command string` は legacy
+title: ADR 0083 — `LaunchPlan.Argv` + `PreCommands` は frame launch の primary 表現、`Command
+  string` は legacy
 status: proposed
 created: '2026-07-11'
 tags:
@@ -10,15 +11,19 @@ tags:
 - api-contract
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-frame-exec-launcher}
+- {type: references, target: plan-20260711-frame-exec-launcher}
 - {type: references, target: adr-20260711-0082-frame-exec-launcher}
+- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
 source_paths:
 - src/client/state/driver_iface.go
 - src/platform/agentlaunch/types.go
 - src/platform/sandbox/manager.go
 decision_makers:
 - take.gn
-summary: `LaunchPlan.Argv []string` と `LaunchPlan.PreCommands [][]string` を primary shape として型で invariant を表明する (Argv[0] は単一プロセスの exec 対象、単純コマンドに限定)。既存の `Command string` は claude / gemini / shell driver 用の legacy 経路として残し、Argv が非空なら frame-exec 経路、空なら Command 経路に disjoint に分岐する
+summary: '`LaunchPlan.Argv []string` と `LaunchPlan.PreCommands [][]string` を primary
+  shape として型で invariant を表明する (Argv[0] は単一プロセスの exec 対象、単純コマンドに限定)。既存の `Command string`
+  は claude / gemini / shell driver 用の legacy 経路として残し、Argv が非空なら frame-exec 経路、空なら
+  Command 経路に disjoint に分岐する'
 ---
 
 ## Context

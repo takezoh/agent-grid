@@ -51,6 +51,13 @@
       "fidelity": {"path": "src/platform/agent/fakecodex/codex_appserver_e2e_test.go", "test": "TestE2E_FakeVsRealMethods", "shared_input": "runFakeScenario", "real_marker": "runRealAppServerScenario"}
     },
     {
+      "id": "grok-cli",
+      "seam": {"path": "src/platform/lib/grok/argv.go", "symbol": "BuildCommand"},
+      "fake": {"path": "src/platform/lib/grok/fake/fake.go", "symbol": "ValidateArgv"},
+      "contract": {"path": "src/platform/lib/grok/contract_test.go", "test": "TestGrokLifecycleContract_SelectorShape", "invariant": "Grok emits one lifecycle selector, except a fork emits its resume parent and child session-id pair", "assertion": "ValidateArgv"},
+      "fidelity": {"path": "src/platform/lib/grok/grok_real_e2e_test.go", "test": "TestFakeVsRealGrokLifecycleFlags", "shared_input": "--session-id", "real_marker": "AG_E2E_GROK_BIN"}
+    },
+    {
       "id": "docker-cli",
       "seam": {"path": "src/platform/sandbox/devcontainer/manager.go", "symbol": "Manager"},
       "fake": {"path": "src/platform/sandbox/devcontainer/fakedocker/config.go", "symbol": "LoadConfig"},

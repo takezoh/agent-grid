@@ -14,7 +14,7 @@ func TestDriverRegistryConformanceCoversBuiltins(t *testing.T) {
 	registerConformanceDrivers()
 
 	names := runRegistryConformance(t)
-	want := []string{"claude", "codex", "gemini", "generic", "shell"}
+	want := []string{"claude", "codex", "gemini", "generic", "grok", "shell"}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("registry conformance names = %v, want %v", names, want)
 	}

@@ -54,6 +54,7 @@ func builtinDrivers(opts RegisterOptions) []state.Driver {
 		NewClaudeDriver(opts.Home, opts.EventLogDir, claudeOpts, opts.Pager),
 		NewCodexDriver(opts.EventLogDir),
 		NewGeminiDriver(opts.EventLogDir),
+		NewGrokDriver(opts.EventLogDir),
 		NewGenericDriver("", "", opts.IdleThreshold),
 	}
 }

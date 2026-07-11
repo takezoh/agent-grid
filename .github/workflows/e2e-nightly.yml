@@ -41,6 +41,9 @@ jobs:
       - name: Install claude
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Install grok
+        run: npm install -g @xai-official/grok
+
       - name: Select available e2e suites
         id: suite_env
         run: |
@@ -53,19 +56,24 @@ jobs:
           if command -v docker >/dev/null 2>&1; then
             echo "ag_e2e_docker_bin=$(command -v docker)" >> "$GITHUB_OUTPUT"
           fi
+          if command -v grok >/dev/null 2>&1; then
+            echo "ag_e2e_grok_bin=$(command -v grok)" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Explain skipped suites
-        if: steps.suite_env.outputs.ag_e2e_codex_bin == '' || steps.suite_env.outputs.ag_e2e_claude_bin == '' || steps.suite_env.outputs.ag_e2e_docker_bin == ''
+        if: steps.suite_env.outputs.ag_e2e_codex_bin == '' || steps.suite_env.outputs.ag_e2e_claude_bin == '' || steps.suite_env.outputs.ag_e2e_docker_bin == '' || steps.suite_env.outputs.ag_e2e_grok_bin == ''
         run: |
           [[ -n "${{ steps.suite_env.outputs.ag_e2e_codex_bin }}" ]] || echo "Skipping Codex-backed e2e suites: OPENAI_API_KEY is not configured."
           [[ -n "${{ steps.suite_env.outputs.ag_e2e_claude_bin }}" ]] || echo "Skipping Claude-backed e2e suites: ANTHROPIC_API_KEY is not configured."
           [[ -n "${{ steps.suite_env.outputs.ag_e2e_docker_bin }}" ]] || echo "Skipping Docker-backed e2e suites: docker is not available on this runner."
+          [[ -n "${{ steps.suite_env.outputs.ag_e2e_grok_bin }}" ]] || echo "Skipping Grok-backed e2e suites: grok is not available on this runner."
 
       - name: Require full nightly suite coverage
         run: |
           [[ -n "${{ steps.suite_env.outputs.ag_e2e_codex_bin }}" ]] || { echo "Nightly e2e requires Codex coverage."; exit 1; }
           [[ -n "${{ steps.suite_env.outputs.ag_e2e_claude_bin }}" ]] || { echo "Nightly e2e requires Claude coverage."; exit 1; }
           [[ -n "${{ steps.suite_env.outputs.ag_e2e_docker_bin }}" ]] || { echo "Nightly e2e requires Docker coverage."; exit 1; }
+          [[ -n "${{ steps.suite_env.outputs.ag_e2e_grok_bin }}" ]] || { echo "Nightly e2e requires Grok coverage."; exit 1; }
 
       - name: Run nightly e2e
         working-directory: .
@@ -73,6 +81,7 @@ jobs:
           AG_E2E_CODEX_BIN: ${{ steps.suite_env.outputs.ag_e2e_codex_bin }}
           AG_E2E_CLAUDE_BIN: ${{ steps.suite_env.outputs.ag_e2e_claude_bin }}
           AG_E2E_DOCKER_BIN: ${{ steps.suite_env.outputs.ag_e2e_docker_bin }}
+          AG_E2E_GROK_BIN: ${{ steps.suite_env.outputs.ag_e2e_grok_bin }}
         run: scripts/run-verification-profile.sh nightly
 
       - name: Upload nightly profile result

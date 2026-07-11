@@ -274,6 +274,9 @@ func buildForkSession(s State, connID ConnID, reqID string, sess Session, rootF 
 
 func spawnForkSession(s State, connID ConnID, reqID string, sess Session, forkDrv Driver, driverState DriverState, durableCommand, launchCommand string, opts LaunchOptions) (State, []Effect) {
 	newSessID := allocSessionID()
+	if setter, ok := forkDrv.(ForkSessionIDSetter); ok {
+		driverState = setter.WithForkSessionID(driverState, newSessID)
+	}
 	rootFrameID := allocFrameID()
 	newSess := makeForkSession(s, sess, newSessID, rootFrameID, durableCommand, opts, driverState)
 	launch, err := forkDrv.PrepareLaunch(driverState, LaunchModeCreate, sess.Project, launchCommand, opts, isSandboxed(s, sess.Project, sess.Sandbox))

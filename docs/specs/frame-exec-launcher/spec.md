@@ -12,94 +12,102 @@ tags:
 owners: []
 functional_requirements:
 - id: FR-001
-  statement: system は sandbox frame の pre-command / main command / devcontainer preExec の実行を、container 内 Go プロセス (`bridge frame-exec`) の single-owner sequencing で行い、daemon → container の docker exec argv に shell fragment (`sh -c` / `sh -lc` / `<login_shell> -lc` / `&&` / `;` / `exec ` 等) を組み立ててはならない
-  type: ubiquitous
+  statement: system は sandbox frame の pre-command / main command / devcontainer preExec
+    の実行を、container 内 Go プロセス (`bridge frame-exec`) の single-owner sequencing で行い、daemon
+    → container の docker exec argv に shell fragment (`sh -c` / `sh -lc` / `<login_shell>
+    -lc` / `&&` / `;` / `exec ` 等) を組み立ててはならない
   priority: must
-  invariant: true
-  rationale: shell の compound semantics (`&&` / `;` / `exec`) を daemon 側で組み立てる限り commit 28ad8999 と同型の invariant 破壊 (`exec X && exec Y` が Y を落とす POSIX 仕様に起因する回帰) が再発する余地が残る。境界に shell の文字を 1 つも残さないことで shell 解釈を daemon 側から完全に排除する
+  rationale: shell の compound semantics (`&&` / `;` / `exec`) を daemon 側で組み立てる限り commit
+    28ad8999 と同型の invariant 破壊 (`exec X && exec Y` が Y を落とす POSIX 仕様に起因する回帰) が再発する余地が残る。境界に
+    shell の文字を 1 つも残さないことで shell 解釈を daemon 側から完全に排除する
 - id: FR-002
-  statement: WHEN sandbox frame の pre-command 列を実行するとき system はそれらを逐次実行し、いずれかが 非ゼロ exit のとき system は main command を実行してはならない
-  type: event_driven
+  statement: WHEN sandbox frame の pre-command 列を実行するとき system はそれらを逐次実行し、いずれかが 非ゼロ
+    exit のとき system は main command を実行してはならない
   priority: must
-  rationale: `codex-trust-project` が失敗した状態で `codex` attach を続けると untrust のまま起動する。gate semantics は spec レベルで保証する必要がある
+  rationale: '`codex-trust-project` が失敗した状態で `codex` attach を続けると untrust のまま起動する。gate
+    semantics は spec レベルで保証する必要がある'
 - id: FR-003
-  statement: WHILE main command が起動している間 pty ownership は main プロセスに継承され、中間 launcher (bridge frame-exec) は pty を保持したまま残ってはならない
-  type: state_driven
+  statement: WHILE main command が起動している間 pty ownership は main プロセスに継承され、中間 launcher
+    (bridge frame-exec) は pty を保持したまま残ってはならない
   priority: must
-  invariant: true
-  rationale: codex TUI が pty を所有する必要がある。中間 launcher が残るとエスケープ処理・signal 転送・resize が二重になる。syscall.Exec で置換することで PID・pty 両方を継承しつつ launcher プロセスは消える
+  rationale: codex TUI が pty を所有する必要がある。中間 launcher が残るとエスケープ処理・signal 転送・resize が二重になる。syscall.Exec
+    で置換することで PID・pty 両方を継承しつつ launcher プロセスは消える
 - id: FR-004
-  statement: WHEN launcher が frame spec を container に渡すとき system は shell 経由の argv 埋め込みではなく、構造化 (JSON) transport を用いなければならない
-  type: event_driven
+  statement: WHEN launcher が frame spec を container に渡すとき system は shell 経由の argv
+    埋め込みではなく、構造化 (JSON) transport を用いなければならない
   priority: must
-  rationale: docker exec 引数として shell 経由で argv を組み立てると、pre-command / preExec 内の quote/space 処理で FR-001 と同型のバグ余地が残る。JSON は shell 解釈を通らない
+  rationale: docker exec 引数として shell 経由で argv を組み立てると、pre-command / preExec 内の quote/space
+    処理で FR-001 と同型のバグ余地が残る。JSON は shell 解釈を通らない
 - id: FR-005
-  statement: sandbox 経路 (container / devcontainer) と host 経路 (`DirectLauncher`) は同一の frame-exec sequencing 実装を共有しなければならず、sandbox 機構 (docker exec vs 直接 spawn) 以外の launch semantics (preExec 評価 / pre-command 逐次実行 / main への syscall.Exec / timeout / LoginShell resolution) を分岐実装してはならない
-  type: ubiquitous
+  statement: sandbox 経路 (container / devcontainer) と host 経路 (`DirectLauncher`) は同一の
+    frame-exec sequencing 実装を共有しなければならず、sandbox 機構 (docker exec vs 直接 spawn) 以外の launch
+    semantics (preExec 評価 / pre-command 逐次実行 / main への syscall.Exec / timeout / LoginShell
+    resolution) を分岐実装してはならない
   priority: must
-  invariant: true
-  rationale: 実装乖離は同型 invariant 破壊の温床。sandbox / host で sequencing コードを分けると、片側の bug fix が他側に伝搬しない / 両側で微妙に違う semantics が生まれる。sequencing 実装は shared package (`platform/framelaunch`) に一本化し、caller (container 側 bridge / host 側 daemon) は subcommand として dispatch するだけ
+  rationale: 実装乖離は同型 invariant 破壊の温床。sandbox / host で sequencing コードを分けると、片側の bug
+    fix が他側に伝搬しない / 両側で微妙に違う semantics が生まれる。sequencing 実装は shared package (`platform/framelaunch`)
+    に一本化し、caller (container 側 bridge / host 側 daemon) は subcommand として dispatch するだけ
 - id: FR-006
-  statement: `LaunchPlan.Argv` が非空の frame launch について system は Argv を単一プロセスの argv[0] + args として直接 exec 可能な shape として扱い、`Argv[0]` 以外に shell を挟んではならない
-  type: ubiquitous
+  statement: '`LaunchPlan.Argv` が非空の frame launch について system は Argv を単一プロセスの argv[0]
+    + args として直接 exec 可能な shape として扱い、`Argv[0]` 以外に shell を挟んではならない'
   priority: must
-  invariant: true
-  rationale: string 表現だと caller が `&&` / `;` を混入できてしまい FR-001 の invariant を型で表明できない。argv であれば単一プロセスであることが型で示せる
+  rationale: string 表現だと caller が `&&` / `;` を混入できてしまい FR-001 の invariant を型で表明できない。argv
+    であれば単一プロセスであることが型で示せる
 - id: FR-007
-  statement: WHEN pre-command が deadline (default 30s) を超えたとき launcher は SIGTERM → 5s 後 SIGKILL の順で子プロセスを終了させ、その pre-command の exit code を非ゼロとみなして main command を実行してはならない
-  type: event_driven
+  statement: WHEN pre-command が deadline (default 30s) を超えたとき launcher は SIGTERM →
+    5s 後 SIGKILL の順で子プロセスを終了させ、その pre-command の exit code を非ゼロとみなして main command を実行してはならない
   priority: must
-  rationale: 単一 pre-command が deadlock した場合の launcher の behavior を規定しないと、frame が pty を握ったまま無限待ちになる。deadline は spec.PreCommandTimeout で override 可能
+  rationale: 単一 pre-command が deadlock した場合の launcher の behavior を規定しないと、frame が pty
+    を握ったまま無限待ちになる。deadline は spec.PreCommandTimeout で override 可能
 - id: FR-008
-  statement: WHEN `FrameSpec.PreExec` が非空のとき system は `<login_shell> -lc '<pre_exec> && env -0'` を subprocess として起動し、その stdout の NUL 区切り env dump を parse して frame-exec 自プロセスの環境変数として上書きした後、pre-command 列と main command を実行しなければならない。`FrameSpec.LoginShell` が空文字のとき launcher は `/etc/passwd` の該当 user の SHELL 列を読んで自己解決し、解決失敗時は `/bin/sh` を fallback として用いなければならない
-  type: event_driven
+  statement: WHEN `FrameSpec.PreExec` が非空のとき system は `<login_shell> -lc '<pre_exec>
+    && env -0'` を subprocess として起動し、その stdout の NUL 区切り env dump を parse して frame-exec
+    自プロセスの環境変数として上書きした後、pre-command 列と main command を実行しなければならない。`FrameSpec.LoginShell`
+    が空文字のとき launcher は `/etc/passwd` の該当 user の SHELL 列を読んで自己解決し、解決失敗時は `/bin/sh`
+    を fallback として用いなければならない
   priority: must
-  rationale: devcontainer.json 由来の preExec (mise trust など tool 側 setup) の env side-effect を main / pre-commands に伝搬させる必要がある。この shell 呼び出しは launcher の内部実装で、境界には shell fragment を露出させない (FR-001 の invariant を維持)。login shell は user の dotfile (mise activation 等) を source するために user 実 shell (zsh / bash) が望ましく、`/etc/passwd` 自己解決が現行 envelope の dynamic resolution と等価
+  rationale: devcontainer.json 由来の preExec (mise trust など tool 側 setup) の env side-effect
+    を main / pre-commands に伝搬させる必要がある。この shell 呼び出しは launcher の内部実装で、境界には shell fragment
+    を露出させない (FR-001 の invariant を維持)。login shell は user の dotfile (mise activation
+    等) を source するために user 実 shell (zsh / bash) が望ましく、`/etc/passwd` 自己解決が現行 envelope
+    の dynamic resolution と等価
 - id: FR-009
-  statement: `FrameSpec.PreExec` の評価によって伝搬される shell state は環境変数のみに限定されなければならず、`alias` / `function` / `shopt` などの shell-only state を pre-command / main が継承することを保証してはならない
-  type: ubiquitous
+  statement: '`FrameSpec.PreExec` の評価によって伝搬される shell state は環境変数のみに限定されなければならず、`alias`
+    / `function` / `shopt` などの shell-only state を pre-command / main が継承することを保証してはならない'
   priority: must
-  invariant: true
-  rationale: `env -0` dump で伝搬できるのは環境変数のみ。alias / function に依存する preExec 契約を許すと bridge 実装で必ず対応漏れが発生する。この制約を spec レベルで明示することで、将来の preExec 変更時に契約違反として検出可能にする
+  rationale: '`env -0` dump で伝搬できるのは環境変数のみ。alias / function に依存する preExec 契約を許すと bridge
+    実装で必ず対応漏れが発生する。この制約を spec レベルで明示することで、将来の preExec 変更時に契約違反として検出可能にする'
 non_functional_requirements:
 - id: NFR-001
-  category: performance
-  statement: frame launch の overhead は現行 (案 B'' 適用前) 比 +200ms 以内 (bridge frame-exec の起動 + JSON parse + preExec 用 shell subprocess 1 回)
+  type: performance
+  criteria: frame launch の overhead は現行 (案 B'' 適用前) 比 +200ms 以内 (bridge frame-exec
+    の起動 + JSON parse + preExec 用 shell subprocess 1 回)
 - id: NFR-002
-  category: testability
-  statement: pre-command sequencing の contract (FR-002 / FR-007) は Go unit test (Tier T0) で verify 可能でなければならない。preExec env 吸い上げ (FR-008) は fake shell script を用いた Tier T2 contract test で verify する
+  type: maintainability
+  criteria: pre-command sequencing の contract (FR-002 / FR-007) は Go unit test (Tier
+    T0) で verify 可能でなければならない。preExec env 吸い上げ (FR-008) は fake shell script を用いた Tier
+    T2 contract test で verify する
 - id: NFR-003
-  category: compatibility
-  statement: 既存の string-based `LaunchPlan.Command` を使う driver (claude / gemini / shell) は変更なしに動作しなければならない (legacy 経路は残す)
+  type: compatibility
+  criteria: 既存の string-based `LaunchPlan.Command` を使う driver (claude / gemini / shell)
+    は変更なしに動作しなければならない (legacy 経路は残す)
 - id: NFR-004
-  category: observability
-  statement: pre-command 失敗 / preExec 失敗 / timeout 発火時、`server.log` には失敗した pre-command の argv と exit code、または preExec の評価結果 (exit code + stderr 先頭) が構造化 (slog) で残らなければならない
+  type: reliability
+  criteria: pre-command 失敗 / preExec 失敗 / timeout 発火時、`server.log` には失敗した pre-command
+    の argv と exit code、または preExec の評価結果 (exit code + stderr 先頭) が構造化 (slog) で残らなければならない
 - id: NFR-005
-  category: security
-  statement: pre-command spec (`AG_FRAME_SPEC`) は現行では workspace path / login shell path / preExec fragment 等の非機密のみを含む。secret を pre-command / preExec に含める拡張が入った場合は env transport から file transport (`0600` の per-frame spec file) に切り替えなければならない
-scope_in:
-- shared package `platform/framelaunch` に frame-exec sequencing 実装 (FrameSpec / preExec 評価 / login shell 自己解決 / pre-command 逐次実行 / timeout / main への syscall.Exec)
-- container 側 `bridge` binary に `frame-exec` subcommand を dispatch (framelaunch.Run 呼び出し)
-- host 側 daemon binary (`agent-grid-server`) に `frame-exec` subcommand を dispatch (同じ framelaunch.Run 呼び出し)
-- LaunchPlan の argv-first shape (`Argv []string` / `PreCommands [][]string` / `PreExec string` / `LoginShell string` (optional override) / `PreCommandTimeout time.Duration`)
-- devcontainer 経路 (`BuildLaunchCommand`) からの spec transport (`docker exec -e AG_FRAME_SPEC=<json> <cont> bridge frame-exec`)
-- host 経路 (`DirectLauncher.WrapLaunch`) からの spec transport (`<SelfBin> frame-exec` + AG_FRAME_SPEC env)
-- FrameSpec encoding の single source of truth (`agentlaunch.EncodeFrameSpec` / `EncodeFrameSpecFromLaunchSpec`)
-- 現行唯一の pre-command 用途 `codex-trust-project` の移行
-- 現行 devcontainer preExec (`~/.dotfiles/modules/devcontainer/scripts/pre-exec.sh` 相当) の framelaunch 内蔵化
-scope_out:
-- 既存 string-based `Command` を使う claude / gemini / shell driver の全面 argv 化 (別 spec で追跡)
-- broadcast / swarm 系の frame launch
-- containerless (host) sandbox の設計変更
-- secret を含む pre-command / preExec の transport (NFR-005 で evolvability だけ確保)
-- preExec 契約を shell fragment から env delta に変更する ADR (Alternative C を却下)
+  type: security
+  criteria: pre-command spec (`AG_FRAME_SPEC`) は現行では workspace path / login shell
+    path / preExec fragment 等の非機密のみを含む。secret を pre-command / preExec に含める拡張が入った場合は
+    env transport から file transport (`0600` の per-frame spec file) に切り替えなければならない
 relations:
-- {type: partOf, target: plan-20260711-frame-exec-launcher}
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0081-codex-frame-init-serialize}
 - {type: references, target: adr-20260711-0082-frame-exec-launcher}
 - {type: references, target: adr-20260711-0083-launchplan-argv-primary}
 - {type: references, target: adr-20260711-0084-frame-spec-transport}
+- {type: implementedBy, target: plan-20260711-frame-exec-launcher}
+summary: bridge frame-exec が frame launch の逐次実行を単独所有し、daemon 境界から shell 合成を排除する仕様。
 ---
 
 ## 背景
