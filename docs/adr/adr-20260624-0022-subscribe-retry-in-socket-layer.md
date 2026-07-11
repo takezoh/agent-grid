@@ -12,6 +12,7 @@ tags:
 owners: []
 relations:
 - {type: references, target: adr-20260624-0018-defer-subscribe-race-to-beta}
+- {type: supersededBy, target: adr-20260711-terminal-subscription-desired-reconcile}
 source_paths:
 - src/client/web/src/socket/retry.ts
 decision_makers:

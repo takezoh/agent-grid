@@ -1,13 +1,17 @@
 import { useDaemonStore } from "../store/daemon";
 import { useFrameMessagingStore } from "../store/frameMessaging";
 import { useNotificationsStore } from "../store/notifications";
+import { useSubscriptionStore } from "../store/subscriptions";
 import { useTranscriptStore } from "../store/transcripts";
 import type { ClientFrame } from "../wire/client";
 import { parseServerFrame, serializeClientFrame } from "../wire/codec";
 import type { ControlFrame, OutputFrame, RespErrFrame, RespOKFrame } from "../wire/server";
 import { backoffDelay, exceededAttempts } from "./backoff";
-import { type RetryDeps, subscribeWithRetry } from "./retry";
-import { SubscriptionRegistry } from "./subscribe";
+import { type RetryDeps, type SubscribeOutcome, subscribeWithRetry } from "./retry";
+import {
+  TerminalSubscriptionController,
+  type TerminalSubscriptionLease,
+} from "./terminalSubscription";
 
 export type ConnectionConfig = {
   ticketEndpoint: string; // POST /api/ws-ticket
@@ -26,15 +30,24 @@ type Pending = {
 export class Connection {
   private cfg: ConnectionConfig;
   private ws: WebSocket | null = null;
-  private registry = new SubscriptionRegistry();
   private pending = new Map<string, Pending>();
   private reconnectAttempt = 0;
   private closedByUser = false;
   private reconnecting = false;
   private reqIdCounter = 0;
+  private terminalSubscriptions: TerminalSubscriptionController;
 
   constructor(cfg: ConnectionConfig) {
     this.cfg = cfg;
+    this.terminalSubscriptions = new TerminalSubscriptionController(
+      {
+        subscribe: (sessionId) => this.subscribeOnce(sessionId),
+        unsubscribe: (sessionId) => this.unsubscribeOnce(sessionId),
+      },
+      {
+        onSnapshot: (snapshot) => useSubscriptionStore.getState().replace(snapshot),
+      },
+    );
   }
 
   async start(): Promise<void> {
@@ -52,7 +65,7 @@ export class Connection {
     this.drainPending();
     this.ws?.close();
     this.ws = null;
-    this.registry.clear();
+    this.terminalSubscriptions.onClose();
     useDaemonStore.getState().setStatus("closed");
   }
 
@@ -60,7 +73,11 @@ export class Connection {
     this.ws?.send(serializeClientFrame(frame));
   }
 
-  async subscribe(sessionId: string): Promise<void> {
+  acquireTerminal(sessionId: string): TerminalSubscriptionLease {
+    return this.terminalSubscriptions.acquire(sessionId);
+  }
+
+  private async subscribeOnce(sessionId: string): Promise<SubscribeOutcome> {
     const deps: RetryDeps = {
       send: (s) => this.ws?.send(s),
       awaitResponse: (reqId) =>
@@ -70,16 +87,16 @@ export class Connection {
       newReqId: () => this.nextReqId(),
       sleep: this.cfg.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
     };
-    const outcome = await subscribeWithRetry(sessionId, deps);
-    if (outcome.status === "confirmed") {
-      this.registry.set({ sessionId, reqId: outcome.reqId });
-    }
+    return subscribeWithRetry(sessionId, deps);
   }
 
-  async unsubscribe(sessionId: string): Promise<void> {
+  private async unsubscribeOnce(sessionId: string): Promise<void> {
     const reqId = this.nextReqId();
+    const response = new Promise<RespOKFrame | RespErrFrame>((resolve) => {
+      this.pending.set(reqId, { resolve });
+    });
     this.send({ k: "u", reqId, sessionId });
-    this.registry.remove(sessionId);
+    await response;
   }
 
   private nextReqId(): string {
@@ -126,10 +143,7 @@ export class Connection {
   private handleOpen(): void {
     this.reconnectAttempt = 0;
     useDaemonStore.getState().setStatus("open");
-    // resubscribe active sessions
-    for (const entry of this.registry.list()) {
-      void this.subscribe(entry.sessionId);
-    }
+    this.terminalSubscriptions.onOpen();
   }
 
   private handleMessage(raw: string): void {
@@ -195,6 +209,7 @@ export class Connection {
     if (this.reconnecting) return;
     this.reconnecting = true;
     this.drainPending();
+    this.terminalSubscriptions.onClose();
     useDaemonStore.getState().setStatus("reconnecting");
     if (exceededAttempts(this.reconnectAttempt)) {
       useDaemonStore.getState().setStatus("closed");

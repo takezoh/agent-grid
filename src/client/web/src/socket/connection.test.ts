@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDaemonStore } from "../store/daemon";
 import { useFrameMessagingStore } from "../store/frameMessaging";
 import { useNotificationsStore } from "../store/notifications";
+import { useSubscriptionStore } from "../store/subscriptions";
 import { useTranscriptStore } from "../store/transcripts";
 import { Connection } from "./connection";
 
@@ -38,6 +39,7 @@ describe("Connection", () => {
     useFrameMessagingStore.getState().reset();
     useTranscriptStore.getState().reset();
     useNotificationsStore.getState().clear();
+    useSubscriptionStore.getState().reset();
   });
 
   it("starts → fetches ticket → opens ws → sets status open", async () => {
@@ -78,8 +80,10 @@ describe("Connection", () => {
     if (!ws1) throw new Error("expected ws1");
     ws1.open();
 
-    // simulate confirmed subscribe by calling subscribe and responding OK
-    const subPromise = conn.subscribe("s1");
+    // Acquire the desired terminal and confirm its first subscribe.
+    conn.acquireTerminal("s1");
+    expect(useSubscriptionStore.getState()).toMatchObject({ sessionId: "s1" });
+    await Promise.resolve();
     // first ws receives the subscribe frame
     expect(ws1.sent.some((s) => s.includes('"k":"s"'))).toBe(true);
     // server responds OK
@@ -87,7 +91,7 @@ describe("Connection", () => {
       reqId: string;
     };
     ws1.receive(JSON.stringify({ k: "r", reqId: sentSubFrame.reqId }));
-    await subPromise;
+    await Promise.resolve();
 
     // close → reconnect path
     ws1.close();
@@ -190,7 +194,7 @@ describe("Connection", () => {
     expect(FakeWS.instances.length).toBe(2);
   });
 
-  it("pending subscribe promise resolves (not hangs) when WS closes mid-flight", async () => {
+  it("re-subscribes desired terminal when WS closes during the initial subscribe", async () => {
     const fetchFn = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -210,15 +214,25 @@ describe("Connection", () => {
     ws1.open();
 
     // Start subscribe — server never responds, so awaitResponse hangs unless drained
-    const subPromise = conn.subscribe("s1");
+    conn.acquireTerminal("s1");
 
     // Close the WS before server responds — pending promise must resolve, not hang
     ws1.onclose?.();
+    expect(useSubscriptionStore.getState()).toMatchObject({
+      sessionId: "s1",
+      phase: "disconnected",
+    });
 
-    // subPromise should settle rather than hanging forever.
-    // subscribe() returns void; internally subscribeWithRetry returns exhausted.
-    // We just verify it settled within the test (no timeout = success).
-    await subPromise;
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    const ws2 = FakeWS.instances[1];
+    if (!ws2) throw new Error("expected reconnect socket");
+    ws2.open();
+    await Promise.resolve();
+    expect(ws2.sent.some((s) => s.includes('"k":"s"') && s.includes('"sessionId":"s1"'))).toBe(
+      true,
+    );
   });
 
   // Helper to create a connected FakeWS via Connection

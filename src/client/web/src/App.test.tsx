@@ -250,19 +250,13 @@ describe("App", () => {
     expect(hostAfter).not.toBe(hostBefore);
   });
 
-  it("ADR 0030: keyed remount unsubscribes old session and subscribes new one", () => {
-    // Spy on the Connection prototype so we capture calls made by whatever
-    // Connection instance App's useMemo allocates internally. unsubscribe is
-    // stubbed to a no-op resolved promise; subscribe is stubbed to never
-    // resolve so the awaited retry loop inside the real implementation does
-    // not run (we only need to observe that the method was invoked with the
-    // expected sessionId).
-    const subscribeSpy = vi
-      .spyOn(Connection.prototype, "subscribe")
-      .mockImplementation(() => new Promise<void>(() => {}));
-    const unsubscribeSpy = vi
-      .spyOn(Connection.prototype, "unsubscribe")
-      .mockImplementation(async () => {});
+  it("ADR 0030: keyed remount releases old ownership and acquires the new session", () => {
+    const releases: Array<ReturnType<typeof vi.fn>> = [];
+    const acquireSpy = vi.spyOn(Connection.prototype, "acquireTerminal").mockImplementation(() => {
+      const release = vi.fn();
+      releases.push(release);
+      return { release };
+    });
 
     useDaemonStore.setState({
       sessions: [
@@ -285,21 +279,21 @@ describe("App", () => {
     });
     const { rerender } = render(<App />);
 
-    // Initial mount: keyed TerminalPane subscribes to s1; nothing to unsubscribe.
-    expect(subscribeSpy).toHaveBeenCalledWith("s1");
-    expect(unsubscribeSpy).not.toHaveBeenCalled();
+    // Initial mount owns s1 and has not released that ownership.
+    expect(acquireSpy).toHaveBeenCalledWith("s1");
+    expect(releases[0]).not.toHaveBeenCalled();
 
-    subscribeSpy.mockClear();
+    acquireSpy.mockClear();
 
-    // Switch active session — old TerminalPane unmounts (→ unsubscribe('s1')),
-    // new TerminalPane mounts under the new key (→ subscribe('s2')).
+    // Switch active session: the old lease is released and the new pane
+    // acquires s2. The controller serializes the resulting wire transition.
     act(() => {
       useDaemonStore.setState({ activeSessionID: "s2" });
     });
     rerender(<App />);
 
-    expect(unsubscribeSpy).toHaveBeenCalledWith("s1");
-    expect(subscribeSpy).toHaveBeenCalledWith("s2");
+    expect(releases[0]).toHaveBeenCalledTimes(1);
+    expect(acquireSpy).toHaveBeenCalledWith("s2");
   });
 
   // FR-002 / ADR-0037 / ADR-0062: 常設 search-bar (CommandSearchTrigger) は

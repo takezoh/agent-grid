@@ -73,8 +73,7 @@ const FAB_OVERLAY_SELECTORS = [
 function makeFakeConn(): Connection {
   let _onOutput: ((frame: [number, string, string, string]) => void) | undefined;
   return {
-    subscribe: vi.fn(async () => {}),
-    unsubscribe: vi.fn(async () => {}),
+    acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
     send: vi.fn(),
     get onOutput() {
       return _onOutput;

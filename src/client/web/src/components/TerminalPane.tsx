@@ -231,17 +231,13 @@ export function TerminalPane({
     };
   }, [conn]);
 
-  // Subscribe ownership: TerminalPane is the sole owner of subscribe/unsubscribe
-  // for sessionId. keyed remount via App.tsx means each session gets a fresh
-  // instance; the cleanup here unsubscribes when the component unmounts.
-  // (ADR 0030: SessionList.tsx must not call subscribe/unsubscribe — see
-  // session-list-label-and-subscribe task.)
+  // TerminalPane owns only the session lease. Connection's subscription
+  // controller reconciles that desired state with the wire across retries,
+  // reconnects, and keyed remount handoffs (ADR 0030).
   useEffect(() => {
     if (!sessionId) return;
-    void conn.subscribe(sessionId);
-    return () => {
-      void conn.unsubscribe(sessionId);
-    };
+    const lease = conn.acquireTerminal(sessionId);
+    return () => lease.release();
   }, [conn, sessionId]);
 
   // PC path: render exactly the legacy terminal-host (FR-PC-PRESERVE-*). The

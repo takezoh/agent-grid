@@ -46,8 +46,7 @@ function makeFakeConn(): {
 } {
   let _onOutput: ((frame: [number, string, string, string]) => void) | undefined;
   const conn = {
-    subscribe: vi.fn(async () => {}),
-    unsubscribe: vi.fn(async () => {}),
+    acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
     send: vi.fn(),
     get onOutput() {
       return _onOutput;
@@ -303,19 +302,19 @@ describe("TerminalPane", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Subscribe / unsubscribe lifecycle
+  // Terminal ownership lifecycle
   // -------------------------------------------------------------------------
-  it("calls conn.subscribe on mount and conn.unsubscribe on unmount", () => {
+  it("acquires a terminal lease on mount and releases it on unmount", () => {
     const { conn } = makeFakeConn();
-    const subscribeMock = conn.subscribe as ReturnType<typeof vi.fn>;
-    const unsubscribeMock = conn.unsubscribe as ReturnType<typeof vi.fn>;
+    const release = vi.fn();
+    const acquireMock = conn.acquireTerminal as ReturnType<typeof vi.fn>;
+    acquireMock.mockReturnValue({ release });
 
     const { unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
-    expect(subscribeMock).toHaveBeenCalledWith("s1");
-    expect(unsubscribeMock).not.toHaveBeenCalled();
+    expect(acquireMock).toHaveBeenCalledWith("s1");
 
     unmount();
-    expect(unsubscribeMock).toHaveBeenCalledWith("s1");
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it("cleans up conn.onOutput on unmount", () => {
@@ -714,8 +713,7 @@ describe("FR-THEME-002 — xterm.options.theme is updated on data-theme change",
 function mobileConn(): Connection {
   let _onOutput: ((frame: [number, string, string, string]) => void) | undefined;
   return {
-    subscribe: vi.fn(async () => {}),
-    unsubscribe: vi.fn(async () => {}),
+    acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
     send: vi.fn(),
     get onOutput() {
       return _onOutput;
