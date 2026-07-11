@@ -296,6 +296,9 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 
 	model, effort := b.bindingSettings(req.FrameID)
 	result.Plan.Command = strings.Join(libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir, model, effort), " ")
+	if b.sandboxed {
+		result.Plan.Command = agentlaunch.ContainerBinaryPath + " codex-trust-project && exec " + result.Plan.Command
+	}
 	result.Plan.Stdin = nil
 	result.Plan.Stream.ResumeTarget = resumeTarget.rpc
 	// ColdStartSessionID stays as caller provided (may be empty). It will be

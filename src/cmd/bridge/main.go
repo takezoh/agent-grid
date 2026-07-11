@@ -65,6 +65,8 @@ func main() {
 		err = runAgentFramesMCP(rest)
 	case "codex-app-server-shim":
 		err = runCodexAppServerShim(rest)
+	case "codex-trust-project":
+		err = runCodexTrustProject(rest)
 	case "secret-run":
 		err = runSecretRun(rest)
 	case "sockbridge":

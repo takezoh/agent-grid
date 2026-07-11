@@ -21,6 +21,7 @@ import (
 	"github.com/takezoh/agent-grid/client/state"
 	"github.com/takezoh/agent-grid/platform/agent/codexclient"
 	"github.com/takezoh/agent-grid/platform/agent/codexschema"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
 	libcodex "github.com/takezoh/agent-grid/platform/lib/codex"
 	"github.com/takezoh/agent-grid/platform/pathmap"
 )
@@ -244,6 +245,42 @@ func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
 	}
 	if strings.Contains(res.Plan.Command, " resume ") {
 		t.Errorf("fresh cold-start command must not contain `resume`: %q", res.Plan.Command)
+	}
+}
+
+func TestBackendBindFrame_ContainerTrustsResolvedWorkingDirectoryBeforeAttach(t *testing.T) {
+	const listen = "/opt/agent-grid/run/codex-trust.sock"
+	h := newBoundBackend(t, listen)
+	h.backend.sandboxed = true
+	worktree := "/repo/.agent-grid/worktrees/feature"
+
+	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
+		FrameID: "f-trust",
+		Plan:    state.LaunchPlan{StartDir: worktree},
+	})
+	if err != nil {
+		t.Fatalf("BindFrame: %v", err)
+	}
+	wantAttach := strings.Join(libcodex.RemoteAttachArgs(listen, "", worktree, "", ""), " ")
+	want := agentlaunch.ContainerBinaryPath + " codex-trust-project && exec " + wantAttach
+	if res.Plan.Command != want {
+		t.Fatalf("Command = %q, want %q", res.Plan.Command, want)
+	}
+}
+
+func TestBackendBindFrame_HostDoesNotWriteContainerCodexTrust(t *testing.T) {
+	const listen = "/tmp/codex-host.sock"
+	h := newBoundBackend(t, listen)
+
+	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
+		FrameID: "f-host",
+		Plan:    state.LaunchPlan{StartDir: "/repo"},
+	})
+	if err != nil {
+		t.Fatalf("BindFrame: %v", err)
+	}
+	if strings.Contains(res.Plan.Command, "codex-trust-project") {
+		t.Fatalf("host command must not modify container Codex config: %q", res.Plan.Command)
 	}
 }
 
