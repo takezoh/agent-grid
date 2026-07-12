@@ -303,7 +303,11 @@ func TestActor_SubscribeSeedClearsStaleInputTail(t *testing.T) {
 func TestActor_ExitCodeNeverGoesThroughMainLoop(t *testing.T) {
 	em := newFakeEmulator()
 	pty := newFakePTY()
-	chunkArrived := make(chan struct{})
+	// Buffered so the hook's send always lands even if mainLoop reaches
+	// em.Write before this goroutine reaches the receive below — an
+	// unbuffered channel here raced mainLoop's scheduling and could drop
+	// the signal, deadlocking the test (see incident: race-job timeout).
+	chunkArrived := make(chan struct{}, 1)
 	em.WriteHook = func(_ []byte) {
 		select {
 		case chunkArrived <- struct{}{}:

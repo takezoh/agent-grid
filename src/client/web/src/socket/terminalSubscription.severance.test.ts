@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import type { TerminalSubscriptionPhase } from "../store/subscriptions";
 import {
   TerminalSubscriptionController,
   type TerminalSubscriptionTransport,
 } from "./terminalSubscription";
-import type { TerminalSubscriptionPhase } from "../store/subscriptions";
 
 async function flush(): Promise<void> {
   for (let i = 0; i < 8; i += 1) await Promise.resolve();

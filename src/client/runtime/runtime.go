@@ -254,22 +254,22 @@ func New(cfg Config) *Runtime {
 	initial := state.New()
 	initial.Features = cfg.Features
 	r := &Runtime{
-		cfg:                cfg,
-		state:              initial,
-		eventCh:            make(chan state.Event, 256),
+		cfg:                   cfg,
+		state:                 initial,
+		eventCh:               make(chan state.Event, 256),
 		internalChInteractive: make(chan internalEvent, ipcOutboxLaneSize),
 		internalChBulk:        make(chan internalEvent, ipcOutboxLaneSize),
-		conns:              map[state.ConnID]*ipcConn{},
-		done:               make(chan struct{}),
-		workspaceResolver:  config.NewWorkspaceResolver(),
-		sandboxCleanups:    map[state.FrameID]func() error{},
-		pendingSpawns:      map[state.FrameID]struct{}{},
-		frameReg:           framereg.New(),
-		containerEndpoints: map[string]*containerEndpoint{},
-		subsystems:         map[state.SubsystemID]rsubsystem.Subsystem{},
-		frameSubsystems:    map[state.FrameID]rsubsystem.Subsystem{},
-		frameSubsystemIDs:  map[state.FrameID]state.SubsystemID{},
-		internalDrops:      newInternalDropCounter(),
+		conns:                 map[state.ConnID]*ipcConn{},
+		done:                  make(chan struct{}),
+		workspaceResolver:     config.NewWorkspaceResolver(),
+		sandboxCleanups:       map[state.FrameID]func() error{},
+		pendingSpawns:         map[state.FrameID]struct{}{},
+		frameReg:              framereg.New(),
+		containerEndpoints:    map[string]*containerEndpoint{},
+		subsystems:            map[state.SubsystemID]rsubsystem.Subsystem{},
+		frameSubsystems:       map[state.FrameID]rsubsystem.Subsystem{},
+		frameSubsystemIDs:     map[state.FrameID]state.SubsystemID{},
+		internalDrops:         newInternalDropCounter(),
 	}
 	if cfg.Pool != nil {
 		r.workers = cfg.Pool

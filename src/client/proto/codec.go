@@ -193,15 +193,12 @@ func DecodeResponse(env Envelope, target Response) error {
 // command-name dispatch takes precedence over body-shape heuristics.
 // Request/response pairs without Cmd continue to use the heuristic path.
 func DecodeResponseByCommand(env Envelope) (Response, error) {
-	if env.Cmd != "" {
-		switch env.Cmd {
-		case CmdNameSurfaceUnsubscribe:
-			var r RespSurfaceUnsubscribed
-			if err := json.Unmarshal(env.Data, &r); err != nil {
-				return nil, fmt.Errorf("proto: unmarshal %s response: %w", env.Cmd, err)
-			}
-			return r, nil
+	if env.Cmd == CmdNameSurfaceUnsubscribe {
+		var r RespSurfaceUnsubscribed
+		if err := json.Unmarshal(env.Data, &r); err != nil {
+			return nil, fmt.Errorf("proto: unmarshal %s response: %w", env.Cmd, err)
 		}
+		return r, nil
 	}
 	if len(env.Data) == 0 {
 		return RespOK{}, nil

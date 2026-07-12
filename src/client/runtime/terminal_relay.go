@@ -103,12 +103,12 @@ func NewTerminalRelay(
 ) *TerminalRelay {
 	tr := &TerminalRelay{
 		backend:            b,
-		send:                 send,
-		sendNow:              sendNow,
-		startTS:              time.Now(),
-		subs:                 make(map[surfaceKey]*surfaceSub),
-		subscriberBuffer:     defaultTerminalRelaySubscriberBuffer,
-		severanceThreshold:   defaultSeveranceThreshold,
+		send:               send,
+		sendNow:            sendNow,
+		startTS:            time.Now(),
+		subs:               make(map[surfaceKey]*surfaceSub),
+		subscriberBuffer:   defaultTerminalRelaySubscriberBuffer,
+		severanceThreshold: defaultSeveranceThreshold,
 	}
 	for _, opt := range opts {
 		opt(tr)

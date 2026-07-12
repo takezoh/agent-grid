@@ -19,10 +19,6 @@ func subscriptionKey(connID state.ConnID, sessionID state.SessionID, subscriberI
 	return SubscriptionKey{ConnID: connID, SessionID: sessionID, SubscriberID: subscriberID}
 }
 
-func keyFromSurface(key surfaceKey) SubscriptionKey {
-	return SubscriptionKey{ConnID: key.connID, SessionID: key.sessionID, SubscriberID: key.subscriberID}
-}
-
 // SeveranceGate centralises the backlog threshold used by every hop that
 // applies sever-not-drop to surface-output subscriptions (FR-008).
 type SeveranceGate struct {
