@@ -1,237 +1,309 @@
 ---
 id: spec-20260712-frame-size-ownership
 kind: spec
-title: Frame size ownership — spawn hint plumbing and dead API cleanup
+title: 'Frame size ownership: spawn size hint wiring + dead FrameSize API cleanup'
 status: draft
 created: '2026-07-12'
-methodology: sdd
 tags:
 - runtime
-- terminal
-- pty
-- size-ownership
-owners:
-- take.gn@gmail.com
+- termvt
+- server
+- validation
+owners: []
 functional_requirements:
 - id: FR-001
-  statement: セッションが起動中である間、システムは emulator grid と kernel pty winsize が同じ (cols, rows) 値を保持していなければならない。
+  statement: When a session-create request supplies Cols and Rows hint values that
+    are both in the inclusive range 1..maxDim (2000), the system shall initialize
+    the pty winsize and the VT emulator grid to those exact values on spawn.
   priority: must
-  rationale: size の SoT は termvt session actor 内の kernel pty winsize と emulator grid の 2 owner のみ、という既存 architecture 決定 (adr-20260624-0004) の invariant を明示化する。
+  rationale: '歪み 1 (spawn size hint 未配線) の解消。issue の TL;DR §修正スコープ A に対応。
+
+    happy path invariant として browser 初回 fit の resize dance を消す。
+
+    '
 - id: FR-002
-  statement: システムは、frame spawn 時に有効な (cols, rows) を 1 以上 maxDim (2000) 以下の範囲で必ず確定していなければならない。
+  statement: The system shall treat 80x24 as the explicit contractual default size
+    (not a silent fallback) whenever a session-create request omits size hints (both
+    Cols and Rows are 0).
   priority: must
-  rationale: hint 経路のどこかで値が失われても termvt.normalizeSize の 80×24 fallback が最終保証を担う。「常に有効な size」invariant を SoT 化する (§13 (i) 意味論再定義)。
+  rationale: 'critique graft #1 (default fallback を暗黙 fallback ではなく明示された既定値として仕様化)。
+
+    debug 時に「hint 未送信 vs hint 無視」を区別する契約。
+
+    '
 - id: FR-003
-  statement: POST /api/sessions が cols>0 かつ rows>0 を含むとき、システムはそれらの値を kernel pty winsize と emulator grid の spawn 初期値に反映しなければならない。
+  statement: If a session-create HTTP request supplies Cols or Rows outside the valid
+    range (negative, above maxDim=2000, or asymmetric where only one dimension is
+    non-zero), then the system shall reject the request with HTTP 400 body '{"code":"invalid_cols_rows","message":"cols
+    must be 0 or 1..2000; got <n>"}' before any int-to-uint16 conversion.
   priority: must
-  rationale: 本 issue の主目的 (β scope FR-022 の完成)。 client-supplied hint の消費点を明示する。
+  rationale: 'critique graft #2 (400 reject body 具体形)。
+
+    silent wrap-around を仕組みで防ぐ boundary hardening。
+
+    '
 - id: FR-004
-  statement: もし POST /api/sessions の cols または rows のいずれかが 0 (もしくは欠落) であるならば、システムは cols=80 かつ rows=24 の fallback で spawn しなければならない (片方だけ hint を反映してはならない)。
+  statement: If a WebSocket resize frame ({k:"r"}) supplies Cols or Rows outside the
+    valid range (non-positive or above maxDim=2000), then the system shall drop the
+    resize and emit a structured warn log (fields cols, rows, reason) before any int-to-uint16
+    conversion.
   priority: must
-  rationale: 片方だけ hint を反映すると size 判別性が壊れる。 判別を『両方>0=hint 有り / それ以外=両方 fallback』の 2 状態に閉じる。
+  rationale: 'critique graft #2 の WS 側 asymmetric branch (400 vs silent drop 峻別)。
+
+    既存の非正値 drop 慣行と対称に維持しつつ maxDim 超過を observable にする。
+
+    '
 - id: FR-005
-  statement: RespawnFrame が発生したとき、システムは既存 termvt session の Size() が返す現在の (cols, rows) を新 session の初期値としなければならない。既存 termvt session が不在の場合は cols=80 かつ rows=24 の fallback を用いなければならない。
+  statement: While a size hint value is being carried across the web boundary from
+    int to uint16, the system shall have already applied maxDim validation so uint16
+    wrap-around cannot bypass termvt clamping.
   priority: must
-  rationale: size SoT の一意化 (§SSOT)。 PtyBackend に in-process cache を作らず、kernel/emulator を SoT に保つ。
+  rationale: 'critique pass2 improvement #2 の一般化 (narrow conversion 前検証を invariant
+    化)。
+
+    HTTP と WS の 3 箇所すべてで narrow 前に validate される契約。
+
+    '
 - id: FR-006
-  statement: もし POST /api/sessions の cols または rows が負数、または maxDim (2000) 超過であるならば、システムは int→uint16 変換を行わず HTTP 400 (invalid_dim) で拒否しなければならない。
+  statement: The system shall preserve LaunchOptions.Cols/Rows verbatim from the web
+    API through the state layer (LaunchPlan.Options / CreateLaunch.Options / EffSpawnFrame.Options)
+    to the runtime PtyBackend without any driver being required to read or forward
+    the values.
   priority: must
-  rationale: narrow uint16 conversion で 65536 以上が 0 に wrap し fallback を誤発火する構造欠陥 (issue の指摘 5) を境界で除去する。
+  rationale: 'critique pass2 improvement #3 (DP-d1 C 削除で FR-d4 と両立)。
+
+    size の SoT を termvt に閉じ、driver に size 干渉権を与えない SoT invariant。
+
+    '
 - id: FR-007
-  statement: もし lifecycle WebSocket の resize フレーム ({k:'r'}) の cols または rows が 0 以下、または maxDim (2000) 超過であるならば、システムは既存 winsize/grid を維持し、reqId 付きの error frame ({k:'e', reason:'invalid_dim'}) で拒否しなければならない (silent drop してはならない)。
+  statement: The system shall not expose FrameInspect.FrameSize as a public interface
+    method, and shall provide equivalent test observations only via termvt.Session.Size()
+    or an internal Manager accessor.
   priority: must
-  rationale: 握り潰し前提 API の禁止 (§13) と観察可能性の保存 (§0)。 client が原因を知れる形で拒否する。
-- id: FR-008
-  statement: frame spawn 処理が実行中である間、システムは (hint_cols, hint_rows, effective_cols, effective_rows) を必ず slog に出力しなければならない。 hint と effective が乖離した (fallback が発火した) 場合は追加で slog.Warn を出さなければならない。
-  priority: must
-  rationale: silent fallback を可観測化することで、hint が経路のどこかで失われた regression を prod ログから即断できる (§0 観察可能性の保存)。
-- id: FR-009
-  statement: もし web 層で cols/rows の値域検証が narrow uint16 conversion の後で行われるならば、システムはその設計を採用してはならない (検証は必ず int 値のまま先に行わなければならない)。
-  priority: must
-  rationale: shotgun parsing / 変換順序の逆転を禁止する規範 (§13 parse, don't validate)。
-- id: FR-010
-  statement: backend の FrameInspect interface が FrameSize メソッドを提供しない場合であっても、システムは spawn / resize / respawn の全経路で FR-001〜FR-005 の invariant を維持しなければならない。
-  priority: must
-  rationale: FrameSize 削除 (production 呼び出しゼロの死 API) が他 invariant を壊さないことの明示宣言。
+  rationale: 'critique pass2 improvement #4 (FR-d6 の EARS 単一検証対象化)。
+
+    歪み 2 (FrameSize dead API) の削除 invariant を単一 shall で pin する。
+
+    '
 non_functional_requirements:
 - id: NFR-001
   type: reliability
-  criteria: hint 経路の各段は int/uint16 値域安全を境界検証 (T1 mux/gateway テスト) または境界 unit test でカバーし、65536 wrap による誤 fallback が発生しないこと。
-  measurement: 境界値テスト (0, 1, maxDim, maxDim+1, 65536) が全て期待通り分岐する。
+  criteria: 'narrow conversion (int -> uint16) の wrap-around が発生する経路が存在しない: 全ての境界
+    (HTTP mux.go apiCreateReq / WS gateway.go の {k:"r"} 2 箇所) で validation が narrow
+    conversion より statically 前段に位置する。'
+  measurement: T0 test で 65536 / -1 / >maxDim 入力に対して validation 関数が invalid を返すこと、および
+    static analysis / grep で narrow 済み uint16 上での validation 呼び出しが存在しないこと。
 - id: NFR-002
   type: maintainability
-  criteria: size を持つ backend interface (FrameLifecycle.SpawnFrame) は seam として明示され、fake 実装が signature 追随で成立すること。
-  measurement: PtyBackend / noopBackend / 全 test fake が新 signature で compile。
+  criteria: size hint 反映は fakePTY / fakeEmulator を用いた T1 (wired) test で観測可能。新たな test
+    infra は追加しない。
+  measurement: pty_backend_test.go に spawn 時 hint 反映テストが追加され、fakeEmulator.Size() /
+    fakePTY.Winsize が指定値を返す。
 - id: NFR-003
-  type: usability
-  criteria: 新規セッションの初期表示は browser 側 fit.fit() 直後の mid-flight resize を通らず、作成元 device の cols/rows で表示されること。
-  measurement: T1 で hint 供与時に spawn 直後の frame.Size() が hint と一致 (fake 観測)。
+  type: reliability
+  criteria: 境界検査の reject / drop は必ず observable (HTTP 400 body / WS warn log の一方)。silent
+    分岐を残さない。
+  measurement: HTTP e2e test で 400 の body が仕様の JSON 形式を含み、WS test で warn log 出力が観測される。
+- id: NFR-004
+  type: compatibility
+  criteria: cols/rows omitted の既存 client (curl 手動 create / browser の後方互換経路) は挙動が変わらない
+    (80x24 spawn → 初回 resize dance を維持)。
+  measurement: FR-002 の default fallback パスに対する回帰 test。
+- id: NFR-005
+  type: maintainability
+  criteria: state 層 reducer (reduce_surface.go) は size を保持せず、size は effect (EffSpawnFrame.Options)
+    と backend (termvt.Spec) の pass-through のみ。
+  measurement: 'reduce_surface.go の diff が pass-through 契約 (adr-20260712-launch-size-pass-through
+    の Decision) を破らない: grep で reducer 内に size field 保持がないこと。'
+- id: NFR-006
+  type: maintainability
+  criteria: FrameBackend.SpawnFrame の signature 拡張は既存 fake / noop / blocking 3 実装への
+    signature 追随のみに閉じる (driver 層および conformance test は影響ゼロ)。
+  measurement: diff scope が backends.go / pty_backend.go / noop_backend / fake_backend
+    に閉じ、driver package および conformance test に変更なし。
 acceptance:
 - id: AC-001
-  given: POST /api/sessions を cols=100, rows=40 で叩く
-  when: セッションが spawn する
-  then: termvt.Session.Size() が (100, 40) を返し、slog に hint=(100,40) effective=(100,40) が出る
+  given: browser が POST /api/sessions body に cols=203, rows=47 を含めて送る
+  when: session-create request が処理され spawn 完了する
+  then: termvt.Session の内部 size が 203x47 で初期化されており、pty.Winsize と emulator grid の両方が
+    203x47 を保持している
   requirement_refs:
   - FR-001
-  - FR-003
-  - FR-008
+  - FR-006
 - id: AC-002
-  given: POST /api/sessions を cols=0, rows=0 (もしくは cols/rows 欠落) で叩く
-  when: セッションが spawn する
-  then: termvt.Session.Size() が (80, 24) を返し、slog に hint=(0,0) effective=(80,24) と Warn が出る
+  given: browser が POST /api/sessions body に cols/rows を含めない (0 相当)
+  when: session-create request が処理され spawn 完了する
+  then: termvt.Session の内部 size が 80x24 で初期化されており、spawn ログには source="default" が明示される
   requirement_refs:
   - FR-002
-  - FR-004
-  - FR-008
 - id: AC-003
-  given: POST /api/sessions を cols=100, rows=0 で叩く
-  when: web 層の validator が受け付ける
-  then: HTTP 400 invalid_dim で拒否され、spawn は発生しない
+  given: HTTP client が POST /api/sessions body に cols=99999 を含めて送る
+  when: mux.go apiCreateReq が decode したのち validation を実行する
+  then: gateway は 400 応答 body '{"code":"invalid_cols_rows","message":"cols must be
+    0 or 1..2000; got 99999"}' を返し、daemon には CreateSession コマンドが送られない
+  requirement_refs:
+  - FR-003
+  - FR-005
+- id: AC-004
+  given: HTTP client が POST /api/sessions body に cols=120, rows=0 (asymmetric) を含めて送る
+  when: mux.go apiCreateReq が decode したのち validation を実行する
+  then: gateway は 400 応答を返し、asymmetric hint が daemon に伝播しない
+  requirement_refs:
+  - FR-003
+- id: AC-005
+  given: browser が WebSocket resize frame '{"k":"r","cols":99999,"rows":47}' を送る
+  when: gateway.go applyInboundProto が受信し validation を実行する
+  then: resize は drop され、warn log にフィールド (session_id, cols=99999, rows=47, reason="cols
+    out of range")が記録され、termvt.Session.Resize は呼ばれない
   requirement_refs:
   - FR-004
-  - FR-006
-  - FR-009
-- id: AC-004
-  given: POST /api/sessions を cols=2001, rows=40 (または cols=65536) で叩く
-  when: web 層の validator が受け付ける
-  then: HTTP 400 invalid_dim で拒否され、uint16 wrap は発生しない
-  requirement_refs:
-  - FR-006
-  - FR-009
-- id: AC-005
-  given: spawn 後の RespawnFrame が発火する
-  when: 既存 termvt session が Size() = (120, 50) を持つ
-  then: 新 session の termvt.Spec.Cols/Rows は (120, 50) となり、spawn 経路とは独立に SoT が保たれる
-  requirement_refs:
-  - FR-001
   - FR-005
 - id: AC-006
-  given: lifecycle WS に {k:'r', sessionId:sid, cols:2001, rows:40, reqId:'x'} を送る
-  when: gateway.go の validator が受け付ける
-  then: 既存 winsize/grid が変わらず、{k:'e', reqId:'x', reason:'invalid_dim'} が返る
+  given: FrameInspect.FrameSize が削除されている
+  when: repo 全体を grep する
+  then: FrameSize method 宣言 / 呼び出しが production / interface 経路に存在せず、pty_backend_test.go
+    TestResizeSurface は termvt.Session.Size() 直接 (もしくは Manager accessor) 経由で観測している
   requirement_refs:
   - FR-007
-- id: AC-007
-  given: 本 spec 完了後の repository
-  when: grep -rn 'FrameSize(' src/ を実行する
-  then: 0 件 (FrameInspect.FrameSize が削除され、production/テスト 呼び出しが残っていない)
-  requirement_refs:
-  - FR-010
 relations:
 - {type: implementedBy, target: plan-20260712-frame-size-ownership}
-- {type: referencedBy, target: adr-20260712-size-hint-wiring-completion}
-- {type: referencedBy, target: adr-20260712-ws-resize-bound-error-frame}
+- {type: referencedBy, target: adr-20260712-launch-size-pass-through}
+- {type: referencedBy, target: adr-20260712-size-hint-boundary-validation}
+- {type: referencedBy, target: adr-20260712-remove-framesize-dead-api}
+- {type: referencedBy, target: adr-20260712-respawn-default-size-fallback}
+- {type: referencedBy, target: adr-20260712-spawnframe-inline-size-pair}
 source_paths:
-- src/client/state/driver_iface.go
-- src/client/runtime/pty_backend.go
-- src/client/runtime/backends.go
-- src/client/runtime/interpret_spawn.go
 - src/server/web/mux.go
 - src/server/web/gateway.go
+- src/server/web/wire.go
+- src/client/state/driver_iface.go
+- src/client/state/effect.go
+- src/client/runtime/interpret_spawn.go
+- src/client/runtime/pty_backend.go
+- src/client/runtime/backends.go
 - src/platform/termvt/session.go
-summary: β scope として定義されていた LaunchOptions.Cols/Rows を termvt.Spec まで貫通させて新規セッションの初期表示を作成元 device のサイズで開始し、死 API FrameSize を除去、HTTP/WS 境界で narrow uint16 変換前の値域検証と境界外 resize の可観測な拒否を導入する。
-updated: '2026-07-12'
+summary: spawn 時 size hint を web API → LaunchOptions → EffSpawnFrame → PtyBackend
+  → termvt.Spec の 1 直線で運び、HTTP/WS 境界で narrow 前 validation を敷き、production caller 0
+  の FrameInspect.FrameSize を削除する
 ---
 
 ## Overview
 
-`state.LaunchOptions.Cols/Rows` は「The runtime bridges these to termvt.Spec on session launch (β scope)」というコメントを伴って定義されているが、リポジトリ内に `.Cols` / `.Rows` を読むコードが存在しない。 このため全 frame は 80×24 で spawn され、browser 初回の `fit.fit()` が発火する `CmdSurfaceResize` によって即座に resize が走る。 併せて `FrameInspect.FrameSize` は production 呼び出しがゼロで、テスト依存だけが残った死 API になっている。
+本 spec は 2 つの構造的歪みを解消する。**歪み 1**: `LaunchOptions.Cols/Rows` は API から state 層まで運ばれているが、`PtyBackend.SpawnFrame` の signature が size を受けないため `termvt.Spec` 生成箇所 (`pty_backend.go:61`) で落ちる。結果として全 frame が 80×24 で spawn し、browser 初回 fit で即 resize される dance が発生する。**歪み 2**: `FrameInspect.FrameSize` API に production caller が 0 件で、interface / 4 実装 / test 用途のみが残っている。同時に、int→uint16 narrow conversion の pre-validation を HTTP と WS の 3 境界で敷き、silent wrap-around を仕組みで防ぐ。size の SoT (per-pty state) は termvt に閉じ、driver / reducer / state 層は size 運搬役以上の責務を持たない (詳細は adr-20260712-launch-size-pass-through)。
 
-本 spec は 3 つの構造的な穴を同時に埋める: (a) `LaunchOptions.Cols/Rows` を `backend.SpawnFrame` の signature 拡張を経由して `termvt.Spec` まで貫通させ、hint 有無・fallback の判別性を仕様レベルで固定する。 (b) `int→uint16` 変換の前に web 層で値域検証を行い、`65536` wrap による誤 fallback と境界越え要求の silent drop を排除する。 (c) 死 API `FrameSize` を削除する。 `size` の SoT は既存の設計どおり **kernel pty winsize + emulator grid** の 2 owner のみに保ち、PtyBackend / state 層に in-process cache を作らない。
+スコープは歪み 1 + 歪み 2 の 2 点。cold-start restore path / RespawnFrame の hint 継承機構 / multi-viewer size reconcile policy 変更 / tap 1×1 emulator 撤去 / VT bounds bug 対応 は out-of-scope。
 
 ## Requirements
 
+### Functional
+
 {% req id="FR-001" %}
-セッションが起動中である間、システムは emulator grid と kernel pty winsize が同じ (cols, rows) 値を保持していなければならない。
+When a session-create request supplies Cols and Rows hint values that are both in the inclusive range 1..maxDim (2000), the system shall initialize the pty winsize and the VT emulator grid to those exact values on spawn.
 {% /req %}
 
 {% req id="FR-002" %}
-システムは、frame spawn 時に有効な (cols, rows) を 1 以上 maxDim (2000) 以下の範囲で必ず確定していなければならない。
+The system shall treat 80x24 as the explicit contractual default size (not a silent fallback) whenever a session-create request omits size hints (both Cols and Rows are 0).
 {% /req %}
 
 {% req id="FR-003" %}
-POST /api/sessions が cols>0 かつ rows>0 を含むとき、システムはそれらの値を kernel pty winsize と emulator grid の spawn 初期値に反映しなければならない。
+If a session-create HTTP request supplies Cols or Rows outside the valid range (negative, above maxDim=2000, or asymmetric where only one dimension is non-zero), then the system shall reject the request with HTTP 400 body `{"code":"invalid_cols_rows","message":"cols must be 0 or 1..2000; got <n>"}` before any int-to-uint16 conversion.
 {% /req %}
 
 {% req id="FR-004" %}
-もし POST /api/sessions の cols または rows のいずれかが 0 (もしくは欠落) であるならば、システムは cols=80 かつ rows=24 の fallback で spawn しなければならない (片方だけ hint を反映してはならない)。
+If a WebSocket resize frame (`{k:"r"}`) supplies Cols or Rows outside the valid range (non-positive or above maxDim=2000), then the system shall drop the resize and emit a structured warn log (fields cols, rows, reason) before any int-to-uint16 conversion.
 {% /req %}
 
 {% req id="FR-005" %}
-RespawnFrame が発生したとき、システムは既存 termvt session の Size() が返す現在の (cols, rows) を新 session の初期値としなければならない。 既存 termvt session が不在の場合は cols=80 かつ rows=24 の fallback を用いなければならない。
+While a size hint value is being carried across the web boundary from int to uint16, the system shall have already applied maxDim validation so uint16 wrap-around cannot bypass termvt clamping.
 {% /req %}
 
 {% req id="FR-006" %}
-もし POST /api/sessions の cols または rows が負数、または maxDim (2000) 超過であるならば、システムは int→uint16 変換を行わず HTTP 400 (invalid_dim) で拒否しなければならない。
+The system shall preserve LaunchOptions.Cols/Rows verbatim from the web API through the state layer (LaunchPlan.Options / CreateLaunch.Options / EffSpawnFrame.Options) to the runtime PtyBackend without any driver being required to read or forward the values.
 {% /req %}
 
 {% req id="FR-007" %}
-もし lifecycle WebSocket の resize フレーム ({k:'r'}) の cols または rows が 0 以下、または maxDim (2000) 超過であるならば、システムは既存 winsize/grid を維持し、reqId 付きの error frame ({k:'e', reason:'invalid_dim'}) で拒否しなければならない (silent drop してはならない)。
+The system shall not expose FrameInspect.FrameSize as a public interface method, and shall provide equivalent test observations only via termvt.Session.Size() or an internal Manager accessor.
 {% /req %}
 
-{% req id="FR-008" %}
-frame spawn 処理が実行中である間、システムは (hint_cols, hint_rows, effective_cols, effective_rows) を必ず slog に出力しなければならない。 hint と effective が乖離した (fallback が発火した) 場合は追加で slog.Warn を出さなければならない。
-{% /req %}
+### Non-Functional
 
-{% req id="FR-009" %}
-もし web 層で cols/rows の値域検証が narrow uint16 conversion の後で行われるならば、システムはその設計を採用してはならない (検証は必ず int 値のまま先に行わなければならない)。
-{% /req %}
-
-{% req id="FR-010" %}
-backend の FrameInspect interface が FrameSize メソッドを提供しない場合であっても、システムは spawn / resize / respawn の全経路で FR-001〜FR-005 の invariant を維持しなければならない。
-{% /req %}
+- **NFR-001 (reliability)**: narrow conversion (int→uint16) の wrap-around が発生する経路が存在しない。全ての境界 (HTTP mux.go / WS gateway.go 2 箇所) で validation が narrow より前段に位置する。
+- **NFR-002 (maintainability)**: size hint 反映は fakePTY / fakeEmulator を用いた T1 wired test で観測可能。新規 test infra は追加しない。
+- **NFR-003 (reliability)**: 境界検査の reject / drop は必ず observable (HTTP 400 body / WS warn log の一方)。silent 分岐なし。
+- **NFR-004 (compatibility)**: cols/rows omitted の既存 client は挙動不変 (80×24 spawn → 初回 resize dance を維持)。
+- **NFR-005 (maintainability)**: state 層 reducer は size を保持しない。size は effect / backend の pass-through のみ。
+- **NFR-006 (maintainability)**: FrameBackend.SpawnFrame の signature 拡張は既存 fake / noop / blocking 3 実装への追随のみに閉じる。
 
 ## Acceptance Criteria
 
 {% acceptance id="AC-001" %}
-**Given** POST /api/sessions を cols=100, rows=40 で叩く
-**When** セッションが spawn する
-**Then** termvt.Session.Size() が (100, 40) を返し、slog に hint=(100,40) effective=(100,40) が出る
-Refs: FR-001, FR-003, FR-008
+- **Given**: browser が POST /api/sessions body に cols=203, rows=47 を含めて送る
+- **When**: session-create request が処理され spawn 完了する
+- **Then**: termvt.Session の内部 size が 203x47 で初期化されており、pty.Winsize と emulator grid の両方が 203x47 を保持している
+- **Refs**: FR-001, FR-006
 {% /acceptance %}
 
 {% acceptance id="AC-002" %}
-**Given** POST /api/sessions を cols=0, rows=0 (もしくは cols/rows 欠落) で叩く
-**When** セッションが spawn する
-**Then** termvt.Session.Size() が (80, 24) を返し、slog に hint=(0,0) effective=(80,24) と Warn が出る
-Refs: FR-002, FR-004, FR-008
+- **Given**: browser が POST /api/sessions body に cols/rows を含めない (0 相当)
+- **When**: session-create request が処理され spawn 完了する
+- **Then**: termvt.Session の内部 size が 80x24 で初期化されており、spawn ログには source="default" が明示される
+- **Refs**: FR-002
 {% /acceptance %}
 
 {% acceptance id="AC-003" %}
-**Given** POST /api/sessions を cols=100, rows=0 で叩く
-**When** web 層の validator が受け付ける
-**Then** HTTP 400 invalid_dim で拒否され、spawn は発生しない
-Refs: FR-004, FR-006, FR-009
+- **Given**: HTTP client が POST /api/sessions body に cols=99999 を含めて送る
+- **When**: mux.go apiCreateReq が decode したのち validation を実行する
+- **Then**: gateway は 400 応答 body `{"code":"invalid_cols_rows","message":"cols must be 0 or 1..2000; got 99999"}` を返し、daemon には CreateSession コマンドが送られない
+- **Refs**: FR-003, FR-005
 {% /acceptance %}
 
 {% acceptance id="AC-004" %}
-**Given** POST /api/sessions を cols=2001, rows=40 (または cols=65536) で叩く
-**When** web 層の validator が受け付ける
-**Then** HTTP 400 invalid_dim で拒否され、uint16 wrap は発生しない
-Refs: FR-006, FR-009
+- **Given**: HTTP client が POST /api/sessions body に cols=120, rows=0 (asymmetric) を含めて送る
+- **When**: mux.go apiCreateReq が decode したのち validation を実行する
+- **Then**: gateway は 400 応答を返し、asymmetric hint が daemon に伝播しない
+- **Refs**: FR-003
 {% /acceptance %}
 
 {% acceptance id="AC-005" %}
-**Given** spawn 後の RespawnFrame が発火する
-**When** 既存 termvt session が Size() = (120, 50) を持つ
-**Then** 新 session の termvt.Spec.Cols/Rows は (120, 50) となり、spawn 経路とは独立に SoT が保たれる
-Refs: FR-001, FR-005
+- **Given**: browser が WebSocket resize frame `{"k":"r","cols":99999,"rows":47}` を送る
+- **When**: gateway.go applyInboundProto が受信し validation を実行する
+- **Then**: resize は drop され、warn log にフィールド (session_id, cols=99999, rows=47, reason="cols out of range") が記録され、termvt.Session.Resize は呼ばれない
+- **Refs**: FR-004, FR-005
 {% /acceptance %}
 
 {% acceptance id="AC-006" %}
-**Given** lifecycle WS に {k:'r', sessionId:sid, cols:2001, rows:40, reqId:'x'} を送る
-**When** gateway.go の validator が受け付ける
-**Then** 既存 winsize/grid が変わらず、{k:'e', reqId:'x', reason:'invalid_dim'} が返る
-Refs: FR-007
+- **Given**: FrameInspect.FrameSize が削除されている
+- **When**: repo 全体を grep する
+- **Then**: FrameSize method 宣言 / 呼び出しが production / interface 経路に存在せず、pty_backend_test.go TestResizeSurface は termvt.Session.Size() 直接 (もしくは Manager accessor) 経由で観測している
+- **Refs**: FR-007
 {% /acceptance %}
 
-{% acceptance id="AC-007" %}
-**Given** 本 spec 完了後の repository
-**When** grep -rn 'FrameSize(' src/ を実行する
-**Then** 0 件 (FrameInspect.FrameSize が削除され、production/テスト 呼び出しが残っていない)
-Refs: FR-010
-{% /acceptance %}
+## Non-Goals
+
+本 spec は size ownership の整理として 2 つの限定的な歪みを解消するが、以下は明示的にスコープ外とする (design/PRINCIPLES.md §20 の 2 段構造)。
+
+**must_not (絶対にやらない)**:
+- **tap 1×1 emulator 撤去 / Emulator interface 分割**: VT issue 第 2 段の別 issue で扱う (混ぜると要件 trace 破綻)
+- **上流 forks/x/vt bounds bug 対応**: 上流 fork 側で修正済み。forks/ に触らない
+- **multi-viewer size reconcile ポリシーの変更**: current の last-writer-wins を維持する (per-viewer ownership / max-size 集約は導入しない)
+- **state 層 reducer が size を保持するモデルへの変更**: reduce_surface.go の pass-through 契約は不動
+- **driver interface (LaunchPreparer) に Cols/Rows 責務を追加**: adr-20260712-launch-size-pass-through Decision により driver を素通す
+
+**should_not (原則やらない)**:
+- **cold-start restore で size を復元する機構の追加**: bootstrap_coldstart.go spawnWrapped の現行契約 (browser 初回 fit で resize) を維持する。例外 (実装フェーズで round-trip の regression が発覚 等) が生じた場合は別 ADR で判断
+- **RespawnFrame への size hint 継承経路の追加**: production caller 0 のため adr-20260712-respawn-default-size-fallback で doc 化のみに留める
+- **session-env / persist スキーマの拡張**: Cols/Rows は既に uint16 で LaunchOptions に乗っている (persist schema 互換維持)
+
+## Failure Modes
+
+3 者 SoT (unwanted FR / Failure Modes / error 三分法 ADR) 表 (design/PRINCIPLES.md §16) — unwanted FR は FR-003 / FR-004、error 三分法の仕分けは各 ADR Consequences に記録。
+
+| class | detection | recovery | operator_action | related_fr |
+|---|---|---|---|---|
+| `narrow-conv-overflow` | HTTP mux.go / WS gateway.go の boundary validation が 65535 以上 / 負値 / >maxDim を検出 | `fail_fast` (HTTP 400 invalid_cols_rows / WS warn log + drop) | 監視でこの 400 / log を追跡し、送信元 UI / script の bug として修正指示 | FR-003, FR-004 |
+| `termvt-spec-reject` | termvt.NewSession 内で Spec.Cols/Rows が maxDim を超過するケース (validation 通過後は起きないはず) | `fail_fast` (assertion / structured error) — 内部契約違反として default 継続しない (error 三分法 (ii)) | 発生した場合は validation の抜けを意味するため、境界 helper の pre-check を見直す | FR-005 |
+| `respawn-size-loss` | RespawnFrame が呼ばれた場合、hint 継承機構がないため 80×24 で再 spawn される | `escalate` (documented limitation) — adr-20260712-respawn-default-size-fallback で仕様固定 | 「respawn 後に画面が小さくなった」報告が発生した場合、ADR を supersede する形で hint 継承機構を新設する検討を開始 | (n/a, out-of-scope from unwanted FR) |
 
 ## Open Questions
 
-- 本 spec 実装完了後に browser 側 (TerminalPane.tsx) が実際に POST /api/sessions body に cols/rows を載せているかの現状確認 (issue 本文は 131,180 の fit / onResize 起点として言及があるが、create 時の body 組み立てコードのパスは実装 unit で確認する必要がある)。
+- **RespawnFrame が production 経路に載る時期**: 現状 caller 0 のため本 spec では default 80×24 fallback を仕様固定するが、将来端末 crash 自動 respawn 等の要件が浮上した場合、adr-20260712-respawn-default-size-fallback を supersede する新 ADR で hint 継承 policy を決める必要がある。決定は本 issue 外。

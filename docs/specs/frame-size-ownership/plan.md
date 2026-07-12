@@ -1,166 +1,261 @@
 ---
 id: plan-20260712-frame-size-ownership
 kind: plan
-title: Complete size hint plumbing and clean up dead FrameSize API
+title: Frame size ownership implementation plan
 status: draft
 created: '2026-07-12'
-goal: state.LaunchOptions.Cols/Rows を termvt.Spec.Cols/Rows まで貫通させ、新規セッションの初期表示を作成元 device の cols/rows で開始する。 併せて死 API FrameSize を除去し、HTTP/WS 境界で narrow uint16 変換前の値域検証と境界外 resize の可観測な拒否を導入する。
+goal: spawn 時 size hint を web API → LaunchOptions → EffSpawnFrame → PtyBackend → termvt.Spec
+  の 1 直線で運び、HTTP/WS 境界で narrow 前 validation を敷き、FrameInspect.FrameSize dead API を削除する
 scope_in:
-- src/client/state/driver_iface.go (LaunchOptions.Cols/Rows — 既存)
-- src/client/runtime/backends.go (FrameLifecycle.SpawnFrame signature 拡張 / FrameSize 削除)
-- src/client/runtime/pty_backend.go (SpawnFrame / RespawnFrame の size 転記・SoT 照会)
-- src/client/runtime/interpret_spawn.go (e.Options.Cols/Rows を backend へ渡す + slog 観察点)
-- src/server/web/mux.go (apiCreateReq の int→uint16 変換前検証)
-- src/server/web/gateway.go (lifecycle WS {k:'r'} の境界外 error frame 拒否)
+- 'HTTP 境界 (mux.go apiCreateReq) の int -> uint16 narrow conversion 前 validation: 1..maxDim
+  (=2000) を許容、0/0 は未指定として通過、asymmetric は 400 reject'
+- 'WebSocket 境界 (gateway.go の {k:"r"} 2 か所) の narrow 前 validation: >maxDim は warn
+  log + drop、既存の非正値 drop は維持'
+- state.LaunchOptions.Cols/Rows を LaunchPlan/CreateLaunch を素通しで EffSpawnFrame.Options
+  まで運ぶ既存経路の verify + 写し漏れ driver への pass-through 追加
+- FrameLifecycle.SpawnFrame signature 拡張 (cols/rows uint16 を末尾追加) と 4 実装 (PtyBackend
+  / noopBackend / fakeBackend / blockingBackend) への追随
+- PtyBackend.SpawnFrame で cols/rows を termvt.Spec に転記 (0/0 は normalizeSize (80,24)
+  fallback を仕様として維持)
+- FrameInspect.FrameSize + PtyBackend / noopBackend / fakeBackend / blockingBackend
+  の 4 実装 + interface 定義 の削除。test 観測経路 (pty_backend_test.go TestResizeSurface) を termvt.Session.Size()
+  直接 (or Manager accessor) へ切替
+- RespawnFrame の default 80×24 fallback を doc comment で明示 (adr-20260712-respawn-default-size-fallback)
+- termvt.MaxDim の export と共通 validation helper (state package の pure) の追加
+- T0 pure (境界 validation helper) / T1 wired (spawn 時 hint 反映 + FrameSize 削除後の observation)
+  / e2e (HTTP 400 body / WS drop 経路) のテスト追加
 scope_out:
-- platform/termvt の VT emulator / Session actor 自体
-- multi-viewer の size reconcile ポリシー変更 (current の last-writer-wins を保持)
-- session env / persistence への size 保存 / reattach 時の前回 size 復元
-- attach 経路 (readInbound の resize) の error frame 化 (response 契約を持たないため silent drop 維持)
-- tap の 1×1 emulator 撤去 / Emulator interface 分割 (別 issue)
+- tap 1×1 emulator 撤去 / Emulator interface 分割
+- forks/x/vt bounds bug 対応
+- multi-viewer size reconcile policy の変更
+- state 層 reducer が size を保持するモデルへの変更
+- driver interface (LaunchPreparer) への size 責務追加
+- cold-start restore における size 復元機構の追加
+- RespawnFrame への size hint 継承経路の追加
+- session-env / persist スキーマの拡張
 milestones:
-- id: c1-signature-plumbing
-  title: backend.SpawnFrame signature 拡張 + spawn 観察ログ
+- id: m1
+  title: 境界検証 helper + termvt.MaxDim export + HTTP/WS wire-up
   status: todo
-- id: c2-respawn-sot
-  title: RespawnFrame の size SoT 照会
+- id: m2
+  title: spawn size hint 配線 (LaunchOptions → SpawnFrame signature → termvt.Spec)
   status: todo
-- id: c3-web-boundary
-  title: web layer 境界検証 (mux / gateway 両方)
+- id: m3
+  title: FrameInspect.FrameSize 削除 + test 観測経路切替
   status: todo
-- id: c4-framesize-cleanup
-  title: FrameSize backend API の削除
+- id: m4
+  title: RespawnFrame default fallback の doc 化 + Failure Modes 節反映
   status: todo
 contracts:
-- pty_backend_test.go の fakeEmulator/fakePTY による size 反映契約
-- mux_test.go の HTTP 境界値契約 (0/1/maxDim/maxDim+1/65536)
-- gateway_test.go の lifecycle WS {k:'r'} 境界外拒否契約
-- 既存の termvt.Session.Size() API (RespawnFrame の SoT 照会先)
+- FR-001, FR-002 (spawn hint 反映 / default 80×24 invariant) を pty_backend_test.go の
+  T1 wired で pin する
+- FR-003, FR-004 (境界検査) を helper の T0 + HTTP e2e + WS test で pin する
+- FR-006 (driver 素通し) を driver 実装 grep 検証 + T0 test で pin する
+- FR-007 (FrameInspect.FrameSize 不在) を grep confirmation で pin する
+- NFR-005 (reducer が size を持たない) を reduce_surface.go の diff で pin する
 tags:
 - runtime
-- terminal
-- pty
-- size-ownership
-owners:
-- take.gn@gmail.com
+- termvt
+- server
+- validation
+owners: []
 relations:
 - {type: implements, target: spec-20260712-frame-size-ownership}
-- {type: hasPart, target: adr-20260712-size-hint-wiring-completion}
-- {type: hasPart, target: adr-20260712-ws-resize-bound-error-frame}
+- {type: hasPart, target: adr-20260712-launch-size-pass-through}
+- {type: hasPart, target: adr-20260712-size-hint-boundary-validation}
+- {type: hasPart, target: adr-20260712-remove-framesize-dead-api}
+- {type: hasPart, target: adr-20260712-respawn-default-size-fallback}
+- {type: hasPart, target: adr-20260712-spawnframe-inline-size-pair}
 source_paths:
-- src/client/state/driver_iface.go
-- src/client/runtime/backends.go
-- src/client/runtime/pty_backend.go
-- src/client/runtime/interpret_spawn.go
 - src/server/web/mux.go
 - src/server/web/gateway.go
-summary: LaunchOptions.Cols/Rows を backend.SpawnFrame signature 拡張で termvt.Spec まで貫通させ、RespawnFrame は termvt.Session.Size() 照会で SoT を単一化、web 境界で値域検証と WS error frame 拒否を導入し、死 API FrameSize を削除する 4 chunk 計画。
-updated: '2026-07-12'
+- src/server/web/wire.go
+- src/client/state/driver_iface.go
+- src/client/state/effect.go
+- src/client/runtime/interpret_spawn.go
+- src/client/runtime/pty_backend.go
+- src/client/runtime/backends.go
+- src/client/runtime/pty_backend_test.go
+- src/platform/termvt/session.go
+summary: 4 milestone (境界検証 / spawn 配線 / FrameSize 削除 / RespawnFrame doc) で spec-20260712-frame-size-ownership
+  を実装する
 ---
 
 ## Goal
 
-`state.LaunchOptions.Cols/Rows` は β scope として定義されたまま消費点が repository 内に存在せず、全 frame が 80×24 で spawn される。 本計画はこの β scope 配線を完成させ、`backend.SpawnFrame` の signature を size 受領可能な形へ拡張することで size hint を `termvt.Spec` まで貫通させる。 併せて `RespawnFrame` は `termvt.Session.Size()` 照会で SoT を単一化し、web 境界で `int → uint16` narrow conversion の前の値域検証と、lifecycle WS の境界外 resize を error frame で拒否する契約を導入する。 死 API `FrameSize` は削除する。 詳細な要件根拠は `spec.md`、各設計判断の Why は個別 ADR を参照 — ここでは述べない。
+spec-20260712-frame-size-ownership の 7 FR / 6 NFR / 6 AC を実装する。size ownership の SoT を termvt に閉じ、driver / reducer / state 層は size 運搬役以上の責務を持たない構造を確立し、HTTP/WS 境界で narrow 前 validation を敷いて silent wrap-around を仕組みで防ぐ。dead API (FrameInspect.FrameSize) を削除して抽象と実装の drift 源を除く。設計判断の詳細は 5 ADR (launch-size-pass-through / size-hint-boundary-validation / remove-framesize-dead-api / respawn-default-size-fallback / spawnframe-inline-size-pair) に集約されている。
 
 ## Implementation Sequence
 
-{% milestone id="c1-signature-plumbing" %}
-**backend.SpawnFrame signature 拡張 + spawn 観察ログ** (`adr-20260712-size-hint-wiring-completion`)
+{% milestone id="m1" %}
+**境界検証 helper + termvt.MaxDim export + HTTP/WS wire-up** (adr-20260712-size-hint-boundary-validation)
 
-`FrameLifecycle.SpawnFrame` の signature を `(frameID, name, command, startDir string, env map[string]string, cols, rows int)` へ拡張し、`PtyBackend` / `noopBackend` / 全 test fake が新 signature に追随する。 `spawnFrameWindow` は `e.Options.Cols/Rows` を `int` にキャストして backend へ渡し、`slog.Info` に `(hint_cols, hint_rows, effective_cols, effective_rows)` を必ず出力する (fallback 発火時は `slog.Warn` も併記)。 `PtyBackend.SpawnFrame` は受け取った cols/rows を `termvt.Spec.Cols/Rows` に転記する。 hint 欠落 (少なくとも一方が 0) は既存 `termvt.normalizeSize` の 80×24 fallback をそのまま SoT として利用する。
+作業単位:
+- `src/platform/termvt/session.go` の `maxDim = 2000` を `MaxDim` に export する (SoT 定数)
+- `src/client/state/` 配下に共通 validation helper (仮称 `ValidateSizeHint(cols, rows int) error`) を追加 (state pure). 3 条件を判定: (i) 両方 0 は通過、(ii) 片方だけ 0 は asymmetric として reject、(iii) 1..MaxDim 範囲外は reject。narrow は行わない
+- `src/server/web/mux.go` apiCreateReq の decode 後・LaunchOptions 生成前に helper を呼び、invalid は `respondError(400, "invalid_cols_rows", "cols must be 0 or 1..2000; got <n>")` で応答する
+- `src/server/web/gateway.go` / `wire.go` の WS `{k:"r"}` 経路 2 か所 (applyInboundProto と readLifecycleInbound 相当) で helper を呼び、invalid は warn log (session_id / cols / rows / reason) を残して drop
+- helper と 3 caller の T0 pure test (負値 / 65536 wrap / >maxDim / asymmetric / 両方 0 通過 / 正常値通過 の 6 パターン)
 
-**units** (task-grade 分解 — decompose の fast path 対象):
-
-- **backend.SpawnFrame signature 拡張** — Objective: `FrameLifecycle` interface の SpawnFrame に (cols, rows int) を追加、全実装と全 test fake を追随。 files: `src/client/runtime/backends.go`, `pty_backend.go`, `interpret_spawn.go`, `pty_backend_test.go`, `interpret_spawn_test.go`. Boundaries: termvt 側 API は触らない、respawn は本 unit 外。 Acceptance: go build/vet pass、fake で size 転記が観測、interpret_spawn が e.Options.Cols/Rows を渡す。
-- **spawn 時の hint→effective observation ログ** — Objective: `slog.Info` で pair を必ず出す (fallback 時は `slog.Warn` 併記)。 files: `src/client/runtime/interpret_spawn.go`, `interpret_spawn_test.go`. Boundaries: event 追加は行わず slog のみ、fallback 判定は `cols<=0 || rows<=0`。 Acceptance: hint=(100,40)/(0,0)/(100,0) の 3 case で slog capture が期待通り。
+Members:
+- component: `size hint validation helper`, `mux.go apiCreateReq`, `WS resize inbound (gateway.go / wire.go)`
+- req: FR-003, FR-004, FR-005
+- adr: adr-20260712-size-hint-boundary-validation
 {% /milestone %}
 
-{% milestone id="c2-respawn-sot" %}
-**RespawnFrame の size SoT 照会** (`adr-20260712-size-hint-wiring-completion`)
+{% milestone id="m2" %}
+**spawn size hint 配線** (adr-20260712-launch-size-pass-through + adr-20260712-spawnframe-inline-size-pair)
 
-`PtyBackend.RespawnFrame` を new session 作成前に `termvt.Session.Size()` で現在の cols/rows を照会し、`termvt.Spec.Cols/Rows` に転記する形へ書き換える。 既存 termvt session が teardown 済み (真の cold-start) の場合は 80×24 fallback。 `RespawnFrame` の呼び出し側 signature は変えない (LaunchOptions を渡さない現行契約を維持)。 termvt 側 API (`Session.Size()`) は既存 — 追加しない。
+作業単位:
+- 5 driver (generic / codex / claude / shell / gemini) の `PrepareLaunch` / `PrepareCreate` 実装を grep verify し、LaunchOptions を LaunchPlan/CreateLaunch.Options に verbatim 転写しているかを確認。写し漏れがあった driver に対して 1 行の pass-through を追加
+- `FrameLifecycle.SpawnFrame` interface signature を `SpawnFrame(frameID, name, command, startDir string, env map[string]string, cols, rows uint16) error` に拡張
+- 4 実装 (PtyBackend / noopBackend / fakeBackend / blockingBackend) の SpawnFrame を signature 追随。PtyBackend のみ受けた cols/rows を termvt.Spec.Cols/Rows に転記 (cols=0/rows=0 は Spec に 0 のまま渡し normalizeSize (80,24) fallback に委ねる)
+- `src/client/runtime/interpret_spawn.go` の spawnFrameWindow で `e.Options.Cols/Rows` を SpawnFrame 呼び出しに渡す
+- spawn ログ (slog.Info) にフィールド (frame_id, cols, rows, source="hint"|"default") を追加
+- T1 wired test を `pty_backend_test.go` に追加: SpawnFrame(cols=120, rows=40, ...) → fakeEmulator の cols/rows / fakePTY の Winsize が 120x40 であること、および cols=0, rows=0 で 80x24 fallback を観測
 
-**units**:
-
-- **RespawnFrame の size SoT 照会** — Objective: `termvt.Manager.Get(target).Size()` を `mgr.Remove` の直前で呼び、`termvt.Spec.Cols/Rows` へ転記。 files: `src/client/runtime/pty_backend.go`, `pty_backend_test.go`. Boundaries: RespawnFrame signature 変更なし、termvt 側 API 変更なし。 Acceptance: respawn 前後で Size() が同値、既存 session 不在時は 80×24 fallback。
+Members:
+- component: `state.LaunchOptions` (既存), `LaunchPlan.Options / CreateLaunch.Options` (既存), `EffSpawnFrame.Options` (既存), `runtime.spawnFrameWindow`, `FrameLifecycle.SpawnFrame`, `PtyBackend.SpawnFrame`, `noopBackend / fakeBackend / blockingBackend`, `termvt.Spec / termvt.NewSession` (既存, 消費側)
+- req: FR-001, FR-002, FR-006
+- adr: adr-20260712-launch-size-pass-through, adr-20260712-spawnframe-inline-size-pair
 {% /milestone %}
 
-{% milestone id="c3-web-boundary" %}
-**web layer 境界検証 (mux / gateway 両方)** (`adr-20260712-ws-resize-bound-error-frame`)
+{% milestone id="m3" %}
+**FrameInspect.FrameSize 削除 + test 観測経路切替** (adr-20260712-remove-framesize-dead-api)
 
-`mux.go` の `apiCreateReq` ハンドラで `req.Cols/Rows` を `int` のまま受け、`(cols<0 || rows<0 || cols>maxSpawnDim || rows>maxSpawnDim)` を HTTP 400 (`invalid_dim`) で拒否する。 `(0, 0)` と `(cols>0 && rows>0)` の 2 状態のみ通過させ、片方だけ 0 は 400 で拒否する (FR-004 の判別性を境界で守る)。 `maxSpawnDim = 2000` は `src/server/web/` 内の定数として持ち、`src/platform/termvt/session.go:264` (`maxDim`) との整合はコメントで担保する (SoT drift は integration/e2e で検出可能)。
+作業単位:
+- `src/client/runtime/backends.go` の `FrameInspect` interface から `FrameSize` を削除。interface が FrameSize のみ持つ場合は interface 自体も削除
+- 4 実装 (PtyBackend / noopBackend / fakeBackend / blockingBackend) の `FrameSize` method を削除
+- `pty_backend_test.go TestResizeSurface` の観測経路を `termvt.Session.Size()` 直接に切替。Manager 経由の accessor が必要なら pty_backend_test.go 内で私設 accessor を用意 (公開 API surface を増やさない)
+- grep confirmation で `FrameSize(` の残存が test を除きゼロであることを verify
 
-`gateway.go` の lifecycle WS `{k:'r'}` ハンドラは、既存の silent `continue` を `writeRespErrFrame` による `{k:'e', reqId, reason:'invalid_dim'}` 返答に置き換える。 境界外検出時は `sess.Resize` を呼ばず既存 winsize/grid を維持する。 attach 経路 (`readInbound at gateway.go:539`) の resize は reqId (response 契約) を持たないため既存の silent drop を維持する。
-
-**units**:
-
-- **apiCreateReq の値域検証 (create-session)** — Objective: `int` のまま validator を通し、境界外は 400。 files: `src/server/web/mux.go`, `mux_test.go`. Boundaries: gateway.go (resize 経路) は本 unit 外。 Acceptance: AC-001 相当が 202 で hint 反映、AC-003 の (100,0) と AC-004 の 2001/65536 が 400 invalid_dim。
-- **lifecycle WS resize の境界外 error frame 拒否** — Objective: `writeRespErrFrame` で `{k:'e', reason:'invalid_dim'}` を返す形へ置換。 files: `src/server/web/gateway.go`, `gateway_test.go`. Boundaries: attach 経路の resize は response 契約なしのため対象外。 Acceptance: AC-006 相当が error frame で拒否、境界内は既存動作維持、`sess.Resize` が境界外時に呼ばれない (fake 観測)。
+Members:
+- component: `FrameInspect.FrameSize`, `PtyBackend.FrameSize`, `noopBackend/fake/blocking の FrameSize`, `pty_backend_test.go TestResizeSurface`
+- req: FR-007
+- adr: adr-20260712-remove-framesize-dead-api
 {% /milestone %}
 
-{% milestone id="c4-framesize-cleanup" %}
-**FrameSize backend API の削除** (`adr-20260712-size-hint-wiring-completion`)
+{% milestone id="m4" %}
+**RespawnFrame default fallback の doc 化 + Failure Modes 節反映** (adr-20260712-respawn-default-size-fallback)
 
-`FrameInspect` interface から `FrameSize` を削除し、`PtyBackend` / `noopBackend` / 全 test fake の実装を剥がす。 production 呼び出しゼロが `grep -rn 'FrameSize(' src/` で 0 件になることを確認する。 テスト依存があった場合はそのテストを `termvt.Session.Size()` 直接呼び出しに書き換える (別 SoT で置換)。
+作業単位:
+- `PtyBackend.RespawnFrame` (`pty_backend.go:91-111`) の宣言直上に doc comment を追加: (1) 現状 size なしで termvt.Spec を作り 80×24 に fallback する挙動、(2) production caller 0 のため hint 保存機構は追加しない、(3) 将来 respawn 消費者が発生した時点で adr-20260712-respawn-default-size-fallback を supersede する ADR を起こす、の 3 点を明記
+- spec の Failure Modes 節 (respawn-size-loss) との 1:1 対応を doc 化 (spec の該当行への参照 or ADR 番号を doc comment 内に含める)
 
-**units**:
-
-- **FrameSize backend API の削除** — Objective: interface / 実装 / test fake / test 呼び出しから FrameSize を除去。 files: `src/client/runtime/backends.go`, `pty_backend.go`, `pty_backend_test.go`, その他 fake. Boundaries: `termvt.Session.Size()` は残す (本 unit は `FrameInspect.FrameSize` のみ)。 Acceptance: `grep -rn 'FrameSize(' src/` が 0 件、build/vet/test all pass。
+Members:
+- component: `PtyBackend.RespawnFrame`
+- req: (仕様上の invariant を doc 化する対象; unwanted FR には対応しない - Failure Modes 節 respawn-size-loss と対応)
+- adr: adr-20260712-respawn-default-size-fallback
 {% /milestone %}
 
 ## Targets
 
 **変更対象ファイル**:
+- `src/server/web/mux.go` — apiCreateReq (m1)
+- `src/server/web/gateway.go` — WS 'r' 経路 (m1)
+- `src/server/web/wire.go` — WS 'r' 経路 (m1)
+- `src/client/state/driver_iface.go` — LaunchOptions のコメント整理 (m2 / adr-20260712-launch-size-pass-through 反映)
+- `src/client/state/` 配下の新規または既存 helper file — `ValidateSizeHint` (m1)
+- `src/client/runtime/interpret_spawn.go` — spawnFrameWindow (m2)
+- `src/client/runtime/backends.go` — FrameLifecycle / FrameInspect interfaces (m2 signature 拡張 / m3 削除)
+- `src/client/runtime/pty_backend.go` — SpawnFrame / RespawnFrame / FrameSize (m2 転記, m3 削除, m4 doc)
+- `src/client/runtime/pty_backend_test.go` — TestResizeSurface 観測経路切替 + spawn hint T1 wired test 追加 (m2, m3)
+- `src/platform/termvt/session.go` — MaxDim export (m1)
+- 各 driver package (generic / codex / claude* / shell / gemini) の Prepare* — pass-through 確認 (m2 grep verify、必要なら 1 行追加)
 
-- `src/client/runtime/backends.go` — `FrameLifecycle.SpawnFrame` signature 拡張、`FrameInspect.FrameSize` 削除、`noopBackend` 追随
-- `src/client/runtime/pty_backend.go` — `SpawnFrame` (size 転記)、`RespawnFrame` (`termvt.Session.Size()` 照会)、`FrameSize` 実装削除
-- `src/client/runtime/interpret_spawn.go` — `e.Options.Cols/Rows` を backend へ渡す、`slog` 観察点追加
-- `src/client/runtime/pty_backend_test.go` / `interpret_spawn_test.go` — fake が新 signature に追随、size 転記と slog capture の観測
-- `src/server/web/mux.go` — `apiCreateReq` の `int` のままの validator、`maxSpawnDim = 2000` 定数
-- `src/server/web/mux_test.go` — 境界値テスト
-- `src/server/web/gateway.go` — lifecycle WS `{k:'r'}` の error frame 返答へ置換
-- `src/server/web/gateway_test.go` — WS 境界外拒否テスト
+**再利用する既存資産 (発明せず命名)**:
+- `state.LaunchOptions.Cols/Rows` (uint16 field): 既に存在する transport slot、そのまま流用
+- `state.EffSpawnFrame.Options`: 既に LaunchOptions を verbatim で運ぶ effect payload
+- `termvt.Spec.Cols/Rows` + `termvt.normalizeSize` (80x24 fallback): 既存の受け皿と default 挙動を流用
+- `termvt.Session.Size()`: FrameSize 削除後の test 観測用 (既存 accessor)
+- `slog.Info` (spawn ログ): 既存の logging 経路にフィールド追加のみ
+- `respondError(400, ..., ...)` 相当の HTTP error 応答 helper (mux.go に既存の pattern があれば追随)
+- `fakeEmulator` / `fakePTY` (test 資産): T1 wired test の観測点として既存 pattern を再利用
 
-**外部依存ごとの seam (テスト可能性)**:
+**外部依存の seam** (design/PRINCIPLES.md §11):
+- **kernel pty** (creack/pty): `pty.StartWithSize` → PtyBackend のみが触る。test は `fakePTY` で seam 済み (既存)
+- **VT emulator** (forks/x/vt): `emulatorFor(cols, rows)` → PtyBackend のみが触る。test は `fakeEmulator` で seam 済み (既存)
+- **HTTP transport** (net/http): mux.go の apiCreateReq 経由。境界 validation は helper に集約 (seam 化)
+- **WebSocket transport** (gorilla/websocket 相当): gateway.go / wire.go 経由。境界 validation は同じ helper に集約 (seam 化)
 
-- **kernel pty**: `termvt.NewSession` 経由 (既存)。 `pty_backend_test.go` の `fakePTY` (io.Pipe pair) が seam。 本計画で新規追加なし
-- **VT emulator**: `termvt.NewSessionWithDeps` 経由 (既存 `NewSessionWithDeps` は fake `Emulator` を受ける)。 `fakeEmulator` が seam
-- **backend interface (FrameLifecycle)**: `runtime` 側の spawn effect と backend 実装の境界 seam。 本計画で signature を拡張し、全 fake が新契約に追随
-- **web HTTP境界**: `httptest.Server` で mux をラップして border 検証を回す (既存 pattern)
-- **lifecycle WS**: `gateway_test.go` の既存 WS fake connection (`writeRespErrFrame` 観察) が seam
+新規 seam 追加はなし (既存 fake / helper 資産の再利用のみ)。
 
-**再利用する既存パターン / 既存関数**:
-
-- `termvt.normalizeSize` (80×24 fallback + maxDim clamp — SoT を termvt に集中維持)
-- `termvt.Session.Size()` (RespawnFrame の照会先)
-- lifecycle WS の `writeRespErrFrame` helper (境界外 resize の error 返答に再利用)
-- 既存 `gatewayError` パターン (HTTP 400 レスポンス構造)
-- `runtimetest.Harness` (interpret_spawn テストのセットアップ)
+**純粋核**:
+- `ValidateSizeHint(cols, rows int) error` — state package の pure function、I/O 依存なし、T0 でカバー
 
 ## Verification
 
-**構造規則 → 検証手段**:
+各 milestone の完了確認手段。real 依存でしか検証できない部分は明示する。
 
-- **層規則** (server/web が platform/termvt を import しない): `src/.golangci.yml` の depguard で fitness function 化済 (既存)。 `golangci-lint run` で保証
-- **size SoT の一意性** (kernel + emulator 以外に owner を作らない): 機械検証は困難 — レビュー規範として plan.md に明記 + `pty_backend.go` に in-process size cache を追加していないことを PR diff で確認
-- **narrow conversion 順序** (validator を int で先に、uint16 変換は後): `mux_test.go` の境界値テスト (65536 を 400 で拒否) が fitness function
-- **死 API 復活防止**: `grep -rn 'FrameSize(' src/` を CI に組み込むかは future work (本計画では acceptance テストのみ)
+| profile | milestone | Tier | 実行コマンド (verbatim) | 判定基準 |
+|---|---|---|---|---|
+| `helper_pure` | m1 | T0 pure | `cd src && go test ./client/state/... -run ValidateSizeHint` | 6 パターン (負値 / 65536 wrap / >maxDim / asymmetric / 両方 0 / 正常値) 全 pass |
+| `http_boundary` | m1 | T1 wired | `cd src && go test ./server/web/... -run TestApiCreateSessionInvalidCols` | apiCreateReq が 400 応答を返し body JSON が仕様形式に一致 |
+| `ws_boundary` | m1 | T1 wired | `cd src && go test ./server/web/... -run TestWsResizeInvalidCols` | resize drop + warn log (fields = session_id, cols, rows, reason) が観測される |
+| `spawn_hint` | m2 | T1 wired | `cd src && go test ./client/runtime/... -run TestSpawnFrameWithSizeHint` | fakeEmulator の Size() と fakePTY の Winsize が指定した cols/rows と一致 |
+| `spawn_default` | m2 | T1 wired | `cd src && go test ./client/runtime/... -run TestSpawnFrameDefaultsToNormalizeSize` | cols=0/rows=0 で spawn 時に 80x24 が観測され spawn log に source="default" が含まれる |
+| `driver_pass_through_grep` | m2 | T0 pure | `cd src && grep -RnE 'PrepareLaunch\|PrepareCreate' ./client/drivers` (人手 review) | 全 driver 実装が LaunchOptions を LaunchPlan/CreateLaunch.Options に verbatim 転写 |
+| `framesize_removed` | m3 | T0 pure | `cd src && grep -RnE 'FrameSize\(' . \| grep -v _test.go` | production 経路 (非 _test.go) からの FrameSize 呼び出しが 0 件 |
+| `resize_observation_switched` | m3 | T1 wired | `cd src && go test ./client/runtime/... -run TestResizeSurface` | 既存 test が termvt.Session.Size() 直接 (or Manager accessor) 経由で pass |
+| `respawn_doc` | m4 | T0 pure | `cd src && grep -n 'RespawnFrame' ./client/runtime/pty_backend.go` (人手 review) | doc comment に (1) 80×24 fallback、(2) production caller 0、(3) supersede 予定 ADR ref の 3 点が含まれる |
+| `reducer_size_invariant` | 全体 | T0 pure | `cd src && grep -RnE 'Cols\|Rows' ./client/state/reduce_surface.go` | reducer 内に size field 保持がゼロ (NFR-005 の pin) |
+| `structural` | 全体 | T0 pure | `make vet && make lint` (repo root) | depguard / funlen / staticcheck が zero error |
 
-**検証プロファイル**:
+**real 依存でしか検証できない部分**:
+- HTTP 400 body / WS warn log の end-to-end 観測は最終的に `make build-server` 済みの server に curl / websocket client で叩く手動確認で締める (T2 相当)
+- kernel pty (creack/pty) と VT emulator (forks/x/vt) の real 挙動は既存の `FakeVsReal*` test で担保済み — 本 issue では size hint が Spec に届くところまでを T1 wired で pin し、その先の real 挙動は既存 harness を信頼する
 
-| profile | milestone | tier | command | criterion | milestone DoD |
-|---|---|---|---|---|---|
-| signature-plumbing | c1-signature-plumbing | T1 | `cd src && go test ./client/runtime/...` | `PtyBackend.SpawnFrame` が `termvt.Spec` に size を転記 (fake 観測) | 新 signature で全 fake pass + slog capture が hint/effective を出力 |
-| respawn-sot | c2-respawn-sot | T1 | `cd src && go test -run TestRespawn ./client/runtime/...` | RespawnFrame 前後で `termvt.Session.Size()` が同値、session 不在時は 80×24 | respawn テストで size 継承と fallback 両方 pass |
-| web-validators | c3-web-boundary | T1 | `cd src && go test ./server/web/...` | 境界値 (0/1/maxDim/maxDim+1/65536) で HTTP status と WS error frame が期待通り | AC-003 / AC-004 / AC-006 全て pass |
-| framesize-cleanup | c4-framesize-cleanup | T0 | `grep -rn 'FrameSize(' src/ \| wc -l` | 出力が 0 | grep 0 件 + `go build`/`vet`/`test` 全 pass |
-| structural-fitness | all | T0 | `cd src && golangci-lint run` | 層規則違反 (web が platform/termvt を import する等) がゼロ | 既存 depguard rule が pass、web パッケージが自前 `maxSpawnDim` 定数を保持 |
+**構造規則 → 検証手段** (fitness function):
+- depguard: `platform/* は client を import しない` → `make lint` (機械)
+- SoT invariant (size は termvt が SoT / reducer は size を持たない) → NFR-005 grep + adr-20260712-launch-size-pass-through Alternatives (規範 review)
+- narrow 前 validation (helper が narrow より statically 前) → helper の signature が int を受けて error を返し narrow を含まない (機械) + T0 test で invalid が uint16 に化ける前に reject されることを確認
 
-**手動シナリオ**:
+## Reference Algorithms
 
-- 実 browser で新規 session を大画面 (e.g. 200×60) で作成し、spawn 直後の frame が 80×24 → resize の 2 phase を経ずに直接 hint size で描画されることを目視確認 (NFR-003)
+### alg-validate-size-hint
 
-## Open Questions
+```
+func ValidateSizeHint(cols, rows int) error {
+    // Both zero -> unspecified (accepted, downstream will use 80x24)
+    if cols == 0 && rows == 0 {
+        return nil
+    }
+    // Asymmetric single-dimension -> reject
+    if (cols == 0) != (rows == 0) {
+        return errors.New("asymmetric size hint: both cols and rows must be specified")
+    }
+    // Range check (1..MaxDim)
+    if cols < 1 || cols > termvt.MaxDim {
+        return fmt.Errorf("cols must be 0 or 1..%d; got %d", termvt.MaxDim, cols)
+    }
+    if rows < 1 || rows > termvt.MaxDim {
+        return fmt.Errorf("rows must be 0 or 1..%d; got %d", termvt.MaxDim, rows)
+    }
+    return nil
+}
+```
 
-- browser 側 (`src/client/web/src/components/TerminalPane.tsx`) が現状で POST /api/sessions body に cols/rows を実際に載せているかは実装 unit (c1 or c3) で確認する。 issue 本文は `TerminalPane.tsx:131,180` を browser 側 fit / onResize 起点として言及しているが、create 時に body 組み立てへ流し込むコードのパスは未確認。 現状 hint を送っていなければ本計画の hint 配線が発火しないため、追加で web frontend 側の 1 chunk が要る可能性あり。
-- `adr-20260712-size-hint-wiring-completion` と `adr-20260712-ws-resize-bound-error-frame` を accepted へ遷移するタイミング (spec approve と同時 or 実装完了後) は host が決める (draft のままで実装着手可能)。
+HTTP caller は error を 400 body に mapping (code=invalid_cols_rows, message=error.String())、WS caller は warn log にフィールド化して drop。
+
+### alg-spawn-frame-with-hint
+
+```
+// In interpret_spawn.spawnFrameWindow(e EffSpawnFrame):
+cols := e.Options.Cols
+rows := e.Options.Rows
+err := backend.SpawnFrame(e.FrameID, e.Name, e.Command, e.StartDir, e.Env, cols, rows)
+
+// In PtyBackend.SpawnFrame:
+spec := termvt.Spec{
+    // ... existing fields ...
+    Cols: int(cols),  // 0 -> normalizeSize (80,24)
+    Rows: int(rows),
+}
+source := "hint"
+if cols == 0 && rows == 0 {
+    source = "default"
+}
+slog.Info("frame spawn size", "frame_id", frameID, "cols", spec.Cols, "rows", spec.Rows, "source", source)
+sess, err := termvt.NewSession(ctx, spec)
+// ...
+```
