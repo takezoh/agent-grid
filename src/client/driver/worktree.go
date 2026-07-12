@@ -164,6 +164,14 @@ func stripFlagValues(command string, flags []string) string {
 	return joinCommandText(out)
 }
 
+// PreserveLaunchOptions copies transport slots (cols/rows, initial input) from
+// the incoming options while overriding worktree intent resolved by the driver.
+func PreserveLaunchOptions(options state.LaunchOptions, worktreeEnabled bool) state.LaunchOptions {
+	opts := options
+	opts.Worktree = state.WorktreeOption{Enabled: worktreeEnabled}
+	return opts
+}
+
 // CommonPrepareCreate strips worktree flags from command and sets
 // LaunchOptions.Worktree.Enabled. The subsystem resolves the actual
 // worktree directory during BindFrame; drivers only signal intent here.

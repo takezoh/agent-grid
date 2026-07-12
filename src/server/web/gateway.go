@@ -13,6 +13,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/client/state"
 )
 
 // errDaemonGone is returned by writeOutbound when the daemon events channel
@@ -350,12 +351,10 @@ func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn,
 				slog.Warn("server/web: lifecycle write raw", "err", err, "sid", msg.SessionID)
 			}
 		case "r":
-			if msg.SessionID == "" || msg.Cols <= 0 || msg.Rows <= 0 {
+			if msg.SessionID == "" {
 				continue
 			}
-			if err := sess.Resize(ctx, msg.SessionID, uint16(msg.Cols), uint16(msg.Rows)); err != nil {
-				slog.Warn("server/web: lifecycle resize", "err", err, "sid", msg.SessionID)
-			}
+			tryResize(ctx, sess, msg.SessionID, msg.Cols, msg.Rows, "lifecycle resize")
 		}
 	}
 }
@@ -536,10 +535,27 @@ func applyInboundProto(ctx context.Context, sess Attacher, sessionID string, dat
 			slog.Warn("server/web: write raw to session", "err", err)
 		}
 	case "r":
-		if in.Cols > 0 && in.Rows > 0 {
-			if err := sess.Resize(ctx, sessionID, uint16(in.Cols), uint16(in.Rows)); err != nil {
-				slog.Warn("server/web: resize session", "err", err)
-			}
-		}
+		tryResize(ctx, sess, sessionID, in.Cols, in.Rows, "resize session")
+	}
+}
+
+// tryResize validates browser resize hints before uint16 narrowing. Non-positive
+// dimensions are silently dropped (existing WS behavior). Out-of-range values
+// emit a structured warn log and are dropped without calling Resize.
+func tryResize(ctx context.Context, sess Attacher, sessionID string, cols, rows int, op string) {
+	if cols <= 0 || rows <= 0 {
+		return
+	}
+	if reason := state.SizeHintRejectReason(cols, rows); reason != "" {
+		slog.Warn("server/web: resize dropped",
+			"session_id", sessionID,
+			"cols", cols,
+			"rows", rows,
+			"reason", reason,
+		)
+		return
+	}
+	if err := sess.Resize(ctx, sessionID, uint16(cols), uint16(rows)); err != nil {
+		slog.Warn("server/web: "+op, "err", err, "session_id", sessionID)
 	}
 }

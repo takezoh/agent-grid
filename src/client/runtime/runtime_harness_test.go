@@ -28,7 +28,7 @@ func newBlockingBackend() *blockingBackend {
 	}
 }
 
-func (b *blockingBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string) error {
+func (b *blockingBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string, _, _ uint16) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.spawnCalls++
@@ -38,7 +38,6 @@ func (b *blockingBackend) SpawnFrame(frameID, name, command, startDir string, en
 
 func (b *blockingBackend) KillFrame(string) error                    { return nil }
 func (b *blockingBackend) ResolveID(string) (string, error)          { return "", nil }
-func (b *blockingBackend) FrameSize(string) (int, int, error)        { return 120, 40, nil }
 func (b *blockingBackend) SetEnv(string, string) error               { return nil }
 func (b *blockingBackend) UnsetEnv(string) error                     { return nil }
 func (b *blockingBackend) FrameExitStatus(string) (bool, int, error) { return false, -1, nil }

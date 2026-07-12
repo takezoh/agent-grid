@@ -194,5 +194,5 @@ func (r *Runtime) spawnWrapped(frameID state.FrameID, project string, wrapped Wr
 	name := windowName(project, string(frameID))
 	spawnCmd := buildSpawnCommand(wrapped.Command, nil)
 	slog.Info("runtime: spawning window", "frame", frameID, "cmd", spawnCmd, "mode", "coldstart")
-	return r.cfg.Backend.SpawnFrame(string(frameID), name, spawnCmd, wrapped.StartDir, wrapped.Env)
+	return r.cfg.Backend.SpawnFrame(string(frameID), name, spawnCmd, wrapped.StartDir, wrapped.Env, 0, 0)
 }

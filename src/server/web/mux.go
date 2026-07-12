@@ -402,6 +402,10 @@ func handleCreateSession(d *DaemonClient) http.HandlerFunc {
 				"sandbox", req.Sandbox)
 			return
 		}
+		if err := state.ValidateSizeHint(req.Cols, req.Rows); err != nil {
+			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_cols_rows", err.Error())
+			return
+		}
 		params := state.CreateSessionParams{
 			Project: req.Project,
 			Command: req.Command,
@@ -657,4 +661,31 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+type apiErrorBody struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// gatewayAPIError writes a JSON error body for client-facing validation
+// failures. Unlike gatewayError (plain text + request_id suffix), this shape
+// is consumed by API clients that parse code/message fields.
+func gatewayAPIError(w http.ResponseWriter, r *http.Request, status int, code, message string, fields ...any) {
+	rid := requestID(w, r)
+	level := slog.LevelInfo
+	if status >= 500 {
+		level = slog.LevelError
+	}
+	attrs := []any{
+		"request_id", rid,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"status", status,
+		"reason", code,
+		"err_msg", message,
+	}
+	attrs = append(attrs, fields...)
+	slog.Log(r.Context(), level, "gateway: response", attrs...)
+	writeJSON(w, status, apiErrorBody{Code: code, Message: message})
 }

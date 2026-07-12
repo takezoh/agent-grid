@@ -25,7 +25,7 @@ type FrameLifecycle interface {
 	// SpawnFrame creates a new pty session backed by frameID. The frame backend
 	// uses frameID as its termvt.Manager session key, so the runtime can
 	// address every subsequent op by string(FrameID) without an indirection.
-	SpawnFrame(frameID, name, command, startDir string, env map[string]string) error
+	SpawnFrame(frameID, name, command, startDir string, env map[string]string, cols, rows uint16) error
 	// KillFrame destroys the pty session identified by frameID.
 	KillFrame(frameID string) error
 	// RespawnFrame restarts the command in a dead frame.
@@ -62,8 +62,6 @@ type FrameIO interface {
 type FrameInspect interface {
 	// ResolveID returns the backend's internal id for the target frame.
 	ResolveID(target string) (string, error)
-	// FrameSize returns the visible size of the target frame.
-	FrameSize(target string) (width, height int, err error)
 	// CaptureFrame returns the trailing nLines of a frame's surface content
 	// (no SGR). Used by polling drivers via the worker pool.
 	CaptureFrame(frameID string, nLines int) (string, error)
@@ -217,12 +215,11 @@ type FSEvent struct {
 
 type noopBackend struct{}
 
-func (noopBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string) error {
+func (noopBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string, _, _ uint16) error {
 	return nil
 }
 func (noopBackend) KillFrame(string) error                    { return nil }
 func (noopBackend) ResolveID(string) (string, error)          { return "", nil }
-func (noopBackend) FrameSize(string) (int, int, error)        { return 0, 0, nil }
 func (noopBackend) SetEnv(string, string) error               { return nil }
 func (noopBackend) UnsetEnv(string) error                     { return nil }
 func (noopBackend) FrameExitStatus(string) (bool, int, error) { return false, -1, nil }

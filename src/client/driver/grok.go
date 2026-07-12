@@ -106,7 +106,7 @@ func (d GrokDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, pr
 		}
 		command = built
 	}
-	return state.LaunchPlan{Command: strings.TrimSpace(command), StartDir: startDir, Options: state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled}}, Stdin: options.InitialInput}, nil
+	return state.LaunchPlan{Command: strings.TrimSpace(command), StartDir: startDir, Options: PreserveLaunchOptions(options, req.Enabled), Stdin: options.InitialInput}, nil
 }
 
 func stripGrokLifecycle(command string) (string, error) {

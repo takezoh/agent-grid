@@ -154,15 +154,15 @@ func TestNewSessionEmptyArgv(t *testing.T) {
 }
 
 // TestNormalizeSizeClamp pins the dimension guard: non-positive sizes floor to
-// the defaults and oversized ones are capped at maxDim — so a client cannot
+// the defaults and oversized ones are capped at MaxDim — so a client cannot
 // overflow the uint16 pty winsize (65536 → 0) or drive the VT grid toward OOM.
 func TestNormalizeSizeClamp(t *testing.T) {
 	cases := []struct{ inC, inR, wantC, wantR int }{
 		{0, 0, 80, 24},
 		{-5, -1, 80, 24},
 		{100, 30, 100, 30},
-		{100000, 100000, maxDim, maxDim}, // OOM-sized grid → clamped
-		{65536, 1, maxDim, 1},            // would wrap to 0 cols without the cap
+		{100000, 100000, MaxDim, MaxDim}, // OOM-sized grid → clamped
+		{65536, 1, MaxDim, 1},            // would wrap to 0 cols without the cap
 	}
 	for _, c := range cases {
 		if gotC, gotR := normalizeSize(c.inC, c.inR); gotC != c.wantC || gotR != c.wantR {
@@ -173,7 +173,7 @@ func TestNormalizeSizeClamp(t *testing.T) {
 }
 
 // TestClampDim pins the per-dimension clamp helper directly, exercising the def
-// parameter (which normalizeSize hard-codes to 80/24) and the exact maxDim edge.
+// parameter (which normalizeSize hard-codes to 80/24) and the exact MaxDim edge.
 func TestClampDim(t *testing.T) {
 	cases := []struct {
 		name string
@@ -184,9 +184,9 @@ func TestClampDim(t *testing.T) {
 		{"zero floors to def", 0, 80, 80},
 		{"negative floors to def", -10, 24, 24},
 		{"in range passes through", 100, 80, 100},
-		{"exactly maxDim passes through", maxDim, 80, maxDim},
-		{"above maxDim caps", maxDim + 1, 80, maxDim},
-		{"far above maxDim caps", 100000, 24, maxDim},
+		{"exactly MaxDim passes through", MaxDim, 80, MaxDim},
+		{"above MaxDim caps", MaxDim + 1, 80, MaxDim},
+		{"far above MaxDim caps", 100000, 24, MaxDim},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

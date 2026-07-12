@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +28,31 @@ func TestApplyInboundProto_IgnoresMalformedAndNonPositiveResize(t *testing.T) {
 	}
 	if got := len(fake.resizeSnapshot()); got != 0 {
 		t.Fatalf("Resize calls = %d, want 0", got)
+	}
+}
+
+func TestWsResizeInvalidCols(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAttacher()
+	ctx := context.Background()
+	logs := withCapturedSlog(t, func() {
+		applyInboundProto(ctx, fake, "s1", []byte(`{"k":"r","cols":99999,"rows":47}`))
+	})
+
+	if got := len(fake.resizeSnapshot()); got != 0 {
+		t.Fatalf("Resize calls = %d, want 0", got)
+	}
+	for _, needle := range []string{
+		"resize dropped",
+		"session_id=s1",
+		"cols=99999",
+		"rows=47",
+		`reason="cols out of range"`,
+	} {
+		if !strings.Contains(logs, needle) {
+			t.Fatalf("log missing %q: %q", needle, logs)
+		}
 	}
 }
 

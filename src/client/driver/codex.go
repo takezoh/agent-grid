@@ -202,7 +202,7 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 		return state.LaunchPlan{
 			Command:   base,
 			StartDir:  startDir,
-			Options:   state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled}},
+			Options:   PreserveLaunchOptions(options, req.Enabled),
 			Subsystem: state.LaunchSubsystemStream,
 			Stream:    stream,
 			Stdin:     options.InitialInput,
@@ -220,7 +220,7 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 	return state.LaunchPlan{
 		Command:   base,
 		StartDir:  startDir,
-		Options:   state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled}},
+		Options:   PreserveLaunchOptions(options, req.Enabled),
 		Subsystem: state.LaunchSubsystemStream,
 		Stream:    stream,
 		Stdin:     options.InitialInput,

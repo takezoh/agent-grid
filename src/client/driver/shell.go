@@ -94,7 +94,7 @@ func (d ShellDriver) PrepareLaunch(s state.DriverState, _ state.LaunchMode, proj
 	return state.LaunchPlan{
 		Command:  strings.TrimSpace(command),
 		StartDir: startDir,
-		Options:  state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled}},
+		Options:  PreserveLaunchOptions(options, req.Enabled),
 		Stdin:    options.InitialInput,
 	}, nil
 }

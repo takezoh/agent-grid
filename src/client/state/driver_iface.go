@@ -330,8 +330,10 @@ const (
 type LaunchOptions struct {
 	Worktree     WorktreeOption `json:"worktree,omitempty"`
 	InitialInput []byte         `json:"initial_input,omitempty"`
-	// Cols and Rows carry terminal size hints from the web API (FR-022).
-	// The runtime bridges these to termvt.Spec on session launch (β scope).
+	// Cols and Rows carry terminal size hints from the web API. Drivers pass
+	// these through verbatim on LaunchPlan/CreateLaunch.Options; the runtime
+	// bridges them to termvt.Spec on PtyBackend.SpawnFrame without reading
+	// them in driver logic.
 	Cols uint16 `json:"cols,omitempty"`
 	Rows uint16 `json:"rows,omitempty"`
 }

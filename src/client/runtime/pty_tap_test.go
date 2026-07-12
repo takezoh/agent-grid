@@ -76,7 +76,7 @@ func spawnFrame(t *testing.T, backend *PtyBackend, command string) string {
 	t.Helper()
 	spawnFrameSeq++
 	frameID := "tap-frame-" + string(rune('a'+spawnFrameSeq%26))
-	if err := backend.SpawnFrame(frameID, "test", command, "", nil); err != nil {
+	if err := backend.SpawnFrame(frameID, "test", command, "", nil, 0, 0); err != nil {
 		t.Fatalf("SpawnFrame: %v", err)
 	}
 	t.Cleanup(func() {

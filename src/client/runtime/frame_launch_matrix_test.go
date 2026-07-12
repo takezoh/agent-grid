@@ -187,9 +187,9 @@ type recordingBackend struct {
 	rec *orderRecorder
 }
 
-func (t *recordingBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string) error {
+func (t *recordingBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string, cols, rows uint16) error {
 	t.rec.add("backend.SpawnFrame")
-	return t.fakeBackend.SpawnFrame(frameID, name, command, startDir, env)
+	return t.fakeBackend.SpawnFrame(frameID, name, command, startDir, env, cols, rows)
 }
 
 // launchHarness wires a Runtime through the real launcher stack for one env.

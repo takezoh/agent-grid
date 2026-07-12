@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -312,6 +313,76 @@ func TestMux_CreateForwardsCmdEvent(t *testing.T) {
 	}
 	if info.ID != "abc" {
 		t.Errorf("response ID = %q, want abc", info.ID)
+	}
+}
+
+// TestApiCreateSessionInvalidCols verifies oversized cols are rejected at the
+// gateway with the spec JSON body before any daemon RPC is sent.
+func TestApiCreateSessionInvalidCols(t *testing.T) {
+	t.Parallel()
+	d, daemon := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+
+	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+		strings.NewReader(`{"project":"/p","command":"sh","cols":99999,"rows":47}`))
+	r.Header.Set("Authorization", "Bearer tok")
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (body %q)", w.Code, w.Body.String())
+	}
+	var body struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "invalid_cols_rows" {
+		t.Fatalf("code = %q, want invalid_cols_rows", body.Code)
+	}
+	if body.Message != "cols must be 0 or 1..2000; got 99999" {
+		t.Fatalf("message = %q", body.Message)
+	}
+	assertNoDaemonRPC(t, daemon)
+}
+
+// TestApiCreateSessionInvalidAsymmetricCols verifies asymmetric hints are rejected.
+func TestApiCreateSessionInvalidAsymmetricCols(t *testing.T) {
+	t.Parallel()
+	d, daemon := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+
+	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+		strings.NewReader(`{"project":"/p","command":"sh","cols":120,"rows":0}`))
+	r.Header.Set("Authorization", "Bearer tok")
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (body %q)", w.Code, w.Body.String())
+	}
+	assertNoDaemonRPC(t, daemon)
+}
+
+// assertNoDaemonRPC verifies the gateway rejected the request before sending
+// a daemon RPC (no bytes arrive on the pipe within a short window).
+func assertNoDaemonRPC(t *testing.T, daemon *fakeDaemon) {
+	t.Helper()
+	_ = daemon.conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+	_, err := daemon.reader.ReadByte()
+	_ = daemon.conn.SetReadDeadline(time.Time{})
+	if err == nil {
+		t.Fatal("daemon received RPC despite gateway rejection")
+	}
+	if !errors.Is(err, os.ErrDeadlineExceeded) && !strings.Contains(err.Error(), "timeout") {
+		// EOF is also fine (connection idle); anything else is unexpected.
+		if !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "EOF") {
+			t.Fatalf("unexpected daemon read err: %v", err)
+		}
 	}
 }
 

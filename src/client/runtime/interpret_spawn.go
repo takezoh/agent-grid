@@ -110,7 +110,7 @@ func spawnFrameWindow(deps spawnDeps, e state.EffSpawnFrame) {
 	name := windowName(e.Project, string(e.FrameID))
 	spawnCmd := buildSpawnCommand(wrapped.Command, e.Stdin)
 	slog.Info("runtime: spawning window", "frame", e.FrameID, "cmd", spawnCmd)
-	if err := deps.backend.SpawnFrame(string(e.FrameID), name, spawnCmd, wrapped.StartDir, wrapped.Env); err != nil {
+	if err := deps.backend.SpawnFrame(string(e.FrameID), name, spawnCmd, wrapped.StartDir, wrapped.Env, e.Options.Cols, e.Options.Rows); err != nil {
 		// wrapLaunchForSpawn already acquired the sandbox/container; the frame never
 		// launched and no EvFrameSpawned/kill path will reach this frame, so
 		// release it here to avoid leaking the container ref + cleanup closure.

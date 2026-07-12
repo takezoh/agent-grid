@@ -99,15 +99,16 @@ func (d GeminiDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 			Command:  command,
 			StartDir: startDir,
 			Stdin:    options.InitialInput,
-			Options:  state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled}},
+			Options:  PreserveLaunchOptions(options, req.Enabled),
 		}, nil
 	}
 	if strings.Contains(command, "--resume") || strings.Contains(command, " -r") {
-		return state.LaunchPlan{Command: command, StartDir: startDir, Stdin: options.InitialInput}, nil
+		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, Stdin: options.InitialInput}, nil
 	}
 	return state.LaunchPlan{
 		Command:  command + " --resume " + gs.GeminiSessionID,
 		StartDir: startDir,
+		Options:  options,
 		Stdin:    options.InitialInput,
 	}, nil
 }

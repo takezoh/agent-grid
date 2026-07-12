@@ -227,6 +227,7 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 				return state.LaunchPlan{
 					Command:               claudecli.ForkCommand(command, cs.ForkParentID),
 					StartDir:              startDir,
+					Options:               PreserveLaunchOptions(options, req.Enabled),
 					ManagedFrameMessaging: true,
 					Stdin:                 options.InitialInput,
 				}, nil
@@ -237,17 +238,17 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 			Command:               command,
 			StartDir:              startDir,
 			Stdin:                 options.InitialInput,
-			Options:               state.LaunchOptions{Worktree: state.WorktreeOption{Enabled: req.Enabled}},
+			Options:               PreserveLaunchOptions(options, req.Enabled),
 			ManagedFrameMessaging: true,
 		}, nil
 	}
 	if strings.Contains(command, "--resume") {
 		slog.Debug("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "already_has_resume")
-		return state.LaunchPlan{Command: command, StartDir: startDir, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
+		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
 	}
 	if !isAlphanumHyphen(cs.ClaudeSessionID) {
 		slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "invalid_session_id")
-		return state.LaunchPlan{Command: command, StartDir: startDir, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
+		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
 	}
 	// sandboxed: transcript_path lives inside the container and is not visible on
 	// the host, so skip both the path check and the existence stat. claude --resume
@@ -256,12 +257,12 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 		path := d.resolveTranscriptPath(cs)
 		if path == "" {
 			slog.Debug("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "no_transcript_path")
-			return state.LaunchPlan{Command: command, StartDir: startDir, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
+			return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
 		}
 		if _, err := os.Stat(path); err != nil {
 			if os.IsNotExist(err) {
 				slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "transcript_not_found", "path", path)
-				return state.LaunchPlan{Command: command, StartDir: startDir, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
+				return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
 			}
 			return state.LaunchPlan{}, err
 		}
@@ -270,7 +271,7 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	return state.LaunchPlan{
 		Command:               command + " --resume " + cs.ClaudeSessionID,
 		StartDir:              startDir,
-		Options:               state.LaunchOptions{},
+		Options:               options,
 		ManagedFrameMessaging: true,
 		Stdin:                 options.InitialInput,
 	}, nil

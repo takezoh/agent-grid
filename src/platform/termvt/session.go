@@ -261,12 +261,12 @@ func closedEventChan() <-chan Event {
 	return ch
 }
 
-// maxDim caps terminal dimensions. A client controls cols/rows (session
+// MaxDim caps terminal dimensions. A client controls cols/rows (session
 // create and resize), so without an upper bound a hostile value would either
 // overflow the uint16 pty winsize fields (65536 wraps to 0 → a zero-width
 // pty) or drive the VT emulator toward an enormous grid allocation (OOM).
 // 2000 is far beyond any real multi-monitor terminal.
-const maxDim = 2000
+const MaxDim = 2000
 
 func normalizeSize(cols, rows int) (int, int) {
 	return clampDim(cols, 80), clampDim(rows, 24)
@@ -277,8 +277,8 @@ func clampDim(d, def int) int {
 	switch {
 	case d <= 0:
 		return def
-	case d > maxDim:
-		return maxDim
+	case d > MaxDim:
+		return MaxDim
 	default:
 		return d
 	}

@@ -63,7 +63,7 @@ func newFakeBackend() *fakeBackend {
 	}
 }
 
-func (f *fakeBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string) error {
+func (f *fakeBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string, _, _ uint16) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.spawnCalls++
@@ -98,11 +98,6 @@ func (f *fakeBackend) ResolveID(target string) (string, error) {
 		return id, nil
 	}
 	return "%main", nil
-}
-func (f *fakeBackend) FrameSize(string) (int, int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.frameWidth, f.frameHeight, nil
 }
 func (f *fakeBackend) SetEnv(k, v string) error {
 	f.mu.Lock()

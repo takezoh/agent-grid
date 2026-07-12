@@ -1,7 +1,9 @@
 package runtime
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -35,10 +37,25 @@ func waitUntil(t *testing.T, pred func() bool) {
 // frameID per call site so they cannot collide in the same Manager.
 func spawn(t *testing.T, b *PtyBackend, frameID, name, command string) string {
 	t.Helper()
-	if err := b.SpawnFrame(frameID, name, command, "", nil); err != nil {
+	return spawnSized(t, b, frameID, name, command, 0, 0)
+}
+
+func spawnSized(t *testing.T, b *PtyBackend, frameID, name, command string, cols, rows uint16) string {
+	t.Helper()
+	if err := b.SpawnFrame(frameID, name, command, "", nil, cols, rows); err != nil {
 		t.Fatalf("SpawnFrame(%q): %v", frameID, err)
 	}
 	return frameID
+}
+
+func withCapturedSpawnLog(t *testing.T, fn func()) string {
+	t.Helper()
+	prev := slog.Default()
+	var buf bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	fn()
+	return buf.String()
 }
 
 // TestPtyBackendSpawnEchoCaptureKill exercises the full data-plane flow:
@@ -264,11 +281,6 @@ func TestPtyBackendUnknownFrameErrors(t *testing.T) {
 	} else {
 		t.Error("CaptureFrame(unknown) error = nil, want non-nil")
 	}
-	if _, _, err := b.FrameSize(unknown); err != nil {
-		wantSentinel("FrameSize", err)
-	} else {
-		t.Error("FrameSize(unknown) error = nil, want non-nil")
-	}
 	if _, err := b.ResolveID(unknown); err != nil {
 		wantSentinel("ResolveID", err)
 	} else {
@@ -479,7 +491,7 @@ func TestPtyBackendWriteSurface(t *testing.T) {
 }
 
 // TestPtyBackendResizeSurface verifies that ResizeSurface updates both the pty
-// winsize and the VT emulator grid so FrameSize reports the new dimensions.
+// winsize and the VT emulator grid so termvt.Session.Size reports the new dimensions.
 func TestPtyBackendResizeSurface(t *testing.T) {
 	b := NewPtyBackend(0)
 	frameID := spawn(t, b, "frame-resize-surface", "t", "sleep 5")
@@ -489,12 +501,49 @@ func TestPtyBackendResizeSurface(t *testing.T) {
 		t.Fatalf("ResizeSurface: %v", err)
 	}
 
-	cols, rows, err := b.FrameSize(frameID)
-	if err != nil {
-		t.Fatalf("FrameSize: %v", err)
+	sess, ok := b.mgr.Get(frameID)
+	if !ok {
+		t.Fatal("mgr.Get after spawn = false")
 	}
+	cols, rows := sess.Size()
 	if cols != 120 || rows != 40 {
-		t.Fatalf("FrameSize = %dx%d, want 120x40", cols, rows)
+		t.Fatalf("Session.Size = %dx%d, want 120x40", cols, rows)
+	}
+}
+
+func TestSpawnFrameWithSizeHint(t *testing.T) {
+	b := NewPtyBackend(0)
+	frameID := spawnSized(t, b, "frame-size-hint", "t", "sleep 5", 120, 40)
+	defer func() { _ = b.KillFrame(frameID) }()
+
+	sess, ok := b.mgr.Get(frameID)
+	if !ok {
+		t.Fatal("mgr.Get after spawn = false")
+	}
+	cols, rows := sess.Size()
+	if cols != 120 || rows != 40 {
+		t.Fatalf("Session.Size = %dx%d, want 120x40", cols, rows)
+	}
+}
+
+func TestSpawnFrameDefaultsToNormalizeSize(t *testing.T) {
+	b := NewPtyBackend(0)
+	var frameID string
+	logs := withCapturedSpawnLog(t, func() {
+		frameID = spawnSized(t, b, "frame-size-default", "t", "sleep 5", 0, 0)
+	})
+	defer func() { _ = b.KillFrame(frameID) }()
+
+	sess, ok := b.mgr.Get(frameID)
+	if !ok {
+		t.Fatal("mgr.Get after spawn = false")
+	}
+	cols, rows := sess.Size()
+	if cols != 80 || rows != 24 {
+		t.Fatalf("Session.Size = %dx%d, want 80x24", cols, rows)
+	}
+	if !strings.Contains(logs, `source=default`) {
+		t.Fatalf("spawn log missing source=default: %q", logs)
 	}
 }
 
@@ -535,7 +584,7 @@ func TestPtyBackendConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			frameID := "concurrent-frame-" + strings.Repeat("a", i+1)
-			if err := b.SpawnFrame(frameID, "w", "cat", "", nil); err != nil {
+			if err := b.SpawnFrame(frameID, "w", "cat", "", nil, 0, 0); err != nil {
 				t.Errorf("SpawnFrame: %v", err)
 				return
 			}

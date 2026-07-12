@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -54,15 +55,23 @@ func NewPtyBackend(scrollbackLines int) *PtyBackend {
 // stays a thin shell host. startDir is currently unused: termvt.Spec has no
 // working-directory field.
 // TODO(B1): thread startDir once termvt.Spec gains a Dir field.
-func (p *PtyBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string) error {
+func (p *PtyBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string, cols, rows uint16) error {
 	if strings.TrimSpace(command) == "" {
 		return fmt.Errorf("runtime: empty command for frame %q", name)
 	}
-	if _, err := p.mgr.Create(frameID, termvt.Spec{
+	spec := termvt.Spec{
 		Argv:            shellArgv(command),
 		Env:             envSlice(env),
+		Cols:            int(cols),
+		Rows:            int(rows),
 		ScrollbackLines: p.scrollbackLines,
-	}); err != nil {
+	}
+	source := "hint"
+	if cols == 0 && rows == 0 {
+		source = "default"
+	}
+	slog.Info("frame spawn size", "frame_id", frameID, "cols", spec.Cols, "rows", spec.Rows, "source", source)
+	if _, err := p.mgr.Create(frameID, spec); err != nil {
 		return err
 	}
 	return nil
@@ -82,9 +91,14 @@ func (p *PtyBackend) KillFrame(target string) error {
 
 // RespawnFrame tears the dead session down and re-creates a session under the
 // same target. It does NOT carry over the session-env store or the original
-// spawn env — respawn launches a fresh process with the default environment —
-// and the new session starts at the default terminal size until the next
-// ResizeSurface.
+// spawn env — respawn launches a fresh process with the default environment.
+//
+// Size: RespawnFrame does not accept a size hint. termvt.Spec is built without
+// Cols/Rows, so normalizeSize falls back to the contractual default 80×24.
+// Production has no RespawnFrame callers today; hint preservation on respawn
+// is out of scope (see adr-20260712-respawn-default-size-fallback and spec
+// Failure Modes respawn-size-loss). When a production respawn consumer appears,
+// supersede that ADR with an explicit hint-inheritance policy.
 //
 // The Manager owns the id→Session map and its own mutex; we never hold p.mu
 // across mgr.Remove / mgr.Create.
@@ -170,16 +184,6 @@ func (p *PtyBackend) ResolveID(target string) (string, error) {
 		return "", fmt.Errorf("runtime: unknown frame %q: %w", target, ErrFrameMissing)
 	}
 	return target, nil
-}
-
-// FrameSize returns the session's current terminal dimensions.
-func (p *PtyBackend) FrameSize(target string) (int, int, error) {
-	sess, ok := p.mgr.Get(target)
-	if !ok {
-		return 0, 0, fmt.Errorf("runtime: unknown frame %q: %w", target, ErrFrameMissing)
-	}
-	cols, rows := sess.Size()
-	return cols, rows, nil
 }
 
 // CaptureFrame returns the trailing nLines of the frame's rendered surface with
