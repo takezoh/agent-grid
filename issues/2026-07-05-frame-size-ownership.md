@@ -1,4 +1,4 @@
-# frame size (cols/rows) の所有権整理 — spawn 時 size hint 未配線と死んだ size API
+# frame size (cols/rows) の初期化整理 — spawn 時 size hint 未配線と死んだ size API
 
 - 作成日: 2026-07-05
 - 対象 layer: `client/` (runtime, state, driver, proto), `platform/termvt`, `server/web`
@@ -10,10 +10,12 @@
 「server に width/height は必要か? client 側で持っていれば良いのでは?」という問いを検証した結果:
 
 - **server 側の size 保持は 2 点で不可欠** (kernel pty winsize / server-side emulator grid)。除去は不可能
-- ただし正しいモデルは「**client が size を決め (authority)、server は kernel と emulator に追従させる (enforcement point)**」であり、これに反する歪みが 3 つ実在する:
+- 正しいモデルは「**Web UI client が size hint を送り、server は kernel と emulator に同じ 1 値を適用する (enforcement point)**」である。複数 viewer の値は current の **last-writer-wins**（Web UI を開いたときの initial fit を含む）として採用する
+- このモデルに反する歪みが 2 つ実在する:
   1. **spawn 時の size hint (FR-022) が未配線** — `LaunchOptions.Cols/Rows` は定義とコメントだけあって消費箇所ゼロ。spawn は常に 80×24 → browser 初回 fit で即 resize
   2. **`FrameSize` backend API に production 呼び出しがない** (テストのみ)
-  3. tap の 1×1 emulator が size 不要なのに full emulator を持つ (→ これは VT issue の第 2 段スコープであり**本 issue では扱わない**)
+
+新規 session を作成した直後、最初に terminal を開いた Web UI は現在 80×24 の grid を受け取る。作成元の device に合った cols/rows で PTY と emulator を開始すれば、この初期表示の小ささと直後の不要な resize を除去できる。
 
 本 issue のスコープは 1 と 2。
 
@@ -24,7 +26,7 @@
 1. **kernel pty winsize**: child TUI (codex/claude) は `TIOCGWINSZ` でサイズを読み `SIGWINCH` で再描画する。winsize は kernel の per-pty state で、pty を所有する server プロセスしか設定できない。browser から kernel に届く経路は存在しない。設定点: `src/platform/termvt/session.go:79` (`pty.StartWithSize`) / `session_deps.go:97` (`SetSize`)
 2. **emulator grid**: ANSI 解釈 (折返し / カーソルアドレッシング / scroll region) はサイズ依存。emulator は reattach seed・cold-start 復元・`CaptureFrame` のために存在し、child が描画したのと同じ size でないと解釈が壊れる
 3. **`CaptureFrame` に production 呼び出しがある**: `src/client/runtime/proto_bridge.go:319`, `interpret.go:219,403`。orchestrator / AI が **browser 不在時に** frame の画面を読む。「client (browser) が持っていれば良い」の直接の反例
-4. **multi-viewer reconcile**: kernel winsize は 1 つ。複数 viewer が別サイズで attach する場合、誰かが 1 値に集約する必要がある。size は per-view ではなく per-pty の状態 (tmux/screen が server 側に size を持つのと同じ理由)
+4. **multi-viewer reconcile**: kernel winsize は 1 つ。複数 viewer が別サイズで attach する場合、誰かが 1 値に集約する必要がある。size は per-view ではなく per-pty の状態 (tmux/screen が server 側に size を持つのと同じ理由)。本プロダクトでは current の last-writer-wins を採用する
 
 ### 「client-only (emulator 廃止 + raw log replay)」が成立しない理由
 
@@ -68,9 +70,10 @@ web API (server/web/mux.go:408 req.Cols/Rows)
 2. driver の `PrepareLaunch`/`PrepareCreate` → `LaunchPlan`/`CreateLaunch` に size を通すか、driver を素通りさせて runtime 側で直接 Spec に渡すかは実装時に判断 (driver は size に関心がないはずなので、素通り経路が筋が良い可能性が高い。state 層の spawn effect に載せる案も含めて要トレース)
 3. `pty_backend.go:61,104` の `termvt.Spec` に Cols/Rows を設定
 4. hint 欠落時 (API が size を送らない場合) は現行どおり `normalizeSize` の 80×24 に fallback
-5. `normalizeSize` の clamp (`maxDim`) が hint にも適用されることを確認 (悪意ある client 対策は既存の仕組みに乗る)
+5. `apiCreateReq` の `int` を `LaunchOptions` の `uint16` へ変換する**前**に、正の値かつ `maxDim` 以下であることを検証する。先に狭い型へ変換すると 65536 以上が wrap し、`normalizeSize` が元の値を clamp できない
+6. 同じ狭い型への変換をする WebSocket resize 経路も、境界で同じ値域を検証する（multi-viewer の last-writer-wins 方針は変更しない）
 
-テスト: spawn 時に hint が pty winsize と emulator grid の両方に反映されること (fakeEmulator/fakePTY で観測可能)。hint なしで 80×24 に fallback すること。
+テスト: spawn 時に hint が pty winsize と emulator grid の両方に反映されること (fakeEmulator/fakePTY で観測可能)。hint なしで 80×24 に fallback すること。境界値を超える HTTP / WebSocket input が narrow conversion 前に拒否されること。
 
 ### B. `FrameSize` API の処遇決定
 
@@ -80,7 +83,7 @@ web API (server/web/mux.go:408 req.Cols/Rows)
 
 - **tap の 1×1 emulator 撤去・`Emulator` interface 分割**: VT issue の第 2 段 (別 issue 予定) の領分
 - **VT bounds bug 対応**: 上流 lib 側の修正で解消済み。`forks/` に触る必要はない
-- **multi-viewer の size reconcile ポリシー** (現状 last-writer-wins): 実害の報告がない限り現状維持
+- **multi-viewer の size reconcile ポリシー変更**: current の last-writer-wins を採用する。接続中 viewer ごとの ownership / max-size 集約は導入しない
 
 ## 関連 file 参照
 
