@@ -124,8 +124,10 @@ func (r *Runner) startRunLoop(workerCtx context.Context, lr *launchResult, issue
 		worker:        worker,
 		emit:          emit,
 	}
-	go r.runLoop(workerCtx, wp)
-
+	// EventSessionStarted must be emitted before runLoop starts: runLoop emits
+	// turn_completed from its own goroutine, and starting it first races the
+	// two emits against each other, letting turn_completed land before
+	// session_started (observed under -race as a flaky ordering failure).
 	emit(Event{
 		Kind:      EventSessionStarted,
 		SessionID: ids.sessionID(),
@@ -133,6 +135,8 @@ func (r *Runner) startRunLoop(workerCtx context.Context, lr *launchResult, issue
 		TurnID:    ids.turnID,
 		Timestamp: time.Now(),
 	})
+
+	go r.runLoop(workerCtx, wp)
 
 	return scheduler.SpawnResult{
 		Session: scheduler.LiveSession{
