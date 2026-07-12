@@ -28,6 +28,7 @@ type Client struct {
 	pending   map[string]chan inFlight
 
 	events chan ServerEvent
+	pushes chan PushNotification
 
 	closeOnce sync.Once
 	closed    chan struct{}
@@ -40,6 +41,13 @@ type Client struct {
 type inFlight struct {
 	Body Response
 	Err  *ErrorBody
+}
+
+// PushNotification is a server-initiated response that is not paired with a
+// client req_id. Gateways translate these into browser-observable signals.
+type PushNotification struct {
+	Cmd  string
+	Body Response
 }
 
 // Dial opens a Unix socket connection to the daemon and starts the
@@ -61,6 +69,7 @@ func DialConn(conn net.Conn) *Client {
 		gen:     NewReqIDGen(),
 		pending: map[string]chan inFlight{},
 		events:  make(chan ServerEvent, 64),
+		pushes:  make(chan PushNotification, 16),
 		closed:  make(chan struct{}),
 	}
 	go c.read()
@@ -86,6 +95,10 @@ func (c *Client) Close() error {
 // Events returns the channel ServerEvent values arrive on. The
 // channel is closed when the client disconnects.
 func (c *Client) Events() <-chan ServerEvent { return c.events }
+
+// Pushes returns server-initiated responses (empty req_id) such as
+// surface-unsubscribe severance notifications.
+func (c *Client) Pushes() <-chan PushNotification { return c.pushes }
 
 // Send writes a typed command and waits for the response. The reply
 // is decoded into a typed Response value of the appropriate variant.
@@ -177,6 +190,7 @@ func (c *Client) writeFrame(payload []byte) error {
 // (resp) or the events channel (evt).
 func (c *Client) read() {
 	defer close(c.events)
+	defer close(c.pushes)
 	dec := json.NewDecoder(c.conn)
 	for {
 		var env Envelope
@@ -219,6 +233,7 @@ func (c *Client) dispatchResponse(env Envelope) {
 	}
 	c.pendingMu.Unlock()
 	if !ok {
+		c.dispatchPush(env)
 		return
 	}
 
@@ -237,6 +252,22 @@ func (c *Client) dispatchResponse(env Envelope) {
 		return
 	}
 	ch <- inFlight{Body: body}
+}
+
+func (c *Client) dispatchPush(env Envelope) {
+	if env.Status == StatusError || env.Cmd == "" {
+		return
+	}
+	body, err := DecodeResponseByCommand(env)
+	if err != nil {
+		slog.Warn("proto: push response decode error", "cmd", env.Cmd, "err", err)
+		return
+	}
+	select {
+	case c.pushes <- PushNotification{Cmd: env.Cmd, Body: body}:
+	default:
+		slog.Warn("proto: push channel full, dropping", "cmd", env.Cmd)
+	}
 }
 
 // Error returns the error string for ErrorBody so it satisfies the

@@ -384,7 +384,7 @@ func TestSendSpawnComplete_unblocksOnShutdown(t *testing.T) {
 	// Fill the internal channel to capacity so the next send would block.
 	for {
 		select {
-		case r.internalCh <- internalStartRestoredTaps{}:
+		case r.internalChBulk <- internalStartRestoredTaps{}:
 			continue
 		default:
 		}

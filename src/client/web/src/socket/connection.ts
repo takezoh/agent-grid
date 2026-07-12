@@ -191,6 +191,10 @@ export class Connection {
     // ControlFrame: code is int (omitted when 0), data carries event payload string
     if (frame.data === "daemon-disconnected") {
       useDaemonStore.getState().setDaemonDisconnected(true);
+      return;
+    }
+    if (frame.data === "surface-unsubscribed" && frame.sessionId) {
+      this.terminalSubscriptions.onSurfaceSevered(frame.sessionId);
     }
   }
 

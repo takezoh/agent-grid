@@ -29,6 +29,7 @@ func newFakeServer(t *testing.T) (*Client, *fakeServer) {
 		gen:     NewReqIDGen(),
 		pending: map[string]chan inFlight{},
 		events:  make(chan ServerEvent, 16),
+		pushes:  make(chan PushNotification, 16),
 		closed:  make(chan struct{}),
 	}
 	go c.read()
@@ -209,10 +210,18 @@ func TestDecodeResponseByCommandHeuristics(t *testing.T) {
 			data: nil,
 			want: "RespOK",
 		},
+		{
+			name: "surface-unsubscribed-push",
+			data: mustMarshal(RespSurfaceUnsubscribed{SessionID: "s1"}),
+			want: "RespSurfaceUnsubscribed",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env := Envelope{Type: TypeResponse, Status: StatusOK, Data: tc.data}
+			if tc.name == "surface-unsubscribed-push" {
+				env.Cmd = CmdNameSurfaceUnsubscribe
+			}
 			r, err := DecodeResponseByCommand(env)
 			if err != nil {
 				t.Fatalf("decode: %v", err)
@@ -247,6 +256,8 @@ func typeName(r Response) string {
 		return "RespDriverList"
 	case RespSessionMessages:
 		return "RespSessionMessages"
+	case RespSurfaceUnsubscribed:
+		return "RespSurfaceUnsubscribed"
 	}
 	return "unknown"
 }

@@ -57,7 +57,7 @@ func (r *Runtime) TestQuiesce(timeout time.Duration) error {
 		remaining := time.Until(deadline)
 		timer := time.NewTimer(remaining)
 		select {
-		case r.internalCh <- barrier:
+		case r.internalChBulk <- barrier:
 		case <-timer.C:
 			return fmt.Errorf("runtime test quiesce enqueue timed out after %v", timeout)
 		}
@@ -84,7 +84,8 @@ func (r *Runtime) TestQuiesce(timeout time.Duration) error {
 
 func (r *Runtime) quiesced() bool {
 	return len(r.eventCh) == 0 &&
-		len(r.internalCh) == 0 &&
+		len(r.internalChInteractive) == 0 &&
+		len(r.internalChBulk) == 0 &&
 		len(r.pendingSpawns) == 0 &&
 		(r.workers == nil || r.workers.Idle())
 }

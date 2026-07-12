@@ -97,8 +97,9 @@ type Runtime struct {
 	// loop-owned state field directly.
 	published atomic.Pointer[state.State]
 
-	eventCh    chan state.Event   // public events from any goroutine
-	internalCh chan internalEvent // runtime-internal lifecycle (conn open/close)
+	eventCh               chan state.Event // public events from any goroutine
+	internalChInteractive chan internalEvent
+	internalChBulk        chan internalEvent
 
 	workers *worker.Pool
 
@@ -256,7 +257,8 @@ func New(cfg Config) *Runtime {
 		cfg:                cfg,
 		state:              initial,
 		eventCh:            make(chan state.Event, 256),
-		internalCh:         make(chan internalEvent, 64),
+		internalChInteractive: make(chan internalEvent, ipcOutboxLaneSize),
+		internalChBulk:        make(chan internalEvent, ipcOutboxLaneSize),
 		conns:              map[state.ConnID]*ipcConn{},
 		done:               make(chan struct{}),
 		workspaceResolver:  config.NewWorkspaceResolver(),
@@ -440,7 +442,7 @@ func (r *Runtime) ackShutdown() {
 
 // SetRelay registers a FileRelay with the runtime via the event loop.
 func (r *Runtime) SetRelay(fr *FileRelay) {
-	r.internalCh <- internalSetRelay{relay: fr}
+	r.internalChBulk <- internalSetRelay{relay: fr}
 }
 
 // StartTapsForRestoredFrames attaches a frame tap to each frame that was
@@ -495,6 +497,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 		"workers", r.cfg.Workers)
 
 	for {
+		r.drainInteractiveInternal()
 		select {
 		case <-ctx.Done():
 			slog.Info("runtime: event loop stopping (ctx done)")
@@ -506,7 +509,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 			}
 			r.dispatch(ev)
 
-		case iev := <-r.internalCh:
+		case iev := <-r.internalChInteractive:
+			r.dispatchInternal(iev)
+		case iev := <-r.internalChBulk:
 			r.dispatchInternal(iev)
 
 		case t := <-ticker.C:

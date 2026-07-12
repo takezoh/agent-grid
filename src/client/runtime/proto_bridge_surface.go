@@ -34,7 +34,9 @@ func (r *Runtime) broadcastSurfaceOutput(e state.EffBroadcastSurfaceOutput) {
 				slog.Error("runtime: encode surface output failed", "err", err)
 				continue
 			}
-			r.queueWireToConn(connID, wire, proto.EvtNameSurfaceOutput)
+			r.queueWireToConn(connID, wire, proto.EvtNameSurfaceOutput, subscriptionKey(
+				connID, subscription.SessionID, subscription.SubscriberID,
+			))
 		}
 	}
 }
@@ -55,7 +57,9 @@ func (r *Runtime) broadcastSurfaceFromInternal(ev internalBroadcastSurface) {
 		slog.Error("runtime: encode surface output (internal) failed", "err", err)
 		return
 	}
-	r.queueWireToConn(ev.ConnID, wire, proto.EvtNameSurfaceOutput)
+	r.queueWireToConn(ev.ConnID, wire, proto.EvtNameSurfaceOutput, subscriptionKey(
+		ev.ConnID, ev.SessionID, ev.SubscriberID,
+	))
 }
 
 // broadcastPromptEvent delivers EvtPromptEvent to all ConnIDs subscribed to
@@ -81,7 +85,9 @@ func (r *Runtime) broadcastPromptEvent(e state.EffBroadcastPromptEvent) {
 	for connID, sessions := range r.state.SurfaceSubs {
 		for subscription := range sessions {
 			if subscription.SessionID == sessionID {
-				r.queueWireToConn(connID, wire, proto.EvtNamePromptEvent)
+				r.queueWireToConn(connID, wire, proto.EvtNamePromptEvent, subscriptionKey(
+					connID, subscription.SessionID, subscription.SubscriberID,
+				))
 				break
 			}
 		}
@@ -101,18 +107,12 @@ func (r *Runtime) sessionIDForFrame(frameID state.FrameID) state.SessionID {
 	return ""
 }
 
-// queueWireToConn enqueues raw wire bytes on a specific ConnID's outbox.
-// Non-blocking: drops with a warning if the outbox is full or the conn is gone.
-func (r *Runtime) queueWireToConn(connID state.ConnID, wire []byte, eventName string) {
+// queueWireToConn enqueues raw wire bytes on a specific ConnID's outbox lane.
+// Interactive surface events sever the attributed subscription on overflow.
+func (r *Runtime) queueWireToConn(connID state.ConnID, wire []byte, eventName string, sub SubscriptionKey) {
 	cc, ok := r.conns[connID]
 	if !ok {
 		return
 	}
-	select {
-	case cc.outbox <- wire:
-	case <-cc.done:
-	default:
-		slog.Warn("runtime: conn outbox full, dropping surface event",
-			"conn", connID, "event", eventName)
-	}
+	r.queueWireLane(cc, wire, isInteractiveWireEvent(eventName), sub)
 }

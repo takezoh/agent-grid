@@ -67,8 +67,8 @@ func TestInternalDropCounter_concurrent(t *testing.T) {
 // false on a saturated channel and bumps the per-type counter.
 func TestEnqueueInternal_dropsCountAndReturnsFalse(t *testing.T) {
 	r := New(Config{Backend: newFakeBackend()})
-	// Saturate internalCh without ever draining it (no Run loop): fill to cap.
-	for i := 0; i < cap(r.internalCh); i++ {
+	// Saturate internal bulk lane without ever draining it (no Run loop).
+	for i := 0; i < cap(r.internalChBulk); i++ {
 		if !r.enqueueInternal(internalStartRestoredTaps{}) {
 			t.Fatalf("unexpected drop while filling (iteration %d)", i)
 		}

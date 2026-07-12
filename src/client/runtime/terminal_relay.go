@@ -39,6 +39,7 @@ type surfaceSub struct {
 	subID   int           // termvt subscriber id returned by SubscribeSurface
 	cancel  chan struct{} // closed to stop the fan-out goroutine early
 	seq     uint64        // next Sequence value to emit (subscribe-scoped, resets on re-subscribe)
+	relay   chan internalBroadcastSurface
 }
 
 // TerminalRelay manages per-(ConnID, SessionID, SubscriberID) subscriptions to termvt
@@ -55,8 +56,7 @@ type TerminalRelay struct {
 	// send posts an internal event onto the runtime event loop. TerminalRelay
 	// holds only this bound function (not *Runtime) so its fan-out goroutines
 	// cannot touch loop-owned state directly. Returns true on accept, false on
-	// drop — TerminalRelay ignores the return because realtime surface chunks
-	// are best-effort by design.
+	// drop — a false return triggers per-subscription severance.
 	send    func(internalEvent) bool
 	sendNow func(internalEvent)
 	startTS time.Time // base for TimeSec computation
@@ -64,7 +64,8 @@ type TerminalRelay struct {
 	mu   sync.Mutex
 	subs map[surfaceKey]*surfaceSub
 
-	subscriberBuffer int
+	subscriberBuffer   int
+	severanceThreshold int
 }
 
 const defaultTerminalRelaySubscriberBuffer = 256
@@ -82,6 +83,16 @@ func WithTerminalRelaySubscriberBuffer(size int) TerminalRelayOption {
 	}
 }
 
+// WithSeveranceThreshold overrides the per-subscription relay backlog limit
+// before a subscription is severed. Non-positive values are ignored.
+func WithSeveranceThreshold(size int) TerminalRelayOption {
+	return func(tr *TerminalRelay) {
+		if size > 0 {
+			tr.severanceThreshold = size
+		}
+	}
+}
+
 // NewTerminalRelay creates a TerminalRelay that forwards surface events via send.
 // send is typically rt.enqueueInternal, bound at construction time.
 func NewTerminalRelay(
@@ -91,12 +102,13 @@ func NewTerminalRelay(
 	opts ...TerminalRelayOption,
 ) *TerminalRelay {
 	tr := &TerminalRelay{
-		backend:          b,
-		send:             send,
-		sendNow:          sendNow,
-		startTS:          time.Now(),
-		subs:             make(map[surfaceKey]*surfaceSub),
-		subscriberBuffer: defaultTerminalRelaySubscriberBuffer,
+		backend:            b,
+		send:                 send,
+		sendNow:              sendNow,
+		startTS:              time.Now(),
+		subs:                 make(map[surfaceKey]*surfaceSub),
+		subscriberBuffer:     defaultTerminalRelaySubscriberBuffer,
+		severanceThreshold:   defaultSeveranceThreshold,
 	}
 	for _, opt := range opts {
 		opt(tr)
@@ -129,6 +141,7 @@ func (tr *TerminalRelay) SubscribeOwned(connID state.ConnID, sessionID state.Ses
 		frameID: frameID,
 		subID:   id,
 		cancel:  make(chan struct{}),
+		relay:   make(chan internalBroadcastSurface, tr.severanceThreshold),
 	}
 
 	tr.mu.Lock()
@@ -141,6 +154,7 @@ func (tr *TerminalRelay) SubscribeOwned(connID state.ConnID, sessionID state.Ses
 	tr.subs[key] = sub
 	tr.mu.Unlock()
 
+	go tr.relayForward(key, sub)
 	go tr.fanOut(key, sub, ch)
 	return nil
 }
@@ -201,6 +215,13 @@ func (tr *TerminalRelay) hasSubscription(connID state.ConnID, sessionID state.Se
 	return tr.hasOwnedSubscription(connID, sessionID, "")
 }
 
+func (tr *TerminalRelay) isActiveSub(key surfaceKey, sub *surfaceSub) bool {
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	cur, ok := tr.subs[key]
+	return ok && cur == sub
+}
+
 func (tr *TerminalRelay) hasOwnedSubscription(connID state.ConnID, sessionID state.SessionID, subscriberID state.SubscriberID) bool {
 	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
 
@@ -209,6 +230,31 @@ func (tr *TerminalRelay) hasOwnedSubscription(connID state.ConnID, sessionID sta
 
 	_, ok := tr.subs[key]
 	return ok
+}
+
+// SeverOwned stops one subscription due to shared-hop backpressure. Idempotent
+// for unknown keys. Other hops call this instead of reimplementing severance.
+func (tr *TerminalRelay) SeverOwned(connID state.ConnID, sessionID state.SessionID, subscriberID state.SubscriberID) {
+	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
+
+	tr.mu.Lock()
+	sub, ok := tr.subs[key]
+	if !ok {
+		tr.mu.Unlock()
+		return
+	}
+	delete(tr.subs, key)
+	tr.mu.Unlock()
+
+	close(sub.cancel)
+	_ = tr.backend.UnsubscribeSurface(sub.frameID, sub.subID)
+	tr.sendNow(internalSurfaceClosed{
+		ConnID:       key.connID,
+		SessionID:    key.sessionID,
+		SubscriberID: key.subscriberID,
+		FrameID:      sub.frameID,
+		SubID:        sub.subID,
+	})
 }
 
 // Write forwards raw bytes to the frame's pty. No carriage return is appended;
@@ -236,10 +282,37 @@ func (tr *TerminalRelay) Close() {
 	}
 }
 
+// relayForward drains a subscription's dedicated relay buffer onto the shared
+// internal channel. A drop on the shared hop severs only this subscription.
+func (tr *TerminalRelay) relayForward(key surfaceKey, sub *surfaceSub) {
+	backlog := 0
+	for {
+		select {
+		case <-sub.cancel:
+			return
+		case ev := <-sub.relay:
+			if !tr.isActiveSub(key, sub) {
+				return
+			}
+			if tr.send(ev) {
+				if backlog > 0 {
+					backlog--
+				}
+				continue
+			}
+			backlog++
+			if backlog >= tr.severanceThreshold {
+				tr.SeverOwned(key.connID, key.sessionID, key.subscriberID)
+				return
+			}
+		}
+	}
+}
+
 // fanOut runs in a dedicated goroutine per subscription. It receives termvt
 // events from ch, copies EventOutput payloads into internalBroadcastSurface,
-// and enqueues them on the runtime event loop. When the channel is closed
-// (slow-close by termvt on process exit) it emits one internalSurfaceClosed
+// and enqueues them on the per-subscription relay buffer. When the channel is
+// closed (slow-close by termvt on process exit) it emits one internalSurfaceClosed
 // and exits. When cancel is closed (Unsubscribe / Close) it exits immediately.
 func (tr *TerminalRelay) fanOut(key surfaceKey, sub *surfaceSub, ch <-chan termvt.Event) {
 	for {
@@ -268,23 +341,26 @@ func (tr *TerminalRelay) fanOut(key surfaceKey, sub *surfaceSub, ch <-chan termv
 			data := make([]byte, len(ev.Data))
 			copy(data, ev.Data)
 
-			// sub.seq is owned exclusively by this fanOut goroutine — no
-			// other goroutine reads or writes it for the same key
-			// (Subscribe / Unsubscribe manage the map under tr.mu, but each
-			// fanOut owns its sub pointer for its lifetime). Taking tr.mu
-			// here serialised every output event against unrelated
-			// Subscribe / Unsubscribe traffic for no correctness benefit.
+			if !tr.isActiveSub(key, sub) {
+				return
+			}
+
 			seq := sub.seq
 			sub.seq++
 
-			_ = tr.send(internalBroadcastSurface{
+			select {
+			case sub.relay <- internalBroadcastSurface{
 				ConnID:       key.connID,
 				SessionID:    key.sessionID,
 				SubscriberID: key.subscriberID,
 				Data:         data,
 				TimeSec:      time.Since(tr.startTS).Seconds(),
 				Sequence:     seq,
-			})
+			}:
+			default:
+				tr.SeverOwned(key.connID, key.sessionID, key.subscriberID)
+				return
+			}
 		}
 	}
 }

@@ -632,6 +632,7 @@ func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
 		router.send,
 		func(ev internalEvent) { _ = router.send(ev) },
 		WithTerminalRelaySubscriberBuffer(1),
+		WithSeveranceThreshold(1),
 	)
 	defer tr.Close()
 

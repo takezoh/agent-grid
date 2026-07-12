@@ -94,7 +94,7 @@ func newTestRuntimeWithConns(t *testing.T, ids ...state.ConnID) (*Runtime, map[s
 		t.Cleanup(func() { srv.Close() })
 		cc := newIPCConn(id, srv)
 		r.conns[id] = cc
-		outboxes[id] = cc.outbox
+		outboxes[id] = cc.outboxInteractive
 	}
 	return r, outboxes
 }

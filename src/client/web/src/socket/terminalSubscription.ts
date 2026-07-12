@@ -92,6 +92,13 @@ export class TerminalSubscriptionController {
     this.publish();
   }
 
+  onSurfaceSevered(sessionId: string): void {
+    if (!this.connected || this.wireSessionId !== sessionId) return;
+    this.wireSessionId = null;
+    this.publish();
+    this.schedule();
+  }
+
   snapshot(): TerminalSubscriptionSnapshot {
     return {
       sessionId: this.desired?.sessionId ?? null,

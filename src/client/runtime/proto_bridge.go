@@ -41,9 +41,27 @@ func (r *Runtime) sendResponseSync(e state.EffSendResponseSync) {
 	if !ok {
 		return
 	}
-	wire, err := r.encodeResponse(e.ReqID, e.Body)
+	wire, err := r.encodeResponseWire(e.ReqID, e.Body)
 	if err != nil {
 		slog.Error("runtime: encode sync response failed", "err", err)
+		return
+	}
+	interactive := false
+	if _, ok := e.Body.(state.SurfaceUnsubscribedReply); ok {
+		interactive = true
+	}
+	if interactive {
+		select {
+		case cc.outboxInteractive <- wire:
+		case <-cc.done:
+		default:
+			// Severance notifications must not be dropped silently; block until
+			// the interactive lane accepts the push or the connection closes.
+			select {
+			case cc.outboxInteractive <- wire:
+			case <-cc.done:
+			}
+		}
 		return
 	}
 	if err := r.writeWire(cc, wire); err != nil {
@@ -52,7 +70,16 @@ func (r *Runtime) sendResponseSync(e state.EffSendResponseSync) {
 }
 
 func (r *Runtime) encodeResponse(reqID string, body any) ([]byte, error) {
+	return r.encodeResponseWire(reqID, body)
+}
+
+func (r *Runtime) encodeResponseWire(reqID string, body any) ([]byte, error) {
 	resp := r.translateResponseBody(body)
+	if reqID == "" {
+		if _, ok := body.(state.SurfaceUnsubscribedReply); ok {
+			return proto.EncodePushResponse(proto.CmdNameSurfaceUnsubscribe, resp)
+		}
+	}
 	return proto.EncodeResponse(reqID, resp)
 }
 
@@ -78,6 +105,11 @@ func (r *Runtime) translateResponseBody(body any) proto.Response {
 		return r.buildDriverList()
 	case state.SessionMessagesReply:
 		return r.buildSessionMessages(b)
+	case state.SurfaceUnsubscribedReply:
+		return proto.RespSurfaceUnsubscribed{
+			SessionID:    string(b.SessionID),
+			SubscriberID: string(b.SubscriberID),
+		}
 	}
 	slog.Warn("runtime: unknown response body type, sending RespOK",
 		"type", typeNameOf(body))
@@ -192,10 +224,8 @@ func (r *Runtime) broadcastWire(wire []byte, eventName string) {
 		if !ok {
 			continue
 		}
-		// Outbox sends are non-blocking via queueWire — slow clients
-		// drop, fast ones receive.
 		select {
-		case cc.outbox <- wire:
+		case cc.outboxBulk <- wire:
 		case <-cc.done:
 		default:
 			slog.Warn("runtime: subscriber outbox full, dropping",

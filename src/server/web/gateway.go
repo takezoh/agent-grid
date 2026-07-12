@@ -43,6 +43,9 @@ type Attacher interface {
 	// (sessions-changed) and returns a channel of ServerEvent.
 	// The returned channel is closed on disconnect.
 	SubscribeLifecycle(ctx context.Context) (<-chan proto.ServerEvent, error)
+	// PushChannelFor returns pre-encoded WS control frames paired with the
+	// events channel returned by SubscribeLifecycle (server-initiated severance).
+	PushChannelFor(eventsCh <-chan proto.ServerEvent) <-chan []byte
 }
 
 // DaemonAdapter implements Attacher on top of DaemonClient.
@@ -122,6 +125,10 @@ func (a *DaemonAdapter) SubscribeLifecycle(ctx context.Context) (<-chan proto.Se
 		return nil, err
 	}
 	return ch, nil
+}
+
+func (a *DaemonAdapter) PushChannelFor(eventsCh <-chan proto.ServerEvent) <-chan []byte {
+	return a.d.PushChannelFor(eventsCh)
 }
 
 // writeTypedClose sends a WebSocket StatusGoingAway typed close frame.
@@ -245,6 +252,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 		writeTypedClose(c, "lifecycle-subscribe-failed")
 		return err
 	}
+	pushCh := sess.PushChannelFor(ch)
 	subs := newLifecycleSubSet()
 	subscriberID := "web-" + strconv.FormatUint(lifecycleSubscriberCounter.Add(1), 10)
 	defer func() {
@@ -261,6 +269,15 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case frame, ok := <-pushCh:
+			if !ok {
+				_ = c.Write(ctx, websocket.MessageText, controlFrame(0, "daemon-disconnected"))
+				writeTypedClose(c, "daemon-disconnected")
+				return errDaemonGone
+			}
+			if err := c.Write(ctx, websocket.MessageText, frame); err != nil {
+				return err
+			}
 		case ev, ok := <-ch:
 			if !ok {
 				_ = c.Write(ctx, websocket.MessageText, controlFrame(0, "daemon-disconnected"))

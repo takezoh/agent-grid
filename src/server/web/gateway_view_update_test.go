@@ -73,6 +73,10 @@ func (f *fakeLifecycleAttacher) Resize(_ context.Context, _ string, _ uint16, _ 
 	return nil
 }
 
+func (f *fakeLifecycleAttacher) PushChannelFor(_ <-chan proto.ServerEvent) <-chan []byte {
+	return make(chan []byte) // open, idle — avoids spurious daemon-disconnect in select
+}
+
 // startLifecycleServer starts an httptest server that calls AttachLifecycleWS
 // directly (no ticket check) so tests can dial without auth plumbing.
 func startLifecycleServer(t *testing.T, sess Attacher) *httptest.Server {

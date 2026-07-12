@@ -48,6 +48,7 @@ export function parseServerFrame(raw: string): ServerFrame | null {
         k: "c" as const,
         ...(typeof obj.code === "number" ? { code: obj.code } : {}),
         ...(typeof obj.data === "string" ? { data: obj.data } : {}),
+        ...(typeof obj.sessionId === "string" ? { sessionId: obj.sessionId } : {}),
       };
     }
     case "h": {

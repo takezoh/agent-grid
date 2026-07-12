@@ -37,6 +37,23 @@ func EncodeResponse(reqID string, r Response) ([]byte, error) {
 	return json.Marshal(env)
 }
 
+// EncodePushResponse returns wire bytes for a server-initiated response that
+// is not paired with a client req_id. Cmd names the originating command so
+// receivers can route the push without guessing from the body shape.
+func EncodePushResponse(cmd string, r Response) ([]byte, error) {
+	data, err := json.Marshal(r)
+	if err != nil {
+		return nil, fmt.Errorf("proto: marshal push response data: %w", err)
+	}
+	env := Envelope{
+		Type:   TypeResponse,
+		Cmd:    cmd,
+		Status: StatusOK,
+		Data:   data,
+	}
+	return json.Marshal(env)
+}
+
 // EncodeError returns the wire bytes for an error response.
 func EncodeError(reqID string, code ErrCode, message string, details map[string]any) ([]byte, error) {
 	env := Envelope{
@@ -172,10 +189,20 @@ func DecodeResponse(env Envelope, target Response) error {
 }
 
 // DecodeResponseByCommand picks the right Response variant for the
-// envelope's data. Without the original command name in the response
-// envelope, we use a heuristic: try the richest variants first
-// (RespCreateSession / RespSessions), fall back to RespOK on empty data.
+// envelope's data. When env.Cmd is set (server-initiated push responses),
+// command-name dispatch takes precedence over body-shape heuristics.
+// Request/response pairs without Cmd continue to use the heuristic path.
 func DecodeResponseByCommand(env Envelope) (Response, error) {
+	if env.Cmd != "" {
+		switch env.Cmd {
+		case CmdNameSurfaceUnsubscribe:
+			var r RespSurfaceUnsubscribed
+			if err := json.Unmarshal(env.Data, &r); err != nil {
+				return nil, fmt.Errorf("proto: unmarshal %s response: %w", env.Cmd, err)
+			}
+			return r, nil
+		}
+	}
 	if len(env.Data) == 0 {
 		return RespOK{}, nil
 	}
@@ -205,6 +232,10 @@ func DecodeResponseByCommand(env Envelope) (Response, error) {
 		var r RespFrameRead
 		return decodeResponse(env.Data, &r)
 	case has(probe, "session_id"):
+		if has(probe, "subscriber_id") {
+			var r RespSurfaceUnsubscribed
+			return decodeResponse(env.Data, &r)
+		}
 		var r RespCreateSession
 		return decodeResponse(env.Data, &r)
 	case has(probe, "sessions"):

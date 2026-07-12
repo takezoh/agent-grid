@@ -8,6 +8,14 @@ type SurfaceReadTextReply struct {
 	Lines     int
 }
 
+// SurfaceUnsubscribedReply is the marker passed to EffSendResponseSync.Body
+// when the daemon server-initiates a surface unsubscribe (backpressure severance
+// or termvt slow-close). Runtime encodes it as proto.RespSurfaceUnsubscribed.
+type SurfaceUnsubscribedReply struct {
+	SessionID    SessionID
+	SubscriberID SubscriberID
+}
+
 // DriverListReply is the marker passed to EffSendResponseSync.Body for
 // driver.list. The runtime builds the response from the driver registry.
 type DriverListReply struct{}
@@ -121,10 +129,22 @@ func reduceSurfaceUnsubscribe(s State, e EvCmdSurfaceUnsubscribe) (State, []Effe
 	if len(s.SurfaceSubs[e.ConnID]) == 0 {
 		delete(s.SurfaceSubs, e.ConnID)
 	}
-	return s, []Effect{
+	effs := []Effect{
 		EffSurfaceSubscribeStop{ConnID: e.ConnID, SessionID: sid, SubscriberID: e.SubscriberID},
-		okResp(e.ConnID, e.ReqID, nil),
 	}
+	if e.ReqID == "" {
+		effs = append(effs, EffSendResponseSync{
+			ConnID: e.ConnID,
+			ReqID:  "",
+			Body: SurfaceUnsubscribedReply{
+				SessionID:    sid,
+				SubscriberID: e.SubscriberID,
+			},
+		})
+	} else {
+		effs = append(effs, okResp(e.ConnID, e.ReqID, nil))
+	}
+	return s, effs
 }
 
 func reduceSurfaceResize(s State, e EvCmdSurfaceResize) (State, []Effect) {

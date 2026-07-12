@@ -25,20 +25,22 @@ import (
 type ipcConn struct {
 	id      state.ConnID
 	conn    net.Conn
-	outbox  chan []byte
+	outboxInteractive chan []byte
+	outboxBulk        chan []byte
 	done    chan struct{}
 	once    sync.Once
 	writeMu sync.Mutex
 }
 
-const ipcOutboxSize = 64
+const ipcOutboxLaneSize = 32
 
 func newIPCConn(id state.ConnID, conn net.Conn) *ipcConn {
 	return &ipcConn{
-		id:     id,
-		conn:   conn,
-		outbox: make(chan []byte, ipcOutboxSize),
-		done:   make(chan struct{}),
+		id:                id,
+		conn:              conn,
+		outboxInteractive: make(chan []byte, ipcOutboxLaneSize),
+		outboxBulk:        make(chan []byte, ipcOutboxLaneSize),
+		done:              make(chan struct{}),
 	}
 }
 
@@ -171,6 +173,20 @@ type internalSpawnComplete struct {
 
 func (internalSpawnComplete) isInternalEvent() {}
 
+// drainInteractiveInternal empties the interactive internal lane before the
+// loop services bulk traffic, preventing surface-output bursts from starving
+// unrelated control-plane work (FR-006/FR-007).
+func (r *Runtime) drainInteractiveInternal() {
+	for {
+		select {
+		case iev := <-r.internalChInteractive:
+			r.dispatchInternal(iev)
+		default:
+			return
+		}
+	}
+}
+
 // dispatchInternal handles runtime-internal events.
 func (r *Runtime) dispatchInternal(ev internalEvent) {
 	switch e := ev.(type) {
@@ -253,10 +269,18 @@ func (r *Runtime) startRestoredTaps() {
 // Every drop is also counted per-event-type via internalDrops so saturation
 // causes can be attributed via InternalDropStats.
 func (r *Runtime) enqueueInternal(ev internalEvent) bool {
+	ch := r.internalChBulk
+	if isInteractiveInternal(ev) {
+		ch = r.internalChInteractive
+	}
 	select {
-	case r.internalCh <- ev:
+	case ch <- ev:
 		return true
 	default:
+		if key, ok := subscriptionKeyFromInternal(ev); ok {
+			r.severSurfaceSubscription(key)
+			return false
+		}
 		name := internalEventName(ev)
 		if r.internalDrops != nil {
 			r.internalDrops.inc(name)
@@ -393,14 +417,18 @@ func (c *internalDropCounter) snapshot() map[string]uint64 {
 // accepts it or the daemon shuts down (r.done), so it never leaks a goroutine.
 func (r *Runtime) sendSpawnComplete(ev internalEvent) {
 	select {
-	case r.internalCh <- ev:
+	case r.internalChBulk <- ev:
 	case <-r.done:
 	}
 }
 
 func (r *Runtime) sendInternalNow(ev internalEvent) {
+	ch := r.internalChBulk
+	if isInteractiveInternal(ev) {
+		ch = r.internalChInteractive
+	}
 	select {
-	case r.internalCh <- ev:
+	case ch <- ev:
 	case <-r.done:
 	}
 }
@@ -556,13 +584,28 @@ func (r *Runtime) frameSourceForToken(token string) (state.FrameID, error) {
 	return source, nil
 }
 
-// connWriter drains the outbox and writes wire bytes to the socket.
+// connWriter drains the outbox lanes with interactive priority and writes
+// wire bytes to the socket.
 func (r *Runtime) connWriter(cc *ipcConn) {
 	for {
 		select {
 		case <-cc.done:
 			return
-		case payload := <-cc.outbox:
+		case payload := <-cc.outboxInteractive:
+			if err := r.writeWire(cc, payload); err != nil {
+				return
+			}
+			continue
+		default:
+		}
+		select {
+		case <-cc.done:
+			return
+		case payload := <-cc.outboxInteractive:
+			if err := r.writeWire(cc, payload); err != nil {
+				return
+			}
+		case payload := <-cc.outboxBulk:
 			if err := r.writeWire(cc, payload); err != nil {
 				return
 			}
@@ -589,14 +632,25 @@ func (r *Runtime) sendErrorImmediate(cc *ipcConn, reqID string, code proto.ErrCo
 	r.queueWire(cc, wire)
 }
 
-// queueWire enqueues raw wire bytes on a conn's outbox. Non-blocking;
-// drops with a warning if the outbox is full.
+// queueWire enqueues raw wire bytes on a conn's bulk outbox lane.
 func (r *Runtime) queueWire(cc *ipcConn, wire []byte) {
+	r.queueWireLane(cc, wire, false, SubscriptionKey{})
+}
+
+func (r *Runtime) queueWireLane(cc *ipcConn, wire []byte, interactive bool, sub SubscriptionKey) {
+	lane := cc.outboxBulk
+	if interactive {
+		lane = cc.outboxInteractive
+	}
 	select {
-	case cc.outbox <- wire:
+	case lane <- wire:
 	case <-cc.done:
 	default:
-		slog.Warn("runtime: conn outbox full, dropping", "conn", cc.id)
+		if interactive && sub.SessionID != "" && r.terminalRelay != nil {
+			r.terminalRelay.SeverOwned(sub.ConnID, sub.SessionID, sub.SubscriberID)
+			return
+		}
+		slog.Warn("runtime: conn outbox full, dropping", "conn", cc.id, "interactive", interactive)
 	}
 }
 

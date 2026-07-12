@@ -94,6 +94,7 @@ export type ControlFrame = {
   k: "c";
   code?: number; // int, omitempty — absent when 0
   data?: string; // omitempty
+  sessionId?: string; // server-initiated surface severance routing
 };
 
 // ActiveOccupant mirrors the daemon-side OccupantKind: which buffer is

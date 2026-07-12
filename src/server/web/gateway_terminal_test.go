@@ -90,6 +90,10 @@ func (f *fakeSessionAttacher) SubscribeLifecycle(_ context.Context) (<-chan prot
 	return ch, nil
 }
 
+func (f *fakeSessionAttacher) PushChannelFor(_ <-chan proto.ServerEvent) <-chan []byte {
+	return make(chan []byte)
+}
+
 func (f *fakeSessionAttacher) writeRawSnapshot() []writeRawCall {
 	f.mu.Lock()
 	defer f.mu.Unlock()
