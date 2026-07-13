@@ -174,6 +174,40 @@ func TestClientCloseUnblocksPending(t *testing.T) {
 	}
 }
 
+func TestDialConnectsAndFailsOnMissingSocket(t *testing.T) {
+	dir := t.TempDir()
+	sockPath := dir + "/agent-grid.sock"
+
+	ln, err := net.Listen("unix", sockPath)
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		if err == nil {
+			conn.Close()
+		}
+	}()
+
+	c, err := Dial(sockPath)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	defer c.Close()
+
+	if _, err := Dial(dir + "/does-not-exist.sock"); err == nil {
+		t.Error("expected error dialing missing socket")
+	}
+}
+
+func TestErrorBodyNilReceiver(t *testing.T) {
+	var e *ErrorBody
+	if got := e.Error(); got != "<nil>" {
+		t.Errorf("Error() = %q, want <nil>", got)
+	}
+}
+
 func TestDecodeResponseByCommandHeuristics(t *testing.T) {
 	cases := []struct {
 		name string

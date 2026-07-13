@@ -54,3 +54,40 @@ func TestClientDispatchPushRoutesEmptyReqID(t *testing.T) {
 	<-done
 	_ = c.Close()
 }
+
+// TestDispatchPushIgnoresErrorAndEmptyCmd verifies dispatchPush's early
+// return: server-initiated envelopes with an error status or no Cmd are
+// dropped rather than routed to Pushes().
+func TestDispatchPushIgnoresErrorAndEmptyCmd(t *testing.T) {
+	c, _ := newFakeServer(t)
+	defer c.Close()
+
+	c.dispatchPush(Envelope{Status: StatusError, Cmd: CmdNameSurfaceUnsubscribe})
+	c.dispatchPush(Envelope{Status: StatusOK, Cmd: ""})
+
+	select {
+	case push := <-c.Pushes():
+		t.Fatalf("unexpected push: %+v", push)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// TestDispatchPushDecodeError verifies a push whose body fails to decode
+// against its Cmd's response shape is dropped instead of panicking or
+// blocking.
+func TestDispatchPushDecodeError(t *testing.T) {
+	c, _ := newFakeServer(t)
+	defer c.Close()
+
+	c.dispatchPush(Envelope{
+		Status: StatusOK,
+		Cmd:    CmdNameSurfaceUnsubscribe,
+		Data:   []byte(`not json`),
+	})
+
+	select {
+	case push := <-c.Pushes():
+		t.Fatalf("unexpected push: %+v", push)
+	case <-time.After(50 * time.Millisecond):
+	}
+}

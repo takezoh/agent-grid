@@ -2,6 +2,7 @@ package proto
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -39,6 +40,41 @@ func TestEncodeDecodeAllCommands(t *testing.T) {
 		if got.CommandName() != c.CommandName() {
 			t.Errorf("name mismatch: got %q, want %q", got.CommandName(), c.CommandName())
 		}
+	}
+}
+
+// TestEncodeDecodeAllFrameCommands covers the frame-messaging command
+// variants (direct token + by-thread), which TestEncodeDecodeAllCommands
+// above does not exercise.
+func TestEncodeDecodeAllFrameCommands(t *testing.T) {
+	cmds := []Command{
+		CmdFrameList{Token: "tok"},
+		CmdFrameRead{Token: "tok", PeerFrameID: "peer"},
+		CmdFrameSend{Token: "tok", TargetFrameID: "target", Body: "hi"},
+		CmdFrameReply{Token: "tok", MessageID: "m1", Body: "reply"},
+		CmdFrameListByThread{SessionID: "s1", ThreadID: "t1"},
+		CmdFrameReadByThread{SessionID: "s1", ThreadID: "t1", PeerFrameID: "peer"},
+		CmdFrameSendByThread{SessionID: "s1", ThreadID: "t1", TargetFrameID: "target", Body: "hi"},
+		CmdFrameReplyByThread{SessionID: "s1", ThreadID: "t1", MessageID: "m1", Body: "reply"},
+	}
+	for _, c := range cmds {
+		t.Run(c.CommandName(), func(t *testing.T) {
+			raw, err := EncodeCommand("rid", c)
+			if err != nil {
+				t.Fatalf("encode: %v", err)
+			}
+			env, err := DecodeEnvelope(raw)
+			if err != nil {
+				t.Fatalf("decode env: %v", err)
+			}
+			got, err := DecodeCommand(env)
+			if err != nil {
+				t.Fatalf("decode cmd: %v", err)
+			}
+			if !reflect.DeepEqual(got, c) {
+				t.Errorf("round-trip mismatch: got %#v, want %#v", got, c)
+			}
+		})
 	}
 }
 
@@ -155,6 +191,38 @@ func TestDecodeResponseByCommand(t *testing.T) {
 	// unknown shape -> RespOK
 	if r, err := DecodeResponseByCommand(Envelope{Data: json.RawMessage(`{"x":1}`)}); err != nil || r == nil {
 		t.Errorf("unknown shape: %v %v", r, err)
+	}
+}
+
+// TestDecodeResponseByCommandFrameShapes covers the frame-messaging and
+// surface-unsubscribed heuristic branches that TestDecodeResponseByCommand
+// above does not reach (it only exercises the shapes routed via env.Cmd).
+func TestDecodeResponseByCommandFrameShapes(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want any
+	}{
+		{"reply", `{"session_id":"s1","message_id":"m1","reply":{"id":"r1"}}`, RespFrameReply{}},
+		{"message", `{"session_id":"s1","message":{"id":"m1"}}`, RespFrameSend{}},
+		{"frames", `{"frames":[]}`, RespFrameList{}},
+		{"messages-no-summary", `{"session_id":"s1","messages":[]}`, RespFrameRead{}},
+		{"messages-with-summary", `{"session_id":"s1","summary":{},"messages":[]}`, RespSessionMessages{}},
+		{"session-and-subscriber", `{"session_id":"s1","subscriber_id":"w1"}`, RespSurfaceUnsubscribed{}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := Envelope{Type: TypeResponse, Data: json.RawMessage(c.raw)}
+			r, err := DecodeResponseByCommand(env)
+			if err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			gotType := reflect.TypeOf(r)
+			wantType := reflect.TypeOf(c.want)
+			if gotType != wantType {
+				t.Errorf("type = %s, want %s", gotType, wantType)
+			}
+		})
 	}
 }
 

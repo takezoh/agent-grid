@@ -144,6 +144,7 @@ func TestErrCodeFromState(t *testing.T) {
 		"session_stopped":  ErrSessionStopped,
 		"already_exists":   ErrAlreadyExists,
 		"unsupported":      ErrUnsupported,
+		"frame_not_ready":  ErrFrameNotReady,
 		"random":           ErrUnknown,
 	}
 	for in, want := range cases {

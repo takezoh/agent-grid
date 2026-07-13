@@ -38,6 +38,7 @@ github.com/takezoh/agent-grid/client/web                          90
 # cmd/ — binary entry points
 github.com/takezoh/agent-grid/cmd/claude-app-server               60
 github.com/takezoh/agent-grid/cmd/credproxy-run                    0
+github.com/takezoh/agent-grid/cmd/harness-check                    0
 github.com/takezoh/agent-grid/cmd/linear-graphql-cli               0
 # cmd/orchestrator: buildDevcontainerLauncher (requires Docker) and main() are
 # structurally untestable in unit tests; floor reflects achievable non-Docker coverage.
@@ -48,6 +49,9 @@ github.com/takezoh/agent-grid/cmd/bridge                     0
 # helpers (resolveAuth, tokenFromFile, classifyCommand, runMain) are covered.
 github.com/takezoh/agent-grid/cmd/server                           15
 github.com/takezoh/agent-grid/cmd/web                              0
+
+# internal/ — repo-internal tooling, not shipped in any binary
+github.com/takezoh/agent-grid/internal/harnesspolicy               75
 
 # orchestrator/ — Symphony scheduler service
 github.com/takezoh/agent-grid/orchestrator/agent                  80
@@ -72,10 +76,12 @@ github.com/takezoh/agent-grid/platform/agent/codexschema/v1        0
 github.com/takezoh/agent-grid/platform/agent/codexschema/v2        0
 github.com/takezoh/agent-grid/platform/agentlaunch                63
 github.com/takezoh/agent-grid/platform/appid                       0
+github.com/takezoh/agent-grid/platform/codexconfig                 70
 github.com/takezoh/agent-grid/platform/config                     62
 github.com/takezoh/agent-grid/platform/credproxy                  10
 github.com/takezoh/agent-grid/platform/e2etest                    45
 github.com/takezoh/agent-grid/platform/features                   85
+github.com/takezoh/agent-grid/platform/framelaunch                 83
 github.com/takezoh/agent-grid/platform/hostexec                   50
 github.com/takezoh/agent-grid/platform/internal/globutil          95
 github.com/takezoh/agent-grid/platform/lib/claude/cli             95
@@ -86,6 +92,8 @@ github.com/takezoh/agent-grid/platform/lib/codex                  75
 github.com/takezoh/agent-grid/platform/lib/dockercli              95
 github.com/takezoh/agent-grid/platform/lib/git                    70
 github.com/takezoh/agent-grid/platform/lib/github                 85
+github.com/takezoh/agent-grid/platform/lib/grok                    45
+github.com/takezoh/agent-grid/platform/lib/grok/fake                0
 github.com/takezoh/agent-grid/platform/lib/openurl                60
 github.com/takezoh/agent-grid/platform/lib/plastic                45
 github.com/takezoh/agent-grid/platform/lib/systemdnotify          95
@@ -96,6 +104,7 @@ github.com/takezoh/agent-grid/platform/lib/tlsdev                 20
 github.com/takezoh/agent-grid/platform/lib/vcs                    85
 github.com/takezoh/agent-grid/platform/lib/wsl                    45
 github.com/takezoh/agent-grid/platform/logger                     60
+github.com/takezoh/agent-grid/platform/mcpoverlay                  90
 github.com/takezoh/agent-grid/platform/mcpproxy                   50
 github.com/takezoh/agent-grid/platform/metrics                    95
 github.com/takezoh/agent-grid/platform/pathmap                    95
