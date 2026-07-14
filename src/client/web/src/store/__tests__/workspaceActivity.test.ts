@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ActivityEvent } from "../../wire/server";
 import {
+  isWorkspaceRequestCurrent,
   selectAriaLiveMessage,
   selectBufferDirty,
   selectConflictOutcome,
@@ -230,6 +231,65 @@ describe("workspaceActivity store", () => {
       useWorkspaceActivityStore.getState().requestCloseDrawer();
       expect(useWorkspaceActivityStore.getState().closeWarningOpen).toBe(true);
       expect(useWorkspaceActivityStore.getState().drawerOpen).toBe(true);
+    });
+  });
+
+  describe("session switch lifecycle", () => {
+    it("reinitializes clean Workspace state while preserving activity and mode visibility", () => {
+      const store = useWorkspaceActivityStore.getState();
+      store.applyActivityEvents("s1", [turnRow()]);
+      store.openDrawerFromRow({ sessionId: "s1", path: "src/foo.ts", kind: "read" });
+      store.setPinnedHandle({ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/s1" });
+      const epoch = useWorkspaceActivityStore.getState().workspaceEpoch;
+
+      expect(store.requestSessionSwitch("s2")).toBe(true);
+
+      const state = useWorkspaceActivityStore.getState();
+      expect(state.scopedSessionId).toBe("s2");
+      expect(state.workspaceEpoch).toBe(epoch + 1);
+      expect(state.drawerOpen).toBe(true);
+      expect(state.mainMode).toBe("workspace");
+      expect(state.drawerTarget).toBeNull();
+      expect(state.drawerTab).toBe("tree");
+      expect(state.pinnedHandle).toBeNull();
+      expect(selectTurnRows(state, "s1")).toHaveLength(1);
+      expect(state.lastSequenceBySession.s1).toBe(1);
+    });
+
+    it("keeps dirty Workspace stable until cancel or discard confirmation", () => {
+      const store = useWorkspaceActivityStore.getState();
+      store.openDrawerFromRow({ sessionId: "s1", path: "a.ts", kind: "edit" });
+      store.setPinnedHandle({ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/s1" });
+      store.setBufferDirty("a.ts", true);
+      const epoch = useWorkspaceActivityStore.getState().workspaceEpoch;
+
+      expect(store.requestSessionSwitch("s2")).toBe(false);
+      expect(useWorkspaceActivityStore.getState().pendingSessionSwitchId).toBe("s2");
+      expect(store.requestSessionSwitch("s3")).toBe(false);
+      expect(useWorkspaceActivityStore.getState().pendingSessionSwitchId).toBe("s3");
+      expect(useWorkspaceActivityStore.getState().scopedSessionId).toBe("s1");
+      expect(useWorkspaceActivityStore.getState().workspaceEpoch).toBe(epoch);
+      expect(useWorkspaceActivityStore.getState().drawerTarget?.path).toBe("a.ts");
+
+      store.cancelPendingSessionSwitch();
+      expect(useWorkspaceActivityStore.getState().pendingSessionSwitchId).toBeNull();
+      expect(selectBufferDirty(useWorkspaceActivityStore.getState(), "a.ts")).toBe(true);
+
+      store.requestSessionSwitch("s2");
+      expect(store.discardPendingSessionSwitch()).toBe("s2");
+      expect(selectBufferDirty(useWorkspaceActivityStore.getState(), "a.ts")).toBe(false);
+      expect(store.requestSessionSwitch("s2")).toBe(true);
+      expect(useWorkspaceActivityStore.getState().scopedSessionId).toBe("s2");
+    });
+
+    it("rejects an async identity after the session epoch advances", () => {
+      const identity = {
+        sessionId: "s1",
+        epoch: useWorkspaceActivityStore.getState().workspaceEpoch,
+      };
+      expect(isWorkspaceRequestCurrent(identity)).toBe(true);
+      useWorkspaceActivityStore.getState().requestSessionSwitch("s2");
+      expect(isWorkspaceRequestCurrent(identity)).toBe(false);
     });
   });
 

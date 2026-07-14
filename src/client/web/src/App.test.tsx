@@ -12,6 +12,7 @@ import { selectDaemonSnapshot, useDaemonStore } from "./store/daemon";
 import { useFrameMessagingStore } from "./store/frameMessaging";
 import { useNotificationsStore } from "./store/notifications";
 import { usePaletteStore } from "./store/palette";
+import { useWorkspaceActivityStore } from "./store/workspaceActivity";
 import { mkSnapshot } from "./test/fixtures/daemon";
 
 vi.mock("./lib/platform", () => ({
@@ -25,6 +26,7 @@ describe("App", () => {
     useDaemonStore.getState().reset();
     useFrameMessagingStore.getState().reset();
     useNotificationsStore.setState({ items: [] });
+    useWorkspaceActivityStore.getState().reset();
     // FR-002 / FR-001: Header の Command ボタンと useGlobalHotkey() は
     // usePaletteStore に書き込むため、テスト間で open=true の漏れを防ぐ。
     usePaletteStore.getState().close();
@@ -588,6 +590,49 @@ describe("App", () => {
     });
     expect(useDaemonStore.getState().activeSessionID).toBe("s1");
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("keeps a dirty Workspace on session selection until App-level discard confirmation", () => {
+    useDaemonStore.setState({
+      sessions: [
+        {
+          id: "s1",
+          project: "p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: { title: "Session A" }, status: "running" },
+        },
+        {
+          id: "s2",
+          project: "p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
+          view: { card: { title: "Session B" }, status: "running" },
+        },
+      ],
+      activeSessionID: "s1",
+    });
+    const workspace = useWorkspaceActivityStore.getState();
+    workspace.setScopedSession("s1");
+    workspace.openDrawerFromRow({ sessionId: "s1", path: "a.ts", kind: "edit" });
+    workspace.setBufferDirty("a.ts", true);
+    render(<App />);
+
+    act(() => useDaemonStore.getState().selectSession("s2"));
+    expect(useDaemonStore.getState().activeSessionID).toBe("s1");
+    expect(screen.getByRole("dialog", { name: "Switch session" }).textContent).toContain(
+      "Session B",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(useWorkspaceActivityStore.getState().dirtyBuffers["a.ts"]?.dirty).toBe(true);
+    expect(useDaemonStore.getState().activeSessionID).toBe("s1");
+
+    act(() => useDaemonStore.getState().selectSession("s2"));
+    fireEvent.click(screen.getByRole("button", { name: "Discard and switch" }));
+    expect(useDaemonStore.getState().activeSessionID).toBe("s2");
+    expect(useWorkspaceActivityStore.getState().dirtyBuffers).toEqual({});
+    expect(useWorkspaceActivityStore.getState().drawerTarget).toBeNull();
   });
 
   // ─── B3 user-reachable: CommandSearchTrigger → palette-sheet at 375px ──────

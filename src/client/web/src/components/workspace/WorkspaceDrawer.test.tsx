@@ -134,6 +134,7 @@ describe("WorkspaceDrawer", () => {
       kind: "read",
     });
     useWorkspaceActivityStore.getState().setPinnedHandle({
+      sessionId: "s1",
       frameGeneration: 3,
       resolvedRootPath: "/workspace",
     });
@@ -153,6 +154,69 @@ describe("WorkspaceDrawer", () => {
     const handle = useWorkspaceActivityStore.getState().pinnedHandle;
     expect(handle?.frameGeneration).toBe(3);
     expect(handle?.resolvedRootPath).toBe("/workspace");
+  });
+
+  it("re-pins the workspace root when the active session changes", async () => {
+    workspaceApiMocks.getRootHandle.mockImplementation(async (sessionId: string) => ({
+      session_id: sessionId,
+      frame_generation: sessionId === "s1" ? 3 : 7,
+      resolved_root_path: `/workspace/${sessionId}`,
+    }));
+    useWorkspaceActivityStore.getState().openDrawerTree("s1");
+    const { rerender } = render(<WorkspaceDrawer sessionId="s1" />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      useWorkspaceActivityStore.getState().setScopedSession("s2");
+    });
+    rerender(<WorkspaceDrawer sessionId="s2" />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(workspaceApiMocks.getRootHandle).toHaveBeenCalledWith("s2");
+    expect(useWorkspaceActivityStore.getState().pinnedHandle).toEqual({
+      sessionId: "s2",
+      frameGeneration: 7,
+      resolvedRootPath: "/workspace/s2",
+    });
+  });
+
+  it("rejects a late file response from the previous session epoch", async () => {
+    let resolveOldFile: ((value: unknown) => void) | undefined;
+    workspaceApiMocks.getFile.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOldFile = resolve;
+      }),
+    );
+    const store = useWorkspaceActivityStore.getState();
+    store.openDrawerFromRow({ sessionId: "s1", path: "old.ts", kind: "read" });
+    store.setPinnedHandle({
+      sessionId: "s1",
+      frameGeneration: 3,
+      resolvedRootPath: "/workspace",
+    });
+    const { rerender } = render(<WorkspaceDrawer sessionId="s1" />);
+    await act(async () => Promise.resolve());
+
+    act(() => store.setScopedSession("s2"));
+    rerender(<WorkspaceDrawer sessionId="s2" />);
+    await act(async () => {
+      resolveOldFile?.({
+        path: "old.ts",
+        size: 3,
+        is_binary: false,
+        content: "old",
+        mtime: "Mon, 01 Jan 2024 00:00:00 GMT",
+      });
+      await Promise.resolve();
+    });
+
+    expect(useWorkspaceActivityStore.getState().scopedSessionId).toBe("s2");
+    expect(useWorkspaceActivityStore.getState().drawerTarget).toBeNull();
+    expect(useWorkspaceActivityStore.getState().dirtyBuffers["old.ts"]).toBeUndefined();
   });
 
   it("shows dirty indicator when buffer is dirty", () => {

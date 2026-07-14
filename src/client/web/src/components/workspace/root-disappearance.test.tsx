@@ -56,6 +56,7 @@ describe("root-disappearance", () => {
       kind: "read",
     });
     useWorkspaceActivityStore.getState().setPinnedHandle({
+      sessionId: "s1",
       frameGeneration: 3,
       resolvedRootPath: "/workspace",
     });
@@ -84,6 +85,7 @@ describe("root-disappearance", () => {
       kind: "read",
     });
     useWorkspaceActivityStore.getState().setPinnedHandle({
+      sessionId: "s1",
       frameGeneration: 3,
       resolvedRootPath: "/workspace",
     });

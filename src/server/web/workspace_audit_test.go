@@ -28,7 +28,7 @@ func TestWorkspaceWriteAuditToolLogTail(t *testing.T) {
 	}
 
 	sendFakeResponse(t, fd, workspaceSessionRespProject(root, 0, project))
-	req := authedPut(workspaceWriteURL("audit-tail.txt"), []byte("after"), nil)
+	req := authedPut(workspaceWriteURL("audit-tail.txt", root), []byte("after"), nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {

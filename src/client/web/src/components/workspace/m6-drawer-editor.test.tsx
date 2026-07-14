@@ -76,7 +76,7 @@ describe("m6 UAC-017 — WorkspaceTree hierarchy chrome", () => {
     render(
       <WorkspaceTree
         sessionId="s1"
-        pinned={{ frameGeneration: 1, resolvedRootPath: "/ws" }}
+        pinned={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/ws" }}
         onSelectFile={vi.fn()}
       />,
     );
@@ -134,7 +134,7 @@ describe("m6 UAC-018 — editor Save button and Cmd/Ctrl+S scope", () => {
         }}
         eventKind="edit"
         sessionId="s1"
-        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        pinnedHandle={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/workspace" }}
         onDirtyChange={onDirtyChange}
         onSaveSuccess={onSaveSuccess}
       />,
@@ -171,7 +171,7 @@ describe("m6 UAC-018 — editor Save button and Cmd/Ctrl+S scope", () => {
         }}
         eventKind="edit"
         sessionId="s1"
-        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        pinnedHandle={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/workspace" }}
       />,
     );
     await waitFor(() => expect(screen.getByTestId("codemirror-editor")).toBeTruthy());
@@ -203,7 +203,7 @@ describe("m6 UAC-018 — editor Save button and Cmd/Ctrl+S scope", () => {
         }}
         eventKind="edit"
         sessionId="s1"
-        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        pinnedHandle={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/workspace" }}
       />,
     );
     await waitFor(() => expect(screen.getByTestId("codemirror-editor")).toBeTruthy());
@@ -233,7 +233,7 @@ describe("m6 UAC-019 — read-only degradation banner and Save tooltip", () => {
         }}
         eventKind="edit"
         sessionId="s1"
-        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        pinnedHandle={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/workspace" }}
         saveDisabled
         readOnlyReason={reason}
       />,

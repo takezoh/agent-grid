@@ -23,7 +23,7 @@ func TestWorkspaceRootDisappearance(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := authedPut(workspaceWriteURL("gone.txt"), []byte("operator-work"), nil)
+	req := authedPut(workspaceWriteURL("gone.txt", root), []byte("operator-work"), nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code == http.StatusOK {

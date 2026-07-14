@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,8 +24,9 @@ func authedPut(path string, body []byte, extraHeaders map[string]string) *http.R
 	return r
 }
 
-func workspaceWriteURL(path string) string {
-	return "/api/sessions/ws1/workspace/file?path=" + path + "&handle=0"
+func workspaceWriteURL(path, root string) string {
+	return "/api/sessions/ws1/workspace/file?path=" + path +
+		"&handle=0&handle_session=ws1&root=" + url.QueryEscape(root)
 }
 
 func TestWorkspaceWriteHandlerHappyPath(t *testing.T) {
@@ -42,7 +44,7 @@ func TestWorkspaceWriteHandlerHappyPath(t *testing.T) {
 	}
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-	req := authedPut(workspaceWriteURL("edit.txt"), []byte("after"), map[string]string{
+	req := authedPut(workspaceWriteURL("edit.txt", root), []byte("after"), map[string]string{
 		"If-Unmodified-Since": formatWorkspaceMtime(fi.ModTime()),
 	})
 	w := httptest.NewRecorder()
@@ -83,7 +85,7 @@ func TestWorkspaceWriteHandlerPathGuard(t *testing.T) {
 	}
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-	req := authedPut(workspaceWriteURL("escape/secret.txt"), []byte("hack"), nil)
+	req := authedPut(workspaceWriteURL("escape/secret.txt", root), []byte("hack"), nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -102,7 +104,7 @@ func TestWorkspaceWriteHandlerBodyCap(t *testing.T) {
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
 	over := make([]byte, workspaceWriteBodyCap+1)
-	req := authedPut(workspaceWriteURL("cap.txt"), over, nil)
+	req := authedPut(workspaceWriteURL("cap.txt", root), over, nil)
 	req.ContentLength = int64(len(over))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -118,7 +120,7 @@ func TestWorkspaceWriteHandlerBodyCap(t *testing.T) {
 	}
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-	req = authedPut(workspaceWriteURL("cap.txt"), over, nil)
+	req = authedPut(workspaceWriteURL("cap.txt", root), over, nil)
 	req.ContentLength = -1
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -139,7 +141,7 @@ func TestWorkspaceWriteHandlerPreconditionFailed(t *testing.T) {
 	staleTime := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-	req := authedPut(workspaceWriteURL("stale.txt"), []byte("mine"), map[string]string{
+	req := authedPut(workspaceWriteURL("stale.txt", root), []byte("mine"), map[string]string{
 		"If-Unmodified-Since": formatWorkspaceMtime(staleTime),
 	})
 	w := httptest.NewRecorder()
@@ -167,7 +169,7 @@ func TestWorkspaceWriteHandlerAuth(t *testing.T) {
 	t.Parallel()
 	d, _ := newDaemonPair(t)
 	mux := NewMux(d, "tok")
-	req := httptest.NewRequest(http.MethodPut, workspaceWriteURL("x.txt"), strings.NewReader("x"))
+	req := httptest.NewRequest(http.MethodPut, workspaceWriteURL("x.txt", ""), strings.NewReader("x"))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -187,7 +189,7 @@ func TestWorkspaceWriteAtomicity(t *testing.T) {
 			t.Fatal(err)
 		}
 		sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-		req := authedPut(workspaceWriteURL("atomic.txt"), []byte("replaced"), nil)
+		req := authedPut(workspaceWriteURL("atomic.txt", root), []byte("replaced"), nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -220,7 +222,7 @@ func TestWorkspaceWriteAtomicity(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(sub, 0o755) })
 
 		sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-		req := authedPut(workspaceWriteURL("locked/file.txt"), []byte("new"), nil)
+		req := authedPut(workspaceWriteURL("locked/file.txt", root), []byte("new"), nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if w.Code < 500 {
@@ -259,7 +261,7 @@ func TestWorkspaceWriteAtomicity(t *testing.T) {
 		}
 
 		sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-		req := authedPut(workspaceWriteURL("verify.txt"), []byte("new-bytes"), nil)
+		req := authedPut(workspaceWriteURL("verify.txt", root), []byte("new-bytes"), nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusInternalServerError {
@@ -292,7 +294,7 @@ func TestWorkspaceWritePermissionParity(t *testing.T) {
 	}
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-	req := authedPut(workspaceWriteURL(".env"), []byte("SECRET=2"), nil)
+	req := authedPut(workspaceWriteURL(".env", root), []byte("SECRET=2"), nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -300,7 +302,7 @@ func TestWorkspaceWritePermissionParity(t *testing.T) {
 	}
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-	req = authedPut(workspaceWriteURL("escape/secret.txt"), []byte("hack"), nil)
+	req = authedPut(workspaceWriteURL("escape/secret.txt", root), []byte("hack"), nil)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -339,7 +341,7 @@ func TestWorkspaceWriteAudit(t *testing.T) {
 		}
 
 		sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-		req := authedPut(workspaceWriteURL("audit.txt"), []byte("after"), nil)
+		req := authedPut(workspaceWriteURL("audit.txt", root), []byte("after"), nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -367,7 +369,7 @@ func TestWorkspaceWriteAudit(t *testing.T) {
 		}
 
 		sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-		req := authedPut(workspaceWriteURL("fail-audit.txt"), []byte("after"), nil)
+		req := authedPut(workspaceWriteURL("fail-audit.txt", root), []byte("after"), nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusInternalServerError {
@@ -401,7 +403,7 @@ func TestWorkspaceWriteResourceBound(t *testing.T) {
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
 	body := make([]byte, workspaceWriteBodyCap+512)
-	req := authedPut(workspaceWriteURL("bound.txt"), body, nil)
+	req := authedPut(workspaceWriteURL("bound.txt", root), body, nil)
 	req.ContentLength = int64(len(body))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)

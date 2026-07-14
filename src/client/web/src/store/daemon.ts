@@ -250,112 +250,138 @@ export function selectDaemonSnapshot(state: DaemonSnapshotSource): DaemonSnapsho
   };
 }
 
-export const useDaemonStore = create<DaemonState>()((set) => ({
+export const useDaemonStore = create<DaemonState>()((set, get) => ({
   ...initialState,
-  seedHello: (frame) =>
-    set((s) => {
-      // The daemon no longer ships an active session id; the web client owns
-      // its own selection. Seed the initial selection from the first session
-      // (falling back to a value the daemon supplies only if a pre-upgrade
-      // daemon still sends one).
-      const seededActive = frame.activeSessionID ?? frame.sessions[0]?.id ?? null;
-      // Follow the seeded session into its workspace on hello so the
-      // partition matching it is what the user sees first.
-      let ws = s.selectedWorkspace;
-      if (seededActive !== null) {
-        const active = frame.sessions.find((x) => x.id === seededActive);
-        if (active) ws = workspaceOf(active);
-      }
-      // Reset to DEFAULT_WORKSPACE if the previously selected workspace no
-      // longer exists in the seeded session set.
-      const known = selectDistinctWorkspaces(frame.sessions);
-      if (!known.includes(ws)) ws = DEFAULT_WORKSPACE;
-      return {
-        sessions: frame.sessions,
-        activeSessionID: seededActive,
-        features: frame.features,
-        serverTime: frame.serverTime,
-        activeOccupant: frame.activeOccupant ?? s.activeOccupant,
-        selectedWorkspace: ws,
-      };
-    }),
-  applyViewUpdate: (frame) =>
-    set((s) => {
-      // Resolve effective activeSessionID.
-      const nextActiveId =
-        frame.activeSessionID === undefined ? s.activeSessionID : frame.activeSessionID;
-      // Activity-only view updates omit sessions (ADR-20260705). Use the
-      // current store snapshot for workspace-follow logic in that case.
-      const sessionsForWorkspace = frame.sessions ?? s.sessions;
-      // selectedWorkspace policy: this is a USER preference (set by chip click
-      // / selectSession). On view-update we leave it alone unless:
-      //   (a) the workspace no longer exists in the pushed session set → reset
-      //       to DEFAULT_WORKSPACE so the UI never shows an empty unreachable
-      //       partition;
-      //   (b) the active session actually CHANGED via the wire (another tab
-      //       switched it) AND that change crosses workspaces → follow, so the
-      //       partition matching the new active is visible.
-      // The pre-fix code re-applied (b) on every push regardless of whether
-      // activeId changed, silently undoing chip clicks. (code-review #1.)
-      let ws = s.selectedWorkspace;
-      const known = selectDistinctWorkspaces(sessionsForWorkspace);
-      if (!known.includes(ws)) ws = DEFAULT_WORKSPACE;
-      if (nextActiveId !== null && nextActiveId !== s.activeSessionID) {
-        const active = sessionsForWorkspace.find((x) => x.id === nextActiveId);
-        if (active) ws = workspaceOf(active);
-      }
-      // Workspace activity extension (M3/M4): ingest optional activity_events
-      // on the same view-update frame. Cross-session guard lives in the
-      // workspaceActivity store; scopedSessionId is set by App when the
-      // active session changes.
-      useWorkspaceActivityStore.getState().applyViewUpdate(frame);
+  seedHello: (frame) => {
+    const s = get();
+    // The daemon no longer ships an active session id; the web client owns
+    // its own selection. Seed the initial selection from the first session
+    // (falling back to a value the daemon supplies only if a pre-upgrade
+    // daemon still sends one).
+    const seededActive = frame.activeSessionID ?? frame.sessions[0]?.id ?? null;
+    // Follow the seeded session into its workspace on hello so the
+    // partition matching it is what the user sees first.
+    let ws = s.selectedWorkspace;
+    if (seededActive !== null) {
+      const active = frame.sessions.find((x) => x.id === seededActive);
+      if (active) ws = workspaceOf(active);
+    }
+    // Reset to DEFAULT_WORKSPACE if the previously selected workspace no
+    // longer exists in the seeded session set.
+    const known = selectDistinctWorkspaces(frame.sessions);
+    if (!known.includes(ws)) ws = DEFAULT_WORKSPACE;
+    useWorkspaceActivityStore.getState().setScopedSession(seededActive);
+    set({
+      sessions: frame.sessions,
+      activeSessionID: seededActive,
+      features: frame.features,
+      serverTime: frame.serverTime,
+      activeOccupant: frame.activeOccupant ?? s.activeOccupant,
+      selectedWorkspace: ws,
+    });
+  },
+  applyViewUpdate: (frame) => {
+    const s = get();
+    // Resolve effective activeSessionID.
+    let nextActiveId =
+      frame.activeSessionID === undefined ? s.activeSessionID : frame.activeSessionID;
+    // Activity-only view updates omit sessions (ADR-20260705). Use the
+    // current store snapshot for workspace-follow logic in that case.
+    const sessionsForWorkspace = frame.sessions ?? s.sessions;
+    const workspaceBeforeUpdate = useWorkspaceActivityStore.getState();
+    const activeDisappeared =
+      frame.sessions !== undefined &&
+      s.activeSessionID !== null &&
+      !sessionsForWorkspace.some((session) => session.id === s.activeSessionID);
+    const activeWorkspaceDirty = Object.values(workspaceBeforeUpdate.dirtyBuffers).some(
+      (buffer) => buffer.dirty,
+    );
+    if (activeDisappeared && activeWorkspaceDirty) {
+      workspaceBeforeUpdate.markActiveSessionMissing();
+      nextActiveId = null;
+    } else if (
+      nextActiveId !== s.activeSessionID &&
+      !workspaceBeforeUpdate.requestSessionSwitch(nextActiveId)
+    ) {
+      nextActiveId = s.activeSessionID;
+    }
+    // selectedWorkspace policy: this is a USER preference (set by chip click
+    // / selectSession). On view-update we leave it alone unless:
+    //   (a) the workspace no longer exists in the pushed session set → reset
+    //       to DEFAULT_WORKSPACE so the UI never shows an empty unreachable
+    //       partition;
+    //   (b) the active session actually CHANGED via the wire (another tab
+    //       switched it) AND that change crosses workspaces → follow, so the
+    //       partition matching the new active is visible.
+    // The pre-fix code re-applied (b) on every push regardless of whether
+    // activeId changed, silently undoing chip clicks. (code-review #1.)
+    let ws = s.selectedWorkspace;
+    const known = selectDistinctWorkspaces(sessionsForWorkspace);
+    if (!known.includes(ws)) ws = DEFAULT_WORKSPACE;
+    if (nextActiveId !== null && nextActiveId !== s.activeSessionID) {
+      const active = sessionsForWorkspace.find((x) => x.id === nextActiveId);
+      if (active) ws = workspaceOf(active);
+    }
+    // Workspace activity extension (M3/M4): ingest optional activity_events
+    // on the same view-update frame. Cross-session guard lives in the
+    // workspaceActivity store; scopedSessionId is set by App when the
+    // active session changes.
+    useWorkspaceActivityStore.getState().applyViewUpdate(frame);
 
-      const sessionPatch =
-        frame.sessions === undefined
-          ? {}
-          : {
-              sessions: (() => {
-                // best-effort identity preservation: keep the previous SessionInfo
-                // object when its JSON shape is structurally unchanged.
-                const byId = new Map(s.sessions.map((x) => [x.id, x]));
-                return frame.sessions.map((incoming) => {
-                  const prev = byId.get(incoming.id);
-                  if (prev && JSON.stringify(prev) === JSON.stringify(incoming)) {
-                    return prev;
-                  }
-                  return incoming;
-                });
-              })(),
-            };
+    const sessionPatch =
+      frame.sessions === undefined
+        ? {}
+        : {
+            sessions: (() => {
+              // best-effort identity preservation: keep the previous SessionInfo
+              // object when its JSON shape is structurally unchanged.
+              const byId = new Map(s.sessions.map((x) => [x.id, x]));
+              return frame.sessions.map((incoming) => {
+                const prev = byId.get(incoming.id);
+                if (prev && JSON.stringify(prev) === JSON.stringify(incoming)) {
+                  return prev;
+                }
+                return incoming;
+              });
+            })(),
+          };
 
-      return {
-        ...sessionPatch,
-        activeSessionID: nextActiveId,
-        // ViewUpdateFrame.activeOccupant is optional. When the frame
-        // carries it (post 2026-06-24 server emit), we overwrite the
-        // current value live so a frame pushed / popped by another driver
-        // client toggles the palette's push availability without a
-        // reconnect. When absent we leave the current value alone (the
-        // legacy-server / partial-update path); explicit "no occupant"
-        // does not exist on the wire — the daemon would simply omit the
-        // field.
-        activeOccupant:
-          frame.activeOccupant === undefined ? s.activeOccupant : frame.activeOccupant,
-        selectedWorkspace: ws,
-      };
-    }),
-  selectSession: (id) =>
-    set((s) => {
-      // When the user picks a session belonging to a different workspace,
-      // follow it so the switcher shows the partition the picked session
-      // lives in.
-      let ws = s.selectedWorkspace;
-      if (id !== null) {
-        const sess = s.sessions.find((x) => x.id === id);
-        if (sess) ws = workspaceOf(sess);
-      }
-      return { activeSessionID: id, selectedWorkspace: ws };
-    }),
+    set({
+      ...sessionPatch,
+      activeSessionID: nextActiveId,
+      // ViewUpdateFrame.activeOccupant is optional. When the frame
+      // carries it (post 2026-06-24 server emit), we overwrite the
+      // current value live so a frame pushed / popped by another driver
+      // client toggles the palette's push availability without a
+      // reconnect. When absent we leave the current value alone (the
+      // legacy-server / partial-update path); explicit "no occupant"
+      // does not exist on the wire — the daemon would simply omit the
+      // field.
+      activeOccupant: frame.activeOccupant === undefined ? s.activeOccupant : frame.activeOccupant,
+      selectedWorkspace: ws,
+    });
+    const workspace = useWorkspaceActivityStore.getState();
+    if (
+      workspace.pendingSessionSwitchId !== null &&
+      !sessionsForWorkspace.some((session) => session.id === workspace.pendingSessionSwitchId)
+    ) {
+      workspace.markPendingSessionMissing();
+    }
+  },
+  selectSession: (id) => {
+    const current = get();
+    if (id === current.activeSessionID) return;
+    if (!useWorkspaceActivityStore.getState().requestSessionSwitch(id)) return;
+    // When the user picks a session belonging to a different workspace,
+    // follow it so the switcher shows the partition the picked session
+    // lives in.
+    let ws = current.selectedWorkspace;
+    if (id !== null) {
+      const sess = current.sessions.find((x) => x.id === id);
+      if (sess) ws = workspaceOf(sess);
+    }
+    set({ activeSessionID: id, selectedWorkspace: ws });
+  },
   setStatus: (status) => set({ status }),
   setDaemonDisconnected: (v) => set({ daemonDisconnected: v }),
   setSessionConfig: (cfg) =>

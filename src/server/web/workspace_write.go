@@ -73,11 +73,10 @@ func serveWorkspaceFileWrite(d *DaemonClient, w http.ResponseWriter, r *http.Req
 		writeWorkspaceResolveError(w, r, id, err)
 		return
 	}
-	stale, pinnedRoot := workspaceHandleStale(w, r, info)
-	if stale {
+	if !validateWorkspaceHandle(w, r, id, info) {
 		return
 	}
-	root := pinnedRootOrCurrent(pinnedRoot, info.workspaceRoot)
+	root := info.workspaceRoot
 	rel := r.URL.Query().Get("path")
 	if rel == "" {
 		gatewayError(w, r, http.StatusBadRequest, "path_required", "path required")

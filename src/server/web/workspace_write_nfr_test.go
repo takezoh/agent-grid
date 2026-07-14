@@ -39,7 +39,7 @@ func TestWorkspaceWriteTimingNFR101(t *testing.T) {
 		copy(payload, body)
 		payload[len(body)] = byte('0' + i%10)
 		start := time.Now()
-		req := authedPut(workspaceWriteURL("timing.txt"), payload, map[string]string{
+		req := authedPut(workspaceWriteURL("timing.txt", root), payload, map[string]string{
 			"If-Unmodified-Since": formatWorkspaceMtime(fi.ModTime()),
 		})
 		w := httptest.NewRecorder()
@@ -90,7 +90,7 @@ func TestWorkspaceWriteResourceBoundConcurrentRSS(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			path := fmt.Sprintf("f%c.txt", 'a'+idx)
-			req := authedPut(workspaceWriteURL(path), body, nil)
+			req := authedPut(workspaceWriteURL(path, root), body, nil)
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)
 			if w.Code != http.StatusOK {

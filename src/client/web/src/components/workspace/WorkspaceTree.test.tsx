@@ -21,7 +21,7 @@ describe("WorkspaceTree", () => {
     render(
       <WorkspaceTree
         sessionId="s1"
-        pinned={{ frameGeneration: 1, resolvedRootPath: "/ws" }}
+        pinned={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/ws" }}
         onSelectFile={vi.fn()}
       />,
     );
@@ -33,7 +33,7 @@ describe("WorkspaceTree", () => {
     render(
       <WorkspaceTree
         sessionId="s1"
-        pinned={{ frameGeneration: 1, resolvedRootPath: "/ws" }}
+        pinned={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/ws" }}
         onSelectFile={vi.fn()}
       />,
     );
@@ -49,7 +49,7 @@ describe("WorkspaceTree", () => {
     render(
       <WorkspaceTree
         sessionId="s1"
-        pinned={{ frameGeneration: 1, resolvedRootPath: "/ws" }}
+        pinned={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/ws" }}
         onSelectFile={vi.fn()}
       />,
     );

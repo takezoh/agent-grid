@@ -43,6 +43,7 @@ export type WorkspaceDiffResponse = {
 };
 
 export type WorkspacePinnedHandle = {
+  sessionId: string;
   frameGeneration: number;
   resolvedRootPath: string;
 };
@@ -137,6 +138,7 @@ function authHeaders(): Record<string, string> {
 
 function pinnedQuery(pinned: WorkspacePinnedHandle): string {
   const params = new URLSearchParams();
+  params.set("handle_session", pinned.sessionId);
   params.set("handle", String(pinned.frameGeneration));
   params.set("root", pinned.resolvedRootPath);
   return params.toString();
@@ -146,6 +148,9 @@ function parseWorkspaceErrorBody(status: number, text: string): WorkspaceApiErro
   try {
     const parsed = JSON.parse(text) as { error?: string };
     const err = parsed.error;
+    if (status === 400 && err === "invalid_handle") {
+      return new WorkspaceApiError(400, "invalid_handle", "invalid workspace root handle", parsed);
+    }
     if (status === 409 && err === "handle_stale") {
       return new WorkspaceApiError(409, "handle_stale", "workspace root handle stale", parsed);
     }

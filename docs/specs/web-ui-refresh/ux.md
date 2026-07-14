@@ -4,9 +4,10 @@ kind: ux
 title: Web UI Refresh — UX Plan (Linear/Vercel minimal)
 status: draft
 created: '2026-07-14'
-goal: Web UI 全体を Linear/Vercel 系ミニマルへ全面刷新し、(a) ターミナルを常に主役とする chrome 設計、(b) 選択=塗り / フォーカス=リングの状態分離、(c)
-  ActivityRail 解体によるモバイルのターミナル全幅回復、(d) パレット・ドロワー・エディターの器の近代化 (保存の発見可能性を含む)、(e) 両テーマ・reduced-motion
-  での品質均一化、を観測可能な振る舞いとして実現する。挙動実装 (focus trap / listbox / dialog / 保存安全機構 / ストアロジック) は無改変。
+goal: Web UI 全体を Linear/Vercel 系ミニマルへ全面刷新し、(a) ターミナルを常に主役とする chrome 設計、(b) 選択=塗り /
+  フォーカス=リングの状態分離、(c) ActivityRail 解体によるモバイルのターミナル全幅回復、(d) パレット・ドロワー・エディターの器の近代化 (保存の発見可能性を含む)、(e)
+  両テーマ・reduced-motion での品質均一化、を観測可能な振る舞いとして実現する。挙動実装 (focus trap / listbox / dialog
+  / 保存安全機構 / ストアロジック) は無改変。
 target_users:
 - 複数の AI エージェントセッションを並行運用する開発者 (デスクトップ主戦場、キーボード操作・vim 含む)
 - 外出先のモバイルから進行を監視し、たまに短い介入をする運用者
@@ -15,14 +16,18 @@ primary_flows:
 - id: F-001
   name: サイドバーとセッション切替 — 状態の形態分離
   steps:
-  - '[pointer-mouse|pointer-touch] セッション行をクリック/タップするとアクティブセッションが切り替わり、行が塗り (--accent-soft) の選択表示になる'
+  - '[pointer-mouse|pointer-touch] セッション行をクリック/タップするとアクティブセッションが切り替わり、行が塗り (--accent-soft)
+    の選択表示になる'
   - '[keyboard] Tab / 矢印でフォーカスを移動すると、フォーカスリングだけが移動し選択の塗りは動かない'
-  - '[pointer-mouse|screen-reader] running/waiting/idle/stopped/pending がドットの色 + 形 (stopped は輪郭のみ) + aria-label テキストで区別できる'
+  - '[pointer-mouse|screen-reader] running/waiting/idle/stopped/pending がドットの色 + 形
+    (stopped は輪郭のみ) + aria-label テキストで区別できる'
 - id: F-002
   name: ヘッダの文脈提示とテーマ切替
   steps:
-  - '[pointer-mouse] ヘッダに basename(project) / session title のパンくず + status pill + 等幅メタが常時表示される'
-  - '[pointer-mouse|keyboard] overflow (…) メニューから Theme を選ぶと即時反映され localStorage (agent-grid-theme) に永続化される'
+  - '[pointer-mouse] ヘッダに basename(project) / session title のパンくず + status pill +
+    等幅メタが常時表示される'
+  - '[pointer-mouse|keyboard] overflow (…) メニューから Theme を選ぶと即時反映され localStorage (agent-grid-theme)
+    に永続化される'
   - '[pointer-touch] <768px ではハンバーガーが左端にあり、タップで既存 SessionDrawer が左からスライドインする'
 - id: F-003
   name: ファイルアクティビティ導線 (2026-07-14 改訂 x2 — Workspace モードの Changes セクションへ統合)
@@ -33,7 +38,8 @@ primary_flows:
 - id: F-004
   name: メインビュー — ヘッダ統合・タブ・ステータスバー
   steps:
-  - '[pointer-mouse] 旧 DriverViewPanel の情報はヘッダ (title/pill/メタ) と下端ステータスバー (status_line) に分配され、独立パネルは存在しない'
+  - '[pointer-mouse] 旧 DriverViewPanel の情報はヘッダ (title/pill/メタ) と下端ステータスバー (status_line)
+    に分配され、独立パネルは存在しない'
   - '[pointer-mouse|keyboard] 停止アイコンボタンから既存 ConfirmDialog の終了フローが開く (ワンクリック即終了はしない)'
   - '[keyboard] タブは下線式で、既存 ARIA tabs manual activation (矢印移動 + Enter/Space 活性化) が維持される'
 - id: F-005
@@ -45,9 +51,11 @@ primary_flows:
 - id: F-006
   name: Workspace モードとファイルエディター (2026-07-14 改訂 — ドロワー案を撤回)
   steps:
-  - '[pointer-mouse|keyboard] ヘッダの Terminal / Workspace スイッチ (または Changes 行クリック) で Workspace モードへ切り替わり、メイン領域全体がツリー + エディターになる。ターミナルはマウントされたまま (スクロールバック維持)'
+  - '[pointer-mouse|keyboard] ヘッダの Terminal / Workspace スイッチ (または Changes 行クリック) で
+    Workspace モードへ切り替わり、メイン領域全体がツリー + エディターになる。ターミナルはマウントされたまま (スクロールバック維持)'
   - '[pointer-mouse] 左の常設ツリーはインデントガイド + シェブロン + dir/file アイコンで階層が読める'
-  - '[pointer-mouse|keyboard] dirty 状態で Save ボタンまたは Cmd/Ctrl+S (エディターフォーカス時のみ) で保存でき、vim :w も従来どおり動く'
+  - '[pointer-mouse|keyboard] dirty 状態で Save ボタンまたは Cmd/Ctrl+S (エディターフォーカス時のみ) で保存でき、vim
+    :w も従来どおり動く'
   - '[pointer-mouse] read-only 縮退時はバナーで理由が表示され、バッファ内容は保持される'
 - id: F-007
   name: テーマ・モーション横断品質
@@ -86,10 +94,11 @@ acceptance_scenarios:
   flow_ref: F-002
   given: プロジェクト /home/dev/dev/agent-grid の session「Fix WS reconnect backoff」がアクティブ
   when: ヘッダを表示する
-  then: agent-grid / Fix WS reconnect backoff のパンくず (プロジェクトは basename) + status pill +
-    等幅メタが 44px 高のヘッダ 1 行に収まる
+  then: agent-grid / Fix WS reconnect backoff のパンくず (プロジェクトは basename) + status pill
+    + 等幅メタが 44px 高のヘッダ 1 行に収まる
   vs_legacy: must-fail
-  counterexample: '誤実装: パンくずにフルパスを表示する。横幅を食い潰しタイトルが省略され、basename assertion で fail する。'
+  counterexample: '誤実装: パンくずにフルパスを表示する。横幅を食い潰しタイトルが省略され、basename assertion で fail
+    する。'
 - id: UAC-005
   flow_ref: F-002
   given: ヘッダの overflow (…) メニュー
@@ -97,8 +106,8 @@ acceptance_scenarios:
   then: 即時にライトテーマが適用され localStorage["agent-grid-theme"] に light が保存される。System 選択時はキーが削除される
     (既存 ThemeProvider の STORAGE_KEY 契約)
   vs_legacy: must-pass
-  counterexample: '誤実装: 新しい storage key を導入する。既存ユーザーのテーマ設定がリセットされ、キー名 assertion で fail
-    する。'
+  counterexample: '誤実装: 新しい storage key を導入する。既存ユーザーのテーマ設定がリセットされ、キー名 assertion で
+    fail する。'
 - id: UAC-006
   flow_ref: F-002
   given: <768px ビューポート
@@ -121,8 +130,8 @@ acceptance_scenarios:
   flow_ref: F-003
   given: Terminal モード
   when: メイン領域を表示する
-  then: ターミナル以外のパネル・ハンドル・シート類は存在せず、ターミナルがメイン領域全幅を使う (2026-07-14 改訂 — collapse
-    機構は panel 廃止に伴い削除)
+  then: ターミナル以外のパネル・ハンドル・シート類は存在せず、ターミナルがメイン領域全幅を使う (2026-07-14 改訂 — collapse 機構は
+    panel 廃止に伴い削除)
   vs_legacy: must-fail
   counterexample: '誤実装: 旧 ChangesPanel/collapse ハンドルの DOM を残す。「Terminal モードにパネル類が存在しない」assertion
     で fail する。'
@@ -130,8 +139,8 @@ acceptance_scenarios:
   flow_ref: F-003
   given: <768px、ファイルアクティビティあり
   when: Terminal モードでメイン画面を表示し、Workspace モードへ切り替える
-  then: Terminal モードではターミナルがビューポート全幅を使い (シート・帯なし)、Workspace モードで Changes セクション +
-    Files ツリーに到達できる (縦分割)
+  then: Terminal モードではターミナルがビューポート全幅を使い (シート・帯なし)、Workspace モードで Changes セクション + Files
+    ツリーに到達できる (縦分割)
   vs_legacy: must-fail
   counterexample: '誤実装: bottom sheet や縮小パネルをモード外に残す。390px では何 px であってもターミナルを侵食し、「Terminal
     モードにパネル類が存在しない」assertion で fail する。'
@@ -142,15 +151,16 @@ acceptance_scenarios:
   then: 独立した DriverViewPanel は存在せず、title はパンくず、model/effort は等幅メタ、status_line は下端ステータスバー、driver
     tags はサイドバー行メタに分配されている
   vs_legacy: must-fail
-  counterexample: '誤実装: 4 段積みパネルのままスタイルだけ更新する。「独立パネルとして存在しない」の否定形 assertion で fail する。'
+  counterexample: '誤実装: 4 段積みパネルのままスタイルだけ更新する。「独立パネルとして存在しない」の否定形 assertion で fail
+    する。'
 - id: UAC-011
   flow_ref: F-004
   given: アクティブセッションのヘッダ
   when: 停止アイコンボタン (tooltip「Stop session」) をクリックする
   then: 既存 ConfirmDialog (destructive variant) が開き、確認後にのみ終了する。ボタンのヒット領域は 36px 以上
   vs_legacy: must-pass
-  counterexample: '誤実装: アイコン化と同時に確認ダイアログを外しワンクリック即終了にする。ConfirmDialog 表示 assertion で
-    fail する。'
+  counterexample: '誤実装: アイコン化と同時に確認ダイアログを外しワンクリック即終了にする。ConfirmDialog 表示 assertion
+    で fail する。'
 - id: UAC-012
   flow_ref: F-004
   given: TRANSCRIPT / EVENTS の log_tabs と unread 2 件の frame_messaging_summary
@@ -164,8 +174,8 @@ acceptance_scenarios:
   flow_ref: F-005
   given: Cmd/Ctrl+K でパレットを開く
   when: 開いた直後の DOM を検査する
-  then: 上から検索入力 / セクション見出し付きリスト (Actions, Push) / フッタ 1 行 (project / session 文脈 + キーヒント)
-    の 3 部構成で、旧 3 行ヘッダ (タイトル / ACTIVE 行 / inline status 行) は存在しない
+  then: 上から検索入力 / セクション見出し付きリスト (Actions, Push) / フッタ 1 行 (project / session 文脈 +
+    キーヒント) の 3 部構成で、旧 3 行ヘッダ (タイトル / ACTIVE 行 / inline status 行) は存在しない
   vs_legacy: must-fail
   counterexample: '誤実装: ヘッダ 3 行を残したまま角丸と影だけ足す。「存在しない」の否定形 assertion で fail する。'
 - id: UAC-014
@@ -188,13 +198,14 @@ acceptance_scenarios:
   flow_ref: F-006
   given: Terminal モードでターミナルに scrollback がある状態
   when: Workspace モードへ切り替え、ファイルを編集し、Terminal モードへ戻る
-  then: メイン領域はモードごとに全面が切り替わり (ドロワーではない)、戻ったターミナルは scrollback・購読・表示サイズを維持している。再度
-    Workspace へ切り替えると、開いていたファイル・タブ・未保存バッファがそのまま残っている (モード切替は純粋な表示切替で、破棄確認も出ない)。Esc
-    でも Terminal へ戻れる (エディター内フォーカス時を除く — Esc は vim 通貨)
+  then: メイン領域はモードごとに全面が切り替わり (ドロワーではない)、戻ったターミナルは scrollback・購読・表示サイズを維持している。再度 Workspace
+    へ切り替えると、開いていたファイル・タブ・未保存バッファがそのまま残っている (モード切替は純粋な表示切替で、破棄確認も出ない)。Esc でも Terminal
+    へ戻れる (エディター内フォーカス時を除く — Esc は vim 通貨)
   vs_legacy: must-fail
   counterexample: '誤実装 1: モード切替でターミナルを unmount して再マウントする — scrollback が消え「切替後も scrollback
-    が残る」assertion で fail。誤実装 2: Terminal への切替を close 扱いにして workspace セッションをリセットする — 戻ったとき空状態になり「ファイルが開いたまま」assertion
-    で fail。誤実装 3: エディターにフォーカスがあるとき Esc がモードを離脱し vim 操作を破壊する。'
+    が残る」assertion で fail。誤実装 2: Terminal への切替を close 扱いにして workspace セッションをリセットする
+    — 戻ったとき空状態になり「ファイルが開いたまま」assertion で fail。誤実装 3: エディターにフォーカスがあるとき Esc がモードを離脱し
+    vim 操作を破壊する。'
 - id: UAC-017
   flow_ref: F-006
   given: ドロワーの Tree タブでネストしたディレクトリを表示
@@ -206,8 +217,8 @@ acceptance_scenarios:
   flow_ref: F-006
   given: エディターで編集して dirty 状態 (既存 dirty-indicator が示す状態)
   when: Save ボタンをクリック、または Cmd/Ctrl+S を押す
-  then: 既存 performSave が呼ばれ、成功で dirty 表示が消え Save は saved (disabled) に戻る。Cmd/Ctrl+S はエディターフォーカス時のみ
-    preventDefault され、ターミナルやパレットにフォーカスがある時は横取りしない。vim :w は従来どおり動く
+  then: 既存 performSave が呼ばれ、成功で dirty 表示が消え Save は saved (disabled) に戻る。Cmd/Ctrl+S
+    はエディターフォーカス時のみ preventDefault され、ターミナルやパレットにフォーカスがある時は横取りしない。vim :w は従来どおり動く
   vs_legacy: irrelevant
   counterexample: '誤実装: keydown を document 全体で拾い、ターミナルフォーカス時まで Cmd+S を横取りする。エディター外フォーカスでのショートカット不発
     assertion で fail する。'
@@ -218,8 +229,8 @@ acceptance_scenarios:
   then: バッファ内容は保持されたまま (既存挙動)、エディター上部にバナーで理由 (root unreachable) が表示され、Save ボタンは disabled
     + tooltip で同じ理由を示す
   vs_legacy: must-pass
-  counterexample: '誤実装: disabled にするだけで理由を出さない。「保存できないのにボタンがある」状態になり、バナー + tooltip の理由表示
-    assertion で fail する。'
+  counterexample: '誤実装: disabled にするだけで理由を出さない。「保存できないのにボタンがある」状態になり、バナー + tooltip
+    の理由表示 assertion で fail する。'
 - id: UAC-020
   flow_ref: F-007
   given: ライトテーマ
@@ -239,15 +250,16 @@ acceptance_scenarios:
   flow_ref: F-005
   given: new-session のパラメータフェーズで project と command を選択済み
   when: command の option をクリック、または command フィルタで Enter を押す
-  then: セッションは作成されず、フォーカスが明示の確定ボタン (New Session) に移る。確定ボタンの click / Enter で初めて
-    createSession が発火する。worktree / host のオプションチップは確定ボタンの直前 (アクション行) に並ぶ
+  then: セッションは作成されず、フォーカスが明示の確定ボタン (New Session) に移る。確定ボタンの click / Enter で初めて createSession
+    が発火する。worktree / host のオプションチップは確定ボタンの直前 (アクション行) に並ぶ
   vs_legacy: must-fail
   counterexample: '誤実装: 最終フィールドの選択で即 submit する (選択=確定の混同)。2 クリックで意図しないセッションが作成され、確定前の
     worktree トグル操作が構造的に不可能になる。「選択後に createSession が呼ばれていない」assertion で fail する。'
 states:
 - 'セッション行: default / hover / selected (塗り) / focused (リング) — selected と focused は独立に共存する'
 - 'Changes パネル (デスクトップ): expanded / collapsed (件数バッジ付きハンドル) — usePersistedValue で永続'
-- 'エディター Save: saved (disabled) / dirty (enabled + ドット) / saving (spinner) / read-only (disabled + 理由 tooltip)'
+- 'エディター Save: saved (disabled) / dirty (enabled + ドット) / saving (spinner) / read-only
+  (disabled + 理由 tooltip)'
 - 'テーマ: dark (既定) / light / system — agent-grid-theme キー互換'
 edge_cases:
 - セッション 0 件時のサイドバー空状態 (New session への導線を維持)
@@ -256,7 +268,8 @@ edge_cases:
 - サイドバー幅下限 (240px) での長タイトル・深いパスの省略表示
 assumptions:
 - UI 文言は既存の英語コピー方針 (__meta__/no-japanese.test.ts) を踏襲する
-- 挙動実装 (useFocusTrap / UnifiedListbox / ConfirmDialog / palette フェーズ遷移 / 保存安全機構 / 各ストア) は無改変で流用できる
+- 挙動実装 (useFocusTrap / UnifiedListbox / ConfirmDialog / palette フェーズ遷移 / 保存安全機構 /
+  各ストア) は無改変で流用できる
 - 既存 e2e / unit の role・data-testid 契約は原則維持し、変更時は同一チャンク内でテストを更新する
 reference_ux:
 - name: Linear
@@ -285,6 +298,7 @@ tags:
 owners: []
 relations:
 - {type: implementedBy, target: spec-20260714-web-ui-refresh}
+- {type: referencedBy, target: spec-20260714-workspace-session-switch}
 source_paths:
 - src/client/web/src/components/
 - src/client/web/src/css/

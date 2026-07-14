@@ -4,10 +4,12 @@ import {
   type WorkspaceTreeEntry,
   makeWorkspaceApi,
 } from "../../api/workspace";
+import { isWorkspaceRequestCurrent } from "../../store/workspaceActivity";
 import { Icon } from "../icons/Icon";
 
 export type WorkspaceTreeProps = {
   sessionId: string;
+  workspaceEpoch?: number;
   pinned: WorkspacePinnedHandle | null;
   onSelectFile: (path: string) => void;
   reloadToken?: number;
@@ -30,10 +32,17 @@ const ROOT_PATH = "";
 
 export function WorkspaceTree({
   sessionId,
+  workspaceEpoch,
   pinned,
   onSelectFile,
   reloadToken = 0,
 }: WorkspaceTreeProps): ReactNode {
+  const requestIsCurrent = useCallback(
+    () =>
+      workspaceEpoch === undefined ||
+      isWorkspaceRequestCurrent({ sessionId, epoch: workspaceEpoch }),
+    [sessionId, workspaceEpoch],
+  );
   const [state, setState] = useState<TreeState>({
     childrenByPath: {},
     expanded: new Set(),
@@ -53,6 +62,7 @@ export function WorkspaceTree({
       try {
         const api = makeWorkspaceApi();
         const resp = await api.getTree(sessionId, path, pinned);
+        if (!requestIsCurrent()) return;
         setState((s) => {
           const loadingPaths = new Set(s.loadingPaths);
           loadingPaths.delete(path);
@@ -71,6 +81,7 @@ export function WorkspaceTree({
           };
         });
       } catch (e) {
+        if (!requestIsCurrent()) return;
         const msg = e instanceof Error ? e.message : String(e);
         setState((s) => {
           const loadingPaths = new Set(s.loadingPaths);
@@ -84,7 +95,7 @@ export function WorkspaceTree({
         });
       }
     },
-    [sessionId, pinned],
+    [sessionId, pinned, requestIsCurrent],
   );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadToken is the parent-driven refetch trigger

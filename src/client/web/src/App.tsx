@@ -115,9 +115,6 @@ export function App() {
   }, []);
   const getTerminalGeometry = useCallback(() => terminalGeometryRef.current, []);
 
-  useEffect(() => {
-    useWorkspaceActivityStore.getState().setScopedSession(activeSessionID);
-  }, [activeSessionID]);
   const activeSession = useDaemonStore((s) =>
     s.activeSessionID ? (s.sessions.find((x) => x.id === s.activeSessionID) ?? null) : null,
   );
@@ -135,6 +132,7 @@ export function App() {
   // Holds the opener (× button) that focus returns to on dialog close.
   // ConfirmDialog restores it via openerRef.current?.focus().
   const terminationOpenerRef = useRef<HTMLElement | null>(null);
+  const workspaceSwitchOpenerRef = useRef<HTMLElement | null>(null);
   const handleRequestTerminate = useCallback((id: string, label: string, opener: HTMLElement) => {
     terminationOpenerRef.current = opener;
     setTerminationTarget({ id, label });
@@ -148,6 +146,42 @@ export function App() {
     if (ok) closeTermination();
   }, [terminationTarget, terminate, closeTermination]);
 
+  const pendingWorkspaceSessionId = useWorkspaceActivityStore((s) => s.pendingSessionSwitchId);
+  const workspaceSessionSwitchError = useWorkspaceActivityStore((s) => s.sessionSwitchError);
+  const workspaceEpoch = useWorkspaceActivityStore((s) => s.workspaceEpoch);
+  const workspaceScopedSessionId = useWorkspaceActivityStore((s) => s.scopedSessionId);
+  const workspaceOrphanedRecovery = useWorkspaceActivityStore((s) => s.orphanedRecovery);
+  const pendingWorkspaceSession = useDaemonStore((s) =>
+    pendingWorkspaceSessionId
+      ? (s.sessions.find((session) => session.id === pendingWorkspaceSessionId) ?? null)
+      : null,
+  );
+  const cancelWorkspaceSessionSwitch = useCallback(() => {
+    useWorkspaceActivityStore.getState().cancelPendingSessionSwitch();
+  }, []);
+  const confirmWorkspaceSessionSwitch = useCallback(() => {
+    const workspace = useWorkspaceActivityStore.getState();
+    const pending = workspace.pendingSessionSwitchId;
+    if (pending === null) return;
+    if (!useDaemonStore.getState().sessions.some((session) => session.id === pending)) {
+      workspace.markPendingSessionMissing();
+      return;
+    }
+    const target = workspace.discardPendingSessionSwitch();
+    if (target !== null) useDaemonStore.getState().selectSession(target);
+  }, []);
+
+  useEffect(() => {
+    if (workspaceSessionSwitchError === null) return;
+    useNotificationsStore.getState().add({
+      level: "error",
+      message:
+        workspaceSessionSwitchError === "pending_target_disappeared"
+          ? "The selected session disappeared. Unsaved Workspace changes were kept."
+          : "The active session disappeared. Unsaved Workspace content is available for recovery.",
+    });
+  }, [workspaceSessionSwitchError]);
+
   const openDrawerTree = useCallback(() => {
     if (!activeSessionID) return;
     useWorkspaceActivityStore.getState().openDrawerTree(activeSessionID);
@@ -158,6 +192,9 @@ export function App() {
   // session, so the open file / dirty buffer / editor state survive.
   const workspaceMode = useWorkspaceActivityStore((s) => s.mainMode === "workspace");
   const workspaceSessionOpen = useWorkspaceActivityStore((s) => s.drawerOpen);
+  const workspaceDisplaySessionId = workspaceOrphanedRecovery
+    ? workspaceScopedSessionId
+    : activeSessionID;
   const handleModeChange = useCallback(
     (next: "terminal" | "workspace") => {
       if (next === "workspace") {
@@ -223,7 +260,12 @@ export function App() {
             />
           </div>
           <div className="main-modes__layer" data-active={workspaceMode ? "true" : "false"}>
-            {workspaceSessionOpen && <WorkspaceDrawer sessionId={activeSessionID} />}
+            {workspaceSessionOpen && (
+              <WorkspaceDrawer
+                key={`${workspaceDisplaySessionId ?? "__none__"}:${workspaceEpoch}`}
+                sessionId={workspaceDisplaySessionId}
+              />
+            )}
           </div>
         </div>
         {activeSession && (
@@ -265,6 +307,22 @@ export function App() {
             onConfirm={handleConfirmTerminate}
             onCancel={closeTermination}
             openerRef={terminationOpenerRef}
+          />
+          <ConfirmDialog
+            open={pendingWorkspaceSessionId !== null}
+            variant={isMobile ? "sheet" : "modal"}
+            title="Switch session"
+            body={
+              pendingWorkspaceSessionId !== null
+                ? `Switch to "${pendingWorkspaceSession?.view.card.title ?? pendingWorkspaceSession?.project ?? pendingWorkspaceSessionId}"? Unsaved Workspace changes will be discarded.`
+                : ""
+            }
+            confirmLabel="Discard and switch"
+            cancelLabel="Cancel"
+            destructive
+            onConfirm={confirmWorkspaceSessionSwitch}
+            onCancel={cancelWorkspaceSessionSwitch}
+            openerRef={workspaceSwitchOpenerRef}
           />
         </>
       }

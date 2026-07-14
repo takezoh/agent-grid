@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,7 +121,7 @@ func TestWorkspacePathGuardHTTP(t *testing.T) {
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
 
-	okReq := authedGet("/api/sessions/ws1/workspace/file?path=ok.txt&handle=0")
+	okReq := authedGet("/api/sessions/ws1/workspace/file?path=ok.txt&handle=0&handle_session=ws1&root=" + url.QueryEscape(root))
 	okW := httptest.NewRecorder()
 	mux.ServeHTTP(okW, okReq)
 	if okW.Code != http.StatusOK {
@@ -135,13 +136,13 @@ func TestWorkspacePathGuardHTTP(t *testing.T) {
 	}
 
 	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
-	badReq := authedGet("/api/sessions/ws1/workspace/file?path=escape/secret.txt&handle=0")
+	badReq := authedGet("/api/sessions/ws1/workspace/file?path=escape/secret.txt&handle=0&handle_session=ws1&root=" + url.QueryEscape(root))
 	badW := httptest.NewRecorder()
 	mux.ServeHTTP(badW, badReq)
 	if badW.Code != http.StatusNotFound {
 		t.Fatalf("escape: got %d, want 404", badW.Code)
 	}
-	if badW.Body.String() != "" && contains(badW.Body.String(), "secret") {
+	if badW.Body.String() != "" && strings.Contains(badW.Body.String(), "secret") {
 		t.Fatal("response leaked outside bytes")
 	}
 }
@@ -176,15 +177,15 @@ func TestWorkspaceRootHandlePinning(t *testing.T) {
 	}
 
 	sendFakeResponse(t, fd, workspaceSessionResp(rootA, 0))
-	treeReq := authedGet("/api/sessions/ws1/workspace/tree?handle=0&root=" + rootA)
+	treeReq := authedGet("/api/sessions/ws1/workspace/tree?handle=0&handle_session=ws1&root=" + url.QueryEscape(rootA))
 	treeW := httptest.NewRecorder()
 	mux.ServeHTTP(treeW, treeReq)
 	if treeW.Code != http.StatusOK {
 		t.Fatalf("pinned tree: %d %s", treeW.Code, treeW.Body.String())
 	}
 
-	sendFakeResponse(t, fd, workspaceSessionResp(rootB, 1))
-	staleReq := authedGet("/api/sessions/ws1/workspace/tree?handle=0&root=" + rootA)
+	sendFakeResponse(t, fd, workspaceSessionResp(rootA, 1))
+	staleReq := authedGet("/api/sessions/ws1/workspace/tree?handle=0&handle_session=ws1&root=" + url.QueryEscape(rootA))
 	staleW := httptest.NewRecorder()
 	mux.ServeHTTP(staleW, staleReq)
 	if staleW.Code != http.StatusConflict {
@@ -199,6 +200,112 @@ func TestWorkspaceRootHandlePinning(t *testing.T) {
 	}
 }
 
+// TestWorkspaceHandleSessionMismatch covers
+// adr-20260714-workspace-handle-session-binding: a handle_session query value
+// that differs from the URL session must be rejected as invalid_handle
+// before any filesystem access, even though the URL id resolves fine on its
+// own and its generation/root would otherwise validate.
+func TestWorkspaceHandleSessionMismatch(t *testing.T) {
+	t.Parallel()
+	d, fd := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
+	req := authedGet(
+		"/api/sessions/ws1/workspace/file?path=secret.txt&handle=0&handle_session=other-session&root=" + url.QueryEscape(root),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("handle_session mismatch: got %d %s, want 400", w.Code, w.Body.String())
+	}
+	var body struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Error != "invalid_handle" {
+		t.Fatalf("error = %q, want invalid_handle", body.Error)
+	}
+	if strings.Contains(w.Body.String(), "secret") {
+		t.Fatal("response leaked file contents on handle_session mismatch")
+	}
+}
+
+// TestWorkspaceHandleRootMismatch covers the same ADR: a root query value
+// that disagrees with the server-resolved current root — even though the
+// generation still matches — must be rejected as invalid_handle rather than
+// silently trusting the client-supplied root.
+func TestWorkspaceHandleRootMismatch(t *testing.T) {
+	t.Parallel()
+	d, fd := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+
+	actualRoot := t.TempDir()
+	otherRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(otherRoot, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	sendFakeResponse(t, fd, workspaceSessionResp(actualRoot, 0))
+	req := authedGet(
+		"/api/sessions/ws1/workspace/file?path=secret.txt&handle=0&handle_session=ws1&root=" + url.QueryEscape(otherRoot),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("root mismatch: got %d %s, want 400", w.Code, w.Body.String())
+	}
+	var body struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Error != "invalid_handle" {
+		t.Fatalf("error = %q, want invalid_handle", body.Error)
+	}
+	if strings.Contains(w.Body.String(), "secret") {
+		t.Fatal("response leaked file contents on root mismatch")
+	}
+}
+
+func TestWorkspaceHandleRequiresCompleteBindingTuple(t *testing.T) {
+	t.Parallel()
+	d, fd := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []string{
+		"/api/sessions/ws1/workspace/file?path=secret.txt&handle=0&root=" + url.QueryEscape(root),
+		"/api/sessions/ws1/workspace/file?path=secret.txt&handle=0&handle_session=ws1",
+	}
+	for _, route := range tests {
+		sendFakeResponse(t, fd, workspaceSessionResp(root, 0))
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, authedGet(route))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("incomplete handle %q: got %d %s, want 400", route, w.Code, w.Body.String())
+		}
+		var body workspaceInvalidHandleError
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Error != "invalid_handle" || strings.Contains(w.Body.String(), "secret") {
+			t.Fatalf("incomplete handle response = %s", w.Body.String())
+		}
+	}
+}
+
 func TestDiffBase(t *testing.T) {
 	t.Parallel()
 	d, fd := newDaemonPair(t)
@@ -209,7 +316,7 @@ func TestDiffBase(t *testing.T) {
 		t.Fatal(err)
 	}
 	sendFakeResponse(t, fd, workspaceSessionResp(nonGit, 0))
-	req := authedGet("/api/sessions/ws1/workspace/diff?path=f.txt&handle=0")
+	req := authedGet("/api/sessions/ws1/workspace/diff?path=f.txt&handle=0&handle_session=ws1&root=" + url.QueryEscape(nonGit))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -231,7 +338,7 @@ func TestDiffBase(t *testing.T) {
 		t.Fatal(err)
 	}
 	sendFakeResponse(t, fd, workspaceSessionResp(corruptDir, 0))
-	req = authedGet("/api/sessions/ws1/workspace/diff?handle=0")
+	req = authedGet("/api/sessions/ws1/workspace/diff?handle=0&handle_session=ws1&root=" + url.QueryEscape(corruptDir))
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -285,17 +392,4 @@ func TestWorkspaceRootHandleResolutionPriority(t *testing.T) {
 			}
 		})
 	}
-}
-
-func contains(s, sub string) bool {
-	return len(sub) == 0 || (len(s) >= len(sub) && (s == sub || len(s) > 0 && stringIndex(s, sub) >= 0))
-}
-
-func stringIndex(s, sub string) int {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
 }

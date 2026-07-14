@@ -401,7 +401,7 @@ describe("FileViewer editor", () => {
         }}
         eventKind="edit"
         sessionId="s1"
-        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        pinnedHandle={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/workspace" }}
       />,
     );
     await waitFor(() => expect(getEditorView()).toBeTruthy());
@@ -414,7 +414,7 @@ describe("FileViewer editor", () => {
       expect(saveMock).toHaveBeenCalledWith(
         "s1",
         "a.txt",
-        { frameGeneration: 1, resolvedRootPath: "/workspace" },
+        { sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/workspace" },
         "abc",
         "Mon, 01 Jan 2024 00:00:00 GMT",
       );
@@ -434,7 +434,7 @@ describe("FileViewer editor", () => {
         file={file}
         eventKind="edit"
         sessionId="s1"
-        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        pinnedHandle={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/workspace" }}
         saveDisabled={false}
       />,
     );
@@ -453,7 +453,7 @@ describe("FileViewer editor", () => {
         file={file}
         eventKind="edit"
         sessionId="s1"
-        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        pinnedHandle={{ sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/workspace" }}
         saveDisabled
       />,
     );

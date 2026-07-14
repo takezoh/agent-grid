@@ -6,6 +6,7 @@ import {
   makeWorkspaceApi,
 } from "../../api/workspace";
 import {
+  isWorkspaceRequestCurrent,
   selectAriaLiveMessage,
   selectBufferDirty,
   selectConflictBannerVisible,
@@ -64,6 +65,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
   const tab = useWorkspaceActivityStore((s) => s.drawerTab);
   const target = useWorkspaceActivityStore((s) => s.drawerTarget);
   const pinnedHandle = useWorkspaceActivityStore((s) => s.pinnedHandle);
+  const workspaceEpoch = useWorkspaceActivityStore((s) => s.workspaceEpoch);
   const reloadGeneration = useWorkspaceActivityStore((s) => s.reloadGeneration);
   const reconnectResyncGeneration = useWorkspaceActivityStore((s) => s.reconnectResyncGeneration);
   const rootDisappeared = useWorkspaceActivityStore((s) => s.rootDisappeared);
@@ -83,6 +85,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
   const setConflictOutcome = useWorkspaceActivityStore((s) => s.setConflictOutcome);
   const setRootDisappeared = useWorkspaceActivityStore((s) => s.setRootDisappeared);
   const resolveConflict = useWorkspaceActivityStore((s) => s.resolveConflict);
+  const completeOrphanedRecovery = useWorkspaceActivityStore((s) => s.completeOrphanedRecovery);
 
   const stale = useWorkspaceActivityStore((s) => selectDrawerStale(s, target?.path));
   const dirty = useWorkspaceActivityStore((s) => selectBufferDirty(s, target?.path));
@@ -101,6 +104,24 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
   const [skipPrecondition, setSkipPrecondition] = useState(false);
   const [clipboardContent, setClipboardContent] = useState<string | null>(null);
 
+  const requestIsCurrent = useCallback(() => {
+    if (!sessionId) return false;
+    return isWorkspaceRequestCurrent({ sessionId, epoch: workspaceEpoch });
+  }, [sessionId, workspaceEpoch]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: session/epoch identity change must clear component-local async state
+  useEffect(() => {
+    setFile(null);
+    setDiff(null);
+    setLoadingFile(false);
+    setLoadingDiff(false);
+    setFileError(null);
+    setDiffError(null);
+    setHandleStale(false);
+    setSkipPrecondition(false);
+    setClipboardContent(null);
+  }, [sessionId, workspaceEpoch]);
+
   // Pin root handle once per drawer open (never re-resolve on background frame push).
   useEffect(() => {
     if (!open) {
@@ -114,20 +135,21 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
       try {
         const api = makeWorkspaceApi();
         const handle = await api.getRootHandle(sessionId);
-        if (cancelled) return;
+        if (cancelled || !requestIsCurrent()) return;
         setPinnedHandle({
+          sessionId: handle.session_id,
           frameGeneration: handle.frame_generation,
           resolvedRootPath: handle.resolved_root_path,
         });
       } catch (e) {
-        if (cancelled) return;
+        if (cancelled || !requestIsCurrent()) return;
         setFileError(e instanceof Error ? e.message : String(e));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, sessionId, pinnedHandle, setPinnedHandle]);
+  }, [open, sessionId, pinnedHandle, setPinnedHandle, requestIsCurrent]);
 
   const fetchContent = useCallback(async () => {
     if (!sessionId || !pinnedHandle || !target?.path) return;
@@ -141,11 +163,13 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     try {
       const api = makeWorkspaceApi();
       const resp = await api.getFile(sessionId, target.path, pinnedHandle);
+      if (!requestIsCurrent()) return;
       setFile(resp);
       if (resp.mtime) {
         registerDirtyBuffer(target.path, resp.mtime);
       }
     } catch (e) {
+      if (!requestIsCurrent()) return;
       if (WorkspaceApiError.isHandleStale(e)) {
         setHandleStale(true);
         if (dirty) {
@@ -156,9 +180,17 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
         setFileError(e instanceof Error ? e.message : String(e));
       }
     } finally {
-      setLoadingFile(false);
+      if (requestIsCurrent()) setLoadingFile(false);
     }
-  }, [sessionId, pinnedHandle, target, registerDirtyBuffer, dirty, setRootDisappeared]);
+  }, [
+    sessionId,
+    pinnedHandle,
+    target,
+    registerDirtyBuffer,
+    dirty,
+    setRootDisappeared,
+    requestIsCurrent,
+  ]);
 
   const fetchDiff = useCallback(async () => {
     if (!sessionId || !pinnedHandle || !target?.path) return;
@@ -167,8 +199,10 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     try {
       const api = makeWorkspaceApi();
       const resp = await api.getDiff(sessionId, target.path, pinnedHandle);
+      if (!requestIsCurrent()) return;
       setDiff(resp);
     } catch (e) {
+      if (!requestIsCurrent()) return;
       if (WorkspaceApiError.isHandleStale(e)) {
         setHandleStale(true);
         if (dirty) {
@@ -179,9 +213,9 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
         setDiffError(e instanceof Error ? e.message : String(e));
       }
     } finally {
-      setLoadingDiff(false);
+      if (requestIsCurrent()) setLoadingDiff(false);
     }
-  }, [sessionId, pinnedHandle, target, dirty, setRootDisappeared]);
+  }, [sessionId, pinnedHandle, target, dirty, setRootDisappeared, requestIsCurrent]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadGeneration is the store-driven refetch trigger
   useEffect(() => {
@@ -203,7 +237,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
       try {
         const api = makeWorkspaceApi();
         const resp = await api.getFile(sessionId, target.path, pinnedHandle);
-        if (cancelled) return;
+        if (cancelled || !requestIsCurrent()) return;
         if (resp.mtime && resp.mtime !== buffer.ifUnmodifiedSince) {
           setConflictOutcome(target.path, "reconnect_mtime_differs");
         }
@@ -214,7 +248,15 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     return () => {
       cancelled = true;
     };
-  }, [open, reconnectResyncGeneration, sessionId, pinnedHandle, target?.path, setConflictOutcome]);
+  }, [
+    open,
+    reconnectResyncGeneration,
+    sessionId,
+    pinnedHandle,
+    target?.path,
+    setConflictOutcome,
+    requestIsCurrent,
+  ]);
 
   // Esc returns to Terminal mode. Pure visibility switch — the workspace
   // session (open file, dirty buffer) survives, so no discard guard is
@@ -241,14 +283,15 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
   );
 
   const onSaveSuccess = useCallback(() => {
-    if (!target?.path) return;
+    if (!target?.path || !requestIsCurrent()) return;
     clearDirtyBuffer(target.path);
     setSkipPrecondition(false);
     reloadDrawerContent();
-  }, [target?.path, clearDirtyBuffer, reloadDrawerContent]);
+  }, [target?.path, clearDirtyBuffer, reloadDrawerContent, requestIsCurrent]);
 
   const onSaveError = useCallback(
     (err: WorkspaceApiError) => {
+      if (!requestIsCurrent()) return;
       if (WorkspaceApiError.isHandleStale(err)) {
         setHandleStale(true);
         if (dirty) setRootDisappeared(true);
@@ -262,7 +305,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
       }
       setFileError((err as WorkspaceApiError).message);
     },
-    [dirty, target?.path, setConflictOutcome, setRootDisappeared],
+    [dirty, target?.path, setConflictOutcome, setRootDisappeared, requestIsCurrent],
   );
 
   const onKeepMine = () => {
@@ -287,6 +330,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     const text = clipboardContent ?? file?.content ?? "";
     try {
       await navigator.clipboard.writeText(text);
+      completeOrphanedRecovery();
     } catch {
       // fallback for test env
     }
@@ -344,6 +388,9 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
             <span>Workspace root disappeared. Buffer kept in memory; save is disabled.</span>
             <button type="button" onClick={() => void onExportClipboard()}>
               Copy buffer to clipboard
+            </button>
+            <button type="button" onClick={completeOrphanedRecovery}>
+              Discard buffer
             </button>
           </div>
         )}
@@ -467,6 +514,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
           <div className="workspace-view__tree-body">
             <WorkspaceTree
               sessionId={sessionId}
+              workspaceEpoch={workspaceEpoch}
               pinned={pinnedHandle}
               reloadToken={reloadGeneration}
               onSelectFile={(path) => {

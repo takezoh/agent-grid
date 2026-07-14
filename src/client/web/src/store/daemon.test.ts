@@ -13,6 +13,7 @@ import {
   useDaemonStore,
   workspaceOf,
 } from "./daemon";
+import { useWorkspaceActivityStore } from "./workspaceActivity";
 
 function mkSession(id: string, overrides: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -28,6 +29,7 @@ function mkSession(id: string, overrides: Partial<SessionInfo> = {}): SessionInf
 describe("daemonStore", () => {
   beforeEach(() => {
     useDaemonStore.getState().reset();
+    useWorkspaceActivityStore.getState().reset();
   });
 
   it("seedHello populates sessions/features/serverTime/activeSessionID", () => {
@@ -151,6 +153,62 @@ describe("daemonStore", () => {
   it("selectSession updates activeSessionID", () => {
     useDaemonStore.getState().selectSession("x");
     expect(useDaemonStore.getState().activeSessionID).toBe("x");
+  });
+
+  it("selectSession defers the active commit while Workspace is dirty", () => {
+    useDaemonStore.setState({
+      sessions: [mkSession("s1"), mkSession("s2")],
+      activeSessionID: "s1",
+    });
+    const workspace = useWorkspaceActivityStore.getState();
+    workspace.setScopedSession("s1");
+    workspace.openDrawerFromRow({ sessionId: "s1", path: "a.ts", kind: "edit" });
+    workspace.setBufferDirty("a.ts", true);
+
+    useDaemonStore.getState().selectSession("s2");
+
+    expect(useDaemonStore.getState().activeSessionID).toBe("s1");
+    expect(useWorkspaceActivityStore.getState().pendingSessionSwitchId).toBe("s2");
+  });
+
+  it("enters orphaned recovery when a dirty Workspace owner disappears", () => {
+    useDaemonStore.setState({
+      sessions: [mkSession("s1"), mkSession("s2")],
+      activeSessionID: "s1",
+    });
+    const workspace = useWorkspaceActivityStore.getState();
+    workspace.setScopedSession("s1");
+    workspace.openDrawerFromRow({ sessionId: "s1", path: "a.ts", kind: "edit" });
+    workspace.setBufferDirty("a.ts", true);
+    useDaemonStore.getState().selectSession("s2");
+
+    useDaemonStore.getState().applyViewUpdate({ k: "v", sessions: [mkSession("s2")] });
+
+    expect(useDaemonStore.getState().activeSessionID).toBeNull();
+    expect(useWorkspaceActivityStore.getState().orphanedRecovery).toBe(true);
+    expect(useWorkspaceActivityStore.getState().rootDisappeared).toBe(true);
+    expect(useWorkspaceActivityStore.getState().dirtyBuffers["a.ts"]?.dirty).toBe(true);
+    useDaemonStore.getState().selectSession("s2");
+    expect(useDaemonStore.getState().activeSessionID).toBeNull();
+  });
+
+  it("clears a vanished pending target without discarding the dirty Workspace", () => {
+    useDaemonStore.setState({
+      sessions: [mkSession("s1"), mkSession("s2")],
+      activeSessionID: "s1",
+    });
+    const workspace = useWorkspaceActivityStore.getState();
+    workspace.setScopedSession("s1");
+    workspace.setBufferDirty("a.ts", true);
+    useDaemonStore.getState().selectSession("s2");
+
+    useDaemonStore.getState().applyViewUpdate({ k: "v", sessions: [mkSession("s1")] });
+
+    expect(useWorkspaceActivityStore.getState().pendingSessionSwitchId).toBeNull();
+    expect(useWorkspaceActivityStore.getState().sessionSwitchError).toBe(
+      "pending_target_disappeared",
+    );
+    expect(useWorkspaceActivityStore.getState().dirtyBuffers["a.ts"]?.dirty).toBe(true);
   });
 
   it("setStatus updates connection status", () => {

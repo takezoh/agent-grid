@@ -30,6 +30,10 @@ type workspaceHandleStaleError struct {
 	ResolvedRootPath string `json:"resolved_root_path,omitempty"`
 }
 
+type workspaceInvalidHandleError struct {
+	Error string `json:"error"`
+}
+
 type workspaceTreeEntry struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
@@ -117,11 +121,10 @@ func serveWorkspaceTree(d *DaemonClient, w http.ResponseWriter, r *http.Request)
 		writeWorkspaceResolveError(w, r, id, err)
 		return
 	}
-	stale, pinnedRoot := workspaceHandleStale(w, r, info)
-	if stale {
+	if !validateWorkspaceHandle(w, r, id, info) {
 		return
 	}
-	root := pinnedRootOrCurrent(pinnedRoot, info.workspaceRoot)
+	root := info.workspaceRoot
 	if _, err := os.Stat(root); err != nil {
 		writeJSON(w, http.StatusOK, workspaceTreeResponse{Outcome: "root_unreachable"})
 		return
@@ -175,11 +178,10 @@ func serveWorkspaceFile(d *DaemonClient, w http.ResponseWriter, r *http.Request)
 		writeWorkspaceResolveError(w, r, id, err)
 		return
 	}
-	stale, pinnedRoot := workspaceHandleStale(w, r, info)
-	if stale {
+	if !validateWorkspaceHandle(w, r, id, info) {
 		return
 	}
-	root := pinnedRootOrCurrent(pinnedRoot, info.workspaceRoot)
+	root := info.workspaceRoot
 	rel := r.URL.Query().Get("path")
 	if rel == "" {
 		gatewayError(w, r, http.StatusBadRequest, "path_required", "path required")
@@ -235,11 +237,10 @@ func serveWorkspaceDiff(d *DaemonClient, w http.ResponseWriter, r *http.Request)
 		writeWorkspaceResolveError(w, r, id, err)
 		return
 	}
-	stale, pinnedRoot := workspaceHandleStale(w, r, info)
-	if stale {
+	if !validateWorkspaceHandle(w, r, id, info) {
 		return
 	}
-	root := pinnedRootOrCurrent(pinnedRoot, info.workspaceRoot)
+	root := info.workspaceRoot
 	rel := r.URL.Query().Get("path")
 	if rel != "" {
 		if _, err := GuardWorkspacePath(root, rel); err != nil {
@@ -292,39 +293,46 @@ func resolveWorkspaceSession(d *DaemonClient, r *http.Request, id string) (works
 	return workspaceSession{}, errSessionNotFound
 }
 
-func pinnedRootOrCurrent(pinned, current string) string {
-	if pinned != "" {
-		return pinned
-	}
-	return current
-}
-
-func workspaceHandleStale(w http.ResponseWriter, r *http.Request, info workspaceSession) (bool, string) {
+// validateWorkspaceHandle enforces adr-20260714-workspace-handle-session-binding:
+// the URL session, the handle's own session, the handle's resolved root, and
+// its frame generation must all agree with the server's current resolution
+// before any filesystem or git access happens under the trust root. Session
+// or root mismatch is a distinct contract violation (invalid_handle) from
+// ordinary generation drift (handle_stale) so callers can tell "this handle
+// never belonged here" apart from "this handle is simply outdated". On
+// success the caller must use info.workspaceRoot (never the client-supplied
+// root) as the trust root.
+func validateWorkspaceHandle(w http.ResponseWriter, r *http.Request, id string, info workspaceSession) bool {
 	handleStr := r.URL.Query().Get("handle")
 	if handleStr == "" {
-		return false, r.URL.Query().Get("root")
+		return true
+	}
+	handleSession := r.URL.Query().Get("handle_session")
+	if handleSession == "" || handleSession != id || handleSession != info.sessionID {
+		writeJSON(w, http.StatusBadRequest, workspaceInvalidHandleError{Error: "invalid_handle"})
+		return false
+	}
+	root := r.URL.Query().Get("root")
+	if root == "" || root != info.workspaceRoot {
+		writeJSON(w, http.StatusBadRequest, workspaceInvalidHandleError{Error: "invalid_handle"})
+		return false
 	}
 	pinned, err := strconv.Atoi(handleStr)
 	if err != nil {
 		gatewayError(w, r, http.StatusBadRequest, "invalid_handle", "invalid handle")
-		return true, ""
+		return false
 	}
-	if pinned == info.frameGeneration {
-		root := r.URL.Query().Get("root")
-		if root != "" {
-			return false, root
-		}
-		return false, info.workspaceRoot
+	if pinned != info.frameGeneration {
+		writeJSON(w, http.StatusConflict, workspaceHandleStaleError{
+			Error:            "handle_stale",
+			SessionID:        info.sessionID,
+			FrameGeneration:  info.frameGeneration,
+			PinnedGeneration: pinned,
+			ResolvedRootPath: root,
+		})
+		return false
 	}
-	pinnedRoot := r.URL.Query().Get("root")
-	writeJSON(w, http.StatusConflict, workspaceHandleStaleError{
-		Error:            "handle_stale",
-		SessionID:        info.sessionID,
-		FrameGeneration:  info.frameGeneration,
-		PinnedGeneration: pinned,
-		ResolvedRootPath: pinnedRoot,
-	})
-	return true, ""
+	return true
 }
 
 func writeWorkspaceResolveError(w http.ResponseWriter, r *http.Request, id string, err error) {

@@ -28,9 +28,17 @@ export type DrawerTab = "viewer" | "diff" | "tree";
 export type MainMode = "terminal" | "workspace";
 
 export type WorkspaceRootHandlePin = {
+  sessionId: string;
   frameGeneration: number;
   resolvedRootPath: string;
 };
+
+export type WorkspaceRequestIdentity = {
+  sessionId: string;
+  epoch: number;
+};
+
+export type SessionSwitchError = "pending_target_disappeared" | "active_session_disappeared_dirty";
 
 export type DrawerTarget = {
   sessionId: string;
@@ -59,6 +67,13 @@ export type WorkspaceActivityState = {
   lastSequenceBySession: Record<string, number>;
   /** Active session id used for cross-session guard on ingest. */
   scopedSessionId: string | null;
+  /** Monotonic identity for all asynchronous Workspace requests. */
+  workspaceEpoch: number;
+  /** Dirty-aware session selection waits here until the operator decides. */
+  pendingSessionSwitchId: string | null;
+  sessionSwitchError: SessionSwitchError | null;
+  /** Dirty editor recovery after its owning session disappeared. */
+  orphanedRecovery: boolean;
   /** True when WS dropped and reconnect is pending. */
   transportDegraded: boolean;
   /** Drawer UI state — lives here so rail + drawer share one source. */
@@ -93,6 +108,12 @@ export type WorkspaceActivityState = {
   liveAnnounceSeq: number;
 
   setScopedSession: (sessionId: string | null) => void;
+  requestSessionSwitch: (sessionId: string | null) => boolean;
+  cancelPendingSessionSwitch: () => void;
+  discardPendingSessionSwitch: () => string | null;
+  markPendingSessionMissing: () => void;
+  markActiveSessionMissing: () => void;
+  completeOrphanedRecovery: () => void;
   applyViewUpdate: (frame: ViewUpdateFrame) => void;
   applyActivityEvents: (sessionId: string, events: ActivityEvent[]) => void;
   setTransportDegraded: (degraded: boolean) => void;
@@ -128,6 +149,19 @@ const EMPTY_TURN_ROWS: TurnRow[] = [];
 export function selectTurnRows(state: WorkspaceActivityState, sessionId: string | null): TurnRow[] {
   if (!sessionId) return EMPTY_TURN_ROWS;
   return state.rowsBySession[sessionId] ?? EMPTY_TURN_ROWS;
+}
+
+export function selectHasDirtyWorkspace(state: WorkspaceActivityState): boolean {
+  return Object.values(state.dirtyBuffers).some((buffer) => buffer.dirty);
+}
+
+export function isWorkspaceRequestCurrent(identity: WorkspaceRequestIdentity): boolean {
+  const state = useWorkspaceActivityStore.getState();
+  return (
+    !state.orphanedRecovery &&
+    state.scopedSessionId === identity.sessionId &&
+    state.workspaceEpoch === identity.epoch
+  );
 }
 
 export function selectDrawerStale(
@@ -292,6 +326,10 @@ const initialState = {
   rowsBySession: {} as Record<string, TurnRow[]>,
   lastSequenceBySession: {} as Record<string, number>,
   scopedSessionId: null as string | null,
+  workspaceEpoch: 0,
+  pendingSessionSwitchId: null as string | null,
+  sessionSwitchError: null as SessionSwitchError | null,
+  orphanedRecovery: false,
   transportDegraded: false,
   drawerOpen: false,
   mainMode: "terminal" as MainMode,
@@ -316,14 +354,94 @@ function clearDrawerEditorState(): Partial<WorkspaceActivityState> {
     dirtyBuffers: {},
     conflictByPath: {},
     rootDisappeared: false,
+    orphanedRecovery: false,
     closeWarningOpen: false,
+  };
+}
+
+function switchWorkspaceSession(
+  state: WorkspaceActivityState,
+  sessionId: string | null,
+): Partial<WorkspaceActivityState> {
+  return {
+    scopedSessionId: sessionId,
+    workspaceEpoch: state.workspaceEpoch + 1,
+    pendingSessionSwitchId: null,
+    sessionSwitchError: null,
+    orphanedRecovery: false,
+    drawerTarget: null,
+    drawerTab: "tree",
+    pinnedHandle: null,
+    stalePaths: {},
+    staleAnnounceSeq: 0,
+    lastStaleAnnouncePath: null,
+    reloadGeneration: state.reloadGeneration + 1,
+    expandedRows: new Set<string>(),
+    ...clearDrawerEditorState(),
   };
 }
 
 export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, get) => ({
   ...initialState,
 
-  setScopedSession: (sessionId) => set({ scopedSessionId: sessionId }),
+  setScopedSession: (sessionId) =>
+    set((state) =>
+      state.scopedSessionId === sessionId ? state : switchWorkspaceSession(state, sessionId),
+    ),
+
+  requestSessionSwitch: (sessionId) => {
+    const state = get();
+    if (state.orphanedRecovery) return false;
+    if (state.scopedSessionId === sessionId) return true;
+    if (selectHasDirtyWorkspace(state)) {
+      if (state.pendingSessionSwitchId !== sessionId || state.sessionSwitchError !== null) {
+        set({ pendingSessionSwitchId: sessionId, sessionSwitchError: null });
+      }
+      return false;
+    }
+    set((current) => switchWorkspaceSession(current, sessionId));
+    return true;
+  },
+
+  cancelPendingSessionSwitch: () => set({ pendingSessionSwitchId: null, sessionSwitchError: null }),
+
+  discardPendingSessionSwitch: () => {
+    const pending = get().pendingSessionSwitchId;
+    if (pending === null) return null;
+    set({
+      pendingSessionSwitchId: null,
+      sessionSwitchError: null,
+      dirtyBuffers: {},
+      conflictByPath: {},
+      stalePaths: {},
+      closeWarningOpen: false,
+      rootDisappeared: false,
+    });
+    return pending;
+  },
+
+  markPendingSessionMissing: () =>
+    set((state) => ({
+      pendingSessionSwitchId: null,
+      sessionSwitchError: "pending_target_disappeared",
+      liveAnnounceSeq: state.liveAnnounceSeq + 1,
+    })),
+
+  markActiveSessionMissing: () =>
+    set((state) => ({
+      pendingSessionSwitchId: null,
+      sessionSwitchError: "active_session_disappeared_dirty",
+      orphanedRecovery: true,
+      rootDisappeared: true,
+      closeWarningOpen: false,
+      liveAnnounceSeq: state.liveAnnounceSeq + 1,
+    })),
+
+  completeOrphanedRecovery: () =>
+    set((state) => ({
+      ...switchWorkspaceSession(state, null),
+      orphanedRecovery: false,
+    })),
 
   applyViewUpdate: (frame) => {
     if (!frame.activity_events?.length) return;

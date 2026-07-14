@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -542,7 +543,9 @@ func TestE2E_GatewayScenarioWorkspaceFileWrite(t *testing.T) {
 	}
 
 	putURL := daemon.httpURL + "/api/sessions/" + sessionID +
-		"/workspace/file?path=edit-me.txt&handle=" + strconv.Itoa(handle.FrameGeneration)
+		"/workspace/file?path=edit-me.txt&handle=" + strconv.Itoa(handle.FrameGeneration) +
+		"&handle_session=" + url.QueryEscape(handle.SessionID) +
+		"&root=" + url.QueryEscape(handle.ResolvedRootPath)
 	putReq, err := http.NewRequest(http.MethodPut, putURL, bytes.NewBufferString("after"))
 	if err != nil {
 		t.Fatal(err)
@@ -558,7 +561,9 @@ func TestE2E_GatewayScenarioWorkspaceFileWrite(t *testing.T) {
 	}
 
 	getURL := daemon.httpURL + "/api/sessions/" + sessionID +
-		"/workspace/file?path=edit-me.txt&handle=" + strconv.Itoa(handle.FrameGeneration)
+		"/workspace/file?path=edit-me.txt&handle=" + strconv.Itoa(handle.FrameGeneration) +
+		"&handle_session=" + url.QueryEscape(handle.SessionID) +
+		"&root=" + url.QueryEscape(handle.ResolvedRootPath)
 	getResp, err := http.Get(getURL)
 	if err != nil {
 		t.Fatalf("get file: %v", err)
