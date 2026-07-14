@@ -10,7 +10,62 @@ make lint                    # golangci-lint (depguard, funlen, staticcheck, etc
 cd src && go test ./...          # Run all tests
 cd src && go test ./path/to/pkg  # Run tests for a specific package
 cd src && go test -run TestName ./...  # Run a specific test
+make test-race               # Race detector on concurrency-sensitive subtrees
 ```
+
+### E2E (three kinds — do not conflate)
+
+| Kind | Tier | When | Entry |
+|------|------|------|-------|
+| Go gateway scenario | T1 | Always-on (`go test ./...`) | `src/server/web` (`mux_*_test.go`, etc.) |
+| Go opt-in fidelity | T3 | Manual / nightly; subtests skip without `AG_E2E_*` | `make test-e2e` |
+| Web Playwright smoke | T1 | PR CI (`npm run test:web`) | `src/client/web` `npm run test:e2e` |
+
+**Go gateway scenario** — no extra command; included in `go test ./...`. Exercises real `server` + fake agent (`session create → WS viewUpdate`, etc.).
+
+**Go opt-in fidelity** — `//go:build e2e` fake-vs-real backstops. Skips when real binaries are unset (expected locally).
+
+```sh
+make test-e2e
+# Package list: Makefile test-e2e target. Per-binary setup: docs/component/component-20260624-client-stream-backend-e2e.md
+```
+
+**Web Playwright smoke** — browser wiring that happy-dom cannot prove; uses deterministic fake backend (`e2e/support/fake-backend.ts`). Harness overview: `docs/component/component-20260705-client-web-browser-harness.md`.
+
+```sh
+cd src/client/web
+npm ci
+npx playwright install chromium   # first run or after @playwright/test bump; CI uses --with-deps
+npm run test:e2e                # build (tsc + vite) then playwright test
+npm run test:web                # lint + unit + e2e (CI web gate)
+```
+
+If home-directory caches are not writable (sandbox agents), redirect caches:
+
+```sh
+GOCACHE=/tmp/gocache-agent-grid GOLANGCI_LINT_CACHE=/tmp/golangci-lint-cache make lint
+cd src && GOCACHE=/tmp/gocache-agent-grid go test ./...
+cd src/client/web
+NPM_CONFIG_CACHE=/tmp/npm-cache-agent-grid npm ci
+PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npx playwright install chromium
+PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npm run test:e2e
+GOCACHE=/tmp/gocache-agent-grid make test-e2e
+```
+
+Playwright escape hatches: `PLAYWRIGHT_BROWSERS_PATH` when `~/.cache/ms-playwright` is unavailable; `PW_USE_SYSTEM_CHROME=1` to use installed Chrome instead of downloaded Chromium (`playwright.config.ts`).
+
+### Full local verification (cross-cutting changes)
+
+```sh
+GOCACHE=/tmp/gocache-agent-grid GOLANGCI_LINT_CACHE=/tmp/golangci-lint-cache make lint
+cd src/client/web && NPM_CONFIG_CACHE=/tmp/npm-cache-agent-grid npm run lint
+cd src && GOCACHE=/tmp/gocache-agent-grid go test ./...
+cd src/client/web && npm run test:unit
+GOCACHE=/tmp/gocache-agent-grid make test-e2e
+cd src/client/web && PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npm run test:e2e
+```
+
+Cache env vars are optional on a normal dev machine.
 
 ## Three-layer architecture
 

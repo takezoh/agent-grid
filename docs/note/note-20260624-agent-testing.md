@@ -113,6 +113,8 @@ the test-pinned enforcement catalogued in
 - **client/web browser smoke (T1)** — Playwright runs a deterministic fake-backend browser harness for session hydrate, command palette open, and new-session submit. This covers browser wiring that happy-dom cannot prove, while keeping real soft keyboard / assistive-tech flows on the manual-device checklist.
 - **fakedocker + `FakeVsRealDocker` (T1 + T3)** — devcontainer lifecycle tests run against PATH-injected `fakedocker`, and an opt-in real-docker backstop verifies the fake's output shape. Enforcement is catalogued in [code-enforcement.md §10](../note/note-20260624-technical-code-enforcement.md).
 
+Local e2e run commands live in [AGENTS.md](../../AGENTS.md) (Build & Test → E2E).
+
 ## Fan-out isolation harness (termvt multiplexer)
 
 The backend's `platform/termvt` is the same shape — one source
