@@ -1,0 +1,40 @@
+/* ─── LastPromptBar ─────────────────────────────────────────────────────── */
+/* Header band above the TERMINAL content inside `.terminal-slot` (flex
+   column). flex-shrink:0 keeps it out of the flex-remainder negotiation —
+   `.terminal-host` (flex:1 1 0) absorbs the rest, and TerminalPane's
+   ResizeObserver refits xterm to the reduced host box (ADR-0034).
+
+   The text block is clamped to 3 lines and the bar reserves that height
+   up front (min-height on the text) so the terminal geometry stays stable
+   while prompts of different lengths stream in. */
+.last-prompt-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+.last-prompt-bar__label {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+}
+.last-prompt-bar__text {
+  min-width: 0;
+  color: var(--fg-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  min-height: calc(3 * 1.4em);
+}
+.last-prompt-bar__text--empty {
+  color: var(--text-faint);
+}

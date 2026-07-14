@@ -53,6 +53,7 @@ func (d ClaudeDriver) view(cs ClaudeState) state.View {
 		LogTabs:         logTabs,
 		InfoExtras:      claudeInfoExtras(cs),
 		StatusLine:      planStatusLine(cs),
+		LastUserPrompt:  lastUserPromptPreview(cs.LastPrompt),
 		Model:           cs.Model,
 		Effort:          cs.Effort,
 		Status:          cs.Status,

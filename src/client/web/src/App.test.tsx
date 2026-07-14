@@ -99,6 +99,53 @@ describe("App", () => {
     expect(screen.getByText("feature")).toBeTruthy();
   });
 
+  // Last User Prompt terminal header: whitelist drivers (claude/codex/gemini/
+  // shell) render the bar inside .terminal-slot; grok and generic sessions
+  // (root_driver = command first token, e.g. "bash") render no bar.
+  it("renders LastPromptBar inside terminal-slot for whitelisted drivers only", () => {
+    const mkSession = (id: string, rootDriver: string, prompt?: string) => ({
+      id,
+      project: "p",
+      command: rootDriver,
+      root_driver: rootDriver,
+      created_at: "2026-06-20T00:00:00Z",
+      view: {
+        card: {},
+        status: "running" as const,
+        ...(prompt !== undefined ? { last_user_prompt: prompt } : {}),
+      },
+    });
+
+    useDaemonStore.setState({
+      sessions: [mkSession("s-claude", "claude", "fix the bug")],
+      activeSessionID: "s-claude",
+    });
+    const { rerender } = render(<App />);
+    const bar = screen.getByLabelText("Last user prompt");
+    expect(bar.textContent).toContain("fix the bug");
+    // The bar is a child of the always-mounted terminal slot (TERMINAL-only
+    // visibility follows the slot's data-active toggle).
+    expect(document.querySelector(".terminal-slot")?.contains(bar)).toBe(true);
+
+    act(() => {
+      useDaemonStore.setState({
+        sessions: [mkSession("s-grok", "grok", "hidden prompt")],
+        activeSessionID: "s-grok",
+      });
+    });
+    rerender(<App />);
+    expect(screen.queryByLabelText("Last user prompt")).toBeNull();
+
+    act(() => {
+      useDaemonStore.setState({
+        sessions: [mkSession("s-generic", "bash")],
+        activeSessionID: "s-generic",
+      });
+    });
+    rerender(<App />);
+    expect(screen.queryByLabelText("Last user prompt")).toBeNull();
+  });
+
   it("hides status bar when no active session", () => {
     useDaemonStore.setState({ sessions: [], activeSessionID: null });
     render(<App />);

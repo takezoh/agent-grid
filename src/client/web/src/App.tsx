@@ -5,6 +5,7 @@ import { readBearerTokenFromHash } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { HeaderBar } from "./components/HeaderBar";
+import { LastPromptBar } from "./components/LastPromptBar";
 import { MainTabs } from "./components/MainTabs";
 import { NewSessionButton } from "./components/NewSessionButton";
 import { NotificationToast } from "./components/NotificationToast";
@@ -256,12 +257,20 @@ export function App() {
               bearerToken={token}
               suppressInfo={activeSession?.view.suppress_info ?? false}
               terminalSlot={
-                <TerminalPane
-                  key={terminalIdentity(activeSession)}
-                  conn={conn}
-                  sessionId={activeSessionID}
-                  onGeometryChange={handleTerminalGeometryChange}
-                />
+                <>
+                  {/* First flex child of .terminal-slot: TERMINAL-only header
+                      (hidden with the slot when a log tab is active). */}
+                  <LastPromptBar
+                    driver={activeSession?.root_driver}
+                    prompt={activeSession?.view.last_user_prompt}
+                  />
+                  <TerminalPane
+                    key={terminalIdentity(activeSession)}
+                    conn={conn}
+                    sessionId={activeSessionID}
+                    onGeometryChange={handleTerminalGeometryChange}
+                  />
+                </>
               }
             />
           </div>

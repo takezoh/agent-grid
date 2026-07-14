@@ -31,6 +31,7 @@ func (d GeminiDriver) view(gs GeminiState) state.View {
 		LogTabs:         tabs,
 		InfoExtras:      geminiInfoExtras(gs),
 		StatusLine:      gs.StatusLine,
+		LastUserPrompt:  lastUserPromptPreview(gs.LastPrompt),
 		Status:          gs.Status,
 		StatusChangedAt: gs.StatusChangedAt,
 	}

@@ -44,6 +44,7 @@ export type View = {
   frame_messaging_summary?: FrameMessagingSummary;
   suppress_info?: boolean;
   status_line?: string;
+  last_user_prompt?: string;
   model?: string;
   effort?: string;
   status?: string; // "running" | "waiting" | "idle" | "stopped" | "pending"

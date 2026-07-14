@@ -36,6 +36,7 @@ func (d CodexDriver) view(cs CodexState) state.View {
 		LogTabs:         tabs,
 		InfoExtras:      codexInfoExtras(cs),
 		StatusLine:      cs.StatusLine,
+		LastUserPrompt:  lastUserPromptPreview(cs.LastPrompt),
 		Model:           cs.Model,
 		Effort:          cs.Effort,
 		Status:          cs.Status,

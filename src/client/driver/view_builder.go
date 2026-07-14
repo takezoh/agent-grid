@@ -91,3 +91,16 @@ func previewText(text string) string {
 	}
 	return text
 }
+
+// lastUserPromptPreview bounds View.LastUserPrompt so view broadcasts stay
+// small: the full prompt remains in driver state, the view ships a rune-safe
+// prefix sized for the 2-3 line terminal-header preview in clients.
+func lastUserPromptPreview(text string) string {
+	const max = 500
+	text = strings.TrimSpace(text)
+	runes := []rune(text)
+	if len(runes) > max {
+		return string(runes[:max]) + "…"
+	}
+	return text
+}
