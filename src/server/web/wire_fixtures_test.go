@@ -32,10 +32,11 @@ func TestWireFixtures(t *testing.T) {
 			got: encodeHelloFrame(proto.EvtSessionsChanged{
 				Sessions: []proto.SessionInfo{
 					{
-						ID:        "s1",
-						Project:   "p",
-						Command:   "claude",
-						CreatedAt: "2026-06-20T00:00:00Z",
+						ID:            "s1",
+						Project:       "p",
+						Command:       "claude",
+						WorkspaceRoot: "/workspace/p",
+						CreatedAt:     "2026-06-20T00:00:00Z",
 						View: stateview.View{
 							Card:       stateview.Card{Title: "T1", Tags: []stateview.Tag{{Text: "tag"}}},
 							Status:     stateview.StatusRunning,

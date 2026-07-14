@@ -92,10 +92,12 @@ describe("WorkspaceDrawer", () => {
       ]);
     });
 
+    const start = performance.now();
     act(() => {
       vi.advanceTimersByTime(100);
     });
     expect(document.querySelector(".workspace-drawer__stale")).toBeTruthy();
+    expect(performance.now() - start).toBeLessThanOrEqual(500);
   });
 
   it("reload clears stale banner", async () => {

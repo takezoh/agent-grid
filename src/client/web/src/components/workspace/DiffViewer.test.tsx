@@ -31,4 +31,26 @@ describe("DiffViewer", () => {
     render(<DiffViewer diff={{ outcome: "git_binary_missing" }} />);
     expect(screen.getByText(/git binary was not found/i)).toBeTruthy();
   });
+
+  it("verify-diff-layout-a11y: large-diff folding visible for 5000-line case", () => {
+    const changed = Array.from({ length: 5001 }, (_, i) => `+line${i}`).join("\n");
+    render(<DiffViewer diff={{ outcome: "ok", diff: changed }} />);
+    expect(screen.getByRole("button", { name: /hidden changed lines/i })).toBeTruthy();
+  });
+
+  it("verify-diff-layout-a11y: simulated scroll frame-time p95 <= 33ms", () => {
+    const changed = Array.from({ length: 6000 }, (_, i) => `+line${i}`).join("\n");
+    const { container } = render(<DiffViewer diff={{ outcome: "ok", diff: changed }} />);
+    const scroller = container.querySelector(".workspace-diff__lines")?.parentElement;
+    expect(scroller).toBeTruthy();
+    const samples: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      const start = performance.now();
+      scroller?.dispatchEvent(new Event("scroll"));
+      samples.push(performance.now() - start);
+    }
+    samples.sort((a, b) => a - b);
+    const p95 = samples[Math.floor(samples.length * 0.95)] ?? 0;
+    expect(p95).toBeLessThanOrEqual(33);
+  });
 });

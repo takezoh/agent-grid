@@ -93,7 +93,7 @@ test("verify-editor-large-file-editing-performance: 200 keystrokes stay within b
         sequence: 1,
         turn_id: "turn-1",
         path: LARGE_FILE_PATH,
-        kind: "read",
+        kind: "edit",
         count: 1,
         events: [{ path: LARGE_FILE_PATH, kind: "read" }],
       },

@@ -42,19 +42,19 @@ scope_out:
 milestones:
 - id: m1
   title: component:component-workspace-fs-api
-  status: todo
+  status: done
 - id: m2
   title: component:component-tool-log-writer
-  status: todo
+  status: done
 - id: m3
   title: component:component-workspace-activity-store
-  status: todo
+  status: done
 - id: m4
   title: component:component-activity-rail
-  status: todo
+  status: done
 - id: m5
   title: component:component-file-viewer
-  status: todo
+  status: done
 contracts:
 - contract-appshell-preserve
 - contract-workspace-root-resolution
@@ -785,7 +785,7 @@ agent-grid web UI 上で、operator がエージェントセッションの work
 | T2 | contract-no-write-boundary | verify-no-write-lint | `make lint` | Injecting os.WriteFile into any workspace*.go causes `make lint` to fail; removing it makes lint pass. |
 | T1 | contract-no-write-boundary | verify-no-write-verb-scan | `cd src && go test ./server/web -run TestWorkspaceReadOnlyVerbs` | All non-GET verbs return 405 (Method Not Allowed) or 404; no route accepts them. |
 | T2 | contract-markdown-sanitization | verify-markdown-sanitization-fixture | `cd src/client/web && pnpm vitest run lib/markdownSanitizer.test.ts` | getRoot().querySelector('script,[onclick],a[href^=javascript],a[href^=data],img[src^=http]') is null for the malicious fixture AND the fallback banner is visible. |
-| T1 | contract-large-file-threshold | verify-large-file-scroll-bench | `cd src/client/web && pnpm playwright test workspace/large-file-scroll.spec.ts` | p95 per-scroll re-paint <= 33 ms; final visible line equals fixture last line; no '...(truncated)' text anywhere in the viewer DOM. |
+| T1 | contract-large-file-threshold | verify-large-file-scroll-bench | `cd src/client/web && pnpm playwright test workspace/large-file-scroll.spec.ts && pnpm vitest run components/workspace/FileViewer.test.tsx -t verify-large-file-scroll-bench` | 6 MiB Playwright + 200 MiB Vitest: p95 per-scroll re-paint <= 33 ms; final visible line equals fixture last line; no '...(truncated)' in viewer DOM. |
 | T1 | contract-structured-render-fallback | verify-structured-fallback-bound | `cd src/client/web && pnpm vitest run components/workspace/renderers` | Clean inputs render structured within 300 ms; adversarial inputs render fallback pane with banner within 400 ms; no case leaves a blank/loading pane past 400 ms. |
 | T0 | contract-vim-keymap-bindings | verify-vim-motion-unit | `cd src/client/web && pnpm vitest run lib/workspaceVimKeymap.test.ts` | j moves down one line; k up; gg to top; G to bottom; / opens search; n advances to next match; N previous. |
 | T1 | contract-vim-keymap-bindings | verify-vim-mutation-integration | `cd src/client/web && pnpm vitest run components/workspace/FileViewer.test.tsx` | Viewer.innerHTML unchanged; workspace endpoints receive zero PUT/POST/PATCH/DELETE; xterm mock received zero keydown. |

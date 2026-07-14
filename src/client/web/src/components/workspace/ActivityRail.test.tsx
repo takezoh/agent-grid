@@ -4,6 +4,20 @@ import { useDaemonStore } from "../../store/daemon";
 import { useWorkspaceActivityStore } from "../../store/workspaceActivity";
 import { ActivityRail } from "./ActivityRail";
 
+function turnRow(overrides: Record<string, unknown> = {}) {
+  return {
+    type: "turn_row" as const,
+    session_id: "s1",
+    sequence: 1,
+    turn_id: "t1",
+    path: "src/a.ts",
+    kind: "read" as const,
+    count: 1,
+    events: [{ path: "src/a.ts", kind: "read" as const }],
+    ...overrides,
+  };
+}
+
 describe("ActivityRail", () => {
   beforeEach(() => {
     useDaemonStore.getState().reset();
@@ -26,6 +40,19 @@ describe("ActivityRail", () => {
   it("verify-workspace-affordance-a11y: affordance visible with 0 rows", () => {
     render(<ActivityRail onOpenTree={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Open workspace tree" })).toBeTruthy();
+  });
+
+  it("verify-transport-latency-bound: connectivity indicator within 1s on transport drop", () => {
+    vi.useFakeTimers();
+    useWorkspaceActivityStore.getState().applyActivityEvents("s1", [turnRow({ sequence: 1 })]);
+    useWorkspaceActivityStore
+      .getState()
+      .applyActivityEvents("s1", [turnRow({ sequence: 5, path: "gap.ts" })]);
+    render(<ActivityRail onOpenTree={vi.fn()} />);
+    expect(screen.getByText(/reconnecting/i)).toBeTruthy();
+    vi.advanceTimersByTime(1000);
+    expect(screen.getByText(/reconnecting/i)).toBeTruthy();
+    vi.useRealTimers();
   });
 
   it("affordance visible with rows and keyboard opens tree via callback", () => {

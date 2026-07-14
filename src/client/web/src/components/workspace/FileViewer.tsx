@@ -1,20 +1,31 @@
 import { history } from "@codemirror/commands";
-import { Vim, vim } from "@replit/codemirror-vim";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { Vim, vim } from "@replit/codemirror-vim";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   WorkspaceApiError,
   type WorkspaceFileResponse,
   type WorkspacePinnedHandle,
   makeWorkspaceApi,
 } from "../../api/workspace";
+import { attachWorkspaceVimKeymap } from "../../lib/workspaceVimKeymap";
 import { MetadataPlaceholder } from "./MetadataPlaceholder";
 import { JsonTreeRenderer } from "./renderers/JsonTreeRenderer";
 import { MarkdownRenderer } from "./renderers/MarkdownRenderer";
 import { MermaidRenderer } from "./renderers/MermaidRenderer";
 
 export const LARGE_FILE_THRESHOLD = 1024 * 1024; // 1 MiB
+const VIRTUAL_LINE_HEIGHT = 20;
+const VIRTUAL_OVERSCAN = 40;
 
 export type FileViewerProps = {
   file: WorkspaceFileResponse | null;
@@ -43,6 +54,93 @@ function detectRenderer(path: string, content: string): "markdown" | "mermaid" |
 
 function detectLineSeparator(content: string): string {
   return content.includes("\r\n") ? "\r\n" : "\n";
+}
+
+function buildLineStarts(content: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] === "\n") {
+      starts.push(i + 1);
+    }
+  }
+  return starts;
+}
+
+function sliceLineRange(content: string, lineStarts: number[], start: number, end: number): string {
+  if (start >= lineStarts.length) return "";
+  const parts: string[] = [];
+  const limit = Math.min(end, lineStarts.length);
+  for (let i = start; i < limit; i++) {
+    const from = lineStarts[i] ?? 0;
+    const next = lineStarts[i + 1];
+    const to = next === undefined ? content.length : next - 1;
+    parts.push(content.slice(from, to));
+  }
+  return parts.join("\n");
+}
+
+function VirtualizedSource({ content }: { content: string }): ReactNode {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(400);
+  const lineStarts = useMemo(() => buildLineStarts(content), [content]);
+  const lineCount = lineStarts.length;
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setViewportHeight(el.clientHeight));
+    ro.observe(el);
+    setViewportHeight(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
+
+  const totalHeight = lineCount * VIRTUAL_LINE_HEIGHT;
+  const start = Math.max(0, Math.floor(scrollTop / VIRTUAL_LINE_HEIGHT) - VIRTUAL_OVERSCAN);
+  const visibleCount = Math.ceil(viewportHeight / VIRTUAL_LINE_HEIGHT) + VIRTUAL_OVERSCAN * 2;
+  const end = Math.min(lineCount, start + visibleCount);
+  const slice = sliceLineRange(content, lineStarts, start, end);
+
+  return (
+    <div
+      ref={containerRef}
+      className="workspace-source workspace-source--virtual"
+      data-testid="virtualized-source"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: vim keymap requires focusable scroll container
+      tabIndex={0}
+      onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+      style={{ overflow: "auto", maxHeight: "100%" }}
+    >
+      <div style={{ height: totalHeight, position: "relative" }}>
+        <pre
+          style={{
+            position: "absolute",
+            top: start * VIRTUAL_LINE_HEIGHT,
+            margin: 0,
+            width: "100%",
+          }}
+        >
+          {slice}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+function SourceViewer({ content }: { content: string }): ReactNode {
+  if (content.length > LARGE_FILE_THRESHOLD) {
+    return <VirtualizedSource content={content} />;
+  }
+  return (
+    <pre
+      className="workspace-source"
+      data-testid="source-viewer"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: vim keymap requires focusable source viewer
+      tabIndex={0}
+    >
+      {content}
+    </pre>
+  );
 }
 
 type CodeMirrorEditorProps = {
@@ -105,11 +203,7 @@ function CodeMirrorEditor({
         onSaveError?.(err);
       } else {
         onSaveError?.(
-          new WorkspaceApiError(
-            0,
-            "unknown",
-            err instanceof Error ? err.message : String(err),
-          ),
+          new WorkspaceApiError(0, "unknown", err instanceof Error ? err.message : String(err)),
         );
       }
     }
@@ -196,7 +290,33 @@ export function FileViewer({
   saveDisabled,
   skipPrecondition,
 }: FileViewerProps): ReactNode {
+  const shellRef = useRef<HTMLDivElement>(null);
+  const lineCountRef = useRef(0);
   const content = file?.content ?? "";
+  const isEditable = eventKind === "edit" && !saveDisabled;
+  const sourceLineCount = useMemo(
+    () => (content.length === 0 ? 0 : buildLineStarts(content).length),
+    [content],
+  );
+  lineCountRef.current = sourceLineCount;
+
+  const scrollToLine = useCallback((line: number) => {
+    const el = shellRef.current?.querySelector<HTMLElement>(
+      "[data-testid='virtualized-source'], [data-testid='source-viewer']",
+    );
+    if (!el) return;
+    el.scrollTop = line * VIRTUAL_LINE_HEIGHT;
+  }, []);
+
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el || !file || file.is_binary || isEditable) return;
+    return attachWorkspaceVimKeymap(el, {
+      getLineCount: () => lineCountRef.current,
+      scrollToLine,
+      getSearchableText: () => content,
+    });
+  }, [file, content, scrollToLine, isEditable]);
 
   if (loading) {
     return <div className="workspace-file-viewer workspace-file-viewer--loading">Loading…</div>;
@@ -234,26 +354,38 @@ export function FileViewer({
   const renderer = detectRenderer(file.path, content);
 
   return (
-    <div className="workspace-file-viewer" data-testid="file-viewer">
+    <div
+      ref={shellRef}
+      className="workspace-file-viewer"
+      data-testid="file-viewer"
+      tabIndex={isEditable ? -1 : 0}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (isEditable) return;
+        if (e.key !== "Tab") e.stopPropagation();
+      }}
+    >
       {renderer === "markdown" && <MarkdownRenderer source={content} />}
       {renderer === "mermaid" && <MermaidRenderer source={content} />}
       {renderer === "json" && <JsonTreeRenderer source={content} />}
-      {renderer === "source" && (
-        <CodeMirrorEditor
-          content={content}
-          readOnly={saveDisabled}
-          saveDisabled={saveDisabled}
-          sessionId={sessionId}
-          path={file.path}
-          pinnedHandle={pinnedHandle}
-          ifUnmodifiedSince={file.mtime}
-          skipPrecondition={skipPrecondition}
-          onDirtyChange={onDirtyChange}
-          onBufferChange={onBufferChange}
-          onSaveSuccess={onSaveSuccess}
-          onSaveError={onSaveError}
-        />
-      )}
+      {renderer === "source" &&
+        (isEditable ? (
+          <CodeMirrorEditor
+            content={content}
+            readOnly={saveDisabled}
+            saveDisabled={saveDisabled}
+            sessionId={sessionId}
+            path={file.path}
+            pinnedHandle={pinnedHandle}
+            ifUnmodifiedSince={file.mtime}
+            skipPrecondition={skipPrecondition}
+            onDirtyChange={onDirtyChange}
+            onBufferChange={onBufferChange}
+            onSaveSuccess={onSaveSuccess}
+            onSaveError={onSaveError}
+          />
+        ) : (
+          <SourceViewer content={content} />
+        ))}
     </div>
   );
 }

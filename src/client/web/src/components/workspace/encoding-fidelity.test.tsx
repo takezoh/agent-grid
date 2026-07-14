@@ -19,6 +19,7 @@ describe("encoding-fidelity", () => {
           is_binary: false,
           content: crlf,
         }}
+        eventKind="edit"
       />,
     );
     await waitFor(() => expect(screen.getByTestId("codemirror-editor")).toBeTruthy());
@@ -40,6 +41,7 @@ describe("encoding-fidelity", () => {
           is_binary: false,
           content: lf,
         }}
+        eventKind="edit"
       />,
     );
     await waitFor(() => expect(screen.getByTestId("codemirror-editor")).toBeTruthy());

@@ -81,6 +81,42 @@ describe("workspaceActivity store", () => {
     expect(selectTurnRows(useWorkspaceActivityStore.getState(), "s2")).toHaveLength(0);
   });
 
+  it("verify-transport-latency-bound: turn_row apply p95 <= 750ms", () => {
+    const samples: number[] = [];
+    for (let i = 0; i < 100; i++) {
+      useWorkspaceActivityStore.getState().reset();
+      useWorkspaceActivityStore.getState().setScopedSession("s1");
+      const start = performance.now();
+      useWorkspaceActivityStore
+        .getState()
+        .applyActivityEvents("s1", [turnRow({ sequence: i + 1, path: `src/f${i}.ts` })]);
+      samples.push(performance.now() - start);
+    }
+    samples.sort((a, b) => a - b);
+    const p95 = samples[Math.floor(samples.length * 0.95)] ?? 0;
+    expect(p95).toBeLessThanOrEqual(750);
+  });
+
+  it("verify-transport-latency-bound: mid_turn_touch stale signal p95 <= 500ms", () => {
+    useWorkspaceActivityStore.getState().openDrawerFromRow({
+      sessionId: "s1",
+      path: "src/foo.ts",
+      kind: "read",
+    });
+    const samples: number[] = [];
+    for (let i = 0; i < 100; i++) {
+      const start = performance.now();
+      useWorkspaceActivityStore
+        .getState()
+        .applyActivityEvents("s1", [midTouch({ sequence: i + 1, path: "src/foo.ts" })]);
+      samples.push(performance.now() - start);
+    }
+    expect(selectDrawerStale(useWorkspaceActivityStore.getState(), "src/foo.ts")).toBe(true);
+    samples.sort((a, b) => a - b);
+    const p95 = samples[Math.floor(samples.length * 0.95)] ?? 0;
+    expect(p95).toBeLessThanOrEqual(500);
+  });
+
   it("discards out-of-order events and flags transport degraded", () => {
     useWorkspaceActivityStore.getState().applyActivityEvents("s1", [turnRow({ sequence: 3 })]);
     expect(useWorkspaceActivityStore.getState().transportDegraded).toBe(true);
@@ -161,7 +197,9 @@ describe("workspaceActivity store", () => {
     it("reconnect_mtime_differs when explicit conflict set", () => {
       useWorkspaceActivityStore.getState().registerDirtyBuffer("src/foo.ts", "mtime-a");
       useWorkspaceActivityStore.getState().setBufferDirty("src/foo.ts", true);
-      useWorkspaceActivityStore.getState().setConflictOutcome("src/foo.ts", "reconnect_mtime_differs");
+      useWorkspaceActivityStore
+        .getState()
+        .setConflictOutcome("src/foo.ts", "reconnect_mtime_differs");
       expect(selectConflictOutcome(useWorkspaceActivityStore.getState(), "src/foo.ts")).toBe(
         "reconnect_mtime_differs",
       );

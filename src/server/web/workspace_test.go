@@ -61,9 +61,35 @@ func TestWorkspaceReadOnlyVerbs(t *testing.T) {
 	for _, route := range routes {
 		for _, verb := range workspaceMutationVerbs {
 			t.Run(verb+" "+route, func(t *testing.T) {
+				// PUT /workspace/file is the editor write endpoint (supersedes
+				// viewer no-write for that single verb); all other mutations stay rejected.
 				if verb == http.MethodPut && strings.Contains(route, "/workspace/file") {
 					return
 				}
+				req := httptest.NewRequest(verb, route, nil)
+				req.Header.Set("Authorization", "Bearer tok")
+				w := httptest.NewRecorder()
+				mux.ServeHTTP(w, req)
+				if w.Code == http.StatusOK || w.Code == http.StatusCreated {
+					t.Fatalf("mutation verb %s accepted on %s: %d", verb, route, w.Code)
+				}
+			})
+		}
+	}
+}
+
+func TestWorkspaceReadOnlyVerbs_StrictReadRoutes(t *testing.T) {
+	t.Parallel()
+	d, _ := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+	strictRoutes := []string{
+		"/api/sessions/ws1/workspace/root-handle",
+		"/api/sessions/ws1/workspace/tree",
+		"/api/sessions/ws1/workspace/diff?path=foo.txt&handle=0",
+	}
+	for _, route := range strictRoutes {
+		for _, verb := range workspaceMutationVerbs {
+			t.Run(verb+" "+route, func(t *testing.T) {
 				req := httptest.NewRequest(verb, route, nil)
 				req.Header.Set("Authorization", "Bearer tok")
 				w := httptest.NewRecorder()
