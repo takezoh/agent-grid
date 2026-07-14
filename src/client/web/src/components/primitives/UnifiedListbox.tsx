@@ -169,6 +169,10 @@ export function UnifiedListbox(props: UnifiedListboxProps) {
               .filter(Boolean)
               .join(" ")}
             onPointerDown={(e) => {
+              // Secondary buttons never activate: right-click is reserved for
+              // the row's context menu (SessionContextMenu), and activating
+              // there would switch the active session as a side effect.
+              if (e.button !== 0) return;
               // Prevent focus leaving the listbox on click.
               e.preventDefault();
               if (!item.disabled) {

@@ -494,6 +494,22 @@
 .overflow-menu__item[data-highlighted] {
   background: var(--surface-row-hover);
 }
+.overflow-menu__item[data-disabled] {
+  color: var(--fg-muted);
+  cursor: default;
+}
+.overflow-menu__separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-color);
+}
+.overflow-menu__item--danger {
+  color: var(--danger);
+}
+.overflow-menu__item--danger[data-highlighted] {
+  background: var(--danger-bg);
+  color: var(--danger-hover);
+}
 .overflow-menu__check {
   width: 14px;
   font-size: 11px;

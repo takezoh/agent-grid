@@ -227,7 +227,7 @@ export function App() {
   const sidebarContent = (
     <div className="sidebar-shell">
       <SidebarBrandRow />
-      <SessionList conn={conn} />
+      <SessionList conn={conn} onRequestTerminate={handleRequestTerminate} />
       <NewSessionButton />
     </div>
   );

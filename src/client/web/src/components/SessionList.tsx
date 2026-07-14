@@ -28,6 +28,7 @@ import {
   useDaemonStore,
 } from "../store/daemon";
 import type { Card, SessionInfo } from "../wire/server";
+import { SessionContextMenu } from "./SessionContextMenu";
 import { StatusIcon, normalizeStatus as toStatusKind } from "./StatusIcon";
 import { SegmentedControl } from "./primitives/SegmentedControl";
 import { TagPill } from "./primitives/TagPill";
@@ -58,13 +59,22 @@ export function displayLabel(card: Card, _id: string): string {
 interface SessionRowProps {
   session: SessionInfo;
   isActive: boolean;
+  daemonDisconnected: boolean;
+  onOpen: (sessionId: string) => void;
+  onRequestTerminate?: (sessionId: string, label: string, opener: HTMLElement) => void;
 }
 
 function metadataLine(driver?: string, model?: string, effort?: string): string {
   return [driver?.trim(), model?.trim(), effort?.trim()].filter(Boolean).join(" · ");
 }
 
-function SessionRow({ session, isActive }: SessionRowProps) {
+function SessionRow({
+  session,
+  isActive,
+  daemonDisconnected,
+  onOpen,
+  onRequestTerminate,
+}: SessionRowProps) {
   const now = useNow1Hz();
   const card = session.view.card;
   const status = session.view.status;
@@ -78,46 +88,56 @@ function SessionRow({ session, isActive }: SessionRowProps) {
     : "";
 
   return (
-    <div
-      className={["session-list__row", isActive ? "session-list__row--active" : ""]
-        .filter(Boolean)
-        .join(" ")}
-      data-session-id={session.id}
+    <SessionContextMenu
+      sessionId={session.id}
+      sessionLabel={title}
+      daemonDisconnected={daemonDisconnected}
+      onOpen={onOpen}
+      onRequestTerminate={onRequestTerminate}
     >
-      <span
-        className={`session-status-slot session-status-${normalized}`}
-        aria-label={`status: ${normalized}`}
-        title={normalized}
+      {/* Trigger child must be a plain DOM element: Radix Slot merges the
+          contextmenu handler + ref onto this div. */}
+      <div
+        className={["session-list__row", isActive ? "session-list__row--active" : ""]
+          .filter(Boolean)
+          .join(" ")}
+        data-session-id={session.id}
       >
-        <StatusIcon
-          status={normalized}
-          activeClass="session-status-spinner"
-          inactiveClass="session-status-icon"
-        />
-      </span>
-      <div className="session-list__content">
-        <div className="session-list__title-row">
-          <span className="session-list__title title">{title}</span>
-          {elapsed && (
-            <span className="session-list__age font-mono" aria-label="elapsed">
-              {elapsed}
-            </span>
-          )}
-        </div>
-        {(metadata || tags.length > 0) && (
-          <div className="session-list__meta-row" aria-label="session metadata">
-            {metadata && <span className="session-list__meta font-mono">{metadata}</span>}
-            {tags.length > 0 && (
-              <span className="session-list__tags">
-                {tags.map((tag, index) => (
-                  <TagPill key={`${index}-${tag.text}`} tag={tag} />
-                ))}
+        <span
+          className={`session-status-slot session-status-${normalized}`}
+          aria-label={`status: ${normalized}`}
+          title={normalized}
+        >
+          <StatusIcon
+            status={normalized}
+            activeClass="session-status-spinner"
+            inactiveClass="session-status-icon"
+          />
+        </span>
+        <div className="session-list__content">
+          <div className="session-list__title-row">
+            <span className="session-list__title title">{title}</span>
+            {elapsed && (
+              <span className="session-list__age font-mono" aria-label="elapsed">
+                {elapsed}
               </span>
             )}
           </div>
-        )}
+          {(metadata || tags.length > 0) && (
+            <div className="session-list__meta-row" aria-label="session metadata">
+              {metadata && <span className="session-list__meta font-mono">{metadata}</span>}
+              {tags.length > 0 && (
+                <span className="session-list__tags">
+                  {tags.map((tag, index) => (
+                    <TagPill key={`${index}-${tag.text}`} tag={tag} />
+                  ))}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </SessionContextMenu>
   );
 }
 
@@ -159,6 +179,7 @@ interface ProjectGroupProps {
   activeId: string | null;
   daemonDisconnected: boolean;
   selectSession: (id: string) => void;
+  onRequestTerminate?: (sessionId: string, label: string, opener: HTMLElement) => void;
 }
 
 function ProjectGroup({
@@ -170,6 +191,7 @@ function ProjectGroup({
   activeId,
   daemonDisconnected,
   selectSession,
+  onRequestTerminate,
 }: ProjectGroupProps) {
   const activeInGroup = sessions.some((s) => s.id === activeId);
   const [cursorId, setCursorId] = useState<string | null>(
@@ -215,7 +237,15 @@ function ProjectGroup({
             ariaLabel={`sessions in ${project}`}
             items={sessions.map((s) => ({
               id: s.id,
-              label: <SessionRow session={s} isActive={s.id === activeId} />,
+              label: (
+                <SessionRow
+                  session={s}
+                  isActive={s.id === activeId}
+                  daemonDisconnected={daemonDisconnected}
+                  onOpen={selectSession}
+                  onRequestTerminate={onRequestTerminate}
+                />
+              ),
               disabled: daemonDisconnected,
               disabledReason: daemonDisconnected ? "Daemon disconnected" : undefined,
             }))}
@@ -235,9 +265,12 @@ function ProjectGroup({
 
 export interface SessionListProps {
   conn: Connection;
+  /** Opens the session-terminate ConfirmDialog owned by App (same contract
+      as HeaderBar's stop button). Optional so standalone mounts still work. */
+  onRequestTerminate?: (sessionId: string, label: string, opener: HTMLElement) => void;
 }
 
-export function SessionList({ conn: _conn }: SessionListProps) {
+export function SessionList({ conn: _conn, onRequestTerminate }: SessionListProps) {
   const sessions = useDaemonStore((s) => s.sessions);
   const activeId = useDaemonStore((s) => s.activeSessionID);
   const selectSession = useDaemonStore((s) => s.selectSession);
@@ -281,6 +314,7 @@ export function SessionList({ conn: _conn }: SessionListProps) {
               activeId={activeId}
               daemonDisconnected={daemonDisconnected}
               selectSession={selectSession}
+              onRequestTerminate={onRequestTerminate}
             />
           ))}
         </div>

@@ -451,3 +451,45 @@ describe("UnifiedListbox — CSS token classes", () => {
     expect(slCss).toMatch(/\.session-list \.unified-listbox__option \{[^}]*min-height:\s*44px/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Pointer activation — primary button only (right-click reserved for the
+// row context menu; see SessionContextMenu)
+// ---------------------------------------------------------------------------
+
+describe("UnifiedListbox — pointer button guard", () => {
+  it("primary-button pointerdown activates the option", () => {
+    const onActiveChange = vi.fn();
+    const onActivate = vi.fn();
+    const { options } = renderListbox({ onActiveChange, onActivate });
+
+    const item3 = options().find((o) => o.dataset.itemId === "item3");
+    expect(item3).toBeDefined();
+    fireEvent.pointerDown(item3 as HTMLElement, { button: 0 });
+
+    expect(onActiveChange).toHaveBeenCalledWith("item3");
+    expect(onActivate).toHaveBeenCalledWith("item3");
+  });
+
+  it("secondary-button (right-click) pointerdown does NOT activate", () => {
+    const onActiveChange = vi.fn();
+    const onActivate = vi.fn();
+    const { options } = renderListbox({ onActiveChange, onActivate });
+
+    const item3 = options().find((o) => o.dataset.itemId === "item3");
+    fireEvent.pointerDown(item3 as HTMLElement, { button: 2 });
+
+    expect(onActiveChange).not.toHaveBeenCalled();
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
+  it("middle-button pointerdown does NOT activate", () => {
+    const onActivate = vi.fn();
+    const { options } = renderListbox({ onActivate });
+
+    const item1 = options().find((o) => o.dataset.itemId === "item1");
+    fireEvent.pointerDown(item1 as HTMLElement, { button: 1 });
+
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+});
