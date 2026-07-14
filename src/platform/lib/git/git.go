@@ -188,6 +188,55 @@ func CreateWorktree(ctx context.Context, dir, name string) (string, error) {
 	return worktreeDir, nil
 }
 
+// DiffHeadOutcome classifies HEAD-vs-worktree diff helper results.
+type DiffHeadOutcome string
+
+const (
+	DiffHeadOK                 DiffHeadOutcome = "ok"
+	DiffHeadNotARepo           DiffHeadOutcome = "not_a_repo"
+	DiffHeadGitMetadataCorrupt DiffHeadOutcome = "git_metadata_corrupted"
+	DiffHeadGitBinaryMissing   DiffHeadOutcome = "git_binary_missing"
+)
+
+// DiffHeadResult is the typed outcome partition for DiffHeadVsWorktree.
+type DiffHeadResult struct {
+	Outcome DiffHeadOutcome `json:"outcome"`
+	Diff    string          `json:"diff,omitempty"`
+}
+
+// DiffHeadVsWorktree returns the unified diff of HEAD vs the worktree for
+// relPath under repoRoot. Non-ok outcomes distinguish missing git metadata,
+// corrupted metadata, and a missing git binary.
+func DiffHeadVsWorktree(ctx context.Context, repoRoot, relPath string) DiffHeadResult {
+	if _, err := exec.LookPath("git"); err != nil {
+		return DiffHeadResult{Outcome: DiffHeadGitBinaryMissing}
+	}
+	root := filepath.Clean(repoRoot)
+	if !workspaceHasGitMetadata(root) {
+		return DiffHeadResult{Outcome: DiffHeadNotARepo}
+	}
+	args := []string{"-C", root, "diff", "HEAD", "--"}
+	if relPath != "" {
+		args = append(args, relPath)
+	}
+	out, err := exec.CommandContext(ctx, "git", args...).CombinedOutput()
+	if err != nil {
+		if workspaceHasGitMetadata(root) {
+			return DiffHeadResult{Outcome: DiffHeadGitMetadataCorrupt}
+		}
+		return DiffHeadResult{Outcome: DiffHeadNotARepo}
+	}
+	return DiffHeadResult{Outcome: DiffHeadOK, Diff: string(out)}
+}
+
+// workspaceHasGitMetadata reports whether dir itself carries a .git entry
+// (directory or gitdir pointer). Parent-repo discovery is intentionally
+// excluded so workspace-local non-git directories do not inherit HEAD diffs.
+func workspaceHasGitMetadata(dir string) bool {
+	_, err := os.Lstat(filepath.Join(filepath.Clean(dir), ".git"))
+	return err == nil
+}
+
 // RemoveWorktree removes a reactor-managed git worktree created under
 // <repo>/.agent-grid/worktrees/<name>.
 func RemoveWorktree(ctx context.Context, path string) error {

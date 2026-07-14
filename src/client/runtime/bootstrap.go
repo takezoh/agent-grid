@@ -136,6 +136,7 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 		mru = append(mru, state.FrameID(id))
 	}
 	sess.MRUFrameIDs = mru
+	sess.FrameGeneration = snap.FrameGeneration
 	sess.FrameMessaging = restoreFrameMessaging(snap.FrameMessaging, liveFrameSet(sess.Frames))
 	return sess, true
 }

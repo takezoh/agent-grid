@@ -91,6 +91,8 @@ type Config struct {
 type Runtime struct {
 	cfg Config
 
+	toolLogReader *ToolLogReader
+
 	state state.State
 	// published stores the latest reducer-produced state snapshot for tests that
 	// need to observe loop progress from another goroutine without touching the
@@ -256,6 +258,7 @@ func New(cfg Config) *Runtime {
 	r := &Runtime{
 		cfg:                   cfg,
 		state:                 initial,
+		toolLogReader:         NewToolLogReader(),
 		eventCh:               make(chan state.Event, 256),
 		internalChInteractive: make(chan internalEvent, ipcOutboxLaneSize),
 		internalChBulk:        make(chan internalEvent, ipcOutboxLaneSize),

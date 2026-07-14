@@ -64,17 +64,18 @@ type State struct {
 // All dynamic per-session data lives in Driver (a sum-typed value), which
 // each driver impl returns from its Step method.
 type Session struct {
-	ID             SessionID
-	Project        string
-	CreatedAt      time.Time
-	Frames         []SessionFrame
-	HeadFrameID    FrameID   // head frame: the frame currently receiving I/O in the session's child-agent stack; empty = use Frames[len-1]
-	MRUFrameIDs    []FrameID // MRU stack for fallback on head-frame death
-	Command        string
-	Sandbox        SandboxOverride // session-scoped sandbox mode, set at creation, applies to all frames
-	LaunchOptions  LaunchOptions
-	Driver         DriverState
-	FrameMessaging *SessionFrameMessaging
+	ID              SessionID
+	Project         string
+	CreatedAt       time.Time
+	Frames          []SessionFrame
+	HeadFrameID     FrameID   // head frame: the frame currently receiving I/O in the session's child-agent stack; empty = use Frames[len-1]
+	MRUFrameIDs     []FrameID // MRU stack for fallback on head-frame death
+	Command         string
+	Sandbox         SandboxOverride // session-scoped sandbox mode, set at creation, applies to all frames
+	LaunchOptions   LaunchOptions
+	Driver          DriverState
+	FrameMessaging  *SessionFrameMessaging
+	FrameGeneration int // increments on frame push/pop; exposed for workspace-root handle pinning
 }
 
 type SessionFrame struct {

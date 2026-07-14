@@ -41,6 +41,7 @@ func evictRootFrame(s State, sessID SessionID, sess Session, killWindow bool) (S
 func evictChildFrame(s State, sessID SessionID, sess Session, idx int, frameID FrameID, killWindow bool) (State, []Effect, bool) {
 	wasActive := sess.HeadFrameID == frameID
 	sess, removed := removeFrameByIndex(sess, idx)
+	sess = bumpFrameGeneration(sess)
 	sess = pruneMRU(sess)
 	if wasActive {
 		fallback, next := popMRU(sess)

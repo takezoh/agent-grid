@@ -126,6 +126,13 @@ func popMRU(sess Session) (FrameID, Session) {
 	return "", sess
 }
 
+// bumpFrameGeneration increments the session's frame-generation counter used
+// by workspace-root handle pinning when the frame stack is pushed or popped.
+func bumpFrameGeneration(sess Session) Session {
+	sess.FrameGeneration++
+	return sess
+}
+
 func pruneMRU(sess Session) Session {
 	if len(sess.MRUFrameIDs) == 0 {
 		return sess

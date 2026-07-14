@@ -1,5 +1,11 @@
 import type { ClientFrame } from "./client";
-import type { ServerFrame, SessionInfo } from "./server";
+import type {
+  ActivityEvent,
+  ActivityEventEntry,
+  FileEventKind,
+  ServerFrame,
+  SessionInfo,
+} from "./server";
 
 // parseSessionInfoLoose validates that an object has at minimum the fields
 // required for a valid SessionInfo wire value: id string, view object with card object.
@@ -11,6 +17,74 @@ function parseSessionInfoLoose(obj: unknown): obj is SessionInfo {
   const view = sess.view as Record<string, unknown>;
   if (typeof view.card !== "object" || view.card === null) return false;
   return true;
+}
+
+function parseFileEventKind(v: unknown): v is FileEventKind {
+  return v === "read" || v === "create" || v === "edit" || v === "delete";
+}
+
+function parseActivityEventEntry(obj: unknown): ActivityEventEntry | null {
+  if (typeof obj !== "object" || obj === null) return null;
+  const e = obj as Record<string, unknown>;
+  const path =
+    typeof e.path === "string"
+      ? e.path
+      : typeof e.workspace_relative_path === "string"
+        ? e.workspace_relative_path
+        : null;
+  const kindRaw = e.kind ?? e.file_event_kind;
+  if (!path || !parseFileEventKind(kindRaw)) return null;
+  const out: ActivityEventEntry = { path, kind: kindRaw };
+  const toolCallID = e.tool_call_id ?? e.tool_use_id;
+  if (typeof toolCallID === "string" && toolCallID) {
+    out.tool_call_id = toolCallID;
+  }
+  return out;
+}
+
+function parseActivityEvent(obj: unknown): ActivityEvent | null {
+  if (typeof obj !== "object" || obj === null) return null;
+  const e = obj as Record<string, unknown>;
+  if (e.type !== "turn_row" && e.type !== "mid_turn_touch") return null;
+  if (typeof e.session_id !== "string" || typeof e.sequence !== "number") return null;
+  const path =
+    typeof e.path === "string"
+      ? e.path
+      : typeof e.workspace_relative_path === "string"
+        ? e.workspace_relative_path
+        : null;
+  if (!path) return null;
+
+  if (e.type === "mid_turn_touch") {
+    const toolCallID = e.tool_call_id ?? e.tool_use_id;
+    if (typeof toolCallID !== "string" || !toolCallID) return null;
+    return {
+      type: "mid_turn_touch",
+      session_id: e.session_id,
+      sequence: e.sequence,
+      path,
+      tool_call_id: toolCallID,
+    };
+  }
+
+  if (typeof e.turn_id !== "string" || typeof e.count !== "number") return null;
+  if (!Array.isArray(e.events) || !e.events.every((x) => parseActivityEventEntry(x) !== null)) {
+    return null;
+  }
+  const kindRaw = e.kind ?? e.file_event_kind;
+  if (!parseFileEventKind(kindRaw)) return null;
+  const drillEntries = e.events.map(parseActivityEventEntry);
+  if (drillEntries.some((x) => x === null)) return null;
+  return {
+    type: "turn_row",
+    session_id: e.session_id,
+    sequence: e.sequence,
+    turn_id: e.turn_id,
+    path,
+    kind: kindRaw,
+    count: e.count,
+    events: drillEntries as ActivityEventEntry[],
+  };
 }
 
 export function parseServerFrame(raw: string): ServerFrame | null {
@@ -70,12 +144,23 @@ export function parseServerFrame(raw: string): ServerFrame | null {
       return hFrame;
     }
     case "v": {
-      if (!Array.isArray(obj.sessions)) return null;
-      if (!obj.sessions.every(parseSessionInfoLoose)) return null;
-      const vFrame: import("./server").ViewUpdateFrame = {
-        k: "v",
-        sessions: obj.sessions as SessionInfo[],
-      };
+      const hasSessions = Array.isArray(obj.sessions);
+      const hasActivity = Array.isArray(obj.activity_events);
+      if (!hasSessions && !hasActivity) return null;
+      if (hasSessions && !(obj.sessions as unknown[]).every(parseSessionInfoLoose)) return null;
+
+      const vFrame: import("./server").ViewUpdateFrame = { k: "v" };
+      if (hasSessions) {
+        vFrame.sessions = obj.sessions as SessionInfo[];
+      }
+      if (typeof obj.activity_session_id === "string") {
+        vFrame.activity_session_id = obj.activity_session_id;
+      }
+      if (hasActivity) {
+        const parsed = (obj.activity_events as unknown[]).map(parseActivityEvent);
+        if (parsed.some((x) => x === null)) return null;
+        vFrame.activity_events = parsed as ActivityEvent[];
+      }
       // Preserve undefined when the wire omits activeSessionID (Go omitempty
       // strips empty strings). The store's applyViewUpdate distinguishes
       // undefined ("no change, keep current selection") from null/string

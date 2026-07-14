@@ -116,14 +116,15 @@ type PersistBackend interface {
 // bag (opaque map of strings). Frame ids are tracked in session env
 // vars (AG_SESSION_<sid>); sessions.json stays frame-id free.
 type SessionSnapshot struct {
-	ID             string                         `json:"id"`
-	Project        string                         `json:"project"`
-	CreatedAt      string                         `json:"created_at"`
-	Frames         []SessionFrameSnapshot         `json:"frames"`
-	HeadFrameID    string                         `json:"head_frame_id,omitempty"`
-	MRUFrameIDs    []string                       `json:"mru_frame_ids,omitempty"`
-	Sandbox        state.SandboxOverride          `json:"sandbox,omitempty"`
-	FrameMessaging *SessionFrameMessagingSnapshot `json:"frame_messaging,omitempty"`
+	ID              string                         `json:"id"`
+	Project         string                         `json:"project"`
+	CreatedAt       string                         `json:"created_at"`
+	Frames          []SessionFrameSnapshot         `json:"frames"`
+	HeadFrameID     string                         `json:"head_frame_id,omitempty"`
+	MRUFrameIDs     []string                       `json:"mru_frame_ids,omitempty"`
+	Sandbox         state.SandboxOverride          `json:"sandbox,omitempty"`
+	FrameMessaging  *SessionFrameMessagingSnapshot `json:"frame_messaging,omitempty"`
+	FrameGeneration int                            `json:"frame_generation,omitempty"`
 }
 
 type SessionFrameSnapshot struct {

@@ -283,6 +283,9 @@ func DecodeEvent(env Envelope) (ServerEvent, error) {
 	case EvtNameAgentNotification:
 		var e EvtAgentNotification
 		return decodeIntoEvent(env.Data, &e)
+	case EvtNameActivityEvents:
+		var e EvtActivityEvents
+		return decodeIntoEvent(env.Data, &e)
 	case EvtNameSurfaceOutput:
 		var e EvtSurfaceOutput
 		return decodeIntoEvent(env.Data, &e)

@@ -6,6 +6,13 @@ import (
 	"github.com/takezoh/agent-grid/client/state"
 )
 
+func codexToolLogWorkspace(cs CodexState) string {
+	if cs.Project != "" {
+		return cs.Project
+	}
+	return cs.StartDir
+}
+
 func (d CodexDriver) emitToolLog(cs CodexState, ev codexToolEvent, now time.Time, kind string, effs []state.Effect) (CodexState, []state.Effect) {
 	var (
 		durationMs int64
@@ -36,15 +43,22 @@ func (d CodexDriver) emitToolLog(cs CodexState, ev codexToolEvent, now time.Time
 		return cs, effs
 	}
 
+	summarised := summariseToolInput(ev.ToolName, toolInput)
+	fileKind, relPath := classifyCodexTool(ev.ToolName, toolInput, codexToolLogWorkspace(cs))
+
 	line := buildToolLogLine(toolLogEntry{
-		TS:             now,
-		RoostSessionID: cs.RoostSessionID,
-		ToolUseID:      ev.ToolUseID,
-		ToolName:       ev.ToolName,
-		Kind:           kind,
-		DurationMs:     durationMs,
-		ToolInput:      summariseToolInput(ev.ToolName, toolInput),
-		Error:          ev.Error,
+		SchemaVersion:         toolLogSchemaVersion,
+		TS:                    now,
+		RoostSessionID:        cs.RoostSessionID,
+		ToolUseID:             ev.ToolUseID,
+		ToolName:              ev.ToolName,
+		Kind:                  kind,
+		DurationMs:            durationMs,
+		ToolInput:             summarised,
+		Error:                 ev.Error,
+		TurnID:                cs.ToolLogTurnID,
+		FileEventKind:         fileKind,
+		WorkspaceRelativePath: relPath,
 	})
 	effs = append(effs, state.EffToolLogAppend{
 		Namespace: CodexDriverName,
@@ -52,4 +66,30 @@ func (d CodexDriver) emitToolLog(cs CodexState, ev codexToolEvent, now time.Time
 		Line:      line,
 	})
 	return cs, effs
+}
+
+func (d CodexDriver) emitCodexTurnBoundary(cs CodexState, now time.Time, failure bool) (CodexState, []state.Effect) {
+	if cs.ToolLogTurnID == "" {
+		return cs, nil
+	}
+	slug := resolveProjectSlug(cs.Project)
+	if slug == "" {
+		project := cs.Project
+		if project == "" {
+			project = cs.StartDir
+		}
+		slug = resolveProjectSlug(project)
+	}
+	if slug == "" {
+		return cs, nil
+	}
+	line := buildToolLogLine(toolLogEntry{
+		SchemaVersion:  toolLogSchemaVersion,
+		TS:             now,
+		RoostSessionID: cs.RoostSessionID,
+		TurnID:         cs.ToolLogTurnID,
+		TurnComplete:   true,
+		TurnFailure:    failure,
+	})
+	return cs, []state.Effect{state.EffToolLogAppend{Namespace: CodexDriverName, Project: slug, Line: line}}
 }

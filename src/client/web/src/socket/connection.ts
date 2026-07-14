@@ -3,6 +3,7 @@ import { useFrameMessagingStore } from "../store/frameMessaging";
 import { useNotificationsStore } from "../store/notifications";
 import { useSubscriptionStore } from "../store/subscriptions";
 import { useTranscriptStore } from "../store/transcripts";
+import { useWorkspaceActivityStore } from "../store/workspaceActivity";
 import type { ClientFrame } from "../wire/client";
 import { parseServerFrame, serializeClientFrame } from "../wire/codec";
 import type { ControlFrame, OutputFrame, RespErrFrame, RespOKFrame } from "../wire/server";
@@ -143,6 +144,7 @@ export class Connection {
   private handleOpen(): void {
     this.reconnectAttempt = 0;
     useDaemonStore.getState().setStatus("open");
+    useWorkspaceActivityStore.getState().setTransportDegraded(false);
     this.terminalSubscriptions.onOpen();
   }
 
@@ -161,7 +163,9 @@ export class Connection {
         break;
       case "v":
         useDaemonStore.getState().applyViewUpdate(frame);
-        useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
+        if (frame.sessions !== undefined) {
+          useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
+        }
         break;
       case "tt":
         useTranscriptStore.getState().appendLine(frame.sessionId, "transcript", frame.line);
@@ -215,6 +219,7 @@ export class Connection {
     this.drainPending();
     this.terminalSubscriptions.onClose();
     useDaemonStore.getState().setStatus("reconnecting");
+    useWorkspaceActivityStore.getState().setTransportDegraded(true);
     if (exceededAttempts(this.reconnectAttempt)) {
       useDaemonStore.getState().setStatus("closed");
       this.reconnecting = false;

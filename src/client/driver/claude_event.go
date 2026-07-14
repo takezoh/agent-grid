@@ -137,7 +137,11 @@ func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state
 	}
 
 	switch hp.HookEventName {
-	case "SubagentStart", "SubagentStop":
+	case "SubagentStart":
+		cs = d.handleClaudeSubagentStart(cs, ts)
+		return cs, hookLogEffects(hp)
+	case "SubagentStop":
+		cs = d.handleClaudeSubagentStop(cs, ts)
 		return cs, hookLogEffects(hp)
 	}
 
@@ -159,6 +163,16 @@ func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state
 	}
 
 	next, effs := d.handleStateChange(cs, hp, status, e.Timestamp)
+	switch hp.HookEventName {
+	case "Stop":
+		var boundaryEffs []state.Effect
+		next, boundaryEffs = d.emitClaudeTurnBoundary(next, ts, false)
+		effs = append(effs, boundaryEffs...)
+	case "StopFailure":
+		var boundaryEffs []state.Effect
+		next, boundaryEffs = d.emitClaudeTurnBoundary(next, ts, true)
+		effs = append(effs, boundaryEffs...)
+	}
 	return next, append(effs, toolLogEffs...)
 }
 
@@ -166,6 +180,7 @@ func (d ClaudeDriver) handleHook(cs ClaudeState, ctx state.FrameContext, e state
 // watch + parse + event log.
 func (d ClaudeDriver) handleSessionStart(cs ClaudeState, ctx state.FrameContext, hp hookPayload, now time.Time) (ClaudeState, []state.Effect) {
 	cs = absorbIdentityFromHP(cs, hp)
+	cs = d.resetClaudeToolLogTurns(cs)
 	if now.IsZero() {
 		now = cs.StatusChangedAt
 	}

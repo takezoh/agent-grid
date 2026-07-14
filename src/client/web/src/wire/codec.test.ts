@@ -96,6 +96,17 @@ describe("parseServerFrame", () => {
     expect(parsed.activeSessionID).toBe("s1");
   });
 
+  it("parses activity-only view-update without sessions", () => {
+    const raw =
+      '{"k":"v","activity_session_id":"s1","activity_events":[{"type":"mid_turn_touch","session_id":"s1","sequence":1,"path":"src/a.ts","tool_call_id":"tc1"}]}';
+    const parsed = parseServerFrame(raw);
+    if (!parsed || Array.isArray(parsed) || parsed.k !== "v") throw new Error("expected v frame");
+    expect(parsed.sessions).toBeUndefined();
+    expect(parsed.activity_session_id).toBe("s1");
+    expect(parsed.activity_events).toHaveLength(1);
+    expect(parsed.activity_events?.[0]?.type).toBe("mid_turn_touch");
+  });
+
   it("returns null when sessions[].view.card is missing", () => {
     expect(
       parseServerFrame('{"k":"v","sessions":[{"id":"s1","view":{"status":"idle"}}]}'),

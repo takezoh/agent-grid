@@ -331,6 +331,8 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		View:               view,
 		Frames:             frames,
 		HeadFrameID:        string(activeF.ID),
+		WorkspaceRoot:      ResolveWorkspaceRoot(activeF, sess),
+		FrameGeneration:    sess.FrameGeneration,
 	}
 	if !view.StatusChangedAt.IsZero() {
 		info.StateChangedAt = view.StatusChangedAt.Format("2006-01-02T15:04:05Z07:00")

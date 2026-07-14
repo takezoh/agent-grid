@@ -3,6 +3,7 @@ package driver
 import (
 	"encoding/json"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/takezoh/agent-grid/client/state"
@@ -11,16 +12,22 @@ import (
 // toolLogEntry is the per-tool JSONL record written to
 // <dataDir>/claude/tool-logs/<project>.jsonl.
 type toolLogEntry struct {
-	TS              time.Time      `json:"ts"`
-	RoostSessionID  string         `json:"roost_session_id,omitempty"`
-	ClaudeSessionID string         `json:"claude_session_id,omitempty"`
-	ToolUseID       string         `json:"tool_use_id,omitempty"`
-	ToolName        string         `json:"tool_name"`
-	Kind            string         `json:"kind"` // approved | auto | denied | failed | orphan
-	PermissionMode  string         `json:"permission_mode,omitempty"`
-	DurationMs      int64          `json:"duration_ms,omitempty"`
-	ToolInput       map[string]any `json:"tool_input,omitempty"`
-	Error           string         `json:"error,omitempty"`
+	SchemaVersion         int            `json:"schema_version"`
+	TS                    time.Time      `json:"ts"`
+	RoostSessionID        string         `json:"roost_session_id,omitempty"`
+	ClaudeSessionID       string         `json:"claude_session_id,omitempty"`
+	ToolUseID             string         `json:"tool_use_id,omitempty"`
+	ToolName              string         `json:"tool_name,omitempty"`
+	Kind                  string         `json:"kind,omitempty"`
+	PermissionMode        string         `json:"permission_mode,omitempty"`
+	DurationMs            int64          `json:"duration_ms,omitempty"`
+	ToolInput             map[string]any `json:"tool_input,omitempty"`
+	Error                 string         `json:"error,omitempty"`
+	TurnID                string         `json:"turn_id,omitempty"`
+	FileEventKind         fileEventKind  `json:"file_event_kind,omitempty"`
+	WorkspaceRelativePath string         `json:"workspace_relative_path,omitempty"`
+	TurnComplete          bool           `json:"turn_complete,omitempty"`
+	TurnFailure           bool           `json:"turn_failure,omitempty"`
 }
 
 // buildToolLogLine marshals entry to a single JSON line (no trailing
@@ -205,20 +212,93 @@ func (d ClaudeDriver) emitToolLog(cs ClaudeState, hp hookPayload, now time.Time,
 		return cs, nil
 	}
 
+	summarised := summariseToolInput(hp.ToolName, toolInput)
+	fileKind, relPath := classifyClaudeTool(hp.ToolName, toolInput, claudeToolLogWorkspace(cs))
+
 	line := buildToolLogLine(toolLogEntry{
-		TS:              now,
-		RoostSessionID:  cs.RoostSessionID,
-		ClaudeSessionID: cs.ClaudeSessionID,
-		ToolUseID:       hp.ToolUseID,
-		ToolName:        hp.ToolName,
-		Kind:            kind,
-		PermissionMode:  hp.PermissionMode,
-		DurationMs:      durationMs,
-		ToolInput:       summariseToolInput(hp.ToolName, toolInput),
-		Error:           hp.Error,
+		SchemaVersion:         toolLogSchemaVersion,
+		TS:                    now,
+		RoostSessionID:        cs.RoostSessionID,
+		ClaudeSessionID:       cs.ClaudeSessionID,
+		ToolUseID:             hp.ToolUseID,
+		ToolName:              hp.ToolName,
+		Kind:                  kind,
+		PermissionMode:        hp.PermissionMode,
+		DurationMs:            durationMs,
+		ToolInput:             summarised,
+		Error:                 hp.Error,
+		TurnID:                cs.claudeToolLogTurnID(),
+		FileEventKind:         fileKind,
+		WorkspaceRelativePath: relPath,
 	})
 
 	return cs, []state.Effect{state.EffToolLogAppend{Namespace: ClaudeDriverName, Project: slug, Line: line}}
+}
+
+func claudeToolLogWorkspace(cs ClaudeState) string {
+	if cs.Project != "" {
+		return cs.Project
+	}
+	return cs.StartDir
+}
+
+func (cs ClaudeState) claudeToolLogTurnID() string {
+	if cs.ToolLogSubagentTurnID != "" {
+		return cs.ToolLogSubagentTurnID
+	}
+	if cs.ToolLogTurnCounter <= 0 {
+		return "1"
+	}
+	return formatToolLogTurn(cs.ToolLogTurnCounter)
+}
+
+func formatToolLogTurn(n int) string {
+	if n <= 0 {
+		return "1"
+	}
+	return strconv.Itoa(n)
+}
+
+func (d ClaudeDriver) emitClaudeTurnBoundary(cs ClaudeState, now time.Time, failure bool) (ClaudeState, []state.Effect) {
+	slug := resolveProjectSlug(cs.Project)
+	if slug == "" {
+		cs.ToolLogTurnCounter++
+		return cs, nil
+	}
+	turnID := cs.claudeToolLogTurnID()
+	line := buildToolLogLine(toolLogEntry{
+		SchemaVersion:   toolLogSchemaVersion,
+		TS:              now,
+		RoostSessionID:  cs.RoostSessionID,
+		ClaudeSessionID: cs.ClaudeSessionID,
+		TurnID:          turnID,
+		TurnComplete:    true,
+		TurnFailure:     failure,
+	})
+	cs.ToolLogTurnCounter++
+	return cs, []state.Effect{state.EffToolLogAppend{Namespace: ClaudeDriverName, Project: slug, Line: line}}
+}
+
+func (d ClaudeDriver) handleClaudeSubagentStart(cs ClaudeState, _ time.Time) ClaudeState {
+	cs.ToolLogSubagentSeq++
+	parent := formatToolLogTurn(cs.ToolLogTurnCounter)
+	if cs.ToolLogTurnCounter <= 0 {
+		parent = "1"
+	}
+	cs.ToolLogSubagentTurnID = parent + ".sub-" + formatToolLogTurn(cs.ToolLogSubagentSeq)
+	return cs
+}
+
+func (d ClaudeDriver) handleClaudeSubagentStop(cs ClaudeState, _ time.Time) ClaudeState {
+	cs.ToolLogSubagentTurnID = ""
+	return cs
+}
+
+func (d ClaudeDriver) resetClaudeToolLogTurns(cs ClaudeState) ClaudeState {
+	cs.ToolLogTurnCounter = 1
+	cs.ToolLogSubagentTurnID = ""
+	cs.ToolLogSubagentSeq = 0
+	return cs
 }
 
 func truncValue(v any) any {

@@ -192,6 +192,7 @@ func pushDriverInternal(s State, sid SessionID, project, rawCommand string, opti
 	sess = pushMRU(sess, sess.HeadFrameID)
 	sess.HeadFrameID = frame.ID
 	sess.Frames = append(append([]SessionFrame(nil), sess.Frames...), frame)
+	sess = bumpFrameGeneration(sess)
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[sid] = sess
 

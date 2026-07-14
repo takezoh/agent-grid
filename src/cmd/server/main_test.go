@@ -150,9 +150,13 @@ func TestRunMainHelp(t *testing.T) {
 	restore := stubMainDeps(t)
 	defer restore()
 
+	dir := t.TempDir()
 	loadBootstrapConfig = func() (*config.Config, error) {
-		return config.DefaultConfig(), nil
+		cfg := config.DefaultConfig()
+		cfg.DataDir = dir
+		return cfg, nil
 	}
+	initLoggerWithDataDir = func(level, dir string) error { return nil }
 	runDaemonFn = func(*daemonFlagSet) error {
 		t.Fatal("daemon must not run on help")
 		return nil

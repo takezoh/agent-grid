@@ -110,6 +110,7 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 	p := e.Payload
 	switch e.Kind {
 	case state.SubsystemSessionReady:
+		cs.ToolLogTurnID = ""
 		cs, effs = d.applySessionStart(cs, ctx, e.Timestamp, effs)
 	case state.SubsystemFailed:
 		cs.PendingTools = nil
@@ -123,6 +124,9 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 		cs, effs = d.applySubsystemMetadata(cs, p, e.Timestamp, effs)
 	case state.SubsystemTurnStarted:
 		cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
+		if turnID := strings.TrimSpace(p.TurnID); turnID != "" {
+			cs.ToolLogTurnID = turnID
+		}
 	case state.SubsystemTurnCompleted:
 		cs.CurrentTool = ""
 		cs.PendingTools = nil
@@ -131,6 +135,7 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 			cs.LastAssistantMessage = msg
 		}
 		cs = applyHookStatus(cs, state.StatusWaiting, e.Timestamp)
+		cs, effs = d.emitCodexTurnBoundary(cs, e.Timestamp, false)
 	case state.SubsystemToolStarted:
 		cs.PendingApproval = false
 		cs.CurrentTool = subsystemToolName(p.Tool)

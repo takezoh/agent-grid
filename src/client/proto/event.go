@@ -14,6 +14,7 @@ const (
 	EvtNameLogLine           = "log-line"
 	EvtNameSessionFileLine   = "session-file-line"
 	EvtNameAgentNotification = "agent-notification"
+	EvtNameActivityEvents    = "activity-events"
 )
 
 // EvtSessionsChanged carries the current session table. Sent on
@@ -67,3 +68,45 @@ type EvtAgentNotification struct {
 
 func (EvtAgentNotification) isEvent()          {}
 func (EvtAgentNotification) EventName() string { return EvtNameAgentNotification }
+
+// ActivityDrillDownWire is one classified tool call within a turn row.
+type ActivityDrillDownWire struct {
+	ToolUseID     string `json:"tool_use_id,omitempty"`
+	ToolName      string `json:"tool_name,omitempty"`
+	FileEventKind string `json:"file_event_kind,omitempty"`
+	TS            string `json:"ts,omitempty"`
+}
+
+// ActivityTurnSubRowWire aggregates nested sub-agent activity.
+type ActivityTurnSubRowWire struct {
+	TurnID string                  `json:"turn_id"`
+	Path   string                  `json:"workspace_relative_path"`
+	Count  int                     `json:"count"`
+	Events []ActivityDrillDownWire `json:"events,omitempty"`
+}
+
+// ActivityEventWire is one turn_row or mid_turn_touch payload element.
+type ActivityEventWire struct {
+	Type          string                   `json:"type"`
+	Sequence      uint64                   `json:"sequence"`
+	SessionID     string                   `json:"session_id"`
+	TurnID        string                   `json:"turn_id,omitempty"`
+	Path          string                   `json:"workspace_relative_path,omitempty"`
+	FileEventKind string                   `json:"file_event_kind,omitempty"`
+	ToolUseID     string                   `json:"tool_use_id,omitempty"`
+	ToolName      string                   `json:"tool_name,omitempty"`
+	Count         int                      `json:"count,omitempty"`
+	TurnFailure   bool                     `json:"turn_failure,omitempty"`
+	TS            string                   `json:"ts,omitempty"`
+	Events        []ActivityDrillDownWire  `json:"events,omitempty"`
+	SubRows       []ActivityTurnSubRowWire `json:"sub_rows,omitempty"`
+}
+
+// EvtActivityEvents batches workspace activity events for one session.
+type EvtActivityEvents struct {
+	SessionID string              `json:"session_id"`
+	Events    []ActivityEventWire `json:"events"`
+}
+
+func (EvtActivityEvents) isEvent()          {}
+func (EvtActivityEvents) EventName() string { return EvtNameActivityEvents }

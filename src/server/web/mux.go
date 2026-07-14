@@ -207,6 +207,10 @@ func apiHandler(d *DaemonClient, tickets *ticketStore) http.Handler {
 	mux.HandleFunc("DELETE /api/sessions/{id}", handleDeleteSession(d))
 	mux.HandleFunc("GET /api/sessions/{id}/transcript", handleGetTranscript(d))
 	mux.HandleFunc("GET /api/sessions/{id}/event-log", handleGetEventLog(d))
+	mux.HandleFunc("GET /api/sessions/{id}/workspace/root-handle", handleWorkspaceRootHandle(d))
+	mux.HandleFunc("GET /api/sessions/{id}/workspace/tree", handleWorkspaceTree(d))
+	mux.HandleFunc("GET /api/sessions/{id}/workspace/file", handleWorkspaceFile(d))
+	mux.HandleFunc("GET /api/sessions/{id}/workspace/diff", handleWorkspaceDiff(d))
 	mux.HandleFunc("GET /api/session-config", handleSessionConfig())
 	mux.HandleFunc("POST /api/ws-ticket", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"ticket": tickets.mint()})

@@ -88,6 +88,11 @@ type ClaudeState struct {
 	// abandoned silently (e.g. daemon restart mid-tool).
 	PendingTools map[string]pendingTool
 
+	// Tool-log v2 turn synthesis (ADR wsviewer-tool-log-schema-and-turn-boundary).
+	ToolLogTurnCounter    int
+	ToolLogSubagentTurnID string
+	ToolLogSubagentSeq    int
+
 	// LastWindowTitle is the most-recently seen OSC 0 title from the frame.
 	// Used to deduplicate rapid spinner updates so only meaningful transitions
 	// (Braille → ✳ or vice-versa) trigger a status change.

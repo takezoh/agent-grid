@@ -120,6 +120,7 @@ func (a *DaemonAdapter) SubscribeLifecycle(ctx context.Context) (<-chan proto.Se
 		proto.EvtNameSessionsChanged,
 		proto.EvtNameSessionFileLine,
 		proto.EvtNameAgentNotification,
+		proto.EvtNameActivityEvents,
 		proto.EvtNameSurfaceOutput,
 	}
 	if _, err := a.d.SendCommand(ctx, proto.CmdSubscribe{Filters: filters}); err != nil {
@@ -294,7 +295,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 				} else {
 					frame = encodeServerEvent(e)
 				}
-			case proto.EvtSessionFileLine, proto.EvtAgentNotification:
+			case proto.EvtSessionFileLine, proto.EvtAgentNotification, proto.EvtActivityEvents:
 				frame = encodeServerEvent(e)
 			case proto.EvtSurfaceOutput:
 				// Multiplexed surface output: only forward if this WS has

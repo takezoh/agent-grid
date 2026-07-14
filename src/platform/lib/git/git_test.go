@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -97,8 +98,41 @@ func TestIsRepo_GitDir(t *testing.T) {
 func TestIsRepo_NonGitDir(t *testing.T) {
 	dir := t.TempDir()
 	if IsRepo(dir) {
-		t.Error("IsRepo = true for non-git dir, want false")
+		// t.TempDir() often lands under /tmp (when /tmp/.git exists) or inside
+		// the checkout. Fall back to a hidden sibling of this package's repo root.
+		dir = isolatedNonGitDir(t)
 	}
+	if IsRepo(dir) {
+		t.Errorf("IsRepo = true for non-git dir %q, want false", dir)
+	}
+}
+
+func isolatedNonGitDir(t *testing.T) string {
+	t.Helper()
+	candidates := []string{}
+	if wd, err := os.Getwd(); err == nil {
+		if root := findGitRoot(wd); root != "" {
+			parent := filepath.Dir(root)
+			if parent != root {
+				candidates = append(candidates, filepath.Join(parent, fmt.Sprintf(".agent-grid-non-git-%d", os.Getpid())))
+			}
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, fmt.Sprintf(".agent-grid-non-git-%d", os.Getpid())))
+	}
+	for _, dir := range candidates {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			continue
+		}
+		if !IsRepo(dir) {
+			t.Cleanup(func() { _ = os.RemoveAll(dir) })
+			return dir
+		}
+		_ = os.RemoveAll(dir)
+	}
+	t.Skip("unable to create a writable directory outside all git worktrees")
+	return ""
 }
 
 func TestIsRepo_NonExistent(t *testing.T) {
@@ -197,6 +231,54 @@ func TestRepoRoot(t *testing.T) {
 	}
 	if root != dir {
 		t.Fatalf("RepoRoot = %q, want %q", root, dir)
+	}
+}
+
+func TestDiffHeadVsWorktree_Outcomes(t *testing.T) {
+	ctx := context.Background()
+
+	nonGit := t.TempDir()
+	if err := os.WriteFile(filepath.Join(nonGit, "f.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := DiffHeadVsWorktree(ctx, nonGit, "f.txt"); got.Outcome != DiffHeadNotARepo {
+		t.Fatalf("non-git outcome = %q", got.Outcome)
+	}
+
+	corrupt := t.TempDir()
+	if err := os.Mkdir(filepath.Join(corrupt, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(corrupt, ".git", "HEAD"), []byte("broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := DiffHeadVsWorktree(ctx, corrupt, ""); got.Outcome != DiffHeadGitMetadataCorrupt {
+		t.Fatalf("corrupt outcome = %q", got.Outcome)
+	}
+
+	if _, err := exec.LookPath("git"); err != nil {
+		if got := DiffHeadVsWorktree(ctx, t.TempDir(), ""); got.Outcome != DiffHeadGitBinaryMissing {
+			t.Fatalf("missing binary outcome = %q", got.Outcome)
+		}
+		return
+	}
+
+	dir := initRepo(t)
+	path := filepath.Join(dir, "tracked.txt")
+	if err := os.WriteFile(path, []byte("hello\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "add", "tracked.txt")
+	gitRun(t, dir, "commit", "-m", "add tracked")
+	if err := os.WriteFile(path, []byte("hello world\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := DiffHeadVsWorktree(ctx, dir, "tracked.txt")
+	if got.Outcome != DiffHeadOK {
+		t.Fatalf("ok outcome = %q", got.Outcome)
+	}
+	if got.Diff == "" {
+		t.Fatal("expected non-empty diff")
 	}
 }
 

@@ -447,9 +447,123 @@ func TestSummariseToolInput_OtherTool(t *testing.T) {
 
 // === buildToolLogLine tests ===
 
+func TestToolLogV2_ReadEmitsSchemaFields(t *testing.T) {
+	d, cs, now := makeClaudeWithSession(t)
+	t1 := now.Add(time.Second)
+	t2 := now.Add(2 * time.Second)
+
+	cs, _ = d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("PreToolUse", map[string]any{
+		"session_id":  "sid",
+		"cwd":         "/work",
+		"tool_name":   "Read",
+		"tool_use_id": "id-read",
+		"tool_input":  map[string]any{"file_path": "src/main.go"},
+	}, t1))
+	_, effs := d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("PostToolUse", map[string]any{
+		"session_id":  "sid",
+		"cwd":         "/work",
+		"tool_name":   "Read",
+		"tool_use_id": "id-read",
+	}, t2))
+
+	eff, ok := findToolLogAppend(effs)
+	if !ok {
+		t.Fatal("expected EffToolLogAppend")
+	}
+	m := decodeToolLogLine(t, eff.Line)
+	if m["schema_version"] != float64(2) {
+		t.Errorf("schema_version = %v, want 2", m["schema_version"])
+	}
+	if m["turn_id"] == nil || m["turn_id"] == "" {
+		t.Errorf("turn_id missing: %v", m["turn_id"])
+	}
+	if m["file_event_kind"] != "read" {
+		t.Errorf("file_event_kind = %v, want read", m["file_event_kind"])
+	}
+	if m["workspace_relative_path"] != "src/main.go" {
+		t.Errorf("workspace_relative_path = %v", m["workspace_relative_path"])
+	}
+}
+
+func TestToolLogV2_BashUnclassifiedHasNoFabricatedPath(t *testing.T) {
+	d, cs, now := makeClaudeWithSession(t)
+	t1 := now.Add(time.Second)
+	t2 := now.Add(2 * time.Second)
+
+	cs, _ = d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("PreToolUse", map[string]any{
+		"session_id":  "sid",
+		"cwd":         "/work",
+		"tool_name":   "Bash",
+		"tool_use_id": "id-bash",
+		"tool_input":  map[string]any{"command": "rm -rf /"},
+	}, t1))
+	_, effs := d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("PostToolUse", map[string]any{
+		"session_id":  "sid",
+		"cwd":         "/work",
+		"tool_name":   "Bash",
+		"tool_use_id": "id-bash",
+	}, t2))
+
+	eff, ok := findToolLogAppend(effs)
+	if !ok {
+		t.Fatal("expected EffToolLogAppend")
+	}
+	m := decodeToolLogLine(t, eff.Line)
+	if _, has := m["workspace_relative_path"]; has && m["workspace_relative_path"] != "" {
+		t.Errorf("Bash must not fabricate workspace_relative_path: %v", m["workspace_relative_path"])
+	}
+	if m["file_event_kind"] != "unclassified" {
+		t.Errorf("file_event_kind = %v, want unclassified", m["file_event_kind"])
+	}
+}
+
+func TestToolLogV2_StopEmitsTurnComplete(t *testing.T) {
+	d, cs, now := makeClaudeWithSession(t)
+	t1 := now.Add(time.Second)
+	t2 := now.Add(2 * time.Second)
+	t3 := now.Add(3 * time.Second)
+
+	cs, _ = d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("PreToolUse", map[string]any{
+		"session_id":  "sid",
+		"cwd":         "/work",
+		"tool_name":   "Read",
+		"tool_use_id": "id1",
+		"tool_input":  map[string]any{"file_path": "a.go"},
+	}, t1))
+	cs, _ = d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEventAny("PostToolUse", map[string]any{
+		"session_id":  "sid",
+		"cwd":         "/work",
+		"tool_name":   "Read",
+		"tool_use_id": "id1",
+	}, t2))
+	_, effs := d.handleHook(cs, state.FrameContext{IsRoot: true}, hookEvent("Stop", map[string]string{
+		"session_id":      "sid",
+		"hook_event_name": "Stop",
+	}, t3))
+
+	var found bool
+	for _, e := range effs {
+		eff, ok := e.(state.EffToolLogAppend)
+		if !ok {
+			continue
+		}
+		m := decodeToolLogLine(t, eff.Line)
+		if m["turn_complete"] == true {
+			found = true
+			if m["turn_failure"] == true {
+				t.Error("Stop should not set turn_failure")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected turn_complete line on Stop")
+	}
+}
+
 func TestBuildToolLogLine_RoundtripJSON(t *testing.T) {
 	now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
 	entry := toolLogEntry{
+		SchemaVersion:  2,
 		TS:             now,
 		RoostSessionID: "rsid",
 		ToolName:       "Bash",
@@ -457,6 +571,8 @@ func TestBuildToolLogLine_RoundtripJSON(t *testing.T) {
 		PermissionMode: "default",
 		DurationMs:     500,
 		ToolInput:      map[string]any{"command": "ls"},
+		TurnID:         "1",
+		FileEventKind:  "unclassified",
 	}
 	line := buildToolLogLine(entry)
 
@@ -475,6 +591,12 @@ func TestBuildToolLogLine_RoundtripJSON(t *testing.T) {
 	}
 	if m["duration_ms"] != float64(500) {
 		t.Errorf("duration_ms = %v", m["duration_ms"])
+	}
+	if m["schema_version"] != float64(2) {
+		t.Errorf("schema_version = %v, want 2", m["schema_version"])
+	}
+	if m["turn_id"] != "1" {
+		t.Errorf("turn_id = %v", m["turn_id"])
 	}
 	if strings.Contains(line, "\n") {
 		t.Error("line must not contain newline")

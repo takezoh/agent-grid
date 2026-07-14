@@ -271,6 +271,52 @@ func TestGatewayLifecycle_SubscribeSeedIsNotDropped(t *testing.T) {
 	}
 }
 
+// TestGatewayLifecycle_BroadcastsActivityViewUpdate verifies activity events
+// are forwarded as a partial view-update without clobbering sessions.
+func TestGatewayLifecycle_BroadcastsActivityViewUpdate(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeLifecycleAttacher()
+	srv := startLifecycleServer(t, fake)
+	c := dialLifecycleWS(t, srv)
+
+	fake.events <- proto.EvtSessionsChanged{
+		Sessions: []proto.SessionInfo{sampleSession("s1", "T", stateview.StatusRunning)},
+		Features: []string{"surface"},
+	}
+	hello := readJSONFrame(t, c)
+	if hello["k"] != "h" {
+		t.Fatalf("expected hello frame, got k=%q", hello["k"])
+	}
+
+	fake.events <- proto.EvtActivityEvents{
+		SessionID: "s1",
+		Events: []proto.ActivityEventWire{{
+			Type: "mid_turn_touch", Sequence: 1, SessionID: "s1",
+			Path: "src/foo.ts", ToolUseID: "tc1",
+		}},
+	}
+	m := readJSONFrame(t, c)
+
+	if m["k"] != "v" {
+		t.Errorf("activity frame k = %q, want \"v\"", m["k"])
+	}
+	if m["activity_session_id"] != "s1" {
+		t.Errorf("activity_session_id = %v, want \"s1\"", m["activity_session_id"])
+	}
+	if _, has := m["sessions"]; has {
+		t.Errorf("activity-only frame must omit sessions; got %v", m["sessions"])
+	}
+	events, ok := m["activity_events"].([]any)
+	if !ok || len(events) != 1 {
+		t.Fatalf("activity_events: got %v", m["activity_events"])
+	}
+	ev0 := events[0].(map[string]any)
+	if ev0["type"] != "mid_turn_touch" || ev0["tool_call_id"] != "tc1" {
+		t.Errorf("activity event: got %v", ev0)
+	}
+}
+
 // TestGatewayLifecycle_DaemonDisconnect verifies the 2-step close protocol
 // (ADR 0011) when the daemon events channel closes on a lifecycle WS.
 func TestGatewayLifecycle_DaemonDisconnect(t *testing.T) {

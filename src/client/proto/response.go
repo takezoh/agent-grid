@@ -58,6 +58,8 @@ type SessionInfo struct {
 	View               stateview.View   `json:"view"`
 	Frames             []FrameInfo      `json:"frames,omitempty"`
 	HeadFrameID        string           `json:"head_frame_id,omitempty"`
+	WorkspaceRoot      string           `json:"workspace_root,omitempty"`
+	FrameGeneration    int              `json:"frame_generation,omitempty"`
 }
 
 // FrameInfo is the per-frame wire payload for header tab rendering.

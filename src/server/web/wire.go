@@ -68,8 +68,10 @@ func controlFrame(code int, data string) []byte {
 // daemon's notion of activeSessionID as an initial seed via the hello
 // frame.
 type viewUpdateFrame struct {
-	K        string              `json:"k"` // always "v"
-	Sessions []proto.SessionInfo `json:"sessions"`
+	K                 string               `json:"k"`                  // always "v"
+	Sessions          *[]proto.SessionInfo `json:"sessions,omitempty"` // nil = omit (activity-only)
+	ActivitySessionID string               `json:"activity_session_id,omitempty"`
+	ActivityEvents    []viewActivityEvent  `json:"activity_events,omitempty"`
 }
 
 // encodeFromSessionsChanged encodes EvtSessionsChanged as a view-update
@@ -86,7 +88,7 @@ func encodeFromSessionsChanged(ev proto.EvtSessionsChanged) []byte {
 	}
 	f := viewUpdateFrame{
 		K:        "v",
-		Sessions: sessions,
+		Sessions: &sessions,
 	}
 	b, err := json.Marshal(f)
 	if err != nil {
@@ -108,6 +110,8 @@ func encodeServerEvent(ev proto.ServerEvent) []byte {
 		return encodeFromAgentNotification(e)
 	case proto.EvtSessionsChanged:
 		return encodeFromSessionsChanged(e)
+	case proto.EvtActivityEvents:
+		return encodeFromActivityEvents(e)
 	}
 	return nil
 }

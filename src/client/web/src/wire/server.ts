@@ -121,15 +121,50 @@ export type HelloFrame = {
   serverTime: number;
 };
 
+// Workspace activity events (tool-log reader → view-update extension).
+export type FileEventKind = "read" | "create" | "edit" | "delete";
+
+export type ActivityEventEntry = {
+  path: string;
+  kind: FileEventKind;
+  tool_call_id?: string;
+};
+
+export type TurnRowActivityEvent = {
+  type: "turn_row";
+  session_id: string;
+  sequence: number;
+  turn_id: string;
+  path: string;
+  kind: FileEventKind;
+  count: number;
+  events: ActivityEventEntry[];
+};
+
+export type MidTurnTouchActivityEvent = {
+  type: "mid_turn_touch";
+  session_id: string;
+  sequence: number;
+  path: string;
+  tool_call_id: string;
+};
+
+export type ActivityEvent = TurnRowActivityEvent | MidTurnTouchActivityEvent;
+
 export type ViewUpdateFrame = {
   k: "v";
-  sessions: SessionInfo[];
+  /** Omitted on activity-only view updates (ADR-20260705 sessions-only). */
+  sessions?: SessionInfo[];
   activeSessionID?: string | null;
   // See HelloFrame.activeOccupant. View-update frames carry it live so a
   // frame pushed / popped by another driver client toggles push availability
   // in the palette without requiring a reconnect (the daemon broadcasts
   // EvtSessionsChanged on occupant changes).
   activeOccupant?: ActiveOccupant;
+  // Optional workspace-activity extension (M3/M4). When present, the client
+  // workspaceActivity store ingests turn_row + mid_turn_touch events.
+  activity_events?: ActivityEvent[];
+  activity_session_id?: string;
 };
 
 export type TranscriptTailFrame = {

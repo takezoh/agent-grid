@@ -7,6 +7,19 @@ import (
 	"github.com/takezoh/agent-grid/client/state"
 )
 
+// WorkspaceDirSource exposes working-directory fields from driver state for
+// workspace-root resolution (SSOT: worktree StartDir > StartDir > project).
+type WorkspaceDirSource interface {
+	WorkspaceStartDir() string
+	WorkspaceWorktreeName() string
+}
+
+// WorkspaceStartDir returns the frame working directory stored in CommonState.
+func (c CommonState) WorkspaceStartDir() string { return c.StartDir }
+
+// WorkspaceWorktreeName returns the managed worktree name, if any.
+func (c CommonState) WorkspaceWorktreeName() string { return c.WorktreeName }
+
 // CommonState contains the shared fields and logic used by multiple
 // agent drivers (Claude, Codex, Gemini, Generic). Embedding this struct
 // ensures consistent state management across different driver implementations.

@@ -13,6 +13,8 @@ import { StatusBanner } from "./components/StatusBanner";
 import { TerminalPane } from "./components/TerminalPane";
 import { ThemeSegmentedControl } from "./components/ThemeSegmentedControl";
 import { CommandPalette } from "./components/palette/CommandPalette";
+import { ActivityRail } from "./components/workspace/ActivityRail";
+import { WorkspaceDrawer } from "./components/workspace/WorkspaceDrawer";
 import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
 import { useMobileGate } from "./hooks/useMobileGate";
@@ -25,6 +27,8 @@ import {
   useFrameMessagingStore,
 } from "./store/frameMessaging";
 import { useNotificationsStore } from "./store/notifications";
+import { useWorkspaceActivityStore } from "./store/workspaceActivity";
+import "./css/workspace.css";
 
 export function App() {
   // ADR-0037 / FR-001: intercept Cmd/Ctrl+K on the capture phase.
@@ -101,6 +105,10 @@ export function App() {
   }, []);
 
   const activeSessionID = useDaemonStore((s) => s.activeSessionID);
+
+  useEffect(() => {
+    useWorkspaceActivityStore.getState().setScopedSession(activeSessionID);
+  }, [activeSessionID]);
   const activeSession = useDaemonStore((s) =>
     s.activeSessionID ? (s.sessions.find((x) => x.id === s.activeSessionID) ?? null) : null,
   );
@@ -146,33 +154,41 @@ export function App() {
 
   const sidebarContent = <SessionList conn={conn} />;
 
+  const openDrawerTree = useCallback(() => {
+    if (!activeSessionID) return;
+    useWorkspaceActivityStore.getState().openDrawerTree(activeSessionID);
+  }, [activeSessionID]);
+
   const mainContent = (
-    <>
-      {activeSession && (
-        <DriverViewPanel
-          view={activeSession.view}
-          sessionId={activeSession.id}
-          onRequestTerminate={handleRequestTerminate}
-        />
-      )}
-      <MainTabs
-        tabs={activeSession?.view.log_tabs ?? []}
-        messagesSummary={
-          activeFrameMessagingSummary ??
-          normalizeFrameMessagingSummary(activeSession?.view.frame_messaging_summary)
-        }
-        sessionId={activeSession?.id}
-        bearerToken={token}
-        suppressInfo={activeSession?.view.suppress_info ?? false}
-        terminalSlot={
-          <TerminalPane
-            key={activeSessionID ?? "__none__"}
-            conn={conn}
-            sessionId={activeSessionID}
+    <div className="main-with-activity-rail" data-testid="main-with-activity-rail">
+      <ActivityRail onOpenTree={openDrawerTree} />
+      <div className="main-with-activity-rail__tabs">
+        {activeSession && (
+          <DriverViewPanel
+            view={activeSession.view}
+            sessionId={activeSession.id}
+            onRequestTerminate={handleRequestTerminate}
           />
-        }
-      />
-    </>
+        )}
+        <MainTabs
+          tabs={activeSession?.view.log_tabs ?? []}
+          messagesSummary={
+            activeFrameMessagingSummary ??
+            normalizeFrameMessagingSummary(activeSession?.view.frame_messaging_summary)
+          }
+          sessionId={activeSession?.id}
+          bearerToken={token}
+          suppressInfo={activeSession?.view.suppress_info ?? false}
+          terminalSlot={
+            <TerminalPane
+              key={activeSessionID ?? "__none__"}
+              conn={conn}
+              sessionId={activeSessionID}
+            />
+          }
+        />
+      </div>
+    </div>
   );
 
   return (
@@ -187,6 +203,7 @@ export function App() {
           {/* Mounted via portal directly under <body>, so the placement of
               this element in the tree is irrelevant (ADR-0036). */}
           <CommandPalette />
+          <WorkspaceDrawer sessionId={activeSessionID} />
           <ConfirmDialog
             open={terminationTarget !== null}
             variant={isMobile ? "sheet" : "modal"}

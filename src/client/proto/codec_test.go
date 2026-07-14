@@ -98,12 +98,59 @@ func TestEncodeError(t *testing.T) {
 	}
 }
 
+func TestSessionInfoWorkspaceRootRoundtrip(t *testing.T) {
+	si := SessionInfo{
+		ID:              "s1",
+		Project:         "/proj",
+		Command:         "claude",
+		CreatedAt:       "2026-07-14T00:00:00Z",
+		WorkspaceRoot:   "/worktree/root",
+		FrameGeneration: 7,
+	}
+	ev := EvtSessionsChanged{Sessions: []SessionInfo{si}}
+	wire, err := EncodeEvent(ev)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	env, err := DecodeEnvelope(wire)
+	if err != nil {
+		t.Fatalf("decode env: %v", err)
+	}
+	decoded, err := DecodeEvent(env)
+	if err != nil {
+		t.Fatalf("decode event: %v", err)
+	}
+	sc, ok := decoded.(EvtSessionsChanged)
+	if !ok {
+		t.Fatalf("type = %T", decoded)
+	}
+	if len(sc.Sessions) != 1 {
+		t.Fatalf("sessions len = %d", len(sc.Sessions))
+	}
+	got := sc.Sessions[0]
+	if got.WorkspaceRoot != "/worktree/root" {
+		t.Errorf("workspace_root = %q", got.WorkspaceRoot)
+	}
+	if got.FrameGeneration != 7 {
+		t.Errorf("frame_generation = %d", got.FrameGeneration)
+	}
+}
+
 func TestEncodeDecodeEvent(t *testing.T) {
 	cases := []ServerEvent{
 		EvtSessionsChanged{Sessions: []SessionInfo{{ID: "abc"}}},
 		EvtProjectSelected{Project: "/foo"},
 		EvtLogLine{Path: "/var/log", Line: "hello"},
 		EvtSessionFileLine{SessionID: "abc", Kind: "transcript", Line: "world"},
+		EvtActivityEvents{
+			SessionID: "abc",
+			Events: []ActivityEventWire{{
+				Type:      "mid_turn_touch",
+				Sequence:  1,
+				SessionID: "abc",
+				Path:      "src/a.go",
+			}},
+		},
 	}
 	for _, e := range cases {
 		t.Run(e.EventName(), func(t *testing.T) {

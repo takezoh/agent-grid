@@ -61,7 +61,9 @@ func (r *Runtime) executeMiscEffect(eff state.Effect) {
 		if err := r.cfg.ToolLog.Append(e.Namespace, e.Project, e.Line); err != nil {
 			slog.Debug("runtime: tool log append failed",
 				"namespace", e.Namespace, "project", e.Project, "err", err)
+			break
 		}
+		r.emitToolLogActivityEvents(e.Line)
 
 	case state.EffFrameMessagingPersistRead:
 		if len(e.MessageIDs) == 0 {
@@ -360,14 +362,15 @@ func (r *Runtime) snapshotSessions() []SessionSnapshot {
 			mruIDs[i] = string(id)
 		}
 		out = append(out, SessionSnapshot{
-			ID:             string(sess.ID),
-			Project:        sess.Project,
-			CreatedAt:      sess.CreatedAt.UTC().Format(time.RFC3339),
-			Frames:         frames,
-			HeadFrameID:    string(sess.HeadFrameID),
-			MRUFrameIDs:    mruIDs,
-			Sandbox:        sess.Sandbox,
-			FrameMessaging: snapshotFrameMessaging(sess.FrameMessaging),
+			ID:              string(sess.ID),
+			Project:         sess.Project,
+			CreatedAt:       sess.CreatedAt.UTC().Format(time.RFC3339),
+			Frames:          frames,
+			HeadFrameID:     string(sess.HeadFrameID),
+			MRUFrameIDs:     mruIDs,
+			Sandbox:         sess.Sandbox,
+			FrameMessaging:  snapshotFrameMessaging(sess.FrameMessaging),
+			FrameGeneration: sess.FrameGeneration,
 		})
 	}
 	return out

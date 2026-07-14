@@ -65,6 +65,9 @@ type CodexState struct {
 	DiffPaths           []string
 	RecentTurns         []SummaryTurn
 	PendingTools        map[string]codexPendingTool
+
+	// Tool-log v2 native turn id from SubsystemTurnStarted/Completed.
+	ToolLogTurnID string
 }
 
 type CodexDriver struct {

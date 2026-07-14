@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { SessionConfig, SessionConfigProject } from "../api/sessions";
 import type { DaemonOccupant, DaemonSnapshot } from "../lib/tools";
 import type { HelloFrame, SessionInfo, ViewUpdateFrame } from "../wire/server";
+import { useWorkspaceActivityStore } from "./workspaceActivity";
 
 // Mirror of Go's config.DefaultWorkspaceName — the daemon emits this literal
 // when a project has no named workspace in its settings.toml.
@@ -283,6 +284,9 @@ export const useDaemonStore = create<DaemonState>()((set) => ({
       // Resolve effective activeSessionID.
       const nextActiveId =
         frame.activeSessionID === undefined ? s.activeSessionID : frame.activeSessionID;
+      // Activity-only view updates omit sessions (ADR-20260705). Use the
+      // current store snapshot for workspace-follow logic in that case.
+      const sessionsForWorkspace = frame.sessions ?? s.sessions;
       // selectedWorkspace policy: this is a USER preference (set by chip click
       // / selectSession). On view-update we leave it alone unless:
       //   (a) the workspace no longer exists in the pushed session set → reset
@@ -294,26 +298,38 @@ export const useDaemonStore = create<DaemonState>()((set) => ({
       // The pre-fix code re-applied (b) on every push regardless of whether
       // activeId changed, silently undoing chip clicks. (code-review #1.)
       let ws = s.selectedWorkspace;
-      const known = selectDistinctWorkspaces(frame.sessions);
+      const known = selectDistinctWorkspaces(sessionsForWorkspace);
       if (!known.includes(ws)) ws = DEFAULT_WORKSPACE;
       if (nextActiveId !== null && nextActiveId !== s.activeSessionID) {
-        const active = frame.sessions.find((x) => x.id === nextActiveId);
+        const active = sessionsForWorkspace.find((x) => x.id === nextActiveId);
         if (active) ws = workspaceOf(active);
       }
-      // best-effort identity preservation: keep the previous SessionInfo
-      // object when its JSON shape is structurally unchanged. Cheap deep
-      // compare via JSON.stringify is fine here (sessions[] is small —
-      // 10s of entries — and the cost runs once per daemon push, ADR 0023).
-      const byId = new Map(s.sessions.map((x) => [x.id, x]));
-      const next = frame.sessions.map((incoming) => {
-        const prev = byId.get(incoming.id);
-        if (prev && JSON.stringify(prev) === JSON.stringify(incoming)) {
-          return prev;
-        }
-        return incoming;
-      });
+      // Workspace activity extension (M3/M4): ingest optional activity_events
+      // on the same view-update frame. Cross-session guard lives in the
+      // workspaceActivity store; scopedSessionId is set by App when the
+      // active session changes.
+      useWorkspaceActivityStore.getState().applyViewUpdate(frame);
+
+      const sessionPatch =
+        frame.sessions === undefined
+          ? {}
+          : {
+              sessions: (() => {
+                // best-effort identity preservation: keep the previous SessionInfo
+                // object when its JSON shape is structurally unchanged.
+                const byId = new Map(s.sessions.map((x) => [x.id, x]));
+                return frame.sessions.map((incoming) => {
+                  const prev = byId.get(incoming.id);
+                  if (prev && JSON.stringify(prev) === JSON.stringify(incoming)) {
+                    return prev;
+                  }
+                  return incoming;
+                });
+              })(),
+            };
+
       return {
-        sessions: next,
+        ...sessionPatch,
         activeSessionID: nextActiveId,
         // ViewUpdateFrame.activeOccupant is optional. When the frame
         // carries it (post 2026-06-24 server emit), we overwrite the

@@ -96,6 +96,19 @@ describe("daemonStore", () => {
     expect(state.sessions[4]?.view.status).toBe("pending");
   });
 
+  it("applyViewUpdate preserves sessions when frame omits sessions (activity-only)", () => {
+    const existing = mkSession("s1", { view: { card: { title: "keep" }, status: "idle" } });
+    useDaemonStore.setState({ sessions: [existing], activeSessionID: "s1" });
+    useDaemonStore.getState().applyViewUpdate({
+      k: "v",
+      activity_session_id: "s1",
+      activity_events: [],
+    });
+    expect(useDaemonStore.getState().sessions).toHaveLength(1);
+    expect(useDaemonStore.getState().sessions[0]).toBe(existing);
+    expect(useDaemonStore.getState().activeSessionID).toBe("s1");
+  });
+
   it("applyViewUpdate replaces sessions and preserves activeSessionID when omitted", () => {
     useDaemonStore.setState({ activeSessionID: "preserved" });
     const frame: ViewUpdateFrame = {
