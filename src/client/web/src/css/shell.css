@@ -34,6 +34,7 @@
   border-bottom: 1px solid var(--border-color);
   height: var(--header-height);
   min-height: var(--header-height);
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -44,6 +45,7 @@
   padding: 0 12px;
   height: var(--header-height);
   min-height: var(--header-height);
+  min-width: 0;
   box-sizing: border-box;
 }
 

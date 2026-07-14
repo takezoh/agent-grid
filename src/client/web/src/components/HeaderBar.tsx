@@ -66,12 +66,18 @@ export function HeaderBar({
               <span className="header-bar__sep" aria-hidden="true">
                 /
               </span>
-              <span className="header-bar__title">{sessionTitle}</span>
+              <span className="header-bar__title" title={sessionTitle}>
+                {sessionTitle}
+              </span>
             </>
           )}
         </nav>
       )}
-      {mobile && sessionTitle && <span className="header-bar__mobile-title">{sessionTitle}</span>}
+      {mobile && sessionTitle && (
+        <span className="header-bar__mobile-title" title={sessionTitle}>
+          {sessionTitle}
+        </span>
+      )}
       {!mobile && meta && (
         <span className="header-bar__meta font-mono" aria-label="session metadata">
           {meta}
