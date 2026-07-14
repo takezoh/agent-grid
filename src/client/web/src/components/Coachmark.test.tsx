@@ -12,8 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Coachmark } from "./Coachmark";
 
 // First-run hint copy (mobile view mode).
-const HINT =
-  "Tap to type / pinch to resize text";
+const HINT = "Tap to type / pinch to resize text";
 
 describe("Coachmark — ADR 0072 surface", () => {
   it("renders role='status' WITHOUT an aria-live attribute (orthogonal to AriaLiveStatus)", () => {
