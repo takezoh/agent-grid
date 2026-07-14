@@ -28,6 +28,41 @@
     "contracts": {
       "type": "array",
       "items": {"type": "string"}
+    },
+    "adrs": {
+      "type": "array",
+      "description": "design skill 由来: このplanが依拠するADR idの一覧 (validate_plan.pyのmaterialization contract)。ADR本体との紐付けは relations[hasPart] でも冗長に張る。",
+      "items": {"type": "string"}
+    },
+    "contract_projections": {
+      "type": "array",
+      "description": "design skill 由来: plan.jsonのimplementation_contracts[]をmd frontmatterへprojectionしたもの (validate_plan.pyのmaterialization contract; adr-20260709-reference-algorithms-in-plan / artifact-semantics.md §22)。",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {"type": "string"},
+          "decision_rules": {"type": "array", "items": {"type": "string"}},
+          "observable_effects": {"type": "array", "items": {"type": "string"}},
+          "operational_inputs": {"type": "array", "items": {"type": "string"}},
+          "semantic_profiles": {"type": "array", "items": {"type": "string"}},
+          "verifications": {"type": "array", "items": {"type": "string"}},
+          "witnesses": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "reference_algorithms": {
+      "type": "array",
+      "description": "adr-20260709-reference-algorithms-in-plan: plan body の Reference Algorithm 節と SSOT を張るための frontmatter 宣言。semantic_validators.check_reference_algorithm_ssot が本文と cross-check する。",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {"type": "string"}
+        }
+      }
     }
   }
 }
