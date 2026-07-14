@@ -130,6 +130,8 @@ export type ActivityEventEntry = {
   tool_call_id?: string;
 };
 
+export type ActivityActor = "agent" | "operator";
+
 export type TurnRowActivityEvent = {
   type: "turn_row";
   session_id: string;
@@ -139,6 +141,7 @@ export type TurnRowActivityEvent = {
   kind: FileEventKind;
   count: number;
   events: ActivityEventEntry[];
+  actor?: ActivityActor;
 };
 
 export type MidTurnTouchActivityEvent = {
@@ -147,6 +150,8 @@ export type MidTurnTouchActivityEvent = {
   sequence: number;
   path: string;
   tool_call_id: string;
+  kind?: FileEventKind;
+  actor?: ActivityActor;
 };
 
 export type ActivityEvent = TurnRowActivityEvent | MidTurnTouchActivityEvent;

@@ -3,7 +3,7 @@ id: adr-20260714-wsviewer-no-write-depguard
 kind: adr
 title: depguard rule structurally forbids fs-mutating calls in the workspace-viewer
   handler package
-status: accepted
+status: superseded
 created: '2026-07-14'
 decision_makers:
 - Takehito Gondo
@@ -13,9 +13,11 @@ tags:
 owners: []
 relations:
 - {type: partOf, target: plan-20260714-agent-workspace-viewer}
+- {type: supersededBy, target: adr-20260714-editor-write-depguard-rescope}
 source_paths: []
 summary: depguard rule structurally forbids fs-mutating calls in the workspace-viewer
   handler package
+updated: '2026-07-14'
 ---
 
 ## Context

@@ -9,6 +9,9 @@ import (
 
 const ToolLogSchemaVersion = 2
 
+const ToolLogActorAgent = "agent"
+const ToolLogActorOperator = "operator"
+
 // FileEventKind is the normalized workspace file-event classification.
 type FileEventKind string
 
@@ -39,6 +42,7 @@ type ToolLogRecord struct {
 	WorkspaceRelativePath string         `json:"workspace_relative_path,omitempty"`
 	TurnComplete          bool           `json:"turn_complete,omitempty"`
 	TurnFailure           bool           `json:"turn_failure,omitempty"`
+	Actor                 string         `json:"actor,omitempty"`
 }
 
 // ParseToolLogRecord unmarshals one JSONL line. Returns ok=false for empty
@@ -201,6 +205,25 @@ func stringField(m map[string]any, key string) string {
 	}
 	s, _ := v.(string)
 	return strings.TrimSpace(s)
+}
+
+// MarshalOperatorWriteRecord returns a schema_version=2 JSONL line for an
+// operator :w save (actor=operator, file_event_kind=edit, tool_name=":w").
+func MarshalOperatorWriteRecord(sessionID, relPath string) (string, error) {
+	rec := ToolLogRecord{
+		SchemaVersion:         ToolLogSchemaVersion,
+		TS:                    time.Now().UTC(),
+		RoostSessionID:        sessionID,
+		Actor:                 ToolLogActorOperator,
+		ToolName:              ":w",
+		FileEventKind:         FileEventEdit,
+		WorkspaceRelativePath: relPath,
+	}
+	b, err := json.Marshal(rec)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func firstNonEmptyStr(values ...string) string {

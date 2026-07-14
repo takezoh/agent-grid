@@ -95,6 +95,7 @@ type ActivityEventWire struct {
 	FileEventKind string                   `json:"file_event_kind,omitempty"`
 	ToolUseID     string                   `json:"tool_use_id,omitempty"`
 	ToolName      string                   `json:"tool_name,omitempty"`
+	Actor         string                   `json:"actor,omitempty"`
 	Count         int                      `json:"count,omitempty"`
 	TurnFailure   bool                     `json:"turn_failure,omitempty"`
 	TS            string                   `json:"ts,omitempty"`

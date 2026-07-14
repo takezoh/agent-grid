@@ -125,6 +125,28 @@
   font-family: var(--font-mono, monospace);
 }
 
+.workspace-drawer__dirty {
+  color: var(--warning-fg, #f5a623);
+}
+
+.workspace-drawer__conflict,
+.workspace-drawer__root-disappeared {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: var(--warning-bg, #3a2a00);
+  color: var(--warning-fg, #f5d76e);
+}
+
+.workspace-drawer__close-warning {
+  margin: 8px 16px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle, #333);
+  background: var(--surface-elevated, #1a1a1a);
+}
+
 .workspace-drawer__stale {
   display: flex;
   gap: 12px;

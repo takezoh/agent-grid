@@ -78,9 +78,18 @@ export function ActivityRail({ onOpenTree }: ActivityRailProps): ReactNode {
                 onClick={() => activateRow(row.path, row.kind)}
                 onKeyDown={(e) => onRowKeyDown(e, row.path, row.kind)}
               >
-                <span className={`activity-rail__kind activity-rail__kind--${row.kind}`}>
-                  {KIND_LABEL[row.kind] ?? row.kind}
-                </span>
+                {row.actor === "operator" ? (
+                  <span
+                    className="activity-rail__kind activity-rail__kind--operator"
+                    aria-label={`Operator edited ${row.path}`}
+                  >
+                    operator
+                  </span>
+                ) : (
+                  <span className={`activity-rail__kind activity-rail__kind--${row.kind}`}>
+                    {KIND_LABEL[row.kind] ?? row.kind}
+                  </span>
+                )}
                 <span className="activity-rail__path">{row.path}</span>
                 {row.count > 1 && (
                   <span className="activity-rail__badge" aria-label={`${row.count} events`}>

@@ -14,8 +14,10 @@ import {
   makeWorkspaceApi,
 } from "../../api/workspace";
 import {
+  selectAriaLiveMessage,
+  selectBufferDirty,
+  selectConflictBannerVisible,
   selectDrawerStale,
-  selectStaleAnnounceMessage,
   useWorkspaceActivityStore,
 } from "../../store/workspaceActivity";
 import { DiffViewer } from "./DiffViewer";
@@ -35,16 +37,31 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
   const target = useWorkspaceActivityStore((s) => s.drawerTarget);
   const pinnedHandle = useWorkspaceActivityStore((s) => s.pinnedHandle);
   const reloadGeneration = useWorkspaceActivityStore((s) => s.reloadGeneration);
-  const staleAnnounceSeq = useWorkspaceActivityStore((s) => s.staleAnnounceSeq);
+  const reconnectResyncGeneration = useWorkspaceActivityStore((s) => s.reconnectResyncGeneration);
+  const rootDisappeared = useWorkspaceActivityStore((s) => s.rootDisappeared);
+  const closeWarningOpen = useWorkspaceActivityStore((s) => s.closeWarningOpen);
+  const liveAnnounceSeq = useWorkspaceActivityStore((s) => s.liveAnnounceSeq);
 
-  const closeDrawer = useWorkspaceActivityStore((s) => s.closeDrawer);
+  const requestCloseDrawer = useWorkspaceActivityStore((s) => s.requestCloseDrawer);
+  const confirmDiscardAndClose = useWorkspaceActivityStore((s) => s.confirmDiscardAndClose);
+  const cancelCloseWarning = useWorkspaceActivityStore((s) => s.cancelCloseWarning);
   const setDrawerTab = useWorkspaceActivityStore((s) => s.setDrawerTab);
   const setPinnedHandle = useWorkspaceActivityStore((s) => s.setPinnedHandle);
   const reloadDrawerContent = useWorkspaceActivityStore((s) => s.reloadDrawerContent);
   const openDrawerFromRow = useWorkspaceActivityStore((s) => s.openDrawerFromRow);
+  const registerDirtyBuffer = useWorkspaceActivityStore((s) => s.registerDirtyBuffer);
+  const setBufferDirty = useWorkspaceActivityStore((s) => s.setBufferDirty);
+  const clearDirtyBuffer = useWorkspaceActivityStore((s) => s.clearDirtyBuffer);
+  const setConflictOutcome = useWorkspaceActivityStore((s) => s.setConflictOutcome);
+  const setRootDisappeared = useWorkspaceActivityStore((s) => s.setRootDisappeared);
+  const resolveConflict = useWorkspaceActivityStore((s) => s.resolveConflict);
 
   const stale = useWorkspaceActivityStore((s) => selectDrawerStale(s, target?.path));
-  const announce = useWorkspaceActivityStore((s) => selectStaleAnnounceMessage(s, target?.path));
+  const dirty = useWorkspaceActivityStore((s) => selectBufferDirty(s, target?.path));
+  const conflictVisible = useWorkspaceActivityStore((s) =>
+    selectConflictBannerVisible(s, target?.path),
+  );
+  const announce = useWorkspaceActivityStore((s) => selectAriaLiveMessage(s, target?.path));
 
   const [file, setFile] = useState<WorkspaceFileResponse | null>(null);
   const [diff, setDiff] = useState<WorkspaceDiffResponse | null>(null);
@@ -53,11 +70,14 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
   const [fileError, setFileError] = useState<string | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [handleStale, setHandleStale] = useState(false);
+  const [skipPrecondition, setSkipPrecondition] = useState(false);
+  const [clipboardContent, setClipboardContent] = useState<string | null>(null);
 
   // Pin root handle once per drawer open (never re-resolve on background frame push).
   useEffect(() => {
     if (!open) {
       setHandleStale(false);
+      setSkipPrecondition(false);
       return;
     }
     if (!sessionId || pinnedHandle) return;
@@ -94,9 +114,15 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
       const api = makeWorkspaceApi();
       const resp = await api.getFile(sessionId, target.path, pinnedHandle);
       setFile(resp);
+      if (resp.mtime) {
+        registerDirtyBuffer(target.path, resp.mtime);
+      }
     } catch (e) {
       if (WorkspaceApiError.isHandleStale(e)) {
         setHandleStale(true);
+        if (dirty) {
+          setRootDisappeared(true);
+        }
         setFileError(null);
       } else {
         setFileError(e instanceof Error ? e.message : String(e));
@@ -104,7 +130,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     } finally {
       setLoadingFile(false);
     }
-  }, [sessionId, pinnedHandle, target]);
+  }, [sessionId, pinnedHandle, target, registerDirtyBuffer, dirty, setRootDisappeared]);
 
   const fetchDiff = useCallback(async () => {
     if (!sessionId || !pinnedHandle || !target?.path) return;
@@ -117,6 +143,9 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     } catch (e) {
       if (WorkspaceApiError.isHandleStale(e)) {
         setHandleStale(true);
+        if (dirty) {
+          setRootDisappeared(true);
+        }
         setDiffError(null);
       } else {
         setDiffError(e instanceof Error ? e.message : String(e));
@@ -124,7 +153,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     } finally {
       setLoadingDiff(false);
     }
-  }, [sessionId, pinnedHandle, target]);
+  }, [sessionId, pinnedHandle, target, dirty, setRootDisappeared]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadGeneration is the store-driven refetch trigger
   useEffect(() => {
@@ -132,6 +161,39 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     void fetchContent();
     if (target?.kind === "edit") void fetchDiff();
   }, [open, tab, fetchContent, fetchDiff, target?.kind, reloadGeneration]);
+
+  // Reconnect: re-fetch mtime for dirty buffers.
+  useEffect(() => {
+    if (!open || reconnectResyncGeneration === 0 || !sessionId || !pinnedHandle || !target?.path) {
+      return;
+    }
+    const buffer = useWorkspaceActivityStore.getState().dirtyBuffers[target.path];
+    if (!buffer?.dirty || !buffer.ifUnmodifiedSince) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const api = makeWorkspaceApi();
+        const resp = await api.getFile(sessionId, target.path, pinnedHandle);
+        if (cancelled) return;
+        if (resp.mtime && resp.mtime !== buffer.ifUnmodifiedSince) {
+          setConflictOutcome(target.path, "reconnect_mtime_differs");
+        }
+      } catch {
+        // connectivity degraded — save remains disabled via transportDegraded elsewhere
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    open,
+    reconnectResyncGeneration,
+    sessionId,
+    pinnedHandle,
+    target?.path,
+    setConflictOutcome,
+  ]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -143,17 +205,78 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeDrawer();
+      if (e.key === "Escape") requestCloseDrawer();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, closeDrawer]);
+  }, [open, requestCloseDrawer]);
 
   const onScrimClick = (e: MouseEvent<HTMLDialogElement>) => {
-    if (e.target === dialogRef.current) closeDrawer();
+    if (e.target === dialogRef.current) requestCloseDrawer();
+  };
+
+  const onDirtyChange = useCallback(
+    (isDirty: boolean) => {
+      if (!target?.path) return;
+      setBufferDirty(target.path, isDirty);
+    },
+    [target?.path, setBufferDirty],
+  );
+
+  const onSaveSuccess = useCallback(() => {
+    if (!target?.path) return;
+    clearDirtyBuffer(target.path);
+    setSkipPrecondition(false);
+    reloadDrawerContent();
+  }, [target?.path, clearDirtyBuffer, reloadDrawerContent]);
+
+  const onSaveError = useCallback(
+    (err: WorkspaceApiError) => {
+      if (WorkspaceApiError.isHandleStale(err)) {
+        setHandleStale(true);
+        if (dirty) setRootDisappeared(true);
+        return;
+      }
+      if (WorkspaceApiError.isPreconditionFailed(err)) {
+        if (target?.path) {
+          setConflictOutcome(target.path, "background_touch_dirty_buffer");
+        }
+        return;
+      }
+      setFileError((err as WorkspaceApiError).message);
+    },
+    [dirty, target?.path, setConflictOutcome, setRootDisappeared],
+  );
+
+  const onKeepMine = () => {
+    if (!target?.path) return;
+    resolveConflict(target.path, "keep_mine");
+    setSkipPrecondition(true);
+  };
+
+  const onTakeTheirs = () => {
+    if (!target?.path) return;
+    resolveConflict(target.path, "take_theirs");
+    setSkipPrecondition(false);
+  };
+
+  const onMerge = () => {
+    if (!target?.path) return;
+    resolveConflict(target.path, "merge");
+    void fetchDiff();
+  };
+
+  const onExportClipboard = async () => {
+    const text = clipboardContent ?? file?.content ?? "";
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // fallback for test env
+    }
   };
 
   const headerPath = target?.path ?? "Workspace";
+  const saveDisabled = rootDisappeared || handleStale;
 
   if (!open) return null;
 
@@ -168,25 +291,69 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
         if (e.target !== dialogRef.current) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          closeDrawer();
+          requestCloseDrawer();
         }
       }}
       data-testid="workspace-drawer"
     >
       <div className="workspace-drawer__panel">
         <header className="workspace-drawer__header">
-          <h2 className="workspace-drawer__title">{headerPath}</h2>
+          <h2 className="workspace-drawer__title">
+            {headerPath}
+            {dirty && (
+              <span
+                className="workspace-drawer__dirty"
+                data-testid="dirty-indicator"
+                aria-label="Unsaved changes"
+              >
+                {" "}
+                •
+              </span>
+            )}
+          </h2>
           <button
             type="button"
             className="workspace-drawer__close"
             aria-label="Close"
-            onClick={closeDrawer}
+            onClick={requestCloseDrawer}
           >
             ×
           </button>
         </header>
 
-        {handleStale && (
+        {rootDisappeared && (
+          <div
+            className="workspace-drawer__root-disappeared"
+            role="status"
+            data-testid="root-disappeared-banner"
+          >
+            <span>Workspace root disappeared. Buffer kept in memory; save is disabled.</span>
+            <button type="button" onClick={() => void onExportClipboard()}>
+              Copy buffer to clipboard
+            </button>
+          </div>
+        )}
+
+        {conflictVisible && !rootDisappeared && (
+          <div
+            className="workspace-drawer__conflict"
+            role="status"
+            data-testid="conflict-banner"
+          >
+            <span>Write conflict detected for this file.</span>
+            <button type="button" onClick={onKeepMine}>
+              Keep mine
+            </button>
+            <button type="button" onClick={onTakeTheirs}>
+              Take theirs
+            </button>
+            <button type="button" onClick={onMerge}>
+              Merge
+            </button>
+          </div>
+        )}
+
+        {handleStale && !rootDisappeared && (
           <>
             {/* biome-ignore lint/a11y/useSemanticElements: handle-stale banner; <output> implies form association */}
             <div className="workspace-drawer__stale workspace-drawer__stale--handle" role="status">
@@ -198,7 +365,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
           </>
         )}
 
-        {stale && !handleStale && (
+        {stale && !handleStale && !conflictVisible && (
           <>
             {/* biome-ignore lint/a11y/useSemanticElements: stale-file banner; <output> implies form association */}
             <div className="workspace-drawer__stale" role="status">
@@ -216,10 +383,27 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
           aria-live="polite"
           // biome-ignore lint/a11y/useSemanticElements: aria-live polite region; <output> does not support live announcements
           role="status"
-          data-seq={staleAnnounceSeq}
+          data-seq={liveAnnounceSeq}
         >
           {announce}
         </div>
+
+        {closeWarningOpen && (
+          <dialog
+            open
+            className="workspace-drawer__close-warning"
+            data-testid="close-warning-dialog"
+            aria-label="Unsaved changes"
+          >
+            <p>You have unsaved changes. Discard and close?</p>
+            <button type="button" onClick={confirmDiscardAndClose}>
+              Discard
+            </button>
+            <button type="button" onClick={cancelCloseWarning}>
+              Cancel
+            </button>
+          </dialog>
+        )}
 
         <div className="workspace-drawer__tabs" role="tablist" aria-label="Workspace panels">
           <button
@@ -256,6 +440,14 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
               loading={loadingFile}
               error={fileError}
               eventKind={target?.kind}
+              sessionId={sessionId ?? undefined}
+              pinnedHandle={pinnedHandle ?? undefined}
+              onDirtyChange={onDirtyChange}
+              onBufferChange={setClipboardContent}
+              onSaveSuccess={onSaveSuccess}
+              onSaveError={onSaveError}
+              saveDisabled={saveDisabled}
+              skipPrecondition={skipPrecondition}
             />
           )}
           {tab === "diff" && <DiffViewer diff={diff} loading={loadingDiff} error={diffError} />}

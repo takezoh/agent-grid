@@ -112,6 +112,23 @@ describe("ActivityRail", () => {
     HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
   });
 
+  it("operator row has distinct badge and aria-label", () => {
+    useWorkspaceActivityStore.getState().applyActivityEvents("s1", [
+      {
+        type: "mid_turn_touch",
+        session_id: "s1",
+        sequence: 1,
+        path: "src/op.ts",
+        tool_call_id: "op-1",
+        kind: "edit",
+        actor: "operator",
+      },
+    ]);
+    render(<ActivityRail onOpenTree={vi.fn()} />);
+    expect(screen.getByLabelText("Operator edited src/op.ts")).toBeTruthy();
+    expect(screen.getByText("operator")).toBeTruthy();
+  });
+
   it("renders turn rows from store", () => {
     useWorkspaceActivityStore.getState().applyActivityEvents("s1", [
       {

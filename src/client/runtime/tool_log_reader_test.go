@@ -69,6 +69,41 @@ func midTouches(events []ActivityEvent) []MidTurnTouchEvent {
 	return touches
 }
 
+func TestToolLogReaderActorClassification(t *testing.T) {
+	r := NewToolLogReader()
+
+	operator := classifiedRec("turn-op", "src/op.go", "", FileEventEdit)
+	operator.Actor = ToolLogActorOperator
+	operator.ToolName = ":w"
+	events := r.ProcessLine("sess-1", toolLogJSONLine(t, operator))
+	if len(events) != 1 {
+		t.Fatalf("operator line: got %d events, want 1", len(events))
+	}
+	touch, ok := events[0].(MidTurnTouchEvent)
+	if !ok {
+		t.Fatalf("expected MidTurnTouchEvent, got %T", events[0])
+	}
+	if touch.Actor != ToolLogActorOperator {
+		t.Fatalf("touch.Actor = %q, want %q", touch.Actor, ToolLogActorOperator)
+	}
+	if touch.Path != "src/op.go" || touch.FileEventKind != FileEventEdit {
+		t.Fatalf("touch = %+v", touch)
+	}
+
+	legacy := classifiedRec("turn-legacy", "src/legacy.go", "tu-legacy", FileEventRead)
+	events = r.ProcessLine("sess-1", toolLogJSONLine(t, legacy))
+	if len(events) != 1 {
+		t.Fatalf("legacy actor line: got %d events, want 1", len(events))
+	}
+	touch, ok = events[0].(MidTurnTouchEvent)
+	if !ok {
+		t.Fatalf("expected MidTurnTouchEvent, got %T", events[0])
+	}
+	if touch.Actor != ToolLogActorAgent {
+		t.Fatalf("touch.Actor = %q, want default %q", touch.Actor, ToolLogActorAgent)
+	}
+}
+
 func TestToolLogReaderClassification(t *testing.T) {
 	r := NewToolLogReader()
 

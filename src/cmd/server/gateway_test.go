@@ -28,7 +28,7 @@ func TestStartGatewayNotifiesReadiness(t *testing.T) {
 		insecure: true,
 		noAuth:   true,
 	}
-	h, err := startGateway(ctx, cancel, filepath.Join(t.TempDir(), "server.sock"), df)
+	h, err := startGateway(ctx, cancel, filepath.Join(t.TempDir(), "server.sock"), t.TempDir(), df)
 	if err != nil {
 		t.Fatalf("startGateway() error = %v", err)
 	}
@@ -57,7 +57,7 @@ func TestStartGatewayKeepsRunningWhenNotifyFails(t *testing.T) {
 		insecure: true,
 		noAuth:   true,
 	}
-	h, err := startGateway(ctx, cancel, filepath.Join(t.TempDir(), "server.sock"), df)
+	h, err := startGateway(ctx, cancel, filepath.Join(t.TempDir(), "server.sock"), t.TempDir(), df)
 	if err != nil {
 		t.Fatalf("startGateway() error = %v", err)
 	}

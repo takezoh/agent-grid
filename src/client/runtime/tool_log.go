@@ -78,6 +78,12 @@ func (f *FileToolLog) CloseAll() {
 
 // validateSlug rejects slugs that could escape the log directory or
 // produce ambiguous paths.
+// FormatOperatorWriteLine returns a schema_version=2 JSONL line for an
+// operator workspace save audit record.
+func FormatOperatorWriteLine(sessionID, relPath string) (string, error) {
+	return MarshalOperatorWriteRecord(sessionID, relPath)
+}
+
 func validateSlug(slug string) error {
 	switch {
 	case slug == "":

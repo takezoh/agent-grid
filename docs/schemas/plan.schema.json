@@ -63,6 +63,21 @@
           "id": {"type": "string"}
         }
       }
+    },
+    "decision_dispositions": {
+      "type": "array",
+      "description": "design skill 由来: draft/critique 由来の decision_input への処置 (adopted / rejected / deferred) を frontmatter に SSOT として持たせる (validate_plan.py の materialization contract)。各要素は decision_input_ref + disposition + rationale + adr_refs を持つ。",
+      "items": {
+        "type": "object",
+        "required": ["decision_input_ref", "disposition"],
+        "additionalProperties": true,
+        "properties": {
+          "decision_input_ref": {"type": "string"},
+          "disposition": {"type": "string"},
+          "rationale": {"type": "string"},
+          "adr_refs": {"type": "array", "items": {"type": "string"}}
+        }
+      }
     }
   }
 }

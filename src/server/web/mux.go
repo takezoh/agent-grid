@@ -210,6 +210,7 @@ func apiHandler(d *DaemonClient, tickets *ticketStore) http.Handler {
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/root-handle", handleWorkspaceRootHandle(d))
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/tree", handleWorkspaceTree(d))
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/file", handleWorkspaceFile(d))
+	mux.HandleFunc("PUT /api/sessions/{id}/workspace/file", handleWorkspaceFileWrite(d))
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/diff", handleWorkspaceDiff(d))
 	mux.HandleFunc("GET /api/session-config", handleSessionConfig())
 	mux.HandleFunc("POST /api/ws-ticket", func(w http.ResponseWriter, _ *http.Request) {

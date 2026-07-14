@@ -26,6 +26,7 @@ type viewActivityEvent struct {
 	Kind       string                  `json:"kind,omitempty"`
 	Count      int                     `json:"count,omitempty"`
 	ToolCallID string                  `json:"tool_call_id,omitempty"`
+	Actor      string                  `json:"actor,omitempty"`
 	Events     []viewActivityDrillDown `json:"events,omitempty"`
 }
 
@@ -73,6 +74,8 @@ func protoActivityToView(e proto.ActivityEventWire) viewActivityEvent {
 	switch e.Type {
 	case "mid_turn_touch":
 		out.ToolCallID = e.ToolUseID
+		out.Kind = e.FileEventKind
+		out.Actor = e.Actor
 	case "turn_row":
 		out.Events = drillDownToView(e.Path, e.Events)
 		out.Kind = dominantFileEventKind(out.Events, e.FileEventKind)

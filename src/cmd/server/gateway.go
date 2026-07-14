@@ -64,7 +64,7 @@ func (g *gatewayHandle) Close() {
 // driven shutdown cascades into it. A panic inside the gateway goroutine is
 // contained by recover() — it cancels the daemon ctx so the binary exits, but
 // the recovered stack is logged rather than dropped into the void.
-func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath string, df *daemonFlagSet) (*gatewayHandle, error) {
+func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, dataDir string, df *daemonFlagSet) (*gatewayHandle, error) {
 	token, err := resolveAuth(df.token, df.tokenFile, df.noAuth, df.addr)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath strin
 	daemon := serverweb.NewDaemonClient(sockPath)
 	srv := &http.Server{
 		Addr:              df.addr,
-		Handler:           buildHTTPHandler(daemon, token, df.noAuth),
+		Handler:           buildHTTPHandler(daemon, dataDir, token, df.noAuth),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -228,7 +228,8 @@ func writeTokenAtomic(path, tok string) error {
 // buildHTTPHandler picks the appropriate mux variant and bolts on /healthz.
 // no-auth mode goes through NewMuxNoAuth, which mounts apiHandler directly
 // (no TokenAuth wrap) and skips the WS-ticket consume check.
-func buildHTTPHandler(daemon *serverweb.DaemonClient, token string, noAuth bool) http.Handler {
+func buildHTTPHandler(daemon *serverweb.DaemonClient, dataDir, token string, noAuth bool) http.Handler {
+	serverweb.InitWorkspaceOperatorAuditor(daemon, dataDir)
 	mux := http.NewServeMux()
 	if noAuth {
 		mux.Handle("/", serverweb.NewMuxNoAuth(daemon))

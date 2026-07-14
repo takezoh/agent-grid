@@ -88,6 +88,25 @@ func (f *fakeDaemon) sendResp(reqID string, r proto.Response) {
 	f.write(wire)
 }
 
+// pumpResponses serves daemon RPCs until the pipe closes. The callback must
+// write a response for each received reqID. Unlike recv(), I/O errors end the
+// loop silently so background pumps do not Fail after the test returns.
+func (f *fakeDaemon) pumpResponses(respond func(reqID string)) {
+	go func() {
+		for {
+			line, err := f.reader.ReadBytes('\n')
+			if err != nil {
+				return
+			}
+			env, err := proto.DecodeEnvelope(line)
+			if err != nil {
+				return
+			}
+			respond(env.ReqID)
+		}
+	}()
+}
+
 // sendErr writes an error response for the given reqID.
 func (f *fakeDaemon) sendErr(reqID string, code proto.ErrCode, msg string) {
 	f.t.Helper()

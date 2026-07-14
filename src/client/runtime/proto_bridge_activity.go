@@ -37,6 +37,7 @@ func (r *Runtime) broadcastActivityEvents(sessionID string, events []ActivityEve
 				FileEventKind: string(e.FileEventKind),
 				ToolUseID:     e.ToolUseID,
 				ToolName:      e.ToolName,
+				Actor:         e.Actor,
 				TS:            formatActivityTS(e.TS),
 			})
 		case TurnRowEvent:

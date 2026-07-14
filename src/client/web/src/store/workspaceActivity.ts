@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ActivityEvent, ViewUpdateFrame } from "../wire/server";
+import type { ActivityActor, ActivityEvent, ViewUpdateFrame } from "../wire/server";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -20,6 +20,7 @@ export type TurnRow = {
   count: number;
   events: ActivityEventEntry[];
   sequence: number;
+  actor?: ActivityActor;
 };
 
 export type DrawerTab = "viewer" | "diff" | "tree";
@@ -34,6 +35,20 @@ export type DrawerTarget = {
   path: string;
   kind: FileEventKind;
 };
+
+export type DirtyBufferEntry = {
+  path: string;
+  ifUnmodifiedSince: string;
+  dirty: boolean;
+};
+
+export type ConflictOutcome =
+  | "no_conflict"
+  | "background_touch_clean_buffer"
+  | "background_touch_dirty_buffer"
+  | "reconnect_mtime_differs";
+
+export type ConflictResolution = "keep_mine" | "take_theirs" | "merge";
 
 export type WorkspaceActivityState = {
   /** Turn-aggregated rows keyed by session id. */
@@ -58,6 +73,18 @@ export type WorkspaceActivityState = {
   reloadGeneration: number;
   /** Expanded row paths in the activity rail. */
   expandedRows: ReadonlySet<string>;
+  /** Dirty editor buffers keyed by path. */
+  dirtyBuffers: Record<string, DirtyBufferEntry>;
+  /** Explicit conflict partition per path (reconnect mtime mismatch). */
+  conflictByPath: Record<string, ConflictOutcome>;
+  /** Bumped when transport reconnects to trigger mtime re-fetch for dirty buffers. */
+  reconnectResyncGeneration: number;
+  /** Workspace root disappeared while drawer open. */
+  rootDisappeared: boolean;
+  /** Unsaved-close warning dialog visible. */
+  closeWarningOpen: boolean;
+  /** Monotonic counter for aria-live announcements (all kinds). */
+  liveAnnounceSeq: number;
 
   setScopedSession: (sessionId: string | null) => void;
   applyViewUpdate: (frame: ViewUpdateFrame) => void;
@@ -66,11 +93,21 @@ export type WorkspaceActivityState = {
   openDrawerFromRow: (target: DrawerTarget, initialTab?: DrawerTab) => void;
   openDrawerTree: (sessionId: string) => void;
   closeDrawer: () => void;
+  requestCloseDrawer: () => void;
+  confirmDiscardAndClose: () => void;
+  cancelCloseWarning: () => void;
   setDrawerTab: (tab: DrawerTab) => void;
   setPinnedHandle: (handle: WorkspaceRootHandlePin | null) => void;
   clearStale: (path: string) => void;
   reloadDrawerContent: () => void;
   toggleRowExpanded: (path: string) => void;
+  registerDirtyBuffer: (path: string, ifUnmodifiedSince: string) => void;
+  setBufferDirty: (path: string, dirty: boolean) => void;
+  clearDirtyBuffer: (path: string) => void;
+  setConflictOutcome: (path: string, outcome: ConflictOutcome) => void;
+  clearConflict: (path: string) => void;
+  setRootDisappeared: (gone: boolean) => void;
+  resolveConflict: (path: string, resolution: ConflictResolution) => void;
   reset: () => void;
 };
 
@@ -101,7 +138,60 @@ export function selectStaleAnnounceMessage(
   return `Workspace file ${path} may be stale. Reload to refresh.`;
 }
 
+export function selectBufferDirty(
+  state: WorkspaceActivityState,
+  path: string | null | undefined,
+): boolean {
+  if (!path) return false;
+  return state.dirtyBuffers[path]?.dirty === true;
+}
+
+export function selectConflictOutcome(
+  state: WorkspaceActivityState,
+  path: string | null | undefined,
+): ConflictOutcome {
+  if (!path) return "no_conflict";
+  const explicit = state.conflictByPath[path];
+  if (explicit === "reconnect_mtime_differs") return explicit;
+  if (state.stalePaths[path]) {
+    if (state.dirtyBuffers[path]?.dirty) return "background_touch_dirty_buffer";
+    return "background_touch_clean_buffer";
+  }
+  return explicit ?? "no_conflict";
+}
+
+export function selectConflictBannerVisible(
+  state: WorkspaceActivityState,
+  path: string | null | undefined,
+): boolean {
+  const outcome = selectConflictOutcome(state, path);
+  return outcome === "background_touch_dirty_buffer" || outcome === "reconnect_mtime_differs";
+}
+
+/** aria-live precedence: conflict > stale > close-warning > dirty */
+export function selectAriaLiveMessage(
+  state: WorkspaceActivityState,
+  path: string | null | undefined,
+): string | null {
+  if (selectConflictBannerVisible(state, path)) {
+    return `Workspace file ${path} has a write conflict. Choose keep-mine, take-theirs, or merge.`;
+  }
+  const staleMsg = selectStaleAnnounceMessage(state, path);
+  if (staleMsg) return staleMsg;
+  if (state.closeWarningOpen) {
+    return "Unsaved changes will be lost if you close the drawer.";
+  }
+  if (selectBufferDirty(state, path)) {
+    return `Workspace file ${path} has unsaved changes.`;
+  }
+  return null;
+}
+
 export function rowKey(path: string): string {
+  return path;
+}
+
+function bufferKey(path: string): string {
   return path;
 }
 
@@ -112,6 +202,37 @@ export function rowKey(path: string): string {
 const STALE_COALESCE_MS = 500;
 
 let lastStaleTouchAt = 0;
+
+function upsertOperatorTouchRow(
+  rows: TurnRow[],
+  event: Extract<ActivityEvent, { type: "mid_turn_touch" }>,
+): TurnRow[] {
+  if (event.actor !== "operator") return rows;
+  const kind: FileEventKind = event.kind ?? "edit";
+  const turnId = `operator-${event.tool_call_id ?? event.sequence}`;
+  const idx = rows.findIndex((r) => r.path === event.path && r.actor === "operator");
+  const next: TurnRow = {
+    turnId,
+    path: event.path,
+    kind,
+    count: 1,
+    events: [
+      {
+        path: event.path,
+        kind,
+        tool_call_id: event.tool_call_id,
+      },
+    ],
+    sequence: event.sequence,
+    actor: "operator",
+  };
+  if (idx >= 0) {
+    const copy = [...rows];
+    copy[idx] = next;
+    return copy;
+  }
+  return [...rows, next];
+}
 
 function upsertTurnRow(
   rows: TurnRow[],
@@ -129,6 +250,7 @@ function upsertTurnRow(
       tool_call_id: e.tool_call_id,
     })),
     sequence: event.sequence,
+    actor: event.actor,
   };
   if (idx >= 0) {
     const copy = [...rows];
@@ -154,6 +276,7 @@ function applyMidTurnTouch(
     stalePaths: { ...state.stalePaths, [event.path]: true },
     staleAnnounceSeq: coalesced ? state.staleAnnounceSeq : state.staleAnnounceSeq + 1,
     lastStaleAnnouncePath: event.path,
+    liveAnnounceSeq: coalesced ? state.liveAnnounceSeq : state.liveAnnounceSeq + 1,
   };
 }
 
@@ -171,7 +294,22 @@ const initialState = {
   lastStaleAnnouncePath: null as string | null,
   reloadGeneration: 0,
   expandedRows: new Set<string>() as ReadonlySet<string>,
+  dirtyBuffers: {} as Record<string, DirtyBufferEntry>,
+  conflictByPath: {} as Record<string, ConflictOutcome>,
+  reconnectResyncGeneration: 0,
+  rootDisappeared: false,
+  closeWarningOpen: false,
+  liveAnnounceSeq: 0,
 };
+
+function clearDrawerEditorState(): Partial<WorkspaceActivityState> {
+  return {
+    dirtyBuffers: {},
+    conflictByPath: {},
+    rootDisappeared: false,
+    closeWarningOpen: false,
+  };
+}
 
 export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, get) => ({
   ...initialState,
@@ -208,6 +346,9 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
         if (event.type === "turn_row") {
           rows = upsertTurnRow(rows, event);
         } else if (event.type === "mid_turn_touch") {
+          if (event.actor === "operator") {
+            rows = upsertOperatorTouchRow(rows, event);
+          }
           patch = { ...patch, ...applyMidTurnTouch({ ...s, ...patch }, event) };
         }
       }
@@ -221,7 +362,17 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
     });
   },
 
-  setTransportDegraded: (degraded) => set({ transportDegraded: degraded }),
+  setTransportDegraded: (degraded) =>
+    set((s) => {
+      const wasDegraded = s.transportDegraded;
+      const reconnecting = wasDegraded && !degraded;
+      return {
+        transportDegraded: degraded,
+        reconnectResyncGeneration: reconnecting
+          ? s.reconnectResyncGeneration + 1
+          : s.reconnectResyncGeneration,
+      };
+    }),
 
   openDrawerFromRow: (target, initialTab) => {
     const tab =
@@ -235,6 +386,7 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
       pinnedHandle: null,
       stalePaths: {},
       lastStaleAnnouncePath: null,
+      ...clearDrawerEditorState(),
     });
   },
 
@@ -247,6 +399,7 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
       stalePaths: {},
       lastStaleAnnouncePath: null,
       scopedSessionId: sessionId,
+      ...clearDrawerEditorState(),
     });
   },
 
@@ -257,7 +410,27 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
       pinnedHandle: null,
       stalePaths: {},
       lastStaleAnnouncePath: null,
+      ...clearDrawerEditorState(),
     }),
+
+  requestCloseDrawer: () => {
+    const s = get();
+    const path = s.drawerTarget?.path;
+    if (path && s.dirtyBuffers[path]?.dirty) {
+      set({
+        closeWarningOpen: true,
+        liveAnnounceSeq: s.liveAnnounceSeq + 1,
+      });
+      return;
+    }
+    get().closeDrawer();
+  },
+
+  confirmDiscardAndClose: () => {
+    get().closeDrawer();
+  },
+
+  cancelCloseWarning: () => set({ closeWarningOpen: false }),
 
   setDrawerTab: (tab) => set({ drawerTab: tab }),
 
@@ -266,18 +439,34 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
   clearStale: (path) =>
     set((s) => {
       if (!s.stalePaths[path]) return s;
-      const next = { ...s.stalePaths };
-      delete next[path];
-      return { stalePaths: next, lastStaleAnnouncePath: null };
+      const nextStale = { ...s.stalePaths };
+      delete nextStale[path];
+      const nextConflict = { ...s.conflictByPath };
+      if (nextConflict[path] !== "reconnect_mtime_differs") {
+        delete nextConflict[path];
+      }
+      return {
+        stalePaths: nextStale,
+        conflictByPath: nextConflict,
+        lastStaleAnnouncePath: null,
+      };
     }),
 
   reloadDrawerContent: () =>
     set((s) => {
       const path = s.drawerTarget?.path;
       const nextStale = { ...s.stalePaths };
-      if (path) delete nextStale[path];
+      const nextDirty = { ...s.dirtyBuffers };
+      const nextConflict = { ...s.conflictByPath };
+      if (path) {
+        delete nextStale[path];
+        delete nextDirty[path];
+        delete nextConflict[path];
+      }
       return {
         stalePaths: nextStale,
+        dirtyBuffers: nextDirty,
+        conflictByPath: nextConflict,
         reloadGeneration: s.reloadGeneration + 1,
         lastStaleAnnouncePath: null,
       };
@@ -290,6 +479,97 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
       else next.add(path);
       return { expandedRows: next };
     }),
+
+  registerDirtyBuffer: (path, ifUnmodifiedSince) =>
+    set((s) => ({
+      dirtyBuffers: {
+        ...s.dirtyBuffers,
+        [bufferKey(path)]: { path, ifUnmodifiedSince, dirty: false },
+      },
+    })),
+
+  setBufferDirty: (path, dirty) =>
+    set((s) => {
+      const key = bufferKey(path);
+      const existing = s.dirtyBuffers[key];
+      if (!existing) {
+        return {
+          dirtyBuffers: {
+            ...s.dirtyBuffers,
+            [key]: { path, ifUnmodifiedSince: "", dirty },
+          },
+          liveAnnounceSeq: dirty ? s.liveAnnounceSeq + 1 : s.liveAnnounceSeq,
+        };
+      }
+      const wasDirty = existing.dirty;
+      return {
+        dirtyBuffers: {
+          ...s.dirtyBuffers,
+          [key]: { ...existing, dirty },
+        },
+        liveAnnounceSeq: dirty && !wasDirty ? s.liveAnnounceSeq + 1 : s.liveAnnounceSeq,
+      };
+    }),
+
+  clearDirtyBuffer: (path) =>
+    set((s) => {
+      const key = bufferKey(path);
+      if (!s.dirtyBuffers[key]) return s;
+      const next = { ...s.dirtyBuffers };
+      delete next[key];
+      return { dirtyBuffers: next };
+    }),
+
+  setConflictOutcome: (path, outcome) =>
+    set((s) => ({
+      conflictByPath: { ...s.conflictByPath, [path]: outcome },
+      liveAnnounceSeq:
+        outcome === "background_touch_dirty_buffer" || outcome === "reconnect_mtime_differs"
+          ? s.liveAnnounceSeq + 1
+          : s.liveAnnounceSeq,
+    })),
+
+  clearConflict: (path) =>
+    set((s) => {
+      if (!s.conflictByPath[path]) return s;
+      const next = { ...s.conflictByPath };
+      delete next[path];
+      return { conflictByPath: next };
+    }),
+
+  setRootDisappeared: (gone) => set({ rootDisappeared: gone }),
+
+  resolveConflict: (path, resolution) => {
+    const s = get();
+    if (resolution === "take_theirs") {
+      get().reloadDrawerContent();
+      return;
+    }
+    if (resolution === "merge") {
+      set({
+        drawerTab: "diff",
+        conflictByPath: (() => {
+          const next = { ...s.conflictByPath };
+          delete next[path];
+          return next;
+        })(),
+        stalePaths: (() => {
+          const next = { ...s.stalePaths };
+          delete next[path];
+          return next;
+        })(),
+      });
+      return;
+    }
+    // keep_mine: clear conflict markers; caller saves without precondition
+    set((state) => {
+      const nextConflict = { ...state.conflictByPath };
+      const nextStale = { ...state.stalePaths };
+      delete nextConflict[path];
+      delete nextStale[path];
+      return { conflictByPath: nextConflict, stalePaths: nextStale };
+    });
+  },
 
   reset: () =>
     set(() => ({

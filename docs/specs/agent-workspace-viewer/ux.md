@@ -306,6 +306,7 @@ tags:
 owners: []
 relations:
 - {type: implementedBy, target: spec-20260714-agent-workspace-viewer}
+- {type: implementedBy, target: spec-20260714-agent-workspace-editor}
 source_paths:
 - src/client/web/src/components/AppShell.tsx
 - src/client/web/src/components/MainTabs.tsx

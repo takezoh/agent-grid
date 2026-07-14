@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -187,6 +188,7 @@ func listSessionsViaAPI(t *testing.T, daemon daemonInstance) []apiSessionInfo {
 	return sessions
 }
 
+//nolint:unparam // timeout is part of the scenario-helper API; callers may vary later.
 func waitForSessionListed(
 	t *testing.T,
 	daemon daemonInstance,
@@ -503,6 +505,76 @@ func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState(t *testing.T) {
 	sendSurfaceInput(t, surface, "implement wire test\n")
 	collectSurfaceOutputContaining(t, daemon, surface, 10*time.Second,
 		"implement wire test", "method=turn/started", "[READY] threadId=")
+
+	deleteSessionViaAPI(t, daemon, sessionID)
+	waitForSessionListed(t, daemon, sessionID, 5*time.Second, false)
+}
+
+func TestE2E_GatewayScenarioWorkspaceFileWrite(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping real-daemon scenario e2e in -short mode")
+	}
+	t.Parallel()
+
+	daemon := startScenarioServer(t, installFakeAgents(t))
+	project := t.TempDir()
+	target := filepath.Join(project, "edit-me.txt")
+	if err := os.WriteFile(target, []byte("before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	sessionID := createSessionViaAPI(t, daemon, project, "claude")
+	waitForSessionListed(t, daemon, sessionID, 5*time.Second, true)
+
+	handleURL := daemon.httpURL + "/api/sessions/" + sessionID + "/workspace/root-handle"
+	handleResp, err := http.Get(handleURL)
+	if err != nil {
+		t.Fatalf("root-handle: %v", err)
+	}
+	defer func() { _ = handleResp.Body.Close() }()
+	if handleResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(handleResp.Body)
+		t.Fatalf("root-handle status = %d, want 200: %s", handleResp.StatusCode, string(body))
+	}
+	var handle workspaceRootHandle
+	if err := json.NewDecoder(handleResp.Body).Decode(&handle); err != nil {
+		t.Fatal(err)
+	}
+
+	putURL := daemon.httpURL + "/api/sessions/" + sessionID +
+		"/workspace/file?path=edit-me.txt&handle=" + strconv.Itoa(handle.FrameGeneration)
+	putReq, err := http.NewRequest(http.MethodPut, putURL, bytes.NewBufferString("after"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	putResp, err := http.DefaultClient.Do(putReq)
+	if err != nil {
+		t.Fatalf("put file: %v", err)
+	}
+	defer func() { _ = putResp.Body.Close() }()
+	if putResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(putResp.Body)
+		t.Fatalf("put status = %d, want 200: %s", putResp.StatusCode, string(body))
+	}
+
+	getURL := daemon.httpURL + "/api/sessions/" + sessionID +
+		"/workspace/file?path=edit-me.txt&handle=" + strconv.Itoa(handle.FrameGeneration)
+	getResp, err := http.Get(getURL)
+	if err != nil {
+		t.Fatalf("get file: %v", err)
+	}
+	defer func() { _ = getResp.Body.Close() }()
+	if getResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(getResp.Body)
+		t.Fatalf("get status = %d, want 200: %s", getResp.StatusCode, string(body))
+	}
+	var file workspaceFileResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&file); err != nil {
+		t.Fatal(err)
+	}
+	if file.Content != "after" {
+		t.Fatalf("content = %q, want after", file.Content)
+	}
 
 	deleteSessionViaAPI(t, daemon, sessionID)
 	waitForSessionListed(t, daemon, sessionID, 5*time.Second, false)

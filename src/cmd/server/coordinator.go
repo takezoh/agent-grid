@@ -91,7 +91,7 @@ func runDaemon(df *daemonFlagSet) error {
 		return err
 	}
 
-	return runAndWait(ctx, cancel, rt, sockPath, df)
+	return runAndWait(ctx, cancel, rt, sockPath, dataDir, df)
 }
 
 // registerDefaultDrivers wires all built-in drivers and worker runners.
@@ -351,7 +351,7 @@ func installSignalHandlers(requestShutdown func(time.Duration), cancel context.C
 // runtime error). The gateway runs in-process on the daemon ctx — a panic in
 // the gateway's listener or per-conn goroutines is contained by recover() in
 // startGateway so the daemon keeps serving its IPC socket.
-func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runtime, sockPath string, df *daemonFlagSet) error {
+func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runtime, sockPath, dataDir string, df *daemonFlagSet) error {
 	stopSignals := installSignalHandlers(rt.RequestShutdown, cancel)
 	defer stopSignals()
 	runErrCh := make(chan error, 1)
@@ -373,7 +373,7 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 		relay.WatchLog(logger.LogFilePath())
 		rt.SetRelay(relay)
 	}
-	gw, err := startGateway(ctx, cancel, sockPath, df)
+	gw, err := startGateway(ctx, cancel, sockPath, dataDir, df)
 	if err != nil {
 		return fmt.Errorf("gateway: %w", err)
 	}

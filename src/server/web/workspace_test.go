@@ -26,10 +26,24 @@ func workspaceTestRoutes(sessionID string) []string {
 }
 
 func workspaceSessionResp(root string, gen int) proto.RespSessions {
+	return workspaceSessionRespProject(root, gen, "")
+}
+
+// pumpWorkspaceSessions answers every daemon ListSessions RPC with the same
+// workspace session fixture until the pipe closes (test cleanup).
+func pumpWorkspaceSessions(t *testing.T, fd *fakeDaemon, root string, gen int) {
+	t.Helper()
+	go fd.pumpResponses(func(reqID string) {
+		fd.sendResp(reqID, workspaceSessionResp(root, gen))
+	})
+}
+
+func workspaceSessionRespProject(root string, gen int, project string) proto.RespSessions {
 	return proto.RespSessions{
 		Sessions: []proto.SessionInfo{
 			{
 				ID:              "ws1",
+				Project:         project,
 				Command:         "claude",
 				WorkspaceRoot:   root,
 				FrameGeneration: gen,
@@ -47,6 +61,9 @@ func TestWorkspaceReadOnlyVerbs(t *testing.T) {
 	for _, route := range routes {
 		for _, verb := range workspaceMutationVerbs {
 			t.Run(verb+" "+route, func(t *testing.T) {
+				if verb == http.MethodPut && strings.Contains(route, "/workspace/file") {
+					return
+				}
 				req := httptest.NewRequest(verb, route, nil)
 				req.Header.Set("Authorization", "Bearer tok")
 				w := httptest.NewRecorder()

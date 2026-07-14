@@ -92,6 +92,40 @@ func TestEncodeFromActivityEvents_TurnRowAndMidTurnTouch(t *testing.T) {
 	}
 }
 
+func TestEncodeFromActivityEvents_OperatorActorPassesThrough(t *testing.T) {
+	ev := proto.EvtActivityEvents{
+		SessionID: "s1",
+		Events: []proto.ActivityEventWire{{
+			Type:          "mid_turn_touch",
+			Sequence:      1,
+			SessionID:     "s1",
+			Path:          "src/foo.ts",
+			FileEventKind: "edit",
+			Actor:         "operator",
+			ToolUseID:     "tc-op",
+		}},
+	}
+	got := encodeFromActivityEvents(ev)
+	if got == nil {
+		t.Fatal("expected non-nil frame")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(got, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	events, ok := m["activity_events"].([]any)
+	if !ok || len(events) != 1 {
+		t.Fatalf("activity_events: got %T %v", m["activity_events"], m["activity_events"])
+	}
+	touch := events[0].(map[string]any)
+	if touch["actor"] != "operator" {
+		t.Errorf("actor: got %v, want operator", touch["actor"])
+	}
+	if touch["kind"] != "edit" {
+		t.Errorf("kind: got %v, want edit", touch["kind"])
+	}
+}
+
 func TestEncodeFromActivityEvents_EmptyEventsReturnsNil(t *testing.T) {
 	got := encodeFromActivityEvents(proto.EvtActivityEvents{SessionID: "s1"})
 	if got != nil {

@@ -30,6 +30,7 @@ type MidTurnTouchEvent struct {
 	FileEventKind FileEventKind
 	ToolUseID     string
 	ToolName      string
+	Actor         string
 	TS            time.Time
 }
 
@@ -115,6 +116,10 @@ func (r *ToolLogReader) ProcessLine(sessionID, line string) []ActivityEvent {
 	}
 	r.bufferTouch(rec)
 	r.sequence++
+	actor := rec.Actor
+	if actor == "" {
+		actor = ToolLogActorAgent
+	}
 	return []ActivityEvent{MidTurnTouchEvent{
 		SessionID:     sid,
 		Sequence:      r.sequence,
@@ -123,6 +128,7 @@ func (r *ToolLogReader) ProcessLine(sessionID, line string) []ActivityEvent {
 		FileEventKind: rec.FileEventKind,
 		ToolUseID:     rec.ToolUseID,
 		ToolName:      rec.ToolName,
+		Actor:         actor,
 		TS:            rec.TS,
 	}}
 }

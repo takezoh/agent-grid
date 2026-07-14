@@ -48,6 +48,7 @@ type workspaceFileResponse struct {
 	IsBinary    bool   `json:"is_binary"`
 	ContentType string `json:"content_type,omitempty"`
 	Content     string `json:"content,omitempty"`
+	Mtime       string `json:"mtime,omitempty"`
 }
 
 type workspaceDiffResponse struct {
@@ -195,8 +196,9 @@ func serveWorkspaceFile(d *DaemonClient, w http.ResponseWriter, r *http.Request)
 		return
 	}
 	resp := workspaceFileResponse{
-		Path: rel,
-		Size: fi.Size(),
+		Path:  rel,
+		Size:  fi.Size(),
+		Mtime: formatWorkspaceMtime(fi.ModTime()),
 	}
 	data, err := os.ReadFile(resolved) //nolint:gosec // path guarded under workspace root
 	if err != nil {

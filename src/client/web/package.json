@@ -17,6 +17,11 @@
     "test:web": "npm run lint && npm run test:unit && npm run test:e2e"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.6",
+    "@replit/codemirror-vim": "^6.3.0",
     "@xterm/addon-fit": "0.10.0",
     "@xterm/xterm": "5.5.0",
     "mermaid": "^11.16.0",
