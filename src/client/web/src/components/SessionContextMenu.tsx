@@ -15,10 +15,11 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import type { JSX, ReactNode } from "react";
 import { useRef } from "react";
 import { useNotificationsStore } from "../store/notifications";
+import { truncateLabel } from "../util/truncate";
 
 export interface SessionContextMenuProps {
   sessionId: string;
-  /** Confirm dialog title (titleText(card)). */
+  /** Confirm dialog title (titleText(card)); truncated for menu display only. */
   sessionLabel: string;
   /** Disables Open / Stop while the daemon connection is down. */
   daemonDisconnected: boolean;
@@ -62,7 +63,9 @@ export function SessionContextMenu({
           className="overflow-menu session-context-menu"
           data-session-id={sessionId}
         >
-          <ContextMenu.Label className="overflow-menu__label">{sessionLabel}</ContextMenu.Label>
+          <ContextMenu.Label className="overflow-menu__label" title={sessionLabel}>
+            {truncateLabel(sessionLabel)}
+          </ContextMenu.Label>
           <ContextMenu.Item
             className="overflow-menu__item"
             disabled={daemonDisconnected}

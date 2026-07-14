@@ -29,6 +29,7 @@ import {
 } from "./store/frameMessaging";
 import { useNotificationsStore } from "./store/notifications";
 import { useWorkspaceActivityStore } from "./store/workspaceActivity";
+import { truncateLabel } from "./util/truncate";
 import "./css/workspace.css";
 
 export function terminalIdentity(session: { id: string; head_frame_id?: string } | null): string {
@@ -301,7 +302,7 @@ export function App() {
             title="Stop session"
             body={
               terminationTarget !== null
-                ? `"${terminationTarget.label}" will be stopped. Any running process will be terminated.`
+                ? `"${truncateLabel(terminationTarget.label)}" will be stopped. Any running process will be terminated.`
                 : ""
             }
             confirmLabel="Stop session"

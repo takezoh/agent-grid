@@ -11,6 +11,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDaemonStore } from "../store/daemon";
 import { useNotificationsStore } from "../store/notifications";
+import { SESSION_LABEL_MAX_LENGTH } from "../util/truncate";
 import { SessionContextMenu } from "./SessionContextMenu";
 import { SessionList } from "./SessionList";
 
@@ -71,6 +72,27 @@ describe("SessionContextMenu — open on right-click", () => {
 
     expect(await screen.findByText("Open")).toBeTruthy();
     expect(screen.queryByText("Stop session…")).toBeNull();
+  });
+
+  it("truncates a very long session title in the menu label but keeps the full title reachable via tooltip", async () => {
+    const longTitle = "x".repeat(SESSION_LABEL_MAX_LENGTH + 40);
+    render(
+      <SessionContextMenu
+        sessionId="s1"
+        sessionLabel={longTitle}
+        daemonDisconnected={false}
+        onOpen={vi.fn()}
+        onRequestTerminate={vi.fn()}
+      >
+        <div data-testid="row">row</div>
+      </SessionContextMenu>,
+    );
+    fireEvent.contextMenu(screen.getByTestId("row"));
+
+    const label = await screen.findByTitle(longTitle);
+    expect(label.textContent?.length).toBe(SESSION_LABEL_MAX_LENGTH);
+    expect(label.textContent?.endsWith("…")).toBe(true);
+    expect(screen.queryByText(longTitle)).toBeNull();
   });
 });
 
