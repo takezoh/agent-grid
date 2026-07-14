@@ -36,6 +36,7 @@ type fakeDaemon struct {
 	reader *bufio.Reader
 	writer *bufio.Writer
 	conn   net.Conn
+	mu     sync.Mutex
 }
 
 // newDaemonPair creates a connected (DaemonClient, fakeDaemon) pair using
@@ -98,6 +99,8 @@ func (f *fakeDaemon) sendErr(reqID string, code proto.ErrCode, msg string) {
 }
 
 func (f *fakeDaemon) write(b []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	_, err := f.writer.Write(b)
 	if err == nil {
 		err = f.writer.WriteByte('\n')
