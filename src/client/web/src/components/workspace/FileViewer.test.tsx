@@ -420,4 +420,57 @@ describe("FileViewer editor", () => {
       );
     });
   });
+
+  it("preserves dirty buffer when saveDisabled degrades to read-only", async () => {
+    const file = {
+      path: "a.txt",
+      size: 3,
+      is_binary: false,
+      content: "abc",
+      mtime: "Mon, 01 Jan 2024 00:00:00 GMT",
+    };
+    const { rerender } = render(
+      <FileViewer
+        file={file}
+        eventKind="edit"
+        sessionId="s1"
+        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        saveDisabled={false}
+      />,
+    );
+    await waitFor(() => expect(getEditorView()).toBeTruthy());
+    const { view, cm } = requireEditor();
+    act(() => {
+      view.dispatch({
+        changes: { from: 0, to: 0, insert: "DIRTY-" },
+        userEvent: true,
+      });
+    });
+    expect(view.state.sliceDoc(0, view.state.doc.length)).toBe("DIRTY-abc");
+
+    rerender(
+      <FileViewer
+        file={file}
+        eventKind="edit"
+        sessionId="s1"
+        pinnedHandle={{ frameGeneration: 1, resolvedRootPath: "/workspace" }}
+        saveDisabled
+      />,
+    );
+
+    // CodeMirror stays mounted; dirty doc is not replaced by SourceViewer/file.content.
+    await waitFor(() => expect(screen.getByTestId("codemirror-editor")).toBeTruthy());
+    expect(screen.queryByTestId("source-viewer")).toBeNull();
+    const after = requireEditor();
+    expect(after.view.state.sliceDoc(0, after.view.state.doc.length)).toBe("DIRTY-abc");
+    expect(after.view === view).toBe(true);
+
+    act(() => {
+      Vim.handleEx(cm, "w");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(saveMock).not.toHaveBeenCalled();
+  });
 });

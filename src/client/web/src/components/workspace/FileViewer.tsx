@@ -1,5 +1,5 @@
 import { history } from "@codemirror/commands";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { Vim, vim } from "@replit/codemirror-vim";
 import {
@@ -175,7 +175,17 @@ function CodeMirrorEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const baselineRef = useRef(content);
+  // Compartment keeps editable flag reconfigurable without destroying the doc
+  // (root disappearance / handle_stale must not wipe a dirty buffer).
+  const editableCompartmentRef = useRef(new Compartment());
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  const onBufferChangeRef = useRef(onBufferChange);
+  const readOnlyRef = useRef(readOnly);
   const lineSeparator = useMemo(() => detectLineSeparator(content), [content]);
+
+  onDirtyChangeRef.current = onDirtyChange;
+  onBufferChangeRef.current = onBufferChange;
+  readOnlyRef.current = readOnly;
 
   const readDocBytes = useCallback((view: EditorView): string => {
     return view.state.sliceDoc(0, view.state.doc.length);
@@ -227,6 +237,7 @@ function CodeMirrorEditor({
     });
   }, [performSave]);
 
+  // Mount / remount only when the loaded document identity changes.
   useEffect(() => {
     baselineRef.current = content;
     if (!containerRef.current) return;
@@ -237,13 +248,13 @@ function CodeMirrorEditor({
         history(),
         EditorState.lineSeparator.of(lineSeparator),
         vim(),
-        EditorView.editable.of(!readOnly),
+        editableCompartmentRef.current.of(EditorView.editable.of(!readOnlyRef.current)),
         EditorView.updateListener.of((update) => {
           if (!update.docChanged) return;
           const text = update.state.sliceDoc(0, update.state.doc.length);
-          onBufferChange?.(text);
+          onBufferChangeRef.current?.(text);
           const dirty = text !== baselineRef.current;
-          onDirtyChange?.(dirty);
+          onDirtyChangeRef.current?.(dirty);
         }),
         EditorView.theme({
           "&": { height: "100%", fontFamily: "var(--font-mono, monospace)", fontSize: "0.85rem" },
@@ -263,7 +274,16 @@ function CodeMirrorEditor({
       view.destroy();
       viewRef.current = null;
     };
-  }, [content, lineSeparator, readOnly, onDirtyChange, onBufferChange]);
+  }, [content, lineSeparator]);
+
+  // Degrade to read-only without recreating the document (FR-113 / ADR root-disappearance).
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: editableCompartmentRef.current.reconfigure(EditorView.editable.of(!readOnly)),
+    });
+  }, [readOnly]);
 
   return (
     <div
@@ -293,7 +313,9 @@ export function FileViewer({
   const shellRef = useRef<HTMLDivElement>(null);
   const lineCountRef = useRef(0);
   const content = file?.content ?? "";
-  const isEditable = eventKind === "edit" && !saveDisabled;
+  // Editor path is selected by event kind only. saveDisabled degrades the open
+  // CodeMirror buffer to read-only — it must not unmount the buffer (ADR root-disappearance).
+  const isEditorMode = eventKind === "edit";
   const sourceLineCount = useMemo(
     () => (content.length === 0 ? 0 : buildLineStarts(content).length),
     [content],
@@ -310,13 +332,13 @@ export function FileViewer({
 
   useEffect(() => {
     const el = shellRef.current;
-    if (!el || !file || file.is_binary || isEditable) return;
+    if (!el || !file || file.is_binary || isEditorMode) return;
     return attachWorkspaceVimKeymap(el, {
       getLineCount: () => lineCountRef.current,
       scrollToLine,
       getSearchableText: () => content,
     });
-  }, [file, content, scrollToLine, isEditable]);
+  }, [file, content, scrollToLine, isEditorMode]);
 
   if (loading) {
     return <div className="workspace-file-viewer workspace-file-viewer--loading">Loading…</div>;
@@ -358,9 +380,9 @@ export function FileViewer({
       ref={shellRef}
       className="workspace-file-viewer"
       data-testid="file-viewer"
-      tabIndex={isEditable ? -1 : 0}
+      tabIndex={isEditorMode ? -1 : 0}
       onKeyDown={(e: KeyboardEvent) => {
-        if (isEditable) return;
+        if (isEditorMode) return;
         if (e.key !== "Tab") e.stopPropagation();
       }}
     >
@@ -368,11 +390,11 @@ export function FileViewer({
       {renderer === "mermaid" && <MermaidRenderer source={content} />}
       {renderer === "json" && <JsonTreeRenderer source={content} />}
       {renderer === "source" &&
-        (isEditable ? (
+        (isEditorMode ? (
           <CodeMirrorEditor
             content={content}
-            readOnly={saveDisabled}
-            saveDisabled={saveDisabled}
+            readOnly={!!saveDisabled}
+            saveDisabled={!!saveDisabled}
             sessionId={sessionId}
             path={file.path}
             pinnedHandle={pinnedHandle}
