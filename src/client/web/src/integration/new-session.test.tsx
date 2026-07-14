@@ -197,21 +197,22 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
       usePaletteStore.getState().moveCursor(+1);
     });
 
-    // Submit by firing Enter on the command filter input. The command
-    // param is now a dynamic-options listbox (web-ui-fixes 2026-06-24)
-    // whose ID 'palette-param-command' is the listbox div; the filter
-    // combobox sits at 'palette-param-command-input' and carries the
-    // onKeyDown handler that routes Enter through advanceOrSubmit ->
-    // store.submit(ctx) -> newSessionTool.submit(ctx, payload).
+    // Enter on the command filter advances focus to the explicit confirm
+    // button (selection is never the commit); activating the confirm button
+    // routes form submit -> store.submit(ctx) -> newSessionTool.submit.
     //
     // The command value is auto-preset to 'claude' by useDynamicParamPreset
     // (FR-A1) since the session-config fixture seeds commands: ['claude'].
-    // No explicit fireEvent.change is needed — useDynamicParamPreset
-    // landed setParam('command', 'claude') during the microtask drain.
     const commandInput = document.getElementById("palette-param-command-input") as HTMLInputElement;
     expect(commandInput).not.toBeNull();
     act(() => {
       fireEvent.keyDown(commandInput, { key: "Enter" });
+    });
+    const submitBtn = document.querySelector("[data-testid='palette-submit']") as HTMLElement;
+    expect(submitBtn).not.toBeNull();
+    expect(document.activeElement).toBe(submitBtn);
+    act(() => {
+      fireEvent.submit(submitBtn.closest("form") as HTMLFormElement);
     });
 
     // Drain microtasks for: fetch resolve -> selectSession ->

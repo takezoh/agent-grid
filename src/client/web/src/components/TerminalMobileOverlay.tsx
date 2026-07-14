@@ -116,9 +116,9 @@ function TerminalMobileLayer(props: TerminalMobileOverlayProps): JSX.Element {
   // first-run coachmark (ADR 0072): shown once on the initial view-mode entry.
   const coach = useCoachmarkOnce({ active: !input.active });
 
-  // Active session の driver を引いて DriverShortcutBar に渡す.
-  // sessions / activeSessionID は安定参照 (applyViewUpdate が identity 保全)
-  // なので無駄な再 render は起きない.
+  // Look up the active session's driver and pass it to DriverShortcutBar.
+  // sessions / activeSessionID are stable references (applyViewUpdate preserves
+  // identity) so no wasted re-renders occur.
   const activeDriver = useDaemonStore((s) => {
     if (!s.activeSessionID) return null;
     const sess = s.sessions.find((x) => x.id === s.activeSessionID);

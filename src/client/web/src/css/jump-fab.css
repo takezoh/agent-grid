@@ -12,7 +12,7 @@
   /* Circular FAB silhouette; size still governed by icon-button min-44px. */
   border-radius: 999px;
   /* Subtle elevation so the FAB reads above the terminal grid. */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .jump-to-latest-fab > span {

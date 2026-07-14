@@ -1,20 +1,20 @@
 /**
- * ConfirmDialog — 汎用 confirm modal.
+ * ConfirmDialog — generic confirm modal.
  *
- * SessionDrawer (`SessionDrawer.tsx`) と同じ三層 pattern を踏襲:
+ * Follows the same three-layer pattern as SessionDrawer (`SessionDrawer.tsx`):
  *   - native `<dialog aria-modal="true">` (semantic dialog role)
- *   - scrim を視覚的にも button にして mouse + keyboard で dismiss
+ *   - the scrim doubles as a button so mouse + keyboard can dismiss
  *   - Esc → cancel
- *   - Focus trap: Tab / Shift+Tab で dialog 内を wrap
- *   - close 時に opener (props.openerRef) に focus を戻す
+ *   - focus trap: Tab / Shift+Tab wrap inside the dialog
+ *   - focus returns to the opener (props.openerRef) on close
  *
  * variant:
- *   - "modal":  PC 向け中央寄せ modal (デフォルト)
- *   - "sheet":  mobile 向け bottom sheet (full-width, slide-up)
+ *   - "modal":  centered modal for desktop (default)
+ *   - "sheet":  bottom sheet for mobile (full-width, slide-up)
  *
- * Destructive action 用 (`destructive: true`) で confirm button に
- * destructive variant の class を付ける. open 時は cancel button に
- * 初期フォーカス (デフォルト破壊回避).
+ * For destructive actions (`destructive: true`) the confirm button gets
+ * the destructive variant class. On open, initial focus goes to the
+ * cancel button (avoids destructive-by-default).
  */
 
 import {
@@ -35,23 +35,23 @@ export type ConfirmDialogVariant = "modal" | "sheet";
 
 export interface ConfirmDialogProps {
   open: boolean;
-  /** Dialog title (h2 で render される). */
+  /** Dialog title (rendered as h2). */
   title: string;
-  /** 本文. plain text or ReactNode. */
+  /** Body. Plain text or ReactNode. */
   body: ReactNode;
   confirmLabel: string;
   cancelLabel: string;
-  /** Confirm button を destructive style にする. */
+  /** Style the confirm button as destructive. */
   destructive?: boolean;
-  /** 処理中表示. pending=true の間は両 button disabled, confirm label 差替え. */
+  /** In-flight state. While pending=true both buttons are disabled and the confirm label swaps. */
   pending?: boolean;
-  /** Pending 時の confirm button text (例: "終了中…"). */
+  /** Confirm button text while pending (e.g. "Stopping…"). */
   pendingLabel?: string;
-  /** Confirm 押下時. */
+  /** Called on confirm. */
   onConfirm: () => void;
   /** Cancel / Esc / scrim. */
   onCancel: () => void;
-  /** Close 時に focus を戻す要素. nullable. */
+  /** Element that receives focus back on close. Nullable. */
   openerRef?: RefObject<HTMLElement | null>;
   variant?: ConfirmDialogVariant;
 }
@@ -77,8 +77,8 @@ export function ConfirmDialog({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
 
-  // open 時: cancel button に focus.
-  // close 時: openerRef があれば opener に focus を戻す.
+  // On open: focus the cancel button.
+  // On close: return focus to the opener when openerRef is set.
   useEffect(() => {
     if (open) {
       const dialog = dialogRef.current;

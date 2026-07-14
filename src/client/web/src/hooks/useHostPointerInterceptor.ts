@@ -1,6 +1,6 @@
 // useHostPointerInterceptor — the single capture-phase pointerdown listener on
-// the terminal-host that both (a) blocks focus-steal in 閲覧 mode and (b) detects
-// outside-tap in 入力 mode (FR-MOB-MODE-002 / 005, ADR 0068).
+// the terminal-host that both (a) blocks focus-steal in view mode and (b) detects
+// outside-tap in input mode (FR-MOB-MODE-002 / 005, ADR 0068).
 //
 // Why one listener: focus-block and outside-tap both hinge on the very first
 // pointerdown reaching the host. Splitting them into two listeners (or two
@@ -8,10 +8,10 @@
 // preventDefault while the other had already let focus move. Collapsing both
 // into a single capture-phase handler makes the ordering total and provable:
 //
-//   - 閲覧 mode  → e.preventDefault(): the synthesized mousedown/focus that would
+//   - view mode  → e.preventDefault(): the synthesized mousedown/focus that would
 //                 move the caret into the helper textarea never happens, so the
 //                 soft keyboard stays closed (focus dispatch count = 0).
-//   - 入力 mode  → if the target is the helper textarea or inside a [data-overlay]
+//   - input mode → if the target is the helper textarea or inside a [data-overlay]
 //                 (FAB / popover), keep input mode; otherwise it's an outside-tap
 //                 and we exit via the supplied callback.
 //
@@ -50,13 +50,13 @@ export function useHostPointerInterceptor(options: UseHostPointerInterceptorOpti
   const { hostRef, textareaRef, isActive, onOutsideTap } = options;
 
   // Route the volatile callbacks through refs so the listener attaches once and
-  // never re-subscribes (the "1 系統だけ" contract).
+  // never re-subscribes (the "single pipeline" contract).
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
   const onOutsideTapRef = useRef(onOutsideTap);
   onOutsideTapRef.current = onOutsideTap;
 
-  // Attach-once is the "1 系統だけ" contract: hostRef / textareaRef identities are
+  // Attach-once is the "single pipeline" contract: hostRef / textareaRef identities are
   // stable and the volatile callbacks are read through refs, so an empty dep
   // array is correct here.
   // biome-ignore lint/correctness/useExhaustiveDependencies: attach-once listener; refs are stable.
@@ -68,12 +68,12 @@ export function useHostPointerInterceptor(options: UseHostPointerInterceptorOpti
       const target = (event.target as Element | null) ?? null;
 
       if (!isActiveRef.current()) {
-        // 閲覧 mode: stop the pointer from moving focus into the helper textarea.
+        // View mode: stop the pointer from moving focus into the helper textarea.
         event.preventDefault();
         return;
       }
 
-      // 入力 mode: a tap on the helper textarea or an overlay keeps input mode.
+      // Input mode: a tap on the helper textarea or an overlay keeps input mode.
       if (isHelperTarget(target, textareaRef.current)) return;
       if (isOverlayTarget(target)) return;
 

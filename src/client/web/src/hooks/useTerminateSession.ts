@@ -1,14 +1,14 @@
-// useTerminateSession — 終了ボタン -> confirm dialog -> deleteSession の hook.
+// useTerminateSession — stop button -> confirm dialog -> deleteSession hook.
 //
-// 責務:
-//   1. /api/sessions/{id} DELETE を呼ぶ
-//   2. 204 / 404 (= already gone) は成功扱いで close
-//   3. 5xx / network はエラー toast を出し dialog open のまま (pending=false)
-//   4. 削除した session が active だった場合は selectNextActiveAfterDelete で
-//      次セッションへ activeSessionID を切替える (ADR-0030 で view-update が
-//      activeSessionID を載せないため、web 側で明示する必要がある)
+// Responsibilities:
+//   1. Call /api/sessions/{id} DELETE
+//   2. Treat 204 / 404 (= already gone) as success and close
+//   3. 5xx / network shows an error toast and keeps the dialog open (pending=false)
+//   4. When the deleted session was active, switch activeSessionID to the
+//      next session via selectNextActiveAfterDelete (ADR-0030: view-updates
+//      no longer carry activeSessionID, so the web side must be explicit)
 //
-// テスト容易性のため SessionsApi を optional 引数で差し替え可能.
+// SessionsApi is swappable via an optional argument for testability.
 
 import { useCallback, useMemo, useState } from "react";
 import { type ApiHttpError, type SessionsApi, makeSessionsApi } from "../api/sessions";
@@ -16,9 +16,9 @@ import { selectNextActiveAfterDelete, useDaemonStore } from "../store/daemon";
 import { useNotificationsStore } from "../store/notifications";
 
 export interface UseTerminateSessionResult {
-  /** Confirm 押下時に呼ぶ. true=dialog close OK / false=open のまま (エラー). */
+  /** Call on confirm. true=dialog may close / false=stays open (error). */
   terminate: (id: string) => Promise<boolean>;
-  /** API in-flight. confirm button の disabled / label 切替に使う. */
+  /** API in-flight. Drives confirm button disabled / label swap. */
   pending: boolean;
 }
 
@@ -32,18 +32,18 @@ function isNetworkError(e: unknown): boolean {
 
 export function useTerminateSession(api?: SessionsApi): UseTerminateSessionResult {
   const [pending, setPending] = useState(false);
-  // makeSessionsApi() は内部に bearerMissingNotified one-shot flag を持つ
-  // (api/sessions.ts:128 のコメント参照). hook 寿命で 1 instance に固定する
-  // ことで「token 欠落 warn が毎クリック出る」regression を防ぐ.
+  // makeSessionsApi() carries an internal bearerMissingNotified one-shot flag
+  // (see the comment at api/sessions.ts:128). Pinning one instance for the
+  // hook lifetime prevents the missing-token warn firing on every click.
   const sessionsApi = useMemo(() => api ?? makeSessionsApi(), [api]);
 
   const terminate = useCallback(
     async (id: string): Promise<boolean> => {
-      // 削除前 snapshot を pre-await で固定する. view-update は WS 経由で
-      // 独立に到着するので await 後に getState() すると sessions から既に
-      // deletedId が消えている race がある — その場合
-      // selectNextActiveAfterDelete は first guard で null を返し、せっかく
-      // 残っていた sibling sessions に遷移できず空白画面になる.
+      // Pin the pre-delete snapshot before awaiting. View-updates arrive
+      // independently over WS, so a post-await getState() may already have
+      // deletedId removed from sessions — in that race
+      // selectNextActiveAfterDelete returns null at its first guard and the
+      // surviving sibling sessions are never selected (blank screen).
       const preSessions = useDaemonStore.getState().sessions;
       const preActiveId = useDaemonStore.getState().activeSessionID;
       setPending(true);
@@ -53,22 +53,22 @@ export function useTerminateSession(api?: SessionsApi): UseTerminateSessionResul
         succeeded = true;
       } catch (e) {
         if (isHttpError(e) && e.status === 404) {
-          // 既に消えている — 望む状態なので成功扱い
+          // Already gone — the desired state, treat as success
           succeeded = true;
         } else if (isHttpError(e)) {
           useNotificationsStore.getState().add({
             level: "error",
-            message: `セッション終了に失敗しました (HTTP ${e.status})`,
+            message: `Failed to stop session (HTTP ${e.status})`,
           });
         } else if (isNetworkError(e)) {
           useNotificationsStore.getState().add({
             level: "error",
-            message: "セッション終了に失敗しました (ネットワークエラー)",
+            message: "Failed to stop session (network error)",
           });
         } else {
           useNotificationsStore.getState().add({
             level: "error",
-            message: "セッション終了に失敗しました",
+            message: "Failed to stop session",
           });
         }
       }

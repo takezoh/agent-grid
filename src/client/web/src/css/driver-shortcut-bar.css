@@ -19,9 +19,9 @@
   gap: 6px;
   padding: 6px;
   border-radius: 10px;
-  background: var(--input-bg, rgba(20, 20, 24, 0.92));
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.12));
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+  background: var(--input-bg-floating);
+  border: 1px solid var(--input-border-floating);
+  box-shadow: var(--shadow-md);
   /* 右側に KeyboardFAB (~ 60px) があるので余白 (16px + 44px + 12px) を残し
      overflow scrollable. */
   max-width: calc(100vw - 88px);
@@ -44,14 +44,14 @@
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.02em;
-  color: var(--fg, #e6e6e6);
+  color: var(--fg);
   background: transparent;
   border-radius: 8px;
 }
 
 .driver-shortcut-bar__btn:hover,
 .driver-shortcut-bar__btn:focus-visible {
-  background: var(--input-bg-hover, rgba(255, 255, 255, 0.08));
+  background: var(--input-bg-hover);
 }
 
 @keyframes driver-shortcut-bar__in {

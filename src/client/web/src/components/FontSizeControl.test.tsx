@@ -42,25 +42,25 @@ function Harness({ scheduleFit }: { scheduleFit: () => void }): JSX.Element {
   );
 }
 
-/** Open the disclosure popover by activating the "文字サイズ" trigger. */
+/** Open the disclosure popover by activating the "Font size" trigger. */
 function openPopover(): void {
-  fireEvent.click(screen.getByRole("button", { name: "文字サイズ" }));
+  fireEvent.click(screen.getByRole("button", { name: "Font size" }));
 }
 
 describe("FontSizeControl — disclosure popover a11y (UAC-020)", () => {
-  it("the Aa trigger exposes the '文字サイズ' accessible name and is collapsed initially", () => {
+  it("the Aa trigger exposes the 'Font size' accessible name and is collapsed initially", () => {
     render(<Harness scheduleFit={vi.fn()} />);
-    const trigger = screen.getByRole("button", { name: "文字サイズ" });
+    const trigger = screen.getByRole("button", { name: "Font size" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     // Popover closed → no stepper buttons in the tree yet.
-    expect(screen.queryByRole("button", { name: "文字を大きく" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Increase font size" })).toBeNull();
   });
 
   it("UAC-020: opening the popover exposes +, -, Reset as role=button with non-empty aria-labels", () => {
     render(<Harness scheduleFit={vi.fn()} />);
     openPopover();
 
-    for (const name of ["文字を大きく", "文字を小さく", "文字サイズを既定に戻す"]) {
+    for (const name of ["Increase font size", "Decrease font size", "Reset font size"]) {
       const btn = screen.getByRole("button", { name });
       expect(btn.tagName).toBe("BUTTON");
       expect((btn.getAttribute("aria-label") ?? "").trim().length).toBeGreaterThan(0);
@@ -87,7 +87,7 @@ describe("FontSizeControl — stepper semantics (FR-MOB-STEPPER-001)", () => {
     openPopover();
     expect(screen.getByText("14px")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "文字を大きく" }));
+    fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
 
     expect(screen.getByText("16px")).toBeTruthy();
     expect(scheduleFit).toHaveBeenCalledTimes(1);
@@ -98,7 +98,7 @@ describe("FontSizeControl — stepper semantics (FR-MOB-STEPPER-001)", () => {
     render(<Harness scheduleFit={scheduleFit} />);
     openPopover();
 
-    fireEvent.click(screen.getByRole("button", { name: "文字を小さく" }));
+    fireEvent.click(screen.getByRole("button", { name: "Decrease font size" }));
 
     expect(screen.getByText("12px")).toBeTruthy();
     expect(scheduleFit).toHaveBeenCalledTimes(1);
@@ -110,11 +110,11 @@ describe("FontSizeControl — stepper semantics (FR-MOB-STEPPER-001)", () => {
     openPopover();
 
     // Bump up twice → 18px, then Reset back to 14px.
-    fireEvent.click(screen.getByRole("button", { name: "文字を大きく" }));
-    fireEvent.click(screen.getByRole("button", { name: "文字を大きく" }));
+    fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
+    fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
     expect(screen.getByText("18px")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "文字サイズを既定に戻す" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset font size" }));
 
     expect(screen.getByText("14px")).toBeTruthy();
     // 2 increases + 1 reset = 3 scheduleFit invocations.

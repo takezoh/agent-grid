@@ -46,33 +46,49 @@ describe("App", () => {
     usePaletteStore.getState().close();
   });
 
-  it("renders DriverViewPanel for active session", () => {
+  it("FR-022 / UAC-010: dissolves DriverViewPanel into header + status bar + sidebar meta", () => {
     useDaemonStore.setState({
       sessions: [
         {
           id: "s1",
-          project: "p",
+          project: "/home/dev/dev/agent-grid",
           command: "claude",
+          root_driver: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "Hello driver" }, status: "running" },
+          view: {
+            card: {
+              title: "Hello driver",
+              tags: [{ text: "feature", fg: "#000", bg: "#fff" }],
+            },
+            status: "running",
+            model: "gpt-5",
+            effort: "high",
+            status_line: "Thinking",
+            status_changed_at: "2026-06-20T00:00:00Z",
+          },
         },
       ],
       activeSessionID: "s1",
     });
     render(<App />);
-    // Title appears in both SessionList row and DriverViewPanel heading
-    const titles = screen.getAllByText("Hello driver");
-    expect(titles.length).toBeGreaterThanOrEqual(1);
-    // RunStateBadge appears in sidebar and in DriverViewPanel header
-    const badges = screen.getAllByLabelText(/status: running/);
-    expect(badges.length).toBeGreaterThanOrEqual(1);
-    // DriverViewPanel section is rendered
-    expect(screen.getByLabelText("driver view")).toBeTruthy();
+    expect(screen.queryByLabelText("driver view")).toBeNull();
+    expect(document.querySelector(".driver-view-panel")).toBeNull();
+    expect(screen.getByLabelText("session header")).toBeTruthy();
+    expect(document.querySelector(".header-bar__project")?.textContent).toBe("agent-grid");
+    expect(document.querySelector(".header-bar__title")?.textContent).toBe("Hello driver");
+    const headerMeta = document.querySelector(".header-bar__meta");
+    expect(headerMeta?.textContent).toContain("claude · gpt-5 · high");
+    expect(document.querySelector(".header-bar .run-state-badge")).not.toBeNull();
+    expect(screen.getByLabelText("session status")).toBeTruthy();
+    expect(screen.getByText("Thinking")).toBeTruthy();
+    expect(document.querySelector(".session-list__tags")).not.toBeNull();
+    expect(screen.getByText("feature")).toBeTruthy();
   });
 
-  it("hides driver view when no active session", () => {
+  it("hides status bar when no active session", () => {
     useDaemonStore.setState({ sessions: [], activeSessionID: null });
     render(<App />);
+    expect(screen.queryByLabelText("session status")).toBeNull();
     expect(screen.queryByLabelText("driver view")).toBeNull();
   });
 
@@ -611,13 +627,22 @@ describe("App", () => {
   // observe the computed value in happy-dom, but we CAN observe that the
   // single source (data-theme on documentElement) flips, which is the only
   // mechanism that drives both body bg and xterm bg via tokens.css.
-  it("ThemeSegmentedControl light click → data-theme=light (cross-component, M2)", () => {
-    useDaemonStore.setState({ sessions: [], activeSessionID: null });
-    render(<App />);
-    const lightSeg = screen.getByRole("radio", { name: /light/i });
-    act(() => {
-      fireEvent.click(lightSeg);
-    });
-    expect(document.documentElement.dataset.theme).toBe("light");
+  it("OverflowMenu Light click → data-theme=light (cross-component, m2 / UAC-005)", async () => {
+    // Radix DropdownMenu relies on real timers; fake timers from beforeEach break open.
+    vi.useRealTimers();
+    try {
+      useDaemonStore.setState({ sessions: [], activeSessionID: null });
+      render(<App />);
+      const trigger = screen.getByRole("button", { name: "More actions" });
+      fireEvent.pointerDown(trigger);
+      fireEvent.click(trigger);
+      const light = await screen.findByText("Light");
+      act(() => {
+        fireEvent.click(light);
+      });
+      expect(document.documentElement.dataset.theme).toBe("light");
+    } finally {
+      vi.useFakeTimers();
+    }
   });
 });

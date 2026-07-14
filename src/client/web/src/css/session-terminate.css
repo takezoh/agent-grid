@@ -1,74 +1,60 @@
-/* session-terminate.css — DriverViewPanel header に置く終了 button のスタイル.
- *
- * PC: 32px height の outlined ghost button (fg-muted) → hover/focus で danger fill.
- * Mobile (<768px && pointer:coarse): 44x44 touch target, default で hairline danger
- * tint を載せて affordance を明示する.
- */
+/* session-terminate.css — HeaderBar stop icon button (FR-024 / UAC-011). */
 
 .session-terminate-button {
-  /* PC 表示時のサイズ: IconButton 既定 (44x44) を outline ghost 用に圧縮.
-     RunStateBadge と縦方向に balance させるため 32px を採用. */
-  min-width: 0;
-  min-height: 32px;
-  height: 32px;
-  padding: 0 10px;
-  gap: 6px;
+  min-width: 36px;
+  min-height: 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   flex-shrink: 0;
-  border-radius: 8px;
-
-  /* Ghost at rest: 余計な彩度を載せず、操作可能であることを border でだけ示す. */
+  border-radius: var(--radius-2);
   background: transparent;
-  color: var(--fg-muted, var(--fg));
+  color: var(--fg-muted);
   border: 1px solid var(--border-color);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+  transition: background-color var(--motion-1) var(--motion-ease), border-color var(--motion-1)
+    var(--motion-ease), color var(--motion-1) var(--motion-ease);
 }
 
-.session-terminate-button__label {
-  /* 1 行で完結させる. text-overflow は親 header が clamp する想定だが
-     保険として nowrap. */
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.session-terminate-button__glyph {
-  /* SVG の vertical 中央揃え — display:block で baseline ずれを潰す. */
-  display: block;
-}
-
-/* Hover / focus-visible で full danger fill. destructive である事を明示.
-   bundle 内で icon-button.css の `.icon-button:hover { background: ... }`
-   (短縮形) が後出しになるため、同 specificity だと background-color が
-   負ける. selector を `.icon-button.session-terminate-button` に膨らませて
-   specificity を (0,2,1) に持ち上げ、確定で danger fill を勝たせる. */
 .icon-button.session-terminate-button:hover,
 .icon-button.session-terminate-button:focus-visible {
-  background-color: var(--danger, #dc2626);
-  border-color: var(--danger, #dc2626);
-  color: #ffffff;
+  background-color: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-danger);
 }
 
 .icon-button.session-terminate-button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
-/* Mobile: touch target を 44 に膨らませ、default state でも軽く danger tint を
-   出しておく (hover が無いため affordance が必要). */
+.session-terminate-tooltip {
+  padding: 4px 8px;
+  border-radius: var(--radius-1);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  border: 1px solid var(--border-color);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  box-shadow: var(--shadow-sm);
+  z-index: 400;
+}
+
+.session-terminate-tooltip__arrow {
+  fill: var(--bg-elevated);
+}
+
 @media (max-width: 767px) and (pointer: coarse) {
   .session-terminate-button {
+    min-width: 44px;
     min-height: 44px;
+    width: 44px;
     height: 44px;
-    padding: 0 14px;
-    font-size: 13px;
-    color: var(--danger, #dc2626);
-    border-color: var(--danger, #dc2626);
-    background-color: var(--danger-bg, rgba(220, 38, 38, 0.08));
+    color: var(--danger);
+    border-color: var(--danger);
+    background-color: var(--danger-bg);
   }
-  .session-terminate-button:active {
-    background-color: var(--danger, #dc2626);
-    color: #ffffff;
+  .icon-button.session-terminate-button:active {
+    background-color: var(--danger);
+    color: var(--on-danger);
   }
 }

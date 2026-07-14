@@ -1,28 +1,29 @@
 // CommandPalette — overlay DOM owner for the command palette feature.
 //
 // Spec: docs/specs/2026-06-24-web-ui-command-palette
+// Web-ui-refresh m5 (FR-026..030): 3-part layout — input, sectioned list, footer.
 // FR:
 //   - FR-003 focus trap + blur on open
 //   - FR-007 role="dialog" / aria-modal
-//   - FR-009 active context header (setActiveContextSnapshot wiring)
-//   - FR-010 InlineStatus announce on active session change
+//   - FR-009 active context snapshot (setActiveContextSnapshot wiring)
+//   - FR-010 session change → toast + announcer (FR-027)
 //   - FR-012 frozenSnapshotRef capture on submitting false→true
 //   - FR-013 frozenSnapshotRef release on submitting true→false
 //   - FR-017 Esc steps back (paramSelect → toolSelect; toolSelect → close)
 //   - FR-018 Back / Close / overlay outside-click dismissal
-//   - FR-020 surfaces the submitting state (StatusBadge)
+//   - FR-020 surfaces the submitting state (footer status)
 //   - FR-023 close + restore opener focus when push becomes invalid
-//   - FR-024 StatusBadge priority text
-//   - FR-025 StatusBadge: ctx===null → 'Unavailable', loading → 'Loading commands...'
+//   - FR-024 Status priority text in footer
+//   - FR-025 footer status: ctx===null → 'Unavailable', loading → 'Loading commands...'
 //   - FR-029 input.focus() driven by refocusSeq observation
-//   - FR-033 InlineStatus announce suppressed while submitting
+//   - FR-033 announcer suppressed while submitting
 // ADRs:
 //   - 0030 terminal-keyed-remount
 //   - 0036 palette-2phase-store-architecture
 //   - 0039 palette-focus-trap-minimal
 //   - 0050 unified listbox
 //   - 0055 submit-freeze-lift-state
-//   - 0057 InlineStatus single aria-live slot
+//   - 0057 PaletteAnnouncer single aria-live slot
 
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useEffect, useRef } from "react";
@@ -33,14 +34,13 @@ import { listTools } from "../../lib/tools";
 import { useDaemonStore } from "../../store/daemon";
 import { usePaletteStore } from "../../store/palette";
 import { useDaemonSnapshot } from "../../store/useDaemonSnapshot";
-import { ActiveContextHeader } from "./ActiveContextHeader";
-import { InlineStatus } from "./InlineStatus";
+import { PaletteAnnouncer } from "./PaletteAnnouncer";
+import { PaletteFooter } from "./PaletteFooter";
 import { ParamSelectPhase } from "./ParamSelectPhase";
-import { StatusBadge } from "./StatusBadge";
 import { ToolSelectPhase } from "./ToolSelectPhase";
 import { useActiveContextBridge } from "./hooks/useActiveContextBridge";
-import { useAnnounceMessage } from "./hooks/useAnnounceMessage";
 import { useFrozenSnapshot } from "./hooks/useFrozenSnapshot";
+import { useSessionChangeFeedback } from "./hooks/useSessionChangeFeedback";
 import { useToolCtx } from "./hooks/useToolCtx";
 
 export interface CommandPaletteProps {
@@ -54,6 +54,7 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
   const phase = usePaletteStore((s) => s.phase);
   const opener = usePaletteStore((s) => s.opener);
   const submitting = usePaletteStore((s) => s.submitting);
+  const composing = usePaletteStore((s) => s.composing);
   const error = usePaletteStore((s) => s.error);
   const refocusSeq = usePaletteStore((s) => s.refocusSeq);
   const announceSeq = usePaletteStore((s) => s.announceSeq);
@@ -63,14 +64,11 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // openerRef tracks the latest non-null opener so close/cleanup can
-  // always find the focus target even after store resets opener to null.
   const openerRef = useRef<HTMLElement | null>(null);
   if (opener !== null) openerRef.current = opener;
 
   useFocusTrap(dialogRef, open);
 
-  // FR-003: blur on open; restore opener focus on close.
   useEffect(() => {
     if (!open) return;
     const active = document.activeElement as HTMLElement | null;
@@ -97,7 +95,6 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
     };
   }, [open]);
 
-  // FR-029: refocusSeq increments → focus the search input.
   useEffect(() => {
     void refocusSeq;
     if (!open) return;
@@ -105,13 +102,11 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
     if (el !== null) el.focus();
   }, [refocusSeq, open]);
 
-  // Daemon snapshot (primitive selectors to minimize re-renders).
   const activeSessionID = useDaemonStore((s) => s.activeSessionID);
   const sessions = useDaemonStore((s) => s.sessions);
   const sessionConfig = useDaemonStore((s) => s.sessionConfig);
   const daemon = useDaemonSnapshot();
 
-  // Warn once per palette-open when sessionConfig is missing.
   const sessionConfigMissing = sessionConfig === null;
   useEffect(() => {
     if (!open) return;
@@ -122,7 +117,6 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
     }
   }, [open, sessionConfigMissing]);
 
-  // FR-009: derive + push active context snapshot (suppressed while submitting).
   useActiveContextBridge(
     submitting,
     activeSessionID,
@@ -131,7 +125,6 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
     setActiveContextSnapshot,
   );
 
-  // FR-012 / FR-013 / ADR-0055: capture/release frozenSnapshot.
   const { frozenSnapshotRef } = useFrozenSnapshot(
     submitting,
     daemon,
@@ -139,15 +132,13 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
     flashSeq,
   );
 
-  // FR-010 / FR-033 / ADR-0057: announce active context change to InlineStatus.
-  const announceRef = useAnnounceMessage(announceSeq, submitting, activeContextSnapshot);
+  const announceRef = useSessionChangeFeedback(announceSeq, submitting, activeContextSnapshot);
 
-  // ctx construction (includes frozenActiveContext for UAC-018).
   const frozenActiveContext = frozenSnapshotRef.current?.activeContext ?? undefined;
   const ctx = useToolCtx(daemon, props.httpFactory, frozenActiveContext);
 
-  // FR-024 / FR-025: StatusBadge text computation.
-  const liveStatusBadgeText: string | null = (() => {
+  const liveStatusText: string | null = (() => {
+    if (ctx === null) return "Unavailable";
     if (phase === "toolSelect") {
       const all = listTools(daemon, daemon.pushCommands);
       const enabledCount = all.filter((t) => t.disabledReason(daemon) === null).length;
@@ -156,6 +147,7 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
         return "No commands available";
       }
     }
+    if (submitting) return "Sending...";
     return null;
   })();
 
@@ -176,23 +168,17 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
     }
   }
 
-  // Frozen list props for ToolSelectPhase.
   const frozen = frozenSnapshotRef.current;
   const frozenListProps = frozen
     ? { frozenList: frozen.sortedList, frozenCursor: frozen.sortedListCursor }
     : {};
 
-  // Frozen header props (ADR-0055: lock flashSeq at capture time).
   const frozenHeaderSnapshot = frozen?.activeContext;
   const headerFlashSeq = frozen !== null ? frozen.flashSeq : flashSeq;
 
-  const statusBadgeText = submitting ? "Sending..." : liveStatusBadgeText;
 
   return createPortal(
     <div className="palette-overlay" data-testid="palette-overlay" onMouseDown={onOverlayMouseDown}>
-      {/* B3 / FR-PALETTE-TRIGGER-001: data-role='palette-sheet' container so
-          AppShell integration tests can assert the sheet stays inside 16px
-          horizontal margins on a 375px viewport (UAC-008 counterexample). */}
       <div className="palette-sheet" data-role="palette-sheet">
         <div
           ref={dialogRef}
@@ -206,51 +192,36 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
           className="palette-dialog"
           onKeyDown={onDialogKeyDown}
         >
-          <header className="palette-header">
-            <button
-              type="button"
-              aria-label="Back"
-              className="palette-header__back"
-              onClick={() => usePaletteStore.getState().back()}
-              data-testid="palette-back"
-            >
-              ←
-            </button>
-            <h2 id="palette-title" className="palette-header__title">
-              Command Palette
-            </h2>
-            <button
-              type="button"
-              aria-label="Close"
-              className="palette-header__close"
-              onClick={() => usePaletteStore.getState().close()}
-              data-testid="palette-close"
-            >
-              ×
-            </button>
-          </header>
-          {ctx !== null && (
-            <ActiveContextHeader snapshot={frozenHeaderSnapshot} flashSeq={headerFlashSeq} />
-          )}
-          <InlineStatus announce={announceRef.current} />
-          {ctx === null ? (
-            <StatusBadge text="Unavailable" />
-          ) : (
-            <StatusBadge text={statusBadgeText} submitting={submitting} />
-          )}
-          {phase === "toolSelect" ? (
-            <ToolSelectPhase
-              inputRef={inputRef}
-              httpFactory={props.httpFactory}
-              {...frozenListProps}
-            />
-          ) : ctx !== null ? (
-            <ParamSelectPhase ctx={ctx} />
-          ) : (
-            <div role="alert" className="palette-error" data-testid="palette-ctx-error">
-              Command palette unavailable (http client invalid)
-            </div>
-          )}
+          <h2 id="palette-title" className="palette-dialog__title">
+            Command Palette
+          </h2>
+          <PaletteAnnouncer announce={announceRef.current} />
+          <div className="palette-body">
+            {phase === "toolSelect" ? (
+              <ToolSelectPhase
+                inputRef={inputRef}
+                httpFactory={props.httpFactory}
+                activeContextSnapshot={frozenHeaderSnapshot ?? activeContextSnapshot}
+                {...frozenListProps}
+              />
+            ) : ctx !== null ? (
+              <ParamSelectPhase ctx={ctx} />
+            ) : (
+              <div role="alert" className="palette-error" data-testid="palette-ctx-error">
+                Command palette unavailable (http client invalid)
+              </div>
+            )}
+          </div>
+          <PaletteFooter
+            phase={phase}
+            snapshot={ctx !== null ? frozenHeaderSnapshot : undefined}
+            flashSeq={headerFlashSeq}
+            statusText={liveStatusText}
+            submitting={submitting}
+            composing={composing}
+            onBack={() => usePaletteStore.getState().back()}
+            onClose={() => usePaletteStore.getState().close()}
+          />
           {error !== null && (
             <div role="alert" className="palette-error" data-testid="palette-error">
               {error}

@@ -106,9 +106,11 @@ describe("CommandPalette", () => {
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(dialog.getAttribute("aria-labelledby")).toBe("palette-title");
     expect(screen.getByText("Command Palette").id).toBe("palette-title");
-    // FR-C5: header chrome labels are English.
-    expect(screen.getByTestId("palette-back").getAttribute("aria-label")).toBe("Back");
-    expect(screen.getByTestId("palette-close").getAttribute("aria-label")).toBe("Close");
+    // No footer close button — dismissal is Esc / overlay click only.
+    expect(screen.queryByTestId("palette-close")).toBeNull();
+    expect(
+      screen.queryByText("Command Palette", { selector: "h2.palette-header__title" }),
+    ).toBeNull();
   });
 
   it("portals to document.body so z-index parents do not clip it", () => {
@@ -350,9 +352,13 @@ describe("CommandPalette", () => {
     expect(backSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("header back button calls store.back()", () => {
+  it("footer back button calls store.back() in paramSelect phase", () => {
     act(() => {
-      usePaletteStore.setState({ open: true });
+      usePaletteStore.setState({
+        open: true,
+        phase: "paramSelect",
+        selectedToolId: "new-session",
+      });
     });
     renderShell();
     const backSpy = vi.fn();
@@ -364,7 +370,7 @@ describe("CommandPalette", () => {
     expect(backSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("header close button calls store.close()", () => {
+  it("overlay mousedown outside the dialog calls store.close() (no close button)", () => {
     act(() => {
       usePaletteStore.setState({ open: true });
     });
@@ -376,7 +382,8 @@ describe("CommandPalette", () => {
       close: closeSpy as unknown as ReturnType<typeof usePaletteStore.getState>["close"],
     });
 
-    fireEvent.click(screen.getByTestId("palette-close"));
+    expect(screen.queryByTestId("palette-close")).toBeNull();
+    fireEvent.mouseDown(screen.getByTestId("palette-overlay"));
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -470,7 +477,7 @@ describe("CommandPalette", () => {
     expect(screen.getByTestId("palette-active-context")).toBeDefined();
   });
 
-  it("ActiveContextHeader is NOT rendered when httpFactory returns invalid API (ctx === null)", () => {
+  it("footer context is still rendered when httpFactory returns invalid API (ctx === null)", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     act(() => {
       usePaletteStore.setState({ open: true, phase: "toolSelect" });
@@ -481,7 +488,7 @@ describe("CommandPalette", () => {
         httpFactory={(() => ({}) as any) as () => SessionsApi}
       />,
     );
-    expect(screen.queryByTestId("palette-active-context")).toBeNull();
+    expect(screen.getByTestId("palette-active-context")).toBeDefined();
     errorSpy.mockRestore();
   });
 

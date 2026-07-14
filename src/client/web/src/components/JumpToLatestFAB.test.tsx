@@ -19,7 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useJumpToLatest } from "../hooks/useJumpToLatest";
 import { JumpToLatestFAB } from "./JumpToLatestFAB";
 
-const LABEL = "最新へスクロール";
+const LABEL = "Scroll to latest";
 const SELECTOR = `[aria-label="${LABEL}"]`;
 
 // ---------------------------------------------------------------------------

@@ -21,12 +21,12 @@ describe("KeyboardFAB — a11y + toggle sync", () => {
   it("UAC-026: aria-label / aria-pressed track the active state", () => {
     const { rerender } = render(<KeyboardFAB active={false} onToggle={() => {}} />);
     const closed = screen.getByRole("button");
-    expect(closed.getAttribute("aria-label")).toBe("キーボードを開く");
+    expect(closed.getAttribute("aria-label")).toBe("Open keyboard");
     expect(closed.getAttribute("aria-pressed")).toBe("false");
 
     rerender(<KeyboardFAB active={true} onToggle={() => {}} />);
     const open = screen.getByRole("button");
-    expect(open.getAttribute("aria-label")).toBe("キーボードを閉じる");
+    expect(open.getAttribute("aria-label")).toBe("Close keyboard");
     expect(open.getAttribute("aria-pressed")).toBe("true");
   });
 

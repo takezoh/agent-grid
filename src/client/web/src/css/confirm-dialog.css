@@ -10,7 +10,7 @@
   position: fixed;
   inset: 0;
   z-index: 90;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--overlay-scrim);
   backdrop-filter: blur(2px);
   border: none;
   padding: 0;
@@ -20,7 +20,7 @@
 }
 
 .confirm-dialog__scrim:focus-visible {
-  outline: 2px solid var(--accent, #60a5fa);
+  outline: 2px solid var(--accent);
   outline-offset: -4px;
 }
 
@@ -50,11 +50,11 @@
 }
 
 .confirm-dialog__panel {
-  background: var(--bg, #1e1e1e);
-  color: var(--fg, #e6e6e6);
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.15));
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--input-border);
   border-radius: 12px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-dialog);
   padding: 20px 24px 16px;
   display: flex;
   flex-direction: column;
@@ -72,7 +72,7 @@
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.6;
-  color: var(--fg, #e6e6e6);
+  color: var(--fg);
   word-break: break-word;
 }
 
@@ -87,20 +87,20 @@
   min-height: 36px;
   padding: 6px 16px;
   border-radius: 8px;
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.15));
-  background: var(--input-bg, rgba(255, 255, 255, 0.05));
-  color: var(--fg, #e6e6e6);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--fg);
   font-size: 0.9rem;
   cursor: pointer;
   transition: background-color 120ms ease-out, border-color 120ms ease-out;
 }
 
 .confirm-dialog__btn:hover:not(:disabled) {
-  background: var(--input-bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--input-bg-hover);
 }
 
 .confirm-dialog__btn:focus-visible {
-  outline: 2px solid var(--accent, #60a5fa);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -110,14 +110,14 @@
 }
 
 .confirm-dialog__btn--destructive {
-  background: var(--danger, #dc2626);
-  color: #fff;
-  border-color: var(--danger, #dc2626);
+  background: var(--danger);
+  color: var(--on-danger);
+  border-color: var(--danger);
 }
 
 .confirm-dialog__btn--destructive:hover:not(:disabled) {
-  background: var(--danger-hover, #b91c1c);
-  border-color: var(--danger-hover, #b91c1c);
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
 }
 
 /* ─── Variant: modal (PC) — 画面中央. ──────────────────────────────────── */

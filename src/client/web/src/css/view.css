@@ -1,4 +1,4 @@
-/* view.css — component styles for RunStateBadge, DriverViewPanel, LogTabSelector */
+/* view.css — component styles for RunStateBadge, StatusBar, LogTabSelector, MainTabs */
 
 /* ─── RunStateBadge ─────────────────────────────────────────────────────── */
 /* ADR-0078: spinner / inactive-icon visuals live in status-icon.css. The
@@ -13,28 +13,29 @@
   line-height: 16px;
   font-weight: 600;
 }
+/* Soft pill: translucent status fill + vivid status text (web-ui-refresh). */
 .run-state-running {
-  background: var(--status-running);
-  color: var(--badge-text-on-dark);
+  background: var(--status-running-soft);
+  color: var(--status-running);
 }
 .run-state-waiting {
-  background: var(--status-waiting);
-  color: var(--badge-text-on-bright);
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
 }
 .run-state-idle {
-  background: var(--status-idle);
-  color: var(--badge-text-on-dark);
+  background: var(--status-idle-soft);
+  color: var(--fg-muted);
 }
 .run-state-stopped {
-  background: var(--status-stopped);
-  color: var(--badge-text-on-dark);
+  background: var(--status-stopped-soft);
+  color: var(--status-stopped);
 }
 .run-state-pending {
-  background: var(--status-pending);
-  color: var(--badge-text-on-dark);
+  background: var(--status-pending-soft);
+  color: var(--status-pending);
 }
 .run-state-unknown {
-  background: var(--status-unknown);
+  background: var(--status-unknown-soft);
   color: var(--fg-muted);
 }
 
@@ -58,118 +59,55 @@
   box-sizing: border-box;
 }
 .session-status-running {
-  color: var(--session-status-running);
+  color: var(--status-running);
 }
 .session-status-waiting {
-  color: var(--session-status-waiting);
+  color: var(--status-waiting);
 }
 .session-status-idle {
-  color: var(--fg-muted);
+  color: var(--status-idle);
 }
 .session-status-stopped {
-  color: var(--session-status-stopped);
+  color: var(--status-stopped);
 }
 .session-status-pending {
-  color: var(--session-status-pending);
+  color: var(--status-pending);
 }
 .session-status-unknown {
   color: var(--status-idle);
 }
 
-/* ─── DriverViewPanel ───────────────────────────────────────────────────── */
-/* flex-shrink: 0 同じ理由: .terminal-host (flex:1 1 0) と並ぶ flex 兄弟が
-   潰されないよう content height を保証する。詳細は .log-tab-selector のコメント参照。 */
-.driver-view-panel {
+/* ─── StatusBar (FR-023) ────────────────────────────────────────────────── */
+.status-bar {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 0;
-  flex-shrink: 0;
-}
-.driver-view-header {
-  display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 var(--space-4);
+  border-top: 1px solid var(--border-hairline);
+  background: var(--bg);
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+  line-height: 1;
 }
-.driver-view-titles {
+.status-bar__left {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: var(--space-3);
   min-width: 0;
   flex: 1 1 auto;
 }
-/* RunStateBadge + SessionTerminateButton をまとめる右側 cluster.
-   header は align-items: flex-start なので、cluster 内では vertical center を
-   ローカルに復活させて badge と button の baseline を合わせる. */
-.driver-view-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.status-bar__line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.status-bar__elapsed,
+.status-bar__connection {
   flex-shrink: 0;
-}
-.driver-view-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--fg);
-}
-.driver-view-metadata {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.driver-view-meta-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 6px;
-  border-radius: 999px;
-  border: 1px solid var(--hairline);
-  color: var(--fg-muted);
-  font-size: 11px;
-  line-height: 1.6;
-  background: color-mix(in srgb, var(--surface) 86%, transparent);
-}
-.driver-view-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.driver-tag {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  background: var(--status-unknown);
-  color: var(--fg);
-}
-.driver-view-border {
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  opacity: 0.75;
-}
-.border-title {
-  font-weight: 600;
-}
-.border-title-secondary {
-  font-style: italic;
-}
-.border-badge {
-  border: 1px solid var(--status-idle);
-  padding: 0 4px;
-  border-radius: 4px;
-}
-.driver-view-footer {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
-  opacity: 0.8;
-}
-.status-line {
-  flex: 1;
-}
-.status-elapsed {
   font-variant-numeric: tabular-nums;
 }
 
@@ -244,21 +182,32 @@
 }
 .log-tab-row {
   display: flex;
-  gap: 2px;
-  border-bottom: 1px solid var(--input-border);
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border-hairline);
+  flex-shrink: 0;
 }
 .log-tab {
-  padding: 4px 12px;
+  padding: var(--space-2) var(--space-4);
   background: none;
-  color: var(--fg);
+  color: var(--fg-muted);
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  opacity: 0.6;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  font-family: var(--font-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+  transition: color var(--motion-1) var(--motion-ease), border-color var(--motion-1)
+    var(--motion-ease), opacity var(--motion-1) var(--motion-ease);
+}
+.log-tab:hover {
+  color: var(--fg);
+  opacity: 0.9;
 }
 .log-tab.active {
+  color: var(--fg);
   opacity: 1;
   border-bottom-color: var(--accent);
 }
@@ -320,10 +269,10 @@
   color: var(--fg);
   border: 1px solid var(--input-border);
   border-radius: 6px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
 }
 .create-session-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay-scrim-heavy);
 }
 .create-session {
   display: flex;
@@ -450,8 +399,8 @@
   }
 
   /* Palette flash: ActiveContextHeader + ToolSelectPhase row flash */
-  .palette-active-context,
-  .palette-active-context--flash,
+  .palette-footer__context,
+  .palette-footer__context--flash,
   .palette-listbox__row--flash {
     animation: none !important;
     transition: none !important;
@@ -483,6 +432,17 @@
   .main-tab,
   .main-tab-panel {
     transition: none !important;
+  }
+
+  /* Workspace drawer + tree (FR-031 / FR-033 / UAC-021) */
+  .workspace-drawer,
+  .workspace-drawer::backdrop,
+  .workspace-drawer__panel,
+  .workspace-tree__chevron,
+  .workspace-editor__save-spinner {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
   }
 
   /* Mobile terminal overlays (ADR 0069/0072/0073, FR-MOB-JUMP-006). */

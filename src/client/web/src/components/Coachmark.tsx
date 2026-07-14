@@ -18,12 +18,8 @@
 
 import type { JSX } from "react";
 
-/**
- * Spec hint copy ("tap to type / two fingers to resize"), \u-escaped to satisfy
- * ADR-0049 (english-only source) while keeping the rendered string faithful.
- */
-const COACHMARK_TEXT =
-  "\u30BF\u30C3\u30D7\u3067\u5165\u529B / 2 \u672C\u6307\u3067\u6587\u5B57\u30B5\u30A4\u30BA";
+/** First-run hint copy (mobile view mode). */
+const COACHMARK_TEXT = "Tap to type / pinch to resize text";
 
 export interface CoachmarkProps {
   /** Tap handler (useCoachmarkOnce.dismiss); ends the coachmark immediately. */

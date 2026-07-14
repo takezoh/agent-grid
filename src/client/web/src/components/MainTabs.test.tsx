@@ -777,4 +777,16 @@ describe("MainTabs", () => {
       }
     });
   });
+
+  it("FR-025: underline tab styles are token-driven in view.css", async () => {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const cssPath = path.join(import.meta.dirname ?? __dirname, "..", "css", "view.css");
+    const source = await fs.readFile(cssPath, "utf-8");
+    expect(source).toMatch(/\.log-tab\.active\s*\{[\s\S]*?border-bottom-color:\s*var\(--accent\)/);
+    expect(source).toMatch(
+      /\.log-tab-row\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--border-hairline\)/,
+    );
+    expect(source).toMatch(/font-size:\s*var\(--text-xs\)/);
+  });
 });

@@ -72,17 +72,6 @@ describe("InlineStatus — emitDisabledFeedback (FR-031 / FR-033)", () => {
     expect(slot.textContent).toContain('"save" is unavailable: No active session');
   });
 
-  it("renders a warning icon ('!') alongside the message", () => {
-    renderStatus();
-    act(() => {
-      usePaletteStore.getState().emitDisabledFeedback("run", "No active session");
-    });
-    const slot = screen.getByTestId("palette-inline-status");
-    const icon = slot.querySelector(".palette-inline-status__icon");
-    expect(icon).toBeTruthy();
-    expect(icon?.getAttribute("aria-hidden")).toBe("true");
-  });
-
   // UAC-017 / FR-031 — same-message re-emit causes DOM remount (data-seq changes)
   it("increments data-seq on each re-emit, even for identical messages", () => {
     renderStatus();

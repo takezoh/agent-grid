@@ -1,7 +1,7 @@
-import { getCM, Vim, vim } from "@replit/codemirror-vim";
 import { history } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { Vim, getCM, vim } from "@replit/codemirror-vim";
 import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createVimMotionState, dispatchVimKey } from "./workspaceVimKeymap";

@@ -304,7 +304,7 @@ describe("M4: shell.css grid-template-areas contract (FR-LAYOUT-001/003)", () =>
     const tabletBlock = source.split("@media (min-width: 768px) and (max-width: 1023px)")[1];
     expect(tabletBlock).toBeDefined();
     expect(tabletBlock).toMatch(
-      /grid-template-areas:[\s\S]*?"banner banner"[\s\S]*?"header header"[\s\S]*?"sidebar main"/,
+      /grid-template-areas:[\s\S]*?"banner banner"[\s\S]*?"sidebar header"[\s\S]*?"sidebar main"/,
     );
   });
 
@@ -315,7 +315,7 @@ describe("M4: shell.css grid-template-areas contract (FR-LAYOUT-001/003)", () =>
     const desktopBlock = source.split("@media (min-width: 1024px)")[1];
     expect(desktopBlock).toBeDefined();
     expect(desktopBlock).toMatch(
-      /grid-template-areas:[\s\S]*?"banner banner"[\s\S]*?"header header"[\s\S]*?"sidebar main"/,
+      /grid-template-areas:[\s\S]*?"banner banner"[\s\S]*?"sidebar header"[\s\S]*?"sidebar main"/,
     );
   });
 });

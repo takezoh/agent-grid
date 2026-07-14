@@ -6,7 +6,7 @@ export type UseTranscriptOpts = {
   sessionId: string;
   kind: TranscriptKindParam;
   bearerToken: string;
-  // テスト注入用
+  // injectable for tests
   fetchFn?: typeof fetch;
 };
 
@@ -27,7 +27,7 @@ export function useTranscript(opts: UseTranscriptOpts): void {
       }
       // empty / not-modified: no-op
     })().catch(() => {
-      /* swallow — toast 通知は別 PR */
+      /* swallow — toast notification is a separate PR */
     });
     return () => {
       cancelled = true;

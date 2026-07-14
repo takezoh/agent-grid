@@ -218,19 +218,15 @@ describe("WorkspaceDrawer", () => {
 
     function Harness({ withDrawer }: { withDrawer: boolean }) {
       return (
-        <div className="main-with-activity-rail" data-testid="main-with-activity-rail">
-          <div className="main-with-activity-rail__tabs">
+        <div className="main-with-changes" data-testid="main-with-changes">
+          <div className="main-with-changes__terminal">
             <div className="main-tabs-body">
               <div className="terminal-slot" data-testid="terminal-slot">
                 slot
               </div>
             </div>
           </div>
-          {withDrawer && (
-            <>
-              <WorkspaceDrawer sessionId="s1" />
-            </>
-          )}
+          {withDrawer && <WorkspaceDrawer sessionId="s1" />}
         </div>
       );
     }

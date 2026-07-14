@@ -39,7 +39,7 @@ describe("inputModeReducer — pure transitions", () => {
     expect(off).toEqual({ active: false, lastMessage: null });
   });
 
-  it("UAC-006: exit('blur') and exit('esc') announce '閲覧モードに戻りました'", () => {
+  it("UAC-006: exit('blur') and exit('esc') announce 'Returned to view mode'", () => {
     const active: InputModeState = { active: true, lastMessage: null };
     expect(inputModeReducer(active, { type: "exit", reason: "blur" })).toEqual({
       active: false,

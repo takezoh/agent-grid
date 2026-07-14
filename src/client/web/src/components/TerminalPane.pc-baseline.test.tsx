@@ -50,10 +50,10 @@ import { TerminalPane } from "./TerminalPane";
 //   ARIA_KEYBOARD_CLOSE -> KeyboardFAB input-mode label (close keyboard)
 //   ARIA_JUMP_LATEST    -> JumpToLatestFAB label (jump to latest)
 //   ARIA_FONT_SIZE      -> FontSizeControl label (font size)
-const ARIA_KEYBOARD_OPEN = "\u30AD\u30FC\u30DC\u30FC\u30C9\u3092\u958B\u304F";
-const ARIA_KEYBOARD_CLOSE = "\u30AD\u30FC\u30DC\u30FC\u30C9\u3092\u9589\u3058\u308B";
-const ARIA_JUMP_LATEST = "\u6700\u65B0\u3078\u30B9\u30AF\u30ED\u30FC\u30EB";
-const ARIA_FONT_SIZE = "\u6587\u5B57\u30B5\u30A4\u30BA";
+const ARIA_KEYBOARD_OPEN = "Open keyboard";
+const ARIA_KEYBOARD_CLOSE = "Close keyboard";
+const ARIA_JUMP_LATEST = "Scroll to latest";
+const ARIA_FONT_SIZE = "Font size";
 
 // FAB / overlay discriminator selectors. None may exist in the DOM while the
 // gate is false. Combines the spec aria-labels with the structural contract

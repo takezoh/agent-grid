@@ -338,14 +338,14 @@ describe("SessionList status indicator", () => {
   });
 });
 
-// ─── Inline driver chip on the title row ─────────────────────────────────
-describe("SessionList driver chip (inlined into title row)", () => {
+// ─── FR-009 metadata line (driver · model · effort) ───────────────────────
+describe("SessionList metadata line (FR-009 / UAC-003)", () => {
   beforeEach(() => {
     useDaemonStore.getState().reset();
     vi.clearAllMocks();
   });
 
-  it("renders the driver chip inside the title row when root_driver is set", () => {
+  it("renders driver · model · effort on the mono metadata line", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -354,20 +354,41 @@ describe("SessionList driver chip (inlined into title row)", () => {
           command: "claude",
           root_driver: "claude",
           created_at: "2026-06-20T00:00:00Z",
+          view: {
+            card: { title: "alpha" },
+            model: "gpt-5",
+            effort: "high",
+            status: "running",
+          },
+        },
+      ],
+    });
+    const { container } = render(<SessionList conn={fakeConn} />);
+    const meta = container.querySelector(".session-list__meta");
+    expect(meta?.textContent).toBe("claude · gpt-5 · high");
+    expect(container.querySelector(".session-list__driver")).toBeNull();
+    expect(
+      container.querySelector(".session-list__title-row")?.querySelector(".session-list__driver"),
+    ).toBeNull();
+  });
+
+  it("omits metadata line when driver/model/effort are all absent", () => {
+    useDaemonStore.setState({
+      sessions: [
+        {
+          id: "s1",
+          project: "/repo/p",
+          command: "claude",
+          created_at: "2026-06-20T00:00:00Z",
           view: { card: { title: "alpha" }, status: "running" },
         },
       ],
     });
     const { container } = render(<SessionList conn={fakeConn} />);
-    const driver = container.querySelector(".session-list__driver");
-    expect(driver).not.toBeNull();
-    expect(driver?.textContent).toBe("claude");
-    const titleRow = container.querySelector(".session-list__title-row");
-    expect(titleRow?.querySelector(".session-list__driver")).not.toBeNull();
-    expect(titleRow?.querySelector(".session-list__title")).not.toBeNull();
+    expect(container.querySelector(".session-list__meta")).toBeNull();
   });
 
-  it("applies the brand color from driverColor() as inline style", () => {
+  it("renders driver tag chips in metadata row, not the title line (FR-022 / UAC-003)", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -376,174 +397,28 @@ describe("SessionList driver chip (inlined into title row)", () => {
           command: "codex",
           root_driver: "codex",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    const chip = container.querySelector<HTMLElement>(".session-list__driver");
-    expect(chip).not.toBeNull();
-    expect(chip?.style.backgroundColor.toLowerCase()).toBe("#10a37f");
-    expect(chip?.style.color.toLowerCase()).toBe("#ffffff");
-  });
-
-  it("falls back to the default command tag color for unknown drivers", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "/repo/p",
-          command: "weirdcli",
-          root_driver: "weirdcli",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    const chip = container.querySelector<HTMLElement>(".session-list__driver");
-    expect(chip).not.toBeNull();
-    expect(chip?.style.backgroundColor.toLowerCase()).toBe("#d97757");
-  });
-
-  it("omits the driver chip when root_driver is absent", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "/repo/p",
-          command: "claude",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelector(".session-list__driver")).toBeNull();
-  });
-
-  it("does NOT render a separate legacy meta row (driver lives inline)", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "/repo/p",
-          command: "claude",
-          root_driver: "claude",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelector(".session-list__meta")).toBeNull();
-    expect(container.querySelector(".session-list__meta-driver")).toBeNull();
-    expect(container.querySelector(".session-list__meta-subtitle")).toBeNull();
-  });
-});
-
-// ─── Tag row ────────────────────────────────────────────────────────────────
-describe("SessionList tag row", () => {
-  beforeEach(() => {
-    useDaemonStore.getState().reset();
-    vi.clearAllMocks();
-  });
-
-  it("renders model/effort metadata pills in the tag row", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "proj",
-          command: "codex",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, model: "gpt-5", effort: "high", status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    const row = container.querySelector(".session-list__tags");
-    expect(row?.textContent).toContain("gpt-5");
-    expect(row?.textContent).toContain("high");
-  });
-
-  it("renders only the present metadata pill when one side is missing", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "proj",
-          command: "codex",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, model: "gpt-5", status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    const pills = [...container.querySelectorAll(".session-list__meta-pill")].map(
-      (el) => el.textContent,
-    );
-    expect(pills).toEqual(["gpt-5"]);
-  });
-
-  it("renders card.tags as pills", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "/repo/p",
-          command: "claude",
-          created_at: "2026-06-20T00:00:00Z",
           view: {
             card: {
               title: "alpha",
               tags: [
-                { text: "worktree", fg: "#fff", bg: "#3a3a3a" },
-                { text: "host", bg: "#226622" },
+                { text: "tag-a", fg: "#000", bg: "#fff" },
+                { text: "tag-b", bg: "#333" },
               ],
             },
             status: "running",
+            model: "gpt-5",
           },
         },
       ],
     });
     const { container } = render(<SessionList conn={fakeConn} />);
-    const tagRow = container.querySelector(".session-list__tags");
-    expect(tagRow).not.toBeNull();
-    expect(tagRow?.textContent).toMatch(/worktree/);
-    expect(tagRow?.textContent).toMatch(/host/);
-  });
-
-  it("renders card.border_badge inside the tag row", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "/repo/p",
-          command: "claude",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha", border_badge: "Q3" }, status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelector(".session-list__badge")?.textContent).toBe("Q3");
-  });
-
-  it("hides the tag row entirely when no tags and no border_badge", () => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "/repo/p",
-          command: "claude",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelector(".session-list__tags")).toBeNull();
+    expect(container.querySelector(".session-list__driver")).toBeNull();
+    const titleRow = container.querySelector(".session-list__title-row");
+    expect(titleRow?.querySelector(".session-list__tags")).toBeNull();
+    const tags = container.querySelector(".session-list__tags");
+    expect(tags).not.toBeNull();
+    expect(tags?.textContent).toContain("tag-a");
+    expect(tags?.textContent).toContain("tag-b");
   });
 });
 
@@ -1049,8 +924,8 @@ describe("FR-TOKEN-001: row sizing tokens", () => {
   });
 });
 
-// ─── caret-rail signature ──────────────────────────────────────────────────
-describe("SessionList active accent (caret rail signature)", () => {
+// ─── FR-010 selection vs focus ─────────────────────────────────────────────
+describe("SessionList selection accent (FR-010 / UAC-001)", () => {
   beforeEach(() => {
     useDaemonStore.getState().reset();
     vi.clearAllMocks();
@@ -1082,23 +957,20 @@ describe("SessionList active accent (caret rail signature)", () => {
     expect(activeRows[0]?.textContent).toMatch(/beta/);
   });
 
-  it("session-list.css declares caret rail ::before for committed-active row", () => {
+  it("session-list.css uses --accent-soft for committed-active row background", () => {
+    const cssDir = path.resolve(__dirname, "../css");
+    const css = fs.readFileSync(path.join(cssDir, "session-list.css"), "utf-8");
+    expect(css).toContain("var(--accent-soft)");
+    expect(css).toContain("var(--focus-ring)");
+  });
+
+  it("session-list.css declares stopped outline-only dot for sidebar (UAC-002)", () => {
     const cssDir = path.resolve(__dirname, "../css");
     const css = fs.readFileSync(path.join(cssDir, "session-list.css"), "utf-8");
     expect(css).toContain(
-      ".session-list .unified-listbox__option:has(.session-list__row--active)::before",
+      ".session-list .session-status-stopped .status-icon--stopped .status-icon__square",
     );
-    expect(css).toContain("animation: palette-row-caret-in");
-    expect(css).toContain("var(--rail-accent)");
-  });
-
-  it("view.css consolidates reduced-motion guard for the caret rail (ADR-0064)", () => {
-    const cssDir = path.resolve(__dirname, "../css");
-    const viewCss = fs.readFileSync(path.join(cssDir, "view.css"), "utf-8");
-    expect(viewCss).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(viewCss).toContain(
-      ".session-list .unified-listbox__option:has(.session-list__row--active)::before",
-    );
+    expect(css).toContain("fill: none");
   });
 });
 

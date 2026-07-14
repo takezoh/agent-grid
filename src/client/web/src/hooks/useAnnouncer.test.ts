@@ -9,7 +9,7 @@ import { type ReactNode, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ANNOUNCER_DEBOUNCE_MS, AnnouncerProvider, useAnnouncer } from "./useAnnouncer";
 
-const MSG = "閲覧モードに戻りました";
+const MSG = "Returned to view mode";
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(AnnouncerProvider, null, children);

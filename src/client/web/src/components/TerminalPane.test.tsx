@@ -18,13 +18,13 @@ import { TerminalPane } from "./TerminalPane";
 //   ARIA_KEYBOARD_OPEN  → KeyboardFAB idle label (open keyboard)
 //   ARIA_KEYBOARD_CLOSE → KeyboardFAB input-mode label (close keyboard)
 //   ARIA_FONT_SIZE      → FontSizeControl trigger label (font size)
-const ARIA_KEYBOARD_OPEN = "\u30AD\u30FC\u30DC\u30FC\u30C9\u3092\u958B\u304F";
-const ARIA_KEYBOARD_CLOSE = "\u30AD\u30FC\u30DC\u30FC\u30C9\u3092\u9589\u3058\u308B";
-const ARIA_FONT_SIZE = "\u6587\u5B57\u30B5\u30A4\u30BA";
-// ARIA_JUMP_LATEST -> JumpToLatestFAB label ('jump to latest', cross-task UAC-014/015)
-const ARIA_JUMP_LATEST = "\u6700\u65B0\u3078\u30B9\u30AF\u30ED\u30FC\u30EB";
-// VIEW_MODE_TEXT   -> AriaLive announcement on blur/Esc exit ('returned to view mode', UAC-006)
-const VIEW_MODE_TEXT = "\u95B2\u89A7\u30E2\u30FC\u30C9\u306B\u623B\u308A\u307E\u3057\u305F";
+const ARIA_KEYBOARD_OPEN = "Open keyboard";
+const ARIA_KEYBOARD_CLOSE = "Close keyboard";
+const ARIA_FONT_SIZE = "Font size";
+// ARIA_JUMP_LATEST -> JumpToLatestFAB label (cross-task UAC-014/015)
+const ARIA_JUMP_LATEST = "Scroll to latest";
+// VIEW_MODE_TEXT   -> AriaLive announcement on blur/Esc exit (UAC-006)
+const VIEW_MODE_TEXT = "Returned to view mode";
 
 // ---------------------------------------------------------------------------
 // Helpers to grab the mocked FitAddon instance from vi.mock("@xterm/addon-fit")

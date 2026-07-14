@@ -11,9 +11,9 @@ import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { Coachmark } from "./Coachmark";
 
-// Spec hint copy, \u-escaped (ADR-0049 english-only source).
+// First-run hint copy (mobile view mode).
 const HINT =
-  "\u30BF\u30C3\u30D7\u3067\u5165\u529B / 2 \u672C\u6307\u3067\u6587\u5B57\u30B5\u30A4\u30BA";
+  "Tap to type / pinch to resize text";
 
 describe("Coachmark — ADR 0072 surface", () => {
   it("renders role='status' WITHOUT an aria-live attribute (orthogonal to AriaLiveStatus)", () => {

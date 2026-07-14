@@ -1,4 +1,4 @@
-// JumpToLatestFAB — the ↓最新 (jump-to-latest) FAB (FR-MOB-JUMP-001..004,
+// JumpToLatestFAB — the jump-to-latest FAB (FR-MOB-JUMP-001..004,
 // ADR 0073 / 0075, WCAG 4.1.2 / 2.5.5).
 //
 // A thin wrapper over the IconButton primitive (chunk-02): the 44×44 target, the
@@ -31,7 +31,7 @@ export function JumpToLatestFAB({ show, onJump }: JumpToLatestFABProps): JSX.Ele
     <IconButton
       className="jump-to-latest-fab"
       data-overlay=""
-      aria-label="最新へスクロール"
+      aria-label="Scroll to latest"
       onClick={onJump}
       icon={<span aria-hidden="true">↓</span>}
     />

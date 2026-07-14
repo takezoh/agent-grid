@@ -18,9 +18,11 @@ describe("workspace save", () => {
   });
 
   it("PUTs raw body with If-Unmodified-Since on success", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse({ updated_mtime: "Mon, 02 Jan 2024 00:00:00 GMT", path: "foo.ts" }, 200),
-    );
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ updated_mtime: "Mon, 02 Jan 2024 00:00:00 GMT", path: "foo.ts" }, 200),
+      );
     const api = makeWorkspaceApi(fetchFn);
     const resp = await api.save(
       "s1",
@@ -42,9 +44,9 @@ describe("workspace save", () => {
   });
 
   it("maps handle_stale (409)", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse({ error: "handle_stale", frame_generation: 3 }, 409),
-    );
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: "handle_stale", frame_generation: 3 }, 409));
     const api = makeWorkspaceApi(fetchFn);
     await expect(
       api.save("s1", "x.txt", { frameGeneration: 1, resolvedRootPath: "/w" }, "x"),
@@ -52,9 +54,14 @@ describe("workspace save", () => {
   });
 
   it("maps precondition_failed (412)", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse({ error: "precondition_failed", current_mtime: "Mon, 03 Jan 2024 00:00:00 GMT" }, 412),
-    );
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(
+          { error: "precondition_failed", current_mtime: "Mon, 03 Jan 2024 00:00:00 GMT" },
+          412,
+        ),
+      );
     const api = makeWorkspaceApi(fetchFn);
     await expect(
       api.save("s1", "x.txt", { frameGeneration: 1, resolvedRootPath: "/w" }, "x", "old"),

@@ -38,12 +38,12 @@ export function selectTopStatus(sessions: readonly SessionInfo[]): StatusKind {
 export type FaviconColors = Record<StatusKind, string>;
 
 export const FALLBACK_COLORS: FaviconColors = {
-  running: "#4cc586",
-  pending: "#6b9bff",
-  waiting: "#f0c14b",
-  idle: "#94a3b8",
-  stopped: "#b35858",
-  unknown: "#94a3b8",
+  running: "#2c7a4d",
+  pending: "#2c4a8a",
+  waiting: "#b59300",
+  idle: "#555555",
+  stopped: "#6e2222",
+  unknown: "#555555",
 };
 
 /** Build a 24×24 SVG document (static — no <animate> or CSS animations).

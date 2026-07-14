@@ -3,6 +3,9 @@
  * Used by TagPill (m5) to decide fg black/white for FR-TAGPILL-001.
  */
 
+export type Rgb = { r: number; g: number; b: number };
+export type Rgba = Rgb & { a: number };
+
 /** Convert a single sRGB channel (0–255 integer or 0–1 float) to linear light. */
 export function srgbToLinear(channel: number): number {
   const c = channel > 1 ? channel / 255 : channel;
@@ -33,7 +36,7 @@ export function contrastRatio(
  * Parse a CSS colour string into an { r, g, b } triplet (0–255 integers).
  * Accepts #RGB, #RRGGBB, and rgb(r, g, b). Returns null for unrecognised input.
  */
-export function parseColor(input: string): { r: number; g: number; b: number } | null {
+export function parseColor(input: string): Rgb | Rgba | null {
   const s = input.trim();
 
   const hex6 = /^#([0-9a-f]{6})$/i.exec(s);
@@ -56,5 +59,30 @@ export function parseColor(input: string): { r: number; g: number; b: number } |
     return { r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) };
   }
 
+  const rgba = /^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*([0-9.]+)\s*\)$/i.exec(s);
+  if (rgba?.[1] && rgba[2] && rgba[3] && rgba[4]) {
+    return {
+      r: Number(rgba[1]),
+      g: Number(rgba[2]),
+      b: Number(rgba[3]),
+      a: Number(rgba[4]),
+    };
+  }
+
   return null;
+}
+
+/** True when the parsed colour carries an alpha channel. */
+export function isRgba(color: Rgb | Rgba): color is Rgba {
+  return "a" in color && typeof color.a === "number";
+}
+
+/** Alpha-composite `overlay` onto an opaque `base` background (straight alpha). */
+export function blendOver(overlay: Rgba, base: Rgb): Rgb {
+  const a = overlay.a;
+  return {
+    r: Math.round(overlay.r * a + base.r * (1 - a)),
+    g: Math.round(overlay.g * a + base.g * (1 - a)),
+    b: Math.round(overlay.b * a + base.b * (1 - a)),
+  };
 }

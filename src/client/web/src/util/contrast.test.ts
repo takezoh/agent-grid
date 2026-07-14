@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contrastRatio, parseColor, relativeLuminance, srgbToLinear } from "./contrast";
+import { blendOver, contrastRatio, parseColor, relativeLuminance, srgbToLinear } from "./contrast";
 
 describe("srgbToLinear", () => {
   it("returns 0 for black channel (0 integer)", () => {
@@ -88,5 +88,25 @@ describe("parseColor", () => {
   it("is case-insensitive for hex", () => {
     expect(parseColor("#FFFFFF")).toEqual({ r: 255, g: 255, b: 255 });
     expect(parseColor("#FFF")).toEqual({ r: 255, g: 255, b: 255 });
+  });
+
+  it("parses rgba(r, g, b, a)", () => {
+    expect(parseColor("rgba(74, 158, 255, 0.3)")).toEqual({
+      r: 74,
+      g: 158,
+      b: 255,
+      a: 0.3,
+    });
+  });
+});
+
+describe("blendOver", () => {
+  it("composites semi-transparent overlay onto opaque base", () => {
+    const base = { r: 30, g: 30, b: 30 };
+    const overlay = { r: 74, g: 158, b: 255, a: 0.12 };
+    const blended = blendOver(overlay, base);
+    expect(blended.r).toBe(Math.round(74 * 0.12 + 30 * 0.88));
+    expect(blended.g).toBe(Math.round(158 * 0.12 + 30 * 0.88));
+    expect(blended.b).toBe(Math.round(255 * 0.12 + 30 * 0.88));
   });
 });

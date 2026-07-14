@@ -149,9 +149,11 @@ describe("ToolSelectPhase — unified listbox structure", () => {
     const firstDisabledIdx = allOptElements.indexOf(disabledOpts[0]!);
     expect(lastEnabledIdx).toBeLessThan(firstDisabledIdx);
 
-    // Separator between groups.
-    const separator = screen.getByTestId("palette-separator");
-    expect(separator.getAttribute("role")).toBe("presentation");
+    // Section headings (FR-026).
+    expect(screen.getByTestId("palette-section-actions")).toBeDefined();
+    expect(screen.getByTestId("palette-section-push")).toBeDefined();
+    expect(screen.getByText("Actions")).toBeDefined();
+    expect(screen.getByText("Push")).toBeDefined();
   });
 
   it("maintains registry order within each group", () => {

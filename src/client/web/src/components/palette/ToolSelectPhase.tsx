@@ -32,10 +32,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useMemo } from "react";
-import { type FuzzyRange, fuzzyRank } from "../../lib/fuzzy";
-import { type ToolCtx, listTools } from "../../lib/tools";
+import { type FuzzyHit, type FuzzyRange, fuzzyRank } from "../../lib/fuzzy";
+import { type ToolCtx, type ToolDef, listTools } from "../../lib/tools";
 import { usePaletteStore } from "../../store/palette";
+import type { ActiveContextSnapshot } from "../../store/palette_active_context";
 import {
+  type SortedToolEntry,
   type SortedTools,
   resolveCursorBySelectedToolId,
   sortToolsForList,
@@ -80,16 +82,105 @@ function clamp(n: number, max: number): number {
 // ---------------------------------------------------------------------------
 
 export interface ToolSelectPhaseProps {
-  // inputRef: lets the CommandPalette shell call .focus() in response to
-  // store.refocusSeq increments.
   inputRef?: React.RefObject<HTMLInputElement>;
-  // httpFactory: swaps SessionsApi for hermetic tests.
   httpFactory?: () => ToolCtx["http"];
-  // ADR-0055 lift-state: when CommandPalette captures a submit snapshot it
-  // passes frozenList + frozenCursor here. The component renders those instead
-  // of subscribing to daemon selectors, and all interaction is disabled.
+  activeContextSnapshot?: ActiveContextSnapshot;
   frozenList?: SortedTools | null;
   frozenCursor?: number | null;
+}
+
+function pushSectionLabel(snap: ActiveContextSnapshot | undefined): string {
+  if (snap === undefined || snap.kind === "none") return "Push";
+  if (snap.kind === "unknown") return `Push · ${snap.sid8}`;
+  return `Push · ${snap.sid8}`;
+}
+
+function renderToolRow(
+  entry: SortedToolEntry,
+  opts: {
+    isFrozen: boolean;
+    clampedCursor: number;
+    flashTarget: { logicalIndex: number; seq: number } | null;
+    rankedLive: FuzzyHit<ToolDef>[];
+    composing: boolean;
+    submitting: boolean;
+    ctx: ToolCtx | null;
+    jumpCursorTo: (logicalIndex: number) => void;
+    setFlashTarget: React.Dispatch<
+      React.SetStateAction<{ logicalIndex: number; seq: number } | null>
+    >;
+  },
+): JSX.Element {
+  const isActive = entry.logicalIndex === opts.clampedCursor;
+  const label = entry.tool.label;
+  const rangesForEntry = opts.isFrozen
+    ? []
+    : (opts.rankedLive.find((h) => h.item.id === entry.tool.id)?.ranges ?? []);
+  const isFlashing =
+    opts.flashTarget !== null && opts.flashTarget.logicalIndex === entry.logicalIndex;
+
+  if (entry.enabled) {
+    return (
+      <div
+        key={entry.tool.id}
+        id={`palette-opt-${entry.logicalIndex}`}
+        // biome-ignore lint/a11y/useSemanticElements: combobox/listbox uses role="option" on generic elements
+        role="option"
+        tabIndex={-1}
+        aria-selected={isActive}
+        data-tool-id={entry.tool.id}
+        data-cursor={isActive ? "true" : "false"}
+        className={isFlashing ? "palette-listbox__row--flash" : undefined}
+        onPointerMove={() => {
+          if (opts.composing || opts.submitting || opts.isFrozen) return;
+          opts.jumpCursorTo(entry.logicalIndex);
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          const state = usePaletteStore.getState();
+          if (state.composing || state.submitting || opts.isFrozen) return;
+          void state.confirmTool(entry.tool.id, opts.ctx ?? undefined);
+        }}
+      >
+        {renderWithRanges(label, rangesForEntry)}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      key={entry.tool.id}
+      id={`palette-opt-${entry.logicalIndex}`}
+      // biome-ignore lint/a11y/useSemanticElements: combobox/listbox uses role="option" on generic elements
+      role="option"
+      tabIndex={-1}
+      aria-selected={isActive}
+      aria-disabled="true"
+      data-tool-id={entry.tool.id}
+      data-cursor={isActive ? "true" : "false"}
+      className={["palette-listbox__row--disabled", isFlashing ? "palette-listbox__row--flash" : ""]
+        .filter(Boolean)
+        .join(" ")}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        const state = usePaletteStore.getState();
+        if (state.composing || state.submitting || opts.isFrozen) return;
+        state.emitDisabledFeedback(entry.tool.label, entry.reason ?? "Unavailable");
+        opts.setFlashTarget((prev) => ({
+          logicalIndex: entry.logicalIndex,
+          seq: (prev?.seq ?? 0) + 1,
+        }));
+      }}
+    >
+      <span className="palette-listbox__row--disabled-icon" aria-hidden="true">
+        ⚠
+      </span>
+      <span className="palette-listbox__row--disabled-label">
+        {renderWithRanges(label, rangesForEntry)}
+      </span>
+      <span className="palette-listbox__row--disabled-reason">{entry.reason ?? "Unavailable"}</span>
+    </div>
+  );
 }
 
 export function ToolSelectPhase(props: ToolSelectPhaseProps = {}) {
@@ -268,6 +359,21 @@ export function ToolSelectPhase(props: ToolSelectPhaseProps = {}) {
   const activeDescendant =
     sorted.sorted.length > 0 && clampedCursor >= 0 ? `palette-opt-${clampedCursor}` : undefined;
 
+  const standardEntries = sorted.sorted.filter((e) => e.tool.scope === "standard");
+  const pushEntries = sorted.sorted.filter((e) => e.tool.scope === "push");
+
+  const rowOpts = {
+    isFrozen,
+    clampedCursor,
+    flashTarget,
+    rankedLive,
+    composing,
+    submitting,
+    ctx,
+    jumpCursorTo,
+    setFlashTarget,
+  };
+
   return (
     <div
       className="palette-tool-select"
@@ -291,12 +397,6 @@ export function ToolSelectPhase(props: ToolSelectPhaseProps = {}) {
         placeholder="Search commands..."
         data-testid="palette-input"
       />
-      {/*
-        ARIA combobox + listbox pattern: the combobox <input> owns focus via
-        aria-activedescendant. We use a single <div role="listbox"> containing
-        enabled options, a presentation separator, and disabled options (FR-001 / FR-002).
-        Role='option' elements are NOT individually focusable (WAI-ARIA combobox pattern).
-      */}
       <div
         id="palette-listbox"
         // biome-ignore lint/a11y/useSemanticElements: <select> cannot host a free-text combobox filter (FR-008); listbox role is the WAI-ARIA canonical fit
@@ -305,111 +405,24 @@ export function ToolSelectPhase(props: ToolSelectPhaseProps = {}) {
         aria-disabled={submitting || isFrozen ? true : undefined}
         aria-activedescendant={activeDescendant}
         data-testid="palette-listbox"
-        onMouseLeave={() => {
-          // FR-008 / UAC-008: mouseleave keeps cursor unchanged — no action.
-        }}
+        onMouseLeave={() => {}}
       >
-        {/* Enabled rows (FR-001) */}
-        {sorted.enabled.map((entry) => {
-          const isActive = entry.logicalIndex === clampedCursor;
-          const label = entry.tool.label;
-          // Find fuzzy ranges from ranked list (live only; frozen has no ranges).
-          const rangesForEntry = isFrozen
-            ? []
-            : (rankedLive.find((h) => h.item.id === entry.tool.id)?.ranges ?? []);
-          // FR-011 / UAC-014: flash class when this row newly transitioned from disabled.
-          const isFlashing =
-            flashTarget !== null && flashTarget.logicalIndex === entry.logicalIndex;
-          return (
-            <div
-              key={entry.tool.id}
-              id={`palette-opt-${entry.logicalIndex}`}
-              // biome-ignore lint/a11y/useSemanticElements: <option> only valid inside <select>; combobox/listbox uses role="option" on generic elements
-              role="option"
-              tabIndex={-1}
-              aria-selected={isActive}
-              data-tool-id={entry.tool.id}
-              data-cursor={isActive ? "true" : "false"}
-              className={isFlashing ? "palette-listbox__row--flash" : undefined}
-              onPointerMove={() => {
-                // FR-006 / UAC-006: pointermove on enabled row updates cursor.
-                if (composing || submitting || isFrozen) return;
-                jumpCursorTo(entry.logicalIndex);
-              }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const state = usePaletteStore.getState();
-                if (state.composing || state.submitting || isFrozen) return;
-                void state.confirmTool(entry.tool.id, ctx ?? undefined);
-              }}
-            >
-              {renderWithRanges(label, rangesForEntry)}
+        {standardEntries.length > 0 && (
+          <div className="palette-section" data-testid="palette-section-actions">
+            <div className="palette-section__heading" aria-hidden="true">
+              Actions
             </div>
-          );
-        })}
-
-        {/* Separator between enabled and disabled rows (FR-002) */}
-        {sorted.disabled.length > 0 && sorted.enabled.length > 0 && (
-          <div
-            role="presentation"
-            aria-hidden="true"
-            className="palette-listbox__separator"
-            data-testid="palette-separator"
-          />
+            {standardEntries.map((entry) => renderToolRow(entry, rowOpts))}
+          </div>
         )}
-
-        {/* Disabled rows (FR-002 / FR-003 / ADR-0047) */}
-        {sorted.disabled.map((entry) => {
-          const isActive = entry.logicalIndex === clampedCursor;
-          const isFlashing =
-            flashTarget !== null && flashTarget.logicalIndex === entry.logicalIndex;
-          const rangesForEntry = isFrozen
-            ? []
-            : (rankedLive.find((h) => h.item.id === entry.tool.id)?.ranges ?? []);
-          return (
-            <div
-              key={entry.tool.id}
-              id={`palette-opt-${entry.logicalIndex}`}
-              // biome-ignore lint/a11y/useSemanticElements: <option> only valid inside <select>; combobox/listbox uses role="option" on generic elements
-              role="option"
-              tabIndex={-1}
-              aria-selected={isActive}
-              aria-disabled="true"
-              data-tool-id={entry.tool.id}
-              data-cursor={isActive ? "true" : "false"}
-              className={[
-                "palette-listbox__row--disabled",
-                isFlashing ? "palette-listbox__row--flash" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              // FR-007 / UAC-007: pointermove on disabled row does not move cursor.
-              // We do NOT add onPointerMove; CSS :hover provides subtle visual feedback.
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const state = usePaletteStore.getState();
-                if (state.composing || state.submitting || isFrozen) return;
-                // FR-005 / FR-030: mousedown on disabled → feedback, no confirm.
-                state.emitDisabledFeedback(entry.tool.label, entry.reason ?? "Unavailable");
-                setFlashTarget((prev) => ({
-                  logicalIndex: entry.logicalIndex,
-                  seq: (prev?.seq ?? 0) + 1,
-                }));
-              }}
-            >
-              {/* FR-003: warning icon + reason inline */}
-              <span className="palette-listbox__row--disabled-icon" aria-hidden="true">
-                ⚠
-              </span>
-              <span className="palette-listbox__row--disabled-label">
-                {renderWithRanges(entry.tool.label, rangesForEntry)}
-              </span>
-              <span className="palette-listbox__row--disabled-reason">
-                {entry.reason ?? "Unavailable"}
-              </span>
+        {pushEntries.length > 0 && (
+          <div className="palette-section" data-testid="palette-section-push">
+            <div className="palette-section__heading" aria-hidden="true">
+              {pushSectionLabel(props.activeContextSnapshot)}
             </div>
-          );
-        })}
+            {pushEntries.map((entry) => renderToolRow(entry, rowOpts))}
+          </div>
+        )}
       </div>
     </div>
   );

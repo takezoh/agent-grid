@@ -11,22 +11,16 @@
 //     active-session highlight never drifts to a different project.
 //
 // ADRs retained:
-//   - ADR-0079 (Title chain `aiTitle → collapseToSingleLine(summary) → ""`
-//     resolved entirely in the driver layer; the Web client only adds the
-//     "New Session" placeholder. LastPrompt is not in the chain — raw user
-//     prompts must never surface as a card title. Card.Subtitle was removed
-//     as a follow-up: no consumer remained after the Web Subtitle row, TUI,
-//     and tools/builtin palette label were all retired.)
+//   - ADR-0079 (Title chain resolved in driver layer; Web adds placeholder)
 //   - ADR-0032 (session-status-slot + session-status-spinner kept)
-//   - ADR-0030 (conn prop retained for API compat; SessionList does not own
-//     subscriptions — TerminalPane owns them)
+//   - ADR-0030 (conn prop retained for API compat)
 //   - FR-A11Y-001 (44×44px touch target on every interactive row)
 //   - FR-TOKEN-001/002 (--row-* sizing tokens shared with palette listbox)
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { driverColor } from "../lib/driverColor";
 import type { Connection } from "../socket/connection";
 import "../css/view.css";
+import { formatElapsed, useNow1Hz } from "../hooks/useNow1Hz";
 import {
   DEFAULT_WORKSPACE,
   groupSessionsByProject,
@@ -41,19 +35,6 @@ import { UnifiedListbox } from "./primitives/UnifiedListbox";
 
 // ---------------------------------------------------------------------------
 // Title slot policy (ADR-0079)
-//
-// The session ID is NEVER rendered as user-visible text — operators do not
-// need to read it to identify a session. The full Title chain
-// (`aiTitle → collapseToSingleLine(summary) → ""`) is resolved in
-// driver/view_builder.go (`resolveCardTitle`) so by the time `card.title`
-// reaches the Web client it already carries the AI title or the user-prompt
-// summary (multi-line summaries are folded into one line at that layer).
-// The Web client only fills the final empty slot with TITLE_PLACEHOLDER.
-//
-// Card.Subtitle no longer exists on the wire (ADR-0079 follow-up) — the
-// Subtitle row was retired in ADR-0076 and the non-rendering consumers
-// cited by ADR-0079 §Decision 3 (state/reduce_peer.go, tools/builtin.go)
-// were both removed, so the field had no remaining reader.
 // ---------------------------------------------------------------------------
 
 export const TITLE_PLACEHOLDER = "New Session";
@@ -71,56 +52,30 @@ export function displayLabel(card: Card, _id: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Status helpers (ADR-0078, supersedes ADR-0032)
+// SessionRow — FR-009: dot + title + age / mono metadata line
 // ---------------------------------------------------------------------------
-//
-// Status narrowing lives in StatusIcon (toStatusKind). The legacy
-// .session-status-spinner element appears for active states (running /
-// waiting) only — see StatusIcon.activeClass — preserving the ADR-0032
-// DOM contract while every status now renders a visible icon.
-
-// ---------------------------------------------------------------------------
-// SessionRow — one row rendered inside UnifiedListbox as label prop
-// ---------------------------------------------------------------------------
-//
-// Card layout (one title slot — subtitle row removed):
-//
-//   ┃ ● <card.title or "New Session">      [driver]
-//   ┃   [tag] [tag]  <border_badge>
-//
-// Title is always shown (with TITLE_PLACEHOLDER fallback). Width clamping
-// happens in CSS (max-width + text-overflow: ellipsis) so the full string
-// stays in the DOM — copy/find/screen-readers all see the original text.
-// The Go driver layer also caps the raw value at 30 code-points as a backstop.
 
 interface SessionRowProps {
   session: SessionInfo;
   isActive: boolean;
 }
 
-function metadataPills(model?: string, effort?: string): string[] {
-  return [model?.trim(), effort?.trim()].filter((value): value is string => Boolean(value));
+function metadataLine(driver?: string, model?: string, effort?: string): string {
+  return [driver?.trim(), model?.trim(), effort?.trim()].filter(Boolean).join(" · ");
 }
 
 function SessionRow({ session, isActive }: SessionRowProps) {
+  const now = useNow1Hz();
   const card = session.view.card;
   const status = session.view.status;
   const normalized = toStatusKind(status);
   const title = titleText(card);
-  const metadata = metadataPills(session.view.model, session.view.effort);
-
   const driver = session.root_driver?.trim() || undefined;
-  // Memoize the chip style by driver name so the {backgroundColor, color}
-  // literal keeps stable identity across renders (React's reconciler can
-  // skip the style attribute update when the object hasn't changed).
-  const driverStyle = useMemo(() => {
-    if (!driver) return undefined;
-    const c = driverColor(driver);
-    return { backgroundColor: c.bg, color: c.fg };
-  }, [driver]);
+  const metadata = metadataLine(driver, session.view.model, session.view.effort);
   const tags = card.tags ?? [];
-  const borderBadge = card.border_badge;
-  const showTags = tags.length > 0 || Boolean(borderBadge) || metadata.length > 0;
+  const elapsed = session.view.status_changed_at
+    ? formatElapsed(now - new Date(session.view.status_changed_at).getTime())
+    : "";
 
   return (
     <div
@@ -143,28 +98,22 @@ function SessionRow({ session, isActive }: SessionRowProps) {
       <div className="session-list__content">
         <div className="session-list__title-row">
           <span className="session-list__title title">{title}</span>
-          {driver && (
-            <span
-              className="session-list__driver"
-              aria-label={`driver: ${driver}`}
-              title={driver}
-              style={driverStyle}
-            >
-              {driver}
+          {elapsed && (
+            <span className="session-list__age font-mono" aria-label="elapsed">
+              {elapsed}
             </span>
           )}
         </div>
-        {showTags && (
-          <div className="session-list__tags" aria-label="session tags">
-            {metadata.map((value, index) => (
-              <span key={`${index}-${value}`} className="session-list__meta-pill">
-                {value}
+        {(metadata || tags.length > 0) && (
+          <div className="session-list__meta-row" aria-label="session metadata">
+            {metadata && <span className="session-list__meta font-mono">{metadata}</span>}
+            {tags.length > 0 && (
+              <span className="session-list__tags">
+                {tags.map((tag, index) => (
+                  <TagPill key={`${index}-${tag.text}`} tag={tag} />
+                ))}
               </span>
-            ))}
-            {tags.map((t, i) => (
-              <TagPill key={`${i}-${t.text}`} tag={t} className="session-list__tag" />
-            ))}
-            {borderBadge && <span className="session-list__badge">{borderBadge}</span>}
+            )}
           </div>
         )}
       </div>
@@ -173,8 +122,7 @@ function SessionRow({ session, isActive }: SessionRowProps) {
 }
 
 // ---------------------------------------------------------------------------
-// WorkspaceSwitcher — segmented control wrapping the daemon store's
-// selectedWorkspace state. Renders nothing when ≤ 1 workspace exists.
+// WorkspaceSwitcher
 // ---------------------------------------------------------------------------
 
 interface WorkspaceSwitcherProps {
@@ -199,18 +147,14 @@ function WorkspaceSwitcher({ workspaces, selected, onChange }: WorkspaceSwitcher
 }
 
 // ---------------------------------------------------------------------------
-// ProjectGroup — disclosure header + nested UnifiedListbox of sessions
+// ProjectGroup
 // ---------------------------------------------------------------------------
 
 interface ProjectGroupProps {
-  /** Display name (basename of projectPath). */
   project: string;
-  /** Full path — the unique identity used as fold-state key. */
   projectPath: string;
   sessions: SessionInfo[];
   folded: boolean;
-  /** Receives the projectPath (not the display name) so distinct paths
-   *  with the same basename can be folded independently. */
   onToggleFold: (projectPath: string) => void;
   activeId: string | null;
   daemonDisconnected: boolean;
@@ -227,21 +171,11 @@ function ProjectGroup({
   daemonDisconnected,
   selectSession,
 }: ProjectGroupProps) {
-  // Per-project cursor (aria-activedescendant). Independent from
-  // activeSessionID so ArrowDown/Up navigates without committing. When the
-  // committed selection lands in this project, sync the cursor onto it.
   const activeInGroup = sessions.some((s) => s.id === activeId);
   const [cursorId, setCursorId] = useState<string | null>(
     activeInGroup ? activeId : (sessions[0]?.id ?? null),
   );
-  // Re-sync cursorId on activeId / session-set changes. Uses a functional
-  // update so cursorId itself doesn't need to be in the dep list — that
-  // would re-trigger the effect on every ArrowDown and snap the cursor
-  // back to activeId. Two branches:
-  //   - active session is in this group → cursor follows it
-  //   - current cursor target was removed → reset to first row (code-review
-  //     #4: view-update can delete the cursored session while active lives
-  //     elsewhere; without this the cursor would dangle on an unknown id)
+
   useEffect(() => {
     setCursorId((prev) => {
       if (activeInGroup) return activeId;
@@ -252,10 +186,6 @@ function ProjectGroup({
     });
   }, [activeId, activeInGroup, sessions]);
 
-  // useId gives a stable, valid id token without exposing the (possibly
-  // free-form) project path to HTML id / aria-controls IDREF rules
-  // (code-review #3). The static suffixes make the relation between the
-  // disclosure button and its panel readable in devtools.
   const uid = useId();
   const headerId = `${uid}-header`;
   const panelId = `${uid}-panel`;
@@ -307,8 +237,6 @@ export interface SessionListProps {
   conn: Connection;
 }
 
-// conn is retained in the prop signature for API compatibility; SessionList
-// does not own subscriptions (ADR 0030) — TerminalPane is the sole owner.
 export function SessionList({ conn: _conn }: SessionListProps) {
   const sessions = useDaemonStore((s) => s.sessions);
   const activeId = useDaemonStore((s) => s.activeSessionID);
@@ -319,10 +247,6 @@ export function SessionList({ conn: _conn }: SessionListProps) {
   const foldedProjects = useDaemonStore((s) => s.foldedProjects);
   const toggleProjectFold = useDaemonStore((s) => s.toggleProjectFold);
 
-  // Identity-stable sessions (applyViewUpdate preserves refs when content
-  // is unchanged) → useMemo can skip these passes on unrelated store updates
-  // (status / occupant / sessionConfig). Without memoization every SessionRow
-  // re-renders on a 1Hz tick from elsewhere in the tree (code-review #6).
   const workspaces = useMemo(() => selectDistinctWorkspaces(sessions), [sessions]);
   const groups = useMemo(
     () => groupSessionsByProject(sessions, selectedWorkspace),
@@ -348,10 +272,6 @@ export function SessionList({ conn: _conn }: SessionListProps) {
         <div className="session-list__projects">
           {groups.map((g) => (
             <ProjectGroup
-              // projectPath is the unique identity (basenames can collide
-              // across distinct paths). React key + foldedProjects key both
-              // ride projectPath so two repos named 'web' don't merge nor
-              // share a fold state.
               key={g.projectPath}
               project={g.project}
               projectPath={g.projectPath}

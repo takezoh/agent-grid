@@ -45,7 +45,7 @@ test("verify-editor-large-file-editing-performance: 200 keystrokes stay within b
     });
   });
 
-  await page.route(`**/api/sessions/session-1/workspace/file*`, async (route) => {
+  await page.route("**/api/sessions/session-1/workspace/file*", async (route) => {
     const url = new URL(route.request().url());
     if (route.request().method() === "GET" && url.searchParams.get("path") === LARGE_FILE_PATH) {
       await route.fulfill({
@@ -100,8 +100,12 @@ test("verify-editor-large-file-editing-performance: 200 keystrokes stay within b
     ],
   });
 
-  await expect(page.getByTestId("activity-rail")).toBeVisible();
+  // Changes rows live in the Workspace mode side panel now.
+  await page.getByRole("radio", { name: "Workspace" }).click();
+  await expect(page.getByTestId("workspace-changes")).toBeVisible();
   await page.locator(`[data-path="${LARGE_FILE_PATH}"]`).click();
+  // Edit rows open the Diff tab by default; switch to Viewer for the editor.
+  await page.getByRole("tab", { name: "Viewer" }).click();
   await expect(page.getByTestId("codemirror-editor")).toBeVisible({ timeout: 15_000 });
 
   const editor = page.getByTestId("codemirror-editor").locator(".cm-content");

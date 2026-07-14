@@ -133,16 +133,15 @@ describe("useChipHotkey", () => {
   // phase !== 'paramSelect' is no-op
   // -------------------------------------------------------------------------
 
-  it("phase='toolSelect' suppresses Alt+W", () => {
-    // UAC-009 / FR-018
+  it("phase='toolSelect' still toggles Alt+W when worktree chip is visible (FR-030)", () => {
     const { toggleWorktree } = installSpies();
     usePaletteStore.setState({ phase: "toolSelect" });
     const { unmount } = renderHook(() => useChipHotkey(defaultOpts()));
 
     const ev = dispatchKey({ code: "KeyW", altKey: true });
 
-    expect(toggleWorktree).not.toHaveBeenCalled();
-    expect(ev.defaultPrevented).toBe(false);
+    expect(toggleWorktree).toHaveBeenCalledTimes(1);
+    expect(ev.defaultPrevented).toBe(true);
 
     unmount();
   });
@@ -169,16 +168,15 @@ describe("useChipHotkey", () => {
   // commandFieldVisible=false is no-op
   // -------------------------------------------------------------------------
 
-  it("commandFieldVisible=false suppresses Alt+W", () => {
-    // UAC-009 / FR-018
+  it("commandFieldVisible=false still toggles Alt+W when worktree chip is visible (FR-030)", () => {
     const { toggleWorktree } = installSpies();
     const opts: ChipHotkeyOptions = { ...defaultOpts(), commandFieldVisible: false };
     const { unmount } = renderHook(() => useChipHotkey(opts));
 
     const ev = dispatchKey({ code: "KeyW", altKey: true });
 
-    expect(toggleWorktree).not.toHaveBeenCalled();
-    expect(ev.defaultPrevented).toBe(false);
+    expect(toggleWorktree).toHaveBeenCalledTimes(1);
+    expect(ev.defaultPrevented).toBe(true);
 
     unmount();
   });

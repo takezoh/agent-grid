@@ -24,7 +24,7 @@
   border-radius: 12px;
   background: var(--surface-canvas);
   border: 1px solid var(--border-color);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-fab);
   z-index: 1;
 }
 

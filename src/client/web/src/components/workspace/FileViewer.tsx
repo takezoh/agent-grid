@@ -1,12 +1,14 @@
 import { history } from "@codemirror/commands";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { Vim, vim } from "@replit/codemirror-vim";
 import {
   type KeyboardEvent,
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,6 +19,7 @@ import {
   type WorkspacePinnedHandle,
   makeWorkspaceApi,
 } from "../../api/workspace";
+import { buildCodeMirrorTheme } from "../../lib/codeMirrorTheme";
 import { attachWorkspaceVimKeymap } from "../../lib/workspaceVimKeymap";
 import { MetadataPlaceholder } from "./MetadataPlaceholder";
 import { JsonTreeRenderer } from "./renderers/JsonTreeRenderer";
@@ -39,6 +42,7 @@ export type FileViewerProps = {
   onSaveSuccess?: () => void;
   onSaveError?: (err: WorkspaceApiError) => void;
   saveDisabled?: boolean;
+  readOnlyReason?: string | null;
   skipPrecondition?: boolean;
 };
 
@@ -143,41 +147,30 @@ function SourceViewer({ content }: { content: string }): ReactNode {
   );
 }
 
+type EditorSaveState = "saved" | "dirty" | "saving" | "read-only";
+
 type CodeMirrorEditorProps = {
   content: string;
   readOnly?: boolean;
-  saveDisabled?: boolean;
-  sessionId?: string;
-  path?: string;
-  pinnedHandle?: WorkspacePinnedHandle;
-  ifUnmodifiedSince?: string;
-  skipPrecondition?: boolean;
+  viewRef: React.MutableRefObject<EditorView | null>;
+  baselineRef: React.MutableRefObject<string>;
+  onSaveRequestRef: React.MutableRefObject<(() => void) | null>;
   onDirtyChange?: (dirty: boolean) => void;
   onBufferChange?: (content: string) => void;
-  onSaveSuccess?: () => void;
-  onSaveError?: (err: WorkspaceApiError) => void;
 };
 
 function CodeMirrorEditor({
   content,
   readOnly = false,
-  saveDisabled = false,
-  sessionId,
-  path,
-  pinnedHandle,
-  ifUnmodifiedSince,
-  skipPrecondition = false,
+  viewRef,
+  baselineRef,
+  onSaveRequestRef,
   onDirtyChange,
   onBufferChange,
-  onSaveSuccess,
-  onSaveError,
 }: CodeMirrorEditorProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
-  const baselineRef = useRef(content);
-  // Compartment keeps editable flag reconfigurable without destroying the doc
-  // (root disappearance / handle_stale must not wipe a dirty buffer).
   const editableCompartmentRef = useRef(new Compartment());
+  const themeCompartmentRef = useRef(new Compartment());
   const onDirtyChangeRef = useRef(onDirtyChange);
   const onBufferChangeRef = useRef(onBufferChange);
   const readOnlyRef = useRef(readOnly);
@@ -187,57 +180,12 @@ function CodeMirrorEditor({
   onBufferChangeRef.current = onBufferChange;
   readOnlyRef.current = readOnly;
 
-  const readDocBytes = useCallback((view: EditorView): string => {
-    return view.state.sliceDoc(0, view.state.doc.length);
-  }, []);
-
-  const performSave = useCallback(async () => {
-    if (saveDisabled || readOnly || !sessionId || !path || !pinnedHandle || !viewRef.current) {
-      return;
-    }
-    const bytes = readDocBytes(viewRef.current);
-    try {
-      const api = makeWorkspaceApi();
-      await api.save(
-        sessionId,
-        path,
-        pinnedHandle,
-        bytes,
-        skipPrecondition ? undefined : ifUnmodifiedSince,
-      );
-      baselineRef.current = bytes;
-      onDirtyChange?.(false);
-      onSaveSuccess?.();
-    } catch (err) {
-      if (err instanceof WorkspaceApiError) {
-        onSaveError?.(err);
-      } else {
-        onSaveError?.(
-          new WorkspaceApiError(0, "unknown", err instanceof Error ? err.message : String(err)),
-        );
-      }
-    }
-  }, [
-    saveDisabled,
-    readOnly,
-    sessionId,
-    path,
-    pinnedHandle,
-    ifUnmodifiedSince,
-    skipPrecondition,
-    onDirtyChange,
-    onSaveSuccess,
-    onSaveError,
-    readDocBytes,
-  ]);
-
   useEffect(() => {
     Vim.defineEx("write", "w", () => {
-      void performSave();
+      onSaveRequestRef.current?.();
     });
-  }, [performSave]);
+  }, [onSaveRequestRef]);
 
-  // Mount / remount only when the loaded document identity changes.
   useEffect(() => {
     baselineRef.current = content;
     if (!containerRef.current) return;
@@ -249,17 +197,13 @@ function CodeMirrorEditor({
         EditorState.lineSeparator.of(lineSeparator),
         vim(),
         editableCompartmentRef.current.of(EditorView.editable.of(!readOnlyRef.current)),
+        themeCompartmentRef.current.of(buildCodeMirrorTheme()),
         EditorView.updateListener.of((update) => {
           if (!update.docChanged) return;
           const text = update.state.sliceDoc(0, update.state.doc.length);
           onBufferChangeRef.current?.(text);
           const dirty = text !== baselineRef.current;
           onDirtyChangeRef.current?.(dirty);
-        }),
-        EditorView.theme({
-          "&": { height: "100%", fontFamily: "var(--font-mono, monospace)", fontSize: "0.85rem" },
-          ".cm-scroller": { overflow: "auto", maxHeight: "100%" },
-          ".cm-content": { whiteSpace: "pre-wrap", wordBreak: "break-word" },
         }),
       ],
     });
@@ -274,16 +218,52 @@ function CodeMirrorEditor({
       view.destroy();
       viewRef.current = null;
     };
-  }, [content, lineSeparator]);
+  }, [content, lineSeparator, viewRef, baselineRef]);
 
-  // Degrade to read-only without recreating the document (FR-113 / ADR root-disappearance).
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
       effects: editableCompartmentRef.current.reconfigure(EditorView.editable.of(!readOnly)),
     });
-  }, [readOnly]);
+  }, [readOnly, viewRef]);
+
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: themeCompartmentRef.current.reconfigure(buildCodeMirrorTheme()),
+    });
+  });
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: viewRef is read inside the observer callback; listing it would re-subscribe on every view mount.
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "attributes" && m.attributeName === "data-theme") {
+          const view = viewRef.current;
+          if (!view) return;
+          view.dispatch({
+            effects: themeCompartmentRef.current.reconfigure(buildCodeMirrorTheme()),
+          });
+          return;
+        }
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "s") return;
+    const active = document.activeElement;
+    if (!active || !containerRef.current?.contains(active)) return;
+    e.preventDefault();
+    onSaveRequestRef.current?.();
+  };
 
   return (
     <div
@@ -292,8 +272,71 @@ function CodeMirrorEditor({
       data-testid="codemirror-editor"
       data-line-separator={lineSeparator === "\r\n" ? "crlf" : "lf"}
       style={{ height: "min(70vh, 100%)", minHeight: 240 }}
+      onKeyDown={onKeyDown}
     />
   );
+}
+
+type EditorToolbarProps = {
+  saveState: EditorSaveState;
+  readOnlyReason?: string | null;
+  onSave: () => void;
+};
+
+function EditorToolbar({ saveState, readOnlyReason, onSave }: EditorToolbarProps): ReactNode {
+  const disabled = saveState === "saved" || saveState === "saving" || saveState === "read-only";
+  const label =
+    saveState === "saving"
+      ? "Saving…"
+      : saveState === "read-only"
+        ? "Save (read-only)"
+        : saveState === "dirty"
+          ? "Save changes"
+          : "Saved";
+
+  const button = (
+    <button
+      type="button"
+      className={`workspace-editor__save workspace-editor__save--${saveState}`}
+      data-testid="editor-save-button"
+      data-save-state={saveState}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => void onSave()}
+    >
+      {saveState === "saving" && (
+        <span className="workspace-editor__save-spinner" aria-hidden="true" />
+      )}
+      {saveState === "dirty" && (
+        <span
+          className="workspace-editor__save-dot"
+          aria-hidden="true"
+          data-testid="save-dirty-dot"
+        />
+      )}
+      Save
+    </button>
+  );
+
+  if (saveState === "read-only" && readOnlyReason) {
+    return (
+      <div className="workspace-editor__toolbar">
+        <Tooltip.Provider delayDuration={300}>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>{button}</Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content className="workspace-editor__save-tooltip" sideOffset={6}>
+                {readOnlyReason}
+                <Tooltip.Arrow className="workspace-editor__save-tooltip-arrow" />
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+        </Tooltip.Provider>
+      </div>
+    );
+  }
+
+  return <div className="workspace-editor__toolbar">{button}</div>;
 }
 
 export function FileViewer({
@@ -308,19 +351,89 @@ export function FileViewer({
   onSaveSuccess,
   onSaveError,
   saveDisabled,
+  readOnlyReason,
   skipPrecondition,
 }: FileViewerProps): ReactNode {
   const shellRef = useRef<HTMLDivElement>(null);
   const lineCountRef = useRef(0);
+  const editorViewRef = useRef<EditorView | null>(null);
+  const baselineRef = useRef("");
+  const onSaveRequestRef = useRef<(() => void) | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const content = file?.content ?? "";
-  // Editor path is selected by event kind only. saveDisabled degrades the open
-  // CodeMirror buffer to read-only — it must not unmount the buffer (ADR root-disappearance).
   const isEditorMode = eventKind === "edit";
+  const isReadOnly = !!saveDisabled;
   const sourceLineCount = useMemo(
     () => (content.length === 0 ? 0 : buildLineStarts(content).length),
     [content],
   );
   lineCountRef.current = sourceLineCount;
+
+  const saveState: EditorSaveState = isReadOnly
+    ? "read-only"
+    : isSaving
+      ? "saving"
+      : isDirty
+        ? "dirty"
+        : "saved";
+
+  const handleDirtyChange = useCallback(
+    (dirty: boolean) => {
+      setIsDirty(dirty);
+      onDirtyChange?.(dirty);
+    },
+    [onDirtyChange],
+  );
+
+  const performSave = useCallback(async () => {
+    if (saveDisabled || !sessionId || !file || !pinnedHandle || !editorViewRef.current) {
+      return;
+    }
+    const view = editorViewRef.current;
+    const bytes = view.state.sliceDoc(0, view.state.doc.length);
+    setIsSaving(true);
+    try {
+      const api = makeWorkspaceApi();
+      await api.save(
+        sessionId,
+        file.path,
+        pinnedHandle,
+        bytes,
+        skipPrecondition ? undefined : file.mtime,
+      );
+      baselineRef.current = bytes;
+      setIsDirty(false);
+      onDirtyChange?.(false);
+      onSaveSuccess?.();
+    } catch (err) {
+      if (err instanceof WorkspaceApiError) {
+        onSaveError?.(err);
+      } else {
+        onSaveError?.(
+          new WorkspaceApiError(0, "unknown", err instanceof Error ? err.message : String(err)),
+        );
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    saveDisabled,
+    sessionId,
+    file,
+    pinnedHandle,
+    skipPrecondition,
+    onDirtyChange,
+    onSaveSuccess,
+    onSaveError,
+  ]);
+
+  const handleSave = useCallback(() => {
+    void performSave();
+  }, [performSave]);
+
+  onSaveRequestRef.current = saveDisabled ? null : handleSave;
 
   const scrollToLine = useCallback((line: number) => {
     const el = shellRef.current?.querySelector<HTMLElement>(
@@ -339,6 +452,13 @@ export function FileViewer({
       getSearchableText: () => content,
     });
   }, [file, content, scrollToLine, isEditorMode]);
+
+  useEffect(() => {
+    if (!isEditorMode) {
+      setIsDirty(false);
+      setIsSaving(false);
+    }
+  }, [isEditorMode]);
 
   if (loading) {
     return <div className="workspace-file-viewer workspace-file-viewer--loading">Loading…</div>;
@@ -391,20 +511,27 @@ export function FileViewer({
       {renderer === "json" && <JsonTreeRenderer source={content} />}
       {renderer === "source" &&
         (isEditorMode ? (
-          <CodeMirrorEditor
-            content={content}
-            readOnly={!!saveDisabled}
-            saveDisabled={!!saveDisabled}
-            sessionId={sessionId}
-            path={file.path}
-            pinnedHandle={pinnedHandle}
-            ifUnmodifiedSince={file.mtime}
-            skipPrecondition={skipPrecondition}
-            onDirtyChange={onDirtyChange}
-            onBufferChange={onBufferChange}
-            onSaveSuccess={onSaveSuccess}
-            onSaveError={onSaveError}
-          />
+          <div className="workspace-editor" data-testid="workspace-editor">
+            {isReadOnly && readOnlyReason && (
+              <output className="workspace-editor__readonly-banner" data-testid="read-only-banner">
+                {readOnlyReason}
+              </output>
+            )}
+            <EditorToolbar
+              saveState={saveState}
+              readOnlyReason={readOnlyReason}
+              onSave={handleSave}
+            />
+            <CodeMirrorEditor
+              content={content}
+              readOnly={isReadOnly}
+              viewRef={editorViewRef}
+              baselineRef={baselineRef}
+              onSaveRequestRef={onSaveRequestRef}
+              onDirtyChange={handleDirtyChange}
+              onBufferChange={onBufferChange}
+            />
+          </div>
         ) : (
           <SourceViewer content={content} />
         ))}

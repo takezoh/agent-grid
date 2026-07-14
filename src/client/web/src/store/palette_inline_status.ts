@@ -1,7 +1,8 @@
 // palette_inline_status.ts — InlineStatus slice for usePaletteStore.
 //
-// Provides transient user-feedback messages that appear inline in the palette
-// (e.g. "save is unavailable: No active session") and auto-clear after 4 s.
+// Provides transient user-feedback routed to the palette announcer (aria-live)
+// and notifications toast (FR-027 / web-ui-refresh m5). No persistent visible
+// status row in the palette dialog.
 //
 // ADRs:
 //   - 0036 palette-2phase-store-architecture: no document/window/HTMLElement.
@@ -13,6 +14,7 @@
 // FR refs: FR-005 / FR-023 / FR-031
 
 import type { StateCreator } from "zustand";
+import { useNotificationsStore } from "./notifications";
 
 export type InlineStatusKind = "warning" | "info";
 
@@ -78,9 +80,17 @@ export const createInlineStatusSlice: StateCreator<
       });
     }, INLINE_STATUS_AUTO_CLEAR_MS);
 
+    const message = `"${toolLabel}" is unavailable: ${reason}`;
+
+    // FR-027: route disabled-command feedback to notifications toast.
+    useNotificationsStore.getState().add({
+      level: "warn",
+      message,
+    });
+
     set({
       inlineStatus: {
-        message: `"${toolLabel}" is unavailable: ${reason}`,
+        message,
         kind: "warning",
         seq: prev.seq + 1,
         timerId,

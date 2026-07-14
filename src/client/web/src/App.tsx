@@ -3,17 +3,17 @@ import { makeSessionsApi } from "./api/sessions";
 import type { ApiHttpError } from "./api/sessions";
 import { readBearerTokenFromHash } from "./auth";
 import { AppShell } from "./components/AppShell";
-import { CommandSearchTrigger } from "./components/CommandSearchTrigger";
 import { ConfirmDialog } from "./components/ConfirmDialog";
-import { DriverViewPanel } from "./components/DriverViewPanel";
+import { HeaderBar } from "./components/HeaderBar";
 import { MainTabs } from "./components/MainTabs";
+import { NewSessionButton } from "./components/NewSessionButton";
 import { NotificationToast } from "./components/NotificationToast";
 import { SessionList } from "./components/SessionList";
+import { SidebarBrandRow } from "./components/SidebarBrandRow";
 import { StatusBanner } from "./components/StatusBanner";
+import { StatusBar } from "./components/StatusBar";
 import { TerminalPane } from "./components/TerminalPane";
-import { ThemeSegmentedControl } from "./components/ThemeSegmentedControl";
 import { CommandPalette } from "./components/palette/CommandPalette";
-import { ActivityRail } from "./components/workspace/ActivityRail";
 import { WorkspaceDrawer } from "./components/workspace/WorkspaceDrawer";
 import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
@@ -116,15 +116,15 @@ export function App() {
     activeSessionID ? selectFrameMessagingSummary(s, activeSessionID) : undefined,
   );
 
-  // セッション終了 confirm dialog の state. 単一インスタンスを App 直下で
-  // 持ち overlays に mount する. dialog の variant は mobile gate に応じて
-  // sheet / modal を出し分け.
+  // Session-terminate confirm dialog state. A single instance lives directly
+  // under App and mounts into overlays. The dialog variant switches between
+  // sheet / modal based on the mobile gate.
   const [terminationTarget, setTerminationTarget] = useState<{
     id: string;
     label: string;
   } | null>(null);
-  // dialog close 時に focus を戻す opener (× button) を保持.
-  // ConfirmDialog は openerRef.current?.focus() で復元する.
+  // Holds the opener (× button) that focus returns to on dialog close.
+  // ConfirmDialog restores it via openerRef.current?.focus().
   const terminationOpenerRef = useRef<HTMLElement | null>(null);
   const handleRequestTerminate = useCallback((id: string, label: string, opener: HTMLElement) => {
     terminationOpenerRef.current = opener;
@@ -139,54 +139,89 @@ export function App() {
     if (ok) closeTermination();
   }, [terminationTarget, terminate, closeTermination]);
 
-  // B3 / ADR-0062: the legacy 'Command (⌘K)' + 'New Session' header buttons
-  // are absorbed into the single CommandSearchTrigger (search-bar style) +
-  // ThemeSegmentedControl. The palette's tool list surfaces new-session at
-  // the top, so the discoverability of new-session is preserved without a
-  // second CTA — keeping the header free of competing affordances on
-  // narrow viewports (UAC-008 mobile counterexample target).
-  const headerContent = (
-    <>
-      <CommandSearchTrigger />
-      <ThemeSegmentedControl />
-    </>
-  );
-
-  const sidebarContent = <SessionList conn={conn} />;
-
   const openDrawerTree = useCallback(() => {
     if (!activeSessionID) return;
     useWorkspaceActivityStore.getState().openDrawerTree(activeSessionID);
   }, [activeSessionID]);
 
+  // Main-area mode: Terminal (tabs + xterm) vs Workspace (tree + editor).
+  // mainMode is pure visibility — switching modes never closes the workspace
+  // session, so the open file / dirty buffer / editor state survive.
+  const workspaceMode = useWorkspaceActivityStore((s) => s.mainMode === "workspace");
+  const workspaceSessionOpen = useWorkspaceActivityStore((s) => s.drawerOpen);
+  const handleModeChange = useCallback(
+    (next: "terminal" | "workspace") => {
+      if (next === "workspace") {
+        openDrawerTree();
+        return;
+      }
+      useWorkspaceActivityStore.getState().setMainMode("terminal");
+    },
+    [openDrawerTree],
+  );
+
+  const headerContent = activeSession ? (
+    <HeaderBar
+      project={activeSession.project}
+      card={activeSession.view.card}
+      status={activeSession.view.status}
+      model={activeSession.view.model}
+      effort={activeSession.view.effort}
+      driver={activeSession.root_driver}
+      sessionId={activeSession.id}
+      onRequestTerminate={handleRequestTerminate}
+      mobile={isMobile}
+      mode={workspaceMode ? "workspace" : "terminal"}
+      onModeChange={handleModeChange}
+    />
+  ) : (
+    <HeaderBar mobile={isMobile} />
+  );
+
+  const sidebarContent = (
+    <div className="sidebar-shell">
+      <SidebarBrandRow />
+      <SessionList conn={conn} />
+      <NewSessionButton />
+    </div>
+  );
+
   const mainContent = (
-    <div className="main-with-activity-rail" data-testid="main-with-activity-rail">
-      <ActivityRail onOpenTree={openDrawerTree} />
-      <div className="main-with-activity-rail__tabs">
+    <div className="main-with-changes" data-testid="main-with-changes">
+      <div className="main-with-changes__terminal">
+        {/* Layered modes (ADR-0065 pattern): MainTabs + xterm stay mounted
+            with visibility toggled so scrollback / subscriptions survive
+            Workspace mode; WorkspaceDrawer mounts lazily on open. */}
+        <div className="main-modes">
+          <div className="main-modes__layer" data-active={workspaceMode ? "false" : "true"}>
+            <MainTabs
+              tabs={activeSession?.view.log_tabs ?? []}
+              messagesSummary={
+                activeFrameMessagingSummary ??
+                normalizeFrameMessagingSummary(activeSession?.view.frame_messaging_summary)
+              }
+              sessionId={activeSession?.id}
+              bearerToken={token}
+              suppressInfo={activeSession?.view.suppress_info ?? false}
+              terminalSlot={
+                <TerminalPane
+                  key={activeSessionID ?? "__none__"}
+                  conn={conn}
+                  sessionId={activeSessionID}
+                />
+              }
+            />
+          </div>
+          <div className="main-modes__layer" data-active={workspaceMode ? "true" : "false"}>
+            {workspaceSessionOpen && <WorkspaceDrawer sessionId={activeSessionID} />}
+          </div>
+        </div>
         {activeSession && (
-          <DriverViewPanel
-            view={activeSession.view}
-            sessionId={activeSession.id}
-            onRequestTerminate={handleRequestTerminate}
+          <StatusBar
+            statusLine={activeSession.view.status_line}
+            statusChangedAt={activeSession.view.status_changed_at}
           />
         )}
-        <MainTabs
-          tabs={activeSession?.view.log_tabs ?? []}
-          messagesSummary={
-            activeFrameMessagingSummary ??
-            normalizeFrameMessagingSummary(activeSession?.view.frame_messaging_summary)
-          }
-          sessionId={activeSession?.id}
-          bearerToken={token}
-          suppressInfo={activeSession?.view.suppress_info ?? false}
-          terminalSlot={
-            <TerminalPane
-              key={activeSessionID ?? "__none__"}
-              conn={conn}
-              sessionId={activeSessionID}
-            />
-          }
-        />
       </div>
     </div>
   );
@@ -203,21 +238,20 @@ export function App() {
           {/* Mounted via portal directly under <body>, so the placement of
               this element in the tree is irrelevant (ADR-0036). */}
           <CommandPalette />
-          <WorkspaceDrawer sessionId={activeSessionID} />
           <ConfirmDialog
             open={terminationTarget !== null}
             variant={isMobile ? "sheet" : "modal"}
-            title="セッションを終了"
+            title="Stop session"
             body={
               terminationTarget !== null
-                ? `「${terminationTarget.label}」を終了します。実行中のプロセスは停止されます。`
+                ? `"${terminationTarget.label}" will be stopped. Any running process will be terminated.`
                 : ""
             }
-            confirmLabel="終了する"
-            cancelLabel="キャンセル"
+            confirmLabel="Stop session"
+            cancelLabel="Cancel"
             destructive
             pending={terminatePending}
-            pendingLabel="終了中…"
+            pendingLabel="Stopping…"
             onConfirm={handleConfirmTerminate}
             onCancel={closeTermination}
             openerRef={terminationOpenerRef}

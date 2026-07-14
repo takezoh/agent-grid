@@ -1,12 +1,4 @@
-import {
-  type MouseEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useEffect, useId, useState } from "react";
 import {
   WorkspaceApiError,
   type WorkspaceDiffResponse,
@@ -20,6 +12,8 @@ import {
   selectDrawerStale,
   useWorkspaceActivityStore,
 } from "../../store/workspaceActivity";
+import { UnderlineTab, UnderlineTabList } from "../primitives/UnderlineTab";
+import { ChangesDegradedNotice, ChangesRowsList } from "./ChangesRows";
 import { DiffViewer } from "./DiffViewer";
 import { FileViewer } from "./FileViewer";
 import { WorkspaceTree } from "./WorkspaceTree";
@@ -28,11 +22,45 @@ export type WorkspaceDrawerProps = {
   sessionId: string | null;
 };
 
+function PathBreadcrumb({ path, dirty }: { path: string; dirty: boolean }): ReactNode {
+  const segments = path ? path.split("/").filter(Boolean) : ["Workspace"];
+  return (
+    <nav className="workspace-drawer__breadcrumb" aria-label="File path">
+      <ol className="workspace-drawer__breadcrumb-list">
+        {segments.map((seg, i) => (
+          <li
+            key={segments.slice(0, i + 1).join("/")}
+            className="workspace-drawer__breadcrumb-item"
+          >
+            {i > 0 && (
+              <span className="workspace-drawer__breadcrumb-sep" aria-hidden="true">
+                /
+              </span>
+            )}
+            <span className="workspace-drawer__breadcrumb-seg">{seg}</span>
+          </li>
+        ))}
+      </ol>
+      {dirty && (
+        <span
+          className="workspace-drawer__dirty"
+          data-testid="dirty-indicator"
+          aria-label="Unsaved changes"
+        >
+          {" "}
+          •
+        </span>
+      )}
+    </nav>
+  );
+}
+
 export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const liveId = useId();
 
   const open = useWorkspaceActivityStore((s) => s.drawerOpen);
+  const visible = useWorkspaceActivityStore((s) => s.mainMode === "workspace");
+  const setMainMode = useWorkspaceActivityStore((s) => s.setMainMode);
   const tab = useWorkspaceActivityStore((s) => s.drawerTab);
   const target = useWorkspaceActivityStore((s) => s.drawerTarget);
   const pinnedHandle = useWorkspaceActivityStore((s) => s.pinnedHandle);
@@ -186,34 +214,23 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     return () => {
       cancelled = true;
     };
-  }, [
-    open,
-    reconnectResyncGeneration,
-    sessionId,
-    pinnedHandle,
-    target?.path,
-    setConflictOutcome,
-  ]);
+  }, [open, reconnectResyncGeneration, sessionId, pinnedHandle, target?.path, setConflictOutcome]);
 
+  // Esc returns to Terminal mode. Pure visibility switch — the workspace
+  // session (open file, dirty buffer) survives, so no discard guard is
+  // needed. Skipped while focus is inside the CodeMirror editor, where Esc
+  // is vim currency and must never leave the mode.
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
+    if (!open || !visible) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") requestCloseDrawer();
+      if (e.key !== "Escape") return;
+      const el = e.target;
+      if (el instanceof HTMLElement && el.closest(".cm-editor") !== null) return;
+      setMainMode("terminal");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, requestCloseDrawer]);
-
-  const onScrimClick = (e: MouseEvent<HTMLDialogElement>) => {
-    if (e.target === dialogRef.current) requestCloseDrawer();
-  };
+  }, [open, visible, setMainMode]);
 
   const onDirtyChange = useCallback(
     (isDirty: boolean) => {
@@ -277,44 +294,40 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
 
   const headerPath = target?.path ?? "Workspace";
   const saveDisabled = rootDisappeared || handleStale;
+  const readOnlyReason = rootDisappeared
+    ? "Workspace root disappeared. Buffer kept in memory; save is disabled."
+    : handleStale
+      ? "Workspace root changed while this drawer was open. Close and reopen the drawer to refresh the pinned root."
+      : null;
 
   if (!open) return null;
 
+  const contentTab = tab === "diff" ? "diff" : "viewer";
+
   return (
-    <dialog
-      ref={dialogRef}
-      className="workspace-drawer"
-      aria-modal="true"
-      aria-label="Workspace viewer"
-      onClick={onScrimClick}
-      onKeyDown={(e) => {
-        if (e.target !== dialogRef.current) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          requestCloseDrawer();
-        }
-      }}
-      data-testid="workspace-drawer"
-    >
-      <div className="workspace-drawer__panel">
+    <section className="workspace-view" aria-label="Workspace" data-testid="workspace-drawer">
+      <div className="workspace-view__main workspace-drawer__panel">
         <header className="workspace-drawer__header">
           <h2 className="workspace-drawer__title">
-            {headerPath}
-            {dirty && (
-              <span
-                className="workspace-drawer__dirty"
-                data-testid="dirty-indicator"
-                aria-label="Unsaved changes"
-              >
-                {" "}
-                •
-              </span>
-            )}
+            <PathBreadcrumb path={headerPath} dirty={dirty} />
           </h2>
+          <UnderlineTabList aria-label="Workspace panels" className="workspace-drawer__tabs">
+            <UnderlineTab selected={contentTab === "viewer"} onClick={() => setDrawerTab("viewer")}>
+              Viewer
+            </UnderlineTab>
+            <UnderlineTab
+              selected={contentTab === "diff"}
+              onClick={() => setDrawerTab("diff")}
+              disabled={target?.kind !== "edit"}
+            >
+              Diff
+            </UnderlineTab>
+          </UnderlineTabList>
           <button
             type="button"
             className="workspace-drawer__close"
             aria-label="Close"
+            title="Back to terminal (Esc)"
             onClick={requestCloseDrawer}
           >
             ×
@@ -324,6 +337,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
         {rootDisappeared && (
           <div
             className="workspace-drawer__root-disappeared"
+            // biome-ignore lint/a11y/useSemanticElements: status banner is not form output; tests pin getByRole('status')
             role="status"
             data-testid="root-disappeared-banner"
           >
@@ -337,6 +351,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
         {conflictVisible && !rootDisappeared && (
           <div
             className="workspace-drawer__conflict"
+            // biome-ignore lint/a11y/useSemanticElements: status banner is not form output; tests pin getByRole('status')
             role="status"
             data-testid="conflict-banner"
           >
@@ -405,53 +420,51 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
           </dialog>
         )}
 
-        <div className="workspace-drawer__tabs" role="tablist" aria-label="Workspace panels">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "viewer"}
-            onClick={() => setDrawerTab("viewer")}
-          >
-            Viewer
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "diff"}
-            onClick={() => setDrawerTab("diff")}
-            disabled={target?.kind !== "edit"}
-          >
-            Diff
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "tree"}
-            onClick={() => setDrawerTab("tree")}
-          >
-            Tree
-          </button>
-        </div>
-
         <div className="workspace-drawer__body">
-          {tab === "viewer" && (
-            <FileViewer
-              file={file}
-              loading={loadingFile}
-              error={fileError}
-              eventKind={target?.kind}
-              sessionId={sessionId ?? undefined}
-              pinnedHandle={pinnedHandle ?? undefined}
-              onDirtyChange={onDirtyChange}
-              onBufferChange={setClipboardContent}
-              onSaveSuccess={onSaveSuccess}
-              onSaveError={onSaveError}
-              saveDisabled={saveDisabled}
-              skipPrecondition={skipPrecondition}
-            />
+          {target === null ? (
+            <div className="workspace-view__empty" data-testid="workspace-empty">
+              <p>Select a file from the tree to view or edit it.</p>
+            </div>
+          ) : (
+            <>
+              <div
+                className="workspace-drawer__panel-view"
+                hidden={contentTab !== "viewer" ? true : undefined}
+              >
+                <FileViewer
+                  file={file}
+                  loading={loadingFile}
+                  error={fileError}
+                  eventKind={target?.kind}
+                  sessionId={sessionId ?? undefined}
+                  pinnedHandle={pinnedHandle ?? undefined}
+                  onDirtyChange={onDirtyChange}
+                  onBufferChange={setClipboardContent}
+                  onSaveSuccess={onSaveSuccess}
+                  onSaveError={onSaveError}
+                  saveDisabled={saveDisabled}
+                  readOnlyReason={readOnlyReason}
+                  skipPrecondition={skipPrecondition}
+                />
+              </div>
+              <div
+                className="workspace-drawer__panel-view"
+                hidden={contentTab !== "diff" ? true : undefined}
+              >
+                <DiffViewer diff={diff} loading={loadingDiff} error={diffError} />
+              </div>
+            </>
           )}
-          {tab === "diff" && <DiffViewer diff={diff} loading={loadingDiff} error={diffError} />}
-          {tab === "tree" && sessionId && (
+        </div>
+      </div>
+      <aside className="workspace-view__tree" aria-label="Workspace files">
+        <div className="workspace-view__side-changes" data-testid="workspace-changes">
+          <div className="workspace-view__side-head">Changes</div>
+          <ChangesDegradedNotice />
+          <ChangesRowsList />
+        </div>
+        {sessionId && (
+          <div className="workspace-view__tree-body">
             <WorkspaceTree
               sessionId={sessionId}
               pinned={pinnedHandle}
@@ -460,9 +473,9 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
                 openDrawerFromRow({ sessionId, path, kind: "read" }, "viewer");
               }}
             />
-          )}
-        </div>
-      </div>
-    </dialog>
+          </div>
+        )}
+      </aside>
+    </section>
   );
 }

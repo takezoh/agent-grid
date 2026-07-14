@@ -67,7 +67,9 @@ async function installScrollBench(page: Page): Promise<FakeBackend> {
     serverTime: 1_720_000_000_000,
   });
 
-  await expect(page.getByTestId("activity-rail")).toBeVisible();
+  // Changes rows live in the Workspace mode side panel now.
+  await page.getByRole("radio", { name: "Workspace" }).click();
+  await expect(page.getByTestId("workspace-changes")).toBeVisible();
   return backend;
 }
 

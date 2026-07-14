@@ -36,7 +36,7 @@ describe("AriaLiveStatus", () => {
   it("displays announced text via useAnnouncer", () => {
     renderWithProvider();
     const live = screen.getByTestId("terminal-aria-live");
-    act(() => capturedAnnounce?.("閲覧モードに戻りました"));
-    expect(live.textContent).toBe("閲覧モードに戻りました");
+    act(() => capturedAnnounce?.("Returned to view mode"));
+    expect(live.textContent).toBe("Returned to view mode");
   });
 });

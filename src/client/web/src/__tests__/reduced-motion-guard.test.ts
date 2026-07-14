@@ -8,8 +8,8 @@
  *   Running state remains readable via icon + text in the DOM regardless.
  *
  * FR-MOTION-002: The @media (prefers-reduced-motion: reduce) rule exists exactly once
- *   in view.css and is absent from tokens.css and app.css (single canonical location,
- *   ADR-0064).
+ *   in view.css for animation suppressions. tokens.css has exactly one reduced-motion
+ *   block for FR-007 motion token zeroing. app.css has none.
  *
  * FR-FRAMEWORK-001: view.css must be <= 500 lines.
  *
@@ -65,10 +65,13 @@ describe("FR-MOTION-002: single @media (prefers-reduced-motion: reduce) block in
     expect(count, "view.css must have exactly 1 reduced-motion block").toBe(1);
   });
 
-  it("tokens.css contains no @media (prefers-reduced-motion: reduce) rule", () => {
+  it("tokens.css contains exactly 1 @media (prefers-reduced-motion: reduce) rule (FR-007 motion zeroing)", () => {
     const tokensCss = readCss("tokens.css");
     const count = countReducedMotionBlocks(tokensCss);
-    expect(count, "tokens.css must have 0 reduced-motion blocks").toBe(0);
+    expect(
+      count,
+      "tokens.css must have exactly 1 reduced-motion block for motion token zeroing",
+    ).toBe(1);
   });
 
   it("app.css contains no @media (prefers-reduced-motion: reduce) rule", () => {
@@ -164,8 +167,8 @@ describe("FR-MOTION-001: reduced-motion block contains required suppressions", (
     expect(reducedBlock).toMatch(/\.session-drawer__slide/);
   });
 
-  it("suppresses .palette-active-context--flash animation", () => {
-    expect(reducedBlock).toMatch(/\.palette-active-context--flash/);
+  it("suppresses .palette-footer__context--flash animation", () => {
+    expect(reducedBlock).toMatch(/\.palette-footer__context--flash/);
   });
 
   it("suppresses .palette-listbox__row--flash animation", () => {
@@ -182,6 +185,21 @@ describe("FR-MOTION-001: reduced-motion block contains required suppressions", (
 
   it("suppresses .main-tab or .main-tab-panel transition", () => {
     expect(reducedBlock).toMatch(/\.main-tab/);
+  });
+
+  it("suppresses .workspace-drawer panel slide transition (FR-031 / UAC-021)", () => {
+    expect(reducedBlock).toMatch(/\.workspace-drawer/);
+  });
+
+  it("suppresses .workspace-tree__chevron rotation transition (UAC-021)", () => {
+    expect(reducedBlock).toMatch(/\.workspace-tree__chevron/);
+  });
+
+  it("workspace.css declares no raw-millisecond transform transitions (UAC-021)", () => {
+    // Workspace is a mode layer now (instant visibility toggle, no slide) —
+    // any transform transition that exists must ride --motion-* tokens.
+    const workspaceCss = fs.readFileSync(path.join(cssDir, "workspace.css"), "utf-8");
+    expect(workspaceCss).not.toMatch(/transition:\s*transform\s+\d+ms/);
   });
 });
 

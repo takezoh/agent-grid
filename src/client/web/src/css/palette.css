@@ -1,8 +1,6 @@
-/* palette.css — Command Palette modernization.
+/* palette.css — Command Palette (web-ui-refresh m5 / FR-026..030).
    Import order: tokens.css → app.css → palette.css → snackbar.css → shell.css → view.css
-   Signature: a 2px caret rail anchored on the dialog's left edge that spans
-   the header→input band, paired with a per-row caret on the selected listbox
-   row. The rail reads as "current phase"; per-row caret reads as "selected row".
+   3-part layout: input row → sectioned list (Actions, Push) → footer context line.
    Reduced-motion guard is consolidated in view.css (ADR-0064 single guard).
    ADR refs: 0036 / 0050 / 0055 / 0057 / 0059 / 0062 / 0064.                  */
 
@@ -10,7 +8,7 @@
 .palette-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay-scrim-light);
   z-index: 1000;
   display: flex;
   align-items: flex-start;
@@ -19,7 +17,7 @@
 }
 @supports (backdrop-filter: blur(6px)) or (-webkit-backdrop-filter: blur(6px)) {
   .palette-overlay {
-    background: rgba(0, 0, 0, 0.32);
+    background: var(--overlay-scrim-blur);
     backdrop-filter: blur(6px) saturate(120%);
     -webkit-backdrop-filter: blur(6px) saturate(120%);
   }
@@ -33,34 +31,50 @@
   }
 }
 
-/* ─── dialog (caret-rail signature on ::before) ─────────────────────────── */
+/* ─── dialog: elevated flat surface — rows run full-bleed, sections are
+   separated by full-width hairlines (Raycast/Linear language). The caret
+   rail lives on rows only, never on the dialog frame. ─────────────────── */
 .palette-dialog {
   position: relative;
   width: 100%;
-  background: var(--surface-canvas);
+  background: var(--bg-elevated);
   color: var(--fg);
-  border: 0;
-  border-radius: 12px;
-  padding: 14px 16px 16px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-3);
+  padding: 0;
   box-shadow: var(--elevation-card);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   box-sizing: border-box;
-  animation: palette-dialog-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow: hidden;
+  animation: palette-dialog-in var(--motion-2) cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.palette-dialog::before {
-  content: "";
+
+/* Visually hidden dialog label for aria-labelledby (FR-029 e2e contract). */
+.palette-dialog__title {
   position: absolute;
-  left: 0;
-  top: 14px;
-  bottom: 42%;
-  width: 2px;
-  background: var(--rail-accent);
-  border-radius: 0 2px 2px 0;
-  transform-origin: top;
-  animation: palette-rail-in 240ms ease-out;
-  pointer-events: none;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.palette-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+/* toolSelect: input is a full-bleed row; the list carries its own gutter. */
+.palette-tool-select {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 @keyframes palette-dialog-in {
   from {
@@ -72,106 +86,20 @@
     opacity: 1;
   }
 }
-@keyframes palette-rail-in {
-  from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
-  }
-}
 
-/* ─── header ────────────────────────────────────────────────────────────── */
-.palette-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.palette-header__title {
-  flex: 1;
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--fg);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.palette-header__title::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--rail-accent);
-  flex-shrink: 0;
-}
-.palette-header__back,
-.palette-header__close {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--fg-muted);
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  padding: 0;
-  font-size: 14px;
-  line-height: 1;
-  transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
-}
-.palette-header__back:hover,
-.palette-header__close:hover {
-  background: var(--surface-row-hover);
-  color: var(--fg);
-  border-color: var(--hairline);
-}
-.palette-header__back:focus-visible,
-.palette-header__close:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-/* FR-A11Y-001: expand hit area to ≈44px without enlarging the visible button. */
-.palette-header__back::after,
-.palette-header__close::after {
-  content: "";
+/* ─── visually-hidden announcer (FR-027 / ADR-0057) ─────────────────────── */
+.palette-announcer {
   position: absolute;
-  inset: -6px;
-  border-radius: 12px;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-/* ─── status / progress / error ─────────────────────────────────────────── */
-.palette-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-muted);
-  letter-spacing: 0.02em;
-}
-.palette-status-badge__spinner {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border: 1.5px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: palette-status-spin 0.8s linear infinite;
-}
-@keyframes palette-status-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.palette-progress,
 .palette-param-empty {
   font-size: 11.5px;
   color: var(--fg-muted);
@@ -183,6 +111,7 @@
   border: 1px solid color-mix(in srgb, var(--error-text) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
+  margin: 8px 10px 10px;
 }
 
 /* ─── input ─────────────────────────────────────────────────────────────── */
@@ -192,21 +121,20 @@
    ride the card surface that the .palette-param fieldset already paints. */
 .palette-tool-select input {
   width: 100%;
-  padding: 10px 12px;
-  background: var(--surface-input);
+  padding: 14px 16px;
+  background: transparent;
   color: var(--fg);
-  border: 1px solid transparent;
-  border-bottom: 1.5px solid var(--hairline);
-  border-radius: 8px 8px 4px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
   box-sizing: border-box;
   font-family: inherit;
-  font-size: 13px;
-  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+  font-size: 13.5px;
+  transition: border-color var(--motion-1) var(--motion-ease);
 }
 .palette-tool-select input:focus {
   outline: none;
-  border-bottom-color: var(--rail-accent);
-  border-bottom-width: 2px;
+  border-bottom-color: color-mix(in srgb, var(--rail-accent) 55%, var(--hairline));
 }
 .palette-tool-select input::placeholder {
   color: var(--fg-muted);
@@ -255,11 +183,53 @@
   cursor: not-allowed;
 }
 
-/* ─── ActiveContextHeader ───────────────────────────────────────────────── */
-.palette-active-context {
+/* ─── sectioned list (FR-026) ───────────────────────────────────────────── */
+.palette-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.palette-section + .palette-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+  margin-left: -8px;
+  margin-right: -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.palette-section__heading {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  padding: 2px 12px 6px;
+  opacity: 0.9;
+}
+
+/* ─── footer context line (FR-026 / FR-030) ─────────────────────────────── */
+.palette-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin-top: 0;
+  padding: 6px 10px;
+  border-top: 1px solid var(--hairline);
+  min-height: 36px;
+}
+.palette-footer__main {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-height: 28px;
+  flex: 1;
+  min-width: 0;
+}
+.palette-footer__context {
+  flex: 1;
+  min-width: 0;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   color: var(--fg-muted);
@@ -271,53 +241,70 @@
   padding: 4px 6px;
   background: transparent;
 }
-.palette-active-context__label {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-  opacity: 0.85;
-}
-.palette-active-context__proj {
+.palette-footer__context-text {
   color: var(--fg);
   font-weight: 600;
 }
-.palette-active-context__sep {
-  color: var(--fg-muted);
-  opacity: 0.5;
-}
-.palette-active-context__sid {
-  font-family: var(--mono, ui-monospace, monospace);
-  color: var(--rail-accent);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.palette-active-context__icon,
-.palette-active-context__text {
-  color: var(--fg-muted);
-}
-.palette-active-context--flash {
+.palette-footer__context--flash {
   background: color-mix(in srgb, var(--rail-accent) 18%, transparent);
 }
-
-/* ─── InlineStatus ──────────────────────────────────────────────────────── */
-.palette-inline-status {
-  min-height: 1.4em;
-  font-size: 11.5px;
-  display: flex;
+.palette-footer__status {
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.palette-footer__status-spinner {
+  display: inline-block;
+  animation: palette-status-spin 0.8s linear infinite;
+}
+.palette-footer__hints {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.palette-footer__back,
+.palette-footer__close {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  background: transparent;
+  color: var(--fg-muted);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
 }
-.palette-inline-status__text--warning {
-  color: var(--status-warn-text);
+.palette-footer__back:hover,
+.palette-footer__close:hover {
+  background: var(--surface-row-hover);
+  color: var(--fg);
 }
-.palette-inline-status__text--info {
-  color: var(--status-info-text);
+.palette-footer__back:focus-visible,
+.palette-footer__close:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
-.palette-inline-status__icon {
-  margin-right: 4px;
-  font-weight: 700;
+.palette-footer .palette-chip {
+  flex-shrink: 0;
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  border-color: transparent;
+}
+.palette-footer .palette-chip--off {
+  color: var(--text-faint);
 }
 
 /* ─── listbox container + rows (per-row caret signature) ────────────────── */
@@ -325,6 +312,7 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+  padding: 8px;
 }
 #palette-listbox [role="option"] {
   position: relative;
@@ -375,12 +363,12 @@
   margin: 6px 0;
 }
 .palette-listbox__row--disabled {
-  opacity: 0.6;
+  opacity: 0.45;
   cursor: default;
 }
 .palette-listbox__row--disabled:hover {
   background: transparent;
-  opacity: 0.75;
+  opacity: 0.55;
 }
 .palette-listbox__row--disabled-icon {
   flex-shrink: 0;
@@ -416,9 +404,9 @@
   transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
 }
 .palette-chip--on {
-  background: var(--rail-accent);
-  color: var(--on-accent);
-  border-color: var(--rail-accent);
+  background: var(--accent-soft);
+  color: var(--rail-accent);
+  border-color: color-mix(in srgb, var(--rail-accent) 40%, transparent);
 }
 .palette-chip--off {
   color: var(--fg-muted);
@@ -456,8 +444,10 @@
 .palette-param-select {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
 }
 .palette-param {
   position: relative;
@@ -471,23 +461,9 @@
   background: var(--surface-input);
   transition: border-color 120ms ease-out, background-color 120ms ease-out;
 }
-.palette-param.focused {
-  border-color: color-mix(in srgb, var(--rail-accent) 50%, var(--hairline));
-  background: color-mix(in srgb, var(--surface-input) 92%, var(--rail-accent));
-}
-.palette-param.focused::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  background: var(--rail-accent);
-  border-radius: 0 2px 2px 0;
-  transform-origin: top;
-  animation: palette-rail-in 200ms ease-out;
-  pointer-events: none;
-}
+/* Focused param: the input's own focus border is the single indicator —
+   no card ring, no card rail (they doubled up with the row caret and read
+   as two competing focus marks). The label tint is a quiet secondary cue. */
 .palette-param-label {
   font-size: 10.5px;
   font-weight: 700;
@@ -589,6 +565,50 @@
   color: var(--fg-muted);
   padding: 8px 12px;
   font-style: italic;
+}
+
+/* ─── Actions row: options (worktree / host) + explicit confirm ─────────── */
+.palette-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.palette-actions__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.palette-submit {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 6px 16px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 0;
+  border-radius: var(--radius-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color var(--motion-1) var(--motion-ease);
+}
+.palette-submit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--fg));
+}
+.palette-submit:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.palette-submit:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* Text-input variant + chip toggles row layout for the command param. */

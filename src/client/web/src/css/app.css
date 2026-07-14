@@ -10,9 +10,66 @@ body,
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-ui);
   /* FR-TERMINAL-002 prep: prevent double-scroll at body level */
   overflow: hidden;
+}
+
+/* Modern scrollbars — thin, pill thumb, invisible track. One owner here;
+   components never restyle scrollbars locally. Firefox via scrollbar-*,
+   Chromium/WebKit (xterm viewport included) via ::-webkit-scrollbar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  /* Inset the pill from the edge: transparent border + padding-box clip. */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+/* Base button reset — the app owns button chrome, never the UA stylesheet.
+   Chromium's default buttonface is light regardless of theme, so any button
+   that forgets to set its own background renders as a white box on the dark
+   canvas (the pre-refresh ActivityRail card bug class). Components that want
+   chrome opt back in explicitly. */
+button {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+
+/* FR-004: UI sans stack; mono for terminal, paths, IDs, timestamps. */
+.font-mono,
+.terminal-host,
+.terminal-host .xterm,
+.terminal-host .xterm-screen,
+.terminal-host .xterm-viewport,
+.terminal-host .xterm-rows,
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
 }
 
 /* ─── Legacy .app class (kept for backward compat while App.tsx exists) ──── */
@@ -88,8 +145,10 @@ body {
   opacity: 0.55;
   cursor: default;
 }
+/* Listbox cursor = neutral fill, never a permanent ring (UAC-001: rings mean
+   keyboard focus). Palette / SessionList refine this per context. */
 .unified-listbox__option[aria-selected="true"] {
-  outline: 1px solid var(--accent);
+  background: var(--surface-row-hover);
 }
 .unified-listbox__option-reason {
   font-size: 0.8em;
@@ -174,7 +233,7 @@ body {
   align-items: flex-start;
   gap: 12px;
   color: var(--fg);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--toast-border);
   border-radius: 14px;
   padding: 12px 14px;
   cursor: pointer;
@@ -184,8 +243,7 @@ body {
      must meet WCAG 2.5.5 (44x44 minimum) — the existing 240px width already
      satisfies width, but height needs an explicit floor for short messages. */
   min-height: 44px;
-  box-shadow: 0 18px 36px -16px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.32), inset 0 1px 0
-    rgba(255, 255, 255, 0.05);
+  box-shadow: var(--toast-shadow);
   word-break: break-word;
   position: relative;
   overflow: hidden;
@@ -194,8 +252,7 @@ body {
 }
 .notification-toast__item:active {
   transform: scale(0.985);
-  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.32), inset 0 1px 0
-    rgba(255, 255, 255, 0.05);
+  box-shadow: var(--toast-shadow-active);
 }
 
 /* Container layout — desktop (>=768px): top-right fixed; mobile (<768px):
@@ -290,16 +347,16 @@ body {
     backdrop-filter: saturate(160%) blur(14px);
   }
   .notification-toast__item--info {
-    background: linear-gradient(140deg, rgba(74, 158, 255, 0.32), rgba(26, 58, 92, 0.78));
+    background: var(--toast-glass-info);
   }
   .notification-toast__item--success {
-    background: linear-gradient(140deg, rgba(76, 197, 134, 0.32), rgba(26, 61, 43, 0.78));
+    background: var(--toast-glass-success);
   }
   .notification-toast__item--warn {
-    background: linear-gradient(140deg, rgba(240, 193, 75, 0.32), rgba(61, 46, 0, 0.78));
+    background: var(--toast-glass-warn);
   }
   .notification-toast__item--error {
-    background: linear-gradient(140deg, rgba(255, 107, 107, 0.32), rgba(61, 26, 26, 0.82));
+    background: var(--toast-glass-error);
   }
 }
 
@@ -316,22 +373,22 @@ body {
   border-radius: 50%;
   font-size: 13px;
   font-weight: 700;
-  font-family: ui-monospace, monospace;
-  background: rgba(255, 255, 255, 0.14);
+  font-family: var(--font-mono);
+  background: var(--toast-icon-bg);
   color: var(--fg);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  text-shadow: var(--toast-text-shadow);
 }
 .notification-toast__item--info .notification-toast__item-icon {
-  background: rgba(137, 220, 235, 0.28);
+  background: var(--toast-icon-bg-info);
 }
 .notification-toast__item--success .notification-toast__item-icon {
-  background: rgba(166, 227, 161, 0.32);
+  background: var(--toast-icon-bg-success);
 }
 .notification-toast__item--warn .notification-toast__item-icon {
-  background: rgba(250, 179, 135, 0.32);
+  background: var(--toast-icon-bg-warn);
 }
 .notification-toast__item--error .notification-toast__item-icon {
-  background: rgba(255, 107, 107, 0.34);
+  background: var(--toast-icon-bg-error);
 }
 
 .notification-toast__item-content {

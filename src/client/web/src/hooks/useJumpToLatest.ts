@@ -1,4 +1,4 @@
-// useJumpToLatest — drives the ↓最新 (jump-to-latest) FAB from the terminal
+// useJumpToLatest — drives the jump-to-latest FAB from the terminal
 // viewport's scroll position (FR-MOB-JUMP-001..006, ADR 0073 / 0066 / 0064).
 //
 // The hook subscribes to `.xterm-viewport` scroll and decides whether the FAB
@@ -11,7 +11,7 @@
 //      from tail → FAB. The 2px margin absorbs sub-pixel scrollTop on Retina
 //      (DPR 2/3) without chattering (ADR 0073 §4).
 //
-//   2. Mode independence: the hook knows nothing about 閲覧/入力 mode, so the FAB
+//   2. Mode independence: the hook knows nothing about view/input mode, so the FAB
 //      appears whenever the user is in scrollback regardless of input mode
 //      (UAC-015).
 //
@@ -21,14 +21,14 @@
 //      arrives — killing the late-join "FAB flicker" where the pre-seed
 //      scrollTop=0 is mis-read as not-at-tail.
 //
-// On the false→true transition the hook announces '最新へ移動できます' once via the
+// On the false→true transition the hook announces 'New output available' once via the
 // injected announcer; the announcer's 1.5s identical-text debounce (useAnnouncer)
 // collapses the repeated transitions kinetic scroll produces into a single emit.
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
 /** Polite live-region text announced when the FAB first appears (FR-MOB-JUMP-004). */
-export const JUMP_FAB_ANNOUNCEMENT = "最新へ移動できます";
+export const JUMP_FAB_ANNOUNCEMENT = "New output available";
 
 /** Tail-detection margin in CSS px (ADR 0073 §4). */
 export const TAIL_THRESHOLD_PX = 2;
@@ -89,7 +89,7 @@ export function useJumpToLatest(options: UseJumpToLatestOptions): UseJumpToLates
     // Seed gate: until the ADR 0066 flush completes (or with no viewport) keep
     // the FAB forced-absent and do not subscribe yet. After the seed completes
     // we subscribe but the FAB stays false until the first scroll event lands
-    // (追従中) — there is no initial evaluation here on purpose.
+    // (following the tail) — there is no initial evaluation here on purpose.
     if (!seedReady || !el) {
       shownRef.current = false;
       setShouldShowFab(false);

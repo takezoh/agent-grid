@@ -25,6 +25,8 @@ export type TurnRow = {
 
 export type DrawerTab = "viewer" | "diff" | "tree";
 
+export type MainMode = "terminal" | "workspace";
+
 export type WorkspaceRootHandlePin = {
   frameGeneration: number;
   resolvedRootPath: string;
@@ -61,6 +63,10 @@ export type WorkspaceActivityState = {
   transportDegraded: boolean;
   /** Drawer UI state — lives here so rail + drawer share one source. */
   drawerOpen: boolean;
+  /** Main-area mode. Independent of drawerOpen: switching back to the
+      terminal hides the workspace WITHOUT closing it, so the open file,
+      dirty buffer and editor state survive mode round-trips. */
+  mainMode: MainMode;
   drawerTab: DrawerTab;
   drawerTarget: DrawerTarget | null;
   pinnedHandle: WorkspaceRootHandlePin | null;
@@ -93,6 +99,8 @@ export type WorkspaceActivityState = {
   openDrawerFromRow: (target: DrawerTarget, initialTab?: DrawerTab) => void;
   openDrawerTree: (sessionId: string) => void;
   closeDrawer: () => void;
+  /** Switch the main-area mode without touching workspace session state. */
+  setMainMode: (mode: MainMode) => void;
   requestCloseDrawer: () => void;
   confirmDiscardAndClose: () => void;
   cancelCloseWarning: () => void;
@@ -286,6 +294,7 @@ const initialState = {
   scopedSessionId: null as string | null,
   transportDegraded: false,
   drawerOpen: false,
+  mainMode: "terminal" as MainMode,
   drawerTab: "viewer" as DrawerTab,
   drawerTarget: null as DrawerTarget | null,
   pinnedHandle: null as WorkspaceRootHandlePin | null,
@@ -379,20 +388,35 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
       initialTab ??
       (target.kind === "edit" ? "diff" : target.kind === "delete" ? "viewer" : "viewer");
     const resolvedTab = target.kind === "edit" ? "diff" : tab;
+    const alreadyOpen = get().drawerOpen;
     set({
       drawerOpen: true,
+      mainMode: "workspace",
       drawerTarget: target,
       drawerTab: target.kind === "delete" ? "viewer" : resolvedTab,
-      pinnedHandle: null,
-      stalePaths: {},
-      lastStaleAnnouncePath: null,
-      ...clearDrawerEditorState(),
+      // First open pins fresh state; navigating within an open workspace
+      // session keeps the pinned handle and editor state (mode persistence).
+      ...(alreadyOpen
+        ? {}
+        : {
+            pinnedHandle: null,
+            stalePaths: {},
+            lastStaleAnnouncePath: null,
+            ...clearDrawerEditorState(),
+          }),
     });
   },
 
   openDrawerTree: (sessionId) => {
+    if (get().drawerOpen) {
+      // Workspace session already exists — re-entering the mode must not
+      // reset the open file / buffers (mode persistence).
+      set({ mainMode: "workspace", scopedSessionId: sessionId });
+      return;
+    }
     set({
       drawerOpen: true,
+      mainMode: "workspace",
       drawerTarget: null,
       drawerTab: "tree",
       pinnedHandle: null,
@@ -406,12 +430,15 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
   closeDrawer: () =>
     set({
       drawerOpen: false,
+      mainMode: "terminal",
       drawerTarget: null,
       pinnedHandle: null,
       stalePaths: {},
       lastStaleAnnouncePath: null,
       ...clearDrawerEditorState(),
     }),
+
+  setMainMode: (mode) => set({ mainMode: mode }),
 
   requestCloseDrawer: () => {
     const s = get();

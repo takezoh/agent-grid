@@ -1,20 +1,20 @@
-// DriverShortcutBar — mobile 入力モード時に出る driver 固有 shortcut の compact bar.
+// DriverShortcutBar — compact bar of driver-specific shortcuts shown in mobile input mode.
 //
-// 配置: `.terminal-fab-layer` 内の bottom-left anchor (既存 KeyboardFAB /
-// JumpToLatestFAB は bottom-right なので衝突しない). `data-overlay` を付けて
-// useHostPointerInterceptor が outside-tap 扱いしないようにする (KeyboardFAB
-// と同じ pattern). `--terminal-fab-offset` を読んで iOS soft keyboard 上に
-// lift される (useVisualViewportLift が同 layer の CSS 変数を更新).
+// Placement: bottom-left anchor inside `.terminal-fab-layer` (KeyboardFAB /
+// JumpToLatestFAB sit bottom-right, so no collision). Carries `data-overlay` so
+// useHostPointerInterceptor does not treat taps as outside-taps (same pattern
+// as KeyboardFAB). Reads `--terminal-fab-offset` so it lifts above the iOS soft
+// keyboard (useVisualViewportLift updates the layer's CSS variable).
 //
-// 可視性 gate:
-//   - inputActive (useInputMode().active) — false なら null return (閲覧モード
-//     では bar 非表示).
-//   - driver が DRIVER_SHORTCUTS に居る — claude / codex のみ. shell / gemini /
-//     generic では table lookup 失敗で null return.
+// Visibility gate:
+//   - inputActive (useInputMode().active) — returns null when false (bar is
+//     hidden in view mode).
+//   - driver present in DRIVER_SHORTCUTS — claude / codex only. shell / gemini /
+//     generic fail the table lookup and return null.
 //
-// tap → sendInput(bytes). 既存の KeyboardFAB / JumpToLatestFAB と同じく
-// IconButton primitive 経由なので pointerdown.preventDefault で textarea から
-// focus を奪わず soft keyboard を閉じない.
+// tap → sendInput(bytes). Like KeyboardFAB / JumpToLatestFAB it goes through
+// the IconButton primitive, so pointerdown.preventDefault keeps focus in the
+// textarea and the soft keyboard stays open.
 
 import type { JSX } from "react";
 import "../css/driver-shortcut-bar.css";
@@ -22,11 +22,11 @@ import { type DriverShortcut, getDriverShortcuts } from "../lib/driverShortcuts"
 import { IconButton } from "./primitives/IconButton";
 
 export interface DriverShortcutBarProps {
-  /** activeSession.root_driver. 不明 / undefined なら bar 自体が描画されない. */
+  /** activeSession.root_driver. Unknown / undefined renders no bar at all. */
   driver: string | null | undefined;
-  /** useInputMode().active. false の間は bar を隠す. */
+  /** useInputMode().active. The bar is hidden while false. */
   inputActive: boolean;
-  /** TerminalPane から渡される raw byte 送信 closure (`{k:"i", d, sessionId}`). */
+  /** Raw-byte send closure passed from TerminalPane (`{k:"i", d, sessionId}`). */
   sendInput: (data: string) => void;
 }
 
@@ -45,7 +45,7 @@ export function DriverShortcutBar({
       data-overlay=""
       data-driver={driver ?? ""}
       role="toolbar"
-      aria-label={`${driver} の shortcut`}
+      aria-label={`${driver} shortcuts`}
     >
       {shortcuts.map((sc: DriverShortcut) => (
         <IconButton

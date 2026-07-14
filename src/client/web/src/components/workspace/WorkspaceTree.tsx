@@ -4,6 +4,7 @@ import {
   type WorkspaceTreeEntry,
   makeWorkspaceApi,
 } from "../../api/workspace";
+import { Icon } from "../icons/Icon";
 
 export type WorkspaceTreeProps = {
   sessionId: string;
@@ -13,18 +14,19 @@ export type WorkspaceTreeProps = {
 };
 
 type TreeState = {
-  entries: WorkspaceTreeEntry[];
+  childrenByPath: Record<string, WorkspaceTreeEntry[]>;
   expanded: ReadonlySet<string>;
   outcome: string;
-  path: string;
-  loading: boolean;
   error: string | null;
+  loadingPaths: ReadonlySet<string>;
 };
 
 const BANNERS: Record<string, string> = {
   root_unreachable: "Workspace root is unreachable. Try refresh.",
   refresh_failed: "Tree refresh failed. Try again.",
 };
+
+const ROOT_PATH = "";
 
 export function WorkspaceTree({
   sessionId,
@@ -33,38 +35,53 @@ export function WorkspaceTree({
   reloadToken = 0,
 }: WorkspaceTreeProps): ReactNode {
   const [state, setState] = useState<TreeState>({
-    entries: [],
+    childrenByPath: {},
     expanded: new Set(),
     outcome: "ok",
-    path: "",
-    loading: false,
     error: null,
+    loadingPaths: new Set(),
   });
 
   const fetchTree = useCallback(
     async (path: string) => {
       if (!pinned) return;
-      setState((s) => ({ ...s, loading: true, error: null }));
+      setState((s) => ({
+        ...s,
+        loadingPaths: new Set(s.loadingPaths).add(path),
+        error: null,
+      }));
       try {
         const api = makeWorkspaceApi();
         const resp = await api.getTree(sessionId, path, pinned);
-        setState((s) => ({
-          ...s,
-          loading: false,
-          outcome: resp.outcome,
-          path: resp.path ?? path,
-          entries: resp.entries ?? [],
-          error:
-            resp.outcome === "ok" ? null : (BANNERS[resp.outcome] ?? `Tree error: ${resp.outcome}`),
-        }));
+        setState((s) => {
+          const loadingPaths = new Set(s.loadingPaths);
+          loadingPaths.delete(path);
+          return {
+            ...s,
+            loadingPaths,
+            outcome: resp.outcome,
+            childrenByPath:
+              resp.outcome === "ok" && resp.entries
+                ? { ...s.childrenByPath, [path]: resp.entries }
+                : s.childrenByPath,
+            error:
+              resp.outcome === "ok"
+                ? null
+                : (BANNERS[resp.outcome] ?? `Tree error: ${resp.outcome}`),
+          };
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setState((s) => ({
-          ...s,
-          loading: false,
-          outcome: "refresh_failed",
-          error: msg,
-        }));
+        setState((s) => {
+          const loadingPaths = new Set(s.loadingPaths);
+          loadingPaths.delete(path);
+          return {
+            ...s,
+            loadingPaths,
+            outcome: "refresh_failed",
+            error: msg,
+          };
+        });
       }
     },
     [sessionId, pinned],
@@ -72,7 +89,14 @@ export function WorkspaceTree({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadToken is the parent-driven refetch trigger
   useEffect(() => {
-    void fetchTree("");
+    setState({
+      childrenByPath: {},
+      expanded: new Set(),
+      outcome: "ok",
+      error: null,
+      loadingPaths: new Set(),
+    });
+    void fetchTree(ROOT_PATH);
   }, [fetchTree, reloadToken]);
 
   const toggleDir = (entry: WorkspaceTreeEntry) => {
@@ -86,21 +110,26 @@ export function WorkspaceTree({
       else next.add(entry.path);
       return { ...s, expanded: next };
     });
-    void fetchTree(entry.path);
+    if (!state.childrenByPath[entry.path]) {
+      void fetchTree(entry.path);
+    }
   };
+
+  const rootEntries = state.childrenByPath[ROOT_PATH] ?? [];
+  const isRootLoading = state.loadingPaths.has(ROOT_PATH);
 
   return (
     <div className="workspace-tree" data-testid="workspace-tree">
       <div className="workspace-tree__header">
         <span className="workspace-tree__root" aria-label="workspace root">
-          Workspace
+          Files
         </span>
         <button
           type="button"
           className="workspace-tree__refresh"
           aria-label="Refresh tree"
-          onClick={() => void fetchTree(state.path)}
-          disabled={!pinned || state.loading}
+          onClick={() => void fetchTree(ROOT_PATH)}
+          disabled={!pinned || isRootLoading}
         >
           Refresh
         </button>
@@ -113,25 +142,83 @@ export function WorkspaceTree({
           </div>
         </>
       )}
-      {state.loading && <div className="workspace-tree__loading">Loading…</div>}
+      {isRootLoading && rootEntries.length === 0 && (
+        <div className="workspace-tree__loading">Loading…</div>
+      )}
       <ul className="workspace-tree__list" role="tree" aria-label="Workspace files">
-        {state.entries.map((entry) => (
-          <li
-            key={entry.path}
-            role="treeitem"
-            aria-expanded={entry.type === "dir" ? state.expanded.has(entry.path) : undefined}
-          >
-            <button
-              type="button"
-              className="workspace-tree__node"
-              aria-label={entry.name}
-              onClick={() => toggleDir(entry)}
-            >
-              {entry.type === "dir" ? "📁" : "📄"} {entry.name}
-            </button>
-          </li>
+        {rootEntries.map((entry) => (
+          <TreeBranch key={entry.path} entry={entry} depth={0} state={state} onToggle={toggleDir} />
         ))}
       </ul>
     </div>
+  );
+}
+
+type TreeBranchProps = {
+  entry: WorkspaceTreeEntry;
+  depth: number;
+  state: TreeState;
+  onToggle: (entry: WorkspaceTreeEntry) => void;
+};
+
+function TreeBranch({ entry, depth, state, onToggle }: TreeBranchProps): ReactNode {
+  const isDir = entry.type === "dir";
+  const isExpanded = isDir && state.expanded.has(entry.path);
+  const children = state.childrenByPath[entry.path] ?? [];
+  const isLoading = state.loadingPaths.has(entry.path);
+
+  return (
+    <li
+      role="treeitem"
+      aria-expanded={isDir ? isExpanded : undefined}
+      className="workspace-tree__item"
+      data-depth={depth}
+    >
+      <button
+        type="button"
+        className="workspace-tree__node"
+        aria-label={entry.name}
+        style={{ paddingLeft: `calc(var(--space-3) + ${depth} * var(--workspace-tree-indent))` }}
+        onClick={() => onToggle(entry)}
+      >
+        {isDir ? (
+          <span
+            className={
+              isExpanded
+                ? "workspace-tree__chevron workspace-tree__chevron--expanded"
+                : "workspace-tree__chevron"
+            }
+            aria-hidden="true"
+          >
+            <Icon name="chevron-right" size={12} />
+          </span>
+        ) : (
+          <span
+            className="workspace-tree__chevron workspace-tree__chevron--spacer"
+            aria-hidden="true"
+          />
+        )}
+        <span className="workspace-tree__icon" aria-hidden="true">
+          <Icon name={isDir ? "folder" : "file"} size={14} />
+        </span>
+        <span className="workspace-tree__label">{entry.name}</span>
+      </button>
+      {isDir && isExpanded && (
+        <ul className="workspace-tree__group">
+          {isLoading && children.length === 0 && (
+            <li className="workspace-tree__loading workspace-tree__loading--nested">Loading…</li>
+          )}
+          {children.map((child) => (
+            <TreeBranch
+              key={child.path}
+              entry={child}
+              depth={depth + 1}
+              state={state}
+              onToggle={onToggle}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }

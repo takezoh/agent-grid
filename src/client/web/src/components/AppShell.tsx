@@ -155,11 +155,9 @@ export function AppShell({ sidebar, banner, header, main, overlays }: AppShellPr
         {/* banner: spans full width */}
         <div className="app-banner">{banner}</div>
 
-        {/* header: command trigger + theme control + hamburger on mobile */}
+        {/* header: HeaderBar + hamburger (left on mobile, FR-013) */}
         <div className="app-header-area">
           <div className="app-header-inner">
-            {header}
-            {/* HamburgerToggle — visible only on <768px via CSS */}
             <button
               type="button"
               className="hamburger-toggle"
@@ -170,6 +168,7 @@ export function AppShell({ sidebar, banner, header, main, overlays }: AppShellPr
             >
               ☰
             </button>
+            {header}
           </div>
         </div>
 

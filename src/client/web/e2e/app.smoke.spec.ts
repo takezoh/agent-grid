@@ -46,7 +46,7 @@ test("renders live sessions and completes a new-session submission against the f
     serverTime: 1_720_000_000_000,
   });
 
-  await expect(page.getByRole("heading", { name: "Existing session" })).toBeVisible();
+  await expect(page.locator(".header-bar__title", { hasText: "Existing session" })).toBeVisible();
   await expect
     .poll(async () => {
       const frames = await backend.sentFrames();
@@ -61,7 +61,12 @@ test("renders live sessions and completes a new-session submission against the f
   await expect(page.getByTestId("palette-param-project-filter")).toBeVisible();
   await page.getByTestId("palette-param-project-filter").press("Enter");
   await expect(page.getByTestId("palette-param-command-filter")).toBeVisible();
+  // Enter on the final field moves focus to the explicit confirm button —
+  // selection alone must NOT create the session.
   await page.getByTestId("palette-param-command-filter").press("Enter");
+  expect(await backend.createSessionRequests()).toHaveLength(0);
+  await expect(page.getByTestId("palette-submit")).toBeFocused();
+  await page.getByTestId("palette-submit").press("Enter");
 
   await expect.poll(async () => backend.createSessionRequests()).toHaveLength(1);
   expect(await backend.createSessionRequests()).toEqual([
@@ -85,7 +90,7 @@ test("renders live sessions and completes a new-session submission against the f
   expect(latestViewUpdate).toBeDefined();
   expect(latestViewUpdate).not.toHaveProperty("activeSessionID");
 
-  await expect(page.getByRole("heading", { name: "Browser smoke" })).toBeVisible();
+  await expect(page.locator(".header-bar__title", { hasText: "Browser smoke" })).toBeVisible();
   await expect
     .poll(async () => {
       const frames = await backend.sentFrames();

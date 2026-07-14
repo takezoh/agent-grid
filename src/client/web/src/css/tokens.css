@@ -1,208 +1,418 @@
-/* tokens.css — semantic design tokens (ADR-0059)
+/* tokens.css — two-layer design tokens (ADR-20260714)
+   Primitive layer: color ramp, space, type, radius, motion, fonts.
+   Semantic layer: aliases that resolve ONLY to primitives via var().
    Import order: tokens.css → app.css → view.css                           */
 
 /* ─── Default theme (dark) ──────────────────────────────────────────────── */
 :root {
-  /* Foreground */
-  --fg: #e6e6e6;
-  --fg-muted: #a0a0a0;
+  /* ── Primitive: color ramp ─────────────────────────────────────────────
+     web-ui-refresh palette (spec-20260714-web-ui-refresh "Design Token
+     Values" が正本)。ramp の index は歴史的な役割位置 — 明度単調ではない。
+     役割は semantic 層の alias が定義する。 */
+  --color-neutral-0: #0a0a0b;
+  --color-neutral-50: #0e0f13;
+  --color-neutral-100: #101116;
+  --color-neutral-150: #111318;
+  --color-neutral-200: #0d0e12;
+  --color-neutral-250: #0b0c0e;
+  --color-neutral-300: #191c22;
+  --color-neutral-400: #1c2027;
+  --color-neutral-500: #262b33;
+  --color-neutral-550: #2c323c;
+  --color-neutral-600: #313845;
+  --color-neutral-650: #4a505c;
+  --color-neutral-700: #565d6a;
+  --color-neutral-800: #646b78;
+  --color-neutral-900: #9aa1ad;
+  --color-neutral-950: #e8eaee;
+  --color-neutral-1000: #ffffff;
 
-  /* Background */
-  --bg: #1e1e1e;
-  --bg-elevated: #1e1e2e;
+  --color-accent-500: #7c86ff;
+  --color-accent-600: #929bff;
 
-  /* Accent */
-  --accent: #4a9eff;
+  --color-status-running: #3fcf7a;
+  --color-status-waiting: #e0b45c;
+  --color-status-idle: #646b78;
+  --color-status-stopped: #f2555a;
+  --color-status-pending: #6b9bff;
+  --color-status-unknown: #3a4048;
 
-  /* Border / focus */
-  --border-color: #45475a;
-  --focus-ring: #4a9eff;
+  --color-warn-500: #e0b45c;
+  --color-warn-600: #d9a441;
+  --color-warn-700: #f0d08a;
+  --color-warn-bg: #2e2612;
 
-  /* Status */
-  --status-running: #2c7a4d;
-  --status-waiting: #b59300;
-  --status-idle: #555;
-  --status-stopped: #6e2222;
-  --status-unknown: #333;
+  --color-danger-500: #e5484d;
+  --color-danger-600: #c93a40;
 
-  /* Warn / error (used in status banner and toasts) */
-  --warn: #f0ad4e;
+  --color-info-text: #8ccfe3;
+  --color-warn-text: #e8c07f;
+  --color-error-text: #f2555a;
+  --color-success-text: #7fd9a2;
 
-  /* Row shared tokens (FR-TOKEN-001) — used by SessionList and palette listbox */
-  --row-radius: 4px;
-  --row-padding-y: 6px;
-  --row-padding-x: 8px;
-  --row-font-size: 0.875rem;
+  --color-toast-info: #161a24;
+  --color-toast-success: #14201a;
+  --color-toast-warn: #221d10;
+  --color-toast-error: #241416;
+
+  --color-diff-add: rgba(63, 207, 122, 0.1);
+  --color-diff-remove: rgba(242, 85, 90, 0.1);
+  --color-diff-change: rgba(224, 180, 92, 0.1);
+
+  /* Alpha overlays (theme-tuned) */
+  --alpha-black-12: rgba(0, 0, 0, 0.12);
+  --alpha-black-30: rgba(0, 0, 0, 0.3);
+  --alpha-black-32: rgba(0, 0, 0, 0.32);
+  --alpha-black-35: rgba(0, 0, 0, 0.35);
+  --alpha-black-40: rgba(0, 0, 0, 0.4);
+  --alpha-black-45: rgba(0, 0, 0, 0.45);
+  --alpha-black-50: rgba(0, 0, 0, 0.5);
+  --alpha-black-55: rgba(0, 0, 0, 0.55);
+  --alpha-black-60: rgba(0, 0, 0, 0.6);
+  --alpha-black-scrim: rgba(8, 10, 14, 0.52);
+  --alpha-white-4: rgba(255, 255, 255, 0.04);
+  --alpha-white-5: rgba(255, 255, 255, 0.05);
+  --alpha-white-6: rgba(255, 255, 255, 0.06);
+  --alpha-white-8: rgba(255, 255, 255, 0.08);
+  --alpha-white-10: rgba(255, 255, 255, 0.1);
+  --alpha-white-12: rgba(255, 255, 255, 0.12);
+  --alpha-white-14: rgba(255, 255, 255, 0.14);
+  --alpha-white-15: rgba(255, 255, 255, 0.15);
+  --alpha-accent-12: rgba(124, 134, 255, 0.14);
+  --alpha-accent-30: rgba(124, 134, 255, 0.3);
+  --alpha-accent-35: rgba(124, 134, 255, 0.35);
+  --alpha-accent-32: rgba(124, 134, 255, 0.2);
+  --alpha-success-32: rgba(63, 207, 122, 0.18);
+  --alpha-success-78: rgba(20, 32, 26, 0.92);
+  --alpha-warn-32: rgba(224, 180, 92, 0.18);
+  --alpha-warn-78: rgba(34, 29, 16, 0.92);
+  --alpha-error-32: rgba(242, 85, 90, 0.2);
+  --alpha-error-34: rgba(242, 85, 90, 0.24);
+  --alpha-error-82: rgba(36, 20, 22, 0.94);
+  --alpha-info-28: rgba(124, 134, 255, 0.16);
+  --alpha-info-78: rgba(22, 26, 36, 0.92);
+  --alpha-success-icon: rgba(63, 207, 122, 0.24);
+  --alpha-warn-icon: rgba(224, 180, 92, 0.24);
+  --alpha-danger-8: rgba(229, 72, 77, 0.08);
+  --alpha-flash: rgba(242, 85, 90, 0.14);
+  --alpha-input-bg: rgba(14, 16, 20, 0.92);
+
+  /* Scrollbar */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.26);
+
+  /* Status soft fills (badge/pill backgrounds — text uses the vivid color) */
+  --alpha-status-running-soft: rgba(63, 207, 122, 0.14);
+  --alpha-status-waiting-soft: rgba(224, 180, 92, 0.16);
+  --alpha-status-idle-soft: rgba(100, 107, 120, 0.18);
+  --alpha-status-stopped-soft: rgba(242, 85, 90, 0.15);
+  --alpha-status-pending-soft: rgba(107, 155, 255, 0.15);
+  --alpha-status-unknown-soft: rgba(100, 107, 120, 0.12);
+
+  /* ── Primitive: space scale ────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+
+  /* ── Primitive: type scale ─────────────────────────────────────────── */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+
+  /* ── Primitive: radius scale ───────────────────────────────────────── */
+  --radius-1: 4px;
+  --radius-2: 8px;
+  --radius-3: 12px;
+  --radius-full: 9999px;
+
+  /* ── Primitive: motion scale ───────────────────────────────────────── */
+  --motion-1: 120ms;
+  --motion-2: 180ms;
+  --motion-3: 240ms;
+  --motion-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* ── Primitive: font stacks ────────────────────────────────────────── */
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+
+  /* ── Semantic: foreground / background ─────────────────────────────── */
+  --fg: var(--color-neutral-950);
+  --fg-muted: var(--color-neutral-900);
+  --text-faint: var(--color-neutral-800);
+  --bg: var(--color-neutral-250);
+  --bg-elevated: var(--color-neutral-300);
+
+  /* ── Semantic: accent / border / focus ─────────────────────────────── */
+  --accent: var(--color-accent-500);
+  --accent-soft: var(--alpha-accent-12);
+  --border-color: var(--color-neutral-600);
+  --focus-ring: var(--color-accent-500);
+  --border-subtle: var(--color-neutral-500);
+
+  /* ── Semantic: status (single family — FR-003) ─────────────────────── */
+  --status-running: var(--color-status-running);
+  --status-waiting: var(--color-status-waiting);
+  --status-idle: var(--color-status-idle);
+  --status-stopped: var(--color-status-stopped);
+  --status-pending: var(--color-status-pending);
+  --status-unknown: var(--color-status-unknown);
+  --status-running-soft: var(--alpha-status-running-soft);
+  --status-waiting-soft: var(--alpha-status-waiting-soft);
+  --status-idle-soft: var(--alpha-status-idle-soft);
+  --status-stopped-soft: var(--alpha-status-stopped-soft);
+  --status-pending-soft: var(--alpha-status-pending-soft);
+  --status-unknown-soft: var(--alpha-status-unknown-soft);
+
+  /* ── Semantic: warn / error / info ─────────────────────────────────── */
+  --warn: var(--color-warn-500);
+  --warning-fg: var(--color-warn-600);
+  --warning-bg: var(--color-warn-bg);
+  --warning-fg-bright: var(--color-warn-700);
+  --status-warn-text: var(--color-warn-text);
+  --status-info-text: var(--color-info-text);
+  --error-text: var(--color-error-text);
+  --danger: var(--color-danger-500);
+  --danger-hover: var(--color-danger-600);
+  --danger-bg: var(--alpha-danger-8);
+
+  /* ── Semantic: surfaces ────────────────────────────────────────────── */
+  --surface: var(--color-neutral-50);
+  --surface-elevated: var(--color-neutral-150);
+  --bg-surface: var(--surface-elevated);
+  --border-hairline: var(--hairline);
+  --surface-canvas: var(--color-neutral-200);
+  --surface-input: var(--color-neutral-100);
+  --surface-row-hover: var(--alpha-white-4);
+  --surface-row-selected: var(--alpha-accent-12);
+  --input-bg: var(--color-neutral-400);
+  --input-bg-hover: var(--alpha-white-8);
+  --input-border: var(--color-neutral-550);
+  --on-accent: var(--color-neutral-0);
+  --on-danger: var(--color-neutral-1000);
+
+  /* ── Semantic: row shared tokens (FR-TOKEN-001) ──────────────────── */
+  --row-radius: var(--radius-1);
+  --row-padding-y: var(--space-2);
+  --row-padding-x: var(--space-3);
+  --row-font-size: var(--text-base);
   --row-line-height: 1.4;
   --row-min-height: 2rem;
 
-  /* xterm (FR-THEME-003 — value only; ITheme wiring is in m2 ThemeProvider) */
-  --xterm-fg: #e6e6e6;
-  --xterm-cursor: #e6e6e6;
-  --xterm-selection: rgba(74, 158, 255, 0.3);
+  /* ── Semantic: xterm (FR-THEME-003) ──────────────────────────────── */
+  --xterm-fg: var(--color-neutral-950);
+  --xterm-cursor: var(--color-neutral-950);
+  --xterm-selection: var(--alpha-accent-30);
 
-  /* Toast backgrounds (FR-TOAST-002) */
-  --toast-bg-info: #1a3a5c;
-  --toast-bg-success: #1a3d2b;
-  --toast-bg-warn: #3d2e00;
-  --toast-bg-error: #3d1a1a;
+  /* ── Semantic: editor / CodeMirror (FR-037) ──────────────────────── */
+  --editor-fg: var(--fg);
+  --editor-bg: var(--surface-canvas);
+  --editor-gutter-fg: var(--fg-muted);
+  --editor-gutter-bg: var(--surface);
+  --editor-line-highlight: var(--alpha-white-4);
+  --editor-selection: var(--alpha-accent-30);
+  --editor-cursor: var(--accent);
 
-  /* Layout (FR-LAYOUT-004) */
+  /* ── Semantic: shell chrome ──────────────────────────────────────── */
+  --header-height: 44px;
+
+  /* ── Semantic: toast ───────────────────────────────────────────────── */
+  --toast-bg-info: var(--color-toast-info);
+  --toast-bg-success: var(--color-toast-success);
+  --toast-bg-warn: var(--color-toast-warn);
+  --toast-bg-error: var(--color-toast-error);
+  --toast-border: var(--alpha-white-6);
+  --toast-shadow: 0 18px 36px -16px var(--alpha-black-55), 0 2px 6px var(--alpha-black-32), inset 0
+    1px 0 var(--alpha-white-5);
+  --toast-shadow-active: 0 10px 24px -12px var(--alpha-black-55), 0 1px 3px var(--alpha-black-32),
+    inset 0 1px 0 var(--alpha-white-5);
+  --toast-icon-bg: var(--alpha-white-14);
+  --toast-icon-bg-info: var(--alpha-info-28);
+  --toast-icon-bg-success: var(--alpha-success-icon);
+  --toast-icon-bg-warn: var(--alpha-warn-icon);
+  --toast-icon-bg-error: var(--alpha-error-34);
+  --toast-text-shadow: 0 1px 0 var(--alpha-black-35);
+  --toast-glass-info: linear-gradient(140deg, var(--alpha-accent-32), var(--alpha-info-78));
+  --toast-glass-success: linear-gradient(140deg, var(--alpha-success-32), var(--alpha-success-78));
+  --toast-glass-warn: linear-gradient(140deg, var(--alpha-warn-32), var(--alpha-warn-78));
+  --toast-glass-error: linear-gradient(140deg, var(--alpha-error-32), var(--alpha-error-82));
+
+  /* ── Semantic: layout ──────────────────────────────────────────────── */
   --dvh: 100dvh;
-
-  /* Breakpoint reference variables (media queries use literal values) */
   --bp-mobile-max: 767px;
   --bp-tablet-max: 1023px;
 
-  /* Palette-specific surface colors */
-  --palette-bg: #1e1e2e;
-  --palette-input-bg: #11111b;
-  --palette-border: #45475a;
+  /* ── Semantic: palette ───────────────────────────────────────────── */
+  --palette-bg: var(--color-neutral-300);
+  --palette-input-bg: var(--color-neutral-50);
+  --palette-border: var(--color-neutral-600);
+  --rail-accent: var(--color-accent-500);
+  --hairline: var(--alpha-white-6);
+  --elevation-card: 0 24px 48px -12px var(--alpha-black-55), 0 0 0 1px var(--alpha-white-5);
+  --listbox-flash-bg: var(--alpha-flash);
+  --listbox-separator: var(--color-neutral-600);
+  --selection-ring: inset 0 0 0 1px var(--alpha-accent-35);
 
-  /* Palette modernization aliases — caret-rail signature + layered surfaces.
-     Opt-in by .palette-* selectors only so other components stay on
-     --bg / --bg-elevated / --border-color (FR-TOKEN-001 boundary). */
-  --surface-canvas: #1c1c26;
-  --surface-input: #11121b;
-  --surface-row-hover: rgba(255, 255, 255, 0.04);
-  --surface-row-selected: rgba(74, 158, 255, 0.12);
-  --rail-accent: #4a9eff;
-  --hairline: rgba(255, 255, 255, 0.06);
-  --elevation-card: 0 24px 48px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  /* ── Semantic: overlays / shadows ──────────────────────────────────── */
+  --overlay-scrim: var(--alpha-black-45);
+  --overlay-scrim-heavy: var(--alpha-black-60);
+  --overlay-scrim-light: var(--alpha-black-40);
+  --overlay-scrim-blur: var(--alpha-black-32);
+  --overlay-drawer-scrim: var(--alpha-black-scrim);
+  --overlay-workspace: var(--alpha-black-35);
+  --shadow-sm: 0 2px 8px var(--alpha-black-30);
+  --shadow-md: 0 4px 14px var(--alpha-black-32);
+  --shadow-lg: 0 10px 30px var(--alpha-black-50);
+  --shadow-xl: 0 10px 32px var(--alpha-black-40);
+  --shadow-fab: 0 6px 20px var(--alpha-black-35);
+  --shadow-drawer: -4px 0 24px var(--alpha-black-40);
+  --shadow-drawer-panel: 24px 0 56px -12px var(--alpha-black-55), 0 0 0 1px var(--alpha-white-4);
+  --shadow-dialog: 0 10px 32px var(--alpha-black-40);
+  --input-bg-floating: var(--alpha-input-bg);
+  --input-border-floating: var(--alpha-white-12);
 
-  /* Input / elevated surface */
-  --input-bg: #2a2a2a;
-  --input-border: #444;
+  /* ── Semantic: diff highlights ───────────────────────────────────── */
+  --diff-add-bg: var(--color-diff-add);
+  --diff-remove-bg: var(--color-diff-remove);
+  --diff-change-bg: var(--color-diff-change);
 
-  /* Text on accent (dark on bright button) */
-  --on-accent: #0a0a0a;
-
-  /* InlineStatus colors */
-  --status-warn-text: #fab387;
-  --status-info-text: #89dceb;
-
-  /* Error text */
-  --error-text: #ff6b6b;
-
-  /* Listbox flash / error highlight */
-  --listbox-flash-bg: rgba(243, 139, 168, 0.15);
-  --listbox-separator: #45475a;
-
-  /* Session status indicator colors (spinner dots in sidebar) */
-  --session-status-running: #4cc586;
-  --session-status-waiting: #f0c14b;
-  --session-status-stopped: #b35858;
-  --session-status-pending: #6b9bff;
-
-  /* Run-state badge pending background */
-  --status-pending: #2c4a8a;
-
-  /* Badge contrast text — white on dark bg, black on bright bg */
-  --badge-text-on-dark: #ffffff;
-  --badge-text-on-bright: #000000;
+  /* ── Semantic: badge contrast text ───────────────────────────────── */
+  --badge-text-on-dark: var(--color-neutral-1000);
+  --badge-text-on-bright: var(--color-neutral-0);
 }
 
 /* ─── Light theme overrides ──────────────────────────────────────────────── */
 [data-theme="light"] {
-  --fg: #1a1a1a;
-  --fg-muted: #555555;
-  --bg: #f5f5f5;
-  --bg-elevated: #ffffff;
-  --accent: #0066cc;
-  --border-color: #cccccc;
-  --focus-ring: #0066cc;
-  --status-running: #1a6636;
-  --status-waiting: #7a6000;
-  --status-idle: #666666;
-  --status-stopped: #8b1c1c;
-  --status-unknown: #888888;
-  --warn: #d4820a;
-  --xterm-fg: #1a1a1a;
-  --xterm-cursor: #1a1a1a;
-  --xterm-selection: rgba(0, 102, 204, 0.3);
-  --toast-bg-info: #d0e8ff;
-  --toast-bg-success: #d0f0dd;
-  --toast-bg-warn: #fff3cd;
-  --toast-bg-error: #ffe0e0;
-  --palette-bg: #ffffff;
-  --palette-input-bg: #f0f0f0;
-  --palette-border: #cccccc;
-  --surface-canvas: #ffffff;
-  --surface-input: #f5f5f7;
-  --surface-row-hover: rgba(0, 0, 0, 0.04);
-  --surface-row-selected: rgba(0, 102, 204, 0.1);
-  --rail-accent: #0066cc;
-  --hairline: rgba(0, 0, 0, 0.08);
-  --elevation-card: 0 20px 40px -16px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --input-bg: #ffffff;
-  --input-border: #aaaaaa;
-  --on-accent: #ffffff;
-  --status-warn-text: #8b4000;
-  --status-info-text: #005f7a;
-  --error-text: #cc0000;
-  --listbox-flash-bg: rgba(180, 0, 50, 0.12);
-  --listbox-separator: #cccccc;
-  --session-status-running: #1a7a4a;
-  --session-status-waiting: #8b6a00;
-  --session-status-stopped: #8b2020;
-  --session-status-pending: #3a6fcc;
-  --status-pending: #1a3a8a;
-  --badge-text-on-dark: #ffffff;
-  --badge-text-on-bright: #000000;
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f4f5f7;
+  --color-neutral-100: #f2f3f5;
+  --color-neutral-150: #ffffff;
+  --color-neutral-200: #fdfdfe;
+  --color-neutral-250: #fafafa;
+  --color-neutral-300: #ffffff;
+  --color-neutral-400: #ffffff;
+  --color-neutral-500: #e3e6ea;
+  --color-neutral-550: #c9ced6;
+  --color-neutral-600: #dbdfe5;
+  --color-neutral-650: #6a7180;
+  --color-neutral-700: #5d6370;
+  --color-neutral-800: #8a8f9c;
+  --color-neutral-900: #5d6370;
+  --color-neutral-950: #17181c;
+  --color-neutral-1000: #000000;
+
+  --color-accent-500: #4650d8;
+  --color-accent-600: #3a43c4;
+
+  --color-status-running: #217a4b;
+  --color-status-waiting: #a06a1b;
+  --color-status-idle: #6a7180;
+  --color-status-stopped: #c93a40;
+  --color-status-pending: #3556c9;
+  --color-status-unknown: #9aa1ad;
+
+  --color-warn-500: #b97d15;
+  --color-warn-600: #96660f;
+  --color-warn-700: #7a5407;
+  --color-warn-bg: #f7ecd8;
+
+  --color-danger-500: #c93a40;
+  --color-danger-600: #a82f34;
+
+  --color-info-text: #0d5c74;
+  --color-warn-text: #8a5a10;
+  --color-error-text: #c93a40;
+  --color-success-text: #1d6f44;
+
+  --color-toast-info: #eef0fe;
+  --color-toast-success: #e8f5ec;
+  --color-toast-warn: #f9f1df;
+  --color-toast-error: #fdeaea;
+
+  --color-diff-add: rgba(33, 122, 75, 0.1);
+  --color-diff-remove: rgba(201, 58, 64, 0.1);
+  --color-diff-change: rgba(160, 106, 27, 0.1);
+
+  --alpha-black-12: rgba(0, 0, 0, 0.06);
+  --alpha-black-30: rgba(0, 0, 0, 0.12);
+  --alpha-black-32: rgba(0, 0, 0, 0.18);
+  --alpha-black-35: rgba(0, 0, 0, 0.15);
+  --alpha-black-40: rgba(0, 0, 0, 0.18);
+  --alpha-black-45: rgba(0, 0, 0, 0.25);
+  --alpha-black-50: rgba(0, 0, 0, 0.18);
+  --alpha-black-55: rgba(0, 0, 0, 0.18);
+  --alpha-black-60: rgba(0, 0, 0, 0.3);
+  --alpha-black-scrim: rgba(0, 0, 0, 0.25);
+  --alpha-white-4: rgba(0, 0, 0, 0.04);
+  --alpha-white-5: rgba(0, 0, 0, 0.04);
+  --alpha-white-6: rgba(0, 0, 0, 0.08);
+  --alpha-white-8: rgba(0, 0, 0, 0.08);
+  --alpha-white-10: rgba(0, 0, 0, 0.06);
+  --alpha-white-12: rgba(0, 0, 0, 0.08);
+  --alpha-white-14: rgba(0, 0, 0, 0.06);
+  --alpha-white-15: rgba(0, 0, 0, 0.08);
+  --alpha-accent-12: rgba(70, 80, 216, 0.09);
+  --alpha-accent-30: rgba(70, 80, 216, 0.3);
+  --alpha-accent-35: rgba(70, 80, 216, 0.2);
+  --alpha-accent-32: rgba(70, 80, 216, 0.14);
+  --alpha-success-32: rgba(33, 122, 75, 0.14);
+  --alpha-success-78: rgba(232, 245, 236, 0.94);
+  --alpha-warn-32: rgba(185, 125, 21, 0.14);
+  --alpha-warn-78: rgba(249, 241, 223, 0.94);
+  --alpha-error-32: rgba(201, 58, 64, 0.14);
+  --alpha-error-34: rgba(201, 58, 64, 0.16);
+  --alpha-error-82: rgba(253, 234, 234, 0.94);
+  --alpha-info-28: rgba(70, 80, 216, 0.1);
+  --alpha-info-78: rgba(238, 240, 254, 0.94);
+  --alpha-success-icon: rgba(33, 122, 75, 0.14);
+  --alpha-warn-icon: rgba(150, 102, 15, 0.14);
+  --alpha-danger-8: rgba(201, 58, 64, 0.08);
+  --alpha-flash: rgba(201, 58, 64, 0.1);
+  --alpha-input-bg: rgba(255, 255, 255, 0.94);
+
+  /* Scrollbar (light) */
+  --scrollbar-thumb: rgba(16, 18, 24, 0.2);
+  --scrollbar-thumb-hover: rgba(16, 18, 24, 0.35);
+
+  /* Status soft fills (light) */
+  --alpha-status-running-soft: rgba(33, 122, 75, 0.12);
+  --alpha-status-waiting-soft: rgba(160, 106, 27, 0.13);
+  --alpha-status-idle-soft: rgba(106, 113, 128, 0.12);
+  --alpha-status-stopped-soft: rgba(201, 58, 64, 0.11);
+  --alpha-status-pending-soft: rgba(53, 86, 201, 0.11);
+  --alpha-status-unknown-soft: rgba(106, 113, 128, 0.09);
+
+  /* Primitives --color-neutral-1000 flips to #000 in light; keep readable on-accent / badges. */
+  --on-accent: var(--color-neutral-0);
+  --badge-text-on-dark: var(--color-neutral-0);
+  --badge-text-on-bright: var(--color-neutral-1000);
+  --warning-fg-bright: var(--color-warn-600);
 }
 
 /* ─── Dark theme (explicit opt-in mirrors :root defaults) ────────────────── */
 [data-theme="dark"] {
-  --fg: #e6e6e6;
-  --fg-muted: #a0a0a0;
-  --bg: #1e1e1e;
-  --bg-elevated: #1e1e2e;
-  --accent: #4a9eff;
-  --border-color: #45475a;
-  --focus-ring: #4a9eff;
-  --status-running: #2c7a4d;
-  --status-waiting: #b59300;
-  --status-idle: #555;
-  --status-stopped: #6e2222;
-  --status-unknown: #333;
-  --warn: #f0ad4e;
-  --xterm-fg: #e6e6e6;
-  --xterm-cursor: #e6e6e6;
-  --xterm-selection: rgba(74, 158, 255, 0.3);
-  --toast-bg-info: #1a3a5c;
-  --toast-bg-success: #1a3d2b;
-  --toast-bg-warn: #3d2e00;
-  --toast-bg-error: #3d1a1a;
-  --palette-bg: #1e1e2e;
-  --palette-input-bg: #11111b;
-  --palette-border: #45475a;
-  --surface-canvas: #1c1c26;
-  --surface-input: #11121b;
-  --surface-row-hover: rgba(255, 255, 255, 0.04);
-  --surface-row-selected: rgba(74, 158, 255, 0.12);
-  --rail-accent: #4a9eff;
-  --hairline: rgba(255, 255, 255, 0.06);
-  --elevation-card: 0 24px 48px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  --input-bg: #2a2a2a;
-  --input-border: #444;
-  --on-accent: #0a0a0a;
-  --status-warn-text: #fab387;
-  --status-info-text: #89dceb;
-  --error-text: #ff6b6b;
-  --listbox-flash-bg: rgba(243, 139, 168, 0.15);
-  --listbox-separator: #45475a;
-  --session-status-running: #4cc586;
-  --session-status-waiting: #f0c14b;
-  --session-status-stopped: #b35858;
-  --session-status-pending: #6b9bff;
-  --status-pending: #2c4a8a;
-  --badge-text-on-dark: #ffffff;
-  --badge-text-on-bright: #000000;
+  /* Primitives mirror :root — explicit block for selector parity. */
 }
 
 /* ─── Legacy browser fallback for dynamic viewport height ────────────────── */
 @supports not (height: 100dvh) {
   :root {
     --dvh: 100vh;
+  }
+}
+
+/* ─── FR-007: zero motion tokens globally for reduced-motion ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-1: 0ms;
+    --motion-2: 0ms;
+    --motion-3: 0ms;
   }
 }

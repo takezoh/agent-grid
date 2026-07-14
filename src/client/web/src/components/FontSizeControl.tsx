@@ -39,7 +39,7 @@ export function FontSizeControl({
     <div className="font-size-control" data-overlay="">
       <IconButton
         className="font-size-control__trigger"
-        aria-label="文字サイズ"
+        aria-label="Font size"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         icon={<span aria-hidden="true">Aa</span>}
@@ -48,7 +48,7 @@ export function FontSizeControl({
         <div className="font-size-control__popover">
           <IconButton
             className="font-size-control__btn"
-            aria-label="文字を小さく"
+            aria-label="Decrease font size"
             onClick={onDecrease}
             icon={<span aria-hidden="true">−</span>}
           />
@@ -57,13 +57,13 @@ export function FontSizeControl({
           </span>
           <IconButton
             className="font-size-control__btn"
-            aria-label="文字を大きく"
+            aria-label="Increase font size"
             onClick={onIncrease}
             icon={<span aria-hidden="true">＋</span>}
           />
           <IconButton
             className="font-size-control__btn font-size-control__btn--reset"
-            aria-label="文字サイズを既定に戻す"
+            aria-label="Reset font size"
             onClick={onReset}
             icon={<span aria-hidden="true">Reset</span>}
           />

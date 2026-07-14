@@ -1,0 +1,8 @@
+/* icon.css — static lucide SVG icons (ADR-20260714-behavior-lib-and-icons) */
+
+.icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.125em;
+  color: currentColor;
+}

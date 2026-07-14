@@ -151,6 +151,6 @@ describe("useTerminateSession — error paths", () => {
     });
 
     expect(ok).toBe(false);
-    expect(useNotificationsStore.getState().items[0]?.message).toMatch(/ネットワーク/);
+    expect(useNotificationsStore.getState().items[0]?.message).toMatch(/network error/);
   });
 });

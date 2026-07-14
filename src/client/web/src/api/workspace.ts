@@ -142,10 +142,7 @@ function pinnedQuery(pinned: WorkspacePinnedHandle): string {
   return params.toString();
 }
 
-function parseWorkspaceErrorBody(
-  status: number,
-  text: string,
-): WorkspaceApiError | null {
+function parseWorkspaceErrorBody(status: number, text: string): WorkspaceApiError | null {
   try {
     const parsed = JSON.parse(text) as { error?: string };
     const err = parsed.error;
@@ -153,13 +150,23 @@ function parseWorkspaceErrorBody(
       return new WorkspaceApiError(409, "handle_stale", "workspace root handle stale", parsed);
     }
     if (status === 412 && err === "precondition_failed") {
-      return new WorkspaceApiError(412, "precondition_failed", "workspace write precondition failed", parsed);
+      return new WorkspaceApiError(
+        412,
+        "precondition_failed",
+        "workspace write precondition failed",
+        parsed,
+      );
     }
     if (status === 413 && err === "oversize_body") {
       return new WorkspaceApiError(413, "oversize_body", "workspace write body too large", parsed);
     }
     if (status === 500 && err === "audit_emit_failed") {
-      return new WorkspaceApiError(500, "audit_emit_failed", "workspace write audit emission failed", parsed);
+      return new WorkspaceApiError(
+        500,
+        "audit_emit_failed",
+        "workspace write audit emission failed",
+        parsed,
+      );
     }
   } catch {
     // fall through

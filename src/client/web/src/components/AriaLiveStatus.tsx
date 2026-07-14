@@ -3,7 +3,7 @@
 //
 // ADR 0057 mandates exactly one aria-live inside the command palette; this is a
 // *different* slot with a *different* role: the palette announces open/close,
-// the terminal announces mode changes (e.g. '閲覧モードに戻りました'). The two
+// the terminal announces mode changes (e.g. 'Returned to view mode'). The two
 // never emit simultaneously in the current architecture, so role separation is
 // preserved without a shared channel.
 //

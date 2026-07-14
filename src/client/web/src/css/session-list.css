@@ -15,6 +15,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* Workspace bar: sticky chip row. SegmentedControl primitive reused with
@@ -161,28 +164,37 @@
   min-height: 44px;
   transition: background-color 120ms ease-out;
 }
-/* aria-selected = cursor preview (lighter tint); committed-active row = strong
-   tint + caret rail (palette-row-caret-in keyframe reused). */
-.session-list .unified-listbox__option:not([aria-disabled="true"]):hover,
-.session-list .unified-listbox__option[aria-selected="true"] {
+/* FR-010 / UAC-001: selection = fill (--accent-soft); focus = ring only. */
+.session-list .unified-listbox__option:not([aria-disabled="true"]):hover {
   background: var(--surface-row-hover);
 }
-.session-list .unified-listbox__option:has(.session-list__row--active) {
-  background: var(--surface-row-selected);
+/* The listbox cursor (aria-selected) is a keyboard affordance: it shows the
+   focus ring ONLY while the listbox actually has focus. A permanent outline
+   would be indistinguishable from focus and reads as a second "active"
+   marker (UAC-001 counterexample). Selection (= active session) is the fill. */
+.session-list .unified-listbox__option[aria-selected="true"] {
+  background: transparent;
 }
-/* Active row caret rail (palette parity, ADR-0064 keyframe reuse). */
-.session-list .unified-listbox__option:has(.session-list__row--active)::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: var(--rail-accent);
-  border-radius: 2px;
-  transform-origin: center;
-  animation: palette-row-caret-in 80ms ease-out;
-  pointer-events: none;
+/* The listbox container carries tabIndex=0 and options preventDefault on
+   pointerdown, so only keyboard Tab ever focuses it — :focus-visible is
+   the exact "keyboard focus" signal (UAC-001). */
+.session-list .unified-listbox:focus-visible .unified-listbox__option[aria-selected="true"] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.session-list .unified-listbox__option:has(.session-list__row--active) {
+  background: var(--accent-soft);
+}
+
+/* UAC-002: sidebar status dot color + shape per state. */
+.session-list .session-status-running {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--status-running) 65%, transparent));
+}
+.session-list .session-status-stopped .status-icon--stopped .status-icon__square {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  opacity: 1;
 }
 
 /* ─── Session row (one option inside a project's listbox) ──────────────── */
@@ -199,18 +211,10 @@
   flex: 1 1 auto;
   min-width: 0;
 }
-.session-list__row--active .session-list__title {
-  color: var(--accent);
-}
-
-/* Title row: title (truncating) + optional colored driver chip pinned to the
-   top-right. The Subtitle row that ADR-0076 originally added has been removed
-   (last-user-prompt summary is no longer rendered on the card). The driver
-   chip's bg/fg are inlined via `style` — colors come from lib/driverColor.ts
-   (parity with Go's driver/tags.go). */
+/* FR-009: title + right-aligned age on line 1; mono metadata on line 2. */
 .session-list__title-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   min-width: 0;
 }
@@ -222,66 +226,42 @@
   white-space: nowrap;
   font-weight: 500;
 }
-.session-list__driver {
+.session-list__age {
   flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: lowercase;
-  line-height: 1.4;
-  white-space: nowrap;
-  /* bg/color resolved at render time via lib/driverColor.ts inline style. */
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
 }
-
-/* Tag row: pills + border_badge. Only rendered when at least one is present. */
-.session-list__tags {
+.session-list__meta-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  margin-top: 2px;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
 }
-.session-list__tag {
+.session-list__meta {
   font-size: 10.5px;
-  padding: 0 5px;
-  border-radius: 3px;
-  line-height: 1.5;
-  letter-spacing: 0.02em;
-}
-.session-list__meta-pill {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10.5px;
-  line-height: 1.5;
-  padding: 0 5px;
-  border-radius: 999px;
-  border: 1px solid var(--hairline);
+  line-height: 1.4;
   color: var(--fg-muted);
-  background: color-mix(in srgb, var(--surface) 84%, transparent);
-}
-.session-list__badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10.5px;
-  line-height: 1.5;
-  padding: 0 5px;
-  border-radius: 3px;
-  border: 1px solid var(--hairline);
-  color: var(--fg-muted);
-}
-
-/* ADR-0076: content-header title width clamp. Co-located here so view.css
-   stays under its 500-line cap; the cascade order is unaffected. The
-   driver-view-subtitle counterpart was removed alongside the Subtitle slot. */
-.driver-view-title {
-  max-width: 100ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.session-list__tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.session-list__tags .driver-tag-pill {
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 1.5;
+  max-height: 18px;
 }
 
 /* ─── Mobile (<768px) overrides ─────────────────────────────────────────────
@@ -340,27 +320,12 @@
     font-size: 15px;
     line-height: 1.35;
   }
-  .session-list__driver {
-    font-size: 11px;
-    padding: 2px 8px;
-  }
-  .session-list__tag,
-  .session-list__badge {
+  .session-list__meta,
+  .session-list__age {
     font-size: 11.5px;
-    padding: 1px 7px;
-    line-height: 1.55;
   }
 
-  /* Stronger committed-active surface so the user can locate the open
-     session at a glance once the drawer animates in. */
   .session-list .unified-listbox__option:has(.session-list__row--active) {
-    background: var(--surface-row-selected);
-    box-shadow: inset 0 0 0 1px rgba(74, 158, 255, 0.35);
-  }
-  .session-list .unified-listbox__option:has(.session-list__row--active)::before {
-    left: 4px;
-    top: 10px;
-    bottom: 10px;
-    width: 3px;
+    background: var(--accent-soft);
   }
 }

@@ -123,11 +123,14 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   const moveCursor = usePaletteStore((s) => s.moveCursor);
   const submit = usePaletteStore((s) => s.submit);
   const setComposing = usePaletteStore((s) => s.setComposing);
-  const toggleWorktree = usePaletteStore((s) => s.toggleWorktree);
   const toggleHost = usePaletteStore((s) => s.toggleHost);
+  const toggleWorktree = usePaletteStore((s) => s.toggleWorktree);
 
   // Ref to the command text input for focus fallback (FR-022).
   const commandInputRef = useRef<HTMLInputElement>(null);
+  // Ref to the explicit confirm button — the final field advances focus
+  // here instead of submitting (selection is never the commit).
+  const submitRef = useRef<HTMLButtonElement>(null);
 
   // Subscribe to daemon primitives so React re-renders only when a
   // consumed field changes; the snapshot is reassembled by
@@ -176,10 +179,12 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   // capabilities. hasCommandField is true when the 'command' param is in the
   // params list (needed by useChipHotkey's commandFieldVisible guard).
   const hasCommandField = params.some((p) => p.id === "command");
-  const showWorktreeToggle = hasCommandField && selectedProject?.isGit === true;
   const showHostToggle = hasCommandField && selectedProject?.isSandboxed === true;
-  const worktreeOn = paramValues.worktree === true;
   const hostOn = paramValues.host === true;
+  // FR-013: worktree only applies to git projects (moved here from the
+  // footer so options sit next to the confirm action).
+  const showWorktreeToggle = hasCommandField && selectedProject?.isGit === true;
+  const worktreeOn = paramValues.worktree === true;
 
   // FR-018: mount the Alt+W / Alt+H keyboard shortcut handler. The hook
   // is always called (stable hook ordering) but internally gates itself on
@@ -198,18 +203,14 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   // We capture the active element BEFORE the chip unmounts (render phase,
   // before the DOM mutation) so that by the time the useEffect runs the
   // chip is already gone but we already know it had focus.
-  const prevShowWorktreeRef = useRef(showWorktreeToggle);
   const prevShowHostRef = useRef(showHostToggle);
-  // Capture at render time (before the effect / DOM mutation).
-  const worktreeJustHidden = prevShowWorktreeRef.current && !showWorktreeToggle;
   const hostJustHidden = prevShowHostRef.current && !showHostToggle;
   const focusWasOnChipRef = useRef(false);
-  if (worktreeJustHidden || hostJustHidden) {
+  if (hostJustHidden) {
     const active = document.activeElement;
     focusWasOnChipRef.current =
       active instanceof HTMLElement && active.closest("[data-toggle]") !== null;
   }
-  prevShowWorktreeRef.current = showWorktreeToggle;
   prevShowHostRef.current = showHostToggle;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,7 +219,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
     if (!focusWasOnChipRef.current) return;
     focusWasOnChipRef.current = false;
     commandInputRef.current?.focus();
-  }, [showWorktreeToggle, showHostToggle]);
+  }, [showHostToggle]);
 
   if (tool === null) {
     // Bug at the shell level (CommandPalette should render
@@ -227,13 +228,13 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
     return null;
   }
 
-  // advanceOrSubmit: Enter on a field. Final field → submit (store
-  // re-validates disabledReason and routes errors); otherwise →
-  // moveCursor(+1).
+  // advanceOrConfirm: Enter on a field. Final field → move focus to the
+  // explicit confirm button (selection alone never submits — submission
+  // is a distinct user action); otherwise → moveCursor(+1).
   function advanceOrSubmit(): void {
     if (composing) return;
     if (isFinalField(params, paramCursor)) {
-      void submit(ctx);
+      submitRef.current?.focus();
       return;
     }
     moveCursor(+1);
@@ -258,9 +259,11 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
       className="palette-param-select"
       aria-label="palette parameters"
       onSubmit={(e) => {
-        // Enter is handled per-field via onKeyDown (advanceOrSubmit);
-        // form-level onSubmit only fires for stray default-submits.
+        // The explicit confirm button (type=submit) routes here. Store
+        // submit() re-validates disabledReason and routes errors.
         e.preventDefault();
+        if (composing || submitting) return;
+        void submit(ctx);
       }}
     >
       {params.slice(0, stopIdx).map((param, idx) => {
@@ -292,32 +295,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
         }
 
         const isCommand = param.id === "command";
-        const chips = isCommand && (showWorktreeToggle || showHostToggle) && (
-          <fieldset className="palette-param-command-toggles" aria-label="command toggles">
-            {showWorktreeToggle && (
-              <ChipSwitch
-                hintKey="W"
-                label="Worktree"
-                checked={worktreeOn}
-                onToggle={toggleWorktree}
-                disabled={submitting}
-                composing={composing}
-                testId="worktree"
-              />
-            )}
-            {showHostToggle && (
-              <ChipSwitch
-                hintKey="H"
-                label="Host (sandbox)"
-                checked={hostOn}
-                onToggle={toggleHost}
-                disabled={submitting}
-                composing={composing}
-                testId="host"
-              />
-            )}
-          </fieldset>
-        );
+        const chips = null;
 
         if (options !== null) {
           // Listbox (static-options / dynamic-options with N>=1).
@@ -361,6 +339,41 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
           </div>
         );
       })}
+      <div className="palette-actions" data-testid="palette-actions">
+        <fieldset className="palette-actions__options" aria-label="session options">
+          {showWorktreeToggle && (
+            <ChipSwitch
+              hintKey="W"
+              label="worktree"
+              checked={worktreeOn}
+              onToggle={toggleWorktree}
+              disabled={submitting}
+              composing={composing}
+              testId="worktree"
+            />
+          )}
+          {showHostToggle && (
+            <ChipSwitch
+              hintKey="H"
+              label="Host (sandbox)"
+              checked={hostOn}
+              onToggle={toggleHost}
+              disabled={submitting}
+              composing={composing}
+              testId="host"
+            />
+          )}
+        </fieldset>
+        <button
+          ref={submitRef}
+          type="submit"
+          className="palette-submit"
+          data-testid="palette-submit"
+          disabled={submitting}
+        >
+          {submitting ? "Working…" : (tool.label ?? "Confirm")}
+        </button>
+      </div>
     </form>
   );
 }

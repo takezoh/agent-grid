@@ -1,4 +1,4 @@
-// useInputMode — the single truth source for 閲覧 (view) vs 入力 (input) mode on
+// useInputMode — the single truth source for view vs input mode on
 // the mobile terminal (FR-MOB-MODE-001..006, ADR 0068 / 0073).
 //
 // The boolean `active` drives `data-input-active` on the terminal-host wrapper
@@ -9,7 +9,7 @@
 //   - enter:        view → input. removes readonly, focuses, data-input-active='true'.
 //   - exit(reason): input → view. re-adds readonly, blurs, data-input-active='false'.
 //                   reason ∈ {blur, esc, outside-tap, fab, gate-false}.
-//                   Only blur / esc announce '閲覧モードに戻りました' (FR-MOB-MODE-006);
+//                   Only blur / esc announce 'Returned to view mode' (FR-MOB-MODE-006);
 //                   the others are silent (user-initiated, no SR surprise).
 //   - toggle:       flips; entering is silent, exiting via toggle is silent (FAB).
 //
@@ -21,7 +21,7 @@
 import { type RefObject, useCallback, useEffect, useReducer, useRef } from "react";
 
 /** Message announced (once, debounced) when the user is dropped back to view mode. */
-export const VIEW_MODE_ANNOUNCEMENT = "閲覧モードに戻りました";
+export const VIEW_MODE_ANNOUNCEMENT = "Returned to view mode";
 
 /** Every way input mode can end. Only `blur` / `esc` announce. */
 export type ExitReason = "blur" | "esc" | "outside-tap" | "fab" | "gate-false";
@@ -32,7 +32,7 @@ export type InputModeAction =
   | { type: "exit"; reason: ExitReason };
 
 export interface InputModeState {
-  /** true = 入力モード (keyboard intended), false = 閲覧モード. */
+  /** true = input mode (keyboard intended), false = view mode. */
   active: boolean;
   /** Pending AriaLive text for this transition, or null when nothing to announce. */
   lastMessage: string | null;
@@ -64,7 +64,7 @@ export function inputModeReducer(state: InputModeState, action: InputModeAction)
 
     case "exit":
       // Idempotency guard: exiting while already in view mode must NOT re-announce
-      // (kills the counterexample-B duplicate '閲覧モードに戻りました' from a FAB
+      // (kills the counterexample-B duplicate 'Returned to view mode' from a FAB
       // pointerdown blur arriving after the user already left input mode).
       if (!state.active) return state;
       return {
@@ -87,7 +87,7 @@ export interface UseInputModeOptions {
 }
 
 export interface UseInputModeApi {
-  /** Current mode: true = 入力, false = 閲覧. */
+  /** Current mode: true = input, false = view. */
   active: boolean;
   /** FAB toggle (FR-MOB-MODE-003 / 004). */
   toggle: () => void;
