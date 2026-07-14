@@ -17,17 +17,24 @@ const MAX_NOTIFICATIONS = 32;
 export type NotificationsState = {
   items: Notification[];
   nextId: number;
+  /** User mute toggle: while true, incoming notifications are dropped at
+      add-time (not queued) so unmuting never replays a stale backlog.
+      Persistence lives in NotificationToast (store stays storage-free). */
+  muted: boolean;
   add: (n: Omit<Notification, "id" | "createdAt">) => void;
   addFromFrame: (frame: NotificationFrame) => void;
   dismiss: (id: number) => void;
   clear: () => void;
+  setMuted: (muted: boolean) => void;
 };
 
 export const useNotificationsStore = create<NotificationsState>()((set) => ({
   items: [],
   nextId: 1,
+  muted: false,
   add: (n) =>
     set((s) => {
+      if (s.muted) return s;
       const next: Notification = {
         id: s.nextId,
         level: n.level,
@@ -47,6 +54,7 @@ export const useNotificationsStore = create<NotificationsState>()((set) => ({
     }),
   addFromFrame: (frame) =>
     set((s) => {
+      if (s.muted) return s;
       const message = frame.title ?? frame.body ?? `OSC ${frame.cmd}`;
       const next: Notification = {
         id: s.nextId,
@@ -67,4 +75,7 @@ export const useNotificationsStore = create<NotificationsState>()((set) => ({
     }),
   dismiss: (id) => set((s) => ({ items: s.items.filter((it) => it.id !== id) })),
   clear: () => set({ items: [] }),
+  // Muting also clears what is currently on screen so the toggle takes
+  // effect immediately instead of waiting out the 5s auto-dismiss.
+  setMuted: (muted) => set((s) => (s.muted === muted ? s : { muted, items: muted ? [] : s.items })),
 }));

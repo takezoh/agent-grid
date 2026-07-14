@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { useNotificationsStore } from "../store/notifications";
 import { useThemeStore } from "../store/theme";
 import { OverflowMenu } from "./OverflowMenu";
 import { ThemeProvider } from "./ThemeProvider";
@@ -22,6 +23,7 @@ function renderMenu() {
 
 beforeEach(() => {
   useThemeStore.setState({ theme: "system" });
+  useNotificationsStore.setState({ muted: false, items: [] });
   localStorage.clear();
   delete document.documentElement.dataset.theme;
 });
@@ -58,5 +60,28 @@ describe("OverflowMenu theme (FR-012 / UAC-005)", () => {
     });
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(useThemeStore.getState().theme).toBe("system");
+  });
+});
+
+describe("OverflowMenu notifications mute", () => {
+  it("shows a Mute notifications item that toggles the store", async () => {
+    renderMenu();
+    openMenu();
+    const item = await screen.findByText("Mute notifications");
+    act(() => {
+      fireEvent.click(item);
+    });
+    expect(useNotificationsStore.getState().muted).toBe(true);
+  });
+
+  it("clicking again unmutes", async () => {
+    useNotificationsStore.setState({ muted: true });
+    renderMenu();
+    openMenu();
+    const item = await screen.findByText("Mute notifications");
+    act(() => {
+      fireEvent.click(item);
+    });
+    expect(useNotificationsStore.getState().muted).toBe(false);
   });
 });

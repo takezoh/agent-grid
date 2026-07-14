@@ -8,10 +8,13 @@ import { NotificationToast } from "./NotificationToast";
 describe("NotificationToast", () => {
   beforeEach(() => {
     useNotificationsStore.getState().clear();
+    useNotificationsStore.setState({ muted: false });
+    localStorage.clear();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    localStorage.clear();
   });
 
   // ── existing behaviour ────────────────────────────────────────────────────
@@ -219,5 +222,57 @@ describe("NotificationToast", () => {
     const container = screen.getByRole("status");
     expect(container.getAttribute("aria-hidden")).toBeNull();
     expect(container.getAttribute("aria-live")).toBe("polite");
+  });
+
+  // ── desktop placement: below the header, not over its action cluster ──────
+
+  it("desktop rule positions the container below the header (var(--header-height))", () => {
+    // happy-dom does not process CSS files; verify the source rule exists.
+    const cssPath = resolve(__dirname, "../css/app.css");
+    const css = readFileSync(cssPath, "utf-8");
+    const desktopBlock = css.match(
+      /@media\s*\(min-width:\s*768px\)\s*\{\s*\.notification-toast\s*\{([^}]+)\}/,
+    );
+    expect(desktopBlock).not.toBeNull();
+    expect(desktopBlock?.[1]).toMatch(/top:\s*calc\(var\(--header-height\)\s*\+\s*\d+px\)/);
+  });
+
+  // ── mute persistence (localStorage, ThemeProvider pattern) ────────────────
+
+  const MUTED_KEY = "agent-grid-notifications-muted";
+
+  it("initialises store muted from localStorage on mount", () => {
+    localStorage.setItem(MUTED_KEY, "1");
+    render(<NotificationToast />);
+    expect(useNotificationsStore.getState().muted).toBe(true);
+    // Muted at mount: newly arriving notifications are not rendered.
+    act(() => {
+      useNotificationsStore.getState().add({ level: "info", message: "muted-away" });
+    });
+    expect(screen.queryByText("muted-away")).toBeNull();
+  });
+
+  it("persists mute changes back to localStorage", () => {
+    render(<NotificationToast />);
+    act(() => {
+      useNotificationsStore.getState().setMuted(true);
+    });
+    expect(localStorage.getItem(MUTED_KEY)).toBe("1");
+    act(() => {
+      useNotificationsStore.getState().setMuted(false);
+    });
+    expect(localStorage.getItem(MUTED_KEY)).toBeNull();
+  });
+
+  it("ariaHidden instance does not own mute persistence", () => {
+    localStorage.setItem(MUTED_KEY, "1");
+    render(
+      <NotificationToast ariaHidden>
+        <span>22px</span>
+      </NotificationToast>,
+    );
+    // No init from storage and no write-back from the visual-only surface.
+    expect(useNotificationsStore.getState().muted).toBe(false);
+    expect(localStorage.getItem(MUTED_KEY)).toBe("1");
   });
 });

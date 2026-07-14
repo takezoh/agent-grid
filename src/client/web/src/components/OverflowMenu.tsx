@@ -1,6 +1,7 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { JSX } from "react";
 import "../css/icon-button.css";
+import { useNotificationsStore } from "../store/notifications";
 import { useThemeStore } from "../store/theme";
 import type { Theme } from "../store/theme";
 import { Icon } from "./icons/Icon";
@@ -11,10 +12,13 @@ const THEME_OPTIONS: Array<{ value: Theme; label: string }> = [
   { value: "dark", label: "Dark" },
 ];
 
-/** FR-012: header overflow menu — theme selection with agent-grid-theme contract. */
+/** FR-012: header overflow menu — theme selection with agent-grid-theme contract,
+    plus the notifications mute toggle (persisted by NotificationToast). */
 export function OverflowMenu(): JSX.Element {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const muted = useNotificationsStore((s) => s.muted);
+  const setMuted = useNotificationsStore((s) => s.setMuted);
 
   return (
     <DropdownMenu.Root>
@@ -44,6 +48,17 @@ export function OverflowMenu(): JSX.Element {
               </DropdownMenu.RadioItem>
             ))}
           </DropdownMenu.RadioGroup>
+          <DropdownMenu.Label className="overflow-menu__label">Notifications</DropdownMenu.Label>
+          <DropdownMenu.CheckboxItem
+            className="overflow-menu__item"
+            checked={muted}
+            onCheckedChange={(checked) => setMuted(checked === true)}
+          >
+            <DropdownMenu.ItemIndicator className="overflow-menu__check">
+              ✓
+            </DropdownMenu.ItemIndicator>
+            Mute notifications
+          </DropdownMenu.CheckboxItem>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>

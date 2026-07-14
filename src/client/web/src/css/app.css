@@ -255,15 +255,17 @@ samp {
   box-shadow: var(--toast-shadow-active);
 }
 
-/* Container layout — desktop (>=768px): top-right fixed; mobile (<768px):
-   bottom-aligned with safe-area inset (FR-TOAST-002). The mobile container
-   is pointer-events:none so the user can still touch the terminal area
-   behind it; only the card surfaces themselves accept taps (re-enabled
+/* Container layout — desktop (>=768px): right-aligned, fixed BELOW the
+   44px header (var(--header-height)) so toasts never cover the header
+   action cluster (mode switch / stop button / overflow menu); mobile
+   (<768px): bottom-aligned with safe-area inset (FR-TOAST-002). The mobile
+   container is pointer-events:none so the user can still touch the terminal
+   area behind it; only the card surfaces themselves accept taps (re-enabled
    below). */
 @media (min-width: 768px) {
   .notification-toast {
     position: fixed;
-    top: 16px;
+    top: calc(var(--header-height) + 12px);
     right: 16px;
     z-index: 9999;
     display: flex;

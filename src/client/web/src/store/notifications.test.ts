@@ -5,6 +5,7 @@ import { useNotificationsStore } from "./notifications";
 describe("notificationsStore", () => {
   beforeEach(() => {
     useNotificationsStore.getState().clear();
+    useNotificationsStore.setState({ muted: false });
   });
 
   it("add appends an item with a fresh id", () => {
@@ -75,6 +76,33 @@ describe("notificationsStore", () => {
         .addFromFrame(makeFrame({ title: undefined, body: undefined, cmd: 42 }));
       const items = useNotificationsStore.getState().items;
       expect(items[0]?.message).toBe("OSC 42");
+    });
+  });
+
+  describe("mute", () => {
+    const frame: NotificationFrame = { k: "n", sessionId: "s1", cmd: 9, nowMs: 123 };
+
+    it("setMuted(true) clears on-screen items immediately", () => {
+      useNotificationsStore.getState().add({ level: "info", message: "on-screen" });
+      useNotificationsStore.getState().setMuted(true);
+      expect(useNotificationsStore.getState().items).toHaveLength(0);
+      expect(useNotificationsStore.getState().muted).toBe(true);
+    });
+
+    it("while muted, add and addFromFrame drop notifications (no backlog)", () => {
+      useNotificationsStore.getState().setMuted(true);
+      useNotificationsStore.getState().add({ level: "error", message: "dropped" });
+      useNotificationsStore.getState().addFromFrame(frame);
+      expect(useNotificationsStore.getState().items).toHaveLength(0);
+    });
+
+    it("setMuted(false) resumes collection without replaying dropped items", () => {
+      useNotificationsStore.getState().setMuted(true);
+      useNotificationsStore.getState().add({ level: "info", message: "dropped" });
+      useNotificationsStore.getState().setMuted(false);
+      expect(useNotificationsStore.getState().items).toHaveLength(0);
+      useNotificationsStore.getState().add({ level: "info", message: "shown" });
+      expect(useNotificationsStore.getState().items.map((i) => i.message)).toEqual(["shown"]);
     });
   });
 });

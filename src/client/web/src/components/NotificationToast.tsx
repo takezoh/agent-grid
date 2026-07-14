@@ -5,8 +5,13 @@
  *  - Single aria-live='polite' role='status' on the container (not per-item).
  *  - Each toast item uses CSS class for type-based bg color (no inline style).
  *  - Mobile (<768px): position:fixed, bottom-aligned with safe-area inset.
- *  - Desktop (>=768px): position:fixed, top-right.
+ *  - Desktop (>=768px): position:fixed, right-aligned below the header so
+ *    toasts never cover the header action cluster (mode switch / stop /
+ *    overflow menu).
  *  - Max 3 visible items; auto-dismiss in 5s; tap to dismiss.
+ *  - Owns the mute preference persistence (localStorage, ThemeProvider
+ *    pattern): reads it on mount into the notifications store, writes it
+ *    back on change. The OverflowMenu toggle only touches the store.
  *  - notification-toast__undosnackbar-slot: reserved for UndoSnackbar (FR-TOAST-003).
  *  - Per-level leading glyph (✓ / ! / × / i) rendered inside an aria-hidden
  *    slot — purely visual, screen readers still read the message text.
@@ -23,6 +28,35 @@ type ToastItemProps = {
   item: Notification;
   onDismiss: (id: number) => void;
 };
+
+// ─── mute persistence ──────────────────────────────────────────────────────────
+
+const MUTED_STORAGE_KEY = "agent-grid-notifications-muted";
+
+/** Read the persisted mute flag. Swallows SecurityError / storage-disabled
+    environments (Safari Private) — absent or unreadable means unmuted. */
+function readStoredMuted(): boolean {
+  try {
+    return localStorage.getItem(MUTED_STORAGE_KEY) === "1";
+  } catch (e) {
+    console.warn("[NotificationToast] localStorage read failed", e);
+    return false;
+  }
+}
+
+/** Persist or remove the mute flag. Storage failure is non-fatal — the
+    store keeps the authoritative value for the current session. */
+function persistMuted(muted: boolean): void {
+  try {
+    if (muted) {
+      localStorage.setItem(MUTED_STORAGE_KEY, "1");
+    } else {
+      localStorage.removeItem(MUTED_STORAGE_KEY);
+    }
+  } catch {
+    console.warn("[NotificationToast] localStorage write failed", { muted });
+  }
+}
 
 // Per-level glyph. Plain text glyphs keep the bundle SVG-free and inherit
 // font color, which lets the CSS layer style them per level without a JS
@@ -95,6 +129,18 @@ export function NotificationToast({
 }: NotificationToastProps = {}): JSX.Element {
   const items = useNotificationsStore((s) => s.items);
   const dismiss = useNotificationsStore((s) => s.dismiss);
+  const muted = useNotificationsStore((s) => s.muted);
+
+  // Mute persistence — only the single default (announced) instance owns it;
+  // the ariaHidden PinchIndicator surface must not re-init or double-write.
+  useEffect(() => {
+    if (ariaHidden) return;
+    useNotificationsStore.getState().setMuted(readStoredMuted());
+  }, [ariaHidden]);
+  useEffect(() => {
+    if (ariaHidden) return;
+    persistMuted(muted);
+  }, [ariaHidden, muted]);
 
   // Show only the latest 3 items
   const visible = items.slice(-3);
