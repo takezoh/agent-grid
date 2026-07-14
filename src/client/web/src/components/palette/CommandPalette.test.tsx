@@ -998,6 +998,7 @@ describe("CommandPalette", () => {
         daemonActions: { selectSession: vi.fn() },
         notify: { success: vi.fn(), error: vi.fn(), add: vi.fn() },
         store: { close: usePaletteStore.getState().close },
+        getTerminalGeometry: () => null,
       });
     });
 
@@ -1066,6 +1067,7 @@ describe("CommandPalette", () => {
         daemonActions: { selectSession: vi.fn() },
         notify: { success: vi.fn(), error: vi.fn(), add: vi.fn() },
         store: { close: usePaletteStore.getState().close },
+        getTerminalGeometry: () => null,
       });
     });
 

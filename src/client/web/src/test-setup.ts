@@ -3,6 +3,11 @@ import { vi } from "vitest";
 // xterm.js relies on canvas/DOM features happy-dom does not implement.
 // Mock the module so TerminalPane.test can render without exploding.
 vi.mock("@xterm/xterm", () => {
+  const resizeCallbacks = new Set<(s: { cols: number; rows: number }) => void>();
+  globalThis.__triggerXtermResize = (cols, rows) => {
+    for (const cb of resizeCallbacks) cb({ cols, rows });
+  };
+
   class FakeTerminal {
     /** Mutable options bag — tests can read options.theme to verify FR-THEME-002.
      *  Initialised from the constructor argument so that new Terminal({ theme })
@@ -16,8 +21,9 @@ vi.mock("@xterm/xterm", () => {
     onData(_cb: (d: string) => void) {
       return { dispose() {} };
     }
-    onResize(_cb: (s: { cols: number; rows: number }) => void) {
-      return { dispose() {} };
+    onResize(cb: (s: { cols: number; rows: number }) => void) {
+      resizeCallbacks.add(cb);
+      return { dispose: () => resizeCallbacks.delete(cb) };
     }
     attachCustomKeyEventHandler(_cb: (e: KeyboardEvent) => boolean) {}
     open(_el: HTMLElement) {}
@@ -79,6 +85,8 @@ function triggerResizeImpl(target: Element, entries: unknown[] = []) {
 declare global {
   // eslint-disable-next-line no-var
   var __triggerResize: (target: Element, entries?: unknown[]) => void;
+  // eslint-disable-next-line no-var
+  var __triggerXtermResize: (cols: number, rows: number) => void;
 }
 
 globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;

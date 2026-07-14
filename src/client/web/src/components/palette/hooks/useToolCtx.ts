@@ -8,11 +8,14 @@
 import { useMemo } from "react";
 import { makeSessionsApi } from "../../../api/sessions";
 import { isValidSessionsApi } from "../../../lib/sessionsApiGuard";
+import type { TerminalGeometry } from "../../../lib/terminalGeometry";
 import type { DaemonSnapshot, ToolCtx } from "../../../lib/tools";
 import { useDaemonStore } from "../../../store/daemon";
 import { useNotificationsStore } from "../../../store/notifications";
 import { usePaletteStore } from "../../../store/palette";
 import type { ActiveContextSnapshot } from "../../../store/palette_active_context";
+
+const noTerminalGeometry = (): TerminalGeometry | null => null;
 
 /**
  * Build a ToolCtx from the daemon snapshot and httpFactory.
@@ -24,6 +27,7 @@ export function useToolCtx(
   daemon: DaemonSnapshot,
   httpFactory: (() => ToolCtx["http"]) | undefined,
   frozenActiveContext: ActiveContextSnapshot | undefined,
+  getTerminalGeometry: () => TerminalGeometry | null = noTerminalGeometry,
 ): ToolCtx | null {
   return useMemo<ToolCtx | null>(() => {
     const http = httpFactory ? httpFactory() : makeSessionsApi();
@@ -56,7 +60,8 @@ export function useToolCtx(
       store: {
         close: paletteState.close,
       },
+      getTerminalGeometry,
       frozenActiveContext,
     };
-  }, [daemon, httpFactory, frozenActiveContext]);
+  }, [daemon, httpFactory, frozenActiveContext, getTerminalGeometry]);
 }

@@ -19,6 +19,7 @@ import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
 import { useMobileGate } from "./hooks/useMobileGate";
 import { useTerminateSession } from "./hooks/useTerminateSession";
+import type { TerminalGeometry } from "./lib/terminalGeometry";
 import { Connection } from "./socket/connection";
 import { useDaemonStore } from "./store/daemon";
 import {
@@ -105,6 +106,14 @@ export function App() {
   }, []);
 
   const activeSessionID = useDaemonStore((s) => s.activeSessionID);
+  // TerminalPane is the sole geometry measurement owner. App only retains the
+  // latest snapshot so the independently-rendered palette overlay can read it
+  // at submit time without duplicating xterm/DOM measurement.
+  const terminalGeometryRef = useRef<TerminalGeometry | null>(null);
+  const handleTerminalGeometryChange = useCallback((geometry: TerminalGeometry) => {
+    terminalGeometryRef.current = geometry;
+  }, []);
+  const getTerminalGeometry = useCallback(() => terminalGeometryRef.current, []);
 
   useEffect(() => {
     useWorkspaceActivityStore.getState().setScopedSession(activeSessionID);
@@ -208,6 +217,7 @@ export function App() {
                   key={activeSessionID ?? "__none__"}
                   conn={conn}
                   sessionId={activeSessionID}
+                  onGeometryChange={handleTerminalGeometryChange}
                 />
               }
             />
@@ -237,7 +247,7 @@ export function App() {
           <NotificationToast />
           {/* Mounted via portal directly under <body>, so the placement of
               this element in the tree is irrelevant (ADR-0036). */}
-          <CommandPalette />
+          <CommandPalette getTerminalGeometry={getTerminalGeometry} />
           <ConfirmDialog
             open={terminationTarget !== null}
             variant={isMobile ? "sheet" : "modal"}

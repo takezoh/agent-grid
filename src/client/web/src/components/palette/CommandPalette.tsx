@@ -29,6 +29,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import type { TerminalGeometry } from "../../lib/terminalGeometry";
 import type { ToolCtx } from "../../lib/tools";
 import { listTools } from "../../lib/tools";
 import { useDaemonStore } from "../../store/daemon";
@@ -47,6 +48,7 @@ export interface CommandPaletteProps {
   // httpFactory swaps the SessionsApi for hermetic tests. Production callers
   // omit it and get makeSessionsApi() — same shape ToolSelectPhase honors.
   httpFactory?: () => ToolCtx["http"];
+  getTerminalGeometry?: () => TerminalGeometry | null;
 }
 
 export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | null {
@@ -135,7 +137,7 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
   const announceRef = useSessionChangeFeedback(announceSeq, submitting, activeContextSnapshot);
 
   const frozenActiveContext = frozenSnapshotRef.current?.activeContext ?? undefined;
-  const ctx = useToolCtx(daemon, props.httpFactory, frozenActiveContext);
+  const ctx = useToolCtx(daemon, props.httpFactory, frozenActiveContext, props.getTerminalGeometry);
 
   const liveStatusText: string | null = (() => {
     if (ctx === null) return "Unavailable";
@@ -175,7 +177,6 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
 
   const frozenHeaderSnapshot = frozen?.activeContext;
   const headerFlashSeq = frozen !== null ? frozen.flashSeq : flashSeq;
-
 
   return createPortal(
     <div className="palette-overlay" data-testid="palette-overlay" onMouseDown={onOverlayMouseDown}>

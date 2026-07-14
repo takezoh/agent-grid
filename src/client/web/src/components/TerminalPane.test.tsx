@@ -62,6 +62,19 @@ function makeFakeConn(): {
 }
 
 describe("TerminalPane", () => {
+  it("publishes fitted geometry even when no session is selected", () => {
+    const { conn } = makeFakeConn();
+    const onGeometryChange = vi.fn();
+    const { unmount } = render(
+      <TerminalPane conn={conn} sessionId={null} onGeometryChange={onGeometryChange} />,
+    );
+
+    globalThis.__triggerXtermResize(203, 47);
+
+    expect(onGeometryChange).toHaveBeenCalledWith({ cols: 203, rows: 47 });
+    unmount();
+  });
+
   // Spy on FitAddon.prototype.fit across all tests
   let fitSpy: ReturnType<typeof vi.spyOn>;
   let writeSpy: ReturnType<typeof vi.spyOn>;

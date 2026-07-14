@@ -21,6 +21,7 @@ import type { SessionsApi } from "../api/sessions";
 import type { SessionConfigProject } from "../api/sessions";
 import { type ActiveContextSnapshot, deriveActiveContext } from "../store/palette_active_context";
 import type { ActiveOccupant, SessionInfo } from "../wire/server";
+import type { TerminalGeometry } from "./terminalGeometry";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -163,6 +164,9 @@ export interface ToolCtx {
   daemonActions: ToolDaemonActions;
   notify: NotificationsApi;
   store: ToolStoreCtx;
+  // Reads the latest fitted xterm grid at submit time. A function keeps the
+  // palette context stable while window / drawer resizes update App's ref.
+  getTerminalGeometry(): TerminalGeometry | null;
   // FR-014 / UAC-018: active context snapshot captured by CommandPalette at
   // submit start time. When absent, makePushToolDef falls back to deriving
   // from ctx.daemon. Aligned with lift-state (ADR-0055).
@@ -257,15 +261,22 @@ const newSessionTool: ToolDef = {
     const command = readString(payload, "command");
     const worktree = readOptionalBool(payload, "worktree");
     const sandbox = readSandboxFromHostToggle(payload);
+    const geometry = ctx.getTerminalGeometry();
     // Build the payload with only present fields so JSON.stringify doesn't
     // serialize "worktree": undefined / "sandbox": undefined (which would
     // break the server's omitempty contract on round-trip).
     const req: {
       project: string;
       command: string;
+      cols?: number;
+      rows?: number;
       worktree?: boolean;
       sandbox?: "host";
     } = { project, command };
+    if (geometry !== null) {
+      req.cols = geometry.cols;
+      req.rows = geometry.rows;
+    }
     if (worktree !== undefined) req.worktree = worktree;
     if (sandbox !== undefined) req.sandbox = sandbox;
     const rc = await ctx.http.createSession(req);

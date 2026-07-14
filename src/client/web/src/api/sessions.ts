@@ -56,6 +56,10 @@ export interface ApiWireFormatError extends Error {
 export interface CreateSessionPayload {
   project: string;
   command: string;
+  // Initial PTY size hint measured from the fitted browser terminal. Both
+  // fields are sent together; omission selects the daemon's 80x24 default.
+  cols?: number;
+  rows?: number;
   worktree?: boolean;
   // ADR-0042: palette new-session payload wire mirror. "" / undefined / "auto"
   // all mean "follow project config"; "host" forces direct/host launch.

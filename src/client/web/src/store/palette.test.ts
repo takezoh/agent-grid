@@ -90,6 +90,7 @@ function makeCtx(overrides: Partial<ToolCtx> = {}): ToolCtx {
     daemonActions: makeFakeDaemonActions(),
     notify: makeFakeNotify(),
     store: makeFakeStoreActions(),
+    getTerminalGeometry: () => null,
     ...overrides,
   };
 }

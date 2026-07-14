@@ -130,6 +130,7 @@ function makeCtx(overrides: Partial<ToolCtx> = {}): ToolCtx {
     daemonActions: makeFakeDaemonActions(),
     notify: makeFakeNotify(),
     store: makeFakeStore(),
+    getTerminalGeometry: () => null,
     ...overrides,
   };
 }
@@ -298,6 +299,24 @@ describe("new-session.submit", () => {
     });
     expect(notify.successCalls).toEqual(["Session created"]);
     expect(store.closeCalls).toBe(1);
+  });
+
+  it("forwards the latest fitted terminal geometry as the spawn size hint", async () => {
+    const http = makeFakeHttp();
+    const ctx = makeCtx({
+      http,
+      getTerminalGeometry: () => ({ cols: 203, rows: 47 }),
+    });
+    const tool = findTool(listTools(ctx.daemon, []), "new-session");
+
+    await tool.submit(ctx, { project: "/repo/a", command: "claude" });
+
+    expect(http.createSession).toHaveBeenCalledWith({
+      project: "/repo/a",
+      command: "claude",
+      cols: 203,
+      rows: 47,
+    });
   });
 
   it("FR-021: selects the newly-created session via daemonActions.selectSession(rc.id)", async () => {

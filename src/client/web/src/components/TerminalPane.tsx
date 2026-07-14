@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { useMobileGate } from "../hooks/useMobileGate";
+import type { TerminalGeometry } from "../lib/terminalGeometry";
 import type { Connection } from "../socket/connection";
 import { TerminalMobileOverlay } from "./TerminalMobileOverlay";
 import { useXtermTheme } from "./ThemeProvider";
@@ -52,9 +53,11 @@ export function handleNewlineModifier(e: KeyboardEvent, sendInput: (d: string) =
 export function TerminalPane({
   conn,
   sessionId,
+  onGeometryChange,
 }: {
   conn: Connection;
   sessionId: string | null;
+  onGeometryChange?: (geometry: TerminalGeometry) => void;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
@@ -63,6 +66,8 @@ export function TerminalPane({
   // outer useEffect intentionally only runs once per Connection instance).
   const sessionRef = useRef<string | null>(sessionId);
   sessionRef.current = sessionId;
+  const onGeometryChangeRef = useRef(onGeometryChange);
+  onGeometryChangeRef.current = onGeometryChange;
 
   // FR-THEME-003 (ADR-0059): ITheme derived from CSS tokens via ThemeProvider.
   // Rebuilds whenever data-theme changes (1 rAF guard inside useXtermTheme).
@@ -178,6 +183,10 @@ export function TerminalPane({
       }),
     );
     const onResize = term.onResize(({ cols, rows }) => {
+      // xterm/FitAddon owns browser-grid measurement. Publish every fitted
+      // value even when no session is selected so a subsequent create can
+      // initialize its PTY at the visible terminal size.
+      onGeometryChangeRef.current?.({ cols, rows });
       const sid = sessionRef.current;
       if (!sid) return;
       conn.send({ k: "r", cols, rows, sessionId: sid });
