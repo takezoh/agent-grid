@@ -31,6 +31,11 @@ import { useNotificationsStore } from "./store/notifications";
 import { useWorkspaceActivityStore } from "./store/workspaceActivity";
 import "./css/workspace.css";
 
+export function terminalIdentity(session: { id: string; head_frame_id?: string } | null): string {
+  if (!session) return "__none__";
+  return `${session.id}:${session.head_frame_id ?? "__legacy_head__"}`;
+}
+
 export function App() {
   // ADR-0037 / FR-001: intercept Cmd/Ctrl+K on the capture phase.
   // Invariant: mount this exactly once across the App tree. Do not call from
@@ -251,7 +256,7 @@ export function App() {
               suppressInfo={activeSession?.view.suppress_info ?? false}
               terminalSlot={
                 <TerminalPane
-                  key={activeSessionID ?? "__none__"}
+                  key={terminalIdentity(activeSession)}
                   conn={conn}
                   sessionId={activeSessionID}
                   onGeometryChange={handleTerminalGeometryChange}

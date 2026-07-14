@@ -123,3 +123,122 @@ func TestDispatchSurfaceSubscribeReconcilesMissingRelaySubscription(t *testing.T
 		t.Fatalf("backend subscribe count = %d, want 1 recreated subscriber", got)
 	}
 }
+
+func TestSetHeadFrameRebindsLiveSurfaceSubscription(t *testing.T) {
+	r := New(Config{Backend: newFakeBackend()})
+	b := newFakeSurfaceBackend()
+	r.terminalRelay = NewTerminalRelay(
+		b,
+		func(ev internalEvent) bool { return true },
+		func(ev internalEvent) {},
+	)
+	defer r.terminalRelay.Close()
+
+	r.state.Sessions = map[state.SessionID]state.Session{
+		sess1: {
+			ID:          sess1,
+			CreatedAt:   time.Now(),
+			HeadFrameID: "%1",
+			Frames: []state.SessionFrame{
+				{ID: "%1", CreatedAt: time.Now()},
+				{ID: "%2", CreatedAt: time.Now()},
+			},
+		},
+	}
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
+		conn1: {{SessionID: sess1}: {}},
+	}
+	if err := r.terminalRelay.Subscribe(conn1, sess1, "%1"); err != nil {
+		t.Fatalf("subscribe old head: %v", err)
+	}
+
+	r.dispatch(state.EvEvent{
+		Event:   state.EventSetHeadFrame,
+		Payload: []byte(`{"session_id":"sess-1","frame_id":"%2"}`),
+	})
+
+	key := surfaceKey{connID: conn1, sessionID: sess1}
+	r.terminalRelay.mu.Lock()
+	sub := r.terminalRelay.subs[key]
+	r.terminalRelay.mu.Unlock()
+	if sub == nil || sub.frameID != "%2" {
+		t.Fatalf("terminal relay subscription = %+v, want current head frame %%2", sub)
+	}
+}
+
+func TestSurfaceSubscriptionFollowsHeadAcrossPushAndFallback(t *testing.T) {
+	r := New(Config{Backend: newFakeBackend()})
+	b := newFakeSurfaceBackend()
+	r.terminalRelay = NewTerminalRelay(
+		b,
+		func(ev internalEvent) bool { return true },
+		func(ev internalEvent) {},
+	)
+	defer r.terminalRelay.Close()
+
+	now := time.Now()
+	drv := state.GetDriver("shell")
+	if drv == nil {
+		t.Fatal("shell driver is not registered")
+	}
+	r.state.Now = now
+	r.state.Sessions = map[state.SessionID]state.Session{
+		sess1: {
+			ID:          sess1,
+			Project:     "/tmp/project",
+			Command:     "shell",
+			CreatedAt:   now,
+			HeadFrameID: "%root",
+			Frames: []state.SessionFrame{
+				{
+					ID:      "%root",
+					Project: "/tmp/project",
+					Command: "shell",
+					Driver:  drv.NewState(now),
+				},
+			},
+		},
+	}
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
+		conn1: {{SessionID: sess1}: {}},
+	}
+	if err := r.terminalRelay.Subscribe(conn1, sess1, "%root"); err != nil {
+		t.Fatalf("subscribe root head: %v", err)
+	}
+
+	next, _ := state.Reduce(r.state, state.EvEvent{
+		Event: state.EventPushDriver,
+		Payload: []byte(
+			`{"session_id":"sess-1","project":"/tmp/project","command":"shell"}`,
+		),
+	})
+	childID := next.Sessions[sess1].HeadFrameID
+	if childID == "" || childID == "%root" {
+		t.Fatalf("head after push = %q, want new child frame", childID)
+	}
+	r.state = next
+	r.reconcileSurfaceRelay()
+	assertRelayFrame(t, r.terminalRelay, conn1, sess1, string(childID))
+
+	next, _ = state.Reduce(r.state, state.EvFrameVanished{FrameID: childID})
+	r.state = next
+	r.reconcileSurfaceRelay()
+	assertRelayFrame(t, r.terminalRelay, conn1, sess1, "%root")
+}
+
+func assertRelayFrame(
+	t *testing.T,
+	relay *TerminalRelay,
+	connID state.ConnID,
+	sessionID state.SessionID,
+	want string,
+) {
+	t.Helper()
+	key := surfaceKey{connID: connID, sessionID: sessionID}
+	relay.mu.Lock()
+	sub := relay.subs[key]
+	relay.mu.Unlock()
+	if sub == nil || sub.frameID != want {
+		t.Fatalf("terminal relay subscription = %+v, want frame %q", sub, want)
+	}
+}

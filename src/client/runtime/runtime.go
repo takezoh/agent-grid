@@ -558,29 +558,35 @@ func (r *Runtime) dispatch(ev state.Event) {
 	for _, eff := range effects {
 		r.execute(eff)
 	}
-	r.reconcileSurfaceRelay(ev)
+	r.reconcileSurfaceRelay()
 	r.reconcilePersist(prev, r.state.Sessions, eventName(ev))
 }
 
-func (r *Runtime) reconcileSurfaceRelay(ev state.Event) {
-	e, ok := ev.(state.EvCmdSurfaceSubscribe)
-	if !ok || r.terminalRelay == nil {
+// reconcileSurfaceRelay enforces the session-surface invariant after every
+// state transition: each desired logical subscription must point at that
+// session's current head frame. Head changes have several producers (push,
+// explicit selection, and frame-death fallback), so the runtime state delta is
+// the single reconciliation boundary rather than duplicating effects in every
+// reducer path.
+func (r *Runtime) reconcileSurfaceRelay() {
+	if r.terminalRelay == nil {
 		return
 	}
-	key := state.SurfaceSubscription{SessionID: e.SessionID, SubscriberID: e.SubscriberID}
-	if _, ok := r.state.SurfaceSubs[e.ConnID][key]; !ok {
-		return
-	}
-	if r.terminalRelay.hasOwnedSubscription(e.ConnID, e.SessionID, e.SubscriberID) {
-		return
-	}
-	frameID := r.sessionHeadFrameTarget(e.SessionID)
-	if frameID == "" {
-		return
-	}
-	if err := r.terminalRelay.SubscribeOwned(e.ConnID, e.SessionID, e.SubscriberID, frameID); err != nil {
-		slog.Warn("runtime: surface subscribe reconciliation failed",
-			"session", e.SessionID, "conn", e.ConnID, "err", err)
+	for connID, subscriptions := range r.state.SurfaceSubs {
+		for subscription := range subscriptions {
+			frameID := r.sessionHeadFrameTarget(subscription.SessionID)
+			if frameID == "" {
+				r.terminalRelay.UnsubscribeOwned(connID, subscription.SessionID, subscription.SubscriberID)
+				continue
+			}
+			if err := r.terminalRelay.RebindOwned(
+				connID, subscription.SessionID, subscription.SubscriberID, frameID,
+			); err != nil {
+				slog.Debug("runtime: surface subscription not ready for reconciliation",
+					"session", subscription.SessionID, "conn", connID,
+					"frame", frameID, "err", err)
+			}
+		}
 	}
 }
 

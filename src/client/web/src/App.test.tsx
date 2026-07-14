@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "./App";
+import { App, terminalIdentity } from "./App";
 // FR-D1 / FR-D2 / FR-D3: Header's Cmd/Ctrl-K label routes through the
 // lib/platform single-source helper instead of the deleted local isMac().
 // We mock the lib so each test can flip mac / non-mac without touching
@@ -18,6 +18,18 @@ import { mkSnapshot } from "./test/fixtures/daemon";
 vi.mock("./lib/platform", () => ({
   isMacPlatform: vi.fn(),
 }));
+
+describe("terminalIdentity", () => {
+  it("changes when the active head frame changes within one session", () => {
+    expect(terminalIdentity({ id: "s1", head_frame_id: "f1" })).toBe("s1:f1");
+    expect(terminalIdentity({ id: "s1", head_frame_id: "f2" })).toBe("s1:f2");
+  });
+
+  it("keeps a stable fallback identity for legacy session payloads", () => {
+    expect(terminalIdentity({ id: "s1" })).toBe("s1:__legacy_head__");
+    expect(terminalIdentity(null)).toBe("__none__");
+  });
+});
 
 describe("App", () => {
   beforeEach(() => {
@@ -265,6 +277,32 @@ describe("App", () => {
     const hostAfter = document.querySelector(".terminal-host");
     expect(hostAfter).not.toBeNull();
     // The key change means React unmounts old and mounts new — DOM node differs
+    expect(hostAfter).not.toBe(hostBefore);
+  });
+
+  it("keyed remount: switching the head frame recreates xterm within one session", () => {
+    const session = {
+      id: "s1",
+      project: "p",
+      command: "claude",
+      created_at: "2026-06-20T00:00:00Z",
+      head_frame_id: "f1",
+      view: { card: {}, status: "running" as const },
+    };
+    useDaemonStore.setState({ sessions: [session], activeSessionID: "s1" });
+    const { rerender } = render(<App />);
+    const hostBefore = document.querySelector(".terminal-host");
+    expect(hostBefore).not.toBeNull();
+
+    act(() => {
+      useDaemonStore.setState({
+        sessions: [{ ...session, head_frame_id: "f2" }],
+      });
+    });
+    rerender(<App />);
+
+    const hostAfter = document.querySelector(".terminal-host");
+    expect(hostAfter).not.toBeNull();
     expect(hostAfter).not.toBe(hostBefore);
   });
 

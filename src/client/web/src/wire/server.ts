@@ -63,6 +63,13 @@ export type FrameMessagingSummary = {
   lastDeliveryStatus?: string;
 };
 
+export type FrameInfo = {
+  id: string;
+  command: string;
+  subsystem_id?: string;
+  target_id?: string;
+};
+
 // SessionInfo mirrors proto.SessionInfo — Go JSON tags used as-is (snake_case).
 export type SessionInfo = {
   id: string;
@@ -75,6 +82,10 @@ export type SessionInfo = {
   state?: string;
   state_changed_at?: string;
   view: View;
+  frames?: FrameInfo[];
+  head_frame_id?: string;
+  workspace_root?: string;
+  frame_generation?: number;
 };
 
 // asciicast-style array [timeSec, type, dataB64, sessionId] — Go wire.go と同順。

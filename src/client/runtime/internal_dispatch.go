@@ -132,6 +132,11 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 	case internalFrameReplyByThreadRequest:
 		e.reply <- r.frameMessagingReplyByThread(e.sessionID, e.threadID, e.messageID, e.body, e.finalAnswer, e.resolution, e.confidence)
 	case internalBroadcastSurface:
+		if r.terminalRelay == nil || !r.terminalRelay.isCurrentOwnedSubscription(
+			e.ConnID, e.SessionID, e.SubscriberID, e.FrameID, e.SubID,
+		) {
+			return
+		}
 		r.broadcastSurfaceFromInternal(e)
 	case internalSurfaceClosed:
 		if r.terminalRelay != nil && !r.terminalRelay.shouldApplySlowClose(e.ConnID, e.SessionID, e.FrameID, e.SubID, e.SubscriberID) {

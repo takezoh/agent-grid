@@ -159,6 +159,38 @@ func (tr *TerminalRelay) SubscribeOwned(connID state.ConnID, sessionID state.Ses
 	return nil
 }
 
+// RebindOwned makes one logical browser subscription follow frameID. The
+// session-level subscription key is stable while a session's head frame can
+// change, so retaining a subscription to a different frame would split the
+// terminal: output would come from the old frame while input is routed to the
+// new head. Detach the old source before opening the new one so no output is
+// accepted from the wrong frame while the replacement surface is starting.
+func (tr *TerminalRelay) RebindOwned(
+	connID state.ConnID,
+	sessionID state.SessionID,
+	subscriberID state.SubscriberID,
+	frameID string,
+) error {
+	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
+
+	tr.mu.Lock()
+	old, exists := tr.subs[key]
+	if exists && old.frameID == frameID {
+		tr.mu.Unlock()
+		return nil
+	}
+	if exists {
+		delete(tr.subs, key)
+	}
+	tr.mu.Unlock()
+
+	if exists {
+		close(old.cancel)
+		_ = tr.backend.UnsubscribeSurface(old.frameID, old.subID)
+	}
+	return tr.SubscribeOwned(connID, sessionID, subscriberID, frameID)
+}
+
 func (tr *TerminalRelay) subscribeSurface(frameID string) (int, <-chan termvt.Event, error) {
 	if backend, ok := tr.backend.(bufferedSurfaceBackend); ok {
 		return backend.SubscribeSurfaceWithBuffer(frameID, tr.subscriberBuffer)
@@ -209,6 +241,21 @@ func (tr *TerminalRelay) shouldApplySlowClose(
 		return true
 	}
 	return sub.frameID == frameID && sub.subID == subID
+}
+
+func (tr *TerminalRelay) isCurrentOwnedSubscription(
+	connID state.ConnID,
+	sessionID state.SessionID,
+	subscriberID state.SubscriberID,
+	frameID string,
+	subID int,
+) bool {
+	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
+
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	sub, ok := tr.subs[key]
+	return ok && sub.frameID == frameID && sub.subID == subID
 }
 
 func (tr *TerminalRelay) hasSubscription(connID state.ConnID, sessionID state.SessionID) bool {
@@ -353,6 +400,8 @@ func (tr *TerminalRelay) fanOut(key surfaceKey, sub *surfaceSub, ch <-chan termv
 				ConnID:       key.connID,
 				SessionID:    key.sessionID,
 				SubscriberID: key.subscriberID,
+				FrameID:      sub.frameID,
+				SubID:        sub.subID,
 				Data:         data,
 				TimeSec:      time.Since(tr.startTS).Seconds(),
 				Sequence:     seq,
@@ -374,6 +423,8 @@ type internalBroadcastSurface struct {
 	ConnID       state.ConnID
 	SessionID    state.SessionID
 	SubscriberID state.SubscriberID
+	FrameID      string
+	SubID        int
 	Data         []byte
 	TimeSec      float64
 	Sequence     uint64

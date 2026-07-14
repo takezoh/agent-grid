@@ -200,6 +200,41 @@ const (
 	sess2 = state.SessionID("sess-2")
 )
 
+func TestTerminalRelayRebindOwnedReplacesFrameAndRejectsOldIdentity(t *testing.T) {
+	b := newFakeSurfaceBackend()
+	tr, _ := newTestTerminalRelay(t, b)
+	defer tr.Close()
+
+	if err := tr.SubscribeOwned(conn1, sess1, "browser-a", "%1"); err != nil {
+		t.Fatalf("subscribe old head: %v", err)
+	}
+	oldID := int(b.nextID.Load())
+	if err := tr.RebindOwned(conn1, sess1, "browser-a", "%2"); err != nil {
+		t.Fatalf("rebind new head: %v", err)
+	}
+	newID := int(b.nextID.Load())
+
+	if newID == oldID {
+		t.Fatalf("subscriber id did not change across frame rebind: %d", newID)
+	}
+	if tr.isCurrentOwnedSubscription(conn1, sess1, "browser-a", "%1", oldID) {
+		t.Fatal("old frame subscription identity remained current after rebind")
+	}
+	if !tr.isCurrentOwnedSubscription(conn1, sess1, "browser-a", "%2", newID) {
+		t.Fatal("new head frame subscription identity is not current after rebind")
+	}
+	b.mu.Lock()
+	_, oldStillOpen := b.subs[oldID]
+	newSub := b.subs[newID]
+	b.mu.Unlock()
+	if oldStillOpen {
+		t.Fatal("old frame backend subscription remained open after rebind")
+	}
+	if newSub.frameID != "%2" {
+		t.Fatalf("new backend subscription frame = %q, want %%2", newSub.frameID)
+	}
+}
+
 // TestTerminalRelay_SnapshotSequenceZero: first EventOutput gets Sequence == 0
 // and Data is preserved correctly.
 func TestTerminalRelay_SnapshotSequenceZero(t *testing.T) {
