@@ -90,7 +90,7 @@ journalctl --user -u codex-remote-control.service -b
 codex app-server daemon version
 ```
 
-詳しい前提、運用方法、トラブルシューティングは [Ubuntu Server での Codex Remote Control 運用ガイド](plans/2026-07-15-codex-remote-control-on-ubuntu-server.md) を参照してください。
+詳しい運用方法とトラブルシューティングは [Codex Remote Control](docs/note/note-20260715-user-codex-remote-control.md) を参照してください。
 
 ## Documentation
 
@@ -98,6 +98,6 @@ Documentation is stored as structured docs-skill records under [`docs/`](docs/no
 
 | | Start here |
 |---|---|
-| **Using the tools** | [User guide](docs/note/note-20260624-user-overview.md) — [getting started](docs/note/note-20260624-user-getting-started.md), [web stack](docs/note/note-20260624-user-web-server.md), [orchestrator](docs/note/note-20260624-user-orchestrator.md), [sandbox](docs/note/note-20260624-user-sandbox.md), [systemd service](docs/note/note-20260624-user-systemd.md) |
+| **Using the tools** | [User guide](docs/note/note-20260624-user-overview.md) — [getting started](docs/note/note-20260624-user-getting-started.md), [web stack](docs/note/note-20260624-user-web-server.md), [Codex Remote Control](docs/note/note-20260715-user-codex-remote-control.md), [orchestrator](docs/note/note-20260624-user-orchestrator.md), [sandbox](docs/note/note-20260624-user-sandbox.md), [systemd service](docs/note/note-20260624-user-systemd.md) |
 | **Working in the repo** | [Agent guide](docs/note/note-20260624-agent-overview.md) — [contributing](docs/note/note-20260624-agent-contributing.md), [WORKFLOW.md authoring](docs/note/note-20260624-agent-workflow-authoring.md), [testing](docs/note/note-20260624-agent-testing.md) |
 | **Internals** | [Technical docs](docs/note/note-20260624-technical-overview.md) — [platform/](docs/component/component-20260624-platform-overview.md), [client/](docs/component/component-20260624-client-overview.md), [orchestrator/](docs/component/component-20260624-orchestrator-overview.md) · [ARCHITECTURE.md](ARCHITECTURE.md) |

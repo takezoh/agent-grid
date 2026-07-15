@@ -4,7 +4,7 @@ kind: note
 title: Documentation
 status: published
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-15'
 tags:
 - docs
 - legacy-import
@@ -24,6 +24,7 @@ relations:
 - {type: references, target: note-20260624-user-sandbox}
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
+- {type: references, target: note-20260715-user-codex-remote-control}
 source_paths:
 - ARCHITECTURE.md
 - WORKFLOW.md
@@ -48,7 +49,7 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the canonical definition of the
 
 | Audience \ Layer | platform | client (server) | orchestrator | Cross-cutting |
 |---|---|---|---|---|
-| **User** | [sandbox setup](../note/note-20260624-user-sandbox.md) | [web stack](../note/note-20260624-user-web-server.md) · [systemd service](../note/note-20260624-user-systemd.md) | [orchestrator](../note/note-20260624-user-orchestrator.md) | [getting started](../note/note-20260624-user-getting-started.md) |
+| **User** | [sandbox setup](../note/note-20260624-user-sandbox.md) | [web stack](../note/note-20260624-user-web-server.md) · [systemd service](../note/note-20260624-user-systemd.md) | [orchestrator](../note/note-20260624-user-orchestrator.md) | [getting started](../note/note-20260624-user-getting-started.md) · [Codex Remote Control](../note/note-20260715-user-codex-remote-control.md) |
 | **Agent** | — | — | [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md) | [contributing](../note/note-20260624-agent-contributing.md), [testing](../note/note-20260624-agent-testing.md) |
 | **Technical** | [platform/](../component/component-20260624-platform-overview.md) | [client/](../component/component-20260624-client-overview.md) | [orchestrator/](../component/component-20260624-orchestrator-overview.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) |
 
@@ -61,6 +62,7 @@ You want to launch agents, watch their status, and (optionally) run an unattende
 - [Getting started](../note/note-20260624-user-getting-started.md) — requirements, install, first run, choosing a binary, agent setup
 - [web stack (ad-hoc launch)](../note/note-20260624-user-web-server.md) — running `server` (daemon + HTTP/WS gateway) + `web` for browser-driven session management
 - [run as a systemd service](../note/note-20260624-user-systemd.md) — production deployment of the three-process stack with token persistence
+- [Codex Remote Control](../note/note-20260715-user-codex-remote-control.md) — host-scoped daemon setup, mobile pairing lifecycle, and host/devcontainer session behavior
 - [orchestrator](../note/note-20260624-user-orchestrator.md) — running an unattended pipeline from a `WORKFLOW.md`, agent selection, observability HTTP
 - [sandbox setup](../note/note-20260624-user-sandbox.md) — per-project devcontainer isolation and credential proxy configuration
 
