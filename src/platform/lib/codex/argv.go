@@ -88,31 +88,18 @@ func AppServerStdioArgs(extra []string, sandboxExternal bool) []string {
 // the same sandbox, so it connects to that socket directly (no TCP routing
 // bridge).
 //
-// bin is the resolved codex executable path (absolute preferred). Passing a
-// slash-containing path bypasses frame-exec's PATH search entirely, which
-// closes the daemon-launched-process ENOENT class of failure. An empty bin
-// falls back to the bare driver name and retains the historic behavior
-// (relying on the launching process's PATH containing codex) — this
-// fallback exists so tests can still call the helper without wiring a
-// resolver, but every production call site MUST hand it the absolute path
-// the driver-bin resolver returned.
-//
 // threadID selects the thread the CLI attaches to:
 //
-//   - Empty (fresh cold-start): `<bin> --remote unix://<sock>` — the CLI
+//   - Empty (fresh cold-start): `codex --remote unix://<sock>` — the CLI
 //     will issue its own `thread/start` on its connection, and the stream
 //     backend adopts the resulting thread into the (single) pending frame
 //     via handleThreadStarted (see ADR-0081).
-//   - Non-empty (cold-start recovery): `<bin> resume <id> --remote
+//   - Non-empty (cold-start recovery): `codex resume <id> --remote
 //     unix://<sock>` — the CLI reads `~/.codex/sessions/…/rollout-<id>.jsonl`
 //     locally and issues `thread/resume`, so app-server events for <id>
 //     route back to the frame that was pre-bound with that id.
-func RemoteAttachArgs(bin, sock, threadID, startDir, model, effort string) []string {
-	head := bin
-	if head == "" {
-		head = DriverName
-	}
-	args := []string{head}
+func RemoteAttachArgs(sock, threadID, startDir, model, effort string) []string {
+	args := []string{DriverName}
 	if threadID != "" {
 		args = append(args, "resume", threadID)
 	}

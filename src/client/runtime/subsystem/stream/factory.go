@@ -41,15 +41,6 @@ type FactoryConfig struct {
 	// app-server actually runs inside the container (see the useContainer
 	// computation there).
 	IsContainer func(project string) bool
-	// ResolveDriverBin returns the absolute path to the codex driver's
-	// binary, or a non-nil error whose message names the config key an
-	// operator can set to fix a missing-binary scenario. Factory.Ensure
-	// calls it once per session-create so a bare-name PATH-lookup failure
-	// surfaces as a fast, actionable session-create error instead of a
-	// silent 15-second WebSocket dial timeout that ultimately traces to
-	// the bridge shim's ENOENT on `exec("codex")`. Nil is treated as a
-	// pure `exec.LookPath(driverName)` fallback for backward compatibility.
-	ResolveDriverBin func(driverName string) (string, error)
 	// ReadTimeout overrides the per-request JSON-RPC timeout.  Zero uses the
 	// default (15 seconds).  Corresponds to the codex.read_timeout_ms config key.
 	ReadTimeout time.Duration
@@ -86,21 +77,6 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 	cmdCfg, err := libcodex.ParseCommand(argv)
 	if err != nil {
 		return nil, "", err
-	}
-	// Resolve the codex driver binary to an absolute path BEFORE spawning
-	// anything downstream. cmdCfg.ServerBin is the bare driver name at this
-	// point (libcodex.ParseCommand pins argv[0] == DriverName); replacing
-	// it with the resolved absolute path here ensures both the app-server
-	// spawn (spawnServer → shimArgs / AppServerListenArgs) and the frame
-	// attach argv (Backend.BindFrame → RemoteAttachArgs) hand exec /
-	// exec.LookPath a slash-containing path, which bypasses PATH search
-	// entirely and closes the daemon-launched-process ENOENT class.
-	if f.cfg.ResolveDriverBin != nil {
-		resolvedBin, resolveErr := f.cfg.ResolveDriverBin(cmdCfg.ServerBin)
-		if resolveErr != nil {
-			return nil, "", fmt.Errorf("stream factory: resolve driver bin: %w", resolveErr)
-		}
-		cmdCfg.ServerBin = resolvedBin
 	}
 	id := f.makeID(sessionID)
 

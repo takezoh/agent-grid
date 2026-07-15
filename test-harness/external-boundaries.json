@@ -8,7 +8,6 @@
     {"path":"src/orchestrator/lineargql/client.go","kinds":["outbound-http"],"dependencies":["linear-http"]},
     {"path":"src/orchestrator/workspace/hooks.go","kinds":["process"],"dependencies":["host-process"]},
     {"path":"src/platform/agent/codexclient/transport_ws.go","kinds":["outbound-http"],"dependencies":["codex-app-server"]},
-    {"path":"src/platform/agentlaunch/driverbin.go","kinds":["process"],"dependencies":["host-process"]},
     {"path":"src/platform/framelaunch/frame_exec.go","kinds":["process"],"dependencies":["host-process"]},
     {"path":"src/platform/hostexec/exec.go","kinds":["process"],"dependencies":["host-process"]},
     {"path":"src/platform/lib/claude/fakeclaude/e2e_support.go","kinds":["process"],"dependencies":["claude-cli"]},

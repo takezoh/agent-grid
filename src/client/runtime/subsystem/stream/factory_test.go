@@ -2,9 +2,7 @@ package stream
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/takezoh/agent-grid/client/state"
@@ -197,40 +195,6 @@ func TestFactory_EnsurePropagatesHostOverrideToAppServer(t *testing.T) {
 				"to the devcontainer while the frame runs on host — the two cannot share the UDS "+
 				"and the codex frame exits 1 within seconds.\n"+
 				"captured plan: %+v", disp.capturedPlan)
-	}
-}
-
-// TestFactory_EnsureFailsFastWhenDriverBinUnresolvable pins the invariant
-// that when the codex driver binary cannot be resolved (neither via
-// [drivers.codex] bin override nor via PATH lookup), Factory.Ensure MUST
-// return an error before spawning anything — so the session-create HTTP
-// request fails fast with an actionable message instead of hitting the
-// 15-second WebSocket dial timeout after the bridge shim silently forks
-// an ENOENT'd exec. Observed in production at 2026-07-15T04:01:54Z:
-// "bridge: start upstream app-server: exec: \"codex\": executable file
-// not found in $PATH" followed by a WS-dial timeout with no diagnostic
-// reaching the operator.
-func TestFactory_EnsureFailsFastWhenDriverBinUnresolvable(t *testing.T) {
-	sentinelErr := errors.New(`driverbin: "codex" not found in daemon PATH; set [drivers.codex] bin="/abs/path/to/codex" in settings.toml, or add its directory to the daemon's PATH`)
-	f := NewFactory(FactoryConfig{
-		Runtime: &fakeRuntime{},
-		// Dispatcher / ResolveSockPath intentionally left nil — the error
-		// must surface BEFORE either is consulted, so the resolver runs
-		// before any other setup.
-		ResolveDriverBin: func(_ string) (string, error) {
-			return "", sentinelErr
-		},
-	})
-
-	_, _, err := f.Ensure(context.Background(), "sess-fail", "/proj", state.LaunchPlan{Command: "codex --model X"})
-	if err == nil {
-		t.Fatal("Ensure must return error when driver bin cannot be resolved")
-	}
-	if !strings.Contains(err.Error(), "not found in daemon PATH") {
-		t.Errorf("error must be actionable (name PATH cause): %v", err)
-	}
-	if !strings.Contains(err.Error(), "[drivers.codex] bin") {
-		t.Errorf("error must name the config escape hatch: %v", err)
 	}
 }
 
