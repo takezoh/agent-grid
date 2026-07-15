@@ -47,6 +47,51 @@ To reach sessions from a browser, run `make run-dev` (boots `server` + `web` tog
 
 See [Getting started](docs/note/note-20260624-user-getting-started.md) for the full walkthrough.
 
+## Codex Remote Control（任意）
+
+Codex Remote Control はホスト単位で起動します。ホストで一つ起動すれば、そのホスト上で Agent Grid が起動した Codex セッションを、ホスト直接起動と devcontainer 起動のどちらもモバイルから確認・操作できます。devcontainer ごとの daemon 起動やペアリングは不要です。
+
+公式 installer で導入した managed standalone Codex が `~/.codex/packages/standalone/current/codex` にあることを確認し、systemd user service をインストールして起動します。
+
+```bash
+make install-codex-remote-control-systemd
+```
+
+ログインしていない間もホスト起動時から動かす場合は、linger も有効にします。
+
+```bash
+loginctl enable-linger "$USER"
+```
+
+### モバイル端末をペアリングする
+
+daemon の起動後、ホストで次を手動実行します。
+
+```bash
+codex remote-control pair
+```
+
+表示された pairing code を、同じ ChatGPT account/workspace でサインインしたモバイルアプリの Remote Control セットアップ画面へ入力します。コードは短時間で期限切れになるため、期限切れになった場合はコマンドを再実行してください。
+
+ペアリングが必要なのは次の場合です。
+
+- このホストへ端末を初めて接続するとき
+- 別のモバイル端末を追加するとき
+- 別のホストを追加するとき
+- 以前のペアリングを解除・失効したあと、再接続するとき
+
+daemon の再起動、通常のホスト再起動、Agent Grid の再起動、devcontainer の再作成、新しい Codex セッションの開始では、再ペアリングは不要です。`codex remote-control pair` は systemd へ組み込まず、新しいペアリングが必要なときだけ実行してください。
+
+状態確認とログ表示:
+
+```bash
+systemctl --user status codex-remote-control.service
+journalctl --user -u codex-remote-control.service -b
+codex app-server daemon version
+```
+
+詳しい前提、運用方法、トラブルシューティングは [Ubuntu Server での Codex Remote Control 運用ガイド](plans/2026-07-15-codex-remote-control-on-ubuntu-server.md) を参照してください。
+
 ## Documentation
 
 Documentation is stored as structured docs-skill records under [`docs/`](docs/note/note-20260624-docs-overview.md), with audience × architecture layer pages kept as the primary navigation.

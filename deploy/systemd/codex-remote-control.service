@@ -1,0 +1,15 @@
+[Unit]
+Description=Codex Remote Control daemon
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.codex/packages/standalone/current/codex app-server daemon bootstrap --remote-control
+ExecStop=%h/.codex/packages/standalone/current/codex app-server daemon stop
+RemainAfterExit=yes
+TimeoutStartSec=60
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

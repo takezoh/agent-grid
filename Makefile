@@ -7,6 +7,7 @@ SRC_DIR     := src
 INSTALL_DIR    := $(HOME)/.local/bin
 LIBEXEC_DIR    := $(HOME)/.local/lib/agent-grid
 SYSTEMD_USER_DIR := $(HOME)/.config/systemd/user
+CODEX_MANAGED_BIN := $(HOME)/.codex/packages/standalone/current/codex
 
 # install-systemd renames the production binaries to their server/web roles so
 # the systemd unit file ExecStart= lines and `journalctl --user -u
@@ -20,7 +21,7 @@ CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
 .PHONY: build build-orchestrator build-claude-app-server build-server build-web build-all \
         build-web-frontend \
-        run-dev install install-systemd install-web install-server update-web update-server clean test test-race vet lint \
+        run-dev install install-systemd install-codex-remote-control-systemd install-web install-server update-web update-server clean test test-race vet lint \
         verify-bridge-deps \
         codex-schema-update codex-schema-check verify-save verify-pre-push verify-pr verify-nightly
 
@@ -101,6 +102,26 @@ install-systemd: install-server install-web
 	@echo "  systemctl --user enable --now agent-grid-web.service"
 	@echo "  loginctl enable-linger $$USER   # boot-time autostart"
 	@echo "See docs/note/note-20260624-user-systemd.md for the full guide."
+
+# Install and start the host-scoped Codex Remote Control daemon. This is kept
+# separate from install-systemd because Remote Control is optional and its
+# daemon lifecycle requires the official managed standalone Codex install.
+# Device pairing is deliberately manual and must not run at every boot.
+install-codex-remote-control-systemd:
+	@test -x "$(CODEX_MANAGED_BIN)" || { \
+		echo "Managed standalone Codex not found: $(CODEX_MANAGED_BIN)"; \
+		echo "Install Codex with the official installer, then retry."; \
+		exit 1; \
+	}
+	install -d $(SYSTEMD_USER_DIR)
+	install -m 644 deploy/systemd/codex-remote-control.service $(SYSTEMD_USER_DIR)/
+	systemctl --user daemon-reload
+	systemctl --user enable --now codex-remote-control.service
+	@echo
+	@echo "Codex Remote Control is enabled for this host."
+	@echo "Pair a new device with: codex remote-control pair"
+	@echo "Pairing is not required again after normal daemon or host restarts."
+	@echo "For boot without login: loginctl enable-linger $$USER"
 
 # install-web builds and installs the web binary only (no unit files, no server).
 # Use after front-end-only changes when the server binary is already up to date.
