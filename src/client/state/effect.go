@@ -14,18 +14,17 @@ type Effect interface {
 // the given session. The runtime executes this and feeds back
 // EvFrameSpawned / EvSpawnFailed, forwarding the Reply*
 // fields so the reducer can complete the create-session round trip.
+//
+// Plan carries the fully-resolved LaunchPlan the driver's PrepareLaunch
+// returned. Field-continuity invariant (spec-20260714, FR-001): every field
+// of Plan must reach AgentLauncher.WrapLaunch without being dropped,
+// defaulted, or reconstructed. Adding a new field to LaunchPlan requires no
+// hand-edit here — the whole Plan value is threaded through. See
+// adr-20260714-launchplan-effect-embedding.
 type EffSpawnFrame struct {
 	SessionID  SessionID
 	FrameID    FrameID
-	Mode       LaunchMode
-	Project    string
-	Command    string
-	StartDir   string
-	Sandbox    SandboxOverride
-	Options    LaunchOptions
-	Subsystem  LaunchSubsystem
-	Stream     StreamLaunchOptions
-	Stdin      []byte // piped into the spawned command; nil = no stdin
+	Plan       LaunchPlan
 	Env        map[string]string
 	ReplyConn  ConnID
 	ReplyReqID string

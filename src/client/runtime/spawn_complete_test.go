@@ -26,7 +26,7 @@ func TestHandleSpawnComplete_storesHandlesNonContainer(t *testing.T) {
 	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
 
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect:      state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Project: "/p"},
+		effect:      state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Plan: state.LaunchPlan{Project: "/p"}},
 		subsystemID: "sub-1",
 		sub:         sub,
 	})
@@ -61,7 +61,7 @@ func TestHandleSpawnComplete_registersContainerFrame(t *testing.T) {
 	ms := pathmap.Mounts{{Host: "/h/work", Container: "/work"}}
 
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect:           state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Project: "/p"},
+		effect:           state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Plan: state.LaunchPlan{Project: "/p"}},
 		subsystemID:      "sub-1",
 		sub:              sub,
 		token:            "tok-1",
@@ -103,7 +103,8 @@ func TestSpawnFrameWindow_emitsInternalSpawnComplete(t *testing.T) {
 	}
 
 	spawnFrameWindow(deps, state.EffSpawnFrame{
-		SessionID: "s1", FrameID: "f1", Project: "/p", Command: "minimal-test",
+		SessionID: "s1", FrameID: "f1",
+		Plan: state.LaunchPlan{Project: "/p", Command: "minimal-test"},
 	})
 
 	select {
@@ -158,7 +159,8 @@ func TestSpawnFrameWindow_emitsSpawnFailedOnError(t *testing.T) {
 	}
 
 	spawnFrameWindow(deps, state.EffSpawnFrame{
-		SessionID: "s1", FrameID: "f1", Project: "/p", Command: "minimal-test",
+		SessionID: "s1", FrameID: "f1",
+		Plan: state.LaunchPlan{Project: "/p", Command: "minimal-test"},
 	})
 
 	select {
@@ -197,7 +199,8 @@ func TestSpawnFrameWindow_cleanupOnSpawnError(t *testing.T) {
 	}
 
 	spawnFrameWindow(deps, state.EffSpawnFrame{
-		SessionID: "s1", FrameID: "f1", Project: "/p", Command: "minimal-test",
+		SessionID: "s1", FrameID: "f1",
+		Plan: state.LaunchPlan{Project: "/p", Command: "minimal-test"},
 	})
 
 	if !cleaned.Load() {
@@ -219,7 +222,7 @@ func TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn(t *testing.T) {
 	var cleaned atomic.Bool
 
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect:      state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Project: "/p"},
+		effect:      state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Plan: state.LaunchPlan{Project: "/p"}},
 		subsystemID: "sub-1",
 		sub:         sub,
 		cleanup:     func() error { cleaned.Store(true); return nil },
@@ -276,7 +279,7 @@ func TestHandleSpawnComplete_discardsContainerFrame(t *testing.T) {
 	var cleaned atomic.Bool
 
 	r.handleSpawnComplete(internalSpawnComplete{
-		effect:           state.EffSpawnFrame{SessionID: "ghost", FrameID: "ghost", Project: "/p"},
+		effect:           state.EffSpawnFrame{SessionID: "ghost", FrameID: "ghost", Plan: state.LaunchPlan{Project: "/p"}},
 		subsystemID:      "sub-1",
 		sub:              sub,
 		cleanup:          func() error { cleaned.Store(true); return nil },
@@ -348,7 +351,8 @@ func TestHandleSpawnComplete_discardRepliesToOriginalCaller(t *testing.T) {
 	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
 	r.handleSpawnComplete(internalSpawnComplete{
 		effect: state.EffSpawnFrame{
-			SessionID: "ghost", FrameID: "ghost", Project: "/p",
+			SessionID: "ghost", FrameID: "ghost",
+			Plan:      state.LaunchPlan{Project: "/p"},
 			ReplyConn: state.ConnID(1), ReplyReqID: "spawn-req-1",
 		},
 		subsystemID: "sub-1",

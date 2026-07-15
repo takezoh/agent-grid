@@ -40,19 +40,19 @@ func isSandboxed(s State, project string, override SandboxOverride) bool {
 // plan.Project, plan.Sandbox, and plan.Stdin must be set by the caller before invoking.
 // The runtime resolves the frame's SubsystemID during ensureSubsystem and
 // reports it back via EvFrameSpawned.
+//
+// Caller-terminal aliasing invariant: the returned EffSpawnFrame's Plan is a
+// shallow value copy of plan. Its slice / map fields (Argv, PreCommands,
+// Stdin, Options.InitialInput) share backing arrays with the caller's plan.
+// Callers MUST treat plan (and its nested slices) as terminal at this call
+// site — a subsequent mutation would silently propagate into the effect.
+// This is safe today because the 3 reduce_session.go callers never touch
+// launch after handing it here. See adr-20260714-launchplan-effect-embedding.
 func spawnEffect(sessID SessionID, frameID FrameID, plan LaunchPlan, connID ConnID, reqID string) EffSpawnFrame {
 	return EffSpawnFrame{
 		SessionID:  sessID,
 		FrameID:    frameID,
-		Mode:       LaunchModeCreate,
-		Project:    plan.Project,
-		Command:    plan.Command,
-		StartDir:   plan.StartDir,
-		Sandbox:    plan.Sandbox,
-		Options:    plan.Options,
-		Subsystem:  plan.Subsystem,
-		Stream:     plan.Stream,
-		Stdin:      plan.Stdin,
+		Plan:       plan,
 		Env:        map[string]string{"AG_SESSION_ID": string(sessID), "AG_FRAME_ID": string(frameID)},
 		ReplyConn:  connID,
 		ReplyReqID: reqID,

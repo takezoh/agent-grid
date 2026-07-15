@@ -54,7 +54,7 @@ func TestSpawnFrameWindow_recoversFromPanicAndEmitsSpawnFailed(t *testing.T) {
 	// fail the test with the panic surface. Either way, panic = test fail.
 	spawnFrameWindow(deps, state.EffSpawnFrame{
 		SessionID: "s-survives", FrameID: "f-survives",
-		Project: "/p", Command: "minimal-test",
+		Plan: state.LaunchPlan{Project: "/p", Command: "minimal-test"},
 	})
 
 	select {

@@ -184,8 +184,8 @@ func TestDriverHookEffPushDriverIsResolved(t *testing.T) {
 	}
 	// Project should fall back to the parent session's project,
 	// since the driver's EffPushDriver carries no project.
-	if spawn.Project != "/project" {
-		t.Errorf("spawn.Project = %q, want /project", spawn.Project)
+	if spawn.Plan.Project != "/project" {
+		t.Errorf("spawn.Plan.Project = %q, want /project", spawn.Plan.Project)
 	}
 	// Session should now have 2 frames.
 	sess := next.Sessions[sid]

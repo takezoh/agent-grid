@@ -61,18 +61,13 @@ func spawnFrameWindow(deps spawnDeps, e state.EffSpawnFrame) {
 	defer recoverSpawnPanic(e, sendFailed)
 
 	ctx := context.Background()
-	plan := state.LaunchPlan{
-		Command:   e.Command,
-		StartDir:  e.StartDir,
-		Project:   e.Project,
-		Sandbox:   e.Sandbox,
-		Options:   e.Options,
-		Subsystem: e.Subsystem,
-		Stream:    e.Stream,
-		Stdin:     e.Stdin,
-	}
+	// Field-continuity invariant (spec-20260714 FR-001): the plan value the
+	// driver's PrepareLaunch resolved must reach wrapLaunchForSpawn intact.
+	// The only legitimate in-flight mutation is the plan = bindResult.Plan
+	// reassignment after subsystem.BindFrame (FR-004).
+	plan := e.Plan
 
-	sub, subsystemID, err := ensureSubsystemOnce(ctx, deps.factories, e.SessionID, e.Subsystem, e.Project, plan)
+	sub, subsystemID, err := ensureSubsystemOnce(ctx, deps.factories, e.SessionID, e.Plan.Subsystem, e.Plan.Project, plan)
 	if err != nil {
 		slog.Error("runtime: ensure subsystem failed", "frame", e.FrameID, "err", err)
 		sendFailed(err.Error())
@@ -81,8 +76,8 @@ func spawnFrameWindow(deps spawnDeps, e state.EffSpawnFrame) {
 	bindResult, err := sub.BindFrame(ctx, rsubsystem.BindRequest{
 		FrameID: e.FrameID,
 		Plan:    plan,
-		Stdin:   e.Stdin,
-		Project: e.Project,
+		Stdin:   e.Plan.Stdin,
+		Project: e.Plan.Project,
 	})
 	if err != nil {
 		slog.Error("runtime: bind frame failed", "frame", e.FrameID, "err", err)
@@ -98,7 +93,7 @@ func spawnFrameWindow(deps spawnDeps, e state.EffSpawnFrame) {
 	// for a frame that dies in between BindFrame and the internalSpawnComplete
 	// dispatch. Release directly on the error paths below to avoid leaking
 	// the slot for up to reapInterval + initAdoptDeadline (~70s).
-	wrapResult, err := wrapLaunchForSpawn(deps.launcher, e.FrameID, e.Project, plan, e.Env)
+	wrapResult, err := wrapLaunchForSpawn(deps.launcher, e.FrameID, e.Plan.Project, plan, e.Env)
 	if err != nil {
 		slog.Error("runtime: wrap launch failed", "frame", e.FrameID, "err", err)
 		sub.ReleaseFrame(e.FrameID)
@@ -107,10 +102,10 @@ func spawnFrameWindow(deps spawnDeps, e state.EffSpawnFrame) {
 	}
 	wrapped := wrapResult.wrapped
 
-	name := windowName(e.Project, string(e.FrameID))
-	spawnCmd := buildSpawnCommand(wrapped.Command, e.Stdin)
+	name := windowName(e.Plan.Project, string(e.FrameID))
+	spawnCmd := buildSpawnCommand(wrapped.Command, e.Plan.Stdin)
 	slog.Info("runtime: spawning window", "frame", e.FrameID, "cmd", spawnCmd)
-	if err := deps.backend.SpawnFrame(string(e.FrameID), name, spawnCmd, wrapped.StartDir, wrapped.Env, e.Options.Cols, e.Options.Rows); err != nil {
+	if err := deps.backend.SpawnFrame(string(e.FrameID), name, spawnCmd, wrapped.StartDir, wrapped.Env, e.Plan.Options.Cols, e.Plan.Options.Rows); err != nil {
 		// wrapLaunchForSpawn already acquired the sandbox/container; the frame never
 		// launched and no EvFrameSpawned/kill path will reach this frame, so
 		// release it here to avoid leaking the container ref + cleanup closure.
@@ -183,7 +178,7 @@ func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
 		r.registerFrameToken(e.effect.FrameID, e.token)
 	}
 	if e.token != "" && e.containerSockDir != "" {
-		r.registerContainerFrame(e.effect.FrameID, e.effect.Project, e.containerSockDir, e.token, e.mounts)
+		r.registerContainerFrame(e.effect.FrameID, e.effect.Plan.Project, e.containerSockDir, e.token, e.mounts)
 	}
 
 	r.dispatch(state.EvFrameSpawned{

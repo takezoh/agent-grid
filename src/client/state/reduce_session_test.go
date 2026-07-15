@@ -253,7 +253,7 @@ func TestCreateSessionAllocatesAndSpawns(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame")
 	}
-	if spawn.SessionID != sess.ID || spawn.Project != "/foo" || spawn.Command != "stub" {
+	if spawn.SessionID != sess.ID || spawn.Plan.Project != "/foo" || spawn.Plan.Command != "stub" {
 		t.Errorf("spawn = %+v", spawn)
 	}
 	if spawn.ReplyConn != 1 || spawn.ReplyReqID != "r" {
@@ -329,11 +329,8 @@ func TestCreateSessionPlannerSpawnsImmediately(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame")
 	}
-	if spawn.Mode != LaunchModeCreate {
-		t.Fatalf("spawn mode = %v", spawn.Mode)
-	}
-	if spawn.Command != "planner --prepared" {
-		t.Fatalf("spawn command = %q, want planner --prepared", spawn.Command)
+	if spawn.Plan.Command != "planner --prepared" {
+		t.Fatalf("spawn command = %q, want planner --prepared", spawn.Plan.Command)
 	}
 }
 
@@ -969,8 +966,8 @@ func TestPushDriverInheritsRootStartDir(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame")
 	}
-	if spawn.StartDir != "/root/dir" {
-		t.Errorf("spawn.StartDir = %q, want /root/dir", spawn.StartDir)
+	if spawn.Plan.StartDir != "/root/dir" {
+		t.Errorf("spawn.Plan.StartDir = %q, want /root/dir", spawn.Plan.StartDir)
 	}
 
 	// New frame in state should also have StartDir = /root/dir.
@@ -1087,8 +1084,8 @@ func TestPushDriverInputPropagatesAsStdin(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame")
 	}
-	if string(spawn.Stdin) != string(input) {
-		t.Errorf("spawn.Stdin = %q, want %q", spawn.Stdin, input)
+	if string(spawn.Plan.Stdin) != string(input) {
+		t.Errorf("spawn.Plan.Stdin = %q, want %q", spawn.Plan.Stdin, input)
 	}
 }
 
@@ -1123,8 +1120,8 @@ func TestPushDriverNilInputProducesNilStdin(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame")
 	}
-	if spawn.Stdin != nil {
-		t.Errorf("spawn.Stdin = %q, want nil", spawn.Stdin)
+	if spawn.Plan.Stdin != nil {
+		t.Errorf("spawn.Plan.Stdin = %q, want nil", spawn.Plan.Stdin)
 	}
 }
 
@@ -1147,8 +1144,8 @@ func TestCreateSession_SandboxOverrideHost(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame")
 	}
-	if spawn.Sandbox != SandboxOverrideHost {
-		t.Errorf("spawn.Sandbox = %v, want SandboxOverrideHost", spawn.Sandbox)
+	if spawn.Plan.Sandbox != SandboxOverrideHost {
+		t.Errorf("spawn.Plan.Sandbox = %v, want SandboxOverrideHost", spawn.Plan.Sandbox)
 	}
 	for _, sess := range next.Sessions {
 		if sess.Sandbox != SandboxOverrideHost {
@@ -1203,8 +1200,8 @@ func TestPushDriver_InheritsSandboxFromSession(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame from push-driver")
 	}
-	if spawn.Sandbox != SandboxOverrideHost {
-		t.Errorf("pushed frame spawn.Sandbox = %v, want SandboxOverrideHost", spawn.Sandbox)
+	if spawn.Plan.Sandbox != SandboxOverrideHost {
+		t.Errorf("pushed frame spawn.Plan.Sandbox = %v, want SandboxOverrideHost", spawn.Plan.Sandbox)
 	}
 }
 
@@ -1372,8 +1369,8 @@ func TestForkSessionInheritsStartDir(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame")
 	}
-	if spawn.StartDir != "/repo/worktrees/feature" {
-		t.Errorf("spawn.StartDir = %q, want /repo/worktrees/feature", spawn.StartDir)
+	if spawn.Plan.StartDir != "/repo/worktrees/feature" {
+		t.Errorf("spawn.Plan.StartDir = %q, want /repo/worktrees/feature", spawn.Plan.StartDir)
 	}
 }
 
@@ -1472,8 +1469,8 @@ func TestPushDriver_AutoSandboxSession(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame from push-driver")
 	}
-	if spawn.Sandbox != SandboxOverrideAuto {
-		t.Errorf("pushed frame spawn.Sandbox = %v, want SandboxOverrideAuto", spawn.Sandbox)
+	if spawn.Plan.Sandbox != SandboxOverrideAuto {
+		t.Errorf("pushed frame spawn.Plan.Sandbox = %v, want SandboxOverrideAuto", spawn.Plan.Sandbox)
 	}
 }
 
@@ -1512,10 +1509,10 @@ func TestPushDriverNonRootNoImplicitWorktree(t *testing.T) {
 	if !ok {
 		t.Fatal("expected EffSpawnFrame")
 	}
-	if spawn.StartDir != "/repo" {
-		t.Errorf("StartDir = %q, want /repo (inherited from root)", spawn.StartDir)
+	if spawn.Plan.StartDir != "/repo" {
+		t.Errorf("StartDir = %q, want /repo (inherited from root)", spawn.Plan.StartDir)
 	}
-	if spawn.Options.Worktree.Enabled {
+	if spawn.Plan.Options.Worktree.Enabled {
 		t.Error("Worktree.Enabled should be false; non-root frame must reuse root's directory, not create a new worktree")
 	}
 }

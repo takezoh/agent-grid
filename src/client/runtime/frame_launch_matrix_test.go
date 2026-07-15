@@ -16,6 +16,8 @@ import (
 	sandboxdc "github.com/takezoh/agent-grid/platform/sandbox/devcontainer"
 )
 
+// Note: managedHomeDirs uses os.ReadDir; the os import above already covers it.
+
 // Frame-launch matrix driven through the REAL launcher stack
 // (NewDispatcherAdapter → SandboxDispatcher → DirectDispatcher /
 // DevcontainerLauncher), with only the docker-backed sandbox.Manager faked.
@@ -232,9 +234,14 @@ func buildLaunchHarness(t *testing.T, env envKind, persistWarm bool) *launchHarn
 	}
 	resolver := platformconfig.NewSandboxResolver(user)
 
+	// SelfBin is a placeholder path; managed_claude_home / DirectDispatcher only
+	// require it to be non-empty to enter the overlay-generation branch (they do
+	// not exec it). Tests that observe the managed overlay depend on this being
+	// set, so keep it filled unconditionally.
+	selfBin := filepath.Join(dataDir, "fake-server")
 	disp := &agentlaunch.SandboxDispatcher{
 		Resolver: resolver,
-		Direct:   agentlaunch.DirectDispatcher{SockPath: sockPath},
+		Direct:   agentlaunch.DirectDispatcher{SockPath: sockPath, SelfBin: selfBin, DataDir: dataDir},
 	}
 	if env != envHost {
 		disp.Devcontainer = agentlaunch.NewDevcontainerLauncher(
@@ -475,8 +482,8 @@ func (h *launchHarness) newSessionSpawn(t *testing.T, e state.EffSpawnFrame) int
 	// discard our spawn as an orphan.
 	if _, ok := h.r.state.Sessions[e.SessionID]; !ok {
 		h.r.state.Sessions[e.SessionID] = state.Session{
-			ID: e.SessionID, Project: e.Project,
-			Frames: []state.SessionFrame{{ID: e.FrameID, Project: e.Project, Command: e.Command}},
+			ID: e.SessionID, Project: e.Plan.Project,
+			Frames: []state.SessionFrame{{ID: e.FrameID, Project: e.Plan.Project, Command: e.Plan.Command}},
 		}
 	}
 	internalCh := make(chan internalEvent, 1)
@@ -508,8 +515,9 @@ func TestFrameLaunch_NewSession_Host(t *testing.T) {
 	h := newLaunchHarness(t, envHost)
 
 	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
-		SessionID: "s1", FrameID: "f1", Project: "/proj/host", Command: "minimal-test",
-		Env: map[string]string{"AG_SESSION_ID": "s1", "AG_FRAME_ID": "f1"},
+		SessionID: "s1", FrameID: "f1",
+		Plan: state.LaunchPlan{Project: "/proj/host", Command: "minimal-test"},
+		Env:  map[string]string{"AG_SESSION_ID": "s1", "AG_FRAME_ID": "f1"},
 	})
 
 	if sc.token != "" {
@@ -533,8 +541,9 @@ func TestFrameLaunch_NewSession_PerProject(t *testing.T) {
 
 	const project = "/proj/box"
 	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
-		SessionID: "s1", FrameID: "f1", Project: project, Command: "minimal-test",
-		Env: map[string]string{"AG_SESSION_ID": "s1", "AG_FRAME_ID": "f1"},
+		SessionID: "s1", FrameID: "f1",
+		Plan: state.LaunchPlan{Project: project, Command: "minimal-test"},
+		Env:  map[string]string{"AG_SESSION_ID": "s1", "AG_FRAME_ID": "f1"},
 	})
 
 	if sc.token == "" {
@@ -693,5 +702,176 @@ func TestWarmStart_OrphanPruned(t *testing.T) {
 		if st.FrameID == "ghost" {
 			t.Error("orphan warm file was not deleted on recovery")
 		}
+	}
+}
+
+// managedMessagingDriver mirrors minimalDriver but PrepareLaunch returns
+// LaunchPlan with ManagedFrameMessaging=true. Used by the cold-start
+// ManagedFrameMessaging matrix cell to prove the parallel spawnFrameWindow
+// implementation (bootstrap_coldstart.go:113) also threads the field.
+type managedMessagingDriver struct{}
+
+func (managedMessagingDriver) Name() string        { return "managed-messaging-test" }
+func (managedMessagingDriver) DisplayName() string { return "managed-messaging-test" }
+func (managedMessagingDriver) Status(_ state.DriverState) state.Status {
+	return state.StatusIdle
+}
+func (managedMessagingDriver) NewState(_ time.Time) state.DriverState        { return state.DriverStateBase{} }
+func (managedMessagingDriver) Persist(_ state.DriverState) map[string]string { return nil }
+func (managedMessagingDriver) Restore(_ map[string]string, _ time.Time) state.DriverState {
+	return state.DriverStateBase{}
+}
+func (managedMessagingDriver) View(_ state.DriverState) state.View { return state.View{} }
+func (managedMessagingDriver) Step(prev state.DriverState, _ state.FrameContext, _ state.DriverEvent) (state.DriverState, []state.Effect, state.View) {
+	return prev, nil, state.View{}
+}
+func (managedMessagingDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, command string, _ state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
+	return state.LaunchPlan{
+		Command:               command,
+		StartDir:              project,
+		ManagedFrameMessaging: true,
+	}, nil
+}
+func (managedMessagingDriver) StartDir(_ state.DriverState) string { return "" }
+func (managedMessagingDriver) WithStartDir(s state.DriverState, _ string) state.DriverState {
+	return s
+}
+
+func registerManagedMessagingDriver(t *testing.T) {
+	t.Helper()
+	saved := state.GetRegistry()
+	t.Cleanup(func() {
+		state.ClearRegistry()
+		for _, d := range saved {
+			state.Register(d)
+		}
+	})
+	if _, ok := saved[managedMessagingDriver{}.Name()]; !ok {
+		state.Register(managedMessagingDriver{})
+	}
+}
+
+// managedHomeDirs enumerates the `<frame-id>-XXX` overlay directories that
+// PrepareManagedClaudeHome creates under `<dataDir>/managed-claude-home/`.
+// Returns an empty slice if the base dir does not exist so callers can
+// distinguish "overlay never created" from "overlay created and cleaned up".
+func managedHomeDirs(t *testing.T, dataDir string) []string {
+	t.Helper()
+	base := filepath.Join(dataDir, "managed-claude-home")
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		t.Fatalf("read managed-claude-home dir: %v", err)
+	}
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() {
+			out = append(out, filepath.Join(base, e.Name()))
+		}
+	}
+	return out
+}
+
+// TestFrameLaunch_NewSession_Host_ManagedMessaging is the positive matrix cell
+// that would have caught the live symptom of the field-drop defect: a
+// host-launched claude session with LaunchPlan.ManagedFrameMessaging=true.
+//
+// Positive assertions (spec-20260714 FR-002):
+//   - AG_SOCKET_TOKEN is non-empty (wrapLaunchForSpawn's needsToken branch)
+//   - a managed-claude-home overlay directory was created under DataDir
+//   - the spawned process's HOME env is redirected to that overlay dir
+//
+// Anchored at h.newSessionSpawn (which routes through interpret_spawn.go's
+// free spawnFrameWindow) — NOT h.r.spawnFrameWindow, which uses the
+// bootstrap_coldstart.go path and would trivially pass because the cold-start
+// path never constructed a flat EffSpawnFrame. Pairing the positive case with
+// the cold-start entrypoint would let the bug re-land unnoticed.
+func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
+	registerMinimalDriver(t)
+	h := newLaunchHarness(t, envHost)
+
+	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
+		SessionID: "s-managed", FrameID: "f-managed",
+		Plan: state.LaunchPlan{
+			Project:               "/proj/host",
+			Command:               "minimal-test",
+			ManagedFrameMessaging: true,
+		},
+		Env: map[string]string{"AG_SESSION_ID": "s-managed", "AG_FRAME_ID": "f-managed"},
+	})
+
+	if sc.token == "" {
+		t.Fatal("host+ManagedFrameMessaging must produce a bearer token (needsToken branch)")
+	}
+	env := h.spawnEnv(t)
+	if env["AG_SOCKET_TOKEN"] == "" {
+		t.Errorf("host+ManagedFrameMessaging spawn env has empty AG_SOCKET_TOKEN — token dropped between wrapLaunchForSpawn and the pty child")
+	}
+	if env["AG_SOCKET"] != h.sockPath {
+		t.Errorf("AG_SOCKET = %q, want %q", env["AG_SOCKET"], h.sockPath)
+	}
+	overlays := managedHomeDirs(t, h.dataDir)
+	if len(overlays) == 0 {
+		t.Fatal("managed-claude-home overlay was not created — PrepareManagedClaudeHome was skipped despite ManagedFrameMessaging=true")
+	}
+	if env["HOME"] == "" {
+		t.Errorf("spawn env HOME is empty — overlay HOME was not injected")
+	} else {
+		matched := false
+		for _, o := range overlays {
+			if env["HOME"] == o {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Errorf("spawn env HOME = %q does not match any created overlay dir %v", env["HOME"], overlays)
+		}
+	}
+	if env[agentlaunch.ManagedClaudeOverlayHomeEnv] == "" {
+		t.Errorf("%s env is empty — overlay marker missing", agentlaunch.ManagedClaudeOverlayHomeEnv)
+	}
+	if env[agentlaunch.ManagedClaudeRealHomeEnv] == "" {
+		t.Errorf("%s env is empty — real HOME marker missing", agentlaunch.ManagedClaudeRealHomeEnv)
+	}
+}
+
+// TestFrameLaunch_NewSession_Host asserts the negative case (FR-003): a host
+// launch WITHOUT ManagedFrameMessaging must NOT produce a token or an
+// overlay. This test already exists above; the pairing here documents the
+// symmetry.
+//
+// TestFrameLaunch_ColdStart_Host_ManagedMessaging guards the parallel
+// implementation of spawnFrameWindow in bootstrap_coldstart.go
+// (adr-20260714-coldstart-spawn-parallel-implementation). Even though the
+// cold-start path is not defective today (it threads LaunchPlan through as a
+// value), a future refactor could regress it independently of interpret_spawn.
+// Machine-check the same observables on both entry points.
+func TestFrameLaunch_ColdStart_Host_ManagedMessaging(t *testing.T) {
+	registerManagedMessagingDriver(t)
+	h := newLaunchHarness(t, envHost)
+
+	frame := state.SessionFrame{
+		ID:      "f-cold-managed",
+		Project: "/proj/host",
+		Command: "managed-messaging-test",
+		Driver:  state.DriverStateBase{},
+	}
+	if err := h.r.spawnFrameWindow("s-cold-managed", state.SandboxOverrideAuto, frame); err != nil {
+		t.Fatalf("spawnFrameWindow: %v", err)
+	}
+
+	env := h.spawnEnv(t)
+	if env["AG_SOCKET_TOKEN"] == "" {
+		t.Errorf("cold-start host+ManagedFrameMessaging spawn env has empty AG_SOCKET_TOKEN — Runtime.spawnFrameWindow dropped the flag")
+	}
+	overlays := managedHomeDirs(t, h.dataDir)
+	if len(overlays) == 0 {
+		t.Fatal("cold-start managed-claude-home overlay was not created — bootstrap_coldstart.go regressed independently of interpret_spawn.go")
+	}
+	if env[agentlaunch.ManagedClaudeOverlayHomeEnv] == "" {
+		t.Errorf("cold-start spawn env missing %s marker", agentlaunch.ManagedClaudeOverlayHomeEnv)
 	}
 }
