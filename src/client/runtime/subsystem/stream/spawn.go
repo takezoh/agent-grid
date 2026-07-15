@@ -20,11 +20,18 @@ func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *st
 		argv = b.shimArgs()
 	}
 
+	// ForceHost mirrors the Factory-computed b.isContainer decision. Without
+	// this, a state.SandboxOverrideHost that already made b.isContainer=false
+	// would still route the app-server through SandboxDispatcher's project-mode
+	// path (devcontainer) — the frame would run on host while the app-server
+	// stayed in the container and the two could not share the UDS listenSock.
+	// The two axes (frame vs app-server placement) MUST agree per session.
 	plan := agentlaunch.LaunchPlan{
-		Command:  strings.Join(argv, " "),
-		Argv:     argv,
-		Project:  b.project,
-		StartDir: "",
+		Command:   strings.Join(argv, " "),
+		Argv:      argv,
+		Project:   b.project,
+		StartDir:  "",
+		ForceHost: !b.isContainer,
 	}
 
 	errBuf := &strings.Builder{}

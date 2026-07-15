@@ -9,21 +9,27 @@ import (
 	"github.com/takezoh/agent-grid/client/state"
 )
 
-// resolveStreamListenPath returns the UDS path the per-session app-server binds.
-// In host mode it is also the daemon's dial path; in container mode it is a
-// container-absolute path under ContainerRunDir and the stream backend resolves
-// the host dial path from the launch's bind mounts (the single source of truth
-// for the host↔container mapping — this never recomputes the host run dir).
-// Each session gets a unique sock file so concurrent app-server processes do not
-// collide. project is passed by the caller (from the spawn effect) so this runs
-// safely off r.state from a goroutine.
-func (r *Runtime) resolveStreamListenPath(sessionID state.SessionID, project string) (string, error) {
+// resolveStreamListenPath returns the UDS path the per-session app-server
+// binds. When useContainer is true it is a container-absolute path under
+// ContainerRunDir and the stream backend resolves the host dial path from the
+// launch's bind mounts (the single source of truth for the host↔container
+// mapping — this never recomputes the host run dir). When false the bind
+// path is host-absolute under the daemon's data dir and doubles as the daemon
+// dial path. Each session gets a unique sock file so concurrent app-server
+// processes do not collide.
+//
+// useContainer is passed by Factory.Ensure, which combines the project's
+// default sandbox mode with the per-launch plan.Sandbox override — this
+// function does not re-derive it from project alone (a host override on a
+// sandboxed project must land here as useContainer=false).
+func (r *Runtime) resolveStreamListenPath(sessionID state.SessionID, project string, useContainer bool) (string, error) {
+	_ = project // reserved for per-project sock naming if a future launch matrix needs it
 	dataDir := r.cfg.DataDir
 	if dataDir == "" {
 		dataDir = os.TempDir()
 	}
 	sockName := cstream.SockPrefix + string(sessionID) + cstream.SockSuffix
-	if launcher(r.cfg).IsContainer(project) {
+	if useContainer {
 		// The app-server binds this fixed container path; the in-container routing
 		// sockbridge finds it by session ID and the backend maps it back to a host
 		// path via the launch mounts.

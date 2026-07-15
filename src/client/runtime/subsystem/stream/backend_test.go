@@ -50,11 +50,13 @@ func (d *cleanupDispatcher) IsContainer(string) bool { return true }
 
 type capturePlanDispatcher struct {
 	capturedArgv []string
+	capturedPlan agentlaunch.LaunchPlan
 	forwardArgv  []string
 }
 
 func (d *capturePlanDispatcher) Wrap(_ context.Context, _ string, plan agentlaunch.LaunchPlan) (agentlaunch.WrappedLaunch, error) {
 	d.capturedArgv = append([]string(nil), plan.Argv...)
+	d.capturedPlan = plan
 	argv := d.forwardArgv
 	if len(argv) == 0 {
 		argv = plan.Argv
