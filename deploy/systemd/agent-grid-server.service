@@ -19,10 +19,23 @@ StateDirectory=agent-grid
 # -data-dir tells the server where to write its socket, pid file, sessions
 # snapshot and logs. -token-file persists a bearer token across restarts so
 # bookmarked browser URLs survive a unit reload.
-ExecStart=%h/.local/bin/agent-grid-server \
-  -addr 127.0.0.1:8443 -insecure \
-  -data-dir %S/agent-grid \
-  -token-file %S/agent-grid/server.token
+#
+# Wrap the daemon in `bash -lc` so host-mode frame launches inherit the
+# operator's login-shell environment (PATH, MISE_*, GOPATH, npm_config_prefix,
+# credential helpers, …). Without this the daemon inherits systemd's
+# minimal PATH and tool-manager-installed drivers (codex via mise, gh via
+# homebrew, …) fail with "executable file not found" at spawn time —
+# host launches want the SAME env as the interactive host shell that
+# installed the tools. `exec` replaces bash with the daemon so systemd's
+# Type=notify sd_notify() still reaches the correct PID.
+#
+# Operators whose tool activation only lives in a non-bash rcfile
+# (e.g. `eval "$(mise activate zsh)"` in ~/.zshrc, not ~/.bashrc) should
+# override this line via a drop-in and swap `bash` for their login shell:
+#   [Service]
+#   ExecStart=
+#   ExecStart=/usr/bin/zsh -lc 'exec %h/.local/bin/agent-grid-server -addr 127.0.0.1:8443 -insecure -data-dir %S/agent-grid -token-file %S/agent-grid/server.token'
+ExecStart=/bin/bash -lc 'exec %h/.local/bin/agent-grid-server -addr 127.0.0.1:8443 -insecure -data-dir %S/agent-grid -token-file %S/agent-grid/server.token'
 # Operator override file (TLS, alternate addr, etc.). Leading `-` tolerates absence.
 EnvironmentFile=-%S/agent-grid/server.env
 
