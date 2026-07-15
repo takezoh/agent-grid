@@ -153,17 +153,25 @@ func parseSandbox(v string) (state.SandboxOverride, bool) {
 // endpoint, which a browser cannot send headers on, is guarded by a short-lived
 // single-use ticket minted over the token-authenticated API.
 func NewMux(d *DaemonClient, token string) http.Handler {
-	return newMux(d, token, false)
+	return newMux(d, token, false, defaultMuxDependencies())
 }
 
 // NewMuxNoAuth builds the backend HTTP handler with bearer-token AND WS-ticket
 // checks disabled. Intended for local dev only (scripts/run-dev.sh) on a
 // loopback bind. Production callers MUST use NewMux.
 func NewMuxNoAuth(d *DaemonClient) http.Handler {
-	return newMux(d, "", true)
+	return newMux(d, "", true, defaultMuxDependencies())
 }
 
-func newMux(d *DaemonClient, token string, noAuth bool) http.Handler {
+type muxDependencies struct {
+	workspaceAtomicWrite workspaceAtomicWriteFunc
+}
+
+func defaultMuxDependencies() muxDependencies {
+	return muxDependencies{workspaceAtomicWrite: atomicWriteWorkspaceFile}
+}
+
+func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependencies) http.Handler {
 	tickets := newTicketStore()
 	mux := http.NewServeMux()
 
@@ -172,9 +180,9 @@ func newMux(d *DaemonClient, token string, noAuth bool) http.Handler {
 	// "empty want rejects everything" contract is preserved on the path that
 	// still uses it.
 	if noAuth {
-		mux.Handle("/api/", apiHandler(d, tickets))
+		mux.Handle("/api/", apiHandler(d, tickets, dependencies))
 	} else {
-		mux.Handle("/api/", TokenAuth(token, apiHandler(d, tickets)))
+		mux.Handle("/api/", TokenAuth(token, apiHandler(d, tickets, dependencies)))
 	}
 
 	// The WebSocket attach endpoint authenticates with a single-use ticket (a
@@ -197,7 +205,7 @@ func newMux(d *DaemonClient, token string, noAuth bool) http.Handler {
 
 // apiHandler builds the header-authenticated REST routes (session CRUD and
 // WebSocket-ticket minting). Mount it under /api/ wrapped with TokenAuth.
-func apiHandler(d *DaemonClient, tickets *ticketStore) http.Handler {
+func apiHandler(d *DaemonClient, tickets *ticketStore, dependencies muxDependencies) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/sessions", handleListSessions(d))
 	mux.HandleFunc("POST /api/sessions", handleCreateSession(d))
@@ -210,7 +218,7 @@ func apiHandler(d *DaemonClient, tickets *ticketStore) http.Handler {
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/root-handle", handleWorkspaceRootHandle(d))
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/tree", handleWorkspaceTree(d))
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/file", handleWorkspaceFile(d))
-	mux.HandleFunc("PUT /api/sessions/{id}/workspace/file", handleWorkspaceFileWrite(d))
+	mux.HandleFunc("PUT /api/sessions/{id}/workspace/file", handleWorkspaceFileWrite(d, dependencies.workspaceAtomicWrite))
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/diff", handleWorkspaceDiff(d))
 	mux.HandleFunc("GET /api/session-config", handleSessionConfig())
 	mux.HandleFunc("POST /api/ws-ticket", func(w http.ResponseWriter, _ *http.Request) {

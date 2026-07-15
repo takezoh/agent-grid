@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceApiError } from "../../api/workspace";
 import { useWorkspaceActivityStore } from "../../store/workspaceActivity";
@@ -45,6 +45,7 @@ describe("root-disappearance", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -67,6 +68,10 @@ describe("root-disappearance", () => {
     );
 
     render(<WorkspaceDrawer sessionId="s1" />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     await act(async () => {
       await Promise.resolve();
     });
@@ -93,8 +98,15 @@ describe("root-disappearance", () => {
     useWorkspaceActivityStore.getState().setRootDisappeared(true);
 
     render(<WorkspaceDrawer sessionId="s1" />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(screen.getByTestId("workspace-drawer")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Copy buffer to clipboard" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Copy buffer to clipboard" }));
+      await Promise.resolve();
+    });
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { installFakeBackend, makeSessionInfo } from "./support/fake-backend";
+import { expect, test } from "./support/test";
 
 // Browser wiring that happy-dom cannot prove: a native contextmenu event on a
 // session row opens the Radix context menu, and the Stop item hands off to

@@ -3,16 +3,21 @@
   "paths": [
     {"path": "test-harness/protected.json", "category": "protected-manifest", "required_markers": ["required_markers"]},
     {"path": "test-harness/dependencies.json", "category": "dependency-registry", "required_markers": ["\"id\": \"pty\""]},
+    {"path": "test-harness/external-boundaries.json", "category": "external-boundary-inventory", "required_markers": ["outbound-http", "host-process"]},
+    {"path": "test-harness/e2e-suites.json", "category": "fidelity-registry", "required_markers": ["grok-cli", "stream-routing"]},
+    {"path": "test-harness/tool-versions.json", "category": "tool-version-registry", "required_markers": ["\"schema\"", "\"fidelity\""]},
     {"path": "src/internal/harnesspolicy/dependency.go", "category": "checker", "required_markers": ["CheckDependencyRegistry"]},
+    {"path": "src/internal/harnesspolicy/external.go", "category": "checker", "required_markers": ["CheckExternalBoundaries"]},
     {"path": "src/internal/harnesspolicy/tampering.go", "category": "checker", "required_markers": ["ClassifyProtectedChanges"]},
     {"path": "src/cmd/harness-check/main.go", "category": "checker-entrypoint", "required_markers": ["runTampering"]},
     {"path": "scripts/check-harness-dependencies.sh", "category": "checker-invocation", "required_markers": ["go run ./cmd/harness-check"]},
     {"path": "scripts/check-harness-tampering.sh", "category": "checker-invocation", "required_markers": ["--mode tampering"]},
     {"path": "scripts/run-trusted-harness-gate.sh", "category": "trusted-bootstrap", "required_markers": ["archive --format=tar", "check-harness-tampering.sh"]},
     {"path": "scripts/coverage-floors.txt", "category": "coverage-floor", "required_markers": []},
+    {"path": "src/client/web/vitest.config.ts", "category": "web-coverage-policy", "required_markers": ["thresholds", "src/{api,socket,wire}/**", "src/components/**"]},
     {"path": "src/gorules/static_enforcement_test.go", "category": "independent-static-pin", "required_markers": ["TestCheckE2ESiblingsScript"]},
-    {"path": ".github/workflows/ci.yml", "category": "workflow", "required_markers": ["scripts/check-e2e-siblings.sh", "scripts/check-coverage.sh"]},
-    {"path": ".github/workflows/e2e-nightly.yml", "category": "workflow", "required_markers": ["@openai/codex@0.142.5"]},
+    {"path": ".github/workflows/ci.yml", "category": "workflow", "required_markers": ["run-verification-profile.sh pr core", "profile-result-core.json"]},
+    {"path": ".github/workflows/e2e-nightly.yml", "category": "workflow", "required_markers": ["install-pinned-codex.sh fidelity"]},
     {"path": ".github/CODEOWNERS", "category": "repository-ownership", "required_markers": ["test-harness/"]},
     {"path": "test-harness/skips.json", "category": "skip-inventory", "required_markers": ["\"expires\""]},
     {"path": "test-harness/mutants.json", "category": "mutation-contract", "required_markers": ["operator_set_version"]},
@@ -20,6 +25,10 @@
     {"path": "test-harness/profiles.json", "category": "verification-profiles", "required_markers": ["pre-push", "nightly"]},
     {"path": "scripts/repeat-changed-tests.sh", "category": "checker-invocation", "required_markers": ["REPEAT=10", "SEED=20260711"]},
     {"path": "scripts/run-mutation-pilot.sh", "category": "checker-invocation", "required_markers": ["mutation-baseline.json"]},
-    {"path": "scripts/run-nightly-e2e-report.sh", "category": "fidelity-report", "required_markers": ["go test -json -tags e2e", "event.Action===\"skip\""]}
+    {"path": "scripts/run-go-e2e.sh", "category": "fidelity-runner", "required_markers": ["e2e-suites.json", "go test -json -tags e2e"]},
+    {"path": "scripts/run-nightly-e2e-report.sh", "category": "fidelity-report", "required_markers": ["run-go-e2e.sh", "event.Action===\"skip\""]}
+    ,{"path": "scripts/run-verification-profile.sh", "category": "verification-runner", "required_markers": ["duration_seconds", "commands"]}
+    ,{"path": "scripts/vet-go-e2e.sh", "category": "fidelity-runner", "required_markers": ["e2e-packages", "go vet -tags e2e"]}
+    ,{"path": "scripts/install-pinned-codex.sh", "category": "tool-version-installer", "required_markers": ["tool-versions.json", "schema|fidelity"]}
   ]
 }

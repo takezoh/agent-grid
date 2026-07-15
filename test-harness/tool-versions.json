@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "codex": {
+    "schema": {
+      "version": "0.133.0",
+      "purpose": "Generate and verify the committed app-server JSON Schema bundles"
+    },
+    "fidelity": {
+      "version": "0.142.5",
+      "purpose": "Exercise the real CLI wire behavior pinned by FakeVsReal contracts"
+    }
+  }
+}

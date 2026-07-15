@@ -1,0 +1,55 @@
+[
+  { "level": "warn", "file": "api/sessions.test.ts", "message": "no bearer token" },
+  {
+    "level": "warn",
+    "file": "components/palette/CommandPalette.test.tsx",
+    "message": "sessionConfig not yet fetched"
+  },
+  {
+    "level": "warn",
+    "file": "components/palette/CommandPalette.test.tsx",
+    "message": "confirmTool without ctx"
+  },
+  {
+    "level": "warn",
+    "file": "components/palette/ParamSelectPhase.test.tsx",
+    "test": "preselect-direct",
+    "message": "confirmTool without ctx"
+  },
+  {
+    "level": "warn",
+    "file": "App.test.tsx",
+    "test": "CommandSearchTrigger",
+    "message": "sessionConfig not yet fetched"
+  },
+  {
+    "level": "warn",
+    "file": "App.test.tsx",
+    "test": "CommandSearchTrigger",
+    "message": "opener detached from DOM"
+  },
+  {
+    "level": "warn",
+    "file": "App.test.tsx",
+    "test": "Cmd+K",
+    "message": "sessionConfig not yet fetched"
+  },
+  {
+    "level": "warn",
+    "file": "App.test.tsx",
+    "test": "Ctrl+K",
+    "message": "sessionConfig not yet fetched"
+  },
+  {
+    "level": "warn",
+    "file": "components/primitives/TagPill.test.tsx",
+    "test": "invalid fg",
+    "message": "Invalid driver fg color"
+  },
+  {
+    "level": "warn",
+    "file": "components/primitives/TagPill.test.tsx",
+    "test": "invalid bg",
+    "message": "Invalid driver bg color"
+  }
+]

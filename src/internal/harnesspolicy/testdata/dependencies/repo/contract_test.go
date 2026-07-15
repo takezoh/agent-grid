@@ -1,3 +1,5 @@
 package fixture
 
-func TestNamedInvariant() { panic("assert invariant-output") }
+import "testing"
+
+func TestNamedInvariant(t *testing.T) { t.Fatal("assert invariant-output") }

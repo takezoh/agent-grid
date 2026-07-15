@@ -1,1 +1,1 @@
-{"version":1,"dependencies":[{"id":"database","seam":{},"fake":{},"contract":{},"fidelity":{},"exception":{"reason":"missing","owner":"team","expiry":"never","evidence":"docs/adr/adr-20260705-test-tier-taxonomy.md"}}]}
+{"version":2,"dependencies":[{"id":"database","strategy":"exception","seam":{},"fake":{},"contract":{},"fidelity":{},"exception":{"kind":"trusted-runtime","reason":"missing","owner":"team","expiry":"2020-01-01","evidence":"missing-adr.md"}}]}

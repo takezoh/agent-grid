@@ -10,8 +10,8 @@
  *   AG_E2E_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts --update-snapshots
  */
 
-import { expect, test } from "@playwright/test";
 import { applyTheme, bootstrapScreenshotApp } from "./support/screenshot-fixture";
+import { expect, test } from "./support/test";
 
 const OPT_IN = process.env.AG_E2E_SCREENSHOTS === "1";
 

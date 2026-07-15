@@ -172,7 +172,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
       if (!requestIsCurrent()) return;
       if (WorkspaceApiError.isHandleStale(e)) {
         setHandleStale(true);
-        if (dirty) {
+        if (selectBufferDirty(useWorkspaceActivityStore.getState(), target.path)) {
           setRootDisappeared(true);
         }
         setFileError(null);
@@ -182,15 +182,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     } finally {
       if (requestIsCurrent()) setLoadingFile(false);
     }
-  }, [
-    sessionId,
-    pinnedHandle,
-    target,
-    registerDirtyBuffer,
-    dirty,
-    setRootDisappeared,
-    requestIsCurrent,
-  ]);
+  }, [sessionId, pinnedHandle, target, registerDirtyBuffer, setRootDisappeared, requestIsCurrent]);
 
   const fetchDiff = useCallback(async () => {
     if (!sessionId || !pinnedHandle || !target?.path) return;
@@ -205,7 +197,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
       if (!requestIsCurrent()) return;
       if (WorkspaceApiError.isHandleStale(e)) {
         setHandleStale(true);
-        if (dirty) {
+        if (selectBufferDirty(useWorkspaceActivityStore.getState(), target.path)) {
           setRootDisappeared(true);
         }
         setDiffError(null);
@@ -215,7 +207,7 @@ export function WorkspaceDrawer({ sessionId }: WorkspaceDrawerProps): ReactNode 
     } finally {
       if (requestIsCurrent()) setLoadingDiff(false);
     }
-  }, [sessionId, pinnedHandle, target, dirty, setRootDisappeared, requestIsCurrent]);
+  }, [sessionId, pinnedHandle, target, setRootDisappeared, requestIsCurrent]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadGeneration is the store-driven refetch trigger
   useEffect(() => {

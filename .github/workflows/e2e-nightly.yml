@@ -35,8 +35,8 @@ jobs:
           npm ci
           npm run build
 
-      - name: Install codex 0.142.5
-        run: npm install -g @openai/codex@0.142.5
+      - name: Install fidelity-pinned Codex
+        run: scripts/install-pinned-codex.sh fidelity
 
       - name: Install claude
         run: npm install -g @anthropic-ai/claude-code

@@ -1,5 +1,6 @@
-import { type Page, expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { type FakeBackend, installFakeBackend, makeSessionInfo } from "../support/fake-backend";
+import { expect, test } from "../support/test";
 
 const LINE = `${"x".repeat(80)}\n`;
 

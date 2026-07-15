@@ -4,7 +4,10 @@ Pinned JSON Schema and generated Go types for the Codex app-server stdio JSON-RP
 
 ## Pinned version
 
-**codex-cli 0.128.0** (default output, no `--experimental` flag)
+**codex-cli 0.133.0** (default output, no `--experimental` flag).
+The machine-readable SSOT is `test-harness/tool-versions.json` under the
+`codex.schema` role; the separate `codex.fidelity` pin intentionally tracks
+the real CLI version used by FakeVsReal contracts.
 
 ## Package layout
 
@@ -21,7 +24,8 @@ Pinned JSON Schema and generated Go types for the Codex app-server stdio JSON-RP
 Run the Makefile target to regenerate both the schema bundles and Go types in one step:
 
 ```sh
-make codex-schema-update   # requires codex 0.128.0 in PATH
+scripts/install-pinned-codex.sh schema
+make codex-schema-update
 make codex-schema-check    # verify committed pin matches current codex output
 ```
 
@@ -33,7 +37,7 @@ The schema-update target:
 
 ## Drift detection (CI)
 
-CI installs codex 0.128.0 and runs `generate-json-schema`, then diffs the two committed bundles.
+CI installs the `codex.schema` version and runs `generate-json-schema`, then diffs the two committed bundles.
 A schema version bump requires an explicit PR that updates the pin and regenerates types.
 
 ## codegen tool

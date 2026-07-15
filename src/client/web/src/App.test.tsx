@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App, terminalIdentity } from "./App";
 // FR-D1 / FR-D2 / FR-D3: Header's Cmd/Ctrl-K label routes through the
@@ -54,6 +54,7 @@ describe("App", () => {
     window.location.hash = "#token=test";
   });
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     window.location.hash = "";
@@ -544,7 +545,9 @@ describe("App", () => {
     // by running pending timers + awaiting several resolved promises so
     // vitest's fakeTimers settings (set in beforeEach) do not stall the
     // await chain that fetch -> request -> text() -> setSessionConfig walks.
-    await vi.runOnlyPendingTimersAsync().catch(() => {});
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync().catch(() => {});
+    });
     for (let i = 0; i < 5; i++) {
       await act(async () => {
         await Promise.resolve();

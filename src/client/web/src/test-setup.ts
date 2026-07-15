@@ -1,4 +1,58 @@
-import { vi } from "vitest";
+import { act, cleanup } from "@testing-library/react";
+import { afterEach, beforeEach, vi } from "vitest";
+import consoleAllowlist from "./test-console-allowlist.json";
+
+type ConsoleCall = { level: "error" | "warn"; message: string };
+let consoleCalls: ConsoleCall[] = [];
+const originalConsole = { error: console.error, warn: console.warn };
+
+function stringifyConsoleArg(value: unknown): string {
+  if (value instanceof Error) return `${value.name}: ${value.message}`;
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+beforeEach(() => {
+  consoleCalls = [];
+  console.error = (...args: unknown[]) => {
+    const message = args.map(stringifyConsoleArg).join(" ");
+    consoleCalls.push({ level: "error", message });
+    originalConsole.error(...args);
+    if (process.env.AG_TEST_CONSOLE_THROW_IMMEDIATE === "1") throw new Error(message);
+  };
+  console.warn = (...args: unknown[]) => {
+    consoleCalls.push({ level: "warn", message: args.map(stringifyConsoleArg).join(" ") });
+    originalConsole.warn(...args);
+  };
+});
+
+afterEach((context) => {
+  // Unmount subscriptions before test-local afterEach hooks reset shared stores.
+  act(() => cleanup());
+  console.error = originalConsole.error;
+  console.warn = originalConsole.warn;
+  const testName = context.task.name;
+  const testFile = context.task.file?.name ?? "";
+  const unexpected = consoleCalls.filter(
+    (call) =>
+      !consoleAllowlist.some(
+        (entry) =>
+          entry.level === call.level &&
+          (!entry.file || testFile.endsWith(entry.file)) &&
+          (!entry.test || testName.includes(entry.test)) &&
+          call.message.includes(entry.message),
+      ),
+  );
+  if (unexpected.length > 0) {
+    throw new Error(
+      `unexpected console output in ${testName}:\n${unexpected.map((call) => `[${call.level}] ${call.message}`).join("\n")}`,
+    );
+  }
+});
 
 // xterm.js relies on canvas/DOM features happy-dom does not implement.
 // Mock the module so TerminalPane.test can render without exploding.
@@ -93,22 +147,49 @@ globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserv
 globalThis.__triggerResize = triggerResizeImpl;
 
 // ---------------------------------------------------------------------------
-// requestAnimationFrame synchronous mock (ADR 0034)
-// happy-dom's rAF does not flush synchronously. We replace it with an
-// implementation that runs callbacks immediately (synchronous flush) so that
-// scheduleFit tests can assert fit.fit() is called after a single rAF tick.
+// requestAnimationFrame mock (ADR 0034). It stays asynchronous like browsers;
+// a synchronous callback can re-enter CodeMirror before EditorView finishes
+// construction and used to hide plugin crashes behind a green test run.
 // ---------------------------------------------------------------------------
 let _rafIdCounter = 0;
+const _rafTimers = new Map<number, ReturnType<typeof setTimeout>>();
+const _rafCallbacks = new Map<number, FrameRequestCallback>();
 
 globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
   const id = ++_rafIdCounter;
-  cb(performance.now());
+  const timer = setTimeout(() => {
+    _rafTimers.delete(id);
+    _rafCallbacks.delete(id);
+    cb(performance.now());
+  }, 0);
+  _rafTimers.set(id, timer);
+  _rafCallbacks.set(id, cb);
   return id;
 };
 
-globalThis.cancelAnimationFrame = (_id: number) => {
-  // no-op: callbacks have already fired synchronously
+globalThis.cancelAnimationFrame = (id: number) => {
+  const timer = _rafTimers.get(id);
+  if (timer !== undefined) clearTimeout(timer);
+  _rafTimers.delete(id);
+  _rafCallbacks.delete(id);
 };
+
+function flushAnimationFramesImpl(): void {
+  const callbacks = [..._rafCallbacks.entries()];
+  _rafCallbacks.clear();
+  for (const [id, callback] of callbacks) {
+    const timer = _rafTimers.get(id);
+    if (timer !== undefined) clearTimeout(timer);
+    _rafTimers.delete(id);
+    callback(performance.now());
+  }
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __flushAnimationFrames: () => void;
+}
+globalThis.__flushAnimationFrames = flushAnimationFramesImpl;
 
 // ---------------------------------------------------------------------------
 // matchMedia mock (for prefers-color-scheme / prefers-reduced-motion tests)
@@ -220,7 +301,6 @@ declare global {
 globalThis.setMatchMedia = setMatchMediaImpl;
 
 // Reset the matchMedia store to defaults after each test.
-import { afterEach } from "vitest";
 afterEach(() => {
   _resetMqStore();
 });
@@ -262,8 +342,7 @@ function _removeXtermTokenDefaults(): void {
 // Apply defaults before each test so useXtermTheme() sees valid tokens by
 // default. Tests that need the missing-token path call removeProperty() in
 // their own setup, overriding these inline values.
-import { beforeEach as _beforeEach } from "vitest";
-_beforeEach(() => {
+beforeEach(() => {
   _applyXtermTokenDefaults();
 });
 
@@ -353,6 +432,8 @@ function flushThemeObserversImpl(): void {
       entry.callback([record], entry.self);
     }
   }
+
+  flushAnimationFramesImpl();
 
   // Suppress unused-variable warning in the closure above.
   void currentTheme;

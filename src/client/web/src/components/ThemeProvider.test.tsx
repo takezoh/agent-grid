@@ -9,7 +9,7 @@
  * fire them automatically).
  */
 
-import { act, render, renderHook } from "@testing-library/react";
+import { act, render, renderHook, cleanup as rtlCleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useThemeStore } from "../store/theme";
 import { ThemeProvider, useXtermTheme } from "./ThemeProvider";
@@ -27,6 +27,7 @@ function resetStore() {
 
 /** Clean up all side effects between tests. */
 function cleanup() {
+  rtlCleanup();
   resetStore();
   localStorage.clear();
   delete document.documentElement.dataset.theme;

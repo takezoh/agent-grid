@@ -238,8 +238,7 @@ func TestWorkspaceWriteAtomicity(t *testing.T) {
 	})
 
 	t.Run("inconclusive restores original", func(t *testing.T) {
-		prev := workspaceAtomicWriteFn
-		workspaceAtomicWriteFn = func(target string, data []byte) (time.Time, error) {
+		atomicWrite := func(target string, data []byte) (time.Time, error) {
 			prior, hadPrior, err := workspaceFileSnapshot(target)
 			if err != nil {
 				return time.Time{}, err
@@ -250,10 +249,11 @@ func TestWorkspaceWriteAtomicity(t *testing.T) {
 			restoreWorkspaceFile(target, prior, hadPrior)
 			return time.Time{}, &workspaceAtomicWriteError{kind: atomicWriteInconclusive, err: errors.New("size mismatch")}
 		}
-		t.Cleanup(func() { workspaceAtomicWriteFn = prev })
 
 		d, fd := newDaemonPair(t)
-		mux := NewMux(d, "tok")
+		dependencies := defaultMuxDependencies()
+		dependencies.workspaceAtomicWrite = atomicWrite
+		mux := newMux(d, "tok", false, dependencies)
 		root := t.TempDir()
 		target := filepath.Join(root, "verify.txt")
 		if err := os.WriteFile(target, []byte("original"), 0o600); err != nil {

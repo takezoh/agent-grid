@@ -23,10 +23,14 @@ func TestRepositorySkipInventory(t *testing.T) {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "zzlintstaticenforcement") {
-			return filepath.SkipDir
+		if entry.IsDir() {
+			if strings.HasPrefix(entry.Name(), "zzlintstaticenforcement") ||
+				entry.Name() == "node_modules" || entry.Name() == "coverage" || entry.Name() == "dist" {
+				return filepath.SkipDir
+			}
+			return nil
 		}
-		if entry.IsDir() || (!strings.HasSuffix(filePath, "_test.go") && !isTypeScriptTest(filePath)) {
+		if !strings.HasSuffix(filePath, "_test.go") && !isTypeScriptTest(filePath) {
 			return nil
 		}
 		source, readErr := os.ReadFile(filePath)

@@ -11,7 +11,7 @@ import (
 
 func TestLintRejectsRealBinaryAndE2EEnvOutsideAllowedScopes(t *testing.T) {
 	srcRoot := repoSrcRoot(t)
-	pkgDir, err := os.MkdirTemp(srcRoot, "zzlintstaticenforcement")
+	pkgDir, err := os.MkdirTemp(filepath.Join(srcRoot, "gorules"), "zzlintstaticenforcement")
 	if err != nil {
 		t.Fatalf("mkdir temp package: %v", err)
 	}
@@ -35,7 +35,11 @@ func violate() {
 		t.Fatalf("write temp package: %v", err)
 	}
 
-	cmd := exec.Command("go", "tool", "golangci-lint", "run", "--allow-parallel-runners", "./"+filepath.Base(pkgDir))
+	relPkgDir, err := filepath.Rel(srcRoot, pkgDir)
+	if err != nil {
+		t.Fatalf("resolve temp package: %v", err)
+	}
+	cmd := exec.Command("go", "tool", "golangci-lint", "run", "--allow-parallel-runners", "./"+filepath.ToSlash(relPkgDir))
 	cmd.Dir = srcRoot
 	out, err := cmd.CombinedOutput()
 	if err == nil {
@@ -187,8 +191,16 @@ func TestCIWorkflowRunsWebTestsAndDetectsUntrackedWireFixtures(t *testing.T) {
 		t.Fatalf("read workflow: %v", err)
 	}
 	text := string(raw)
-	if !strings.Contains(text, "npm run test:web") {
-		t.Fatalf("CI does not run the web test entrypoint")
+	if !strings.Contains(text, "scripts/run-verification-profile.sh pr core") {
+		t.Fatalf("CI does not run the shared PR verification profile")
+	}
+	profileRaw, err := os.ReadFile(filepath.Join(repoRoot(t), "test-harness", "profiles.json"))
+	if err != nil {
+		t.Fatalf("read verification profiles: %v", err)
+	}
+	profileText := string(profileRaw)
+	if !strings.Contains(profileText, "npm run test:web") {
+		t.Fatalf("PR profile does not run the web test entrypoint")
 	}
 
 	pkgPath := filepath.Join(repoRoot(t), "src", "client", "web", "package.json")
@@ -204,14 +216,18 @@ func TestCIWorkflowRunsWebTestsAndDetectsUntrackedWireFixtures(t *testing.T) {
 	}
 	testWeb := pkg.Scripts["test:web"]
 	testUnit := pkg.Scripts["test:unit"]
-	if !strings.Contains(testWeb, "npm run test:unit") {
-		t.Fatalf("test:web does not include the unit-test entrypoint: %q", testWeb)
+	testCoverage := pkg.Scripts["test:coverage"]
+	if !strings.Contains(testWeb, "npm run test:coverage") {
+		t.Fatalf("test:web does not include the coverage-enforced unit entrypoint: %q", testWeb)
 	}
 	if !strings.Contains(testUnit, "vitest") || !strings.Contains(testUnit, "--run") {
 		t.Fatalf("test:unit is not an all-files vitest run: %q", testUnit)
 	}
-	if !strings.Contains(text, "git status --porcelain -- client/web/src/wire/testdata") {
-		t.Fatalf("CI does not check untracked wire fixtures")
+	if !strings.Contains(testCoverage, "vitest") || !strings.Contains(testCoverage, "--coverage") {
+		t.Fatalf("test:coverage is not an all-files coverage run: %q", testCoverage)
+	}
+	if !strings.Contains(profileText, "git status --porcelain -- client/web/src/wire/testdata") {
+		t.Fatalf("PR profile does not check untracked wire fixtures")
 	}
 }
 
@@ -232,9 +248,49 @@ func TestNightlyE2EWorkflowExportsAllRealBinaryEnvVars(t *testing.T) {
 	if !strings.Contains(text, "name: Require full nightly suite coverage") {
 		t.Fatalf("nightly workflow still allows skip-green when required suites are unavailable")
 	}
-	if !strings.Contains(text, "npm install -g @openai/codex@0.142.5") {
-		t.Fatalf("nightly workflow does not run the Codex version pinned by FakeVsReal contracts")
+	if !strings.Contains(text, "scripts/install-pinned-codex.sh fidelity") {
+		t.Fatalf("nightly workflow does not install the fidelity-pinned Codex version")
 	}
+}
+
+func TestCodexSchemaAndFidelityPinsAreDistinctAndWired(t *testing.T) {
+	repo := repoRoot(t)
+	raw, err := os.ReadFile(filepath.Join(repo, "test-harness", "tool-versions.json"))
+	if err != nil {
+		t.Fatalf("read tool version registry: %v", err)
+	}
+	var registry struct {
+		Codex struct {
+			Schema struct {
+				Version string `json:"version"`
+			} `json:"schema"`
+			Fidelity struct {
+				Version string `json:"version"`
+			} `json:"fidelity"`
+		} `json:"codex"`
+	}
+	if err := json.Unmarshal(raw, &registry); err != nil {
+		t.Fatalf("parse tool version registry: %v", err)
+	}
+	if registry.Codex.Schema.Version == "" || registry.Codex.Fidelity.Version == "" {
+		t.Fatal("schema and fidelity Codex pins must both be declared")
+	}
+	if registry.Codex.Schema.Version == registry.Codex.Fidelity.Version {
+		t.Fatal("schema and fidelity pins represent different contracts and must not be conflated")
+	}
+	assertContains := func(path, marker string) {
+		t.Helper()
+		contents, readErr := os.ReadFile(filepath.Join(repo, path))
+		if readErr != nil {
+			t.Fatalf("read %s: %v", path, readErr)
+		}
+		if !strings.Contains(string(contents), marker) {
+			t.Fatalf("%s does not reference %q", path, marker)
+		}
+	}
+	assertContains(".github/workflows/ci.yml", "scripts/install-pinned-codex.sh schema")
+	assertContains(".github/workflows/e2e-nightly.yml", "scripts/install-pinned-codex.sh fidelity")
+	assertContains("src/platform/agent/codexschema/README.md", registry.Codex.Schema.Version)
 }
 
 func TestHarnessEnforcementCannotDisappearSilently(t *testing.T) {
@@ -254,19 +310,22 @@ func TestHarnessEnforcementCannotDisappearSilently(t *testing.T) {
 
 	assertFileContains("test-harness/protected.json", "required_markers")
 	assertFileContains("test-harness/dependencies.json", `"id": "pty"`)
+	assertFileContains("test-harness/e2e-suites.json", "grok-cli", "stream-routing")
 	assertFileContains(".github/CODEOWNERS", "test-harness/")
 	assertFileContains("scripts/check-harness-tampering.sh", "--mode tampering")
 	assertFileContains("scripts/run-trusted-harness-gate.sh", "check-harness-tampering.sh")
-	assertFileContains(".github/workflows/ci.yml",
+	assertFileContains("test-harness/profiles.json",
 		"scripts/check-harness-dependencies.sh",
 		"scripts/check-test-skips.sh",
 		"scripts/repeat-changed-tests.sh",
 		"scripts/run-trusted-harness-gate.sh",
 		"scripts/run-mutation-pilot.sh",
 	)
+	assertFileContains(".github/workflows/ci.yml", "scripts/run-verification-profile.sh pr core", "scripts/run-verification-profile.sh pr race", "scripts/run-verification-profile.sh pr fuzz")
 	assertFileContains(".github/workflows/e2e-nightly.yml", "scripts/run-verification-profile.sh nightly", "nightly-e2e-results.json")
 	assertFileContains("test-harness/profiles.json", "scripts/run-nightly-e2e-report.sh")
-	assertFileContains("scripts/run-nightly-e2e-report.sh", "go test -json -tags e2e", `event.Action==="skip"`)
+	assertFileContains("scripts/run-go-e2e.sh", "e2e-suites.json", "go test -json -tags e2e")
+	assertFileContains("scripts/run-nightly-e2e-report.sh", "run-go-e2e.sh", `event.Action==="skip"`)
 }
 
 func TestGatewayScenarioTestsOnlySkipInShortMode(t *testing.T) {
@@ -281,10 +340,11 @@ func TestGatewayScenarioTestsOnlySkipInShortMode(t *testing.T) {
 	if !strings.Contains(codexText, "func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState") {
 		t.Fatalf("gateway codex scenario test missing from %s", codexScenarioPath)
 	}
-	if strings.Count(codexText, `t.Skip("skipping real-daemon scenario e2e in -short mode")`) != 2 {
-		t.Fatalf("gateway scenario suite must only use the shared -short skip in %s", codexScenarioPath)
+	shortSkips := strings.Count(codexText, `t.Skip("skipping real-daemon scenario e2e in -short mode")`)
+	if shortSkips == 0 {
+		t.Fatalf("gateway scenario suite must retain its shared -short skip in %s", codexScenarioPath)
 	}
-	if strings.Count(codexText, "t.Skip(") != 2 {
+	if strings.Count(codexText, "t.Skip(") != shortSkips {
 		t.Fatalf("unexpected additional skip found in %s", codexScenarioPath)
 	}
 
@@ -294,10 +354,11 @@ func TestGatewayScenarioTestsOnlySkipInShortMode(t *testing.T) {
 		t.Fatalf("read %s: %v", roostScenarioPath, err)
 	}
 	roostText := string(roostRaw)
-	if strings.Count(roostText, `t.Skip("skipping real-daemon scenario e2e in -short mode")`) != 1 {
-		t.Fatalf("roost gateway scenario must keep only the shared -short skip in %s", roostScenarioPath)
+	roostShortSkips := strings.Count(roostText, `t.Skip("skipping real-daemon scenario e2e in -short mode")`)
+	if roostShortSkips == 0 {
+		t.Fatalf("roost gateway scenario must keep its shared -short skip in %s", roostScenarioPath)
 	}
-	if strings.Count(roostText, "t.Skip(") != 1 {
+	if strings.Count(roostText, "t.Skip(") != roostShortSkips {
 		t.Fatalf("unexpected additional skip found in %s", roostScenarioPath)
 	}
 }

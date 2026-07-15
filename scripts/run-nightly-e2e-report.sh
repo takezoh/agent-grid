@@ -7,9 +7,8 @@ raw=$(mktemp)
 trap 'rm -f "$raw"' EXIT
 printf '{"schema_version":1,"result":"fail","suites":[]}\n' > "$output"
 
-packages=(./client/runtime/subsystem/stream/... ./platform/lib/claude/fakeclaude/... ./platform/agent/fakecodex/... ./client/lib/agenthook/... ./platform/sandbox/devcontainer/...)
 status=0
-(cd "$root/src" && go test -json -tags e2e -count=1 "${packages[@]}") > "$raw" || status=$?
+"$root/scripts/run-go-e2e.sh" --json-output "$raw" || status=$?
 
 node - "$raw" "$output" "$status" <<'NODE'
 const fs = require("node:fs");

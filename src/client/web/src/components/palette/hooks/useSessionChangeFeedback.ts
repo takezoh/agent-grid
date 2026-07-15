@@ -3,7 +3,7 @@
 // When announceSeq increments and submitting is false, emits a notifications
 // toast ("Switched to <label>") alongside the palette announcer message.
 
-import { useRef } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { useNotificationsStore } from "../../../store/notifications";
 import type { ActiveContextSnapshot } from "../../../store/palette_active_context";
 
@@ -30,16 +30,19 @@ export function useSessionChangeFeedback(
 ): React.MutableRefObject<{ message: string; seq: number } | undefined> {
   const announceRef = useRef<{ message: string; seq: number } | undefined>(undefined);
   const prevAnnounceSeqRef = useRef(announceSeq);
+  const [, forceRender] = useReducer((revision: number) => revision + 1, 0);
 
-  if (prevAnnounceSeqRef.current !== announceSeq && !submitting) {
+  useEffect(() => {
+    if (prevAnnounceSeqRef.current === announceSeq || submitting) return;
     prevAnnounceSeqRef.current = announceSeq;
     const message = announceMessage(activeContextSnapshot);
     announceRef.current = { message, seq: announceSeq };
+    forceRender();
     useNotificationsStore.getState().add({
       level: "info",
       message: `Switched to ${sessionLabel(activeContextSnapshot)}`,
     });
-  }
+  }, [announceSeq, submitting, activeContextSnapshot]);
 
   return announceRef;
 }

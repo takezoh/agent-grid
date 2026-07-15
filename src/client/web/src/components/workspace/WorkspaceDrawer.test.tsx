@@ -1,20 +1,23 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWorkspaceActivityStore } from "../../store/workspaceActivity";
 import { WorkspaceDrawer } from "./WorkspaceDrawer";
 
 async function primeDrawerDirtyConflict(kind: "read" | "edit" = "read") {
+  vi.useRealTimers();
   useWorkspaceActivityStore.getState().openDrawerFromRow({
     sessionId: "s1",
     path: "src/foo.ts",
     kind,
   });
   render(<WorkspaceDrawer sessionId="s1" />);
+  await waitFor(() => expect(workspaceApiMocks.getFile).toHaveBeenCalled());
   await act(async () => {
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
-  useWorkspaceActivityStore.getState().setBufferDirty("src/foo.ts", true);
+  expect(screen.queryByText("Loading…")).toBeNull();
   act(() => {
+    useWorkspaceActivityStore.getState().setBufferDirty("src/foo.ts", true);
     useWorkspaceActivityStore.getState().applyActivityEvents("s1", [
       {
         type: "mid_turn_touch",
@@ -26,6 +29,23 @@ async function primeDrawerDirtyConflict(kind: "read" | "edit" = "read") {
     ]);
   });
   expect(screen.getByTestId("conflict-banner")).toBeTruthy();
+}
+
+async function flushDrawerEffects() {
+  for (let i = 0; i < 8; i++) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+}
+
+async function waitForFileReload(previousCalls: number) {
+  await waitFor(() =>
+    expect(workspaceApiMocks.getFile.mock.calls.length).toBeGreaterThan(previousCalls),
+  );
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 const workspaceApiMocks = vi.hoisted(() => ({
@@ -69,6 +89,7 @@ describe("WorkspaceDrawer", () => {
   });
 
   afterEach(() => {
+    act(() => cleanup());
     vi.useRealTimers();
   });
 
@@ -79,6 +100,7 @@ describe("WorkspaceDrawer", () => {
       kind: "edit",
     });
     render(<WorkspaceDrawer sessionId="s1" />);
+    await flushDrawerEffects();
 
     act(() => {
       useWorkspaceActivityStore.getState().applyActivityEvents("s1", [
@@ -118,6 +140,7 @@ describe("WorkspaceDrawer", () => {
     render(<WorkspaceDrawer sessionId="s1" />);
     fireEvent.click(screen.getByRole("button", { name: "Reload" }));
     expect(screen.queryByText(/may be stale/i)).toBeNull();
+    act(() => cleanup());
   });
 
   it("verify-workspace-root-handle-pinning: shows banner on handle_stale", async () => {
@@ -219,7 +242,7 @@ describe("WorkspaceDrawer", () => {
     expect(useWorkspaceActivityStore.getState().dirtyBuffers["old.ts"]).toBeUndefined();
   });
 
-  it("shows dirty indicator when buffer is dirty", () => {
+  it("shows dirty indicator when buffer is dirty", async () => {
     useWorkspaceActivityStore.getState().openDrawerFromRow({
       sessionId: "s1",
       path: "src/foo.ts",
@@ -228,9 +251,10 @@ describe("WorkspaceDrawer", () => {
     useWorkspaceActivityStore.getState().setBufferDirty("src/foo.ts", true);
     render(<WorkspaceDrawer sessionId="s1" />);
     expect(screen.getByTestId("dirty-indicator")).toBeTruthy();
+    act(() => cleanup());
   });
 
-  it("shows close warning when closing with dirty buffer", () => {
+  it("shows close warning when closing with dirty buffer", async () => {
     useWorkspaceActivityStore.getState().openDrawerFromRow({
       sessionId: "s1",
       path: "src/foo.ts",
@@ -240,9 +264,10 @@ describe("WorkspaceDrawer", () => {
     render(<WorkspaceDrawer sessionId="s1" />);
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.getByTestId("close-warning-dialog")).toBeTruthy();
+    act(() => cleanup());
   });
 
-  it("shows conflict banner for dirty buffer stale touch", () => {
+  it("shows conflict banner for dirty buffer stale touch", async () => {
     useWorkspaceActivityStore.getState().openDrawerFromRow({
       sessionId: "s1",
       path: "src/foo.ts",
@@ -263,9 +288,10 @@ describe("WorkspaceDrawer", () => {
     expect(screen.getByRole("button", { name: "Keep mine" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Take theirs" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Merge" })).toBeTruthy();
+    act(() => cleanup());
   });
 
-  it("verify-drawer-terminal-rect-nonregression: terminal-slot rect unchanged with drawer chrome", () => {
+  it("verify-drawer-terminal-rect-nonregression: terminal-slot rect unchanged with drawer chrome", async () => {
     const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
     HTMLElement.prototype.getBoundingClientRect = () =>
       ({
@@ -316,6 +342,7 @@ describe("WorkspaceDrawer", () => {
     unmountWithout();
 
     render(<Harness withDrawer />);
+    await flushDrawerEffects();
     const withDrawer = screen.getByTestId("terminal-slot").getBoundingClientRect();
 
     expect(Math.abs(withDrawer.width - without.width)).toBeLessThanOrEqual(1);
@@ -328,13 +355,17 @@ describe("WorkspaceDrawer", () => {
 
   it("verify-write-conflict-detection: keep-mine retains operator buffer and clears conflict", async () => {
     await primeDrawerDirtyConflict("read");
-    fireEvent.click(screen.getByRole("button", { name: "Keep mine" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Keep mine" }));
+      await Promise.resolve();
+    });
     const state = useWorkspaceActivityStore.getState();
     expect(screen.queryByTestId("conflict-banner")).toBeNull();
     expect(state.dirtyBuffers["src/foo.ts"]).toBeDefined();
     expect(state.conflictByPath["src/foo.ts"]).toBeUndefined();
     expect(state.stalePaths["src/foo.ts"]).toBeUndefined();
     expect(workspaceApiMocks.getFile).toHaveBeenCalled();
+    act(() => cleanup());
   });
 
   it("verify-write-conflict-detection: take-theirs reloads server bytes", async () => {
@@ -354,16 +385,19 @@ describe("WorkspaceDrawer", () => {
         mtime: "Mon, 02 Jan 2024 00:00:00 GMT",
       });
     await primeDrawerDirtyConflict("read");
-    fireEvent.click(screen.getByRole("button", { name: "Take theirs" }));
+    const fileCalls = workspaceApiMocks.getFile.mock.calls.length;
     await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Take theirs" }));
       await Promise.resolve();
     });
+    await waitForFileReload(fileCalls);
     expect(workspaceApiMocks.getFile.mock.calls.length).toBeGreaterThanOrEqual(2);
     const state = useWorkspaceActivityStore.getState();
     expect(state.dirtyBuffers["src/foo.ts"]?.dirty).toBe(false);
     expect(screen.queryByTestId("conflict-banner")).toBeNull();
     expect(workspaceApiMocks.getFile.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(workspaceApiMocks.getFile.mock.calls.at(-1)?.[1]).toBe("src/foo.ts");
+    act(() => cleanup());
   });
 
   it("verify-write-conflict-detection: merge shows diff tab with server diff", async () => {
@@ -372,16 +406,21 @@ describe("WorkspaceDrawer", () => {
       diff: "@@\n+merged-line\n",
     });
     await primeDrawerDirtyConflict("edit");
-    fireEvent.click(screen.getByRole("button", { name: "Merge" }));
+    const diffCalls = workspaceApiMocks.getDiff.mock.calls.length;
     await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Merge" }));
       await Promise.resolve();
     });
+    await waitFor(() =>
+      expect(workspaceApiMocks.getDiff.mock.calls.length).toBeGreaterThan(diffCalls),
+    );
     expect(workspaceApiMocks.getDiff.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("tab", { name: "Diff" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("diff-viewer").textContent).toContain("merged-line");
+    act(() => cleanup());
   });
 
-  it("aria-live announces conflict over stale", () => {
+  it("aria-live announces conflict over stale", async () => {
     useWorkspaceActivityStore.getState().openDrawerFromRow({
       sessionId: "s1",
       path: "src/foo.ts",
@@ -400,5 +439,6 @@ describe("WorkspaceDrawer", () => {
     render(<WorkspaceDrawer sessionId="s1" />);
     const live = document.querySelector(".workspace-drawer__live");
     expect(live?.textContent).toMatch(/write conflict/i);
+    act(() => cleanup());
   });
 });

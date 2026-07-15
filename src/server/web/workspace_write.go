@@ -49,16 +49,15 @@ func (e *workspaceAtomicWriteError) Error() string {
 	return "workspace atomic write failed"
 }
 
-// workspaceAtomicWriteFn is swapped by tests to simulate syscall outcome partitions.
-var workspaceAtomicWriteFn = atomicWriteWorkspaceFile
+type workspaceAtomicWriteFunc func(target string, data []byte) (time.Time, error)
 
-func handleWorkspaceFileWrite(d *DaemonClient) http.HandlerFunc {
+func handleWorkspaceFileWrite(d *DaemonClient, atomicWrite workspaceAtomicWriteFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		serveWorkspaceFileWrite(d, w, r)
+		serveWorkspaceFileWrite(d, atomicWrite, w, r)
 	}
 }
 
-func serveWorkspaceFileWrite(d *DaemonClient, w http.ResponseWriter, r *http.Request) {
+func serveWorkspaceFileWrite(d *DaemonClient, atomicWrite workspaceAtomicWriteFunc, w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if !sessionIDPattern.MatchString(id) {
 		gatewayError(w, r, http.StatusBadRequest, "invalid_session_id", "invalid session id", "id", id)
@@ -98,7 +97,7 @@ func serveWorkspaceFileWrite(d *DaemonClient, w http.ResponseWriter, r *http.Req
 	if err := checkWorkspaceWritePrecondition(w, r, resolved); err != nil {
 		return
 	}
-	updated, err := workspaceAtomicWriteFn(resolved, body)
+	updated, err := atomicWrite(resolved, body)
 	if err != nil {
 		writeWorkspaceAtomicWriteError(w, r, err)
 		return

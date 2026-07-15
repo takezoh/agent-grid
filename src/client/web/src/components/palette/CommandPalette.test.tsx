@@ -20,7 +20,7 @@
 // FR-009 / FR-010 / FR-012 / FR-013 / FR-014 / FR-024 / FR-025 / FR-033 /
 // ADR-0055 / ADR-0057
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionsApi } from "../../api/sessions";
 import * as toolsModule from "../../lib/tools";
@@ -624,7 +624,7 @@ describe("CommandPalette", () => {
   // FR-010 / FR-033 / ADR-0057: InlineStatus announce on active session change
   // ---------------------------------------------------------------------------
 
-  it("InlineStatus receives announce when announceSeq increments (FR-010 / ADR-0057)", () => {
+  it("InlineStatus receives announce when announceSeq increments (FR-010 / ADR-0057)", async () => {
     // FR-010 / ADR-0057: when the active session changes, CommandPalette
     // composes 'Active session changed to <projBase> / <sid8>' and passes it
     // to InlineStatus as the announce prop. This test seeds an active session
@@ -662,7 +662,9 @@ describe("CommandPalette", () => {
     // (first 8 chars of 'session-abcd1234' = 'session-'). FR-010 acceptance:
     // 'Active session changed to <projBase> / <sid8>'.
     const inlineStatus = screen.getByTestId("palette-inline-status");
-    expect(inlineStatus.textContent).toContain("Active session changed to bar");
+    await waitFor(() =>
+      expect(inlineStatus.textContent).toContain("Active session changed to bar"),
+    );
     expect(inlineStatus.textContent).toContain("session-");
   });
 

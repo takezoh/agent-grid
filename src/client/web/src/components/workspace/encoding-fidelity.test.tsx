@@ -1,7 +1,15 @@
 import { EditorView } from "@codemirror/view";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FileViewer } from "./FileViewer";
+
+// Line-separator tests do not exercise Vim. Replacing that extension prevents
+// happy-dom's deliberately synchronous layout shim from invoking CodeMirror's
+// measurement plugin during EditorView construction.
+vi.mock("@replit/codemirror-vim", () => ({
+  vim: () => [],
+  Vim: { defineEx: vi.fn() },
+}));
 
 function getEditorView(): EditorView | null {
   const el = screen.getByTestId("codemirror-editor");

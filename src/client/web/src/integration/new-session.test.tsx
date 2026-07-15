@@ -26,7 +26,7 @@
 // override on the opener button. Each spy push()es a stable token, then
 // the test asserts the array equals the documented order.
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 // Mocking ./lib/platform mirrors App.test.tsx so useGlobalHotkey() in App
@@ -59,6 +59,7 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
   });
 
   afterEach(() => {
+    act(() => cleanup());
     vi.useRealTimers();
     vi.unstubAllGlobals();
     window.location.hash = "";
@@ -211,18 +212,14 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
     const submitBtn = document.querySelector("[data-testid='palette-submit']") as HTMLElement;
     expect(submitBtn).not.toBeNull();
     expect(document.activeElement).toBe(submitBtn);
-    act(() => {
+    await act(async () => {
       fireEvent.submit(submitBtn.closest("form") as HTMLFormElement);
-    });
-
-    // Drain microtasks for: fetch resolve -> selectSession ->
-    // notify.success -> close (set initialClosedState) -> React re-render
-    // -> CommandPalette cleanup effect -> opener.focus.
-    for (let i = 0; i < 10; i++) {
-      await act(async () => {
+      // Drain microtasks for: fetch resolve -> selectSession -> notify -> close.
+      for (let i = 0; closeSpy.mock.calls.length === 0 && i < 100; i++) {
         await Promise.resolve();
-      });
-    }
+      }
+      vi.runAllTicks();
+    });
 
     // FR-A3: the contract is the ordered sequence below. Equality (not
     // toContain) so a future regression that adds an extra side effect or

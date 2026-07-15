@@ -11,8 +11,10 @@ import (
 )
 
 func main() {
-	mode := flag.String("mode", "dependencies", "check mode: dependencies or tampering")
+	mode := flag.String("mode", "dependencies", "check mode: dependencies, e2e-packages, or tampering")
 	registryPath := flag.String("registry", "test-harness/dependencies.json", "dependency registry path relative to repository root")
+	boundariesPath := flag.String("boundaries", "test-harness/external-boundaries.json", "external boundary inventory path; empty disables callsite scan")
+	e2eRegistryPath := flag.String("e2e-registry", "test-harness/e2e-suites.json", "e2e suite registry path relative to repository root")
 	root := flag.String("root", ".", "repository root")
 	baseRoot := flag.String("base-root", "", "trusted merge-base tree root")
 	headRoot := flag.String("head-root", "", "head tree root")
@@ -22,6 +24,10 @@ func main() {
 	flag.Parse()
 	if *mode == "tampering" {
 		runTampering(*baseRoot, *headRoot, *manifestPath, *requestPath, *outputPath)
+		return
+	}
+	if *mode == "e2e-packages" {
+		runE2EPackages(*root, *registryPath)
 		return
 	}
 	if *mode != "dependencies" {
@@ -39,7 +45,30 @@ func main() {
 		fmt.Fprintf(os.Stderr, "harness-check: %v\n", err)
 		os.Exit(2)
 	}
-	errs := harnesspolicy.CheckDependencyRegistry(*root, registry)
+	suitesData, err := os.ReadFile(filepath.Join(*root, filepath.FromSlash(*e2eRegistryPath)))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "harness-check: read e2e registry: %v\n", err)
+		os.Exit(2)
+	}
+	suites, err := harnesspolicy.ParseE2ESuiteRegistry(suitesData)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "harness-check: %v\n", err)
+		os.Exit(2)
+	}
+	errs := harnesspolicy.CheckDependencyRegistry(*root, registry, suites)
+	if *boundariesPath != "" {
+		boundaryData, readErr := os.ReadFile(filepath.Join(*root, filepath.FromSlash(*boundariesPath)))
+		if readErr != nil {
+			fmt.Fprintf(os.Stderr, "harness-check: read external boundaries: %v\n", readErr)
+			os.Exit(2)
+		}
+		boundaries, parseErr := harnesspolicy.ParseExternalBoundaryRegistry(boundaryData)
+		if parseErr != nil {
+			fmt.Fprintf(os.Stderr, "harness-check: %v\n", parseErr)
+			os.Exit(2)
+		}
+		errs = append(errs, harnesspolicy.CheckExternalBoundaries(*root, boundaries, registry)...)
+	}
 	for _, err := range errs {
 		fmt.Fprintln(os.Stderr, err)
 	}
@@ -47,6 +76,22 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stdout, "harness-check: %d external dependencies admitted\n", len(registry.Dependencies))
+}
+
+func runE2EPackages(root, registryPath string) {
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(registryPath)))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "harness-check: read e2e registry: %v\n", err)
+		os.Exit(2)
+	}
+	registry, err := harnesspolicy.ParseE2ESuiteRegistry(data)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "harness-check: %v\n", err)
+		os.Exit(2)
+	}
+	for _, suite := range registry.Suites {
+		fmt.Fprintln(os.Stdout, suite.Package)
+	}
 }
 
 func runTampering(baseRoot, headRoot, manifestPath, requestPath, outputPath string) {

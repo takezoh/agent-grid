@@ -1,10 +1,11 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDaemonStore } from "../store/daemon";
 import { StatusBar } from "./StatusBar";
 
 describe("StatusBar (FR-023 / UAC-010)", () => {
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     useDaemonStore.getState().reset();
   });

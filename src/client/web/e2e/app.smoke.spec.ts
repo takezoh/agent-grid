@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { installFakeBackend, makeSessionInfo } from "./support/fake-backend";
+import { expect, test } from "./support/test";
 
 test("renders live sessions and completes a new-session submission against the fake gateway", async ({
   page,

@@ -8,201 +8,103 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src
-
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
-
-      # client/web embeds dist/ via `//go:embed all:dist`. `go test ./...` and
-      # `go build ./cmd/web` both compile that package, so the Vite output must
-      # exist before either step runs. Without this the tracked dist/.gitkeep
-      # placeholder is all the embed sees and TestEmbedHasNoInlineScript /
-      # TestStaticServesShellHidesListing fail against an empty FS.
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: src/client/web/package-lock.json
-
-      - name: build web assets
-        working-directory: src/client/web
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-          npm run test:web
-
-      - name: verify wire fixtures are up to date
-        run: |
-          go test ./server/web -run TestWireFixtures -count=1 -args -update
-          git diff --exit-code -- client/web/src/wire/testdata
-          test -z "$(git status --porcelain -- client/web/src/wire/testdata)"
-
-      - name: vet
-        run: go vet ./...
-
-      - name: vet (e2e build tag)
-        run: |
-          go vet -tags e2e ./client/runtime/subsystem/stream/...
-          go vet -tags e2e ./platform/lib/claude/fakeclaude/...
-          go vet -tags e2e ./platform/lib/grok/...
-          go vet -tags e2e ./platform/agent/fakecodex/...
-          go vet -tags e2e ./client/lib/agenthook/...
-          go vet -tags e2e ./platform/sandbox/devcontainer/...
-
-      - name: e2e sibling check
-        working-directory: .
-        run: scripts/check-e2e-siblings.sh
-
-      - name: harness dependency admission
-        working-directory: .
-        run: scripts/check-harness-dependencies.sh
-
-      - name: harness skip inventory
-        working-directory: .
-        run: scripts/check-test-skips.sh
-
-      - name: repeat changed tests ten times
-        if: github.event_name == 'pull_request'
-        timeout-minutes: 30
-        working-directory: .
+      - name: Run PR core verification profile
         env:
-          BASE_REF: origin/${{ github.base_ref }}
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
           REPEAT_ARTIFACT: test-results-repeat.json
-        run: scripts/repeat-changed-tests.sh
-
-      - name: upload changed-test repeat result
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: changed-test-repeat-result
-          path: test-results-repeat.json
-
-      - name: trusted harness tampering gate
-        if: github.event_name == 'pull_request'
-        working-directory: .
-        env:
           HARNESS_TAMPERING_ARTIFACT: harness-tampering-result.json
-        run: scripts/run-trusted-harness-gate.sh "origin/${{ github.base_ref }}"
-
-      - name: upload harness tampering result
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: harness-tampering-result
-          path: harness-tampering-result.json
-
-      - name: deterministic mutation pilot
-        timeout-minutes: 15
-        working-directory: .
-        run: scripts/run-mutation-pilot.sh
-
-      - name: upload mutation result
+          AG_HARNESS_PROFILE_ARTIFACT: test-harness/profile-result-core.json
+        run: scripts/run-verification-profile.sh pr core
+      - name: Upload PR core verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mutation-pilot-result
-          path: mutation-results.json
+          name: pr-core-verification
+          path: |
+            test-harness/profile-result-core.json
+            test-results-repeat.json
+            harness-tampering-result.json
+            mutation-results.json
 
-      - name: test
-        run: go test ./...
-
-      - name: coverage
-        working-directory: .
-        run: scripts/check-coverage.sh
-
-      - name: build
-        run: go build -o ../server ./cmd/server
-
-      - name: build orchestrator + claude-app-server
-        run: |
-          go build -o ../orchestrator ./cmd/orchestrator
-          go build -o ../claude-app-server ./cmd/claude-app-server
-
-      - name: lint
-        run: go tool golangci-lint run ./...
-
-  # The race detector guards the single-writer event loop: it catches
-  # unsynchronized concurrent access to loop-owned state introduced by a stray
-  # goroutine in the imperative shell. Run as a separate job because -race makes
-  # tests several times slower; it is off the main ci job's critical path.
   race:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
-
-      # client/web tests read the embedded dist/ — build it before `go test`.
-      # (Same reason as the ci job's build-web-assets step.)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: src/client/web/package-lock.json
+      - name: Run PR race verification profile
+        env:
+          AG_HARNESS_PROFILE_ARTIFACT: test-harness/profile-result-race.json
+        run: scripts/run-verification-profile.sh pr race
+      - name: Upload race verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-race-verification
+          path: test-harness/profile-result-race.json
 
-      - name: build web assets
-        working-directory: src/client/web
-        run: |
-          npm ci
-          npm run build
-
-      - name: test -race
-        run: go test -race ./...
-
-  # Active fuzzing of the routing-isolation invariant. A separate job (like
-  # race) so its non-deterministic, time-boxed exploration stays off the main
-  # ci job's critical path. The seed corpus already runs in ci's `test` step.
   fuzz:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
-
-      - name: fuzz routing isolation
-        run: go test -run '^$' -fuzz '^FuzzStreamRouting$' -fuzztime=30s ./client/runtime/subsystem/stream/
-
-      - name: fuzz state reduce invariants
-        run: go test -run '^$' -fuzz '^FuzzReduce$' -fuzztime=30s ./client/state/
-
-      - name: fuzz web inbound decode
-        run: go test -run '^$' -fuzz '^FuzzApplyInboundProto$' -fuzztime=30s ./server/web/
-
-      - name: fuzz tap OSC parsing
-        run: go test -run '^$' -fuzz '^FuzzParseOsc$' -fuzztime=30s ./client/runtime/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/client/web/package-lock.json
+      - name: Run PR fuzz verification profile
+        env:
+          AG_HARNESS_PROFILE_ARTIFACT: test-harness/profile-result-fuzz.json
+        run: scripts/run-verification-profile.sh pr fuzz
+      - name: Upload fuzz verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-fuzz-verification
+          path: test-harness/profile-result-fuzz.json
 
   schema-drift:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install codex 0.133.0
-        run: npm install -g @openai/codex@0.133.0
-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install schema source Codex
+        run: scripts/install-pinned-codex.sh schema
       - name: Install jq
         run: sudo apt-get install -y jq
-
-      - name: Check schema drift
-        working-directory: .
-        run: make codex-schema-check
+      - name: Run schema verification profile
+        env:
+          AG_HARNESS_PROFILE_ARTIFACT: test-harness/profile-result-schema.json
+        run: scripts/run-verification-profile.sh pr schema
+      - name: Upload schema verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-schema-verification
+          path: test-harness/profile-result-schema.json

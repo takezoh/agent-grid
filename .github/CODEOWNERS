@@ -10,6 +10,7 @@
 /scripts/collect-e2e-results.sh @takezoh
 /scripts/run-mutation-pilot.sh @takezoh
 /scripts/run-nightly-e2e-report.sh @takezoh
+/scripts/run-go-e2e.sh @takezoh
 /scripts/run-verification-profile.sh @takezoh
 /scripts/coverage-floors.txt @takezoh
 /src/gorules/static_enforcement_test.go @takezoh

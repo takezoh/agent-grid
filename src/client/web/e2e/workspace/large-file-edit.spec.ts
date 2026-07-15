@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { installFakeBackend, makeSessionInfo } from "../support/fake-backend";
+import { expect, test } from "../support/test";
 
 const LARGE_FILE_PATH = "large.txt";
 const LINE = `${"x".repeat(80)}\n`;

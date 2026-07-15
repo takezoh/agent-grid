@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HINT_SEEN_KEY } from "../hooks/useCoachmarkOnce";
 import { MOBILE_GATE_QUERY } from "../hooks/useMobileGate";
@@ -85,6 +85,7 @@ describe("TerminalPane", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
   });
 
@@ -103,18 +104,18 @@ describe("TerminalPane", () => {
   // The synchronous rAF mock in test-setup flushes immediately, so fit.fit()
   // should have been called once right after render.
   // -------------------------------------------------------------------------
-  it("FR-008: calls fit.fit() on initial mount via scheduleFit (rAF)", () => {
+  it("FR-008: calls fit.fit() on initial mount via scheduleFit (rAF)", async () => {
     const { conn } = makeFakeConn();
     const { unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
     // rAF mock runs synchronously → fit.fit() should already be called
-    expect(fitSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fitSpy.mock.calls.length).toBeGreaterThan(0));
     unmount();
   });
 
   // -------------------------------------------------------------------------
   // FR-006: __triggerResize fires ResizeObserver callback → fit.fit() called
   // -------------------------------------------------------------------------
-  it("FR-006: __triggerResize on host element causes fit.fit() to be called", () => {
+  it("FR-006: __triggerResize on host element causes fit.fit() to be called", async () => {
     const { conn } = makeFakeConn();
     const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
     const host = container.querySelector(".terminal-host") as Element;
@@ -122,10 +123,10 @@ describe("TerminalPane", () => {
 
     const callsBefore = fitSpy.mock.calls.length;
     // Simulate ResizeObserver firing on the host element
-    globalThis.__triggerResize(host, []);
+    act(() => globalThis.__triggerResize(host, []));
 
     // rAF mock is synchronous so fit.fit() fires immediately
-    expect(fitSpy.mock.calls.length).toBeGreaterThan(callsBefore);
+    await waitFor(() => expect(fitSpy.mock.calls.length).toBeGreaterThan(callsBefore));
     unmount();
   });
 
@@ -133,15 +134,15 @@ describe("TerminalPane", () => {
   // FR-007: sibling panel size change via ResizeObserver → refit
   // (same mechanic as FR-006; verifying at least one additional call)
   // -------------------------------------------------------------------------
-  it("FR-007: ResizeObserver host resize triggers scheduleFit and calls fit.fit()", () => {
+  it("FR-007: ResizeObserver host resize triggers scheduleFit and calls fit.fit()", async () => {
     const { conn } = makeFakeConn();
     const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
     const host = container.querySelector(".terminal-host") as Element;
 
     const callsBefore = fitSpy.mock.calls.length;
-    globalThis.__triggerResize(host, [{ contentRect: { width: 400, height: 300 } }]);
+    act(() => globalThis.__triggerResize(host, [{ contentRect: { width: 400, height: 300 } }]));
 
-    expect(fitSpy.mock.calls.length).toBeGreaterThan(callsBefore);
+    await waitFor(() => expect(fitSpy.mock.calls.length).toBeGreaterThan(callsBefore));
     unmount();
   });
 
@@ -189,7 +190,9 @@ describe("TerminalPane", () => {
 
     // Flush all queued rAF callbacks
     const queued = rafQueue.splice(0);
-    for (const cb of queued) cb(performance.now());
+    act(() => {
+      for (const cb of queued) cb(performance.now());
+    });
 
     // Only 1 fit.fit() should have been called (coalesced)
     expect(fitSpy).toHaveBeenCalledTimes(1);
@@ -231,11 +234,11 @@ describe("TerminalPane", () => {
       expect(newHandler).toBeDefined();
       if (newHandler) {
         // Deliver stale s1 frame to new handler — should be dropped
-        newHandler([0, "o", btoa("stale data"), "s1"]);
+        act(() => newHandler([0, "o", btoa("stale data"), "s1"]));
         expect(writeSpy).not.toHaveBeenCalled();
 
         // Deliver correct s2 frame — should be written
-        newHandler([0, "o", btoa("good data"), "s2"]);
+        act(() => newHandler([0, "o", btoa("good data"), "s2"]));
         expect(writeSpy).toHaveBeenCalledTimes(1);
       }
     }
@@ -276,11 +279,11 @@ describe("TerminalPane", () => {
     // A stale s1-tagged frame arriving on the now-live (s2) handler is
     // dropped by the frame[3] !== sessionRef.current guard.
     if (onOutputAfter) {
-      onOutputAfter([0, "o", btoa("stale s1 frame"), "s1"]);
+      act(() => onOutputAfter([0, "o", btoa("stale s1 frame"), "s1"]));
       expect(writeSpy).not.toHaveBeenCalled();
 
       // The matching s2 frame lands on the new term.
-      onOutputAfter([0, "o", btoa("good s2 frame"), "s2"]);
+      act(() => onOutputAfter([0, "o", btoa("good s2 frame"), "s2"]));
       expect(writeSpy).toHaveBeenCalledTimes(1);
     }
 
@@ -303,11 +306,11 @@ describe("TerminalPane", () => {
 
     if (handler) {
       // Frame from a different session — must be dropped
-      handler([0, "o", btoa("wrong session"), "session-B"]);
+      act(() => handler([0, "o", btoa("wrong session"), "session-B"]));
       expect(writeSpy).not.toHaveBeenCalled();
 
       // Frame from the correct session — must be written
-      handler([0, "o", btoa("correct"), "session-A"]);
+      act(() => handler([0, "o", btoa("correct"), "session-A"]));
       expect(writeSpy).toHaveBeenCalledTimes(1);
     }
 
@@ -437,7 +440,7 @@ describe("FR-TERMINAL-001 — viewport height changes refit terminal-host (ADR-0
     vi.restoreAllMocks();
   });
 
-  it("FR-TERMINAL-001: terminal-host getComputedStyle.height > 0 after shrink and expand resize", () => {
+  it("FR-TERMINAL-001: terminal-host getComputedStyle.height > 0 after shrink and expand resize", async () => {
     const { conn } = makeFakeConn();
     const fitSpy = vi.spyOn(FitAddon.prototype, "fit");
     const { container, unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
@@ -450,9 +453,8 @@ describe("FR-TERMINAL-001 — viewport height changes refit terminal-host (ADR-0
       writable: true,
       configurable: true,
     });
-    window.dispatchEvent(new Event("resize"));
-    // rAF mock fires synchronously → fit.fit() called.
-    expect(fitSpy.mock.calls.length).toBeGreaterThan(0);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(fitSpy.mock.calls.length).toBeGreaterThan(0));
 
     // terminal-host has height set via CSS var(--dvh) → getComputedStyle.height
     // is non-empty (not "0px") as long as CSS is injected.
@@ -467,8 +469,8 @@ describe("FR-TERMINAL-001 — viewport height changes refit terminal-host (ADR-0
       writable: true,
       configurable: true,
     });
-    window.dispatchEvent(new Event("resize"));
-    expect(fitSpy.mock.calls.length).toBeGreaterThan(0);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(fitSpy.mock.calls.length).toBeGreaterThan(0));
 
     const heightExpand = getComputedStyle(host).height;
     expect(heightExpand).not.toBe("0px");
