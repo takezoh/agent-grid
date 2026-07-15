@@ -35,6 +35,7 @@ type fakeBackend struct {
 	spawnCalls    int
 	spawnCmds     []string
 	spawnEnvs     []map[string]string
+	spawnDirs     []string
 	spawnFrameIDs []string
 	killCalls     int
 	killedFrames  []string
@@ -69,6 +70,7 @@ func (f *fakeBackend) SpawnFrame(frameID, name, command, startDir string, env ma
 	f.spawnCalls++
 	f.spawnCmds = append(f.spawnCmds, command)
 	f.spawnEnvs = append(f.spawnEnvs, cloneEnvMap(env, 0))
+	f.spawnDirs = append(f.spawnDirs, startDir)
 	f.spawnFrameIDs = append(f.spawnFrameIDs, frameID)
 	return f.spawnErr
 }

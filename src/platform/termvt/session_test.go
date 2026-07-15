@@ -1,6 +1,7 @@
 package termvt
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -79,6 +80,32 @@ func TestSessionCapturesOSC133Prompt(t *testing.T) {
 
 	_, ch := s.Subscribe()
 	waitFor(t, ch, func(ev Event) bool { return controlMatch(ev, "prompt", 133, "A") })
+}
+
+// TestSessionHonorsSpecDir pins the contract that Spec.Dir becomes the
+// spawned child's initial cwd. Regression pin against the historic
+// TODO(B1) gap: SpawnFrame → termvt.Spec dropped startDir silently because
+// Spec had no Dir field, so host-launched agents inherited daemon cwd
+// (typically /home/<user>) instead of the driver-resolved project dir.
+func TestSessionHonorsSpecDir(t *testing.T) {
+	dir := t.TempDir()
+	// resolve any /var → /private/var (macOS) symlinks so the reported
+	// cwd from pwd matches t.TempDir()'s canonical form.
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	// bash pwd on the pty; sleep gives the subscriber time to attach.
+	s, err := NewSession(Spec{
+		Argv: []string{"bash", "-c", `sleep 0.2; pwd; sleep 0.3`},
+		Dir:  dir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+
+	_, ch := s.Subscribe()
+	waitFor(t, ch, func(ev Event) bool { return outputContains(ev, dir) })
 }
 
 func TestSessionCapturesTitle(t *testing.T) {

@@ -48,13 +48,13 @@ func NewPtyBackend(scrollbackLines int) *PtyBackend {
 
 // === FrameLifecycle ===
 
-// SpawnFrame starts command in a new pty under frameID. The command is always
-// invoked via the user's POSIX shell so that the shell strings the runtime
-// emits (login-shell exec, stdin-wrapped bash -c, driver-launch lines — see
-// interpret_spawn.buildSpawnCommand) keep their shell semantics; PtyBackend
-// stays a thin shell host. startDir is currently unused: termvt.Spec has no
-// working-directory field.
-// TODO(B1): thread startDir once termvt.Spec gains a Dir field.
+// SpawnFrame starts command in a new pty under frameID, chdir'd into startDir
+// before exec (empty startDir inherits the daemon's cwd — this is almost never
+// what a driver-issued spawn wants and callers should always resolve a
+// project-scoped path). The command is always invoked via the user's POSIX
+// shell so that the shell strings the runtime emits (login-shell exec,
+// stdin-wrapped bash -c, driver-launch lines — see interpret_spawn.buildSpawnCommand)
+// keep their shell semantics; PtyBackend stays a thin shell host.
 func (p *PtyBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string, cols, rows uint16) error {
 	if strings.TrimSpace(command) == "" {
 		return fmt.Errorf("runtime: empty command for frame %q", name)
@@ -62,6 +62,7 @@ func (p *PtyBackend) SpawnFrame(frameID, name, command, startDir string, env map
 	spec := termvt.Spec{
 		Argv:            shellArgv(command),
 		Env:             envSlice(env),
+		Dir:             startDir,
 		Cols:            int(cols),
 		Rows:            int(rows),
 		ScrollbackLines: p.scrollbackLines,
@@ -93,12 +94,14 @@ func (p *PtyBackend) KillFrame(target string) error {
 // same target. It does NOT carry over the session-env store or the original
 // spawn env — respawn launches a fresh process with the default environment.
 //
-// Size: RespawnFrame does not accept a size hint. termvt.Spec is built without
-// Cols/Rows, so normalizeSize falls back to the contractual default 80×24.
-// Production has no RespawnFrame callers today; hint preservation on respawn
-// is out of scope (see adr-20260712-respawn-default-size-fallback and spec
-// Failure Modes respawn-size-loss). When a production respawn consumer appears,
-// supersede that ADR with an explicit hint-inheritance policy.
+// Size and start-dir: RespawnFrame does not accept a size hint or a startDir.
+// termvt.Spec is built without Cols/Rows/Dir, so normalizeSize falls back to
+// the contractual default 80×24 and the child inherits the daemon's cwd.
+// Production has no RespawnFrame callers today; hint / cwd preservation on
+// respawn is out of scope (see adr-20260712-respawn-default-size-fallback and
+// spec Failure Modes respawn-size-loss). When a production respawn consumer
+// appears, extend the signature to accept startDir alongside a size hint and
+// supersede that ADR with an explicit inheritance policy.
 //
 // The Manager owns the id→Session map and its own mutex; we never hold p.mu
 // across mgr.Remove / mgr.Create.

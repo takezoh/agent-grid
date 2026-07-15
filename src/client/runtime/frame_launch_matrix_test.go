@@ -277,6 +277,22 @@ func (h *launchHarness) spawnEnv(t *testing.T) map[string]string {
 	return h.backend.spawnEnvs[0]
 }
 
+// spawnDir returns the startDir handed to the sole recorded SpawnFrame call.
+// Field-continuity checkpoint (adr-20260714-launch-plan-field-continuity-invariant):
+// spawn cwd MUST equal the driver-resolved plan.StartDir (or bindResult.Plan.StartDir
+// when subsystem.BindFrame substitutes a worktree path). Silent drop of this
+// value would put host-launched agents in the daemon's cwd instead of the
+// project root — the exact regression class we pin here.
+func (h *launchHarness) spawnDir(t *testing.T) string {
+	t.Helper()
+	h.backend.mu.Lock()
+	defer h.backend.mu.Unlock()
+	if len(h.backend.spawnDirs) != 1 {
+		t.Fatalf("SpawnFrame dir captures = %d, want 1", len(h.backend.spawnDirs))
+	}
+	return h.backend.spawnDirs[0]
+}
+
 func (h *launchHarness) runDir(project string) string {
 	return ProjectRunDir(filepath.Join(h.dataDir, "run"), project)
 }
@@ -308,6 +324,9 @@ func TestFrameLaunch_ColdStart_Host(t *testing.T) {
 	}
 	if env["AG_SOCKET_TOKEN"] != "" {
 		t.Errorf("host launch AG_SOCKET_TOKEN = %q, want empty", env["AG_SOCKET_TOKEN"])
+	}
+	if got, want := h.spawnDir(t), "/proj/host"; got != want {
+		t.Errorf("cold-start host spawn cwd = %q, want %q — startDir dropped between wrapLaunchForSpawn and PtyBackend.SpawnFrame (bootstrap_coldstart path)", got, want)
 	}
 	if _, ok := h.r.frameReg.GetMounts("f1"); ok {
 		t.Error("host launch must not register mounts")
@@ -516,8 +535,12 @@ func TestFrameLaunch_NewSession_Host(t *testing.T) {
 
 	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
 		SessionID: "s1", FrameID: "f1",
-		Plan: state.LaunchPlan{Project: "/proj/host", Command: "minimal-test"},
-		Env:  map[string]string{"AG_SESSION_ID": "s1", "AG_FRAME_ID": "f1"},
+		Plan: state.LaunchPlan{
+			Project:  "/proj/host",
+			Command:  "minimal-test",
+			StartDir: "/proj/host",
+		},
+		Env: map[string]string{"AG_SESSION_ID": "s1", "AG_FRAME_ID": "f1"},
 	})
 
 	if sc.token != "" {
@@ -529,6 +552,9 @@ func TestFrameLaunch_NewSession_Host(t *testing.T) {
 	}
 	if env["AG_SOCKET_TOKEN"] != "" {
 		t.Errorf("host spawn AG_SOCKET_TOKEN = %q, want empty", env["AG_SOCKET_TOKEN"])
+	}
+	if got, want := h.spawnDir(t), "/proj/host"; got != want {
+		t.Errorf("host spawn cwd = %q, want %q — startDir dropped between wrapLaunchForSpawn and PtyBackend.SpawnFrame (host-launched agent would inherit daemon cwd)", got, want)
 	}
 	if len(h.r.containerEndpoints) != 0 {
 		t.Error("host new-session must not start a container endpoint")
@@ -797,6 +823,7 @@ func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
 		Plan: state.LaunchPlan{
 			Project:               "/proj/host",
 			Command:               "minimal-test",
+			StartDir:              "/proj/host",
 			ManagedFrameMessaging: true,
 		},
 		Env: map[string]string{"AG_SESSION_ID": "s-managed", "AG_FRAME_ID": "f-managed"},
@@ -811,6 +838,9 @@ func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
 	}
 	if env["AG_SOCKET"] != h.sockPath {
 		t.Errorf("AG_SOCKET = %q, want %q", env["AG_SOCKET"], h.sockPath)
+	}
+	if got, want := h.spawnDir(t), "/proj/host"; got != want {
+		t.Errorf("host+ManagedFrameMessaging spawn cwd = %q, want %q — startDir dropped despite plan.StartDir being set", got, want)
 	}
 	overlays := managedHomeDirs(t, h.dataDir)
 	if len(overlays) == 0 {
@@ -866,6 +896,9 @@ func TestFrameLaunch_ColdStart_Host_ManagedMessaging(t *testing.T) {
 	env := h.spawnEnv(t)
 	if env["AG_SOCKET_TOKEN"] == "" {
 		t.Errorf("cold-start host+ManagedFrameMessaging spawn env has empty AG_SOCKET_TOKEN — Runtime.spawnFrameWindow dropped the flag")
+	}
+	if got, want := h.spawnDir(t), "/proj/host"; got != want {
+		t.Errorf("cold-start host+ManagedFrameMessaging spawn cwd = %q, want %q — startDir dropped between bootstrap_coldstart.wrapLaunchForSpawn and PtyBackend.SpawnFrame", got, want)
 	}
 	overlays := managedHomeDirs(t, h.dataDir)
 	if len(overlays) == 0 {

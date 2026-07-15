@@ -23,6 +23,13 @@ const (
 type Spec struct {
 	Argv []string // command + args; Argv[0] is the executable
 	Env  []string // full environment; defaults to os.Environ() when nil
+	// Dir is the working directory the child is chdir'd into before exec.
+	// Empty inherits the parent process's cwd (mirrors exec.Command.Dir
+	// semantics). Callers whose spawn contract promises a start dir MUST
+	// set this — leaving it empty causes the child to inherit whatever cwd
+	// the daemon happens to hold, which for multi-project daemons is
+	// rarely the intended project root.
+	Dir  string
 	Cols int
 	Rows int
 	// ScrollbackLines bounds the server-side VT scrollback buffer. Zero
@@ -76,6 +83,7 @@ func NewSession(spec Spec) (*Session, error) {
 	cols, rows := normalizeSize(spec.Cols, spec.Rows)
 	cmd := exec.Command(spec.Argv[0], spec.Argv[1:]...) //nolint:gosec // caller-supplied agent command
 	cmd.Env = withTerm(spec.Env)
+	cmd.Dir = spec.Dir
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 	if err != nil {
 		return nil, fmt.Errorf("termvt: pty start: %w", err)
