@@ -281,6 +281,15 @@ func BuildContainerOverlay(
 		if err != nil {
 			return sandboxdc.SpecOverlay{}, err
 		}
+		// Materialize per-provider credentials once per container. This is the
+		// SINGLE call site of materializeContainerCredentials — per-frame paths
+		// (ResolveFrameContext) MUST NOT invoke it, or boot storms with F frames
+		// multiply gcloud subprocess cost past systemd's TimeoutStartSec.
+		if proxy != nil {
+			mctx, mcancel := context.WithTimeout(context.Background(), 30*time.Second)
+			materializeContainerCredentials(mctx, proxy, overlayProject)
+			mcancel()
+		}
 
 		runDir, err := EnsureProjectRunDir(filepath.Join(dataDir, "run"), plan.ContainerKey(projectPath))
 		if err != nil {
@@ -424,6 +433,12 @@ func isContainerScopeEnvKey(k string) bool {
 	return false
 }
 
+// resolveOverlaySpecs returns the credproxy wiring Spec plus per-frame env-script
+// env for the given project. It is a pure query: it MUST NOT invoke Materialize.
+// Materialize is a container-scope side effect owned by BuildContainerOverlay
+// (invoked once per unique container via Manager.loadSpec's overlayFn), NOT by
+// per-frame paths like ResolveFrameContext that would multiply the cost by
+// frame count and blow past systemd's TimeoutStartSec on boot storms.
 func resolveOverlaySpecs(proxy *credproxy.Runner, projectPath string, dc config.DevcontainerConfig) (container.Spec, map[string]string, error) {
 	allow := isProjectEnvScriptAllowed(projectPath, dc.AllowProjectEnvScript)
 	scriptEnv := sandboxdc.RunEnvScript(context.Background(), dc.EnvScript, projectPath, allow)
@@ -439,6 +454,32 @@ func resolveOverlaySpecs(proxy *credproxy.Runner, projectPath string, dc config.
 		}
 	}
 	return proxySpec, scriptEnv, nil
+}
+
+// materializeContainerCredentials invokes Runner.Materialize once for a
+// container's provider set, retrying inside the caller's ctx envelope. Called
+// only from BuildContainerOverlay (container-scope), never from per-frame
+// paths — the F-frame multiplier from ResolveFrameContext × sequential
+// RecreateAll pushed cold-boot past systemd's 90s TimeoutStartSec before this
+// split. The retry count and cadence are agent-grid concerns and MUST NOT
+// leak into credproxy per adr-20260715-credproxy-retry-owner-caller-side.
+func materializeContainerCredentials(ctx context.Context, proxy *credproxy.Runner, projectPath string) {
+	const attemptCap = 2 // caller-side envelope; credproxy itself is fail-fast
+	var lastErr error
+	for i := 0; i < attemptCap; i++ {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := proxy.Materialize(ctx, projectPath); err == nil {
+			return
+		} else {
+			lastErr = err
+		}
+	}
+	if lastErr != nil {
+		slog.Warn("devcontainer: credproxy materialize exhausted retries",
+			"project", projectPath, "attempts", attemptCap, "err", lastErr)
+	}
 }
 
 func buildOverlayEnv(scriptEnv map[string]string, proxySpec container.Spec) map[string]string {

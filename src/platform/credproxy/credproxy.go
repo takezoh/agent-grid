@@ -15,6 +15,9 @@ import (
 	"path/filepath"
 	"sync"
 
+	"sort"
+	"time"
+
 	"github.com/takezoh/agent-grid/platform/config"
 	"github.com/takezoh/agent-grid/platform/hostexec"
 	"github.com/takezoh/agent-grid/platform/mcpproxy"
@@ -49,6 +52,23 @@ type ProviderHooks struct {
 	MCPWorkspaceTargets func(projectKey string) []mcpproxy.WorkspaceTarget
 }
 
+// ProjectReadiness is a per-project per-provider readiness view derived solely
+// from the Runner's own Materialize outcomes. It is not sourced by peeking at
+// provider-internal state; see adr-20260715-credproxy-runner-readonly-aggregation.
+type ProjectReadiness struct {
+	ProjectPath    string
+	ProviderName   string
+	Materialized   bool
+	LastVerifiedAt time.Time
+	LastError      string
+}
+
+// readinessKey is the aggregation-map key: (projectPath, providerName).
+type readinessKey struct {
+	project  string
+	provider string
+}
+
 // Runner holds an in-process credential proxy server and provider SpecBuilders.
 type Runner struct {
 	srv       *credproxylib.Server
@@ -60,8 +80,9 @@ type Runner struct {
 	srvCancel  context.CancelFunc
 	serverDone chan struct{}
 
-	mu     sync.Mutex
-	tokens map[string]string // projectPath → bearer token
+	mu        sync.Mutex
+	tokens    map[string]string                 // projectPath → bearer token
+	readiness map[readinessKey]ProjectReadiness // caller-observed Materialize outcomes
 }
 
 // ProjectToken returns the bearer token for projectPath, generating and
@@ -95,7 +116,12 @@ func Start(ctx context.Context, dataDir string, resolveSandbox func(string) conf
 	// Providers and the server share a child context so Shutdown (or daemon
 	// ctx cancellation) tears down provider-managed processes such as ssh-agent.
 	srvCtx, srvCancel := context.WithCancel(ctx)
-	runner := &Runner{tokens: make(map[string]string), srvCancel: srvCancel, serverDone: make(chan struct{})}
+	runner := &Runner{
+		tokens:     make(map[string]string),
+		readiness:  make(map[readinessKey]ProjectReadiness),
+		srvCancel:  srvCancel,
+		serverDone: make(chan struct{}),
+	}
 	providers := buildProviders(srvCtx, runBase, sockPath, resolveSandbox, runner.ProjectToken, hooks, paths)
 
 	var routes []credproxylib.Route
@@ -253,6 +279,75 @@ func (r *Runner) ContainerSpec(ctx context.Context, projectPath string) (contain
 		out.BridgeSpecs = append(out.BridgeSpecs, s.BridgeSpecs...)
 	}
 	return out, nil
+}
+
+// Materialize fans out to every provider's Materialize method and aggregates the
+// outcomes into the readiness map. The caller controls the retry envelope; this
+// method does NOT retry internally (see adr-20260715-credproxy-retry-owner-caller-side).
+// Providers whose Materialize returns nil for a project that is not configured
+// for them (e.g. gcloudcli with no Proxy.GCP) do not appear in ReadinessSnapshot —
+// silence = healthy per adr-20260715-credproxy-runner-readonly-aggregation.
+//
+// Returns the first non-nil provider error encountered so the caller can decide
+// whether to retry; all outcomes are still recorded even when one provider fails.
+func (r *Runner) Materialize(ctx context.Context, projectPath string) error {
+	var firstErr error
+	for _, p := range r.providers {
+		err := p.Materialize(ctx, projectPath)
+		if err != nil {
+			// grep-distinguishable from the generic "credproxy: provider failed"
+			// line emitted by ContainerSpec — this one signals the credential
+			// surface is not usable inside the container.
+			slog.Warn("credproxy: credential materialization unconfirmed",
+				"provider", p.Name(), "project", projectPath, "err", err)
+			r.recordReadiness(projectPath, p.Name(), false, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		r.recordReadiness(projectPath, p.Name(), true, nil)
+	}
+	return firstErr
+}
+
+// recordReadiness updates the aggregation map with a single outcome.
+// The map only contains entries for (project, provider) pairs that this Runner
+// has actually invoked Materialize on — no invented entries for opt-out providers.
+func (r *Runner) recordReadiness(projectPath, providerName string, ok bool, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	pr := ProjectReadiness{
+		ProjectPath:    projectPath,
+		ProviderName:   providerName,
+		Materialized:   ok,
+		LastVerifiedAt: time.Now(),
+	}
+	if err != nil {
+		pr.LastError = err.Error()
+	}
+	r.readiness[readinessKey{project: projectPath, provider: providerName}] = pr
+}
+
+// ReadinessSnapshot returns a defensive copy of every (project, provider) entry
+// that this Runner has observed via Materialize. The slice is ordered by
+// (ProjectPath, ProviderName) so callers can diff snapshots deterministically.
+// The Runner's internal map is not exposed; mutating the returned slice has no
+// effect on subsequent snapshots.
+func (r *Runner) ReadinessSnapshot() []ProjectReadiness {
+	r.mu.Lock()
+	out := make([]ProjectReadiness, 0, len(r.readiness))
+	for _, v := range r.readiness {
+		out = append(out, v)
+	}
+	r.mu.Unlock()
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ProjectPath != out[j].ProjectPath {
+			return out[i].ProjectPath < out[j].ProjectPath
+		}
+		return out[i].ProviderName < out[j].ProviderName
+	})
+	return out
 }
 
 func generateToken() (string, error) {

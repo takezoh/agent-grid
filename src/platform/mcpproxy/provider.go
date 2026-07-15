@@ -65,6 +65,12 @@ func NewSpecBuilder(ctx context.Context, cfg Config, cfgFor func(string) config.
 
 func (b *SpecBuilder) Name() string { return "mcpproxy" }
 
+// Materialize is a no-op for mcpproxy: the provider projects .mcp.json overlay
+// files as part of ContainerSpec (wiring) and mediates MCP server access via
+// its Unix socket at runtime. There is no separate host-side credential file
+// to materialize. See container.Provider docs for the Materialize contract.
+func (b *SpecBuilder) Materialize(_ context.Context, _ string) error { return nil }
+
 func (b *SpecBuilder) Init() error {
 	return os.MkdirAll(b.cfg.RunBase, 0o700)
 }

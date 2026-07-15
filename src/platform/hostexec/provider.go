@@ -56,6 +56,12 @@ func NewSpecBuilder(ctx context.Context, cfg Config, cfgFor func(string) config.
 
 func (b *SpecBuilder) Name() string { return "hostexec" }
 
+// Materialize is a no-op for hostexec: the provider only writes shim overlay
+// files inside ContainerSpec (wiring) and mediates host command execution via
+// its Unix socket at runtime. There is no separate host-side credential file
+// to materialize. See container.Provider docs for the Materialize contract.
+func (b *SpecBuilder) Materialize(_ context.Context, _ string) error { return nil }
+
 // Init creates RunBase.
 func (b *SpecBuilder) Init() error {
 	return os.MkdirAll(b.cfg.RunBase, 0o700)

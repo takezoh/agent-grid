@@ -11,9 +11,10 @@ import (
 )
 
 type stubProvider struct {
-	name string
-	spec container.Spec
-	err  error
+	name           string
+	spec           container.Spec
+	err            error
+	materializeErr error
 }
 
 func (s *stubProvider) Name() string                 { return s.name }
@@ -22,6 +23,7 @@ func (s *stubProvider) Routes() []credproxylib.Route { return nil }
 func (s *stubProvider) ContainerSpec(_ context.Context, _ string) (container.Spec, error) {
 	return s.spec, s.err
 }
+func (s *stubProvider) Materialize(_ context.Context, _ string) error { return s.materializeErr }
 
 // closerProvider is a stubProvider that also implements io.Closer, used to
 // verify Shutdown invokes the optional Closer hook.
@@ -126,5 +128,87 @@ func TestRunner_ContainerSpec_EmptyProviders(t *testing.T) {
 	}
 	if len(out.Env) != 0 {
 		t.Errorf("Env = %v, want empty", out.Env)
+	}
+}
+
+// TestRunner_Materialize_RecordsSuccessAndFailure pins the invariant that
+// ReadinessSnapshot is built solely from the Runner's own Materialize
+// outcomes — per adr-20260715-credproxy-runner-readonly-aggregation.
+func TestRunner_Materialize_RecordsSuccessAndFailure(t *testing.T) {
+	failErr := errors.New("boom")
+	r := &Runner{
+		readiness: make(map[readinessKey]ProjectReadiness),
+		providers: []container.Provider{
+			&stubProvider{name: "ok-provider"},
+			&stubProvider{name: "bad-provider", materializeErr: failErr},
+		},
+	}
+
+	err := r.Materialize(context.Background(), "/project")
+	if err == nil || err.Error() != failErr.Error() {
+		t.Fatalf("Materialize err = %v, want %v", err, failErr)
+	}
+
+	snap := r.ReadinessSnapshot()
+	if len(snap) != 2 {
+		t.Fatalf("snapshot len = %d, want 2, got %+v", len(snap), snap)
+	}
+	byProvider := map[string]ProjectReadiness{}
+	for _, pr := range snap {
+		byProvider[pr.ProviderName] = pr
+	}
+	if !byProvider["ok-provider"].Materialized {
+		t.Error("ok-provider should have Materialized=true")
+	}
+	if byProvider["bad-provider"].Materialized {
+		t.Error("bad-provider should have Materialized=false")
+	}
+	if byProvider["bad-provider"].LastError != failErr.Error() {
+		t.Errorf("bad-provider LastError = %q, want %q", byProvider["bad-provider"].LastError, failErr.Error())
+	}
+}
+
+// TestRunner_ReadinessSnapshot_DefensiveCopy pins the invariant that mutations
+// on the returned slice do not affect subsequent snapshots.
+func TestRunner_ReadinessSnapshot_DefensiveCopy(t *testing.T) {
+	r := &Runner{
+		readiness: make(map[readinessKey]ProjectReadiness),
+		providers: []container.Provider{&stubProvider{name: "p"}},
+	}
+	_ = r.Materialize(context.Background(), "/project")
+
+	snap := r.ReadinessSnapshot()
+	if len(snap) != 1 {
+		t.Fatalf("first snapshot len = %d, want 1", len(snap))
+	}
+	snap[0].Materialized = false
+	snap[0].LastError = "tampered"
+
+	snap2 := r.ReadinessSnapshot()
+	if !snap2[0].Materialized {
+		t.Error("caller mutation to snap[0].Materialized leaked back into Runner state")
+	}
+	if snap2[0].LastError != "" {
+		t.Errorf("caller mutation to snap[0].LastError leaked back: %q", snap2[0].LastError)
+	}
+}
+
+// TestRunner_Materialize_OptOutProviderIsSilentlyHealthy: providers that
+// return nil (no host-side credential state, no-op) do NOT appear in the
+// snapshot as absent — they DO appear with Materialized=true (their nil
+// return is a positive assertion). silence = healthy is expressed by the
+// map itself not gaining entries for providers that were never invoked,
+// not by opt-out providers being excluded post-hoc.
+func TestRunner_Materialize_OptOutProviderIsPositive(t *testing.T) {
+	r := &Runner{
+		readiness: make(map[readinessKey]ProjectReadiness),
+		providers: []container.Provider{&stubProvider{name: "noop"}},
+	}
+	if err := r.Materialize(context.Background(), "/project"); err != nil {
+		t.Fatalf("Materialize err = %v, want nil", err)
+	}
+	snap := r.ReadinessSnapshot()
+	if len(snap) != 1 || !snap[0].Materialized {
+		t.Errorf("snapshot = %+v, want [{Materialized:true}]", snap)
 	}
 }

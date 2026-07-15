@@ -57,6 +57,11 @@ func NewSpecBuilder(ctx context.Context, cfg Config, cfgFor func(string) config.
 
 func (b *SpecBuilder) Name() string { return "secretenv" }
 
+// Materialize is a no-op for secretenv: the provider mediates env-file secret
+// resolution via a Unix socket at runtime, not via a host-side credential file
+// this provider writes. See container.Provider docs for the Materialize contract.
+func (b *SpecBuilder) Materialize(_ context.Context, _ string) error { return nil }
+
 func (b *SpecBuilder) Init() error {
 	return os.MkdirAll(b.cfg.RunBase, 0o700)
 }

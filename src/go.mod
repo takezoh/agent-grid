@@ -13,13 +13,14 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/dustinkirkland/golang-petname v0.0.0-20260215035315-f0c533e9ce9b
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/osteele/liquid v1.8.1
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
-	github.com/takezoh/credproxy v0.0.0-20260527021126-c5e0af72e46e
+	github.com/takezoh/credproxy v0.0.0-20260715134218-0389a72b5730
 	github.com/takezoh/fishpath-go v0.1.0
 	golang.org/x/sync v0.21.0
 	golang.org/x/sys v0.46.0
@@ -117,7 +118,6 @@ require (
 	github.com/golangci/revgrep v0.8.0 // indirect
 	github.com/golangci/swaggoswag v0.0.0-20250504205917-77f2aca3143e // indirect
 	github.com/golangci/unconvert v0.0.0-20250410112200-a129a6e6413e // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/gordonklaus/ineffassign v0.2.0 // indirect
 	github.com/gostaticanalysis/analysisutil v0.7.1 // indirect
 	github.com/gostaticanalysis/comment v1.5.0 // indirect
