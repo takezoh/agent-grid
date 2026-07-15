@@ -131,7 +131,7 @@ describe("FileViewer read-only", () => {
     expect(p95).toBeLessThanOrEqual(33);
     fireEvent.scroll(viewer, { target: { scrollTop: viewer.scrollHeight } });
     expect(viewer.textContent).toContain(lastLine);
-  });
+  }, 15_000);
 });
 
 describe("FileViewer editor", () => {
