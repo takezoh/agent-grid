@@ -110,6 +110,59 @@ func TestWriteJSONMissingBaseUsesEmptyDoc(t *testing.T) {
 	}
 }
 
+// TestWriteJSONPreservesNonMCPTopLevelKeys pins the invariant that fields
+// outside `mcpServers` (hooks / permissions / statusLine / enabledPlugins
+// / env — every key managed_claude_home writes overlay on top of) survive
+// the overlay write. Without this, host+claude launches under
+// managed_claude_home would silently strip every user-configured Claude
+// hook and permission, leaving the launched claude unable to signal the
+// daemon (regression on spec-20260714 FR-002 hook continuity).
+func TestWriteJSONPreservesNonMCPTopLevelKeys(t *testing.T) {
+	dir := t.TempDir()
+	basePath := filepath.Join(dir, "base.json")
+	baseDoc := `{
+  "mcpServers": {"existing": {"command": "a"}},
+  "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "server event claude"}]}]},
+  "permissions": {"allow": ["Read(/repo/**)"]},
+  "statusLine": {"type": "cmd", "command": "status.sh"},
+  "enabledPlugins": {"foo@1": true},
+  "env": {"MY_VAR": "1"}
+}`
+	if err := os.WriteFile(basePath, []byte(baseDoc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outPath := filepath.Join(dir, "out.json")
+
+	if err := WriteJSON(outPath, basePath, map[string]AliasEntry{
+		"agent_frames": {Value: json.RawMessage(`{"command":"bin"}`)},
+	}); err != nil {
+		t.Fatalf("WriteJSON: %v", err)
+	}
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatalf("unmarshal output: %v\n%s", err, raw)
+	}
+
+	for _, key := range []string{"hooks", "permissions", "statusLine", "enabledPlugins", "env"} {
+		if _, ok := out[key]; !ok {
+			t.Errorf("top-level key %q dropped by WriteJSON — this would silently strip user hooks / permissions under HOME overlay", key)
+		}
+	}
+
+	// mcpServers merge still works — existing entry preserved and alias added.
+	servers := readMCPServers(t, outPath)
+	if _, ok := servers["existing"]; !ok {
+		t.Error("mcpServers.existing dropped during merge")
+	}
+	if _, ok := servers["agent_frames"]; !ok {
+		t.Error("agent_frames alias not added")
+	}
+}
+
 // TestWriteJSONSkipsRewriteWhenUnchanged exercises the bytes.Equal
 // short-circuit path by writing the same content twice; the second call
 // must still succeed and leave the file's content untouched.
