@@ -83,6 +83,14 @@ type Config struct {
 	// Zero uses the 15 s default in codexclient.NewConn.
 	// Maps to the codex.read_timeout_ms config key.
 	StreamReadTimeout time.Duration
+
+	// DriverBinResolver resolves external driver binaries (currently codex) to
+	// absolute paths so downstream forkexec sites do not depend on the daemon
+	// process happening to hold the tool-manager shim dir in PATH. Nil is
+	// legal (falls back to bare-name PATH lookup at every use site — the
+	// pre-resolver behavior); production wiring in cmd/server always installs
+	// one built from the `[drivers.<name>].bin` config keys.
+	DriverBinResolver *agentlaunch.DriverBinResolver
 }
 
 // Runtime owns the event loop goroutine and the side-effect backends.
@@ -308,6 +316,7 @@ func (r *Runtime) registerSubsystemFactories() {
 			Dispatcher:       r.cfg.StreamDispatcher,
 			ResolveSockPath:  r.resolveStreamListenPath,
 			IsContainer:      func(project string) bool { return launcher(r.cfg).IsContainer(project) },
+			ResolveDriverBin: r.cfg.DriverBinResolver.Resolve,
 			ReadTimeout:      r.cfg.StreamReadTimeout,
 			HelperBinaryPath: r.HelperBinaryPath,
 			Tracker:          r.pgidTracker,

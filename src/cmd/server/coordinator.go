@@ -94,6 +94,50 @@ func runDaemon(df *daemonFlagSet) error {
 	return runAndWait(ctx, cancel, rt, sockPath, dataDir, df)
 }
 
+// buildDriverBinResolver constructs the DriverBinResolver from the
+// `[drivers.<name>].bin` fields in the loaded config. Passing an
+// absolute string under any driver's `bin` key overrides the daemon-PATH
+// lookup for that driver at every forkexec site (bridge shim's
+// exec("codex"), frame-exec's LookPath, …), which is the fix for the
+// class of "daemon PATH does not include the tool-manager shim dir where
+// codex/gemini/... actually live" failures.
+//
+// Returns a non-nil resolver even when no `bin` keys are set so downstream
+// code can call .Resolve unconditionally; the resolver then degrades to
+// pure PATH lookup, matching the historic bare-name behavior.
+func buildDriverBinResolver(drivers map[string]map[string]any) *agentlaunch.DriverBinResolver {
+	overrides := map[string]string{}
+	for name, section := range drivers {
+		raw, ok := section["bin"]
+		if !ok {
+			continue
+		}
+		bin, ok := raw.(string)
+		if !ok || bin == "" {
+			continue
+		}
+		overrides[name] = bin
+	}
+	return &agentlaunch.DriverBinResolver{Overrides: overrides}
+}
+
+// warnUnresolvableDriverBins runs the driver-bin resolver at daemon startup
+// for each stream-subsystem driver so an operator sees the actionable
+// "missing bin" diagnostic at boot rather than at the first session-create
+// request. Warn-level (not fatal) — a user who never launches codex host
+// sessions must be able to run the daemon without codex installed.
+//
+// Extending the driver list here is a one-line change per driver.
+func warnUnresolvableDriverBins(r *agentlaunch.DriverBinResolver) {
+	for _, name := range []string{"codex"} {
+		if _, err := r.Resolve(name); err != nil {
+			slog.Warn("driver bin unresolved at startup (sessions using this driver will fail with an actionable error at create-time)",
+				"driver", name, "err", err)
+			continue
+		}
+	}
+}
+
 // registerDefaultDrivers wires all built-in drivers and worker runners.
 func registerDefaultDrivers(cfg *config.Config, dataDir string, idleThreshold time.Duration) {
 	home, _ := os.UserHomeDir()
@@ -206,6 +250,8 @@ func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, da
 	if err != nil {
 		return nil, "", err
 	}
+	driverBinResolver := buildDriverBinResolver(cfg.Drivers)
+	warnUnresolvableDriverBins(driverBinResolver)
 	rt := runtime.New(runtime.Config{
 		DataDir:           dataDir,
 		TickInterval:      pollInterval,
@@ -219,6 +265,7 @@ func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, da
 		Launcher:          agentLauncher,
 		StreamDispatcher:  streamDispatcher,
 		StreamReadTimeout: time.Duration(cfg.Codex.ReadTimeoutMs) * time.Millisecond,
+		DriverBinResolver: driverBinResolver,
 	})
 	resolved, err := shellalias.Resolve(ctx, loginShell, cfg.Session.Commands, shellalias.RealRunner)
 	if err != nil {

@@ -142,6 +142,7 @@ func TestAppServerListenArgs(t *testing.T) {
 func TestRemoteAttachArgs(t *testing.T) {
 	tests := []struct {
 		name         string
+		bin          string
 		sock         string
 		threadID     string
 		startDir     string
@@ -152,24 +153,28 @@ func TestRemoteAttachArgs(t *testing.T) {
 	}{
 		{
 			name:         "fresh cold start (no thread id) omits resume",
+			bin:          "codex",
 			sock:         "/opt/agent-grid/run/codex-sess1.sock",
 			wantContains: []string{"codex", "--remote", "unix:///opt/agent-grid/run/codex-sess1.sock"},
 			wantAbsent:   []string{"resume"},
 		},
 		{
 			name:         "recovery with thread id emits `resume <id>`",
+			bin:          "codex",
 			sock:         "/opt/agent-grid/run/codex-sess2.sock",
 			threadID:     "019f1c19-e1f3-78c3-ba3e-a37cb776e5fe",
 			wantContains: []string{"codex", "resume", "019f1c19-e1f3-78c3-ba3e-a37cb776e5fe", "--remote", "unix:///opt/agent-grid/run/codex-sess2.sock"},
 		},
 		{
 			name:         "with startDir",
+			bin:          "codex",
 			sock:         "/opt/agent-grid/run/codex-sess3.sock",
 			startDir:     "/workspace/foo",
 			wantContains: []string{"-C", "/workspace/foo"},
 		},
 		{
 			name:         "with model and effort",
+			bin:          "codex",
 			sock:         "/opt/agent-grid/run/codex-sess5.sock",
 			model:        "gpt-5-codex",
 			effort:       "high",
@@ -177,13 +182,25 @@ func TestRemoteAttachArgs(t *testing.T) {
 		},
 		{
 			name:       "no startDir omits -C",
+			bin:        "codex",
 			sock:       "/opt/agent-grid/run/codex-sess4.sock",
 			wantAbsent: []string{"-C"},
+		},
+		{
+			// Bin-arg contract: an absolute-path bin (as the driver-bin
+			// resolver returns) MUST be the argv[0]. Bare-name fallback
+			// applies only when bin is empty — verified in
+			// TestRemoteAttachArgs_EmptyBinFallsBackToDriverName below.
+			name:         "absolute bin path becomes argv[0]",
+			bin:          "/home/user/.local/share/mise/installs/node/lts/bin/codex",
+			sock:         "/opt/agent-grid/run/codex-sess6.sock",
+			wantContains: []string{"/home/user/.local/share/mise/installs/node/lts/bin/codex", "--remote"},
+			wantAbsent:   []string{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir, tt.model, tt.effort)
+			got := RemoteAttachArgs(tt.bin, tt.sock, tt.threadID, tt.startDir, tt.model, tt.effort)
 			for _, want := range tt.wantContains {
 				found := false
 				for _, g := range got {
@@ -204,6 +221,19 @@ func TestRemoteAttachArgs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRemoteAttachArgs_EmptyBinFallsBackToDriverName pins the fallback
+// contract: an empty bin arg keeps the historic bare-name argv[0]. This
+// exists so tests / migration-period callers that predate the resolver
+// still produce valid argv, but production sites MUST hand the resolved
+// absolute path (or the daemon PATH fallback re-manifests as an ENOENT
+// several layers downstream).
+func TestRemoteAttachArgs_EmptyBinFallsBackToDriverName(t *testing.T) {
+	got := RemoteAttachArgs("", "/tmp/s.sock", "", "", "", "")
+	if len(got) == 0 || got[0] != DriverName {
+		t.Errorf("empty bin: argv[0] = %q, want %q", got, DriverName)
 	}
 }
 

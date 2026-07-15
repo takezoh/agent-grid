@@ -240,7 +240,7 @@ func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
 		t.Errorf("initState occupancy = %d, want 1", pendingCount(h.backend))
 	}
 	// Argv must be `codex --remote unix://<sock>` with NO `resume`.
-	wantArgv := libcodex.RemoteAttachArgs(listen, "", "/repo", "", "")
+	wantArgv := libcodex.RemoteAttachArgs("codex", listen, "", "/repo", "", "")
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
@@ -266,7 +266,7 @@ func TestBackendBindFrame_ContainerTrustsResolvedWorkingDirectoryBeforeAttach(t 
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	wantArgv := libcodex.RemoteAttachArgs(listen, "", worktree, "", "")
+	wantArgv := libcodex.RemoteAttachArgs("codex", listen, "", worktree, "", "")
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
@@ -329,7 +329,7 @@ func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
 		t.Errorf("initState occupancy = %d, want 0 (recovery bypasses semaphore)", pendingCount(h.backend))
 	}
 	// Argv must contain `resume thread-abc`.
-	wantArgv := libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", "", "")
+	wantArgv := libcodex.RemoteAttachArgs("codex", listen, "thread-abc", "/repo", "", "")
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
