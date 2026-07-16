@@ -180,7 +180,7 @@ The `hostexec` provider lets container processes invoke host binaries (e.g. `gh`
 **Mechanism:**
 
 1. The host starts a per-project Unix socket broker (`<dataDir>/run/<project-hash>/hostexec.sock`) bind-mounted at `/opt/agent-grid/run/hostexec.sock` inside the container.
-2. Shell shim scripts are written to `<dataDir>/run/<project-hash>/hostexec-shims/<name>` and prepended to `PATH` inside the container. Each shim calls `server host-exec <name> "$@"`.
+2. Shell shim scripts are written to `<dataDir>/run/<project-hash>/hostexec-shims/<name>`. Each shim calls `bridge host-exec <name> "$@"`. The shim directory is placed at the front of every framelaunched process's PATH by `framelaunch.Run()` (see [Runtime PATH ordering](#runtime-path-ordering-case-d)) — the provider itself does NOT contribute `Env["PATH"]` to the container spec.
 3. If `overlay` paths are configured, additional shims are written to `<dataDir>/run/<project-hash>/hostexec-overlay/<name>` and bind-mounted read-only at each path. Each entry is a project-relative path (resolved against the container-side workspace folder, `..` allowed) or an absolute path. This lets existing scripts that invoke binaries via relative paths (`./bin/gh`) or scripts in parent directories mounted via `extra_create_args` route through the same broker.
 4. The shim sends the request (binary name, args, cwd) plus the three stdio fds via SCM_RIGHTS over the socket.
 5. The broker policy-checks the command, then exec's the host binary with the transferred fds as its stdin/stdout/stderr. The exit code is returned to the shim.
@@ -224,7 +224,7 @@ This is an **intentional exception** to the "long-lived secrets stay on host" in
 
 **Bare-host** (no devcontainer, trusted user): the real `credproxy` binary resolves locally via the configured hook. No gate.
 
-**Container**: a shim script named `credproxy` (placed in `<projRunDir>/secretenv-shims/`, prepended to `PATH`) impersonates `credproxy run`. The shim calls `bridge secret-run`, which connects to a per-project host broker socket. The broker:
+**Container**: a shim script named `credproxy` (placed in `<projRunDir>/secretenv-shims/`, prepended to `PATH` by `framelaunch.Run()` — see [Runtime PATH ordering](#runtime-path-ordering-case-d); the provider itself does NOT contribute `Env["PATH"]`) impersonates `credproxy run`. The shim calls `bridge secret-run`, which connects to a per-project host broker socket. The broker:
 
 1. Gates the request by checking the env-file path against a per-project `filepath.Match` allowlist (default-deny, host config, container cannot modify).
 2. Delegates resolution to the host `credproxy resolve --env-file <path>` binary.
@@ -240,3 +240,28 @@ The container sends only the env-file path. Hook backend (op/mise/vault) and its
 Some tools (Claude Code, etc.) authenticate via OAuth flows that store refresh tokens in user-config files. The credential proxy cannot synthesise these — they require a real interactive login. The user opts in by declaring a bind-mount in devcontainer.json for the credential file/directory. This exposes the OAuth refresh token to the container; the trade-off is the user's call.
 
 **Container reuse**: `/opt/agent-grid/run` is bind-mounted at container-creation time. If an existing container lacks this mount (created with an older client version), remove it with `docker rm -f reactor-<hash>` and relaunch.
+
+### Runtime PATH ordering (case D)
+
+**Contract**: `platform/framelaunch.Run()` is the sole owner of the invariant "runtime-authoritative shim dirs first in PATH". After preExec evaluation (which may reorder PATH via `mise activate` / user dotfiles), Run() unconditionally prepends the entries of `appid.RuntimeAuthoritativePathList()` to the PATH inherited by PreCommands and MainCommand, deduplicated and order-preserving.
+
+**SSOT**: `platform/appid` owns the shim subdirectory names as constants:
+
+| appid const | value | provider |
+|---|---|---|
+| `HostExecShimsDir` | `hostexec-shims` | hostexec |
+| `HostExecShimsPath` | `/opt/agent-grid/run/hostexec-shims` | (derived) |
+| `SecretEnvShimsDir` | `secretenv-shims` | secretenv |
+| `SecretEnvShimsPath` | `/opt/agent-grid/run/secretenv-shims` | (derived) |
+
+`appid.RuntimeAuthoritativePathList()` returns `[HostExecShimsPath, SecretEnvShimsPath]` in that order, fresh slice per call.
+
+**Provider contract**: `hostexec.SpecBuilder.ContainerSpec` and `secretenv.SpecBuilder.ContainerSpec` MUST NOT set `Env["PATH"]` on their returned `container.Spec` — the container-side runtime path ordering is owned by framelaunch, not by provider ContainerEnv contribution. The rationale is that PATH ordering the provider tries to establish is defeated by preExec's shell rc anyway (RCA); a defense-in-depth panic at `NewSpecBuilder` time fires when `cfg.ContainerRunDir != appid.ContainerRunDir` to guarantee shim locations match what framelaunch prepends.
+
+**Trust boundary**: any binary placed under `appid.HostExecShimsPath` or `appid.SecretEnvShimsPath` on disk is exec'd in preference to `/usr/bin` counterparts of the same command name for every framelaunched process. Writers of those directories (only the hostexec / secretenv providers today) hold implicit exec priority. Overlay-registered shims (via `sandbox.proxy.host_exec.overlay`) share this priority via bind-mount rather than PATH ordering.
+
+**Rollback toggle**: setting the env `AG_FRAMELAUNCH_DISABLE_PATH_REASSERT=1` (or `true`/`yes`, case-insensitive) skips the merge wiring while still emitting the `framelaunch.path_reassert` slog record with `skip_branch=toggle_disabled`. Provided per `adr-20260716-shim-priority-hardening-and-migration` as an emergency escape hatch. Reverts to pre-case-D behavior (preExec's PATH wins) for the affected frame.
+
+**Migration note (observable PATH surface)**: with case D, `docker exec -it reactor-<hash> bash -c 'echo $PATH'` no longer shows `/opt/agent-grid/run/hostexec-shims` at the front — provider `Env["PATH"]` contribution is gone. This is not a behavior regression: interactive shells re-source shell rc anyway (which already displaced the shim from the front), so effective shim resolution in interactive shells was never guaranteed by the old provider ContainerEnv contribution. Agent-invoked processes (via `framelaunch.Run()`) do see the shim first as the case-D contract guarantees.
+
+Related: `adr-20260716-framelaunch-runtime-path-owner`, `adr-20260716-provider-shim-root-appid-ssot`, `adr-20260716-shim-priority-hardening-and-migration`.

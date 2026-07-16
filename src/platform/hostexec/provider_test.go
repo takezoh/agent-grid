@@ -7,8 +7,101 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/takezoh/agent-grid/platform/appid"
 	"github.com/takezoh/agent-grid/platform/config"
 )
+
+// TestProvider_DoesNotContributePATH pins the case-D regression guard: neither
+// the empty-config nor the fully-configured ContainerSpec return value may set
+// Env["PATH"]. framelaunch is the sole owner of the runtime PATH invariant
+// (adr-20260716-framelaunch-runtime-path-owner). A regression that re-adds
+// Env["PATH"] here would restore the vestigial 3-stage relay
+// (provider → origPath → framelaunch) that case D eliminated.
+func TestProvider_DoesNotContributePATH(t *testing.T) {
+	t.Run("no config → empty spec still has no PATH", func(t *testing.T) {
+		b, _ := newTestSpecBuilder(t, "/workspace/proj")
+		b.cfgFor = func(string) config.HostExecConfig { return config.HostExecConfig{} }
+		spec, err := b.ContainerSpec(context.Background(), "/host/proj")
+		if err != nil {
+			t.Fatalf("ContainerSpec: %v", err)
+		}
+		if _, ok := spec.Env["PATH"]; ok {
+			t.Fatalf("case-D invariant: spec.Env[PATH] = %q, want absent (empty-config path)", spec.Env["PATH"])
+		}
+	})
+	t.Run("full config → non-empty spec has no PATH", func(t *testing.T) {
+		b, _ := newTestSpecBuilder(t, "/workspace/proj")
+		b.cfgFor = func(string) config.HostExecConfig {
+			return config.HostExecConfig{
+				Allow:   []string{"gcloud *"},
+				Overlay: []config.OverlayEntry{{Target: "bin/gcloud"}},
+			}
+		}
+		spec, err := b.ContainerSpec(context.Background(), "/host/proj")
+		if err != nil {
+			t.Fatalf("ContainerSpec: %v", err)
+		}
+		if _, ok := spec.Env["PATH"]; ok {
+			t.Fatalf("case-D invariant: spec.Env[PATH] = %q, want absent (full-config path)", spec.Env["PATH"])
+		}
+	})
+}
+
+// TestSpecBuilder_ContainerRunDirSSOT_Panic pins adr-20260716-provider-shim-root-appid-ssot:
+// constructing a SpecBuilder with a container run dir that diverges from
+// appid.ContainerRunDir MUST panic. Silent divergence would let a mis-configured
+// provider write shims to a directory that framelaunch's
+// appid.RuntimeAuthoritativePathList() never covers, reproducing the RCA
+// bypass while both provider and framelaunch report "healthy".
+func TestSpecBuilder_ContainerRunDirSSOT_Panic(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on mismatched ContainerRunDir; got no panic")
+		}
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("panic value is not string: %T", r)
+		}
+		if !strings.Contains(msg, "adr-20260716-provider-shim-root-appid-ssot") {
+			t.Errorf("panic message %q does not name the ADR", msg)
+		}
+		if !strings.Contains(msg, "/opt/wrong/run") {
+			t.Errorf("panic message %q does not name the offending value", msg)
+		}
+	}()
+	_ = NewSpecBuilder(context.Background(),
+		Config{
+			RunBase:          t.TempDir(),
+			ContainerRunDir:  "/opt/wrong/run",
+			ContainerBinPath: "/opt/wrong/run/bridge",
+		},
+		func(string) config.HostExecConfig { return config.HostExecConfig{} })
+}
+
+// TestSpecBuilder_ContainerRunDirSSOT_Matched confirms the matched case is a
+// no-op: construction succeeds when cfg.ContainerRunDir == appid.ContainerRunDir.
+func TestSpecBuilder_ContainerRunDirSSOT_Matched(t *testing.T) {
+	b := NewSpecBuilder(context.Background(),
+		Config{
+			RunBase:          t.TempDir(),
+			ContainerRunDir:  appid.ContainerRunDir,
+			ContainerBinPath: appid.ContainerBinaryPath,
+		},
+		func(string) config.HostExecConfig { return config.HostExecConfig{} })
+	if b == nil {
+		t.Fatal("NewSpecBuilder returned nil")
+	}
+}
+
+// TestShimDirName_MatchesAppidSSOT pins the alias contract between hostexec
+// and appid. If someone re-hardcodes hostexec.ShimDirName to a literal, this
+// test flags the SSOT drift.
+func TestShimDirName_MatchesAppidSSOT(t *testing.T) {
+	if ShimDirName != appid.HostExecShimsDir {
+		t.Fatalf("hostexec.ShimDirName = %q, want %q (appid.HostExecShimsDir SSOT)", ShimDirName, appid.HostExecShimsDir)
+	}
+}
 
 func newTestSpecBuilder(t *testing.T, wsDir string) (*SpecBuilder, string) {
 	t.Helper()

@@ -10,13 +10,16 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/takezoh/agent-grid/platform/appid"
 	"github.com/takezoh/agent-grid/platform/config"
 	"github.com/takezoh/credproxy/container"
 	credproxylib "github.com/takezoh/credproxy/credproxy"
 )
 
 const (
-	shimDirName = "secretenv-shims"
+	// shimDirName aliases the SSOT in appid (case D — see
+	// adr-20260716-provider-shim-root-appid-ssot).
+	shimDirName = appid.SecretEnvShimsDir
 	shimName    = "credproxy"
 )
 
@@ -44,7 +47,16 @@ type SpecBuilder struct {
 }
 
 // NewSpecBuilder creates a SpecBuilder. cfgFor returns SecretEnvConfig per project.
+//
+// PANICS if cfg.ContainerRunDir does not match appid.ContainerRunDir. See
+// adr-20260716-provider-shim-root-appid-ssot: the framelaunch runtime PATH
+// invariant relies on appid.SecretEnvShimsPath (derived from appid.ContainerRunDir);
+// a provider constructed with a mismatched run dir would write shims outside
+// what framelaunch prepends, silently reproducing the RCA bypass.
 func NewSpecBuilder(ctx context.Context, cfg Config, cfgFor func(string) config.SecretEnvConfig) *SpecBuilder {
+	if cfg.ContainerRunDir != appid.ContainerRunDir {
+		panic(fmt.Sprintf("secretenv: cfg.ContainerRunDir=%q must equal appid.ContainerRunDir=%q (adr-20260716-provider-shim-root-appid-ssot)", cfg.ContainerRunDir, appid.ContainerRunDir))
+	}
 	b := &SpecBuilder{
 		ctx:     ctx,
 		cfg:     cfg,
@@ -103,11 +115,12 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 		return container.Spec{}, fmt.Errorf("secretenv: write shim: %w", err)
 	}
 
-	containerShimDir := b.cfg.ContainerRunDir + "/" + shimDirName
 	sockMount := filepath.Join(projRunDir, ContainerSockName)
 	containerSock := b.cfg.ContainerRunDir + "/" + ContainerSockName
+	// Case D: no Env["PATH"] contribution. framelaunch.Run() prepends
+	// appid.RuntimeAuthoritativePathList() (which includes SecretEnvShimsPath)
+	// to PATH after preExec eval. See adr-20260716-provider-shim-root-appid-ssot.
 	return container.Spec{
-		Env:    map[string]string{"PATH": containerShimDir + ":$PATH"},
 		Mounts: []string{fmt.Sprintf("type=bind,source=%s,target=%s", sockMount, containerSock)},
 	}, nil
 }

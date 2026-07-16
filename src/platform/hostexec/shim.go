@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/takezoh/agent-grid/platform/appid"
 )
 
 // ShimDirName is the subdirectory within the per-project run dir that holds PATH shim scripts.
-const ShimDirName = "hostexec-shims"
+// Aliased from appid.HostExecShimsDir which is the SSOT (case D — see
+// adr-20260716-provider-shim-root-appid-ssot). Retained as a package-level
+// exported const for existing call sites.
+const ShimDirName = appid.HostExecShimsDir
 
 // OverlayDirName is the subdirectory within the per-project run dir that holds overlay shim scripts.
 const OverlayDirName = "hostexec-overlay"

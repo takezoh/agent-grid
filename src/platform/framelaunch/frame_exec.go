@@ -22,6 +22,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/takezoh/agent-grid/platform/appid"
 )
 
 // FrameSpec is transported via AG_FRAME_SPEC env var (JSON).
@@ -48,7 +50,33 @@ var (
 	execReplacer = syscall.Exec
 	readPasswd   = func() ([]byte, error) { return os.ReadFile("/etc/passwd") }
 	currentUser  = user.Current
+	// runtimePathListForTest is the T1 seam that lets hermetic tests override
+	// the SSOT list without importing appid's real container paths. Production
+	// path uses appid.RuntimeAuthoritativePathList(). See
+	// adr-20260716-framelaunch-runtime-path-owner.
+	runtimePathListForTest func() []string
 )
+
+// TogglePathReassertDisableEnv is the env var that, when set to a truthy value
+// ("1" / "true" / "yes" — case-insensitive), causes Run() to skip the PATH
+// re-assertion merge. Provided as a rollback escape hatch for the case-D
+// shim-priority-hardening rollout (adr-20260716-shim-priority-hardening-and-migration).
+const TogglePathReassertDisableEnv = "AG_FRAMELAUNCH_DISABLE_PATH_REASSERT"
+
+func runtimePathList() []string {
+	if runtimePathListForTest != nil {
+		return runtimePathListForTest()
+	}
+	return appid.RuntimeAuthoritativePathList()
+}
+
+func pathReassertDisabled() bool {
+	switch strings.ToLower(os.Getenv(TogglePathReassertDisableEnv)) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
 
 // Encode marshals spec into the AG_FRAME_SPEC wire format (JSON string).
 // This is the single source of truth for the on-wire encoding used by both
@@ -83,6 +111,7 @@ func Run() error {
 	}
 
 	if spec.PreExec != "" {
+		origPath := os.Getenv("PATH")
 		env, err := capturePreExecEnv(loginShell, spec.PreExec, timeout)
 		if err != nil {
 			return fmt.Errorf("frame-exec: preExec eval: %w", err)
@@ -90,6 +119,13 @@ func Run() error {
 		for k, v := range env {
 			_ = os.Setenv(k, v)
 		}
+		// Re-assert runtime-authoritative shim dirs at PATH front. Case-D
+		// invariant: preExec's shell (mise activate / dotfiles) commonly
+		// reorders PATH so provider shim dirs are no longer first. framelaunch
+		// is the sole owner of the "shim first" ordering and unconditionally
+		// prepends appid.RuntimeAuthoritativePathList() here.
+		// See adr-20260716-framelaunch-runtime-path-owner.
+		reassertPath(origPath, env["PATH"])
 	}
 	for i, pre := range spec.PreCommands {
 		if err := runPreCommand(pre, timeout); err != nil {
@@ -168,6 +204,36 @@ func parseEnv0(b []byte) map[string]string {
 		}
 	}
 	return out
+}
+
+// reassertPath composes the final PATH from runtimePathList (SSOT) prepended
+// to the base PATH, dedup'd, and writes it via os.Setenv. Emits a single
+// framelaunch.path_reassert slog record per invocation. When the rollback
+// toggle env is set truthy, skips the os.Setenv but still emits the slog
+// with skip_branch="toggle_disabled" so operators can see the fix was gated
+// off. See adr-20260716-shim-priority-hardening-and-migration.
+func reassertPath(origPath, capturedPath string) {
+	list := runtimePathList()
+	finalPath, decision := computeFinalPath(list, capturedPath, origPath)
+	if pathReassertDisabled() {
+		decision.Branch = "toggle_disabled"
+		slog.Info("framelaunch.path_reassert",
+			"orig_path_len", len(origPath),
+			"runtime_prefix_count", decision.PrefixCount,
+			"dedup_dropped_count", decision.DroppedCount,
+			"post_reassert_changed_head", false,
+			"skip_branch", "toggle_disabled",
+		)
+		return
+	}
+	_ = os.Setenv("PATH", finalPath)
+	slog.Info("framelaunch.path_reassert",
+		"orig_path_len", len(origPath),
+		"runtime_prefix_count", decision.PrefixCount,
+		"dedup_dropped_count", decision.DroppedCount,
+		"post_reassert_changed_head", decision.HeadChanged,
+		"skip_branch", "",
+	)
 }
 
 // runPreCommand executes pre with per-command timeout, forwarding stdio.

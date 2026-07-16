@@ -44,4 +44,29 @@ const (
 	ContainerSockFilePath     = ContainerRunDir + "/" + ContainerSockFileName
 	ContainerHostExecSockPath = ContainerRunDir + "/hostexec.sock"
 	ContainerMCPSockPath      = ContainerRunDir + "/mcp.sock"
+
+	// Shim subdirectory names under ContainerRunDir. Runtime-authoritative:
+	// framelaunch prepends the full paths to every PreExec-branched frame's
+	// PATH so shim resolution is deterministic regardless of what preExec
+	// (mise activate / dotfiles) does to PATH ordering.
+	// See adr-20260716-framelaunch-runtime-path-owner /
+	// adr-20260716-provider-shim-root-appid-ssot.
+	HostExecShimsDir  = "hostexec-shims"
+	SecretEnvShimsDir = "secretenv-shims"
+
+	HostExecShimsPath  = ContainerRunDir + "/" + HostExecShimsDir
+	SecretEnvShimsPath = ContainerRunDir + "/" + SecretEnvShimsDir
 )
+
+// RuntimeAuthoritativePathList returns the ordered list of container-side
+// directories that framelaunch.Run() unconditionally prepends to PATH after
+// preExec evaluation. The order is stable and part of the SSOT: hostexec-shims
+// first, secretenv-shims second. A fresh slice is returned on every call so
+// callers cannot mutate the underlying list.
+//
+// This function is the sole SSOT for what counts as "runtime authoritative"
+// in the PATH ordering contract. Providers (hostexec, secretenv) MUST NOT
+// contribute Env["PATH"]; framelaunch reads only this list.
+func RuntimeAuthoritativePathList() []string {
+	return []string{HostExecShimsPath, SecretEnvShimsPath}
+}

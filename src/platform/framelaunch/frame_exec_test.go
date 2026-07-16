@@ -1,8 +1,10 @@
 package framelaunch
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -291,6 +293,203 @@ func TestRun_RealPtyIsInheritedByMain(t *testing.T) {
 
 // TestFrameExecHelper is invoked as a subprocess by TestRun_RealPtyIsInheritedByMain.
 // It is not a real test; it runs frame-exec when FRAMELAUNCH_TEST_HELPER=1.
+// TestRun_PathReassert_PrependsRuntimeList pins FR-001 / FR-002: after preExec
+// runs (and rebuilds PATH), Run() prepends the runtime authoritative list to
+// PATH before handing control to execReplacer.
+func TestRun_PathReassert_PrependsRuntimeList(t *testing.T) {
+	shell := writeFakeShell(t, `#!/bin/sh
+# Simulate a mise-activate-style rc that shoves user tooling ahead of anything
+# agent-grid put in front. The runtime shim dir is not mentioned here at all
+# — case D's invariant is that framelaunch re-asserts it regardless.
+printf 'PATH=/home/user/.mise/bin:/usr/bin:/bin\0'
+`)
+	runtimeList := []string{"/opt/agent-grid/run/hostexec-shims", "/opt/agent-grid/run/secretenv-shims"}
+	restoreList := swapRuntimePathList(t, func() []string { return runtimeList })
+	defer restoreList()
+
+	t.Setenv("PATH", "/opt/agent-grid/run/hostexec-shims:/usr/bin:/bin")
+	restore := swapExecReplacer(t, func(_ string, _ []string, _ []string) error {
+		return nil
+	})
+	defer restore()
+
+	t.Setenv(EnvVar, mustEncode(t, FrameSpec{
+		PreExec:     "true",
+		LoginShell:  shell,
+		MainCommand: []string{"true"},
+	}))
+	if err := Run(); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	got := os.Getenv("PATH")
+	want := "/opt/agent-grid/run/hostexec-shims:/opt/agent-grid/run/secretenv-shims:/home/user/.mise/bin:/usr/bin:/bin"
+	if got != want {
+		t.Fatalf("PATH after Run() =\n  %q\nwant:\n  %q", got, want)
+	}
+}
+
+// TestRun_PathReassert_LookPathResolvesShim pins FR-008: with a shim file
+// present in the first runtime-list directory, exec.LookPath resolves it via
+// shim, not via any preExec-inserted alternative earlier in PATH.
+func TestRun_PathReassert_LookPathResolvesShim(t *testing.T) {
+	shimDir := t.TempDir()
+	shimPath := filepath.Join(shimDir, "gh")
+	if err := os.WriteFile(shimPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The preExec rebuilds PATH so /usr/bin comes first — if we did NOT
+	// re-assert, LookPath("gh") would find /usr/bin/gh (or fail). With case
+	// D re-assert, the shim dir is first and shim wins.
+	shell := writeFakeShell(t, `#!/bin/sh
+printf 'PATH=/usr/bin:/bin\0'
+`)
+	restoreList := swapRuntimePathList(t, func() []string { return []string{shimDir} })
+	defer restoreList()
+
+	t.Setenv("PATH", shimDir+":/usr/bin")
+	restore := swapExecReplacer(t, func(_ string, _ []string, _ []string) error {
+		return nil
+	})
+	defer restore()
+
+	t.Setenv(EnvVar, mustEncode(t, FrameSpec{
+		PreExec:     "true",
+		LoginShell:  shell,
+		MainCommand: []string{"true"},
+	}))
+	if err := Run(); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	resolved, err := exec.LookPath("gh")
+	if err != nil {
+		t.Fatalf("LookPath(gh): %v", err)
+	}
+	if resolved != shimPath {
+		t.Fatalf("LookPath(gh) = %q, want %q (shim not resolving first)", resolved, shimPath)
+	}
+}
+
+// TestRun_EmptyPreExec_LeavesPathUntouched pins FR-007: when PreExec is empty,
+// Run() does not modify PATH at all.
+func TestRun_EmptyPreExec_LeavesPathUntouched(t *testing.T) {
+	restore := swapExecReplacer(t, func(_ string, _ []string, _ []string) error {
+		return nil
+	})
+	defer restore()
+	restoreList := swapRuntimePathList(t, func() []string {
+		return []string{"/opt/should-not-appear"}
+	})
+	defer restoreList()
+
+	orig := "/usr/local/bin:/usr/bin:/bin"
+	t.Setenv("PATH", orig)
+	t.Setenv(EnvVar, mustEncode(t, FrameSpec{
+		// No PreExec — the entire re-assert branch must be skipped.
+		MainCommand: []string{"true"},
+	}))
+	if err := Run(); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := os.Getenv("PATH"); got != orig {
+		t.Fatalf("PATH mutated with empty PreExec: got %q, want %q", got, orig)
+	}
+}
+
+// TestRun_PathReassertSlog verifies the observability contract:
+// exactly one framelaunch.path_reassert slog record per PreExec-branched
+// invocation, with all required fields present.
+func TestRun_PathReassertSlog(t *testing.T) {
+	shell := writeFakeShell(t, `#!/bin/sh
+printf 'PATH=/usr/bin:/bin\0'
+`)
+	restoreList := swapRuntimePathList(t, func() []string { return []string{"/opt/agent-grid/run/hostexec-shims"} })
+	defer restoreList()
+	restore := swapExecReplacer(t, func(_ string, _ []string, _ []string) error {
+		return nil
+	})
+	defer restore()
+	buf, restoreLogger := captureSlog(t)
+	defer restoreLogger()
+
+	t.Setenv("PATH", "/opt/agent-grid/run/hostexec-shims:/usr/bin:/bin")
+	t.Setenv(EnvVar, mustEncode(t, FrameSpec{
+		PreExec:     "true",
+		LoginShell:  shell,
+		MainCommand: []string{"true"},
+	}))
+	if err := Run(); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	logOut := buf.String()
+	if got := strings.Count(logOut, "framelaunch.path_reassert"); got != 1 {
+		t.Fatalf("slog record count = %d, want 1; full log:\n%s", got, logOut)
+	}
+	for _, field := range []string{"orig_path_len=", "runtime_prefix_count=1", "dedup_dropped_count=", "post_reassert_changed_head=", "skip_branch="} {
+		if !strings.Contains(logOut, field) {
+			t.Errorf("slog record missing field marker %q; full log:\n%s", field, logOut)
+		}
+	}
+}
+
+// TestRun_MigrationToggle_SkipsMergeButLogsSkip pins the rollback toggle:
+// when AG_FRAMELAUNCH_DISABLE_PATH_REASSERT is truthy, the merge is skipped
+// (PATH unchanged from preExec's output) but the slog still fires with
+// skip_branch="toggle_disabled" so operators can see the fix was gated off.
+func TestRun_MigrationToggle_SkipsMergeButLogsSkip(t *testing.T) {
+	shell := writeFakeShell(t, `#!/bin/sh
+printf 'PATH=/usr/bin:/bin\0'
+`)
+	restoreList := swapRuntimePathList(t, func() []string { return []string{"/opt/agent-grid/run/hostexec-shims"} })
+	defer restoreList()
+	restore := swapExecReplacer(t, func(_ string, _ []string, _ []string) error {
+		return nil
+	})
+	defer restore()
+	buf, restoreLogger := captureSlog(t)
+	defer restoreLogger()
+
+	t.Setenv("PATH", "/original-orig")
+	t.Setenv(TogglePathReassertDisableEnv, "1")
+	t.Setenv(EnvVar, mustEncode(t, FrameSpec{
+		PreExec:     "true",
+		LoginShell:  shell,
+		MainCommand: []string{"true"},
+	}))
+	if err := Run(); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := os.Getenv("PATH"); got != "/usr/bin:/bin" {
+		t.Fatalf("PATH = %q, want %q (preExec output preserved, merge skipped)", got, "/usr/bin:/bin")
+	}
+	logOut := buf.String()
+	if !strings.Contains(logOut, `skip_branch=toggle_disabled`) {
+		t.Errorf("slog record missing skip_branch=toggle_disabled; full log:\n%s", logOut)
+	}
+	if got := strings.Count(logOut, "framelaunch.path_reassert"); got != 1 {
+		t.Errorf("slog record count = %d, want 1 (still one record even when toggle-disabled)", got)
+	}
+}
+
+// swapRuntimePathList swaps the T1 seam. Callers must call the returned
+// closure via defer or t.Cleanup.
+func swapRuntimePathList(t *testing.T, fn func() []string) func() {
+	t.Helper()
+	prev := runtimePathListForTest
+	runtimePathListForTest = fn
+	return func() { runtimePathListForTest = prev }
+}
+
+// captureSlog replaces the default slog logger with one writing to a buffer,
+// returning the buffer and a restore closure.
+func captureSlog(t *testing.T) (*bytes.Buffer, func()) {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	handler := slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	prev := slog.Default()
+	slog.SetDefault(slog.New(handler))
+	return buf, func() { slog.SetDefault(prev) }
+}
+
 func TestFrameExecHelper(t *testing.T) {
 	if os.Getenv("FRAMELAUNCH_TEST_HELPER") != "1" {
 		return
