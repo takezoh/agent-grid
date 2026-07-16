@@ -53,7 +53,7 @@ All three add scope. The Master Plan also schedules the React frontend for
 
 In α, the reducer returns `RespErr(Code:'frame-not-ready')` immediately when
 `Sessions[sid].ActiveFrame() == nil`. The gateway translates this to a
-two-step typed close (see [ADR 0011](../adr/adr-20260624-0011-two-step-ws-close-on-daemon-disconnect.md))
+two-step typed close (see [ADR 0011](adr-20260624-0011-two-step-ws-close-on-daemon-disconnect.md))
 with `code:'frame-not-ready'` on the control frame. No retry happens in α.
 
 Retry logic is implemented in β alongside the React store, where exponential

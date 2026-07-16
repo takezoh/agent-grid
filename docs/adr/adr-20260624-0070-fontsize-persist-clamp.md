@@ -31,11 +31,11 @@ summary: ux.md の UAC-018 (20px 永続化) / UAC-019 (999 → 28 max clamp) / U
 
 # ADR 0070 — `fontSize` の device-scoped 永続化を `usePersistedValue` adapter で集約し parse 失敗と範囲外を別経路でハンドルする
 
-Status: Superseded by [ADR 0077](../adr/adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md) (pinch 経路は撤去。FontSizeControl ステッパー単独 path の persist / clamp 契約は ADR 0077 が継承)
+Status: Superseded by [ADR 0077](adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md) (pinch 経路は撤去。FontSizeControl ステッパー単独 path の persist / clamp 契約は ADR 0077 が継承)
 
-Related: [ADR 0059](adr-20260624-0059-design-token-and-theme-bridge.md), [ADR 0068](../adr/adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md), [ADR 0072](../adr/adr-20260624-0072-coachmark-dismiss-and-once.md), [ADR 0077](../adr/adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md)
+Related: [ADR 0059](adr-20260624-0059-design-token-and-theme-bridge.md), [ADR 0068](adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md), [ADR 0072](adr-20260624-0072-coachmark-dismiss-and-once.md), [ADR 0077](adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md)
 Related code: `src/client/web/src/hooks/usePersistedValue.ts` (new adapter), `src/client/web/src/hooks/useFontSize.ts` (new), `src/client/web/src/hooks/useCoachmarkOnce.ts` (new)
-Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/spec.md) — `FR-MOB-PERSIST-001/002`, `FR-MOB-COACH-001`
+Related spec: [Web Terminal Mobile UX spec.md](../changes/change-20260626-web-terminal-mobile-ux/requirements.md) — `FR-MOB-PERSIST-001/002`, `FR-MOB-COACH-001`
 
 ## Context
 
@@ -60,7 +60,7 @@ Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/s
 
 (4) 書き出しは `try/catch` で例外を握りつぶし、書込失敗時もメモリ上の state は更新 (UX は degrade のみ)。
 
-(5) helper textarea の font-size は本 ADR の対象外 ([ADR 0068](../adr/adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md) で CSS `!important` 16px 固定)、grid `.xterm-rows` と独立。
+(5) helper textarea の font-size は本 ADR の対象外 ([ADR 0068](adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md) で CSS `!important` 16px 固定)、grid `.xterm-rows` と独立。
 
 (6) `fontSize` は theme ([ADR 0059](adr-20260624-0059-design-token-and-theme-bridge.md)) と独立 key で衝突しない。
 

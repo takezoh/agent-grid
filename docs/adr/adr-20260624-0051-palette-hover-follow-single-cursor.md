@@ -26,7 +26,7 @@ summary: commit 9287c7f の CommandPalette は keyboard cursor (ToolSelectPhase 
 
 Status: Accepted
 
-Related: [ux](../specs/2026-06-25-web-palette-redesign/ux.md)
+Related: [ux](../changes/change-20260625-2026-06-25-web-palette-redesign/ux.md)
 Related requirements: F-003 (UAC-006〜UAC-007), F-007
 
 ## Context

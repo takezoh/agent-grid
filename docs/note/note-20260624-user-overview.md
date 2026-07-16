@@ -41,11 +41,11 @@ Agent Grid ships three binaries that map onto the [three-layer architecture](../
 
 ## Pages
 
-- [Getting started](../note/note-20260624-user-getting-started.md) — requirements, `make install`, first run, choosing a binary, agent setup
-- [web stack (ad-hoc launch)](../note/note-20260624-user-web-server.md) — the browser-facing `server` + `web` processes for local/dev use
-- [run as a systemd service](../note/note-20260624-user-systemd.md) — production stack (`server` + `web`) as per-user systemd units, with token persistence and boot-time autostart
-- [Codex Remote Control](../note/note-20260715-user-codex-remote-control.md) — host-scoped daemon setup, mobile pairing lifecycle, and host/devcontainer session behavior
-- [orchestrator](../note/note-20260624-user-orchestrator.md) — the `orchestrator` layer for end users: running a `WORKFLOW.md` pipeline, agent selection, observability HTTP
-- [sandbox setup](../note/note-20260624-user-sandbox.md) — the `platform` layer for end users: per-project devcontainer isolation and credential proxy
+- [Getting started](note-20260624-user-getting-started.md) — requirements, `make install`, first run, choosing a binary, agent setup
+- [web stack (ad-hoc launch)](note-20260624-user-web-server.md) — the browser-facing `server` + `web` processes for local/dev use
+- [run as a systemd service](note-20260624-user-systemd.md) — production stack (`server` + `web`) as per-user systemd units, with token persistence and boot-time autostart
+- [Codex Remote Control](note-20260715-user-codex-remote-control.md) — host-scoped daemon setup, mobile pairing lifecycle, and host/devcontainer session behavior
+- [orchestrator](note-20260624-user-orchestrator.md) — the `orchestrator` layer for end users: running a `WORKFLOW.md` pipeline, agent selection, observability HTTP
+- [sandbox setup](note-20260624-user-sandbox.md) — the `platform` layer for end users: per-project devcontainer isolation and credential proxy
 
-For internals, see the [technical docs](../note/note-20260624-technical-overview.md).
+For internals, see the [technical docs](note-20260624-technical-overview.md).

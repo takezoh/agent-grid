@@ -32,7 +32,7 @@ summary: 'ADR-0029 で .terminal-host を flex: 1 1 0; min-height: 0 の flex ch
 
 Status: Proposed
 
-Related: [ADR 0029](../adr/adr-20260624-0029-terminal-host-flex-height.md), [ADR 0030](../adr/adr-20260624-0030-terminal-keyed-remount.md), [ADR 0034](../adr/adr-20260624-0034-refit-raf-coalesce-and-test-infra.md), [ADR 0061](../adr/adr-20260624-0061-apg-tabs-manual-activation.md)
+Related: [ADR 0029](adr-20260624-0029-terminal-host-flex-height.md), [ADR 0030](adr-20260624-0030-terminal-keyed-remount.md), [ADR 0034](adr-20260624-0034-refit-raf-coalesce-and-test-infra.md), [ADR 0061](adr-20260624-0061-apg-tabs-manual-activation.md)
 Related code: `src/client/web/src/components/MainTabs.tsx`, `src/client/web/src/components/LogTabs.tsx`, `src/client/web/src/css/view.css`
 
 ## Context

@@ -25,7 +25,7 @@ summary: ScopeSegment の disabled 表示と submit pre-check で同じ判定ロ
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-24-web-ui-command-palette/spec.md), [plan](../specs/2026-06-24-web-ui-command-palette/plan.md)
+Related: [spec](../changes/change-20260624-2026-06-24-web-ui-command-palette/requirements.md), [plan](../changes/change-20260624-2026-06-24-web-ui-command-palette/implementation.md)
 Related requirements: FR-004, FR-005, FR-006, FR-023
 
 ## Context

@@ -153,7 +153,7 @@ verified under the race detector on every iteration. Scope is currently
 
 ## References
 
-- Cross-reference: [ADR 0003](../adr/adr-20260624-0003-termvt-fanout-isolation.md) (the original
+- Cross-reference: [ADR 0003](adr-20260624-0003-termvt-fanout-isolation.md) (the original
   fan-out isolation contract — still valid; the implementation mechanics
   evolved from "fanout holds the single-writer lock" to "fanout runs inside
   the sole-owner mainLoop", which is the same property by stronger means).

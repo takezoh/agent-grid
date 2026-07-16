@@ -28,7 +28,7 @@ summary: 'Supersedes: ADR-0076 (Title slot に関する部分のみ) Related cod
 
 Status: Accepted
 
-Supersedes: [ADR-0076](../adr/adr-20260624-0076-session-card-title-subtitle-two-slot.md) (Title slot に関する部分のみ)
+Supersedes: [ADR-0076](adr-20260624-0076-session-card-title-subtitle-two-slot.md) (Title slot に関する部分のみ)
 Related code: `src/client/driver/view_builder.go` (`resolveCardTitleSubtitle`), `src/client/driver/{claude_view.go,codex_view.go,gemini_view.go,generic_view.go,shell_view.go}`, `src/client/lib/claude/transcript/transcript_event.go` (`parseTitleEntry`), `src/client/tui/view.go`, `src/client/web/src/components/SessionList.tsx`
 
 ## Context

@@ -92,16 +92,16 @@ contract, a wired fake app-server exercised under `-race`, a stdlib
 ([setup](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-e2e)). Full guide:
 [stream backend testing](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-testing). This is
 the test-pinned enforcement catalogued in
-[code-enforcement.md §6](../note/note-20260624-technical-code-enforcement.md).
+[code-enforcement.md §6](note-20260624-technical-code-enforcement.md).
 
 ## Propagation and fidelity harnesses
 
-- **pty tap contract (T2)** — the tap path writes real OSC 0/2/9/133 sequences through a real pty and asserts that only the owning frame receives `EvFrameOsc` / `EvFramePrompt`, while malformed input is contained without killing the loop. Enforcement is catalogued in [code-enforcement.md §8](../note/note-20260624-technical-code-enforcement.md).
-- **relay severance contract (T2)** — `TerminalRelay` is driven with a deterministically saturated subscriber to prove that only the slow consumer is severed and all other subscribers keep ordered delivery. Enforcement is catalogued in [code-enforcement.md §9](../note/note-20260624-technical-code-enforcement.md).
-- **wire fixtures pipeline (T1 + CI gate)** — Go generates canonical wire JSON fixtures, vitest consumes the same files, and CI fails on regeneration drift. Enforcement is catalogued in [code-enforcement.md §11](../note/note-20260624-technical-code-enforcement.md).
+- **pty tap contract (T2)** — the tap path writes real OSC 0/2/9/133 sequences through a real pty and asserts that only the owning frame receives `EvFrameOsc` / `EvFramePrompt`, while malformed input is contained without killing the loop. Enforcement is catalogued in [code-enforcement.md §8](note-20260624-technical-code-enforcement.md).
+- **relay severance contract (T2)** — `TerminalRelay` is driven with a deterministically saturated subscriber to prove that only the slow consumer is severed and all other subscribers keep ordered delivery. Enforcement is catalogued in [code-enforcement.md §9](note-20260624-technical-code-enforcement.md).
+- **wire fixtures pipeline (T1 + CI gate)** — Go generates canonical wire JSON fixtures, vitest consumes the same files, and CI fails on regeneration drift. Enforcement is catalogued in [code-enforcement.md §11](note-20260624-technical-code-enforcement.md).
 - **gateway scenario e2e (T1)** — a real-`server` + fake-agent scenario now verifies `session create → WS viewUpdate` in the always-on Go suite for the server→view path.
 - **client/web browser smoke (T1)** — Playwright runs a deterministic fake-backend browser harness for session hydrate, command palette open, and new-session submit. This covers browser wiring that happy-dom cannot prove, while keeping real soft keyboard / assistive-tech flows on the manual-device checklist.
-- **fakedocker + `FakeVsRealDocker` (T1 + T3)** — devcontainer lifecycle tests run against PATH-injected `fakedocker`, and an opt-in real-docker backstop verifies the fake's output shape. Enforcement is catalogued in [code-enforcement.md §10](../note/note-20260624-technical-code-enforcement.md).
+- **fakedocker + `FakeVsRealDocker` (T1 + T3)** — devcontainer lifecycle tests run against PATH-injected `fakedocker`, and an opt-in real-docker backstop verifies the fake's output shape. Enforcement is catalogued in [code-enforcement.md §10](note-20260624-technical-code-enforcement.md).
 
 Local e2e run commands live in [AGENTS.md](../../AGENTS.md) (Build & Test → E2E).
 
@@ -119,7 +119,7 @@ Unlike the stream subsystem, termvt has no in-process fake — its only backend 
 a real pty — so there is no opt-in e2e tier. Full guide:
 [termvt multiplexer testing](../design/design-platform.md#legacy-source-component-20260624-platform-termvt-multiplexer-testing);
 rationale: [ADR 0003](../adr/adr-20260624-0003-termvt-fanout-isolation.md);
-enforcement: [code-enforcement.md §7](../note/note-20260624-technical-code-enforcement.md).
+enforcement: [code-enforcement.md §7](note-20260624-technical-code-enforcement.md).
 
 ## Race detector
 

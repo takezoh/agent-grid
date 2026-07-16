@@ -26,7 +26,7 @@ summary: web gateway の daemon_client.go は SendCommand(ctx, proto.Command) �
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-24-web-ui-command-palette/spec.md), [plan](../specs/2026-06-24-web-ui-command-palette/plan.md)
+Related: [spec](../changes/change-20260624-2026-06-24-web-ui-command-palette/requirements.md), [plan](../changes/change-20260624-2026-06-24-web-ui-command-palette/implementation.md)
 Related requirements: FR-025
 
 ## Context

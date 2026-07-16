@@ -26,7 +26,7 @@ summary: InlineStatus (disabled-attempt feedback) / ActiveContextHeader (active 
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-25-web-palette-redesign/spec.md), [plan](../specs/2026-06-25-web-palette-redesign/plan.md), [ux](../specs/2026-06-25-web-palette-redesign/ux.md)
+Related: [spec](../changes/change-20260625-2026-06-25-web-palette-redesign/requirements.md), [plan](../changes/change-20260625-2026-06-25-web-palette-redesign/implementation.md), [ux](../changes/change-20260625-2026-06-25-web-palette-redesign/ux.md)
 Related requirements: FR-005, FR-010, FR-024, FR-025, FR-029, FR-031, FR-033
 
 ## Context

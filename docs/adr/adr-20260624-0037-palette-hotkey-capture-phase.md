@@ -24,7 +24,7 @@ summary: xterm.js は textarea 上で keydown を消費するため bubble phase
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-24-web-ui-command-palette/spec.md), [plan](../specs/2026-06-24-web-ui-command-palette/plan.md)
+Related: [spec](../changes/change-20260624-2026-06-24-web-ui-command-palette/requirements.md), [plan](../changes/change-20260624-2026-06-24-web-ui-command-palette/implementation.md)
 Related requirements: FR-001, FR-002, FR-029
 
 ## Context

@@ -35,10 +35,10 @@ summary: ux.md reference_ux[].stance:modeled_on で 6 つの業界パターン (
 
 Status: Accepted
 
-Related: [ADR 0057](adr-20260624-0057-palette-single-aria-live-slot.md), [ADR 0059](adr-20260624-0059-design-token-and-theme-bridge.md), [ADR 0067](../adr/adr-20260624-0067-mobile-gate-matchmedia.md), [ADR 0068](../adr/adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md), [ADR 0069](../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md), [ADR 0073](../adr/adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md)
+Related: [ADR 0057](adr-20260624-0057-palette-single-aria-live-slot.md), [ADR 0059](adr-20260624-0059-design-token-and-theme-bridge.md), [ADR 0067](adr-20260624-0067-mobile-gate-matchmedia.md), [ADR 0068](adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md), [ADR 0069](adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md), [ADR 0073](adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md)
 Related code: `src/client/web/src/components/IconButton.tsx` (new primitive), `src/client/web/src/components/{KeyboardFAB,JumpToLatestFAB,FontSizeControl}.tsx`
-Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/spec.md) — `FR-MOB-FAB-001..004`, `FR-MOB-STEPPER-001`, `FR-MOB-VVP-001`, `FR-MOB-MODE-006`, `FR-MOB-JUMP-004`
-Related ux: [Web Terminal Mobile UX ux.md](../specs/web-terminal-mobile-ux/ux.md) (`reference_ux[]`)
+Related spec: [Web Terminal Mobile UX spec.md](../changes/change-20260626-web-terminal-mobile-ux/requirements.md) — `FR-MOB-FAB-001..004`, `FR-MOB-STEPPER-001`, `FR-MOB-VVP-001`, `FR-MOB-MODE-006`, `FR-MOB-JUMP-004`
+Related ux: [Web Terminal Mobile UX ux.md](../changes/change-20260626-web-terminal-mobile-ux/ux.md) (`reference_ux[]`)
 
 ## Context
 

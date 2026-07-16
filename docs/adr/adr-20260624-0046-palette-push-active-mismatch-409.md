@@ -27,7 +27,7 @@ summary: push は daemon-global active session への操作という意味論。
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-24-web-ui-command-palette/spec.md), [plan](../specs/2026-06-24-web-ui-command-palette/plan.md)
+Related: [spec](../changes/change-20260624-2026-06-24-web-ui-command-palette/requirements.md), [plan](../changes/change-20260624-2026-06-24-web-ui-command-palette/implementation.md)
 Related requirements: FR-025, FR-026
 
 ## Context

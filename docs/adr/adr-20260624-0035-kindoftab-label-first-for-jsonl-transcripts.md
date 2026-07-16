@@ -28,7 +28,7 @@ summary: ADR 0031 で kindOfTab に .log / .jsonl path 末尾 → event-log ル�
 
 Status: Accepted
 
-Related: [ADR 0031](../adr/adr-20260624-0031-kindoftab-server-symmetry.md) (path-first を採用していたが本 ADR で反転), [spec](../specs/2026-06-24-web-ui-fixes/spec.md)
+Related: [ADR 0031](adr-20260624-0031-kindoftab-server-symmetry.md) (path-first を採用していたが本 ADR で反転), [spec](../changes/change-20260624-2026-06-24-web-ui-fixes/requirements.md)
 
 ## Context
 

@@ -37,13 +37,13 @@ summary: ADR 0029 (terminal-host flex:1 1 0 / dvh)、ADR 0065 (terminal-slot abs
 
 Status: Accepted
 
-Related: [ADR 0029](../adr/adr-20260624-0029-terminal-host-flex-height.md), [ADR 0063](adr-20260624-0063-toast-single-live-and-undosnackbar.md), [ADR 0064](../adr/adr-20260624-0064-reduced-motion-single-guard.md), [ADR 0065](../adr/adr-20260624-0065-terminal-slot-absolute-overlay.md), [ADR 0068](../adr/adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md), [ADR 0073](../adr/adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md), [ADR 0075](../adr/adr-20260624-0075-pattern-adoption-mode-affordances.md)
+Related: [ADR 0029](adr-20260624-0029-terminal-host-flex-height.md), [ADR 0063](adr-20260624-0063-toast-single-live-and-undosnackbar.md), [ADR 0064](adr-20260624-0064-reduced-motion-single-guard.md), [ADR 0065](adr-20260624-0065-terminal-slot-absolute-overlay.md), [ADR 0068](adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md), [ADR 0073](adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md), [ADR 0075](adr-20260624-0075-pattern-adoption-mode-affordances.md)
 Related code: `src/client/web/src/hooks/useVisualViewportLift.ts` (new), `src/client/web/src/components/{KeyboardFAB,JumpToLatestFAB,FontSizeControl,PinchIndicator}.tsx` (new), `src/client/web/src/css/view.css` (`.terminal-fab-layer` rule), `src/client/web/src/components/TerminalPane.tsx`
-Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/spec.md) — `FR-MOB-FAB-001..004`, `FR-MOB-VVP-001..003`, `FR-MOB-STEPPER-001`, `FR-MOB-PINCH-004`
+Related spec: [Web Terminal Mobile UX spec.md](../changes/change-20260626-web-terminal-mobile-ux/requirements.md) — `FR-MOB-FAB-001..004`, `FR-MOB-VVP-001..003`, `FR-MOB-STEPPER-001`, `FR-MOB-PINCH-004`
 
 ## Context
 
-[ADR 0029](../adr/adr-20260624-0029-terminal-host-flex-height.md) (terminal-host `flex:1 1 0 / dvh`)、[ADR 0065](../adr/adr-20260624-0065-terminal-slot-absolute-overlay.md) (terminal-slot absolute overlay)、`FR-LAYOUT-004` (safe-area single-source via `.app-shell`) を壊さず、`KeyboardFAB` / `JumpToLatestFAB` / `FontSizeControl` / `Coachmark` / `PinchIndicator` の 5 種 overlay を配置する必要がある。
+[ADR 0029](adr-20260624-0029-terminal-host-flex-height.md) (terminal-host `flex:1 1 0 / dvh`)、[ADR 0065](adr-20260624-0065-terminal-slot-absolute-overlay.md) (terminal-slot absolute overlay)、`FR-LAYOUT-004` (safe-area single-source via `.app-shell`) を壊さず、`KeyboardFAB` / `JumpToLatestFAB` / `FontSizeControl` / `Coachmark` / `PinchIndicator` の 5 種 overlay を配置する必要がある。
 
 iOS soft keyboard は `dvh` / layout viewport を縮めず overlay するため `visualViewport` API でしか入力行可視を保てない。各 FAB が `visualViewport.resize/scroll` の更新を React state 経由で受けると FAB 数だけ再 render が走り性能と coupling が悪化する。`FontSizeControl` の視覚配置 (常時表示 vs disclosure) も Open Question として残っていた。
 

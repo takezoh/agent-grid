@@ -107,7 +107,7 @@ Each axis is judged against the consensus harness-engineering principles:
 - **Credential isolation by design.** `linear_graphql` keeps the tracker token in
   the orchestrator; the agent never holds it. `hostexec`/`mcpproxy`/`credproxy`
   mediate host capability from inside the sandbox. See
-  [guardrails.md](../note/note-20260624-technical-guardrails.md).
+  [guardrails.md](note-20260624-technical-guardrails.md).
 - **Functional Core / Imperative Shell + single authority.** `scheduler.Reduce` is
   pure; `ErrDuplicateDispatch` enforces single-writer dispatch (SPEC §7.4).
 
@@ -204,7 +204,7 @@ Each axis is judged against the consensus harness-engineering principles:
    mode is not exercised.
 
 Coverage discipline itself is strong (tiered floors enforced by
-`scripts/check-coverage.sh`; see [testing.md](../note/note-20260624-agent-testing.md)) — the gap is in
+`scripts/check-coverage.sh`; see [testing.md](note-20260624-agent-testing.md)) — the gap is in
 *kind* of test, not in coverage rigor.
 
 ---
@@ -245,7 +245,7 @@ Coverage discipline itself is strong (tiered floors enforced by
   failing main build; `simplify.yml` runs `/simplify` on every PR. Using the agent as
   a harness *for its own development* is itself a harness-engineering practice.
 - Layer/`no-mutex`/pure-core invariants enforced via depguard + forbidigo + ruleguard
-  (see [code-enforcement.md](../note/note-20260624-technical-code-enforcement.md)).
+  (see [code-enforcement.md](note-20260624-technical-code-enforcement.md)).
 
 **Gaps**
 
@@ -300,7 +300,7 @@ completes its tasks.**
 
 ## See also
 
-- [guardrails.md](../note/note-20260624-technical-guardrails.md) — the existing control surface (admission, concurrency, sandboxing, autonomy policy, liveness)
+- [guardrails.md](note-20260624-technical-guardrails.md) — the existing control surface (admission, concurrency, sandboxing, autonomy policy, liveness)
 - [orchestrator/symphony-conformance.md](../design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance) — SPEC ↔ test table and deviation posture
-- [../agent/workflow-authoring.md](../note/note-20260624-agent-workflow-authoring.md) — programming the agent through the prompt
-- [../agent/testing.md](../note/note-20260624-agent-testing.md) — testability as a design constraint and coverage tiers
+- [../agent/workflow-authoring.md](note-20260624-agent-workflow-authoring.md) — programming the agent through the prompt
+- [../agent/testing.md](note-20260624-agent-testing.md) — testability as a design constraint and coverage tiers

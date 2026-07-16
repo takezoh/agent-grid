@@ -27,7 +27,7 @@ summary: FR-012〜014 / UAC-017〜018 は submit 中に Active context / sorted 
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-25-web-palette-redesign/spec.md), [plan](../specs/2026-06-25-web-palette-redesign/plan.md), [ux](../specs/2026-06-25-web-palette-redesign/ux.md)
+Related: [spec](../changes/change-20260625-2026-06-25-web-palette-redesign/requirements.md), [plan](../changes/change-20260625-2026-06-25-web-palette-redesign/implementation.md), [ux](../changes/change-20260625-2026-06-25-web-palette-redesign/ux.md)
 Related requirements: FR-012, FR-013, FR-014, FR-018, FR-033
 
 ## Context

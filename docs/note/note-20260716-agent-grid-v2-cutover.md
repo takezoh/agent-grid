@@ -37,6 +37,7 @@ Agent-grid の canonical development docs を format v1 から format v2 へ tra
 - Representative legacy component, plan, and spec IDs resolve through aliases.
 - Maintainer and implementer context generation succeeds. Imported unfinished changes intentionally remain `draft`; missing owner and acceptance diagnostics are not inferred away.
 - Every legacy component source remains embedded verbatim under the corresponding design's `Legacy Source` sections.
+- Post-cutover integrity repair rewrote 163 project-local links across 74 retained ADR/note documents from legacy locations to their canonical v2 paths, including 90 links to migrated change members. Fenced legacy sources remain verbatim.
 
 ## Operating policy
 

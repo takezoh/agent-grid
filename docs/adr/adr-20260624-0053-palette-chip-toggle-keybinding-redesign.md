@@ -26,7 +26,7 @@ summary: 'commit 9287c7f の ParamSelectPhase は new-session の Worktree / Hos
 
 Status: Accepted
 
-Related: [ux](../specs/2026-06-25-web-palette-redesign/ux.md)
+Related: [ux](../changes/change-20260625-2026-06-25-web-palette-redesign/ux.md)
 Related requirements: F-004 (UAC-008〜UAC-010)
 
 ## Context

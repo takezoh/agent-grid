@@ -42,7 +42,7 @@ The orchestrator runs coding agents **unattended** against an issue tracker. Gua
 4. **Autonomy** — what may an agent do without asking a human?
 5. **Liveness** — how long may an agent run, and how are failures bounded?
 
-> This document is about controlling **agents**. The separate concern of keeping the **codebase** true to its architecture (depguard import rules, function-length limits, etc.) is in [code-enforcement.md](../note/note-20260624-technical-code-enforcement.md).
+> This document is about controlling **agents**. The separate concern of keeping the **codebase** true to its architecture (depguard import rules, function-length limits, etc.) is in [code-enforcement.md](note-20260624-technical-code-enforcement.md).
 
 ```mermaid
 flowchart LR
@@ -57,7 +57,7 @@ flowchart LR
     EXIT -.->|retry| ADMIT
 ```
 
-All knobs live in `WORKFLOW.md` front matter and are resolved by `orchestrator/wfconfig/`; user-facing configuration is in the [orchestrator user guide](../note/note-20260624-user-orchestrator.md).
+All knobs live in `WORKFLOW.md` front matter and are resolved by `orchestrator/wfconfig/`; user-facing configuration is in the [orchestrator user guide](note-20260624-user-orchestrator.md).
 
 ## 1. Admission control — which issues get an agent
 
@@ -142,7 +142,7 @@ Reconcile (`scheduler`, SPEC §7/§16) bounds how long an agent may run and how 
 
 ## 6. Behavioral steering & pre-run validation
 
-- **Driving prompt**: what the agent is actually told to do comes from the `WORKFLOW.md` body, rendered per-issue by `orchestrator/prompt/`. Authoring guidance is in [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md). This is the first-order guardrail — it scopes the agent's task.
+- **Driving prompt**: what the agent is actually told to do comes from the `WORKFLOW.md` body, rendered per-issue by `orchestrator/prompt/`. Authoring guidance is in [WORKFLOW.md authoring](note-20260624-agent-workflow-authoring.md). This is the first-order guardrail — it scopes the agent's task.
 - **Preflight**: before *any* agent is dispatched, `scheduler.Preflight` (`orchestrator/scheduler/preflight.go:21`) validates the run is operable (`tracker.kind` supported, `api_key` / `project_slugs` present, `codex.command` set). Invalid config gates the whole run, so a misconfigured orchestrator never launches agents at all.
 
 ## Config quick reference
@@ -162,4 +162,4 @@ Reconcile (`scheduler`, SPEC §7/§16) bounds how long an agent may run and how 
 - Broker implementation (capability enforcement): [brokers.md](../design/design-platform.md#legacy-source-component-20260624-platform-brokers) · security model: [sandbox.md](../design/design-platform.md#legacy-source-component-20260624-platform-sandbox)
 - Agent protocol (approval/sandbox options, turn sequence): [agent-protocol.md](../design/design-platform.md#legacy-source-component-20260624-platform-agent-protocol)
 - Orchestrator pipeline & state machines: [orchestrator README](../design/design-orchestrator.md)
-- Code/architecture enforcement (depguard, length limits): [code-enforcement.md](../note/note-20260624-technical-code-enforcement.md)
+- Code/architecture enforcement (depguard, length limits): [code-enforcement.md](note-20260624-technical-code-enforcement.md)

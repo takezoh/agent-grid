@@ -24,7 +24,7 @@ summary: focus-trap-react など外部ライブラリは shadow DOM / portal の
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-24-web-ui-command-palette/spec.md), [plan](../specs/2026-06-24-web-ui-command-palette/plan.md)
+Related: [spec](../changes/change-20260624-2026-06-24-web-ui-command-palette/requirements.md), [plan](../changes/change-20260624-2026-06-24-web-ui-command-palette/implementation.md)
 Related requirements: FR-003, FR-016, FR-017, FR-018
 
 ## Context

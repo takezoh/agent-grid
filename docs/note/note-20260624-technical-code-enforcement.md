@@ -44,7 +44,7 @@ summary: 'The mechanisms that keep the codebase true to its intended architectur
 
 The mechanisms that keep the **codebase** true to its intended architecture. Unlike review-dependent conventions, most are rejected mechanically at **lint or compile time**. For each: what it prevents, where it is defined, how it is enforced, and how a developer declares an exception.
 
-The design principles themselves are owned by [ARCHITECTURE.md](../../ARCHITECTURE.md); this document covers their enforcement. (Runtime controls over the autonomous *agents* are a separate concern — see [guardrails.md](../note/note-20260624-technical-guardrails.md).)
+The design principles themselves are owned by [ARCHITECTURE.md](../../ARCHITECTURE.md); this document covers their enforcement. (Runtime controls over the autonomous *agents* are a separate concern — see [guardrails.md](note-20260624-technical-guardrails.md).)
 
 ## 1. Import boundaries (depguard)
 
@@ -195,4 +195,4 @@ Where defined: [ADR — Driver conformance suite enforced via registry iteration
 
 - Canonical design principles: [ARCHITECTURE.md](../../ARCHITECTURE.md)
 - Per-layer deep dives: [platform](../design/design-platform.md) · [client](../design/design-client.md) · [orchestrator](../design/design-orchestrator.md)
-- Agent-control guardrails (admission, concurrency, capability, autonomy, liveness): [guardrails.md](../note/note-20260624-technical-guardrails.md)
+- Agent-control guardrails (admission, concurrency, capability, autonomy, liveness): [guardrails.md](note-20260624-technical-guardrails.md)

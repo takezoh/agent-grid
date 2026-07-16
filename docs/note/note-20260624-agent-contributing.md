@@ -52,7 +52,7 @@ cd src && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/.
 
 ## Architecture & Code Enforcement
 
-The structural integrity of the project is enforced mechanically. Refer to [Code & Architecture Enforcement](../note/note-20260624-technical-code-enforcement.md) for:
+The structural integrity of the project is enforced mechanically. Refer to [Code & Architecture Enforcement](note-20260624-technical-code-enforcement.md) for:
 - Import boundaries (`depguard`)
 - Pure-core invariants (no mutex, no I/O, no time)
 - Lint rules and length limits
@@ -65,7 +65,7 @@ The structural integrity of the project is enforced mechanically. Refer to [Code
 - **Treat file/function length limits as responsibility heuristics, not outcomes.** The default targets are 500 lines per file and 80 lines per function, but a cohesive responsibility may keep a documented path-based lint exception when forced splitting would make the code worse.
 - **Actively use libraries.** Do not implement from scratch what an existing dependency covers.
 - **Do not overwrite user config files** (`~/.agent-grid/`). Setup commands must be idempotent.
-- **Always write tests** for new features and bug fixes. Work is not complete without tests. Testability is the first core principle: refactor production code (interface extraction, env-var override, dependency injection) when needed to enable a test. Per-package coverage targets and the Tier scheme are in [testing](../note/note-20260624-agent-testing.md).
+- **Always write tests** for new features and bug fixes. Work is not complete without tests. Testability is the first core principle: refactor production code (interface extraction, env-var override, dependency injection) when needed to enable a test. Per-package coverage targets and the Tier scheme are in [testing](note-20260624-agent-testing.md).
 
 ## Conventions
 

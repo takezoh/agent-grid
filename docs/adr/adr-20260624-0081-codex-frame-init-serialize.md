@@ -31,7 +31,7 @@ Status: Accepted
 
 The stream backend fronts a per-session codex app-server (`stream:session:<sessionID>` — see `factory.go`) and multiplexes N frames over one WebSocket connection. `thread/started` notifications broadcast to every connected client indiscriminately (no per-client filtering exists in the v2 protocol), so the backend must decide which frame each unknown thread belongs to.
 
-Empirical constraints established while diagnosing the "Idle-stuck-badge" bug (2026-07-01, see [ADR-0001](../adr/adr-20260624-0001-multiplexed-backends-shared-routing-contract.md) Update — passive adopt):
+Empirical constraints established while diagnosing the "Idle-stuck-badge" bug (2026-07-01, see [ADR-0001](adr-20260624-0001-multiplexed-backends-shared-routing-contract.md) Update — passive adopt):
 
 1. **codex CLI owns thread creation.** `codex --remote` issues its own `thread/start` on its connection. There is no `--attach-thread <id>` flag or `CODEX_THREAD_ID` env var — the id is generated internally.
 2. **codex resume `<id>` --remote` requires a local rollout file with content.** Backend's own `thread/start` does NOT create such a file (empty rollout is created on first turn, not on `thread/start`). So the ADR-0001 workaround of "backend creates T1, CLI resumes T1" fails client-side with "No saved session found".
@@ -69,4 +69,4 @@ The **invariant**: at any moment, **at most one frame per Backend** has `binding
 - **BindFrame returns `Plan.Stream.ColdStartSessionID == ""` for fresh cold-start**. The driver fills it in later via the `SubsystemSessionReady` payload (see `codex_event.go:63-65`) once the CLI's thread/started arrives with a real sessionId. Downstream persistence (`codex_persist.go`) tolerates this async fill by design.
 - **Multi-frame concurrent init is limited to serial** — this ADR rejects per-frame app-server topology (higher resource cost) in exchange for keeping thread-lifecycle mechanics inside a single well-defined semaphore.
 
-Related: [ADR-0001](../adr/adr-20260624-0001-multiplexed-backends-shared-routing-contract.md) (Routing Isolation Invariant), [ADR-0002](../adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md) (fake fidelity backstop).
+Related: [ADR-0001](adr-20260624-0001-multiplexed-backends-shared-routing-contract.md) (Routing Isolation Invariant), [ADR-0002](adr-20260624-0002-optin-appserver-e2e-validates-fakes.md) (fake fidelity backstop).

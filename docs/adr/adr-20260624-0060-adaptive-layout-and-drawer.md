@@ -28,7 +28,7 @@ summary: '既存 App.tsx は grid-template-columns: 280px 1fr auto + auto-placem
 
 Status: Proposed
 
-Related: [spec](../specs/2026-06-25-web-ui-redesign/spec.md), [plan](../specs/2026-06-25-web-ui-redesign/plan.md), [ux](../specs/2026-06-25-web-ui-redesign/ux.md), extends [0029](../adr/adr-20260624-0029-terminal-host-flex-height.md)
+Related: [spec](../changes/change-20260625-2026-06-25-web-ui-redesign/requirements.md), [plan](../changes/change-20260625-2026-06-25-web-ui-redesign/implementation.md), [ux](../changes/change-20260625-2026-06-25-web-ui-redesign/ux.md), extends [0029](adr-20260624-0029-terminal-host-flex-height.md)
 Related requirements: FR-LAYOUT-001, FR-LAYOUT-002, FR-LAYOUT-003, FR-LAYOUT-004, FR-DRAWER-001, FR-DRAWER-002, FR-DRAWER-003, FR-DRAWER-004, FR-DRAWER-005, FR-DRAWER-006, FR-DRAWER-007, FR-TERMINAL-001, FR-TERMINAL-002, FR-RUNSTATE-001
 
 ## Context

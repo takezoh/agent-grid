@@ -29,10 +29,10 @@ summary: 'Supersedes: ADR-0033 Superseded by: ADR-0079 — Title slot に「AI t
 
 # ADR 0076 — セッションカードを Title + Subtitle の 2 slot 構造に変更し、Subtitle を user-prompt-only LLM 要約で埋め、表示幅は CSS でクランプする
 
-Status: Superseded by [ADR-0079](../adr/adr-20260624-0079-session-card-title-fallback-chain.md) (Title slot のフォールバックチェーン部分のみ)
+Status: Superseded by [ADR-0079](adr-20260624-0079-session-card-title-fallback-chain.md) (Title slot のフォールバックチェーン部分のみ)
 
-Supersedes: [ADR-0033](../adr/adr-20260624-0033-display-label-empty-policy.md)
-Superseded by: [ADR-0079](../adr/adr-20260624-0079-session-card-title-fallback-chain.md) — Title slot に「AI title → user-prompt summary → placeholder」のフォールバックチェーンを導入。本 ADR の Alternatives で却下した「Subtitle が空のときに Title slot に Subtitle を上げる」案は、`Title slot は AI 由来のみで埋まる場合がある` 運用結果を踏まえて部分的に採用された。2 slot 構造そのものと Subtitle の user-prompt-only ポリシーは ADR-0079 でも継続。
+Supersedes: [ADR-0033](adr-20260624-0033-display-label-empty-policy.md)
+Superseded by: [ADR-0079](adr-20260624-0079-session-card-title-fallback-chain.md) — Title slot に「AI title → user-prompt summary → placeholder」のフォールバックチェーンを導入。本 ADR の Alternatives で却下した「Subtitle が空のときに Title slot に Subtitle を上げる」案は、`Title slot は AI 由来のみで埋まる場合がある` 運用結果を踏まえて部分的に採用された。2 slot 構造そのものと Subtitle の user-prompt-only ポリシーは ADR-0079 でも継続。
 Related code: `src/client/web/src/components/SessionList.tsx`, `src/client/web/src/components/DriverViewPanel.tsx`, `src/client/web/src/css/session-list.css`, `src/client/web/src/css/view.css`, `src/client/driver/{codex_view.go,gemini_view.go,summary_prompt.go,summary_job.go,claude_event.go,codex_event.go,gemini_event.go}`
 
 ## Context

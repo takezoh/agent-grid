@@ -26,7 +26,7 @@ summary: src/client/web/src/components/TerminalPane.tsx は 単一 xterm イン�
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-24-web-ui-fixes/spec.md), [plan](../specs/2026-06-24-web-ui-fixes/plan.md)
+Related: [spec](../changes/change-20260624-2026-06-24-web-ui-fixes/requirements.md), [plan](../changes/change-20260624-2026-06-24-web-ui-fixes/implementation.md)
 Related requirements: FR-005
 
 ## Context

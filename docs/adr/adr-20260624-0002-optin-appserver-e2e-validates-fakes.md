@@ -29,7 +29,7 @@ Status: Accepted
 
 ## Context
 
-The routing-isolation contract ([ADR 0001](../adr/adr-20260624-0001-multiplexed-backends-shared-routing-contract.md))
+The routing-isolation contract ([ADR 0001](adr-20260624-0001-multiplexed-backends-shared-routing-contract.md))
 runs against an **in-process fake app-server** (the wired harness in
 `routing_wired_test.go`: the existing `bindServer` handler plus a
 `codexclient.Server` emitter). A fake is only as good as its fidelity: if it drifts from

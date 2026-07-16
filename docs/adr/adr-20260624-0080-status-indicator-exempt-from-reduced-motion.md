@@ -29,7 +29,7 @@ summary: 'ADR-0064 で view.css 末尾の @media (prefers-reduced-motion: reduce
 
 Status: Accepted
 
-Related: [ADR-0032](adr-20260624-0032-runstate-spinner-additive.md), [ADR-0064](../adr/adr-20260624-0064-reduced-motion-single-guard.md), ADR-0078 (legacy link target: `0078-per-status-status-icon.md`, not present in this repository)
+Related: [ADR-0032](adr-20260624-0032-runstate-spinner-additive.md), [ADR-0064](adr-20260624-0064-reduced-motion-single-guard.md), ADR-0078 (legacy link target: `0078-per-status-status-icon.md`, not present in this repository)
 Related requirements: FR-MOTION-001 (改定)
 
 ## Context

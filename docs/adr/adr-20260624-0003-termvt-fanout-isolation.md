@@ -38,7 +38,7 @@ server-side VT emulator and fans typed `Event`s out to N subscribers (browser
 tabs attached over WebSocket); a `Manager` holds many such sessions.
 
 This is the same *class* of component as the stream subsystem
-([ADR 0001](../adr/adr-20260624-0001-multiplexed-backends-shared-routing-contract.md)): a single
+([ADR 0001](adr-20260624-0001-multiplexed-backends-shared-routing-contract.md)): a single
 source multiplexed to many consumers. It has the same safety-critical failure
 mode — **cross-talk** — in two shapes:
 
@@ -70,7 +70,7 @@ Mechanics (all in `platform/termvt`):
   non-blocking send per subscriber, closing any whose buffer is full. A slow
   consumer is severed by construction; it cannot stall the loop or steal
   another subscriber's stream. (Originally this was "fanout holds the
-  single-writer lock"; [ADR 0028](../adr/adr-20260624-0028-termvt-session-actor-model.md) upgraded
+  single-writer lock"; [ADR 0028](adr-20260624-0028-termvt-session-actor-model.md) upgraded
   the discipline from a mutex to single-goroutine ownership when the
   mutex-based design deadlocked on undrained VT reply pipes — the contract is
   unchanged, the property is now structural.)

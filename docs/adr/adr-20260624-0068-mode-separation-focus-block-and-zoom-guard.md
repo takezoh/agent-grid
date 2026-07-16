@@ -34,9 +34,9 @@ summary: ux.md assumption §3 が『閲覧モードで tap がキーボードを
 
 Status: Accepted
 
-Related: [ADR 0067](../adr/adr-20260624-0067-mobile-gate-matchmedia.md), [ADR 0069](../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md), [ADR 0073](../adr/adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md), [ADR 0075](../adr/adr-20260624-0075-pattern-adoption-mode-affordances.md)
+Related: [ADR 0067](adr-20260624-0067-mobile-gate-matchmedia.md), [ADR 0069](adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md), [ADR 0073](adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md), [ADR 0075](adr-20260624-0075-pattern-adoption-mode-affordances.md)
 Related code: `src/client/web/src/hooks/useInputMode.ts` (new), `src/client/web/src/hooks/useHostPointerInterceptor.ts` (new), `src/client/web/src/css/app.css` (mobile gate scope), `src/client/web/src/components/TerminalPane.tsx`
-Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/spec.md) — `FR-MOB-MODE-001..007`, `FR-MOB-FAB-PD-001`
+Related spec: [Web Terminal Mobile UX spec.md](../changes/change-20260626-web-terminal-mobile-ux/requirements.md) — `FR-MOB-MODE-001..007`, `FR-MOB-FAB-PD-001`
 
 ## Context
 
@@ -61,7 +61,7 @@ Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/s
 
 (4) **iOS focus-zoom 抑止**: mobile gate scope の CSS で `.xterm-helper-textarea { font-size: 16px !important; }` を適用。inline style 上書き / MutationObserver 再注入は xterm 内部との race を生むため不採用。grid 描画は `.xterm-rows` 側で 8-28px clamp、helper textarea は表示に影響しないため 16px 固定で問題なし。
 
-(5) `AriaLiveStatus` への『閲覧モードに戻りました』emit は同一テキスト連続 1.5s デバウンスで抑止 (詳細は [ADR 0073](../adr/adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md))。
+(5) `AriaLiveStatus` への『閲覧モードに戻りました』emit は同一テキスト連続 1.5s デバウンスで抑止 (詳細は [ADR 0073](adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability.md))。
 
 ## Alternatives Considered
 
@@ -96,7 +96,7 @@ xterm の内部書き換えと無限 loop の余地 / cost が高い / CSS `!imp
 - iOS 17+ で helper textarea focus 時の viewport auto-zoom が CSS `!important` により browser native に抑止される
 - `readonly` はあくまで defense-in-depth で、focus-block が破綻しても無キーボードで degrade のみ
 - mobile gate scope の CSS で 16px `!important` を当てるため PC 環境では一切影響なし
-- long-press 選択 ([ADR 0071](../adr/adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection.md)) は capture-phase `preventDefault` の前段で dwell timer を起動するため、focus-block と排他的に設計可能
+- long-press 選択 ([ADR 0071](adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection.md)) は capture-phase `preventDefault` の前段で dwell timer を起動するため、focus-block と排他的に設計可能
 
 ## Related Requirements
 

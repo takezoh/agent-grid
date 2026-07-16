@@ -61,7 +61,7 @@ available for fast iteration but is not used in `make run-dev`.
 ## Consequences
 
 - The wire layer stays in raw TypeScript; no codegen between Go proto and TS
-  (see [ADR 0021](../adr/adr-20260624-0021-frontend-wire-types-hand-written.md)).
+  (see [ADR 0021](adr-20260624-0021-frontend-wire-types-hand-written.md)).
 - Bundle target: ~250 KB gzip including xterm.js. Single chunk keeps the CSP
   surface minimal.
 - `vite-plugin-react-swc` has fewer config knobs than the Babel-based

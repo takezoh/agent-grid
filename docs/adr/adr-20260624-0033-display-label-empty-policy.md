@@ -26,9 +26,9 @@ summary: Web UI のセッション一覧でセッションを ID ではなく、
 
 # ADR 0033 — セッションラベルのフォールバック空判定を undefined / 空文字の両方とし規約統一 (Web UI 問題6)
 
-Status: Superseded by [ADR-0076](../adr/adr-20260624-0076-session-card-title-subtitle-two-slot.md)
+Status: Superseded by [ADR-0076](adr-20260624-0076-session-card-title-subtitle-two-slot.md)
 
-Related: [spec](../specs/2026-06-24-web-ui-fixes/spec.md), [plan](../specs/2026-06-24-web-ui-fixes/plan.md)
+Related: [spec](../changes/change-20260624-2026-06-24-web-ui-fixes/requirements.md), [plan](../changes/change-20260624-2026-06-24-web-ui-fixes/implementation.md)
 Related requirements: FR-011, FR-012
 
 ## Context

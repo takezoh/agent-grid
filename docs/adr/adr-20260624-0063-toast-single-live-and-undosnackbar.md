@@ -28,7 +28,7 @@ summary: '既存 NotificationToast は各 item が個別 <output aria-live=''pol
 
 Status: Proposed
 
-Related: [spec](../specs/2026-06-25-web-ui-redesign/spec.md), [plan](../specs/2026-06-25-web-ui-redesign/plan.md), [ux](../specs/2026-06-25-web-ui-redesign/ux.md), extends [0057](../adr/adr-20260624-0057-palette-single-aria-live-slot.md)
+Related: [spec](../changes/change-20260625-2026-06-25-web-ui-redesign/requirements.md), [plan](../changes/change-20260625-2026-06-25-web-ui-redesign/implementation.md), [ux](../changes/change-20260625-2026-06-25-web-ui-redesign/ux.md), extends [0057](adr-20260624-0057-palette-single-aria-live-slot.md)
 Related requirements: FR-TOAST-001, FR-TOAST-002, FR-TOAST-003, FR-PALETTE-FAIL-001, FR-DRAWER-003, FR-DRAWER-004
 
 ## Context

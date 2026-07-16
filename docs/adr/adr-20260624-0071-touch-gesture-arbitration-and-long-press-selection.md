@@ -33,11 +33,11 @@ summary: UX Open Question 1 を plan-how で決着させる (POC 先送り禁止
 
 # ADR 0071 — touch gesture (swipe / long-press 選択 / pinch) を 1 hook の state machine で arbitration し long-press 選択は xterm 標準 `term.select()` API で実装する
 
-Status: Superseded by [ADR 0077](../adr/adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md) (pinch phase 撤去 / swipe phase を arrow key 連射にリバインド / long-press 選択は不変で継承)
+Status: Superseded by [ADR 0077](adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md) (pinch phase 撤去 / swipe phase を arrow key 連射にリバインド / long-press 選択は不変で継承)
 
-Related: [ADR 0034](adr-20260624-0034-refit-raf-coalesce-and-test-infra.md), [ADR 0064](../adr/adr-20260624-0064-reduced-motion-single-guard.md), [ADR 0066](../adr/adr-20260624-0066-terminal-scrollback-via-vt-buffer.md), [ADR 0069](../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md), [ADR 0070](../adr/adr-20260624-0070-fontsize-persist-clamp.md), [ADR 0077](../adr/adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md)
+Related: [ADR 0034](adr-20260624-0034-refit-raf-coalesce-and-test-infra.md), [ADR 0064](adr-20260624-0064-reduced-motion-single-guard.md), [ADR 0066](adr-20260624-0066-terminal-scrollback-via-vt-buffer.md), [ADR 0069](adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md), [ADR 0070](adr-20260624-0070-fontsize-persist-clamp.md), [ADR 0077](adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow.md)
 Related code: `src/client/web/src/hooks/useTerminalTouchGestures.ts` (new), `src/client/web/src/css/view.css` (mobile gate scope `.xterm-viewport { touch-action: pan-y }`), `src/client/web/src/components/TerminalPane.tsx`
-Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/spec.md) — `FR-MOB-SCROLL-001..003`, `FR-MOB-SELECT-001/002`, `FR-MOB-PINCH-001..004`
+Related spec: [Web Terminal Mobile UX spec.md](../changes/change-20260626-web-terminal-mobile-ux/requirements.md) — `FR-MOB-SCROLL-001..003`, `FR-MOB-SELECT-001/002`, `FR-MOB-PINCH-001..004`
 
 ## Context
 
@@ -107,4 +107,4 @@ xterm 内部 scroll / selection handler を破壊 / browser pan-y も死んで s
 - `FR-MOB-PINCH-001` — touches.length=2 比率追従 + clamp + scheduleFit
 - `FR-MOB-PINCH-002` — clamp 下限 8px 張り付け
 - `FR-MOB-PINCH-003` — 1→2 finger 遷移で swipe 中断 + 入力モード非遷移
-- `FR-MOB-PINCH-004` — PinchIndicator が Toast primitive 再利用 (詳細は [ADR 0069](../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md))
+- `FR-MOB-PINCH-004` — PinchIndicator が Toast primitive 再利用 (詳細は [ADR 0069](adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md))

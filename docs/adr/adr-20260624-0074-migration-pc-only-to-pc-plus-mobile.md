@@ -38,10 +38,10 @@ summary: ux.md legacy_context.source_implementation で『src/client/web/src/com
 
 Status: Accepted
 
-Related: [ADR 0029](../adr/adr-20260624-0029-terminal-host-flex-height.md), [ADR 0030](adr-20260624-0030-terminal-keyed-remount.md), [ADR 0034](adr-20260624-0034-refit-raf-coalesce-and-test-infra.md), [ADR 0059](adr-20260624-0059-design-token-and-theme-bridge.md), [ADR 0063](adr-20260624-0063-toast-single-live-and-undosnackbar.md), [ADR 0064](../adr/adr-20260624-0064-reduced-motion-single-guard.md), [ADR 0065](../adr/adr-20260624-0065-terminal-slot-absolute-overlay.md), [ADR 0066](../adr/adr-20260624-0066-terminal-scrollback-via-vt-buffer.md), [ADR 0067](../adr/adr-20260624-0067-mobile-gate-matchmedia.md)
+Related: [ADR 0029](adr-20260624-0029-terminal-host-flex-height.md), [ADR 0030](adr-20260624-0030-terminal-keyed-remount.md), [ADR 0034](adr-20260624-0034-refit-raf-coalesce-and-test-infra.md), [ADR 0059](adr-20260624-0059-design-token-and-theme-bridge.md), [ADR 0063](adr-20260624-0063-toast-single-live-and-undosnackbar.md), [ADR 0064](adr-20260624-0064-reduced-motion-single-guard.md), [ADR 0065](adr-20260624-0065-terminal-slot-absolute-overlay.md), [ADR 0066](adr-20260624-0066-terminal-scrollback-via-vt-buffer.md), [ADR 0067](adr-20260624-0067-mobile-gate-matchmedia.md)
 Related code: `src/client/web/src/components/TerminalPane.tsx`
-Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/spec.md) — `FR-PC-PRESERVE-001/002/003`, `FR-MOB-GATE-001/002`
-Related ux: [Web Terminal Mobile UX ux.md](../specs/web-terminal-mobile-ux/ux.md) (`legacy_context.source_implementation` / `replaced_behaviors` / `inherited_behaviors`)
+Related spec: [Web Terminal Mobile UX spec.md](../changes/change-20260626-web-terminal-mobile-ux/requirements.md) — `FR-PC-PRESERVE-001/002/003`, `FR-MOB-GATE-001/002`
+Related ux: [Web Terminal Mobile UX ux.md](../changes/change-20260626-web-terminal-mobile-ux/ux.md) (`legacy_context.source_implementation` / `replaced_behaviors` / `inherited_behaviors`)
 
 ## Context
 

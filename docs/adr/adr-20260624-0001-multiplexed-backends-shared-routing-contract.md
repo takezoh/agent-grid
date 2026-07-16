@@ -95,7 +95,7 @@ per-backend assertions.
 - The in-process fake is validated against a real app-server (the e2e uses
   distinct cwds: it confirms the fake routes like a real server, not that the
   cross-talk bug is absent), so a green contract against the fake is trustworthy
-  — see [ADR 0002](../adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md).
+  — see [ADR 0002](adr-20260624-0002-optin-appserver-e2e-validates-fakes.md).
 - The enforcement is **test-pinned** (not statically lint-able); it is catalogued
   in [code-enforcement.md](../note/note-20260624-technical-code-enforcement.md).
 

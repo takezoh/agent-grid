@@ -29,7 +29,7 @@ Status: Accepted
 
 ## Context
 
-[ADR 0018](../adr/adr-20260624-0018-defer-subscribe-race-to-beta.md) deferred subscribe race
+[ADR 0018](adr-20260624-0018-defer-subscribe-race-to-beta.md) deferred subscribe race
 handling to β. The α reducer returns `RespErr{Code:'frame-not-ready'}` when
 `Sessions[sid].ActiveFrame() == nil`. β must observe this and retry until
 the frame is ready (or until the user gives up).

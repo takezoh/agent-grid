@@ -36,7 +36,7 @@ summary: 'Web UI で terminal タブを開いた後に別デバイス (別ブラ
 
 Status: Accepted
 
-Related: [ADR 0010](../adr/adr-20260624-0010-surface-output-sequence-per-subscribe.md), [ADR 0011](adr-20260624-0011-two-step-ws-close-on-daemon-disconnect.md), [ADR 0013](../adr/adr-20260624-0013-attacher-interface-and-protofake.md), [ADR 0025](../adr/adr-20260624-0025-transcript-rest-backfill-then-ws-tail.md)
+Related: [ADR 0010](adr-20260624-0010-surface-output-sequence-per-subscribe.md), [ADR 0011](adr-20260624-0011-two-step-ws-close-on-daemon-disconnect.md), [ADR 0013](adr-20260624-0013-attacher-interface-and-protofake.md), [ADR 0025](adr-20260624-0025-transcript-rest-backfill-then-ws-tail.md)
 Related code: `src/platform/termvt/session.go`, `src/platform/termvt/session_actor.go`, `src/platform/termvt/session_deps.go`, `src/client/runtime/pty_backend.go`, `src/client/config/config.go`, `src/client/web/src/components/TerminalPane.tsx` (xterm.js scrollback cap raised to 10000 to match server default)
 
 ## Context

@@ -26,7 +26,7 @@ summary: commit 9287c7f は ParamDef.options を静的配列で宣言する設�
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-25-palette-bugfix/spec.md), [plan](../specs/2026-06-25-palette-bugfix/plan.md)
+Related: [spec](../changes/change-20260625-2026-06-25-palette-bugfix/requirements.md), [plan](../changes/change-20260625-2026-06-25-palette-bugfix/implementation.md)
 Related requirements: FR-A1, FR-A2, FR-A3, FR-A4, FR-Det, FR-IME
 
 ## Context

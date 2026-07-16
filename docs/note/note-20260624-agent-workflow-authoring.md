@@ -26,7 +26,7 @@ summary: 'WORKFLOW.md has two parts: a YAML front-matter block (configuration) a
 
 # WORKFLOW.md Authoring
 
-`WORKFLOW.md` has two parts: a YAML front-matter block (configuration) and a Markdown body (the **prompt template** handed to each dispatched agent). This page covers the body — how to write the prompt that drives the autonomous agent. The configuration fields are documented in the [orchestrator user guide](../note/note-20260624-user-orchestrator.md).
+`WORKFLOW.md` has two parts: a YAML front-matter block (configuration) and a Markdown body (the **prompt template** handed to each dispatched agent). This page covers the body — how to write the prompt that drives the autonomous agent. The configuration fields are documented in the [orchestrator user guide](note-20260624-user-orchestrator.md).
 
 This is the `orchestrator` layer seen from the perspective of someone *operating* the autonomous loop: you are programming agent behavior through a prompt, not through code.
 
@@ -48,7 +48,7 @@ Available variables include:
 | `{{ project.branch }}` | Base branch from the project's content front matter (empty = repository default) |
 | `{{ project.prompt }}` | Additional prompt body from the project's content (substituted verbatim) |
 
-`{{ project.* }}` is derived from the issue's Linear project content (front matter + body); see [orchestrator configuration](../note/note-20260624-user-orchestrator.md#per-project-configuration). `branch` is also passed to hooks as `AG_PROJECT_BRANCH`.
+`{{ project.* }}` is derived from the issue's Linear project content (front matter + body); see [orchestrator configuration](note-20260624-user-orchestrator.md#per-project-configuration). `branch` is also passed to hooks as `AG_PROJECT_BRANCH`.
 
 ## Invariants the prompt must enforce
 
@@ -93,5 +93,5 @@ query Comments($id: String!) { issue(id: $id) { comments { nodes { body createdA
 
 ## See also
 
-- [orchestrator user guide](../note/note-20260624-user-orchestrator.md) — running the pipeline and the front-matter config
+- [orchestrator user guide](note-20260624-user-orchestrator.md) — running the pipeline and the front-matter config
 - [orchestrator internals](../design/design-orchestrator.md) — how dispatch and reconcile turn the prompt into a running agent

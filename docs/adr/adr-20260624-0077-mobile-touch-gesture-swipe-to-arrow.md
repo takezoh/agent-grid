@@ -37,10 +37,10 @@ summary: 'Supersedes: ADR 0070, ADR 0071 Related: ADR 0034, ADR 0068, ADR 0069 R
 
 Status: Accepted
 
-Supersedes: [ADR 0070](../adr/adr-20260624-0070-fontsize-persist-clamp.md), [ADR 0071](../adr/adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection.md)
-Related: [ADR 0034](adr-20260624-0034-refit-raf-coalesce-and-test-infra.md), [ADR 0068](../adr/adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md), [ADR 0069](../adr/adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md)
+Supersedes: [ADR 0070](adr-20260624-0070-fontsize-persist-clamp.md), [ADR 0071](adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection.md)
+Related: [ADR 0034](adr-20260624-0034-refit-raf-coalesce-and-test-infra.md), [ADR 0068](adr-20260624-0068-mode-separation-focus-block-and-zoom-guard.md), [ADR 0069](adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift.md)
 Related code: `src/client/web/src/hooks/useTerminalTouchGestures.ts`, `src/client/web/src/components/TerminalMobileOverlay.tsx`, `src/client/web/src/components/TerminalPane.tsx`
-Related spec: [Web Terminal Mobile UX spec.md](../specs/web-terminal-mobile-ux/spec.md) — `FR-MOB-SWIPE-ARROW-001..003`, `FR-MOB-FONT-CLAMP-001`, `FR-MOB-PERSIST-001` (改稿)
+Related spec: [Web Terminal Mobile UX spec.md](../changes/change-20260626-web-terminal-mobile-ux/requirements.md) — `FR-MOB-SWIPE-ARROW-001..003`, `FR-MOB-FONT-CLAMP-001`, `FR-MOB-PERSIST-001` (改稿)
 
 ## Context
 

@@ -41,7 +41,7 @@ The runtime stack is two processes:
   this one origin. Future native clients connect to `server` directly.
 
 Wire-level detail and the full REST + WebSocket vocabulary live in
-[server gateway internals](../note/note-20260624-technical-web-gateway.md).
+[server gateway internals](note-20260624-technical-web-gateway.md).
 
 ## Build & run
 

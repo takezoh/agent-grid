@@ -26,7 +26,7 @@ summary: commit 9287c7f は CommandPalette UI に ScopeSegment.tsx を導入し�
 
 Status: Accepted
 
-Related: [ux](../specs/2026-06-25-web-palette-redesign/ux.md)
+Related: [ux](../changes/change-20260625-2026-06-25-web-palette-redesign/ux.md)
 Related requirements: F-002, F-007 (UAC-004〜UAC-005, UAC-015〜UAC-016)
 
 ## Context

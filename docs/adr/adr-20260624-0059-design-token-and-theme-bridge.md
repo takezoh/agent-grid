@@ -25,7 +25,7 @@ summary: 既存 web client は css/{app.css, view.css} の 2 ファイルで、:
 
 Status: Proposed
 
-Related: [spec](../specs/2026-06-25-web-ui-redesign/spec.md), [plan](../specs/2026-06-25-web-ui-redesign/plan.md), [ux](../specs/2026-06-25-web-ui-redesign/ux.md)
+Related: [spec](../changes/change-20260625-2026-06-25-web-ui-redesign/requirements.md), [plan](../changes/change-20260625-2026-06-25-web-ui-redesign/implementation.md), [ux](../changes/change-20260625-2026-06-25-web-ui-redesign/ux.md)
 Related requirements: FR-THEME-001, FR-THEME-002, FR-THEME-003, FR-THEME-004, FR-THEME-005, FR-THEME-006, FR-THEME-007, FR-TOKEN-001, FR-TOKEN-002, FR-FRAMEWORK-001
 
 ## Context

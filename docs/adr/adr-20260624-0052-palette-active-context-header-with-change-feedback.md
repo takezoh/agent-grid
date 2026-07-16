@@ -27,7 +27,7 @@ summary: commit 9287c7f の CommandPalette は active session の情報を palet
 
 Status: Accepted
 
-Related: [ux](../specs/2026-06-25-web-palette-redesign/ux.md)
+Related: [ux](../changes/change-20260625-2026-06-25-web-palette-redesign/ux.md)
 Related requirements: F-001, F-005, F-006, F-008 (UAC-001〜UAC-002, UAC-013〜UAC-018)
 
 ## Context

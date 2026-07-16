@@ -34,7 +34,7 @@ properties are non-negotiable:
 - The server process survives daemon restarts (the daemon may go down for
   maintenance without taking the web server with it).
 - Disconnects propagate cleanly to all attached WebSockets (see
-  [ADR 0011](../adr/adr-20260624-0011-two-step-ws-close-on-daemon-disconnect.md)).
+  [ADR 0011](adr-20260624-0011-two-step-ws-close-on-daemon-disconnect.md)).
 
 `proto.Client` itself is single-shot: it owns a single `net.Conn` plus a
 `closeOnce`. After disconnect, reconnection means creating a new client

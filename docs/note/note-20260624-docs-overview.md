@@ -49,32 +49,32 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the canonical definition of the
 
 | Audience \ Layer | platform | client (server) | orchestrator | Cross-cutting |
 |---|---|---|---|---|
-| **User** | [sandbox setup](../note/note-20260624-user-sandbox.md) | [web stack](../note/note-20260624-user-web-server.md) · [systemd service](../note/note-20260624-user-systemd.md) | [orchestrator](../note/note-20260624-user-orchestrator.md) | [getting started](../note/note-20260624-user-getting-started.md) · [Codex Remote Control](../note/note-20260715-user-codex-remote-control.md) |
-| **Agent** | — | — | [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md) | [contributing](../note/note-20260624-agent-contributing.md), [testing](../note/note-20260624-agent-testing.md) |
+| **User** | [sandbox setup](note-20260624-user-sandbox.md) | [web stack](note-20260624-user-web-server.md) · [systemd service](note-20260624-user-systemd.md) | [orchestrator](note-20260624-user-orchestrator.md) | [getting started](note-20260624-user-getting-started.md) · [Codex Remote Control](note-20260715-user-codex-remote-control.md) |
+| **Agent** | — | — | [WORKFLOW.md authoring](note-20260624-agent-workflow-authoring.md) | [contributing](note-20260624-agent-contributing.md), [testing](note-20260624-agent-testing.md) |
 | **Technical** | [platform/](../design/design-platform.md) | [client/](../design/design-client.md) | [orchestrator/](../design/design-orchestrator.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) |
 
 ## By audience
 
-### [User](../note/note-20260624-user-overview.md) — running the tools
+### [User](note-20260624-user-overview.md) — running the tools
 
 You want to launch agents, watch their status, and (optionally) run an unattended pipeline.
 
-- [Getting started](../note/note-20260624-user-getting-started.md) — requirements, install, first run, choosing a binary, agent setup
-- [web stack (ad-hoc launch)](../note/note-20260624-user-web-server.md) — running `server` (daemon + HTTP/WS gateway) + `web` for browser-driven session management
-- [run as a systemd service](../note/note-20260624-user-systemd.md) — production deployment of the three-process stack with token persistence
-- [Codex Remote Control](../note/note-20260715-user-codex-remote-control.md) — host-scoped daemon setup, mobile pairing lifecycle, and host/devcontainer session behavior
-- [orchestrator](../note/note-20260624-user-orchestrator.md) — running an unattended pipeline from a `WORKFLOW.md`, agent selection, observability HTTP
-- [sandbox setup](../note/note-20260624-user-sandbox.md) — per-project devcontainer isolation and credential proxy configuration
+- [Getting started](note-20260624-user-getting-started.md) — requirements, install, first run, choosing a binary, agent setup
+- [web stack (ad-hoc launch)](note-20260624-user-web-server.md) — running `server` (daemon + HTTP/WS gateway) + `web` for browser-driven session management
+- [run as a systemd service](note-20260624-user-systemd.md) — production deployment of the three-process stack with token persistence
+- [Codex Remote Control](note-20260715-user-codex-remote-control.md) — host-scoped daemon setup, mobile pairing lifecycle, and host/devcontainer session behavior
+- [orchestrator](note-20260624-user-orchestrator.md) — running an unattended pipeline from a `WORKFLOW.md`, agent selection, observability HTTP
+- [sandbox setup](note-20260624-user-sandbox.md) — per-project devcontainer isolation and credential proxy configuration
 
-### [Agent](../note/note-20260624-agent-overview.md) — doing work in the repo
+### [Agent](note-20260624-agent-overview.md) — doing work in the repo
 
 You are an AI agent or a contributor changing the code, or authoring the workflow that drives the autonomous agent.
 
-- [Contributing](../note/note-20260624-agent-contributing.md) — build/test/vet/lint, coding rules, library selection
-- [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md) — front matter, the prompt template, the issue state flow, the `linear_graphql` tool
-- [Testing](../note/note-20260624-agent-testing.md) — testability as a design constraint, Tier-based coverage targets
+- [Contributing](note-20260624-agent-contributing.md) — build/test/vet/lint, coding rules, library selection
+- [WORKFLOW.md authoring](note-20260624-agent-workflow-authoring.md) — front matter, the prompt template, the issue state flow, the `linear_graphql` tool
+- [Testing](note-20260624-agent-testing.md) — testability as a design constraint, Tier-based coverage targets
 
-### [Technical](../note/note-20260624-technical-overview.md) — internals by layer
+### [Technical](note-20260624-technical-overview.md) — internals by layer
 
 You need to understand how a layer is built.
 

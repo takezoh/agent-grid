@@ -55,10 +55,10 @@ make build-all                # all main binaries
 
 | If you want to… | Use | Guide |
 |---|---|---|
-| Launch and supervise agents interactively from a browser | `server` + `web` | [web stack](../note/note-20260624-user-web-server.md) |
-| Run the two-process stack as a system service | `server` + `web` | [systemd service](../note/note-20260624-user-systemd.md) |
-| Run an unattended pipeline against a tracker | `orchestrator` | [orchestrator](../note/note-20260624-user-orchestrator.md) |
-| Drive a Claude agent from the orchestrator (no Codex CLI) | `claude-app-server` | [orchestrator → agent selection](../note/note-20260624-user-orchestrator.md#agent-selection) |
+| Launch and supervise agents interactively from a browser | `server` + `web` | [web stack](note-20260624-user-web-server.md) |
+| Run the two-process stack as a system service | `server` + `web` | [systemd service](note-20260624-user-systemd.md) |
+| Run an unattended pipeline against a tracker | `orchestrator` | [orchestrator](note-20260624-user-orchestrator.md) |
+| Drive a Claude agent from the orchestrator (no Codex CLI) | `claude-app-server` | [orchestrator → agent selection](note-20260624-user-orchestrator.md#agent-selection) |
 
 The binaries correspond to the architecture layers — see the [architecture overview](../../ARCHITECTURE.md).
 
@@ -77,7 +77,7 @@ make run-dev
 The `server` binary runs **one process** that owns both the pty session
 daemon (Unix-socket IPC) and the HTTP/WS gateway (browser-facing REST/WS).
 Sessions are managed exclusively through that IPC; the gateway is just a
-protocol translator. See [web stack](../note/note-20260624-user-web-server.md) for the standalone path
+protocol translator. See [web stack](note-20260624-user-web-server.md) for the standalone path
 and the per-flag reference.
 
 ## Agent setup
@@ -93,7 +93,7 @@ If the registration ever needs to be inspected or rebuilt by hand, the canonical
 
 ## Next steps
 
-- Run the backend + browser UI together: [web stack](../note/note-20260624-user-web-server.md)
-- Deploy the two-process stack as a system service: [systemd service](../note/note-20260624-user-systemd.md)
-- Isolate each agent in a container: [sandbox setup](../note/note-20260624-user-sandbox.md)
-- Automate issue work end to end: [orchestrator](../note/note-20260624-user-orchestrator.md)
+- Run the backend + browser UI together: [web stack](note-20260624-user-web-server.md)
+- Deploy the two-process stack as a system service: [systemd service](note-20260624-user-systemd.md)
+- Isolate each agent in a container: [sandbox setup](note-20260624-user-sandbox.md)
+- Automate issue work end to end: [orchestrator](note-20260624-user-orchestrator.md)

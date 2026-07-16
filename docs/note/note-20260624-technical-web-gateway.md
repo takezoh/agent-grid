@@ -48,7 +48,7 @@ Related documents:
 
 - [ARCHITECTURE.md](../../ARCHITECTURE.md#server-gateway-server) — layer
   boundaries and import rules.
-- [docs/user/web-server.md](../note/note-20260624-user-web-server.md) — operator guide (startup
+- [docs/user/web-server.md](note-20260624-user-web-server.md) — operator guide (startup
   flags, TLS, token management).
 
 The gateway lives inside the `cmd/server` binary alongside the daemon

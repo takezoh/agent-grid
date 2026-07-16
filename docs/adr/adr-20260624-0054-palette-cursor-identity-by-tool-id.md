@@ -26,7 +26,7 @@ summary: 現状 palette store の paramCursor は toolSelect / paramSelect 双�
 
 Status: Accepted
 
-Related: [spec](../specs/2026-06-25-web-palette-redesign/spec.md), [plan](../specs/2026-06-25-web-palette-redesign/plan.md), [ux](../specs/2026-06-25-web-palette-redesign/ux.md)
+Related: [spec](../changes/change-20260625-2026-06-25-web-palette-redesign/requirements.md), [plan](../changes/change-20260625-2026-06-25-web-palette-redesign/implementation.md), [ux](../changes/change-20260625-2026-06-25-web-palette-redesign/ux.md)
 Related requirements: FR-004, FR-006, FR-007, FR-008, FR-011, FR-026, FR-030
 
 ## Context
