@@ -2,9 +2,9 @@
 id: adr-20260624-0066-terminal-scrollback-via-vt-buffer
 kind: adr
 title: ADR 0066 — Web UI terminal の履歴は server-side VT scrollback バッファで供給する
-status: accepted
+status: superseded
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-15'
 tags:
 - adr
 - legacy-import
@@ -20,6 +20,7 @@ relations:
 - {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
 - {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 - {type: referencedBy, target: spec-20260626-2026-06-26-terminal-scrollback}
+- {type: supersededBy, target: adr-20260715-terminal-semantic-history-reattach}
 source_paths:
 - src/platform/termvt/session.go
 - src/platform/termvt/session_actor.go
@@ -98,3 +99,8 @@ xvt が scrollback API を持たない世界線での実装案だったが、実
 ### `IsAltScreen()` を見て seed の frame 数を明示的に切り替える
 
 「alt-screen 中は scrollback frame を完全に dropping する」明示ロジックも検討した。だが `SerializeScrollback()` が空時 nil を返す方針で十分かつ、`subscribeCmd.run` 側は `len(sb) > 0` の単一条件で済む。`IsAltScreen` を直接見るのは依存を増やすだけで挙動は同じ。後者を採用。
+
+
+{% transition from="accepted" to="superseded" date="2026-07-15" %}
+Superseded by the accepted semantic-history reattach contract
+{% /transition %}

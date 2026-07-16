@@ -172,6 +172,7 @@ relations:
 - {type: referencedBy, target: adr-20260712-remove-framesize-dead-api}
 - {type: referencedBy, target: adr-20260712-respawn-default-size-fallback}
 - {type: referencedBy, target: adr-20260712-spawnframe-inline-size-pair}
+- {type: referencedBy, target: adr-20260715-geometry-bearing-terminal-attach}
 source_paths:
 - src/server/web/mux.go
 - src/server/web/gateway.go

@@ -13,6 +13,7 @@ relations:
 - {type: partOf, target: plan-20260711-terminal-subscription-recovery}
 - {type: references, target: spec-20260711-terminal-subscription-recovery}
 - {type: referencedBy, target: adr-20260711-server-initiated-severance-signal}
+- {type: referencedBy, target: adr-20260715-geometry-bearing-terminal-attach}
 source_paths:
 - src/client/web/src/socket/
 - src/client/web/src/components/TerminalPane.tsx
