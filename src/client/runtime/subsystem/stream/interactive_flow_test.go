@@ -147,6 +147,7 @@ func TestInteractiveFlow_PromptBroadcastReachesBackend(t *testing.T) {
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
+	waitForObserverSubscription(t, b, frameID, 3*time.Second)
 
 	// User submits a prompt.
 	cli.SendPrompt(t, "diagnose the app")
@@ -303,6 +304,7 @@ func TestInteractiveFlow_ThreadStatusChangedBroadcastReachesBackend(t *testing.T
 
 	cli := fake.SpawnCLI(t, "--remote", "unix://"+srv.SockPath(), "--cd", "/work")
 	_ = cli.Ready(t, 3*time.Second)
+	waitForObserverSubscription(t, b, frameID, 3*time.Second)
 	cli.SendPrompt(t, "trigger status change")
 
 	waitForEvent(t, rt, 3*time.Second, func(evs []state.EvSubsystem) bool {
@@ -313,6 +315,22 @@ func TestInteractiveFlow_ThreadStatusChangedBroadcastReachesBackend(t *testing.T
 		}
 		return false
 	}, "SubsystemTurnStarted from thread/status/changed")
+}
+
+func waitForObserverSubscription(t *testing.T, b *Backend, frameID state.FrameID, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		b.mu.Lock()
+		binding := b.frames[frameID]
+		subscribed := binding != nil && binding.observerSubscribed && binding.canonicalIdentityValidated
+		b.mu.Unlock()
+		if subscribed {
+			return
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatalf("observer subscription for frame %s did not complete", frameID)
 }
 
 func countFrameEvents(evs []state.EvSubsystem, frameID state.FrameID) int {

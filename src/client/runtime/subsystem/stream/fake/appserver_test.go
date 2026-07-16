@@ -167,6 +167,44 @@ func TestThreadStartedIsBroadcastToOtherClient(t *testing.T) {
 	}
 }
 
+func TestThreadStatusRequiresConnectionSubscription(t *testing.T) {
+	srv := startFake(t, Config{})
+	initiator, initiatorRec := dialClient(t, srv.SockPath())
+	observer, observerRec := dialClient(t, srv.SockPath())
+
+	sess, err := codexclient.StartThread(initiator, "/work", nil, codexclient.ThreadOptions{})
+	if err != nil {
+		t.Fatalf("StartThread: %v", err)
+	}
+	waitFor(t, time.Second, func() bool {
+		return len(observerRec.filter(codexschema.MethodThreadStarted)) == 1
+	}, "observer identity bootstrap")
+
+	if err := codexclient.StartTurn(initiator, sess.ThreadID, "/work", []byte("first"), codexclient.TurnOptions{}); err != nil {
+		t.Fatalf("StartTurn(first): %v", err)
+	}
+	waitFor(t, time.Second, func() bool {
+		return len(initiatorRec.filter(codexschema.MethodThreadStatusChanged)) == 2
+	}, "initiator status lifecycle")
+	if got := len(observerRec.filter(codexschema.MethodThreadStatusChanged)); got != 0 {
+		t.Fatalf("unsubscribed observer status count = %d, want 0", got)
+	}
+
+	resumed, err := codexclient.ResumeThread(observer, codexclient.ResumeOptions{ThreadID: sess.ThreadID})
+	if err != nil {
+		t.Fatalf("ResumeThread(observer): %v", err)
+	}
+	if resumed.ThreadID != sess.ThreadID {
+		t.Fatalf("ResumeThread(observer) id = %q, want %q", resumed.ThreadID, sess.ThreadID)
+	}
+	if err := codexclient.StartTurn(initiator, sess.ThreadID, "/work", []byte("second"), codexclient.TurnOptions{}); err != nil {
+		t.Fatalf("StartTurn(second): %v", err)
+	}
+	waitFor(t, time.Second, func() bool {
+		return len(observerRec.filter(codexschema.MethodThreadStatusChanged)) == 2
+	}, "subscribed observer status lifecycle")
+}
+
 func TestTurnStartDrivesDefaultLifecycleBroadcast(t *testing.T) {
 	srv := startFake(t, Config{})
 	conn, rec := dialClient(t, srv.SockPath())
@@ -238,11 +276,14 @@ func TestTurnStartDrivesDefaultLifecycleBroadcast(t *testing.T) {
 func TestTurnStartScopesTurnNotificationsToInitiator(t *testing.T) {
 	srv := startFake(t, Config{})
 	initiator, initRec := dialClient(t, srv.SockPath())
-	_, observerRec := dialClient(t, srv.SockPath())
+	observer, observerRec := dialClient(t, srv.SockPath())
 
 	sess, err := codexclient.StartThread(initiator, "/work", nil, codexclient.ThreadOptions{})
 	if err != nil {
 		t.Fatalf("StartThread: %v", err)
+	}
+	if _, err := codexclient.ResumeThread(observer, codexclient.ResumeOptions{ThreadID: sess.ThreadID}); err != nil {
+		t.Fatalf("ResumeThread(observer): %v", err)
 	}
 	if err := codexclient.StartTurn(initiator, sess.ThreadID, "/work", []byte("hello"), codexclient.TurnOptions{}); err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -299,11 +340,14 @@ func TestCustomTurnHandlerCannotLeakTurnNotificationsToObserver(t *testing.T) {
 		},
 	})
 	initiator, initRec := dialClient(t, srv.SockPath())
-	_, observerRec := dialClient(t, srv.SockPath())
+	observer, observerRec := dialClient(t, srv.SockPath())
 
 	sess, err := codexclient.StartThread(initiator, "/work", nil, codexclient.ThreadOptions{})
 	if err != nil {
 		t.Fatalf("StartThread: %v", err)
+	}
+	if _, err := codexclient.ResumeThread(observer, codexclient.ResumeOptions{ThreadID: sess.ThreadID}); err != nil {
+		t.Fatalf("ResumeThread(observer): %v", err)
 	}
 	if err := codexclient.StartTurn(initiator, sess.ThreadID, "/work", []byte("hello"), codexclient.TurnOptions{}); err != nil {
 		t.Fatalf("StartTurn: %v", err)

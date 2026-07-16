@@ -64,38 +64,41 @@ type RuntimeHook interface {
 //
 // Thread ownership: the codex CLI (`codex --remote` or `codex resume <id>
 // --remote`) always creates or resumes threads on its own connection. The
-// Backend is a passive router — it never calls `thread/start` itself. Fresh
-// interactive frames are adopted when `thread/started` arrives on the
-// broadcast channel; the initState reservation keeps at most one adopt candidate
-// pending at a time so the incoming thread has an unambiguous owner. See
-// docs/adr/0081-codex-frame-init-serialize.md.
+// Backend never calls `thread/start`: the interactive CLI owns creation. Fresh
+// frames discover identity from `thread/started`; fresh and recovered frames
+// then call `thread/resume` on this Backend's connection because Codex thread
+// subscriptions are connection-scoped. The initState reservation keeps at most
+// one fresh adopt candidate pending. See ADR-0081 and the observer-subscription ADR.
 type Backend struct {
-	runtime      RuntimeHook
-	dispatcher   agentlaunch.Dispatcher
-	subsystemID  state.SubsystemID
-	sessionID    state.SessionID
-	project      string
-	serverBin    string
-	serverArgs   []string
-	helperBin    string
-	isContainer  bool
-	sandboxed    bool
-	autoApprove  bool
-	readTimeout  time.Duration
-	ctx          context.Context    // subsystem-scoped; child of the daemon ctx
-	cancel       context.CancelFunc // cancels ctx → reaps read loop + process group
-	done         chan struct{}      // closed when waitProcess returns (process reaped)
-	tracker      *procgroup.Tracker // records pgids for crash-path reaping; may be nil
-	spawnRes     agentlaunch.SpawnResult
-	spawnCleanup func(context.Context) error
-	spawnCleaned sync.Once
-	conn         *codexclient.Conn
-	listenSock   string // UDS path the app-server binds (container-absolute under a devcontainer)
-	dialSock     string // host-side UDS path the daemon dials; resolved from listenSock + bind mounts in spawnServer
-	mounts       pathmap.Mounts
-	mu           sync.Mutex
-	frames       map[state.FrameID]*frameBinding
-	threads      map[string]state.FrameID
+	runtime             RuntimeHook
+	dispatcher          agentlaunch.Dispatcher
+	subsystemID         state.SubsystemID
+	sessionID           state.SessionID
+	project             string
+	serverBin           string
+	serverArgs          []string
+	helperBin           string
+	isContainer         bool
+	sandboxed           bool
+	autoApprove         bool
+	readTimeout         time.Duration
+	ctx                 context.Context    // subsystem-scoped; child of the daemon ctx
+	cancel              context.CancelFunc // cancels ctx → reaps read loop + process group
+	done                chan struct{}      // closed when waitProcess returns (process reaped)
+	tracker             *procgroup.Tracker // records pgids for crash-path reaping; may be nil
+	spawnRes            agentlaunch.SpawnResult
+	spawnCleanup        func(context.Context) error
+	spawnCleaned        sync.Once
+	conn                *codexclient.Conn
+	resumeObserver      func(codexclient.ResumeOptions) (codexclient.ThreadSession, error)
+	unsubscribeObserver func(string) (codexclient.ThreadUnsubscribeStatus, error)
+	listenSock          string // UDS path the app-server binds (container-absolute under a devcontainer)
+	dialSock            string // host-side UDS path the daemon dials; resolved from listenSock + bind mounts in spawnServer
+	mounts              pathmap.Mounts
+	mu                  sync.Mutex
+	frames              map[state.FrameID]*frameBinding
+	threads             map[string]state.FrameID
+	nextGeneration      uint64
 	// initState serializes fresh (non-resume) frame init. Holds a single
 	// pending slot at a time (see initsem.go). Replaces the earlier
 	// chan pendingSlot design whose drain-check-put-back non-atomicity was
@@ -104,26 +107,32 @@ type Backend struct {
 }
 
 type frameBinding struct {
-	frameID         state.FrameID
-	startDir        string
-	worktreePath    string // non-empty when a managed worktree was adopted or created
-	threadID        string
-	sessionID       string
-	rolloutPath     string
-	requestedID     string
-	observedID      string
-	resumePhase     string
-	threadStatus    string
-	waitApproval    bool
-	activeTurnID    string
-	turnAssistant   string
-	lastAssistant   string
-	model           string
-	modelSet        bool
-	effort          string
-	effortSet       bool
-	history         []state.SubsystemTurn
-	failureReported bool
+	generation                 uint64
+	frameID                    state.FrameID
+	startDir                   string
+	worktreePath               string // non-empty when a managed worktree was adopted or created
+	threadID                   string
+	sessionID                  string
+	rolloutPath                string
+	requestedID                string
+	observedID                 string
+	resumePhase                string
+	threadStatus               string
+	waitApproval               bool
+	activeTurnID               string
+	turnAssistant              string
+	lastAssistant              string
+	model                      string
+	modelSet                   bool
+	effort                     string
+	effortSet                  bool
+	history                    []state.SubsystemTurn
+	failureReported            bool
+	runtimeActivated           bool
+	observerSubscribeStarted   bool
+	observerSubscribed         bool
+	canonicalIdentityValidated bool
+	readyCommitted             bool
 }
 
 // New constructs a Backend. Call Start before calling BindFrame.
@@ -221,14 +230,11 @@ func (b *Backend) Start(ctx context.Context) error {
 }
 
 // BindFrame implements subsystem.Subsystem. It resolves the frame's worktree,
-// registers a per-frame binding, and rewrites Plan.Argv to the CLI attach
-// argv (legacy Plan.Command is cleared). The Backend never invokes `thread/start` or `thread/resume`
-// itself — the codex CLI owns the thread lifecycle. For cold-start recovery
-// (persisted ThreadID present), Backend records the id up front so the
-// broadcast thread/started routes straight to this frame. For fresh
-// interactive sessions, Backend acquires the initState slot with an empty
-// thread id, and handleThreadStarted adopts the CLI-created thread when it
-// arrives (see docs/adr/0081-codex-frame-init-serialize.md).
+// registers a per-frame binding, establishes the Backend connection's observer
+// subscription, and rewrites Plan.Argv to the CLI attach argv (legacy
+// Plan.Command is cleared). Recovery resumes the persisted identity immediately.
+// Fresh sessions reserve an initState slot, adopt the CLI-created identity from
+// thread/started, then resume it outside the notification read loop.
 func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (subsystem.BindResult, error) {
 	result := subsystem.BindResult{Plan: req.Plan}
 	startDir := req.Plan.StartDir
@@ -283,6 +289,11 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 			return subsystem.BindResult{}, err
 		}
 		b.applyBindingSettings(req.FrameID, initialModel, initialEffort)
+		if err := b.subscribeObserver(req.FrameID); err != nil {
+			b.ReleaseFrame(req.FrameID)
+			createdWorktree = ""
+			return subsystem.BindResult{}, err
+		}
 	} else {
 		// Fresh path: acquire the init slot, register a pending binding
 		// (threadID == ""), let the CLI create its own thread. handleThreadStarted
@@ -332,7 +343,9 @@ func (b *Backend) registerBoundFrame(frameID state.FrameID, startDir, worktreePa
 		return fmt.Errorf("stream backend: thread %q already bound to frame %q; refusing to rebind to %q",
 			threadID, existing, frameID)
 	}
+	b.nextGeneration++
 	b.frames[frameID] = &frameBinding{
+		generation:   b.nextGeneration,
 		frameID:      frameID,
 		startDir:     startDir,
 		worktreePath: worktreePath,
@@ -353,7 +366,9 @@ func (b *Backend) registerBoundFrame(frameID state.FrameID, startDir, worktreePa
 func (b *Backend) registerPendingFrame(frameID state.FrameID, startDir, worktreePath, model, effort string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.nextGeneration++
 	b.frames[frameID] = &frameBinding{
+		generation:   b.nextGeneration,
 		frameID:      frameID,
 		startDir:     startDir,
 		worktreePath: worktreePath,
@@ -417,8 +432,12 @@ func (b *Backend) ReleaseFrame(frameID state.FrameID) {
 	binding := b.frames[frameID]
 	wasPending := binding != nil && binding.threadID == ""
 	worktreePath := ""
+	threadID := ""
+	observerSubscribed := false
 	if binding != nil {
 		worktreePath = binding.worktreePath
+		threadID = binding.threadID
+		observerSubscribed = binding.observerSubscribed
 	}
 	delete(b.frames, frameID)
 	if binding != nil && binding.threadID != "" {
@@ -434,6 +453,11 @@ func (b *Backend) ReleaseFrame(frameID state.FrameID) {
 		}
 	}
 	b.mu.Unlock()
+	if observerSubscribed && threadID != "" {
+		go func() {
+			b.bestEffortUnsubscribe(frameID, threadID)
+		}()
+	}
 	if wasPending {
 		b.releaseOwnSlot(frameID)
 	}

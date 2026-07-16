@@ -2,6 +2,7 @@ package codexclient
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
@@ -42,6 +43,16 @@ type ThreadSession struct {
 	RolloutPath string
 	Raw         json.RawMessage
 }
+
+// ThreadUnsubscribeStatus is the server's disposition for a
+// thread/unsubscribe request.
+type ThreadUnsubscribeStatus string
+
+const (
+	ThreadUnsubscribeNotSubscribed ThreadUnsubscribeStatus = "notSubscribed"
+	ThreadUnsubscribeNotLoaded     ThreadUnsubscribeStatus = "notLoaded"
+	ThreadUnsubscribed             ThreadUnsubscribeStatus = "unsubscribed"
+)
 
 // TurnOptions holds optional per-turn parameters for turn/start (SPEC §10.2).
 // Empty string fields are omitted from the wire params.
@@ -95,6 +106,27 @@ func ResumeThread(c *Conn, opts ResumeOptions) (ThreadSession, error) {
 		return ThreadSession{}, err
 	}
 	return decodeThreadSession(res)
+}
+
+// UnsubscribeThread removes the calling connection's subscription to a
+// thread. Subscriptions are connection-scoped in the Codex app-server.
+func UnsubscribeThread(c *Conn, threadID string) (ThreadUnsubscribeStatus, error) {
+	res, err := c.Request(codexschema.MethodThreadUnsubscribe, map[string]any{"threadId": threadID})
+	if err != nil {
+		return "", err
+	}
+	var payload struct {
+		Status ThreadUnsubscribeStatus `json:"status"`
+	}
+	if err := json.Unmarshal(res, &payload); err != nil {
+		return "", err
+	}
+	switch payload.Status {
+	case ThreadUnsubscribeNotSubscribed, ThreadUnsubscribeNotLoaded, ThreadUnsubscribed:
+		return payload.Status, nil
+	default:
+		return "", fmt.Errorf("codexclient: unknown thread/unsubscribe status %q", payload.Status)
+	}
 }
 
 // StartTurn sends a `turn/start` request to begin a new turn.

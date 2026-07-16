@@ -8,8 +8,8 @@ package stream
 // same-cwd frames structurally impossible.
 //
 // Uses fake.AppServer (the same fake used by interactive_flow_test.go) so
-// the wire behaviour under test — broadcast of every notification to every
-// connected client — is identical to production.
+// the wire behaviour under test includes production's connection-scoped
+// thread subscription contract.
 
 import (
 	"context"
@@ -29,6 +29,7 @@ type wired struct {
 	b   *Backend
 	rt  *recordingRuntime
 	srv *fake.AppServer
+	cli *codexclient.Conn
 }
 
 func newWired(t *testing.T) *wired {
@@ -52,7 +53,18 @@ func newWired(t *testing.T) *wired {
 	if err := codexclient.Initialize(b.conn); err != nil {
 		t.Fatalf("backend initialize: %v", err)
 	}
-	return &wired{t: t, b: b, rt: rt, srv: srv}
+	cliTransport, err := codexclient.DialUDS(srv.SockPath(), 3*time.Second)
+	if err != nil {
+		t.Fatalf("dial cli: %v", err)
+	}
+	cli := codexclient.NewConn(cliTransport, time.Second)
+	cliCtx, cliCancel := context.WithCancel(context.Background())
+	t.Cleanup(cliCancel)
+	go cli.Run(cliCtx, discardCodexHandler{}) //nolint:errcheck
+	if err := codexclient.Initialize(cli); err != nil {
+		t.Fatalf("cli initialize: %v", err)
+	}
+	return &wired{t: t, b: b, rt: rt, srv: srv, cli: cli}
 }
 
 // bindCold runs a fresh cold-start BindFrame and then simulates the CLI
@@ -71,12 +83,11 @@ func (w *wired) bindCold(frame state.FrameID, dir string) string {
 	}); err != nil {
 		w.t.Fatalf("BindFrame(%s): %v", frame, err)
 	}
-	threadID := "wired-thread-" + string(frame)
-	if err := w.srv.Broadcast(codexschema.MethodThreadStarted, map[string]any{
-		"thread": map[string]any{"id": threadID, "cwd": dir},
-	}); err != nil {
-		w.t.Fatalf("mint thread/started: %v", err)
+	session, err := codexclient.StartThread(w.cli, dir, nil, codexclient.ThreadOptions{})
+	if err != nil {
+		w.t.Fatalf("mint thread/start: %v", err)
 	}
+	threadID := session.ThreadID
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		w.b.mu.Lock()
@@ -87,6 +98,9 @@ func (w *wired) bindCold(frame state.FrameID, dir string) string {
 		}
 		w.b.mu.Unlock()
 		if observedThreadID != "" {
+			if observedThreadID != threadID {
+				w.t.Fatalf("BindFrame(%s) adopted %q, want %q", frame, observedThreadID, threadID)
+			}
 			return observedThreadID
 		}
 		time.Sleep(2 * time.Millisecond)

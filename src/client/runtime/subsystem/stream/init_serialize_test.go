@@ -286,10 +286,10 @@ func TestBindFrame_FreshAdoptRegistersReverseRouteForLiveMetadata(t *testing.T) 
 	if owner != "F-live" {
 		t.Fatalf("b.threads[live-T] = %q, want F-live", owner)
 	}
-	if len(rt.events) != 2 {
-		t.Fatalf("events = %d, want session_ready + metadata", len(rt.events))
+	if len(rt.events) != 1 {
+		t.Fatalf("events = %d, want metadata before runtime activation", len(rt.events))
 	}
-	meta := rt.events[1].(state.EvSubsystem)
+	meta := rt.events[0].(state.EvSubsystem)
 	if meta.FrameID != "F-live" || meta.Kind != state.SubsystemMetadataUpdated || meta.Payload.Preview != "live prompt" {
 		t.Fatalf("metadata event = %+v", meta)
 	}
@@ -305,10 +305,10 @@ func TestBindFrame_ColdStartRecoveryRoutesThreadStartedMetadata(t *testing.T) {
 
 	b.handleThreadStarted(json.RawMessage(`{"thread":{"id":"cold-T","cwd":"/work","preview":"cold prompt"}}`))
 
-	if len(rt.events) != 2 {
-		t.Fatalf("events = %d, want session_ready + metadata", len(rt.events))
+	if len(rt.events) != 1 {
+		t.Fatalf("events = %d, want metadata before runtime activation", len(rt.events))
 	}
-	meta := rt.events[1].(state.EvSubsystem)
+	meta := rt.events[0].(state.EvSubsystem)
 	if meta.FrameID != "F-cold" || meta.Kind != state.SubsystemMetadataUpdated || meta.Payload.Preview != "cold prompt" {
 		t.Fatalf("metadata event = %+v", meta)
 	}

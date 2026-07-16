@@ -7,10 +7,11 @@ package codexschema
 
 // Client → server requests (expect a response).
 const (
-	MethodInitialize   = "initialize"
-	MethodThreadStart  = "thread/start"
-	MethodThreadResume = "thread/resume"
-	MethodTurnStart    = "turn/start"
+	MethodInitialize        = "initialize"
+	MethodThreadStart       = "thread/start"
+	MethodThreadResume      = "thread/resume"
+	MethodThreadUnsubscribe = "thread/unsubscribe"
+	MethodTurnStart         = "turn/start"
 )
 
 // Client → server notifications (no response expected).

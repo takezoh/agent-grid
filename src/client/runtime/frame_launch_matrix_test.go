@@ -166,8 +166,9 @@ func (s *recSubsystem) BindFrame(_ context.Context, req rsubsystem.BindRequest) 
 	s.rec.add("subsystem.BindFrame")
 	return rsubsystem.BindResult{Plan: req.Plan}, nil
 }
-func (s *recSubsystem) ReleaseFrame(state.FrameID) {}
-func (s *recSubsystem) Stop(context.Context)       {}
+func (s *recSubsystem) ActivateFrame(state.FrameID) { s.rec.add("subsystem.ActivateFrame") }
+func (s *recSubsystem) ReleaseFrame(state.FrameID)  {}
+func (s *recSubsystem) Stop(context.Context)        {}
 
 type recSubsysFactory struct {
 	kind  state.LaunchSubsystem
@@ -466,6 +467,7 @@ func TestFrameLaunch_ColdStart_CommandOrder(t *testing.T) {
 		"mgr.AcquireFrame",
 		"mgr.BuildLaunchCommand",
 		"backend.SpawnFrame",
+		"subsystem.ActivateFrame",
 	}
 	got := h.rec.snapshot()
 	if len(got) != len(want) {

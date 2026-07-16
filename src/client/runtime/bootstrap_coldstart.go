@@ -184,6 +184,7 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 	if wrapResult.token != "" && wrapped.ContainerSockDir != "" {
 		r.registerContainerFrame(frame.ID, frame.Project, wrapped.ContainerSockDir, wrapResult.token, wrapped.Mounts)
 	}
+	sub.ActivateFrame(frame.ID)
 	return nil
 }
 

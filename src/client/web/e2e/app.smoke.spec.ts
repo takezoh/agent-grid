@@ -50,9 +50,13 @@ test("renders live sessions and completes a new-session submission against the f
   await expect
     .poll(async () => {
       const frames = await backend.sentFrames();
-      return frames.filter((frame) => frame.k === "s").map((frame) => frame.sessionId);
+      return frames.filter((frame) => frame.k === "s").at(-1);
     })
-    .toContain("session-1");
+    .toMatchObject({
+      sessionId: "session-1",
+      cols: expect.any(Number),
+      rows: expect.any(Number),
+    });
 
   await page.getByRole("button", { name: "Open command menu" }).click();
   await expect(page.getByRole("dialog", { name: "Command Palette" })).toBeVisible();
@@ -105,7 +109,53 @@ test("renders live sessions and completes a new-session submission against the f
   await expect
     .poll(async () => {
       const frames = await backend.sentFrames();
-      return frames.filter((frame) => frame.k === "s").map((frame) => frame.sessionId);
+      return frames.filter((frame) => frame.k === "s").at(-1);
     })
-    .toContain("session-new");
+    .toMatchObject({
+      sessionId: "session-new",
+      cols: expect.any(Number),
+      rows: expect.any(Number),
+    });
+});
+
+test("renders resumed Codex status updates from running to waiting", async ({ page }) => {
+  const resumed = makeSessionInfo({
+    id: "codex-resumed",
+    project: "/repo/app",
+    command: "codex",
+    title: "Resumed Codex",
+    status: "idle",
+  });
+  const backend = await installFakeBackend(page, {
+    sessions: [resumed],
+    sessionConfig: {
+      project_roots: ["/repo/app"],
+      project_paths: ["/repo/app"],
+      projects: [{ path: "/repo/app", isGit: true, isSandboxed: false }],
+      commands: ["codex"],
+      push_commands: [],
+    },
+  });
+
+  await page.goto("/#token=test");
+  await backend.waitForSocketOpen();
+  await backend.emit({
+    k: "h",
+    sessions: [resumed],
+    activeSessionID: resumed.id,
+    features: ["surface"],
+    serverTime: 1_720_000_000_000,
+  });
+
+  await backend.emit({
+    k: "v",
+    sessions: [{ ...resumed, view: { ...resumed.view, status: "running" } }],
+  });
+  await expect(page.locator('.run-state-badge[aria-label="status: running"]')).toBeVisible();
+
+  await backend.emit({
+    k: "v",
+    sessions: [{ ...resumed, view: { ...resumed.view, status: "waiting" } }],
+  });
+  await expect(page.locator('.run-state-badge[aria-label="status: waiting"]')).toBeVisible();
 });

@@ -140,7 +140,18 @@ func TestStreamRoutingFakeBackstop(t *testing.T) {
 		if err := codexclient.Initialize(b.conn); err != nil {
 			t.Fatalf("initialize: %v", err)
 		}
-		return b, rt, &fakeEmitter{srv: srv}
+		cliTransport, err := codexclient.DialUDS(srv.SockPath(), 3*time.Second)
+		if err != nil {
+			t.Fatalf("dial cli: %v", err)
+		}
+		cli := codexclient.NewConn(cliTransport, time.Second)
+		cliCtx, cliCancel := context.WithCancel(context.Background())
+		t.Cleanup(cliCancel)
+		go cli.Run(cliCtx, discardCodexHandler{}) //nolint:errcheck
+		if err := codexclient.Initialize(cli); err != nil {
+			t.Fatalf("initialize cli: %v", err)
+		}
+		return b, rt, &fakeEmitter{srv: srv, cli: cli}
 	})
 }
 
@@ -148,20 +159,15 @@ func TestStreamRoutingFakeBackstop(t *testing.T) {
 // backstopEmitter interface.
 type fakeEmitter struct {
 	srv *fake.AppServer
+	cli *codexclient.Conn
 }
 
 func (e *fakeEmitter) mintThread(cwd string) string {
-	// Trigger a thread/started broadcast for a fresh id. There is no public
-	// helper on fake.AppServer for this, so we synthesize an id and use
-	// Broadcast directly — that is what the real server does when a CLI
-	// completes thread/start.
-	id := "fake-thread-mint-" + fakeMintCounter()
-	if err := e.srv.Broadcast(codexschema.MethodThreadStarted, map[string]any{
-		"thread": map[string]any{"id": id, "sessionId": id, "cwd": cwd},
-	}); err != nil {
+	session, err := codexclient.StartThread(e.cli, cwd, nil, codexclient.ThreadOptions{})
+	if err != nil {
 		panic(err)
 	}
-	return id
+	return session.ThreadID
 }
 
 func (e *fakeEmitter) emitMarker(threadID, marker string) {
@@ -176,11 +182,8 @@ func (e *fakeEmitter) emitMarker(threadID, marker string) {
 // fakeMintCounter yields monotonic ids for the local scenario runs; ids need
 // only be unique within one test, so a package-scoped counter is enough.
 // Kept out of fake/ so it stays a test-only helper.
-var mintSeq int
 
-func fakeMintCounter() string {
-	mintSeq++
-	// json import kept for future use (payload assertions).
-	_ = json.RawMessage(nil)
-	return string(rune('a' - 1 + mintSeq)) // 'a', 'b', 'c' … enough for isolation tests
-}
+type discardCodexHandler struct{}
+
+func (discardCodexHandler) OnNotification(string, json.RawMessage)                         {}
+func (discardCodexHandler) OnServerRequest(codexclient.RequestID, string, json.RawMessage) {}

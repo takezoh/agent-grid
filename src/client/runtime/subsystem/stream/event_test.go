@@ -5,32 +5,41 @@ import (
 	"testing"
 
 	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
 )
 
 func newTestBackend() (*Backend, *fakeRuntime) {
 	fr := &fakeRuntime{}
 	b := New(fr, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, "/sock", 0)
+	b.resumeObserver = func(opts codexclient.ResumeOptions) (codexclient.ThreadSession, error) {
+		return codexclient.ThreadSession{ThreadID: opts.ThreadID, SessionID: opts.ThreadID, RolloutPath: opts.RolloutPath}, nil
+	}
 	return b, fr
 }
 
-func TestHandleThreadStarted(t *testing.T) {
-	// Threads are bound at creation (bindThread); thread.started only confirms.
+func TestActivateFrameCommitsReadyAfterObserverSubscription(t *testing.T) {
 	b, fr := newTestBackend()
 	b.mu.Lock()
-	b.frames["f1"] = &frameBinding{frameID: "f1", startDir: "/work", threadID: "t1"}
+	b.frames["f1"] = &frameBinding{
+		frameID:                    "f1",
+		startDir:                   "/work",
+		threadID:                   "t1",
+		resumePhase:                resumePhaseAttached,
+		observerSubscribeStarted:   true,
+		observerSubscribed:         true,
+		canonicalIdentityValidated: true,
+	}
 	b.threads["t1"] = "f1"
 	b.mu.Unlock()
 
-	b.handleThreadStarted(json.RawMessage(`{"thread":{"id":"t1","cwd":"/work"}}`))
+	b.ActivateFrame("f1")
+	b.ActivateFrame("f1")
 
-	b.mu.Lock()
-	bound := b.frames["f1"]
-	b.mu.Unlock()
-	if bound.resumePhase != resumePhaseAttached {
-		t.Errorf("binding not confirmed attached: %+v", bound)
+	if len(fr.events) != 1 {
+		t.Fatalf("ready events = %d, want exactly 1", len(fr.events))
 	}
-	if len(fr.events) == 0 {
-		t.Errorf("expected emitted SessionReady event")
+	if got := fr.events[0].(state.EvSubsystem).Kind; got != state.SubsystemSessionReady {
+		t.Fatalf("Kind = %q, want %q", got, state.SubsystemSessionReady)
 	}
 }
 
@@ -42,10 +51,10 @@ func TestHandleThreadStartedEmitsMetadata(t *testing.T) {
 	b.mu.Unlock()
 
 	b.handleThreadStarted(json.RawMessage(`{"thread":{"id":"t1","name":" saved-session ","preview":" preview text "}}`))
-	if len(fr.events) != 2 {
-		t.Fatalf("expected ready + metadata events, got %d", len(fr.events))
+	if len(fr.events) != 1 {
+		t.Fatalf("expected metadata only before observer subscription, got %d", len(fr.events))
 	}
-	meta := fr.events[1].(state.EvSubsystem)
+	meta := fr.events[0].(state.EvSubsystem)
 	if meta.Kind != state.SubsystemMetadataUpdated {
 		t.Fatalf("Kind = %q, want %q", meta.Kind, state.SubsystemMetadataUpdated)
 	}

@@ -40,6 +40,9 @@ func TestHandleSpawnComplete_storesHandlesNonContainer(t *testing.T) {
 	if r.frameSubsystemIDs["f1"] != "sub-1" {
 		t.Errorf("frameSubsystemIDs[f1] = %q, want sub-1", r.frameSubsystemIDs["f1"])
 	}
+	if got := atomic.LoadInt32(&sub.activateN); got != 1 {
+		t.Errorf("ActivateFrame calls = %d, want 1 after runtime handles are committed", got)
+	}
 	if _, ok := r.frameReg.GetMounts("f1"); ok {
 		t.Errorf("non-container frame must not register mounts")
 	}

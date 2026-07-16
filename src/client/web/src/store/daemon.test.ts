@@ -111,6 +111,35 @@ describe("daemonStore", () => {
     expect(useDaemonStore.getState().activeSessionID).toBe("s1");
   });
 
+  it("applies resumed Codex running then waiting updates without changing another session", () => {
+    const codex = mkSession("codex-resumed", {
+      command: "codex",
+      view: { card: { title: "Resumed Codex" }, status: "idle" },
+    });
+    const foreign = mkSession("foreign", {
+      view: { card: { title: "Foreign" }, status: "idle" },
+    });
+    useDaemonStore.setState({ sessions: [codex, foreign], activeSessionID: codex.id });
+
+    useDaemonStore.getState().applyViewUpdate({
+      k: "v",
+      sessions: [{ ...codex, view: { ...codex.view, status: "running" } }, foreign],
+    });
+    expect(useDaemonStore.getState().sessions.map((s) => s.view.status)).toEqual([
+      "running",
+      "idle",
+    ]);
+
+    useDaemonStore.getState().applyViewUpdate({
+      k: "v",
+      sessions: [{ ...codex, view: { ...codex.view, status: "waiting" } }, foreign],
+    });
+    expect(useDaemonStore.getState().sessions.map((s) => s.view.status)).toEqual([
+      "waiting",
+      "idle",
+    ]);
+  });
+
   it("applyViewUpdate replaces sessions and preserves activeSessionID when omitted", () => {
     useDaemonStore.setState({ activeSessionID: "preserved" });
     const frame: ViewUpdateFrame = {

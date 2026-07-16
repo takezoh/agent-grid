@@ -159,7 +159,11 @@ func (s *bindServer) OnServerRequest(id codexclient.RequestID, method string, pa
 		path := s.customPath
 		omitPath := s.omitPath
 		s.mu.Unlock()
-		thread := map[string]any{"id": "thread-resumed", "sessionId": "sess-resumed"}
+		threadID, _ := decoded["threadId"].(string)
+		if threadID == "" {
+			threadID = "thread-resumed"
+		}
+		thread := map[string]any{"id": threadID, "sessionId": "sess-" + threadID}
 		if !omitPath {
 			if path == "" {
 				if p, ok := decoded["path"].(string); ok {
@@ -205,9 +209,9 @@ func writeRollout(t *testing.T) string {
 	return path
 }
 
-// The four launch-flow tests below pin BindFrame's new contract under
-// ADR-0081. Backend no longer calls `thread/start` / `thread/resume` — the
-// codex CLI owns thread lifecycle — so assertions focus on:
+// The launch-flow tests below pin BindFrame's contract under ADR-0081 and the
+// observer-subscription ADR. The CLI owns thread creation and interactive
+// attachment; Backend independently resumes the identity to subscribe:
 //   - Fresh cold-start: pending binding (empty threadID), initState occupied,
 //     Command shape has no `resume` argv.
 //   - Recovery (ThreadID present): binding bound directly (backend knows the
@@ -327,6 +331,12 @@ func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
 	}
 	if pendingCount(h.backend) != 0 {
 		t.Errorf("initState occupancy = %d, want 0 (recovery bypasses semaphore)", pendingCount(h.backend))
+	}
+	h.server.mu.Lock()
+	lastResume := h.server.lastResume
+	h.server.mu.Unlock()
+	if got, _ := lastResume["threadId"].(string); got != "thread-abc" {
+		t.Fatalf("backend observer thread/resume id = %q, want thread-abc (params=%v)", got, lastResume)
 	}
 	// Argv must contain `resume thread-abc`.
 	wantArgv := libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", "", "")

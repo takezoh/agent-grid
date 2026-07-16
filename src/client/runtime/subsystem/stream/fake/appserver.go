@@ -1,11 +1,8 @@
 // Package fake implements an in-process high-fidelity fake of the codex
 // app-server plus a fake `codex --remote` CLI. The fakes reproduce the
 // protocol behaviour that matters for the stream Backend's routing
-// correctness — most importantly, that the app-server broadcasts thread
-// notifications to *every* connected client, which is what makes the T1/T2
-// coexistence bug (backend pre-creates a thread T1, CLI creates its own T2,
-// events for T2 arrive on the backend's connection and get dropped) faithfully
-// reproducible in tests.
+// correctness — most importantly, subscriptions are scoped to the connection
+// that issued thread/start or thread/resume.
 package fake
 
 import (
@@ -44,8 +41,8 @@ type TurnRequest struct {
 type TurnHandler func(req TurnRequest, emit Emitter)
 
 // Emitter sends notifications with the same visibility split as the real
-// codex app-server. turn/* methods are initiator-local; other notifications
-// fan out to every connected client.
+// codex app-server. turn/* methods are initiator-local; other thread
+// notifications fan out to subscribers of that thread.
 type Emitter interface {
 	Emit(method string, params any) error
 }
@@ -64,8 +61,8 @@ type Thread struct {
 }
 
 // AppServer is a codex-app-server look-alike. Start binds a UDS socket, serves
-// WebSocket JSON-RPC connections, tracks thread state, and broadcasts
-// notifications to all connected clients. Stop tears everything down.
+// WebSocket JSON-RPC connections, tracks thread state, and routes lifecycle
+// notifications to each thread's subscribed connections. Stop tears everything down.
 type AppServer struct {
 	sock       string
 	rolloutDir string
@@ -214,7 +211,12 @@ func (a *AppServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = c.CloseNow() }()
 	transport := &wsServerTransport{c: c}
 	conn := codexclient.NewConn(transport, 30*time.Second)
-	sc := &serverConn{conn: conn, server: codexclient.NewServer(conn), app: a}
+	sc := &serverConn{
+		conn:          conn,
+		server:        codexclient.NewServer(conn),
+		app:           a,
+		subscriptions: map[string]struct{}{},
+	}
 
 	a.mu.Lock()
 	a.clients = append(a.clients, sc)
@@ -245,6 +247,37 @@ func (a *AppServer) Broadcast(method string, params any) error {
 	a.mu.Unlock()
 	a.emit(targets, method, params)
 	return nil
+}
+
+func (a *AppServer) subscribers(threadID string) []*serverConn {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	targets := make([]*serverConn, 0, len(a.clients))
+	for _, client := range a.clients {
+		if _, ok := client.subscriptions[threadID]; ok {
+			targets = append(targets, client)
+		}
+	}
+	return targets
+}
+
+func (a *AppServer) subscribe(client *serverConn, threadID string) {
+	a.mu.Lock()
+	client.subscriptions[threadID] = struct{}{}
+	a.mu.Unlock()
+}
+
+func (a *AppServer) unsubscribe(client *serverConn, threadID string) codexclient.ThreadUnsubscribeStatus {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.threads[threadID] == nil {
+		return codexclient.ThreadUnsubscribeNotLoaded
+	}
+	if _, ok := client.subscriptions[threadID]; !ok {
+		return codexclient.ThreadUnsubscribeNotSubscribed
+	}
+	delete(client.subscriptions, threadID)
+	return codexclient.ThreadUnsubscribed
 }
 
 func (a *AppServer) emit(targets []*serverConn, method string, params any) {
@@ -309,9 +342,10 @@ func (a *AppServer) resumeThread(threadID, rolloutPath string) *Thread {
 // no client of the fake currently emits its own notifications, so
 // OnNotification is a no-op.
 type serverConn struct {
-	conn   *codexclient.Conn
-	server *codexclient.Server
-	app    *AppServer
+	conn          *codexclient.Conn
+	server        *codexclient.Server
+	app           *AppServer
+	subscriptions map[string]struct{} // guarded by app.mu
 }
 
 func (s *serverConn) handleTurnStart(params json.RawMessage) {
@@ -336,12 +370,13 @@ func (s *serverConn) handleTurnStart(params json.RawMessage) {
 		TurnID:   turnID,
 		Cwd:      t.Cwd,
 		Input:    input,
-	}, turnEmitter{app: s.app, initiator: s})
+	}, turnEmitter{app: s.app, initiator: s, threadID: threadID})
 }
 
 type turnEmitter struct {
 	app       *AppServer
 	initiator *serverConn
+	threadID  string
 }
 
 func (e turnEmitter) Emit(method string, params any) error {
@@ -354,9 +389,7 @@ func (e turnEmitter) targetsFor(method string) []*serverConn {
 	if isInitiatorScopedMethod(method) {
 		return []*serverConn{e.initiator}
 	}
-	e.app.mu.Lock()
-	defer e.app.mu.Unlock()
-	return append([]*serverConn(nil), e.app.clients...)
+	return e.app.subscribers(e.threadID)
 }
 
 func isInitiatorScopedMethod(method string) bool {
@@ -381,6 +414,7 @@ func (s *serverConn) OnServerRequest(id codexclient.RequestID, method string, pa
 	case codexschema.MethodThreadStart:
 		cwd := nestedString(params, "cwd")
 		t := s.app.newThread(cwd)
+		s.app.subscribe(s, t.ID)
 		thread := codexclient.ThreadDescriptor{
 			ThreadID:    t.ID,
 			SessionID:   t.SessionID,
@@ -397,6 +431,7 @@ func (s *serverConn) OnServerRequest(id codexclient.RequestID, method string, pa
 			_ = s.conn.ReplyError(id, fmt.Sprintf("fake app-server: thread not found (threadId=%q rolloutPath=%q)", threadID, rolloutPath))
 			return
 		}
+		s.app.subscribe(s, t.ID)
 		thread := codexclient.ThreadDescriptor{
 			ThreadID:    t.ID,
 			SessionID:   t.SessionID,
@@ -405,6 +440,10 @@ func (s *serverConn) OnServerRequest(id codexclient.RequestID, method string, pa
 		}
 		_ = s.conn.Reply(id, codexclient.ThreadResumeResponse(thread))
 		_ = s.app.Broadcast(codexschema.MethodThreadStarted, codexclient.ThreadStartedParams(thread))
+	case codexschema.MethodThreadUnsubscribe:
+		threadID := nestedString(params, "threadId")
+		status := s.app.unsubscribe(s, threadID)
+		_ = s.conn.Reply(id, map[string]any{"status": status})
 	case codexschema.MethodTurnStart:
 		_ = s.conn.Reply(id, codexclient.TurnStartResponseAt("fake-turn", time.Now()))
 		s.handleTurnStart(params)

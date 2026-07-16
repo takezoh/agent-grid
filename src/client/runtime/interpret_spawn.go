@@ -181,6 +181,8 @@ func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
 		r.registerContainerFrame(e.effect.FrameID, e.effect.Plan.Project, e.containerSockDir, e.token, e.mounts)
 	}
 
+	e.sub.ActivateFrame(e.effect.FrameID)
+
 	r.dispatch(state.EvFrameSpawned{
 		SessionID:        e.effect.SessionID,
 		FrameID:          e.effect.FrameID,

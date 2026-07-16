@@ -11,12 +11,13 @@ import (
 
 // fakeSubsystem records lifecycle calls for assertions.
 type fakeSubsystem struct {
-	id       state.SubsystemID
-	kind     state.LaunchSubsystem
-	startN   int32
-	stopN    int32
-	bindN    int32
-	releaseN int32
+	id        state.SubsystemID
+	kind      state.LaunchSubsystem
+	startN    int32
+	stopN     int32
+	bindN     int32
+	activateN int32
+	releaseN  int32
 }
 
 func (f *fakeSubsystem) Kind() state.LaunchSubsystem { return f.kind }
@@ -29,8 +30,9 @@ func (f *fakeSubsystem) BindFrame(_ context.Context, req rsubsystem.BindRequest)
 	// Preserve the incoming plan (callers replace plan with bindResult.Plan).
 	return rsubsystem.BindResult{Plan: req.Plan}, nil
 }
-func (f *fakeSubsystem) ReleaseFrame(_ state.FrameID) { atomic.AddInt32(&f.releaseN, 1) }
-func (f *fakeSubsystem) Stop(_ context.Context)       { atomic.AddInt32(&f.stopN, 1) }
+func (f *fakeSubsystem) ActivateFrame(_ state.FrameID) { atomic.AddInt32(&f.activateN, 1) }
+func (f *fakeSubsystem) ReleaseFrame(_ state.FrameID)  { atomic.AddInt32(&f.releaseN, 1) }
+func (f *fakeSubsystem) Stop(_ context.Context)        { atomic.AddInt32(&f.stopN, 1) }
 
 // fakeFactory returns a pre-built fakeSubsystem keyed by SubsystemID.
 type fakeFactory struct {

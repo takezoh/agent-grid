@@ -78,6 +78,10 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	return result, nil
 }
 
+// ActivateFrame implements subsystem.Subsystem. CLI bindings have no
+// asynchronous protocol readiness to commit after the process is spawned.
+func (b *Backend) ActivateFrame(state.FrameID) {}
+
 // ReleaseFrame removes the frame from tracking and asynchronously removes
 // its managed worktree if no other tracked frame still references the same path.
 // This prevents destroying a worktree shared between root and child frames.

@@ -12,6 +12,7 @@ owners: []
 relations:
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: design-client}
+- {type: referencedBy, target: adr-20260716-codex-observer-subscription-ready-ownership}
 source_paths:
 - src/client/runtime/subsystem/stream/
 decision_makers:

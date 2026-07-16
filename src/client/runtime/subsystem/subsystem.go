@@ -52,6 +52,12 @@ type Subsystem interface {
 	// BindFrame must complete before frame spawn happens.
 	BindFrame(ctx context.Context, req BindRequest) (BindResult, error)
 
+	// ActivateFrame commits the runtime-owned half of a successful frame
+	// launch after the runtime has stored every loop-owned handle/resource.
+	// Implementations must be explicit; backends that have no deferred
+	// readiness work implement this as a no-op.
+	ActivateFrame(frameID state.FrameID)
+
 	// ReleaseFrame is called when a frame dies or is explicitly stopped.
 	// The subsystem removes the frame from its registry and fires any
 	// frame-specific cleanup (worktree removal, thread teardown).

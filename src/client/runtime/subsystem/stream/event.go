@@ -127,7 +127,6 @@ func (b *Backend) handleThreadStarted(raw json.RawMessage) {
 			binding.requestedID = threadID
 		}
 		binding.observedID = threadID
-		binding.resumePhase = resumePhaseAttached
 		if threadPath := extractThreadPath(raw); threadPath != "" {
 			if _, hostPath, err := translateRolloutPath(threadPath, b.mounts); err == nil {
 				binding.rolloutPath = hostPath
@@ -135,8 +134,8 @@ func (b *Backend) handleThreadStarted(raw json.RawMessage) {
 		}
 	}
 	b.mu.Unlock()
-	b.emit(frameID, state.SubsystemSessionReady, b.payload(frameID))
 	b.emitMetadata(normalizeCodexThreadMetadata(raw))
+	b.startObserverSubscription(frameID)
 }
 
 // adoptPendingFrame links an unknown incoming thread id to the frame that is
@@ -357,25 +356,29 @@ func (b *Backend) payloadWith(frameID state.FrameID, mutate func(*state.Subsyste
 	binding := b.frames[frameID]
 	payload := state.SubsystemPayload{}
 	if binding != nil {
-		payload = state.SubsystemPayload{
-			SessionID:          binding.threadID,
-			ColdStartSessionID: binding.sessionID,
-			TargetID:           binding.threadID,
-			RequestedTargetID:  binding.requestedID,
-			ObservedTargetID:   binding.observedID,
-			ResumePhase:        binding.resumePhase,
-			TranscriptPath:     binding.rolloutPath,
-			Model:              binding.model,
-			ModelSet:           binding.modelSet,
-			Effort:             binding.effort,
-			EffortSet:          binding.effortSet,
-		}
+		payload = payloadFromBinding(binding)
 	}
 	b.mu.Unlock()
 	if mutate != nil {
 		mutate(&payload)
 	}
 	return payload
+}
+
+func payloadFromBinding(binding *frameBinding) state.SubsystemPayload {
+	return state.SubsystemPayload{
+		SessionID:          binding.threadID,
+		ColdStartSessionID: binding.sessionID,
+		TargetID:           binding.threadID,
+		RequestedTargetID:  binding.requestedID,
+		ObservedTargetID:   binding.observedID,
+		ResumePhase:        binding.resumePhase,
+		TranscriptPath:     binding.rolloutPath,
+		Model:              binding.model,
+		ModelSet:           binding.modelSet,
+		Effort:             binding.effort,
+		EffortSet:          binding.effortSet,
+	}
 }
 
 func (b *Backend) applyThreadSettings(threadID, model string, modelSet bool, effort string, effortSet bool) {

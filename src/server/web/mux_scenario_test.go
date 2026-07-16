@@ -97,6 +97,11 @@ func dialGatewayWS(t *testing.T, daemon daemonInstance, sessionID string) *webso
 	if err != nil {
 		t.Fatalf("dial ws: %v", err)
 	}
+	if sessionID != "" {
+		if err := c.Write(ctx, websocket.MessageText, []byte(`{"k":"r","cols":80,"rows":24}`)); err != nil {
+			t.Fatalf("write initial geometry: %v", err)
+		}
+	}
 	t.Cleanup(func() { _ = c.CloseNow() })
 	return c
 }
@@ -329,7 +334,7 @@ func collectSurfaceOutputContaining(
 	c *websocket.Conn,
 	timeout time.Duration,
 	want ...string,
-) string {
+) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	var b strings.Builder
@@ -346,11 +351,10 @@ func collectSurfaceOutputContaining(
 		assertOutputFrameShapeFromFixture(t, frame)
 		b.WriteString(decodeOutputFrameText(t, frame))
 		if containsAll(b.String(), want) {
-			return b.String()
+			return
 		}
 	}
 	t.Fatalf("timed out waiting for output containing %v (collected so far %q)", want, b.String())
-	return ""
 }
 
 func containsAll(s string, substrs []string) bool {
@@ -398,6 +402,21 @@ func assertSessionView(t *testing.T, frame map[string]any, sessionID, status str
 	}
 	if got := view["effort"]; got != "high" {
 		t.Fatalf("effort = %v, want %q", got, "high")
+	}
+}
+
+func assertCodexSessionStatus(t *testing.T, frame map[string]any, sessionID, status string) {
+	t.Helper()
+	session := sessionFromFrame(frame, sessionID)
+	if session == nil {
+		t.Fatalf("session %q missing from frame", sessionID)
+	}
+	view, _ := session["view"].(map[string]any)
+	if got := view["status"]; got != status {
+		t.Fatalf("status = %v, want %q", got, status)
+	}
+	if got := view["model"]; got != "gpt-5-codex" {
+		t.Fatalf("model = %v, want %q", got, "gpt-5-codex")
 	}
 }
 
@@ -498,14 +517,31 @@ func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState(t *testing.T) {
 	t.Parallel()
 
 	daemon := startScenarioServer(t, installFakeAgents(t))
+	lifecycle := dialGatewayWS(t, daemon, "")
+	readJSONFrame(t, lifecycle) // initial empty hello
 	project := t.TempDir()
 	sessionID := createSessionViaAPI(t, daemon, project, "codex")
 	waitForSessionListed(t, daemon, sessionID, 5*time.Second, true)
+	waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
+		view, _ := session["view"].(map[string]any)
+		return view["status"] == "idle"
+	})
 
 	surface := dialGatewayWS(t, daemon, sessionID)
+	collectSurfaceOutputContaining(t, daemon, surface, 10*time.Second, "[READY] threadId=")
 	sendSurfaceInput(t, surface, "implement wire test\n")
+	running := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
+		view, _ := session["view"].(map[string]any)
+		return view["status"] == "running"
+	})
+	assertCodexSessionStatus(t, running, sessionID, "running")
+	waiting := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
+		view, _ := session["view"].(map[string]any)
+		return view["status"] == "waiting"
+	})
+	assertCodexSessionStatus(t, waiting, sessionID, "waiting")
 	collectSurfaceOutputContaining(t, daemon, surface, 10*time.Second,
-		"implement wire test", "method=turn/started", "[READY] threadId=")
+		"implement wire test", "method=turn/started")
 
 	deleteSessionViaAPI(t, daemon, sessionID)
 	waitForSessionListed(t, daemon, sessionID, 5*time.Second, false)

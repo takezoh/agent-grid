@@ -350,6 +350,61 @@ func TestResumeThread(t *testing.T) {
 	}
 }
 
+type unsubscribeHandler struct {
+	conn   *codexclient.Conn
+	status string
+	recv   chan map[string]any
+}
+
+func (h *unsubscribeHandler) OnNotification(string, json.RawMessage) {}
+func (h *unsubscribeHandler) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
+	var decoded map[string]any
+	_ = json.Unmarshal(params, &decoded)
+	h.recv <- map[string]any{"method": method, "threadId": decoded["threadId"]}
+	_ = h.conn.Reply(id, map[string]any{"status": h.status})
+}
+
+func TestUnsubscribeThreadContract(t *testing.T) {
+	for _, want := range []codexclient.ThreadUnsubscribeStatus{
+		codexclient.ThreadUnsubscribed,
+		codexclient.ThreadUnsubscribeNotSubscribed,
+		codexclient.ThreadUnsubscribeNotLoaded,
+	} {
+		t.Run(string(want), func(t *testing.T) {
+			ta, tb := pipeTransport()
+			client := codexclient.NewConn(ta, time.Second)
+			server := codexclient.NewConn(tb, time.Second)
+			recv := make(chan map[string]any, 1)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go server.Run(ctx, &unsubscribeHandler{conn: server, status: string(want), recv: recv}) //nolint:errcheck
+			go client.Run(ctx, &noopHandler{})                                                      //nolint:errcheck
+
+			got, err := codexclient.UnsubscribeThread(client, "th-1")
+			if err != nil || got != want {
+				t.Fatalf("UnsubscribeThread = (%q, %v), want (%q, nil)", got, err, want)
+			}
+			request := <-recv
+			if request["method"] != codexschema.MethodThreadUnsubscribe || request["threadId"] != "th-1" {
+				t.Fatalf("request = %#v", request)
+			}
+		})
+	}
+}
+
+func TestUnsubscribeThreadRejectsUnknownStatus(t *testing.T) {
+	ta, tb := pipeTransport()
+	client := codexclient.NewConn(ta, time.Second)
+	server := codexclient.NewConn(tb, time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go server.Run(ctx, &unsubscribeHandler{conn: server, status: "futureStatus", recv: make(chan map[string]any, 1)}) //nolint:errcheck
+	go client.Run(ctx, &noopHandler{})                                                                                //nolint:errcheck
+	if _, err := codexclient.UnsubscribeThread(client, "th-1"); err == nil {
+		t.Fatal("unknown unsubscribe status must be rejected")
+	}
+}
+
 func TestStartTurn(t *testing.T) {
 	ta, tb := pipeTransport()
 	connA := codexclient.NewConn(ta, time.Second)
