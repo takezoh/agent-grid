@@ -13,8 +13,8 @@ tags:
 - boundary
 owners: []
 relations:
-- {type: partOf, target: plan-20260712-frame-size-ownership}
-- {type: references, target: spec-20260712-frame-size-ownership}
+- {type: partOf, target: change-20260712-frame-size-ownership}
+- {type: references, target: change-20260712-frame-size-ownership}
 source_paths:
 - src/server/web/mux.go
 - src/server/web/gateway.go

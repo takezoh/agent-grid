@@ -11,7 +11,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-editor}
+- {type: partOf, target: change-20260714-agent-workspace-editor}
 source_paths: []
 summary: Write path applies no sensitive-file filter (parity with read side)
 updated: '2026-07-14'

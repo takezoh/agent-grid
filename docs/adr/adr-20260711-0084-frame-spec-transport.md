@@ -12,9 +12,8 @@ tags:
 - launcher
 owners: []
 relations:
-- {type: references, target: plan-20260711-frame-exec-launcher}
 - {type: references, target: adr-20260711-0082-frame-exec-launcher}
-- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
+- {type: references, target: change-20260711-frame-exec-launcher}
 source_paths:
 - src/platform/sandbox/devcontainer/manager.go
 - src/cmd/bridge/frame_exec.go

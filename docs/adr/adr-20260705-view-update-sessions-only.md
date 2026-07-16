@@ -11,7 +11,7 @@ tags:
 - wire
 owners: []
 relations:
-- {type: partOf, target: plan-20260705-test-harness}
+- {type: partOf, target: change-20260705-test-harness}
 - {type: supersedes, target: adr-20260624-0023-view-update-broadcast-shape}
 source_paths:
 - src/server/web/wire.go

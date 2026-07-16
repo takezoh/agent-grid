@@ -14,23 +14,17 @@ tags:
 - regression-pin
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-launchplan-effect-continuity}
-- {type: references, target: spec-20260714-launchplan-effect-continuity}
+- {type: partOf, target: change-20260714-launchplan-effect-continuity}
 - {type: references, target: adr-20260714-launchplan-effect-embedding}
+- {type: references, target: change-20260714-launchplan-effect-continuity}
 source_paths:
 - src/client/runtime/bootstrap_coldstart.go
 - src/client/runtime/interpret_spawn.go
 - src/client/runtime/frame_launch_matrix_test.go
 decision_makers:
 - take.gn
-summary: bootstrap_coldstart.go's Runtime.spawnFrameWindow is a second, independent
-  implementation of the PrepareLaunch -> BindFrame -> wrapLaunchForSpawn pipeline
-  parallel to interpret_spawn.go's free spawnFrameWindow. It is not defective today
-  (threads the whole launch LaunchPlan value without a flat-field intermediate) but
-  is structurally parallel. This fix does not consolidate the two implementations;
-  it guards the cold-start path with a matching Tier T1 case in frame_launch_matrix_test.go
-  (TestFrameLaunch_ColdStart_Host_ManagedMessaging) so parallel-implementation drift
-  is caught by machine check.
+summary: Keep the parallel cold-start launch path, guarded by a matching Tier T1 continuity
+  test, until a separately designed consolidation.
 ---
 
 ## Context

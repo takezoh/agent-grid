@@ -12,7 +12,7 @@ tags:
 - ui-refresh
 owners: []
 relations:
-- {type: references, target: spec-20260714-web-ui-refresh}
+- {type: references, target: change-20260714-web-ui-refresh}
 source_paths:
 - src/client/web/package.json
 summary: 新規挙動 2 種のみ Radix に委譲、既存の自前挙動は温存。アイコンは lucide SVG を静的コピーし runtime 依存なし。

@@ -10,23 +10,12 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: note-20260624-docs-overview}
-- {type: references, target: component-20260624-client-interfaces}
-- {type: references, target: component-20260624-client-ipc}
-- {type: references, target: component-20260624-client-overview}
-- {type: references, target: component-20260624-client-process-model}
-- {type: references, target: component-20260624-client-state-monitoring}
-- {type: references, target: component-20260624-orchestrator-overview}
-- {type: references, target: component-20260624-orchestrator-symphony-conformance}
-- {type: references, target: component-20260624-platform-agent-protocol}
-- {type: references, target: component-20260624-platform-brokers}
-- {type: references, target: component-20260624-platform-overview}
-- {type: references, target: component-20260624-platform-sandbox}
-- {type: references, target: component-20260624-platform-spawn-and-launch}
+- {type: references, target: design-client}
+- {type: references, target: design-orchestrator}
+- {type: references, target: design-platform}
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-technical-guardrails}
 - {type: references, target: note-20260624-technical-harness-engineering-assessment}
-- {type: referencedBy, target: note-20260624-user-overview}
 source_paths:
 - ARCHITECTURE.md
 - src/.golangci.yml
@@ -55,18 +44,18 @@ Import direction (enforced by `depguard`, `src/.golangci.yml`): `cmd/* → clien
 
 ## Per-layer deep dives
 
-- **[platform/](../component/component-20260624-platform-overview.md)** — shared infrastructure
-  - [Spawn & launch](../component/component-20260624-platform-spawn-and-launch.md) — `agentlaunch`/`procgroup`/`pathmap`: the command-string → process launch layer
-  - [Brokers](../component/component-20260624-platform-brokers.md) — `hostexec`/`mcpproxy`/`credproxy`: host mediation and policy enforcement
-  - [Agent protocol](../component/component-20260624-platform-agent-protocol.md) — `codexclient`/`codexschema`/`lib`: the Codex app-server stdio protocol
-  - [Sandbox backends](../component/component-20260624-platform-sandbox.md) — per-project devcontainer isolation, image resolution, credential proxy
-- **[client/](../component/component-20260624-client-overview.md)** — the client session lifecycle manager
-  - [Process model](../component/component-20260624-client-process-model.md) — daemon process, pty multiplexer, rendering boundary
-  - [IPC and tool system](../component/component-20260624-client-ipc.md) — message format, command surface, concurrency model
-  - [State monitoring](../component/component-20260624-client-state-monitoring.md) — driver plugins, the polling pipeline, hook routing
-  - [Interfaces](../component/component-20260624-client-interfaces.md) — Go type definitions, data files, source tree
-- **[orchestrator/](../component/component-20260624-orchestrator-overview.md)** — the autonomous Symphony pipeline
-  - [Symphony conformance](../component/component-20260624-orchestrator-symphony-conformance.md) — SPEC §17 ↔ test table and documented posture
+- **[platform/](../design/design-platform.md)** — shared infrastructure
+  - [Spawn & launch](../design/design-platform.md#legacy-source-component-20260624-platform-spawn-and-launch) — `agentlaunch`/`procgroup`/`pathmap`: the command-string → process launch layer
+  - [Brokers](../design/design-platform.md#legacy-source-component-20260624-platform-brokers) — `hostexec`/`mcpproxy`/`credproxy`: host mediation and policy enforcement
+  - [Agent protocol](../design/design-platform.md#legacy-source-component-20260624-platform-agent-protocol) — `codexclient`/`codexschema`/`lib`: the Codex app-server stdio protocol
+  - [Sandbox backends](../design/design-platform.md#legacy-source-component-20260624-platform-sandbox) — per-project devcontainer isolation, image resolution, credential proxy
+- **[client/](../design/design-client.md)** — the client session lifecycle manager
+  - [Process model](../design/design-client.md#legacy-source-component-20260624-client-process-model) — daemon process, pty multiplexer, rendering boundary
+  - [IPC and tool system](../design/design-client.md#legacy-source-component-20260624-client-ipc) — message format, command surface, concurrency model
+  - [State monitoring](../design/design-client.md#legacy-source-component-20260624-client-state-monitoring) — driver plugins, the polling pipeline, hook routing
+  - [Interfaces](../design/design-client.md#legacy-source-component-20260624-client-interfaces) — Go type definitions, data files, source tree
+- **[orchestrator/](../design/design-orchestrator.md)** — the autonomous Symphony pipeline
+  - [Symphony conformance](../design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance) — SPEC §17 ↔ test table and documented posture
 
 ## Cross-cutting
 

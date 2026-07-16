@@ -1,7 +1,8 @@
 ---
 id: adr-20260715-credproxy-recovery-lever-accepts-degraded-window
 kind: adr
-title: "ADR — credproxy: accept degraded-window worst case + operator-observable readiness snapshot as the recovery lever set"
+title: 'ADR — credproxy: accept degraded-window worst case + operator-observable readiness
+  snapshot as the recovery lever set'
 status: accepted
 created: '2026-07-15'
 tags:
@@ -13,18 +14,21 @@ tags:
 owners:
 - take.gn
 relations:
-- {type: partOf, target: plan-20260715-credproxy-materialization-contract}
-- {type: references, target: spec-20260715-credproxy-materialization-contract}
-- {type: references, target: adr-20260715-credproxy-runner-readonly-aggregation}
+- {type: partOf, target: change-20260715-credproxy-materialization-contract}
 - {type: references, target: adr-20260715-credproxy-materialize-method}
 - {type: references, target: adr-20260715-credproxy-retry-owner-caller-side}
+- {type: references, target: adr-20260715-credproxy-runner-readonly-aggregation}
+- {type: references, target: change-20260715-credproxy-materialization-contract}
 source_paths:
 - src/cmd/server/coordinator.go
 - src/platform/credproxy/credproxy.go
 - src/platform/agentlaunch/devcontainer.go
 decision_makers:
 - take.gn
-summary: 本 iteration では新 operator-facing recovery lever を導入しない。Materialize は idempotent で caller が specCtx envelope 内で retry する経路 + 25-min periodic sweep + distinguishable slog + Runner.ReadinessSnapshot を lever set とする。SIGHUP repurpose / admin HTTP endpoint は future ADR に defer。
+summary: 本 iteration では新 operator-facing recovery lever を導入しない。Materialize は idempotent
+  で caller が specCtx envelope 内で retry する経路 + 25-min periodic sweep + distinguishable
+  slog + Runner.ReadinessSnapshot を lever set とする。SIGHUP repurpose / admin HTTP endpoint
+  は future ADR に defer。
 ---
 
 ## Context

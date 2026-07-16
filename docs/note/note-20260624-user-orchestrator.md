@@ -10,15 +10,9 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: component-20260624-orchestrator-overview}
-- {type: referencedBy, target: note-20260624-agent-workflow-authoring}
-- {type: referencedBy, target: note-20260624-docs-overview}
-- {type: referencedBy, target: note-20260624-technical-guardrails}
-- {type: referencedBy, target: note-20260624-user-getting-started}
-- {type: references, target: component-20260624-orchestrator-overview}
+- {type: references, target: design-orchestrator}
 - {type: references, target: note-20260624-agent-workflow-authoring}
 - {type: references, target: note-20260624-user-sandbox}
-- {type: referencedBy, target: note-20260624-user-overview}
 source_paths:
 - WORKFLOW.md
 - src/cmd/orchestrator/
@@ -33,7 +27,7 @@ summary: orchestrator is the unattended, headless scheduler — the user-facing 
 
 # orchestrator
 
-`orchestrator` is the unattended, headless scheduler — the user-facing side of the [`orchestrator` layer](../component/component-20260624-orchestrator-overview.md). It reads a `WORKFLOW.md`, polls an issue tracker, dispatches a coding agent into a per-issue workspace, reconciles running/stalled sessions, and exposes a read-only observability HTTP server. It implements the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md).
+`orchestrator` is the unattended, headless scheduler — the user-facing side of the [`orchestrator` layer](../design/design-orchestrator.md). It reads a `WORKFLOW.md`, polls an issue tracker, dispatches a coding agent into a per-issue workspace, reconciles running/stalled sessions, and exposes a read-only observability HTTP server. It implements the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md).
 
 > Unlike `server`, which is interactively supervised through the browser UI, the orchestrator runs autonomously: agents advance issues by transitioning tracker states, and the scheduler detects progress by polling. There is no human in the loop during a run — see [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md) for how the driving prompt is written.
 
@@ -161,4 +155,4 @@ Bind to `127.0.0.1` (the default) unless you intentionally expose it.
 
 - [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md) — the prompt body, state-routing rules, and the `linear_graphql` tool
 - [sandbox setup](../note/note-20260624-user-sandbox.md) — isolating each dispatched agent in a container
-- [orchestrator internals](../component/component-20260624-orchestrator-overview.md) — the poll/dispatch/reconcile pipeline
+- [orchestrator internals](../design/design-orchestrator.md) — the poll/dispatch/reconcile pipeline

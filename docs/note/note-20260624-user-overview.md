@@ -10,7 +10,6 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: note-20260624-docs-overview}
 - {type: references, target: note-20260624-technical-overview}
 - {type: references, target: note-20260624-user-getting-started}
 - {type: references, target: note-20260624-user-orchestrator}

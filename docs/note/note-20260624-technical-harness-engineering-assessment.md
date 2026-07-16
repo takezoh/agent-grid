@@ -10,12 +10,11 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: references, target: component-20260624-orchestrator-symphony-conformance}
+- {type: references, target: design-orchestrator}
 - {type: references, target: note-20260624-agent-testing}
 - {type: references, target: note-20260624-agent-workflow-authoring}
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-technical-guardrails}
-- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
 - src/platform/agent/codexclient/
 - WORKFLOW.md
@@ -302,6 +301,6 @@ completes its tasks.**
 ## See also
 
 - [guardrails.md](../note/note-20260624-technical-guardrails.md) — the existing control surface (admission, concurrency, sandboxing, autonomy policy, liveness)
-- [orchestrator/symphony-conformance.md](../component/component-20260624-orchestrator-symphony-conformance.md) — SPEC ↔ test table and deviation posture
+- [orchestrator/symphony-conformance.md](../design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance) — SPEC ↔ test table and deviation posture
 - [../agent/workflow-authoring.md](../note/note-20260624-agent-workflow-authoring.md) — programming the agent through the prompt
 - [../agent/testing.md](../note/note-20260624-agent-testing.md) — testability as a design constraint and coverage tiers

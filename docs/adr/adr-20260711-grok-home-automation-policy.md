@@ -4,11 +4,14 @@ kind: adr
 title: Grok home and automation policy
 status: proposed
 created: '2026-07-11'
-decision_makers: [agent-grid maintainers]
-tags: [grok, automation]
+decision_makers:
+- agent-grid maintainers
+tags:
+- grok
+- automation
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-grok-driver}
+- {type: partOf, target: change-20260711-grok-driver}
 source_paths: []
 summary: GROK_HOME を保存境界とし automation launch で auto-update を抑止する
 ---

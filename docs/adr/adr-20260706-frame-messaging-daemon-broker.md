@@ -12,8 +12,7 @@ tags:
 - architecture
 owners: []
 relations:
-- {type: partOf, target: plan-20260706-frame-messaging}
-- {type: referencedBy, target: note-20260706-inter-session-mcp-original-plan}
+- {type: partOf, target: change-20260706-frame-messaging}
 source_paths:
 - src/client/runtime/
 - src/client/state/

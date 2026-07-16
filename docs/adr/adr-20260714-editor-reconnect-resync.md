@@ -11,7 +11,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-editor}
+- {type: partOf, target: change-20260714-agent-workspace-editor}
 source_paths: []
 summary: WS reconnect triggers a forced conflict-check re-fetch for every dirty buffer
 updated: '2026-07-14'

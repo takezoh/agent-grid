@@ -11,17 +11,13 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
 - {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
 - {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
 - {type: references, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
 - {type: references, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
 - {type: references, target: adr-20260624-0070-fontsize-persist-clamp}
 - {type: references, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
-- {type: references, target: spec-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: change-20260626-web-terminal-mobile-ux}
 source_paths:
 - src/client/web/src/hooks/useTerminalTouchGestures.ts
 - src/client/web/src/css/view.css

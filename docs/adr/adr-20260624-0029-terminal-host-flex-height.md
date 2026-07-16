@@ -11,17 +11,7 @@ tags:
 owners: []
 relations:
 - {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
-- {type: references, target: plan-20260624-2026-06-24-web-ui-fixes}
-- {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
-- {type: referencedBy, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
-- {type: referencedBy, target: adr-20260624-0060-adaptive-layout-and-drawer}
-- {type: referencedBy, target: adr-20260624-0065-terminal-slot-absolute-overlay}
-- {type: referencedBy, target: adr-20260624-0067-mobile-gate-matchmedia}
-- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
-- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
-- {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-fixes}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
+- {type: references, target: change-20260624-2026-06-24-web-ui-fixes}
 source_paths:
 - src/client/web/src/css/app.css
 - src/client/web/src/

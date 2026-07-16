@@ -6,19 +6,25 @@ status: accepted
 created: '2026-07-16'
 decision_makers:
 - platform-team
-tags: [framelaunch, migration, security, path]
+tags:
+- framelaunch
+- migration
+- security
+- path
 owners:
 - platform-team
 relations:
-- {type: partOf, target: plan-20260716-framelaunch-runtime-path-preservation}
+- {type: partOf, target: change-20260716-framelaunch-runtime-path-preservation}
 - {type: references, target: adr-20260716-framelaunch-runtime-path-owner}
 - {type: references, target: adr-20260716-provider-shim-root-appid-ssot}
 source_paths:
 - src/platform/framelaunch/frame_exec.go
 - src/platform/hostexec/provider.go
 - src/platform/secretenv/provider.go
-- docs/component/component-20260624-platform-sandbox.md
-summary: "runtime-authoritative shim dir を preExec 以降も先頭に固定する trust-boundary shift を承認し、rollback env toggle と shim enumeration と docker-exec-bash 観測差分 note を移行契約に含める (case D)"
+- docs/design/design-platform.md
+summary: runtime-authoritative shim dir を preExec 以降も先頭に固定する trust-boundary shift
+  を承認し、rollback env toggle と shim enumeration と docker-exec-bash 観測差分 note を移行契約に含める
+  (case D)
 ---
 
 ## Context
@@ -33,7 +39,7 @@ Case D additionally has a user-visible cosmetic consequence: because providers n
 
 Adopt the shim-priority hardening as an intentional policy decision, subject to four explicit safeguards:
 
-- **(a) Enumeration.** Every command name shimmed at fix-adoption time (`hostexec.ShimDirName` contents (= `appid.HostExecShimsDir`) + secretenv `credproxy` + any overlay registered via `hostexec/provider.go:173`) is listed in `docs/component/component-20260624-platform-sandbox.md` appendix. Confirm no overlap with the standard mise/asdf/dotfile shim targets `{git, python, node, go, ruby, java}` at fix-adoption time.
+- **(a) Enumeration.** Every command name shimmed at fix-adoption time (`hostexec.ShimDirName` contents (= `appid.HostExecShimsDir`) + secretenv `credproxy` + any overlay registered via `hostexec/provider.go:173`) is listed in the platform design's `Legacy Source: component-20260624-platform-sandbox` appendix. Confirm no overlap with the standard mise/asdf/dotfile shim targets `{git, python, node, go, ruby, java}` at fix-adoption time.
 - **(b) Rollback toggle.** `AG_FRAMELAUNCH_DISABLE_PATH_REASSERT=1` (or `true`, `yes`, case-insensitive) skips the merge wiring and restores pre-fix behavior, tested by a dedicated T0 branch and honored by contract-run-path-observability's `skip_branch="toggle_disabled"`.
 - **(c) Drift check.** The enumeration appendix must be updated whenever a new shim is added (documentation drift check, folded into contract-shim-priority-migration.migration_strategy).
 - **(d) `docker exec bash` observable-PATH migration note.** Documented in the same sandbox component doc: providers no longer inject `Env["PATH"]` into `ContainerEnv`, so an interactive `docker exec bash` sees the image PATH (no shim dirs). This is cosmetic — actual command lookups still hit the shims via framelaunch's per-frame prepend, and shell rc / login shells rebuild PATH themselves.

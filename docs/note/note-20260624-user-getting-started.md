@@ -10,12 +10,10 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: note-20260624-docs-overview}
 - {type: references, target: note-20260624-user-orchestrator}
 - {type: references, target: note-20260624-user-sandbox}
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
-- {type: referencedBy, target: note-20260624-user-overview}
 source_paths:
 - src/cmd/server/coordinator.go
 - Makefile

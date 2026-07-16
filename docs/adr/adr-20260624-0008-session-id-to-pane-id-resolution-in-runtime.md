@@ -9,8 +9,7 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations:
-- {type: supersededBy, target: adr-20260624-0004-ptybackend-reuses-pure-core}
+relations: []
 source_paths: []
 decision_makers:
 - unknown

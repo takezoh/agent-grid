@@ -14,12 +14,6 @@ owners: []
 relations:
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
 - {type: references, target: note-20260624-agent-testing}
-- {type: implementedBy, target: component-20260704-platform-claude-fakeclaude}
-- {type: implementedBy, target: component-20260704-platform-fakecodex}
-- {type: referencedBy, target: adr-20260705-test-tier-taxonomy}
-- {type: referencedBy, target: adr-20260705-fakedocker-path-injection}
-- {type: referencedBy, target: note-20260624-agent-testing}
-- {type: referencedBy, target: adr-20260707-fakevsreal-shim-inversion}
 source_paths:
 - src/platform/lib/claude/fakeclaude
 - src/platform/agent/fakecodex

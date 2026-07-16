@@ -10,15 +10,7 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: references, target: plan-20260625-2026-06-25-web-palette-redesign}
-- {type: references, target: spec-20260625-2026-06-25-web-palette-redesign}
-- {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
-- {type: referencedBy, target: adr-20260624-0063-toast-single-live-and-undosnackbar}
-- {type: referencedBy, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
-- {type: referencedBy, target: adr-20260624-0075-pattern-adoption-mode-affordances}
-- {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
+- {type: references, target: change-20260625-2026-06-25-web-palette-redesign}
 source_paths:
 - src/client/web/src/
 decision_makers:

@@ -14,10 +14,6 @@ relations:
 - {type: references, target: adr-20260624-0030-terminal-keyed-remount}
 - {type: references, target: adr-20260624-0034-refit-raf-coalesce-and-test-infra}
 - {type: references, target: adr-20260624-0061-apg-tabs-manual-activation}
-- {type: referencedBy, target: adr-20260624-0067-mobile-gate-matchmedia}
-- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
-- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
 source_paths:
 - src/client/web/src/components/MainTabs.tsx
 - src/client/web/src/components/LogTabs.tsx

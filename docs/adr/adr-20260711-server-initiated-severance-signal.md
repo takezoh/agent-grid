@@ -14,10 +14,10 @@ tags:
 - reliability
 owners: []
 relations:
+- {type: partOf, target: change-20260711-terminal-output-backpressure}
 - {type: references, target: adr-20260711-extend-sever-not-drop-shared-ipc-hops}
 - {type: references, target: adr-20260711-terminal-subscription-desired-reconcile}
-- {type: references, target: spec-20260711-terminal-output-backpressure}
-- {type: partOf, target: plan-20260711-terminal-output-backpressure}
+- {type: references, target: change-20260711-terminal-output-backpressure}
 source_paths:
 - src/client/runtime/proto_bridge_surface.go
 - src/client/runtime/interpret.go

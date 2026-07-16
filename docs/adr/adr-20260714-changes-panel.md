@@ -12,7 +12,7 @@ tags:
 - ui-refresh
 owners: []
 relations:
-- {type: references, target: spec-20260714-web-ui-refresh}
+- {type: references, target: change-20260714-web-ui-refresh}
 source_paths:
 - src/client/web/src/components/workspace/ActivityRail.tsx
 - src/client/web/src/store/workspaceActivity.ts

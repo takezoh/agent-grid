@@ -11,7 +11,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-editor}
+- {type: partOf, target: change-20260714-agent-workspace-editor}
 source_paths: []
 summary: Undo/redo scope is viewer-session-local (strict clear on reload/conflict
   accept)

@@ -10,9 +10,9 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: references, target: component-20260624-client-overview}
-- {type: references, target: component-20260624-orchestrator-overview}
-- {type: references, target: component-20260624-platform-overview}
+- {type: references, target: design-client}
+- {type: references, target: design-orchestrator}
+- {type: references, target: design-platform}
 - {type: references, target: note-20260624-agent-contributing}
 - {type: references, target: note-20260624-agent-overview}
 - {type: references, target: note-20260624-agent-testing}
@@ -51,7 +51,7 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the canonical definition of the
 |---|---|---|---|---|
 | **User** | [sandbox setup](../note/note-20260624-user-sandbox.md) | [web stack](../note/note-20260624-user-web-server.md) · [systemd service](../note/note-20260624-user-systemd.md) | [orchestrator](../note/note-20260624-user-orchestrator.md) | [getting started](../note/note-20260624-user-getting-started.md) · [Codex Remote Control](../note/note-20260715-user-codex-remote-control.md) |
 | **Agent** | — | — | [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md) | [contributing](../note/note-20260624-agent-contributing.md), [testing](../note/note-20260624-agent-testing.md) |
-| **Technical** | [platform/](../component/component-20260624-platform-overview.md) | [client/](../component/component-20260624-client-overview.md) | [orchestrator/](../component/component-20260624-orchestrator-overview.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) |
+| **Technical** | [platform/](../design/design-platform.md) | [client/](../design/design-client.md) | [orchestrator/](../design/design-orchestrator.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) |
 
 ## By audience
 
@@ -78,6 +78,6 @@ You are an AI agent or a contributor changing the code, or authoring the workflo
 
 You need to understand how a layer is built.
 
-- [platform/](../component/component-20260624-platform-overview.md) — shared infrastructure: sandbox, brokers, credential proxy, logger, trackers, tool wrappers
-- [client/](../component/component-20260624-client-overview.md) — agent-grid's session daemon: Functional Core / Imperative Shell, the state machine, drivers, subsystems, IPC, web frontend
-- [orchestrator/](../component/component-20260624-orchestrator-overview.md) — the poll / dispatch / reconcile pipeline and Symphony SPEC conformance
+- [platform/](../design/design-platform.md) — shared infrastructure: sandbox, brokers, credential proxy, logger, trackers, tool wrappers
+- [client/](../design/design-client.md) — agent-grid's session daemon: Functional Core / Imperative Shell, the state machine, drivers, subsystems, IPC, web frontend
+- [orchestrator/](../design/design-orchestrator.md) — the poll / dispatch / reconcile pipeline and Symphony SPEC conformance

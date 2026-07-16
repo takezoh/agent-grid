@@ -13,12 +13,9 @@ tags:
 - reliability
 owners: []
 relations:
+- {type: partOf, target: change-20260711-terminal-output-backpressure}
 - {type: references, target: adr-20260705-eventsink-seam-tap-relay-contracts}
-- {type: references, target: spec-20260711-terminal-output-backpressure}
-- {type: partOf, target: plan-20260711-terminal-output-backpressure}
-- {type: referencedBy, target: adr-20260711-keep-single-ipc-connection-topology}
-- {type: referencedBy, target: adr-20260711-priority-lane-interactive-vs-bulk}
-- {type: referencedBy, target: adr-20260711-server-initiated-severance-signal}
+- {type: references, target: change-20260711-terminal-output-backpressure}
 source_paths:
 - src/client/runtime/ipc.go
 - src/client/runtime/terminal_relay.go

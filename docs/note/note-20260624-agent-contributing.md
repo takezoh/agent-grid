@@ -10,11 +10,9 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: references, target: component-20260624-orchestrator-symphony-conformance}
+- {type: references, target: design-orchestrator}
 - {type: references, target: note-20260624-agent-testing}
 - {type: references, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: note-20260624-agent-overview}
-- {type: referencedBy, target: note-20260624-docs-overview}
 source_paths:
 - AGENTS.md
 - ARCHITECTURE.md
@@ -93,4 +91,4 @@ Before adding a third-party dependency:
 
 ## Conformance
 
-The SPEC §17 ↔ test correspondence table and the documented deviation posture live in [technical/orchestrator/symphony-conformance.md](../component/component-20260624-orchestrator-symphony-conformance.md). Keep it current when you touch orchestrator behavior.
+The SPEC §17 ↔ test correspondence table and the documented deviation posture live in [technical/orchestrator/symphony-conformance.md](../design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance). Keep it current when you touch orchestrator behavior.

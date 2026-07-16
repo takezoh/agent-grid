@@ -1,4 +1,4 @@
-# 構造化ドキュメント (docs skill) の状態遷移ホワイトリスト。
+# 構造化ドキュメント (dev-docs skill) の状態遷移ホワイトリスト。
 # docs init で project の docs/.transition-table.yaml にコピーされる。
 # project ごとに status enum を増やしたい場合はこのファイルを編集する
 # (spec.schema.json 等の status enum も併せて更新が必要)。
@@ -12,6 +12,14 @@ adr:
   rejected:   []
   deprecated: []
   superseded: []
+
+change:
+  draft:     [ready, abandoned]
+  ready:     [active, abandoned]
+  active:    [closing, abandoned]
+  closing:   [active, done, abandoned]
+  done:      []
+  abandoned: []
 
 plan:
   draft:     [active, abandoned]
@@ -42,6 +50,11 @@ note:
   draft:     [published, archived]
   published: [archived]
   archived:  []
+
+design:
+  active:     [deprecated, superseded]
+  deprecated: []
+  superseded: []
 
 component:
   active:     [deprecated, superseded]

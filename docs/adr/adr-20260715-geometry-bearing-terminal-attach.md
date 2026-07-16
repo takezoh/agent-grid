@@ -13,10 +13,10 @@ tags:
 - actor
 owners: []
 relations:
-- {type: partOf, target: plan-20260715-terminal-scrollback-reflow}
-- {type: references, target: spec-20260715-terminal-scrollback-reflow}
+- {type: partOf, target: change-20260715-terminal-scrollback-reflow}
 - {type: references, target: adr-20260711-terminal-subscription-desired-reconcile}
-- {type: references, target: spec-20260712-frame-size-ownership}
+- {type: references, target: change-20260712-frame-size-ownership}
+- {type: references, target: change-20260715-terminal-scrollback-reflow}
 source_paths:
 - src/platform/termvt
 - src/client/runtime

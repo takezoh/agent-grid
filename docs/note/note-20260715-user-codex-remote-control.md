@@ -10,9 +10,7 @@ tags:
 - codex
 - remote-control
 owners: []
-relations:
-- {type: referencedBy, target: note-20260624-docs-overview}
-- {type: referencedBy, target: note-20260624-user-overview}
+relations: []
 source_paths:
 - Makefile
 - deploy/systemd/codex-remote-control.service

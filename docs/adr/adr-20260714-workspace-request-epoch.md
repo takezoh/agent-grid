@@ -9,7 +9,7 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-workspace-session-switch}
+- {type: partOf, target: change-20260714-workspace-session-switch}
 source_paths: []
 summary: 旧 session の非同期応答は store-owned monotonic epoch と session identity で commit
   を拒否する。

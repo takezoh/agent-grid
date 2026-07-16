@@ -9,10 +9,7 @@ tags:
 - user
 - legacy-import
 owners: []
-relations:
-- {type: referencedBy, target: note-20260624-docs-overview}
-- {type: referencedBy, target: note-20260624-user-getting-started}
-- {type: referencedBy, target: note-20260624-user-overview}
+relations: []
 source_paths:
 - scripts/run-dev.sh
 - deploy/systemd/

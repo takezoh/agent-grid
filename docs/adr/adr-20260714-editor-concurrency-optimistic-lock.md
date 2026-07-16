@@ -11,7 +11,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-editor}
+- {type: partOf, target: change-20260714-agent-workspace-editor}
 source_paths: []
 summary: Concurrency policy for operator/agent write race is optimistic lock via If-Unmodified-Since
 updated: '2026-07-14'

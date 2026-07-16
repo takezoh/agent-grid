@@ -6,16 +6,23 @@ status: accepted
 created: '2026-07-16'
 decision_makers:
 - platform-team
-tags: [framelaunch, path, preexec, appid, ssot]
+tags:
+- framelaunch
+- path
+- preexec
+- appid
+- ssot
 owners:
 - platform-team
 relations:
-- {type: partOf, target: plan-20260716-framelaunch-runtime-path-preservation}
+- {type: partOf, target: change-20260716-framelaunch-runtime-path-preservation}
 - {type: references, target: adr-20260711-0082-frame-exec-launcher}
 source_paths:
 - src/platform/framelaunch/frame_exec.go
 - src/platform/appid/appid.go
-summary: "Run() は preExec 完了後に appid.RuntimeAuthoritativePathList() (= [HostExecShimsPath, SecretEnvShimsPath]) を無条件 prepend + dedup し、appid が shim 名 SSOT + 順序付き runtime list を提供する (case D)"
+summary: Run() は preExec 完了後に appid.RuntimeAuthoritativePathList() (= [HostExecShimsPath,
+  SecretEnvShimsPath]) を無条件 prepend + dedup し、appid が shim 名 SSOT + 順序付き runtime list
+  を提供する (case D)
 ---
 
 ## Context

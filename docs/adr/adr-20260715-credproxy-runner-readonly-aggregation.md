@@ -1,7 +1,9 @@
 ---
 id: adr-20260715-credproxy-runner-readonly-aggregation
 kind: adr
-title: "ADR — agent-grid credproxy Runner is a read-only aggregation built from the caller's own Materialize/ContainerSpec outcomes; no peek into credproxy internal state"
+title: ADR — agent-grid credproxy Runner is a read-only aggregation built from the
+  caller's own Materialize/ContainerSpec outcomes; no peek into credproxy internal
+  state
 status: accepted
 created: '2026-07-15'
 tags:
@@ -13,16 +15,18 @@ tags:
 owners:
 - take.gn
 relations:
-- {type: partOf, target: plan-20260715-credproxy-materialization-contract}
-- {type: references, target: spec-20260715-credproxy-materialization-contract}
+- {type: partOf, target: change-20260715-credproxy-materialization-contract}
 - {type: references, target: adr-20260715-credproxy-materialize-method}
 - {type: references, target: adr-20260715-credproxy-retry-owner-caller-side}
+- {type: references, target: change-20260715-credproxy-materialization-contract}
 source_paths:
 - src/platform/credproxy/credproxy.go
 - src/platform/agentlaunch/devcontainer.go
 decision_makers:
 - take.gn
-summary: "agent-grid credproxy.Runner は自身が発行した Materialize 呼び出し outcome をそのまま aggregate する consumer-side aggregator。ReadinessSnapshot (defensive copy) と distinguishable slog を提供するが、credproxy library の内部 state は覗かない。境界は本 ADR で pin される。"
+summary: agent-grid credproxy.Runner は自身が発行した Materialize 呼び出し outcome をそのまま aggregate
+  する consumer-side aggregator。ReadinessSnapshot (defensive copy) と distinguishable
+  slog を提供するが、credproxy library の内部 state は覗かない。境界は本 ADR で pin される。
 ---
 
 ## Context

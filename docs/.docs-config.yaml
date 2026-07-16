@@ -1,14 +1,9 @@
+format_version: 2
 schemas_dir: schemas
 lint_targets:
+- changes/**/*.md
+- design/**/*.md
 - adr/*.md
-- specs/**/*.md
-- task/*.md
 - note/*.md
-- component/*.md
 sqlite_path: index/docs.sqlite
-default_methodology:
-  spec: baseline
-allowed_methodologies:
-- sdd
-- atdd
-- baseline
+default_change_profile: sdd@1

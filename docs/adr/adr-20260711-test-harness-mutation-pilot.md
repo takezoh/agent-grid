@@ -9,8 +9,8 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-test-harness-north-star}
-- {type: references, target: spec-20260711-test-harness-north-star}
+- {type: partOf, target: change-20260711-test-harness-north-star}
+- {type: references, target: change-20260711-test-harness-north-star}
 source_paths: []
 summary: 固定operator・seed・timeout・baselineでcritical pathの検出力を再現可能に測る
 updated: '2026-07-11'

@@ -11,9 +11,8 @@ tags:
 - api-contract
 owners: []
 relations:
-- {type: references, target: plan-20260711-frame-exec-launcher}
 - {type: references, target: adr-20260711-0082-frame-exec-launcher}
-- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
+- {type: references, target: change-20260711-frame-exec-launcher}
 source_paths:
 - src/client/state/driver_iface.go
 - src/platform/agentlaunch/types.go

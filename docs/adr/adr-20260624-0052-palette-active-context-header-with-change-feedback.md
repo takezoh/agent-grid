@@ -11,9 +11,7 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: references, target: ux-20260625-2026-06-25-web-palette-redesign}
-- {type: referencedBy, target: plan-20260625-2026-06-25-web-palette-redesign}
-- {type: referencedBy, target: spec-20260625-2026-06-25-web-palette-redesign}
+- {type: references, target: change-20260625-2026-06-25-web-palette-redesign}
 source_paths:
 - src/client/web/src/
 decision_makers:

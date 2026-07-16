@@ -9,9 +9,7 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations:
-- {type: referencedBy, target: note-20260624-technical-web-gateway}
-- {type: supersededBy, target: adr-20260705-view-update-sessions-only}
+relations: []
 source_paths: []
 decision_makers:
 - unknown

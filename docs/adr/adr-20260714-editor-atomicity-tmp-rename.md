@@ -11,7 +11,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-editor}
+- {type: partOf, target: change-20260714-agent-workspace-editor}
 source_paths: []
 summary: Save atomicity uses same-directory tmp file + os.Rename with inode verification
 updated: '2026-07-14'

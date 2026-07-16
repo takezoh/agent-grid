@@ -10,20 +10,11 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: component-20260624-orchestrator-overview}
-- {type: referencedBy, target: component-20260624-platform-brokers}
-- {type: referencedBy, target: component-20260624-platform-overview}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
-- {type: references, target: component-20260624-orchestrator-overview}
-- {type: references, target: component-20260624-platform-agent-protocol}
-- {type: references, target: component-20260624-platform-brokers}
-- {type: references, target: component-20260624-platform-sandbox}
-- {type: references, target: component-20260624-platform-spawn-and-launch}
+- {type: references, target: design-orchestrator}
+- {type: references, target: design-platform}
 - {type: references, target: note-20260624-agent-workflow-authoring}
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-user-orchestrator}
-- {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
-- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
 - WORKFLOW.md
 - src/orchestrator/wfconfig/
@@ -106,7 +97,7 @@ RetryQueued issues are claimed, so they **occupy a slot during the backoff windo
 
 ## 3. Capability sandboxing — what a running agent can touch
 
-A dispatched agent runs inside a per-project devcontainer and can only reach the host through brokers that enforce policy. This is the hard security boundary. Implementation is in [brokers.md](../component/component-20260624-platform-brokers.md); the security model rationale is in [sandbox.md](../component/component-20260624-platform-sandbox.md).
+A dispatched agent runs inside a per-project devcontainer and can only reach the host through brokers that enforce policy. This is the hard security boundary. Implementation is in [brokers.md](../design/design-platform.md#legacy-source-component-20260624-platform-brokers); the security model rationale is in [sandbox.md](../design/design-platform.md#legacy-source-component-20260624-platform-sandbox).
 
 | Guardrail | What it limits | Enforced by |
 |---|---|---|
@@ -114,7 +105,7 @@ A dispatched agent runs inside a per-project devcontainer and can only reach the
 | hostexec allowlist | which host binaries the agent may run | `Policy.Check` — deny-first, default-deny glob patterns |
 | mcpproxy tool policy | which MCP tools the agent may call | `Policy.CheckTool` — gates `tools/call` and filters `tools/list` |
 | credproxy scoped tokens | cross-project credential access | per-project 256-bit token ↔ projectID |
-| argv-direct exec | shell-metacharacter injection | `agentlaunch.Spawn` interposes no `/bin/sh -c` ([spawn-and-launch.md](../component/component-20260624-platform-spawn-and-launch.md)) |
+| argv-direct exec | shell-metacharacter injection | `agentlaunch.Spawn` interposes no `/bin/sh -c` ([spawn-and-launch.md](../design/design-platform.md#legacy-source-component-20260624-platform-spawn-and-launch)) |
 
 ## 4. Autonomy policy — what an agent may do without a human
 
@@ -147,7 +138,7 @@ Reconcile (`scheduler`, SPEC §7/§16) bounds how long an agent may run and how 
 - **Stall / turn-timeout kill** (reconcile Part A): a running attempt past its timeout is killed → `WorkerExitAbnormal` → retry enqueued.
 - **Tracker refresh** (reconcile Part B): an issue that left its active state is killed or continued accordingly — so closing/reassigning an issue stops its agent.
 - **Retry / backoff** (`retry.go`): a normal exit enqueues a fixed **continuation** retry (`continuationDelay = 1s`); an abnormal exit / timeout enqueues an **exponential backoff** retry, `10_000 × 2^(attempt-1)` ms capped at `max_retry_backoff_ms` (SPEC §8.4). Backoff grows with each attempt, so a persistently failing issue self-throttles instead of hot-looping.
-- **Claim lifecycle**: every attempt moves through the claim state machine and is `Released` terminally; the diagram is in the [orchestrator README](../component/component-20260624-orchestrator-overview.md#scheduler-state-machine).
+- **Claim lifecycle**: every attempt moves through the claim state machine and is `Released` terminally; the diagram is in the [orchestrator README](../design/design-orchestrator.md#scheduler-state-machine).
 
 ## 6. Behavioral steering & pre-run validation
 
@@ -168,7 +159,7 @@ Reconcile (`scheduler`, SPEC §7/§16) bounds how long an agent may run and how 
 
 ## Related
 
-- Broker implementation (capability enforcement): [brokers.md](../component/component-20260624-platform-brokers.md) · security model: [sandbox.md](../component/component-20260624-platform-sandbox.md)
-- Agent protocol (approval/sandbox options, turn sequence): [agent-protocol.md](../component/component-20260624-platform-agent-protocol.md)
-- Orchestrator pipeline & state machines: [orchestrator README](../component/component-20260624-orchestrator-overview.md)
+- Broker implementation (capability enforcement): [brokers.md](../design/design-platform.md#legacy-source-component-20260624-platform-brokers) · security model: [sandbox.md](../design/design-platform.md#legacy-source-component-20260624-platform-sandbox)
+- Agent protocol (approval/sandbox options, turn sequence): [agent-protocol.md](../design/design-platform.md#legacy-source-component-20260624-platform-agent-protocol)
+- Orchestrator pipeline & state machines: [orchestrator README](../design/design-orchestrator.md)
 - Code/architecture enforcement (depguard, length limits): [code-enforcement.md](../note/note-20260624-technical-code-enforcement.md)

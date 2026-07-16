@@ -12,8 +12,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-viewer}
-- {type: supersededBy, target: adr-20260714-editor-write-depguard-rescope}
+- {type: partOf, target: change-20260714-agent-workspace-viewer}
 source_paths: []
 summary: depguard rule structurally forbids fs-mutating calls in the workspace-viewer
   handler package

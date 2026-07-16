@@ -10,7 +10,6 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0076-session-card-title-subtitle-two-slot}
 - {type: references, target: adr-20260624-0076-session-card-title-subtitle-two-slot}
 source_paths:
 - src/client/driver/view_builder.go

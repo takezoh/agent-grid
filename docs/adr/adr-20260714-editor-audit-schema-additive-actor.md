@@ -12,7 +12,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-editor}
+- {type: partOf, target: change-20260714-agent-workspace-editor}
 source_paths: []
 summary: Operator audit uses additive optional actor field on schema_version=2 (no
   version bump)

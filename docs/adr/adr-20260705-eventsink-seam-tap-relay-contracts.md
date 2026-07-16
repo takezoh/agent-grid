@@ -11,12 +11,9 @@ tags:
 - runtime
 owners: []
 relations:
-- {type: partOf, target: plan-20260705-test-harness}
+- {type: partOf, target: change-20260705-test-harness}
 - {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
-- {type: referencedBy, target: note-20260624-agent-testing}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: adr-20260711-extend-sever-not-drop-shared-ipc-hops}
 source_paths:
 - src/client/runtime/tap_manager.go
 - src/client/runtime/pty_tap.go

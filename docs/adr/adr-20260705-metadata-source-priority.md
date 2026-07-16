@@ -8,10 +8,7 @@ decision_makers:
 - unknown
 tags: []
 owners: []
-relations:
-- {type: referencedBy, target: adr-20260705-driver-conformance-registry-suite}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: note-20260624-agent-testing}
+relations: []
 source_paths: []
 summary: Defines authoritative and fallback sources for model and effort metadata
   across Claude and Codex sessions.

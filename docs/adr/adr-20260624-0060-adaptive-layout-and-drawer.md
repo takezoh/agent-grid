@@ -12,11 +12,7 @@ tags:
 owners: []
 relations:
 - {type: references, target: adr-20260624-0029-terminal-host-flex-height}
-- {type: references, target: plan-20260625-2026-06-25-web-ui-redesign}
-- {type: references, target: spec-20260625-2026-06-25-web-ui-redesign}
-- {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
-- {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
-- {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: change-20260625-2026-06-25-web-ui-redesign}
 source_paths:
 - src/client/web/src/
 decision_makers:

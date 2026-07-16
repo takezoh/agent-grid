@@ -12,9 +12,9 @@ tags:
 - reliability
 owners: []
 relations:
+- {type: partOf, target: change-20260711-terminal-output-backpressure}
 - {type: references, target: adr-20260711-extend-sever-not-drop-shared-ipc-hops}
-- {type: references, target: spec-20260711-terminal-output-backpressure}
-- {type: partOf, target: plan-20260711-terminal-output-backpressure}
+- {type: references, target: change-20260711-terminal-output-backpressure}
 source_paths:
 - src/server/web/daemon_client.go
 - src/cmd/server/gateway.go

@@ -9,7 +9,7 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-workspace-session-switch}
+- {type: partOf, target: change-20260714-workspace-session-switch}
 source_paths: []
 summary: 既存 WorkspaceRootHandle tuple を server 境界で current session 解決値へ照合する。
 updated: '2026-07-14'

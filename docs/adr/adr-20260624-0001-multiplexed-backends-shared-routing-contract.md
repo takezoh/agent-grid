@@ -12,15 +12,8 @@ tags:
 owners: []
 relations:
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
-- {type: references, target: component-20260624-client-stream-backend-e2e}
+- {type: references, target: design-client}
 - {type: references, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
-- {type: referencedBy, target: adr-20260624-0003-termvt-fanout-isolation}
-- {type: referencedBy, target: adr-20260624-0081-codex-frame-init-serialize}
-- {type: referencedBy, target: component-20260624-client-stream-backend-testing}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: adr-20260711-0082-frame-exec-launcher}
-- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
 source_paths:
 - src/client/runtime/subsystem/stream/
 - ARCHITECTURE.md
@@ -118,7 +111,7 @@ regression guards (same-cwd frames get distinct ids and cannot cross-talk).
 Because the spawned frame now resumes the daemon-created thread (cold start uses
 `codex resume <id> --remote`), this change to the spawn/attach contract must be
 verified against a real app-server via the opt-in e2e
-([stream-backend-e2e.md](../component/component-20260624-client-stream-backend-e2e.md)).
+([stream-backend-e2e.md](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-e2e)).
 
 ## Update — passive adopt (2026-07-01, see ADR-0081)
 

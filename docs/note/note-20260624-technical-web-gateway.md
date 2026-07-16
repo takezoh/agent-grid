@@ -17,7 +17,6 @@ relations:
 - {type: references, target: adr-20260624-0025-transcript-rest-backfill-then-ws-tail}
 - {type: references, target: adr-20260624-0027-notification-toast-auto-dismiss-policy}
 - {type: references, target: note-20260624-user-web-server}
-- {type: referencedBy, target: note-20260624-user-web-server}
 source_paths:
 - src/server/web/
 - src/client/runtime/

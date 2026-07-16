@@ -13,8 +13,8 @@ tags:
 - vt
 owners: []
 relations:
-- {type: partOf, target: plan-20260715-terminal-scrollback-reflow}
-- {type: references, target: spec-20260715-terminal-scrollback-reflow}
+- {type: partOf, target: change-20260715-terminal-scrollback-reflow}
+- {type: references, target: change-20260715-terminal-scrollback-reflow}
 - {type: supersedes, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
 source_paths:
 - src/platform/termvt

@@ -13,10 +13,8 @@ owners: []
 decision_makers:
 - unknown
 relations:
-- {type: partOf, target: plan-20260707-codexclient-jsonrpc-id-opaque}
-- {type: references, target: spec-20260707-codexclient-jsonrpc-id-opaque}
-- {type: referencedBy, target: note-20260707-technical-jsonrpc-id-opacity}
-- {type: referencedBy, target: adr-20260707-jsonrpc-error-object-opaque-forwarding}
+- {type: partOf, target: change-20260707-codexclient-jsonrpc-id-opaque}
+- {type: references, target: change-20260707-codexclient-jsonrpc-id-opaque}
 source_paths:
 - src/cmd/bridge/codex_app_server_shim.go
 - src/platform/agent/codexclient/conn.go

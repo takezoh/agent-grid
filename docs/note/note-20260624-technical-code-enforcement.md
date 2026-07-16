@@ -10,16 +10,6 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
-- {type: referencedBy, target: adr-20260624-0003-termvt-fanout-isolation}
-- {type: referencedBy, target: adr-20260705-driver-conformance-registry-suite}
-- {type: referencedBy, target: adr-20260705-eventsink-seam-tap-relay-contracts}
-- {type: referencedBy, target: adr-20260705-fakedocker-path-injection}
-- {type: referencedBy, target: adr-20260705-test-tier-taxonomy}
-- {type: referencedBy, target: adr-20260705-wire-fixtures-pipeline}
-- {type: referencedBy, target: component-20260624-platform-overview}
-- {type: referencedBy, target: note-20260624-agent-contributing}
-- {type: referencedBy, target: note-20260624-agent-testing}
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
 - {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
@@ -29,15 +19,10 @@ relations:
 - {type: references, target: adr-20260705-metadata-source-priority}
 - {type: references, target: adr-20260705-test-tier-taxonomy}
 - {type: references, target: adr-20260705-wire-fixtures-pipeline}
-- {type: references, target: component-20260624-client-overview}
-- {type: references, target: component-20260624-client-stream-backend-testing}
-- {type: references, target: component-20260624-orchestrator-overview}
-- {type: references, target: component-20260624-platform-overview}
-- {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
+- {type: references, target: design-client}
+- {type: references, target: design-orchestrator}
+- {type: references, target: design-platform}
 - {type: references, target: note-20260624-technical-guardrails}
-- {type: referencedBy, target: note-20260624-technical-guardrails}
-- {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
-- {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
 - ARCHITECTURE.md
 - src/.golangci.yml
@@ -164,7 +149,7 @@ Wire-format / persistence types are written with **stdlib only (`encoding/json`)
 
 A multiplexed subsystem backend — one app-server connection fronting many frames — must route every server event to the frame that *initiated* the thread, never to an inferred/active frame. A leak is **cross-talk**: one agent's output surfaces in another agent's session. This is the [No fabricated fallbacks](../../ARCHITECTURE.md#design-principles) principle for `runtime/subsystem/stream`.
 
-Unlike sections 1–5 this cannot be caught at lint/compile time (it is a runtime routing property), so it is **test-pinned**: the [routing-isolation contract](../component/component-20260624-client-stream-backend-testing.md) (`TestStreamRoutingContract`, `TestStreamRoutingWiredIsolation`, `FuzzStreamRouting`) asserts that every emitted `EvSubsystem` carries the owning frame's id. The demux binds threads synchronously at creation/resume (`bindThread`), so an unknown `thread.started` is dropped rather than adopted by the active frame; the contract guards against reintroducing such a fabricated fallback. Rationale: [ADR 0001](../adr/adr-20260624-0001-multiplexed-backends-shared-routing-contract.md); fidelity backstop: [ADR 0002](../adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md).
+Unlike sections 1–5 this cannot be caught at lint/compile time (it is a runtime routing property), so it is **test-pinned**: the [routing-isolation contract](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-testing) (`TestStreamRoutingContract`, `TestStreamRoutingWiredIsolation`, `FuzzStreamRouting`) asserts that every emitted `EvSubsystem` carries the owning frame's id. The demux binds threads synchronously at creation/resume (`bindThread`), so an unknown `thread.started` is dropped rather than adopted by the active frame; the contract guards against reintroducing such a fabricated fallback. Rationale: [ADR 0001](../adr/adr-20260624-0001-multiplexed-backends-shared-routing-contract.md); fidelity backstop: [ADR 0002](../adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md).
 
 Exception: none — a multiplexed backend that cannot satisfy the invariant is a defect, not a candidate for opt-out.
 
@@ -172,7 +157,7 @@ Exception: none — a multiplexed backend that cannot satisfy the invariant is a
 
 The PTY multiplexer `platform/termvt` is the same shape as §6 — one source (a pty) fanned out to many subscribers — and shares the cross-talk failure mode. Its **fan-out isolation** invariant: every event reaches exactly the live subscribers of its own session (all, in order, control-before-output), and a subscriber that cannot keep up is *severed*, never allowed to block or corrupt the others. Cross-talk here is one session's bytes surfacing in another's terminal, or a slow client wedging a healthy one.
 
-Like §6 this is a runtime property, not lint/compile-catchable, so it is **test-pinned**: the [fan-out isolation contract](../component/component-20260624-platform-termvt-multiplexer-testing.md) (`TestFanoutDeliversToEverySubscriber`, `TestManagerSessionsDoNotCrossTalk`, `TestSlowSubscriberDoesNotStarveFast`, `TestControlPrecedesOutputInChunk`) runs against a real pty under `-race`, and `server/web`'s `FuzzApplyInboundProto` pins the untrusted client→server frame decode (no panic, no non-positive resize). Rationale: [ADR 0003](../adr/adr-20260624-0003-termvt-fanout-isolation.md). Unlike §6 there is no opt-in e2e tier — termvt has no in-process fake to validate (its only backend is a real pty).
+Like §6 this is a runtime property, not lint/compile-catchable, so it is **test-pinned**: the [fan-out isolation contract](../design/design-platform.md#legacy-source-component-20260624-platform-termvt-multiplexer-testing) (`TestFanoutDeliversToEverySubscriber`, `TestManagerSessionsDoNotCrossTalk`, `TestSlowSubscriberDoesNotStarveFast`, `TestControlPrecedesOutputInChunk`) runs against a real pty under `-race`, and `server/web`'s `FuzzApplyInboundProto` pins the untrusted client→server frame decode (no panic, no non-positive resize). Rationale: [ADR 0003](../adr/adr-20260624-0003-termvt-fanout-isolation.md). Unlike §6 there is no opt-in e2e tier — termvt has no in-process fake to validate (its only backend is a real pty).
 
 Exception: none — a multiplexer that cannot satisfy fan-out isolation is a defect, not a candidate for opt-out.
 
@@ -209,5 +194,5 @@ Where defined: [ADR — Driver conformance suite enforced via registry iteration
 ## Related
 
 - Canonical design principles: [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- Per-layer deep dives: [platform](../component/component-20260624-platform-overview.md) · [client](../component/component-20260624-client-overview.md) · [orchestrator](../component/component-20260624-orchestrator-overview.md)
+- Per-layer deep dives: [platform](../design/design-platform.md) · [client](../design/design-client.md) · [orchestrator](../design/design-orchestrator.md)
 - Agent-control guardrails (admission, concurrency, capability, autonomy, liveness): [guardrails.md](../note/note-20260624-technical-guardrails.md)

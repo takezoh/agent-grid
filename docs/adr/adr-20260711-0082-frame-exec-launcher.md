@@ -12,12 +12,9 @@ tags:
 - launcher
 owners: []
 relations:
-- {type: references, target: plan-20260711-frame-exec-launcher}
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0081-codex-frame-init-serialize}
-- {type: referencedBy, target: adr-20260711-0083-launchplan-argv-primary}
-- {type: referencedBy, target: adr-20260711-0084-frame-spec-transport}
-- {type: referencedBy, target: spec-20260711-frame-exec-launcher}
+- {type: references, target: change-20260711-frame-exec-launcher}
 source_paths:
 - src/cmd/bridge/frame_exec.go
 - src/platform/sandbox/devcontainer/manager.go
@@ -97,7 +94,7 @@ sandbox frame launch の container 側逐次実行を `bridge frame-exec` が **
 
 - **bridge frame-exec**: preExec 評価 (内部 shell 経由 env 吸い上げ)、pre-command 逐次実行、成功判定、timeout、main への syscall.Exec 置換。frame の存在 / 消滅は関知しない
 - **stream backend** (adr-20260624-0001 / 0081): frame lifecycle (spawn / attach / thread routing / kill / reap) の owner。bridge の exit code は backend から見て frame 終了と同型
-- 境界の doc は `docs/component/component-*-client-stream-backend*` に referencedBy relation を追加して pointer 化する (別 PR)
+- 境界の doc は `docs/design/design-client.md` の stream-backend legacy sections と relation graph から参照する。
 
 ## Alternatives
 

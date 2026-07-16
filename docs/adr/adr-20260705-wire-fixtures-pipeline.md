@@ -11,11 +11,8 @@ tags:
 - web
 owners: []
 relations:
-- {type: partOf, target: plan-20260705-test-harness}
+- {type: partOf, target: change-20260705-test-harness}
 - {type: references, target: adr-20260624-0021-frontend-wire-types-hand-written}
-- {type: referencedBy, target: adr-20260624-0021-frontend-wire-types-hand-written}
-- {type: referencedBy, target: note-20260624-agent-testing}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-technical-code-enforcement}
 source_paths:
 - src/server/web/wire.go

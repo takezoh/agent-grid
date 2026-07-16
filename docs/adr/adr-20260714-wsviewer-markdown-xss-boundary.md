@@ -11,7 +11,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-viewer}
+- {type: partOf, target: change-20260714-agent-workspace-viewer}
 source_paths: []
 summary: Markdown renderer sanitizes via rehype-sanitize; fail-closed to plain text
 ---

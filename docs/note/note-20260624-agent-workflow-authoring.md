@@ -10,15 +10,8 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: component-20260624-orchestrator-overview}
-- {type: referencedBy, target: note-20260624-agent-overview}
-- {type: references, target: component-20260624-orchestrator-overview}
-- {type: references, target: component-20260624-orchestrator-symphony-conformance}
+- {type: references, target: design-orchestrator}
 - {type: references, target: note-20260624-user-orchestrator}
-- {type: referencedBy, target: note-20260624-docs-overview}
-- {type: referencedBy, target: note-20260624-technical-guardrails}
-- {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
-- {type: referencedBy, target: note-20260624-user-orchestrator}
 source_paths:
 - WORKFLOW.md
 - src/orchestrator/workflowfile/
@@ -39,7 +32,7 @@ This is the `orchestrator` layer seen from the perspective of someone *operating
 
 ## The prompt template
 
-The body is rendered per dispatch with a Liquid-compatible template renderer ([SPEC §12](../component/component-20260624-orchestrator-symphony-conformance.md)). Each dispatch re-reads the latest body, so edits take effect on the next dispatch without a restart.
+The body is rendered per dispatch with a Liquid-compatible template renderer ([SPEC §12](../design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance)). Each dispatch re-reads the latest body, so edits take effect on the next dispatch without a restart.
 
 Available variables include:
 
@@ -96,9 +89,9 @@ query Comments($id: String!) { issue(id: $id) { comments { nodes { body createdA
 
 `$id` is `{{ issue.id }}`; `$stateId` is the id of the destination state (resolve it with the `States` query first). Unknown mutations or input types can be discovered via introspection (`__type`).
 
-> Note on the tool's wire path: `linear_graphql` is advertised via the `thread/start` `dynamicTools` entry and invoked over `item/tool/call`. It is advertised only when the Linear client (tracker `api_key` + `endpoint`) is configured. See [symphony-conformance.md](../component/component-20260624-orchestrator-symphony-conformance.md) and the orchestrator internals for details.
+> Note on the tool's wire path: `linear_graphql` is advertised via the `thread/start` `dynamicTools` entry and invoked over `item/tool/call`. It is advertised only when the Linear client (tracker `api_key` + `endpoint`) is configured. See [symphony-conformance.md](../design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance) and the orchestrator internals for details.
 
 ## See also
 
 - [orchestrator user guide](../note/note-20260624-user-orchestrator.md) — running the pipeline and the front-matter config
-- [orchestrator internals](../component/component-20260624-orchestrator-overview.md) — how dispatch and reconcile turn the prompt into a running agent
+- [orchestrator internals](../design/design-orchestrator.md) — how dispatch and reconcile turn the prompt into a running agent

@@ -1,7 +1,9 @@
 ---
 id: adr-20260715-credproxy-materialize-method
 kind: adr
-title: "ADR — credproxy: add `Materialize(ctx, projectPath) error` to container.Provider as the SSOT command for credential state writes; ContainerSpec remains a pure wiring query"
+title: 'ADR — credproxy: add `Materialize(ctx, projectPath) error` to container.Provider
+  as the SSOT command for credential state writes; ContainerSpec remains a pure wiring
+  query'
 status: accepted
 created: '2026-07-15'
 tags:
@@ -14,18 +16,17 @@ tags:
 owners:
 - take.gn
 relations:
-- {type: partOf, target: plan-20260715-credproxy-materialization-contract}
-- {type: references, target: spec-20260715-credproxy-materialization-contract}
-- {type: references, target: adr-20260715-credproxy-retry-owner-caller-side}
+- {type: partOf, target: change-20260715-credproxy-materialization-contract}
 - {type: references, target: adr-20260715-credproxy-metadata-handler-async-materialize}
+- {type: references, target: adr-20260715-credproxy-retry-owner-caller-side}
 - {type: references, target: adr-20260715-credproxy-runner-readonly-aggregation}
-source_paths:
-- /home/dev/dev/credproxy/container/provider.go
-- /home/dev/dev/credproxy/providers/gcloudcli/spec.go
-- /home/dev/dev/credproxy/providers/gcloudcli/metadata.go
+- {type: references, target: change-20260715-credproxy-materialization-contract}
+source_paths: []
 decision_makers:
 - take.gn
-summary: container.Provider に Materialize(ctx, projectPath) error を additive 追加し credential 書き込み SSOT を分離する。ContainerSpec は pure wiring query のまま signature 不変。CQRS 分割で write と wiring を interface level で分ける。gcloudcli の 3 write site は Materialize に集約。
+summary: container.Provider に Materialize(ctx, projectPath) error を additive 追加し credential
+  書き込み SSOT を分離する。ContainerSpec は pure wiring query のまま signature 不変。CQRS 分割で write
+  と wiring を interface level で分ける。gcloudcli の 3 write site は Materialize に集約。
 ---
 
 ## Context

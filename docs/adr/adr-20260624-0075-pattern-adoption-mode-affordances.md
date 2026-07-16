@@ -12,18 +12,13 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
-- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
 - {type: references, target: adr-20260624-0057-palette-single-aria-live-slot}
 - {type: references, target: adr-20260624-0059-design-token-and-theme-bridge}
 - {type: references, target: adr-20260624-0067-mobile-gate-matchmedia}
 - {type: references, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
 - {type: references, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
 - {type: references, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
-- {type: references, target: spec-20260626-web-terminal-mobile-ux}
-- {type: references, target: ux-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: change-20260626-web-terminal-mobile-ux}
 source_paths:
 - AGENTS.md
 - src/client/web/src/

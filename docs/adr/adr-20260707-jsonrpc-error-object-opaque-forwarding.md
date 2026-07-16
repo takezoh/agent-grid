@@ -15,12 +15,13 @@ decision_makers:
 relations:
 - {type: references, target: adr-20260707-jsonrpc-id-opaque-forwarding}
 - {type: references, target: adr-20260707-shim-bytes-preserving-id-proxy}
-- {type: referencedBy, target: note-20260707-technical-jsonrpc-id-opacity}
 source_paths:
 - src/platform/agent/codexclient/conn.go
 - src/cmd/bridge/codex_app_server_shim.go
 - src/platform/agent/fakecodex/codex_real_cli_e2e_test.go
-summary: codexclient.Conn.Request の error 返却を *RPCError 型に格上げして peer の error object bytes を保持し、Conn.ReplyRPCError を新設して proxy 側で verbatim forward。ReplyError も code=-32603 を自動付与して JSON-RPC 2.0 JSONRPCErrorError 準拠に。
+summary: codexclient.Conn.Request の error 返却を *RPCError 型に格上げして peer の error object
+  bytes を保持し、Conn.ReplyRPCError を新設して proxy 側で verbatim forward。ReplyError も code=-32603
+  を自動付与して JSON-RPC 2.0 JSONRPCErrorError 準拠に。
 updated: '2026-07-07'
 ---
 

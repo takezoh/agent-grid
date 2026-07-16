@@ -14,21 +14,17 @@ tags:
 - regression-pin
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-launchplan-effect-continuity}
-- {type: references, target: spec-20260714-launchplan-effect-continuity}
+- {type: partOf, target: change-20260714-launchplan-effect-continuity}
 - {type: references, target: adr-20260714-launchplan-effect-embedding}
+- {type: references, target: change-20260714-launchplan-effect-continuity}
 source_paths:
 - src/client/state/spawn_effect_plan_continuity_test.go
 - src/client/state/effspawnframe_serialization_guard_test.go
 - src/client/runtime/frame_launch_matrix_test.go
 decision_makers:
 - take.gn
-summary: Enforce LaunchPlan field-continuity across the spawnEffect -> EffSpawnFrame
-  -> wrapLaunchForSpawn boundary with a split-tier test contract — Tier T0 in the
-  state package via a reflection-driven fixture with a pinned recursion contract and
-  walker self-test, plus Tier T1 in the runtime package via a spy hook on the matrix
-  harness that captures the plan reaching wrapLaunchForSpawn — without exporting new
-  production API surface.
+summary: Enforce LaunchPlan continuity with a reflection-driven T0 contract and a
+  runtime T1 observation, without new production API.
 ---
 
 ## Context

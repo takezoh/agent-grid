@@ -1,7 +1,8 @@
 ---
 id: adr-20260715-credproxy-retry-owner-caller-side
 kind: adr
-title: "ADR — credproxy: retry ownership is caller-only; credproxy internal default retry = 0 (fail fast)"
+title: 'ADR — credproxy: retry ownership is caller-only; credproxy internal default
+  retry = 0 (fail fast)'
 status: accepted
 created: '2026-07-15'
 tags:
@@ -14,18 +15,18 @@ tags:
 owners:
 - take.gn
 relations:
-- {type: partOf, target: plan-20260715-credproxy-materialization-contract}
-- {type: references, target: spec-20260715-credproxy-materialization-contract}
+- {type: partOf, target: change-20260715-credproxy-materialization-contract}
 - {type: references, target: adr-20260715-credproxy-materialize-method}
 - {type: references, target: adr-20260715-credproxy-recovery-lever-accepts-degraded-window}
+- {type: references, target: change-20260715-credproxy-materialization-contract}
 source_paths:
-- /home/dev/dev/credproxy/container/provider.go
-- /home/dev/dev/credproxy/providers/gcloudcli/spec.go
 - src/platform/agentlaunch/devcontainer.go
 - src/platform/credproxy/credproxy.go
 decision_makers:
 - take.gn
-summary: "credproxy 内部の Materialize retry を 0 attempts (fail fast) に pin し、retry cadence は 100% caller (agent-grid の resolveOverlaySpecs / Runner) が specCtx envelope 内で所有する。library の部分保有 (default 1 attempt + caller envelope) は禁じる。"
+summary: credproxy 内部の Materialize retry を 0 attempts (fail fast) に pin し、retry cadence
+  は 100% caller (agent-grid の resolveOverlaySpecs / Runner) が specCtx envelope 内で所有する。library
+  の部分保有 (default 1 attempt + caller envelope) は禁じる。
 ---
 
 ## Context

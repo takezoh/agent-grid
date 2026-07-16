@@ -10,14 +10,7 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: component-20260624-platform-overview}
-- {type: referencedBy, target: component-20260624-platform-sandbox}
-- {type: referencedBy, target: component-20260624-platform-spawn-and-launch}
-- {type: referencedBy, target: note-20260624-docs-overview}
-- {type: referencedBy, target: note-20260624-user-getting-started}
-- {type: referencedBy, target: note-20260624-user-orchestrator}
-- {type: referencedBy, target: note-20260624-user-overview}
-- {type: references, target: component-20260624-platform-sandbox}
+- {type: references, target: design-platform}
 source_paths:
 - src/platform/sandbox/
 - src/platform/credproxy/
@@ -288,4 +281,4 @@ This config is shared by bare-host `credproxy run` and the container broker — 
 
 **Security note:** resolved secret values enter the subprocess environment for its lifetime only. They do not persist in the container env, session env, or any file. The hook binary and allowlist reside on the host and cannot be modified by container code.
 
-See [Sandbox Backends](../component/component-20260624-platform-sandbox.md) for the architecture, security model, and lifecycle internals.
+See [Sandbox Backends](../design/design-platform.md#legacy-source-component-20260624-platform-sandbox) for the architecture, security model, and lifecycle internals.

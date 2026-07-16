@@ -4,11 +4,15 @@ kind: adr
 title: Grok observation transport
 status: proposed
 created: '2026-07-11'
-decision_makers: [agent-grid maintainers]
-tags: [grok, driver, terminal]
+decision_makers:
+- agent-grid maintainers
+tags:
+- grok
+- driver
+- terminal
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-grok-driver}
+- {type: partOf, target: change-20260711-grok-driver}
 source_paths: []
 summary: Grok TUI は PTY、状態観測は process lifecycle と確認済み same-process signal に限定する
 ---

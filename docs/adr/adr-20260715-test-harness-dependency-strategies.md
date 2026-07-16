@@ -45,4 +45,6 @@ dependency admission は次の2 strategyだけを許す。
 - marker検査を維持しreviewへ委ねる: 現にfalse greenを生成したため棄却。
 - registryを廃止してlintだけにする: fake/contract/fidelity間の意味結線と例外理由を保持できないため棄却。
 
-{% confirmation %}`go test ./internal/harnesspolicy -run Dependency`、`scripts/check-harness-dependencies.sh`、trusted harness gateがstrategy・AST evidence・callsite inventoryを検証する。{% /confirmation %}
+## Confirmation
+
+`go test ./internal/harnesspolicy -run Dependency`、`scripts/check-harness-dependencies.sh`、trusted harness gateがstrategy・AST evidence・callsite inventoryを検証する。

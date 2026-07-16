@@ -10,13 +10,12 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: references, target: component-20260624-client-overview}
-- {type: references, target: component-20260624-orchestrator-overview}
-- {type: references, target: component-20260624-platform-overview}
+- {type: references, target: design-client}
+- {type: references, target: design-orchestrator}
+- {type: references, target: design-platform}
 - {type: references, target: note-20260624-agent-contributing}
 - {type: references, target: note-20260624-agent-testing}
 - {type: references, target: note-20260624-agent-workflow-authoring}
-- {type: referencedBy, target: note-20260624-docs-overview}
 source_paths:
 - WORKFLOW.md
 - AGENTS.md
@@ -49,4 +48,4 @@ All three layers and their import boundaries are defined in [ARCHITECTURE.md](..
 - `client/` — agent-grid's client; must not import `orchestrator/`
 - `orchestrator/` — Symphony pipeline; must not import `client/`
 
-Layer internals: [platform/](../component/component-20260624-platform-overview.md) · [client/](../component/component-20260624-client-overview.md) · [orchestrator/](../component/component-20260624-orchestrator-overview.md).
+Layer internals: [platform/](../design/design-platform.md) · [client/](../design/design-client.md) · [orchestrator/](../design/design-orchestrator.md).

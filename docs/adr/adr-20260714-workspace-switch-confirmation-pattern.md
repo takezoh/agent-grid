@@ -9,7 +9,7 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-workspace-session-switch}
+- {type: partOf, target: change-20260714-workspace-session-switch}
 source_paths: []
 summary: Workspace 非表示時も dirty session switch を確認できるよう既存 App overlay と ConfirmDialog
   を再利用する。

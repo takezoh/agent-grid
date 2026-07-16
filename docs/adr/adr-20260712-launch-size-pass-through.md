@@ -13,8 +13,8 @@ tags:
 - launch
 owners: []
 relations:
-- {type: partOf, target: plan-20260712-frame-size-ownership}
-- {type: references, target: spec-20260712-frame-size-ownership}
+- {type: partOf, target: change-20260712-frame-size-ownership}
+- {type: references, target: change-20260712-frame-size-ownership}
 source_paths:
 - src/client/state/driver_iface.go
 - src/client/state/effect.go

@@ -10,8 +10,8 @@ tags:
 - assessment
 owners: []
 relations:
-- {type: references, target: plan-20260705-test-harness}
 - {type: references, target: adr-20260705-test-tier-taxonomy}
+- {type: references, target: change-20260705-test-harness}
 source_paths:
 - docs/specs/test-harness/
 - docs/note/note-20260624-agent-testing.md

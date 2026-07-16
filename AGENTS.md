@@ -27,10 +27,10 @@ make test-race               # Race detector on concurrency-sensitive subtrees
 
 ```sh
 make test-e2e
-# Package list: Makefile test-e2e target. Per-binary setup: docs/component/component-20260624-client-stream-backend-e2e.md
+# Package list: Makefile test-e2e target. Per-binary setup: docs/design/design-client.md#legacy-source-component-20260624-client-stream-backend-e2e
 ```
 
-**Web Playwright smoke** — browser wiring that happy-dom cannot prove; uses deterministic fake backend (`e2e/support/fake-backend.ts`). Harness overview: `docs/component/component-20260705-client-web-browser-harness.md`.
+**Web Playwright smoke** — browser wiring that happy-dom cannot prove; uses deterministic fake backend (`e2e/support/fake-backend.ts`). Harness overview: `docs/design/design-client.md#legacy-source-component-20260705-client-web-browser-harness`.
 
 ```sh
 cd src/client/web
@@ -80,7 +80,7 @@ One Go module, three top-level trees under `src/` and three binaries:
 `platform/` is shared infrastructure; `client/` is agent-grid's session daemon and the embedded HTTP/WS gateway under `client/web/`, both shipped as the single `server` binary; `orchestrator/` is the Symphony pipeline. Import direction (enforced by `depguard`, `src/.golangci.yml`): `platform/*` imports neither `client/*` nor `orchestrator/*`; `client/*` does not import `orchestrator/*`; `orchestrator/*` does not import `client/*`. Full layer definition: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Orchestrator-scoped test run: `cd src && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...`
-Conformance: `docs/component/component-20260624-orchestrator-symphony-conformance.md` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。
+Conformance: `docs/design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。
 
 ## Rules
 
@@ -106,4 +106,4 @@ Before adding a third-party dependency:
 
 ## Documentation
 
-Structured docs live under [`docs/`](docs/note/note-20260624-docs-overview.md): [contributing](docs/note/note-20260624-agent-contributing.md) (this file expanded), [WORKFLOW.md authoring](docs/note/note-20260624-agent-workflow-authoring.md), [testing](docs/note/note-20260624-agent-testing.md), and per-layer internals ([platform](docs/component/component-20260624-platform-overview.md) · [client](docs/component/component-20260624-client-overview.md) · [orchestrator](docs/component/component-20260624-orchestrator-overview.md)).
+Structured docs live under [`docs/`](docs/note/note-20260624-docs-overview.md): [contributing](docs/note/note-20260624-agent-contributing.md) (this file expanded), [WORKFLOW.md authoring](docs/note/note-20260624-agent-workflow-authoring.md), [testing](docs/note/note-20260624-agent-testing.md), and per-layer internals ([platform](docs/design/design-platform.md) · [client](docs/design/design-client.md) · [orchestrator](docs/design/design-orchestrator.md)).

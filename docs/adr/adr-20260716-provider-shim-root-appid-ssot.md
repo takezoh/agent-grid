@@ -6,18 +6,25 @@ status: accepted
 created: '2026-07-16'
 decision_makers:
 - platform-team
-tags: [hostexec, secretenv, appid, ssot, security]
+tags:
+- hostexec
+- secretenv
+- appid
+- ssot
+- security
 owners:
 - platform-team
 relations:
-- {type: partOf, target: plan-20260716-framelaunch-runtime-path-preservation}
+- {type: partOf, target: change-20260716-framelaunch-runtime-path-preservation}
 - {type: references, target: adr-20260716-framelaunch-runtime-path-owner}
 source_paths:
 - src/platform/hostexec/provider.go
 - src/platform/hostexec/shim.go
 - src/platform/secretenv/provider.go
 - src/platform/appid/appid.go
-summary: "hostexec/secretenv SpecBuilder は cfg.ContainerRunDir が appid.ContainerRunDir と一致することを起動時に fail-fast で検証し、Env[PATH] を返さず、shim 名は appid の const を SSOT として参照する (case D)"
+summary: hostexec/secretenv SpecBuilder は cfg.ContainerRunDir が appid.ContainerRunDir
+  と一致することを起動時に fail-fast で検証し、Env[PATH] を返さず、shim 名は appid の const を SSOT として参照する
+  (case D)
 ---
 
 ## Context

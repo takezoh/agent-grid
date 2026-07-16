@@ -11,11 +11,7 @@ tags:
 owners: []
 relations:
 - {type: references, target: adr-20260624-0076-session-card-title-subtitle-two-slot}
-- {type: references, target: plan-20260624-2026-06-24-web-ui-fixes}
-- {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
-- {type: referencedBy, target: adr-20260624-0076-session-card-title-subtitle-two-slot}
-- {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-fixes}
-- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
+- {type: references, target: change-20260624-2026-06-24-web-ui-fixes}
 source_paths:
 - src/client/driver/claude_view.go
 - src/client/web/src/components/SessionList.tsx

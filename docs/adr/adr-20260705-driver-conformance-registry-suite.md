@@ -11,10 +11,8 @@ tags:
 - driver
 owners: []
 relations:
-- {type: partOf, target: plan-20260705-test-harness}
+- {type: partOf, target: change-20260705-test-harness}
 - {type: references, target: adr-20260705-metadata-source-priority}
-- {type: referencedBy, target: note-20260624-agent-testing}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-agent-testing}
 - {type: references, target: note-20260624-technical-code-enforcement}
 source_paths:

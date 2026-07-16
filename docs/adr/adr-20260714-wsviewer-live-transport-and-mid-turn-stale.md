@@ -12,7 +12,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-viewer}
+- {type: partOf, target: change-20260714-agent-workspace-viewer}
 source_paths: []
 summary: ViewUpdate WS extension carries activity rows and mid-turn stale signals
   with a 750 ms end-to-end latency bound

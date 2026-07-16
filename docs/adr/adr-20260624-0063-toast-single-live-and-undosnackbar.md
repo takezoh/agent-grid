@@ -12,14 +12,7 @@ tags:
 owners: []
 relations:
 - {type: references, target: adr-20260624-0057-palette-single-aria-live-slot}
-- {type: references, target: plan-20260625-2026-06-25-web-ui-redesign}
-- {type: references, target: spec-20260625-2026-06-25-web-ui-redesign}
-- {type: references, target: ux-20260625-2026-06-25-web-ui-redesign}
-- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
-- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
-- {type: referencedBy, target: plan-20260625-2026-06-25-web-ui-redesign}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260625-2026-06-25-web-ui-redesign}
+- {type: references, target: change-20260625-2026-06-25-web-ui-redesign}
 source_paths:
 - src/client/web/src/
 decision_makers:

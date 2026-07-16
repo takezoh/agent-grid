@@ -16,14 +16,7 @@ relations:
 - {type: references, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
 - {type: references, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
 - {type: references, target: adr-20260624-0075-pattern-adoption-mode-affordances}
-- {type: references, target: spec-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: adr-20260624-0069-fab-overlay-layout-and-visualviewport-lift}
-- {type: referencedBy, target: adr-20260624-0070-fontsize-persist-clamp}
-- {type: referencedBy, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
-- {type: referencedBy, target: adr-20260624-0075-pattern-adoption-mode-affordances}
-- {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: change-20260626-web-terminal-mobile-ux}
 source_paths:
 - src/client/web/src/hooks/useInputMode.ts
 - src/client/web/src/hooks/useHostPointerInterceptor.ts

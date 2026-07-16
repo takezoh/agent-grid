@@ -1,7 +1,8 @@
 ---
 id: adr-20260715-credproxy-fork-remote-replace
 kind: adr
-title: "ADR — credproxy: local dev via go.work (gitignored), CI via require pseudo-version to github.com/takezoh/credproxy"
+title: 'ADR — credproxy: local dev via go.work (gitignored), CI via require pseudo-version
+  to github.com/takezoh/credproxy'
 status: accepted
 created: '2026-07-15'
 tags:
@@ -13,16 +14,17 @@ tags:
 owners:
 - take.gn
 relations:
-- {type: partOf, target: plan-20260715-credproxy-materialization-contract}
-- {type: references, target: spec-20260715-credproxy-materialization-contract}
+- {type: partOf, target: change-20260715-credproxy-materialization-contract}
 - {type: references, target: adr-20260715-credproxy-materialize-method}
-- {type: references, target: adr-20260715-credproxy-retry-owner-caller-side}
 - {type: references, target: adr-20260715-credproxy-metadata-handler-async-materialize}
+- {type: references, target: adr-20260715-credproxy-retry-owner-caller-side}
+- {type: references, target: change-20260715-credproxy-materialization-contract}
 source_paths:
 - src/go.mod
 decision_makers:
 - take.gn
-summary: "credproxy fork の配線は 2 層。(1) local dev: repo root の gitignored な `go.work` に `./src` と `../credproxy` を並べ、contributor が local で iterate する。(2) CI/shared: src/go.mod の plain `require github.com/takezoh/credproxy <pseudo-version>` (takezoh の fork account が canonical) を fork commit ごとに bump する。charmbracelet 系のような `replace` ディレクティブは不要 — credproxy は takezoh account 直下で fork ではなく effectively upstream。repo-local `forks/` ディレクトリや絶対パスは採らない。"
+summary: Use a gitignored go.work for local credproxy iteration and a pinned module
+  pseudo-version for shared and CI builds.
 ---
 
 ## Context

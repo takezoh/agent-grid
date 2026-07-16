@@ -10,11 +10,11 @@ tags:
 - jsonrpc
 owners: []
 relations:
-- {type: references, target: adr-20260707-jsonrpc-id-opaque-forwarding}
-- {type: references, target: adr-20260707-shim-bytes-preserving-id-proxy}
 - {type: references, target: adr-20260707-codexclient-observability-log}
 - {type: references, target: adr-20260707-fakevsreal-shim-inversion}
 - {type: references, target: adr-20260707-jsonrpc-error-object-opaque-forwarding}
+- {type: references, target: adr-20260707-jsonrpc-id-opaque-forwarding}
+- {type: references, target: adr-20260707-shim-bytes-preserving-id-proxy}
 source_paths:
 - src/platform/agent/codexclient
 - src/cmd/bridge

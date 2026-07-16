@@ -10,13 +10,10 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0070-fontsize-persist-clamp}
 - {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
 - {type: references, target: adr-20260624-0070-fontsize-persist-clamp}
 - {type: references, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
-- {type: references, target: spec-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: change-20260626-web-terminal-mobile-ux}
 source_paths:
 - src/client/web/src/hooks/useCoachmarkOnce.ts
 - src/client/web/src/components/Coachmark.tsx

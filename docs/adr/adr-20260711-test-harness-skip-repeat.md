@@ -9,8 +9,8 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-test-harness-north-star}
-- {type: references, target: spec-20260711-test-harness-north-star}
+- {type: partOf, target: change-20260711-test-harness-north-star}
+- {type: references, target: change-20260711-test-harness-north-star}
 source_paths: []
 summary: skip台帳と変更test repeatの選択・判定・artifact契約を一元化する
 updated: '2026-07-11'

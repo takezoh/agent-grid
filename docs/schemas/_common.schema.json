@@ -7,11 +7,11 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^(adr|plan|spec|task|note|component|ux)-[0-9]{8}-[a-z0-9][a-z0-9-]*$",
-      "description": "<kind>-<YYYYMMDD>-<kebab-slug>"
+      "pattern": "^((change|adr|plan|spec|task|note|component|ux)-[0-9]{8}-[a-z0-9][a-z0-9-]*|design-[a-z0-9][a-z0-9-]*)$",
+      "description": "change/ADR/task/note are dated; persistent design IDs are stable and undated"
     },
     "kind": {
-      "enum": ["adr", "plan", "spec", "task", "note", "component", "ux"]
+      "enum": ["change", "design", "adr", "plan", "spec", "task", "note", "component", "ux"]
     },
     "title": {
       "type": "string",
@@ -36,6 +36,16 @@
       "type": "string",
       "format": "date",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "expires": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Optional freshness deadline. Non-terminal docs past this date are flagged by `docs lint --drift` even when their source_paths did not change (time-based staleness)."
+    },
+    "drift_ignore": {
+      "type": "boolean",
+      "description": "When true, `docs lint --drift` suppresses this doc from stale candidates (both source-change and expires based)."
     },
     "methodology": {
       "type": "string",
@@ -63,19 +73,18 @@
         "properties": {
           "type": {
             "enum": [
-              "dependsOn", "dependencyOf",
-              "partOf", "hasPart",
-              "implements", "implementedBy",
-              "supersedes", "supersededBy",
-              "references", "referencedBy",
-              "blocks", "blockedBy",
-              "ownedBy", "owns",
-              "providesApi", "consumesApi"
+              "dependsOn", "dependencyOf", "partOf", "hasPart",
+              "implements", "implementedBy", "supersedes", "supersededBy",
+              "references", "referencedBy", "blocks", "blockedBy",
+              "ownedBy", "owns", "providesApi", "consumesApi",
+              "conformsTo", "conformedBy", "modifies", "modifiedBy",
+              "introduces", "introducedBy", "retires", "retiredBy",
+              "originatedFrom", "originOf", "providedTo"
             ]
           },
           "target": {
             "type": "string",
-            "pattern": "^(adr|plan|spec|task|note|component|ux)-[0-9]{8}-[a-z0-9][a-z0-9-]*$"
+            "pattern": "^((change|adr|plan|spec|task|note|component|ux)-[0-9]{8}-[a-z0-9][a-z0-9-]*|design-[a-z0-9][a-z0-9-]*)$"
           }
         }
       }
@@ -84,6 +93,18 @@
       "type": "array",
       "items": {"type": "string", "minLength": 1},
       "description": "Lineage to code/config files this doc relates to"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "ref"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {"enum": ["test", "contract", "source", "command"]},
+          "ref": {"type": "string", "minLength": 1}
+        }
+      }
     }
   }
 }

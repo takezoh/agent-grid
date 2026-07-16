@@ -9,7 +9,7 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-workspace-session-switch}
+- {type: partOf, target: change-20260714-workspace-session-switch}
 source_paths: []
 summary: active session selection と単一 Workspace state の終了を dirty-aware transaction
   として協調する。

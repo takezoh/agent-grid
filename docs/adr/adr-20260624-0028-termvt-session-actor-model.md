@@ -10,10 +10,8 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0003-termvt-fanout-isolation}
 - {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
-- {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
-- {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
+- {type: references, target: design-platform}
 source_paths:
 - src/platform/termvt/
 - src/client/runtime/
@@ -159,7 +157,7 @@ verified under the race detector on every iteration. Scope is currently
   fan-out isolation contract — still valid; the implementation mechanics
   evolved from "fanout holds the single-writer lock" to "fanout runs inside
   the sole-owner mainLoop", which is the same property by stronger means).
-- Testing details: [termvt multiplexer testing](../component/component-20260624-platform-termvt-multiplexer-testing.md).
+- Testing details: [termvt multiplexer testing](../design/design-platform.md#legacy-source-component-20260624-platform-termvt-multiplexer-testing).
 - Lint-time enforcement is still nothing extra: file caps and function caps
   apply; the actor model is verified at runtime via the contract suite + the
   new `TestActor_*` tests.

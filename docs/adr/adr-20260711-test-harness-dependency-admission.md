@@ -9,8 +9,8 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-test-harness-north-star}
-- {type: references, target: spec-20260711-test-harness-north-star}
+- {type: partOf, target: change-20260711-test-harness-north-star}
+- {type: references, target: change-20260711-test-harness-north-star}
 source_paths: []
 summary: JSON registryとGo validatorで外部依存tripleを意味契約まで機械検証する
 updated: '2026-07-11'

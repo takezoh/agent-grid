@@ -13,8 +13,7 @@ tags:
 - tooling
 owners: []
 relations:
-- {type: partOf, target: plan-20260706-frame-messaging}
-- {type: referencedBy, target: note-20260706-inter-session-mcp-original-plan}
+- {type: partOf, target: change-20260706-frame-messaging}
 source_paths:
 - src/platform/mcpproxy/
 - src/client/runtime/subsystem/stream/

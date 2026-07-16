@@ -11,7 +11,6 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0064-reduced-motion-single-guard}
 - {type: references, target: adr-20260624-0032-runstate-spinner-additive}
 - {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
 source_paths:

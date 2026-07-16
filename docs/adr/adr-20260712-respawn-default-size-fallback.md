@@ -12,8 +12,8 @@ tags:
 - simplification
 owners: []
 relations:
-- {type: partOf, target: plan-20260712-frame-size-ownership}
-- {type: references, target: spec-20260712-frame-size-ownership}
+- {type: partOf, target: change-20260712-frame-size-ownership}
+- {type: references, target: change-20260712-frame-size-ownership}
 source_paths:
 - src/client/runtime/pty_backend.go
 summary: 'RespawnFrame は production caller 0 のため hint 保存機構を増やさず default 80x24 fallback

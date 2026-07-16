@@ -10,17 +10,8 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
-- {type: references, target: component-20260624-client-stream-backend-e2e}
-- {type: referencedBy, target: adr-20260624-0081-codex-frame-init-serialize}
-- {type: referencedBy, target: component-20260624-client-stream-backend-e2e}
-- {type: referencedBy, target: component-20260624-client-stream-backend-testing}
-- {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
-- {type: referencedBy, target: component-20260704-platform-fakecodex}
-- {type: referencedBy, target: adr-20260707-fakevsreal-shim-inversion}
+- {type: references, target: design-client}
 source_paths:
 - src/client/runtime/subsystem/stream/
 decision_makers:
@@ -79,7 +70,7 @@ Fidelity is pinned two further ways, both already in the suite:
   `codexschema`, not ad-hoc strings).
 
 Setup and the full env contract live in
-[stream-backend-e2e.md](../component/component-20260624-client-stream-backend-e2e.md).
+[stream-backend-e2e.md](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-e2e).
 
 ## Consequences
 

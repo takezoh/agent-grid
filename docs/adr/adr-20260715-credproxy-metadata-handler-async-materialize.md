@@ -1,7 +1,9 @@
 ---
 id: adr-20260715-credproxy-metadata-handler-async-materialize
 kind: adr
-title: "ADR — credproxy: metadata handler per-request /token write path becomes an asynchronous Materialize invocation; HTTP response reflects token-fetch success only"
+title: 'ADR — credproxy: metadata handler per-request /token write path becomes an
+  asynchronous Materialize invocation; HTTP response reflects token-fetch success
+  only'
 status: accepted
 created: '2026-07-15'
 tags:
@@ -14,16 +16,16 @@ tags:
 owners:
 - take.gn
 relations:
-- {type: partOf, target: plan-20260715-credproxy-materialization-contract}
-- {type: references, target: spec-20260715-credproxy-materialization-contract}
+- {type: partOf, target: change-20260715-credproxy-materialization-contract}
 - {type: references, target: adr-20260715-credproxy-materialize-method}
 - {type: references, target: adr-20260715-credproxy-retry-owner-caller-side}
-source_paths:
-- /home/dev/dev/credproxy/providers/gcloudcli/metadata.go
-- /home/dev/dev/credproxy/providers/gcloudcli/spec.go
+- {type: references, target: change-20260715-credproxy-materialization-contract}
+source_paths: []
 decision_makers:
 - take.gn
-summary: metadata.go:78 の per-request /token handler で行われていた silent-swallow os.WriteFile を廃止し、token fetch 成功直後に go b.Materialize(bgCtx, project) を非同期に発火する。HTTP response semantics は従来通り (200 + JSON on token fetch success)、既存 curl-based backstop を保存する。
+summary: metadata.go:78 の per-request /token handler で行われていた silent-swallow os.WriteFile
+  を廃止し、token fetch 成功直後に go b.Materialize(bgCtx, project) を非同期に発火する。HTTP response
+  semantics は従来通り (200 + JSON on token fetch success)、既存 curl-based backstop を保存する。
 ---
 
 ## Context

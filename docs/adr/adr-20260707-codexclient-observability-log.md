@@ -13,9 +13,8 @@ owners: []
 decision_makers:
 - unknown
 relations:
-- {type: partOf, target: plan-20260707-codexclient-jsonrpc-id-opaque}
-- {type: references, target: spec-20260707-codexclient-jsonrpc-id-opaque}
-- {type: referencedBy, target: note-20260707-technical-jsonrpc-id-opacity}
+- {type: partOf, target: change-20260707-codexclient-jsonrpc-id-opaque}
+- {type: references, target: change-20260707-codexclient-jsonrpc-id-opaque}
 source_paths:
 - src/platform/agent/codexclient/conn.go
 summary: json.Unmarshal 失敗 / invalid id 型 / pending map miss の 3 経路を silent drop から観測可能な構造化

@@ -10,18 +10,8 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0029-terminal-host-flex-height}
 - {type: references, target: adr-20260624-0029-terminal-host-flex-height}
-- {type: references, target: plan-20260624-2026-06-24-web-ui-fixes}
-- {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
-- {type: referencedBy, target: adr-20260624-0065-terminal-slot-absolute-overlay}
-- {type: referencedBy, target: adr-20260624-0067-mobile-gate-matchmedia}
-- {type: referencedBy, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
-- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
-- {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
-- {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-fixes}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
+- {type: references, target: change-20260624-2026-06-24-web-ui-fixes}
 source_paths:
 - src/client/web/src/components/TerminalPane.tsx
 - src/client/web/src/test-setup.ts

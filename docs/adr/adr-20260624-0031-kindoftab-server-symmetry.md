@@ -12,11 +12,7 @@ owners: []
 relations:
 - {type: references, target: adr-20260624-0025-transcript-rest-backfill-then-ws-tail}
 - {type: references, target: adr-20260624-0035-kindoftab-label-first-for-jsonl-transcripts}
-- {type: references, target: plan-20260624-2026-06-24-web-ui-fixes}
-- {type: references, target: spec-20260624-2026-06-24-web-ui-fixes}
-- {type: referencedBy, target: adr-20260624-0035-kindoftab-label-first-for-jsonl-transcripts}
-- {type: referencedBy, target: plan-20260624-2026-06-24-web-ui-fixes}
-- {type: referencedBy, target: spec-20260624-2026-06-24-web-ui-fixes}
+- {type: references, target: change-20260624-2026-06-24-web-ui-fixes}
 source_paths:
 - src/client/web/src/components/LogTabs.tsx
 - src/client/driver/view_builder.go

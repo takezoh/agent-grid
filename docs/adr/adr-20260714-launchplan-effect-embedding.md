@@ -14,23 +14,19 @@ tags:
 - regression-pin
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-launchplan-effect-continuity}
-- {type: references, target: spec-20260714-launchplan-effect-continuity}
+- {type: partOf, target: change-20260714-launchplan-effect-continuity}
+- {type: references, target: adr-20260706-frame-messaging-managed-tool-exposure}
 - {type: references, target: adr-20260711-0082-frame-exec-launcher}
 - {type: references, target: adr-20260711-0083-launchplan-argv-primary}
-- {type: references, target: adr-20260706-frame-messaging-managed-tool-exposure}
+- {type: references, target: change-20260714-launchplan-effect-continuity}
 source_paths:
 - src/client/state/effect.go
 - src/client/state/reduce_helpers.go
 - src/client/runtime/interpret_spawn.go
 decision_makers:
 - take.gn
-summary: Replace state.EffSpawnFrame's 9 duplicated flat launch fields (Command, StartDir,
-  Sandbox, Options, Subsystem, Stream, Stdin, Project, Mode) with a single named value
-  field `Plan state.LaunchPlan` (case-B full replacement). state.spawnEffect constructs
-  EffSpawnFrame{..., Plan plan, ...} directly; runtime.spawnFrameWindow deletes its
-  state.LaunchPlan{...} reconstruction literal and uses `plan := e.Plan`, preserving
-  the existing `plan = bindResult.Plan` reassignment after subsystem.BindFrame.
+summary: Replace duplicated EffSpawnFrame launch fields with one named LaunchPlan
+  value carried intact into runtime binding.
 ---
 
 ## Context

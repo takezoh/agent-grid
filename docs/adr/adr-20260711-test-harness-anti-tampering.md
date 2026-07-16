@@ -9,8 +9,8 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-test-harness-north-star}
-- {type: references, target: spec-20260711-test-harness-north-star}
+- {type: partOf, target: change-20260711-test-harness-north-star}
+- {type: references, target: change-20260711-test-harness-north-star}
 source_paths: []
 summary: protected manifest、CODEOWNERS、独立static pinでharness自己改ざんを人間reviewへ昇格する
 updated: '2026-07-11'

@@ -11,7 +11,6 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
 - {type: references, target: adr-20260624-0029-terminal-host-flex-height}
 - {type: references, target: adr-20260624-0063-toast-single-live-and-undosnackbar}
 - {type: references, target: adr-20260624-0064-reduced-motion-single-guard}
@@ -19,13 +18,7 @@ relations:
 - {type: references, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
 - {type: references, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
 - {type: references, target: adr-20260624-0075-pattern-adoption-mode-affordances}
-- {type: references, target: spec-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: adr-20260624-0071-touch-gesture-arbitration-and-long-press-selection}
-- {type: referencedBy, target: adr-20260624-0073-arialive-debounce-and-jump-fab-seed-stability}
-- {type: referencedBy, target: adr-20260624-0075-pattern-adoption-mode-affordances}
-- {type: referencedBy, target: adr-20260624-0077-mobile-touch-gesture-swipe-to-arrow}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: change-20260626-web-terminal-mobile-ux}
 source_paths:
 - src/client/web/src/hooks/useVisualViewportLift.ts
 - src/client/web/src/css/view.css

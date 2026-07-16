@@ -12,7 +12,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-editor}
+- {type: partOf, target: change-20260714-agent-workspace-editor}
 source_paths: []
 summary: Root disappearance transitions to read-only + clipboard export (save requirement
   degrades explicitly)

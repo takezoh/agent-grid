@@ -10,11 +10,10 @@ tags:
 - archive
 owners: []
 relations:
-- {type: references, target: spec-20260706-frame-messaging}
 - {type: references, target: adr-20260706-frame-messaging-daemon-broker}
-- {type: references, target: adr-20260706-frame-messaging-structured-response-sources}
 - {type: references, target: adr-20260706-frame-messaging-managed-tool-exposure}
-- {type: references, target: plan-20260706-frame-messaging}
+- {type: references, target: adr-20260706-frame-messaging-structured-response-sources}
+- {type: references, target: change-20260706-frame-messaging}
 source_paths:
 - docs/specs/frame-messaging/spec.md
 - docs/specs/frame-messaging/plan.md

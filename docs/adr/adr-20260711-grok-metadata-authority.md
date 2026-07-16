@@ -4,11 +4,14 @@ kind: adr
 title: Grok metadata authority
 status: proposed
 created: '2026-07-11'
-decision_makers: [agent-grid maintainers]
-tags: [grok, metadata]
+decision_makers:
+- agent-grid maintainers
+tags:
+- grok
+- metadata
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-grok-driver}
+- {type: partOf, target: change-20260711-grok-driver}
 source_paths: []
 summary: Grok session metadata の source priority と tri-state を固定する
 ---

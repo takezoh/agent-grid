@@ -12,7 +12,7 @@ tags:
 - ui-refresh
 owners: []
 relations:
-- {type: references, target: spec-20260714-web-ui-refresh}
+- {type: references, target: change-20260714-web-ui-refresh}
 source_paths:
 - src/client/web/src/css/tokens.css
 summary: primitive スケールを下層に敷き semantic は alias に限定。status 色 1 系統化、色リテラルは tokens.css

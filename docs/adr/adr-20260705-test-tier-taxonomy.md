@@ -11,13 +11,10 @@ tags:
 - harness
 owners: []
 relations:
-- {type: partOf, target: plan-20260705-test-harness}
+- {type: partOf, target: change-20260705-test-harness}
 - {type: references, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
-- {type: referencedBy, target: note-20260624-agent-testing}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-agent-testing}
 - {type: references, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: note-20260711-test-harness-assessment-20260711}
 source_paths:
 - docs/note/note-20260624-agent-testing.md
 - src/platform/lib/claude/fakeclaude/

@@ -10,8 +10,7 @@ tags:
 - adr
 - legacy-import
 owners: []
-relations:
-- {type: referencedBy, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
+relations: []
 source_paths:
 - src/server/web/gateway.go
 - src/client/proto/

@@ -12,13 +12,8 @@ owners: []
 relations:
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0028-termvt-session-actor-model}
-- {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
+- {type: references, target: design-platform}
 - {type: references, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: adr-20260624-0028-termvt-session-actor-model}
-- {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
-- {type: referencedBy, target: note-20260624-agent-testing}
-- {type: referencedBy, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: adr-20260705-eventsink-seam-tap-relay-contracts}
 source_paths:
 - src/platform/termvt/
 - src/server/web/
@@ -103,7 +98,7 @@ adaptation of the harness to this subsystem's shape, not an omission.
 - The enforcement is **test-pinned** (a runtime fan-out property, not statically
   lint-able); it is catalogued in
   [code-enforcement.md §7](../note/note-20260624-technical-code-enforcement.md). Full guide:
-  [termvt-multiplexer-testing.md](../component/component-20260624-platform-termvt-multiplexer-testing.md).
+  [termvt-multiplexer-testing.md](../design/design-platform.md#legacy-source-component-20260624-platform-termvt-multiplexer-testing).
 - The untrusted client→server frame decode (the web gateway's `/ws` data plane)
   is fuzzed in `server/web` (`FuzzApplyInboundProto`) so malformed frames can neither panic
   the reader nor resize the pty to a non-positive size.

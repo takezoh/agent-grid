@@ -4,11 +4,14 @@ kind: adr
 title: Grok session launch contract
 status: proposed
 created: '2026-07-11'
-decision_makers: [agent-grid maintainers]
-tags: [grok, session]
+decision_makers:
+- agent-grid maintainers
+tags:
+- grok
+- session
 owners: []
 relations:
-- {type: partOf, target: plan-20260711-grok-driver}
+- {type: partOf, target: change-20260711-grok-driver}
 source_paths: []
 summary: fresh、continue、resume、fork の公式 Grok session flag 契約を分離する
 ---

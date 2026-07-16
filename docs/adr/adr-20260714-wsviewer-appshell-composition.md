@@ -12,7 +12,7 @@ tags:
 - design
 owners: []
 relations:
-- {type: partOf, target: plan-20260714-agent-workspace-viewer}
+- {type: partOf, target: change-20260714-agent-workspace-viewer}
 source_paths: []
 summary: Workspace viewer composes via wrapping container preserving ADR-0065 terminal-slot
   rect

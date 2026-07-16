@@ -17,12 +17,7 @@ relations:
 - {type: references, target: adr-20260624-0065-terminal-slot-absolute-overlay}
 - {type: references, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
 - {type: references, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
-- {type: references, target: spec-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: adr-20260624-0068-mode-separation-focus-block-and-zoom-guard}
-- {type: referencedBy, target: adr-20260624-0074-migration-pc-only-to-pc-plus-mobile}
-- {type: referencedBy, target: adr-20260624-0075-pattern-adoption-mode-affordances}
-- {type: referencedBy, target: plan-20260626-web-terminal-mobile-ux}
-- {type: referencedBy, target: spec-20260626-web-terminal-mobile-ux}
+- {type: references, target: change-20260626-web-terminal-mobile-ux}
 source_paths:
 - src/client/web/src/components/TerminalPane.tsx
 - src/client/web/src/hooks/useMobileGate.ts

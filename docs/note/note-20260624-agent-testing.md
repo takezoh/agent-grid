@@ -10,27 +10,17 @@ tags:
 - legacy-import
 owners: []
 relations:
-- {type: referencedBy, target: note-20260624-agent-contributing}
-- {type: referencedBy, target: note-20260624-agent-overview}
 - {type: references, target: adr-20260624-0003-termvt-fanout-isolation}
 - {type: references, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
 - {type: references, target: adr-20260705-driver-conformance-registry-suite}
 - {type: references, target: adr-20260705-eventsink-seam-tap-relay-contracts}
 - {type: references, target: adr-20260705-fakedocker-path-injection}
+- {type: references, target: adr-20260705-metadata-source-priority}
 - {type: references, target: adr-20260705-test-tier-taxonomy}
 - {type: references, target: adr-20260705-wire-fixtures-pipeline}
-- {type: references, target: component-20260624-client-stream-backend-e2e}
-- {type: references, target: component-20260624-client-stream-backend-testing}
-- {type: references, target: component-20260624-platform-termvt-multiplexer-testing}
+- {type: references, target: design-client}
+- {type: references, target: design-platform}
 - {type: references, target: note-20260624-technical-code-enforcement}
-- {type: referencedBy, target: note-20260624-docs-overview}
-- {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
-- {type: referencedBy, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
-- {type: referencedBy, target: adr-20260705-driver-conformance-registry-suite}
-- {type: referencedBy, target: adr-20260705-fakedocker-path-injection}
-- {type: referencedBy, target: adr-20260705-test-tier-taxonomy}
-- {type: references, target: adr-20260705-metadata-source-priority}
-- {type: references, target: component-20260705-client-web-browser-harness}
 source_paths:
 - src/orchestrator/scheduler/
 - src/client/runtime/
@@ -99,8 +89,8 @@ synchronously at creation/resume, so same-cwd frames get distinct ids and cannot
 cross-talk by construction. It is pinned by a dedicated harness — direct-drive
 contract, a wired fake app-server exercised under `-race`, a stdlib
 `FuzzStreamRouting`, and an opt-in real app-server fidelity backstop
-([setup](../component/component-20260624-client-stream-backend-e2e.md)). Full guide:
-[stream backend testing](../component/component-20260624-client-stream-backend-testing.md). This is
+([setup](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-e2e)). Full guide:
+[stream backend testing](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-testing). This is
 the test-pinned enforcement catalogued in
 [code-enforcement.md §6](../note/note-20260624-technical-code-enforcement.md).
 
@@ -127,7 +117,7 @@ slow-vs-fast containment, control-before-output ordering) run under `-race`, plu
 a `server/web` `FuzzApplyInboundProto` over the untrusted client→server frame decode.
 Unlike the stream subsystem, termvt has no in-process fake — its only backend is
 a real pty — so there is no opt-in e2e tier. Full guide:
-[termvt multiplexer testing](../component/component-20260624-platform-termvt-multiplexer-testing.md);
+[termvt multiplexer testing](../design/design-platform.md#legacy-source-component-20260624-platform-termvt-multiplexer-testing);
 rationale: [ADR 0003](../adr/adr-20260624-0003-termvt-fanout-isolation.md);
 enforcement: [code-enforcement.md §7](../note/note-20260624-technical-code-enforcement.md).
 
