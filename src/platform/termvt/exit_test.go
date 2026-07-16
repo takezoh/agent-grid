@@ -19,7 +19,7 @@ func TestSessionExitCodeSuccess(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	if err := s.WriteInput([]byte("\n")); err != nil {
 		t.Fatalf("WriteInput: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestSessionExitCodeNonZero(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	if err := s.WriteInput([]byte("\n")); err != nil {
 		t.Fatalf("WriteInput: %v", err)
 	}

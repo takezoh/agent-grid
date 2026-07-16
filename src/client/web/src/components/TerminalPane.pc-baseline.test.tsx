@@ -74,6 +74,7 @@ function makeFakeConn(): Connection {
   let _onOutput: ((frame: [number, string, string, string]) => void) | undefined;
   return {
     acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
+    updateTerminalGeometry: vi.fn(),
     send: vi.fn(),
     get onOutput() {
       return _onOutput;

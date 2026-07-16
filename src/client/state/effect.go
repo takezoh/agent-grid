@@ -272,6 +272,8 @@ type EffSurfaceSubscribeStart struct {
 	ConnID       ConnID
 	SessionID    SessionID
 	SubscriberID SubscriberID
+	Cols         uint16
+	Rows         uint16
 }
 
 func (EffSurfaceSubscribeStart) isEffect() {}

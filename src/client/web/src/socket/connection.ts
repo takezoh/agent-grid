@@ -42,7 +42,7 @@ export class Connection {
     this.cfg = cfg;
     this.terminalSubscriptions = new TerminalSubscriptionController(
       {
-        subscribe: (sessionId) => this.subscribeOnce(sessionId),
+        subscribe: (sessionId, cols, rows) => this.subscribeOnce(sessionId, cols, rows),
         unsubscribe: (sessionId) => this.unsubscribeOnce(sessionId),
       },
       {
@@ -78,7 +78,15 @@ export class Connection {
     return this.terminalSubscriptions.acquire(sessionId);
   }
 
-  private async subscribeOnce(sessionId: string): Promise<SubscribeOutcome> {
+  updateTerminalGeometry(sessionId: string, cols: number, rows: number): void {
+    this.terminalSubscriptions.updateGeometry(sessionId, cols, rows);
+  }
+
+  private async subscribeOnce(
+    sessionId: string,
+    cols: number,
+    rows: number,
+  ): Promise<SubscribeOutcome> {
     const deps: RetryDeps = {
       send: (s) => this.ws?.send(s),
       awaitResponse: (reqId) =>
@@ -88,7 +96,7 @@ export class Connection {
       newReqId: () => this.nextReqId(),
       sleep: this.cfg.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
     };
-    return subscribeWithRetry(sessionId, deps);
+    return subscribeWithRetry(sessionId, cols, rows, deps);
   }
 
   private async unsubscribeOnce(sessionId: string): Promise<void> {

@@ -43,7 +43,7 @@ func TestManagerRemove(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, ch := sess.Subscribe()
+	_, ch := sess.SubscribeCurrent()
 	if err := m.Remove("x"); err != nil {
 		t.Fatal(err)
 	}

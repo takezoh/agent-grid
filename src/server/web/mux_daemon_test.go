@@ -256,6 +256,9 @@ func TestMux_TicketFlowUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first dial: %v (status %v)", err, wsr)
 	}
+	if err := c.Write(ctx, websocket.MessageText, []byte(`{"k":"r","cols":80,"rows":24}`)); err != nil {
+		t.Fatalf("write initial geometry: %v", err)
+	}
 	_ = c.CloseNow()
 
 	// Re-use: same ticket must be rejected.

@@ -20,13 +20,15 @@ export type RetryDeps = {
 
 export async function subscribeWithRetry(
   sessionId: string,
+  cols: number,
+  rows: number,
   deps: RetryDeps,
 ): Promise<SubscribeOutcome> {
   let attempt = 0;
   let lastError = "";
   while (!exceededAttempts(attempt)) {
     const reqId = deps.newReqId();
-    const frame = serializeClientFrame({ k: "s", reqId, sessionId });
+    const frame = serializeClientFrame({ k: "s", reqId, sessionId, cols, rows });
     deps.send(frame);
     const resp = await deps.awaitResponse(reqId);
     if (resp.k === "r") {

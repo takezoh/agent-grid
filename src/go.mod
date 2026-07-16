@@ -5,7 +5,6 @@ go 1.26.1
 require (
 	charm.land/lipgloss/v2 v2.0.2
 	github.com/BurntSushi/toml v1.6.0
-	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/vt v0.0.0-20260615091924-bb3af1bbe712
 	github.com/coder/websocket v1.8.15
@@ -72,6 +71,7 @@ require (
 	github.com/charithe/durationcheck v0.0.11 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
@@ -250,4 +250,4 @@ tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 // server. Drop these once upstream merges PR #908 / #135.
 replace github.com/charmbracelet/ultraviolet => github.com/takezoh/ultraviolet v0.0.0-20260705072351-7f8d42d2f662
 
-replace github.com/charmbracelet/x/vt => github.com/takezoh/x/vt v0.0.0-20260705072350-05fd7357eba6
+replace github.com/charmbracelet/x/vt => github.com/takezoh/x/vt v0.0.0-20260716080422-7ecef7c0bc30

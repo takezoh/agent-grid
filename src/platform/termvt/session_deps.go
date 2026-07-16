@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 
-	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
@@ -20,13 +19,9 @@ import (
 // every shutdown. Closing only the input pipe wakes a parked Read() with
 // io.EOF via the io.Pipe contract without touching the racy field.
 //
-// SerializeScrollback returns the ANSI-styled bytes of every line currently
-// in the emulator's scrollback buffer (lines that have scrolled off the top
-// of the visible grid). The format matches Render(): `\n`-separated rows
-// with SGR escapes inline, no cursor positioning, no clear sequences. An
-// empty buffer returns nil so callers can cheaply skip emitting a frame.
-// SetScrollbackSize bounds that buffer in lines; 0 leaves the underlying
-// emulator's default in place.
+// ReattachSnapshot is intentionally opaque at this boundary: x/vt owns row
+// provenance, semantic reflow, ANSI rendering, and cursor restoration.
+// SetScrollbackSize bounds retained history; 0 keeps x/vt's default.
 type Emulator interface {
 	io.Writer                                           // shell output bytes go in
 	io.Reader                                           // CSI reply bytes come out — drained back into the pty
@@ -36,8 +31,7 @@ type Emulator interface {
 	RegisterOscHandler(code int, handler vt.OscHandler) // OSC 9 / 133 hooks
 	CloseInputPipe() error                              // shutdown signal — unblocks Read without racing
 	SetScrollbackSize(maxLines int)                     // configure scrollback depth
-	SerializeScrollback() []byte                        // ANSI-styled scrollback (nil when empty)
-	CursorPosition() (x, y int)                         // 0-based cursor (x=col, y=row) within the visible grid
+	ReattachSnapshot() ([]byte, error)                  // semantic history + grid + cursor as opaque ANSI
 }
 
 // PTY is the subset of *os.File + pty.Setsize that Session needs. Same
@@ -56,18 +50,10 @@ func emulatorFor(cols, rows int) Emulator {
 
 // realEmulator wraps *vt.Emulator and adds CloseInputPipe. Embedding the
 // pointer satisfies the io.Reader/Writer + Render/Resize/SetCallbacks/
-// RegisterOscHandler + SetScrollbackSize methods promoted from *vt.Emulator.
+// RegisterOscHandler + SetScrollbackSize + ReattachSnapshot methods promoted
+// from *vt.Emulator.
 type realEmulator struct {
 	*vt.Emulator
-}
-
-// CursorPosition adapts *vt.Emulator.CursorPosition (which returns uv.Position)
-// to the (x, y int) interface shape so callers do not need to import
-// ultraviolet just to read two ints. x is the 0-based column, y the 0-based row
-// within the visible grid.
-func (e realEmulator) CursorPosition() (x, y int) {
-	p := e.Emulator.CursorPosition()
-	return p.X, p.Y
 }
 
 func (e realEmulator) CloseInputPipe() error {
@@ -75,19 +61,6 @@ func (e realEmulator) CloseInputPipe() error {
 		return c.Close()
 	}
 	return nil
-}
-
-// SerializeScrollback renders the live scrollback buffer to a styled string.
-// Returns nil when the buffer is empty so subscribeCmd can skip emitting a
-// frame. The serialization format mirrors *vt.Emulator.Render() (which is
-// `Lines(buf.Lines).Render()` under the hood) so the seed bytes can be
-// concatenated client-side without format-mismatch concerns.
-func (e realEmulator) SerializeScrollback() []byte {
-	sb := e.Scrollback()
-	if sb == nil || sb.Len() == 0 {
-		return nil
-	}
-	return []byte(uv.Lines(sb.Lines()).Render())
 }
 
 // realPTY wraps an *os.File (the pty master fd) and adapts pty.Setsize to the

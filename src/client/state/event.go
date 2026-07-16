@@ -85,6 +85,8 @@ type EvCmdSurfaceSubscribe struct {
 	ReqID        string
 	SessionID    SessionID
 	SubscriberID SubscriberID
+	Cols         uint16
+	Rows         uint16
 }
 
 // EvCmdSurfaceUnsubscribe removes ConnID's subscription for SessionID.

@@ -136,19 +136,26 @@ func call[R any](s *Session, mk func(chan R) sessionCmd, onShutdown R) R {
 	case r := <-reply:
 		return r
 	case <-s.done:
-		return onShutdown
+		// A command may deliberately terminate the actor after publishing its
+		// result (for example, an all-or-nothing snapshot failure). Prefer that
+		// buffered result when shutdown and reply become observable together.
+		select {
+		case r := <-reply:
+			return r
+		default:
+			return onShutdown
+		}
 	}
 }
 
-// Subscribe registers a client and returns its id and event channel. The first
-// event is a reattach snapshot of the current screen, captured atomically with
-// respect to live writes by virtue of mainLoop processing it between chunks.
+// SubscribeCurrent registers an internal observer at the current session
+// geometry. It never changes PTY or emulator dimensions.
 //
 // If the Session has already shut down, Subscribe returns id 0 (the actor
 // allocates ids ≥ 1, so 0 is an unambiguous shutdown sentinel) and a closed
 // channel. This is strictly better than the pre-actor behaviour where a
 // post-exit Subscribe leaked a goroutine waiting on events that never came.
-func (s *Session) Subscribe() (int, <-chan Event) {
+func (s *Session) SubscribeCurrent() (int, <-chan Event) {
 	r := call(s, func(ch chan subscribeReply) sessionCmd {
 		return subscribeCmd{reply: ch}
 	}, subscribeReply{})
@@ -156,6 +163,23 @@ func (s *Session) Subscribe() (int, <-chan Event) {
 		return 0, closedEventChan()
 	}
 	return r.id, r.ch
+}
+
+// AttachAtGeometry registers a viewer after first applying its fitted
+// geometry as a session-wide last-writer-wins size update. PTY SetSize is the
+// fallible prepare step; only after it succeeds does the actor resize the VT,
+// capture the opaque semantic snapshot, and publish the subscriber.
+func (s *Session) AttachAtGeometry(cols, rows int) (int, <-chan Event, error) {
+	r := call(s, func(ch chan subscribeReply) sessionCmd {
+		return subscribeCmd{cols: cols, rows: rows, resize: true, reply: ch}
+	}, subscribeReply{err: os.ErrClosed})
+	if r.err != nil {
+		return 0, closedEventChan(), r.err
+	}
+	if r.ch == nil {
+		return 0, closedEventChan(), os.ErrClosed
+	}
+	return r.id, r.ch, nil
 }
 
 // Unsubscribe drops a subscriber and closes its channel. Safe to call after

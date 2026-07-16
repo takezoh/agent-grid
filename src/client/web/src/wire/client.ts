@@ -22,6 +22,8 @@ export type SubscribeFrame = {
   k: "s";
   reqId: string;
   sessionId: string;
+  cols: number;
+  rows: number;
 };
 
 export type UnsubscribeFrame = {

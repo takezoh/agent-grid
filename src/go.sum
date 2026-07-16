@@ -612,8 +612,8 @@ github.com/takezoh/fishpath-go v0.1.0 h1:50mRtsddcLxhqWHymJDyL8+Ja9yyjbFIncis1nI
 github.com/takezoh/fishpath-go v0.1.0/go.mod h1:74mSi4sk/bOHk8zJmDOQ90WKaxhDNG51icC/P/VolPc=
 github.com/takezoh/ultraviolet v0.0.0-20260705072351-7f8d42d2f662 h1:0JUmHzYdifzjqn1U+C2dEfRTjfrdZjcLw2mCeNXdcAU=
 github.com/takezoh/ultraviolet v0.0.0-20260705072351-7f8d42d2f662/go.mod h1:f/jRa757WUmaOZrbPspXymbg/GnbF+rwe4OLsG7aXYo=
-github.com/takezoh/x/vt v0.0.0-20260705072350-05fd7357eba6 h1:DT+aNWa9qng6p2SsauD0ybUOMoNvlbzuBdt/fpGCR+M=
-github.com/takezoh/x/vt v0.0.0-20260705072350-05fd7357eba6/go.mod h1:u1LOIABor9JqY54oZdktK3TCRrgzP6tzHrDYx1nd3wY=
+github.com/takezoh/x/vt v0.0.0-20260716080422-7ecef7c0bc30 h1:xY3vKvEiGeqFnnBMCoPeterP11i6ZW9hPT513ptZIk4=
+github.com/takezoh/x/vt v0.0.0-20260716080422-7ecef7c0bc30/go.mod h1:u1LOIABor9JqY54oZdktK3TCRrgzP6tzHrDYx1nd3wY=
 github.com/tenntenn/modver v1.0.1 h1:2klLppGhDgzJrScMpkj9Ujy3rXPUspSjAcev9tSEBgA=
 github.com/tenntenn/modver v1.0.1/go.mod h1:bePIyQPb7UeioSRkw3Q0XeMhYZSMx9B8ePqg6SAMGH0=
 github.com/tenntenn/text/transform v0.0.0-20200319021203-7eef512accb3 h1:f+jULpRQGxTSkNYKJ51yaw6ChIqO+Je8UqsTKN/cDag=

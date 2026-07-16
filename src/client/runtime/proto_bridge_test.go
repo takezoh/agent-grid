@@ -119,7 +119,7 @@ func TestBroadcastSurfaceOutput_PerSessionSubsOnly(t *testing.T) {
 	r, outboxes := newTestRuntimeWithConns(t, 1, 2, 3)
 
 	// s1 has connIDs 1 and 2; s2 has connID 3.
-	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]state.SurfaceGeometry{
 		1: {{SessionID: "s1"}: {}},
 		2: {{SessionID: "s1"}: {}},
 		3: {{SessionID: "s2"}: {}},
@@ -220,7 +220,7 @@ func TestBroadcastPromptEvent_PerSessionSubs(t *testing.T) {
 	}
 
 	// ConnID 1 subscribed to s1; connID 2 subscribed to s1; connID 3 to s2.
-	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]state.SurfaceGeometry{
 		1: {{SessionID: "s1"}: {}},
 		2: {{SessionID: "s1"}: {}},
 		3: {{SessionID: "s2"}: {}},

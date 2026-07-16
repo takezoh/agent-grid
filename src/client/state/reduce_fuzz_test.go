@@ -235,7 +235,7 @@ func decodeReduceFuzzEvent(s State, now time.Time, chunk []byte) Event {
 	case 7:
 		return EvConnClosed{ConnID: ConnID(a%4 + 1)}
 	case 8:
-		return EvCmdSurfaceSubscribe{ConnID: ConnID(a%4 + 1), ReqID: reqID, SessionID: sessionID}
+		return EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: ConnID(a%4 + 1), ReqID: reqID, SessionID: sessionID}
 	case 9:
 		return EvCmdSurfaceUnsubscribe{ConnID: ConnID(a%4 + 1), ReqID: reqID, SessionID: sessionID}
 	case 10:

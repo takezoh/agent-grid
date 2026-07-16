@@ -22,9 +22,9 @@ function fakeTransport(
   return {
     log,
     transport: {
-      subscribe: vi.fn(async (sessionId: string) => {
+      subscribe: vi.fn(async (sessionId: string, cols: number, rows: number) => {
         log.push(`subscribe:${sessionId}`);
-        return subscribe(sessionId);
+        return subscribe(sessionId, cols, rows);
       }),
       unsubscribe: vi.fn(async (sessionId: string) => {
         log.push(`unsubscribe:${sessionId}`);
@@ -38,6 +38,44 @@ async function flush(): Promise<void> {
 }
 
 describe("TerminalSubscriptionController", () => {
+  it("does not subscribe until fresh fitted geometry is available", async () => {
+    const { transport, log } = fakeTransport();
+    const controller = new TerminalSubscriptionController(transport);
+
+    controller.onOpen();
+    controller.acquire("s1");
+    await flush();
+    expect(log).toEqual([]);
+
+    controller.updateGeometry("s1", 132, 47);
+    await flush();
+    expect(transport.subscribe).toHaveBeenCalledWith("s1", 132, 47);
+    expect(controller.snapshot().phase).toBe("confirmed");
+  });
+
+  it("re-attaches when fitted geometry changes during subscribe", async () => {
+    const first = deferred<{ status: "confirmed"; reqId: string }>();
+    let calls = 0;
+    const { transport } = fakeTransport(async () => {
+      calls += 1;
+      if (calls === 1) return first.promise;
+      return { status: "confirmed", reqId: "r2" };
+    });
+    const controller = new TerminalSubscriptionController(transport);
+
+    controller.onOpen();
+    controller.acquire("s1");
+    controller.updateGeometry("s1", 80, 24);
+    await flush();
+    controller.updateGeometry("s1", 132, 47);
+    first.resolve({ status: "confirmed", reqId: "r1" });
+    await flush();
+
+    expect(transport.unsubscribe).toHaveBeenCalledWith("s1");
+    expect(transport.subscribe).toHaveBeenNthCalledWith(2, "s1", 132, 47);
+    expect(controller.snapshot().phase).toBe("confirmed");
+  });
+
   it("retries a desired session after a frame-not-ready burst is exhausted", async () => {
     const cooldown = deferred<void>();
     let calls = 0;
@@ -53,6 +91,7 @@ describe("TerminalSubscriptionController", () => {
 
     controller.onOpen();
     controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
     expect(controller.snapshot()).toMatchObject({ sessionId: "s1", phase: "waiting" });
 
@@ -74,6 +113,7 @@ describe("TerminalSubscriptionController", () => {
 
     controller.onOpen();
     controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
     controller.onClose();
     first.resolve({ status: "exhausted", lastError: "connection-closed" });
@@ -91,10 +131,12 @@ describe("TerminalSubscriptionController", () => {
     const controller = new TerminalSubscriptionController(transport);
     controller.onOpen();
     const oldLease = controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
 
     oldLease.release();
     controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
 
     expect(log).toEqual(["subscribe:s1"]);
@@ -106,10 +148,12 @@ describe("TerminalSubscriptionController", () => {
     const controller = new TerminalSubscriptionController(transport);
     controller.onOpen();
     const lease = controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
 
     lease.release();
     controller.acquire("s2");
+    controller.updateGeometry("s2", 120, 40);
     await flush();
 
     expect(log).toEqual(["subscribe:s1", "unsubscribe:s1", "subscribe:s2"]);
@@ -125,11 +169,13 @@ describe("TerminalSubscriptionController", () => {
     const controller = new TerminalSubscriptionController(transport, { cooldown: () => never });
     controller.onOpen();
     const lease = controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
     expect(controller.snapshot().phase).toBe("waiting");
 
     lease.release();
     controller.acquire("s2");
+    controller.updateGeometry("s2", 120, 40);
     await flush();
 
     expect(log).toEqual(["subscribe:s1", "subscribe:s2"]);
@@ -147,10 +193,12 @@ describe("TerminalSubscriptionController", () => {
     const controller = new TerminalSubscriptionController(transport);
     controller.onOpen();
     controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
     expect(controller.snapshot()).toMatchObject({ phase: "blocked", lastError: "unauthorized" });
 
     controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
     expect(calls).toBe(2);
     expect(controller.snapshot().phase).toBe("confirmed");

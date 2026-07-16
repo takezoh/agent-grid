@@ -89,6 +89,12 @@ func reduceDriverList(s State, e EvCmdDriverList) (State, []Effect) {
 
 func reduceSurfaceSubscribe(s State, e EvCmdSurfaceSubscribe) (State, []Effect) {
 	sid := e.SessionID
+	if e.Cols == 0 || e.Rows == 0 {
+		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeInvalidArgument, "surface subscribe requires non-zero cols and rows")}
+	}
+	if err := ValidateSizeHint(int(e.Cols), int(e.Rows)); err != nil {
+		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeInvalidArgument, err.Error())}
+	}
 	key := SurfaceSubscription{SessionID: sid, SubscriberID: e.SubscriberID}
 	sess, ok := s.Sessions[sid]
 	if !ok {
@@ -105,15 +111,15 @@ func reduceSurfaceSubscribe(s State, e EvCmdSurfaceSubscribe) (State, []Effect) 
 	s.SurfaceSubs = cloneSurfaceSubs(s.SurfaceSubs)
 	inner := s.SurfaceSubs[e.ConnID]
 	if inner == nil {
-		inner = map[SurfaceSubscription]struct{}{}
+		inner = map[SurfaceSubscription]SurfaceGeometry{}
 		s.SurfaceSubs[e.ConnID] = inner
 	}
 	if _, already := inner[key]; already {
 		return s, []Effect{okResp(e.ConnID, e.ReqID, nil)}
 	}
-	inner[key] = struct{}{}
+	inner[key] = SurfaceGeometry{Cols: e.Cols, Rows: e.Rows}
 	return s, []Effect{
-		EffSurfaceSubscribeStart{ConnID: e.ConnID, SessionID: sid, SubscriberID: e.SubscriberID},
+		EffSurfaceSubscribeStart{ConnID: e.ConnID, SessionID: sid, SubscriberID: e.SubscriberID, Cols: e.Cols, Rows: e.Rows},
 		okResp(e.ConnID, e.ReqID, nil),
 	}
 }

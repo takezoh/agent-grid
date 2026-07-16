@@ -573,7 +573,7 @@ func (r *Runtime) reconcileSurfaceRelay() {
 		return
 	}
 	for connID, subscriptions := range r.state.SurfaceSubs {
-		for subscription := range subscriptions {
+		for subscription, geometry := range subscriptions {
 			frameID := r.sessionHeadFrameTarget(subscription.SessionID)
 			if frameID == "" {
 				r.terminalRelay.UnsubscribeOwned(connID, subscription.SessionID, subscription.SubscriberID)
@@ -581,6 +581,7 @@ func (r *Runtime) reconcileSurfaceRelay() {
 			}
 			if err := r.terminalRelay.RebindOwned(
 				connID, subscription.SessionID, subscription.SubscriberID, frameID,
+				int(geometry.Cols), int(geometry.Rows),
 			); err != nil {
 				slog.Debug("runtime: surface subscription not ready for reconciliation",
 					"session", subscription.SessionID, "conn", connID,

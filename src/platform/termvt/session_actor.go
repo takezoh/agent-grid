@@ -2,7 +2,6 @@ package termvt
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -14,13 +13,14 @@ import (
 // at mainLoop entry and never escapes — nothing outside this file ever
 // dereferences it, so accesses do not need synchronization.
 type loopState struct {
-	em      Emulator
-	pty     PTY
-	subs    map[int]chan Event
-	pending []Control
-	nextID  int
-	cols    int
-	rows    int
+	em       Emulator
+	pty      PTY
+	subs     map[int]chan Event
+	pending  []Control
+	nextID   int
+	cols     int
+	rows     int
+	unusable error
 }
 
 // sessionCmd is the actor command interface. Every public Session method that
@@ -31,70 +31,45 @@ type sessionCmd interface {
 }
 
 type subscribeReply struct {
-	id int
-	ch <-chan Event
+	id  int
+	ch  <-chan Event
+	err error
 }
 
 type subscribeCmd struct {
-	reply chan subscribeReply
+	cols, rows int
+	resize     bool
+	reply      chan subscribeReply
 }
 
-// Subscribe seeds the new subscriber's channel with a reattach snapshot so
-// the client sees a coherent screen before any live chunk arrives — this
-// must happen inside mainLoop so the snapshot is consistent with the next
-// chunk's processing.
-//
-// Seed shape: when the emulator's scrollback buffer holds any rows, they
-// are emitted as a first EventOutput frame (terminated with a trailing
-// newline so the screen render that follows starts on a fresh row). The
-// current visible grid is then emitted as a second EventOutput frame, with
-// a trailing CUP escape (\x1b[<y+1>;<x+1>H) that pins xterm.js's cursor to
-// the same (x, y) the server-side emulator holds, followed by EL (\x1b[K)
-// that wipes any stale cells past the cursor on the input row. Both content
-// frames share the format documented on Emulator.SerializeScrollback /
-// Render — newline-separated rows with inline SGR escapes, no cursor
-// positioning, no clear sequences — so a client that writes them in order
-// builds the same scrollback its xterm.js would have accumulated had it been
-// attached from the start. An empty scrollback (fresh session, or an
-// alt-screen full-screen program whose draws never spilled to history)
-// elides the first frame entirely; the screen frame is unconditional.
-//
-// The trailing CUP keeps typed input rendering at the correct position
-// after a session switch. Without it, xterm.js's cursor settles at the
-// bottom of the rendered grid (Render() emits cell content + '\n'
-// separators only) while the PTY's cursor sits at the shell prompt; the
-// next echoed character would then be painted at the wrong screen cell.
-//
-// The trailing EL (\x1b[K) clears stale cells past the cursor on the input
-// row. Some agent CLIs (notably claude code's prompt component) redraw the
-// input row by writing only "\r❯ " without explicit EL, so the emulator's
-// underlying buffer keeps the previous prompt's tail (e.g. "業確認") at
-// columns past col 2 even though the live xterm view is masked by the very
-// next frame. Render() at subscribe captures that stale state verbatim;
-// without EL the user sees the residue on switch-back until the next repaint.
-// The cursor sits at the end of the intended input, so cells past it are
-// by definition "should be empty" — EL is safe to issue.
+// subscribeCmd executes inside mainLoop, so geometry preparation, semantic
+// snapshot capture, subscriber publication, and the next live chunk have one
+// serial order. Viewer attach performs the fallible PTY resize first; only a
+// successful prepare commits emulator geometry and exposes the subscriber.
+// Snapshot bytes are an opaque x/vt contract and are emitted as one event.
 //
 // IDs are allocated starting from 1 so 0 stays reserved as the post-shutdown
-// sentinel that Session.Subscribe returns when mainLoop has exited; any
-// caller that wants to distinguish "Subscribe came back from the actor" from
-// "Subscribe took the shutdown branch" can compare id against 0.
+// sentinel returned after shutdown.
 func (c subscribeCmd) run(ls *loopState) {
+	if c.resize {
+		cols, rows := normalizeSize(c.cols, c.rows)
+		if err := ls.pty.SetSize(cols, rows); err != nil {
+			c.reply <- subscribeReply{err: err}
+			return
+		}
+		ls.em.Resize(cols, rows)
+		ls.cols, ls.rows = cols, rows
+	}
+	snapshot, err := ls.em.ReattachSnapshot()
+	if err != nil {
+		ls.unusable = err
+		c.reply <- subscribeReply{err: err}
+		return
+	}
 	ls.nextID++
 	id := ls.nextID
 	ch := make(chan Event, subBuffer)
-	if sb := ls.em.SerializeScrollback(); len(sb) > 0 {
-		// Append a separator newline so the screen render's first row does
-		// not concatenate onto the last scrollback row when xterm.js writes
-		// the two frames back-to-back.
-		ch <- Event{Kind: EventOutput, Data: append(sb, '\n')}
-	}
-	rendered := []byte(ls.em.Render())
-	x, y := ls.em.CursorPosition()
-	// CUP is 1-based; emulator coords are 0-based. EL after CUP clears any
-	// stale cells past the cursor on the input row (see seed-shape comment).
-	rendered = fmt.Appendf(rendered, "\x1b[%d;%dH\x1b[K", y+1, x+1)
-	ch <- Event{Kind: EventOutput, Data: rendered}
+	ch <- Event{Kind: EventOutput, Data: snapshot}
 	ls.subs[id] = ch
 	c.reply <- subscribeReply{id: id, ch: ch}
 }
@@ -119,9 +94,13 @@ type resizeCmd struct {
 
 func (c resizeCmd) run(ls *loopState) {
 	cols, rows := normalizeSize(c.cols, c.rows)
-	ls.cols, ls.rows = cols, rows
+	if err := ls.pty.SetSize(cols, rows); err != nil {
+		c.reply <- err
+		return
+	}
 	ls.em.Resize(cols, rows)
-	c.reply <- ls.pty.SetSize(cols, rows)
+	ls.cols, ls.rows = cols, rows
+	c.reply <- nil
 }
 
 type snapshotCmd struct {
@@ -166,6 +145,13 @@ func (s *Session) mainLoop(cols, rows int) {
 			s.processChunk(ls, chunk)
 		case cmd := <-s.cmdCh:
 			cmd.run(ls)
+			if ls.unusable != nil {
+				slog.Error("termvt: semantic snapshot failed; terminating unusable session", "err", ls.unusable)
+				_ = s.em.CloseInputPipe()
+				_ = s.pty.Close()
+				s.handleExit(ls)
+				return
+			}
 		}
 	}
 }

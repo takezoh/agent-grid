@@ -37,7 +37,8 @@ type State struct {
 	// SurfaceSubs records which (ConnID, SessionID, SubscriberID) tuples are streaming
 	// frame surface output via the surface.subscribe RPC. The outer map is keyed by
 	// ConnID so connection close can drop all subscriptions in one step
-	// (see reduceConnClosed). The inner set keeps lookup O(1).
+	// (see reduceConnClosed). The inner map keeps lookup O(1) and stores the
+	// geometry required to recreate a lost relay or rebind a new head frame.
 	//
 	// In-memory only: SurfaceSubs is NOT persisted to sessions.json on
 	// purpose. Subscriptions reset on daemon restart so clients must
@@ -45,7 +46,7 @@ type State struct {
 	//
 	// Per-ConnID cap: the reducer enforces at most 8 logical subscriptions
 	// (ADR 0007); excess subscribe attempts get RespErr(resource_exhausted).
-	SurfaceSubs      map[ConnID]map[SurfaceSubscription]struct{}
+	SurfaceSubs      map[ConnID]map[SurfaceSubscription]SurfaceGeometry
 	Jobs             map[JobID]JobMeta
 	NextJobID        JobID
 	NextConnID       ConnID
@@ -112,7 +113,7 @@ func New() State {
 	return State{
 		Sessions:    map[SessionID]Session{},
 		Subscribers: map[ConnID]Subscriber{},
-		SurfaceSubs: map[ConnID]map[SurfaceSubscription]struct{}{},
+		SurfaceSubs: map[ConnID]map[SurfaceSubscription]SurfaceGeometry{},
 		Jobs:        map[JobID]JobMeta{},
 	}
 }
@@ -120,4 +121,11 @@ func New() State {
 type SurfaceSubscription struct {
 	SessionID    SessionID
 	SubscriberID SubscriberID
+}
+
+// SurfaceGeometry is the viewer geometry that must be applied atomically
+// before a reattach snapshot is produced. It is runtime-only desired state.
+type SurfaceGeometry struct {
+	Cols uint16
+	Rows uint16
 }

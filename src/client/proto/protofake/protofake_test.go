@@ -32,7 +32,7 @@ func TestNewPairRoundTrip(t *testing.T) {
 	defer c.Close() //nolint:errcheck
 	defer s.Close() //nolint:errcheck
 
-	raw, encErr := proto.EncodeCommand("req-1", proto.CmdSurfaceSubscribe{SessionID: "s1"})
+	raw, encErr := proto.EncodeCommand("req-1", proto.CmdSurfaceSubscribe{SessionID: "s1", Cols: 80, Rows: 24})
 	env := buildEnvelope(t, raw, encErr)
 
 	sendErr := make(chan error, 1)

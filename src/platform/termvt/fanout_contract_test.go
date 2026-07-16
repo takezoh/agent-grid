@@ -53,8 +53,8 @@ func TestFanoutDeliversToEverySubscriber(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, a := s.Subscribe()
-	_, b := s.Subscribe()
+	_, a := s.SubscribeCurrent()
+	_, b := s.SubscribeCurrent()
 	if err := s.WriteInput([]byte("MARK-XYZ\n")); err != nil {
 		t.Fatalf("WriteInput: %v", err)
 	}
@@ -79,8 +79,8 @@ func TestManagerSessionsDoNotCrossTalk(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, ca := sa.Subscribe()
-	_, cb := sb.Subscribe()
+	_, ca := sa.SubscribeCurrent()
+	_, cb := sb.SubscribeCurrent()
 	if err := sa.WriteInput([]byte("AAA-MARK\n")); err != nil {
 		t.Fatalf("WriteInput A: %v", err)
 	}
@@ -107,8 +107,8 @@ func TestSlowSubscriberDoesNotStarveFast(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, slow := s.Subscribe() // deliberately never drained
-	_, fast := s.Subscribe()
+	_, slow := s.SubscribeCurrent() // deliberately never drained
+	_, fast := s.SubscribeCurrent()
 
 	// The fast subscriber drains continuously and must reach EventExit (proof it
 	// was neither blocked nor severed by the slow one's back-pressure).
@@ -163,7 +163,7 @@ func TestControlPrecedesOutputInChunk(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	sawControl := false
 	deadline := time.After(waitTimeout)
 	for {

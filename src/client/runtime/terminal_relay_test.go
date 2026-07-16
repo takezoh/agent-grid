@@ -26,6 +26,8 @@ type fakeSurfaceBackend struct {
 
 type fakeSurfaceSub struct {
 	frameID string
+	cols    int
+	rows    int
 	ch      chan termvt.Event
 }
 
@@ -47,12 +49,13 @@ func newFakeSurfaceBackend() *fakeSurfaceBackend {
 	}
 }
 
-func (f *fakeSurfaceBackend) SubscribeSurface(frameID string) (int, <-chan termvt.Event, error) {
-	return f.SubscribeSurfaceWithBuffer(frameID, f.defaultBuffer)
+func (f *fakeSurfaceBackend) SubscribeSurface(frameID string, cols, rows int) (int, <-chan termvt.Event, error) {
+	return f.SubscribeSurfaceWithBuffer(frameID, cols, rows, f.defaultBuffer)
 }
 
 func (f *fakeSurfaceBackend) SubscribeSurfaceWithBuffer(
 	frameID string,
+	cols, rows int,
 	buffer int,
 ) (int, <-chan termvt.Event, error) {
 	id := int(f.nextID.Add(1))
@@ -61,7 +64,7 @@ func (f *fakeSurfaceBackend) SubscribeSurfaceWithBuffer(
 	}
 	ch := make(chan termvt.Event, buffer)
 	f.mu.Lock()
-	f.subs[id] = fakeSurfaceSub{frameID: frameID, ch: ch}
+	f.subs[id] = fakeSurfaceSub{frameID: frameID, cols: cols, rows: rows, ch: ch}
 	f.mu.Unlock()
 	return id, ch, nil
 }
@@ -205,14 +208,20 @@ func TestTerminalRelayRebindOwnedReplacesFrameAndRejectsOldIdentity(t *testing.T
 	tr, _ := newTestTerminalRelay(t, b)
 	defer tr.Close()
 
-	if err := tr.SubscribeOwned(conn1, sess1, "browser-a", "%1"); err != nil {
+	if err := tr.SubscribeOwned(conn1, sess1, "browser-a", "%1", 80, 24); err != nil {
 		t.Fatalf("subscribe old head: %v", err)
 	}
 	oldID := int(b.nextID.Load())
-	if err := tr.RebindOwned(conn1, sess1, "browser-a", "%2"); err != nil {
+	if err := tr.RebindOwned(conn1, sess1, "browser-a", "%2", 132, 47); err != nil {
 		t.Fatalf("rebind new head: %v", err)
 	}
 	newID := int(b.nextID.Load())
+	b.mu.Lock()
+	newSub := b.subs[newID]
+	b.mu.Unlock()
+	if newSub.cols != 132 || newSub.rows != 47 {
+		t.Fatalf("rebound geometry = %dx%d, want 132x47", newSub.cols, newSub.rows)
+	}
 
 	if newID == oldID {
 		t.Fatalf("subscriber id did not change across frame rebind: %d", newID)
@@ -225,7 +234,6 @@ func TestTerminalRelayRebindOwnedReplacesFrameAndRejectsOldIdentity(t *testing.T
 	}
 	b.mu.Lock()
 	_, oldStillOpen := b.subs[oldID]
-	newSub := b.subs[newID]
 	b.mu.Unlock()
 	if oldStillOpen {
 		t.Fatal("old frame backend subscription remained open after rebind")
@@ -242,7 +250,7 @@ func TestTerminalRelay_SnapshotSequenceZero(t *testing.T) {
 	tr, events := newTestTerminalRelay(t, b)
 	defer tr.Close()
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -279,7 +287,7 @@ func TestTerminalRelay_SequenceMonotonic(t *testing.T) {
 	tr, events := newTestTerminalRelay(t, b)
 	defer tr.Close()
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 	id := int(b.nextID.Load())
@@ -310,7 +318,7 @@ func TestTerminalRelay_SubscribeRestartsSequence(t *testing.T) {
 	tr, events := newTestTerminalRelay(t, b)
 	defer tr.Close()
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 	id1 := int(b.nextID.Load())
@@ -326,7 +334,7 @@ func TestTerminalRelay_SubscribeRestartsSequence(t *testing.T) {
 	tr.Unsubscribe(conn1, sess1)
 
 	// Re-subscribe — Sequence must restart from 0.
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("re-Subscribe: %v", err)
 	}
 	id2 := int(b.nextID.Load())
@@ -350,10 +358,10 @@ func TestTerminalRelay_LogicalBrowserOwnersHaveIndependentSubscriptions(t *testi
 	tr, _ := newTestTerminalRelay(t, b)
 	defer tr.Close()
 
-	if err := tr.SubscribeOwned(conn1, sess1, "browser-a", "%1"); err != nil {
+	if err := tr.SubscribeOwned(conn1, sess1, "browser-a", "%1", 80, 24); err != nil {
 		t.Fatalf("SubscribeOwned browser-a: %v", err)
 	}
-	if err := tr.SubscribeOwned(conn1, sess1, "browser-b", "%1"); err != nil {
+	if err := tr.SubscribeOwned(conn1, sess1, "browser-b", "%1", 80, 24); err != nil {
 		t.Fatalf("SubscribeOwned browser-b: %v", err)
 	}
 	if got := b.nextID.Load(); got != 2 {
@@ -373,7 +381,7 @@ func TestTerminalRelay_SlowCloseEmitsClosedEvent(t *testing.T) {
 	tr, events := newTestTerminalRelay(t, b)
 	defer tr.Close()
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 	id := int(b.nextID.Load())
@@ -426,7 +434,7 @@ func TestTerminalRelay_SlowCloseAllowsResubscribeBeforeClosedEventIsDelivered(t 
 	tr := newTestTerminalRelayWithOptions(t, b, send, sendNow)
 	defer tr.Close()
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 	id := int(b.nextID.Load())
@@ -446,7 +454,7 @@ func TestTerminalRelay_SlowCloseAllowsResubscribeBeforeClosedEventIsDelivered(t 
 		t.Fatal("local subscription remained after slow-close started")
 	}
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("re-Subscribe: %v", err)
 	}
 	id2 := int(b.nextID.Load())
@@ -537,7 +545,7 @@ func TestTerminalRelay_UnsubscribeIdempotent(t *testing.T) {
 	tr, _ := newTestTerminalRelay(t, b)
 	defer tr.Close()
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -552,12 +560,12 @@ func TestTerminalRelay_TwoConnsIndependent(t *testing.T) {
 	tr, events := newTestTerminalRelay(t, b)
 	defer tr.Close()
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe conn1: %v", err)
 	}
 	id1 := int(b.nextID.Load())
 
-	if err := tr.Subscribe(conn2, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn2, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe conn2: %v", err)
 	}
 	id2 := int(b.nextID.Load())
@@ -683,13 +691,13 @@ func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
 	router.setChannel(fastSameSessionKey, fastSameSessionCh)
 	router.setChannel(otherSessionKey, otherSessionCh)
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe blocked key: %v", err)
 	}
-	if err := tr.Subscribe(conn2, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn2, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("Subscribe fast same-session key: %v", err)
 	}
-	if err := tr.Subscribe(conn1, sess2, "%2"); err != nil {
+	if err := tr.Subscribe(conn1, sess2, "%2", 80, 24); err != nil {
 		t.Fatalf("Subscribe other-session key: %v", err)
 	}
 
@@ -755,7 +763,7 @@ func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
 	}
 	tr.Unsubscribe(conn1, sess1)
 
-	if err := tr.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := tr.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("re-Subscribe blocked key: %v", err)
 	}
 	b.Broadcast("%1", termvt.Event{Kind: termvt.EventOutput, Data: []byte("r")})

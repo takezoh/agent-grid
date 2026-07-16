@@ -160,7 +160,7 @@ func (r *Runtime) executeSurfaceEffect(eff state.Effect) {
 				"session", e.SessionID, "conn", e.ConnID)
 			return
 		}
-		if err := r.terminalRelay.SubscribeOwned(e.ConnID, e.SessionID, e.SubscriberID, frameID); err != nil {
+		if err := r.terminalRelay.SubscribeOwned(e.ConnID, e.SessionID, e.SubscriberID, frameID, int(e.Cols), int(e.Rows)); err != nil {
 			slog.Warn("runtime: surface subscribe failed",
 				"session", e.SessionID, "conn", e.ConnID, "err", err)
 		}

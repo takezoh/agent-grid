@@ -30,9 +30,15 @@ function makeDeps(responses: (RespOKFrame | RespErrFrame)[]): {
 describe("subscribeWithRetry", () => {
   it("succeeds on first try when RespOK comes back", async () => {
     const { deps, sent } = makeDeps([{ k: "r", reqId: "x" }]);
-    const out = await subscribeWithRetry("s1", deps);
+    const out = await subscribeWithRetry("s1", 120, 40, deps);
     expect(out.status).toBe("confirmed");
     expect(sent).toHaveLength(1);
+    expect(JSON.parse(sent[0] ?? "{}")).toMatchObject({
+      k: "s",
+      sessionId: "s1",
+      cols: 120,
+      rows: 40,
+    });
   });
 
   it("retries on frame-not-ready 3 times then confirms (fake WS scenario)", async () => {
@@ -43,7 +49,7 @@ describe("subscribeWithRetry", () => {
       message: "not yet",
     }));
     const { deps, sent, sleeps } = makeDeps([...errs, { k: "r", reqId: "ok" }]);
-    const out = await subscribeWithRetry("s1", deps);
+    const out = await subscribeWithRetry("s1", 120, 40, deps);
     expect(out.status).toBe("confirmed");
     // 4 sends: 3 retries + 1 success
     expect(sent).toHaveLength(4);
@@ -60,7 +66,7 @@ describe("subscribeWithRetry", () => {
       message: "not yet",
     }));
     const { deps, sent } = makeDeps(errs);
-    const out = await subscribeWithRetry("s1", deps);
+    const out = await subscribeWithRetry("s1", 120, 40, deps);
     // exhausted — caller transitions to user-action-waiting state
     expect(out.status).toBe("exhausted");
     if (out.status === "exhausted") {
@@ -72,7 +78,7 @@ describe("subscribeWithRetry", () => {
 
   it("does not retry on non-frame-not-ready error", async () => {
     const { deps, sent } = makeDeps([{ k: "e", reqId: "x", code: "unauthorized", message: "no" }]);
-    const out = await subscribeWithRetry("s1", deps);
+    const out = await subscribeWithRetry("s1", 120, 40, deps);
     expect(out.status).toBe("exhausted");
     if (out.status === "exhausted") expect(out.lastError).toBe("unauthorized");
     expect(sent).toHaveLength(1);

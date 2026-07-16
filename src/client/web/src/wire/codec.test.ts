@@ -162,8 +162,8 @@ describe("serializeClientFrame", () => {
     );
   });
   it("serializes subscribe frame", () => {
-    expect(serializeClientFrame({ k: "s", reqId: "r1", sessionId: "s1" })).toBe(
-      '{"k":"s","reqId":"r1","sessionId":"s1"}',
-    );
+    expect(
+      serializeClientFrame({ k: "s", reqId: "r1", sessionId: "s1", cols: 120, rows: 40 }),
+    ).toBe('{"k":"s","reqId":"r1","sessionId":"s1","cols":120,"rows":40}');
   });
 });

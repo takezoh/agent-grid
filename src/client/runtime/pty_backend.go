@@ -253,13 +253,12 @@ func (p *PtyBackend) ShowEnvironment() (string, error) {
 // and returns the subscriber id and its event channel. The first event on the
 // channel is a reattach snapshot of the current screen (termvt's guarantee).
 // The caller is responsible for calling UnsubscribeSurface when done.
-func (p *PtyBackend) SubscribeSurface(target string) (int, <-chan termvt.Event, error) {
+func (p *PtyBackend) SubscribeSurface(target string, cols, rows int) (int, <-chan termvt.Event, error) {
 	sess, ok := p.mgr.Get(target)
 	if !ok {
 		return 0, nil, fmt.Errorf("runtime: unknown frame %q: %w", target, ErrFrameMissing)
 	}
-	id, ch := sess.Subscribe()
-	return id, ch, nil
+	return sess.AttachAtGeometry(cols, rows)
 }
 
 // UnsubscribeSurface releases the subscriber id on target's session. It is

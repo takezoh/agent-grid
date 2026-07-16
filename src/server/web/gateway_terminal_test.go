@@ -26,6 +26,7 @@ type fakeSessionAttacher struct {
 	mu            sync.Mutex
 	writeRawCalls []writeRawCall
 	resizeCalls   []resizeCall
+	subscribeCall *resizeCall
 	subscribeErr  error
 }
 
@@ -45,8 +46,9 @@ func newFakeAttacher() *fakeSessionAttacher {
 	}
 }
 
-func (f *fakeSessionAttacher) SubscribeSurface(_ context.Context, _ string) (<-chan proto.ServerEvent, error) {
+func (f *fakeSessionAttacher) SubscribeSurface(_ context.Context, sessionID string, cols, rows uint16) (<-chan proto.ServerEvent, error) {
 	f.mu.Lock()
+	f.subscribeCall = &resizeCall{sessionID: sessionID, cols: cols, rows: rows}
 	err := f.subscribeErr
 	f.mu.Unlock()
 	if err != nil {
@@ -59,7 +61,7 @@ func (f *fakeSessionAttacher) UnsubscribeSurface(_ context.Context, _ string) er
 	return nil
 }
 
-func (f *fakeSessionAttacher) SendSurfaceSubscribe(_ context.Context, _, _ string) error {
+func (f *fakeSessionAttacher) SendSurfaceSubscribe(_ context.Context, _, _ string, _, _ uint16) error {
 	return nil
 }
 
@@ -136,6 +138,9 @@ func dialWsGateway(t *testing.T, srv *httptest.Server) *websocket.Conn {
 	c, _, err := websocket.Dial(ctx, url, nil)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
+	}
+	if err := c.Write(ctx, websocket.MessageText, []byte(`{"k":"r","cols":80,"rows":24}`)); err != nil {
+		t.Fatalf("write initial geometry: %v", err)
 	}
 	t.Cleanup(func() { _ = c.CloseNow() })
 	return c

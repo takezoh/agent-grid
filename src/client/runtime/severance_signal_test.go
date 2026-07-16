@@ -12,7 +12,7 @@ func TestReduceSurfaceUnsubscribeServerInitiatedPush(t *testing.T) {
 	s.Sessions["sess-1"] = state.Session{
 		ID: "sess-1", Frames: []state.SessionFrame{{ID: "f1"}}, HeadFrameID: "f1",
 	}
-	s1, _ := state.Reduce(s, state.EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
+	s1, _ := state.Reduce(s, state.EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
 
 	_, effs := state.Reduce(s1, state.EvCmdSurfaceUnsubscribe{ConnID: 1, ReqID: "", SessionID: "sess-1"})
 	if len(effs) != 2 {

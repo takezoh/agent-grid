@@ -15,7 +15,7 @@ func TestCmdSurfaceCommandNames(t *testing.T) {
 		cmd  Command
 		want string
 	}{
-		{CmdSurfaceSubscribe{SessionID: "s1"}, CmdNameSurfaceSubscribe},
+		{CmdSurfaceSubscribe{SessionID: "s1", Cols: 80, Rows: 24}, CmdNameSurfaceSubscribe},
 		{CmdSurfaceUnsubscribe{SessionID: "s1"}, CmdNameSurfaceUnsubscribe},
 		{CmdSurfaceResize{SessionID: "s1", Cols: 80, Rows: 24}, CmdNameSurfaceResize},
 		{CmdSurfaceWriteRaw{SessionID: "s1", Data: []byte("hello")}, CmdNameSurfaceWriteRaw},

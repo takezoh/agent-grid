@@ -51,11 +51,28 @@ func spawnSized(t *testing.T, b *PtyBackend, frameID, name, command string, cols
 func withCapturedSpawnLog(t *testing.T, fn func()) string {
 	t.Helper()
 	prev := slog.Default()
-	var buf bytes.Buffer
+	var buf synchronizedBuffer
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	t.Cleanup(func() { slog.SetDefault(prev) })
 	fn()
 	return buf.String()
+}
+
+type synchronizedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *synchronizedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *synchronizedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 // TestPtyBackendSpawnEchoCaptureKill exercises the full data-plane flow:
@@ -423,7 +440,7 @@ func TestPtyBackendSubscribeSurface_SnapshotFirst(t *testing.T) {
 		return err == nil && strings.Contains(out, "snapshot-marker")
 	})
 
-	subID, ch, err := b.SubscribeSurface(frameID)
+	subID, ch, err := b.SubscribeSurface(frameID, 80, 24)
 	if err != nil {
 		t.Fatalf("SubscribeSurface: %v", err)
 	}
@@ -451,7 +468,7 @@ func TestPtyBackendWriteSurface(t *testing.T) {
 	frameID := spawn(t, b, "frame-write", "t", "cat")
 	defer func() { _ = b.KillFrame(frameID) }()
 
-	subID, ch, err := b.SubscribeSurface(frameID)
+	subID, ch, err := b.SubscribeSurface(frameID, 80, 24)
 	if err != nil {
 		t.Fatalf("SubscribeSurface: %v", err)
 	}
@@ -553,7 +570,7 @@ func TestPtyBackendSurface_MissingFrame(t *testing.T) {
 	b := NewPtyBackend(0)
 	const unknown = "unknown-frame"
 
-	_, _, err := b.SubscribeSurface(unknown)
+	_, _, err := b.SubscribeSurface(unknown, 80, 24)
 	if err == nil || !errors.Is(err, ErrFrameMissing) {
 		t.Errorf("SubscribeSurface(unknown) = %v, want ErrFrameMissing", err)
 	}

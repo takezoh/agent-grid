@@ -6,7 +6,7 @@ import { CAP_MS } from "./backoff";
 import type { SubscribeOutcome } from "./retry";
 
 export interface TerminalSubscriptionTransport {
-  subscribe(sessionId: string): Promise<SubscribeOutcome>;
+  subscribe(sessionId: string, cols: number, rows: number): Promise<SubscribeOutcome>;
   unsubscribe(sessionId: string): Promise<void>;
 }
 
@@ -22,7 +22,11 @@ type ControllerOptions = {
 const defaultCooldown = () => new Promise<void>((resolve) => setTimeout(resolve, CAP_MS));
 
 export class TerminalSubscriptionController {
-  private desired: { sessionId: string; token: number } | null = null;
+  private desired: {
+    sessionId: string;
+    token: number;
+    geometry: { cols: number; rows: number } | null;
+  } | null = null;
   private wireSessionId: string | null = null;
   private connected = false;
   private connectionEpoch = 0;
@@ -48,7 +52,7 @@ export class TerminalSubscriptionController {
     this.ownershipEpoch += 1;
     const token = this.ownershipEpoch;
     const sameSession = this.desired?.sessionId === sessionId;
-    this.desired = { sessionId, token };
+    this.desired = { sessionId, token, geometry: null };
     this.lastError = null;
     this.attempt = 0;
     if (this.phase === "blocked") {
@@ -71,6 +75,12 @@ export class TerminalSubscriptionController {
         });
       },
     };
+  }
+
+  updateGeometry(sessionId: string, cols: number, rows: number): void {
+    if (this.desired?.sessionId !== sessionId || cols <= 0 || rows <= 0) return;
+    this.desired = { ...this.desired, geometry: { cols, rows } };
+    this.schedule();
   }
 
   onOpen(): void {
@@ -146,6 +156,12 @@ export class TerminalSubscriptionController {
         this.publish();
         return;
       }
+      const geometry = this.desired?.geometry ?? null;
+      if (!geometry) {
+        this.phase = "idle";
+        this.publish();
+        return;
+      }
       if (this.wireSessionId === desiredId) {
         this.phase = "confirmed";
         this.lastError = null;
@@ -157,9 +173,19 @@ export class TerminalSubscriptionController {
       const epoch = this.connectionEpoch;
       this.phase = "subscribing";
       this.publish();
-      const outcome = await this.transport.subscribe(desiredId);
+      const outcome = await this.transport.subscribe(desiredId, geometry.cols, geometry.rows);
       if (epoch !== this.connectionEpoch) continue;
       if (outcome.status === "confirmed") {
+        const latest = this.desired;
+        if (
+          latest?.sessionId !== desiredId ||
+          latest.geometry?.cols !== geometry.cols ||
+          latest.geometry?.rows !== geometry.rows
+        ) {
+          await this.transport.unsubscribe(desiredId);
+          if (epoch !== this.connectionEpoch) continue;
+          continue;
+        }
         this.wireSessionId = desiredId;
         this.phase = "confirmed";
         this.attempt = 0;

@@ -19,12 +19,12 @@ type compositeSurfaceBackend struct {
 	surface *fakeSurfaceBackend
 }
 
-func (c *compositeSurfaceBackend) SubscribeSurface(frameID string) (int, <-chan termvt.Event, error) {
-	return c.surface.SubscribeSurface(frameID)
+func (c *compositeSurfaceBackend) SubscribeSurface(frameID string, cols, rows int) (int, <-chan termvt.Event, error) {
+	return c.surface.SubscribeSurface(frameID, cols, rows)
 }
 
-func (c *compositeSurfaceBackend) SubscribeSurfaceWithBuffer(frameID string, buffer int) (int, <-chan termvt.Event, error) {
-	return c.surface.SubscribeSurfaceWithBuffer(frameID, buffer)
+func (c *compositeSurfaceBackend) SubscribeSurfaceWithBuffer(frameID string, cols, rows, buffer int) (int, <-chan termvt.Event, error) {
+	return c.surface.SubscribeSurfaceWithBuffer(frameID, cols, rows, buffer)
 }
 
 func (c *compositeSurfaceBackend) UnsubscribeSurface(frameID string, id int) error {
@@ -108,7 +108,7 @@ func TestBackpressureSeverance_EndToEnd(t *testing.T) {
 	drainOneEvent(t, c.Events())
 
 	sendCtx, sendCancel = context.WithTimeout(ctx, 2*time.Second)
-	if _, err := c.Send(sendCtx, proto.CmdSurfaceSubscribe{SessionID: string(sess1)}); err != nil {
+	if _, err := c.Send(sendCtx, proto.CmdSurfaceSubscribe{SessionID: string(sess1), Cols: 80, Rows: 24}); err != nil {
 		t.Fatalf("CmdSurfaceSubscribe: %v", err)
 	}
 	sendCancel()
@@ -136,7 +136,7 @@ func TestBackpressureSeverance_EndToEnd(t *testing.T) {
 	}
 
 	sendCtx, sendCancel = context.WithTimeout(ctx, 2*time.Second)
-	if _, err := c.Send(sendCtx, proto.CmdSurfaceSubscribe{SessionID: string(sess1)}); err != nil {
+	if _, err := c.Send(sendCtx, proto.CmdSurfaceSubscribe{SessionID: string(sess1), Cols: 80, Rows: 24}); err != nil {
 		t.Fatalf("re-subscribe: %v", err)
 	}
 	sendCancel()

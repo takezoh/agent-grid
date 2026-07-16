@@ -189,6 +189,7 @@ export function TerminalPane({
       onGeometryChangeRef.current?.({ cols, rows });
       const sid = sessionRef.current;
       if (!sid) return;
+      conn.updateTerminalGeometry(sid, cols, rows);
       conn.send({ k: "r", cols, rows, sessionId: sid });
     });
 

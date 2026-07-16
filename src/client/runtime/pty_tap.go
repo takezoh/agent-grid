@@ -73,7 +73,7 @@ func (t *PtyFrameTap) Start(ctx context.Context, frameID string) (<-chan []byte,
 	// so a redundant Start cannot leak a forwarder goroutine.
 	_ = t.Stop(frameID)
 
-	subID, in := sess.Subscribe()
+	subID, in := sess.SubscribeCurrent()
 	tapCtx, cancel := context.WithCancel(ctx)
 
 	t.mu.Lock()

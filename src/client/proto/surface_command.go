@@ -8,11 +8,13 @@ const (
 	CmdNameSurfaceWriteRaw    = "surface.write_raw"
 )
 
-// CmdSurfaceSubscribe begins streaming the head frame surface output of
-// SessionID as EvtSurfaceOutput events to the caller.
+// CmdSurfaceSubscribe attaches to the head frame at the viewer's current
+// geometry and begins streaming its surface output as EvtSurfaceOutput events.
 type CmdSurfaceSubscribe struct {
 	SessionID    string `json:"session_id"`
 	SubscriberID string `json:"subscriber_id,omitempty"`
+	Cols         uint16 `json:"cols"`
+	Rows         uint16 `json:"rows"`
 }
 
 func (CmdSurfaceSubscribe) isCommand()          {}

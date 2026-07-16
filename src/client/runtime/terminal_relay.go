@@ -12,7 +12,7 @@ import (
 // It is extracted as an interface so tests can inject a fake implementation
 // without starting a real pty.
 type SurfaceBackend interface {
-	SubscribeSurface(frameID string) (int, <-chan termvt.Event, error)
+	SubscribeSurface(frameID string, cols, rows int) (int, <-chan termvt.Event, error)
 	UnsubscribeSurface(frameID string, id int) error
 	WriteSurface(frameID string, data []byte) error
 	ResizeSurface(frameID string, cols, rows int) error
@@ -22,7 +22,7 @@ type SurfaceBackend interface {
 // buffer size. Production backends may ignore this seam and fall back to their
 // default contract; tests use it to drive overflow deterministically.
 type bufferedSurfaceBackend interface {
-	SubscribeSurfaceWithBuffer(frameID string, buffer int) (int, <-chan termvt.Event, error)
+	SubscribeSurfaceWithBuffer(frameID string, cols, rows, buffer int) (int, <-chan termvt.Event, error)
 }
 
 // surfaceKey is the map key for one logical browser subscription. SubscriberID
@@ -36,6 +36,8 @@ type surfaceKey struct {
 // surfaceSub holds the live state of one fan-out goroutine.
 type surfaceSub struct {
 	frameID string
+	cols    int
+	rows    int
 	subID   int           // termvt subscriber id returned by SubscribeSurface
 	cancel  chan struct{} // closed to stop the fan-out goroutine early
 	seq     uint64        // next Sequence value to emit (subscribe-scoped, resets on re-subscribe)
@@ -118,11 +120,17 @@ func NewTerminalRelay(
 
 // Subscribe starts a fan-out goroutine for (connID, sessionID) on frameID.
 // If a subscription already exists for that key it is a no-op (idempotent).
-func (tr *TerminalRelay) Subscribe(connID state.ConnID, sessionID state.SessionID, frameID string) error {
-	return tr.SubscribeOwned(connID, sessionID, "", frameID)
+func (tr *TerminalRelay) Subscribe(connID state.ConnID, sessionID state.SessionID, frameID string, cols, rows int) error {
+	return tr.SubscribeOwned(connID, sessionID, "", frameID, cols, rows)
 }
 
-func (tr *TerminalRelay) SubscribeOwned(connID state.ConnID, sessionID state.SessionID, subscriberID state.SubscriberID, frameID string) error {
+func (tr *TerminalRelay) SubscribeOwned(
+	connID state.ConnID,
+	sessionID state.SessionID,
+	subscriberID state.SubscriberID,
+	frameID string,
+	cols, rows int,
+) error {
 	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
 
 	tr.mu.Lock()
@@ -132,13 +140,15 @@ func (tr *TerminalRelay) SubscribeOwned(connID state.ConnID, sessionID state.Ses
 	}
 	tr.mu.Unlock()
 
-	id, ch, err := tr.subscribeSurface(frameID)
+	id, ch, err := tr.subscribeSurface(frameID, cols, rows)
 	if err != nil {
 		return err
 	}
 
 	sub := &surfaceSub{
 		frameID: frameID,
+		cols:    cols,
+		rows:    rows,
 		subID:   id,
 		cancel:  make(chan struct{}),
 		relay:   make(chan internalBroadcastSurface, tr.severanceThreshold),
@@ -170,6 +180,7 @@ func (tr *TerminalRelay) RebindOwned(
 	sessionID state.SessionID,
 	subscriberID state.SubscriberID,
 	frameID string,
+	cols, rows int,
 ) error {
 	key := surfaceKey{connID: connID, sessionID: sessionID, subscriberID: subscriberID}
 
@@ -188,14 +199,14 @@ func (tr *TerminalRelay) RebindOwned(
 		close(old.cancel)
 		_ = tr.backend.UnsubscribeSurface(old.frameID, old.subID)
 	}
-	return tr.SubscribeOwned(connID, sessionID, subscriberID, frameID)
+	return tr.SubscribeOwned(connID, sessionID, subscriberID, frameID, cols, rows)
 }
 
-func (tr *TerminalRelay) subscribeSurface(frameID string) (int, <-chan termvt.Event, error) {
+func (tr *TerminalRelay) subscribeSurface(frameID string, cols, rows int) (int, <-chan termvt.Event, error) {
 	if backend, ok := tr.backend.(bufferedSurfaceBackend); ok {
-		return backend.SubscribeSurfaceWithBuffer(frameID, tr.subscriberBuffer)
+		return backend.SubscribeSurfaceWithBuffer(frameID, cols, rows, tr.subscriberBuffer)
 	}
-	return tr.backend.SubscribeSurface(frameID)
+	return tr.backend.SubscribeSurface(frameID, cols, rows)
 }
 
 // Unsubscribe stops the fan-out goroutine for (connID, sessionID) and

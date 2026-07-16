@@ -30,13 +30,13 @@ type Attacher interface {
 	// proto.ServerEvent filtered to this session (best-effort: events
 	// for other sessions may also come through if the daemon-side filter
 	// is coarse — the gateway re-filters).
-	SubscribeSurface(ctx context.Context, sessionID string) (<-chan proto.ServerEvent, error)
+	SubscribeSurface(ctx context.Context, sessionID string, cols, rows uint16) (<-chan proto.ServerEvent, error)
 	UnsubscribeSurface(ctx context.Context, sessionID string) error
 	// SendSurfaceSubscribe forwards a CmdSurfaceSubscribe to the daemon
 	// WITHOUT registering a new event subscriber on the DaemonClient.
 	// Used by AttachLifecycleWS, which already holds a single event channel
 	// shared by every multiplexed session.
-	SendSurfaceSubscribe(ctx context.Context, sessionID, subscriberID string) error
+	SendSurfaceSubscribe(ctx context.Context, sessionID, subscriberID string, cols, rows uint16) error
 	SendSurfaceUnsubscribe(ctx context.Context, sessionID, subscriberID string) error
 	WriteRaw(ctx context.Context, sessionID string, data []byte) error
 	Resize(ctx context.Context, sessionID string, cols, rows uint16) error
@@ -66,9 +66,9 @@ func NewDaemonAdapter(d *DaemonClient) *DaemonAdapter { return &DaemonAdapter{d:
 // to a brand-new subscriber — must arrive at a registered fan-out channel,
 // not into the empty subscriber map. The subscribe-then-send order would
 // drop the initial screen state silently.
-func (a *DaemonAdapter) SubscribeSurface(ctx context.Context, sid string) (<-chan proto.ServerEvent, error) {
+func (a *DaemonAdapter) SubscribeSurface(ctx context.Context, sid string, cols, rows uint16) (<-chan proto.ServerEvent, error) {
 	ch := a.d.SubscribeEvents(ctx)
-	if _, err := a.d.SendCommand(ctx, proto.CmdSurfaceSubscribe{SessionID: sid}); err != nil {
+	if _, err := a.d.SendCommand(ctx, proto.CmdSurfaceSubscribe{SessionID: sid, Cols: cols, Rows: rows}); err != nil {
 		return nil, err
 	}
 	return ch, nil
@@ -83,8 +83,8 @@ func (a *DaemonAdapter) UnsubscribeSurface(ctx context.Context, sid string) erro
 // SendSurfaceSubscribe forwards CmdSurfaceSubscribe to the daemon without
 // allocating a fresh DaemonClient subscriber. Used by AttachLifecycleWS,
 // which multiplexes subscribe requests over its single lifecycle event channel.
-func (a *DaemonAdapter) SendSurfaceSubscribe(ctx context.Context, sid, subscriberID string) error {
-	_, err := a.d.SendCommand(ctx, proto.CmdSurfaceSubscribe{SessionID: sid, SubscriberID: subscriberID})
+func (a *DaemonAdapter) SendSurfaceSubscribe(ctx context.Context, sid, subscriberID string, cols, rows uint16) error {
+	_, err := a.d.SendCommand(ctx, proto.CmdSurfaceSubscribe{SessionID: sid, SubscriberID: subscriberID, Cols: cols, Rows: rows})
 	return err
 }
 
@@ -145,7 +145,12 @@ func AttachWS(ctx context.Context, sess Attacher, sessionID string, c *websocket
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ch, err := sess.SubscribeSurface(ctx, sessionID)
+	cols, rows, err := readInitialGeometry(ctx, c)
+	if err != nil {
+		writeTypedClose(c, "invalid-geometry")
+		return err
+	}
+	ch, err := sess.SubscribeSurface(ctx, sessionID, cols, rows)
 	if err != nil {
 		var eb *proto.ErrorBody
 		if errors.As(err, &eb) {
@@ -158,6 +163,21 @@ func AttachWS(ctx context.Context, sess Attacher, sessionID string, c *websocket
 
 	go func() { readInbound(ctx, sess, sessionID, c); cancel() }()
 	return writeOutbound(ctx, sessionID, c, ch)
+}
+
+func readInitialGeometry(ctx context.Context, c *websocket.Conn) (uint16, uint16, error) {
+	_, data, err := c.Read(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	var msg inbound
+	if err := json.Unmarshal(data, &msg); err != nil || msg.K != "r" {
+		return 0, 0, errors.New("server/web: first terminal frame must declare geometry")
+	}
+	if msg.Cols <= 0 || msg.Rows <= 0 || state.SizeHintRejectReason(msg.Cols, msg.Rows) != "" {
+		return 0, 0, errors.New("server/web: invalid initial terminal geometry")
+	}
+	return uint16(msg.Cols), uint16(msg.Rows), nil
 }
 
 // helloFrame is the first server→browser frame for a lifecycle WebSocket.
@@ -368,8 +388,16 @@ func handleLifecycleSubscribe(ctx context.Context, sess Attacher, c *websocket.C
 		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "sessionId required")
 		return
 	}
+	if msg.Cols <= 0 || msg.Rows <= 0 {
+		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "subscribe requires non-zero cols and rows")
+		return
+	}
+	if reason := state.SizeHintRejectReason(msg.Cols, msg.Rows); reason != "" {
+		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", reason)
+		return
+	}
 	added := subs.add(msg.SessionID)
-	err := sess.SendSurfaceSubscribe(ctx, msg.SessionID, subscriberID)
+	err := sess.SendSurfaceSubscribe(ctx, msg.SessionID, subscriberID, uint16(msg.Cols), uint16(msg.Rows))
 	if err != nil {
 		var protocolErr *proto.ErrorBody
 		if added && errors.As(err, &protocolErr) {

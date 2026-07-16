@@ -11,7 +11,7 @@ func TestCodecSurfaceRoundTrip(t *testing.T) {
 	t.Run("commands", func(t *testing.T) {
 		t.Parallel()
 		cmds := []Command{
-			CmdSurfaceSubscribe{SessionID: "s1"},
+			CmdSurfaceSubscribe{SessionID: "s1", Cols: 120, Rows: 40},
 			CmdSurfaceUnsubscribe{SessionID: "s1"},
 			CmdSurfaceResize{SessionID: "s1", Cols: 80, Rows: 24},
 			CmdSurfaceWriteRaw{SessionID: "s1", Data: []byte{0x1b, 0x5b, 0x41}},

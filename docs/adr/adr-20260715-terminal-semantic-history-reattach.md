@@ -16,6 +16,10 @@ relations:
 - {type: partOf, target: change-20260715-terminal-scrollback-reflow}
 - {type: references, target: change-20260715-terminal-scrollback-reflow}
 - {type: supersedes, target: adr-20260624-0066-terminal-scrollback-via-vt-buffer}
+- {type: referencedBy, target: adr-20260716-vt-semantic-buffer-owner}
+- {type: referencedBy, target: adr-20260716-vt-screen-specific-resize}
+- {type: referencedBy, target: adr-20260716-vt-snapshot-failure-and-locking}
+- {type: referencedBy, target: adr-20260716-vt-reflow-pr-migration}
 source_paths:
 - src/platform/termvt
 - src/go.mod

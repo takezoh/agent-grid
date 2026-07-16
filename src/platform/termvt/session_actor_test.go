@@ -1,6 +1,7 @@
 package termvt
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -12,8 +13,8 @@ import (
 )
 
 // fakeEmulator drives session_actor_test without a real vt grid. Its Write
-// captures bytes; Read serves whatever Replies returns; Render returns a
-// canned snapshot; OSC handlers and Callbacks are stored so a test can
+// captures bytes; Read serves whatever Replies returns; snapshot methods
+// return canned state; OSC handlers and Callbacks are stored so a test can
 // invoke them directly (e.g. firing OSC 9 during a controlled chunk).
 //
 // All hooks default to harmless behaviour, so tests only set the ones they
@@ -21,18 +22,14 @@ import (
 type fakeEmulator struct {
 	mu sync.Mutex
 
-	WriteHook func(p []byte) // called inside Write while no lock is held
-	RenderOut string
+	WriteHook    func(p []byte) // called inside Write while no lock is held
+	ResizeHook   func()
+	ReattachHook func()
+	RenderOut    string
 
-	// ScrollbackOut is the canned scrollback payload returned by
-	// SerializeScrollback. Tests fill this to exercise the seed shape;
-	// leaving it empty makes the actor emit only the screen frame.
-	ScrollbackOut []byte
-
-	// CursorX / CursorY are returned by CursorPosition. Default (0, 0)
-	// matches a fresh emulator; tests that care about cursor pinning set
-	// these explicitly and assert the seed's trailing CUP escape.
-	CursorX, CursorY int
+	ReattachOut []byte
+	ReattachErr error
+	resizeCalls [][2]int
 
 	written []byte
 	closed  atomic.Bool
@@ -75,13 +72,24 @@ func (e *fakeEmulator) Read(p []byte) (int, error) {
 	return copy(p, b), nil
 }
 
-func (e *fakeEmulator) Render() string                            { return e.RenderOut }
-func (e *fakeEmulator) Resize(_, _ int)                           {}
+func (e *fakeEmulator) Render() string { return e.RenderOut }
+func (e *fakeEmulator) Resize(cols, rows int) {
+	if e.ResizeHook != nil {
+		e.ResizeHook()
+	}
+	e.mu.Lock()
+	e.resizeCalls = append(e.resizeCalls, [2]int{cols, rows})
+	e.mu.Unlock()
+}
 func (e *fakeEmulator) SetCallbacks(cb vt.Callbacks)              { e.callbacks = cb }
 func (e *fakeEmulator) RegisterOscHandler(c int, h vt.OscHandler) { e.osc[c] = h }
 func (e *fakeEmulator) SetScrollbackSize(_ int)                   {}
-func (e *fakeEmulator) SerializeScrollback() []byte               { return e.ScrollbackOut }
-func (e *fakeEmulator) CursorPosition() (int, int)                { return e.CursorX, e.CursorY }
+func (e *fakeEmulator) ReattachSnapshot() ([]byte, error) {
+	if e.ReattachHook != nil {
+		e.ReattachHook()
+	}
+	return e.ReattachOut, e.ReattachErr
+}
 func (e *fakeEmulator) CloseInputPipe() error {
 	if e.closed.Swap(true) {
 		return nil
@@ -95,6 +103,11 @@ func (e *fakeEmulator) CloseInputPipe() error {
 // pending Read with io.EOF.
 type fakePTY struct {
 	in chan []byte
+	mu sync.Mutex
+
+	setSizeCalls [][2]int
+	setSizeErr   error
+	setSizeHook  func()
 
 	closeOnce sync.Once
 	closed    chan struct{}
@@ -133,7 +146,15 @@ func (p *fakePTY) Close() error {
 	return nil
 }
 
-func (p *fakePTY) SetSize(_, _ int) error { return nil }
+func (p *fakePTY) SetSize(cols, rows int) error {
+	if p.setSizeHook != nil {
+		p.setSizeHook()
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.setSizeCalls = append(p.setSizeCalls, [2]int{cols, rows})
+	return p.setSizeErr
+}
 
 // helper: build a session against fakes, ready for use in a test.
 func newFakeSession(em Emulator, pty PTY) *Session {
@@ -147,12 +168,12 @@ func newFakeSession(em Emulator, pty PTY) *Session {
 // output from a chunk fed AFTER Subscribe returned.
 func TestActor_SubscribeReceivesSnapshotThenChunk(t *testing.T) {
 	em := newFakeEmulator()
-	em.RenderOut = "SNAPSHOT"
+	em.ReattachOut = []byte("SNAPSHOT\x1b[1;1H\x1b[K")
 	pty := newFakePTY()
 	s := newFakeSession(em, pty)
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	pty.in <- []byte("CHUNK")
 
 	// Seed: Render() bytes + trailing CUP pinning the cursor to (0,0) +
@@ -167,34 +188,138 @@ func TestActor_SubscribeReceivesSnapshotThenChunk(t *testing.T) {
 	}
 }
 
-// TestActor_SubscribeSeedWithScrollback pins the two-frame seed shape: when
-// the emulator's SerializeScrollback returns bytes, Subscribe emits a first
-// EventOutput carrying those bytes with a trailing newline separator, then a
-// second EventOutput carrying the screen render. xterm.js writes the two
-// frames back-to-back; the newline keeps the screen render from
-// concatenating onto the last scrollback row.
-//
-// The empty-scrollback case (frame elided) is covered by
-// TestActor_SubscribeReceivesSnapshotThenChunk above — its fake leaves
-// ScrollbackOut nil and the test asserts the very first frame is the
-// snapshot.
-func TestActor_SubscribeSeedWithScrollback(t *testing.T) {
+func TestActor_AttachAtGeometryCommitsSizeBeforeSnapshot(t *testing.T) {
 	em := newFakeEmulator()
-	em.RenderOut = "SCREEN"
-	em.ScrollbackOut = []byte("old1\nold2")
+	em.ReattachOut = []byte("REFLOWED-SNAPSHOT")
+	pty := newFakePTY()
+	var order []string
+	pty.setSizeHook = func() { order = append(order, "pty") }
+	em.ResizeHook = func() { order = append(order, "emulator") }
+	em.ReattachHook = func() { order = append(order, "snapshot") }
+	s := newFakeSession(em, pty)
+	defer func() { _ = s.Close() }()
+
+	id, ch, err := s.AttachAtGeometry(120, 40)
+	if err != nil {
+		t.Fatalf("AttachAtGeometry: %v", err)
+	}
+	if id == 0 {
+		t.Fatal("AttachAtGeometry returned shutdown sentinel")
+	}
+	if got := waitNext(t, ch, time.Second); got.Kind != EventOutput || string(got.Data) != "REFLOWED-SNAPSHOT" {
+		t.Fatalf("seed = %+v, want opaque reattach snapshot", got)
+	}
+	if got := pty.setSizeCalls; len(got) != 1 || got[0] != [2]int{120, 40} {
+		t.Fatalf("PTY SetSize calls = %v, want [[120 40]]", got)
+	}
+	if got := em.resizeCalls; len(got) != 1 || got[0] != [2]int{120, 40} {
+		t.Fatalf("emulator Resize calls = %v, want [[120 40]]", got)
+	}
+	if got := strings.Join(order, ","); got != "pty,emulator,snapshot" {
+		t.Fatalf("attach order = %q, want pty,emulator,snapshot", got)
+	}
+	if cols, rows := s.Size(); cols != 120 || rows != 40 {
+		t.Fatalf("session size = %dx%d, want 120x40", cols, rows)
+	}
+}
+
+func TestActor_AttachPTYFailureLeavesStateUnchanged(t *testing.T) {
+	em := newFakeEmulator()
+	pty := newFakePTY()
+	pty.setSizeErr = io.ErrClosedPipe
+	s := newFakeSession(em, pty)
+	defer func() { _ = s.Close() }()
+
+	id, ch, err := s.AttachAtGeometry(120, 40)
+	if err == nil {
+		t.Fatal("AttachAtGeometry error = nil, want PTY SetSize failure")
+	}
+	if id != 0 {
+		t.Fatalf("AttachAtGeometry id = %d, want 0", id)
+	}
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("failed attach delivered an event")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("failed attach channel did not close")
+	}
+	if len(em.resizeCalls) != 0 {
+		t.Fatalf("emulator resized after PTY failure: %v", em.resizeCalls)
+	}
+	if cols, rows := s.Size(); cols != 80 || rows != 24 {
+		t.Fatalf("session size after failed attach = %dx%d, want 80x24", cols, rows)
+	}
+}
+
+func TestActor_SnapshotFailurePublishesNothingAndTerminatesSession(t *testing.T) {
+	em := newFakeEmulator()
+	pty := newFakePTY()
+	s := newFakeSession(em, pty)
+
+	wantErr := errors.New("invalid semantic state")
+	em.ReattachErr = &vt.SnapshotError{Cause: wantErr}
+	id, ch, err := s.AttachAtGeometry(120, 40)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("AttachAtGeometry error = %v, want %v", err, wantErr)
+	}
+	if id != 0 {
+		t.Fatalf("AttachAtGeometry id = %d, want 0", id)
+	}
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("failed snapshot published a seed event")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("failed snapshot channel did not close")
+	}
+	select {
+	case <-s.done:
+	case <-time.After(time.Second):
+		t.Fatal("snapshot failure did not terminate the unusable session")
+	}
+	lateID, late := s.SubscribeCurrent()
+	if lateID != 0 {
+		t.Fatalf("late subscriber id = %d, want shutdown sentinel", lateID)
+	}
+	if _, ok := <-late; ok {
+		t.Fatal("late subscriber channel remained open after snapshot failure")
+	}
+}
+
+func TestActor_SubscribeCurrentDoesNotResize(t *testing.T) {
+	em := newFakeEmulator()
+	em.ReattachOut = []byte("CURRENT")
 	pty := newFakePTY()
 	s := newFakeSession(em, pty)
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
+	if got := waitNext(t, ch, time.Second); string(got.Data) != "CURRENT" {
+		t.Fatalf("seed = %q, want CURRENT", got.Data)
+	}
+	if len(pty.setSizeCalls) != 0 || len(em.resizeCalls) != 0 {
+		t.Fatalf("SubscribeCurrent changed size: pty=%v emulator=%v", pty.setSizeCalls, em.resizeCalls)
+	}
+}
+
+// TestActor_SubscribeForwardsOneOpaqueSnapshot pins the ownership boundary:
+// termvt does not compose physical rows or cursor escapes. The VT owner emits
+// one semantic ANSI snapshot and the actor forwards it unchanged.
+func TestActor_SubscribeForwardsOneOpaqueSnapshot(t *testing.T) {
+	em := newFakeEmulator()
+	em.ReattachOut = []byte("old1old2SCREEN\x1b[1;1H\x1b[K")
+	pty := newFakePTY()
+	s := newFakeSession(em, pty)
+	defer func() { _ = s.Close() }()
+
+	_, ch := s.SubscribeCurrent()
 
 	first := waitNext(t, ch, time.Second)
-	if first.Kind != EventOutput || string(first.Data) != "old1\nold2\n" {
-		t.Fatalf("first event = %+v, want EventOutput old1\\nold2\\n", first)
-	}
-	second := waitNext(t, ch, time.Second)
-	if second.Kind != EventOutput || string(second.Data) != "SCREEN\x1b[1;1H\x1b[K" {
-		t.Fatalf("second event = %+v, want EventOutput SCREEN\\x1b[1;1H\\x1b[K", second)
+	if first.Kind != EventOutput || string(first.Data) != "old1old2SCREEN\x1b[1;1H\x1b[K" {
+		t.Fatalf("seed event = %+v, want opaque snapshot unchanged", first)
 	}
 }
 
@@ -210,14 +335,12 @@ func TestActor_SubscribeSeedWithScrollback(t *testing.T) {
 // comment on subscribeCmd.run). CUP is 1-based; emulator coords are 0-based.
 func TestActor_SubscribeSeedPinsCursorWithCUP(t *testing.T) {
 	em := newFakeEmulator()
-	em.RenderOut = "SCREEN"
-	em.CursorX = 12
-	em.CursorY = 4
+	em.ReattachOut = []byte("SCREEN\x1b[5;13H\x1b[K")
 	pty := newFakePTY()
 	s := newFakeSession(em, pty)
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 
 	ev := waitNext(t, ch, time.Second)
 	want := "SCREEN\x1b[5;13H\x1b[K"
@@ -268,7 +391,7 @@ func TestActor_SubscribeSeedClearsStaleInputTail(t *testing.T) {
 		t.Fatalf("setup precondition not met: stale tail %q not in source snapshot %q", stale, snap)
 	}
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	ev := waitNext(t, ch, time.Second)
 	if ev.Kind != EventOutput {
 		t.Fatalf("seed event kind = %v, want EventOutput", ev.Kind)
@@ -360,7 +483,7 @@ func TestActor_SubscribeIDsAreUniqueAndNonZero(t *testing.T) {
 
 	seen := map[int]bool{}
 	for i := 0; i < 5; i++ {
-		id, _ := s.Subscribe()
+		id, _ := s.SubscribeCurrent()
 		if id == 0 {
 			t.Fatalf("live Subscribe #%d returned id 0 — collides with shutdown sentinel", i)
 		}
@@ -396,7 +519,7 @@ func TestActor_SubscribeAfterShutdownReturnsClosedChannel(t *testing.T) {
 		}
 	}
 
-	id, ch := s.Subscribe()
+	id, ch := s.SubscribeCurrent()
 	if id != 0 {
 		t.Errorf("post-shutdown Subscribe id = %d, want 0 sentinel", id)
 	}

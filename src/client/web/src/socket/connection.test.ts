@@ -82,6 +82,7 @@ describe("Connection", () => {
 
     // Acquire the desired terminal and confirm its first subscribe.
     conn.acquireTerminal("s1");
+    conn.updateTerminalGeometry("s1", 120, 40);
     expect(useSubscriptionStore.getState()).toMatchObject({ sessionId: "s1" });
     await Promise.resolve();
     // first ws receives the subscribe frame
@@ -215,6 +216,7 @@ describe("Connection", () => {
 
     // Start subscribe — server never responds, so awaitResponse hangs unless drained
     conn.acquireTerminal("s1");
+    conn.updateTerminalGeometry("s1", 120, 40);
 
     // Close the WS before server responds — pending promise must resolve, not hang
     ws1.onclose?.();

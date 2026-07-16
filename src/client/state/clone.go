@@ -27,12 +27,12 @@ func cloneJobs(in map[JobID]JobMeta) map[JobID]JobMeta {
 	return cloneMap(in)
 }
 
-func cloneSurfaceSubs(in map[ConnID]map[SurfaceSubscription]struct{}) map[ConnID]map[SurfaceSubscription]struct{} {
-	out := make(map[ConnID]map[SurfaceSubscription]struct{}, len(in)+1)
+func cloneSurfaceSubs(in map[ConnID]map[SurfaceSubscription]SurfaceGeometry) map[ConnID]map[SurfaceSubscription]SurfaceGeometry {
+	out := make(map[ConnID]map[SurfaceSubscription]SurfaceGeometry, len(in)+1)
 	for k, v := range in {
-		inner := make(map[SurfaceSubscription]struct{}, len(v)+1)
-		for sid := range v {
-			inner[sid] = struct{}{}
+		inner := make(map[SurfaceSubscription]SurfaceGeometry, len(v)+1)
+		for sid, geometry := range v {
+			inner[sid] = geometry
 		}
 		out[k] = inner
 	}

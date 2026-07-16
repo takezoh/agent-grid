@@ -123,7 +123,7 @@ func newStateWithFramedSession() State {
 
 func TestReduceSurfaceSubscribeOK(t *testing.T) {
 	s := newStateWithFramedSession()
-	next, effs := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
+	next, effs := Reduce(s, EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
 	if len(effs) != 2 {
 		t.Fatalf("expected 2 effects, got %d", len(effs))
 	}
@@ -131,22 +131,36 @@ func TestReduceSurfaceSubscribeOK(t *testing.T) {
 	if !ok {
 		t.Fatalf("effs[0] = %T, want EffSurfaceSubscribeStart", effs[0])
 	}
-	if start.ConnID != 1 || start.SessionID != "sess-1" {
-		t.Errorf("EffSurfaceSubscribeStart = %+v, want {ConnID:1, SessionID:sess-1}", start)
+	if start.ConnID != 1 || start.SessionID != "sess-1" || start.Cols != 80 || start.Rows != 24 {
+		t.Errorf("EffSurfaceSubscribeStart = %+v, want geometry-bearing attach", start)
 	}
 	if _, ok := effs[1].(EffSendResponse); !ok {
 		t.Fatalf("effs[1] = %T, want EffSendResponse", effs[1])
 	}
-	if _, ok := next.SurfaceSubs[1][SurfaceSubscription{SessionID: "sess-1"}]; !ok {
+	if geometry, ok := next.SurfaceSubs[1][SurfaceSubscription{SessionID: "sess-1"}]; !ok {
 		t.Error("SurfaceSubs[1][sess-1] should be present after subscribe")
+	} else if geometry != (SurfaceGeometry{Cols: 80, Rows: 24}) {
+		t.Errorf("stored geometry = %+v, want 80x24", geometry)
+	}
+}
+
+func TestReduceSurfaceSubscribeRejectsMissingGeometry(t *testing.T) {
+	s := newStateWithFramedSession()
+	_, effs := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
+	if len(effs) != 1 {
+		t.Fatalf("effects = %d, want 1", len(effs))
+	}
+	errEff, ok := effs[0].(EffSendError)
+	if !ok || errEff.Code != ErrCodeInvalidArgument {
+		t.Fatalf("effect = %+v, want invalid_argument", effs[0])
 	}
 }
 
 func TestReduceSurfaceSubscribeIdempotent(t *testing.T) {
 	s := newStateWithFramedSession()
-	s1, _ := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
+	s1, _ := Reduce(s, EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
 	// Second subscribe — must not emit EffSurfaceSubscribeStart again.
-	_, effs := Reduce(s1, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r2", SessionID: "sess-1"})
+	_, effs := Reduce(s1, EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r2", SessionID: "sess-1"})
 	if len(effs) != 1 {
 		t.Fatalf("expected 1 effect on idempotent subscribe, got %d", len(effs))
 	}
@@ -157,8 +171,8 @@ func TestReduceSurfaceSubscribeIdempotent(t *testing.T) {
 
 func TestReduceSurfaceSubscribeSeparatesLogicalBrowserOwners(t *testing.T) {
 	s := newStateWithFramedSession()
-	a := EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "a", SessionID: "sess-1", SubscriberID: "browser-a"}
-	b := EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "b", SessionID: "sess-1", SubscriberID: "browser-b"}
+	a := EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "a", SessionID: "sess-1", SubscriberID: "browser-a"}
+	b := EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "b", SessionID: "sess-1", SubscriberID: "browser-b"}
 
 	s, aEffects := Reduce(s, a)
 	s, bEffects := Reduce(s, b)
@@ -184,7 +198,7 @@ func TestReduceSurfaceSubscribeNoFrame(t *testing.T) {
 	s.Sessions["sess-1"] = Session{ID: "sess-1"}
 	orig := s
 
-	next, effs := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
+	next, effs := Reduce(s, EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
 	if len(effs) != 1 {
 		t.Fatalf("expected 1 effect, got %d", len(effs))
 	}
@@ -206,7 +220,7 @@ func TestReduceSurfaceSubscribeNoFrame(t *testing.T) {
 
 func TestReduceSurfaceSubscribeNotFound(t *testing.T) {
 	s := New()
-	_, effs := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "no-such"})
+	_, effs := Reduce(s, EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r1", SessionID: "no-such"})
 	if len(effs) != 1 {
 		t.Fatalf("expected 1 effect, got %d", len(effs))
 	}
@@ -222,10 +236,10 @@ func TestReduceSurfaceSubscribeNotFound(t *testing.T) {
 func TestReduceSurfaceSubscribeResourceExhausted(t *testing.T) {
 	s := New()
 	// Build 8 subscriptions for ConnID 1.
-	inner := map[SurfaceSubscription]struct{}{}
+	inner := map[SurfaceSubscription]SurfaceGeometry{}
 	for i := 1; i <= 8; i++ {
 		sid := SessionID("s" + string(rune('0'+i)))
-		inner[SurfaceSubscription{SessionID: sid}] = struct{}{}
+		inner[SurfaceSubscription{SessionID: sid}] = SurfaceGeometry{}
 		s.Sessions[sid] = Session{
 			ID:          sid,
 			Frames:      []SessionFrame{{ID: "f1"}},
@@ -240,7 +254,7 @@ func TestReduceSurfaceSubscribeResourceExhausted(t *testing.T) {
 		HeadFrameID: "f1",
 	}
 
-	_, effs := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "s9"})
+	_, effs := Reduce(s, EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r1", SessionID: "s9"})
 	if len(effs) != 1 {
 		t.Fatalf("expected 1 effect, got %d", len(effs))
 	}
@@ -253,7 +267,7 @@ func TestReduceSurfaceSubscribeResourceExhausted(t *testing.T) {
 	}
 
 	// Re-subscribing one of the existing 8 must succeed (idempotent, cap exempt).
-	_, effs2 := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r2", SessionID: "s1"})
+	_, effs2 := Reduce(s, EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r2", SessionID: "s1"})
 	if len(effs2) != 1 {
 		t.Fatalf("re-subscribe of existing: expected 1 effect, got %d", len(effs2))
 	}
@@ -264,7 +278,7 @@ func TestReduceSurfaceSubscribeResourceExhausted(t *testing.T) {
 
 func TestReduceSurfaceUnsubscribeOK(t *testing.T) {
 	s := newStateWithFramedSession()
-	s1, _ := Reduce(s, EvCmdSurfaceSubscribe{ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
+	s1, _ := Reduce(s, EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: 1, ReqID: "r1", SessionID: "sess-1"})
 
 	next, effs := Reduce(s1, EvCmdSurfaceUnsubscribe{ConnID: 1, ReqID: "r2", SessionID: "sess-1"})
 	if len(effs) != 2 {
@@ -359,7 +373,7 @@ func TestReduceSurfaceWriteRaw(t *testing.T) {
 
 func TestReduceConnClosedClearsSurfaceSubs(t *testing.T) {
 	s := New()
-	s.SurfaceSubs[1] = map[SurfaceSubscription]struct{}{
+	s.SurfaceSubs[1] = map[SurfaceSubscription]SurfaceGeometry{
 		{SessionID: "s1"}: {},
 		{SessionID: "s2"}: {},
 	}

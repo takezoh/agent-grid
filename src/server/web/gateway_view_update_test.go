@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,9 +22,13 @@ import (
 // lifecycle subscriptions. SubscribeLifecycle returns a channel the
 // test controls; all surface/input methods are no-ops.
 type fakeLifecycleAttacher struct {
+	mu              sync.Mutex
 	events          chan proto.ServerEvent
 	subscribeErr    error
 	seedOnSubscribe *proto.EvtSurfaceOutput
+	subscribeCols   uint16
+	subscribeRows   uint16
+	subscribeCalls  int
 }
 
 func newFakeLifecycleAttacher() *fakeLifecycleAttacher {
@@ -39,13 +44,18 @@ func (f *fakeLifecycleAttacher) SubscribeLifecycle(_ context.Context) (<-chan pr
 	return f.events, nil
 }
 
-func (f *fakeLifecycleAttacher) SubscribeSurface(_ context.Context, _ string) (<-chan proto.ServerEvent, error) {
+func (f *fakeLifecycleAttacher) SubscribeSurface(_ context.Context, _ string, _, _ uint16) (<-chan proto.ServerEvent, error) {
 	return nil, errors.New("not implemented in lifecycle fake")
 }
 
 func (f *fakeLifecycleAttacher) UnsubscribeSurface(_ context.Context, _ string) error { return nil }
 
-func (f *fakeLifecycleAttacher) SendSurfaceSubscribe(ctx context.Context, _ string, subscriberID string) error {
+func (f *fakeLifecycleAttacher) SendSurfaceSubscribe(ctx context.Context, _ string, subscriberID string, cols, rows uint16) error {
+	f.mu.Lock()
+	f.subscribeCols = cols
+	f.subscribeRows = rows
+	f.subscribeCalls++
+	f.mu.Unlock()
 	if f.seedOnSubscribe == nil {
 		return nil
 	}
@@ -251,7 +261,7 @@ func TestGatewayLifecycle_SubscribeSeedIsNotDropped(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := c.Write(ctx, websocket.MessageText, []byte(`{"k":"s","reqId":"r1","sessionId":"s1"}`)); err != nil {
+	if err := c.Write(ctx, websocket.MessageText, []byte(`{"k":"s","reqId":"r1","sessionId":"s1","cols":120,"rows":40}`)); err != nil {
 		t.Fatalf("write subscribe: %v", err)
 	}
 
@@ -268,6 +278,43 @@ func TestGatewayLifecycle_SubscribeSeedIsNotDropped(t *testing.T) {
 	}
 	if len(seedFrame) != 4 || seedFrame[1] != "o" || seedFrame[2] != encoded || seedFrame[3] != "s1" {
 		t.Fatalf("frames did not contain terminal seed for s1: %v", seedFrame)
+	}
+	fake.mu.Lock()
+	cols, rows := fake.subscribeCols, fake.subscribeRows
+	fake.mu.Unlock()
+	if cols != 120 || rows != 40 {
+		t.Fatalf("subscribe geometry = %dx%d, want 120x40", cols, rows)
+	}
+}
+
+func TestGatewayLifecycle_SubscribeRejectsMissingGeometryBeforeDaemonCall(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeLifecycleAttacher()
+	srv := startLifecycleServer(t, fake)
+	c := dialLifecycleWS(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := c.Write(ctx, websocket.MessageText, []byte(`{"k":"s","reqId":"r1","sessionId":"s1"}`)); err != nil {
+		t.Fatalf("write subscribe: %v", err)
+	}
+	_, data, err := c.Read(ctx)
+	if err != nil {
+		t.Fatalf("read subscribe error: %v", err)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(data, &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response["k"] != "e" || response["code"] != "invalid_argument" {
+		t.Fatalf("response = %v, want invalid_argument", response)
+	}
+	fake.mu.Lock()
+	calls := fake.subscribeCalls
+	fake.mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("daemon subscribe calls = %d, want 0", calls)
 	}
 }
 

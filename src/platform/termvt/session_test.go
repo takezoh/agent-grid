@@ -45,7 +45,7 @@ func TestSessionEchoesInput(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	if err := s.WriteInput([]byte("ping-123\n")); err != nil {
 		t.Fatalf("WriteInput: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestSessionCapturesOSC9(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	waitFor(t, ch, func(ev Event) bool { return controlMatch(ev, "osc", 9, "hello-notif") })
 }
 
@@ -78,7 +78,7 @@ func TestSessionCapturesOSC133Prompt(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	waitFor(t, ch, func(ev Event) bool { return controlMatch(ev, "prompt", 133, "A") })
 }
 
@@ -104,7 +104,7 @@ func TestSessionHonorsSpecDir(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	waitFor(t, ch, func(ev Event) bool { return outputContains(ev, dir) })
 }
 
@@ -116,7 +116,7 @@ func TestSessionCapturesTitle(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	waitFor(t, ch, func(ev Event) bool { return controlMatch(ev, "title", 0, "my-title") })
 }
 
@@ -127,7 +127,7 @@ func TestSessionReattachSnapshotFirst(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	select {
 	case ev := <-ch:
 		if ev.Kind != EventOutput {
@@ -135,6 +135,43 @@ func TestSessionReattachSnapshotFirst(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("no snapshot event")
+	}
+}
+
+// TestAttachAtGeometryContract_ReflowsRetainedSoftWrap is the wired x/vt
+// contract behind the fake-emulator actor tests. Output is first parsed at a
+// narrow geometry, including a row that moves into history, then attached at
+// a wider geometry. The first event must be one semantic snapshot without the
+// old physical-row newline.
+func TestAttachAtGeometryContract_ReflowsRetainedSoftWrap(t *testing.T) {
+	em := emulatorFor(5, 2)
+	pty := newFakePTY()
+	s := NewSessionWithDeps(em, pty, nil, 5, 2)
+	defer func() { _ = s.Close() }()
+
+	pty.in <- []byte("abcdefghijk")
+	deadline := time.Now().Add(time.Second)
+	for {
+		physical := strings.ReplaceAll(string(s.Snapshot()), "\n", "")
+		if strings.Contains(physical, "fghijk") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("narrow emulator never observed output: %q", s.Snapshot())
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	_, ch, err := s.AttachAtGeometry(10, 2)
+	if err != nil {
+		t.Fatalf("AttachAtGeometry: %v", err)
+	}
+	seed := waitNext(t, ch, time.Second)
+	if seed.Kind != EventOutput {
+		t.Fatalf("first attach event = %+v, want EventOutput", seed)
+	}
+	if got := string(seed.Data); !strings.Contains(got, "abcdefghijk") {
+		t.Fatalf("reattach snapshot = %q, want reflowed logical text", got)
 	}
 }
 
@@ -158,7 +195,7 @@ func TestSessionEmitsExitOnClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	_ = s.Close()
 	waitFor(t, ch, func(ev Event) bool { return ev.Kind == EventExit })
 }
@@ -259,7 +296,7 @@ func TestSessionExitCodeNeverBlocksDuringCSIReportMode(t *testing.T) {
 
 // TestSessionScrollbackSurvivesLateSubscribe pins the late-join contract:
 // a fresh subscriber that attaches after the visible grid has scrolled past
-// the first lines must receive those lines in the seed's scrollback frame.
+// the first lines must receive those lines in the opaque reattach snapshot.
 // Without server-side scrollback the late subscriber would only see the
 // trailing 24 rows (visible grid) and the early "line 1" would be lost —
 // exactly the regression this feature exists to prevent.
@@ -278,32 +315,25 @@ func TestSessionScrollbackSurvivesLateSubscribe(t *testing.T) {
 	// which proves the emulator has processed all 200 lines and the early
 	// ones have necessarily scrolled past the 24-row visible grid into
 	// scrollback.
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	waitFor(t, ch, func(ev Event) bool { return outputContains(ev, "scrollback-row-200") })
 
-	// Now a late subscriber attaches. Its first frame must be scrollback
-	// (carrying the long-gone "scrollback-row-1") and its second frame must
-	// be the current visible grid.
-	_, late := s.Subscribe()
+	// Now a late subscriber attaches. Its single seed carries semantic history
+	// plus the current visible grid.
+	_, late := s.SubscribeCurrent()
 	first := waitNext(t, late, waitTimeout)
 	if first.Kind != EventOutput {
 		t.Fatalf("late subscriber first frame kind = %v, want EventOutput", first.Kind)
 	}
-	if !strings.Contains(string(first.Data), "scrollback-row-1\n") {
-		t.Fatalf("late subscriber scrollback frame missing row 1; got first 200 bytes: %q",
+	if !strings.Contains(string(first.Data), "scrollback-row-1\r\n") {
+		t.Fatalf("late subscriber snapshot missing row 1; got first 200 bytes: %q",
 			truncate(string(first.Data), 200))
-	}
-	// Sanity: the screen frame follows; we don't assert its content (the
-	// trailing rows depend on bash's exact stdout cadence) but it must arrive.
-	if _, ok := <-late; !ok {
-		t.Fatal("late subscriber did not receive a screen frame after scrollback")
 	}
 }
 
 // TestSessionScrollbackLinesCapHonored verifies that Spec.ScrollbackLines
-// bounds the buffer: with cap=5 only the trailing 5 scrolled-off rows reach
-// a late subscriber's scrollback frame, even when hundreds of rows have
-// been printed.
+// bounds the buffer: with cap=5 the single snapshot contains at most five
+// scrolled-off rows plus the 24-row visible grid.
 func TestSessionScrollbackLinesCapHonored(t *testing.T) {
 	s, err := NewSession(Spec{
 		Argv: []string{"bash", "-c",
@@ -316,27 +346,23 @@ func TestSessionScrollbackLinesCapHonored(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	waitFor(t, ch, func(ev Event) bool { return outputContains(ev, "row-200") })
 
-	_, late := s.Subscribe()
+	_, late := s.SubscribeCurrent()
 	first := waitNext(t, late, waitTimeout)
 	if first.Kind != EventOutput {
 		t.Fatalf("late subscriber first frame kind = %v, want EventOutput", first.Kind)
 	}
-	// Newline accounting for cap=5: Lines.Render() emits 4 separators
-	// between 5 rows, subscribeCmd appends 1 trailing newline → exactly 5
-	// total. Asserting equality (not ≤) pins the cap precisely: cap=10
-	// would produce 10 newlines, cap=∞ would produce 176, both rejected.
 	payload := string(first.Data)
-	if got := strings.Count(payload, "\n"); got != 5 {
-		t.Fatalf("scrollback has %d newlines, want 5 (4 between + 1 trailing for cap=5 rows); payload: %q",
+	if got := strings.Count(payload, "\n"); got > 28 {
+		t.Fatalf("snapshot has %d row separators, want at most 28 for cap=5 + 24-row grid; payload: %q",
 			got, truncate(payload, 400))
 	}
 	// The cap-drops-old invariant: row-1 is the very first emitted line and
 	// must have fallen off the scrollback long ago. If it's present the cap
 	// is not being applied.
-	if strings.Contains(payload, "row-1\n") {
+	if strings.Contains(payload, "row-1\r\n") {
 		t.Fatalf("scrollback cap=5 leaked row-1 (oldest emitted line, cap should have dropped it);"+
 			" payload: %q", truncate(payload, 400))
 	}
@@ -358,10 +384,10 @@ func TestSessionScrollbackOmittedInAltScreen(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 	waitFor(t, ch, func(ev Event) bool { return outputContains(ev, "alt-marker") })
 
-	_, late := s.Subscribe()
+	_, late := s.SubscribeCurrent()
 	first := waitNext(t, late, waitTimeout)
 	if first.Kind != EventOutput {
 		t.Fatalf("late subscriber first frame kind = %v, want EventOutput", first.Kind)
@@ -401,7 +427,7 @@ func TestSessionDisconnectsSlowSubscriber(t *testing.T) {
 	s := newFakeSession(em, pty)
 	defer func() { _ = s.Close() }()
 
-	_, ch := s.Subscribe()
+	_, ch := s.SubscribeCurrent()
 
 	// Feed far more chunks than subBuffer can hold while nothing drains ch;
 	// each chunk becomes one Output event in fanout.

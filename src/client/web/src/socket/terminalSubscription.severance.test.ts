@@ -23,6 +23,7 @@ describe("TerminalSubscriptionController severance", () => {
 
     controller.onOpen();
     controller.acquire("s1");
+    controller.updateGeometry("s1", 120, 40);
     await flush();
     expect(controller.snapshot()).toMatchObject({ phase: "confirmed", sessionId: "s1" });
 

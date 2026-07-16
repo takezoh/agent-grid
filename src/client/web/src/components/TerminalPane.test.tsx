@@ -47,6 +47,7 @@ function makeFakeConn(): {
   let _onOutput: ((frame: [number, string, string, string]) => void) | undefined;
   const conn = {
     acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
+    updateTerminalGeometry: vi.fn(),
     send: vi.fn(),
     get onOutput() {
       return _onOutput;
@@ -72,6 +73,20 @@ describe("TerminalPane", () => {
     globalThis.__triggerXtermResize(203, 47);
 
     expect(onGeometryChange).toHaveBeenCalledWith({ cols: 203, rows: 47 });
+    unmount();
+  });
+
+  it("publishes fitted geometry to the subscription owner before resize", () => {
+    const { conn } = makeFakeConn();
+    const order: string[] = [];
+    vi.mocked(conn.updateTerminalGeometry).mockImplementation(() => order.push("geometry"));
+    vi.mocked(conn.send).mockImplementation(() => order.push("resize"));
+    const { unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+
+    globalThis.__triggerXtermResize(132, 47);
+
+    expect(conn.updateTerminalGeometry).toHaveBeenCalledWith("s1", 132, 47);
+    expect(order).toEqual(["geometry", "resize"]);
     unmount();
   });
 
@@ -729,6 +744,7 @@ function mobileConn(): Connection {
   let _onOutput: ((frame: [number, string, string, string]) => void) | undefined;
   return {
     acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
+    updateTerminalGeometry: vi.fn(),
     send: vi.fn(),
     get onOutput() {
       return _onOutput;

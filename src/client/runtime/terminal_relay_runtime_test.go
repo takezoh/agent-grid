@@ -11,8 +11,8 @@ func TestDispatchInternalIgnoresStaleSurfaceClosedAfterResubscribe(t *testing.T)
 	r := New(Config{Backend: newFakeBackend()})
 	key := surfaceKey{connID: conn1, sessionID: sess1}
 
-	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
-		conn1: {{SessionID: sess1}: {}},
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]state.SurfaceGeometry{
+		conn1: {{SessionID: sess1}: {Cols: 80, Rows: 24}},
 	}
 	r.terminalRelay = &TerminalRelay{
 		subs: map[surfaceKey]*surfaceSub{
@@ -43,8 +43,8 @@ func TestDispatchInternalIgnoresStaleSurfaceClosedFromPreviousFrame(t *testing.T
 	r := New(Config{Backend: newFakeBackend()})
 	key := surfaceKey{connID: conn1, sessionID: sess1}
 
-	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
-		conn1: {{SessionID: sess1}: {}},
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]state.SurfaceGeometry{
+		conn1: {{SessionID: sess1}: {Cols: 80, Rows: 24}},
 	}
 	r.terminalRelay = &TerminalRelay{
 		subs: map[surfaceKey]*surfaceSub{
@@ -74,8 +74,8 @@ func TestDispatchInternalIgnoresStaleSurfaceClosedFromPreviousFrame(t *testing.T
 func TestDispatchInternalAppliesCurrentSurfaceClosed(t *testing.T) {
 	r := New(Config{Backend: newFakeBackend()})
 
-	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
-		conn1: {{SessionID: sess1}: {}},
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]state.SurfaceGeometry{
+		conn1: {{SessionID: sess1}: {Cols: 80, Rows: 24}},
 	}
 	r.terminalRelay = &TerminalRelay{
 		subs: map[surfaceKey]*surfaceSub{},
@@ -110,11 +110,11 @@ func TestDispatchSurfaceSubscribeReconcilesMissingRelaySubscription(t *testing.T
 			},
 		},
 	}
-	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
-		conn1: {{SessionID: sess1}: {}},
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]state.SurfaceGeometry{
+		conn1: {{SessionID: sess1}: {Cols: 80, Rows: 24}},
 	}
 
-	r.dispatch(state.EvCmdSurfaceSubscribe{ConnID: conn1, ReqID: "r1", SessionID: sess1})
+	r.dispatch(state.EvCmdSurfaceSubscribe{Cols: 80, Rows: 24, ConnID: conn1, ReqID: "r1", SessionID: sess1})
 
 	if !r.terminalRelay.hasSubscription(conn1, sess1) {
 		t.Fatal("terminal relay did not recreate missing subscription on idempotent subscribe")
@@ -145,10 +145,10 @@ func TestSetHeadFrameRebindsLiveSurfaceSubscription(t *testing.T) {
 			},
 		},
 	}
-	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
-		conn1: {{SessionID: sess1}: {}},
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]state.SurfaceGeometry{
+		conn1: {{SessionID: sess1}: {Cols: 80, Rows: 24}},
 	}
-	if err := r.terminalRelay.Subscribe(conn1, sess1, "%1"); err != nil {
+	if err := r.terminalRelay.Subscribe(conn1, sess1, "%1", 80, 24); err != nil {
 		t.Fatalf("subscribe old head: %v", err)
 	}
 
@@ -199,10 +199,10 @@ func TestSurfaceSubscriptionFollowsHeadAcrossPushAndFallback(t *testing.T) {
 			},
 		},
 	}
-	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]struct{}{
-		conn1: {{SessionID: sess1}: {}},
+	r.state.SurfaceSubs = map[state.ConnID]map[state.SurfaceSubscription]state.SurfaceGeometry{
+		conn1: {{SessionID: sess1}: {Cols: 80, Rows: 24}},
 	}
-	if err := r.terminalRelay.Subscribe(conn1, sess1, "%root"); err != nil {
+	if err := r.terminalRelay.Subscribe(conn1, sess1, "%root", 80, 24); err != nil {
 		t.Fatalf("subscribe root head: %v", err)
 	}
 
