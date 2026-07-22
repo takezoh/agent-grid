@@ -68,7 +68,25 @@ type EffUnsetSessionEnv struct {
 // only — daemon shutdown drains frame cleanups in parallel before the process
 // exits. ctx-cancel-driven shutdown (warm restart) must NOT emit it so
 // containers survive for adoption next boot.
-type EffReleaseFrameSandboxes struct{}
+type EffReleaseFrameSandboxes struct {
+	TransactionID uint64
+}
+
+// EffCommitShutdownSessions is the acknowledged all-session Save barrier.
+// Unlike EffPersistSnapshot, its result must re-enter the reducer before any
+// teardown starts.
+type EffCommitShutdownSessions struct{ TransactionID uint64 }
+
+type ShutdownResult uint8
+
+const (
+	ShutdownCommitted ShutdownResult = iota
+	ShutdownCommitFailed
+	ShutdownDeadlineExceeded
+)
+
+type EffCompleteShutdown struct{ Result ShutdownResult }
+type EffTerminateRuntime struct{}
 
 // EffReleaseFrameSandbox asks the runtime to invoke the per-frame sandbox
 // cleanup closure. The runtime delegates to invokeFrameCleanup which fires
@@ -244,6 +262,9 @@ func (EffUnregisterFrame) isEffect()           {}
 func (EffSetSessionEnv) isEffect()             {}
 func (EffUnsetSessionEnv) isEffect()           {}
 func (EffReleaseFrameSandboxes) isEffect()     {}
+func (EffCommitShutdownSessions) isEffect()    {}
+func (EffCompleteShutdown) isEffect()          {}
+func (EffTerminateRuntime) isEffect()          {}
 func (EffReleaseFrameSandbox) isEffect()       {}
 func (EffSendResponse) isEffect()              {}
 func (EffSendResponseSync) isEffect()          {}

@@ -3,6 +3,8 @@ package runtime
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +16,10 @@ import (
 
 // minimalDriver is a zero-behaviour driver for testing bootstrap paths.
 type minimalDriver struct{}
+
+// successfulCleanupResult keeps cleanup callbacks typed as func() error while
+// allowing tests to exercise their success path without unparam false positives.
+var successfulCleanupResult error
 
 func (minimalDriver) Name() string        { return "minimal-test" }
 func (minimalDriver) DisplayName() string { return "minimal-test" }
@@ -69,6 +75,7 @@ func TestRegisterContainerFrame_warmSaveIsSynchronous(t *testing.T) {
 	}
 	if got == nil {
 		t.Fatal("warm save did not land synchronously: f1 missing from LoadAll")
+		return
 	}
 	if got.ContainerToken != "tok-1" {
 		t.Errorf("warm token = %q, want tok-1", got.ContainerToken)
@@ -200,7 +207,10 @@ func TestEffReleaseFrameSandboxes_drainsCleanups(t *testing.T) {
 	}
 
 	r.execute(state.EffReleaseFrameSandboxes{})
-
+	deadline := time.Now().Add(time.Second)
+	for count.Load() != 3 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 	if got := count.Load(); got != 3 {
 		t.Errorf("EffReleaseFrameSandboxes called %d cleanups, want 3", got)
 	}
@@ -353,36 +363,31 @@ func (f *reapingFakeFactory) Ensure(_ context.Context, _ state.SessionID, _ stri
 }
 
 func (f *reapingFakeFactory) Remove(ctx context.Context, id state.SubsystemID) {
-	f.sub.Stop(ctx)
+	f.sub.Stop(ctx, rsubsystem.StopCauseLastFrameRelease)
 	f.reaped <- id
 }
 
 // TestRequestShutdown_returnsAfterEffReleaseFrameSandboxes asserts the
-// signal-handler contract: RequestShutdown enqueues EventShutdown and
-// blocks until the EffReleaseFrameSandboxes handler closes the ack
-// channel. Without this signal handlers would call ctx.cancel() before
-// containers had a chance to teardown.
+// signal-handler contract: RequestShutdown waits until the reducer receives
+// the cleanup result. Without this, signal handling could take its fallback
+// cancellation path before containers had a chance to teardown.
 func TestRequestShutdown_returnsAfterEffReleaseFrameSandboxes(t *testing.T) {
 	r := New(Config{Backend: noopBackend{}})
-	done := make(chan struct{})
+	runErr := make(chan error, 1)
+	go func() { runErr <- r.Run(context.Background()) }()
+	done := make(chan ShutdownResult, 1)
 	go func() {
-		r.RequestShutdown(time.Second)
-		close(done)
+		done <- r.RequestShutdown(time.Second)
 	}()
-	// Simulate the event loop side: drain the enqueued shutdown and
-	// execute the EffReleaseFrameSandboxes handler that the reducer
-	// would have emitted.
 	select {
-	case <-r.eventCh:
+	case result := <-done:
+		if result != ShutdownResultCommitted {
+			t.Fatalf("RequestShutdown result = %q", result)
+		}
 	case <-time.After(time.Second):
-		t.Fatal("RequestShutdown did not enqueue EvEvent within 1s")
+		t.Fatal("RequestShutdown did not return after cleanup result")
 	}
-	r.execute(state.EffReleaseFrameSandboxes{})
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("RequestShutdown did not return after EffReleaseFrameSandboxes")
-	}
+	<-runErr
 }
 
 // TestRequestShutdown_timesOutWhenLoopNeverDrains guards against the
@@ -441,38 +446,237 @@ func TestRequestShutdown_enqueueTimeout_releasesConcurrentWaiters(t *testing.T) 
 // (e.g. SIGTERM arriving twice) does not enqueue a duplicate shutdown
 // event and waits on the same ack as the first.
 func TestRequestShutdown_secondCallSharesAck(t *testing.T) {
-	r := New(Config{Backend: noopBackend{}})
-	done1 := make(chan struct{})
+	persist := &recordingPersist{}
+	r := New(Config{Backend: noopBackend{}, Persist: persist})
+	release := make(chan struct{})
+	r.sandboxCleanups["join"] = func() error { <-release; return successfulCleanupResult }
+	runErr := make(chan error, 1)
+	go func() { runErr <- r.Run(context.Background()) }()
+	done1 := make(chan ShutdownResult, 1)
 	go func() {
-		r.RequestShutdown(time.Second)
-		close(done1)
+		done1 <- r.RequestShutdown(time.Second)
 	}()
-	// Wait for first call to enqueue.
-	select {
-	case <-r.eventCh:
-	case <-time.After(time.Second):
-		t.Fatal("first RequestShutdown did not enqueue")
-	}
-	done2 := make(chan struct{})
-	go func() {
-		r.RequestShutdown(time.Second)
-		close(done2)
-	}()
-	// Give second call a moment to attach to the same ack; verify it
-	// has NOT enqueued an additional event by checking the channel is
-	// still empty after a short pause.
 	time.Sleep(20 * time.Millisecond)
-	select {
-	case <-r.eventCh:
-		t.Fatal("second RequestShutdown should not enqueue a duplicate shutdown event")
-	default:
-	}
-	r.execute(state.EffReleaseFrameSandboxes{})
-	for _, ch := range []chan struct{}{done1, done2} {
+	done2 := make(chan ShutdownResult, 1)
+	go func() {
+		done2 <- r.RequestShutdown(time.Second)
+	}()
+	time.Sleep(20 * time.Millisecond)
+	close(release)
+	for _, ch := range []chan ShutdownResult{done1, done2} {
 		select {
-		case <-ch:
+		case result := <-ch:
+			if result != ShutdownResultCommitted {
+				t.Fatalf("joined result = %q", result)
+			}
 		case <-time.After(time.Second):
 			t.Fatal("both RequestShutdown calls should return after the single ack")
 		}
+	}
+	persist.mu.Lock()
+	saves := persist.saves
+	persist.mu.Unlock()
+	if saves != 1 {
+		t.Fatalf("joined shutdown Save calls = %d, want 1", saves)
+	}
+	<-runErr
+}
+
+func TestRequestShutdownDeadlineTerminatesWithNonCooperativeCleanup(t *testing.T) {
+	r := New(Config{Backend: noopBackend{}})
+	release := make(chan struct{})
+	r.sandboxCleanups["blocked"] = func() error {
+		<-release
+		return successfulCleanupResult
+	}
+	runErr := make(chan error, 1)
+	go func() { runErr <- r.Run(context.Background()) }()
+
+	result := r.RequestShutdown(50 * time.Millisecond)
+	if result != ShutdownResultDeadlineExceeded {
+		t.Fatalf("RequestShutdown result = %q, want %q", result, ShutdownResultDeadlineExceeded)
+	}
+	select {
+	case <-r.Done():
+	case <-time.After(time.Second):
+		t.Fatal("Runtime.Done did not close after cleanup deadline")
+	}
+	close(release)
+	select {
+	case err := <-runErr:
+		if err != nil {
+			t.Fatalf("Run returned error after Runtime-owned termination: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after Runtime.Done closed")
+	}
+}
+
+type failingShutdownPersist struct{ recordingPersist }
+
+func (p *failingShutdownPersist) Save([]SessionSnapshot) error {
+	return errors.New("injected Save failure")
+}
+
+func TestRequestShutdownSaveFailureRollsBackWithoutCleanupOrTermination(t *testing.T) {
+	persist := &failingShutdownPersist{}
+	r := New(Config{Backend: noopBackend{}, Persist: persist})
+	var cleanupCalls atomic.Int32
+	r.sandboxCleanups["preserved"] = func() error {
+		cleanupCalls.Add(1)
+		return successfulCleanupResult
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	runErr := make(chan error, 1)
+	go func() { runErr <- r.Run(ctx) }()
+
+	result := r.RequestShutdown(time.Second)
+	if result != ShutdownResultCommitFailed {
+		t.Fatalf("RequestShutdown result = %q, want %q", result, ShutdownResultCommitFailed)
+	}
+	if cleanupCalls.Load() != 0 {
+		t.Fatal("Save failure started cleanup")
+	}
+	select {
+	case <-r.Done():
+		t.Fatal("Save failure terminated retryable runtime")
+	default:
+	}
+	if got := r.TestPublishedState().Lifecycle; got != state.LifecycleRunning {
+		t.Fatalf("lifecycle after Save failure = %v, want Running", got)
+	}
+	cancel()
+	<-runErr
+}
+
+type prefixFailPersist struct {
+	store map[string]SessionSnapshot
+}
+
+func (p *prefixFailPersist) Save(snapshots []SessionSnapshot) error {
+	for i, snapshot := range snapshots {
+		if i == 1 {
+			return errors.New("injected failure after committed prefix")
+		}
+		p.store[snapshot.ID] = snapshot
+	}
+	return nil
+}
+
+func (p *prefixFailPersist) Delete(id string) error {
+	delete(p.store, id)
+	return nil
+}
+
+func (p *prefixFailPersist) Load() ([]SessionSnapshot, error) {
+	out := make([]SessionSnapshot, 0, len(p.store))
+	for _, snapshot := range p.store {
+		out = append(out, snapshot)
+	}
+	return out, nil
+}
+
+func TestRequestShutdownPartialSaveKeepsMixedStoreAndSkipsTeardown(t *testing.T) {
+	persist := &prefixFailPersist{store: map[string]SessionSnapshot{
+		"s1": {ID: "s1", Project: "/old/s1"},
+		"s2": {ID: "s2", Project: "/old/s2"},
+	}}
+	r := New(Config{Backend: noopBackend{}, Persist: persist})
+	for _, id := range []state.SessionID{"s1", "s2"} {
+		r.state.Sessions[id] = state.Session{ID: id, Project: "/new/" + string(id)}
+	}
+	var cleanupCalls atomic.Int32
+	r.sandboxCleanups["preserved"] = func() error {
+		cleanupCalls.Add(1)
+		return successfulCleanupResult
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	runErr := make(chan error, 1)
+	go func() { runErr <- r.Run(ctx) }()
+
+	if result := r.RequestShutdown(time.Second); result != ShutdownResultCommitFailed {
+		t.Fatalf("RequestShutdown result = %q, want %q", result, ShutdownResultCommitFailed)
+	}
+	if cleanupCalls.Load() != 0 {
+		t.Fatal("partial Save failure started teardown")
+	}
+	if len(persist.store) != 2 {
+		t.Fatalf("partial Save changed session membership: %#v", persist.store)
+	}
+	newVersions := 0
+	for _, id := range []string{"s1", "s2"} {
+		snapshot, ok := persist.store[id]
+		if !ok {
+			t.Fatalf("partial Save deleted %s", id)
+		}
+		switch snapshot.Project {
+		case "/new/" + id:
+			newVersions++
+		case "/old/" + id:
+		default:
+			t.Fatalf("session %s has invalid mixed-store version %q", id, snapshot.Project)
+		}
+	}
+	if newVersions != 1 {
+		t.Fatalf("new per-session versions = %d, want one committed prefix: %#v", newVersions, persist.store)
+	}
+	if got := r.TestPublishedState().Lifecycle; got != state.LifecycleRunning {
+		t.Fatalf("lifecycle after partial Save = %v, want Running", got)
+	}
+	cancel()
+	<-runErr
+}
+
+func TestRuntimeRestartColdLoadsCommittedCodexSessionAsWaiting(t *testing.T) {
+	dataDir := t.TempDir()
+	rolloutPath := filepath.Join(dataDir, "rollout-thread-restart.jsonl")
+	if err := os.WriteFile(rolloutPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	codex := state.GetDriver("codex")
+	if codex == nil {
+		t.Fatal("codex driver is not registered")
+	}
+	driverState := codex.Restore(map[string]string{
+		"status":       "running",
+		"thread_id":    "thread-restart",
+		"rollout_path": rolloutPath,
+	}, time.Now())
+	persist := NewFilePersist(dataDir)
+	before := New(Config{Backend: noopBackend{}, Persist: persist})
+	before.state.Sessions["session-restart"] = state.Session{
+		ID:      "session-restart",
+		Project: "/repo",
+		Frames: []state.SessionFrame{{
+			ID:      "frame-restart",
+			Project: "/repo",
+			Command: "codex",
+			Driver:  driverState,
+		}},
+	}
+	runErr := make(chan error, 1)
+	go func() { runErr <- before.Run(context.Background()) }()
+	if result := before.RequestShutdown(time.Second); result != ShutdownResultCommitted {
+		t.Fatalf("shutdown result = %q, want committed", result)
+	}
+	if err := <-runErr; err != nil {
+		t.Fatalf("pre-restart runtime exited with error: %v", err)
+	}
+
+	after := New(Config{Backend: noopBackend{}, Persist: persist})
+	if err := after.LoadSnapshot(true); err != nil {
+		t.Fatalf("cold LoadSnapshot: %v", err)
+	}
+	restored, ok := after.state.Sessions["session-restart"]
+	if !ok || len(restored.Frames) != 1 {
+		t.Fatalf("Codex session disappeared across runtime restart: %#v", after.state.Sessions)
+	}
+	frame := restored.Frames[0]
+	if got := codex.Status(frame.Driver); got != state.StatusWaiting {
+		t.Fatalf("restored Codex status = %v, want Waiting", got)
+	}
+	metadata := codex.Persist(frame.Driver)
+	if metadata["thread_id"] != "thread-restart" || metadata["rollout_path"] != rolloutPath {
+		t.Fatalf("restored Codex resume metadata = %#v", metadata)
 	}
 }

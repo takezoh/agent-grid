@@ -96,6 +96,9 @@ type Backend struct {
 	dialSock            string // host-side UDS path the daemon dials; resolved from listenSock + bind mounts in spawnServer
 	mounts              pathmap.Mounts
 	mu                  sync.Mutex
+	terminalObserved    bool
+	terminalExpected    bool
+	terminalCause       subsystem.StopCause
 	frames              map[state.FrameID]*frameBinding
 	threads             map[string]state.FrameID
 	nextGeneration      uint64
@@ -209,9 +212,8 @@ func (b *Backend) Start(ctx context.Context) error {
 	go func() { _, _ = io.Copy(io.Discard, res.Stdout) }()
 	b.conn = codexclient.NewConn(t, b.readTimeout)
 	go func() {
-		if err := b.conn.Run(b.ctx, b); err != nil {
-			slog.Debug("stream backend: read loop closed", "subsystem", b.subsystemID, "err", err)
-		}
+		err := b.conn.Run(b.ctx, b)
+		slog.Debug("stream backend: read loop closed", "subsystem", b.subsystemID, "err", err)
 	}()
 	if err := codexclient.Initialize(b.conn); err != nil {
 		_ = b.conn.Close()
@@ -480,7 +482,17 @@ var createWorktree = subsystem.CreateWorktree
 // via procgroup) and blocks until waitProcess has reaped it, so the call
 // returns only once the spawned process is gone. A grace bound prevents a
 // stuck Wait from blocking shutdown forever.
-func (b *Backend) Stop(_ context.Context) {
+func (b *Backend) Stop(ctx context.Context, cause subsystem.StopCause) {
+	b.mu.Lock()
+	if !b.terminalObserved {
+		b.terminalObserved = true
+		b.terminalExpected = true
+		b.terminalCause = cause
+	} else if b.terminalExpected && b.terminalCause != cause {
+		slog.Debug("stream backend: duplicate stop cause ignored", "subsystem", b.subsystemID,
+			"first_cause", b.terminalCause, "later_cause", cause)
+	}
+	b.mu.Unlock()
 	if b.cancel != nil {
 		b.cancel()
 	}
@@ -489,10 +501,12 @@ func (b *Backend) Stop(_ context.Context) {
 	}
 	select {
 	case <-b.done:
+	case <-ctx.Done():
+		slog.Warn("stream backend: Stop context expired", "subsystem", b.subsystemID, "cause", cause)
 	case <-time.After(stopGrace):
 		slog.Warn("stream backend: Stop timed out waiting for reap", "subsystem", b.subsystemID)
 	}
-	b.cleanupSpawn(context.Background())
+	b.cleanupSpawn(ctx)
 }
 
 func (b *Backend) setSpawnCleanup(fn func(context.Context) error) {
@@ -530,18 +544,29 @@ func (b *Backend) waitProcess() {
 	if b.spawnRes.PID != 0 {
 		b.tracker.Untrack(b.spawnRes.PID)
 	}
-	if err != nil {
-		slog.Error("stream backend exited", "subsystem", b.subsystemID, "err", err)
-	} else {
-		slog.Warn("stream backend exited", "subsystem", b.subsystemID)
+	if b.conn != nil {
+		_ = b.conn.Close()
 	}
-	_ = b.conn.Close()
 	b.mu.Lock()
+	if b.terminalObserved && b.terminalExpected {
+		b.mu.Unlock()
+		slog.Debug("stream backend stopped", "subsystem", b.subsystemID, "cause", b.terminalCause)
+		return
+	}
+	if !b.terminalObserved {
+		b.terminalObserved = true
+		b.terminalExpected = false
+	}
 	frameIDs := make([]state.FrameID, 0, len(b.frames))
 	for frameID := range b.frames {
 		frameIDs = append(frameIDs, frameID)
 	}
 	b.mu.Unlock()
+	if err != nil {
+		slog.Error("stream backend exited", "subsystem", b.subsystemID, "err", err)
+	} else {
+		slog.Warn("stream backend exited", "subsystem", b.subsystemID)
+	}
 	var stopErr error
 	if err != nil {
 		stopErr = fmt.Errorf("stream backend stopped: %w", err)

@@ -321,7 +321,7 @@ const shutdownDrainTimeout = 8 * time.Second
 // against a no-op stub. Pass nil to skip the shutdown drain entirely.
 //
 // Returns a stop function the caller must defer to restore default handlers.
-func installSignalHandlers(requestShutdown func(time.Duration), cancel context.CancelFunc) func() {
+func installSignalHandlers(requestShutdown func(time.Duration) runtime.ShutdownResult, cancel context.CancelFunc) func() {
 	sigCh := make(chan os.Signal, 4)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	done := make(chan struct{})
@@ -333,7 +333,10 @@ func installSignalHandlers(requestShutdown func(time.Duration), cancel context.C
 				continue
 			}
 			if requestShutdown != nil {
-				requestShutdown(shutdownDrainTimeout)
+				result := requestShutdown(shutdownDrainTimeout)
+				if result != runtime.ShutdownResultCommitted {
+					slog.Warn("coordinator: graceful shutdown degraded", "result", result)
+				}
 			}
 			cancel()
 			return

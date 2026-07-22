@@ -100,7 +100,7 @@ func runE2EIsolation(t *testing.T, be e2eBackend) {
 	if err := b.Start(ctx); err != nil {
 		t.Fatalf("start real %s app-server: %v", be.name, err)
 	}
-	t.Cleanup(func() { b.Stop(ctx) })
+	t.Cleanup(func() { b.Stop(ctx, subsystem.StopCauseRuntimeShutdown) })
 
 	type frame struct {
 		id     state.FrameID

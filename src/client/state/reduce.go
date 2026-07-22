@@ -14,6 +14,9 @@ import (
 //
 // Reducer cases live in reduce_*.go files split by domain.
 func Reduce(s State, ev Event) (State, []Effect) {
+	if s.Lifecycle == LifecycleQuiescing {
+		return reduceQuiescing(s, ev)
+	}
 	switch e := ev.(type) {
 	// registered command event → dispatch by event type
 	case EvEvent:
@@ -51,6 +54,12 @@ func Reduce(s State, ev Event) (State, []Effect) {
 		return reduceFrameOsc(s, e)
 	case EvFramePrompt:
 		return reduceFramePrompt(s, e)
+	case EvShutdownSaveBarrierSucceeded:
+		return reduceShutdownSaveSucceeded(s, e)
+	case EvShutdownSaveBarrierFailed:
+		return reduceShutdownSaveFailed(s, e)
+	case EvShutdownCleanupFinished:
+		return reduceShutdownCleanupFinished(s, e)
 
 	// connection lifecycle
 	case EvConnOpened:
@@ -82,6 +91,87 @@ func Reduce(s State, ev Event) (State, []Effect) {
 	}
 
 	panic(fmt.Sprintf("state.Reduce: unhandled event type %T", ev))
+}
+
+// reduceQuiescing is the central admission boundary. Lifecycle results and
+// connection-only bookkeeping remain live; session-mutating feedback is
+// neutralized before any domain reducer can emit persistence/delete effects.
+func reduceQuiescing(s State, ev Event) (State, []Effect) {
+	switch e := ev.(type) {
+	case EvShutdownSaveBarrierSucceeded:
+		next, effects := reduceShutdownSaveSucceeded(s, e)
+		return next, effects
+	case EvShutdownSaveBarrierFailed:
+		next, effects := reduceShutdownSaveFailed(s, e)
+		return next, effects
+	case EvShutdownCleanupFinished:
+		next, effects := reduceShutdownCleanupFinished(s, e)
+		return next, effects
+	case EvConnOpened:
+		next, effects := reduceConnOpened(s, e)
+		return next, effects
+	case EvConnClosed:
+		next, effects := reduceConnClosed(s, e)
+		return next, effects
+	case EvCmdDriverList:
+		next, effects := reduceDriverList(s, e)
+		return next, effects
+	case EvCmdSurfaceReadText:
+		next, effects := reduceSurfaceReadText(s, e)
+		return next, effects
+	case EvCmdSubscribe:
+		next, effects := reduceSubscribe(s, e)
+		return next, effects
+	case EvCmdUnsubscribe:
+		next, effects := reduceUnsubscribe(s, e)
+		return next, effects
+	case EvCmdSurfaceUnsubscribe:
+		next, effects := reduceSurfaceUnsubscribe(s, e)
+		return next, effects
+	case EvEvent:
+		if e.Event == EventShutdown || e.Event == EventListSessions || e.Event == EventListSessionMessages {
+			next, effects := reduceEvent(s, e)
+			return next, effects
+		}
+		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeUnavailable, "runtime is shutting down")}
+	case EvCmdSurfaceSubscribe, EvCmdSurfaceSendText, EvCmdSurfaceSendKey,
+		EvCmdSurfaceResize, EvCmdSurfaceWriteRaw:
+		connID, reqID := requestIdentity(ev)
+		return s, []Effect{errResp(connID, reqID, ErrCodeUnavailable, "runtime is shutting down")}
+	case EvDriverEvent:
+		if e.ConnID != 0 {
+			return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeUnavailable, "runtime is shutting down")}
+		}
+		return s, nil
+	case EvSubsystem:
+		if e.ConnID != 0 {
+			return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeUnavailable, "runtime is shutting down")}
+		}
+		return s, nil
+	case EvFrameSpawned, EvSpawnFailed, EvFrameVanished,
+		EvFrameCommandExited, EvTick, EvJobResult, EvFileChanged,
+		EvFrameOsc, EvFramePrompt:
+		return s, nil
+	default:
+		panic(fmt.Sprintf("state.reduceQuiescing: unclassified event type %T", ev))
+	}
+}
+
+func requestIdentity(ev Event) (ConnID, string) {
+	switch e := ev.(type) {
+	case EvCmdSurfaceSubscribe:
+		return e.ConnID, e.ReqID
+	case EvCmdSurfaceSendText:
+		return e.ConnID, e.ReqID
+	case EvCmdSurfaceSendKey:
+		return e.ConnID, e.ReqID
+	case EvCmdSurfaceResize:
+		return e.ConnID, e.ReqID
+	case EvCmdSurfaceWriteRaw:
+		return e.ConnID, e.ReqID
+	default:
+		panic(fmt.Sprintf("state.requestIdentity: unsupported event %T", ev))
+	}
 }
 
 // Reducer cases live in reduce_event.go / reduce_session.go /

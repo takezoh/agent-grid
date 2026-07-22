@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	clientruntime "github.com/takezoh/agent-grid/client/runtime"
 	"github.com/takezoh/agent-grid/client/runtime/runtimetest"
 	"github.com/takezoh/agent-grid/client/state"
 )
@@ -149,13 +150,20 @@ func TestRuntimeHarness_RequestShutdownTimeoutWhenLoopIsBlocked(t *testing.T) {
 	backend.WaitForCapture(t)
 
 	start := time.Now()
-	h.Runtime().RequestShutdown(50 * time.Millisecond)
+	result := h.Runtime().RequestShutdown(50 * time.Millisecond)
 	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
 		t.Fatalf("RequestShutdown returned after %v, want <=500ms", elapsed)
 	}
+	if result != clientruntime.ShutdownResultDeadlineExceeded {
+		t.Fatalf("RequestShutdown result = %q, want deadline_exceeded", result)
+	}
 
 	backend.ReleaseCapture()
-	h.Quiesce(t)
+	select {
+	case <-h.Runtime().Done():
+	case <-time.After(time.Second):
+		t.Fatal("runtime did not terminate after processing expired shutdown transaction")
+	}
 }
 
 func TestRuntimeHarness_EnqueueDropsWhenEventQueueIsFull(t *testing.T) {

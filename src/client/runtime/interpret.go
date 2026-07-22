@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -83,18 +82,31 @@ func (r *Runtime) executeMiscEffect(eff state.Effect) {
 	case state.EffRecordNotification:
 		r.executeRecordNotification(e)
 
-	case state.EffReleaseFrameSandboxes:
-		ctx := context.Background()
-		for _, sub := range r.subsystems {
-			sub.Stop(ctx)
+	case state.EffCommitShutdownSessions:
+		if err := r.cfg.Persist.Save(r.snapshotSessions()); err != nil {
+			r.enqueueLifecycle(state.EvShutdownSaveBarrierFailed{TransactionID: e.TransactionID, Err: err.Error()})
+		} else {
+			r.enqueueLifecycle(state.EvShutdownSaveBarrierSucceeded(e))
 		}
-		// Drain sandbox (container/VM) cleanup closures in parallel.
-		r.drainFrameCleanups()
-		// Unblock RequestShutdown so the signal handler can cancel the
-		// runtime context now that every container has been removed.
-		// No-op when no shutdown was requested via RequestShutdown
-		// (e.g. EventShutdown arrived via IPC from a tool call).
-		r.ackShutdown()
+
+	case state.EffReleaseFrameSandboxes:
+		r.startShutdownCleanup(e.TransactionID)
+
+	case state.EffCompleteShutdown:
+		switch e.Result {
+		case state.ShutdownCommitted:
+			r.completeShutdown(ShutdownResultCommitted)
+		case state.ShutdownCommitFailed:
+			r.completeShutdown(ShutdownResultCommitFailed)
+		case state.ShutdownDeadlineExceeded:
+			r.completeShutdown(ShutdownResultDeadlineExceeded)
+		}
+
+	case state.EffTerminateRuntime:
+		select {
+		case r.terminateCh <- struct{}{}:
+		default:
+		}
 
 	case state.EffReleaseFrameSandbox:
 		// Release every resource owned on behalf of the frame. Subsystem

@@ -637,17 +637,17 @@ func TestListSessionsResponds(t *testing.T) {
 
 // === reduceShutdown ===
 
-func TestShutdownReleasesSandboxes(t *testing.T) {
+func TestShutdownStartsSaveBarrier(t *testing.T) {
 	s := New()
 	_, effs := Reduce(s, EvEvent{ConnID: 1, ReqID: "r", Event: "shutdown"})
-	if _, ok := findEff[EffReleaseFrameSandboxes](effs); !ok {
-		t.Error("expected EffReleaseFrameSandboxes")
+	if _, ok := findEff[EffCommitShutdownSessions](effs); !ok {
+		t.Error("expected EffCommitShutdownSessions")
 	}
-	if _, ok := findEff[EffSendResponseSync](effs); !ok {
-		t.Error("expected EffSendResponseSync")
+	if _, ok := findEff[EffReleaseFrameSandboxes](effs); ok {
+		t.Error("cleanup must wait for Save barrier success")
 	}
-	if _, ok := findEff[EffSendResponse](effs); ok {
-		t.Error("did not expect EffSendResponse")
+	if _, ok := findEff[EffSendResponseSync](effs); ok {
+		t.Error("response must wait for cleanup result")
 	}
 }
 

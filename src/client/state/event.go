@@ -265,29 +265,52 @@ type EvFramePrompt struct {
 	Now      time.Time
 }
 
+// Shutdown result events are transaction-scoped feedback from the runtime
+// interpreter. Stale results are ignored by the lifecycle reducer.
+type EvShutdownSaveBarrierSucceeded struct{ TransactionID uint64 }
+type EvShutdownSaveBarrierFailed struct {
+	TransactionID uint64
+	Err           string
+}
+
+type ShutdownCleanupOutcome uint8
+
+const (
+	ShutdownCleanupCompleted ShutdownCleanupOutcome = iota
+	ShutdownCleanupDeadlineExceeded
+)
+
+type EvShutdownCleanupFinished struct {
+	TransactionID uint64
+	Outcome       ShutdownCleanupOutcome
+}
+
 // === isEvent markers ===
 
-func (EvCmdSubscribe) isEvent()          {}
-func (EvCmdUnsubscribe) isEvent()        {}
-func (EvCmdSurfaceReadText) isEvent()    {}
-func (EvCmdSurfaceSendText) isEvent()    {}
-func (EvCmdSurfaceSendKey) isEvent()     {}
-func (EvCmdSurfaceSubscribe) isEvent()   {}
-func (EvCmdSurfaceUnsubscribe) isEvent() {}
-func (EvCmdSurfaceResize) isEvent()      {}
-func (EvCmdSurfaceWriteRaw) isEvent()    {}
-func (EvCmdDriverList) isEvent()         {}
-func (EvEvent) isEvent()                 {}
-func (EvDriverEvent) isEvent()           {}
-func (EvSubsystem) isEvent()             {}
-func (EvConnOpened) isEvent()            {}
-func (EvConnClosed) isEvent()            {}
-func (EvTick) isEvent()                  {}
-func (EvFileChanged) isEvent()           {}
-func (EvJobResult) isEvent()             {}
-func (EvFrameVanished) isEvent()         {}
-func (EvFrameCommandExited) isEvent()    {}
-func (EvFrameSpawned) isEvent()          {}
-func (EvSpawnFailed) isEvent()           {}
-func (EvFrameOsc) isEvent()              {}
-func (EvFramePrompt) isEvent()           {}
+func (EvCmdSubscribe) isEvent()                 {}
+func (EvCmdUnsubscribe) isEvent()               {}
+func (EvCmdSurfaceReadText) isEvent()           {}
+func (EvCmdSurfaceSendText) isEvent()           {}
+func (EvCmdSurfaceSendKey) isEvent()            {}
+func (EvCmdSurfaceSubscribe) isEvent()          {}
+func (EvCmdSurfaceUnsubscribe) isEvent()        {}
+func (EvCmdSurfaceResize) isEvent()             {}
+func (EvCmdSurfaceWriteRaw) isEvent()           {}
+func (EvCmdDriverList) isEvent()                {}
+func (EvEvent) isEvent()                        {}
+func (EvDriverEvent) isEvent()                  {}
+func (EvSubsystem) isEvent()                    {}
+func (EvConnOpened) isEvent()                   {}
+func (EvConnClosed) isEvent()                   {}
+func (EvTick) isEvent()                         {}
+func (EvFileChanged) isEvent()                  {}
+func (EvJobResult) isEvent()                    {}
+func (EvFrameVanished) isEvent()                {}
+func (EvFrameCommandExited) isEvent()           {}
+func (EvFrameSpawned) isEvent()                 {}
+func (EvSpawnFailed) isEvent()                  {}
+func (EvFrameOsc) isEvent()                     {}
+func (EvFramePrompt) isEvent()                  {}
+func (EvShutdownSaveBarrierSucceeded) isEvent() {}
+func (EvShutdownSaveBarrierFailed) isEvent()    {}
+func (EvShutdownCleanupFinished) isEvent()      {}

@@ -476,7 +476,7 @@ func TestBackendStartDialsAndInitializes(t *testing.T) {
 	if err := b.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	t.Cleanup(func() { b.Stop(context.Background()) })
+	t.Cleanup(func() { b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown) })
 	if b.conn == nil {
 		t.Error("conn not established after successful Start")
 	}

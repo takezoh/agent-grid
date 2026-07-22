@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/takezoh/agent-grid/client/runtime/subsystem"
 	"github.com/takezoh/agent-grid/client/state"
 	"github.com/takezoh/agent-grid/platform/agentlaunch"
 )
@@ -75,7 +76,65 @@ func (d *capturePlanDispatcher) IsContainer(string) bool { return true }
 func TestStopBeforeStartIsNoop(t *testing.T) {
 	b, _ := newTestBackend()
 	// Never Started: cancel and done are nil. Stop must not panic or block.
-	b.Stop(context.Background())
+	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
+}
+
+func TestWaitProcessIntentionalShutdownDoesNotFailFrames(t *testing.T) {
+	b, rt := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1"}
+	b.mu.Unlock()
+	b.done = make(chan struct{})
+	close(b.done)
+	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
+
+	b.done = make(chan struct{})
+	b.spawnRes = agentlaunch.SpawnResult{Wait: func() error { return context.Canceled }}
+	b.waitProcess()
+	if len(rt.events) != 0 {
+		t.Fatalf("intentional Stop emitted subsystem failures: %#v", rt.events)
+	}
+}
+
+func TestWaitProcessUnexpectedExitFailsEachBoundFrameOnce(t *testing.T) {
+	b, rt := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1"}
+	b.mu.Unlock()
+	b.done = make(chan struct{})
+	b.spawnRes = agentlaunch.SpawnResult{Wait: func() error { return errors.New("boom") }}
+
+	b.waitProcess()
+	if len(rt.events) != 1 {
+		t.Fatalf("unexpected Wait events = %d, want one per bound frame: %#v", len(rt.events), rt.events)
+	}
+	event, ok := rt.events[0].(state.EvSubsystem)
+	if !ok || event.FrameID != "f1" || event.Kind != state.SubsystemFailed {
+		t.Fatalf("unexpected Wait event = %#v", rt.events[0])
+	}
+}
+
+func TestWaitProcessWinsTerminalRaceAndLaterStopCannotReclassifyExit(t *testing.T) {
+	b, rt := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1"}
+	b.mu.Unlock()
+	b.done = make(chan struct{})
+	b.spawnRes = agentlaunch.SpawnResult{Wait: func() error { return errors.New("boom") }}
+
+	b.waitProcess()
+	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
+
+	b.mu.Lock()
+	observed, expected, cause := b.terminalObserved, b.terminalExpected, b.terminalCause
+	b.mu.Unlock()
+	if !observed || expected || cause != 0 {
+		t.Fatalf("terminal observation = (observed=%v expected=%v cause=%v), want first unexpected observation retained",
+			observed, expected, cause)
+	}
+	if len(rt.events) != 1 {
+		t.Fatalf("later Stop reclassified or duplicated unexpected exit events: %#v", rt.events)
+	}
 }
 
 func TestStopCancelsAndWaitsForReap(t *testing.T) {
@@ -89,7 +148,7 @@ func TestStopCancelsAndWaitsForReap(t *testing.T) {
 	}()
 
 	start := time.Now()
-	b.Stop(context.Background())
+	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
 	if elapsed := time.Since(start); elapsed >= stopGrace {
 		t.Fatalf("Stop blocked %v (>= grace %v); did not observe reap", elapsed, stopGrace)
 	}
@@ -116,8 +175,8 @@ func TestStopRunsAppServerCleanupOnce(t *testing.T) {
 		close(b.done)
 	}()
 
-	b.Stop(context.Background())
-	b.Stop(context.Background())
+	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
+	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
 
 	if got := dispatcher.cleanupCalls.Load(); got != 1 {
 		t.Fatalf("cleanup calls = %d, want 1", got)
@@ -136,7 +195,7 @@ func TestStopLogsAndSuppressesCleanupError(t *testing.T) {
 	b.setSpawnCleanup(wrapped.Cleanup)
 	close(b.done)
 
-	b.Stop(context.Background())
+	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
 
 	if got := dispatcher.cleanupCalls.Load(); got != 1 {
 		t.Fatalf("cleanup calls = %d, want 1", got)
@@ -241,7 +300,7 @@ func TestStartThenStopRunsRegisteredCleanup(t *testing.T) {
 	if err := b.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	b.Stop(context.Background())
+	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
 
 	if got := dispatcher.cleanupCalls.Load(); got != 1 {
 		t.Fatalf("cleanup calls = %d, want 1", got)

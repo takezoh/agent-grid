@@ -111,14 +111,13 @@ type Runtime struct {
 	conns    map[state.ConnID]*ipcConn // owned by event loop
 	nextConn state.ConnID              // owned by event loop
 
-	done chan struct{}
+	done        chan struct{}
+	terminateCh chan struct{}
 
-	// shutdownMu guards shutdownAck. RequestShutdown lazily creates the
-	// ack channel and the EffReleaseFrameSandboxes handler closes it via
-	// ackShutdown so the signal-handler goroutine can wait for the drain
-	// to finish before cancelling the runtime context.
-	shutdownMu  sync.Mutex
-	shutdownAck chan struct{}
+	// shutdownMu guards the first-deadline-wins shutdown attempt shared by
+	// concurrent signal callers. Reducer result effects publish its typed result.
+	shutdownMu sync.Mutex
+	shutdown   *shutdownAttempt
 
 	taps *tapManager
 
@@ -264,6 +263,7 @@ func New(cfg Config) *Runtime {
 		internalChBulk:        make(chan internalEvent, ipcOutboxLaneSize),
 		conns:                 map[state.ConnID]*ipcConn{},
 		done:                  make(chan struct{}),
+		terminateCh:           make(chan struct{}, 1),
 		workspaceResolver:     config.NewWorkspaceResolver(),
 		sandboxCleanups:       map[state.FrameID]func() error{},
 		pendingSpawns:         map[state.FrameID]struct{}{},
@@ -372,12 +372,11 @@ func (r *Runtime) Enqueue(ev state.Event) {
 	}
 }
 
-// RequestShutdown enqueues the EventShutdown command and blocks until the
-// event loop has drained sandbox cleanups (= EffReleaseFrameSandboxes
-// handler has finished docker rm on every per-frame closure). The caller
-// is expected to cancel the runtime context after this returns — that is
-// what shuts the event loop down. Times out after timeout, in which case
-// it returns to the caller without an ack (cancel still proceeds).
+// RequestShutdown enqueues the EventShutdown command and waits for the
+// reducer-owned transaction result. A successful Save barrier authorizes
+// deadline-bounded subsystem and sandbox cleanup; the matching cleanup result
+// then terminates the runtime. Callers retain context cancellation only as a
+// degraded-result fallback.
 //
 // Safe to call from any goroutine. Calling twice — e.g. SIGTERM arriving
 // before the first drain completes — reuses the same ack channel, so the
@@ -390,57 +389,106 @@ func (r *Runtime) Enqueue(ev state.Event) {
 // every container running until the next daemon crash recovers it. The
 // blocking send is bounded by timeout so a wedged event loop still
 // returns control to the signal handler.
-func (r *Runtime) RequestShutdown(timeout time.Duration) {
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
+type ShutdownResult string
 
-	r.shutdownMu.Lock()
-	firstCall := r.shutdownAck == nil
-	if firstCall {
-		r.shutdownAck = make(chan struct{})
+const (
+	ShutdownResultCommitted        ShutdownResult = "committed"
+	ShutdownResultCommitFailed     ShutdownResult = "commit_failed"
+	ShutdownResultDeadlineExceeded ShutdownResult = "deadline_exceeded"
+)
+
+type shutdownAttempt struct {
+	ack      chan struct{}
+	deadline time.Time
+	result   ShutdownResult
+	complete bool
+}
+
+func (r *Runtime) RequestShutdown(timeout time.Duration) ShutdownResult {
+	if timeout <= 0 {
+		timeout = time.Nanosecond
 	}
-	ack := r.shutdownAck
+	r.shutdownMu.Lock()
+	firstCall := r.shutdown == nil
+	if firstCall {
+		r.shutdown = &shutdownAttempt{ack: make(chan struct{}), deadline: time.Now().Add(timeout)}
+	}
+	attempt := r.shutdown
 	r.shutdownMu.Unlock()
+	select {
+	case <-attempt.ack:
+		return attempt.result
+	default:
+	}
 
 	if firstCall {
+		timer := time.NewTimer(time.Until(attempt.deadline))
+		defer timer.Stop()
 		select {
 		case r.eventCh <- state.EvEvent{Event: state.EventShutdown}:
-		case <-deadline.C:
+		case <-timer.C:
 			slog.Warn("runtime: shutdown enqueue timed out", "timeout", timeout)
-			// Release any concurrent waiters on this ack channel and
-			// clear the slot so a future call can re-arm with a fresh
-			// enqueue attempt. Without this a second caller would
-			// silently park on an ack that nothing closes.
-			r.shutdownMu.Lock()
-			if r.shutdownAck == ack {
-				r.shutdownAck = nil
-			}
-			r.shutdownMu.Unlock()
-			defer func() { _ = recover() }() // idempotent close
-			close(ack)
-			return
+			r.abandonShutdown(attempt, ShutdownResultDeadlineExceeded)
+			return ShutdownResultDeadlineExceeded
 		}
 	}
+	timer := time.NewTimer(maxDuration(time.Until(attempt.deadline), 0))
+	defer timer.Stop()
 	select {
-	case <-ack:
-	case <-deadline.C:
-		slog.Warn("runtime: shutdown drain timed out", "timeout", timeout)
+	case <-attempt.ack:
+		return attempt.result
+	case <-timer.C:
+		slog.Warn("runtime: shutdown transaction timed out", "timeout", timeout)
+		return ShutdownResultDeadlineExceeded
 	}
 }
 
-// ackShutdown is called from the EffReleaseFrameSandboxes handler after
-// drainFrameCleanups completes. Safe to call when no shutdown was
-// requested (the ack channel is nil) and safe to call more than once
-// (close is guarded).
-func (r *Runtime) ackShutdown() {
+func maxDuration(v, floor time.Duration) time.Duration {
+	if v < floor {
+		return floor
+	}
+	return v
+}
+
+func (r *Runtime) completeShutdown(result ShutdownResult) {
 	r.shutdownMu.Lock()
-	ack := r.shutdownAck
-	r.shutdownMu.Unlock()
-	if ack == nil {
+	attempt := r.shutdown
+	if attempt == nil {
+		r.shutdownMu.Unlock()
 		return
 	}
-	defer func() { _ = recover() }() // idempotent close
-	close(ack)
+	if attempt.complete {
+		r.shutdownMu.Unlock()
+		return
+	}
+	attempt.result = result
+	attempt.complete = true
+	if result == ShutdownResultCommitFailed {
+		r.shutdown = nil
+	}
+	close(attempt.ack)
+	r.shutdownMu.Unlock()
+}
+
+func (r *Runtime) abandonShutdown(attempt *shutdownAttempt, result ShutdownResult) {
+	r.shutdownMu.Lock()
+	defer r.shutdownMu.Unlock()
+	if r.shutdown != attempt {
+		return
+	}
+	attempt.result = result
+	attempt.complete = true
+	r.shutdown = nil
+	close(attempt.ack)
+}
+
+func (r *Runtime) shutdownDeadline() time.Time {
+	r.shutdownMu.Lock()
+	defer r.shutdownMu.Unlock()
+	if r.shutdown != nil {
+		return r.shutdown.deadline
+	}
+	return time.Now().Add(8 * time.Second)
 }
 
 // SetRelay registers a FileRelay with the runtime via the event loop.
@@ -505,6 +553,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			slog.Info("runtime: event loop stopping (ctx done)")
 			return ctx.Err()
+		case <-r.terminateCh:
+			slog.Info("runtime: event loop stopping (shutdown committed)")
+			return nil
 
 		case ev, ok := <-r.eventCh:
 			if !ok {

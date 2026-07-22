@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	rsubsystem "github.com/takezoh/agent-grid/client/runtime/subsystem"
 	"github.com/takezoh/agent-grid/client/state"
@@ -32,7 +33,9 @@ func (f *fakeSubsystem) BindFrame(_ context.Context, req rsubsystem.BindRequest)
 }
 func (f *fakeSubsystem) ActivateFrame(_ state.FrameID) { atomic.AddInt32(&f.activateN, 1) }
 func (f *fakeSubsystem) ReleaseFrame(_ state.FrameID)  { atomic.AddInt32(&f.releaseN, 1) }
-func (f *fakeSubsystem) Stop(_ context.Context)        { atomic.AddInt32(&f.stopN, 1) }
+func (f *fakeSubsystem) Stop(_ context.Context, _ rsubsystem.StopCause) {
+	atomic.AddInt32(&f.stopN, 1)
+}
 
 // fakeFactory returns a pre-built fakeSubsystem keyed by SubsystemID.
 type fakeFactory struct {
@@ -85,17 +88,17 @@ func TestEnsureSubsystemEmptyKindDefaultsToCLI(t *testing.T) {
 }
 
 func TestReleaseFrameSandboxesStopsAllSubsystems(t *testing.T) {
-	r := &Runtime{
-		sandboxCleanups: map[state.FrameID]func() error{},
-		subsystems:      map[state.SubsystemID]rsubsystem.Subsystem{},
-	}
+	r := New(Config{Backend: noopBackend{}})
 	a := &fakeSubsystem{id: "a", kind: state.LaunchSubsystemCLI}
 	b := &fakeSubsystem{id: "b", kind: state.LaunchSubsystemStream}
 	r.subsystems[a.id] = a
 	r.subsystems[b.id] = b
 
 	r.execute(state.EffReleaseFrameSandboxes{})
-
+	deadline := time.Now().Add(time.Second)
+	for (atomic.LoadInt32(&a.stopN) != 1 || atomic.LoadInt32(&b.stopN) != 1) && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 	if atomic.LoadInt32(&a.stopN) != 1 {
 		t.Errorf("subsystem a Stop calls = %d, want 1", a.stopN)
 	}

@@ -172,7 +172,7 @@ func (f *Factory) Remove(ctx context.Context, id state.SubsystemID) {
 	}
 	f.mu.Unlock()
 	if ok {
-		b.Stop(ctx)
+		b.Stop(ctx, subsystem.StopCauseLastFrameRelease)
 	}
 }
 

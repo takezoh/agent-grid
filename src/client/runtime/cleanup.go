@@ -1,12 +1,65 @@
 package runtime
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 
+	rsubsystem "github.com/takezoh/agent-grid/client/runtime/subsystem"
 	"github.com/takezoh/agent-grid/client/state"
 	"github.com/takezoh/agent-grid/platform/pathmap"
 )
+
+func (r *Runtime) enqueueLifecycle(ev state.Event) {
+	select {
+	case r.eventCh <- ev:
+	case <-r.done:
+	}
+}
+
+// startShutdownCleanup starts independent workers and waits only until the
+// first transaction deadline. Non-cooperative cleanup is deliberately left
+// behind for process exit; its late completion cannot enqueue another result.
+func (r *Runtime) startShutdownCleanup(transactionID uint64) {
+	deadline := r.shutdownDeadline()
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	subs := make([]rsubsystem.Subsystem, 0, len(r.subsystems))
+	for _, sub := range r.subsystems {
+		subs = append(subs, sub)
+	}
+	fns := r.sandboxCleanups
+	r.sandboxCleanups = map[state.FrameID]func() error{}
+
+	go func() {
+		defer cancel()
+		completed := make(chan struct{}, len(subs)+len(fns))
+		for _, sub := range subs {
+			go func(sub rsubsystem.Subsystem) {
+				sub.Stop(ctx, rsubsystem.StopCauseRuntimeShutdown)
+				completed <- struct{}{}
+			}(sub)
+		}
+		for frameID, fn := range fns {
+			go func(frameID state.FrameID, fn func() error) {
+				if err := fn(); err != nil {
+					slog.Warn("runtime: sandbox cleanup (shutdown) failed", "frame", frameID, "err", err)
+				}
+				completed <- struct{}{}
+			}(frameID, fn)
+		}
+		remaining := len(subs) + len(fns)
+		for remaining > 0 {
+			select {
+			case <-completed:
+				remaining--
+			case <-ctx.Done():
+				r.enqueueLifecycle(state.EvShutdownCleanupFinished{TransactionID: transactionID, Outcome: state.ShutdownCleanupDeadlineExceeded})
+				return
+			}
+		}
+		r.enqueueLifecycle(state.EvShutdownCleanupFinished{TransactionID: transactionID, Outcome: state.ShutdownCleanupCompleted})
+	}()
+}
 
 // storeFrameCleanup registers a sandbox cleanup callback for a frame.
 // No-op when fn is nil. Must be called from the event loop or bootstrap

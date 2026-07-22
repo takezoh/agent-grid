@@ -166,9 +166,9 @@ func (s *recSubsystem) BindFrame(_ context.Context, req rsubsystem.BindRequest) 
 	s.rec.add("subsystem.BindFrame")
 	return rsubsystem.BindResult{Plan: req.Plan}, nil
 }
-func (s *recSubsystem) ActivateFrame(state.FrameID) { s.rec.add("subsystem.ActivateFrame") }
-func (s *recSubsystem) ReleaseFrame(state.FrameID)  {}
-func (s *recSubsystem) Stop(context.Context)        {}
+func (s *recSubsystem) ActivateFrame(state.FrameID)                { s.rec.add("subsystem.ActivateFrame") }
+func (s *recSubsystem) ReleaseFrame(state.FrameID)                 {}
+func (s *recSubsystem) Stop(context.Context, rsubsystem.StopCause) {}
 
 type recSubsysFactory struct {
 	kind  state.LaunchSubsystem

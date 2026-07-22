@@ -100,6 +100,23 @@ func TestReduceFrameCommandExited_IntentionalExitCodesEvict(t *testing.T) {
 	}
 }
 
+func TestRegressionShutdownInducedExitDoesNotDeleteSession(t *testing.T) {
+	s := New()
+	id := SessionID("survivor")
+	s.Sessions[id] = newExitSession(id)
+
+	s, _ = Reduce(s, EvEvent{Event: EventShutdown})
+	for _, code := range []int{0, 137} {
+		next, effects := Reduce(s, EvFrameCommandExited{FrameID: FrameID(id), ExitCode: code})
+		if _, ok := next.Sessions[id]; !ok {
+			t.Fatalf("shutdown-induced exit %d deleted durable session", code)
+		}
+		if len(effects) != 0 {
+			t.Fatalf("shutdown-induced exit %d emitted effects: %#v", code, effects)
+		}
+	}
+}
+
 // Crash-style exit codes (a true abnormal exit — not in the
 // intentional-termination set) must keep the frame in state with
 // status=Stopped so the user can find the dead frame and the

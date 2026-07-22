@@ -95,4 +95,5 @@ const (
 	ErrCodeUnsupported       = "unsupported"
 	ErrCodeResourceExhausted = "resource_exhausted"
 	ErrCodeFrameNotReady     = "frame_not_ready"
+	ErrCodeUnavailable       = "unavailable"
 )

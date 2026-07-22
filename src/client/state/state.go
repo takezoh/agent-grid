@@ -25,6 +25,26 @@ type (
 	JobID        uint64
 )
 
+// LifecyclePhase is process-local runtime state. It is deliberately absent
+// from SessionSnapshot and every client projection: a restored daemon always
+// starts Running, regardless of how its predecessor terminated.
+type LifecyclePhase uint8
+
+const (
+	LifecycleRunning LifecyclePhase = iota
+	LifecycleQuiescing
+)
+
+type ShutdownTransaction struct {
+	ID      uint64
+	Waiters []ShutdownWaiter
+}
+
+type ShutdownWaiter struct {
+	ConnID ConnID
+	ReqID  string
+}
+
 // State is the entire client domain state at one point in time. Reduce
 // produces a new State value from an existing State + an Event; the
 // runtime swaps its single in-memory copy each tick of the event loop.
@@ -32,8 +52,11 @@ type (
 // Maps are owned by the state and updated copy-on-write inside Reduce —
 // callers must not mutate a State they did not produce.
 type State struct {
-	Sessions    map[SessionID]Session
-	Subscribers map[ConnID]Subscriber
+	Lifecycle      LifecyclePhase
+	Shutdown       *ShutdownTransaction
+	NextShutdownID uint64
+	Sessions       map[SessionID]Session
+	Subscribers    map[ConnID]Subscriber
 	// SurfaceSubs records which (ConnID, SessionID, SubscriberID) tuples are streaming
 	// frame surface output via the surface.subscribe RPC. The outer map is keyed by
 	// ConnID so connection close can drop all subscriptions in one step
@@ -111,6 +134,7 @@ type JobMeta struct {
 // are initialised so callers can write into them without nil checks.
 func New() State {
 	return State{
+		Lifecycle:   LifecycleRunning,
 		Sessions:    map[SessionID]Session{},
 		Subscribers: map[ConnID]Subscriber{},
 		SurfaceSubs: map[ConnID]map[SurfaceSubscription]SurfaceGeometry{},

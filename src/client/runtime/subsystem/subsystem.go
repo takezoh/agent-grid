@@ -10,6 +10,16 @@ import (
 	"github.com/takezoh/agent-grid/client/state"
 )
 
+// StopCause is the caller-owned reason for an expected subsystem stop.
+// It must be recorded before process cancellation so it can race Wait at one
+// explicit linearization point.
+type StopCause uint8
+
+const (
+	StopCauseRuntimeShutdown StopCause = iota + 1
+	StopCauseLastFrameRelease
+)
+
 // BindRequest carries the frame-level launch context to Subsystem.BindFrame.
 type BindRequest struct {
 	FrameID state.FrameID
@@ -63,9 +73,10 @@ type Subsystem interface {
 	// frame-specific cleanup (worktree removal, thread teardown).
 	ReleaseFrame(frameID state.FrameID)
 
-	// Stop is called at daemon shutdown. It waits for all in-flight
-	// cleanup to finish and terminates backend processes (if any).
-	Stop(ctx context.Context)
+	// Stop is called at daemon shutdown or after the last frame is released.
+	// The cause must be recorded before process cancellation. Implementations
+	// wait within ctx and terminate backend processes (if any).
+	Stop(ctx context.Context, cause StopCause)
 }
 
 // Factory creates or returns the Subsystem instance for a frame's execution
