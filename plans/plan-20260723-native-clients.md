@@ -1,7 +1,7 @@
 # Agent Grid Native Clients Plan
 
 - **作成日**: 2026-07-23
-- **更新日**: 2026-07-23 (rev 2 — レビューと設計議論を反映し、デスクトップを「フルネイティブ再構築」から「ネイティブシェル + 既存 Web ワークスペースのホスト」へ再定義)
+- **更新日**: 2026-07-23 (rev 3 — 最初のデスクトップ OS を Windows、最初のモバイルを iOS に決定。rev 2 でデスクトップを「フルネイティブ再構築」から「ネイティブシェル + 既存 Web ワークスペースのホスト」へ再定義)
 - **ブランチ**: `claude/native-clients-plan-review-2sjfs5`
 - **ステータス**: draft (設計レビュー段階)
 - **影響範囲**: 新規デスクトップアプリシェル、`server/web` の契約層公開面、approval/question のサーバー側ドメイン新設、`src/client/web` の hosted モード、配布/署名/自動更新
@@ -124,7 +124,7 @@ The distributable is a single bundle (dmg / brew cask / winget / msix) containin
 | Browser | Existing web stack | Remote / temporary / fallback only |
 | CLI | Go | Automation; unchanged by this plan |
 
-**First desktop OS**: decided by the developer's daily-driver machine, and recorded here before Phase 2 starts. The shell architecture (panel + hosted workspace + daemon supervisor) is identical on both; the notch form factor is macOS-specific and reinterprets as tray flyout + top bar on Windows. iOS remains the first mobile client; Android-vs-second-desktop-OS ordering is a Phase 6 data decision.
+**First desktop OS: Windows (decided 2026-07-23).** The Phase 2 vertical slice targets the Windows shell: WinUI 3 / WPF + WebView2, with the ambient panel realized as a tray flyout + top-center floating bar (`WS_EX_NOACTIVATE`, Mica/Acrylic). The shell architecture (panel + hosted workspace + daemon supervisor) is OS-neutral, so the macOS shell (including the notch panel) ports it later rather than being designed separately. **First mobile OS: iOS (decided 2026-07-23).** macOS-vs-Android ordering for Phase 4 remains a data decision.
 
 ### 7. Local application control (UE / Blender / browser) is a server-side capability
 
@@ -194,13 +194,13 @@ Exit: a fake agent can raise an approval, two clients see it, one answers, both 
 
 Exit: the same recorded scenarios drive all SDKs; compatibility tests run in CI; clients depend on no undocumented behavior.
 
-### Phase 2: Desktop app vertical slice
+### Phase 2: Desktop app vertical slice (Windows)
 
-Build the app on the chosen first OS:
+Build the app on Windows:
 
 1. single-bundle packaging (shell + daemon + web assets), signing/notarization, auto-update skeleton;
 2. daemon supervision: launch/adopt, health, graceful swap on update; quitting the app leaves sessions running;
-3. ambient panel: session states, approve/deny, question answering, jump-back to terminal/IDE;
+3. ambient panel (tray flyout + top bar): session states, approve/deny, question answering, jump-back to terminal/IDE/WSL;
 4. workspace windows hosting the SPA in hosted mode, with the window discipline (reuse, restore, in-app deep-link resolution);
 5. native notifications → panel or window activation.
 
@@ -223,7 +223,7 @@ Exit: a user safely supervises a desk-hosted session away from the desk; reconne
 
 ### Phase 4: Second platform by data
 
-Either the second desktop OS shell (reusing the shell architecture; Apple core packages shared iOS↔macOS) or Android (Kotlin/Compose, same supervision contract), chosen from Phase 2–3 usage.
+Either the macOS shell (reusing the shell architecture; notch panel; Apple core/protocol packages shared with iOS) or Android (Kotlin/Compose, same supervision contract), chosen from Phase 2–3 usage.
 
 ### Phase 5: Remaining platform
 
@@ -285,12 +285,12 @@ Engineering:
 
 ## Immediate next actions
 
-1. Record the first-OS decision (daily-driver machine) in this document.
+1. ~~Record the first-OS decision in this document.~~ Decided: Windows desktop first, iOS mobile first (2026-07-23).
 2. Phase 0: design and implement the approval/question server-side domain; write `approval-contract.md` / `question-contract.md` from it.
 3. Inventory current REST/WS APIs and reconnect ADRs; scope the event-replay extension.
 4. Reconcile auth/push with multi-host-gateway.md (joint decision note; resolve the E2E-vs-push conflict on paper).
 5. Build the simulator and recorded scenarios.
-6. Phase 2: panel-first vertical slice on the chosen OS; hosted-mode SPA work in `src/client/web` behind a mode flag.
+6. Phase 2: panel-first vertical slice on Windows; hosted-mode SPA work in `src/client/web` behind a mode flag.
 7. In parallel: connect UE/Blender/browser MCP servers against the existing stack to validate local-app-control value with zero client work.
 
 ## Decision summary
@@ -300,6 +300,7 @@ Engineering:
 - One install bundles shell, daemon, and web assets; the headless server is a separate channel for remote hosts only.
 - Window discipline: reuse, restore, in-app deep links; the browser exits the local flow and remains for remote/fallback.
 - Product hypothesis A (supervision loop) governs priorities and measures; B-class OS-integration experiments are Phase 6, data-gated.
-- Mobile requires Phase R (remote path + push, reconciled with multi-host-gateway.md) before Phase 3; iOS precedes Android.
+- Windows is the first desktop shell; iOS is the first mobile client. macOS-vs-Android ordering is decided from usage data.
+- Mobile requires Phase R (remote path + push, reconciled with multi-host-gateway.md) before Phase 3.
 - Contracts are shared and generated (superseding ADR-0021); approvals/questions are new server-side domain work and come first.
 - Local app control (UE/Blender/browser) is server-side MCP capability, independent of any client rebuild.
