@@ -18,16 +18,16 @@ relations:
 - {type: references, target: adr-20260624-0027-notification-toast-auto-dismiss-policy}
 - {type: references, target: note-20260624-user-web-server}
 source_paths:
-- src/server/web/
+- src/server/api/
 - src/client/runtime/
 - ARCHITECTURE.md
 - src/cmd/server/
-- src/server/web/wire.go
-- src/server/web/gateway.go
-- src/client/web/src/wire/server.ts
-- src/client/web/src/wire/client.ts
+- src/server/api/wire.go
+- src/server/api/gateway.go
+- clients/ui/src/wire/server.ts
+- clients/ui/src/wire/client.ts
 topic: technical
-summary: 'server/web is the HTTP/WebSocket gateway that bridges a browser to the session
+summary: 'server/api is the HTTP/WebSocket gateway that bridges a browser to the session
   daemon. It is a stateless proxy: session state lives entirely in the daemon goroutines;
   this layer only translates between the browser wire'
 ---
@@ -36,7 +36,7 @@ summary: 'server/web is the HTTP/WebSocket gateway that bridges a browser to the
 
 # Web Gateway
 
-`server/web` is the HTTP/WebSocket gateway that bridges a browser to the
+`server/api` is the HTTP/WebSocket gateway that bridges a browser to the
 session daemon. It is a **stateless proxy**: session state lives entirely
 in the daemon goroutines; this layer only translates between the browser
 wire format and the daemon's internal proto types.
@@ -69,8 +69,8 @@ All WebSocket frames are UTF-8 JSON text frames. The framing rules are:
   JSON object whose `"k"` field identifies the frame kind.
 - **Browser → server**: always a JSON object with a `"k"` field.
 
-Implementation source of truth: `src/server/web/wire.go` (`encodeServerEvent`,
-type declarations) and `src/server/web/gateway.go` (`AttachLifecycleWS`,
+Implementation source of truth: `src/server/api/wire.go` (`encodeServerEvent`,
+type declarations) and `src/server/api/gateway.go` (`AttachLifecycleWS`,
 `writeOutbound`, `readInbound`).
 
 ### Server → browser frames
@@ -237,7 +237,7 @@ Go implementation but consumed by the browser codec (`codec.ts:92`).
 | `reqId` | `string` | Correlates to the browser request that triggered this reply |
 | `body` | `unknown` | Optional response payload; shape is request-specific |
 
-Type definition: `src/client/web/src/wire/server.ts:RespOKFrame`.
+Type definition: `clients/ui/src/wire/server.ts:RespOKFrame`.
 
 #### `"e"` — WS response error (RespErr)
 
@@ -256,7 +256,7 @@ server-side Go implementation but parsed by the browser codec (`codec.ts:96`).
 | `code` | `string` | Machine-readable error code (e.g. `"frame-not-ready"`, `"unauthorized"`) |
 | `message` | `string` | Human-readable error description |
 
-Type definition: `src/client/web/src/wire/server.ts:RespErrFrame`.
+Type definition: `clients/ui/src/wire/server.ts:RespErrFrame`.
 
 #### `"c"` — control / daemon disconnect
 
@@ -325,7 +325,7 @@ Dispatches to `Attacher.Resize` → `proto.CmdSurfaceResize`.
 
 #### `"s"` / `"u"` — subscribe / unsubscribe (client type definitions only)
 
-The client-side TypeScript (`src/client/web/src/wire/client.ts`) defines
+The client-side TypeScript (`clients/ui/src/wire/client.ts`) defines
 `SubscribeFrame` (`k:"s"`) and `UnsubscribeFrame` (`k:"u"`) with a `reqId`
 and `sessionId`. These are **not currently decoded by the Go server** (`wire.go`
 `inbound` struct and `applyInboundProto` handle only `"i"` and `"r"`).

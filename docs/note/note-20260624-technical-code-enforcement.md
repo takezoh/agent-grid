@@ -157,7 +157,7 @@ Exception: none — a multiplexed backend that cannot satisfy the invariant is a
 
 The PTY multiplexer `platform/termvt` is the same shape as §6 — one source (a pty) fanned out to many subscribers — and shares the cross-talk failure mode. Its **fan-out isolation** invariant: every event reaches exactly the live subscribers of its own session (all, in order, control-before-output), and a subscriber that cannot keep up is *severed*, never allowed to block or corrupt the others. Cross-talk here is one session's bytes surfacing in another's terminal, or a slow client wedging a healthy one.
 
-Like §6 this is a runtime property, not lint/compile-catchable, so it is **test-pinned**: the [fan-out isolation contract](../design/design-platform.md#legacy-source-component-20260624-platform-termvt-multiplexer-testing) (`TestFanoutDeliversToEverySubscriber`, `TestManagerSessionsDoNotCrossTalk`, `TestSlowSubscriberDoesNotStarveFast`, `TestControlPrecedesOutputInChunk`) runs against a real pty under `-race`, and `server/web`'s `FuzzApplyInboundProto` pins the untrusted client→server frame decode (no panic, no non-positive resize). Rationale: [ADR 0003](../adr/adr-20260624-0003-termvt-fanout-isolation.md). Unlike §6 there is no opt-in e2e tier — termvt has no in-process fake to validate (its only backend is a real pty).
+Like §6 this is a runtime property, not lint/compile-catchable, so it is **test-pinned**: the [fan-out isolation contract](../design/design-platform.md#legacy-source-component-20260624-platform-termvt-multiplexer-testing) (`TestFanoutDeliversToEverySubscriber`, `TestManagerSessionsDoNotCrossTalk`, `TestSlowSubscriberDoesNotStarveFast`, `TestControlPrecedesOutputInChunk`) runs against a real pty under `-race`, and `server/api`'s `FuzzApplyInboundProto` pins the untrusted client→server frame decode (no panic, no non-positive resize). Rationale: [ADR 0003](../adr/adr-20260624-0003-termvt-fanout-isolation.md). Unlike §6 there is no opt-in e2e tier — termvt has no in-process fake to validate (its only backend is a real pty).
 
 Exception: none — a multiplexer that cannot satisfy fan-out isolation is a defect, not a candidate for opt-out.
 
@@ -181,9 +181,9 @@ Where defined: [ADR — fakedocker: PATH-injected docker CLI fake with real-dock
 
 ## 11. Cross-language wire fixture gate (test-pinned)
 
-The Go encoder and TypeScript codec must consume the same committed wire fixtures. This prevents drift between `server/web` JSON output and the browser decoder when fields are added, cleared, or reshaped.
+The Go encoder and TypeScript codec must consume the same committed wire fixtures. This prevents drift between `server/api` JSON output and the browser decoder when fields are added, cleared, or reshaped.
 
-Where defined: [ADR — Cross-language wire fixtures: Go-generated, TS-consumed, CI-gated](../adr/adr-20260705-wire-fixtures-pipeline.md) and spec FR-006 / AC-002. How it is enforced: Go generates canonical `hello` / `view-update` / `output` / `control` fixtures into `src/client/web/src/wire/testdata/`; vitest consumes those exact JSON files; CI regenerates and fails on `git diff --exit-code`. Exception: none — hand-synchronized fixtures are explicitly rejected by the ADR.
+Where defined: [ADR — Cross-language wire fixtures: Go-generated, TS-consumed, CI-gated](../adr/adr-20260705-wire-fixtures-pipeline.md) and spec FR-006 / AC-002. How it is enforced: Go generates canonical `hello` / `view-update` / `output` / `control` fixtures into `clients/ui/src/wire/testdata/`; vitest consumes those exact JSON files; CI regenerates and fails on `git diff --exit-code`. Exception: none — hand-synchronized fixtures are explicitly rejected by the ADR.
 
 ## 12. Driver conformance and metadata source priority (test-pinned)
 

@@ -25,7 +25,7 @@ source_paths:
 - src/orchestrator/scheduler/
 - src/client/runtime/
 - src/platform/termvt/
-- src/server/web/
+- src/server/api/
 - Makefile
 - scripts/check-coverage.sh
 - scripts/coverage-floors.txt
@@ -100,7 +100,7 @@ the test-pinned enforcement catalogued in
 - **relay severance contract (T2)** — `TerminalRelay` is driven with a deterministically saturated subscriber to prove that only the slow consumer is severed and all other subscribers keep ordered delivery. Enforcement is catalogued in [code-enforcement.md §9](note-20260624-technical-code-enforcement.md).
 - **wire fixtures pipeline (T1 + CI gate)** — Go generates canonical wire JSON fixtures, vitest consumes the same files, and CI fails on regeneration drift. Enforcement is catalogued in [code-enforcement.md §11](note-20260624-technical-code-enforcement.md).
 - **gateway scenario e2e (T1)** — a real-`server` + fake-agent scenario now verifies `session create → WS viewUpdate` in the always-on Go suite for the server→view path.
-- **client/web browser smoke (T1)** — Playwright runs a deterministic fake-backend browser harness for session hydrate, command palette open, and new-session submit. This covers browser wiring that happy-dom cannot prove, while keeping real soft keyboard / assistive-tech flows on the manual-device checklist.
+- **clients/ui browser smoke (T1)** — Playwright runs a deterministic fake-backend browser harness for session hydrate, command palette open, and new-session submit. This covers browser wiring that happy-dom cannot prove, while keeping real soft keyboard / assistive-tech flows on the manual-device checklist.
 - **fakedocker + `FakeVsRealDocker` (T1 + T3)** — devcontainer lifecycle tests run against PATH-injected `fakedocker`, and an opt-in real-docker backstop verifies the fake's output shape. Enforcement is catalogued in [code-enforcement.md §10](note-20260624-technical-code-enforcement.md).
 
 Local e2e run commands live in [AGENTS.md](../../AGENTS.md) (Build & Test → E2E).
@@ -114,7 +114,7 @@ live subscribers of its own session, in order; a slow subscriber is severed, not
 allowed to block or corrupt the others). It is pinned by a real-pty contract
 (`fanout_contract_test.go`: multi-subscriber delivery, `Manager` cross-talk,
 slow-vs-fast containment, control-before-output ordering) run under `-race`, plus
-a `server/web` `FuzzApplyInboundProto` over the untrusted client→server frame decode.
+a `server/api` `FuzzApplyInboundProto` over the untrusted client→server frame decode.
 Unlike the stream subsystem, termvt has no in-process fake — its only backend is
 a real pty — so there is no opt-in e2e tier. Full guide:
 [termvt multiplexer testing](../design/design-platform.md#legacy-source-component-20260624-platform-termvt-multiplexer-testing);
@@ -148,10 +148,10 @@ Coverage targets are tiered by architectural blast radius. A regression in `stat
 | Tier | Target | Layer | Members |
 |------|--------|-------|---------|
 | **S** | ≥85% | Pure domain layer & wire types | `state`, `state/view`, `proto`, `features`, `orchestrator/scheduler` (pure `Reduce` + transitions) |
-| **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/stream`, `driver`, `config`, `sandbox/devcontainer`, `platform/termvt`, `client/web`, `server/web` (gateway scenario + browser smoke keep this tier honest) |
+| **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/stream`, `driver`, `config`, `sandbox/devcontainer`, `platform/termvt`, `uihost`, `server/api` (gateway scenario + browser smoke keep this tier honest) |
 | **B** | ≥60% | Infrastructure integrations | `lib/*` (except thin CLI wrappers), `proto/sessions`, `hostexec`, `mcpproxy`, `tools`, `platform/agent/fakecodex` |
 | **C** | ≥40% | Thin CLI & wiring | `cmd/claude-app-server`, `cmd/orchestrator`, `runtime/subsystem/cli`, `client/lib/claude/transcript`, `client/lib/codex/transcript` |
-| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/web`, `cmd/bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli` |
+| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/uihost`, `cmd/bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli` |
 
 Tier S and A packages must not lose coverage in a PR. Tier B packages should improve over time; new B-tier code arrives with tests. Tier C packages aim for the goldenpath; full coverage isn't expected. Tier D packages need at least one test that exercises the package surface.
 

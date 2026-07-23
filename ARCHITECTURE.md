@@ -74,23 +74,23 @@ proxy** — sessions and side effects live in the daemon — so the same daemon
 can be reached by the browser front-end (`cmd/server` + xterm.js) and future
 native clients with consistent behaviour.
 
-- `server/web/daemon_client.go` wraps `proto.Client` with an eager dial +
+- `server/api/daemon_client.go` wraps `proto.Client` with an eager dial +
   supervisor goroutine. `Health()` / `LastError()` / `LastAttemptAt()` give
   the HTTP layer enough signal to return `503` while the daemon is down
   ([ADR 0012](docs/adr/adr-20260624-0012-daemon-client-eager-dial-supervisor.md)).
-- `server/web/gateway.go` bridges one WebSocket to one daemon-side surface
+- `server/api/gateway.go` bridges one WebSocket to one daemon-side surface
   subscription (`proto.CmdSurfaceSubscribe`). On daemon disconnect it sends
   a `controlMsg{k:"c"}` payload and immediately follows with a typed close
   (`StatusGoingAway`) — the two-step shutdown defined in
   [ADR 0011](docs/adr/adr-20260624-0011-two-step-ws-close-on-daemon-disconnect.md).
-- `server/web/mux.go` maps REST `/api/sessions` GET/POST/DELETE to
+- `server/api/mux.go` maps REST `/api/sessions` GET/POST/DELETE to
   `proto.CmdEvent{Event: state.Event{Create,List,Stop}Session}` via the
   daemon client; cols/rows are packed into `state.LaunchOptions` (FR-022).
 - `cmd/server/main.go` is the binary entry point for the merged backend: it
   boots the coordinator (event loop + IPC socket listener + persistence) and
   a co-resident gateway goroutine. The gateway dials the daemon socket
   (default `~/.agent-grid/server.sock`, overridable via `-server-sock`)
-  with `DaemonClient`, and serves `server/web.NewMux(daemon, token)` behind
+  with `DaemonClient`, and serves `server/api` (`serverapi.NewMux(daemon, token)`) behind
   a bearer-token + ws-ticket gate.
 - `server/session` was removed in A1-ε
   ([ADR 0014](docs/adr/adr-20260624-0014-server-session-legacy-build-tag.md), superseded);

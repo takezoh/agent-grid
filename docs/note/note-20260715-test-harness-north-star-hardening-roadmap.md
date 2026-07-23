@@ -15,7 +15,7 @@ source_paths:
 - src/internal/harnesspolicy/
 - .github/workflows/
 - scripts/
-- src/client/web/
+- clients/ui/
 summary: 2026-07-15再監査で判明したfalse green、profile drift、Web silent failureをM1-M7で解消する実装roadmap
 ---
 

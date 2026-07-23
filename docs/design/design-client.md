@@ -63,7 +63,7 @@ compatibility_policies:
 - Keep legacy component identifiers resolvable through documentation aliases.
 source_paths:
 - src/client/
-- src/server/web/
+- src/server/api/
 ---
 
 # Client architecture
@@ -100,7 +100,7 @@ source_paths:
 - src/client/
 - src/cmd/
 - src/cmd/server/
-- src/cmd/web/
+- src/cmd/uihost/
 provides:
 - interfaces-data-files-and-file-structure
 summary: All state, runtime, and driver layers are defined as interfaces for testability.
@@ -422,7 +422,7 @@ src/
 │   │                       host-exec / mcp-exec / help)
 │   ├── hostexec.go         `server host-exec` shim (in-container glue)
 │   └── mcpexec.go          `server mcp-exec` shim (in-container glue)
-├── cmd/web/             Web frontend host binary — serves embedded client/web/dist
+├── cmd/uihost/             Web frontend host binary — serves embedded src/uihost/dist
 │                        and reverse-proxies /api + /ws to the server gateway
 ├── cmd/bridge/  Bridge binary (thin container-side client; uses client/proto)
 ├── cmd/claude-app-server/  Codex app-server stdio shim for Claude
@@ -599,7 +599,7 @@ src/
 │   │                    ActivateFrame, ...)
 │   └── helpers.go       sendJSONEvent / sendJSONEventTimeout helpers;
 │                        timeout constants
-├── client/web/          Browser frontend (xterm.js)
+├── clients/ui/ (repo root)  Browser frontend (xterm.js)
 │   ├── index.html       Single-page shell
 │   ├── package.json     Frontend deps (vite, xterm, vitest)
 │   ├── vite.config.ts   Build config (output → dist/)
@@ -615,7 +615,7 @@ src/
 │   │   ├── css/              Stylesheets
 │   │   └── auth.ts           Bearer-token handshake
 │   ├── dist/            Built bundle (vite build output)
-│   ├── embed.go         //go:embed dist/* — exposes the built bundle to cmd/web
+│   ├── embed.go         //go:embed dist/* — exposes the built bundle to cmd/uihost
 │   ├── headers.go       Static-asset header helpers
 │   └── host.go          HTTP host that serves the embedded bundle
 ├── client/procio/
@@ -1084,9 +1084,9 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-overview}
 - {type: referencedBy, target: component-20260705-client-web-browser-harness}
 source_paths:
-- src/client/web/
+- clients/ui/
 - src/cmd/server/
-- src/server/web/
+- src/server/api/
 - ARCHITECTURE.md
 - src/client/state/
 - src/client/runtime/
@@ -1095,7 +1095,7 @@ source_paths:
 provides:
 - client-agent-grid-client-session-lifecycle-manager
 summary: 'client/ is all of the client: the in-process session daemon (state machine
-  + runtime + drivers + IPC) and the browser frontend assets under client/web/. Both
+  + runtime + drivers + IPC) and the browser frontend assets under clients/ui/ (repo root). Both
   are shipped inside the server binary (cmd/server). It depends'
 ---
 
@@ -1103,9 +1103,9 @@ summary: 'client/ is all of the client: the in-process session daemon (state mac
 
 # client/ — agent-grid client (Session Lifecycle Manager)
 
-`client/` is all of the client: the in-process session daemon (state machine + runtime + drivers + IPC) and the browser frontend assets under `client/web/`. Both are shipped inside the `server` binary (`cmd/server`). It depends on `platform/` but **must not** import `orchestrator/` (enforced by the `depguard` rule `client-no-orchestrator`).
+`client/` is all of the client: the in-process session daemon (state machine + runtime + drivers + IPC) and the browser frontend assets under `clients/ui/` (repo root). Both are shipped inside the `server` binary (`cmd/server`). It depends on `platform/` but **must not** import `orchestrator/` (enforced by the `depguard` rule `client-no-orchestrator`).
 
-The agent-grid client is a *session lifecycle manager*, not an agent orchestrator. It gives you visibility and fast access to agents running across many projects; it does not decide what those agents do. The daemon owns sessions and exposes typed IPC over a Unix socket; the co-resident HTTP/WS gateway under `server/web/` translates browser REST + WebSocket traffic into IPC, so the browser is the operator's primary surface.
+The agent-grid client is a *session lifecycle manager*, not an agent orchestrator. It gives you visibility and fast access to agents running across many projects; it does not decide what those agents do. The daemon owns sessions and exposes typed IPC over a Unix socket; the co-resident HTTP/WS gateway under `server/api/` translates browser REST + WebSocket traffic into IPC, so the browser is the operator's primary surface.
 
 ## Functional Core / Imperative Shell
 
@@ -1129,7 +1129,7 @@ This split is why the core is testable without mocks: `Reduce` and `Driver.Step`
 | `client/proto/` | Typed IPC wire layer — Command / Response / ServerEvent sum types + codec. Imports `state/view` only. |
 | `client/proto/sessions/` | Session-management helpers wrapping `proto.Client`. Imports `state`. |
 | `client/tools/` | Operator tool abstraction (palette-style tool invocation surfaced through IPC). |
-| `client/web/` | Browser frontend assets (React + xterm.js) embedded by `cmd/server`. |
+| `clients/ui/` (repo root) | Browser frontend assets (React + xterm.js), served by `cmd/uihost` via `src/uihost`. |
 | `client/config/` | TOML loading, DataDir injection, SandboxResolver. |
 | `client/cli/` | Subcommand registry — tool-specific subcommands registered via `init()`. |
 | `client/lib/peers/` | Peers MCP server (IPC specific to the client). |
@@ -1212,11 +1212,11 @@ relations:
 - {type: references, target: component-20260624-platform-sandbox}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/client/web/
+- clients/ui/
 - src/cmd/server/
-- src/client/web/src/
+- clients/ui/src/
 - src/client/lib/agenthook/
-- src/server/web/
+- src/server/api/
 - src/client/runtime/subsystem/stream/
 - src/client/runtime/pty_backend.go
 - src/platform/termvt/session.go
@@ -1250,7 +1250,7 @@ The driver returns `View(DriverState) state.View`. It is a pure function that pe
 
 ### Frontend-Owned
 
-The browser frontend (`client/web` xterm.js bundle, served by the `web` host binary and proxied through `cmd/server`'s gateway) acts as a driver-agnostic generic renderer.
+The browser frontend (`uihost` xterm.js bundle, served by the `web` host binary and proxied through `cmd/server`'s gateway) acts as a driver-agnostic generic renderer.
 
 - Rendering of `SessionInfo` generic fields (ID / Project / Command / CreatedAt / State / StateChangedAt)
 - Color selection from `State` enum values — universal state colors are consistent across all drivers
@@ -1264,9 +1264,9 @@ The browser frontend (`client/web` xterm.js bundle, served by the `web` host bin
 
 - **Do not branch on driver name in the frontend** (code like `if cmd === "claude" {...}` is prohibited). Verifiable by grep:
   ```sh
-  grep -rn '"claude"\|"bash"\|"codex"\|"gemini"' src/client/web/src/  # → should return 0 results
+  grep -rn '"claude"\|"bash"\|"codex"\|"gemini"' clients/ui/src/  # → should return 0 results
   ```
-- **Drivers must not depend on any presentation library or the web frontend** (no import of `client/web`, xterm.js, or any UI runtime)
+- **Drivers must not depend on any presentation library or the web frontend** (no import of `uihost`, xterm.js, or any UI runtime)
 - **Drivers must not perform I/O** (delegate to runtime via Effects like EffEventLogAppend, EffStartJob, etc.)
 - **Runtime must not call driver-specific I/O directly** (runtime only interprets Effects; driver-specific I/O is executed by worker pool runners)
 
@@ -1343,7 +1343,7 @@ The daemon is the single long-running process that owns all session state. Concr
 - the Runtime event loop (`select` over eventCh / ticker / workers / fsnotify),
 - the IPC server (host endpoint plus per-container endpoint),
 - the worker pool that executes Effects against drivers and backends,
-- `tapManager`, which holds one reader goroutine per frame fanning the per-frame pty stream out to subscribers (the browser frontend's xterm.js terminal connects through this fanout via `server/web`).
+- `tapManager`, which holds one reader goroutine per frame fanning the per-frame pty stream out to subscribers (the browser frontend's xterm.js terminal connects through this fanout via `server/api`).
 
 ```
 runDaemon()
@@ -1449,7 +1449,7 @@ Reading notes:
 
 ### Frame Model
 
-Each frame owns exactly one pty session allocated by `platform/termvt.Manager`. The `termvt.Manager` session key is `string(FrameID)` — there is no separate physical-handle namespace at the backend. The runtime's `EffSpawnFrame` asks the backend to create the pty session; success comes back as `EvFrameSpawned` (failure as `EvSpawnFailed`) and registration is recorded via `EffRegisterFrame`. The browser frontend subscribes to per-frame output via the `server/web` WebSocket gateway, which connects to `tapManager`'s fanout for the corresponding frame id. Key input from the frontend travels back through `FrameIO.SendKeys` / `SendKey` / `SendEnter`.
+Each frame owns exactly one pty session allocated by `platform/termvt.Manager`. The `termvt.Manager` session key is `string(FrameID)` — there is no separate physical-handle namespace at the backend. The runtime's `EffSpawnFrame` asks the backend to create the pty session; success comes back as `EvFrameSpawned` (failure as `EvSpawnFailed`) and registration is recorded via `EffRegisterFrame`. The browser frontend subscribes to per-frame output via the `server/api` WebSocket gateway, which connects to `tapManager`'s fanout for the corresponding frame id. Key input from the frontend travels back through `FrameIO.SendKeys` / `SendKey` / `SendEnter`.
 
 ### Failure Behavior
 
@@ -1970,7 +1970,7 @@ AG_E2E_CODEX_BIN=$(which codex) \
 ---
 id: component-20260705-client-web-browser-harness
 kind: component
-title: client/web browser harness
+title: web UI (clients/ui) browser harness
 status: active
 created: '2026-07-05'
 updated: '2026-07-14'
@@ -1982,9 +1982,9 @@ owners: []
 provides:
 - client-web-browser-harness
 source_paths:
-- src/client/web/playwright.config.ts
-- src/client/web/e2e/
-- src/client/web/package.json
+- clients/ui/playwright.config.ts
+- clients/ui/e2e/
+- clients/ui/package.json
 - .github/workflows/ci.yml
 relations:
 - {type: references, target: component-20260624-client-overview}
@@ -1996,7 +1996,7 @@ summary: Playwright browser smoke と fake backend で Web UI の session hydrat
 
 ## Overview
 
-`client/web` の browser harness は、happy-dom では証明し切れないブラウザ配線を常時検証する
+`uihost` の browser harness は、happy-dom では証明し切れないブラウザ配線を常時検証する
 Playwright smoke 層である。責務は UI の見た目を比較することではなく、実ブラウザ上で
 「アプリが起動し、session 一覧と command 導線が正しくつながっている」ことを短時間で pin する点にある。
 
@@ -2006,7 +2006,7 @@ Playwright smoke 層である。責務は UI の見た目を比較すること�
 - command palette: keyboard shortcut から palette を開ける
 - new-session submit: session 作成フォーム送信で API 呼び出しと新規 session 描画が成立する
 
-この harness は `src/client/web/e2e/support/fake-backend.ts` の deterministic fake backend に依存する。
+この harness は `clients/ui/e2e/support/fake-backend.ts` の deterministic fake backend に依存する。
 REST は `page.route()` で `/api/ws-ticket` / `/api/session-config` / `/api/sessions` を fake 化し、
 WebSocket は `page.addInitScript()` で差し替えて初期 event 列を制御する。これにより flaky な外部依存を
 持ち込まず、`npm run test:web` を PR CI の必須 gate にできる。
@@ -2018,7 +2018,7 @@ WebSocket は `page.addInitScript()` で差し替えて初期 event 列を制御
 - 本物の backend / websocket daemon を使う fidelity 検証
 
 実機依存の観察は `docs/specs/web-terminal-mobile-ux/` の手動検証チェックリストが正本で、backend 側の
-server→view 貫通は `src/server/web` の gateway scenario e2e が担当する。
+server→view 貫通は `src/server/api` の gateway scenario e2e が担当する。
 
 ## Parts
 
@@ -2039,7 +2039,7 @@ PR CI (`.github/workflows/ci.yml`) と同じ browser gate を手元で再現す�
 ### 1. 依存関係のインストール
 
 ```sh
-cd src/client/web
+cd clients/ui
 npm ci
 ```
 

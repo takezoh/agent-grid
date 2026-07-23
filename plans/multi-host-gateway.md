@@ -17,7 +17,7 @@
   Gateway が持って良い情報は **host pubkey fingerprint (relay routing 用) / control tunnel online 状態 / relay byte counter (TURN allocation 単位 + opaque relay 単位を別系統で集計、STUN は応答だけで stateful 状態を持たない) / user identity credential / TURN allocation の存続時間** のみ。host display name や capability snapshot は **client-local (browser localStorage)** か **host channel 経由** で取得する。**STUN は state を持たない探索** / **TURN は WebRTC layer の packet relay** (DTLS ciphertext) / **opaque relay は application layer の frame relay** (Noise ciphertext) — 3 つは独立した役割で混同しない。
 
   **WebRTC stack との分担境界**: client side (browser native WebRTC API / host pion-webrtc) は ICE 候補収集・connectivity check・DTLS handshake・SCTP DataChannel をすべて **stack 側が自動で賄う**。app code が渡すのは `iceServers: [{urls: ["stun:gw.example.com:3478", "turns:gw.example.com:5349"], username, credential}]` という URI とクレデンシャルのみ (SignalingHints で gateway から配布)。Gateway が実装するのは **server side の STUN/TURN endpoint** であって WebRTC プロトコルそのものではない (pion/turn は STUN/TURN server の Go 実装で、WebRTC stack ではない)。
-- **Web client**: ブラウザ側 SPA (`src/client/web`)。接続できた host ごとに独立した host channel を張り、それぞれの session list を per-host section で表示する。
+- **Web client**: ブラウザ側 SPA (`clients/ui`)。接続できた host ごとに独立した host channel を張り、それぞれの session list を per-host section で表示する。
 - **Frame**: web UI のタブ単位 (`proto.FrameInfo`)。1 session 配下に 0..N。
 - **Session**: pty session (`proto.SessionInfo`)。host に紐づく。ID 空間は host-local 一意、global identity は `(host_id, session_id)` の composite。
 - **Control tunnel**: host が gateway に張る outbound 接続 (gRPC bidi)。heartbeat / signaling / ACL push / (fallback 時) opaque relay の搬送のみ。**session bytes はこの tunnel に流れない**。
@@ -393,12 +393,12 @@ cmd/gateway/
 - frame teardown → sandbox release の経路 (d1e3a8c4)。
 - env overlay invariant ([[host-direct-env-inherit]])。
 
-### 4.3 Web client の変更 — `src/client/web/`
+### 4.3 Web client の変更 — `clients/ui/` (旧 `src/client/web/`)
 
 #### 4.3.1 状態スライス追加
 
 ```ts
-// src/client/web/src/state/hostsSlice.ts (新設)
+// clients/ui/src/state/hostsSlice.ts (新設)
 type HostsState = {
   directory: HostDirectoryEntry[];                // gateway hello から (+ HostStatusChanged で patch)。display name や capability はここに**入らない**
   nicknames: Record<string, string>;              // pubkey_fingerprint → user-defined nickname (localStorage 永続、gateway は持たない)
@@ -790,7 +790,7 @@ src/
     authz/                              # NEW: client allowlist (authz authoritative、user 署名 verify を host が実施)
     discovery/                          # NEW: mDNS advertiser (TXT には pubkey fp + port のみ、display name は持たない)
     runtime/                            # 既存 (変更最小限、view-update に host_id 付与)
-  client/web/src/
+  clients/ui/src/
     state/hostsSlice.ts                 # NEW: HostsState (directory + nicknames + connections)
     storage/nicknameStore.ts            # NEW: pubkey_fp → nickname の localStorage adapter
 ```

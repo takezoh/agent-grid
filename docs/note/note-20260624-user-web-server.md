@@ -14,9 +14,9 @@ relations:
 source_paths:
 - Makefile
 - src/cmd/server/
-- src/cmd/web/
-- src/server/web/
-- src/client/web/
+- src/cmd/uihost/
+- src/server/api/
+- clients/ui/
 topic: user
 summary: the pty session daemon (typed proto over a Unix socket, -data-dir rooted)
   and the HTTP/WS gateway that translates browser REST/WebSocket traffic into in-process

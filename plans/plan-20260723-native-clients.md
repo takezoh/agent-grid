@@ -4,7 +4,7 @@
 - **更新日**: 2026-07-23 (rev 4 — Windows のワークスペースホストを Electron に決定 (シェルはネイティブ維持)、詳細設計を plan-20260723-windows-shell-design.md に分離。rev 3 で Windows/iOS を先行 OS に決定。rev 2 でデスクトップを「フルネイティブ再構築」から「ネイティブシェル + 既存 Web ワークスペースのホスト」へ再定義)
 - **ブランチ**: `claude/native-clients-plan-review-2sjfs5`
 - **ステータス**: draft (設計レビュー段階)
-- **影響範囲**: 新規デスクトップアプリシェル、`server/web` の契約層公開面、approval/question のサーバー側ドメイン新設、`src/client/web` の hosted モード、配布/署名/自動更新
+- **影響範囲**: 新規デスクトップアプリシェル、`server/api` の契約層公開面、approval/question のサーバー側ドメイン新設、`clients/ui` の hosted モード、配布/署名/自動更新
 
 ## Related documents
 
@@ -138,11 +138,11 @@ Letting agents operate Unreal Engine, Blender, or a browser is an **execution-pl
 
 Facts the phases below must not assume away:
 
-1. **Approvals and questions do not exist in the server-side domain.** They appear only inside the codex app-server protocol (`platform/agent/codexschema`) and the orchestrator. Nothing in `client/state`, `client/proto`, or `server/web` models them. The contract layer's centerpiece therefore requires new domain work — driver → state → proto → gateway — before any client can render an approval. This is Phase 0's largest item.
+1. **Approvals and questions do not exist in the server-side domain.** They appear only inside the codex app-server protocol (`platform/agent/codexschema`) and the orchestrator. Nothing in `client/state`, `client/proto`, or `server/api` models them. The contract layer's centerpiece therefore requires new domain work — driver → state → proto → gateway — before any client can render an approval. This is Phase 0's largest item.
 2. **Terminology is further along than "rename the client layer" suggests.** ARCHITECTURE.md already separates the `server/*` gateway (stateless proxy, "future native clients" explicitly in scope) from the internal `client/*` daemon layer. Phase 0's job is a docs-level terminology pass (runtime layers vs user-facing clients), not a restructure.
 3. **Reconnect semantics partially exist**: ADR-0025 (transcript REST backfill → WS tail), ADR-0011 (two-step WS close), ADR-0022 (subscribe retry in socket layer). "Define reconnection and event replay" means inventorying and extending these, not starting blank. The current WS is surface-subscription + `viewUpdate` broadcast (ADR-0023); recorded-scenario replay implies an event-model extension whose size must be scoped in Phase 1, not discovered there.
 4. **Wire types are hand-written and stdlib-only** (ADR-0021; AGENTS.md wire-format rule). Generating C#/Swift/Kotlin/TS clients from schemas is a deliberate supersession of ADR-0021 and must be recorded as such; generated Go (if any) stays stdlib-only.
-5. **Auth is localhost bearer-token + WS ticket** (`server/web/auth.go`, `ticket.go`). There is no remote reachability and no push delivery. Both belong to the multi-host-gateway plan's territory (§ Phase R).
+5. **Auth is localhost bearer-token + WS ticket** (`server/api/auth.go`, `ticket.go`). There is no remote reachability and no push delivery. Both belong to the multi-host-gateway plan's territory (§ Phase R).
 
 ## Shared contracts and generated clients
 
@@ -294,7 +294,7 @@ Engineering:
 3. Inventory current REST/WS APIs and reconnect ADRs; scope the event-replay extension.
 4. Reconcile auth/push with multi-host-gateway.md (joint decision note; resolve the E2E-vs-push conflict on paper).
 5. Build the simulator and recorded scenarios.
-6. Phase 2: panel-first vertical slice on Windows; hosted-mode SPA work in `src/client/web` behind a mode flag.
+6. Phase 2: panel-first vertical slice on Windows; hosted-mode SPA work in `clients/ui` behind a mode flag.
 7. In parallel: connect UE/Blender/browser MCP servers against the existing stack to validate local-app-control value with zero client work.
 
 ## Decision summary

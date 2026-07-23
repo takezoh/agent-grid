@@ -17,9 +17,9 @@ make test-race               # Race detector on concurrency-sensitive subtrees
 
 | Kind | Tier | When | Entry |
 |------|------|------|-------|
-| Go gateway scenario | T1 | Always-on (`go test ./...`) | `src/server/web` (`mux_*_test.go`, etc.) |
+| Go gateway scenario | T1 | Always-on (`go test ./...`) | `src/server/api` (`mux_*_test.go`, etc.) |
 | Go opt-in fidelity | T3 | Manual / nightly; subtests skip without `AG_E2E_*` | `make test-e2e` |
-| Web Playwright smoke | T1 | PR CI (`npm run test:web`) | `src/client/web` `npm run test:e2e` |
+| Web Playwright smoke | T1 | PR CI (`npm run test:web`) | `clients/ui` `npm run test:e2e` |
 
 **Go gateway scenario** — no extra command; included in `go test ./...`. Exercises real `server` + fake agent (`session create → WS viewUpdate`, etc.).
 
@@ -33,7 +33,7 @@ make test-e2e
 **Web Playwright smoke** — browser wiring that happy-dom cannot prove; uses deterministic fake backend (`e2e/support/fake-backend.ts`). Harness overview: `docs/design/design-client.md#legacy-source-component-20260705-client-web-browser-harness`.
 
 ```sh
-cd src/client/web
+cd clients/ui
 npm ci
 npx playwright install chromium   # first run or after @playwright/test bump; CI uses --with-deps
 npm run test:e2e                # build (tsc + vite) then playwright test
@@ -45,7 +45,7 @@ If home-directory caches are not writable (sandbox agents), redirect caches:
 ```sh
 GOCACHE=/tmp/gocache-agent-grid GOLANGCI_LINT_CACHE=/tmp/golangci-lint-cache make lint
 cd src && GOCACHE=/tmp/gocache-agent-grid go test ./...
-cd src/client/web
+cd clients/ui
 NPM_CONFIG_CACHE=/tmp/npm-cache-agent-grid npm ci
 PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npx playwright install chromium
 PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npm run test:e2e
@@ -58,11 +58,11 @@ Playwright escape hatches: `PLAYWRIGHT_BROWSERS_PATH` when `~/.cache/ms-playwrig
 
 ```sh
 GOCACHE=/tmp/gocache-agent-grid GOLANGCI_LINT_CACHE=/tmp/golangci-lint-cache make lint
-cd src/client/web && NPM_CONFIG_CACHE=/tmp/npm-cache-agent-grid npm run lint
+cd clients/ui && NPM_CONFIG_CACHE=/tmp/npm-cache-agent-grid npm run lint
 cd src && GOCACHE=/tmp/gocache-agent-grid go test ./...
-cd src/client/web && npm run test:unit
+cd clients/ui && npm run test:unit
 GOCACHE=/tmp/gocache-agent-grid make test-e2e
-cd src/client/web && PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npm run test:e2e
+cd clients/ui && PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npm run test:e2e
 ```
 
 Cache env vars are optional on a normal dev machine.
@@ -77,7 +77,7 @@ One Go module, three top-level trees under `src/` and three binaries:
 | `orchestrator` | `src/cmd/orchestrator/` | `orchestrator/` | Symphony SPEC implementation — autonomous poll/dispatch/reconcile + observability HTTP |
 | `claude-app-server` | `src/cmd/claude-app-server/` | `platform/` + `orchestrator/` | Codex app-server stdio shim for Claude; enables agent-switch via `codex.command` in WORKFLOW.md |
 
-`platform/` is shared infrastructure; `client/` is agent-grid's session daemon and the embedded HTTP/WS gateway under `client/web/`, both shipped as the single `server` binary; `orchestrator/` is the Symphony pipeline. Import direction (enforced by `depguard`, `src/.golangci.yml`): `platform/*` imports neither `client/*` nor `orchestrator/*`; `client/*` does not import `orchestrator/*`; `orchestrator/*` does not import `client/*`. Full layer definition: [ARCHITECTURE.md](ARCHITECTURE.md).
+`platform/` is shared infrastructure; `client/` is agent-grid's session daemon and `server/` is its HTTP/WS gateway (`server/api`), both shipped as the single `server` binary; the browser SPA lives at `clients/ui/` and is served by `cmd/uihost` (embedded via `src/uihost`); `orchestrator/` is the Symphony pipeline. Import direction (enforced by `depguard`, `src/.golangci.yml`): `platform/*` imports neither `client/*` nor `orchestrator/*`; `client/*` does not import `orchestrator/*`; `orchestrator/*` does not import `client/*`. Full layer definition: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Orchestrator-scoped test run: `cd src && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...`
 Conformance: `docs/design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。

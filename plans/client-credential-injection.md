@@ -3,7 +3,7 @@
 - **作成日**: 2026-06-30
 - **ブランチ**: `main`
 - **ステータス**: draft (依存: [multi-host-gateway.md](./multi-host-gateway.md) Phase 4 E2E Noise が確立していること)
-- **影響範囲**: `client/credproxy/` (browser-push を受領する Source 追加)、`client/web/` (secret store + 配布 UI + outbox)、host channel に frame 追加 (3 種)、ADR (credential source model / browser secret storage / Tier 1 vs Tier 2 / agent ごとの注入経路)
+- **影響範囲**: `client/credproxy/` (browser-push を受領する Source 追加)、`clients/ui/` (secret store + 配布 UI + outbox)、host channel に frame 追加 (3 種)、ADR (credential source model / browser secret storage / Tier 1 vs Tier 2 / agent ごとの注入経路)
 - **関連 ADR (将来起こす)**: (a) credential source model (host-sourced と browser-sourced の併存規約) / (b) browser secret storage (WebCrypto + IndexedDB + WebAuthn PRF or passphrase fallback) / (c) host-side memory-only retention 不変条件 / (d) agent ごとの注入経路 (tmpfile / env / stdin) / (e) sidecar callback proxy (Tier 2、別 plan)
 
 ## 0. 用語
@@ -143,7 +143,7 @@ type HostCredentialInvalidateFrame = {
 ### 4.4 状態スライス
 
 ```ts
-// src/client/web/src/state/credentialsSlice.ts (新設)
+// clients/ui/src/state/credentialsSlice.ts (新設)
 type CredentialsState = {
   store: Record<string, CredentialEntry>;     // credential_id → entry
   outbox: PendingOp[];                         // push / invalidate の queue
