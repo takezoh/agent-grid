@@ -110,9 +110,9 @@ The panel lives on screen 100% of the time; jank, focus-stealing, or off-OS mate
 - `agent-grid://` deep links resolve **inside the app** to existing-window activation, never to the browser.
 - Interaction hierarchy: (1) resolve in the panel without opening anything (approvals, questions — should be the majority); (2) jump back to the existing terminal/IDE/target app window; (3) only then open an app viewer window (diff review, plan reading).
 
-### 5. One install; headless server as a separate channel
+### 5. One install; headless server as a separate channel — deferred until distribution
 
-The distributable is a single bundle (dmg / brew cask / winget / msix) containing the native shell, the `server` binary, and the web assets. First launch starts the daemon; users never see it (Docker Desktop ↔ dockerd relationship). App updates carry the daemon and swap it gracefully. The **only** second artifact is the headless server distribution (apt / brew formula / plain binary) for remote-host operation — a different use case, not a second install for desktop users. Bundled-vs-remote version skew makes `compatibility-policy.md` a day-one need, not future-proofing.
+The eventual distributable is a single bundle (dmg / brew cask / winget / msix) containing the native shell, the `server` binary, and the web assets, with the headless server distribution as the only second artifact (remote hosts). **For now the operating posture is personal use**: local build scripts, unpackaged binaries, manual updates — installer, code signing, and auto-update are deferred wholesale until distribution begins. On Windows the daemon is **not ported**: it runs unchanged inside WSL (or on a remote Linux host) and the shell/workspace connect over loopback — pty, Unix sockets, and sandboxing stay Linux-only. Version skew between shell and daemon still makes `compatibility-policy.md` a day-one need.
 
 ### 6. Platform stacks
 
@@ -201,8 +201,8 @@ Exit: the same recorded scenarios drive all SDKs; compatibility tests run in CI;
 
 Detailed design: [plan-20260723-windows-shell-design.md](./plan-20260723-windows-shell-design.md). Build the app on Windows:
 
-1. single-bundle packaging (shell + daemon + web assets), signing/notarization, auto-update skeleton;
-2. daemon supervision: launch/adopt, health, graceful swap on update; quitting the app leaves sessions running;
+1. personal-use deployment: local build + placement scripts, unpackaged; daemon runs in WSL (no Windows port); installer/signing/auto-update deferred;
+2. daemon supervision: launch (via `wsl.exe`) / adopt, health, graceful restart; quitting the app leaves sessions running;
 3. ambient panel (tray flyout + top bar): session states, approve/deny, question answering, jump-back to terminal/IDE/WSL;
 4. Electron workspace app hosting the SPA in hosted mode, with the window discipline (reuse, restore, in-app deep-link resolution) enforced in its window registry;
 5. native notifications → panel or window activation.
@@ -263,7 +263,7 @@ Windows notifications/tray/deep links/external-app activation; macOS notch panel
 - **Push/remote infra unowned** — Phase R exists precisely so Phase 3 cannot start on an unbuilt foundation; conflict with the E2E gateway principle is named and must be resolved on paper first.
 - **Hosted workspace feels like "a website in a frame"** — hosted mode is a scoped work item (browser-idiom removal, window-model inversion, input routing, OS materials); exit review includes a design pass.
 - **Panel becomes a tab factory** — window discipline is a contract (tested), not a convention.
-- **Distribution fixed costs** — signing (Developer ID + notarization, Windows code signing), auto-update infra, daemon-swap design. Accepted as one-time product costs; scheduled in Phase 2, not discovered there.
+- **Distribution fixed costs** — signing (Developer ID + notarization, Windows code signing), auto-update infra. Deferred entirely while the posture is personal use; re-opened as a scoped work item when distribution begins.
 - **Excessive parallel scope** — one vertical slice with a measurable outcome before any new client; Phase 4/5 ordering is data-driven, not calendar-driven.
 - **Protocol drift** — generated clients, recorded scenarios, compatibility CI, explicit version policy.
 - **Sustained multi-stack maintenance** (C#/Swift/Kotlin + Go/TS) — mitigated by keeping native surface small (shell + panel), sharing the workspace SPA, and gating each new platform on usage.
