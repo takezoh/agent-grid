@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: src/client/web/package-lock.json
+          cache-dependency-path: clients/ui/package-lock.json
       - name: Run PR core verification profile
         env:
           BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
@@ -51,7 +51,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: src/client/web/package-lock.json
+          cache-dependency-path: clients/ui/package-lock.json
       - name: Run PR race verification profile
         env:
           AG_HARNESS_PROFILE_ARTIFACT: test-harness/profile-result-race.json
@@ -75,7 +75,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: src/client/web/package-lock.json
+          cache-dependency-path: clients/ui/package-lock.json
       - name: Run PR fuzz verification profile
         env:
           AG_HARNESS_PROFILE_ARTIFACT: test-harness/profile-result-fuzz.json

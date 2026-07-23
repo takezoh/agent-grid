@@ -1,5 +1,6 @@
-// Command web is the agent-grid web-client host: it serves the embedded
-// browser UI (xterm.js) and reverse-proxies the data plane (/api, /ws) to the
+// Command uihost is the agent-grid shared-UI host: it serves the embedded
+// shared session UI (xterm.js SPA, used by the browser client and the Electron
+// workspace) and reverse-proxies the data plane (/api, /ws) to the
 // backend (cmd/server). The browser talks only to this origin, so the page's
 // strict CSP and the WebSocket origin check hold while the backend stays a
 // headless API. Run it alongside cmd/server — see scripts/run-dev.sh.
@@ -19,8 +20,8 @@ import (
 	"syscall"
 	"time"
 
-	clientweb "github.com/takezoh/agent-grid/client/web"
 	"github.com/takezoh/agent-grid/platform/lib/tlsdev"
+	"github.com/takezoh/agent-grid/uihost"
 )
 
 func main() {
@@ -37,7 +38,7 @@ func run() error {
 	insecure := flag.Bool("insecure", false, "serve plain HTTP (no TLS) — local dev only")
 	flag.Parse()
 
-	handler, err := clientweb.Handler(*backend)
+	handler, err := uihost.Handler(*backend)
 	if err != nil {
 		return err
 	}

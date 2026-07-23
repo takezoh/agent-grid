@@ -17,7 +17,7 @@ import (
 var updateWireFixtures = flag.Bool("update", false, "rewrite committed wire fixtures")
 
 func TestWireFixtures(t *testing.T) {
-	dir := filepath.Join("..", "..", "client", "web", "src", "wire", "testdata")
+	dir := filepath.Join("..", "..", "..", "clients", "ui", "src", "wire", "testdata")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir testdata: %v", err)
 	}

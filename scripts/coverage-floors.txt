@@ -33,7 +33,7 @@ github.com/takezoh/agent-grid/client/runtime/worker               90
 github.com/takezoh/agent-grid/client/state                        80
 github.com/takezoh/agent-grid/client/state/view                   95
 github.com/takezoh/agent-grid/client/tools                        50
-github.com/takezoh/agent-grid/client/web                          90
+github.com/takezoh/agent-grid/uihost                          90
 
 # cmd/ — binary entry points
 github.com/takezoh/agent-grid/cmd/claude-app-server               60
@@ -48,7 +48,7 @@ github.com/takezoh/agent-grid/cmd/bridge                     0
 # and blocks (untestable in a unit test); the dispatch / flag-parse / gateway
 # helpers (resolveAuth, tokenFromFile, classifyCommand, runMain) are covered.
 github.com/takezoh/agent-grid/cmd/server                           15
-github.com/takezoh/agent-grid/cmd/web                              0
+github.com/takezoh/agent-grid/cmd/uihost                              0
 
 # internal/ — repo-internal tooling, not shipped in any binary
 github.com/takezoh/agent-grid/internal/harnesspolicy               75

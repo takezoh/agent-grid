@@ -203,7 +203,7 @@ func TestCIWorkflowRunsWebTestsAndDetectsUntrackedWireFixtures(t *testing.T) {
 		t.Fatalf("PR profile does not run the web test entrypoint")
 	}
 
-	pkgPath := filepath.Join(repoRoot(t), "src", "client", "web", "package.json")
+	pkgPath := filepath.Join(repoRoot(t), "clients", "ui", "package.json")
 	pkgRaw, err := os.ReadFile(pkgPath)
 	if err != nil {
 		t.Fatalf("read package.json: %v", err)
@@ -226,7 +226,7 @@ func TestCIWorkflowRunsWebTestsAndDetectsUntrackedWireFixtures(t *testing.T) {
 	if !strings.Contains(testCoverage, "vitest") || !strings.Contains(testCoverage, "--coverage") {
 		t.Fatalf("test:coverage is not an all-files coverage run: %q", testCoverage)
 	}
-	if !strings.Contains(profileText, "git status --porcelain -- client/web/src/wire/testdata") {
+	if !strings.Contains(profileText, "git status --porcelain -- ../clients/ui/src/wire/testdata") {
 		t.Fatalf("PR profile does not check untracked wire fixtures")
 	}
 }
@@ -331,7 +331,7 @@ func TestHarnessEnforcementCannotDisappearSilently(t *testing.T) {
 func TestGatewayScenarioTestsOnlySkipInShortMode(t *testing.T) {
 	repo := repoRoot(t)
 
-	codexScenarioPath := filepath.Join(repo, "src", "server", "web", "mux_scenario_test.go")
+	codexScenarioPath := filepath.Join(repo, "src", "server", "api", "mux_scenario_test.go")
 	codexRaw, err := os.ReadFile(codexScenarioPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", codexScenarioPath, err)
@@ -348,7 +348,7 @@ func TestGatewayScenarioTestsOnlySkipInShortMode(t *testing.T) {
 		t.Fatalf("unexpected additional skip found in %s", codexScenarioPath)
 	}
 
-	roostScenarioPath := filepath.Join(repo, "src", "server", "web", "mux_scenario_roost_test.go")
+	roostScenarioPath := filepath.Join(repo, "src", "server", "api", "mux_scenario_roost_test.go")
 	roostRaw, err := os.ReadFile(roostScenarioPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", roostScenarioPath, err)

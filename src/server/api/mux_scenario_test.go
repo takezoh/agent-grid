@@ -439,7 +439,7 @@ func assertOutputFrameShapeFromFixture(t *testing.T, frame []any) {
 
 func loadFixtureJSON(t *testing.T, name string) any {
 	t.Helper()
-	path := filepath.Join("..", "..", "client", "web", "src", "wire", "testdata", name)
+	path := filepath.Join("..", "..", "..", "clients", "ui", "src", "wire", "testdata", name)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read fixture %s: %v", name, err)

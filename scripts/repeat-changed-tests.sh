@@ -60,7 +60,7 @@ while IFS= read -r changed; do
         stem="${stem%.*}"
         find "$ROOT/$dir" -maxdepth 1 -type f \( -name '*.test.ts' -o -name '*.test.tsx' -o -name '*.spec.ts' -o -name '*.spec.tsx' \) 2>/dev/null |
             sed "s#^$ROOT/##" >> "$TMP/ts-targets"
-        rg -l --glob '*.{test,spec}.{ts,tsx}' "(\.\.?/)+${stem}(['\"]|$)" "$ROOT/src/client/web" 2>/dev/null |
+        rg -l --glob '*.{test,spec}.{ts,tsx}' "(\.\.?/)+${stem}(['\"]|$)" "$ROOT/clients/ui" 2>/dev/null |
             sed "s#^$ROOT/##" >> "$TMP/ts-targets" || true
     fi
 done < "$TMP/paths"
@@ -90,11 +90,11 @@ run_case() {
             (cd "$ROOT/src" && GODEBUG="randautoseed=0" run_with_timeout go test -count=1 -shuffle="$SEED" "$target")
             exit_code=$?
         elif [[ "$target" == "__ALL__" ]]; then
-            (cd "$ROOT/src/client/web" && VITEST_POOL_ID="$SEED" run_with_timeout npm test -- --run --sequence.seed "$SEED")
+            (cd "$ROOT/clients/ui" && VITEST_POOL_ID="$SEED" run_with_timeout npm test -- --run --sequence.seed "$SEED")
             exit_code=$?
         else
-            relative="${target#src/client/web/}"
-            (cd "$ROOT/src/client/web" && VITEST_POOL_ID="$SEED" run_with_timeout npm test -- --run "$relative" --sequence.seed "$SEED")
+            relative="${target#clients/ui/}"
+            (cd "$ROOT/clients/ui" && VITEST_POOL_ID="$SEED" run_with_timeout npm test -- --run "$relative" --sequence.seed "$SEED")
             exit_code=$?
         fi
         end="$(node -e 'process.stdout.write(String(Date.now()))')"

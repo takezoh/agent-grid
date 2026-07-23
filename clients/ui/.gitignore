@@ -1,6 +1,5 @@
 node_modules/
-dist/*
-!dist/.gitkeep
+dist/
 coverage/
 test-results/
 playwright-report/

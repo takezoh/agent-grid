@@ -19,7 +19,21 @@ func TestRepositorySkipInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	uses := make([]SkipUse, 0)
-	err = filepath.WalkDir(filepath.Join(root, "src"), func(filePath string, entry os.DirEntry, walkErr error) error {
+	// Both code trees carry skip markers: src/ (Go module) and clients/
+	// (user-facing clients, e.g. the clients/ui TypeScript tests).
+	for _, tree := range []string{"src", "clients"} {
+		uses, err = scanSkipTree(filepath.Join(root, tree), root, uses)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ValidateSkips(inventory, uses, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func scanSkipTree(treeRoot, root string, uses []SkipUse) ([]SkipUse, error) {
+	err := filepath.WalkDir(treeRoot, func(filePath string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -53,12 +67,7 @@ func TestRepositorySkipInventory(t *testing.T) {
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ValidateSkips(inventory, uses, time.Now()); err != nil {
-		t.Fatal(err)
-	}
+	return uses, err
 }
 
 func TestScanGoSkipsUsesAST(t *testing.T) {

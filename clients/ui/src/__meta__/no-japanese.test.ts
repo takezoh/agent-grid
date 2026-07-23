@@ -1,6 +1,6 @@
 // ADR-0049 (palette-ui-english-only) mechanical regression gate.
 //
-// Scans every .ts / .tsx under src/client/web/src/ and fails when a line
+// Scans every .ts / .tsx under clients/ui/src/ and fails when a line
 // contains hiragana, katakana, or CJK ideograph code points outside of a
 // per-file allowlist. Catches accidental reintroduction of Japanese UI
 // strings into the palette / web client source tree.

@@ -71,8 +71,8 @@ for (const mutant of [...manifest.mutants].sort((a,b) => a.id.localeCompare(b.id
     if (extract.status !== 0) throw new Error(`archive extraction failed: ${String(extract.stderr)}`);
     const mutated = Buffer.concat([source.subarray(0, mutant.start), Buffer.from(mutant.replacement), source.subarray(mutant.end)]);
     fs.writeFileSync(path.join(temp, mutant.path), mutated);
-    const sourceModules = path.join(root, "src/client/web/node_modules");
-    const tempModules = path.join(temp, "src/client/web/node_modules");
+    const sourceModules = path.join(root, "clients/ui/node_modules");
+    const tempModules = path.join(temp, "clients/ui/node_modules");
     if (fs.existsSync(sourceModules) && !fs.existsSync(tempModules)) fs.symlinkSync(sourceModules, tempModules, "dir");
     const caseStarted = Date.now();
     const result = spawnSync(mutant.command[0], mutant.command.slice(1), {

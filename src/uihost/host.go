@@ -1,4 +1,4 @@
-package web
+package uihost
 
 import (
 	"errors"
@@ -21,18 +21,18 @@ import (
 func Handler(backendURL string) (http.Handler, error) {
 	target, err := url.Parse(backendURL)
 	if err != nil || target.Host == "" {
-		return nil, fmt.Errorf("web: invalid backend URL %q: %w", backendURL, err)
+		return nil, fmt.Errorf("uihost: invalid backend URL %q: %w", backendURL, err)
 	}
 	if p := target.Path; p != "" && p != "/" {
 		// SetURL would prefix this path onto every proxied request, 404-ing the
 		// whole API silently; reject it at startup instead.
-		return nil, fmt.Errorf("web: backend URL must not include a path: %q", backendURL)
+		return nil, fmt.Errorf("uihost: backend URL must not include a path: %q", backendURL)
 	}
 	proxy := backendProxy(target)
 
 	distFS, err := DistFS()
 	if err != nil {
-		return nil, fmt.Errorf("web: embed sub-fs: %w", err)
+		return nil, fmt.Errorf("uihost: embed sub-fs: %w", err)
 	}
 
 	mux := http.NewServeMux()

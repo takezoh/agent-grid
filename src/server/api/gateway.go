@@ -345,7 +345,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 //
 // Subscribe / unsubscribe frames carry a reqId; for each, we write back a
 // {k:"r"} success or {k:"e"} error response so the React-side
-// subscribeWithRetry promise (client/web/src/socket/retry.ts) can resolve.
+// subscribeWithRetry promise (clients/ui/src/socket/retry.ts) can resolve.
 // Without those responses the promise blocks until WS close, exhausting the
 // retry budget without ever surfacing the real error code (e.g.
 // "frame-not-ready" that drives the ADR 0018 backoff).

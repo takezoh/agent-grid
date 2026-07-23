@@ -4,20 +4,20 @@
   "seed": 20260711,
   "mutants": [
     {
-      "id": "src/client/web/src/wire/codec.ts@3464:3488#conditional-negation#a98ddccb74935198b75d40e3c69b8bdde98daa8ff687d06d36b0fedf18983ceb",
-      "path": "src/client/web/src/wire/codec.ts", "start": 3464, "end": 3488,
+      "id": "clients/ui/src/wire/codec.ts@3464:3488#conditional-negation#a98ddccb74935198b75d40e3c69b8bdde98daa8ff687d06d36b0fedf18983ceb",
+      "path": "clients/ui/src/wire/codec.ts", "start": 3464, "end": 3488,
       "operator": "conditional-negation", "source_hash": "a98ddccb74935198b75d40e3c69b8bdde98daa8ff687d06d36b0fedf18983ceb",
       "before": "typeof v[3] === \"string\"", "replacement": "typeof v[3] !== \"string\"",
       "command": ["npm", "test", "--", "--run", "src/wire/codec.test.ts", "--sequence.seed", "20260711"],
-      "working_dir": "src/client/web", "timeout_seconds": 300
+      "working_dir": "clients/ui", "timeout_seconds": 300
     },
     {
-      "id": "src/client/web/src/store/workspaceActivity.ts@21497:21525#conditional-negation#9e4cbd9b58dd7d5695e5f43cfe3a4915612e576e47231d2471fbcf481673fbfb",
-      "path": "src/client/web/src/store/workspaceActivity.ts", "start": 21497, "end": 21525,
+      "id": "clients/ui/src/store/workspaceActivity.ts@21497:21525#conditional-negation#9e4cbd9b58dd7d5695e5f43cfe3a4915612e576e47231d2471fbcf481673fbfb",
+      "path": "clients/ui/src/store/workspaceActivity.ts", "start": 21497, "end": 21525,
       "operator": "conditional-negation", "source_hash": "9e4cbd9b58dd7d5695e5f43cfe3a4915612e576e47231d2471fbcf481673fbfb",
       "before": "resolution === \"take_theirs\"", "replacement": "resolution !== \"take_theirs\"",
       "command": ["npm", "test", "--", "--run", "src/store/__tests__/workspaceActivity.test.ts", "src/components/workspace/WorkspaceDrawer.test.tsx", "--sequence.seed", "20260711"],
-      "working_dir": "src/client/web", "timeout_seconds": 300
+      "working_dir": "clients/ui", "timeout_seconds": 300
     },
     {
       "id": "src/client/runtime/subsystem/stream/backend.go@19629:19655#route-target-substitution#e3348393b5c226102381f74c3ebe6218a5ddcc2467b20e3aaa8526e7f4f3dbf7",

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Launch a fully-isolated dev stack: the merged backend (cmd/server — daemon +
 # HTTP/WS gateway in one process) under a scratch data dir, plus the web-client
-# host (cmd/web). The scratch data dir means this never collides with another
+# host (cmd/uihost, binary name `web`). The scratch data dir means this never collides with another
 # user-scope agent-grid backend ($HOME/.agent-grid/) — they can run side
 # by side.
 #
@@ -48,7 +48,7 @@ SERVER_LOG="$SERVER_DATA_DIR/server.log"
 # binary from a previous checkout/branch run against today's source. `go build`
 # is a no-op when nothing changed, so the cost of always running it is
 # negligible. `make build-web` depends on $(WEB_DIST), which itself depends on
-# web sources, so the React bundle is rebuilt only when src/client/web/
+# web sources, so the React bundle is rebuilt only when clients/ui/
 # actually changed.
 make build-server
 make build-web

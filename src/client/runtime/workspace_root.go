@@ -3,7 +3,6 @@ package runtime
 import (
 	"path/filepath"
 
-	"github.com/takezoh/agent-grid/client/driver"
 	"github.com/takezoh/agent-grid/client/state"
 )
 
@@ -34,8 +33,16 @@ func ResolveWorkspaceRoot(headFrame state.SessionFrame, sess state.Session) stri
 	return filepath.Clean(abs)
 }
 
+// workspaceDirSource mirrors driver.WorkspaceDirSource structurally so the
+// runtime root needs no driver/ import (depguard rule runtime-no-driver);
+// interfaces are defined where they are consumed.
+type workspaceDirSource interface {
+	WorkspaceStartDir() string
+	WorkspaceWorktreeName() string
+}
+
 func workspaceDirsFromDriver(ds state.DriverState) (startDir, worktreeName string) {
-	if src, ok := ds.(driver.WorkspaceDirSource); ok {
+	if src, ok := ds.(workspaceDirSource); ok {
 		return src.WorkspaceStartDir(), src.WorkspaceWorktreeName()
 	}
 	return "", ""

@@ -1,9 +1,9 @@
-// Package web is the web-client host for the agent-grid server: it embeds the
+// Package uihost is the shared-UI host for the agent-grid server: it embeds the
 // browser client (Vite/React UI built into dist/) and provides Handler, which
 // serves that UI under a strict Content-Security-Policy and reverse-proxies the
 // data plane (/api, /ws) to the headless backend (cmd/server). The browser
-// talks only to this origin; the backend serves no HTML. Wired up by cmd/web.
-package web
+// talks only to this origin; the backend serves no HTML. Wired up by cmd/uihost.
+package uihost
 
 import (
 	"embed"

@@ -27,10 +27,10 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: src/client/web/package-lock.json
+          cache-dependency-path: clients/ui/package-lock.json
 
       - name: build web assets
-        working-directory: src/client/web
+        working-directory: clients/ui
         run: |
           npm ci
           npm run build

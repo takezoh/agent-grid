@@ -22,21 +22,21 @@ func TestParseNameStatusPreservesRenameAndDeletePaths(t *testing.T) {
 func TestSelectRepeatTargetsAddModifyRenameDeleteAndSort(t *testing.T) {
 	files := []RepositoryFile{
 		{Path: "src/a/a_test.go"}, {Path: "src/old/old_test.go"}, {Path: "src/new/new_test.go"},
-		{Path: "src/client/web/src/a.test.ts", Content: `import "./a"`},
-		{Path: "src/client/web/src/deleted/z-sibling.test.ts", Content: `import "./renamed"`},
+		{Path: "clients/ui/src/a.test.ts", Content: `import "./a"`},
+		{Path: "clients/ui/src/deleted/z-sibling.test.ts", Content: `import "./renamed"`},
 	}
 	entries := []DiffEntry{
 		{Status: "M", Paths: []string{"src/a/a.go"}},
 		{Status: "D", Paths: []string{"src/old/old.go"}},
 		{Status: "R100", Paths: []string{"src/new/before.go", "src/new/after.go"}},
-		{Status: "M", Paths: []string{"src/client/web/src/a.ts"}},
-		{Status: "D", Paths: []string{"src/client/web/src/deleted/z.test.ts"}},
+		{Status: "M", Paths: []string{"clients/ui/src/a.ts"}},
+		{Status: "D", Paths: []string{"clients/ui/src/deleted/z.test.ts"}},
 	}
 	selection := SelectRepeatTargets(entries, files)
 	if want := []string{"./a", "./new", "./old"}; !reflect.DeepEqual(selection.GoPackages, want) {
 		t.Fatalf("Go packages = %v, want %v", selection.GoPackages, want)
 	}
-	if want := []string{"src/client/web/src/a.test.ts", "src/client/web/src/deleted/z-sibling.test.ts"}; !reflect.DeepEqual(selection.TypeScript, want) {
+	if want := []string{"clients/ui/src/a.test.ts", "clients/ui/src/deleted/z-sibling.test.ts"}; !reflect.DeepEqual(selection.TypeScript, want) {
 		t.Fatalf("TS tests = %v, want %v", selection.TypeScript, want)
 	}
 }

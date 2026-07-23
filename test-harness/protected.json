@@ -14,7 +14,7 @@
     {"path": "scripts/check-harness-tampering.sh", "category": "checker-invocation", "required_markers": ["--mode tampering"]},
     {"path": "scripts/run-trusted-harness-gate.sh", "category": "trusted-bootstrap", "required_markers": ["archive --format=tar", "check-harness-tampering.sh"]},
     {"path": "scripts/coverage-floors.txt", "category": "coverage-floor", "required_markers": []},
-    {"path": "src/client/web/vitest.config.ts", "category": "web-coverage-policy", "required_markers": ["thresholds", "src/{api,socket,wire}/**", "src/components/**"]},
+    {"path": "clients/ui/vitest.config.ts", "category": "web-coverage-policy", "required_markers": ["thresholds", "src/{api,socket,wire}/**", "src/components/**"]},
     {"path": "src/gorules/static_enforcement_test.go", "category": "independent-static-pin", "required_markers": ["TestCheckE2ESiblingsScript"]},
     {"path": ".github/workflows/ci.yml", "category": "workflow", "required_markers": ["run-verification-profile.sh pr core", "profile-result-core.json"]},
     {"path": ".github/workflows/e2e-nightly.yml", "category": "workflow", "required_markers": ["install-pinned-codex.sh fidelity"]},

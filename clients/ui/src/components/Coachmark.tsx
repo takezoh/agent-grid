@@ -2,7 +2,7 @@
 // (ADR 0072, FR-MOB-COACH-001/002).
 //
 // Open Question 3 grep (Tooltip / Popover / Hint / Snackbar primitives under
-// src/client/web/src/components): the only dismissible surfaces are
+// clients/ui/src/components): the only dismissible surfaces are
 // NotificationToast (store-driven passive toasts) and UndoSnackbar (action-undo),
 // neither of which is a static one-line hint anchored to a control. Per ADR 0072
 // (4) "if none exists, a minimal <div role='status'>" we implement the minimal surface
