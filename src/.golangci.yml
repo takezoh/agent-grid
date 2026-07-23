@@ -84,28 +84,28 @@ linters:
           pkg: github\.com/takezoh/agent-reactor/(server|cmd/server)
           msg: "server/* must reach the daemon via DaemonClient — no direct agentlaunch.NewDispatcher (see ADR 0016)"
         - pattern: 'os\.WriteFile'
-          pkg: github\.com/takezoh/agent-grid/server/web
+          pkg: github\.com/takezoh/agent-grid/server/api
           msg: "workspace viewer handlers are read-only (ADR wsviewer-no-write-depguard)"
         - pattern: 'os\.Create'
-          pkg: github\.com/takezoh/agent-grid/server/web
+          pkg: github\.com/takezoh/agent-grid/server/api
           msg: "workspace viewer handlers are read-only (ADR wsviewer-no-write-depguard)"
         - pattern: 'os\.Remove'
-          pkg: github\.com/takezoh/agent-grid/server/web
+          pkg: github\.com/takezoh/agent-grid/server/api
           msg: "workspace viewer handlers are read-only (ADR wsviewer-no-write-depguard)"
         - pattern: 'os\.RemoveAll'
-          pkg: github\.com/takezoh/agent-grid/server/web
+          pkg: github\.com/takezoh/agent-grid/server/api
           msg: "workspace viewer handlers are read-only (ADR wsviewer-no-write-depguard)"
         - pattern: 'os\.Rename'
-          pkg: github\.com/takezoh/agent-grid/server/web
+          pkg: github\.com/takezoh/agent-grid/server/api
           msg: "workspace viewer handlers are read-only (ADR wsviewer-no-write-depguard)"
         - pattern: 'os\.Chmod'
-          pkg: github\.com/takezoh/agent-grid/server/web
+          pkg: github\.com/takezoh/agent-grid/server/api
           msg: "workspace viewer handlers are read-only (ADR wsviewer-no-write-depguard)"
         - pattern: 'os\.Mkdir'
-          pkg: github\.com/takezoh/agent-grid/server/web
+          pkg: github\.com/takezoh/agent-grid/server/api
           msg: "workspace viewer handlers are read-only (ADR wsviewer-no-write-depguard)"
         - pattern: 'os\.MkdirAll'
-          pkg: github\.com/takezoh/agent-grid/server/web
+          pkg: github\.com/takezoh/agent-grid/server/api
           msg: "workspace viewer handlers are read-only (ADR wsviewer-no-write-depguard)"
       # The no-goroutine / no-wall-clock / no-direct-I/O invariants of the pure cores
       # are enforced by gocritic's ruleguard checker (gorules/purecore.go); forbidigo
@@ -266,7 +266,7 @@ linters:
         path: "platform/lib/.+/command\\.go$"
       # workspace_write.go is the sole sanctioned mutation path for workspace files.
       - linters: [forbidigo]
-        path: "server/web/workspace_write\\.go$"
+        path: "server/api/workspace_write\\.go$"
       # Real docker exec is intentionally isolated behind the devcontainer shell.
       - linters: [gocritic]
         path: "platform/sandbox/devcontainer/.*\\.go$"

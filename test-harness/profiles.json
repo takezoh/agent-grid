@@ -11,7 +11,7 @@
     ]},
     {"name":"pr","tier":"T0-T2 full","commands":[
       {"id":"web-gate","group":"core","command":"cd src/client/web && npm ci && npx playwright install chromium && npm run test:web"},
-      {"id":"wire-fixtures","group":"core","command":"cd src && go test ./server/web -run TestWireFixtures -count=1 -args -update && git diff --exit-code -- client/web/src/wire/testdata && test -z \"$(git status --porcelain -- client/web/src/wire/testdata)\""},
+      {"id":"wire-fixtures","group":"core","command":"cd src && go test ./server/api -run TestWireFixtures -count=1 -args -update && git diff --exit-code -- client/web/src/wire/testdata && test -z \"$(git status --porcelain -- client/web/src/wire/testdata)\""},
       {"id":"go-vet","group":"core","command":"cd src && go vet ./..."},
       {"id":"e2e-vet","group":"core","command":"scripts/vet-go-e2e.sh"},
       {"id":"e2e-siblings","group":"core","command":"scripts/check-e2e-siblings.sh"},
@@ -29,7 +29,7 @@
       {"id":"web-build-for-fuzz","group":"fuzz","command":"cd src/client/web && npm ci && npm run build"},
       {"id":"fuzz-stream","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzStreamRouting$' -fuzztime=30s ./client/runtime/subsystem/stream/"},
       {"id":"fuzz-state","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzReduce$' -fuzztime=30s ./client/state/"},
-      {"id":"fuzz-web","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzApplyInboundProto$' -fuzztime=30s ./server/web/"},
+      {"id":"fuzz-web","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzApplyInboundProto$' -fuzztime=30s ./server/api/"},
       {"id":"fuzz-osc","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzParseOsc$' -fuzztime=30s ./client/runtime/"},
       {"id":"schema-drift","group":"schema","command":"make codex-schema-check"}
     ]},

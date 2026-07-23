@@ -18,7 +18,7 @@ import (
 
 	"github.com/takezoh/agent-grid/platform/lib/systemdnotify"
 	"github.com/takezoh/agent-grid/platform/lib/tlsdev"
-	serverweb "github.com/takezoh/agent-grid/server/web"
+	serverapi "github.com/takezoh/agent-grid/server/api"
 )
 
 // shutdownGracePeriod bounds the time gateway.Shutdown waits for in-flight
@@ -32,7 +32,7 @@ var notifyReady = systemdnotify.Ready
 // gatewayHandle keeps the resources the gateway goroutine owns so the daemon
 // can reap them on shutdown.
 type gatewayHandle struct {
-	daemon *serverweb.DaemonClient
+	daemon *serverapi.DaemonClient
 	srv    *http.Server
 	done   <-chan struct{}
 }
@@ -69,7 +69,7 @@ func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, data
 	if err != nil {
 		return nil, err
 	}
-	daemon := serverweb.NewDaemonClient(sockPath)
+	daemon := serverapi.NewDaemonClient(sockPath)
 	srv := &http.Server{
 		Addr:              df.addr,
 		Handler:           buildHTTPHandler(daemon, dataDir, token, df.noAuth),
@@ -228,13 +228,13 @@ func writeTokenAtomic(path, tok string) error {
 // buildHTTPHandler picks the appropriate mux variant and bolts on /healthz.
 // no-auth mode goes through NewMuxNoAuth, which mounts apiHandler directly
 // (no TokenAuth wrap) and skips the WS-ticket consume check.
-func buildHTTPHandler(daemon *serverweb.DaemonClient, dataDir, token string, noAuth bool) http.Handler {
-	serverweb.InitWorkspaceOperatorAuditor(daemon, dataDir)
+func buildHTTPHandler(daemon *serverapi.DaemonClient, dataDir, token string, noAuth bool) http.Handler {
+	serverapi.InitWorkspaceOperatorAuditor(daemon, dataDir)
 	mux := http.NewServeMux()
 	if noAuth {
-		mux.Handle("/", serverweb.NewMuxNoAuth(daemon))
+		mux.Handle("/", serverapi.NewMuxNoAuth(daemon))
 	} else {
-		mux.Handle("/", serverweb.NewMux(daemon, token))
+		mux.Handle("/", serverapi.NewMux(daemon, token))
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeHealth(w, daemon)
@@ -261,7 +261,7 @@ func logStartup(addr string, insecure, noAuth bool, sockPath, token string) {
 	}
 }
 
-func writeHealth(w http.ResponseWriter, d *serverweb.DaemonClient) {
+func writeHealth(w http.ResponseWriter, d *serverapi.DaemonClient) {
 	healthy := d.Health()
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

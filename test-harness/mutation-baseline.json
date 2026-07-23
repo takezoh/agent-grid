@@ -9,6 +9,6 @@
     {"id":"src/client/web/src/store/workspaceActivity.ts@21497:21525#conditional-negation#9e4cbd9b58dd7d5695e5f43cfe3a4915612e576e47231d2471fbcf481673fbfb","must_kill":true},
     {"id":"src/client/runtime/subsystem/stream/backend.go@19629:19655#route-target-substitution#e3348393b5c226102381f74c3ebe6218a5ddcc2467b20e3aaa8526e7f4f3dbf7","must_kill":true},
     {"id":"src/client/state/reduce.go@610:636#event-drop#3277877167dae5a5d3861a3d0a52462fb71ca623c72b36c7522b030076e7219c","must_kill":true},
-    {"id":"src/server/web/wire.go@1853:1912#codec-field-omission#cc03e5fe861f408c7c4a051ca76299661f71ec586bbe66390cd7efcc64a364e6","must_kill":true}
+    {"id":"src/server/api/wire.go@1853:1912#codec-field-omission#cc03e5fe861f408c7c4a051ca76299661f71ec586bbe66390cd7efcc64a364e6","must_kill":true}
   ]
 }

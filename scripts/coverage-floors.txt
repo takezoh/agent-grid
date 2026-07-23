@@ -123,5 +123,5 @@ github.com/takezoh/agent-grid/platform/tracker                    0
 # 2026-07-05 floor recalibration: after the browser smoke and gateway scenario
 # backstops landed, short-mode coverage stabilized near 77%, so the enforced
 # floor was reset from 90 to 75 to match measured coverage.
-github.com/takezoh/agent-grid/server/web                          75
-github.com/takezoh/agent-grid/server/web/testsupport/fakeagents    0
+github.com/takezoh/agent-grid/server/api                          75
+github.com/takezoh/agent-grid/server/api/testsupport/fakeagents    0

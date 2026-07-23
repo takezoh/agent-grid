@@ -34,11 +34,11 @@
       "command": ["go", "test", "./client/state", "-run", "^TestRegisterFrameEvent_FrameCtxResolved$"], "working_dir": "src", "timeout_seconds": 300
     },
     {
-      "id": "src/server/web/wire.go@1853:1912#codec-field-omission#cc03e5fe861f408c7c4a051ca76299661f71ec586bbe66390cd7efcc64a364e6",
-      "path": "src/server/web/wire.go", "start": 1853, "end": 1912,
+      "id": "src/server/api/wire.go@1853:1912#codec-field-omission#cc03e5fe861f408c7c4a051ca76299661f71ec586bbe66390cd7efcc64a364e6",
+      "path": "src/server/api/wire.go", "start": 1853, "end": 1912,
       "operator": "codec-field-omission", "source_hash": "cc03e5fe861f408c7c4a051ca76299661f71ec586bbe66390cd7efcc64a364e6",
       "before": "json.Marshal([]any{e.TimeSec, \"o\", e.DataB64, e.SessionID})", "replacement": "json.Marshal([]any{e.TimeSec, \"o\", e.DataB64})",
-      "command": ["go", "test", "./server/web", "-run", "^TestWire(EncodeServerEvent_SurfaceOutput|Fixtures)$"], "working_dir": "src", "timeout_seconds": 300
+      "command": ["go", "test", "./server/api", "-run", "^TestWire(EncodeServerEvent_SurfaceOutput|Fixtures)$"], "working_dir": "src", "timeout_seconds": 300
     }
   ]
 }
