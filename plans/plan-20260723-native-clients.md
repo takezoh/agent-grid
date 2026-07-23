@@ -1,7 +1,7 @@
 # Agent Grid Native Clients Plan
 
 - **作成日**: 2026-07-23
-- **更新日**: 2026-07-23 (rev 3 — 最初のデスクトップ OS を Windows、最初のモバイルを iOS に決定。rev 2 でデスクトップを「フルネイティブ再構築」から「ネイティブシェル + 既存 Web ワークスペースのホスト」へ再定義)
+- **更新日**: 2026-07-23 (rev 4 — Windows のワークスペースホストを Electron に決定 (シェルはネイティブ維持)、詳細設計を plan-20260723-windows-shell-design.md に分離。rev 3 で Windows/iOS を先行 OS に決定。rev 2 でデスクトップを「フルネイティブ再構築」から「ネイティブシェル + 既存 Web ワークスペースのホスト」へ再定義)
 - **ブランチ**: `claude/native-clients-plan-review-2sjfs5`
 - **ステータス**: draft (設計レビュー段階)
 - **影響範囲**: 新規デスクトップアプリシェル、`server/web` の契約層公開面、approval/question のサーバー側ドメイン新設、`src/client/web` の hosted モード、配布/署名/自動更新
@@ -73,13 +73,15 @@ Agent Grid Platform
 ### Desktop app composition
 
 ```text
-Agent Grid.app  (one app identity, one install)
-├── Ambient panel (notch / tray)         — fully native; design investment concentrates here
-├── Workspace windows                    — native windows/tabs hosting the existing SPA (hosted mode)
-│    └── terminal / files / diff / Markdown = existing web assets (xterm.js et al.)
-├── Notifications, deep links, global shortcuts, menus — native
-└── Daemon supervisor
-     └── launches / adopts / health-checks the bundled `server` binary
+Agent Grid  (one app identity, one install)
+├── Shell — fully native, resident; design investment concentrates here
+│    ├── ambient panel (notch / tray flyout + top bar)
+│    ├── notifications, deep links, global shortcuts, jump-back
+│    └── daemon supervisor — launches / adopts / health-checks the bundled `server` binary
+└── Workspace — on-demand window host for the existing SPA (hosted mode)
+     └── terminal / files / diff / Markdown = existing web assets (xterm.js et al.)
+     └── on Windows: an Electron app owned by the native shell (VS Code model);
+        window discipline enforced in its window registry
 ```
 
 The server is the source of truth. No GUI client owns long-running sessions. **Closing any client — including quitting the desktop app — must not terminate agent work.** The app supervises the daemon's lifecycle (login-item autostart, health, upgrade) but does not own it.
@@ -92,7 +94,7 @@ The desktop app talks to the daemon exclusively through the public contract — 
 
 ### 2. Desktop = native shell + hosted web workspace (the VS Code model)
 
-Do not rebuild the workspace natively, and do not leave it in a browser tab. The shell — windows, tabs, menus, shortcuts, notifications, deep links, the ambient panel — is native. The workspace content (terminal, files, diff, Markdown) is the existing SPA hosted in WebView2 / WKWebView in a **hosted mode**. VS Code and Cursor demonstrate that a web-rendered workspace inside a native shell reads as a first-class app; xterm.js in a WebView is the industry-standard terminal for this class of product.
+Do not rebuild the workspace natively, and do not leave it in a browser tab. The shell — the ambient panel, notifications, deep links, shortcuts, daemon supervision — is native. The workspace content (terminal, files, diff, Markdown) is the existing SPA in a **hosted mode**, living in a dedicated window host: on Windows, an **Electron workspace app** launched and directed by the native shell (chosen over WebView2 islands for xterm.js/IME maturity, TS-owned multi-window management, and Playwright testability — see [plan-20260723-windows-shell-design.md](./plan-20260723-windows-shell-design.md)); on macOS, decided at Phase 4. VS Code and Cursor demonstrate that a web-rendered workspace reads as a first-class app; xterm.js in Electron is the industry-standard terminal for this class of product. The Electron footprint is confined to the on-demand workspace — the resident shell stays native.
 
 Hosted mode is a real work item, not a wrapper: remove browser idioms (page navigation, browser scrollbars, web-page text selection), invert the window model (native tab/window per session; the SPA renders one session view per surface), route keyboard/IME/menu through the shell, and connect OS materials (Mica / vibrancy) and theme following.
 
@@ -116,8 +118,9 @@ The distributable is a single bundle (dmg / brew cask / winget / msix) containin
 
 | Surface | Technology | Role |
 |---|---|---|
-| Desktop shell (Windows) | WinUI 3 / WPF + WebView2; `WS_EX_NOACTIVATE`, Mica/Acrylic | Panel, windows, notifications, deep links, daemon supervision |
-| Desktop shell (macOS) | SwiftUI + AppKit (NSPanel, NSVisualEffectView) + WKWebView | Same, plus notch panel |
+| Desktop shell (Windows) | C# + WinUI 3 / Windows App SDK; `WS_EX_NOACTIVATE`, Mica/Acrylic, AppNotification | Panel, notifications, deep links, jump-back, daemon supervision |
+| Workspace host (Windows) | Electron (TS), on-demand, shell-directed | Session windows with window discipline; hosts the SPA |
+| Desktop shell (macOS) | SwiftUI + AppKit (NSPanel, NSVisualEffectView); workspace host decided at Phase 4 | Same roles, plus notch panel |
 | Workspace content | Existing SPA (React/TS/xterm.js) in hosted mode | Terminal, files, diff, Markdown — shared with browser client |
 | iOS | Swift + SwiftUI | Remote supervision: push, approvals, questions, short commands, handoff |
 | Android | Kotlin + Jetpack Compose | Same role, Android-native patterns |
@@ -196,12 +199,12 @@ Exit: the same recorded scenarios drive all SDKs; compatibility tests run in CI;
 
 ### Phase 2: Desktop app vertical slice (Windows)
 
-Build the app on Windows:
+Detailed design: [plan-20260723-windows-shell-design.md](./plan-20260723-windows-shell-design.md). Build the app on Windows:
 
 1. single-bundle packaging (shell + daemon + web assets), signing/notarization, auto-update skeleton;
 2. daemon supervision: launch/adopt, health, graceful swap on update; quitting the app leaves sessions running;
 3. ambient panel (tray flyout + top bar): session states, approve/deny, question answering, jump-back to terminal/IDE/WSL;
-4. workspace windows hosting the SPA in hosted mode, with the window discipline (reuse, restore, in-app deep-link resolution);
+4. Electron workspace app hosting the SPA in hosted mode, with the window discipline (reuse, restore, in-app deep-link resolution) enforced in its window registry;
 5. native notifications → panel or window activation.
 
 Exit: **the local flow never touches a browser**; a full approval round trip happens in the panel; notification-to-session navigation is reliable; the app quits and relaunches without losing sessions or window layout.
@@ -295,7 +298,7 @@ Engineering:
 
 ## Decision summary
 
-- Agent Grid is a server-backed platform; the desktop **app** is its primary local face: fully native ambient panel + native-owned workspace windows hosting the existing SPA (VS Code model). The workspace is not rebuilt natively.
+- Agent Grid is a server-backed platform; the desktop **app** is its primary local face: fully native resident shell (ambient panel, notifications, deep links, daemon supervision) + an on-demand workspace host for the existing SPA (VS Code model; Electron on Windows). The workspace is not rebuilt natively, and Electron never becomes the resident shell.
 - The app is a client + daemon supervisor over the public contract — never a monolith, never a privileged client. Quitting it never kills sessions.
 - One install bundles shell, daemon, and web assets; the headless server is a separate channel for remote hosts only.
 - Window discipline: reuse, restore, in-app deep links; the browser exits the local flow and remains for remote/fallback.
