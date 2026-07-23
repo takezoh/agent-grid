@@ -13,6 +13,7 @@
 | [multi-host-gateway.md](./multi-host-gateway.md) | **Prerequisite for mobile phases.** Remote reachability, E2E encryption, pairing, and auth design are authoritative there. Open conflict to resolve: push-notification delivery requires something server-side to observe session events, while the gateway plan forbids the gateway from holding domain data (§ Phase R below). |
 | [remote-control-mobile-session-deep-link.md](./remote-control-mobile-session-deep-link.md) | Prior investigation of notification → mobile deep-link flows; input to `deep-links.schema.json`. |
 | [client-as-host.md](./client-as-host.md) | Client-machine-as-host follow-up; unaffected but shares the app-shell packaging. |
+| [plan-20260723-repo-structure.md](./plan-20260723-repo-structure.md) | Repository layout anticipating `clients/`, `protocol/`, `contracts/`, the `client/`→`host/` rename, and reserved names for the multi-host gateway. |
 | [ARCHITECTURE.md](../ARCHITECTURE.md) | The `server/*` gateway layer already exists as a stateless proxy explicitly designed for "future native clients". This plan adds clients to that face; it does not restructure the server. |
 | ADR-0021 / ADR-0025 / ADR-0011 / ADR-0022 | Existing wire-type and reconnect decisions this plan extends or supersedes (§ Current-state gaps). |
 
