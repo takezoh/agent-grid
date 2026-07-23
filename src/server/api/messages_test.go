@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/takezoh/agent-grid/client/proto"
-	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/host/proto"
+	"github.com/takezoh/agent-grid/host/state"
 )
 
 func TestMux_GetSessionMessages(t *testing.T) {

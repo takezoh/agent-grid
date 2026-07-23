@@ -19,4 +19,4 @@ notifications.schema.json # 通知ペイロード
 - 破壊的変更は `contracts/compatibility-policy.md` に従う。
 - Go 側の生成物/手書きワイヤ型は stdlib のみ (AGENTS.md)。多言語生成の採用は ADR-0021 の supersede として ADR を起こすこと。
 
-中身が入るまでの現行ワイヤ実体: `src/client/proto` (IPC) と `src/server/api/wire.go` (HTTP/WS)。
+中身が入るまでの現行ワイヤ実体: `src/host/proto` (IPC) と `src/server/api/wire.go` (HTTP/WS)。

@@ -9,7 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/host/proto"
 )
 
 // TestLifecycleForwardsSessionFileLine verifies that EvtSessionFileLine with

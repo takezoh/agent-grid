@@ -6,7 +6,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/takezoh/agent-grid/client/runtime"
+	"github.com/takezoh/agent-grid/host/runtime"
 	"github.com/takezoh/agent-grid/platform/mcpproxy"
 )
 

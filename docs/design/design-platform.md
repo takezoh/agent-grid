@@ -540,7 +540,7 @@ source_paths:
 provides:
 - platform-shared-infrastructure
 summary: platform/ is the base layer. Both the server backend (client/) and the orchestrator/
-  depend on it; it depends on neither of them (enforced by the depguard rule platform-no-client-or-orchestrator).
+  depend on it; it depends on neither of them (enforced by the depguard rule platform-no-host-or-orchestrator).
   Wire-format and
 ---
 
@@ -548,7 +548,7 @@ summary: platform/ is the base layer. Both the server backend (client/) and the 
 
 # platform/ — Shared Infrastructure
 
-`platform/` is the base layer. Both the `server` backend (`client/`) and the `orchestrator/` depend on it; it depends on **neither** of them (enforced by the `depguard` rule `platform-no-client-or-orchestrator`). Wire-format and persistence types here stay stdlib-only.
+`platform/` is the base layer. Both the `server` backend (`client/`) and the `orchestrator/` depend on it; it depends on **neither** of them (enforced by the `depguard` rule `platform-no-host-or-orchestrator`). Wire-format and persistence types here stay stdlib-only.
 
 Because it sits below both services, `platform/` is where tool-specific knowledge (paths, env var names, CLI invocations) is allowed to live — keeping it out of the generic layers above.
 
@@ -557,7 +557,7 @@ Because it sits below both services, `platform/` is where tool-specific knowledg
 `platform/` is a **library layer, not a decision loop**, so the Functional Core / Imperative Shell form of the [core principles](../../../ARCHITECTURE.md#core-principles-all-layers) does not apply here. It still serves the same overriding goal — **testability** — but through **dependency-injection seams** rather than a pure reducer:
 
 - **Testability via DI seams** — code that wraps an external dependency (`exec`, docker, the network, a filesystem path) puts that dependency behind an injectable interface or an env-var override, so tests substitute a fake. Examples: subprocess wrappers expose a `Runner` interface (`lib/github.Runner`) with a `DefaultRunner` for production and a fake for tests; external config paths accept overrides (`CODEX_CONFIG_DIR`). "We can't test it without the real binary" is a design defect — cover the parsing/command-assembly logic behind the seam.
-- **Base layer, no upward imports** — `platform/` imports neither `client/` nor `orchestrator/` (enforced by `depguard` rule `platform-no-client-or-orchestrator`). It knows nothing about the services above it.
+- **Base layer, no upward imports** — `platform/` imports neither `client/` nor `orchestrator/` (enforced by `depguard` rule `platform-no-host-or-orchestrator`). It knows nothing about the services above it.
 - **Tool-specific knowledge concentrated here** — paths, env-var names, and CLI invocations live in `lib/<tool>/` and `credproxy/` so the generic layers above stay tool-agnostic. This is the receiving side of client's Driver isolation.
 - **Agent-agnostic launch primitive** — `agentlaunch` (`Spawn`/`SplitArgs`/`Dispatcher`) turns a command string into a running process without knowing which agent it launches; per-agent argv construction stays in `lib/<tool>`.
 - **Wire-format / persistence is stdlib-only** — types that cross the wire or hit disk depend only on the standard library, for portability.
@@ -896,7 +896,7 @@ source_paths:
 - src/platform/procgroup/
 - src/platform/pathmap/
 - WORKFLOW.md
-- src/client/state/
+- src/host/state/
 provides:
 - spawn-launch-centralized-agent-process-launching
 summary: The platform/ layer owns the single answer to "how does a command string
@@ -963,7 +963,7 @@ flowchart TD
 
 ### `LaunchPlan` → `WrappedLaunch`
 
-`LaunchPlan` carries pure launch parameters (`types.go:11`). `ForceHost` replaces the client/state `SandboxOverride == SandboxOverrideHost` sentinel, forcing a bypass of the container.
+`LaunchPlan` carries pure launch parameters (`types.go:11`). `ForceHost` replaces the host/state `SandboxOverride == SandboxOverrideHost` sentinel, forcing a bypass of the container.
 
 `Dispatcher.Wrap` (`dispatcher.go:8`) applies sandbox logic and returns a `WrappedLaunch` (`types.go:32`), which includes the teardown hook `Cleanup func(context.Context) error` and the `Mounts []Mount` used for in-container path translation.
 
@@ -1301,7 +1301,7 @@ different and driven by the test scenario.
 ```
 
 
-Fields mirror `client/driver/claude_event.go:hookPayload`. The duplication is
+Fields mirror `host/driver/claude_event.go:hookPayload`. The duplication is
 deliberate — the driver's private struct cannot be re-exported without
 crossing the platform → client depguard rule.
 
@@ -1329,7 +1329,7 @@ event — Claude does not deterministically fire every event on a short prompt.
 - `src/cmd/claude-app-server/conformance_test.go`
 - `src/cmd/claude-app-server/toolbridge_test.go`
 - `src/cmd/claude-app-server/main_test.go`
-- `src/client/lib/agenthook/hook_e2e_test.go` (build tag `e2e`)
+- `src/host/lib/agenthook/hook_e2e_test.go` (build tag `e2e`)
 
 Do not clone fixtures into new tests — import them.
 
@@ -1337,11 +1337,11 @@ Do not clone fixtures into new tests — import them.
 
 - `fakeclaude` imports **only** `platform/lib/claude/streamjson` and
   `platform/lib/claude/cli`. `client/*` and `orchestrator/*` are forbidden by
-  depguard `platform-no-client-or-orchestrator`.
+  depguard `platform-no-host-or-orchestrator`.
 - Consumers may live in any layer.
 - The e2e tests under this package are `//go:build e2e`; skipped when
   `AG_E2E_CLAUDE_BIN` is unset. Hook e2e lives under
-  `client/lib/agenthook/` because it imports `agenthook`.
+  `host/lib/agenthook/` because it imports `agenthook`.
 
 ## Recording refresh
 
@@ -1394,7 +1394,7 @@ Reusable in-memory fake of the Codex app-server (stdio JSON-RPC v2).
 Made public as part of the decision in
 [adr-20260704-cli-fake-validated-by-real-cli-e2e](../adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md).
 
-Complements `client/runtime/subsystem/stream/fake` (WebSocket transport,
+Complements `host/runtime/subsystem/stream/fake` (WebSocket transport,
 validated by [ADR 0002](../adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md)):
 this package models the same protocol over the stdio transport
 `orchestrator/agent` uses directly.
@@ -1472,11 +1472,11 @@ app-server method. Union set:
 
 ## Role split with `stream/fake`
 
-| Concern | `client/runtime/subsystem/stream/fake` | `platform/agent/fakecodex` |
+| Concern | `host/runtime/subsystem/stream/fake` | `platform/agent/fakecodex` |
 |---|---|---|
 | Transport | WebSocket-over-UDS | stdio |
 | ADR | [0002](../adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md) | [this](../adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md) |
-| Primary consumer | `client/runtime/subsystem/stream` routing tests | `orchestrator/agent` runner tests |
+| Primary consumer | `host/runtime/subsystem/stream` routing tests | `orchestrator/agent` runner tests |
 | Fidelity backstop | `routing_e2e_test.go` (WS backend) | `codex_appserver_e2e_test.go` (stdio backend) |
 | Multi-thread | broadcast, rollout files, active/idle status | single-thread, per-turn |
 
@@ -1515,7 +1515,7 @@ GOCACHE=$(pwd)/../.gocache-e2e \
   AG_E2E_CODEX_BIN=$(which codex) \
   go test -tags e2e ./platform/agent/fakecodex -run 'Recorded.*Fixture' -record
 GOCACHE=$(pwd)/../.gocache-e2e \
-  go test ./platform/agent/fakecodex ./client/driver -run 'Recorded|Replay'
+  go test ./platform/agent/fakecodex ./host/driver -run 'Recorded|Replay'
 ```
 
 `AG_E2E_CODEX_BIN` だけでなく writable な `GOCACHE` も必要。real-Codex

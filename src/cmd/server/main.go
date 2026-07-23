@@ -16,7 +16,7 @@
 //
 //  2. Subcommand mode (one-shot, exits when done):
 //     - `server event <type>` — hook event sender. The Claude and Gemini
-//     hooks the daemon registers at startup (via client/lib/agenthook)
+//     hooks the daemon registers at startup (via host/lib/agenthook)
 //     invoke this to forward state-change/Stop/PreToolUse/... events to a
 //     running backend over its host socket.
 //     - `server host-exec <bin> [args ...]` — in-container shim that
@@ -55,9 +55,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/takezoh/agent-grid/client/config"
-	"github.com/takezoh/agent-grid/client/event"
-	"github.com/takezoh/agent-grid/client/procio"
+	"github.com/takezoh/agent-grid/host/config"
+	"github.com/takezoh/agent-grid/host/event"
+	"github.com/takezoh/agent-grid/host/procio"
 	"github.com/takezoh/agent-grid/platform/appid"
 	"github.com/takezoh/agent-grid/platform/framelaunch"
 	"github.com/takezoh/agent-grid/platform/logger"

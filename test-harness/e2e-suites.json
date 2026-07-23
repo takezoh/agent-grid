@@ -1,11 +1,11 @@
 {
   "version": 1,
   "suites": [
-    {"id":"agent-hook","package":"./client/lib/agenthook/...","dependency_id":"claude-cli"},
+    {"id":"agent-hook","package":"./host/lib/agenthook/...","dependency_id":"claude-cli"},
     {"id":"claude-cli","package":"./platform/lib/claude/fakeclaude/...","dependency_id":"claude-cli"},
     {"id":"codex-app-server","package":"./platform/agent/fakecodex/...","dependency_id":"codex-app-server"},
     {"id":"docker-cli","package":"./platform/sandbox/devcontainer/...","dependency_id":"docker-cli"},
     {"id":"grok-cli","package":"./platform/lib/grok/...","dependency_id":"grok-cli"},
-    {"id":"stream-routing","package":"./client/runtime/subsystem/stream/...","dependency_id":"codex-app-server"}
+    {"id":"stream-routing","package":"./host/runtime/subsystem/stream/...","dependency_id":"codex-app-server"}
   ]
 }

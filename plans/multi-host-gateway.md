@@ -3,7 +3,7 @@
 - **作成日**: 2026-06-27
 - **ブランチ**: `main`
 - **ステータス**: draft (未着手 / 設計レビュー段階)
-- **影響範囲**: 新規 `gateway/` layer + `cmd/gateway/` binary、`platform/transport/` 新設、`client/` の対外面分離、`web/` の host 概念 + nickname store 追加、wire shape 拡張
+- **影響範囲**: 新規 `gateway/` layer + `cmd/gateway/` binary、`platform/transport/` 新設、`host/` (旧 `client/`) の対外面分離、`web/` の host 概念 + nickname store 追加、wire shape 拡張
 - **関連 ADR (将来起こす)**: control tunnel transport / data plane channel (WebRTC + STUN/TURN + LAN + opaque relay) / E2E noise layer / pairing flow / host ACL distribution と authoritative host authz / host selection UX / **gateway no-domain 原則 (relay/tunnel/authorizer のみ、display name や capability を持たない)** / **STUN/TURN provider (gateway-bundled pion-turn or coturn vs 外部 server / public STUN との 2 系統サポート)** / **WebRTC stack 分担境界 (client side は browser native / pion-webrtc に任せ、server side だけ gateway が持つ)**
 
 ## 0. 用語
@@ -46,7 +46,7 @@
 
 ### 1.3 既存制約 (退行禁止)
 
-- `depguard` import 境界 (ARCHITECTURE.md): `platform/* → client/*, orchestrator/* 不可`、`client/* → orchestrator/* 不可`、`orchestrator/* → client/* 不可`。新 `gateway/` は同じ規約に組み込む。
+- `depguard` import 境界 (ARCHITECTURE.md): `platform/* → host/*, orchestrator/* 不可`、`host/* → orchestrator/* 不可`、`orchestrator/* → host/* 不可`。新 `gateway/` は同じ規約に組み込む。
 - ファイル 500 行 / 関数 80 行 (reducer 例外)。
 - wire 型 / persistence 型は stdlib のみ (ADR-0021)。
 - `activeSessionID` は client 単独管理 ([[web-active-session-ownership]])。host scoping でも維持。
@@ -95,7 +95,7 @@ WebClient ──(多対多)── Host ──(1対多)── Session ──(1対
 
 frame の出所は **Gateway** か **Host** のどちらか。browser はそれぞれの channel で別のフレーム種を受け取り、**混ぜない**。
 
-#### Go (`src/client/proto/response.go`)
+#### Go (`src/host/proto/response.go`)
 
 ```go
 type SessionInfo struct {
@@ -369,7 +369,7 @@ cmd/gateway/
 - TLS cert は ACME (Let's Encrypt) 自動 / 手動 cert 両対応。dev は self-signed。
 - Bind: browser edge は `:443`、host edge は `:8443` (gRPC) を既定。**STUN/TURN は同一 process で `:3478` (UDP/TCP、STUN binding + TURN allocation 両方を 1 port で待ち受け) + `:5349` (TURNS = TLS over TCP)** を既定 (RFC 5389/5766 標準 port)。外部 STUN/TURN を指す構成 (Q20 案 b) では gateway 自身は STUN/TURN port を bind せず、SignalingHints に外部 URI を載せて credential のみ発行する。
 
-### 4.2 Server (host) の変更 — `client/` + `cmd/server/`
+### 4.2 Server (host) の変更 — `host/` (旧 `client/`) + `cmd/server/`
 
 #### 4.2.1 削除/縮退する責務
 
@@ -378,11 +378,11 @@ cmd/gateway/
 
 #### 4.2.2 新規責務
 
-- **Gateway control client** (`client/gateway/`): gRPC bidi outbound。heartbeat / signaling 受信 / opaque な user 署名済 op の受信。**session bytes も capability snapshot もこの channel に流さない** (gateway はドメインを持たない)。
-- **WebRTC peer endpoint** (`client/webrtc/`): browser からの incoming offer を gateway 経由で受け、PeerConnection 確立 → DataChannel で session API を serve。
-- **LAN-direct endpoint** (`client/lanlisten/`): WSS direct (self-signed cert + pubkey pinning)。WebRTC と同じ session API を serve。
-- **E2E endpoint** (`client/e2e/`): Noise responder。transport (WebRTC / LAN / fallback relay) 非依存。確立した鍵で host channel 全体を暗号化。
-- **Per-browser session server** (`client/hostchan/`): 1 browser connection ≒ 1 host channel として `HostHello` / `HostViewUpdate` / `OutputFrame` を serve。state は既存 `client/state/` を流用、view-update broadcast に **host_id を常に付与**。**capability snapshot もここの `HostHelloFrame` で配布する** (gateway は capability を持たない、Q17 案 A 確定)。
+- **Gateway control client** (`host/gateway/`): gRPC bidi outbound。heartbeat / signaling 受信 / opaque な user 署名済 op の受信。**session bytes も capability snapshot もこの channel に流さない** (gateway はドメインを持たない)。
+- **WebRTC peer endpoint** (`host/webrtc/`): browser からの incoming offer を gateway 経由で受け、PeerConnection 確立 → DataChannel で session API を serve。
+- **LAN-direct endpoint** (`host/lanlisten/`): WSS direct (self-signed cert + pubkey pinning)。WebRTC と同じ session API を serve。
+- **E2E endpoint** (`host/e2e/`): Noise responder。transport (WebRTC / LAN / fallback relay) 非依存。確立した鍵で host channel 全体を暗号化。
+- **Per-browser session server** (`host/hostchan/`): 1 browser connection ≒ 1 host channel として `HostHello` / `HostViewUpdate` / `OutputFrame` を serve。state は既存 `host/state/` を流用、view-update broadcast に **host_id を常に付与**。**capability snapshot もここの `HostHelloFrame` で配布する** (gateway は capability を持たない、Q17 案 A 確定)。
 - **Host identity** (`client/identity/`): Ed25519 鍵生成、pubkey export、pairing 応答。
 - **Client allowlist (authz authoritative)** (`client/authz/`): 自 host に接続を許す client pubkey 集合。gateway が opaque に forward する user 署名済 op を host が自分で verify して取り込む。最終決定は host 側 (signed-by-user op のみ accept、unsigned や gateway 単独の push は reject)。
 - **mDNS advertiser** (LAN 直結用): `_agent-grid._tcp.local.` を advertise。鍵 fingerprint を TXT に乗せる (display name は TXT に出さない、それを引き当てる nickname は browser 側にある)。
@@ -393,7 +393,7 @@ cmd/gateway/
 - frame teardown → sandbox release の経路 (d1e3a8c4)。
 - env overlay invariant ([[host-direct-env-inherit]])。
 
-### 4.3 Web client の変更 — `clients/ui/` (旧 `src/client/web/`)
+### 4.3 Web client の変更 — `clients/ui/` (旧 `src/host/web/`)
 
 #### 4.3.1 状態スライス追加
 
@@ -810,7 +810,7 @@ platform.transport:
   allow: ["std"]                    # transport は完全に純粋 (Noise + gRPC helper)
 ```
 
-`client/gateway/`, `client/webrtc/`, `client/lanlisten/`, `client/e2e/`, `client/hostchan/` は `platform/transport/` に依存。orchestrator から `client/` への参照禁止は維持。
+`host/gateway/`, `host/webrtc/`, `host/lanlisten/`, `host/e2e/`, `host/hostchan/` は `platform/transport/` に依存。orchestrator から `host/` への参照禁止は維持。
 
 ### 13.3 Binary 数
 
@@ -864,7 +864,7 @@ P2P-first の前提で **Gateway channel と Host channel を別フレーム種*
 
 ### 14.3 同期方針
 
-- `web/src/wire/server.ts` と `client/proto/response.go` の同期は ADR-0021 (hand-written) を維持。
+- `web/src/wire/server.ts` と `host/proto/response.go` の同期は ADR-0021 (hand-written) を維持。
 - codec test (`web/src/wire/codec.test.ts`) と Go fixtures を **gateway frame / host frame 別 fixture file** に分けて維持。channel 跨ぎでの誤適用 (gateway channel に host frame が混入する等) を unit test で防ぐ。
 - defensive redundancy (`SessionInfo.host_id` と受信 channel の host_id 不一致) は codec layer で reject → `RespErr{code:"host_id_mismatch"}`。
 
@@ -911,7 +911,7 @@ P2P-first の前提で **Gateway channel と Host channel を別フレーム種*
 
 ### Phase 5 — WebRTC P2P
 
-- `client/webrtc/` 実装 (pion/webrtc)。
+- `host/webrtc/` 実装 (pion/webrtc)。
 - Browser 側 PeerConnection + DataChannel。signaling は既存 `SignalingFrame` を使用。
 - 経路自動選択 (LAN > P2P > opaque relay)。
 - Phase 4 の Noise セッションを transport 切替時に bind し直し (sessions は維持)。

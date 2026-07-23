@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	streamfake "github.com/takezoh/agent-grid/client/runtime/subsystem/stream/fake"
+	streamfake "github.com/takezoh/agent-grid/host/runtime/subsystem/stream/fake"
 	"github.com/takezoh/agent-grid/platform/lib/claude/fakeclaude"
 	claudehookpayload "github.com/takezoh/agent-grid/platform/lib/claude/hookpayload"
 )

@@ -27,8 +27,8 @@ source_paths:
 - ARCHITECTURE.md
 - src/.golangci.yml
 - src/platform/lib/
-- src/client/driver/vt/
-- src/client/state/
+- src/host/driver/vt/
+- src/host/state/
 - src/orchestrator/scheduler/
 - src/gorules/purecore.go
 - src/platform/features/features.go
@@ -68,8 +68,8 @@ flowchart TD
 
     ORCH -->|OK| PLAT
     CLIENTBOX["client/*"] -->|OK| PLAT
-    ORCH -. "✗ converse of client-no-orchestrator<br/>(client ⊄ orchestrator)" .-> CLIENTBOX
-    PLAT -. "✗ platform-no-client-or-orchestrator" .-> CLIENTBOX
+    ORCH -. "✗ converse of host-no-orchestrator<br/>(client ⊄ orchestrator)" .-> CLIENTBOX
+    PLAT -. "✗ platform-no-host-or-orchestrator" .-> CLIENTBOX
     PLAT -. "✗" .-> ORCH
     CODEXC -. "✗ codexclient-isolation" .-> CLIENTBOX
 
@@ -80,13 +80,13 @@ flowchart TD
 
 | Rule | Scope | Deny (summary) |
 |---|---|---|
-| `platform-no-client-or-orchestrator` | `platform/**` | `client/`, `orchestrator/` |
-| `client-no-orchestrator` | `client/**` | `orchestrator/` |
-| `state-pure-core` | `client/state/**` | `driver/`, `platform/lib`, `runtime/`, `proto/` |
-| `worker-no-driver-lib` | `client/runtime/worker/**` | `driver/`, `platform/lib` |
+| `platform-no-host-or-orchestrator` | `platform/**` | `client/`, `orchestrator/` |
+| `host-no-orchestrator` | `client/**` | `orchestrator/` |
+| `state-pure-core` | `host/state/**` | `driver/`, `platform/lib`, `runtime/`, `proto/` |
+| `worker-no-driver-lib` | `host/runtime/worker/**` | `driver/`, `platform/lib` |
 | `sandbox-tool-agnostic` | `platform/sandbox/**` | `driver/`, `platform/lib`, `runtime/` |
-| `proto-isolation` | `client/proto/**` | `driver/`, `platform/lib`, `runtime/` |
-| `runtime-no-driver` | `client/runtime/*.go` (root only) | `driver/` |
+| `proto-isolation` | `host/proto/**` | `driver/`, `platform/lib`, `runtime/` |
+| `runtime-no-driver` | `host/runtime/*.go` (root only) | `driver/` |
 | `codexclient-isolation` | `platform/agent/codexclient/**` | `client/`, `orchestrator/` |
 | `real-binary-e2e-only` | all Go files except allowlisted packages and explicit path exclusions | literal `exec.Command("claude"|"codex"|"docker")` / `exec.CommandContext(...)` outside `platform/lib/**`, fake packages, `*_e2e_test.go`, and excluded devcontainer paths; `AG_E2E_*` reads outside `*_e2e_test.go` except path-excluded helpers |
 
@@ -94,13 +94,13 @@ Key intents:
 
 - **Layer direction**: platform is the base and knows nothing above it; client does not know orchestrator (the converse is guaranteed by `platform-no-...`).
 - **`state/` purity**: the state machine has no I/O and no side effects — a pure functional core. It cannot import driver/runtime at all.
-- **`runtime-no-driver`**: only the runtime **root** is forbidden from importing driver. Tool-specific backends move to `runtime/subsystem/<kind>/`. Exception: `client/driver/vt` is explicitly allowed in `exclusions.rules`.
+- **`runtime-no-driver`**: only the runtime **root** is forbidden from importing driver. Tool-specific backends move to `runtime/subsystem/<kind>/`. Exception: `host/driver/vt` is explicitly allowed in `exclusions.rules`.
 - **`codexclient` reusability**: a shared protocol transport, so it knows nothing of agent-grid internals.
 - **real-binary isolation**: the last row is enforced by ruleguard, not depguard, because it constrains process execution rather than imports. In the current implementation, real `claude` / `codex` / `docker` exec is allowlisted for `platform/lib/**`, the fake packages, `*_e2e_test.go`, plus explicit `.golangci.yml` exclusions such as `platform/sandbox/devcontainer/**`; `AG_E2E_*` env reads are stricter and stay in `*_e2e_test.go` except for path-excluded helpers like `platform/lib/claude/fakeclaude/e2e_support.go`.
 
 ## 2. Pure-core purity (forbidigo + ruleguard)
 
-The decision-loop functional cores — `client/state` and `orchestrator/scheduler` — must hold no mutex, spawn no goroutine, read no wall clock, and perform no I/O (the only permitted synchronous I/O is bounded read-only `os.Stat`). State is folded as an immutable value; concurrency, timers, and I/O live in the event-loop shell. Observability reads an immutable published snapshot lock-free (`atomic.Pointer[State]`), so neither core needs a mutex.
+The decision-loop functional cores — `host/state` and `orchestrator/scheduler` — must hold no mutex, spawn no goroutine, read no wall clock, and perform no I/O (the only permitted synchronous I/O is bounded read-only `os.Stat`). State is folded as an immutable value; concurrency, timers, and I/O live in the event-loop shell. Observability reads an immutable published snapshot lock-free (`atomic.Pointer[State]`), so neither core needs a mutex.
 
 | Invariant | Enforced by | Notes |
 |---|---|---|
@@ -109,7 +109,7 @@ The decision-loop functional cores — `client/state` and `orchestrator/schedule
 | No wall clock | `gocritic` ruleguard | `time.Now` / `time.Since` — time enters `Reduce` as a value |
 | No direct I/O | `gocritic` ruleguard | `os.Open`/`WriteFile`/…, `net.Dial`/`Listen`, `exec.Command`; `os.Stat` allowed |
 
-`client/state` is wholly pure, so the ruleguard rules apply to every non-test file in it. In `orchestrator/scheduler` the pure reducer and the imperative shell share one package, so the rules skip the shell files (`scheduler.go`, `effects_exec.go`, `clock.go`, `watch.go`) — these legitimately own the loop, timers, and I/O. Test files are exempt.
+`host/state` is wholly pure, so the ruleguard rules apply to every non-test file in it. In `orchestrator/scheduler` the pure reducer and the imperative shell share one package, so the rules skip the shell files (`scheduler.go`, `effects_exec.go`, `clock.go`, `watch.go`) — these legitimately own the loop, timers, and I/O. Test files are exempt.
 
 ## 3. Length limits
 
@@ -123,8 +123,8 @@ These limits are **responsibility-splitting heuristics**, not "shorter is always
 Length exceptions (in `exclusions.rules`):
 
 - `_test.go` — tests relax both function and file length (table-driven tests grow large by nature) as well as errcheck.
-- `client/state/reduce_*.go` — state-machine dispatch tables stay cohesive as one unit (function-length exempt).
-- `client/runtime/subsystem/stream/helpers.go` — the stream subsystem's normalization/extraction helpers stay grouped as one boundary-focused helper cluster (file-length exempt).
+- `host/state/reduce_*.go` — state-machine dispatch tables stay cohesive as one unit (function-length exempt).
+- `host/runtime/subsystem/stream/helpers.go` — the stream subsystem's normalization/extraction helpers stay grouped as one boundary-focused helper cluster (file-length exempt).
 
 Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code annotation** — anything matching `reduce_*.go` is exempt automatically. Generated code (`codexschema/v*/types.gen.go`, etc.) is auto-excluded from length checks too.
 
@@ -143,13 +143,13 @@ Exceptions are declared **by path pattern in `.golangci.yml`, not by an in-code 
 
 ## 5. Wire format is stdlib-only (depguard)
 
-Wire-format / persistence types are written with **stdlib only (`encoding/json`)** (AGENTS.md / ARCHITECTURE.md) — a portability constraint. The `depguard` rule `proto-wire-stdlib-only` (scope `client/proto/**`) denies codec libraries (protobuf, msgpack, cbor) from the wire layer; `client/proto/codec.go` uses only `encoding/json`. The rule is a deny-list of the realistic offenders rather than a stdlib allow-list, matching the intent: do not bring a new codec library into the wire layer.
+Wire-format / persistence types are written with **stdlib only (`encoding/json`)** (AGENTS.md / ARCHITECTURE.md) — a portability constraint. The `depguard` rule `proto-wire-stdlib-only` (scope `host/proto/**`) denies codec libraries (protobuf, msgpack, cbor) from the wire layer; `host/proto/codec.go` uses only `encoding/json`. The rule is a deny-list of the realistic offenders rather than a stdlib allow-list, matching the intent: do not bring a new codec library into the wire layer.
 
 ## 6. Routing isolation (test-pinned)
 
 A multiplexed subsystem backend — one app-server connection fronting many frames — must route every server event to the frame that *initiated* the thread, never to an inferred/active frame. A leak is **cross-talk**: one agent's output surfaces in another agent's session. This is the [No fabricated fallbacks](../../ARCHITECTURE.md#design-principles) principle for `runtime/subsystem/stream`.
 
-Unlike sections 1–5 this cannot be caught at lint/compile time (it is a runtime routing property), so it is **test-pinned**: the [routing-isolation contract](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-testing) (`TestStreamRoutingContract`, `TestStreamRoutingWiredIsolation`, `FuzzStreamRouting`) asserts that every emitted `EvSubsystem` carries the owning frame's id. The demux binds threads synchronously at creation/resume (`bindThread`), so an unknown `thread.started` is dropped rather than adopted by the active frame; the contract guards against reintroducing such a fabricated fallback. Rationale: [ADR 0001](../adr/adr-20260624-0001-multiplexed-backends-shared-routing-contract.md); fidelity backstop: [ADR 0002](../adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md).
+Unlike sections 1–5 this cannot be caught at lint/compile time (it is a runtime routing property), so it is **test-pinned**: the [routing-isolation contract](../design/design-host.md#legacy-source-component-20260624-client-stream-backend-testing) (`TestStreamRoutingContract`, `TestStreamRoutingWiredIsolation`, `FuzzStreamRouting`) asserts that every emitted `EvSubsystem` carries the owning frame's id. The demux binds threads synchronously at creation/resume (`bindThread`), so an unknown `thread.started` is dropped rather than adopted by the active frame; the contract guards against reintroducing such a fabricated fallback. Rationale: [ADR 0001](../adr/adr-20260624-0001-multiplexed-backends-shared-routing-contract.md); fidelity backstop: [ADR 0002](../adr/adr-20260624-0002-optin-appserver-e2e-validates-fakes.md).
 
 Exception: none — a multiplexed backend that cannot satisfy the invariant is a defect, not a candidate for opt-out.
 
@@ -165,7 +165,7 @@ Exception: none — a multiplexer that cannot satisfy fan-out isolation is a def
 
 The pty tap path (`pty → PtyFrameTap.forwardEvents → readTap → VT emulator → EvFrameOsc/EvFramePrompt`) must enqueue only events for the originating frame and must survive malformed OSC / prompt sequences without killing the event loop. This prevents cross-talk and liveness loss in the tap path, which is another "one source → many sessions" boundary.
 
-Where defined: [ADR — EventSink seam and contract pins for the pty-tap and surface-relay paths](../adr/adr-20260705-eventsink-seam-tap-relay-contracts.md) and spec FR-003 / AC-004. How it is enforced: the `EventSink` seam lets `client/runtime` run a real-pty T2 contract that writes OSC 0/2/9/133 and asserts `FrameID` ownership plus panic containment, backed by stdlib fuzz for `parseOscNotification` / `vtPromptPhase`. Exception: none — incorrect routing or panic-on-input in the tap path is a defect.
+Where defined: [ADR — EventSink seam and contract pins for the pty-tap and surface-relay paths](../adr/adr-20260705-eventsink-seam-tap-relay-contracts.md) and spec FR-003 / AC-004. How it is enforced: the `EventSink` seam lets `host/runtime` run a real-pty T2 contract that writes OSC 0/2/9/133 and asserts `FrameID` ownership plus panic containment, backed by stdlib fuzz for `parseOscNotification` / `vtPromptPhase`. Exception: none — incorrect routing or panic-on-input in the tap path is a defect.
 
 ## 9. Relay severance and ordering (test-pinned)
 
@@ -194,5 +194,5 @@ Where defined: [ADR — Driver conformance suite enforced via registry iteration
 ## Related
 
 - Canonical design principles: [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- Per-layer deep dives: [platform](../design/design-platform.md) · [client](../design/design-client.md) · [orchestrator](../design/design-orchestrator.md)
+- Per-layer deep dives: [platform](../design/design-platform.md) · [client](../design/design-host.md) · [orchestrator](../design/design-orchestrator.md)
 - Agent-control guardrails (admission, concurrency, capability, autonomy, liveness): [guardrails.md](note-20260624-technical-guardrails.md)

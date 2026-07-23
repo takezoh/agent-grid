@@ -6,7 +6,7 @@ import (
 )
 
 // LaunchPlan carries the pure launch parameters. ForceHost replaces the
-// client/state SandboxOverride == SandboxOverrideHost sentinel.
+// host/state SandboxOverride == SandboxOverrideHost sentinel.
 //
 // Argv, when non-nil, holds the structured argv for Spawn (no host-side shell).
 // Command is the shell-joined string form used by backend frame launchers.

@@ -14,7 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/host/proto"
 )
 
 // fakeSessionAttacher is a test double for Attacher that records calls and

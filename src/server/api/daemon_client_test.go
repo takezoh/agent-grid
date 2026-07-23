@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/host/proto"
 )
 
 const (

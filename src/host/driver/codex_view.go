@@ -1,0 +1,77 @@
+package driver
+
+import (
+	"encoding/json"
+
+	codextranscript "github.com/takezoh/agent-grid/host/lib/codex/transcript"
+	"github.com/takezoh/agent-grid/host/state"
+	"github.com/takezoh/fishpath-go"
+)
+
+func (d CodexDriver) view(cs CodexState) state.View {
+	tags := CommonTags(cs.CommonState)
+
+	var tabs []state.LogTab
+	if cs.TranscriptPath != "" {
+		cfg, _ := json.Marshal(codextranscript.RendererConfig{})
+		tabs = append(tabs, state.LogTab{
+			Label:       "TRANSCRIPT",
+			Path:        cs.TranscriptPath,
+			Kind:        codextranscript.KindTranscript,
+			RendererCfg: cfg,
+		})
+	}
+	if tab := EventLogTab(cs.CommonState, d.eventLogDir); tab != nil {
+		tabs = append(tabs, *tab)
+	}
+
+	return state.View{
+		Card: state.Card{
+			Title:       resolveCardTitleWithDisplayFallback(cs.Title, cs.Summary, cs.DisplayFallback),
+			Tags:        tags,
+			BorderTitle: CodexCommandTag(),
+			BorderBadge: fishpath.Shorten(cs.StartDir, ""),
+		},
+		DisplayName:     CodexDriverName,
+		LogTabs:         tabs,
+		InfoExtras:      codexInfoExtras(cs),
+		StatusLine:      cs.StatusLine,
+		LastUserPrompt:  lastUserPromptPreview(cs.LastPrompt),
+		Model:           cs.Model,
+		Effort:          cs.Effort,
+		Status:          cs.Status,
+		StatusChangedAt: cs.StatusChangedAt,
+	}
+}
+
+func codexInfoExtras(cs CodexState) []state.InfoLine {
+	var lines []state.InfoLine
+	add := func(label, value string) {
+		if value != "" {
+			lines = append(lines, state.InfoLine{Label: label, Value: value})
+		}
+	}
+	add("Title", cs.Title)
+	add("Thread", cs.ThreadID)
+	add("Requested Thread", cs.RequestedThreadID)
+	add("Observed Thread", cs.ObservedThreadID)
+	add("Resume Phase", cs.ResumePhase)
+	add("Working Dir", cs.StartDir)
+	add("Worktree Name", cs.WorktreeName)
+	add("Model", cs.Model)
+	add("Effort", cs.Effort)
+	add("Current Tool", cs.CurrentTool)
+	if cs.BranchIsWorktree {
+		add("Parent Branch", cs.BranchParentBranch)
+	}
+	add("Transcript", cs.TranscriptPath)
+	add("Summary", cs.Summary)
+	add("Preview", cs.Preview)
+	add("Display Fallback", cs.DisplayFallback)
+	add("Plan", cs.PlanSummary)
+	add("Diff", cs.DiffSummary)
+	add("Status Line", cs.StatusLine)
+	add("Last Prompt", cs.LastPrompt)
+	add("Last Assistant", cs.LastAssistantMessage)
+	return lines
+}

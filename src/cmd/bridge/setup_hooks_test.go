@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/takezoh/agent-grid/client/lib/agenthook"
+	"github.com/takezoh/agent-grid/host/lib/agenthook"
 	"github.com/takezoh/agent-grid/platform/appid"
 )
 

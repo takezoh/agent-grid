@@ -3,7 +3,7 @@
 - **作成日**: 2026-06-30
 - **ブランチ**: `main`
 - **ステータス**: draft (依存: [multi-host-gateway.md](./multi-host-gateway.md) Phase 3 LAN 直結 が確立していること)
-- **影響範囲**: docs (セットアップ手順) / web UI (nickname default + "This device" 表示) / `client/lanlisten/` に loopback-only bind mode + 同一マシン判定 / `cmd/server/` のフラグ追加。**新規 binary なし / native client なし / 大規模 transport 追加なし**。
+- **影響範囲**: docs (セットアップ手順) / web UI (nickname default + "This device" 表示) / `host/lanlisten/` に loopback-only bind mode + 同一マシン判定 / `cmd/server/` のフラグ追加。**新規 binary なし / native client なし / 大規模 transport 追加なし**。
 - **関連 ADR (将来起こす)**: (a) local host bootstrapping (auto-launch / manual / systemd-user) / (b) loopback-only listen + same-machine auth (uid check / unix socket option) / (c) "This device" UX 規約 (section header / nickname default / 1 host 時の visual noise 抑制との両立)
 
 ## 0. 用語

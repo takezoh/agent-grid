@@ -48,4 +48,4 @@ All three layers and their import boundaries are defined in [ARCHITECTURE.md](..
 - `client/` — agent-grid's client; must not import `orchestrator/`
 - `orchestrator/` — Symphony pipeline; must not import `client/`
 
-Layer internals: [platform/](../design/design-platform.md) · [client/](../design/design-client.md) · [orchestrator/](../design/design-orchestrator.md).
+Layer internals: [platform/](../design/design-platform.md) · [client/](../design/design-host.md) · [orchestrator/](../design/design-orchestrator.md).

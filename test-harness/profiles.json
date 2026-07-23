@@ -27,10 +27,10 @@
       {"id":"web-build-for-race","group":"race","command":"cd clients/ui && npm ci && npm run build"},
       {"id":"race","group":"race","command":"make test-race"},
       {"id":"web-build-for-fuzz","group":"fuzz","command":"cd clients/ui && npm ci && npm run build"},
-      {"id":"fuzz-stream","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzStreamRouting$' -fuzztime=30s ./client/runtime/subsystem/stream/"},
-      {"id":"fuzz-state","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzReduce$' -fuzztime=30s ./client/state/"},
+      {"id":"fuzz-stream","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzStreamRouting$' -fuzztime=30s ./host/runtime/subsystem/stream/"},
+      {"id":"fuzz-state","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzReduce$' -fuzztime=30s ./host/state/"},
       {"id":"fuzz-web","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzApplyInboundProto$' -fuzztime=30s ./server/api/"},
-      {"id":"fuzz-osc","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzParseOsc$' -fuzztime=30s ./client/runtime/"},
+      {"id":"fuzz-osc","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzParseOsc$' -fuzztime=30s ./host/runtime/"},
       {"id":"schema-drift","group":"schema","command":"make codex-schema-check"}
     ]},
     {"name":"nightly","tier":"T3","commands":[

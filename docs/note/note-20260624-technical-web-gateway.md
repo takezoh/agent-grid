@@ -19,7 +19,7 @@ relations:
 - {type: references, target: note-20260624-user-web-server}
 source_paths:
 - src/server/api/
-- src/client/runtime/
+- src/host/runtime/
 - ARCHITECTURE.md
 - src/cmd/server/
 - src/server/api/wire.go
@@ -41,7 +41,7 @@ session daemon. It is a **stateless proxy**: session state lives entirely
 in the daemon goroutines; this layer only translates between the browser
 wire format and the daemon's internal proto types.
 
-**Inner boundary** — `client/runtime` (the in-process session daemon) over a Unix socket.
+**Inner boundary** — `host/runtime` (the in-process session daemon) over a Unix socket.
 **Outer boundary** — any browser client (xterm.js + React UI) over HTTPS/WSS.
 
 Related documents:

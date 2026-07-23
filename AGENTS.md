@@ -27,10 +27,10 @@ make test-race               # Race detector on concurrency-sensitive subtrees
 
 ```sh
 make test-e2e
-# Package list: Makefile test-e2e target. Per-binary setup: docs/design/design-client.md#legacy-source-component-20260624-client-stream-backend-e2e
+# Package list: Makefile test-e2e target. Per-binary setup: docs/design/design-host.md#legacy-source-component-20260624-client-stream-backend-e2e
 ```
 
-**Web Playwright smoke** — browser wiring that happy-dom cannot prove; uses deterministic fake backend (`e2e/support/fake-backend.ts`). Harness overview: `docs/design/design-client.md#legacy-source-component-20260705-client-web-browser-harness`.
+**Web Playwright smoke** — browser wiring that happy-dom cannot prove; uses deterministic fake backend (`e2e/support/fake-backend.ts`). Harness overview: `docs/design/design-host.md#legacy-source-component-20260705-client-web-browser-harness`.
 
 ```sh
 cd clients/ui
@@ -73,11 +73,11 @@ One Go module, three top-level trees under `src/` and three binaries:
 
 | Binary | Source | Layer | Role |
 |---|---|---|---|
-| `server` | `src/cmd/server/` | `client/` | Single-process backend — pty session daemon + HTTP/WS gateway in one binary (Unix-socket IPC plus browser-facing REST/WS) |
+| `server` | `src/cmd/server/` | `host/` | Single-process backend — pty session daemon + HTTP/WS gateway in one binary (Unix-socket IPC plus browser-facing REST/WS) |
 | `orchestrator` | `src/cmd/orchestrator/` | `orchestrator/` | Symphony SPEC implementation — autonomous poll/dispatch/reconcile + observability HTTP |
 | `claude-app-server` | `src/cmd/claude-app-server/` | `platform/` + `orchestrator/` | Codex app-server stdio shim for Claude; enables agent-switch via `codex.command` in WORKFLOW.md |
 
-`platform/` is shared infrastructure; `client/` is agent-grid's session daemon and `server/` is its HTTP/WS gateway (`server/api`), both shipped as the single `server` binary; the browser SPA lives at `clients/ui/` and is served by `cmd/uihost` (embedded via `src/uihost`); `orchestrator/` is the Symphony pipeline. Import direction (enforced by `depguard`, `src/.golangci.yml`): `platform/*` imports neither `client/*` nor `orchestrator/*`; `client/*` does not import `orchestrator/*`; `orchestrator/*` does not import `client/*`. Full layer definition: [ARCHITECTURE.md](ARCHITECTURE.md).
+`platform/` is shared infrastructure; `host/` (formerly `client/`) is agent-grid's session daemon and `server/` is its HTTP/WS gateway (`server/api`), both shipped as the single `server` binary; the browser SPA lives at `clients/ui/` and is served by `cmd/uihost` (embedded via `src/uihost`); `orchestrator/` is the Symphony pipeline. Import direction (enforced by `depguard`, `src/.golangci.yml`): `platform/*` imports neither `host/*` nor `orchestrator/*`; `host/*` does not import `orchestrator/*`; `orchestrator/*` does not import `host/*`. Full layer definition: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Orchestrator-scoped test run: `cd src && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...`
 Conformance: `docs/design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。
@@ -86,7 +86,7 @@ Conformance: `docs/design/design-orchestrator.md#legacy-source-component-2026062
 
 - Follow the design principles in [ARCHITECTURE.md](ARCHITECTURE.md)
 - All structural & architectural rules are enforced at lint or compile time. The comprehensive catalogue — each rule, where it is defined, and how to handle exceptions — is [docs/note/note-20260624-technical-code-enforcement.md](docs/note/note-20260624-technical-code-enforcement.md)
-- Treat file/function length limits as responsibility-splitting heuristics, not goals by themselves. Default targets are files under 500 lines and functions under 80 lines; when a cohesive responsibility would be harmed by forced splitting, document and adjust the specific lint rule/path instead. State-machine reducers in `client/state/reduce_*.go` are exempt from the function-length limit — dispatch tables stay cohesive (see ARCHITECTURE.md "Layer Structure")
+- Treat file/function length limits as responsibility-splitting heuristics, not goals by themselves. Default targets are files under 500 lines and functions under 80 lines; when a cohesive responsibility would be harmed by forced splitting, document and adjust the specific lint rule/path instead. State-machine reducers in `host/state/reduce_*.go` are exempt from the function-length limit — dispatch tables stay cohesive (see ARCHITECTURE.md "Layer Structure")
 - Actively use libraries. Do not implement from scratch
 - Do not overwrite user config files (~/.agent-grid/)
 - Always write tests for new features and bug fixes. Do not consider work complete without tests
@@ -106,4 +106,4 @@ Before adding a third-party dependency:
 
 ## Documentation
 
-Structured docs live under [`docs/`](docs/note/note-20260624-docs-overview.md): [contributing](docs/note/note-20260624-agent-contributing.md) (this file expanded), [WORKFLOW.md authoring](docs/note/note-20260624-agent-workflow-authoring.md), [testing](docs/note/note-20260624-agent-testing.md), and per-layer internals ([platform](docs/design/design-platform.md) · [client](docs/design/design-client.md) · [orchestrator](docs/design/design-orchestrator.md)).
+Structured docs live under [`docs/`](docs/note/note-20260624-docs-overview.md): [contributing](docs/note/note-20260624-agent-contributing.md) (this file expanded), [WORKFLOW.md authoring](docs/note/note-20260624-agent-workflow-authoring.md), [testing](docs/note/note-20260624-agent-testing.md), and per-layer internals ([platform](docs/design/design-platform.md) · [client](docs/design/design-host.md) · [orchestrator](docs/design/design-orchestrator.md)).

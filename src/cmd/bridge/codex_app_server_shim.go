@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/host/proto"
 	"github.com/takezoh/agent-grid/platform/agent/codexclient"
 	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 	libcodex "github.com/takezoh/agent-grid/platform/lib/codex"

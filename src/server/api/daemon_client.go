@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/host/proto"
 )
 
 // ErrDaemonUnavailable is returned by SendCommand when the DaemonClient is

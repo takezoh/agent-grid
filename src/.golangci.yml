@@ -66,10 +66,10 @@ linters:
       forbid-default-patterns: false
       patterns:
         - pattern: 'sync\.Mutex'
-          pkg: github\.com/takezoh/agent-grid/client/state
+          pkg: github\.com/takezoh/agent-grid/host/state
           msg: "state/ is a pure functional core — no mutexes allowed"
         - pattern: 'sync\.RWMutex'
-          pkg: github\.com/takezoh/agent-grid/client/state
+          pkg: github\.com/takezoh/agent-grid/host/state
           msg: "state/ is a pure functional core — no mutexes allowed"
         - pattern: 'sync\.Mutex'
           pkg: github\.com/takezoh/agent-grid/orchestrator/scheduler
@@ -113,37 +113,37 @@ linters:
 
     depguard:
       rules:
-        platform-no-client-or-orchestrator:
+        platform-no-host-or-orchestrator:
           files:
             - "**/platform/**"
           deny:
-            - pkg: github.com/takezoh/agent-grid/client
-              desc: "platform/ must not import client/ (platform is shared base — see ARCHITECTURE.md)"
+            - pkg: github.com/takezoh/agent-grid/host
+              desc: "platform/ must not import host/ (platform is shared base — see ARCHITECTURE.md)"
             - pkg: github.com/takezoh/agent-grid/orchestrator
               desc: "platform/ must not import orchestrator/ (platform is shared base — see ARCHITECTURE.md)"
-        client-no-orchestrator:
+        host-no-orchestrator:
           files:
-            - "**/client/**"
+            - "**/host/**"
           deny:
             - pkg: github.com/takezoh/agent-grid/orchestrator
-              desc: "client/ must not import orchestrator/ (see ARCHITECTURE.md)"
+              desc: "host/ must not import orchestrator/ (see ARCHITECTURE.md)"
         state-pure-core:
           files:
-            - "**/client/state/**"
+            - "**/host/state/**"
           deny:
-            - pkg: github.com/takezoh/agent-grid/client/driver
+            - pkg: github.com/takezoh/agent-grid/host/driver
               desc: "state/ must not import driver (pure functional core)"
             - pkg: github.com/takezoh/agent-grid/platform/lib
               desc: "state/ must not import lib (pure functional core)"
-            - pkg: github.com/takezoh/agent-grid/client/runtime
+            - pkg: github.com/takezoh/agent-grid/host/runtime
               desc: "state/ must not import runtime (pure functional core)"
-            - pkg: github.com/takezoh/agent-grid/client/proto
+            - pkg: github.com/takezoh/agent-grid/host/proto
               desc: "state/ must not import proto (pure functional core)"
         worker-no-driver-lib:
           files:
-            - "**/client/runtime/worker/**"
+            - "**/host/runtime/worker/**"
           deny:
-            - pkg: github.com/takezoh/agent-grid/client/driver
+            - pkg: github.com/takezoh/agent-grid/host/driver
               desc: "runtime/worker must not import driver (see ARCHITECTURE.md)"
             - pkg: github.com/takezoh/agent-grid/platform/lib
               desc: "runtime/worker must not import lib (see ARCHITECTURE.md)"
@@ -151,11 +151,11 @@ linters:
           files:
             - "**/platform/sandbox/**"
           deny:
-            - pkg: github.com/takezoh/agent-grid/client/driver
+            - pkg: github.com/takezoh/agent-grid/host/driver
               desc: "sandbox/ must be tool-agnostic — no driver/ imports (see ARCHITECTURE.md)"
             - pkg: github.com/takezoh/agent-grid/platform/lib
               desc: "sandbox/ must be tool-agnostic — no lib/ imports (see ARCHITECTURE.md)"
-            - pkg: github.com/takezoh/agent-grid/client/runtime
+            - pkg: github.com/takezoh/agent-grid/host/runtime
               desc: "sandbox/ must be tool-agnostic — no runtime/ imports (see ARCHITECTURE.md)"
         proto-wire-stdlib-only:
           # The wire/persistence layer must serialize with stdlib only (encoding/json).
@@ -164,7 +164,7 @@ linters:
           # allow-list, matching the doc's intent: "Do not bring a new codec library
           # (protobuf, etc.) into the wire layer."
           files:
-            - "**/client/proto/**"
+            - "**/host/proto/**"
           deny:
             - pkg: google.golang.org/protobuf
               desc: "wire layer is stdlib-only (encoding/json) — no protobuf (see code-enforcement.md §5)"
@@ -176,13 +176,13 @@ linters:
               desc: "wire layer is stdlib-only (encoding/json) — no cbor (see code-enforcement.md §5)"
         proto-isolation:
           files:
-            - "**/client/proto/**"
+            - "**/host/proto/**"
           deny:
-            - pkg: github.com/takezoh/agent-grid/client/driver
+            - pkg: github.com/takezoh/agent-grid/host/driver
               desc: "proto/ must not import driver (see ARCHITECTURE.md)"
             - pkg: github.com/takezoh/agent-grid/platform/lib
               desc: "proto/ must not import lib (see ARCHITECTURE.md)"
-            - pkg: github.com/takezoh/agent-grid/client/runtime
+            - pkg: github.com/takezoh/agent-grid/host/runtime
               desc: "proto/ must not import runtime (see ARCHITECTURE.md)"
         systemdnotify-coreos-go-systemd-only:
           files:
@@ -195,26 +195,26 @@ linters:
           # runtime/ root must not import driver/ (tool-specific) — subsystem-specific code lives in runtime/subsystem/<kind>/
           # Exceptions handled in exclusions.rules: driver/vt (VT emulator) is generic; test files are exempt.
           files:
-            - "**/client/runtime/*.go"
+            - "**/host/runtime/*.go"
             - "!**/*_test.go"
           deny:
-            - pkg: github.com/takezoh/agent-grid/client/driver
+            - pkg: github.com/takezoh/agent-grid/host/driver
               desc: "runtime/ root must not import driver/. Move tool-specific backend code to runtime/subsystem/<kind>/ (see ARCHITECTURE.md Driver/Subsystem isolation)"
         codexclient-isolation:
           # codexclient is a reusable platform transport — it must not reach into
-          # client/ or orchestrator/.  codexschema and logger are the only
+          # host/ or orchestrator/.  codexschema and logger are the only
           # agent-grid packages it may import.
           files:
             - "**/platform/agent/codexclient/**"
           deny:
-            - pkg: github.com/takezoh/agent-grid/client
-              desc: "codexclient/ must not import client/ (reusable platform layer — see ARCHITECTURE.md)"
+            - pkg: github.com/takezoh/agent-grid/host
+              desc: "codexclient/ must not import host/ (reusable platform layer — see ARCHITECTURE.md)"
             - pkg: github.com/takezoh/agent-grid/orchestrator
               desc: "codexclient/ must not import orchestrator/ (reusable platform layer — see ARCHITECTURE.md)"
         server-no-orchestrator-or-direct-termvt:
           # server/* is the HTTP/WS gateway layer — it communicates with the daemon
           # via DaemonClient (Unix-socket RPC) and must not bypass that boundary.
-          # Allowed: client/proto, client/state, client/runtime, platform/* (deny-list style).
+          # Allowed: host/proto, host/state, host/runtime, platform/* (deny-list style).
           # See ADR 0016.
           files:
             - "**/server/**"
@@ -249,7 +249,7 @@ linters:
       # Forced extraction of dispatch arms produces single-use helpers that fragment the
       # state machine without adding clarity.
       - linters: [funlen]
-        path: "client/state/reduce_.*\\.go$"
+        path: "host/state/reduce_.*\\.go$"
       - linters: [errcheck]
         path: "_test\\.go$"
       # Deferred close is idiomatic — errors are unrecoverable at that point
@@ -275,16 +275,16 @@ linters:
       - linters: [gocritic]
         path: "platform/lib/claude/fakeclaude/e2e_support\\.go$"
         text: "REACTOR_E2E_\\* env access is restricted to \\*_e2e_test\\.go fidelity suites"
-      # client/driver/vt is a generic VT terminal emulator sub-package, not a tool-specific driver
+      # host/driver/vt is a generic VT terminal emulator sub-package, not a tool-specific driver
       - linters: [depguard]
-        text: "client/driver/vt.*is not allowed from list 'runtime-no-driver'"
+        text: "host/driver/vt.*is not allowed from list 'runtime-no-driver'"
       # DOCUMENTED DEVIATION: frame_messaging_store leaked driver name constants
       # (ClaudeDriverName/CodexDriverName) into the runtime root while the
       # depguard rules were dormant behind a stale module path (agent-reactor).
       # Eligibility should become a driver capability instead of name matching;
       # until then this single file is excluded rather than weakening the rule.
       - linters: [depguard]
-        path: "client/runtime/frame_messaging_store\\.go$"
+        path: "host/runtime/frame_messaging_store\\.go$"
         text: "runtime-no-driver"
       # The no-mutex invariant targets the pure cores' production code; test
       # doubles emulating a concurrent shell (fake trackers, scripted daemons)
@@ -307,7 +307,7 @@ linters:
       # for one subsystem boundary. Splitting it further would scatter the
       # responsibility across mostly single-use files.
       - linters: [revive]
-        path: "client/runtime/subsystem/stream/helpers\\.go$"
+        path: "host/runtime/subsystem/stream/helpers\\.go$"
         text: "file-length-limit"
 formatters:
   enable:

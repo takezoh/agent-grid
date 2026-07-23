@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-grid/client/lib/agenthook"
+	"github.com/takezoh/agent-grid/host/lib/agenthook"
 )
 
 // TestRegisterOneHostAgentHook_WritesHookCmd verifies the per-agent helper

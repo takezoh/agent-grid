@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takezoh/agent-grid/client/config"
-	statedriver "github.com/takezoh/agent-grid/client/driver"
-	"github.com/takezoh/agent-grid/client/lib/agenthook"
-	"github.com/takezoh/agent-grid/client/runtime"
-	"github.com/takezoh/agent-grid/client/runtime/worker"
-	"github.com/takezoh/agent-grid/client/state"
+	"github.com/takezoh/agent-grid/host/config"
+	statedriver "github.com/takezoh/agent-grid/host/driver"
+	"github.com/takezoh/agent-grid/host/lib/agenthook"
+	"github.com/takezoh/agent-grid/host/runtime"
+	"github.com/takezoh/agent-grid/host/runtime/worker"
+	"github.com/takezoh/agent-grid/host/state"
 	"github.com/takezoh/agent-grid/platform/agentlaunch"
 	"github.com/takezoh/agent-grid/platform/appid"
 	platformconfig "github.com/takezoh/agent-grid/platform/config"
@@ -450,7 +450,7 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 		// made hook state an out-of-band setup step rather than a runtime
 		// invariant, and the scripts have since been removed in favour of
 		// bridge owning the registration end-to-end via
-		// client/lib/agenthook.
+		// host/lib/agenthook.
 		overlayFn := agentlaunch.BuildContainerOverlay(func(project string) platformconfig.SandboxConfig {
 			return resolver.Resolve(project)
 		}, projects, runner, dataDir, agentHookPostCreateSubcmds())

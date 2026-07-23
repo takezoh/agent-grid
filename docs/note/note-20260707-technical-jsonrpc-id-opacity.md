@@ -18,7 +18,7 @@ relations:
 source_paths:
 - src/platform/agent/codexclient
 - src/cmd/bridge
-- src/client/runtime/subsystem/stream/fake
+- src/host/runtime/subsystem/stream/fake
 - src/platform/agent/fakecodex
 summary: JSON-RPC 2.0 proxy / relay / bridge を書くとき、envelope の id と error object は
   ともに bytes-preserving で扱う (int64 決め打ち禁止 / message-only error 禁止)
@@ -60,7 +60,7 @@ JSON-RPC 2.0 spec §4 は `id` を `String, Number, or NULL value` と規定し�
 
 - `src/platform/agent/codexclient/conn.go` — 参照実装 (`RequestID = json.RawMessage` の named type / pending map int64 key + reply 時 `strconv.ParseInt` 照合)
 - `src/cmd/bridge/codex_app_server_shim.go` — 2 方向 proxy (downstream reply は bytes echo / upstream server-initiated request は shim 側で renumber して echo back)
-- `src/client/runtime/subsystem/stream/fake/appserver.go` / `cli.go` — fake app-server / cli の Handler impl
+- `src/host/runtime/subsystem/stream/fake/appserver.go` / `cli.go` — fake app-server / cli の Handler impl
 - `src/platform/agent/fakecodex/fakecodex.go` — string id を受け付ける fake codex
 
 **将来追加する境界も本 note を継承**する: claude-app-server 側の app-server 化 / orchestrator の 別 driver 対応 / MCP transport 追加 / 別 CLI (Anthropic 系 / OpenAI 系) の bridge — いずれも proxy / relay を書く時点で本 invariant を満たすこと。

@@ -23,7 +23,7 @@
     },
     {
       "id": "browser", "strategy": "exception", "seam": {}, "fake": {}, "contract": {}, "fidelity": {},
-      "exception": {"kind":"hermetic-real","reason":"Playwright exercises real Chromium against the deterministic backend; browser engine behavior is not reimplemented","owner":"client-web","expiry":"2027-07-15","evidence":"docs/adr/adr-20260715-test-harness-dependency-strategies.md"}
+      "exception": {"kind":"hermetic-real","reason":"Playwright exercises real Chromium against the deterministic backend; browser engine behavior is not reimplemented","owner":"host-web","expiry":"2027-07-15","evidence":"docs/adr/adr-20260715-test-harness-dependency-strategies.md"}
     },
     {
       "id": "claude-cli", "strategy": "triple",
@@ -55,7 +55,7 @@
     },
     {
       "id": "pty", "strategy": "exception", "seam": {}, "fake": {}, "contract": {}, "fidelity": {},
-      "exception": {"kind":"trusted-runtime","reason":"real kernel terminal semantics are the accepted wired contract","owner":"client-runtime","expiry":"2027-07-15","evidence":"docs/adr/adr-20260715-test-harness-dependency-strategies.md"}
+      "exception": {"kind":"trusted-runtime","reason":"real kernel terminal semantics are the accepted wired contract","owner":"host-runtime","expiry":"2027-07-15","evidence":"docs/adr/adr-20260715-test-harness-dependency-strategies.md"}
     },
     {
       "id": "gcloud-cli", "strategy": "exception", "seam": {}, "fake": {}, "contract": {}, "fidelity": {},

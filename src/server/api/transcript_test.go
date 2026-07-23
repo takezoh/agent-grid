@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-grid/client/proto"
-	stateview "github.com/takezoh/agent-grid/client/state/view"
+	"github.com/takezoh/agent-grid/host/proto"
+	stateview "github.com/takezoh/agent-grid/host/state/view"
 )
 
 // --- helpers ---

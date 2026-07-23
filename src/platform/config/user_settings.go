@@ -11,7 +11,7 @@ import (
 
 // UserSettings holds the subset of ~/.agent-grid/settings.toml shared between the
 // client and the orchestrator: sandbox posture, project scoping, and the
-// data directory. The client decodes a richer superset in client/config;
+// data directory. The client decodes a richer superset in host/config;
 // both read the same file into the same platform types, so the shared sections
 // stay consistent. This keeps the orchestrator from importing client/.
 type UserSettings struct {

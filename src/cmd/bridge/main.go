@@ -16,7 +16,7 @@
 // Both *-setup-hooks subcommands are invoked from the devcontainer postCreate
 // so every agent process inside the container starts with hooks already in
 // place. The scripts/setup-{claude,gemini}.sh shims were deleted in lockstep
-// — this binary owns the registration via client/lib/agenthook.
+// — this binary owns the registration via host/lib/agenthook.
 package main
 
 import (
@@ -28,8 +28,8 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/takezoh/agent-grid/client/event"
-	"github.com/takezoh/agent-grid/client/lib/agenthook"
+	"github.com/takezoh/agent-grid/host/event"
+	"github.com/takezoh/agent-grid/host/lib/agenthook"
 	"github.com/takezoh/agent-grid/platform/appid"
 	"github.com/takezoh/agent-grid/platform/framelaunch"
 	"github.com/takezoh/agent-grid/platform/hostexec"

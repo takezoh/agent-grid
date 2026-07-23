@@ -127,7 +127,7 @@ summary: The orchestrator is a headless, single-authority background service tha
 
 The orchestrator is a **headless**, **single-authority** background service that implements the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md). It polls a Linear tracker, dispatches coding agents to per-issue workspaces, reconciles running/stalled sessions, and exposes a read-only observability HTTP server (§13.7 — mandatory in our implementation).
 
-It lives entirely inside `orchestrator/`, does **not** import `client/`, and shares `platform/` (logger, metrics, tracker/linear, agent/codexclient, agentlaunch, lib/codex, sandbox) with the client. The boundary is enforced by the `depguard` rule `client-no-orchestrator` and its converse.
+It lives entirely inside `orchestrator/`, does **not** import `client/`, and shares `platform/` (logger, metrics, tracker/linear, agent/codexclient, agentlaunch, lib/codex, sandbox) with the client. The boundary is enforced by the `depguard` rule `host-no-orchestrator` and its converse.
 
 User-facing operation (running it, the `WORKFLOW.md` config, agent selection) is in the [orchestrator user guide](../note/note-20260624-user-orchestrator.md). Authoring the driving prompt is in [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md).
 

@@ -41,12 +41,12 @@ backstop、canonical recording が同一の routing isolation を検証する。
 
 ## 1. プロジェクト特性
 
-- 境界: `client/state` と `orchestrator/scheduler` の pure reducer、driver `Step` を functional core とし、
+- 境界: `host/state` と `orchestrator/scheduler` の pure reducer、driver `Step` を functional core とし、
   runtime、gateway、CLI/API/pty/docker を imperative shell とする。
 - 主要経路: pty→tap→OSC/prompt→runtime、app-server→stream demux→frame、DriverEvent→Step→View、
   daemon/server→WebSocket→TS codec/view、browser bootstrap→hydrate/palette/new-session、devcontainer→docker。
 - 外部依存: Claude/Codex CLI・app-server、docker、real pty、Linear HTTP、git/gh CLI、browser、wall clock。
-- 模範象限: `client/runtime/subsystem/stream`。次点は fakecodex/fakeclaude と devcontainer/fakedocker。
+- 模範象限: `host/runtime/subsystem/stream`。次点は fakecodex/fakeclaude と devcontainer/fakedocker。
 - 再入元: `plan-20260705-test-harness` は done。今回の入口は全 milestone の exit criteria 再監査である。
 
 ## 2. Tier マップ
@@ -134,7 +134,7 @@ T0〜T2/race/fuzz/coverage/diff、nightly T3 が速度階層を作る。critical
 ## 9. 検証証拠
 
 - docs: `docs lint` — 181文書時点で status ok、warning 0（本書追加後に再実行する）。
-- Go主要象限: `go test ./gorules ./client/driver/... ./client/runtime/... ./platform/sandbox/devcontainer/... ./server/web/...` — pass。
+- Go主要象限: `go test ./gorules ./host/driver/... ./host/runtime/... ./platform/sandbox/devcontainer/... ./server/web/...` — pass。
 - Web: `npm test -- --run` — 85 files / 1472 tests pass。`npm run build` — pass。
 - 補足: Web test は `act(...)` warning を出すが exit 0。flaky/silent warning の将来 inventory 入力とする。
 

@@ -1,9 +1,9 @@
 {
   "version": 1,
   "entries": [
-    {"path":"src/client/driver/summarize.go","kinds":["process"],"dependencies":["host-process"]},
-    {"path":"src/client/lib/editor/editor.go","kinds":["process"],"dependencies":["host-process"]},
-    {"path":"src/client/runtime/subsystem/stream/fake/pty.go","kinds":["process","pty"],"dependencies":["host-process","pty"]},
+    {"path":"src/host/driver/summarize.go","kinds":["process"],"dependencies":["host-process"]},
+    {"path":"src/host/lib/editor/editor.go","kinds":["process"],"dependencies":["host-process"]},
+    {"path":"src/host/runtime/subsystem/stream/fake/pty.go","kinds":["process","pty"],"dependencies":["host-process","pty"]},
     {"path":"src/cmd/bridge/codex_app_server_shim.go","kinds":["process"],"dependencies":["codex-app-server"]},
     {"path":"src/orchestrator/lineargql/client.go","kinds":["outbound-http"],"dependencies":["linear-http"]},
     {"path":"src/orchestrator/workspace/hooks.go","kinds":["process"],"dependencies":["host-process"]},

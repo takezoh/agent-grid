@@ -169,12 +169,12 @@ test:
 
 # test-race runs the concurrency-sensitive subtrees under the race detector.
 # Scoped to platform/termvt (Session actor model + emulator drain) and
-# client/runtime (single-dispatcher event loop + ipc fan-out) because the
+# host/runtime (single-dispatcher event loop + ipc fan-out) because the
 # rest of the tree adds noise (third-party stubs, large startup paths) we
 # haven't validated under -race yet. Add subtrees here as they're audited.
 # See docs/note/note-20260624-agent-testing.md for the rollout plan.
 test-race:
-	cd $(SRC_DIR) && go test -race -count=1 ./platform/termvt/... ./client/runtime/...
+	cd $(SRC_DIR) && go test -race -count=1 ./platform/termvt/... ./host/runtime/...
 
 vet:
 	cd $(SRC_DIR) && go vet ./...
@@ -209,8 +209,8 @@ verify-nightly:
 	./scripts/run-verification-profile.sh nightly
 
 verify-bridge-deps:
-	@echo "Checking that bridge does not import client/state, client/uiproc, or platform/features..."
-	@cd $(SRC_DIR) && go list -deps ./cmd/bridge | grep -E 'takezoh/agent-grid/(client/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
+	@echo "Checking that bridge does not import host/state, host/uiproc, or platform/features..."
+	@cd $(SRC_DIR) && go list -deps ./cmd/bridge | grep -E 'takezoh/agent-grid/(host/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
 
 clean:
 	rm -f $(SERVER) $(WEB) $(BRIDGE) $(ORCHESTRATOR) $(CLAUDE_APP_SERVER)

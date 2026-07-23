@@ -8,31 +8,31 @@
 # variance does not break the build. Raise the floor whenever a package
 # gains durable coverage — never lower it without a written justification.
 
-# client/ — reactor-specific session lifecycle layer
-github.com/takezoh/agent-grid/client/config                       85
-github.com/takezoh/agent-grid/client/driver                       75
-github.com/takezoh/agent-grid/client/driver/drivertest            0
-github.com/takezoh/agent-grid/client/driver/vt                    55
-github.com/takezoh/agent-grid/client/event                        20
-github.com/takezoh/agent-grid/client/lib/agenthook               80
-github.com/takezoh/agent-grid/client/lib/claude/transcript        75
-github.com/takezoh/agent-grid/client/lib/codex/transcript         60
-github.com/takezoh/agent-grid/client/lib/editor                   80
-github.com/takezoh/agent-grid/client/procio                       95
-github.com/takezoh/agent-grid/client/proto                        85
-github.com/takezoh/agent-grid/client/proto/protofake             75
-github.com/takezoh/agent-grid/client/proto/sessions               80
-github.com/takezoh/agent-grid/client/runtime                      58
-github.com/takezoh/agent-grid/client/runtime/framereg             95
-github.com/takezoh/agent-grid/client/runtime/runtimetest          0
-github.com/takezoh/agent-grid/client/runtime/subsystem            15
-github.com/takezoh/agent-grid/client/runtime/subsystem/cli        70
-github.com/takezoh/agent-grid/client/runtime/subsystem/stream     74
-github.com/takezoh/agent-grid/client/runtime/subsystem/stream/fake 75
-github.com/takezoh/agent-grid/client/runtime/worker               90
-github.com/takezoh/agent-grid/client/state                        80
-github.com/takezoh/agent-grid/client/state/view                   95
-github.com/takezoh/agent-grid/client/tools                        50
+# host/ — session lifecycle layer (the daemon)
+github.com/takezoh/agent-grid/host/config                       85
+github.com/takezoh/agent-grid/host/driver                       75
+github.com/takezoh/agent-grid/host/driver/drivertest            0
+github.com/takezoh/agent-grid/host/driver/vt                    55
+github.com/takezoh/agent-grid/host/event                        20
+github.com/takezoh/agent-grid/host/lib/agenthook               80
+github.com/takezoh/agent-grid/host/lib/claude/transcript        75
+github.com/takezoh/agent-grid/host/lib/codex/transcript         60
+github.com/takezoh/agent-grid/host/lib/editor                   80
+github.com/takezoh/agent-grid/host/procio                       95
+github.com/takezoh/agent-grid/host/proto                        85
+github.com/takezoh/agent-grid/host/proto/protofake             75
+github.com/takezoh/agent-grid/host/proto/sessions               80
+github.com/takezoh/agent-grid/host/runtime                      58
+github.com/takezoh/agent-grid/host/runtime/framereg             95
+github.com/takezoh/agent-grid/host/runtime/runtimetest          0
+github.com/takezoh/agent-grid/host/runtime/subsystem            15
+github.com/takezoh/agent-grid/host/runtime/subsystem/cli        70
+github.com/takezoh/agent-grid/host/runtime/subsystem/stream     74
+github.com/takezoh/agent-grid/host/runtime/subsystem/stream/fake 75
+github.com/takezoh/agent-grid/host/runtime/worker               90
+github.com/takezoh/agent-grid/host/state                        80
+github.com/takezoh/agent-grid/host/state/view                   95
+github.com/takezoh/agent-grid/host/tools                        50
 github.com/takezoh/agent-grid/uihost                          90
 
 # cmd/ — binary entry points

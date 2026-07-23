@@ -17,7 +17,7 @@ func ExpandPath(p string) string {
 
 // listProjectsFrom enumerates project directories from roots + explicit paths.
 // Factored out so both platform/config (ProjectsConfig.ListProjects) and
-// client/config (Config.ListProjects) can use it without importing each other.
+// host/config (Config.ListProjects) can use it without importing each other.
 func listProjectsFrom(roots, paths []string) []string {
 	var projects []string
 	for _, root := range roots {

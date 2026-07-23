@@ -23,7 +23,7 @@ relations:
 - {type: references, target: note-20260624-technical-code-enforcement}
 source_paths:
 - src/orchestrator/scheduler/
-- src/client/runtime/
+- src/host/runtime/
 - src/platform/termvt/
 - src/server/api/
 - Makefile
@@ -72,11 +72,11 @@ Both decision-loop layers (`client/` and `orchestrator/scheduler`) share the Fun
 
 - **`state.Reduce` / `scheduler.Reduce` tests** — no mocks. Pure function tests that verify the return value `(state', []Effect)` of `Reduce(state, event, …)`. No goroutine / channel / timing dependencies; time enters as a value.
 - **`Driver.Step` tests** — no mocks. Directly verify the return value `(next, effects, view)` of `Step(prev, driverEvent)`.
-- **shell tests** (`client/runtime`, `orchestrator/scheduler` loop) — inject fakes for backend interfaces (`runtime.Config` `noopBackend`/`noopPersist`; scheduler `Deps{ Tracker, Spawn, Clock, … }` with a fake clock). Drive events through the loop and assert the published state.
+- **shell tests** (`host/runtime`, `orchestrator/scheduler` loop) — inject fakes for backend interfaces (`runtime.Config` `noopBackend`/`noopPersist`; scheduler `Deps{ Tracker, Spawn, Clock, … }` with a fake clock). Drive events through the loop and assert the published state.
 
 ## Harness Catalog
 
-- **`runtimetest.Harness` (T1)** — boots a real `client/runtime` loop with injected fakes at `New(...)` time and provides `Runtime`, `Enqueue`, `WaitFor`, and `Quiesce` so propagation tests do not need ad-hoc runtime startup code.
+- **`runtimetest.Harness` (T1)** — boots a real `host/runtime` loop with injected fakes at `New(...)` time and provides `Runtime`, `Enqueue`, `WaitFor`, and `Quiesce` so propagation tests do not need ad-hoc runtime startup code.
 - **`drivertest.Conformance` (T0)** — runs the common `state.Driver` contract over every registered driver: Step purity, DriverEvent totality, View/Status totality, and Persist/Restore round-trip. The Step-purity check snapshots the pre-Step state with a JSON clone, so driver state must stay JSON-round-trippable by value; this matches the same `Persist`/`Restore` contract the suite asserts immediately afterward.
 - **`drivertest.MetadataSourcePriority` (T0)** — applies the authoritative-vs-fallback metadata contract to a driver-specific scenario; this is separate from registry conformance and must be invoked explicitly where the driver carries metadata state.
 
@@ -89,8 +89,8 @@ synchronously at creation/resume, so same-cwd frames get distinct ids and cannot
 cross-talk by construction. It is pinned by a dedicated harness — direct-drive
 contract, a wired fake app-server exercised under `-race`, a stdlib
 `FuzzStreamRouting`, and an opt-in real app-server fidelity backstop
-([setup](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-e2e)). Full guide:
-[stream backend testing](../design/design-client.md#legacy-source-component-20260624-client-stream-backend-testing). This is
+([setup](../design/design-host.md#legacy-source-component-20260624-client-stream-backend-e2e)). Full guide:
+[stream backend testing](../design/design-host.md#legacy-source-component-20260624-client-stream-backend-testing). This is
 the test-pinned enforcement catalogued in
 [code-enforcement.md §6](note-20260624-technical-code-enforcement.md).
 
@@ -129,13 +129,13 @@ signal stays actionable instead of drowning in unrelated startup paths:
 
 ```sh
 make test-race
-# → cd src && go test -race -count=1 ./platform/termvt/... ./client/runtime/...
+# → cd src && go test -race -count=1 ./platform/termvt/... ./host/runtime/...
 ```
 
 This is the canonical "did my concurrency refactor regress something" smoke
 test. `platform/termvt` is on the list because the Session actor (single
 mainLoop owner + atomic exit state) and the fanout-isolation contract live
-there; `client/runtime` is on the list because the single dispatch goroutine
+there; `host/runtime` is on the list because the single dispatch goroutine
 must remain race-free under IPC fan-out.
 
 Adding a subtree: audit it under `-race` locally, fix anything that surfaces,
@@ -150,7 +150,7 @@ Coverage targets are tiered by architectural blast radius. A regression in `stat
 | **S** | ≥85% | Pure domain layer & wire types | `state`, `state/view`, `proto`, `features`, `orchestrator/scheduler` (pure `Reduce` + transitions) |
 | **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/stream`, `driver`, `config`, `sandbox/devcontainer`, `platform/termvt`, `uihost`, `server/api` (gateway scenario + browser smoke keep this tier honest) |
 | **B** | ≥60% | Infrastructure integrations | `lib/*` (except thin CLI wrappers), `proto/sessions`, `hostexec`, `mcpproxy`, `tools`, `platform/agent/fakecodex` |
-| **C** | ≥40% | Thin CLI & wiring | `cmd/claude-app-server`, `cmd/orchestrator`, `runtime/subsystem/cli`, `client/lib/claude/transcript`, `client/lib/codex/transcript` |
+| **C** | ≥40% | Thin CLI & wiring | `cmd/claude-app-server`, `cmd/orchestrator`, `runtime/subsystem/cli`, `host/lib/claude/transcript`, `host/lib/codex/transcript` |
 | **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/uihost`, `cmd/bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli` |
 
 Tier S and A packages must not lose coverage in a PR. Tier B packages should improve over time; new B-tier code arrives with tests. Tier C packages aim for the goldenpath; full coverage isn't expected. Tier D packages need at least one test that exercises the package surface.

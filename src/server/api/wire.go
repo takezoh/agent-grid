@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/takezoh/agent-grid/client/proto"
+	"github.com/takezoh/agent-grid/host/proto"
 )
 
 // outputFrameFromSurface encodes EvtSurfaceOutput as an asciicast-style

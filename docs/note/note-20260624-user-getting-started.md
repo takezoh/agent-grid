@@ -85,11 +85,11 @@ and the per-flag reference.
 Hook registration is owned by the runtime — there is no manual install step.
 
 - **Claude (host)**: the daemon registers `~/.claude/settings.json` against its own binary path at every boot (`cmd/server/coordinator.go:registerHostAgentHooks`). Idempotent: an unchanged settings file is a no-op; a stale entry pointing at an older binary path is rewritten in place.
-- **Gemini (host)**: same code path, `~/.gemini/settings.json`. Different event vocabulary (`BeforeTool` / `AfterTool` / …) but the same `client/lib/agenthook.Install` call.
+- **Gemini (host)**: same code path, `~/.gemini/settings.json`. Different event vocabulary (`BeforeTool` / `AfterTool` / …) but the same `host/lib/agenthook.Install` call.
 - **Inside a devcontainer**: each devcontainer's `postCreate` runs `bridge claude-setup-hooks` and `bridge gemini-setup-hooks`, so the in-container settings files point at `/opt/agent-grid/run/bridge`. Same `agenthook` package as the host path.
 - **Codex**: no hooks. The backend has a built-in Codex integration via the app-server protocol.
 
-If the registration ever needs to be inspected or rebuilt by hand, the canonical JSON shape lives in `client/lib/agenthook.Install` and the per-agent event lists are exported as `agenthook.Claude` / `agenthook.Gemini`.
+If the registration ever needs to be inspected or rebuilt by hand, the canonical JSON shape lives in `host/lib/agenthook.Install` and the per-agent event lists are exported as `agenthook.Claude` / `agenthook.Gemini`.
 
 ## Next steps
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takezoh/agent-grid/client/config"
+	"github.com/takezoh/agent-grid/host/config"
 )
 
 // === randToken / isLoopbackAddr — gateway helpers ===

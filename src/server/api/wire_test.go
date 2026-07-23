@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takezoh/agent-grid/client/proto"
-	"github.com/takezoh/agent-grid/client/state/view"
+	"github.com/takezoh/agent-grid/host/proto"
+	"github.com/takezoh/agent-grid/host/state/view"
 )
 
 func TestWireEncodeServerEvent_SurfaceOutput(t *testing.T) {

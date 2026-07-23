@@ -8,7 +8,7 @@
 // own concurrency, timers, and I/O).
 //
 // Targeted cores:
-//   - client/state         — wholly pure; every file is in scope.
+//   - host/state         — wholly pure; every file is in scope.
 //   - orchestrator/scheduler — reducer and shell share one package, so the shell
 //     files (scheduler.go / effects_exec.go / clock.go / watch.go) are excluded.
 //
@@ -23,7 +23,7 @@ import "github.com/quasilyte/go-ruleguard/dsl"
 func noGoroutinesInPureCore(m dsl.Matcher) {
 	m.Match(`go $f($*_)`, `go func($*_) { $*_ }($*_)`).
 		Where(!m.File().Name.Matches(`_test\.go$`) &&
-			(m.File().PkgPath.Matches(`/client/state$`) ||
+			(m.File().PkgPath.Matches(`/host/state$`) ||
 				(m.File().PkgPath.Matches(`/orchestrator/scheduler$`) &&
 					!m.File().Name.Matches(`^(scheduler|effects_exec|clock|watch)\.go$`)))).
 		Report(`goroutines are forbidden in the pure functional core — concurrency belongs in the imperative shell (ARCHITECTURE.md / code-enforcement.md)`)
@@ -34,7 +34,7 @@ func noGoroutinesInPureCore(m dsl.Matcher) {
 func noWallClockInPureCore(m dsl.Matcher) {
 	m.Match(`time.Now()`, `time.Since($_)`).
 		Where(!m.File().Name.Matches(`_test\.go$`) &&
-			(m.File().PkgPath.Matches(`/client/state$`) ||
+			(m.File().PkgPath.Matches(`/host/state$`) ||
 				(m.File().PkgPath.Matches(`/orchestrator/scheduler$`) &&
 					!m.File().Name.Matches(`^(scheduler|effects_exec|clock|watch)\.go$`)))).
 		Report(`the pure functional core must not read the wall clock — time enters Reduce as a value (ARCHITECTURE.md)`)
@@ -51,7 +51,7 @@ func noDirectIOInPureCore(m dsl.Matcher) {
 		`exec.Command($*_)`, `exec.CommandContext($*_)`,
 	).
 		Where(!m.File().Name.Matches(`_test\.go$`) &&
-			(m.File().PkgPath.Matches(`/client/state$`) ||
+			(m.File().PkgPath.Matches(`/host/state$`) ||
 				(m.File().PkgPath.Matches(`/orchestrator/scheduler$`) &&
 					!m.File().Name.Matches(`^(scheduler|effects_exec|clock|watch)\.go$`)))).
 		Report(`the pure functional core must not perform I/O — emit an Effect instead (only bounded read-only os.Stat is allowed; see ARCHITECTURE.md)`)

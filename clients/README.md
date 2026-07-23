@@ -6,7 +6,7 @@
 
 | ディレクトリ | 中身 | 状態 |
 |---|---|---|
-| `ui/` | 共有 SPA (React/TS/xterm.js)。ブラウザと Electron workspace の両方が使う UI 資産。配信機は `src/uihost` (`cmd/uihost`) | 移設済み (旧 `src/client/web`) |
+| `ui/` | 共有 SPA (React/TS/xterm.js)。ブラウザと Electron workspace の両方が使う UI 資産。配信機は `src/uihost` (`cmd/uihost`) | 移設済み (旧 `src/host/web`) |
 | `windows-shell/` | 常駐ネイティブシェル (C# / WinUI 3): パネル・通知・deep link・デーモン監督 | 未着工 (native-clients plan Phase 2 S1) |
 | `workspace/` | セッションウィンドウホスト (Electron / TS)。SPA を hosted モードで表示 | 未着工 (Phase 2 S4) |
 | `apple/` | Swift package + iOS / macOS ターゲット | 未着工 (Phase 3/4) |

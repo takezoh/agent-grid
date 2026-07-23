@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/takezoh/agent-grid/client/proto"
-	"github.com/takezoh/agent-grid/client/state"
-	stateview "github.com/takezoh/agent-grid/client/state/view"
+	"github.com/takezoh/agent-grid/host/proto"
+	"github.com/takezoh/agent-grid/host/state"
+	stateview "github.com/takezoh/agent-grid/host/state/view"
 )
 
 // sessionIDPattern is the allowlist regex for session IDs (ADR 0026).
@@ -189,7 +189,7 @@ func resolveSessionFilePath(d *DaemonClient, r *http.Request, id, kindMatch stri
 // The driver-side LogTab labels are short uppercase strings ("TRANSCRIPT",
 // "EVENTS"), and the file paths use driver-specific extensions
 // (".transcript" for transcripts, ".log" for event logs — see
-// client/driver/view_builder.go). The match table below enumerates the
+// host/driver/view_builder.go). The match table below enumerates the
 // concrete tokens each kind may carry so that grep-style label matching
 // stays correct as drivers are added.
 //
