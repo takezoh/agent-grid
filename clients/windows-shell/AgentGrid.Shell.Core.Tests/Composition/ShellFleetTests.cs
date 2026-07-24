@@ -42,6 +42,23 @@ public sealed class ShellFleetTests
         Assert.Equal("remote", Assert.Single(aggregate.Approvals).ServerId);
     }
 
+    [Fact]
+    public void Default_workspace_command_resolves_to_the_local_install()
+    {
+        var path = ShellFleet.ResolveWorkspaceExecutable(
+            "agent-grid-workspace",
+            @"C:\Users\test\AppData\Local");
+
+        Assert.Equal(
+            @"C:\Users\test\AppData\Local\agent-grid\workspace\agent-grid-workspace.exe",
+            path);
+        Assert.Equal(
+            @"D:\custom\workspace.exe",
+            ShellFleet.ResolveWorkspaceExecutable(
+                @"D:\custom\workspace.exe",
+                @"C:\Users\test\AppData\Local"));
+    }
+
     private static SupervisionSnapshot Snapshot(string sessionId) => new(
         [new SessionSummary(sessionId, SessionPhase.Running)],
         [],

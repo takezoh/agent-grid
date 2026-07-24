@@ -23,6 +23,8 @@ Set-Location $localSrc
 
 if (-not $HostOnly) {
   $publish = Join-Path $dest "shell-winui"
+  Get-Process "AgentGrid.Shell.WinUI" -ErrorAction SilentlyContinue |
+    Stop-Process -Force
   if (Test-Path $publish) { Remove-Item -Recurse -Force $publish }
   & $dotnet publish AgentGrid.Shell.WinUI\AgentGrid.Shell.WinUI.csproj `
     -c $Configuration -p:Platform=x64 -o $publish --nologo

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "version": "0.0.0",
-  "main": "dist/main/index.js",
+  "main": "dist/main/electron-entry.js",
   "scripts": {
     "build": "npm --prefix ../ui run build && tsc -p tsconfig.json && node scripts/copy-ui.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.0",
+    "electron": "43.2.0",
     "typescript": "5.7.2",
     "vitest": "4.1.10"
   }

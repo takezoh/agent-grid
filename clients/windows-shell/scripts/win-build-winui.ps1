@@ -8,9 +8,9 @@ $env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
 
 $repo = (wsl.exe -e wslpath -w /workspace/agent-grid).Trim()
 $shell = Join-Path $repo "clients\windows-shell"
-$local = Join-Path $env:LOCALAPPDATA "Temp\ag-shell-src"
+$local = Join-Path $env:LOCALAPPDATA (
+  "Temp\ag-shell-src-" + [Guid]::NewGuid().ToString("N"))
 Write-Host "Sync $shell -> $local"
-if (Test-Path $local) { Remove-Item -Recurse -Force $local }
 & robocopy $shell $local /E /XD bin obj .git /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
 

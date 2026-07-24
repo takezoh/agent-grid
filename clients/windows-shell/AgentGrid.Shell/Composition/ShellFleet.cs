@@ -65,13 +65,28 @@ public sealed class ShellFleet : IAsyncDisposable
                 WslDistro = server.Launch.WslDistro ?? "Ubuntu-22.04",
                 ServerPathInWsl = server.Launch.ServerPathInWsl ?? "~/agent-grid/server",
                 GatewayPort = server.Url.Port,
-                WorkspaceExePath = config.Shell.WorkspaceExecutable,
+                WorkspaceExePath = ResolveWorkspaceExecutable(config.Shell.WorkspaceExecutable),
                 WorkspaceArguments = [DesktopConfigLoader.ConfigDirectoryArgument, config.ConfigDirectory],
                 DaemonRunner = runner,
                 QuitApplication = quit,
             }));
         }
         return new ShellFleet(config, roots, quit);
+    }
+
+    public static string ResolveWorkspaceExecutable(
+        string configured,
+        string? localAppData = null)
+    {
+        if (configured is not ("agent-grid-workspace" or "agent-grid-workspace.exe"))
+            return configured;
+        localAppData ??= Environment.GetEnvironmentVariable("LOCALAPPDATA")
+            ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(
+            localAppData,
+            "agent-grid",
+            "workspace",
+            "agent-grid-workspace.exe");
     }
 
     public async Task StartAsync(CancellationToken ct = default)

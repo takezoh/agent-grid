@@ -55,6 +55,24 @@ Electron binary is optional for unit tests (vitest + memory factory).
 
 `npm run build` builds the shared UI and copies it into `dist/ui`. Workspace
 loads `dist/ui/index.html` locally; it never obtains UI content from a Server.
+
+## Windows build and local install
+
+Run either the PowerShell scripts directly or their BAT wrappers:
+
+```bat
+clients\workspace\scripts\build-windows.bat
+clients\workspace\scripts\install-local.bat
+```
+
+The build wrapper produces an unpacked Electron runtime under
+`%LOCALAPPDATA%\Temp`. The installer publishes it to:
+
+```text
+%LOCALAPPDATA%\agent-grid\workspace\agent-grid-workspace.exe
+```
+
+The Shell's default `workspace_executable` name resolves to this install path.
 Playwright-for-Electron e2e is the T1/T3 fidelity path on Windows CI.
 
 On WSL, Windows-side Electron checks can use:
