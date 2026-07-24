@@ -23,7 +23,7 @@ source_paths:
 - .github/workflows/ci.yml
 summary: テストを T0 pure / T1 wired / T2 contract / T3 fidelity に正式階層化し、外部依存導入時の fake
   + FakeVsReal e2e + contract の 3 点セットを規範化する
-updated: '2026-07-05'
+updated: '2026-07-24'
 ---
 
 # Test tier taxonomy (T0-T3) and the external-dependency triple

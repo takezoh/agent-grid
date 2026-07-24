@@ -22,7 +22,7 @@ source_paths:
 - scripts/
 - src/gorules/
 summary: 既存 test-harness の再入監査、Tier/gap matrix、north-star、AI事故防御の残ロードマップ
-updated: '2026-07-11'
+updated: '2026-07-24'
 ---
 
 # Harness Assessment: agent-grid

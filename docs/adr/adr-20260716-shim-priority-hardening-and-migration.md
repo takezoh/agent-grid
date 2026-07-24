@@ -25,6 +25,7 @@ source_paths:
 summary: runtime-authoritative shim dir を preExec 以降も先頭に固定する trust-boundary shift
   を承認し、rollback env toggle と shim enumeration と docker-exec-bash 観測差分 note を移行契約に含める
   (case D)
+updated: '2026-07-24'
 ---
 
 ## Context
