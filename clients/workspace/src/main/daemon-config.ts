@@ -9,7 +9,6 @@ import type { ServerConfig } from "./desktop-config.js";
 
 export interface DaemonConfig {
   baseUrl: string;
-  webOrigin: string;
   token: string;
   tokenPath: string;
 }
@@ -21,8 +20,6 @@ export interface DaemonConfigSource {
   tokenPath: string;
   /** Gateway base URL, e.g. http://127.0.0.1:8443 */
   baseUrl: string;
-  /** SPA origin served by uihost, e.g. http://127.0.0.1:5173 */
-  webOrigin: string;
 }
 
 export class DaemonConfigResolver {
@@ -38,8 +35,7 @@ export class DaemonConfigResolver {
       servers.filter((server) => server.enabled).map((server) => ({
         serverId: server.id,
         tokenPath: server.token_path,
-        baseUrl: server.base_url,
-        webOrigin: server.web_origin,
+        baseUrl: server.url,
       })),
     );
   }
@@ -64,23 +60,11 @@ export class DaemonConfigResolver {
     }
     return {
       baseUrl: source.baseUrl,
-      webOrigin: source.webOrigin,
       token,
       tokenPath: source.tokenPath,
     };
   }
 
-  /**
-   * Build the hosted-mode URL. Token is NEVER in the query string.
-   * Token is injected via preload contextBridge (window.hostedModeInfo).
-   */
-  hostedUrl(webOrigin: string, sessionId: string): string {
-    const u = new URL(webOrigin);
-    u.searchParams.set("hosted", "1");
-    u.searchParams.set("session", sessionId);
-    // Deliberately no token= param.
-    return u.toString();
-  }
 }
 
 /** Info pushed into the renderer via contextBridge. */

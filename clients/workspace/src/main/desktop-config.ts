@@ -13,8 +13,7 @@ export interface ServerConfig {
   id: string;
   display_name: string;
   enabled: boolean;
-  base_url: string;
-  web_origin: string;
+  url: string;
   token_path: string;
   launch: {
     mode: LaunchMode;
@@ -161,8 +160,7 @@ function validateServers(servers: unknown): asserts servers is ServerConfig[] {
       throw new Error(`servers.json: server '${server.id}' enabled must be boolean`);
     }
     if (server.enabled) enabled++;
-    assertHttpUrl(server.base_url, `servers.json: server '${server.id}' base_url`);
-    assertHttpUrl(server.web_origin, `servers.json: server '${server.id}' web_origin`);
+    assertHttpUrl(server.url, `servers.json: server '${server.id}' url`);
     if (typeof server.token_path !== "string" || !server.token_path.trim()) {
       throw new Error(`servers.json: server '${server.id}' needs token_path`);
     }
@@ -249,8 +247,7 @@ function defaultDocuments(): Record<string, unknown> {
         id: "local",
         display_name: "Local",
         enabled: true,
-        base_url: "http://127.0.0.1:8443",
-        web_origin: "http://127.0.0.1:8080",
+        url: "http://127.0.0.1:8443",
         token_path: path.join(localAppData, "agent-grid", "gateway-token"),
         launch: {
           mode: "managed_wsl",

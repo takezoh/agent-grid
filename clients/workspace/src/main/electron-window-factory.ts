@@ -34,9 +34,18 @@ export interface ElectronFactoryOptions {
   config: DaemonConfigResolver;
   BrowserWindow: ElectronBrowserWindowConstructor;
   preloadPath: string;
+  /** file: URL of the UI bundled with Workspace. */
+  uiEntryUrl: string;
   appearance?: AppearanceConfig;
   workspace?: WorkspaceAppConfig;
-  loadUrl?: (session: SessionRef, webOrigin: string) => string;
+}
+
+export function sessionPageUrl(uiEntryUrl: string, sessionId: string): string {
+  const url = new URL(uiEntryUrl);
+  if (url.protocol !== "file:") throw new Error("Workspace UI entry must be a file: URL");
+  url.searchParams.set("hosted", "1");
+  url.searchParams.set("session", sessionId);
+  return url.toString();
 }
 
 /**
@@ -66,9 +75,7 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Windo
       void (async () => {
         try {
           const cfg = await opts.config.resolve(session.serverId);
-          const url =
-            opts.loadUrl?.(session, cfg.webOrigin) ??
-            opts.config.hostedUrl(cfg.webOrigin, session.sessionId);
+          const url = sessionPageUrl(opts.uiEntryUrl, session.sessionId);
           const info: HostedModeInfo = {
             hosted: true,
             sessionId: session.sessionId,

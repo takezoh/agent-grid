@@ -5,7 +5,7 @@
   "version": "0.0.0",
   "main": "dist/main/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm --prefix ../ui run build && tsc -p tsconfig.json && node scripts/copy-ui.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest --run",
     "test:unit": "vitest --run",

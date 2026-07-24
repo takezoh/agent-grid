@@ -1,7 +1,6 @@
 param(
   [Parameter(Mandatory = $true)][string]$ConfigDir,
   [Parameter(Mandatory = $true)][string]$GatewayUrl,
-  [string]$WebOrigin = $GatewayUrl,
   [string]$WorkspaceExecutable = "agent-grid-workspace",
   [string]$TokenPath = ""
 )
@@ -19,8 +18,7 @@ if (-not $TokenPath) {
     id = "test"
     display_name = "Test"
     enabled = $true
-    base_url = $GatewayUrl
-    web_origin = $WebOrigin
+    url = $GatewayUrl
     token_path = $TokenPath
     launch = @{ mode = "connect_only" }
   })

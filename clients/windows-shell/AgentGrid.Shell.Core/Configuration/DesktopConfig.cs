@@ -15,8 +15,7 @@ public sealed record ServerConfig(
     string Id,
     string DisplayName,
     bool Enabled,
-    Uri BaseUrl,
-    Uri WebOrigin,
+    Uri Url,
     string TokenPath,
     ServerLaunchConfig Launch);
 
@@ -125,12 +124,9 @@ public static partial class DesktopConfigLoader
                 $"servers.json: invalid server id '{server.Id}' (use letters, digits, '.', '_' or '-')");
         if (string.IsNullOrWhiteSpace(server.DisplayName))
             throw new DesktopConfigException($"servers.json: server '{server.Id}' needs display_name");
-        if (!Uri.TryCreate(server.BaseUrl, UriKind.Absolute, out var baseUrl) ||
-            baseUrl.Scheme is not ("http" or "https"))
-            throw new DesktopConfigException($"servers.json: server '{server.Id}' has invalid base_url");
-        if (!Uri.TryCreate(server.WebOrigin, UriKind.Absolute, out var webOrigin) ||
-            webOrigin.Scheme is not ("http" or "https"))
-            throw new DesktopConfigException($"servers.json: server '{server.Id}' has invalid web_origin");
+        if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var url) ||
+            url.Scheme is not ("http" or "https"))
+            throw new DesktopConfigException($"servers.json: server '{server.Id}' has invalid url");
         if (string.IsNullOrWhiteSpace(server.TokenPath))
             throw new DesktopConfigException($"servers.json: server '{server.Id}' needs token_path");
         if (server.Launch.Mode is not ("managed_wsl" or "connect_only"))
@@ -147,8 +143,7 @@ public static partial class DesktopConfigLoader
             server.Id,
             server.DisplayName,
             server.Enabled,
-            baseUrl,
-            webOrigin,
+            url,
             Environment.ExpandEnvironmentVariables(server.TokenPath),
             new ServerLaunchConfig(
                 server.Launch.Mode,
@@ -245,7 +240,6 @@ public static partial class DesktopConfigLoader
                         "Local",
                         true,
                         "http://127.0.0.1:8443",
-                        "http://127.0.0.1:8080",
                         Path.Combine(localAppData, "agent-grid", "gateway-token"),
                         new LaunchDocument(
                             "managed_wsl",
@@ -273,8 +267,7 @@ public static partial class DesktopConfigLoader
         [property: JsonPropertyName("id")] string Id,
         [property: JsonPropertyName("display_name")] string DisplayName,
         [property: JsonPropertyName("enabled")] bool Enabled,
-        [property: JsonPropertyName("base_url")] string BaseUrl,
-        [property: JsonPropertyName("web_origin")] string WebOrigin,
+        [property: JsonPropertyName("url")] string Url,
         [property: JsonPropertyName("token_path")] string TokenPath,
         [property: JsonPropertyName("launch")] LaunchDocument Launch);
 

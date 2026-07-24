@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DaemonConfigResolver } from "../src/main/daemon-config.js";
+import { sessionPageUrl } from "../src/main/electron-window-factory.js";
 import { assertTokenNotInUrl } from "../src/preload/index.js";
 
 describe("daemon-config", () => {
@@ -14,7 +15,6 @@ describe("daemon-config", () => {
       serverId: "local",
       tokenPath,
       baseUrl: "http://127.0.0.1:8443",
-      webOrigin: "http://127.0.0.1:5173",
     });
     expect((await r.resolve("local")).token).toBe("v1");
     await fs.writeFile(tokenPath, "v2\n");
@@ -26,7 +26,6 @@ describe("daemon-config", () => {
       serverId: "local",
       tokenPath: path.join(os.tmpdir(), `missing-${Date.now()}`),
       baseUrl: "http://127.0.0.1:8443",
-      webOrigin: "http://127.0.0.1:5173",
     });
     await expect(r.resolve("local")).rejects.toThrow(/unreadable/);
   });
@@ -42,13 +41,11 @@ describe("daemon-config", () => {
         serverId: "one",
         tokenPath: one,
         baseUrl: "http://one.test",
-        webOrigin: "http://one-ui.test",
       },
       {
         serverId: "two",
         tokenPath: two,
         baseUrl: "http://two.test",
-        webOrigin: "http://two-ui.test",
       },
     ]);
 
@@ -62,18 +59,17 @@ describe("daemon-config", () => {
     });
   });
 
-  it("hosted URL never includes token", () => {
-    const r = new DaemonConfigResolver({
-      serverId: "local",
-      tokenPath: "/x",
-      baseUrl: "http://127.0.0.1:8443",
-      webOrigin: "http://127.0.0.1:5173",
-    });
-    const url = r.hostedUrl("http://127.0.0.1:5173", "sess-9");
+  it("builds a local bundled UI URL without the token", () => {
+    const url = sessionPageUrl("file:///app/ui/index.html", "sess-9");
+    expect(url).toMatch(/^file:/);
     expect(url).toContain("hosted=1");
     expect(url).toContain("session=sess-9");
     expect(url).not.toContain("token=");
     assertTokenNotInUrl(url, "super-secret-token");
+  });
+
+  it("rejects a remote UI entry", () => {
+    expect(() => sessionPageUrl("https://ui.example.test", "sess-9")).toThrow(/file:/);
   });
 });
 

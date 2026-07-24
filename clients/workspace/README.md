@@ -52,6 +52,9 @@ npm run lint:browserwindow
 ```
 
 Electron binary is optional for unit tests (vitest + memory factory).
+
+`npm run build` builds the shared UI and copies it into `dist/ui`. Workspace
+loads `dist/ui/index.html` locally; it never obtains UI content from a Server.
 Playwright-for-Electron e2e is the T1/T3 fidelity path on Windows CI.
 
 On WSL, Windows-side Electron checks can use:

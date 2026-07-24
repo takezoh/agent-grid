@@ -31,6 +31,8 @@ export interface AppEntryOptions {
   app: ElectronAppLike;
   BrowserWindow: ElectronBrowserWindowConstructor;
   preloadPath: string;
+  /** Test/packaging override; defaults to dist/ui/index.html. */
+  uiEntryUrl?: string;
   args?: readonly string[];
   config?: DesktopConfig;
   controlPath?: string;
@@ -59,6 +61,7 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
     config,
     BrowserWindow: opts.BrowserWindow,
     preloadPath: opts.preloadPath,
+    uiEntryUrl: opts.uiEntryUrl ?? new URL("../ui/index.html", import.meta.url).toString(),
     appearance: desktopConfig.appearance,
     workspace: desktopConfig.workspace,
   });

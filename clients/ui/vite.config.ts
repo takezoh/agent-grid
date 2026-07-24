@@ -2,6 +2,8 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // The same build is loaded from file: by the packaged Electron Workspace.
+  base: "./",
   plugins: [react()],
   build: {
     outDir: "dist",

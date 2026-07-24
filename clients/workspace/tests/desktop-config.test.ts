@@ -82,8 +82,7 @@ function server(id: string, enabled: boolean) {
     id,
     display_name: id,
     enabled,
-    base_url: "http://127.0.0.1:8443",
-    web_origin: "http://127.0.0.1:8080",
+    url: "http://127.0.0.1:8443",
     token_path: "token",
     launch: { mode: "connect_only" },
   };

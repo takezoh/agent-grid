@@ -21,3 +21,6 @@ with a file-specific error.
 `server.id` is a stable client-local routing key. Desktop session identity is
 `{serverId, sessionId}`. Once a request has been routed to a server connection,
 only `sessionId` is sent to that server.
+
+Workspace loads the UI bundled in the application. Server entries therefore
+contain only the backend `url`; they do not contain a UI origin.

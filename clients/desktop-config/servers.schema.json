@@ -12,13 +12,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "display_name", "enabled", "base_url", "web_origin", "token_path", "launch"],
+        "required": ["id", "display_name", "enabled", "url", "token_path", "launch"],
         "properties": {
           "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
           "display_name": { "type": "string", "minLength": 1 },
           "enabled": { "type": "boolean" },
-          "base_url": { "type": "string", "format": "uri" },
-          "web_origin": { "type": "string", "format": "uri" },
+          "url": { "type": "string", "format": "uri" },
           "token_path": { "type": "string", "minLength": 1 },
           "launch": {
             "type": "object",

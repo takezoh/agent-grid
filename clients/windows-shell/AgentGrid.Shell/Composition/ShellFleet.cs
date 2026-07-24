@@ -59,12 +59,12 @@ public sealed class ShellFleet : IAsyncDisposable
                 : null;
             roots.Add(server.Id, ShellCompositionRoot.Build(new ShellHostOptions
             {
-                GatewayBaseUri = server.BaseUrl,
+                GatewayBaseUri = server.Url,
                 TokenPath = server.TokenPath,
                 TokenPathInWsl = server.Launch.TokenPathInWsl ?? "~/.agent-grid/gateway-token",
                 WslDistro = server.Launch.WslDistro ?? "Ubuntu-22.04",
                 ServerPathInWsl = server.Launch.ServerPathInWsl ?? "~/agent-grid/server",
-                GatewayPort = server.BaseUrl.Port,
+                GatewayPort = server.Url.Port,
                 WorkspaceExePath = config.Shell.WorkspaceExecutable,
                 WorkspaceArguments = [DesktopConfigLoader.ConfigDirectoryArgument, config.ConfigDirectory],
                 DaemonRunner = runner,

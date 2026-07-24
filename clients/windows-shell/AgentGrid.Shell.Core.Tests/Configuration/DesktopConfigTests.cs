@@ -72,13 +72,12 @@ public sealed class DesktopConfigTests : IDisposable
             Directory.Delete(_directory, recursive: true);
     }
 
-    private static object Server(string id, string baseUrl) => new
+    private static object Server(string id, string url) => new
     {
         id,
         display_name = id,
         enabled = true,
-        base_url = baseUrl,
-        web_origin = baseUrl,
+        url,
         token_path = "token",
         launch = new { mode = "connect_only" },
     };

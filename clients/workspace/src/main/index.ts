@@ -20,7 +20,6 @@ export interface MainBootstrapOptions {
   serverId: string;
   tokenPath: string;
   baseUrl: string;
-  webOrigin: string;
   controlPath?: string;
   factory: WindowFactory;
   /** Override layout persistence (default: FileStateStore under APPDATA). */
@@ -38,7 +37,6 @@ export async function bootstrapMain(opts: MainBootstrapOptions): Promise<{
     serverId: opts.serverId,
     tokenPath: opts.tokenPath,
     baseUrl: opts.baseUrl,
-    webOrigin: opts.webOrigin,
   });
   const store: StateStore | null =
     opts.stateStore === undefined
