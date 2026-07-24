@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync/atomic"
 
+	"github.com/takezoh/agent-grid/host/proto"
 	rsubsystem "github.com/takezoh/agent-grid/host/runtime/subsystem"
 	"github.com/takezoh/agent-grid/host/state"
 	"github.com/takezoh/agent-grid/platform/pathmap"
@@ -17,6 +18,8 @@ import (
 type internalEvent interface {
 	isInternalEvent()
 }
+
+const lifecycleMailboxSize = 16
 
 // connOpen is enqueued by the accept loop after Accept returns.
 type connOpen struct {
@@ -31,6 +34,40 @@ type connClose struct {
 }
 
 func (connClose) isInternalEvent() {}
+
+type internalLifecycleDesired struct {
+	connID state.ConnID
+	reqID  string
+	cmd    proto.CmdLifecycleDesired
+}
+
+func (internalLifecycleDesired) isInternalEvent() {}
+
+type internalLifecycleEffectResult struct {
+	connID state.ConnID
+	cmd    proto.CmdLifecycleDesired
+	err    error
+}
+
+func (internalLifecycleEffectResult) isInternalEvent() {}
+
+type internalLifecycleDeadline struct {
+	connID      state.ConnID
+	correlation proto.PublicCorrelation
+}
+
+func (internalLifecycleDeadline) isInternalEvent() {}
+
+type internalLifecycleExpiry struct {
+	connID      state.ConnID
+	correlation proto.PublicCorrelation
+}
+
+func (internalLifecycleExpiry) isInternalEvent() {}
+
+type internalLifecycleTelemetry struct{ record TelemetryRecord }
+
+func (internalLifecycleTelemetry) isInternalEvent() {}
 
 // internalSetRelay is enqueued by SetRelay to wire a FileRelay into the loop.
 type internalSetRelay struct {
@@ -96,6 +133,17 @@ func (r *Runtime) drainInteractiveInternal() {
 	}
 }
 
+func (r *Runtime) drainLifecycleInternal() {
+	for {
+		select {
+		case ev := <-r.lifecycleCh:
+			r.dispatchInternal(ev)
+		default:
+			return
+		}
+	}
+}
+
 // dispatchInternal handles runtime-internal events.
 func (r *Runtime) dispatchInternal(ev internalEvent) {
 	switch e := ev.(type) {
@@ -103,6 +151,16 @@ func (r *Runtime) dispatchInternal(ev internalEvent) {
 		r.handleConnOpen(e.conn)
 	case connClose:
 		r.handleConnClose(e.id)
+	case internalLifecycleDesired:
+		r.handleLifecycleDesired(e)
+	case internalLifecycleEffectResult:
+		r.handleLifecycleEffectResult(e)
+	case internalLifecycleDeadline:
+		r.handleLifecycleDeadline(e)
+	case internalLifecycleExpiry:
+		r.handleLifecycleExpiry(e)
+	case internalLifecycleTelemetry:
+		r.emitLifecycleTelemetry(e.record)
 	case internalBroadcastWire:
 		r.broadcastWire(e.wire, e.eventName)
 	case internalSetRelay:
@@ -183,6 +241,17 @@ func (r *Runtime) startRestoredTaps() {
 // Every drop is also counted per-event-type via internalDrops so saturation
 // causes can be attributed via InternalDropStats.
 func (r *Runtime) enqueueInternal(ev internalEvent) bool {
+	if isLifecycleInternal(ev) {
+		select {
+		case r.lifecycleCh <- ev:
+			return true
+		default:
+			if r.internalDrops != nil {
+				r.internalDrops.inc(internalEventName(ev))
+			}
+			return false
+		}
+	}
 	ch := r.internalChBulk
 	if isInteractiveInternal(ev) {
 		ch = r.internalChInteractive
@@ -210,6 +279,11 @@ func (r *Runtime) enqueueInternal(ev internalEvent) bool {
 const (
 	internalEventConnOpen           = "conn-open"
 	internalEventConnClose          = "conn-close"
+	internalEventLifecycleDesired   = "lifecycle-desired"
+	internalEventLifecycleResult    = "lifecycle-result"
+	internalEventLifecycleDeadline  = "lifecycle-deadline"
+	internalEventLifecycleExpiry    = "lifecycle-expiry"
+	internalEventLifecycleTelemetry = "lifecycle-telemetry"
 	internalEventBroadcastWire      = "broadcast-wire"
 	internalEventBroadcastSurface   = "broadcast-surface"
 	internalEventSurfaceClosed      = "surface-closed"
@@ -235,6 +309,16 @@ func internalEventName(ev internalEvent) string {
 		return internalEventConnOpen
 	case connClose:
 		return internalEventConnClose
+	case internalLifecycleDesired:
+		return internalEventLifecycleDesired
+	case internalLifecycleEffectResult:
+		return internalEventLifecycleResult
+	case internalLifecycleDeadline:
+		return internalEventLifecycleDeadline
+	case internalLifecycleExpiry:
+		return internalEventLifecycleExpiry
+	case internalLifecycleTelemetry:
+		return internalEventLifecycleTelemetry
 	case internalBroadcastWire:
 		return internalEventBroadcastWire
 	case internalBroadcastSurface:
@@ -280,6 +364,11 @@ func newInternalDropCounter() *internalDropCounter {
 	names := []string{
 		internalEventConnOpen,
 		internalEventConnClose,
+		internalEventLifecycleDesired,
+		internalEventLifecycleResult,
+		internalEventLifecycleDeadline,
+		internalEventLifecycleExpiry,
+		internalEventLifecycleTelemetry,
 		internalEventBroadcastWire,
 		internalEventBroadcastSurface,
 		internalEventSurfaceClosed,
@@ -337,6 +426,13 @@ func (r *Runtime) sendSpawnComplete(ev internalEvent) {
 }
 
 func (r *Runtime) sendInternalNow(ev internalEvent) {
+	if isLifecycleInternal(ev) {
+		select {
+		case r.lifecycleCh <- ev:
+		case <-r.done:
+		}
+		return
+	}
 	ch := r.internalChBulk
 	if isInteractiveInternal(ev) {
 		ch = r.internalChInteractive

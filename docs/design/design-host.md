@@ -4,20 +4,50 @@ kind: design
 title: Client architecture
 status: active
 created: '2026-06-24'
-summary: Governs interactive session state, runtime effects, IPC, terminal delivery, persistence, and browser presentation.
+summary: Governs interactive session state, runtime effects, IPC, terminal delivery,
+  persistence, and browser presentation.
 scope_type: area
 responsibilities:
-- {id: RESP-001, statement: Own interactive session and frame lifecycle decisions.}
-- {id: RESP-002, statement: Expose session state and terminal interaction through IPC and the web gateway.}
-- {id: RESP-003, statement: Interpret effects through replaceable runtime backends and persist recoverable session state.}
-- {id: RESP-004, statement: Adapt agent-specific events into the shared client state and presentation model.}
+- id: RESP-001
+  statement: Own interactive session and frame lifecycle decisions.
+- id: RESP-002
+  statement: Expose session state and terminal interaction through IPC and the web
+    gateway.
+- id: RESP-003
+  statement: Interpret effects through replaceable runtime backends and persist recoverable
+    session state.
+- id: RESP-004
+  statement: Adapt agent-specific events into the shared client state and presentation
+    model.
 invariants:
-- {id: INV-001, statement: 'Domain transitions are decided by a pure reducer; I/O and live handles remain outside it.', enforcement: conformance}
-- {id: INV-002, statement: 'One event-loop authority owns mutable runtime state; background work only emits events.', enforcement: conformance}
-- {id: INV-003, statement: A resolved launch plan crosses state-to-runtime boundaries without lossy field reconstruction., enforcement: test}
-- {id: INV-004, statement: Terminal and agent-stream output remains scoped to its frame and subscriber., enforcement: test}
-- {id: INV-005, statement: Persisted sessions are removed only by an explicit delete decision., enforcement: test}
-- {id: INV-006, statement: The frontend renders domain state but does not become an independent lifecycle authority., enforcement: review}
+- id: INV-001
+  statement: Domain transitions are decided by a pure reducer; I/O and live handles
+    remain outside it.
+  enforcement: conformance
+- id: INV-002
+  statement: One event-loop authority owns mutable runtime state; background work
+    only emits events.
+  enforcement: conformance
+- id: INV-003
+  statement: A resolved launch plan crosses state-to-runtime boundaries without lossy
+    field reconstruction.
+  enforcement: test
+- id: INV-004
+  statement: Terminal and agent-stream output remains scoped to its frame and subscriber.
+  enforcement: test
+- id: INV-005
+  statement: Persisted sessions are removed only by an explicit delete decision.
+  enforcement: test
+- id: INV-006
+  statement: The frontend renders domain state but does not become an independent
+    lifecycle authority.
+  enforcement: review
+- id: INV-007
+  statement: Browser publishes complete terminal intent and owns only connection-attempt
+    TransportObservation; TerminalLifecycleActor exclusively owns lease, desired/applied
+    state and RevisionOutcome; public correlation maps to a private gateway owner
+    and old delivery is fenced.
+  enforcement: contract
 boundaries:
   provides:
   - Interactive session and frame lifecycle operations.
@@ -39,11 +69,16 @@ variability:
   - Browser presentation and interaction details that preserve domain ownership.
   - Runtime backend implementations conforming to the narrow role interfaces.
 capabilities:
-- {id: 'cap:interactive-session-lifecycle', uniqueness: global}
-- {id: 'cap:frame-and-terminal-routing', uniqueness: global}
-- {id: 'cap:agent-state-monitoring', uniqueness: global}
-- {id: 'cap:recoverable-session-persistence', uniqueness: global}
-- {id: 'cap:browser-session-presentation', uniqueness: global}
+- id: cap:interactive-session-lifecycle
+  uniqueness: global
+- id: cap:frame-and-terminal-routing
+  uniqueness: global
+- id: cap:agent-state-monitoring
+  uniqueness: global
+- id: cap:recoverable-session-persistence
+  uniqueness: global
+- id: cap:browser-session-presentation
+  uniqueness: global
 relations:
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
@@ -54,12 +89,19 @@ failure_responsibilities:
 - Convert runtime and worker failures into scoped events or observable terminal outcomes.
 - Prevent one frame, subscriber, or stream failure from contaminating another route.
 - Restore persisted state conservatively and surface records that cannot be reconstructed.
+- id: FAILURE-004
+  statement: Browser delivery timeout replaces the connection without authoring remote
+    outcome; producer telemetry is bounded to 250ms/4Hz and terminal status is ordered
+    after finalSequence or explicit delivery_gap.
 trust_boundaries:
-- Treat IPC and browser commands as external input requiring validation and authorization at ingress.
+- Treat IPC and browser commands as external input requiring validation and authorization
+  at ingress.
 - Keep host and sandbox privilege decisions behind platform-owned adapters and brokers.
 compatibility_policies:
-- Evolve IPC and web message shapes through explicit versioned contracts and paired consumers.
-- Preserve readable persisted session state or provide an explicit migration path before schema changes.
+- Evolve IPC and web message shapes through explicit versioned contracts and paired
+  consumers.
+- Preserve readable persisted session state or provide an explicit migration path
+  before schema changes.
 - Keep legacy component identifiers resolvable through documentation aliases.
 source_paths:
 - src/host/

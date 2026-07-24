@@ -49,7 +49,18 @@ func isInteractiveWireEvent(eventName string) bool {
 
 func isInteractiveInternal(ev internalEvent) bool {
 	switch ev.(type) {
-	case internalBroadcastSurface, internalSurfaceClosed:
+	case internalBroadcastSurface, internalSurfaceClosed, internalLifecycleDesired,
+		internalLifecycleEffectResult, internalLifecycleDeadline, internalLifecycleExpiry:
+		return true
+	default:
+		return false
+	}
+}
+
+func isLifecycleInternal(ev internalEvent) bool {
+	switch ev.(type) {
+	case internalLifecycleDesired, internalLifecycleEffectResult,
+		internalLifecycleDeadline, internalLifecycleExpiry, internalLifecycleTelemetry:
 		return true
 	default:
 		return false

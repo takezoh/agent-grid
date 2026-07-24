@@ -155,6 +155,9 @@ func (d CodexDriver) applySubsystemKind(cs CodexState, ctx state.FrameContext, e
 		} else {
 			cs = applyHookStatus(cs, state.StatusRunning, e.Timestamp)
 		}
+	case state.SubsystemQuestionRequested, state.SubsystemQuestionResolved:
+		// Shared reducer owns pending-question projection; Codex has no
+		// additional driver-local state for these events.
 	case state.SubsystemPlanUpdated:
 		if p.Plan != nil {
 			cs.PlanSummary = strings.TrimSpace(p.Plan.Summary)

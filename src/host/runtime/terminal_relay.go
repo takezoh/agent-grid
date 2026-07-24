@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -16,6 +17,14 @@ type SurfaceBackend interface {
 	UnsubscribeSurface(frameID string, id int) error
 	WriteSurface(frameID string, data []byte) error
 	ResizeSurface(frameID string, cols, rows int) error
+}
+
+type leasedSurfaceBackend interface {
+	AcquireSurface(context.Context, string, int, int) (SurfaceLease, error)
+}
+
+type identifiableSurfaceLease interface {
+	ID() int
 }
 
 // bufferedSurfaceBackend optionally accepts a caller-specified subscriber
@@ -42,6 +51,7 @@ type surfaceSub struct {
 	cancel  chan struct{} // closed to stop the fan-out goroutine early
 	seq     uint64        // next Sequence value to emit (subscribe-scoped, resets on re-subscribe)
 	relay   chan internalBroadcastSurface
+	release func() error
 }
 
 // TerminalRelay manages per-(ConnID, SessionID, SubscriberID) subscriptions to termvt
@@ -140,7 +150,7 @@ func (tr *TerminalRelay) SubscribeOwned(
 	}
 	tr.mu.Unlock()
 
-	id, ch, err := tr.subscribeSurface(frameID, cols, rows)
+	id, ch, release, err := tr.subscribeSurface(frameID, cols, rows)
 	if err != nil {
 		return err
 	}
@@ -152,13 +162,14 @@ func (tr *TerminalRelay) SubscribeOwned(
 		subID:   id,
 		cancel:  make(chan struct{}),
 		relay:   make(chan internalBroadcastSurface, tr.severanceThreshold),
+		release: release,
 	}
 
 	tr.mu.Lock()
 	// Double-check after acquiring lock (another goroutine could have raced us).
 	if _, exists := tr.subs[key]; exists {
 		tr.mu.Unlock()
-		_ = tr.backend.UnsubscribeSurface(frameID, id)
+		_ = release()
 		return nil
 	}
 	tr.subs[key] = sub
@@ -186,7 +197,7 @@ func (tr *TerminalRelay) RebindOwned(
 
 	tr.mu.Lock()
 	old, exists := tr.subs[key]
-	if exists && old.frameID == frameID {
+	if exists && old.frameID == frameID && old.cols == cols && old.rows == rows {
 		tr.mu.Unlock()
 		return nil
 	}
@@ -197,16 +208,29 @@ func (tr *TerminalRelay) RebindOwned(
 
 	if exists {
 		close(old.cancel)
-		_ = tr.backend.UnsubscribeSurface(old.frameID, old.subID)
+		_ = old.release()
 	}
 	return tr.SubscribeOwned(connID, sessionID, subscriberID, frameID, cols, rows)
 }
 
-func (tr *TerminalRelay) subscribeSurface(frameID string, cols, rows int) (int, <-chan termvt.Event, error) {
-	if backend, ok := tr.backend.(bufferedSurfaceBackend); ok {
-		return backend.SubscribeSurfaceWithBuffer(frameID, cols, rows, tr.subscriberBuffer)
+func (tr *TerminalRelay) subscribeSurface(frameID string, cols, rows int) (int, <-chan termvt.Event, func() error, error) {
+	if backend, ok := tr.backend.(leasedSurfaceBackend); ok {
+		lease, err := backend.AcquireSurface(context.Background(), frameID, cols, rows)
+		if err != nil {
+			return 0, nil, nil, err
+		}
+		id := 0
+		if identifiable, ok := lease.(identifiableSurfaceLease); ok {
+			id = identifiable.ID()
+		}
+		return id, lease.Events(), lease.Release, nil
 	}
-	return tr.backend.SubscribeSurface(frameID, cols, rows)
+	if backend, ok := tr.backend.(bufferedSurfaceBackend); ok {
+		id, events, err := backend.SubscribeSurfaceWithBuffer(frameID, cols, rows, tr.subscriberBuffer)
+		return id, events, func() error { return tr.backend.UnsubscribeSurface(frameID, id) }, err
+	}
+	id, events, err := tr.backend.SubscribeSurface(frameID, cols, rows)
+	return id, events, func() error { return tr.backend.UnsubscribeSurface(frameID, id) }, err
 }
 
 // Unsubscribe stops the fan-out goroutine for (connID, sessionID) and
@@ -228,7 +252,7 @@ func (tr *TerminalRelay) UnsubscribeOwned(connID state.ConnID, sessionID state.S
 	tr.mu.Unlock()
 
 	close(sub.cancel)
-	_ = tr.backend.UnsubscribeSurface(sub.frameID, sub.subID)
+	_ = sub.release()
 }
 
 func (tr *TerminalRelay) shouldApplySlowClose(
@@ -305,7 +329,7 @@ func (tr *TerminalRelay) SeverOwned(connID state.ConnID, sessionID state.Session
 	tr.mu.Unlock()
 
 	close(sub.cancel)
-	_ = tr.backend.UnsubscribeSurface(sub.frameID, sub.subID)
+	_ = sub.release()
 	tr.sendNow(internalSurfaceClosed{
 		ConnID:       key.connID,
 		SessionID:    key.sessionID,

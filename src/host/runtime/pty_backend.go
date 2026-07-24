@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,21 @@ import (
 
 	"github.com/takezoh/agent-grid/platform/termvt"
 )
+
+type SurfaceLease interface {
+	Events() <-chan termvt.Event
+	Release() error
+}
+
+type ptySurfaceLease struct {
+	id      int
+	events  <-chan termvt.Event
+	release func() error
+}
+
+func (l *ptySurfaceLease) ID() int                     { return l.id }
+func (l *ptySurfaceLease) Events() <-chan termvt.Event { return l.events }
+func (l *ptySurfaceLease) Release() error              { return l.release() }
 
 // PtyBackend implements the FrameBackend role interfaces over platform/termvt,
 // driving pty-backed sessions directly (ADR 0004). All four role surfaces
@@ -259,6 +275,29 @@ func (p *PtyBackend) SubscribeSurface(target string, cols, rows int) (int, <-cha
 		return 0, nil, fmt.Errorf("runtime: unknown frame %q: %w", target, ErrFrameMissing)
 	}
 	return sess.AttachAtGeometry(cols, rows)
+}
+
+// AcquireSurface is the context-aware lease seam used by lifecycle-v2. The
+// context is checked before the actor RPC; Release is idempotent at the
+// termvt session boundary and physically removes the subscriber.
+func (p *PtyBackend) AcquireSurface(ctx context.Context, target string, cols, rows int) (SurfaceLease, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	id, events, err := p.SubscribeSurface(target, cols, rows)
+	if err != nil {
+		return nil, err
+	}
+	var once sync.Once
+	return &ptySurfaceLease{
+		id:     id,
+		events: events,
+		release: func() error {
+			var releaseErr error
+			once.Do(func() { releaseErr = p.UnsubscribeSurface(target, id) })
+			return releaseErr
+		},
+	}, nil
 }
 
 // UnsubscribeSurface releases the subscriber id on target's session. It is

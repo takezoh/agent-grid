@@ -1,5 +1,5 @@
 // driverColor.test.ts — lock the TS color values to the Go source so the two
-// stay in lockstep. When updating src/client/driver/tags.go, update both this
+// stay in lockstep. When updating src/host/driver/tags.go, update both this
 // test and the lib in the same commit.
 
 import * as fs from "node:fs";
@@ -52,11 +52,11 @@ describe("driverColor — canonical brand mapping", () => {
     expect(driverColor("  Codex  ")).toEqual(driverColor("codex"));
   });
 
-  it("matches the Go constants in src/client/driver/tags.go (regression gate)", () => {
+  it("matches the Go constants in src/host/driver/tags.go (regression gate)", () => {
     // Read the Go source and assert each constant we depend on is still
     // defined verbatim. If the Go side renames or recolors a driver, this
     // test catches the drift before the UI ships a stale colour.
-    const goPath = path.resolve(__dirname, "../../../../client/driver/tags.go");
+    const goPath = path.resolve(__dirname, "../../../../src/host/driver/tags.go");
     const src = fs.readFileSync(goPath, "utf-8");
     expect(src).toContain('commandTagBg = "#D97757"');
     expect(src).toContain('commandTagFg = "#FFFFFF"');

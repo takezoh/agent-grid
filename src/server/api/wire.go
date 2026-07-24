@@ -121,6 +121,12 @@ func encodeServerEvent(ev proto.ServerEvent) []byte {
 		return encodeQuestionFrame("qr", e.Question)
 	case proto.EvtQuestionResolved:
 		return encodeQuestionFrame("qx", e.Question)
+	case proto.EvtLifecycleOutcome:
+		return encodeLifecycleOutcomeFrame(e.RevisionOutcome)
+	case proto.EvtLifecycleOutput:
+		return encodeLifecycleOutputFrame(e.LifecycleOutput)
+	case proto.EvtLifecycleDiagnostic:
+		return encodeLifecycleDiagnosticFrame(e.LifecycleDiagnostic)
 	}
 	return nil
 }
@@ -135,6 +141,58 @@ type approvalFrame struct {
 type questionFrame struct {
 	K        string             `json:"k"` // "qr" requested | "qx" resolved
 	Question proto.QuestionWire `json:"question"`
+}
+
+type lifecycleOutcomeFrame struct {
+	K           string                    `json:"k"`
+	Correlation proto.PublicCorrelation   `json:"correlation"`
+	Status      proto.RevisionOutcomeKind `json:"status"`
+	OutputSeq   uint64                    `json:"outputSeq,omitempty"`
+	FinalSeq    uint64                    `json:"finalSequence,omitempty"`
+	Reason      string                    `json:"reason,omitempty"`
+}
+
+type lifecycleOutputFrame struct {
+	K           string                  `json:"k"`
+	Correlation proto.PublicCorrelation `json:"correlation"`
+	Sequence    uint64                  `json:"sequence"`
+	Final       bool                    `json:"final,omitempty"`
+	Digest      string                  `json:"digest,omitempty"`
+}
+
+type lifecycleDiagnosticFrame struct {
+	K           string                  `json:"k"`
+	Correlation proto.PublicCorrelation `json:"correlation"`
+	Watermark   uint64                  `json:"watermark"`
+	DropCount   uint64                  `json:"dropCount,omitempty"`
+	Unknown     bool                    `json:"unknown,omitempty"`
+}
+
+func encodeLifecycleOutcomeFrame(out proto.RevisionOutcome) []byte {
+	b, err := json.Marshal(lifecycleOutcomeFrame{K: "lo", Correlation: out.Correlation, Status: out.Status, OutputSeq: out.OutputSeq, FinalSeq: out.FinalSeq, Reason: out.Reason})
+	if err != nil {
+		slog.Error("wire: failed to encode lifecycle outcome", "err", err)
+		return nil
+	}
+	return b
+}
+
+func encodeLifecycleOutputFrame(out proto.LifecycleOutput) []byte {
+	b, err := json.Marshal(lifecycleOutputFrame{K: "ly", Correlation: out.Correlation, Sequence: out.Sequence, Final: out.Final, Digest: out.Digest})
+	if err != nil {
+		slog.Error("wire: failed to encode lifecycle output", "err", err)
+		return nil
+	}
+	return b
+}
+
+func encodeLifecycleDiagnosticFrame(d proto.LifecycleDiagnostic) []byte {
+	b, err := json.Marshal(lifecycleDiagnosticFrame{K: "lg", Correlation: d.Correlation, Watermark: d.Watermark, DropCount: d.DropCount, Unknown: d.Unknown})
+	if err != nil {
+		slog.Error("wire: failed to encode lifecycle diagnostic", "err", err)
+		return nil
+	}
+	return b
 }
 
 func encodeApprovalFrame(k string, a proto.ApprovalWire) []byte {
@@ -228,14 +286,16 @@ func encodeFromAgentNotification(e proto.EvtAgentNotification) []byte {
 // and lifecycle-multiplexed frames (AttachLifecycleWS path: "s" subscribe,
 // "u" unsubscribe, "i"/"r" with sessionId). Unused fields decode to zero.
 type inbound struct {
-	K          string `json:"k"` // "i" input | "r" resize | "s" subscribe | "u" unsubscribe | "ar"/"qr" respond
-	D          string `json:"d"`
-	Cols       int    `json:"cols"`
-	Rows       int    `json:"rows"`
-	SessionID  string `json:"sessionId,omitempty"`
-	ReqID      string `json:"reqId,omitempty"`
-	ApprovalID string `json:"approvalId,omitempty"`
-	QuestionID string `json:"questionId,omitempty"`
-	Decision   string `json:"decision,omitempty"`
-	Answer     string `json:"answer,omitempty"`
+	K           string                   `json:"k"` // "i" input | "r" resize | "s" subscribe | "u" unsubscribe | "ar"/"qr" respond
+	D           string                   `json:"d"`
+	Cols        int                      `json:"cols"`
+	Rows        int                      `json:"rows"`
+	SessionID   string                   `json:"sessionId,omitempty"`
+	ReqID       string                   `json:"reqId,omitempty"`
+	ApprovalID  string                   `json:"approvalId,omitempty"`
+	QuestionID  string                   `json:"questionId,omitempty"`
+	Decision    string                   `json:"decision,omitempty"`
+	Answer      string                   `json:"answer,omitempty"`
+	Correlation *proto.PublicCorrelation `json:"correlation,omitempty"`
+	Desired     *bool                    `json:"desired,omitempty"`
 }

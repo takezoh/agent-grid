@@ -6,13 +6,20 @@ import { useTranscriptStore } from "../store/transcripts";
 import { useWorkspaceActivityStore } from "../store/workspaceActivity";
 import type { ClientFrame } from "../wire/client";
 import { parseServerFrame, serializeClientFrame } from "../wire/codec";
-import type { ControlFrame, OutputFrame, RespErrFrame, RespOKFrame } from "../wire/server";
+import type {
+  ControlFrame,
+  LifecycleOutcomeFrame,
+  OutputFrame,
+  RespErrFrame,
+  RespOKFrame,
+} from "../wire/server";
 import { backoffDelay, exceededAttempts } from "./backoff";
 import { type RetryDeps, type SubscribeOutcome, subscribeWithRetry } from "./retry";
 import {
   TerminalSubscriptionController,
   type TerminalSubscriptionLease,
 } from "./terminalSubscription";
+import type { PublicCorrelation } from "./transportObservation";
 
 export type ConnectionConfig = {
   ticketEndpoint: string; // POST /api/ws-ticket
@@ -44,9 +51,16 @@ export class Connection {
       {
         subscribe: (sessionId, cols, rows) => this.subscribeOnce(sessionId, cols, rows),
         unsubscribe: (sessionId) => this.unsubscribeOnce(sessionId),
+        publishDesired: (sessionId, cols, rows, correlation, desired) =>
+          this.publishDesired(sessionId, cols, rows, correlation, desired),
       },
       {
         onSnapshot: (snapshot) => useSubscriptionStore.getState().replace(snapshot),
+        onDeliveryTimeout: () => this.ws?.close(),
+        onAuthoritativeTerminal: () => {
+          // The controller owns the observation transition; this callback is
+          // reserved for future stage watermark consumers.
+        },
       },
     );
   }
@@ -58,7 +72,13 @@ export class Connection {
     // triggers handleClose() reconnect logic instead of permanently halting.
     this.closedByUser = false;
     useDaemonStore.getState().setStatus("connecting");
-    await this.connect();
+    try {
+      await this.connect();
+    } catch {
+      // Initial ticket/socket failure follows the same bounded recovery path
+      // as an established socket close; desired state is retained.
+      this.handleClose();
+    }
   }
 
   close(): void {
@@ -106,6 +126,23 @@ export class Connection {
     });
     this.send({ k: "u", reqId, sessionId });
     await response;
+  }
+
+  private async publishDesired(
+    sessionId: string,
+    cols: number,
+    rows: number,
+    correlation: PublicCorrelation,
+    desired: boolean,
+  ): Promise<SubscribeOutcome> {
+    const reqId = this.nextReqId();
+    const response = new Promise<RespOKFrame | RespErrFrame>((resolve) => {
+      this.pending.set(reqId, { resolve });
+    });
+    this.send({ k: "ld", reqId, sessionId, cols, rows, correlation, desired });
+    const resp = await response;
+    if (resp.k === "r") return { status: "confirmed", reqId };
+    return { status: "exhausted", lastError: resp.code };
   }
 
   private nextReqId(): string {
@@ -166,6 +203,9 @@ export class Connection {
     }
     switch (frame.k) {
       case "h":
+        if (frame.clientInstanceID) {
+          this.terminalSubscriptions.setClientInstanceID(frame.clientInstanceID);
+        }
         useDaemonStore.getState().seedHello(frame);
         useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
         break;
@@ -184,6 +224,9 @@ export class Connection {
       case "n":
         useNotificationsStore.getState().addFromFrame(frame);
         break;
+      case "lo":
+        this.handleLifecycleOutcome(frame);
+        break;
       case "c":
         this.handleControl(frame);
         break;
@@ -197,6 +240,13 @@ export class Connection {
         break;
       }
     }
+  }
+
+  private handleLifecycleOutcome(frame: LifecycleOutcomeFrame): void {
+    if (frame.status === "accepted" || frame.status === "waiting") {
+      return;
+    }
+    this.terminalSubscriptions.observeAuthoritativeTerminal(frame.correlation);
   }
 
   private handleControl(frame: ControlFrame): void {

@@ -32,4 +32,25 @@ export type UnsubscribeFrame = {
   sessionId: string;
 };
 
-export type ClientFrame = InputFrame | ResizeFrame | SubscribeFrame | UnsubscribeFrame;
+export type PublicCorrelation = {
+  clientInstanceID: string;
+  connectionGeneration: number;
+  clientRevision: number;
+};
+
+export type LifecycleDesiredFrame = {
+  k: "ld";
+  correlation: PublicCorrelation;
+  reqId: string;
+  sessionId: string;
+  cols: number;
+  rows: number;
+  desired: boolean;
+};
+
+export type ClientFrame =
+  | InputFrame
+  | ResizeFrame
+  | SubscribeFrame
+  | UnsubscribeFrame
+  | LifecycleDesiredFrame;

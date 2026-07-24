@@ -48,16 +48,16 @@ const AutoResolvingClientInstanceID = "auto"
 // while status=pending and is removed on terminal transition after effects
 // are emitted (reap-on-terminal keeps maps free of resolved entries).
 type ApprovalRequest struct {
-	ID                        ApprovalID
-	SessionID                 SessionID
-	FrameID                   FrameID
-	Kind                      string // "command" | "file_change"
-	Command                   string
-	Path                      string
-	Reason                    string
-	CreatedAt                 time.Time
-	ExpiresAt                 time.Time
-	Status                    ApprovalStatus
+	ID        ApprovalID
+	SessionID SessionID
+	FrameID   FrameID
+	Kind      string // "command" | "file_change"
+	Command   string
+	Path      string
+	Reason    string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	Status    ApprovalStatus
 	// DefaultDecision is captured at creation from the driver's per-session
 	// policy (deny by default for destructive kinds). Used at expiry only —
 	// never re-read from the live driver policy (TOCTOU-free, NFR-02).

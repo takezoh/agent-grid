@@ -656,6 +656,8 @@ func protoCodeToHTTP(code proto.ErrCode) (int, string) {
 		return http.StatusGone, "session_stopped"
 	case proto.ErrFrameNotReady:
 		return http.StatusServiceUnavailable, "frame_not_ready"
+	case proto.ErrResourceExhausted:
+		return http.StatusServiceUnavailable, "resource_exhausted"
 	case proto.ErrInternal:
 		// Upstream daemon error (typically "frame spawn failed: …").
 		// 502 Bad Gateway is the precise status — the gateway is healthy,
@@ -663,6 +665,8 @@ func protoCodeToHTTP(code proto.ErrCode) (int, string) {
 		return http.StatusBadGateway, "daemon_internal"
 	case proto.ErrUnknown:
 		return http.StatusBadGateway, "daemon_unknown"
+	case proto.ErrResolvedByOther:
+		return http.StatusConflict, "resolved_by_other"
 	}
 	// New ErrCode added in proto but not mapped here — surface it as 500
 	// (gateway bug, not upstream) so the omission is visible in logs.

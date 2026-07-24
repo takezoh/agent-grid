@@ -24,6 +24,16 @@ function parseFileEventKind(v: unknown): v is FileEventKind {
   return v === "read" || v === "create" || v === "edit" || v === "delete";
 }
 
+function parseCorrelation(v: unknown): v is import("./server").LifecycleCorrelation {
+  if (typeof v !== "object" || v === null) return false;
+  const c = v as Record<string, unknown>;
+  return (
+    typeof c.clientInstanceID === "string" &&
+    typeof c.connectionGeneration === "number" &&
+    typeof c.clientRevision === "number"
+  );
+}
+
 function parseActivityEventEntry(obj: unknown): ActivityEventEntry | null {
   if (typeof obj !== "object" || obj === null) return null;
   const e = obj as Record<string, unknown>;
@@ -142,6 +152,9 @@ function parseServerFrameHandwritten(raw: string): ServerFrame | null {
         features: obj.features as string[],
         serverTime: obj.serverTime,
       };
+      if (typeof obj.clientInstanceId === "string") {
+        hFrame.clientInstanceID = obj.clientInstanceId;
+      }
       return hFrame;
     }
     case "v": {
@@ -186,6 +199,55 @@ function parseServerFrameHandwritten(raw: string): ServerFrame | null {
         return null;
       }
       return { k: "e", reqId: obj.reqId, code: obj.code, message: obj.message };
+    case "lo": {
+      if (!parseCorrelation(obj.correlation)) return null;
+      const statuses = [
+        "accepted",
+        "waiting",
+        "applied",
+        "rejected",
+        "superseded",
+        "released",
+        "degraded",
+        "no_output",
+      ];
+      if (typeof obj.status !== "string" || !statuses.includes(obj.status)) return null;
+      if (obj.outputSeq !== undefined && typeof obj.outputSeq !== "number") return null;
+      if (obj.finalSequence !== undefined && typeof obj.finalSequence !== "number") return null;
+      if (obj.reason !== undefined && typeof obj.reason !== "string") return null;
+      return {
+        k: "lo",
+        correlation: obj.correlation,
+        status: obj.status as import("./server").LifecycleOutcomeFrame["status"],
+        ...(typeof obj.outputSeq === "number" ? { outputSeq: obj.outputSeq } : {}),
+        ...(typeof obj.finalSequence === "number" ? { finalSequence: obj.finalSequence } : {}),
+        ...(typeof obj.reason === "string" ? { reason: obj.reason } : {}),
+      };
+    }
+    case "ly": {
+      if (!parseCorrelation(obj.correlation) || typeof obj.sequence !== "number") return null;
+      if (obj.final !== undefined && typeof obj.final !== "boolean") return null;
+      if (obj.digest !== undefined && typeof obj.digest !== "string") return null;
+      return {
+        k: "ly",
+        correlation: obj.correlation,
+        sequence: obj.sequence,
+        ...(typeof obj.final === "boolean" ? { final: obj.final } : {}),
+        ...(typeof obj.digest === "string" ? { digest: obj.digest } : {}),
+      };
+    }
+    case "lg": {
+      if (!parseCorrelation(obj.correlation) || typeof obj.watermark !== "number") return null;
+      if (obj.dropCount !== undefined && typeof obj.dropCount !== "number") return null;
+      if (obj.unknown !== undefined && typeof obj.unknown !== "boolean") return null;
+      return {
+        k: "lg",
+        correlation: obj.correlation,
+        watermark: obj.watermark,
+        ...(typeof obj.dropCount === "number" ? { dropCount: obj.dropCount } : {}),
+        ...(typeof obj.unknown === "boolean" ? { unknown: obj.unknown } : {}),
+      };
+    }
     case "tt": {
       if (typeof obj.sessionId !== "string" || typeof obj.line !== "string") return null;
       return { k: "tt" as const, sessionId: obj.sessionId, line: obj.line };

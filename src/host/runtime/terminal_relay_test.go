@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -29,6 +30,25 @@ type fakeSurfaceSub struct {
 	cols    int
 	rows    int
 	ch      chan termvt.Event
+}
+
+func (f *fakeSurfaceBackend) AcquireSurface(ctx context.Context, frameID string, cols, rows int) (SurfaceLease, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	id, events, err := f.SubscribeSurface(frameID, cols, rows)
+	if err != nil {
+		return nil, err
+	}
+	var once sync.Once
+	return &ptySurfaceLease{
+		id: id, events: events,
+		release: func() error {
+			var releaseErr error
+			once.Do(func() { releaseErr = f.UnsubscribeSurface(frameID, id) })
+			return releaseErr
+		},
+	}, nil
 }
 
 type writeCall struct {

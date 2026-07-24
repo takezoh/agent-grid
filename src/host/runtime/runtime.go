@@ -102,6 +102,7 @@ type Runtime struct {
 	eventCh               chan state.Event // public events from any goroutine
 	internalChInteractive chan internalEvent
 	internalChBulk        chan internalEvent
+	lifecycleCh           chan internalEvent
 
 	workers *worker.Pool
 
@@ -181,6 +182,16 @@ type Runtime struct {
 	// ConnIDs. Nil when cfg.Backend does not implement SurfaceBackend.
 	terminalRelay *TerminalRelay
 
+	// lifecycleActor is the loop-owned authority for current lifecycle-v2
+	// revision outcomes. Gateway and effect workers never write these outcomes.
+	lifecycleActor *TerminalLifecycleActor
+	// lifecycleBindings is loop-owned. The key is the daemon IPC connection
+	// plus public client instance/generation; the value contains only the
+	// private relay capability needed to fence surface output.
+	lifecycleBindings  map[string]lifecycleBinding
+	lifecycleEffectMu  sync.Mutex
+	lifecycleTelemetry DirtyTelemetrySlot
+
 	// appendFrameMessagingJSONL overrides JSONL appends for frame-messaging
 	// journals/audits in tests that need deterministic write failures.
 	appendFrameMessagingJSONL func(path string, record any) error
@@ -259,8 +270,9 @@ func New(cfg Config) *Runtime {
 		state:                 initial,
 		toolLogReader:         NewToolLogReader(),
 		eventCh:               make(chan state.Event, 256),
-		internalChInteractive: make(chan internalEvent, ipcOutboxLaneSize),
+		internalChInteractive: make(chan internalEvent, lifecycleMailboxSize),
 		internalChBulk:        make(chan internalEvent, ipcOutboxLaneSize),
+		lifecycleCh:           make(chan internalEvent, lifecycleMailboxSize),
 		conns:                 map[state.ConnID]*ipcConn{},
 		done:                  make(chan struct{}),
 		terminateCh:           make(chan struct{}, 1),
@@ -273,6 +285,8 @@ func New(cfg Config) *Runtime {
 		frameSubsystems:       map[state.FrameID]rsubsystem.Subsystem{},
 		frameSubsystemIDs:     map[state.FrameID]state.SubsystemID{},
 		internalDrops:         newInternalDropCounter(),
+		lifecycleActor:        NewTerminalLifecycleActor(),
+		lifecycleBindings:     make(map[string]lifecycleBinding),
 	}
 	if cfg.Pool != nil {
 		r.workers = cfg.Pool
@@ -539,6 +553,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 
 	r.taps = newTapManager(ctx, r.cfg.Tap)
 	defer r.taps.stopAll()
+	StartTelemetryFlusher(ctx, &r.lifecycleTelemetry, func(record TelemetryRecord) {
+		r.sendInternalNow(internalLifecycleTelemetry{record: record})
+	})
 
 	ticker := time.NewTicker(r.cfg.TickInterval)
 	defer ticker.Stop()
@@ -548,6 +565,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 		"workers", r.cfg.Workers)
 
 	for {
+		r.drainLifecycleInternal()
 		r.drainInteractiveInternal()
 		select {
 		case <-ctx.Done():
@@ -564,6 +582,8 @@ func (r *Runtime) Run(ctx context.Context) error {
 			r.dispatch(ev)
 
 		case iev := <-r.internalChInteractive:
+			r.dispatchInternal(iev)
+		case iev := <-r.lifecycleCh:
 			r.dispatchInternal(iev)
 		case iev := <-r.internalChBulk:
 			r.dispatchInternal(iev)
@@ -745,10 +765,4 @@ func (r *Runtime) sessionHeadFrameTarget(sid state.SessionID) string {
 		return ""
 	}
 	return string(frame.ID)
-}
-
-// HelperBinaryPath resolves a helper binary (e.g. "sockbridge") using the
-// canonical exe-adjacent + libexec search implemented in runtime/rundir.go.
-func (r *Runtime) HelperBinaryPath(name string) (string, error) {
-	return findHelperBinary(name)
 }

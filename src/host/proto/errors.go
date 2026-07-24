@@ -6,13 +6,14 @@ package proto
 type ErrCode string
 
 const (
-	ErrUnknown         ErrCode = "unknown"
-	ErrNotFound        ErrCode = "not_found"
-	ErrInvalidArgument ErrCode = "invalid_argument"
-	ErrInternal        ErrCode = "internal"
-	ErrSessionStopped  ErrCode = "session_stopped"
-	ErrAlreadyExists   ErrCode = "already_exists"
-	ErrUnsupported     ErrCode = "unsupported"
+	ErrUnknown           ErrCode = "unknown"
+	ErrNotFound          ErrCode = "not_found"
+	ErrInvalidArgument   ErrCode = "invalid_argument"
+	ErrInternal          ErrCode = "internal"
+	ErrSessionStopped    ErrCode = "session_stopped"
+	ErrAlreadyExists     ErrCode = "already_exists"
+	ErrUnsupported       ErrCode = "unsupported"
+	ErrResourceExhausted ErrCode = "resource_exhausted"
 	// ErrFrameNotReady is returned by surface.subscribe when the target session
 	// exists but has no head frame yet (ADR 0018: race deferred to β; client
 	// retries with exponential backoff). The wire form uses kebab-case
@@ -38,6 +39,8 @@ func FromStateCode(code string) ErrCode {
 		return ErrAlreadyExists
 	case "unsupported":
 		return ErrUnsupported
+	case "resource_exhausted":
+		return ErrResourceExhausted
 	case "frame_not_ready":
 		return ErrFrameNotReady
 	case "resolved_by_other":

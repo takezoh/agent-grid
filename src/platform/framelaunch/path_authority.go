@@ -68,11 +68,12 @@ func computeFinalPath(runtimeList []string, capturedPath, origPath string) (stri
 		base = origPath
 	}
 	var merged string
-	if base == "" {
+	switch {
+	case base == "":
 		merged = strings.Join(runtimeList, ":")
-	} else if len(runtimeList) == 0 {
+	case len(runtimeList) == 0:
 		merged = base
-	} else {
+	default:
 		merged = strings.Join(runtimeList, ":") + ":" + base
 	}
 	final, dropped := dedupPath(merged)

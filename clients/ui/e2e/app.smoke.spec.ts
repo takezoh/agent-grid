@@ -50,7 +50,7 @@ test("renders live sessions and completes a new-session submission against the f
   await expect
     .poll(async () => {
       const frames = await backend.sentFrames();
-      return frames.filter((frame) => frame.k === "s").at(-1);
+      return frames.filter((frame) => frame.k === "ld").at(-1);
     })
     .toMatchObject({
       sessionId: "session-1",
@@ -109,7 +109,7 @@ test("renders live sessions and completes a new-session submission against the f
   await expect
     .poll(async () => {
       const frames = await backend.sentFrames();
-      return frames.filter((frame) => frame.k === "s").at(-1);
+      return frames.filter((frame) => frame.k === "ld").at(-1);
     })
     .toMatchObject({
       sessionId: "session-new",

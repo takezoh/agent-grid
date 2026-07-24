@@ -86,9 +86,9 @@ describe("Connection", () => {
     expect(useSubscriptionStore.getState()).toMatchObject({ sessionId: "s1" });
     await Promise.resolve();
     // first ws receives the subscribe frame
-    expect(ws1.sent.some((s) => s.includes('"k":"s"'))).toBe(true);
+    expect(ws1.sent.some((s) => s.includes('"k":"ld"'))).toBe(true);
     // server responds OK
-    const sentSubFrame = JSON.parse(ws1.sent.find((s) => s.includes('"k":"s"')) ?? "{}") as {
+    const sentSubFrame = JSON.parse(ws1.sent.find((s) => s.includes('"k":"ld"')) ?? "{}") as {
       reqId: string;
     };
     ws1.receive(JSON.stringify({ k: "r", reqId: sentSubFrame.reqId }));
@@ -104,7 +104,7 @@ describe("Connection", () => {
     if (!ws2) throw new Error("expected ws2 after reconnect");
     ws2.open();
     // active subscription was re-sent on new socket
-    expect(ws2.sent.some((s) => s.includes('"k":"s"'))).toBe(true);
+    expect(ws2.sent.some((s) => s.includes('"k":"ld"'))).toBe(true);
   });
 
   it("control frame daemon-disconnected sets store flag", async () => {
@@ -232,7 +232,7 @@ describe("Connection", () => {
     if (!ws2) throw new Error("expected reconnect socket");
     ws2.open();
     await Promise.resolve();
-    expect(ws2.sent.some((s) => s.includes('"k":"s"') && s.includes('"sessionId":"s1"'))).toBe(
+    expect(ws2.sent.some((s) => s.includes('"k":"ld"') && s.includes('"sessionId":"s1"'))).toBe(
       true,
     );
   });

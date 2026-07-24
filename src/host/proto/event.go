@@ -9,12 +9,15 @@ type ServerEvent interface {
 }
 
 const (
-	EvtNameSessionsChanged   = "sessions-changed"
-	EvtNameProjectSelected   = "project-selected"
-	EvtNameLogLine           = "log-line"
-	EvtNameSessionFileLine   = "session-file-line"
-	EvtNameAgentNotification = "agent-notification"
-	EvtNameActivityEvents    = "activity-events"
+	EvtNameSessionsChanged     = "sessions-changed"
+	EvtNameProjectSelected     = "project-selected"
+	EvtNameLogLine             = "log-line"
+	EvtNameSessionFileLine     = "session-file-line"
+	EvtNameAgentNotification   = "agent-notification"
+	EvtNameActivityEvents      = "activity-events"
+	EvtNameLifecycleOutcome    = "lifecycle-outcome"
+	EvtNameLifecycleOutput     = "lifecycle-output"
+	EvtNameLifecycleDiagnostic = "lifecycle-diagnostic"
 )
 
 // EvtSessionsChanged carries the current session table. Sent on

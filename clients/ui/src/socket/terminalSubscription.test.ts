@@ -203,4 +203,28 @@ describe("TerminalSubscriptionController", () => {
     expect(calls).toBe(2);
     expect(controller.snapshot().phase).toBe("confirmed");
   });
+
+  it("keeps the watchdog through an unresponsive publication and requests connection recovery", async () => {
+    vi.useFakeTimers();
+    try {
+      const never = new Promise<{ status: "confirmed"; reqId: string }>(() => {});
+      const onDeliveryTimeout = vi.fn();
+      const { transport } = fakeTransport(async () => never);
+      const controller = new TerminalSubscriptionController(transport, { onDeliveryTimeout });
+
+      controller.onOpen();
+      controller.acquire("s1");
+      controller.updateGeometry("s1", 120, 40);
+      await flush();
+
+      vi.advanceTimersByTime(4000);
+      expect(onDeliveryTimeout).toHaveBeenCalledOnce();
+      expect(controller.snapshot()).toMatchObject({
+        phase: "disconnected",
+        lastError: "delivery-timeout",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/coder/websocket"
-
 	"github.com/takezoh/agent-grid/host/proto"
 )
 
@@ -145,6 +143,10 @@ func writeDaemonError(w http.ResponseWriter, err error) {
 			status = http.StatusBadRequest
 		case proto.ErrResolvedByOther:
 			status = http.StatusConflict
+		case proto.ErrUnknown, proto.ErrInternal, proto.ErrSessionStopped,
+			proto.ErrAlreadyExists, proto.ErrUnsupported, proto.ErrFrameNotReady,
+			proto.ErrResourceExhausted:
+			status = http.StatusBadGateway
 		}
 		writeJSON(w, status, map[string]any{
 			"code":    string(eb.Code),
@@ -156,18 +158,18 @@ func writeDaemonError(w http.ResponseWriter, err error) {
 	writeJSON(w, http.StatusBadGateway, apiErrorBody{Code: "daemon_error", Message: err.Error()})
 }
 
-func handleLifecycleApprovalRespond(ctx context.Context, sess Attacher, c *websocket.Conn, msg *inbound, clientInstanceID string) {
+func handleLifecycleApprovalRespond(ctx context.Context, sess Attacher, responses *lifecycleResponder, msg *inbound, clientInstanceID string) {
 	if msg.SessionID == "" || msg.ApprovalID == "" {
-		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "sessionId and approvalId required")
+		responses.err(ctx, msg.ReqID, "invalid_argument", "sessionId and approvalId required")
 		return
 	}
 	if msg.Decision != "accept" && msg.Decision != "deny" {
-		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "decision must be accept or deny")
+		responses.err(ctx, msg.ReqID, "invalid_argument", "decision must be accept or deny")
 		return
 	}
 	adapter, ok := sess.(*DaemonAdapter)
 	if !ok {
-		writeRespErrFrame(ctx, c, msg.ReqID, "internal", "approval respond requires DaemonAdapter")
+		responses.err(ctx, msg.ReqID, "internal", "approval respond requires DaemonAdapter")
 		return
 	}
 	_, err := adapter.d.SendCommand(ctx, proto.CmdApprovalRespond{
@@ -179,20 +181,20 @@ func handleLifecycleApprovalRespond(ctx context.Context, sess Attacher, c *webso
 	if err != nil {
 		code, message := unwrapProtoError(err)
 		slog.Warn("server/api: lifecycle approval respond", "err", err)
-		writeRespErrFrame(ctx, c, msg.ReqID, code, message)
+		responses.err(ctx, msg.ReqID, code, message)
 		return
 	}
-	writeRespOKFrame(ctx, c, msg.ReqID)
+	responses.ok(ctx, msg.ReqID)
 }
 
-func handleLifecycleQuestionRespond(ctx context.Context, sess Attacher, c *websocket.Conn, msg *inbound, clientInstanceID string) {
+func handleLifecycleQuestionRespond(ctx context.Context, sess Attacher, responses *lifecycleResponder, msg *inbound, clientInstanceID string) {
 	if msg.SessionID == "" || msg.QuestionID == "" {
-		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "sessionId and questionId required")
+		responses.err(ctx, msg.ReqID, "invalid_argument", "sessionId and questionId required")
 		return
 	}
 	adapter, ok := sess.(*DaemonAdapter)
 	if !ok {
-		writeRespErrFrame(ctx, c, msg.ReqID, "internal", "question respond requires DaemonAdapter")
+		responses.err(ctx, msg.ReqID, "internal", "question respond requires DaemonAdapter")
 		return
 	}
 	_, err := adapter.d.SendCommand(ctx, proto.CmdQuestionRespond{
@@ -204,8 +206,8 @@ func handleLifecycleQuestionRespond(ctx context.Context, sess Attacher, c *webso
 	if err != nil {
 		code, message := unwrapProtoError(err)
 		slog.Warn("server/api: lifecycle question respond", "err", err)
-		writeRespErrFrame(ctx, c, msg.ReqID, code, message)
+		responses.err(ctx, msg.ReqID, code, message)
 		return
 	}
-	writeRespOKFrame(ctx, c, msg.ReqID)
+	responses.ok(ctx, msg.ReqID)
 }

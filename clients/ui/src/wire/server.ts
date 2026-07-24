@@ -118,6 +118,7 @@ export type ActiveOccupant = "main" | "log" | "frame";
 
 export type HelloFrame = {
   k: "h";
+  clientInstanceID?: string;
   sessions: SessionInfo[];
   // The daemon no longer tracks or ships an active session id — web clients
   // own their own active-session-per-tab. Kept optional for backward compat
@@ -218,6 +219,45 @@ export type RespErrFrame = {
   message: string;
 };
 
+export type LifecycleCorrelation = {
+  clientInstanceID: string;
+  connectionGeneration: number;
+  clientRevision: number;
+};
+
+export type LifecycleOutcomeFrame = {
+  k: "lo";
+  correlation: LifecycleCorrelation;
+  status:
+    | "accepted"
+    | "waiting"
+    | "applied"
+    | "rejected"
+    | "superseded"
+    | "released"
+    | "degraded"
+    | "no_output";
+  outputSeq?: number;
+  finalSequence?: number;
+  reason?: string;
+};
+
+export type LifecycleOutputFrame = {
+  k: "ly";
+  correlation: LifecycleCorrelation;
+  sequence: number;
+  final?: boolean;
+  digest?: string;
+};
+
+export type LifecycleDiagnosticFrame = {
+  k: "lg";
+  correlation: LifecycleCorrelation;
+  watermark: number;
+  dropCount?: number;
+  unknown?: boolean;
+};
+
 export type ServerFrame =
   | OutputFrame
   | ControlFrame
@@ -227,4 +267,7 @@ export type ServerFrame =
   | EventLogTailFrame
   | NotificationFrame
   | RespOKFrame
-  | RespErrFrame;
+  | RespErrFrame
+  | LifecycleOutcomeFrame
+  | LifecycleOutputFrame
+  | LifecycleDiagnosticFrame;

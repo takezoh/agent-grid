@@ -36,16 +36,15 @@ describe("backoff", () => {
     // attempt 1: floor(0.5 * 500) = 250
     // attempt 2: floor(0.5 * 1000) = 500
     // attempt 3: floor(0.5 * 2000) = 1000
-    // attempt 4: floor(0.5 * 4000) = 2000
-    // attempt 5+: floor(0.5 * 4000) = 2000 (capped)
+    // attempt 4+: floor(0.5 * 2000) = 1000 (capped)
     expect(results[0]).toBe(125);
     expect(results[1]).toBe(250);
     expect(results[2]).toBe(500);
     expect(results[3]).toBe(1000);
-    expect(results[4]).toBe(2000);
-    // capped at 2000 with rng=0.5 (half of CAP_MS=4000)
+    expect(results[4]).toBe(1000);
+    // capped at 1000 with rng=0.5 (half of CAP_MS=2000)
     for (let i = 5; i < MAX_ATTEMPTS; i++) {
-      expect(results[i]).toBe(2000);
+      expect(results[i]).toBe(1000);
     }
   });
 

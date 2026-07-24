@@ -2,7 +2,7 @@
 id: adr-20260711-terminal-subscription-desired-reconcile
 kind: adr
 title: Reconcile desired terminal subscriptions through one wire writer
-status: accepted
+status: superseded
 created: '2026-07-11'
 decision_makers:
 - unknown
@@ -17,7 +17,7 @@ source_paths:
 - src/client/web/src/components/TerminalPane.tsx
 - src/client/web/src/store/
 summary: desired subscriptionを単一wire writerがreconcileし、一時障害から自動回復する
-updated: '2026-07-11'
+updated: '2026-07-24'
 ---
 
 ## Context
@@ -68,4 +68,9 @@ Terminal subscription は socket 層の controller が `desired state` を権威
 
 {% transition from="proposed" to="accepted" date="2026-07-11" %}
 single wire writerとdesired reconcileを実装・テストで検証
+{% /transition %}
+
+
+{% transition from="accepted" to="superseded" date="2026-07-24" %}
+承認済み current lifecycle v2 の actor-only authority と TransportObservation が旧 imperative reconcile を置換
 {% /transition %}

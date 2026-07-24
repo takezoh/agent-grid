@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"sync"
@@ -21,6 +22,22 @@ import (
 var errDaemonGone = errors.New("server/api: daemon disconnected")
 
 var lifecycleSubscriberCounter atomic.Uint64
+
+type runtimeTerminalBarrier struct{ forwarded uint64 }
+
+func (b *runtimeTerminalBarrier) mark(sequence uint64) {
+	if sequence > b.forwarded {
+		b.forwarded = sequence
+	}
+}
+
+func (b *runtimeTerminalBarrier) ready(finalSequence uint64) bool {
+	return b.forwarded >= finalSequence
+}
+
+func lifecycleCorrelationKey(c proto.PublicCorrelation) string {
+	return fmt.Sprintf("%s/%d/%d", c.ClientInstanceID, c.ConnectionGeneration, c.ClientRevision)
+}
 
 // Attacher is the daemon-side surface AttachWS needs (proto.Client wrapper).
 // Implemented by DaemonAdapter; a fake is used in gateway_terminal_test.go.
@@ -47,6 +64,13 @@ type Attacher interface {
 	// PushChannelFor returns pre-encoded WS control frames paired with the
 	// events channel returned by SubscribeLifecycle (server-initiated severance).
 	PushChannelFor(eventsCh <-chan proto.ServerEvent) <-chan []byte
+}
+
+// LifecycleDesiredSender is the v2 control-plane seam. It is optional on
+// legacy test attachers so the browser and new server can roll as one unit
+// without reintroducing imperative gateway reconciliation.
+type LifecycleDesiredSender interface {
+	SendLifecycleDesired(context.Context, proto.CmdLifecycleDesired, string) error
 }
 
 // DaemonAdapter implements Attacher on top of DaemonClient.
@@ -93,6 +117,12 @@ func (a *DaemonAdapter) SendSurfaceUnsubscribe(ctx context.Context, sid, subscri
 	return err
 }
 
+func (a *DaemonAdapter) SendLifecycleDesired(ctx context.Context, cmd proto.CmdLifecycleDesired, subscriberID string) error {
+	cmd.SubscriberID = subscriberID
+	_, err := a.d.SendCommand(ctx, cmd)
+	return err
+}
+
 // WriteRaw sends CmdSurfaceWriteRaw to the daemon.
 func (a *DaemonAdapter) WriteRaw(ctx context.Context, sid string, data []byte) error {
 	_, err := a.d.SendCommand(ctx, proto.CmdSurfaceWriteRaw{SessionID: sid, Data: data})
@@ -126,6 +156,9 @@ func (a *DaemonAdapter) SubscribeLifecycle(ctx context.Context) (<-chan proto.Se
 		proto.EvtNameApprovalResolved,
 		proto.EvtNameQuestionRequested,
 		proto.EvtNameQuestionResolved,
+		proto.EvtNameLifecycleOutcome,
+		proto.EvtNameLifecycleOutput,
+		proto.EvtNameLifecycleDiagnostic,
 	}
 	if _, err := a.d.SendCommand(ctx, proto.CmdSubscribe{Filters: filters}); err != nil {
 		return nil, err
@@ -241,43 +274,6 @@ func encodeHelloFrame(sc proto.EvtSessionsChanged, serverTime int64, clientInsta
 	return b
 }
 
-// lifecycleSubSet tracks the set of session IDs owned by one browser
-// AttachLifecycleWS connection. SubscriberID separates that browser at the
-// daemon/runtime layer; this set gates pending/active output and teardown.
-type lifecycleSubSet struct {
-	mu  sync.Mutex
-	ids map[string]struct{}
-}
-
-func newLifecycleSubSet() *lifecycleSubSet {
-	return &lifecycleSubSet{ids: make(map[string]struct{})}
-}
-
-func (s *lifecycleSubSet) add(id string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, existed := s.ids[id]
-	s.ids[id] = struct{}{}
-	return !existed
-}
-func (s *lifecycleSubSet) remove(id string) { s.mu.Lock(); delete(s.ids, id); s.mu.Unlock() }
-func (s *lifecycleSubSet) contains(id string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, ok := s.ids[id]
-	return ok
-}
-func (s *lifecycleSubSet) drain() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]string, 0, len(s.ids))
-	for id := range s.ids {
-		out = append(out, id)
-	}
-	s.ids = make(map[string]struct{})
-	return out
-}
-
 // AttachLifecycleWS bridges one WebSocket connection to daemon lifecycle
 // events. Used when the client connects without a ?session= query param.
 // The single WebSocket is multiplexed: it carries lifecycle frames
@@ -300,7 +296,9 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, cl
 	}
 	pushCh := sess.PushChannelFor(ch)
 	subs := newLifecycleSubSet()
+	writeMu := &sync.Mutex{}
 	subscriberID := "web-" + strconv.FormatUint(lifecycleSubscriberCounter.Add(1), 10)
+	ownerID := "owner-" + randomOpaque24()
 	defer func() {
 		// Cleanup: unsubscribe daemon-side for every session this WS held open.
 		for _, id := range subs.drain() {
@@ -308,158 +306,91 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, cl
 		}
 	}()
 
-	go func() { readLifecycleInbound(ctx, sess, c, subs, subscriberID, clientInstanceID); cancel() }()
+	go func() {
+		readLifecycleInbound(ctx, sess, c, subs, subscriberID, ownerID, clientInstanceID, writeMu)
+		cancel()
+	}()
 
 	helloSent := false
+	barriers := make(map[string]*runtimeTerminalBarrier)
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case frame, ok := <-pushCh:
 			if !ok {
-				_ = c.Write(ctx, websocket.MessageText, controlFrame(0, "daemon-disconnected"))
+				_ = writeLifecycleFrameLocked(ctx, c, writeMu, controlFrame(0, "daemon-disconnected"))
 				writeTypedClose(c, "daemon-disconnected")
 				return errDaemonGone
 			}
-			if err := c.Write(ctx, websocket.MessageText, frame); err != nil {
+			if err := writeLifecycleFrameLocked(ctx, c, writeMu, frame); err != nil {
 				return err
 			}
 		case ev, ok := <-ch:
 			if !ok {
-				_ = c.Write(ctx, websocket.MessageText, controlFrame(0, "daemon-disconnected"))
+				_ = writeLifecycleFrameLocked(ctx, c, writeMu, controlFrame(0, "daemon-disconnected"))
 				writeTypedClose(c, "daemon-disconnected")
 				return errDaemonGone
 			}
-			var frame []byte
-			switch e := ev.(type) {
-			case proto.EvtSessionsChanged:
-				if !helloSent {
-					frame = encodeHelloFrame(e, time.Now().Unix(), clientInstanceID)
-					helloSent = true
-				} else {
-					frame = encodeServerEvent(e)
+			frames, nextHello, ok := lifecycleFrames(ev, helloSent, clientInstanceID, subscriberID, ownerID, subs, barriers)
+			helloSent = nextHello
+			if !ok {
+				continue
+			}
+			for _, frame := range frames {
+				if frame != nil {
+					if err := writeLifecycleFrameLocked(ctx, c, writeMu, frame); err != nil {
+						return err
+					}
 				}
-			case proto.EvtSessionFileLine, proto.EvtAgentNotification, proto.EvtActivityEvents,
-				proto.EvtApprovalRequested, proto.EvtApprovalResolved,
-				proto.EvtQuestionRequested, proto.EvtQuestionResolved:
-				frame = encodeServerEvent(e)
-			case proto.EvtSurfaceOutput:
-				// Multiplexed surface output: only forward if this WS has
-				// actively subscribed to the producing session.
-				if e.SubscriberID != subscriberID || !subs.contains(e.SessionID) {
-					continue
-				}
-				frame = encodeServerEvent(e)
-			default:
-				continue
-			}
-			if frame == nil {
-				continue
-			}
-			if err := c.Write(ctx, websocket.MessageText, frame); err != nil {
-				return err
 			}
 		}
 	}
 }
 
-// readLifecycleInbound drains the WebSocket read path, processing inbound
-// {k:"s"} subscribe / {k:"u"} unsubscribe / {k:"i"} input / {k:"r"} resize
-// frames. Reading is also necessary so coder/websocket can autorespond to
-// ping control frames. On read error (browser close, transport failure) the
-// goroutine returns and the caller's cancel() tears down the parent ctx.
-//
-// Subscribe / unsubscribe frames carry a reqId; for each, we write back a
-// {k:"r"} success or {k:"e"} error response so the React-side
-// subscribeWithRetry promise (clients/ui/src/socket/retry.ts) can resolve.
-// Without those responses the promise blocks until WS close, exhausting the
-// retry budget without ever surfacing the real error code (e.g.
-// "frame-not-ready" that drives the ADR 0018 backoff).
-func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn, subs *lifecycleSubSet, subscriberID, clientInstanceID string) {
-	for {
-		_, data, err := c.Read(ctx)
-		if err != nil {
-			return
+func lifecycleFrames(ev proto.ServerEvent, helloSent bool, clientInstanceID, subscriberID, ownerID string, subs *lifecycleSubSet, barriers map[string]*runtimeTerminalBarrier) ([][]byte, bool, bool) {
+	switch e := ev.(type) {
+	case proto.EvtSessionsChanged:
+		if helloSent {
+			return [][]byte{encodeServerEvent(e)}, true, true
 		}
-		var msg inbound
-		if json.Unmarshal(data, &msg) != nil {
-			continue
+		return [][]byte{encodeHelloFrame(e, time.Now().Unix(), clientInstanceID)}, true, true
+	case proto.EvtSessionFileLine, proto.EvtAgentNotification, proto.EvtActivityEvents,
+		proto.EvtApprovalRequested, proto.EvtApprovalResolved,
+		proto.EvtQuestionRequested, proto.EvtQuestionResolved,
+		proto.EvtLifecycleDiagnostic:
+		return [][]byte{encodeServerEvent(e)}, helloSent, true
+	case proto.EvtLifecycleOutput:
+		barrier := lifecycleBarrier(barriers, e.Correlation)
+		barrier.mark(e.Sequence)
+		return [][]byte{encodeServerEvent(e)}, helloSent, true
+	case proto.EvtLifecycleOutcome:
+		barrier := lifecycleBarrier(barriers, e.Correlation)
+		frames := make([][]byte, 0, 2)
+		if !barrier.ready(e.FinalSeq) {
+			frames = append(frames, encodeServerEvent(proto.EvtLifecycleDiagnostic{LifecycleDiagnostic: proto.LifecycleDiagnostic{
+				Correlation: e.Correlation, Watermark: barrier.forwarded, Unknown: true,
+			}}))
 		}
-		switch msg.K {
-		case "s":
-			handleLifecycleSubscribe(ctx, sess, c, &msg, subs, subscriberID)
-		case "u":
-			handleLifecycleUnsubscribe(ctx, sess, c, &msg, subs, subscriberID)
-		case "i":
-			if msg.SessionID == "" {
-				continue
-			}
-			if err := sess.WriteRaw(ctx, msg.SessionID, []byte(msg.D)); err != nil {
-				slog.Warn("server/api: lifecycle write raw", "err", err, "sid", msg.SessionID)
-			}
-		case "r":
-			if msg.SessionID == "" {
-				continue
-			}
-			tryResize(ctx, sess, msg.SessionID, msg.Cols, msg.Rows, "lifecycle resize")
-		case "ar": // approval respond
-			handleLifecycleApprovalRespond(ctx, sess, c, &msg, clientInstanceID)
-		case "qr": // question respond
-			handleLifecycleQuestionRespond(ctx, sess, c, &msg, clientInstanceID)
+		return append(frames, encodeServerEvent(e)), helloSent, true
+	case proto.EvtSurfaceOutput:
+		if (e.SubscriberID != subscriberID && e.SubscriberID != ownerID) || !subs.contains(e.SessionID) {
+			return nil, helloSent, false
 		}
+		return [][]byte{encodeServerEvent(e)}, helloSent, true
+	default:
+		return nil, helloSent, false
 	}
 }
 
-// handleLifecycleSubscribe processes one {k:"s"} frame: forward the command,
-// then write a {k:"r"} or {k:"e"} response carrying the original reqId so the
-// React await-response promise can resolve.
-func handleLifecycleSubscribe(ctx context.Context, sess Attacher, c *websocket.Conn, msg *inbound, subs *lifecycleSubSet, subscriberID string) {
-	if msg.SessionID == "" {
-		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "sessionId required")
-		return
+func lifecycleBarrier(barriers map[string]*runtimeTerminalBarrier, c proto.PublicCorrelation) *runtimeTerminalBarrier {
+	key := lifecycleCorrelationKey(c)
+	barrier := barriers[key]
+	if barrier == nil {
+		barrier = &runtimeTerminalBarrier{}
+		barriers[key] = barrier
 	}
-	if msg.Cols <= 0 || msg.Rows <= 0 {
-		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "subscribe requires non-zero cols and rows")
-		return
-	}
-	if reason := state.SizeHintRejectReason(msg.Cols, msg.Rows); reason != "" {
-		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", reason)
-		return
-	}
-	added := subs.add(msg.SessionID)
-	err := sess.SendSurfaceSubscribe(ctx, msg.SessionID, subscriberID, uint16(msg.Cols), uint16(msg.Rows))
-	if err != nil {
-		var protocolErr *proto.ErrorBody
-		if added && errors.As(err, &protocolErr) {
-			subs.remove(msg.SessionID)
-		}
-		code, message := unwrapProtoError(err)
-		slog.Warn("server/api: lifecycle surface subscribe", "err", err, "sid", msg.SessionID)
-		writeRespErrFrame(ctx, c, msg.ReqID, code, message)
-		return
-	}
-	writeRespOKFrame(ctx, c, msg.ReqID)
-}
-
-// handleLifecycleUnsubscribe processes one {k:"u"} frame symmetrically with
-// handleLifecycleSubscribe. Order matters: only remove the session from the
-// local subs set AFTER the daemon RPC succeeds. If the RPC fails the entry
-// stays in subs so the deferred subs.drain() teardown still issues the
-// matching CmdSurfaceUnsubscribe on WS close — otherwise the daemon would
-// leak the surface subscription resource until daemon restart.
-func handleLifecycleUnsubscribe(ctx context.Context, sess Attacher, c *websocket.Conn, msg *inbound, subs *lifecycleSubSet, subscriberID string) {
-	if msg.SessionID == "" {
-		writeRespErrFrame(ctx, c, msg.ReqID, "invalid_argument", "sessionId required")
-		return
-	}
-	if err := sess.SendSurfaceUnsubscribe(ctx, msg.SessionID, subscriberID); err != nil {
-		code, message := unwrapProtoError(err)
-		slog.Warn("server/api: lifecycle surface unsubscribe", "err", err, "sid", msg.SessionID)
-		writeRespErrFrame(ctx, c, msg.ReqID, code, message)
-		return
-	}
-	subs.remove(msg.SessionID)
-	writeRespOKFrame(ctx, c, msg.ReqID)
+	return barrier
 }
 
 // unwrapProtoError extracts (code, message) from a proto.ErrorBody, falling

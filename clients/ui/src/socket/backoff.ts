@@ -2,7 +2,7 @@
 // subscribe retry (retry.ts) per ADR 0022.
 
 export const INITIAL_MS = 250;
-export const CAP_MS = 4000;
+export const CAP_MS = 2000;
 export const MAX_ATTEMPTS = 16;
 
 export type Rng = () => number; // 0..1, defaults to Math.random

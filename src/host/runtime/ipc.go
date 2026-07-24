@@ -138,6 +138,12 @@ func (r *Runtime) connReader(cc *ipcConn) {
 			r.sendErrorImmediate(cc, env.ReqID, proto.ErrInvalidArgument, err.Error())
 			continue
 		}
+		if lifecycle, ok := cmd.(proto.CmdLifecycleDesired); ok {
+			if !r.enqueueInternal(internalLifecycleDesired{connID: cc.id, reqID: env.ReqID, cmd: lifecycle}) {
+				r.sendErrorImmediate(cc, env.ReqID, proto.ErrInternal, "lifecycle control lane full")
+			}
+			continue
+		}
 		if r.handleDirectIPCCommand(cc, env.ReqID, cmd) {
 			continue
 		}
@@ -279,6 +285,7 @@ func (r *Runtime) connWriter(cc *ipcConn) {
 }
 
 func (r *Runtime) handleConnClose(id state.ConnID) {
+	r.releaseLifecycleBindings(id)
 	if cc, ok := r.conns[id]; ok {
 		cc.shut()
 		delete(r.conns, id)

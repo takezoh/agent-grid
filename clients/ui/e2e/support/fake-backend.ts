@@ -110,20 +110,30 @@ export async function installFakeBackend(
           parsed = null;
         }
         harness.sent.push({ raw, parsed });
-        // The real gateway (server/web/gateway.go readLifecycleInbound) acks
-        // both {k:"s"} subscribe and {k:"u"} unsubscribe frames with {k:"r"}
+        // The real gateway acks both legacy {k:"s"}/{k:"u"} and current
+        // lifecycle-v2 {k:"ld"} frames with {k:"r"}.
         // so the React subscribeWithRetry / unsubscribeOnce promises resolve.
         // Without acking "u" here, TerminalSubscriptionController's reconcile
         // loop hangs forever awaiting the old session's unsubscribe response
         // whenever the active session switches, and the new session never
         // gets subscribed.
-        if ((parsed?.k === "s" || parsed?.k === "u") && typeof parsed.reqId === "string") {
+        if (
+          (parsed?.k === "s" || parsed?.k === "u" || parsed?.k === "ld") &&
+          typeof parsed.reqId === "string"
+        ) {
           queueMicrotask(() => {
             this.onmessage?.(
               new MessageEvent("message", {
                 data: JSON.stringify({ k: "r", reqId: parsed?.reqId }),
               }),
             );
+            if (parsed?.k === "ld" && parsed.correlation) {
+              harness.emit({
+                k: "lo",
+                correlation: parsed.correlation,
+                status: "applied",
+              } as ServerFrame);
+            }
           });
         }
       }

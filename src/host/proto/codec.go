@@ -101,6 +101,9 @@ func DecodeCommand(env Envelope) (Command, error) {
 	if env.Type != TypeCommand {
 		return nil, fmt.Errorf("proto: not a command envelope: type=%q", env.Type)
 	}
+	if c, ok, err := decodeSurfaceCommand(env); ok {
+		return c, err
+	}
 	switch env.Cmd {
 	case CmdNameSubscribe:
 		var c CmdSubscribe
@@ -113,27 +116,6 @@ func DecodeCommand(env Envelope) (Command, error) {
 		return decodeInto(env.Data, &c)
 	case CmdNameSubsystem:
 		var c CmdSubsystemEvent
-		return decodeInto(env.Data, &c)
-	case CmdNameSurfaceReadText:
-		var c CmdSurfaceReadText
-		return decodeInto(env.Data, &c)
-	case CmdNameSurfaceSendText:
-		var c CmdSurfaceSendText
-		return decodeInto(env.Data, &c)
-	case CmdNameSurfaceSendKey:
-		var c CmdSurfaceSendKey
-		return decodeInto(env.Data, &c)
-	case CmdNameSurfaceSubscribe:
-		var c CmdSurfaceSubscribe
-		return decodeInto(env.Data, &c)
-	case CmdNameSurfaceUnsubscribe:
-		var c CmdSurfaceUnsubscribe
-		return decodeInto(env.Data, &c)
-	case CmdNameSurfaceResize:
-		var c CmdSurfaceResize
-		return decodeInto(env.Data, &c)
-	case CmdNameSurfaceWriteRaw:
-		var c CmdSurfaceWriteRaw
 		return decodeInto(env.Data, &c)
 	case CmdNameDriverList:
 		var c CmdDriverList
@@ -177,8 +159,46 @@ func DecodeCommand(env Envelope) (Command, error) {
 	case CmdNameQuestionCancel:
 		var c CmdQuestionCancel
 		return decodeInto(env.Data, &c)
+	case CmdNameLifecycleDesired:
+		var c CmdLifecycleDesired
+		return decodeInto(env.Data, &c)
 	}
 	return nil, fmt.Errorf("proto: unknown command: %q", env.Cmd)
+}
+
+func decodeSurfaceCommand(env Envelope) (Command, bool, error) {
+	switch env.Cmd {
+	case CmdNameSurfaceReadText:
+		var c CmdSurfaceReadText
+		v, err := decodeInto(env.Data, &c)
+		return v, true, err
+	case CmdNameSurfaceSendText:
+		var c CmdSurfaceSendText
+		v, err := decodeInto(env.Data, &c)
+		return v, true, err
+	case CmdNameSurfaceSendKey:
+		var c CmdSurfaceSendKey
+		v, err := decodeInto(env.Data, &c)
+		return v, true, err
+	case CmdNameSurfaceSubscribe:
+		var c CmdSurfaceSubscribe
+		v, err := decodeInto(env.Data, &c)
+		return v, true, err
+	case CmdNameSurfaceUnsubscribe:
+		var c CmdSurfaceUnsubscribe
+		v, err := decodeInto(env.Data, &c)
+		return v, true, err
+	case CmdNameSurfaceResize:
+		var c CmdSurfaceResize
+		v, err := decodeInto(env.Data, &c)
+		return v, true, err
+	case CmdNameSurfaceWriteRaw:
+		var c CmdSurfaceWriteRaw
+		v, err := decodeInto(env.Data, &c)
+		return v, true, err
+	default:
+		return nil, false, nil
+	}
 }
 
 // DecodeResponse asserts an envelope is a Response (success path).
@@ -315,6 +335,15 @@ func DecodeEvent(env Envelope) (ServerEvent, error) {
 		return decodeIntoEvent(env.Data, &e)
 	case EvtNameQuestionResolved:
 		var e EvtQuestionResolved
+		return decodeIntoEvent(env.Data, &e)
+	case EvtNameLifecycleOutcome:
+		var e EvtLifecycleOutcome
+		return decodeIntoEvent(env.Data, &e)
+	case EvtNameLifecycleOutput:
+		var e EvtLifecycleOutput
+		return decodeIntoEvent(env.Data, &e)
+	case EvtNameLifecycleDiagnostic:
+		var e EvtLifecycleDiagnostic
 		return decodeIntoEvent(env.Data, &e)
 	}
 	return nil, fmt.Errorf("proto: unknown event: %q", env.Name)
