@@ -79,7 +79,6 @@ Phase 1 makes `protocol/*.schema.json` the single normative message SoT with `op
 - Requirements: [`requirements.md`](./requirements.md)
 - Implementation: [`implementation.md`](./implementation.md)
 - Verification: [`verification.md`](./verification.md)
-- Plan artifact (SoT for validate_plan.py): `/home/ubuntu/.dev-skills/design/native-clients-phase01/artifacts/plan.json`
 
 ### Originated ADRs (12 accepted + 1 rejected)
 

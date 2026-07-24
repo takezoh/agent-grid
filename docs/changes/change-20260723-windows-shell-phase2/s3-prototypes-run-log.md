@@ -1,3 +1,8 @@
+---
+change: change-20260723-windows-shell-phase2
+role: consultation
+---
+
 # S3 prototypes run log
 
 Template for manual outcomes. Copy a new section per host run.

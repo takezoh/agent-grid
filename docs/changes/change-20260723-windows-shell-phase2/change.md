@@ -41,6 +41,9 @@ members:
 - role: ux
   path: changes/change-20260723-windows-shell-phase2/ux.md
   required: true
+- role: consultation
+  path: changes/change-20260723-windows-shell-phase2/s3-prototypes-run-log.md
+  required: false
 promotion:
 - action: none
   reason: Phase 2 change stays scoped to native-client behavior/capability additions;

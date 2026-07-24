@@ -11,15 +11,21 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Glance status strip -->
+        <!-- Glance status strip.
+             AutomationId is the UIA contract for FlaUI e2e (and Narrator);
+             keep ids stable — tests select by them like Playwright test-ids. -->
         <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock x:Name="StatusText" FontWeight="SemiBold" Text="Agent Grid"/>
-            <TextBlock x:Name="ConnectionText" Opacity="0.7"/>
+            <TextBlock x:Name="StatusText" AutomationProperties.AutomationId="StatusText"
+                       FontWeight="SemiBold" Text="Agent Grid"/>
+            <TextBlock x:Name="ConnectionText" AutomationProperties.AutomationId="ConnectionText"
+                       Opacity="0.7"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="1" x:Name="PendingHeader" Text="Pending" Opacity="0.6" FontSize="12"/>
+        <TextBlock Grid.Row="1" x:Name="PendingHeader" AutomationProperties.AutomationId="PendingHeader"
+                   Text="Pending" Opacity="0.6" FontSize="12"/>
 
-        <ListView Grid.Row="2" x:Name="PendingList" SelectionMode="Single">
+        <ListView Grid.Row="2" x:Name="PendingList" AutomationProperties.AutomationId="PendingList"
+                  SelectionMode="Single">
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Grid ColumnSpacing="8" Padding="4">
@@ -33,8 +39,10 @@
                             <TextBlock Text="{Binding Kind}" FontSize="11" Opacity="0.6"/>
                         </StackPanel>
                         <Button Grid.Column="1" Content="Approve" Tag="{Binding}"
+                                AutomationProperties.AutomationId="ApproveButton"
                                 Click="OnApproveClick" MinWidth="80"/>
                         <Button Grid.Column="2" Content="Deny" Tag="{Binding}"
+                                AutomationProperties.AutomationId="DenyButton"
                                 Click="OnDenyClick" MinWidth="72"/>
                     </Grid>
                 </DataTemplate>
@@ -48,10 +56,13 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="EngageBox" PlaceholderText="Answer question…"
+            <TextBox x:Name="EngageBox" AutomationProperties.AutomationId="EngageBox"
+                     PlaceholderText="Answer question…"
                      GotFocus="OnEngageGotFocus"/>
-            <Button Grid.Column="1" Content="Send" Click="OnEngageSend" MinWidth="72"/>
-            <Button Grid.Column="2" Content="Open session" Click="OnOpenSession" MinWidth="100"/>
+            <Button Grid.Column="1" Content="Send" AutomationProperties.AutomationId="EngageSendButton"
+                    Click="OnEngageSend" MinWidth="72"/>
+            <Button Grid.Column="2" Content="Open session" AutomationProperties.AutomationId="OpenSessionButton"
+                    Click="OnOpenSession" MinWidth="100"/>
         </Grid>
     </Grid>
 </Window>

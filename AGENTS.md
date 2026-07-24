@@ -30,7 +30,7 @@ make test-e2e
 # Package list: Makefile test-e2e target. Per-binary setup: docs/design/design-host.md#legacy-source-component-20260624-client-stream-backend-e2e
 ```
 
-**Windows Shell e2e (T3)** — against `make run-dev` / `scripts/run-dev.sh` (client does not start the gateway; harness may). Doc: `clients/windows-shell/docs/e2e.md`.
+**Windows Shell e2e (T3)** — against `make run-dev` / `scripts/run-dev.sh` (client does not start the gateway; harness may). Doc: `clients/windows-shell/docs/e2e.md`. UI 変更時の AutomationId 契約と FlaUI/UIA テスト規約: [docs/note/note-20260724-windows-shell-ui-e2e-authoring.md](docs/note/note-20260724-windows-shell-ui-e2e-authoring.md).
 
 ```sh
 make test-windows-shell-e2e

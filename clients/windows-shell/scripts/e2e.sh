@@ -27,16 +27,19 @@ GATEWAY_URL="${AG_E2E_GATEWAY_URL:-http://127.0.0.1:8443}"
 START_RUN_DEV=0
 SKIP_UNIT=0
 SKIP_WINUI=0
+SKIP_UI=0
 FIXTURE_PORT=18443
 
 usage() {
   cat <<'EOF'
-Usage: e2e.sh [--start-run-dev] [--skip-unit] [--skip-winui] [--gateway-url URL]
+Usage: e2e.sh [--start-run-dev] [--skip-unit] [--skip-winui] [--skip-ui] [--gateway-url URL]
 
   --start-run-dev   Start run-dev *backend* fixture (server -no-auth) on :18443
                     (or URL host:port if --gateway-url set)
   --skip-unit       Skip always-on unit tests; only run AG_E2E_RUN_DEV facts
   --skip-winui      Skip WinUI self-contained layout assert + launch smoke
+                    (implies --skip-ui: the UI stage needs the smoke build)
+  --skip-ui         Skip FlaUI UIA-driven panel tests (keep layout + smoke)
   --gateway-url     Override AG_E2E_GATEWAY_URL (default http://127.0.0.1:8443;
                     with --start-run-dev default becomes http://127.0.0.1:18443)
 
@@ -44,6 +47,7 @@ Stages:
   1) gateway probe (make run-dev or fixture)
   2) xUnit (Core/Platform + RunDev E2E facts when AG_E2E_RUN_DEV=1)
   3) WinUI layout + launch smoke (startup error log SoT; optional --skip-winui)
+  4) WinUI UI automation via FlaUI/UIA (AG_E2E_WINUI_UI=1; optional --skip-ui)
 EOF
 }
 
@@ -52,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     --start-run-dev) START_RUN_DEV=1; shift ;;
     --skip-unit) SKIP_UNIT=1; shift ;;
     --skip-winui) SKIP_WINUI=1; shift ;;
+    --skip-ui) SKIP_UI=1; shift ;;
     --gateway-url) GATEWAY_URL="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage; exit 2 ;;
@@ -250,6 +255,16 @@ run_winui_smoke() {
     \$env:AG_NO_AUTH = '1'
     \$env:AG_GATEWAY_URL = '$GATEWAY_URL'
     & (Join-Path \$scripts 'launch-smoke.ps1') -Exe \$exe -SmokeSeconds 5
+    if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
+    if ('$SKIP_UI' -eq '1') {
+      Write-Host 'Skipping FlaUI UI automation stage (--skip-ui)'
+      exit 0
+    }
+    Write-Host '== WinUI UI automation (FlaUI/UIA) =='
+    \$env:AG_E2E_WINUI_UI = '1'
+    \$env:AG_E2E_WINUI_EXE = \$exe
+    \$env:AG_E2E_GATEWAY_URL = '$GATEWAY_URL'
+    & \$dotnet test AgentGrid.Shell.WinUI.UiTests\AgentGrid.Shell.WinUI.UiTests.csproj --nologo --filter 'FullyQualifiedName~PanelWindowUiE2E'
     exit \$LASTEXITCODE
   "
 }
