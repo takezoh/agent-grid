@@ -53,11 +53,30 @@ public partial class App : Application
         _root = ShellCompositionRoot.Build(opts);
         await _root.StartAsync();
 
-        _hidden = new Window(); // never Activate — process stays for tray
         _panel = new PanelWindow(_root);
+        // Keep a window in the process; show glance so launch is visible (tray alone is easy to miss).
+        _hidden = _panel;
         _toasts = new AppNotificationToastService(_root, () => _panel);
-        _toasts.Register();
-        _tray = new TrayIconController(_root, _panel, quit);
+        try
+        {
+            _toasts.Register();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"toast register: {ex}");
+        }
+
+        try
+        {
+            _tray = new TrayIconController(_root, _panel, quit);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"tray create: {ex}");
+        }
+
+        _panel.ShowGlance();
+
         // Health tick
         _ = Task.Run(async () =>
         {
@@ -124,13 +143,39 @@ public partial class App : Application
         v is "1" or "true" or "TRUE" or "yes" or "YES";
 }
 
-/// <summary>Explicit main so we can bootstrap WinRT before Application.Start.</summary>
+/// <summary>Explicit main: capture WASDK bootstrap errors before XAML starts.</summary>
 public static class Program
 {
     [STAThread]
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
+        // Structured capture — do not rely on auto MessageBox text (not on stdout).
+        if (!Host.WasdkBootstrapHost.TryStart(out var hr, out var report))
+        {
+            // Automated smoke sets AG_WINUI_NO_MSGBOX=1 so the process exits
+            // with the HRESULT and launch-smoke can read the log without hanging.
+            var noMsg = Environment.GetEnvironmentVariable("AG_WINUI_NO_MSGBOX");
+            if (noMsg is not ("1" or "true" or "TRUE"))
+            {
+                _ = NativeMessageBox(report, "Agent Grid Shell — startup failed");
+            }
+            return hr != 0 ? hr : 1;
+        }
+
         WinRT.ComWrappersSupport.InitializeComWrappers();
-        Application.Start(_ => new App());
+        Application.Start(p =>
+        {
+            var context = new Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext(
+                Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
+            SynchronizationContext.SetSynchronizationContext(context);
+            _ = new App();
+        });
+        return 0;
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int MessageBoxW(nint hWnd, string text, string caption, uint type);
+
+    private static int NativeMessageBox(string text, string caption) =>
+        MessageBoxW(0, text, caption, 0x00000010 /* MB_ICONERROR */);
 }

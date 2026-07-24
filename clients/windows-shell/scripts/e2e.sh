@@ -26,17 +26,24 @@ cd "$ROOT"
 GATEWAY_URL="${AG_E2E_GATEWAY_URL:-http://127.0.0.1:8443}"
 START_RUN_DEV=0
 SKIP_UNIT=0
+SKIP_WINUI=0
 FIXTURE_PORT=18443
 
 usage() {
   cat <<'EOF'
-Usage: e2e.sh [--start-run-dev] [--skip-unit] [--gateway-url URL]
+Usage: e2e.sh [--start-run-dev] [--skip-unit] [--skip-winui] [--gateway-url URL]
 
   --start-run-dev   Start run-dev *backend* fixture (server -no-auth) on :18443
                     (or URL host:port if --gateway-url set)
   --skip-unit       Skip always-on unit tests; only run AG_E2E_RUN_DEV facts
+  --skip-winui      Skip WinUI self-contained layout assert + launch smoke
   --gateway-url     Override AG_E2E_GATEWAY_URL (default http://127.0.0.1:8443;
                     with --start-run-dev default becomes http://127.0.0.1:18443)
+
+Stages:
+  1) gateway probe (make run-dev or fixture)
+  2) xUnit (Core/Platform + RunDev E2E facts when AG_E2E_RUN_DEV=1)
+  3) WinUI layout + launch smoke (startup error log SoT; optional --skip-winui)
 EOF
 }
 
@@ -44,6 +51,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --start-run-dev) START_RUN_DEV=1; shift ;;
     --skip-unit) SKIP_UNIT=1; shift ;;
+    --skip-winui) SKIP_WINUI=1; shift ;;
     --gateway-url) GATEWAY_URL="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage; exit 2 ;;
@@ -197,5 +205,55 @@ else
   # Full suite: unit always-on + e2e facts (enabled via AG_E2E_RUN_DEV=1)
   run_dotnet_tests ""
 fi
+
+run_winui_smoke() {
+  if [[ "$SKIP_WINUI" == "1" ]]; then
+    echo "Skipping WinUI layout/launch smoke (--skip-winui)"
+    return 0
+  fi
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    echo "WARN: powershell.exe not available — skip WinUI smoke (use Windows host)"
+    return 0
+  fi
+  local repo_win
+  repo_win=$(wslpath -w "$ROOT" 2>/dev/null || true)
+  if [[ -z "$repo_win" ]]; then
+    repo_win=$(powershell.exe -NoProfile -Command "(wsl.exe -e wslpath -w '$ROOT').Trim()" | tr -d '\r')
+  fi
+  echo "== WinUI e2e: self-contained build + layout + launch smoke =="
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
+    \$ErrorActionPreference = 'Stop'
+    \$repo = '$repo_win'
+    \$scripts = Join-Path \$repo 'clients\windows-shell\scripts'
+    # Build only (no nested unit re-run): inline minimal build then assert + smoke
+    \$dotnet = Join-Path \$env:LOCALAPPDATA 'Microsoft\dotnet\dotnet.exe'
+    if (-not (Test-Path \$dotnet)) { \$dotnet = 'C:\Program Files\dotnet\dotnet.exe' }
+    \$env:DOTNET_ROOT = Split-Path \$dotnet
+    \$env:PATH = \"\$env:DOTNET_ROOT;\$env:PATH\"
+    \$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+    \$shell = Join-Path \$repo 'clients\windows-shell'
+    \$local = Join-Path \$env:LOCALAPPDATA 'Temp\ag-shell-src'
+    Get-Process AgentGrid.Shell.WinUI -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    if (Test-Path \$local) {
+      try { Remove-Item -Recurse -Force \$local } catch { Start-Sleep 2; Remove-Item -Recurse -Force \$local }
+    }
+    & robocopy \$shell \$local /E /XD bin obj .git /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+    if (\$LASTEXITCODE -ge 8) { throw \"robocopy failed: \$LASTEXITCODE\" }
+    Set-Location \$local
+    & \$dotnet build AgentGrid.Shell.WinUI\AgentGrid.Shell.WinUI.csproj -c Debug -p:Platform=x64 -p:RuntimeIdentifier=win-x64 -p:WindowsAppSDKSelfContained=true -p:SelfContained=true --nologo
+    if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
+    \$exe = Join-Path \$local 'AgentGrid.Shell.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64\AgentGrid.Shell.WinUI.exe'
+    if (-not (Test-Path \$exe)) { throw \"WinUI exe missing: \$exe\" }
+    & (Join-Path \$scripts 'assert-winui-layout.ps1') -OutDir (Split-Path \$exe)
+    if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
+    \$env:AG_NO_AUTH = '1'
+    \$env:AG_GATEWAY_URL = '$GATEWAY_URL'
+    & (Join-Path \$scripts 'launch-smoke.ps1') -Exe \$exe -SmokeSeconds 5
+    exit \$LASTEXITCODE
+  "
+}
+
+run_winui_smoke
 
 echo "PASS: windows-shell e2e against $GATEWAY_URL"

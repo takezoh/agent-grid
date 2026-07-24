@@ -198,7 +198,8 @@ test-e2e:
 	./scripts/run-go-e2e.sh
 
 # Windows Shell T3 e2e against scripts/run-dev.sh (opt-in).
-# Requires .NET (via Windows powershell robocopy tree or local SDK).
+# Stages: backend fixture → xUnit (incl. RunDev facts) → WinUI layout + launch smoke.
+# Requires Windows powershell/dotnet for the WinUI stage (or pass --skip-winui).
 # See clients/windows-shell/docs/e2e.md
 test-windows-shell-e2e:
 	./clients/windows-shell/scripts/e2e.sh --start-run-dev

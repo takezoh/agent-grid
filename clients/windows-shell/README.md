@@ -108,7 +108,9 @@ See `docs/changes/change-20260723-windows-shell-phase2/` and the 14 ADRs under
 | Script | Purpose |
 |---|---|
 | `scripts/win-test.ps1` | robocopy + `dotnet test` on local disk |
-| `scripts/win-build-winui.ps1` | build unpackaged WinUI shell (x64) |
+| `scripts/win-build-winui.ps1` | self-contained WinUI build + layout assert + launch smoke |
+| `scripts/assert-winui-layout.ps1` | Bootstrap / ui.xaml が EXE 横にあること |
+| `scripts/launch-smoke.ps1` | 起動スモーク；失敗時は structured startup log をダンプ |
 | `scripts/wsl-detach-spike.ps1` | T3 detach survival (calls in-distro `.sh`) |
 | `scripts/register-deep-link.ps1` | HKCU `agent-grid://` → host exe |
 | `scripts/install-local.ps1` | publish Host to `%LOCALAPPDATA%\agent-grid` |
@@ -118,11 +120,12 @@ See `docs/changes/change-20260723-windows-shell-phase2/` and the 14 ADRs under
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
   "$(wslpath -w /workspace/agent-grid)/clients/windows-shell/scripts/win-test.ps1"
 
-# WinUI panel + tray + AppNotification (unpackaged)
+# WinUI (self-contained; launch the win-x64 folder)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
   "$(wslpath -w /workspace/agent-grid)/clients/windows-shell/scripts/win-build-winui.ps1"
-# then launch:
-# %LOCALAPPDATA%\Temp\ag-shell-src\AgentGrid.Shell.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\AgentGrid.Shell.WinUI.exe
+# EXE:
+# %LOCALAPPDATA%\Temp\ag-shell-src\AgentGrid.Shell.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64\AgentGrid.Shell.WinUI.exe
+# Startup errors (not MessageBox OCR): %LOCALAPPDATA%\agent-grid\logs\winui-startup-error.txt
 ```
 
 | Project | Role |

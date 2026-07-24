@@ -49,7 +49,16 @@ public sealed partial class PanelWindow : Window
         _flyoutOpen = true;
         EnsureNoActivate(true);
         AppWindow.Show();
-        // Do not Activate() — would steal focus; NOACTIVATE panel should stay passive.
+        // First launch: activate once so the user sees the panel. Subsequent
+        // tray toggles keep NOACTIVATE so we do not steal focus mid-work.
+        try
+        {
+            Activate();
+        }
+        catch
+        {
+            /* headless / race during HWND create */
+        }
     }
 
     public void HideGlance()
