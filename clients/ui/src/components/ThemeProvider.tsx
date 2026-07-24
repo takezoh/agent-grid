@@ -110,12 +110,27 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
     function applyDesktopAppearance(): void {
       const configured = desktopAppearance();
       const stored = readStoredTheme();
-      setTheme(configured?.theme ?? stored ?? "system");
+      const configuredTheme =
+        configured?.theme === "default" ? undefined : configured?.theme;
+      setTheme(configuredTheme ?? stored ?? "system");
       if (configured) {
-        document.documentElement.dataset.density = configured.density;
-        document.documentElement.style.fontSize = `${configured.font_scale * 100}%`;
-        const resolved = resolveDataTheme(configured.theme, window.matchMedia(DARK_QUERY).matches);
-        document.documentElement.dataset.theme = resolved;
+        if (configured.density === "compact") {
+          document.documentElement.dataset.density = "compact";
+        } else {
+          delete document.documentElement.dataset.density;
+        }
+        if (configured.font_scale === 1) {
+          document.documentElement.style.removeProperty("font-size");
+        } else {
+          document.documentElement.style.fontSize = `${configured.font_scale * 100}%`;
+        }
+        if (configuredTheme) {
+          const resolved = resolveDataTheme(
+            configuredTheme,
+            window.matchMedia(DARK_QUERY).matches,
+          );
+          document.documentElement.dataset.theme = resolved;
+        }
       }
     }
     applyDesktopAppearance();
@@ -130,10 +145,12 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
   useLayoutEffect(() => {
     const configured = desktopAppearance();
     const mq = window.matchMedia(DARK_QUERY);
-    const effectiveTheme = configured?.theme ?? theme;
+    const configuredTheme =
+      configured?.theme === "default" ? undefined : configured?.theme;
+    const effectiveTheme = configuredTheme ?? theme;
     const resolved = resolveDataTheme(effectiveTheme, mq.matches);
     document.documentElement.dataset.theme = resolved;
-    if (!configured) persistTheme(theme);
+    if (!configuredTheme) persistTheme(theme);
   }, [theme]);
 
   // Subscribe to OS-level change events; only act when theme === 'system'.

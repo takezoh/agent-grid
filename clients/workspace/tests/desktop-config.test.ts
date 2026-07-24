@@ -28,7 +28,7 @@ describe("desktop config", () => {
 
     expect(config.servers.map((server) => server.id)).toEqual(["local"]);
     expect(config.appearance).toEqual({
-      theme: "system",
+      theme: "default",
       density: "comfortable",
       font_scale: 1,
     });

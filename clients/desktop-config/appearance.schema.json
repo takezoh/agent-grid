@@ -6,7 +6,7 @@
   "required": ["schema_version", "theme", "density", "font_scale"],
   "properties": {
     "schema_version": { "const": 1 },
-    "theme": { "enum": ["system", "light", "dark"] },
+    "theme": { "enum": ["default", "system", "light", "dark"] },
     "density": { "enum": ["compact", "comfortable"] },
     "font_scale": { "type": "number", "minimum": 0.8, "maximum": 1.5 }
   }

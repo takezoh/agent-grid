@@ -5,7 +5,7 @@ import * as os from "node:os";
 export const CONFIG_SCHEMA_VERSION = 1;
 export const CONFIG_DIR_ARGUMENT = "--config-dir";
 
-export type Theme = "system" | "light" | "dark";
+export type Theme = "default" | "system" | "light" | "dark";
 export type Density = "compact" | "comfortable";
 export type LaunchMode = "managed_wsl" | "connect_only";
 
@@ -179,7 +179,7 @@ function validateServers(servers: unknown): asserts servers is ServerConfig[] {
 }
 
 function validateAppearance(value: Versioned<AppearanceConfig>): void {
-  if (!["system", "light", "dark"].includes(value.theme)) {
+  if (!["default", "system", "light", "dark"].includes(value.theme)) {
     throw new Error("appearance.json: invalid theme");
   }
   if (!["compact", "comfortable"].includes(value.density)) {
@@ -259,7 +259,7 @@ function defaultDocuments(): Record<string, unknown> {
     },
     "appearance.json": {
       schema_version: CONFIG_SCHEMA_VERSION,
-      theme: "system",
+      theme: "default",
       density: "comfortable",
       font_scale: 1,
     },

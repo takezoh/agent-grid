@@ -154,8 +154,9 @@ public static partial class DesktopConfigLoader
 
     private static void ValidateAppearance(AppearanceDocument value)
     {
-        if (value.Theme is not ("system" or "light" or "dark"))
-            throw new DesktopConfigException("appearance.json: theme must be system, light or dark");
+        if (value.Theme is not ("default" or "system" or "light" or "dark"))
+            throw new DesktopConfigException(
+                "appearance.json: theme must be default, system, light or dark");
         if (value.Density is not ("compact" or "comfortable"))
             throw new DesktopConfigException("appearance.json: density must be compact or comfortable");
         if (value.FontScale is < 0.8 or > 1.5)
@@ -247,7 +248,7 @@ public static partial class DesktopConfigLoader
                             "~/agent-grid/server",
                             "~/.agent-grid/gateway-token"))
                 ]),
-            ["appearance.json"] = new AppearanceDocument(SchemaVersion, "system", "comfortable", 1.0),
+            ["appearance.json"] = new AppearanceDocument(SchemaVersion, "default", "comfortable", 1.0),
             ["shell.json"] = new ShellDocument(SchemaVersion, "agent-grid-workspace", 5),
             ["workspace.json"] = new WorkspaceDocument(
                 SchemaVersion,

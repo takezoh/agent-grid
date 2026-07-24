@@ -96,6 +96,25 @@ describe("desktop appearance configuration", () => {
   beforeEach(cleanup);
   afterEach(cleanup);
 
+  it("keeps the original UI defaults for default appearance", () => {
+    localStorage.setItem(STORAGE_KEY, "light");
+    window.agentGridAppearance = {
+      theme: "default",
+      density: "comfortable",
+      font_scale: 1,
+    };
+
+    render(
+      <ThemeProvider>
+        <span />
+      </ThemeProvider>,
+    );
+
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(document.documentElement.dataset.density).toBeUndefined();
+    expect(document.documentElement.style.fontSize).toBe("");
+  });
+
   it("uses hosted appearance instead of browser localStorage", () => {
     localStorage.setItem(STORAGE_KEY, "light");
     window.agentGridAppearance = {

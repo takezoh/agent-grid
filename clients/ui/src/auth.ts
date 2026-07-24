@@ -14,7 +14,7 @@ export interface HostedModeInfo {
 }
 
 export interface DesktopAppearance {
-  theme: "system" | "light" | "dark";
+  theme: "default" | "system" | "light" | "dark";
   density: "compact" | "comfortable";
   font_scale: number;
 }

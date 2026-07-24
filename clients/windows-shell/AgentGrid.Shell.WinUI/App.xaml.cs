@@ -53,7 +53,6 @@ public partial class App : Application
             Environment.GetCommandLineArgs().Skip(1));
         var config = DesktopConfigLoader.LoadOrCreate(configDirectory);
         _root = ShellFleet.Build(config, quit);
-        await _root.StartAsync();
 
         _panel = new PanelWindow(_root);
         // Keep a window in the process; show glance so launch is visible (tray alone is easy to miss).
@@ -78,6 +77,7 @@ public partial class App : Application
         }
 
         _panel.ShowGlance();
+        _ = StartFleetAsync(_root);
 
         // Health tick
         _ = Task.Run(async () =>
@@ -111,6 +111,20 @@ public partial class App : Application
             var uri = protocol.Uri?.AbsoluteUri;
             if (uri is not null && _panel is not null)
                 _ = _panel.HandleDeepLinkAsync(uri);
+        }
+    }
+
+    private static async Task StartFleetAsync(ShellFleet fleet)
+    {
+        try
+        {
+            await fleet.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            // Startup connectivity is reflected as degraded state; it must
+            // never prevent the desktop surface from becoming visible.
+            System.Diagnostics.Debug.WriteLine($"fleet start: {ex}");
         }
     }
 

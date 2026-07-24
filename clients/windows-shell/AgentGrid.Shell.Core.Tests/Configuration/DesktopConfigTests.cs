@@ -14,7 +14,7 @@ public sealed class DesktopConfigTests : IDisposable
         var config = DesktopConfigLoader.LoadOrCreate(_directory);
 
         Assert.Equal(["local"], config.Servers.Select(s => s.Id));
-        Assert.Equal("system", config.Appearance.Theme);
+        Assert.Equal("default", config.Appearance.Theme);
         Assert.Equal("agent-grid-workspace", config.Shell.WorkspaceExecutable);
         Assert.All(
             ["servers.json", "appearance.json", "shell.json", "workspace.json"],

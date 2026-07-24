@@ -26,7 +26,7 @@ if (-not $TokenPath) {
 
 @{
   schema_version = 1
-  theme = "system"
+  theme = "default"
   density = "comfortable"
   font_scale = 1.0
 } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $ConfigDir "appearance.json")

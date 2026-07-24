@@ -81,13 +81,16 @@ public sealed partial class PanelWindow : Window
         {
             "light" => ElementTheme.Light,
             "dark" => ElementTheme.Dark,
-            _ => ElementTheme.Default,
+            "system" => ElementTheme.Default,
+            _ => ElementTheme.Dark,
         };
-        RootHost.FontSize = 14 * appearance.FontScale;
-        RootHost.Resources["ControlContentThemeFontSize"] = 14 * appearance.FontScale;
-        RootHost.Resources["TextControlThemeFontSize"] = 14 * appearance.FontScale;
-        RootHost.Resources["ControlContentThemeFontSizeSmall"] =
-            (appearance.Density == "compact" ? 11 : 12) * appearance.FontScale;
+        if (appearance.Density != "comfortable" || appearance.FontScale != 1.0)
+        {
+            RootHost.Resources["ControlContentThemeFontSize"] = 14 * appearance.FontScale;
+            RootHost.Resources["TextControlThemeFontSize"] = 14 * appearance.FontScale;
+            RootHost.Resources["ControlContentThemeFontSizeSmall"] =
+                (appearance.Density == "compact" ? 11 : 12) * appearance.FontScale;
+        }
     }
 
     public void ShowGlance()
