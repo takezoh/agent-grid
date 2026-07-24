@@ -10,14 +10,15 @@ import (
 // in daemon mode (no subcommand). The struct is the parsed form; the loose
 // flag.FlagSet wires from CLI args.
 type daemonFlagSet struct {
-	dataDir   string
-	addr      string
-	token     string
-	tokenFile string
-	certFile  string
-	keyFile   string
-	insecure  bool
-	noAuth    bool
+	dataDir            string
+	addr               string
+	token              string
+	tokenFile          string
+	certFile           string
+	keyFile            string
+	insecure           bool
+	noAuth             bool
+	allowNoAuthNonLoop bool
 }
 
 // defaultDaemonFlags returns the flag values used when daemon mode runs with
@@ -58,6 +59,10 @@ func parseDaemonArgs(args []string) (*daemonFlagSet, error) {
 	fs.BoolVar(&out.noAuth, "no-auth", false,
 		"disable bearer-token AND WS-ticket auth — local dev only (loopback only). "+
 			"Bind MUST be 127.0.0.1/localhost; refuses non-loopback addrs.")
+	fs.BoolVar(&out.allowNoAuthNonLoop, "allow-non-loopback-no-auth", false,
+		"opt-in escape hatch: allow -no-auth on non-loopback binds (e.g. 0.0.0.0). "+
+			"DANGEROUS — exposes the unauthenticated REST/WS surface to the "+
+			"network. Only intended for isolated dev networks.")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}

@@ -20,7 +20,7 @@ func TestResolveAuth_NoAuthZeroesToken(t *testing.T) {
 	// Using only -token (not -token-file) so the mutex check stays out of
 	// the way; what we're asserting here is that -no-auth wins over an
 	// explicit token literal.
-	got, err := resolveAuth("ignored", "", true, "127.0.0.1:0")
+	got, err := resolveAuth("ignored", "", true, false, "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -30,13 +30,41 @@ func TestResolveAuth_NoAuthZeroesToken(t *testing.T) {
 }
 
 func TestResolveAuth_NoAuthRejectsNonLoopback(t *testing.T) {
-	if _, err := resolveAuth("", "", true, "0.0.0.0:8443"); err == nil {
+	if _, err := resolveAuth("", "", true, false, "0.0.0.0:8443"); err == nil {
 		t.Fatal("expected error on non-loopback bind with -no-auth")
 	}
 }
 
+// TestResolveAuth_NoAuthAllowsNonLoopbackWithOptIn documents the explicit
+// escape hatch: -allow-non-loopback-no-auth suppresses the loopback guard
+// so an operator can (dangerously) expose the unauthenticated surface on
+// an isolated dev network. Without the opt-in the guard MUST still fire —
+// that is the invariant TestResolveAuth_NoAuthRejectsNonLoopback pins.
+func TestResolveAuth_NoAuthAllowsNonLoopbackWithOptIn(t *testing.T) {
+	got, err := resolveAuth("", "", true, true, "0.0.0.0:8443")
+	if err != nil {
+		t.Fatalf("unexpected err with opt-in: %v", err)
+	}
+	if got != "" {
+		t.Errorf("token = %q, want empty (no-auth still zeroes the token)", got)
+	}
+}
+
+// TestResolveAuth_AllowNonLoopbackWithoutNoAuthIsNoop guards against the
+// opt-in flag accidentally becoming an implicit -no-auth. Without -no-auth
+// it must have zero effect: token resolution follows the normal precedence.
+func TestResolveAuth_AllowNonLoopbackWithoutNoAuthIsNoop(t *testing.T) {
+	got, err := resolveAuth("literal", "", false, true, "0.0.0.0:8443")
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if got != "literal" {
+		t.Errorf("token = %q, want %q (opt-in must not bypass token resolution)", got, "literal")
+	}
+}
+
 func TestResolveAuth_TokenFlagWins(t *testing.T) {
-	got, err := resolveAuth("literal", "", false, "127.0.0.1:0")
+	got, err := resolveAuth("literal", "", false, false, "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -46,7 +74,7 @@ func TestResolveAuth_TokenFlagWins(t *testing.T) {
 }
 
 func TestResolveAuth_TokenAndTokenFileConflict(t *testing.T) {
-	_, err := resolveAuth("literal", "/some/path", false, "127.0.0.1:0")
+	_, err := resolveAuth("literal", "/some/path", false, false, "127.0.0.1:0")
 	if err == nil {
 		t.Fatal("expected error when both -token and -token-file are set")
 	}
@@ -61,7 +89,7 @@ func TestResolveAuth_TokenAndTokenFileConflict(t *testing.T) {
 // adding TLS) hits a fresh "mutually exclusive" error at the moment auth is
 // being enabled — exactly the wrong time to learn about a misconfig.
 func TestResolveAuth_ConflictSurfacesUnderNoAuth(t *testing.T) {
-	_, err := resolveAuth("literal", "/some/path", true, "127.0.0.1:0")
+	_, err := resolveAuth("literal", "/some/path", true, false, "127.0.0.1:0")
 	if err == nil {
 		t.Fatal("expected mutual-exclusion error even with -no-auth")
 	}
@@ -71,7 +99,7 @@ func TestResolveAuth_ConflictSurfacesUnderNoAuth(t *testing.T) {
 }
 
 func TestResolveAuth_RandomWhenBothEmpty(t *testing.T) {
-	got, err := resolveAuth("", "", false, "127.0.0.1:0")
+	got, err := resolveAuth("", "", false, false, "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

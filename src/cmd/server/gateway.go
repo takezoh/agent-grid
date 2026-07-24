@@ -65,7 +65,7 @@ func (g *gatewayHandle) Close() {
 // contained by recover() — it cancels the daemon ctx so the binary exits, but
 // the recovered stack is logged rather than dropped into the void.
 func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, dataDir string, df *daemonFlagSet) (*gatewayHandle, error) {
-	token, err := resolveAuth(df.token, df.tokenFile, df.noAuth, df.addr)
+	token, err := resolveAuth(df.token, df.tokenFile, df.noAuth, df.allowNoAuthNonLoop, df.addr)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,8 @@ func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, data
 // instead of routing it through TokenAuth). Without -no-auth, an empty user
 // token is replaced with a freshly minted random one. -no-auth additionally
 // refuses non-loopback binds to keep the unauthenticated REST surface
-// off-network.
+// off-network, unless allowNoAuthNonLoop is explicitly set as an opt-in
+// escape hatch for isolated dev networks.
 //
 // Precedence (highest first): -no-auth > -token > -token-file > random.
 // -token and -token-file are mutually exclusive: silent precedence between
@@ -133,13 +134,13 @@ func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, data
 // or did the file path typo?). Surface that ambiguity BEFORE the -no-auth
 // short-circuit so a misconfig is reported now, not the moment an operator
 // later removes -no-auth and the hidden conflict suddenly becomes fatal.
-func resolveAuth(tokenFlag, tokenFile string, noAuth bool, addr string) (string, error) {
+func resolveAuth(tokenFlag, tokenFile string, noAuth, allowNoAuthNonLoop bool, addr string) (string, error) {
 	if tokenFlag != "" && tokenFile != "" {
 		return "", errors.New("-token and -token-file are mutually exclusive; pick one")
 	}
 	if noAuth {
-		if !isLoopbackAddr(addr) {
-			return "", fmt.Errorf("-no-auth refuses non-loopback bind %q (use 127.0.0.1:<port> or localhost:<port>)", addr)
+		if !isLoopbackAddr(addr) && !allowNoAuthNonLoop {
+			return "", fmt.Errorf("-no-auth refuses non-loopback bind %q (use 127.0.0.1:<port>, localhost:<port>, or pass -allow-non-loopback-no-auth to opt in)", addr)
 		}
 		return "", nil
 	}
@@ -256,8 +257,15 @@ func logStartup(addr string, insecure, noAuth bool, sockPath, token string) {
 		"sock", sockPath,
 		"auth", authDesc)
 	if noAuth {
-		slog.Warn("gateway: -no-auth — bearer-token and WS-ticket checks are disabled. " +
-			"Anyone reaching this loopback port can drive every session.")
+		if isLoopbackAddr(addr) {
+			slog.Warn("gateway: -no-auth — bearer-token and WS-ticket checks are disabled. " +
+				"Anyone reaching this loopback port can drive every session.")
+		} else {
+			slog.Warn("gateway: -no-auth on NON-LOOPBACK bind — auth is disabled and the "+
+				"REST/WS surface is reachable from the network. Anyone who can reach this "+
+				"port can drive every session.",
+				"addr", addr)
+		}
 	}
 }
 
