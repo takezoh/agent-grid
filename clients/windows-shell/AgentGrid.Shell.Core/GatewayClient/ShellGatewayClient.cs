@@ -55,9 +55,8 @@ public sealed class ShellGatewayClient : IDisposable
     {
         try
         {
-            var token = await _tokens.ReadFreshAsync(ct).ConfigureAwait(false);
             using var req = new HttpRequestMessage(HttpMethod.Get, Combine("/api/sessions"));
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            await ApplyAuthAsync(req, ct).ConfigureAwait(false);
             using var res = await SendAsync(req, ct).ConfigureAwait(false);
             return res.IsSuccessStatusCode;
         }
@@ -77,13 +76,13 @@ public sealed class ShellGatewayClient : IDisposable
 
     /// <summary>
     /// Two-step native WS auth: POST /api/ws-ticket → ticket + client_instance_id (FR-B2-02).
+    /// Against run-dev (-no-auth) ticket mint still works; empty bearer is omitted.
     /// </summary>
     public async Task<(string Ticket, string ClientInstanceId)> MintWsTicketAsync(
         CancellationToken ct = default)
     {
-        var token = await _tokens.ReadFreshAsync(ct).ConfigureAwait(false);
         using var req = new HttpRequestMessage(HttpMethod.Post, Combine("/api/ws-ticket"));
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        await ApplyAuthAsync(req, ct).ConfigureAwait(false);
         using var res = await SendAsync(req, ct).ConfigureAwait(false);
         res.EnsureSuccessStatusCode();
         await using var stream = await res.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -110,11 +109,10 @@ public sealed class ShellGatewayClient : IDisposable
 
         try
         {
-            var token = await _tokens.ReadFreshAsync(ct).ConfigureAwait(false);
             using var req = new HttpRequestMessage(
                 HttpMethod.Post,
                 Combine($"/api/sessions/{Uri.EscapeDataString(sessionId)}/approvals/{Uri.EscapeDataString(approvalId)}"));
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            await ApplyAuthAsync(req, ct).ConfigureAwait(false);
             if (_clientInstanceId is not null)
                 req.Headers.TryAddWithoutValidation("X-Client-Instance-ID", _clientInstanceId);
             req.Content = JsonContent.Create(new
@@ -143,15 +141,69 @@ public sealed class ShellGatewayClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// Submit free-text question answer (POST .../questions/{id}).
+    /// </summary>
+    public async Task<ApprovalSubmitResult> RespondQuestionAsync(
+        string sessionId,
+        string questionId,
+        string answer,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(answer))
+            throw new ArgumentException("answer required", nameof(answer));
+
+        try
+        {
+            using var req = new HttpRequestMessage(
+                HttpMethod.Post,
+                Combine($"/api/sessions/{Uri.EscapeDataString(sessionId)}/questions/{Uri.EscapeDataString(questionId)}"));
+            await ApplyAuthAsync(req, ct).ConfigureAwait(false);
+            if (_clientInstanceId is not null)
+                req.Headers.TryAddWithoutValidation("X-Client-Instance-ID", _clientInstanceId);
+            req.Content = JsonContent.Create(new
+            {
+                answer,
+                client_instance_id = _clientInstanceId,
+            });
+            using var res = await SendAsync(req, ct).ConfigureAwait(false);
+            if (res.StatusCode == System.Net.HttpStatusCode.Conflict)
+                return ApprovalSubmitResult.ResolvedByOther;
+            if (!res.IsSuccessStatusCode)
+                return ApprovalSubmitResult.ServerError;
+            return ApprovalSubmitResult.Accepted;
+        }
+        catch (TokenUnavailableException)
+        {
+            return ApprovalSubmitResult.NetworkError;
+        }
+        catch (HttpRequestException)
+        {
+            return ApprovalSubmitResult.NetworkError;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return ApprovalSubmitResult.NetworkError;
+        }
+    }
+
     public Uri WebSocketUri(string ticket) =>
         new UriBuilder(_baseUri)
         {
             Scheme = _baseUri.Scheme == "https" ? "wss" : "ws",
             Path = "/ws",
-            Query = $"ticket={Uri.EscapeDataString(ticket)}",
+            Query = string.IsNullOrEmpty(ticket) ? "" : $"ticket={Uri.EscapeDataString(ticket)}",
         }.Uri;
 
     private Uri Combine(string path) => new(_baseUri, path);
+
+    /// <summary>Omit Authorization when token is empty (run-dev -no-auth).</summary>
+    private async Task ApplyAuthAsync(HttpRequestMessage req, CancellationToken ct)
+    {
+        var token = await _tokens.ReadFreshAsync(ct).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(token))
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    }
 
     private Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
     {

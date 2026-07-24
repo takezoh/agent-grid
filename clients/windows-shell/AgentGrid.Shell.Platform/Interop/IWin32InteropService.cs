@@ -18,6 +18,20 @@ public interface IWin32InteropService
     /// </summary>
     bool AllowSetForegroundWindow(int processId);
 
+    /// <summary>GetWindowThreadProcessId — returns thread id (0 on failure).</summary>
+    uint GetWindowThreadProcessId(nint hwnd, out uint processId);
+
+    /// <summary>
+    /// AttachThreadInput for engage focus-return
+    /// (adr-20260724-engage-focus-restore-mechanism).
+    /// </summary>
+    bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+
+    /// <summary>
+    /// Apply or clear WS_EX_NOACTIVATE on a top-level HWND (panel glance).
+    /// </summary>
+    bool SetNoActivate(nint hwnd, bool noActivate);
+
     string? GetWindowProcessName(nint hwnd);
 
     string? GetWindowTitle(nint hwnd);

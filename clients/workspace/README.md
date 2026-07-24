@@ -36,12 +36,20 @@ src/shared/
 cd clients/workspace
 npm ci
 npm test
+npm run lint:browserwindow
 ```
 
 Electron binary is optional for unit tests (vitest + memory factory).
 Playwright-for-Electron e2e is the T1/T3 fidelity path on Windows CI.
 
+On WSL, Windows-side Electron checks can use:
+
+```sh
+powershell.exe -NoProfile -Command "cd (wsl wslpath -w /workspace/agent-grid/clients/workspace); npm test"
+```
+
 ## Lint invariant
 
-`new BrowserWindow` must only appear in `window-registry.ts` (or an Electron
-adapter it owns). Enforce with ESLint `no-restricted-syntax` or a CI ripgrep step.
+`new BrowserWindow` must only appear in `electron-window-factory.ts`
+(the sole production creation site owned by `window-registry`). Enforced by
+`npm run lint:browserwindow` (`scripts/check-browserwindow.mjs`).

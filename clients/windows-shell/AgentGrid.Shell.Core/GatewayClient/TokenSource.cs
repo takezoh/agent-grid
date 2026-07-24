@@ -58,3 +58,13 @@ public sealed class FileTokenSource : ITokenSource
         }
     }
 }
+
+/// <summary>
+/// Loopback e2e against <c>scripts/run-dev.sh</c> (<c>-no-auth</c>): no bearer file.
+/// Production MUST use <see cref="FileTokenSource"/>.
+/// </summary>
+public sealed class NoAuthTokenSource : ITokenSource
+{
+    public Task<string> ReadFreshAsync(CancellationToken ct = default) =>
+        Task.FromResult(string.Empty);
+}

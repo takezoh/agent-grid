@@ -64,4 +64,38 @@ public sealed class ApprovalSubmissionService
                 break;
         }
     }
+
+    /// <summary>
+    /// Submit free-text question answer. On success removes the item; on conflict
+    /// surfaces already-handled; on network error leaves the item in place.
+    /// </summary>
+    public async Task SubmitQuestionAsync(
+        string questionId,
+        string sessionId,
+        string answer,
+        string prompt,
+        CancellationToken ct = default)
+    {
+        // Optimistic removal (reuse approval submit event shape via local resolved).
+        Apply(new EvtQuestionResolved(questionId, sessionId, "local-optimistic"));
+
+        var result = await _gateway.RespondQuestionAsync(sessionId, questionId, answer, ct)
+            .ConfigureAwait(false);
+
+        switch (result)
+        {
+            case ApprovalSubmitResult.Accepted:
+                // Already removed.
+                break;
+            case ApprovalSubmitResult.ResolvedByOther:
+                Apply(new EvtApprovalResolvedByOther(questionId, sessionId));
+                // Re-shape notice kind via a question re-insert is unnecessary;
+                // AlreadyHandled message is enough for glance.
+                break;
+            default:
+                // Rollback: put question back.
+                Apply(new EvtQuestionRequested(questionId, sessionId, prompt));
+                break;
+        }
+    }
 }

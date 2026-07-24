@@ -73,10 +73,12 @@ public static class SupervisionReducer
                 },
 
             // Authoritative race loss: explicit already-handled, no duplicate submit (UAC-006r).
+            // Used for both approval and question race-loss (ItemId is the pending id).
             EvtApprovalResolvedByOther e =>
                 state with
                 {
                     Approvals = state.Approvals.Where(a => a.ApprovalId != e.ApprovalId).ToList(),
+                    Questions = state.Questions.Where(q => q.QuestionId != e.ApprovalId).ToList(),
                     AlreadyHandled = Upsert(
                         state.AlreadyHandled,
                         n => n.ItemId == e.ApprovalId,

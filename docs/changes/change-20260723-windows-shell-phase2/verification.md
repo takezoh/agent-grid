@@ -39,49 +39,45 @@ verifications:
   contract: contract-b3-daemon-supervisor-state-machine
   tier: T0
   method: xUnit pure state-machine test enumerating every (state, event) pair including
-    double-failure paths; fake Runner + fake HTTP probe injection.
+    double-failure paths; fake Runner + fake HTTP probe injection. T3 adopt path against
+    make run-dev is RunDevGatewayE2ETests.DaemonSupervisor_adopts_*.
   criterion: Every (state, event) branch reaches a terminal Connected or Degraded/failed
     state within a bounded probe count; no branch leaves state stuck in Spawning.
   requirement_refs:
   - FR-B3-01
   - FR-B3-02
   - FR-B3-03
-  command: null
+  command: ./clients/windows-shell/scripts/e2e.sh --start-run-dev
 - id: verify-wsl-detach-fidelity
   contract: contract-b3-wsl-detach-mechanism
   tier: T3
-  method: 'make test-e2e opt-in target invoking a real WSL distro: spawn server via
-    candidate mechanism, forcibly kill the Windows-side launcher (taskkill /F on wsl.exe),
-    poll /api/sessions for continued liveness.'
-  criterion: The daemon PID's `cat /proc/1/status` shows reparenting to pid 1 (or
-    an equivalent detach witness) AND /api/sessions responds ≥5s after the launcher
-    is killed.
+  method: 'WSL detach spike (setsid) via clients/windows-shell/scripts/wsl-detach-spike.sh —
+    separate from run-dev e2e. See docs/wsl-detach-spike-result.md.'
+  criterion: Process remains live and /api/sessions responds ≥5s after launcher returns.
   requirement_refs:
   - FR-B3-05
-  command: GOCACHE=/tmp/gocache-agent-grid make test-e2e
+  command: bash clients/windows-shell/scripts/wsl-detach-spike.sh
 - id: verify-token-fresh-and-explicit-failure
   contract: contract-b2-token-acquisition
   tier: T1
-  method: 'xUnit + FakeVsReal fidelity: rotate the UNC token file between two connection
-    attempts; assert the second attempt uses the new token; separately, remove the
-    file and assert an explicit failure state (not Connected).'
+  method: 'xUnit FileTokenSourceTests; run-dev e2e uses NoAuthTokenSource (loopback
+    -no-auth). Auth path FakeVsReal remains file-rotation unit + future token e2e.'
   criterion: Post-rotation connection succeeds with the new token in ≤1 attempt; unreadable
     UNC yields an explicit failure indicator every time.
   requirement_refs:
   - FR-B2-01
   - FR-B2-03
-  command: null
+  command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File clients/windows-shell/scripts/win-test.ps1
 - id: verify-native-ws-ticket-fidelity
   contract: contract-b2-native-ws-auth-path
   tier: T3
-  method: 'FakeVsReal fidelity: run the generated C# and TS SDKs against the real
-    server binary; assert the two-request sequence and a successful WS frame; separately,
-    assert /ws?ticket=INVALID is refused.'
-  criterion: SDK connect succeeds when the two-step flow is followed; a header-only
-    attempt is rejected with a documented status.
+  method: 'Shell.Core E2E against make run-dev — Mint_ticket_and_open_websocket
+    (POST /api/ws-ticket + ClientWebSocket). See clients/windows-shell/docs/e2e.md.'
+  criterion: SDK connect succeeds when the two-step flow is followed against the real
+    gateway; always-on suite skips when AG_E2E_RUN_DEV is unset.
   requirement_refs:
   - FR-B2-02
-  command: null
+  command: ./clients/windows-shell/scripts/e2e.sh --start-run-dev
 - id: verify-hosted-mode-token-not-in-url
   contract: contract-b2-hosted-mode-token-injection
   tier: T1

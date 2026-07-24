@@ -7,7 +7,13 @@
 
 import { ControlEndpoint, defaultControlPath } from "./control-endpoint.js";
 import { DaemonConfigResolver } from "./daemon-config.js";
-import { WindowRegistry, type WindowFactory, type WindowHandle } from "./window-registry.js";
+import { FileStateStore, defaultWorkspaceStatePath } from "./file-state-store.js";
+import {
+  WindowRegistry,
+  type StateStore,
+  type WindowFactory,
+  type WindowHandle,
+} from "./window-registry.js";
 
 export interface MainBootstrapOptions {
   tokenPath: string;
@@ -15,6 +21,9 @@ export interface MainBootstrapOptions {
   webOrigin: string;
   controlPath?: string;
   factory: WindowFactory;
+  /** Override layout persistence (default: FileStateStore under APPDATA). */
+  stateStore?: StateStore | null;
+  statePath?: string;
 }
 
 export async function bootstrapMain(opts: MainBootstrapOptions): Promise<{
@@ -28,7 +37,11 @@ export async function bootstrapMain(opts: MainBootstrapOptions): Promise<{
     baseUrl: opts.baseUrl,
     webOrigin: opts.webOrigin,
   });
-  const registry = new WindowRegistry(opts.factory);
+  const store: StateStore | null =
+    opts.stateStore === undefined
+      ? new FileStateStore(opts.statePath ?? defaultWorkspaceStatePath())
+      : opts.stateStore;
+  const registry = new WindowRegistry(opts.factory, store);
   const endpoint = new ControlEndpoint({
     path: opts.controlPath ?? defaultControlPath(),
     registry,

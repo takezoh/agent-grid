@@ -38,6 +38,11 @@ export interface AppShellProps {
   main: ReactNode;
   /** Portal-mounted overlays (command palette, toasts). */
   overlays?: ReactNode;
+  /**
+   * Electron Workspace hosted mode (contract-hosted-mode-existing-spa-compat).
+   * Suppresses session-list chrome; browser path must remain unchanged when false.
+   */
+  hosted?: boolean;
 }
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
@@ -46,7 +51,14 @@ export interface AppShellProps {
  * AppShell lays out the four named grid areas (banner / header / sidebar /
  * main) and owns the mobile-drawer open/close state.
  */
-export function AppShell({ sidebar, banner, header, main, overlays }: AppShellProps): ReactNode {
+export function AppShell({
+  sidebar,
+  banner,
+  header,
+  main,
+  overlays,
+  hosted = false,
+}: AppShellProps): ReactNode {
   // UI-local state — FR-STORE-001: do NOT lift to Zustand.
   const [drawerOpen, setDrawerOpen] = useState(false);
   // previousActiveSessionId tracks the active session immediately BEFORE the
@@ -149,37 +161,57 @@ export function AppShell({ sidebar, banner, header, main, overlays }: AppShellPr
     if (slot !== snackbarSlot) setSnackbarSlot(slot);
   });
 
+  // Hosted mode: mark document for CSS (titlebar drag, OS scrollbar, no session chrome).
+  useEffect(() => {
+    if (!hosted) return;
+    document.documentElement.dataset.hosted = "1";
+    document.body.dataset.hosted = "1";
+    return () => {
+      delete document.documentElement.dataset.hosted;
+      delete document.body.dataset.hosted;
+    };
+  }, [hosted]);
+
   return (
     <ThemeProvider>
-      <div ref={shellRef} className="app-shell" data-drawer-open={drawerOpen ? "true" : "false"}>
+      <div
+        ref={shellRef}
+        className="app-shell"
+        data-drawer-open={drawerOpen ? "true" : "false"}
+        data-hosted={hosted ? "true" : "false"}
+      >
         {/* banner: spans full width */}
         <div className="app-banner">{banner}</div>
 
         {/* header: HeaderBar + hamburger (left on mobile, FR-013) */}
-        <div className="app-header-area">
+        <div className="app-header-area app-drag-region">
           <div className="app-header-inner">
-            <button
-              type="button"
-              className="hamburger-toggle"
-              data-role="hamburger"
-              aria-label="Open sessions"
-              aria-expanded={drawerOpen ? "true" : "false"}
-              onClick={toggleDrawer}
-            >
-              ☰
-            </button>
-            {header}
+            {!hosted && (
+              <button
+                type="button"
+                className="hamburger-toggle app-no-drag"
+                data-role="hamburger"
+                aria-label="Open sessions"
+                aria-expanded={drawerOpen ? "true" : "false"}
+                onClick={toggleDrawer}
+              >
+                ☰
+              </button>
+            )}
+            <div className="app-no-drag app-header-content">{header}</div>
           </div>
         </div>
 
         {/* sidebar: hidden on <768px via CSS; shown as drawer via SessionDrawer */}
-        <div
-          className="app-sidebar"
-          data-drawer-open={drawerOpen ? "true" : "false"}
-          aria-hidden={drawerOpen ? "false" : undefined}
-        >
-          {sidebar}
-        </div>
+        {!hosted && (
+          <div
+            className="app-sidebar"
+            data-drawer-open={drawerOpen ? "true" : "false"}
+            aria-hidden={drawerOpen ? "false" : undefined}
+          >
+            {sidebar}
+          </div>
+        )}
 
         {/* main content — id used by SessionDrawer for three-layer guard */}
         <div id="main-content" className="app-main">
@@ -188,13 +220,15 @@ export function AppShell({ sidebar, banner, header, main, overlays }: AppShellPr
       </div>
 
       {/* SessionDrawer — off-canvas drawer on mobile (FR-DRAWER-001/002/ADR-0060) */}
-      <SessionDrawer
-        open={drawerOpen}
-        onSelectionClose={handleSelectionClose}
-        onCancelClose={handleCancelClose}
-      >
-        {sidebar}
-      </SessionDrawer>
+      {!hosted && (
+        <SessionDrawer
+          open={drawerOpen}
+          onSelectionClose={handleSelectionClose}
+          onCancelClose={handleCancelClose}
+        >
+          {sidebar}
+        </SessionDrawer>
+      )}
 
       {/* Portal-mounted overlays (palette, toasts) */}
       {overlays}

@@ -30,6 +30,14 @@ make test-e2e
 # Package list: Makefile test-e2e target. Per-binary setup: docs/design/design-host.md#legacy-source-component-20260624-client-stream-backend-e2e
 ```
 
+**Windows Shell e2e (T3)** — against `make run-dev` / `scripts/run-dev.sh` (client does not start the gateway; harness may). Doc: `clients/windows-shell/docs/e2e.md`.
+
+```sh
+make test-windows-shell-e2e
+# or: ./clients/windows-shell/scripts/e2e.sh --start-run-dev
+# two-terminal: make run-dev  +  ./clients/windows-shell/scripts/e2e.sh
+```
+
 **Web Playwright smoke** — browser wiring that happy-dom cannot prove; uses deterministic fake backend (`e2e/support/fake-backend.ts`). Harness overview: `docs/design/design-host.md#legacy-source-component-20260705-client-web-browser-harness`.
 
 ```sh

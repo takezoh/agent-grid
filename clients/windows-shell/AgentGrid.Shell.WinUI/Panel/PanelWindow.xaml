@@ -1,0 +1,57 @@
+<Window
+    x:Class="AgentGrid.Shell.WinUI.Panel.PanelWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Agent Grid">
+    <Grid Padding="12" RowSpacing="8" Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Glance status strip -->
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock x:Name="StatusText" FontWeight="SemiBold" Text="Agent Grid"/>
+            <TextBlock x:Name="ConnectionText" Opacity="0.7"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" x:Name="PendingHeader" Text="Pending" Opacity="0.6" FontSize="12"/>
+
+        <ListView Grid.Row="2" x:Name="PendingList" SelectionMode="Single">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnSpacing="8" Padding="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Headline}" TextWrapping="WrapWholeWords"/>
+                            <TextBlock Text="{Binding Kind}" FontSize="11" Opacity="0.6"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Approve" Tag="{Binding}"
+                                Click="OnApproveClick" MinWidth="80"/>
+                        <Button Grid.Column="2" Content="Deny" Tag="{Binding}"
+                                Click="OnDenyClick" MinWidth="72"/>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <!-- Engage free-text for questions -->
+        <Grid Grid.Row="3" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="EngageBox" PlaceholderText="Answer question…"
+                     GotFocus="OnEngageGotFocus"/>
+            <Button Grid.Column="1" Content="Send" Click="OnEngageSend" MinWidth="72"/>
+            <Button Grid.Column="2" Content="Open session" Click="OnOpenSession" MinWidth="100"/>
+        </Grid>
+    </Grid>
+</Window>

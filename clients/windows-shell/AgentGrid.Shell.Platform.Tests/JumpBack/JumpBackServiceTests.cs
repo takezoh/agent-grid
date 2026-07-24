@@ -75,6 +75,14 @@ public class JumpBackServiceTests
             return true;
         }
         public bool AllowSetForegroundWindow(int processId) => true;
+        public uint GetWindowThreadProcessId(nint hwnd, out uint processId)
+        {
+            processId = 1;
+            return 1;
+        }
+        public bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach) => true;
+        public bool SetNoActivate(nint hwnd, bool noActivate) => true;
+
         public string? GetWindowProcessName(nint hwnd) =>
             ProcessNames.TryGetValue(hwnd, out var n) ? n
             : Windows.FirstOrDefault(w => w.Hwnd == hwnd)?.ProcessName;

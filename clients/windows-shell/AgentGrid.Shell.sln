@@ -13,6 +13,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentGrid.Shell.Core.Tests"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentGrid.Shell.Platform.Tests", "AgentGrid.Shell.Platform.Tests\AgentGrid.Shell.Platform.Tests.csproj", "{ACC57728-70BE-4015-8A7D-252E96533134}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentGrid.Shell.Host", "AgentGrid.Shell.Host\AgentGrid.Shell.Host.csproj", "{564A8689-D50E-47A6-B0A4-D8B8DF56F2EA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentGrid.Shell.WinUI", "AgentGrid.Shell.WinUI\AgentGrid.Shell.WinUI.csproj", "{986F4B05-79DD-49AD-92BA-C482838D5630}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +46,13 @@ Global
 		{ACC57728-70BE-4015-8A7D-252E96533134}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ACC57728-70BE-4015-8A7D-252E96533134}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ACC57728-70BE-4015-8A7D-252E96533134}.Release|Any CPU.Build.0 = Release|Any CPU
+		{564A8689-D50E-47A6-B0A4-D8B8DF56F2EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{564A8689-D50E-47A6-B0A4-D8B8DF56F2EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{564A8689-D50E-47A6-B0A4-D8B8DF56F2EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{564A8689-D50E-47A6-B0A4-D8B8DF56F2EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{986F4B05-79DD-49AD-92BA-C482838D5630}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{986F4B05-79DD-49AD-92BA-C482838D5630}.Debug|Any CPU.Build.0 = Debug|x64
+		{986F4B05-79DD-49AD-92BA-C482838D5630}.Release|Any CPU.ActiveCfg = Release|x64
+		{986F4B05-79DD-49AD-92BA-C482838D5630}.Release|Any CPU.Build.0 = Release|x64
 	EndGlobalSection
 EndGlobal

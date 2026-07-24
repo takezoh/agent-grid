@@ -197,6 +197,12 @@ lint:
 test-e2e:
 	./scripts/run-go-e2e.sh
 
+# Windows Shell T3 e2e against scripts/run-dev.sh (opt-in).
+# Requires .NET (via Windows powershell robocopy tree or local SDK).
+# See clients/windows-shell/docs/e2e.md
+test-windows-shell-e2e:
+	./clients/windows-shell/scripts/e2e.sh --start-run-dev
+
 verify-save:
 	./scripts/run-verification-profile.sh save
 

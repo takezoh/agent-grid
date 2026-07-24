@@ -59,6 +59,14 @@ public class PanelWatchedPredicateTests
         public bool IsWindow(nint hwnd) => false;
         public bool SetForegroundWindow(nint hwnd) => false;
         public bool AllowSetForegroundWindow(int processId) => true;
+        public uint GetWindowThreadProcessId(nint hwnd, out uint processId)
+        {
+            processId = 1;
+            return 1;
+        }
+        public bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach) => true;
+        public bool SetNoActivate(nint hwnd, bool noActivate) => true;
+
         public string? GetWindowProcessName(nint hwnd) => null;
         public string? GetWindowTitle(nint hwnd) => null;
         public IReadOnlyList<WindowInfo> EnumerateWindows() => Array.Empty<WindowInfo>();

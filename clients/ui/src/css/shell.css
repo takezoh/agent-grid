@@ -543,3 +543,72 @@
   margin: 10vh auto 0;
   box-sizing: border-box;
 }
+
+/* ─── Hosted mode (Electron Workspace) — plan §4.3 ─────────────────────────
+   Browser path is unchanged when data-hosted is absent/false.
+   Titlebar drag: -webkit-app-region on the header band; interactive controls
+   opt out with .app-no-drag. Scrollbars: prefer OS-looking thin bars.        */
+
+html[data-hosted="1"],
+html[data-hosted="1"] body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+}
+
+html[data-hosted="1"] .app-main,
+html[data-hosted="1"] .main-modes,
+html[data-hosted="1"] .terminal-slot,
+html[data-hosted="1"] .xterm {
+  user-select: text;
+}
+
+.app-shell[data-hosted="true"] {
+  /* Single-session: no sidebar column even at desktop breakpoints */
+  grid-template-areas:
+    "banner"
+    "header"
+    "main";
+  grid-template-columns: 1fr;
+}
+
+.app-shell[data-hosted="true"] .app-sidebar,
+.app-shell[data-hosted="true"] .hamburger-toggle {
+  display: none !important;
+}
+
+.app-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+html[data-hosted="1"] * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline, #666) transparent;
+}
+
+html[data-hosted="1"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html[data-hosted="1"] ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fg, #ccc) 35%, transparent);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+html[data-hosted="1"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-header-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}

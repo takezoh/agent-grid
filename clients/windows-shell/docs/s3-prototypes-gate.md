@@ -10,3 +10,21 @@ Conditional regression detector before entering panel-glance / approval-round-tr
 
 This gate does **not** block S1 entry. Record outcomes under
 `docs/changes/change-20260723-windows-shell-phase2/` when prototypes run.
+
+## Running from this WSL host
+
+Windows tooling is reached via PowerShell:
+
+```powershell
+# Shell unit tests (robocopy + local disk)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  ((wsl wslpath -w /workspace/agent-grid) + '\clients\windows-shell\scripts\win-test.ps1')
+
+# WinUI panel + AppNotification build
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  ((wsl wslpath -w /workspace/agent-grid) + '\clients\windows-shell\scripts\win-build-winui.ps1')
+```
+
+Manual S3 checklist: [s3-prototypes-checklist.md](./s3-prototypes-checklist.md).
+
+WSL detach spike (T3) — accepted 2026-07-24; see [wsl-detach-spike-result.md](./wsl-detach-spike-result.md).

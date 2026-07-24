@@ -308,6 +308,7 @@ export function App() {
       header={headerContent}
       sidebar={sidebarContent}
       main={mainContent}
+      hosted={hosted}
       overlays={
         <>
           <NotificationToast />

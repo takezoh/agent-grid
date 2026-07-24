@@ -26,12 +26,61 @@ AgentGrid.Shell/            UI composition (menu handlers, tray binding)
 
 ## Build / test
 
-Requires .NET 8 SDK. On Linux CI only `Core` + `Platform` (fakeable interop) + their
-xUnit projects are expected to pass; the WinUI host is a Windows-dev concern.
+Requires .NET 8 SDK. Pure `Core` + `Platform` (fakeable interop) run on Linux/WSL
+and on Windows. The WinUI host and real `Win32InteropService` / named-pipe client
+are Windows-dev concerns.
+
+### Unit (always-on)
 
 ```sh
-export DOTNET_ROOT=...   # if needed
-cd clients/windows-shell
+# WSL → Windows robocopy tree (recommended on this machine)
+powershell.exe -NoProfile -ExecutionPolicy Bypass \
+  -File clients/windows-shell/scripts/win-test.ps1
+```
+
+E2E facts are **skipped** unless `AG_E2E_RUN_DEV=1`.
+
+### e2e (T3, opt-in — `make run-dev` fixture)
+
+Canonical doc: **[docs/e2e.md](docs/e2e.md)**.
+
+```sh
+# One-shot: start run-dev, run unit+e2e, tear down
+make test-windows-shell-e2e
+# or:
+./clients/windows-shell/scripts/e2e.sh --start-run-dev
+
+# Two-terminal:
+make run-dev                              # terminal A
+./clients/windows-shell/scripts/e2e.sh    # terminal B
+```
+
+Client UI smoke against the same stack: `scripts/dev-up.ps1` (`AG_NO_AUTH=1`).
+
+### From WSL (unit details)
+
+Windows `dotnet` cannot reliably build over `\\wsl.localhost\...` UNC paths
+(ref assemblies break). Use the helper which robocopies to `%LOCALAPPDATA%\Temp`
+and runs tests via PowerShell:
+
+```sh
+# WSL
+powershell.exe -NoProfile -ExecutionPolicy Bypass \
+  -File clients/windows-shell/scripts/win-test.ps1
+```
+
+Or pure Core tests inside WSL with a Linux SDK (no Win32 process spawn):
+
+```sh
+export DOTNET_ROOT=/tmp/dotnet DOTNET_CLI_HOME=/tmp/dotnet-home
+export NUGET_PACKAGES=/tmp/nuget-packages
+cd clients/windows-shell && dotnet test
+```
+
+### From Windows PowerShell / cmd
+
+```bat
+cd /d C:\path\to\agent-grid\clients\windows-shell
 dotnet test
 ```
 
@@ -53,6 +102,66 @@ dotnet test
 
 See `docs/changes/change-20260723-windows-shell-phase2/` and the 14 ADRs under
 `docs/adr/adr-20260724-*.md`.
+
+## Headless host + WinUI + scripts (Windows via PowerShell)
+
+| Script | Purpose |
+|---|---|
+| `scripts/win-test.ps1` | robocopy + `dotnet test` on local disk |
+| `scripts/win-build-winui.ps1` | build unpackaged WinUI shell (x64) |
+| `scripts/wsl-detach-spike.ps1` | T3 detach survival (calls in-distro `.sh`) |
+| `scripts/register-deep-link.ps1` | HKCU `agent-grid://` → host exe |
+| `scripts/install-local.ps1` | publish Host to `%LOCALAPPDATA%\agent-grid` |
+
+```sh
+# Unit tests
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
+  "$(wslpath -w /workspace/agent-grid)/clients/windows-shell/scripts/win-test.ps1"
+
+# WinUI panel + tray + AppNotification (unpackaged)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
+  "$(wslpath -w /workspace/agent-grid)/clients/windows-shell/scripts/win-build-winui.ps1"
+# then launch:
+# %LOCALAPPDATA%\Temp\ag-shell-src\AgentGrid.Shell.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\AgentGrid.Shell.WinUI.exe
+```
+
+| Project | Role |
+|---|---|
+| `AgentGrid.Shell.Core` | Pure machines / reducers / pipe client |
+| `AgentGrid.Shell.Platform` | Win32 + toast decision + engage AttachThreadInput |
+| `AgentGrid.Shell` | Composition root + panel presenter |
+| `AgentGrid.Shell.Host` | Headless console host |
+| `AgentGrid.Shell.WinUI` | Tray + panel (WS_EX_NOACTIVATE) + AppNotification |
+
+Spike result: `docs/wsl-detach-spike-result.md` (PASS).  
+S3 manual gate: `docs/s3-prototypes-checklist.md`.  
+Run log: `docs/changes/change-20260723-windows-shell-phase2/s3-prototypes-run-log.md`.
+
+### e2e: `make run-dev` (WSL) + client launch (Windows)
+
+The Windows Shell is a **client**. For local e2e use the existing repo stack
+in WSL — do not invent a Windows-side server launcher.
+
+| Side | Command | Role |
+|---|---|---|
+| WSL | `make run-dev` → `scripts/run-dev.sh` | gateway + web on loopback, **`-no-auth`** |
+| Windows | `scripts/dev-up.ps1` | build/register/launch WinUI; **connect only** (`AG_NO_AUTH=1`) |
+
+```sh
+# Terminal A — WSL
+make run-dev
+# backend http://127.0.0.1:8443  web http://127.0.0.1:8080
+
+# Terminal B — Windows client (from WSL host shell is fine)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
+  "$(wslpath -w /workspace/agent-grid)/clients/windows-shell/scripts/dev-up.ps1"
+```
+
+Auth-enabled gateway (non-e2e):  
+`dev-up.ps1 -NoAuth:$false -TokenPath 'C:\path\to\gateway-token'`.
+
+Product-time adopt/spawn of the daemon is **`DaemonSupervisor`**, not these scripts.  
+Detach spike remains `docs/wsl-detach-spike-*.md` (server binary fidelity), separate from e2e.
 
 ## Deep-link alias (Track A)
 

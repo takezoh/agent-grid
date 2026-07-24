@@ -10,6 +10,7 @@ public sealed class WslDaemonRunner : IDaemonRunner
     private readonly string _serverPath;
     private readonly int _port;
     private readonly string _tokenFileInWsl;
+    private readonly string _dataDirInWsl;
     private readonly Func<string, string, Task<int>> _run;
     private readonly Func<Task> _shutdown;
 
@@ -18,6 +19,7 @@ public sealed class WslDaemonRunner : IDaemonRunner
         string serverPath,
         int port,
         string tokenFileInWsl = "~/.agent-grid/gateway-token",
+        string dataDirInWsl = "/tmp/agent-grid-data",
         Func<string, string, Task<int>>? run = null,
         Func<Task>? shutdown = null)
     {
@@ -25,14 +27,22 @@ public sealed class WslDaemonRunner : IDaemonRunner
         _serverPath = serverPath;
         _port = port;
         _tokenFileInWsl = tokenFileInWsl;
+        _dataDirInWsl = dataDirInWsl;
         _run = run ?? DefaultRunAsync;
         _shutdown = shutdown ?? (() => Task.CompletedTask);
     }
 
+    /// <summary>
+    /// setsid+nohup candidate (adr-20260724-boundary-3-wsl-detach-spike).
+    /// Uses explicit -data-dir so server.log is not forced under a possibly
+    /// non-writable ~/.agent-grid (personal machines / sandbox homes).
+    /// -insecure: loopback plain HTTP for local WSL supervision.
+    /// </summary>
     public string BuildDetachCommand() =>
-        $"setsid nohup {_serverPath} -addr 127.0.0.1:{_port} -token-file {_tokenFileInWsl} " +
-        $">/tmp/agent-grid-server.log 2>&1 </dev/null &";
-
+        $"mkdir -p {_dataDirInWsl} && " +
+        $"setsid nohup {_serverPath} -data-dir {_dataDirInWsl} -addr 127.0.0.1:{_port} " +
+        $"-token-file {_tokenFileInWsl} -insecure " +
+        $">/tmp/agent-grid-server.log 2>&1 </dev/null & echo $!";
     public async Task<SpawnResult> SpawnAsync(CancellationToken ct = default)
     {
         try
@@ -55,9 +65,13 @@ public sealed class WslDaemonRunner : IDaemonRunner
 
     private static Task<int> DefaultRunAsync(string fileName, string args)
     {
-        // Production path uses System.Diagnostics.Process; kept out of Core
-        // default so Linux unit tests never spawn wsl.exe.
-        throw new PlatformNotSupportedException(
-            "Inject a process runner; default is Windows-only.");
+        // Windows host (WinUI Shell via PowerShell/cmd): real Process.Start.
+        // Non-Windows unit tests inject a fake; avoid accidental wsl.exe spawn.
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException(
+                "Default WslDaemonRunner process spawn is Windows-only; inject a runner for tests.");
+        }
+        return ProcessRunner.RunAsync(fileName, args);
     }
 }

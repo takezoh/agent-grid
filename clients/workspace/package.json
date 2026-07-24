@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest --run",
     "test:unit": "vitest --run",
+    "lint:browserwindow": "node scripts/check-browserwindow.mjs",
     "start": "electron ."
   },
   "devDependencies": {

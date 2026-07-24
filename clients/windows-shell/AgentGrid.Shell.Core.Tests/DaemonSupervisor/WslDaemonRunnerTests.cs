@@ -12,6 +12,9 @@ public class WslDaemonRunnerTests
         Assert.Contains(WslDetachNotes.CandidateDetachPrefix, cmd, StringComparison.Ordinal);
         Assert.Contains("127.0.0.1:8443", cmd, StringComparison.Ordinal);
         Assert.Contains("token-file", cmd, StringComparison.Ordinal);
+        Assert.Contains("-data-dir", cmd, StringComparison.Ordinal);
+        Assert.Contains("-insecure", cmd, StringComparison.Ordinal);
+        Assert.Contains("echo $!", cmd, StringComparison.Ordinal);
     }
 
     [Fact]
