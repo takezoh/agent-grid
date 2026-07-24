@@ -2,11 +2,13 @@
 id: change-20260723-windows-shell-phase2
 kind: change
 title: 20260723 Windows Shell Phase 2 UX
-status: ready
+status: active
 created: '2026-07-23'
-summary: UX requirements for the Windows desktop supervision surface (Phase 2 of native-clients plan).
+summary: UX requirements for the Windows desktop supervision surface (Phase 2 of native-clients
+  plan).
 profile: sdd@1
-intent: Fix the observable user experience for the Windows shell + workspace vertical slice S1-S5 before design and implementation.
+intent: Fix the observable user experience for the Windows shell + workspace vertical
+  slice S1-S5 before design and implementation.
 outcomes:
 - Local supervision flow (approval / question / jump-back) has no browser involvement
 - Panel glance/engage focus discipline is specified before implementation
@@ -41,9 +43,15 @@ members:
   required: true
 promotion:
 - action: none
-  reason: 'Phase 2 change stays scoped to native-client behavior/capability additions; the 14 ADRs published under docs/adr/adr-20260724-*.md carry the design contracts. No persistent design/*.md upsert or retire is required in this pass — Windows Shell / Workspace / hosted-mode SPA are not represented in docs/design as first-class responsibility/boundary/ownership records today. Promotion is revisited if boundaries stabilize post-S5.'
+  reason: Phase 2 change stays scoped to native-client behavior/capability additions;
+    the 14 ADRs published under docs/adr/adr-20260724-*.md carry the design contracts.
+    No persistent design/*.md upsert or retire is required in this pass — Windows
+    Shell / Workspace / hosted-mode SPA are not represented in docs/design as first-class
+    responsibility/boundary/ownership records today. Promotion is revisited if boundaries
+    stabilize post-S5.
 unresolved_decisions: []
 relations: []
+updated: '2026-07-24'
 ---
 
 ## Source plans

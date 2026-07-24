@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { makeSessionsApi } from "./api/sessions";
 import type { ApiHttpError } from "./api/sessions";
-import { readBearerTokenFromHash } from "./auth";
+import { hostedSessionId, isHostedMode, readBearerTokenFromHash } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { HeaderBar } from "./components/HeaderBar";
@@ -49,6 +49,8 @@ export function App() {
   useFavicon();
 
   const token = useMemo(() => readBearerTokenFromHash(), []);
+  const hosted = useMemo(() => isHostedMode(), []);
+  const hostedSession = useMemo(() => hostedSessionId(), []);
   const conn = useMemo(
     () =>
       new Connection({
@@ -66,6 +68,13 @@ export function App() {
     void conn.start();
     return () => conn.close();
   }, [conn]);
+
+  // Hosted mode (Electron Workspace): 1-window-1-session view.
+  // Token comes from preload (never URL); sidebar/new-session chrome is suppressed.
+  useEffect(() => {
+    if (!hosted || !hostedSession) return;
+    useDaemonStore.getState().selectSession(hostedSession);
+  }, [hosted, hostedSession]);
 
   // Blocker T1: hydrate daemon.sessionConfig at mount so the command
   // palette has projects + pushCommands available. Without this call,
@@ -231,7 +240,7 @@ export function App() {
     <HeaderBar mobile={isMobile} />
   );
 
-  const sidebarContent = (
+  const sidebarContent = hosted ? null : (
     <div className="sidebar-shell">
       <SidebarBrandRow />
       <SessionList conn={conn} onRequestTerminate={handleRequestTerminate} />

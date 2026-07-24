@@ -1,0 +1,47 @@
+# Agent Grid — Workspace (Electron)
+
+On-demand session windows for the Windows desktop slice (Phase 2).
+Each session maps to exactly one `BrowserWindow`; Shell drives open/focus via a
+JSON Lines control channel (named pipe on Windows).
+
+## Layout
+
+```text
+src/main/
+  window-registry.ts    sole BrowserWindow creation point
+  control-endpoint.ts   named-pipe / Unix-socket JSON Lines server
+  daemon-config.ts      fresh token resolve + hosted URL (no token in URL)
+  index.ts              bootstrap wiring
+src/preload/
+  index.ts              contextBridge surface + token-not-in-URL guard
+src/shared/
+  control-envelope.ts   closed {op,id} schema (mirrors Shell.Core)
+```
+
+## Contracts
+
+| Contract | Module |
+|---|---|
+| `contract-b1-jsonlines-envelope-shape` | `control-envelope.ts` |
+| `contract-b1-window-registry-dedup` | `window-registry.ts` |
+| `contract-migration-window-per-session-invariant` | `window-registry.ts` |
+| `contract-window-close-not-session-stop` | `window-registry.ts` `closeSessionView` |
+| `contract-workspace-state-schema-evolution` | `loadWorkspaceState` |
+| `contract-b2-hosted-mode-token-injection` | `daemon-config.ts` + preload |
+| `contract-b2-token-acquisition` | `DaemonConfigResolver.resolve` |
+
+## Test
+
+```sh
+cd clients/workspace
+npm ci
+npm test
+```
+
+Electron binary is optional for unit tests (vitest + memory factory).
+Playwright-for-Electron e2e is the T1/T3 fidelity path on Windows CI.
+
+## Lint invariant
+
+`new BrowserWindow` must only appear in `window-registry.ts` (or an Electron
+adapter it owns). Enforce with ESLint `no-restricted-syntax` or a CI ripgrep step.

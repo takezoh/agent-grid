@@ -1,0 +1,19 @@
+{
+  "name": "agent-grid-workspace",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest --run",
+    "test:unit": "vitest --run",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "typescript": "5.7.2",
+    "vitest": "4.1.10"
+  }
+}
