@@ -18,10 +18,12 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
     public void Panel_exposes_glance_elements_via_automation_ids()
     {
         // The AutomationId contract of PanelWindow.xaml — the native "test-ids".
+        // NoticeText/EmptyState/ShortcutHint are state-dependent (collapsed
+        // elements leave the UIA tree) — only always-visible ids belong here.
         foreach (var id in new[]
                  {
                      "StatusText", "ConnectionText", "PendingHeader", "PendingList",
-                     "EngageBox", "EngageSendButton", "OpenSessionButton",
+                     "SessionList", "EngageBox", "EngageSendButton", "OpenSessionButton",
                  })
         {
             _ = _ui.Find(id);
@@ -45,6 +47,27 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
                 $"(gateway {WinUiUi.GatewayUrl})" +
                 (shot is null ? "" : $"; screenshot: {shot}"));
         }
+    }
+
+    [WinUiUiFact]
+    public void Island_collapses_to_compact_bar_and_expands_back()
+    {
+        // Vibe-island morph: CollapseButton → compact notch bar (expanded tree
+        // leaves UIA); CompactBar → expanded panel returns. UI-local state only,
+        // no session mutation (safe against a live run-dev).
+        _ui.Find("CollapseButton").AsButton().Invoke();
+        _ui.Find("CompactBar");
+        _ui.Find("CompactStatusText");
+
+        var expandedGone = Retry.WhileFalse(
+            () => _ui.Window.FindFirstDescendant(cf => cf.ByAutomationId("PendingList")) is null,
+            TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(250)).Result;
+        Assert.True(expandedGone, "PendingList still in UIA tree after collapse");
+
+        // Restore the expanded panel — later tests assert against its tree.
+        _ui.Find("CompactBar").AsButton().Invoke();
+        _ = _ui.Find("PendingList");
     }
 
     [WinUiUiFact]
