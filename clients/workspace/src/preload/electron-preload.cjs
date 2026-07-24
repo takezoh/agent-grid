@@ -1,4 +1,6 @@
 "use strict";
 
-// The renderer receives session-specific values after navigation from the
-// main process. Keep this sandboxed preload as the stable packaging entry.
+const { contextBridge, ipcRenderer } = require("electron");
+
+const hostedModeInfo = ipcRenderer.sendSync("agent-grid:renderer-bootstrap");
+contextBridge.exposeInMainWorld("agentGridWorkspace", { hostedModeInfo });

@@ -7,8 +7,8 @@
  */
 
 export interface HostedModeInfo {
-  hosted: true;
-  sessionId: string;
+  hosted: boolean;
+  sessionId?: string;
   baseUrl: string;
   token: string;
 }
@@ -55,6 +55,17 @@ export function hostedSessionId(): string | null {
   } catch {
     return null;
   }
+}
+
+export function desktopBaseUrl(): string | null {
+  const value =
+    window.hostedModeInfo?.baseUrl ?? window.agentGridWorkspace?.hostedModeInfo?.baseUrl;
+  return value ? value.replace(/\/+$/, "") : null;
+}
+
+export function resolveApiUrl(pathname: string): string {
+  const baseUrl = desktopBaseUrl();
+  return baseUrl ? new URL(pathname, `${baseUrl}/`).toString() : pathname;
 }
 
 export function readBearerTokenFromHash(): string {

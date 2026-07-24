@@ -66,7 +66,7 @@ public sealed class ShellFleet : IAsyncDisposable
                 ServerPathInWsl = server.Launch.ServerPathInWsl ?? "~/agent-grid/server",
                 GatewayPort = server.Url.Port,
                 WorkspaceExePath = ResolveWorkspaceExecutable(config.Shell.WorkspaceExecutable),
-                WorkspaceArguments = [DesktopConfigLoader.ConfigDirectoryArgument, config.ConfigDirectory],
+                WorkspaceArguments = WorkspaceLaunchArguments(config.ConfigDirectory),
                 DaemonRunner = runner,
                 QuitApplication = quit,
             }));
@@ -88,6 +88,13 @@ public sealed class ShellFleet : IAsyncDisposable
             "workspace",
             "agent-grid-workspace.exe");
     }
+
+    public static string[] WorkspaceLaunchArguments(string configDirectory) =>
+    [
+        DesktopConfigLoader.ConfigDirectoryArgument,
+        configDirectory,
+        "--background",
+    ];
 
     public async Task StartAsync(CancellationToken ct = default)
     {

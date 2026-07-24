@@ -14,17 +14,27 @@ import {
 import {
   createElectronWindowFactory,
   type ElectronBrowserWindowConstructor,
+  type ElectronFactoryOptions,
 } from "./electron-window-factory.js";
 import { FileStateStore, defaultWorkspaceStatePath } from "./file-state-store.js";
 import { IdleQuitController } from "./idle-quit.js";
 import { WindowRegistry } from "./window-registry.js";
+
+export const BACKGROUND_ARGUMENT = "--background";
+
+export function shouldOpenHome(args: readonly string[]): boolean {
+  return !args.includes(BACKGROUND_ARGUMENT);
+}
 
 export interface ElectronAppLike {
   requestSingleInstanceLock(): boolean;
   quit(): void;
   whenReady(): Promise<void>;
   on(event: "window-all-closed", listener: () => void): void;
-  on(event: "second-instance", listener: () => void): void;
+  on(
+    event: "second-instance",
+    listener: (event?: unknown, argv?: string[]) => void,
+  ): void;
 }
 
 export interface AppEntryOptions {
@@ -38,6 +48,8 @@ export interface AppEntryOptions {
   controlPath?: string;
   statePath?: string;
   idleMs?: number;
+  registerRendererInfo?: ElectronFactoryOptions["registerRendererInfo"];
+  configureServerTransport?: ElectronFactoryOptions["configureServerTransport"];
 }
 
 export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
@@ -64,11 +76,26 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
     uiEntryUrl: opts.uiEntryUrl ?? new URL("../ui/index.html", import.meta.url).toString(),
     appearance: desktopConfig.appearance,
     workspace: desktopConfig.workspace,
+    registerRendererInfo: opts.registerRendererInfo,
+    configureServerTransport: opts.configureServerTransport,
   });
   const registry = new WindowRegistry(factory, store);
+  const defaultServer = desktopConfig.servers.find((server) => server.enabled);
+  let home: ReturnType<typeof factory.createHome> | null = null;
+  const openHome = () => {
+    if (!defaultServer) return;
+    if (home && !home.isDestroyed()) {
+      home.focus();
+      return;
+    }
+    home = factory.createHome(defaultServer.id);
+  };
+  if (shouldOpenHome(opts.args ?? process.argv.slice(1))) {
+    openHome();
+  }
   const idle = new IdleQuitController({
     idleMs: opts.idleMs ?? desktopConfig.workspace.idle_quit_seconds * 1000,
-    openCount: () => registry.openCount,
+    openCount: () => registry.openCount + (home && !home.isDestroyed() ? 1 : 0),
     onQuit: () => opts.app.quit(),
   });
   // Track closes via periodic poll is crude; wire openSession callers.
@@ -94,7 +121,11 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
   opts.app.on("window-all-closed", () => {
     idle.onWindowsChanged();
   });
-  opts.app.on("second-instance", () => {
+  opts.app.on("second-instance", (_event, argv) => {
+    if (shouldOpenHome(argv ?? [])) {
+      openHome();
+      return;
+    }
     // Focus any open window.
     const sessions = registry.listSessions();
     if (sessions[0]) void registry.openSession(sessions[0]);

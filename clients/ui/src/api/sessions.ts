@@ -13,7 +13,7 @@
 // src/server/web/mux_push.go (ADR-0045 SendCommand pattern; ADR-0046 409
 // active-mismatch). pushCommand below is the client side of that contract.
 
-import { readBearerTokenFromHash } from "../auth";
+import { readBearerTokenFromHash, resolveApiUrl } from "../auth";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -441,7 +441,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
 
   return {
     async createSession(payload: CreateSessionPayload): Promise<{ id: string }> {
-      const url = "/api/sessions";
+      const url = resolveApiUrl("/api/sessions");
       const res = await request(f, url, {
         method: "POST",
         headers: {
@@ -461,7 +461,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
     },
 
     async deleteSession(id: string): Promise<void> {
-      const url = `/api/sessions/${encodeURIComponent(id)}`;
+      const url = resolveApiUrl(`/api/sessions/${encodeURIComponent(id)}`);
       await request(f, url, {
         method: "DELETE",
         headers: { ...authHeader(url) },
@@ -479,7 +479,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
       // allowlist rejects anything outside [A-Za-z0-9_-], but if a UI bug
       // ever leaks a stray '/' we don't want it to silently retarget a
       // different path segment (same defense as deleteSession above).
-      const url = `/api/sessions/${encodeURIComponent(sessionId)}/push`;
+      const url = resolveApiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/push`);
       await request(f, url, {
         method: "POST",
         headers: {
@@ -494,7 +494,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
     },
 
     async getSessionConfig(): Promise<SessionConfig> {
-      const url = "/api/session-config";
+      const url = resolveApiUrl("/api/session-config");
       const res = await requestWithRetry(f, url, {
         method: "GET",
         headers: { ...authHeader(url) },
@@ -523,7 +523,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
     },
 
     async getSessionMessages(sessionId: string): Promise<SessionMessagesResponse> {
-      const url = `/api/sessions/${encodeURIComponent(sessionId)}/messages`;
+      const url = resolveApiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/messages`);
       const res = await request(f, url, {
         method: "GET",
         headers: { ...authHeader(url) },
@@ -541,7 +541,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
     },
 
     async markSessionMessagesRead(sessionId: string, lastReadMessageId?: string): Promise<void> {
-      const url = `/api/sessions/${encodeURIComponent(sessionId)}/messages/read`;
+      const url = resolveApiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/messages/read`);
       await request(f, url, {
         method: "POST",
         headers: {

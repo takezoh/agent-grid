@@ -7,8 +7,8 @@
  */
 
 export interface HostedModeInfo {
-  hosted: true;
-  sessionId: string;
+  hosted: boolean;
+  sessionId?: string;
   baseUrl: string;
   token: string;
 }

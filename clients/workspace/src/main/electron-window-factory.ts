@@ -21,6 +21,7 @@ export interface ElectronBrowserWindowLike {
   setBounds(b: { x: number; y: number; width: number; height: number }): void;
   loadURL(url: string): Promise<void>;
   webContents: {
+    readonly id: number;
     once(event: "did-finish-load", listener: () => void): void;
     executeJavaScript(code: string): Promise<unknown>;
   };
@@ -38,13 +39,21 @@ export interface ElectronFactoryOptions {
   uiEntryUrl: string;
   appearance?: AppearanceConfig;
   workspace?: WorkspaceAppConfig;
+  registerRendererInfo?: (webContentsId: number, info: HostedModeInfo) => void;
+  configureServerTransport?: (webContentsId: number, baseUrl: string) => void;
 }
 
-export function sessionPageUrl(uiEntryUrl: string, sessionId: string): string {
+export interface ElectronWindowFactory extends WindowFactory {
+  createHome(serverId: string): WindowHandle;
+}
+
+export function sessionPageUrl(uiEntryUrl: string, sessionId?: string): string {
   const url = new URL(uiEntryUrl);
   if (url.protocol !== "file:") throw new Error("Workspace UI entry must be a file: URL");
-  url.searchParams.set("hosted", "1");
-  url.searchParams.set("session", sessionId);
+  if (sessionId) {
+    url.searchParams.set("hosted", "1");
+    url.searchParams.set("session", sessionId);
+  }
   return url.toString();
 }
 
@@ -53,11 +62,14 @@ export function sessionPageUrl(uiEntryUrl: string, sessionId: string): string {
  * `window.hostedModeInfo` for the SPA auth reader; production may replace the
  * injection with a contextBridge preload that receives the same payload via IPC.
  */
-export function createElectronWindowFactory(opts: ElectronFactoryOptions): WindowFactory {
+export function createElectronWindowFactory(opts: ElectronFactoryOptions): ElectronWindowFactory {
   const { BrowserWindow } = opts;
 
-  return {
-    create(session: SessionRef, bounds?: WindowBounds): WindowHandle {
+  const createWindow = (
+    serverId: string,
+    sessionId?: string,
+    bounds?: WindowBounds,
+  ): WindowHandle => {
       const win = new BrowserWindow({
         x: bounds?.x,
         y: bounds?.y,
@@ -68,20 +80,26 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Windo
           contextIsolation: true,
           nodeIntegration: false,
           sandbox: true,
+          // The trusted bundled file: UI talks to the separately hosted API.
+          // Keep it in a server-specific partition and remove WS Origin below.
+          webSecurity: false,
+          partition: `persist:agent-grid-${encodeURIComponent(serverId)}`,
           preload: opts.preloadPath,
         },
       });
 
       void (async () => {
         try {
-          const cfg = await opts.config.resolve(session.serverId);
-          const url = sessionPageUrl(opts.uiEntryUrl, session.sessionId);
+          const cfg = await opts.config.resolve(serverId);
+          const url = sessionPageUrl(opts.uiEntryUrl, sessionId);
           const info: HostedModeInfo = {
-            hosted: true,
-            sessionId: session.sessionId,
+            hosted: sessionId !== undefined,
+            ...(sessionId === undefined ? {} : { sessionId }),
             baseUrl: cfg.baseUrl,
             token: cfg.token,
           };
+          opts.registerRendererInfo?.(win.webContents.id, info);
+          opts.configureServerTransport?.(win.webContents.id, cfg.baseUrl);
           win.webContents.once("did-finish-load", () => {
             void win.webContents.executeJavaScript(
               `window.hostedModeInfo = ${JSON.stringify(info)};` +
@@ -99,7 +117,7 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Windo
       })();
 
       return {
-        id: `${session.serverId}:${session.sessionId}`,
+        id: sessionId === undefined ? `home:${serverId}` : `${serverId}:${sessionId}`,
         focus: () => {
           if (!win.isDestroyed()) win.focus();
         },
@@ -116,6 +134,14 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Windo
           if (!win.isDestroyed()) win.setBounds(b);
         },
       };
+  };
+
+  return {
+    create(session: SessionRef, bounds?: WindowBounds): WindowHandle {
+      return createWindow(session.serverId, session.sessionId, bounds);
+    },
+    createHome(serverId: string): WindowHandle {
+      return createWindow(serverId);
     },
   };
 }

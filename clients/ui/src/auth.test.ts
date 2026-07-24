@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { hostedSessionId, isHostedMode, readBearerTokenFromHash } from "./auth";
+import {
+  hostedSessionId,
+  isHostedMode,
+  readBearerTokenFromHash,
+  resolveApiUrl,
+} from "./auth";
 
 describe("auth hosted mode", () => {
   afterEach(() => {
@@ -34,5 +39,19 @@ describe("auth hosted mode", () => {
     expect(isHostedMode()).toBe(true);
     expect(hostedSessionId()).toBe("sess-x");
     expect(readBearerTokenFromHash()).toBe("");
+  });
+
+  it("resolves API calls to the configured server in standalone Workspace mode", () => {
+    window.hostedModeInfo = {
+      hosted: false,
+      baseUrl: "http://192.168.1.139:8443/",
+      token: "desktop-token",
+    };
+
+    expect(isHostedMode()).toBe(false);
+    expect(readBearerTokenFromHash()).toBe("desktop-token");
+    expect(resolveApiUrl("/api/sessions")).toBe(
+      "http://192.168.1.139:8443/api/sessions",
+    );
   });
 });

@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { makeSessionsApi } from "./api/sessions";
 import type { ApiHttpError } from "./api/sessions";
-import { hostedSessionId, isHostedMode, readBearerTokenFromHash } from "./auth";
+import {
+  desktopBaseUrl,
+  hostedSessionId,
+  isHostedMode,
+  readBearerTokenFromHash,
+  resolveApiUrl,
+} from "./auth";
 import { AppShell } from "./components/AppShell";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { HeaderBar } from "./components/HeaderBar";
@@ -51,17 +57,22 @@ export function App() {
   const token = useMemo(() => readBearerTokenFromHash(), []);
   const hosted = useMemo(() => isHostedMode(), []);
   const hostedSession = useMemo(() => hostedSessionId(), []);
+  const baseUrl = useMemo(() => desktopBaseUrl(), []);
   const conn = useMemo(
     () =>
       new Connection({
-        ticketEndpoint: "/api/ws-ticket",
+        ticketEndpoint: resolveApiUrl("/api/ws-ticket"),
         wsUrl: (ticket) => {
-          const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-          return `${proto}//${window.location.host}/ws?ticket=${encodeURIComponent(ticket)}`;
+          const origin = new URL(baseUrl ?? window.location.origin);
+          origin.protocol = origin.protocol === "https:" ? "wss:" : "ws:";
+          origin.pathname = "/ws";
+          origin.search = `?ticket=${encodeURIComponent(ticket)}`;
+          origin.hash = "";
+          return origin.toString();
         },
         bearerToken: token,
       }),
-    [token],
+    [baseUrl, token],
   );
 
   useEffect(() => {

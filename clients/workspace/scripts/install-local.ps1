@@ -12,8 +12,11 @@ try {
     -Configuration $Configuration -OutDir $stage
   if ($LASTEXITCODE -ne 0) { throw "Workspace build failed" }
 
-  Get-Process "agent-grid-workspace" -ErrorAction SilentlyContinue |
-    Stop-Process -Force
+  $running = @(Get-Process "agent-grid-workspace" -ErrorAction SilentlyContinue)
+  if ($running.Count -gt 0) {
+    $running | Stop-Process -Force
+    $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+  }
   if (Test-Path $destination) { Remove-Item -Recurse -Force $destination }
   New-Item -ItemType Directory -Force -Path $destination | Out-Null
   & robocopy $stage $destination /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null

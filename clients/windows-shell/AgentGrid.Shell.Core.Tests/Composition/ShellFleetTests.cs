@@ -59,6 +59,14 @@ public sealed class ShellFleetTests
                 @"C:\Users\test\AppData\Local"));
     }
 
+    [Fact]
+    public void Shell_launches_workspace_without_a_standalone_home_window()
+    {
+        Assert.Equal(
+            ["--config-dir", @"C:\test-config", "--background"],
+            ShellFleet.WorkspaceLaunchArguments(@"C:\test-config"));
+    }
+
     private static SupervisionSnapshot Snapshot(string sessionId) => new(
         [new SessionSummary(sessionId, SessionPhase.Running)],
         [],

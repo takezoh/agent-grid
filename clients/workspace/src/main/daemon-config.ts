@@ -69,8 +69,8 @@ export class DaemonConfigResolver {
 
 /** Info pushed into the renderer via contextBridge. */
 export interface HostedModeInfo {
-  hosted: true;
-  sessionId: string;
+  hosted: boolean;
+  sessionId?: string;
   baseUrl: string;
   /** Bearer token — only via preload, never URL. */
   token: string;
