@@ -12,7 +12,6 @@ tags:
 - github
 owners: []
 relations:
-- {type: partOf, target: plan-20260716-vt-structural-reflow-contract}
 - {type: references, target: adr-20260715-terminal-semantic-history-reattach}
 - {type: references, target: adr-20260715-geometry-bearing-terminal-attach}
 source_paths:

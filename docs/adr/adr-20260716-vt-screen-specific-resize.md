@@ -9,7 +9,6 @@ decision_makers:
 tags: []
 owners: []
 relations:
-- {type: partOf, target: plan-20260716-vt-structural-reflow-contract}
 - {type: references, target: adr-20260715-terminal-semantic-history-reattach}
 source_paths:
 - src/go.mod

@@ -17,8 +17,6 @@ relations:
 - {type: references, target: adr-20260711-terminal-subscription-desired-reconcile}
 - {type: references, target: change-20260712-frame-size-ownership}
 - {type: references, target: change-20260715-terminal-scrollback-reflow}
-- {type: referencedBy, target: adr-20260716-vt-snapshot-failure-and-locking}
-- {type: referencedBy, target: adr-20260716-vt-reflow-pr-migration}
 source_paths:
 - src/platform/termvt
 - src/client/runtime

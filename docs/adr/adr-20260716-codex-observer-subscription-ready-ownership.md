@@ -12,9 +12,7 @@ tags:
 - driver
 owners: []
 relations:
-- {type: partOf, target: plan-20260716-codex-thread-event-subscription}
 - {type: supersedes, target: adr-20260624-0081-codex-frame-init-serialize}
-- {type: references, target: spec-20260716-codex-thread-event-subscription}
 - {type: references, target: adr-20260624-0001-multiplexed-backends-shared-routing-contract}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
 - {type: references, target: adr-20260707-shim-bytes-preserving-id-proxy}

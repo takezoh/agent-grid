@@ -15,7 +15,6 @@ decision_makers:
 relations:
 - {type: partOf, target: change-20260707-codexclient-jsonrpc-id-opaque}
 - {type: references, target: change-20260707-codexclient-jsonrpc-id-opaque}
-- {type: referencedBy, target: adr-20260716-codex-observer-subscription-ready-ownership}
 source_paths:
 - src/cmd/bridge/codex_app_server_shim.go
 - src/platform/agent/codexclient/conn.go
