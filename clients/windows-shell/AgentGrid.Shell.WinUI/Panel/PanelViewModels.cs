@@ -47,7 +47,9 @@ public sealed class PanelItemVm
         Item = item,
         Headline = item.Headline,
         KindLabel = PanelPresentation.KindLabel(item.Kind),
-        SessionShortId = PanelPresentation.ShortSessionId(item.SessionId),
+        SessionShortId = string.IsNullOrEmpty(item.ServerId)
+            ? PanelPresentation.ShortSessionId(item.SessionId)
+            : $"{item.ServerId} · {PanelPresentation.ShortSessionId(item.SessionId)}",
         Glyph = item.Kind switch
         {
             "approval" => "\uE7BA", // Warning
@@ -73,7 +75,9 @@ public sealed class SessionChipVm
     public static SessionChipVm From(SessionSummary session) => new()
     {
         Session = session,
-        Label = PanelPresentation.SessionLabel(session),
+        Label = string.IsNullOrEmpty(session.ServerId)
+            ? PanelPresentation.SessionLabel(session)
+            : $"{session.ServerId} · {PanelPresentation.SessionLabel(session)}",
         PhaseLabel = PanelPresentation.PhaseLabel(session.Phase),
         PhaseBrush = PanelBrushes.ForToken(PanelPresentation.PhaseAccent(session.Phase)),
     };

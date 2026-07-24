@@ -20,13 +20,14 @@ public enum RouteKind
 
 public sealed record RoutingDecision(
     RouteKind Kind,
+    string? ServerId,
     string? Id,
     string? ItemKind, // "approval" | "question" | "session" | null
     string Source,    // "typed-helper" | "alias" | "rejected"
     string? Reason = null)
 {
     public static RoutingDecision Reject(string reason) =>
-        new(RouteKind.Rejected, null, null, "rejected", reason);
+        new(RouteKind.Rejected, null, null, null, "rejected", reason);
 }
 
 /// <summary>
@@ -37,7 +38,7 @@ public sealed record RoutingDecision(
 public static class AliasTable
 {
     // Track A interim: question → panel-focus pathway (same UI as approval).
-    // session/<id>/jump → jumpBack=true router-local hint (never emitted on the wire).
+    // server/<server-id>/session/<id>/jump → router-local hint.
     public const string QuestionPathPrefix = "question/";
     public const string JumpSuffix = "/jump";
 }

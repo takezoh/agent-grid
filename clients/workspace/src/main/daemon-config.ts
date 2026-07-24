@@ -5,6 +5,7 @@
  */
 
 import * as fs from "node:fs/promises";
+import type { ServerConfig } from "./desktop-config.js";
 
 export interface DaemonConfig {
   baseUrl: string;
@@ -14,6 +15,8 @@ export interface DaemonConfig {
 }
 
 export interface DaemonConfigSource {
+  /** Stable client-local server identifier. */
+  serverId: string;
   /** Absolute path to the gateway bearer token file (UNC on Windows). */
   tokenPath: string;
   /** Gateway base URL, e.g. http://127.0.0.1:8443 */
@@ -23,29 +26,47 @@ export interface DaemonConfigSource {
 }
 
 export class DaemonConfigResolver {
-  constructor(private readonly source: DaemonConfigSource) {}
+  private readonly sources: ReadonlyMap<string, DaemonConfigSource>;
+
+  constructor(sources: DaemonConfigSource | readonly DaemonConfigSource[]) {
+    const values = Array.isArray(sources) ? sources : [sources];
+    this.sources = new Map(values.map((source) => [source.serverId, source]));
+  }
+
+  static fromServers(servers: readonly ServerConfig[]): DaemonConfigResolver {
+    return new DaemonConfigResolver(
+      servers.filter((server) => server.enabled).map((server) => ({
+        serverId: server.id,
+        tokenPath: server.token_path,
+        baseUrl: server.base_url,
+        webOrigin: server.web_origin,
+      })),
+    );
+  }
 
   /**
    * Fresh-read token every call. Throws if unreadable — callers surface
    * connection-error view, never fabricate Connected (FR-B2-03).
    */
-  async resolve(): Promise<DaemonConfig> {
+  async resolve(serverId: string): Promise<DaemonConfig> {
+    const source = this.sources.get(serverId);
+    if (!source) throw new Error(`unknown or disabled server '${serverId}'`);
     let token: string;
     try {
-      token = (await fs.readFile(this.source.tokenPath, "utf8")).trim();
+      token = (await fs.readFile(source.tokenPath, "utf8")).trim();
     } catch (e) {
       throw new Error(
-        `gateway token unreadable at '${this.source.tokenPath}': ${(e as Error).message}`,
+        `gateway token unreadable at '${source.tokenPath}': ${(e as Error).message}`,
       );
     }
     if (!token) {
-      throw new Error(`gateway token empty at '${this.source.tokenPath}'`);
+      throw new Error(`gateway token empty at '${source.tokenPath}'`);
     }
     return {
-      baseUrl: this.source.baseUrl,
-      webOrigin: this.source.webOrigin,
+      baseUrl: source.baseUrl,
+      webOrigin: source.webOrigin,
       token,
-      tokenPath: this.source.tokenPath,
+      tokenPath: source.tokenPath,
     };
   }
 

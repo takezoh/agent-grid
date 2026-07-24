@@ -13,11 +13,11 @@ namespace AgentGrid.Shell.WinUI.Tray;
 /// </summary>
 public sealed class TrayIconController : IDisposable
 {
-    private readonly ShellCompositionRoot _root;
+    private readonly ShellFleet _root;
     private readonly PanelWindow _panel;
     private readonly TaskbarIcon _icon;
 
-    public TrayIconController(ShellCompositionRoot root, PanelWindow panel, Action quit)
+    public TrayIconController(ShellFleet root, PanelWindow panel, Action quit)
     {
         _root = root;
         _panel = panel;
@@ -26,17 +26,17 @@ public sealed class TrayIconController : IDisposable
         menu.Items.Add(MakeItem("Show panel", (_, _) => _panel.ToggleGlance()));
         menu.Items.Add(MakeItem("Restart daemon", async (_, _) =>
         {
-            await _root.Menu.OnRestartDaemonAsync();
+            await _root.RestartAllAsync();
         }));
         menu.Items.Add(MakeItem("Stop daemon", async (_, _) =>
         {
-            await _root.Menu.OnStopDaemonAsync();
+            await _root.StopAllAsync();
         }));
         menu.Items.Add(new MenuFlyoutSeparator());
         // Quit MUST NOT call StopDaemon — ShellMenuHandlers.OnQuit enforces this.
         menu.Items.Add(MakeItem("Quit", (_, _) =>
         {
-            _root.Menu.OnQuit();
+            _root.Quit();
             quit();
         }));
 
@@ -49,7 +49,7 @@ public sealed class TrayIconController : IDisposable
         _icon.LeftClickCommand = new RelayCommand(() => _panel.ToggleGlance());
 
         Apply(_root.CurrentTrayAppearance());
-        _root.Supervisor.SnapshotChanged += snap => Apply(TrayAppearanceMapper.From(snap));
+        _root.HealthChanged += Apply;
     }
 
     public void Dispose() => _icon.Dispose();

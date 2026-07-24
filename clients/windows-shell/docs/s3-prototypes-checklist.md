@@ -15,7 +15,7 @@ make run-dev   # scripts/run-dev.sh: server + web, -no-auth on 127.0.0.1:8443
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   ((wsl wslpath -w /workspace/agent-grid) + '\clients\windows-shell\scripts\dev-up.ps1')
-# defaults: AG_NO_AUTH=1 against run-dev
+# defaults: isolated --config-dir against run-dev
 ```
 
 ## Cases

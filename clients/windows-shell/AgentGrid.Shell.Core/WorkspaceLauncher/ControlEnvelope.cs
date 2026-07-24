@@ -4,19 +4,22 @@ using System.Text.Json.Serialization;
 namespace AgentGrid.Shell.Core.WorkspaceLauncher;
 
 /// <summary>
-/// Closed {op,id} JSON Lines envelope for Boundary-1
+/// Closed JSON Lines envelope for Boundary-1.
 /// (contract-b1-jsonlines-envelope-shape, adr-20260724-boundary-1-named-pipe-jsonlines).
 /// additionalProperties: false — any extra field is rejected.
 /// </summary>
 public sealed class ControlEnvelope
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     [JsonPropertyName("op")]
     public required string Op { get; init; }
 
-    [JsonPropertyName("id")]
-    public string? Id { get; init; }
+    [JsonPropertyName("server_id")]
+    public string? ServerId { get; init; }
+
+    [JsonPropertyName("session_id")]
+    public string? SessionId { get; init; }
 
     [JsonPropertyName("schema_version")]
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
@@ -56,10 +59,10 @@ public sealed class ControlEnvelope
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
                 return EnvelopeParseResult.Fail("envelope must be an object");
 
-            // Closed schema: only op, id, schema_version.
+            // Closed schema: only op, compound session identity, schema_version.
             foreach (var prop in doc.RootElement.EnumerateObject())
             {
-                if (prop.Name is not ("op" or "id" or "schema_version"))
+                if (prop.Name is not ("op" or "server_id" or "session_id" or "schema_version"))
                     return EnvelopeParseResult.Fail($"unknown field: {prop.Name}");
             }
 
@@ -71,16 +74,25 @@ public sealed class ControlEnvelope
             if (!AllowedOps.Contains(op))
                 return EnvelopeParseResult.Fail($"unknown op: {op}");
 
-            string? id = null;
-            if (doc.RootElement.TryGetProperty("id", out var idEl))
+            string? serverId = null;
+            if (doc.RootElement.TryGetProperty("server_id", out var serverEl))
             {
-                if (idEl.ValueKind != JsonValueKind.String)
-                    return EnvelopeParseResult.Fail("id must be a string");
-                id = idEl.GetString();
+                if (serverEl.ValueKind != JsonValueKind.String)
+                    return EnvelopeParseResult.Fail("server_id must be a string");
+                serverId = serverEl.GetString();
             }
 
-            if (op == "openSession" && string.IsNullOrEmpty(id))
-                return EnvelopeParseResult.Fail("openSession requires id");
+            string? sessionId = null;
+            if (doc.RootElement.TryGetProperty("session_id", out var sessionEl))
+            {
+                if (sessionEl.ValueKind != JsonValueKind.String)
+                    return EnvelopeParseResult.Fail("session_id must be a string");
+                sessionId = sessionEl.GetString();
+            }
+
+            if (op == "openSession" &&
+                (string.IsNullOrEmpty(serverId) || string.IsNullOrEmpty(sessionId)))
+                return EnvelopeParseResult.Fail("openSession requires server_id and session_id");
 
             var schemaVersion = CurrentSchemaVersion;
             if (doc.RootElement.TryGetProperty("schema_version", out var svEl))
@@ -92,7 +104,8 @@ public sealed class ControlEnvelope
             return EnvelopeParseResult.Ok(new ControlEnvelope
             {
                 Op = op,
-                Id = id,
+                ServerId = serverId,
+                SessionId = sessionId,
                 SchemaVersion = schemaVersion,
             });
         }
@@ -105,8 +118,10 @@ public sealed class ControlEnvelope
             ["op"] = Op,
             ["schema_version"] = SchemaVersion,
         };
-        if (Id is not null)
-            obj["id"] = Id;
+        if (ServerId is not null)
+            obj["server_id"] = ServerId;
+        if (SessionId is not null)
+            obj["session_id"] = SessionId;
         return JsonSerializer.Serialize(obj, StrictOptions);
     }
 }

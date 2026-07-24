@@ -288,6 +288,15 @@
   --badge-text-on-bright: var(--color-neutral-0);
 }
 
+/* Desktop appearance.json density projection. Browser mode has no attribute
+   and retains the comfortable defaults above. */
+:root[data-density="compact"] {
+  --row-padding-y: var(--space-1);
+  --row-padding-x: var(--space-2);
+  --row-min-height: 1.65rem;
+  --header-height: 38px;
+}
+
 /* ─── Light theme overrides ──────────────────────────────────────────────── */
 [data-theme="light"] {
   --color-neutral-0: #ffffff;

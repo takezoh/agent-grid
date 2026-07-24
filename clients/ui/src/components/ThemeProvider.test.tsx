@@ -30,7 +30,10 @@ function cleanup() {
   rtlCleanup();
   resetStore();
   localStorage.clear();
+  window.agentGridAppearance = undefined;
   delete document.documentElement.dataset.theme;
+  delete document.documentElement.dataset.density;
+  document.documentElement.style.removeProperty("font-size");
   document.documentElement.style.removeProperty("--bg");
   document.documentElement.style.removeProperty("--xterm-fg");
   document.documentElement.style.removeProperty("--xterm-cursor");
@@ -86,6 +89,50 @@ describe("FR-THEME-001 — system fallback follows matchMedia", () => {
     // Invalid value → system fallback → tracks matchMedia (false → light).
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+});
+
+describe("desktop appearance configuration", () => {
+  beforeEach(cleanup);
+  afterEach(cleanup);
+
+  it("uses hosted appearance instead of browser localStorage", () => {
+    localStorage.setItem(STORAGE_KEY, "light");
+    window.agentGridAppearance = {
+      theme: "dark",
+      density: "compact",
+      font_scale: 1.25,
+    };
+
+    render(
+      <ThemeProvider>
+        <span />
+      </ThemeProvider>,
+    );
+
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.density).toBe("compact");
+    expect(document.documentElement.style.fontSize).toBe("125%");
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("light");
+  });
+
+  it("applies appearance injected after the hosted page has loaded", () => {
+    render(
+      <ThemeProvider>
+        <span />
+      </ThemeProvider>,
+    );
+    window.agentGridAppearance = {
+      theme: "light",
+      density: "compact",
+      font_scale: 0.8,
+    };
+
+    act(() => window.dispatchEvent(new CustomEvent("agent-grid-appearance")));
+
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(document.documentElement.dataset.density).toBe("compact");
+    expect(document.documentElement.style.fontSize).toBe("80%");
   });
 });
 

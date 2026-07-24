@@ -7,10 +7,10 @@ import {
 
 describe("control-envelope closed schema", () => {
   it.each([
-    ['{"op":"openSession","id":"sess-1"}', "openSession"],
+    ['{"op":"openSession","server_id":"local","session_id":"sess-1"}', "openSession"],
     ['{"op":"activate"}', "activate"],
     ['{"op":"quit"}', "quit"],
-    ['{"op":"openSession","id":"s","schema_version":1}', "openSession"],
+    ['{"op":"openSession","server_id":"local","session_id":"s","schema_version":2}', "openSession"],
   ])("accepts %s", (line, op) => {
     const r = parseControlLine(line);
     expect(r.ok).toBe(true);
@@ -18,10 +18,10 @@ describe("control-envelope closed schema", () => {
   });
 
   it.each([
-    ['{"op":"openSession","id":"s","extra":1}', "unknown field"],
-    ['{"op":"openSession","id":"s","health":"ok"}', "unknown field"],
+    ['{"op":"openSession","server_id":"local","session_id":"s","extra":1}', "unknown field"],
+    ['{"op":"openSession","server_id":"local","session_id":"s","health":"ok"}', "unknown field"],
     ['{"op":"nope"}', "unknown op"],
-    ['{"op":"openSession"}', "requires id"],
+    ['{"op":"openSession"}', "requires server_id"],
     ["not-json", "malformed"],
     ["", "empty"],
   ])("rejects %s", (line, fragment) => {

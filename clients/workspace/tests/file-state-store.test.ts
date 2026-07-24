@@ -29,11 +29,11 @@ describe("file-state-store", () => {
     return p;
   }
 
-  it("round-trips v1 state", async () => {
+  it("round-trips v2 server-scoped state", async () => {
     const p = tmp();
     const state = {
-      schema_version: 1 as const,
-      windows: { "sess-a": { x: 10, y: 20, width: 800, height: 600 } },
+      schema_version: 2 as const,
+      windows: { local: { "sess-a": { x: 10, y: 20, width: 800, height: 600 } } },
     };
     await writeWorkspaceStateFile(p, state);
     const loaded = await readWorkspaceStateFile(p);
@@ -42,10 +42,10 @@ describe("file-state-store", () => {
     const store = new FileStateStore(p);
     expect(store.load()).toEqual(state);
     store.save({
-      schema_version: 1,
-      windows: { "sess-b": { x: 0, y: 0, width: 1, height: 1 } },
+      schema_version: 2,
+      windows: { local: { "sess-b": { x: 0, y: 0, width: 1, height: 1 } } },
     });
-    expect(store.load()?.windows["sess-b"]?.width).toBe(1);
+    expect(store.load()?.windows.local?.["sess-b"]?.width).toBe(1);
   });
 
   it("refuses unknown schema versions", () => {

@@ -34,6 +34,7 @@ public static partial class DeepLinkRouter
             return new RoutingDecision(
                 RouteKind.OpenWorkspaceSession,
                 m.Groups[1].Value,
+                m.Groups[2].Value,
                 ItemKind: "session",
                 Source: "typed-helper");
         }
@@ -44,28 +45,31 @@ public static partial class DeepLinkRouter
             return new RoutingDecision(
                 RouteKind.PanelFocusItem,
                 m.Groups[1].Value,
+                m.Groups[2].Value,
                 ItemKind: "approval",
                 Source: "typed-helper");
         }
 
-        // Alias: agent-grid://question/<id> → panel focus (question pathway).
+        // Alias: server-scoped question → panel focus.
         m = AliasQuestion.Match(uri);
         if (m.Success)
         {
             return new RoutingDecision(
                 RouteKind.PanelFocusItem,
                 m.Groups[1].Value,
+                m.Groups[2].Value,
                 ItemKind: "question",
                 Source: "alias");
         }
 
-        // Alias: agent-grid://session/<id>/jump → jump-back (router-local, not on wire).
+        // Alias: server-scoped session jump (router-local, not sent to a server).
         m = AliasSessionJump.Match(uri);
         if (m.Success)
         {
             return new RoutingDecision(
                 RouteKind.JumpBack,
                 m.Groups[1].Value,
+                m.Groups[2].Value,
                 ItemKind: "session",
                 Source: "alias");
         }
@@ -74,15 +78,15 @@ public static partial class DeepLinkRouter
         return RoutingDecision.Reject($"unrecognized agent-grid uri: {uri}");
     }
 
-    [GeneratedRegex(@"^agent-grid://session/([^/?#]+)$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^agent-grid://server/([^/?#]+)/session/([^/?#]+)$", RegexOptions.CultureInvariant)]
     private static partial Regex TypedSessionRegex();
 
-    [GeneratedRegex(@"^agent-grid://approval/([^/?#]+)$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^agent-grid://server/([^/?#]+)/approval/([^/?#]+)$", RegexOptions.CultureInvariant)]
     private static partial Regex TypedApprovalRegex();
 
-    [GeneratedRegex(@"^agent-grid://question/([^/?#]+)$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^agent-grid://server/([^/?#]+)/question/([^/?#]+)$", RegexOptions.CultureInvariant)]
     private static partial Regex AliasQuestionRegex();
 
-    [GeneratedRegex(@"^agent-grid://session/([^/?#]+)/jump$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^agent-grid://server/([^/?#]+)/session/([^/?#]+)/jump$", RegexOptions.CultureInvariant)]
     private static partial Regex AliasSessionJumpRegex();
 }

@@ -14,8 +14,10 @@ import {
   type WindowFactory,
   type WindowHandle,
 } from "./window-registry.js";
+import type { SessionRef } from "../shared/session-ref.js";
 
 export interface MainBootstrapOptions {
+  serverId: string;
   tokenPath: string;
   baseUrl: string;
   webOrigin: string;
@@ -33,6 +35,7 @@ export async function bootstrapMain(opts: MainBootstrapOptions): Promise<{
   stop: () => Promise<void>;
 }> {
   const config = new DaemonConfigResolver({
+    serverId: opts.serverId,
     tokenPath: opts.tokenPath,
     baseUrl: opts.baseUrl,
     webOrigin: opts.webOrigin,
@@ -64,12 +67,12 @@ export function createMemoryFactory(): {
 } {
   const created: string[] = [];
   const factory: WindowFactory = {
-    create(sessionId: string): WindowHandle {
-      created.push(sessionId);
+    create(session: SessionRef): WindowHandle {
+      created.push(`${session.serverId}:${session.sessionId}`);
       let destroyed = false;
       let bounds = { x: 0, y: 0, width: 1200, height: 800 };
       return {
-        id: sessionId,
+        id: `${session.serverId}:${session.sessionId}`,
         focus() {},
         close() {
           destroyed = true;

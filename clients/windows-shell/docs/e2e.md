@@ -111,7 +111,7 @@ Library choice: FlaUI over WinAppDriver (Appium server, unmaintained) and raw
 |---|---|
 | `AG_E2E_WINUI_UI=1` | enables the suite (skips otherwise; skips off-Windows) |
 | `AG_E2E_WINUI_EXE` | exe under test (harness passes the smoke-stage build) |
-| `AG_E2E_GATEWAY_URL` | forwarded to the app as `AG_GATEWAY_URL` |
+| `AG_E2E_GATEWAY_URL` | written into the isolated `--config-dir` server entry |
 
 Constraints: needs an interactive desktop session (fine from WSL via
 `powershell.exe`; a CI runner must not be session-0). The suite kills running
@@ -138,7 +138,7 @@ and AutomationIds of a running shell.
 |---|---|---|
 | `AG_E2E_RUN_DEV` | unset | `1` enables T3 facts |
 | `AG_E2E_GATEWAY_URL` | `http://127.0.0.1:8443` | run-dev backend |
-| `AG_NO_AUTH` | (UI) | `1` for WinUI against run-dev |
+| `--config-dir` | Shell/Workspace | test-owned configuration; user config is never touched |
 | `AG_E2E_WINUI_UI` | unset | `1` enables FlaUI UI automation suite |
 | `AG_E2E_WINUI_EXE` | probe launch-smoke paths | WinUI exe under UIA test |
 

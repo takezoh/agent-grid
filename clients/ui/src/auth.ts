@@ -13,13 +13,25 @@ export interface HostedModeInfo {
   token: string;
 }
 
+export interface DesktopAppearance {
+  theme: "system" | "light" | "dark";
+  density: "compact" | "comfortable";
+  font_scale: number;
+}
+
 declare global {
   interface Window {
     hostedModeInfo?: HostedModeInfo;
+    agentGridAppearance?: DesktopAppearance | null;
     agentGridWorkspace?: {
       hostedModeInfo?: HostedModeInfo;
     };
   }
+}
+
+export function desktopAppearance(): DesktopAppearance | null {
+  if (typeof window === "undefined") return null;
+  return window.agentGridAppearance ?? null;
 }
 
 export function isHostedMode(): boolean {
@@ -47,8 +59,7 @@ export function hostedSessionId(): string | null {
 
 export function readBearerTokenFromHash(): string {
   // Hosted mode: preload-injected token takes precedence (never from URL).
-  const hosted =
-    window.hostedModeInfo?.token ?? window.agentGridWorkspace?.hostedModeInfo?.token;
+  const hosted = window.hostedModeInfo?.token ?? window.agentGridWorkspace?.hostedModeInfo?.token;
   if (hosted) return hosted;
 
   const hash = window.location.hash; // e.g. "#token=abc"

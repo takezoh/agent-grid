@@ -10,7 +10,8 @@ JSON Lines control channel (named pipe on Windows).
 src/main/
   window-registry.ts    sole BrowserWindow creation point
   control-endpoint.ts   named-pipe / Unix-socket JSON Lines server
-  daemon-config.ts      fresh token resolve + hosted URL (no token in URL)
+  desktop-config.ts     shared config load/create + validation
+  daemon-config.ts      per-server fresh token resolve + hosted URL
   index.ts              bootstrap wiring
 src/preload/
   index.ts              contextBridge surface + token-not-in-URL guard
@@ -29,6 +30,17 @@ src/shared/
 | `contract-workspace-state-schema-evolution` | `loadWorkspaceState` |
 | `contract-b2-hosted-mode-token-injection` | `daemon-config.ts` + preload |
 | `contract-b2-token-acquisition` | `DaemonConfigResolver.resolve` |
+
+## Configuration
+
+Shell and Workspace share the files documented in
+[`../desktop-config/README.md`](../desktop-config/README.md). Production uses
+`%APPDATA%\agent-grid\config`; pass `--config-dir <path>` to replace the whole
+set. Shell forwards the argument when it launches Workspace.
+
+Workspace window identity and persisted bounds use `{serverId, sessionId}`.
+After routing to a configured server connection, hosted SPA/server calls still
+receive only `sessionId`.
 
 ## Test
 

@@ -72,7 +72,7 @@ public sealed class ShellCompositionRoot : IAsyncDisposable
         IWorkspaceControlClient pipe = opts.WorkspaceControlClient
             ?? new NamedPipeWorkspaceControlClient(opts.WorkspaceControlPath);
         IWorkspaceProcessLauncher process = opts.WorkspaceProcessLauncher
-            ?? new ProcessWorkspaceLauncher(opts.WorkspaceExePath);
+            ?? new ProcessWorkspaceLauncher(opts.WorkspaceExePath, opts.WorkspaceArguments);
         var workspace = new WorkspaceLauncherService(pipe, process);
 
         Action quit = opts.QuitApplication ?? (() => { });
@@ -119,6 +119,7 @@ public sealed class ShellHostOptions
     public string ServerPathInWsl { get; init; } = "~/agent-grid/server";
     public int GatewayPort { get; init; } = 8443;
     public string WorkspaceExePath { get; init; } = "agent-grid-workspace";
+    public string[] WorkspaceArguments { get; init; } = Array.Empty<string>();
     public string? WorkspaceControlPath { get; init; }
     public ITokenSource? TokenSource { get; init; }
     public HttpClient? HttpClient { get; init; }

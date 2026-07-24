@@ -252,9 +252,7 @@ run_winui_smoke() {
     if (-not (Test-Path \$exe)) { throw \"WinUI exe missing: \$exe\" }
     & (Join-Path \$scripts 'assert-winui-layout.ps1') -OutDir (Split-Path \$exe)
     if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
-    \$env:AG_NO_AUTH = '1'
-    \$env:AG_GATEWAY_URL = '$GATEWAY_URL'
-    & (Join-Path \$scripts 'launch-smoke.ps1') -Exe \$exe -SmokeSeconds 5
+    & (Join-Path \$scripts 'launch-smoke.ps1') -Exe \$exe -SmokeSeconds 5 -GatewayUrl '$GATEWAY_URL'
     if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
     if ('$SKIP_UI' -eq '1') {
       Write-Host 'Skipping FlaUI UI automation stage (--skip-ui)'

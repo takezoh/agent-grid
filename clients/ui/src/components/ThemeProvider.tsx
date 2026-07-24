@@ -17,6 +17,7 @@
 
 import type { ITheme } from "@xterm/xterm";
 import { type ReactNode, useEffect, useLayoutEffect, useState } from "react";
+import { desktopAppearance } from "../auth";
 import type { Theme } from "../store/theme";
 import { useThemeStore } from "../store/theme";
 
@@ -106,17 +107,33 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
   // initial state to avoid a spurious removeItem / setItem transient
   // when the store was already initialised lazily from storage.
   useLayoutEffect(() => {
-    const stored = readStoredTheme();
-    setTheme(stored ?? "system");
+    function applyDesktopAppearance(): void {
+      const configured = desktopAppearance();
+      const stored = readStoredTheme();
+      setTheme(configured?.theme ?? stored ?? "system");
+      if (configured) {
+        document.documentElement.dataset.density = configured.density;
+        document.documentElement.style.fontSize = `${configured.font_scale * 100}%`;
+        const resolved = resolveDataTheme(configured.theme, window.matchMedia(DARK_QUERY).matches);
+        document.documentElement.dataset.theme = resolved;
+      }
+    }
+    applyDesktopAppearance();
+    window.addEventListener("agent-grid-appearance", applyDesktopAppearance);
+    return () => {
+      window.removeEventListener("agent-grid-appearance", applyDesktopAppearance);
+    };
     // setTheme is stable (Zustand); running once on mount is intentional.
   }, [setTheme]);
 
   // Sync data-theme + localStorage whenever theme changes.
   useLayoutEffect(() => {
+    const configured = desktopAppearance();
     const mq = window.matchMedia(DARK_QUERY);
-    const resolved = resolveDataTheme(theme, mq.matches);
+    const effectiveTheme = configured?.theme ?? theme;
+    const resolved = resolveDataTheme(effectiveTheme, mq.matches);
     document.documentElement.dataset.theme = resolved;
-    persistTheme(theme);
+    if (!configured) persistTheme(theme);
   }, [theme]);
 
   // Subscribe to OS-level change events; only act when theme === 'system'.

@@ -4,14 +4,15 @@
  * additionalProperties: false — any extra field is rejected (FR-B1-02).
  */
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export const ALLOWED_OPS = new Set(["openSession", "activate", "quit"] as const);
 export type ControlOp = "openSession" | "activate" | "quit";
 
 export interface ControlEnvelope {
   op: ControlOp;
-  id?: string;
+  server_id?: string;
+  session_id?: string;
   schema_version?: number;
 }
 
@@ -34,7 +35,7 @@ export function parseControlLine(line: string): ParseResult {
   }
   const obj = raw as Record<string, unknown>;
   for (const key of Object.keys(obj)) {
-    if (key !== "op" && key !== "id" && key !== "schema_version") {
+    if (key !== "op" && key !== "server_id" && key !== "session_id" && key !== "schema_version") {
       return { ok: false, error: `unknown field: ${key}` };
     }
   }
@@ -44,15 +45,16 @@ export function parseControlLine(line: string): ParseResult {
   if (!ALLOWED_OPS.has(obj.op as ControlOp)) {
     return { ok: false, error: `unknown op: ${obj.op}` };
   }
-  let id: string | undefined;
-  if ("id" in obj) {
-    if (typeof obj.id !== "string") {
-      return { ok: false, error: "id must be a string" };
-    }
-    id = obj.id;
+  const server_id = typeof obj.server_id === "string" ? obj.server_id : undefined;
+  const session_id = typeof obj.session_id === "string" ? obj.session_id : undefined;
+  if ("server_id" in obj && server_id === undefined) {
+    return { ok: false, error: "server_id must be a string" };
   }
-  if (obj.op === "openSession" && !id) {
-    return { ok: false, error: "openSession requires id" };
+  if ("session_id" in obj && session_id === undefined) {
+    return { ok: false, error: "session_id must be a string" };
+  }
+  if (obj.op === "openSession" && (!server_id || !session_id)) {
+    return { ok: false, error: "openSession requires server_id and session_id" };
   }
   let schema_version = CURRENT_SCHEMA_VERSION;
   if ("schema_version" in obj) {
@@ -65,7 +67,8 @@ export function parseControlLine(line: string): ParseResult {
     ok: true,
     envelope: {
       op: obj.op as ControlOp,
-      id,
+      server_id,
+      session_id,
       schema_version,
     },
   };

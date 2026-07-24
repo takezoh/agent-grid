@@ -21,6 +21,7 @@ public sealed class PanelUiSession : IDisposable
     private Application? _app;
     private UIA3Automation? _automation;
     private Window? _window;
+    private string? _configDirectory;
 
     public Window Window
     {
@@ -94,9 +95,10 @@ public sealed class PanelUiSession : IDisposable
             WorkingDirectory = Path.GetDirectoryName(exe)!,
             UseShellExecute = false,
         };
-        psi.Environment["AG_NO_AUTH"] = "1";
         psi.Environment["AG_WINUI_NO_MSGBOX"] = "1";
-        psi.Environment["AG_GATEWAY_URL"] = WinUiUi.GatewayUrl;
+        _configDirectory = WriteTestConfig(WinUiUi.GatewayUrl);
+        psi.ArgumentList.Add("--config-dir");
+        psi.ArgumentList.Add(_configDirectory);
 
         _app = Application.Launch(psi);
         _automation = new UIA3Automation();
@@ -104,6 +106,46 @@ public sealed class PanelUiSession : IDisposable
         if (_window is null)
             throw new InvalidOperationException(
                 "WinUI main window did not appear within 30s." + StartupErrorHint());
+    }
+
+    private static string WriteTestConfig(string gatewayUrl)
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            $"agent-grid-winui-e2e-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var tokenPath = Path.Combine(directory, "gateway-token");
+        File.WriteAllText(tokenPath, "test-no-auth-token");
+        var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+        File.WriteAllText(
+            Path.Combine(directory, "servers.json"),
+            System.Text.Json.JsonSerializer.Serialize(new
+            {
+                schema_version = 1,
+                servers = new[]
+                {
+                    new
+                    {
+                        id = "test",
+                        display_name = "Test",
+                        enabled = true,
+                        base_url = gatewayUrl,
+                        web_origin = gatewayUrl,
+                        token_path = tokenPath,
+                        launch = new { mode = "connect_only" },
+                    },
+                },
+            }, options));
+        File.WriteAllText(
+            Path.Combine(directory, "appearance.json"),
+            """{"schema_version":1,"theme":"system","density":"comfortable","font_scale":1.0}""");
+        File.WriteAllText(
+            Path.Combine(directory, "shell.json"),
+            """{"schema_version":1,"workspace_executable":"agent-grid-workspace","health_poll_interval_seconds":1}""");
+        File.WriteAllText(
+            Path.Combine(directory, "workspace.json"),
+            """{"schema_version":1,"idle_quit_seconds":30,"default_window":{"width":1280,"height":800}}""");
+        return directory;
     }
 
     private static string StartupErrorHint()
@@ -131,5 +173,10 @@ public sealed class PanelUiSession : IDisposable
             /* already exited */
         }
         _app?.Dispose();
+        if (_configDirectory is not null)
+        {
+            try { Directory.Delete(_configDirectory, recursive: true); }
+            catch { /* best-effort test cleanup */ }
+        }
     }
 }

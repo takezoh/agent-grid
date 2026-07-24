@@ -9,6 +9,8 @@
 
 import type { WindowBounds, WindowFactory, WindowHandle } from "./window-registry.js";
 import type { DaemonConfigResolver, HostedModeInfo } from "./daemon-config.js";
+import type { AppearanceConfig, WorkspaceAppConfig } from "./desktop-config.js";
+import type { SessionRef } from "../shared/session-ref.js";
 
 /** Minimal surface of Electron BrowserWindow used by the factory. */
 export interface ElectronBrowserWindowLike {
@@ -32,7 +34,9 @@ export interface ElectronFactoryOptions {
   config: DaemonConfigResolver;
   BrowserWindow: ElectronBrowserWindowConstructor;
   preloadPath: string;
-  loadUrl?: (sessionId: string, webOrigin: string) => string;
+  appearance?: AppearanceConfig;
+  workspace?: WorkspaceAppConfig;
+  loadUrl?: (session: SessionRef, webOrigin: string) => string;
 }
 
 /**
@@ -44,12 +48,12 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Windo
   const { BrowserWindow } = opts;
 
   return {
-    create(sessionId: string, bounds?: WindowBounds): WindowHandle {
+    create(session: SessionRef, bounds?: WindowBounds): WindowHandle {
       const win = new BrowserWindow({
         x: bounds?.x,
         y: bounds?.y,
-        width: bounds?.width ?? 1280,
-        height: bounds?.height ?? 800,
+        width: bounds?.width ?? opts.workspace?.default_window.width ?? 1280,
+        height: bounds?.height ?? opts.workspace?.default_window.height ?? 800,
         show: true,
         webPreferences: {
           contextIsolation: true,
@@ -61,19 +65,21 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Windo
 
       void (async () => {
         try {
-          const cfg = await opts.config.resolve();
+          const cfg = await opts.config.resolve(session.serverId);
           const url =
-            opts.loadUrl?.(sessionId, cfg.webOrigin) ??
-            opts.config.hostedUrl(cfg.webOrigin, sessionId);
+            opts.loadUrl?.(session, cfg.webOrigin) ??
+            opts.config.hostedUrl(cfg.webOrigin, session.sessionId);
           const info: HostedModeInfo = {
             hosted: true,
-            sessionId,
+            sessionId: session.sessionId,
             baseUrl: cfg.baseUrl,
             token: cfg.token,
           };
           win.webContents.once("did-finish-load", () => {
             void win.webContents.executeJavaScript(
-              `window.hostedModeInfo = ${JSON.stringify(info)};`,
+              `window.hostedModeInfo = ${JSON.stringify(info)};` +
+              `window.agentGridAppearance = ${JSON.stringify(opts.appearance ?? null)};` +
+              `window.dispatchEvent(new CustomEvent("agent-grid-appearance"));`,
             );
           });
           await win.loadURL(url);
@@ -86,7 +92,7 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Windo
       })();
 
       return {
-        id: sessionId,
+        id: `${session.serverId}:${session.sessionId}`,
         focus: () => {
           if (!win.isDestroyed()) win.focus();
         },

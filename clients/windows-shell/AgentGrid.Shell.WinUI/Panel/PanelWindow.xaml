@@ -10,7 +10,7 @@
          a round-bottom slab. The wings are painted by the two Paths below;
          the slab is the inset Border. Keep wing size (12) and bottom radius
          (20) in sync with WingRadiusPhysical / NotchRadiusPhysical. -->
-    <Grid x:Name="RootHost" RequestedTheme="Dark" Background="Transparent"
+    <Grid x:Name="RootHost" Background="Transparent"
           KeyboardAcceleratorPlacementMode="Hidden">
         <Grid.Resources>
             <SolidColorBrush x:Key="SlabBrush" Color="#FF0D0E13"/>

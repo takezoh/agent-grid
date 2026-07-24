@@ -94,15 +94,18 @@ export class ControlEndpoint {
     try {
       switch (parsed.envelope.op) {
         case "openSession": {
-          await this.registry.openSession(parsed.envelope.id!);
+          await this.registry.openSession({
+            serverId: parsed.envelope.server_id!,
+            sessionId: parsed.envelope.session_id!,
+          });
           socket.write(`${replyOk()}\n`);
           break;
         }
         case "activate": {
           // Focus any open window; no-op if none.
-          const ids = this.registry.listSessionIds();
-          if (ids[0]) {
-            await this.registry.openSession(ids[0]);
+          const sessions = this.registry.listSessions();
+          if (sessions[0]) {
+            await this.registry.openSession(sessions[0]);
           }
           socket.write(`${replyOk()}\n`);
           break;

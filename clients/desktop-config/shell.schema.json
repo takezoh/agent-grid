@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Grid Shell configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workspace_executable", "health_poll_interval_seconds"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "workspace_executable": { "type": "string", "minLength": 1 },
+    "health_poll_interval_seconds": { "type": "integer", "minimum": 1, "maximum": 300 }
+  }
+}

@@ -20,13 +20,13 @@ public sealed class AppNotificationToastService : IToastNotifier, IDisposable
     public const string ActionExpand = "expand";
     public const string ActionAnswer = "answer";
 
-    private readonly ShellCompositionRoot _root;
+    private readonly ShellFleet _root;
     private readonly Func<PanelWindow?> _panel;
     private readonly SupervisionToastRouter _router;
     private bool _registered;
     private bool _comActivationOk;
 
-    public AppNotificationToastService(ShellCompositionRoot root, Func<PanelWindow?> panel)
+    public AppNotificationToastService(ShellFleet root, Func<PanelWindow?> panel)
     {
         _root = root;
         _panel = panel;
@@ -36,7 +36,7 @@ public sealed class AppNotificationToastService : IToastNotifier, IDisposable
             panelFlyoutOpen: () => panel()?.IsFlyoutOpen ?? false,
             panelHwnd: () => panel()?.Hwnd ?? 0);
 
-        root.Supervision.SnapshotChanged += snap =>
+        root.SnapshotChanged += snap =>
             _ = _router.OnSnapshotAsync(snap);
     }
 
@@ -86,11 +86,13 @@ public sealed class AppNotificationToastService : IToastNotifier, IDisposable
                     .AddArgument("action", ActionApprove)
                     .AddArgument("id", item.ApprovalId)
                     .AddArgument("session", item.SessionId)
+                    .AddArgument("server", item.ServerId)
                     .AddArgument("summary", Truncate(item.Summary, 80)))
                 .AddButton(new AppNotificationButton("Deny")
                     .AddArgument("action", ActionDeny)
                     .AddArgument("id", item.ApprovalId)
                     .AddArgument("session", item.SessionId)
+                    .AddArgument("server", item.ServerId)
                     .AddArgument("summary", Truncate(item.Summary, 80)));
         }
         else
@@ -170,15 +172,16 @@ public sealed class AppNotificationToastService : IToastNotifier, IDisposable
         var action = GetArg(args, "action");
         var id = GetArg(args, "id");
         var session = GetArg(args, "session");
+        var server = GetArg(args, "server");
         var summary = GetArg(args, "summary") ?? "";
 
         switch (action)
         {
-            case ActionApprove when id is not null && session is not null:
-                _ = _root.Supervision.SubmitApprovalAsync(id, session, "accept", summary);
+            case ActionApprove when server is not null && id is not null && session is not null:
+                _ = _root.SubmitApprovalAsync(server, id, session, "accept", summary);
                 break;
-            case ActionDeny when id is not null && session is not null:
-                _ = _root.Supervision.SubmitApprovalAsync(id, session, "deny", summary);
+            case ActionDeny when server is not null && id is not null && session is not null:
+                _ = _root.SubmitApprovalAsync(server, id, session, "deny", summary);
                 break;
             case ActionExpand:
             default:

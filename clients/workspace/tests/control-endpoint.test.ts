@@ -63,15 +63,24 @@ describe("control-endpoint", () => {
     endpoint = new ControlEndpoint({ path: p, registry: reg });
     await endpoint.start();
 
-    const bad = await sendLine(p, '{"op":"openSession","id":"s1","extra":true}');
+    const bad = await sendLine(
+      p,
+      '{"op":"openSession","server_id":"one","session_id":"s1","extra":true}',
+    );
     expect(JSON.parse(bad).ok).toBe(false);
     expect(JSON.parse(bad).error).toMatch(/unknown field/);
     expect(reg.openCount).toBe(0);
 
     // Connection path still works for next valid line (new connection each sendLine).
-    const ok1 = await sendLine(p, '{"op":"openSession","id":"s1"}');
+    const ok1 = await sendLine(
+      p,
+      '{"op":"openSession","server_id":"one","session_id":"s1"}',
+    );
     expect(JSON.parse(ok1).ok).toBe(true);
-    const ok2 = await sendLine(p, '{"op":"openSession","id":"s1"}');
+    const ok2 = await sendLine(
+      p,
+      '{"op":"openSession","server_id":"one","session_id":"s1"}',
+    );
     expect(JSON.parse(ok2).ok).toBe(true);
     expect(reg.openCount).toBe(1);
   });

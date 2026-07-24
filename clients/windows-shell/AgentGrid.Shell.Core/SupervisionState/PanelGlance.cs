@@ -9,7 +9,8 @@ public sealed record PanelGlanceItem(
     string SessionId,
     string Kind, // "approval" | "question" | "already-handled"
     string Headline,
-    DateTimeOffset? ExpiresAt);
+    DateTimeOffset? ExpiresAt,
+    string ServerId = "");
 
 public sealed record PanelGlanceView(
     IReadOnlyList<SessionSummary> Sessions,
@@ -26,17 +27,17 @@ public sealed record PanelGlanceView(
         foreach (var a in snap.Approvals)
         {
             pending.Add(new PanelGlanceItem(
-                a.ApprovalId, a.SessionId, "approval", a.Summary, a.ExpiresAt));
+                a.ApprovalId, a.SessionId, "approval", a.Summary, a.ExpiresAt, a.ServerId));
         }
         foreach (var q in snap.Questions)
         {
             pending.Add(new PanelGlanceItem(
-                q.QuestionId, q.SessionId, "question", q.Prompt, q.ExpiresAt));
+                q.QuestionId, q.SessionId, "question", q.Prompt, q.ExpiresAt, q.ServerId));
         }
 
         var notices = snap.AlreadyHandled
             .Select(n => new PanelGlanceItem(
-                n.ItemId, n.SessionId, "already-handled", n.Message, null))
+                n.ItemId, n.SessionId, "already-handled", n.Message, null, n.ServerId))
             .ToList();
 
         var status = snap.ConnectionFailed

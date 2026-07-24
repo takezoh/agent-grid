@@ -7,8 +7,8 @@ import { hostedSessionId, isHostedMode, readBearerTokenFromHash } from "./auth";
  */
 describe("hosted mode SPA flags", () => {
   afterEach(() => {
-    delete window.hostedModeInfo;
-    delete window.agentGridWorkspace;
+    window.hostedModeInfo = undefined;
+    window.agentGridWorkspace = undefined;
     window.location.hash = "";
     window.history.replaceState({}, "", "/");
     delete document.documentElement.dataset.hosted;

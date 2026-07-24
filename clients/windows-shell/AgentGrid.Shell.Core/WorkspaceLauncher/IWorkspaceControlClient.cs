@@ -1,3 +1,5 @@
+using AgentGrid.Shell.Core.SessionIdentity;
+
 namespace AgentGrid.Shell.Core.WorkspaceLauncher;
 
 /// <summary>
@@ -37,9 +39,17 @@ public sealed class WorkspaceLauncherService
         _initialBackoff = initialBackoff ?? TimeSpan.FromMilliseconds(100);
     }
 
-    public async Task<ControlReply> OpenSessionAsync(string sessionId, CancellationToken ct = default)
+    public async Task<ControlReply> OpenSessionAsync(
+        ServerSessionId session,
+        CancellationToken ct = default)
     {
-        var env = new ControlEnvelope { Op = "openSession", Id = sessionId };
+        session.Validate();
+        var env = new ControlEnvelope
+        {
+            Op = "openSession",
+            ServerId = session.ServerId,
+            SessionId = session.SessionId,
+        };
         return await SendWithLaunchRetryAsync(env, ct).ConfigureAwait(false);
     }
 

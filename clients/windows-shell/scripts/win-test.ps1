@@ -21,18 +21,28 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $shellDir = Split-Path -Parent $scriptDir
 
 # If we're on a UNC (\\wsl.localhost\...) path, robocopy to local temp first.
-$local = Join-Path $env:LOCALAPPDATA "Temp\ag-shell-src"
+$local = Join-Path $env:LOCALAPPDATA "Temp\ag-shell-src-$PID"
+$copied = $false
 if ($shellDir -match '^\\\\') {
   Write-Host "Syncing $shellDir -> $local"
   if (Test-Path $local) { Remove-Item -Recurse -Force $local }
   & robocopy $shellDir $local /E /XD bin obj .git /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
   if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
   $work = $local
+  $copied = $true
 } else {
   $work = $shellDir
 }
 
-Set-Location $work
-Write-Host "dotnet test in $work"
-& $dotnet test AgentGrid.Shell.sln --nologo
-exit $LASTEXITCODE
+try {
+  Set-Location $work
+  Write-Host "dotnet test in $work"
+  & $dotnet test AgentGrid.Shell.sln --nologo
+  $testExit = $LASTEXITCODE
+} finally {
+  if ($copied) {
+    Set-Location $env:TEMP
+    Remove-Item -Recurse -Force $local -ErrorAction SilentlyContinue
+  }
+}
+exit $testExit

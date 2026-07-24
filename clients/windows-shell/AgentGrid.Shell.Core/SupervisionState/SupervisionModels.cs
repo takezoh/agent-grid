@@ -11,19 +11,22 @@ public enum SessionPhase
 public sealed record SessionSummary(
     string SessionId,
     SessionPhase Phase,
-    string? Title = null);
+    string? Title = null,
+    string ServerId = "");
 
 public sealed record ApprovalItem(
     string ApprovalId,
     string SessionId,
     string Summary,
-    DateTimeOffset? ExpiresAt = null);
+    DateTimeOffset? ExpiresAt = null,
+    string ServerId = "");
 
 public sealed record QuestionItem(
     string QuestionId,
     string SessionId,
     string Prompt,
-    DateTimeOffset? ExpiresAt = null);
+    DateTimeOffset? ExpiresAt = null,
+    string ServerId = "");
 
 /// <summary>
 /// Explicit already-handled outcome when another client won the race
@@ -33,7 +36,8 @@ public sealed record AlreadyHandledNotice(
     string ItemId,
     string SessionId,
     string Kind, // "approval" | "question"
-    string Message);
+    string Message,
+    string ServerId = "");
 
 public sealed record SupervisionSnapshot(
     IReadOnlyList<SessionSummary> Sessions,

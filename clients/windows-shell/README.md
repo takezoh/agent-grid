@@ -4,6 +4,17 @@ Native supervision surface for Windows: always-on panel, tray, toast, deep links
 daemon supervision of the WSL-hosted `server` binary. Workspace windows are owned
 by the sibling Electron app at `clients/workspace/`.
 
+## Configuration
+
+Shell and Workspace share the four JSON files described in
+[`../desktop-config/README.md`](../desktop-config/README.md). The default
+directory is `%APPDATA%\agent-grid\config`; `--config-dir <path>` replaces it
+for both apps and is the required test-isolation mechanism.
+
+Every enabled `servers.json` entry gets an independent supervisor and gateway
+connection. Desktop session identity is `{serverId, sessionId}`; requests sent
+on that server connection continue to carry only `sessionId`.
+
 ## Layout
 
 ```text
@@ -55,7 +66,8 @@ make run-dev                              # terminal A
 ./clients/windows-shell/scripts/e2e.sh    # terminal B
 ```
 
-Client UI smoke against the same stack: `scripts/dev-up.ps1` (`AG_NO_AUTH=1`).
+Client UI smoke against the same stack: `scripts/dev-up.ps1` (generates and
+passes an isolated `--config-dir`).
 
 ### From WSL (unit details)
 
@@ -148,7 +160,7 @@ in WSL — do not invent a Windows-side server launcher.
 | Side | Command | Role |
 |---|---|---|
 | WSL | `make run-dev` → `scripts/run-dev.sh` | gateway + web on loopback, **`-no-auth`** |
-| Windows | `scripts/dev-up.ps1` | build/register/launch WinUI; **connect only** (`AG_NO_AUTH=1`) |
+| Windows | `scripts/dev-up.ps1` | build/register/launch WinUI with an isolated test config |
 
 ```sh
 # Terminal A — WSL
@@ -169,7 +181,8 @@ Detach spike remains `docs/wsl-detach-spike-*.md` (server binary fidelity), sepa
 ## Deep-link alias (Track A)
 
 `protocol/deep-links.schema.json` currently accepts only `session` and `approval`.
-Phase 2 routes `agent-grid://question/<id>` and `agent-grid://session/<id>/jump`
+Phase 2 routes `agent-grid://server/<serverId>/question/<id>` and
+`agent-grid://server/<serverId>/session/<id>/jump`
 via a documented client-side alias table
 (`adr-20260724-deep-link-schema-additive-extension`). The alias is removed once the
 upstream additive schema PR lands.

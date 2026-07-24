@@ -1,6 +1,8 @@
 using AgentGrid.Shell.Composition;
+using AgentGrid.Shell.Core.Configuration;
 using AgentGrid.Shell.Core.DeepLinkRouter;
 using AgentGrid.Shell.Core.Health;
+using AgentGrid.Shell.Core.SessionIdentity;
 using AgentGrid.Shell.Platform.JumpBack;
 
 namespace AgentGrid.Shell.Host;
@@ -30,37 +32,16 @@ public static class Program
             // Fall through to start host and act on the link after connect.
         }
 
-        var gatewayUri = opts.GatewayUri ?? new Uri($"http://127.0.0.1:{opts.Port}");
-        var tokenPath = opts.TokenPath
-            ?? Path.Combine(
-                Environment.GetEnvironmentVariable("LOCALAPPDATA")
-                ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "agent-grid",
-                "gateway-token");
+        var configDirectory = DesktopConfigLoader.ResolveConfigDirectory(args);
+        var config = DesktopConfigLoader.LoadOrCreate(configDirectory);
+        await using var root = ShellFleet.Build(config, () => Environment.Exit(0));
 
-        await using var root = ShellCompositionRoot.Build(new ShellHostOptions
-        {
-            GatewayBaseUri = gatewayUri,
-            TokenPath = tokenPath,
-            TokenPathInWsl = opts.TokenPathInWsl,
-            WslDistro = opts.WslDistro,
-            ServerPathInWsl = opts.ServerPath,
-            GatewayPort = opts.Port,
-            WorkspaceExePath = opts.WorkspaceExe,
-            WorkspaceControlPath = opts.ControlPath,
-            QuitApplication = () => Environment.Exit(0),
-        });
-
-        Console.CancelKeyPress += (_, e) =>
-        {
-            e.Cancel = true;
-            root.Menu.OnQuit();
-        };
-
-        Console.WriteLine($"Agent Grid Shell Host — gateway {gatewayUri}");
+        Console.WriteLine(
+            $"Agent Grid Shell Host — {config.Servers.Count(server => server.Enabled)} server(s)");
         await root.StartAsync().ConfigureAwait(false);
 
-        using var healthTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        using var healthTimer = new PeriodicTimer(
+            TimeSpan.FromSeconds(config.Shell.HealthPollIntervalSeconds));
         var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
         {
@@ -75,7 +56,7 @@ public static class Program
         {
             try
             {
-                await root.Supervisor.HealthTickAsync(cts.Token).ConfigureAwait(false);
+                await root.HealthTickAsync(cts.Token).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -93,17 +74,17 @@ public static class Program
     }
 
     private static async Task HandleDeepLinkAsync(
-        ShellCompositionRoot root,
+        ShellFleet root,
         string uri,
         CancellationToken ct)
     {
         var d = DeepLinkRouter.Route(uri);
         switch (d.Kind)
         {
-            case RouteKind.OpenWorkspaceSession when d.Id is not null:
-                var reply = await root.WorkspaceLauncher.OpenSessionAsync(d.Id, ct)
+            case RouteKind.OpenWorkspaceSession when d.ServerId is not null && d.Id is not null:
+                await root.OpenSessionAsync(new ServerSessionId(d.ServerId, d.Id), ct)
                     .ConfigureAwait(false);
-                Console.WriteLine($"openSession {d.Id}: ok={reply.Ok} err={reply.Error}");
+                Console.WriteLine($"openSession {d.ServerId}/{d.Id}");
                 break;
             case RouteKind.JumpBack when d.Id is not null:
                 var jb = root.JumpBack.Jump(new JumpBackTarget(
@@ -129,29 +110,8 @@ public static class Program
                 case "-h" or "--help":
                     a.ShowHelp = true;
                     break;
-                case "--gateway" when i + 1 < args.Length:
-                    a.GatewayUri = new Uri(args[++i]);
-                    break;
-                case "--token-path" when i + 1 < args.Length:
-                    a.TokenPath = args[++i];
-                    break;
-                case "--token-path-wsl" when i + 1 < args.Length:
-                    a.TokenPathInWsl = args[++i];
-                    break;
-                case "--distro" when i + 1 < args.Length:
-                    a.WslDistro = args[++i];
-                    break;
-                case "--server" when i + 1 < args.Length:
-                    a.ServerPath = args[++i];
-                    break;
-                case "--port" when i + 1 < args.Length:
-                    a.Port = int.Parse(args[++i]);
-                    break;
-                case "--workspace-exe" when i + 1 < args.Length:
-                    a.WorkspaceExe = args[++i];
-                    break;
-                case "--control-path" when i + 1 < args.Length:
-                    a.ControlPath = args[++i];
+                case "--config-dir" when i + 1 < args.Length:
+                    i++;
                     break;
                 case "--deep-link" when i + 1 < args.Length:
                     a.DeepLink = args[++i];
@@ -163,15 +123,6 @@ public static class Program
             }
         }
 
-        // Defaults: Windows token path under LOCALAPPDATA when present.
-        if (a.TokenPath is null)
-        {
-            var local = Environment.GetEnvironmentVariable("LOCALAPPDATA")
-                        ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            a.TokenPath = Path.Combine(local, "agent-grid", "gateway-token");
-        }
-
-        a.GatewayUri ??= new Uri($"http://127.0.0.1:{a.Port}");
         return a;
     }
 
@@ -181,14 +132,7 @@ public static class Program
             AgentGrid.Shell.Host — headless Phase 2 shell composition host
 
             Options:
-              --gateway <url>         Gateway base (default http://127.0.0.1:8443)
-              --token-path <path>     Windows-side token file (fresh-read each probe)
-              --token-path-wsl <p>    Path inside WSL for daemon -token-file
-              --distro <name>         WSL distro (default Ubuntu-22.04)
-              --server <path>         server binary path inside WSL
-              --port <n>              Gateway port (default 8443)
-              --workspace-exe <path>  Workspace Electron executable
-              --control-path <path>   Named pipe / socket for Workspace control
+              --config-dir <path>     Configuration directory override
               --deep-link <uri>       agent-grid://… to route on start
               -h, --help              This help
             """);
@@ -197,14 +141,6 @@ public static class Program
     private sealed class HostArgs
     {
         public bool ShowHelp;
-        public Uri? GatewayUri;
-        public string? TokenPath;
-        public string TokenPathInWsl = "~/.agent-grid/gateway-token";
-        public string WslDistro = "Ubuntu-22.04";
-        public string ServerPath = "/workspace/agent-grid/server";
-        public int Port = 8443;
-        public string WorkspaceExe = "agent-grid-workspace";
-        public string? ControlPath;
         public string? DeepLink;
     }
 }

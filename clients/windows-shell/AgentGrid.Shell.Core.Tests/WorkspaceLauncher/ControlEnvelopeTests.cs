@@ -5,10 +5,10 @@ namespace AgentGrid.Shell.Core.Tests.WorkspaceLauncher;
 public class ControlEnvelopeTests
 {
     [Theory]
-    [InlineData("{\"op\":\"openSession\",\"id\":\"sess-1\"}")]
+    [InlineData("{\"op\":\"openSession\",\"server_id\":\"local\",\"session_id\":\"sess-1\"}")]
     [InlineData("{\"op\":\"activate\"}")]
     [InlineData("{\"op\":\"quit\"}")]
-    [InlineData("{\"op\":\"openSession\",\"id\":\"s\",\"schema_version\":1}")]
+    [InlineData("{\"op\":\"openSession\",\"server_id\":\"local\",\"session_id\":\"s\",\"schema_version\":2}")]
     public void Accepts_closed_schema(string line)
     {
         var r = ControlEnvelope.ParseLine(line);
@@ -17,10 +17,10 @@ public class ControlEnvelopeTests
     }
 
     [Theory]
-    [InlineData("{\"op\":\"openSession\",\"id\":\"s\",\"extra\":1}", "unknown field")]
-    [InlineData("{\"op\":\"openSession\",\"id\":\"s\",\"health\":\"ok\"}", "unknown field")]
+    [InlineData("{\"op\":\"openSession\",\"server_id\":\"local\",\"session_id\":\"s\",\"extra\":1}", "unknown field")]
+    [InlineData("{\"op\":\"openSession\",\"server_id\":\"local\",\"session_id\":\"s\",\"health\":\"ok\"}", "unknown field")]
     [InlineData("{\"op\":\"nope\"}", "unknown op")]
-    [InlineData("{\"op\":\"openSession\"}", "requires id")]
+    [InlineData("{\"op\":\"openSession\"}", "requires server_id")]
     [InlineData("not-json", "malformed")]
     [InlineData("", "empty")]
     public void Rejects_unknown_fields_and_ops(string line, string expectedFragment)
@@ -33,12 +33,18 @@ public class ControlEnvelopeTests
     [Fact]
     public void Round_trip_json_line()
     {
-        var env = new ControlEnvelope { Op = "openSession", Id = "sess-x" };
+        var env = new ControlEnvelope
+        {
+            Op = "openSession",
+            ServerId = "local",
+            SessionId = "sess-x",
+        };
         var line = env.ToJsonLine();
         var r = ControlEnvelope.ParseLine(line);
         Assert.True(r.Success);
         Assert.Equal("openSession", r.Envelope!.Op);
-        Assert.Equal("sess-x", r.Envelope.Id);
+        Assert.Equal("local", r.Envelope.ServerId);
+        Assert.Equal("sess-x", r.Envelope.SessionId);
     }
 
     [Fact]

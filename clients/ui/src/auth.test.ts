@@ -1,14 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  hostedSessionId,
-  isHostedMode,
-  readBearerTokenFromHash,
-} from "./auth";
+import { hostedSessionId, isHostedMode, readBearerTokenFromHash } from "./auth";
 
 describe("auth hosted mode", () => {
   afterEach(() => {
-    delete window.hostedModeInfo;
-    delete window.agentGridWorkspace;
+    window.hostedModeInfo = undefined;
+    window.agentGridWorkspace = undefined;
     window.location.hash = "";
     // happy-dom: reset search by replacing location is awkward; set via history when available
     window.history.replaceState({}, "", "/");

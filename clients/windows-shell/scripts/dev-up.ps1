@@ -3,7 +3,7 @@
 #
 # e2e stack (recommended):
 #   Terminal A (WSL):  make run-dev          # scripts/run-dev.sh — server+web, -no-auth loopback
-#   Terminal B (Win):  this script          # build + launch Shell; AG_NO_AUTH=1 by default
+#   Terminal B (Win):  this script          # build + launch with --config-dir
 #
 # Product/auth path: pass -NoAuth:$false and -TokenPath to a real gateway-token file.
 param(
@@ -57,17 +57,19 @@ try {
 
 if ($NoLaunch) {
   Write-Host "Ready: $exe"
-  Write-Host "  AG_GATEWAY_URL=$GatewayUrl"
-  Write-Host "  AG_NO_AUTH=$(if ($NoAuth) { '1' } else { '0' })"
-  if (-not $NoAuth) { Write-Host "  AG_TOKEN_PATH=$TokenPath" }
+  Write-Host "  Launch with --config-dir and an isolated test configuration."
   exit 0
 }
 
 Write-Host "Starting WinUI..."
-$env:AG_GATEWAY_URL = $GatewayUrl
-$env:AG_NO_AUTH = if ($NoAuth) { "1" } else { "0" }
-$env:AG_TOKEN_PATH = $TokenPath
-Start-Process -FilePath $exe
+$configDir = Join-Path $env:TEMP "agent-grid-dev-config"
+$configArgs = @{
+  ConfigDir = $configDir
+  GatewayUrl = $GatewayUrl
+}
+if (-not $NoAuth) { $configArgs.TokenPath = $TokenPath }
+& (Join-Path $PSScriptRoot "write-test-config.ps1") @configArgs | Out-Null
+Start-Process -FilePath $exe -ArgumentList @("--config-dir", $configDir)
 Start-Sleep -Seconds 2
 $proc = Get-Process -Name "AgentGrid.Shell.WinUI" -ErrorAction SilentlyContinue
 if ($proc) {

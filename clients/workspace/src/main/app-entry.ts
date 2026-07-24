@@ -7,6 +7,11 @@
 import { ControlEndpoint, defaultControlPath } from "./control-endpoint.js";
 import { DaemonConfigResolver } from "./daemon-config.js";
 import {
+  loadOrCreateDesktopConfig,
+  resolveConfigDirectory,
+  type DesktopConfig,
+} from "./desktop-config.js";
+import {
   createElectronWindowFactory,
   type ElectronBrowserWindowConstructor,
 } from "./electron-window-factory.js";
@@ -26,9 +31,8 @@ export interface AppEntryOptions {
   app: ElectronAppLike;
   BrowserWindow: ElectronBrowserWindowConstructor;
   preloadPath: string;
-  tokenPath: string;
-  baseUrl: string;
-  webOrigin: string;
+  args?: readonly string[];
+  config?: DesktopConfig;
   controlPath?: string;
   statePath?: string;
   idleMs?: number;
@@ -46,20 +50,21 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
 
   await opts.app.whenReady();
 
-  const config = new DaemonConfigResolver({
-    tokenPath: opts.tokenPath,
-    baseUrl: opts.baseUrl,
-    webOrigin: opts.webOrigin,
-  });
+  const desktopConfig = opts.config ?? loadOrCreateDesktopConfig(
+    resolveConfigDirectory(opts.args ?? process.argv.slice(1)),
+  );
+  const config = DaemonConfigResolver.fromServers(desktopConfig.servers);
   const store = new FileStateStore(opts.statePath ?? defaultWorkspaceStatePath());
   const factory = createElectronWindowFactory({
     config,
     BrowserWindow: opts.BrowserWindow,
     preloadPath: opts.preloadPath,
+    appearance: desktopConfig.appearance,
+    workspace: desktopConfig.workspace,
   });
   const registry = new WindowRegistry(factory, store);
   const idle = new IdleQuitController({
-    idleMs: opts.idleMs,
+    idleMs: opts.idleMs ?? desktopConfig.workspace.idle_quit_seconds * 1000,
     openCount: () => registry.openCount,
     onQuit: () => opts.app.quit(),
   });
@@ -72,14 +77,14 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
   // Wrap open path to refresh idle timer: monkey-patch via proxy registry is heavy;
   // instead, endpoint openSession already mutates registry — poll after ops.
   const originalOpen = registry.openSession.bind(registry);
-  registry.openSession = async (sessionId: string) => {
-    const w = await originalOpen(sessionId);
+  registry.openSession = async (session) => {
+    const w = await originalOpen(session);
     idle.onWindowsChanged();
     return w;
   };
   const originalClose = registry.closeSessionView.bind(registry);
-  registry.closeSessionView = (sessionId: string) => {
-    originalClose(sessionId);
+  registry.closeSessionView = (session) => {
+    originalClose(session);
     idle.onWindowsChanged();
   };
 
@@ -88,8 +93,8 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
   });
   opts.app.on("second-instance", () => {
     // Focus any open window.
-    const ids = registry.listSessionIds();
-    if (ids[0]) void registry.openSession(ids[0]);
+    const sessions = registry.listSessions();
+    if (sessions[0]) void registry.openSession(sessions[0]);
   });
 
   await endpoint.start();

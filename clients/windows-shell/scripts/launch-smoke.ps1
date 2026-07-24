@@ -10,7 +10,9 @@
 # Failure dumps structured log (SoT for Runtime 1.6 / MSIX-class errors).
 param(
   [string]$Exe = "",
-  [int]$SmokeSeconds = 5
+  [int]$SmokeSeconds = 5,
+  [string]$GatewayUrl = "http://127.0.0.1:8443",
+  [string]$ConfigDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,7 +87,13 @@ foreach ($key in [System.Environment]::GetEnvironmentVariables().Keys) {
 $psi.Environment["AG_WINUI_STARTUP_LOG"] = $log
 $psi.Environment["AG_WINUI_STARTUP_OK"] = $ok
 $psi.Environment["AG_WINUI_NO_MSGBOX"] = "1"
-$psi.Environment["AG_NO_AUTH"] = "1"
+if (-not $ConfigDir) {
+  $ConfigDir = Join-Path $env:TEMP "agent-grid-launch-smoke-config"
+}
+& (Join-Path $PSScriptRoot "write-test-config.ps1") `
+  -ConfigDir $ConfigDir -GatewayUrl $GatewayUrl | Out-Null
+$psi.ArgumentList.Add("--config-dir")
+$psi.ArgumentList.Add($ConfigDir)
 
 $p = New-Object System.Diagnostics.Process
 $p.StartInfo = $psi

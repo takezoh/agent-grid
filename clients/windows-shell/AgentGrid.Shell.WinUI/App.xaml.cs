@@ -1,4 +1,5 @@
 using AgentGrid.Shell.Composition;
+using AgentGrid.Shell.Core.Configuration;
 using AgentGrid.Shell.WinUI.Panel;
 using AgentGrid.Shell.WinUI.Toast;
 using AgentGrid.Shell.WinUI.Tray;
@@ -13,7 +14,7 @@ namespace AgentGrid.Shell.WinUI;
 /// </summary>
 public partial class App : Application
 {
-    private ShellCompositionRoot? _root;
+    private ShellFleet? _root;
     private TrayIconController? _tray;
     private PanelWindow? _panel;
     private AppNotificationToastService? _toasts;
@@ -48,9 +49,10 @@ public partial class App : Application
             _root?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             Exit();
         };
-        var opts = ShellHostOptionsFromEnvironment(quit);
-
-        _root = ShellCompositionRoot.Build(opts);
+        var configDirectory = DesktopConfigLoader.ResolveConfigDirectory(
+            Environment.GetCommandLineArgs().Skip(1));
+        var config = DesktopConfigLoader.LoadOrCreate(configDirectory);
+        _root = ShellFleet.Build(config, quit);
         await _root.StartAsync();
 
         _panel = new PanelWindow(_root);
@@ -80,12 +82,13 @@ public partial class App : Application
         // Health tick
         _ = Task.Run(async () =>
         {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            using var timer = new PeriodicTimer(
+                TimeSpan.FromSeconds(config.Shell.HealthPollIntervalSeconds));
             while (await timer.WaitForNextTickAsync())
             {
                 try
                 {
-                    await _root.Supervisor.HealthTickAsync();
+                    await _root.HealthTickAsync();
                 }
                 catch
                 {
@@ -111,36 +114,6 @@ public partial class App : Application
         }
     }
 
-    private static ShellHostOptions ShellHostOptionsFromEnvironment(Action quit)
-    {
-        var local = Environment.GetEnvironmentVariable("LOCALAPPDATA")
-                    ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var port = 8443;
-        if (int.TryParse(Environment.GetEnvironmentVariable("AG_GATEWAY_PORT"), out var p))
-            port = p;
-        // e2e against scripts/run-dev.sh: AG_NO_AUTH=1 (default for local loopback e2e).
-        var noAuth = IsTruthy(Environment.GetEnvironmentVariable("AG_NO_AUTH"));
-        return new ShellHostOptions
-        {
-            GatewayBaseUri = new Uri(
-                Environment.GetEnvironmentVariable("AG_GATEWAY_URL") ?? $"http://127.0.0.1:{port}"),
-            TokenPath = Environment.GetEnvironmentVariable("AG_TOKEN_PATH")
-                        ?? Path.Combine(local, "agent-grid", "gateway-token"),
-            NoAuth = noAuth,
-            TokenPathInWsl = Environment.GetEnvironmentVariable("AG_TOKEN_PATH_WSL")
-                             ?? "~/.agent-grid/gateway-token",
-            WslDistro = Environment.GetEnvironmentVariable("AG_WSL_DISTRO") ?? "Ubuntu-22.04",
-            ServerPathInWsl = Environment.GetEnvironmentVariable("AG_SERVER_PATH")
-                              ?? "/workspace/agent-grid/server",
-            GatewayPort = port,
-            WorkspaceExePath = Environment.GetEnvironmentVariable("AG_WORKSPACE_EXE")
-                               ?? "agent-grid-workspace",
-            QuitApplication = quit,
-        };
-    }
-
-    private static bool IsTruthy(string? v) =>
-        v is "1" or "true" or "TRUE" or "yes" or "YES";
 }
 
 /// <summary>Explicit main: capture WASDK bootstrap errors before XAML starts.</summary>

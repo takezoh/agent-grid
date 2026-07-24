@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using System.Text;
 using AgentGrid.Shell.Core.WorkspaceLauncher;
+using AgentGrid.Shell.Core.SessionIdentity;
 
 namespace AgentGrid.Shell.Core.Tests.WorkspaceLauncher;
 
@@ -23,7 +24,12 @@ public class NamedPipeClientTests
         try
         {
             var client = new NamedPipeWorkspaceControlClient(sockPath, TimeSpan.FromSeconds(3));
-            var reply = await client.SendAsync(new ControlEnvelope { Op = "openSession", Id = "sess-1" });
+            var reply = await client.SendAsync(new ControlEnvelope
+            {
+                Op = "openSession",
+                ServerId = "local",
+                SessionId = "sess-1",
+            });
             Assert.True(reply.Ok);
         }
         finally
@@ -60,7 +66,7 @@ public class NamedPipeClientTests
             maxAttempts: 3,
             initialBackoff: TimeSpan.FromMilliseconds(1));
 
-        var reply = await launcher.OpenSessionAsync("s1");
+        var reply = await launcher.OpenSessionAsync(new ServerSessionId("local", "s1"));
         Assert.True(reply.Ok);
         Assert.Equal(1, spawned);
         Assert.Equal(2, attempts);

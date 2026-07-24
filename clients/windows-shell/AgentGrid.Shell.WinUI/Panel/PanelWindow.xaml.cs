@@ -1,6 +1,8 @@
 using AgentGrid.Shell.Composition;
 using AgentGrid.Shell.Core.DeepLinkRouter;
 using AgentGrid.Shell.Core.SupervisionState;
+using AgentGrid.Shell.Core.SessionIdentity;
+using AgentGrid.Shell.Core.Configuration;
 using AgentGrid.Shell.Platform.Interop;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
@@ -28,7 +30,7 @@ public sealed partial class PanelWindow : Window
     private const int CompactHeight = 48;
     private const double DragThresholdDips = 4;
 
-    private readonly ShellCompositionRoot _root;
+    private readonly ShellFleet _root;
     private readonly IWin32InteropService _win32;
     private bool _flyoutOpen;
     private bool _noActivate = true;
@@ -44,17 +46,18 @@ public sealed partial class PanelWindow : Window
     private double _dragStartScreenX;
     private int _dragStartWindowX;
 
-    public PanelWindow(ShellCompositionRoot root)
+    public PanelWindow(ShellFleet root)
     {
         _root = root;
         _win32 = root.Win32;
         InitializeComponent();
+        ApplyAppearance(root.Config.Appearance);
         ConfigureIslandChrome();
         AttachDragSurface(CompactBar);
         AttachDragSurface(HeaderBar);
         MoveResizeTop(ExpandedWidth, ExpandedHeight);
 
-        _root.Supervision.SnapshotChanged += snap =>
+        _root.SnapshotChanged += snap =>
             DispatcherQueue.TryEnqueue(() => Render(PanelGlanceView.From(snap)));
         Render(_root.CurrentGlance());
 
@@ -71,6 +74,21 @@ public sealed partial class PanelWindow : Window
 
     public bool IsFlyoutOpen => _flyoutOpen;
     public nint Hwnd => WindowNative.GetWindowHandle(this);
+
+    private void ApplyAppearance(AppearanceConfig appearance)
+    {
+        RootHost.RequestedTheme = appearance.Theme switch
+        {
+            "light" => ElementTheme.Light,
+            "dark" => ElementTheme.Dark,
+            _ => ElementTheme.Default,
+        };
+        RootHost.FontSize = 14 * appearance.FontScale;
+        RootHost.Resources["ControlContentThemeFontSize"] = 14 * appearance.FontScale;
+        RootHost.Resources["TextControlThemeFontSize"] = 14 * appearance.FontScale;
+        RootHost.Resources["ControlContentThemeFontSizeSmall"] =
+            (appearance.Density == "compact" ? 11 : 12) * appearance.FontScale;
+    }
 
     public void ShowGlance()
     {
@@ -111,8 +129,8 @@ public sealed partial class PanelWindow : Window
                 ApplyIsland(IslandStateMachine.OnUserExpand(_island));
                 ShowGlance();
                 break;
-            case RouteKind.OpenWorkspaceSession when d.Id is not null:
-                await _root.WorkspaceLauncher.OpenSessionAsync(d.Id);
+            case RouteKind.OpenWorkspaceSession when d.ServerId is not null && d.Id is not null:
+                await _root.OpenSessionAsync(new ServerSessionId(d.ServerId, d.Id));
                 break;
             case RouteKind.JumpBack when d.Id is not null:
                 _ = _root.JumpBack.Jump(new Platform.JumpBack.JumpBackTarget(
@@ -264,8 +282,8 @@ public sealed partial class PanelWindow : Window
 
     private async Task SubmitApprovalAsync(PanelGlanceItem item, string decision)
     {
-        await _root.Supervision.SubmitApprovalAsync(
-            item.ItemId, item.SessionId, decision, item.Headline, item.ExpiresAt);
+        await _root.SubmitApprovalAsync(
+            item.ServerId, item.ItemId, item.SessionId, decision, item.Headline, item.ExpiresAt);
         ExitEngageIfNeeded();
     }
 
@@ -306,8 +324,8 @@ public sealed partial class PanelWindow : Window
             return;
         }
 
-        await _root.Supervision.SubmitQuestionAsync(
-            item.ItemId, item.SessionId, answer, item.Headline);
+        await _root.SubmitQuestionAsync(
+            item.ServerId, item.ItemId, item.SessionId, answer, item.Headline);
         EngageBox.Text = string.Empty;
         ExitEngageIfNeeded();
     }
@@ -316,17 +334,19 @@ public sealed partial class PanelWindow : Window
     {
         if ((sender as FrameworkElement)?.Tag is not SessionChipVm chip)
             return;
-        await _root.WorkspaceLauncher.OpenSessionAsync(chip.Session.SessionId);
+        await _root.OpenSessionAsync(
+            new ServerSessionId(chip.Session.ServerId, chip.Session.SessionId));
     }
 
     private async void OnOpenSession(object sender, RoutedEventArgs e)
     {
         var sessions = _root.CurrentGlance().Sessions;
-        var id = sessions.FirstOrDefault()?.SessionId;
-        if (id is null && PendingList.SelectedItem is PanelItemVm vm)
-            id = vm.Item.SessionId;
-        if (id is not null)
-            await _root.WorkspaceLauncher.OpenSessionAsync(id);
+        var session = sessions.FirstOrDefault();
+        if (session is not null)
+            await _root.OpenSessionAsync(new ServerSessionId(session.ServerId, session.SessionId));
+        else if (PendingList.SelectedItem is PanelItemVm vm)
+            await _root.OpenSessionAsync(
+                new ServerSessionId(vm.Item.ServerId, vm.Item.SessionId));
     }
 
     private void ExitEngageIfNeeded()

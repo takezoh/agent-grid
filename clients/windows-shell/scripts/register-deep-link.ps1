@@ -50,4 +50,4 @@ if ($isWinUi) {
 }
 
 Write-Host "Registered agent-grid:// -> $HostExe"
-Write-Host "Test: start agent-grid://session/demo"
+Write-Host "Test: start agent-grid://server/local/session/demo"
