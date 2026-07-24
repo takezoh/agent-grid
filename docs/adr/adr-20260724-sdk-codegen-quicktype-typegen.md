@@ -1,41 +1,54 @@
 ---
 id: adr-20260724-sdk-codegen-quicktype-typegen
 kind: adr
-title: 'SDK codegen adopts quicktype type generation from JSON Schema; transport is hand-written per language'
-status: proposed
+title: SDK codegen adopts quicktype type generation from JSON Schema; transport is
+  hand-written per language
+status: accepted
 created: '2026-07-24'
-summary: 'quicktype, pinned via the npm lockfile, generates typed models + serialization for C#/Swift/Kotlin/TS from protocol/*.schema.json; the thin transport (REST calls, WS framing, reconnect) is hand-written per SDK — no Java toolchain'
+summary: quicktype, pinned via the npm lockfile, generates typed models + serialization
+  for C#/Swift/Kotlin/TS from protocol/*.schema.json; the thin transport (REST calls,
+  WS framing, reconnect) is hand-written per SDK — no Java toolchain
 decision_makers:
-  - agent-grid-maintainers
-  - product-owner
+- agent-grid-maintainers
+- product-owner
 consulted:
-  - runtime-maintainers
-  - server-api-maintainers
-  - contract-layer-maintainers
+- runtime-maintainers
+- server-api-maintainers
+- contract-layer-maintainers
 informed:
-  - agent-grid-users
+- agent-grid-users
 tags:
-  - native-clients
-  - phase0-1
+- native-clients
+- phase0-1
 owners:
-  - agent-grid-maintainers
+- agent-grid-maintainers
 relations:
-  - type: originatedFrom
-    target: change-20260723-native-clients-phase01
-  - type: supersedes
-    target: adr-20260724-sdk-codegen-openapi-generator
-source_paths:
-  []
+- {type: originatedFrom, target: change-20260723-native-clients-phase01}
+- {type: supersedes, target: adr-20260724-sdk-codegen-openapi-generator}
+source_paths: []
 consequences:
   positive:
-    - No new toolchain — quicktype runs on Node, which the repo already carries for clients/ui (npm lockfile pins the exact version); the Java runtime requirement disappears.
-    - Generated surface is small (models + serializers only), so per-language output is reviewable and the template-quality variance that plagued the OpenAPI Generator option does not apply.
-    - Generation targets exactly what codegen is good at here — typed messages + validation; the transport/reconnect/replay logic was hand-written under every candidate, so no generation value is lost.
+  - No new toolchain — quicktype runs on Node, which the repo already carries for
+    clients/ui (npm lockfile pins the exact version); the Java runtime requirement
+    disappears.
+  - Generated surface is small (models + serializers only), so per-language output
+    is reviewable and the template-quality variance that plagued the OpenAPI Generator
+    option does not apply.
+  - Generation targets exactly what codegen is good at here — typed messages + validation;
+    the transport/reconnect/replay logic was hand-written under every candidate, so
+    no generation value is lost.
   negative:
-    - REST client calls (a handful of endpoints) are hand-written per language against openapi.yaml instead of generated — four small transport layers to maintain.
-    - quicktype's per-language serializer idioms (Codable / kotlinx.serialization / System.Text.Json) must be spot-checked once per target for round-trip fidelity against the wire fixtures.
+  - REST client calls (a handful of endpoints) are hand-written per language against
+    openapi.yaml instead of generated — four small transport layers to maintain.
+  - quicktype's per-language serializer idioms (Codable / kotlinx.serialization /
+    System.Text.Json) must be spot-checked once per target for round-trip fidelity
+    against the wire fixtures.
   neutral:
-    - Status is proposed (not accepted) because the version pin and per-language emit options are set at the first landing chunk; the ADR moves to accepted at that landing, mirroring the predecessor's gate.
+  - 'Accepted 2026-07-24: the landing gate is satisfied — quicktype pinned at 23.0.171
+    in clients/sdk/package-lock.json, per-language emit options checked in at clients/sdk/quicktype-emit.json
+    (decision: default emit idioms; strict fail-on-unknown-field decoders rejected because
+    NFR-05''s additive-only schema evolution requires unknown-field tolerance in old clients).'
+updated: '2026-07-24'
 ---
 
 
@@ -50,7 +63,7 @@ adr-20260724-sdk-codegen-openapi-generator (now rejected) picked OpenAPI Generat
 ## Decision
 
 {% decision %}
-quicktype, pinned via the repo npm lockfile and recorded in the compatibility profile, generates typed models + serialization code for C#, Swift, Kotlin, and TypeScript from protocol/*.schema.json. Per-language emit options are fixed in a checked-in config; generation runs only under the pinned wrapper script (scripts/generate-sdks.sh) and the compatibility profile. The thin transport per SDK — REST calls declared by openapi.yaml, WS framing, reconnect per the reconnect contract — is hand-written, matching the SDK scope 'transport, typed messages, validation, version negotiation; no presentation behavior'. Go remains hand-written stdlib-only (ADR-0021's surviving rule). Status moves to accepted when the first landing chunk sets the version pin.
+quicktype, pinned via the repo npm lockfile and recorded in the compatibility profile, generates typed models + serialization code for C#, Swift, Kotlin, and TypeScript from protocol/*.schema.json. Per-language emit options are fixed in a checked-in config; generation runs only under the pinned wrapper script (scripts/generate-sdks.sh) and the compatibility profile. The thin transport per SDK — REST calls declared by openapi.yaml, WS framing, reconnect per the reconnect contract — is hand-written, matching the SDK scope 'transport, typed messages, validation, version negotiation; no presentation behavior'. Go remains hand-written stdlib-only (ADR-0021's surviving rule). The version pin landed as quicktype 23.0.171 (clients/sdk/package-lock.json), satisfying the acceptance gate.
 {% /decision %}
 
 ## Consequences
@@ -67,7 +80,7 @@ quicktype, pinned via the repo npm lockfile and recorded in the compatibility pr
 {% /consequence %}
 
 {% consequence kind="neutral" %}
-- Status is proposed until the first landing chunk sets the version pin, mirroring the predecessor's acceptance gate.
+- Accepted 2026-07-24: the landing gate is satisfied — quicktype pinned at 23.0.171 in clients/sdk/package-lock.json, per-language emit options checked in at clients/sdk/quicktype-emit.json (decision: default emit idioms; strict fail-on-unknown-field decoders rejected because NFR-05's additive-only schema evolution requires unknown-field tolerance in old clients).
 {% /consequence %}
 
 ## Alternatives

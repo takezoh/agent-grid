@@ -683,7 +683,7 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
     - Two independent generation runs against the same protocol/ commit produce byte-identical output for all four SDK model trees.
     - Per-language serializer round-trip against the wire fixtures passes (Codable / kotlinx.serialization / System.Text.Json / TS JSON fidelity spot-check).
 - **contracts**: `contract-sdk-generation-determinism`, `contract-adr0021-supersede-stdlib-preservation`
-- **implementation decisions remaining**: `quicktype-emit-options-choice`
+- **implementation decisions**: `quicktype-emit-options-choice` — closed at landing (alternative-quicktype-default-emit; see §Implementation decisions)
 
 ### `chunk-p1-03-simulator`
 
@@ -701,7 +701,7 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
     - The recorded scenario drives all four SDKs identically; each SDK's observed sequence equals the fixture (scripts/run-verification-profile.sh pr compatibility passes).
     - Parallel cross-SDK replay against a shared sim server instance stays isolated (no cross-SDK frame leakage).
 - **contracts**: `contract-simulator-recorded-scenario-replay`
-- **implementation decisions remaining**: `sim-server-language-choice`
+- **implementation decisions**: `sim-server-language-choice` — closed at landing (alternative-sim-server-go; see §Implementation decisions)
 
 ### `chunk-p1-04-compatibility-ci-gate`
 
@@ -737,23 +737,21 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
     - The adapter seam compiles against both the hand-written codec and (a stub of) the generated TS SDK.
 - **decision closure**: This unit is scaffolding for a Phase 2 cutover; its observable is only that the existing test suite still passes and the adapter compiles against both codec paths. Neither owner, wire contract, failure behavior, nor migration semantics changes; it is closed against contract-sdk-generation-determinism and contract-adr0021-supersede-stdlib-preservation (which the u-p1-02 unit already owns).
 
-## Implementation decisions remaining (invariance-witnessed)
+## Implementation decisions (closed at landing 2026-07-24)
 
-### `quicktype-emit-options-choice`
+### `quicktype-emit-options-choice` — decided: `alternative-quicktype-default-emit`
 
-- **preserved contracts**: `contract-sdk-generation-determinism`, `contract-adr0021-supersede-stdlib-preservation`
-- **invariance argument**: Either emit-option set produces byte-identical output for identical schema input at the pinned quicktype version (satisfying contract-sdk-generation-determinism) and neither introduces a non-stdlib Go dependency (satisfying contract-adr0021-supersede-stdlib-preservation); the observable difference is per-language serializer idiom (helper surface / annotation style), not typed-behavior difference, and each option set must pass the same wire-fixture round-trip.
-- **alternatives**:
-    - `alternative-quicktype-default-emit` — Use quicktype's default per-language emit options (e.g. Codable for Swift, kotlinx.serialization for Kotlin, System.Text.Json for C#).
-    - `alternative-quicktype-strict-emit` — Use stricter emit options (explicit optional handling, fail-on-unknown-field decoders) where the target language supports them, at the cost of more verbose generated code.
+- **decision**: Default per-language emit idioms — TS `--just-types --prefer-unions --prefer-const-values`, C# System.Text.Json (`--features complete`), Kotlin kotlinx.serialization, Swift Codable public structs.
+- **why not strict**: Fail-on-unknown-field decoders contradict NFR-05's additive-only schema evolution — an old client must tolerate fields added by a newer daemon, so unknown-field tolerance is the correct compatibility behavior, not a laxity.
+- **evidence**: `clients/sdk/quicktype-emit.json` (checked-in emit options), `clients/sdk/package-lock.json` (quicktype pinned at 23.0.171).
+- **preserved contracts** (invariance honored): `contract-sdk-generation-determinism`, `contract-adr0021-supersede-stdlib-preservation` — byte-identical generation at the pin and Go stdlib-only both hold; the wire-fixture round-trip gates the emit set.
 
-### `sim-server-language-choice`
+### `sim-server-language-choice` — decided: `alternative-sim-server-go`
 
-- **preserved contracts**: `contract-simulator-recorded-scenario-replay`
-- **invariance argument**: Either language produces the same deterministic replay of the recorded fixture on protocol/'s REST+WS surface; each SDK's observed sequence equals the fixture in either case. The observable outcome for every SDK is identical (contract-simulator-recorded-scenario-replay's expected_observable holds); the difference is only in the sim server's own toolchain and CI env cost.
-- **alternatives**:
-    - `alternative-sim-server-go` — Sim server is a small Go binary under protocol/simulator/server/ built by the existing Makefile.
-    - `alternative-sim-server-node` — Sim server is a small Node script under protocol/simulator/server/ built by an npm sub-workspace.
+- **decision**: Sim server is a small stdlib-only Go binary under protocol/simulator/server/ built by the existing Makefile.
+- **rationale**: The recording sources (fakecodex .jsonl replay, fakeagents scenarios) are Go-side, so the format's producer and replayer share a language; compat CI needs npm only for quicktype itself.
+- **evidence**: `protocol/simulator/server/main.go`.
+- **preserved contracts** (invariance honored): `contract-simulator-recorded-scenario-replay` — deterministic fixture replay is language-independent; each SDK's observed sequence equals the fixture.
 
 ## Constraints
 

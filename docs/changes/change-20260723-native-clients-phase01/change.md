@@ -54,9 +54,7 @@ members:
   path: changes/change-20260723-native-clients-phase01/verification.md
   required: true
 promotion: []
-unresolved_decisions:
-- quicktype-emit-options-choice
-- sim-server-language-choice
+unresolved_decisions: []
 tags:
 - native-clients
 - phase01
@@ -66,9 +64,8 @@ owners:
 - agent-grid-maintainers
 relations: []
 source_paths: []
-summary: plan-20260723-native-clients.md の Phase 0 (approval/question サーバー側ドメイン + capability negotiation
-  + auth 前提) と Phase 1 (typed schemas + deep links + 生成 SDK + simulator) の technical design;
-  11 accepted + 1 proposed (+1 rejected) ADR, 11 implementation contracts, 12 chunks.
+summary: plan-20260723-native-clients.md の Phase 0/1 technical design; 12 accepted (+1
+  rejected) ADR, 11 contracts, 12 chunks; 実装未決定 2 件は 2026-07-24 landing で closed。
 ---
 
 ## Summary
