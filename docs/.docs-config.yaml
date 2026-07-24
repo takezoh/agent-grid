@@ -7,3 +7,8 @@ lint_targets:
 - note/*.md
 sqlite_path: index/docs.sqlite
 default_change_profile: sdd@1
+evidence:
+  generated_paths:
+  - .run-dev/**
+  meta_paths:
+  - .gitignore

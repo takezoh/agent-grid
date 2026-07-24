@@ -47,3 +47,6 @@ mise.toml
 .zshrc
 .gitconfig
 .ripgreprc
+
+# Local development runtime state
+/.run-dev/
