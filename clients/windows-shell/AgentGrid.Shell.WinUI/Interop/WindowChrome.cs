@@ -139,6 +139,33 @@ public static class WindowChrome
     private static extern bool SetWindowPos(
         nint hwnd, nint insertAfter, int x, int y, int width, int height, uint flags);
 
+    /// <summary>
+    /// Current cursor X in physical screen px. Drag math must use this rather
+    /// than pointer-event coordinates: event positions are window-relative and
+    /// sampled before the window moved, so pairing them with the live window
+    /// position feeds the drag its own movement back (jitter/drift).
+    /// </summary>
+    public static bool TryGetCursorScreenX(out int x)
+    {
+        if (GetCursorPos(out var p))
+        {
+            x = p.X;
+            return true;
+        }
+        x = 0;
+        return false;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out Point point);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Point
+    {
+        public int X;
+        public int Y;
+    }
+
     [DllImport("gdi32.dll")]
     private static extern nint CreateRoundRectRgn(
         int left, int top, int right, int bottom, int widthEllipse, int heightEllipse);

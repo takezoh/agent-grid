@@ -462,7 +462,9 @@ public sealed partial class PanelWindow : Window
         {
             return; // headless / no HWND
         }
-        _dragStartScreenX = ScreenX(e);
+        if (!Interop.WindowChrome.TryGetCursorScreenX(out var cursorX))
+            return;
+        _dragStartScreenX = cursorX;
         _dragPressed = true;
     }
 
@@ -472,8 +474,12 @@ public sealed partial class PanelWindow : Window
             return;
         if (!e.GetCurrentPoint(null).Properties.IsLeftButtonPressed)
             return;
+        // The pointer event only wakes us up; position comes from the live
+        // cursor (physical screen px), immune to our own window movement.
+        if (!Interop.WindowChrome.TryGetCursorScreenX(out var cursorX))
+            return;
 
-        var delta = ScreenX(e) - _dragStartScreenX;
+        var delta = cursorX - _dragStartScreenX;
         if (!_dragging)
         {
             if (Math.Abs(delta) < DragThresholdDips * Scale())
@@ -528,20 +534,6 @@ public sealed partial class PanelWindow : Window
         catch
         {
             /* headless */
-        }
-    }
-
-    /// <summary>Pointer X in physical screen px (window pos + logical offset × scale).</summary>
-    private double ScreenX(PointerRoutedEventArgs e)
-    {
-        var logicalX = e.GetCurrentPoint(null).Position.X;
-        try
-        {
-            return AppWindow.Position.X + logicalX * Scale();
-        }
-        catch
-        {
-            return logicalX * Scale();
         }
     }
 
