@@ -7,7 +7,7 @@ role: implementation
 
 ## Approach
 
-Ground each component in already-existing repo surface: host/state's FC/IS core (`src/host/state/reduce_*.go`), host/proto's sum types (`src/host/proto/event.go`), server/api's stateless proxy (`src/server/api/wire.go`, `ticket.go`, `auth.go`), the already-scaffolded protocol/README.md + contracts/README.md file lists, and the existing test-harness profile mechanism (`scripts/run-verification-profile.sh` + `test-harness/profiles.json`). Phase 0 replaces the synchronous auto-accept in `src/host/runtime/subsystem/stream/event.go handleRequest` with a durable ApprovalRequest/QuestionRequest domain in host/state, adds a per-WS-connection ephemeral client-instance-id (extended into ticketStore) so `decided_by` has a named producer, closes the lifecycle with pending -> {resolved, expired, cancelled} including frame-teardown drain, pins two-client conflict to first-writer-wins under the existing single-writer Reduce loop, and constrains expiry policy to deny-by-default with no agent-side TTL extension. Phase 1 treats `protocol/*.schema.json` + `openapi.yaml` as the SSOT that hand-written Go and generated C#/Swift/Kotlin/TS clients validate against, adopts OpenAPI Generator as the pinned generator (recorded as an ADR superseding ADR-0021 for cross-language only; Go stays stdlib-only), stands up a three-part simulator (fixture + recorded stream + sim server) under `protocol/simulator/` as a governed extension of plan-20260723-repo-structure.md's planned-file table, and adds a new `compatibility` test-harness profile that fails closed on undeclared SDK surface usage. Deep-link URI shape adopts the analysis in plans/remote-control-mobile-session-deep-link.md verbatim; auth trust-boundary keeps same-host bearer+ticket unchanged and defers cross-host answering to multi-host-gateway.md's user-signed-op chain.
+Ground each component in already-existing repo surface: host/state's FC/IS core (`src/host/state/reduce_*.go`), host/proto's sum types (`src/host/proto/event.go`), server/api's stateless proxy (`src/server/api/wire.go`, `ticket.go`, `auth.go`), the already-scaffolded protocol/README.md + contracts/README.md file lists, and the existing test-harness profile mechanism (`scripts/run-verification-profile.sh` + `test-harness/profiles.json`). Phase 0 replaces the synchronous auto-accept in `src/host/runtime/subsystem/stream/event.go handleRequest` with a durable ApprovalRequest/QuestionRequest domain in host/state, adds a per-WS-connection ephemeral client-instance-id (extended into ticketStore) so `decided_by` has a named producer, closes the lifecycle with pending -> {resolved, expired, cancelled} including frame-teardown drain, pins two-client conflict to first-writer-wins under the existing single-writer Reduce loop, and constrains expiry policy to deny-by-default with no agent-side TTL extension. Phase 1 treats `protocol/*.schema.json` as the single message-type SoT with `openapi.yaml` as the REST-binding declaration (adr-20260724-protocol-message-schema-sot-rest-binding) — REST remains the carrier for bulk reads/bootstrap/commands while WS carries the event stream, and a future DataChannel transport binds the same types; typed C#/Swift/Kotlin/TS models are generated from the schemas via quicktype pinned in the npm lockfile with per-SDK thin transport hand-written (recorded as an ADR superseding ADR-0021 for cross-language only; Go stays stdlib-only), stands up a three-part simulator (fixture + recorded stream + sim server) under `protocol/simulator/` as a governed extension of plan-20260723-repo-structure.md's planned-file table, and adds a new `compatibility` test-harness profile that fails closed on undeclared SDK surface usage. Deep-link URI shape adopts the analysis in plans/remote-control-mobile-session-deep-link.md verbatim; auth trust-boundary keeps same-host bearer+ticket unchanged and defers cross-host answering to multi-host-gateway.md's user-signed-op chain.
 
 ## Components
 
@@ -86,7 +86,7 @@ _Grounding rationale_: The three cited ADRs were read in full: ADR-0025 separate
 
 ### `component-protocol-schema-repo` — protocol/ schema source of truth
 
-_Responsibility_: Hold the versioned, tool-consumable wire contracts (openapi.yaml, events/commands/capabilities/deep-links/notifications.schema.json) that every generated SDK and the hand-written Go/TS wire types round-trip-validate against.
+_Responsibility_: Hold the versioned, tool-consumable wire contracts — the message-type schemas (events/commands/capabilities/deep-links/notifications.schema.json) as the normative SoT plus openapi.yaml as the REST-binding declaration — that every generated SDK and the hand-written Go/TS wire types round-trip-validate against.
 
 - **kind**: existing
 - **owner**: contract layer maintainers (new cross-cutting ownership)
@@ -121,17 +121,17 @@ _Grounding rationale_: contracts/README.md already exists with the exact seven p
 
 ### `component-sdk-generation-pipeline` — Generated C#/Swift/Kotlin/TypeScript SDK pipeline
 
-_Responsibility_: Generate typed transport/message/validation/version-negotiation client code for four target languages from protocol/*, deterministically, with the Go-side output (if any) staying stdlib-only.
+_Responsibility_: Generate typed models + serialization for four target languages from protocol/*.schema.json via pinned quicktype, deterministically, and own the hand-written per-language thin transport (REST calls per openapi.yaml, WS framing, reconnect) — with the Go-side output (if any) staying stdlib-only.
 
 - **kind**: planned
 - **owner**: contract layer maintainers, consumed by per-platform teams
 - **paths**: `clients/sdk/csharp`, `clients/sdk/swift`, `clients/sdk/kotlin`, `clients/sdk/ts`, `protocol/README.md`, `plans/plan-20260723-repo-structure.md`
 - **integration points**:
-    - protocol/*.schema.json + openapi.yaml as OpenAPI Generator input
+    - protocol/*.schema.json as quicktype input; openapi.yaml as the REST-binding reference for the hand-written transport
     - clients/windows-shell/AgentGrid.Shell.Core/GatewayClient/ as first C# consumer (plan-20260723-windows-shell-design.md §3.1)
     - clients/ui/src/wire/* as existing hand-written TS precedent this may incrementally replace
 - **test seams**: `per-language generated-client unit tests driven against component-simulator`, `compatibility CI profile group`
-- **accepted ADR refs**: `adr-20260624-0021-frontend-wire-types-hand-written`, `adr-20260724-protocol-cross-language-sdks-supersedes-0021`, `adr-20260724-sdk-codegen-openapi-generator`
+- **accepted ADR refs**: `adr-20260624-0021-frontend-wire-types-hand-written`, `adr-20260724-protocol-cross-language-sdks-supersedes-0021`, `adr-20260724-protocol-message-schema-sot-rest-binding`, `adr-20260724-sdk-codegen-quicktype-typegen`
 - **implements contracts**: `contract-sdk-generation-determinism`, `contract-adr0021-supersede-stdlib-preservation`
 - **depends on**: `component-protocol-schema-repo`
 
@@ -361,25 +361,25 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
 **Failure semantics**
 - `failure-capability-degraded` — class: capability declared by client but not by daemon; source=environmental; outcome: capability is disabled/hidden in the client UI; associated commands are not issued; recovery=degrade (degrades)
 
-### `contract-sdk-generation-determinism` — Byte-identical generated output for identical protocol/ input across the four target languages, using OpenAPI Generator pinned to a specific version.
+### `contract-sdk-generation-determinism` — Byte-identical generated output for identical protocol/ input across the four target languages, using quicktype pinned via the npm lockfile.
 
 - **dimension**: `integration_contract`
 - **owner component**: `component-sdk-generation-pipeline`
 - **requirements**: `FR-P1-02`, `NFR-01`
-- **units**: `u-p1-02-sdk-codegen-openapi-generator-pinned`
-- **ADRs**: `adr-20260724-sdk-codegen-openapi-generator`, `adr-20260724-protocol-cross-language-sdks-supersedes-0021`
+- **units**: `u-p1-02-sdk-codegen-quicktype-pinned`
+- **ADRs**: `adr-20260724-sdk-codegen-quicktype-typegen`, `adr-20260724-protocol-message-schema-sot-rest-binding`, `adr-20260724-protocol-cross-language-sdks-supersedes-0021`
 
 **Invariants**
-- For every commit SHA in protocol/, the SHA256 of each generated SDK's file tree is a deterministic function of the pinned generator version and the protocol/ commit.
+- For every commit SHA in protocol/, the SHA256 of each generated SDK's model tree is a deterministic function of the pinned generator version and the protocol/ commit.
 
 **Decision rules**
-- `decision-sdk-openapi-generator-pinned` (total, determinate) — SDK generation is invoked for any of C#/Swift/Kotlin/TS. → OpenAPI Generator is invoked at a pinned version (checked into the compatibility profile) with a pinned template set; no wall-clock, UUID, or unpinned transitive dep may appear in output.
+- `decision-sdk-quicktype-pinned` (total, determinate) — SDK model generation is invoked for any of C#/Swift/Kotlin/TS. → quicktype is invoked at the npm-lockfile-pinned version with checked-in per-language emit options; no wall-clock, UUID, or unpinned transitive dep may appear in output.
 
 **Observable effects**
-- `observable-sdk-byte-identical-output` (scope=global) — Two independent generation runs against the same protocol/ git commit and the same pinned OpenAPI Generator version produce byte-identical files for every generated-SDK target.
+- `observable-sdk-byte-identical-output` (scope=global) — Two independent generation runs against the same protocol/ git commit and the same pinned quicktype version produce byte-identical files for every generated-SDK target.
 
 **Failure semantics**
-- `failure-sdk-unpinned-drift` — class: unpinned transitive template-engine version or embedded generation timestamp; source=internal_violation; outcome: compatibility CI fails: SHA256 diff between two runs is non-zero; recovery=fail_fast (preserves)
+- `failure-sdk-unpinned-drift` — class: unpinned transitive dependency version or embedded generation timestamp; source=internal_violation; outcome: compatibility CI fails: SHA256 diff between two runs is non-zero; recovery=fail_fast (preserves)
 
 ### `contract-simulator-recorded-scenario-replay` — Every generated SDK observes the identical typed event/command sequence when driven against the simulator's replay of one recorded scenario, from protocol/simulator/ (a governed extension of plan-20260723-repo-structure.md).
 
@@ -471,7 +471,7 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
 - **dimension**: `migration_compatibility`
 - **owner component**: `component-sdk-generation-pipeline`
 - **requirements**: `FR-P1-10`
-- **units**: `u-p1-02-sdk-codegen-openapi-generator-pinned`
+- **units**: `u-p1-02-sdk-codegen-quicktype-pinned`
 - **ADRs**: `adr-20260724-protocol-cross-language-sdks-supersedes-0021`
 
 **Invariants**
@@ -665,28 +665,29 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
     - Round-trip test: src/server/api/wire_fixtures_test.go validates existing fixtures against protocol/*.schema.json.
 - **contracts**: `contract-approval-question-envelope`, `contract-deep-link-uri-shape`, `contract-capability-negotiation-policy`, `contract-reconnect-authoritative-resubscribe`
 
-### `chunk-p1-02-sdk-codegen-openapi-generator`
+### `chunk-p1-02-sdk-codegen-quicktype`
 
 - **depends on**: `chunk-p1-01-protocol-schemas`
 - **components**: `component-sdk-generation-pipeline`
 
-#### unit `u-p1-02-sdk-codegen-openapi-generator-pinned`
+#### unit `u-p1-02-sdk-codegen-quicktype-pinned`
 
-- **objective**: Stand up the OpenAPI Generator pipeline pinned by version, producing C#/Swift/Kotlin/TypeScript SDK skeletons under clients/sdk/{csharp,swift,kotlin,ts}. Each SDK carries only transport + typed messages + validation + version negotiation; no presentation behavior. Assert Go-side stdlib-only survives the pipeline.
-- **output**: Generator config (openapi-generator config + pinned templates), Makefile targets, clients/sdk/{csharp,swift,kotlin,ts} initial generated trees + hand-written cover files as needed; CI wiring in .github/workflows/ci.yml + test-harness/profiles.json.
-- **tool guidance**: Pin OpenAPI Generator by exact version in the compatibility profile; forbid any generator invocation outside the pinned wrapper script. Do NOT run generation as part of `go test`; keep it under the compatibility profile only.
+- **objective**: Stand up the quicktype model-generation pipeline pinned via the npm lockfile, producing typed models + serializers for C#/Swift/Kotlin/TypeScript under clients/sdk/{csharp,swift,kotlin,ts}, plus the hand-written thin transport skeleton per language (REST calls per openapi.yaml, WS framing). Each SDK carries only transport + typed messages + validation + version negotiation; no presentation behavior. Assert Go-side stdlib-only survives the pipeline.
+- **output**: Generator config (scripts/generate-sdks.sh + checked-in per-language quicktype emit options; quicktype pinned in the npm lockfile), Makefile targets, clients/sdk/{csharp,swift,kotlin,ts} generated model trees + hand-written transport files; CI wiring in .github/workflows/ci.yml + test-harness/profiles.json.
+- **tool guidance**: Pin quicktype by exact version in the npm lockfile and record it in the compatibility profile; forbid any generator invocation outside the pinned wrapper script. Do NOT run generation as part of `go test`; keep it under the compatibility profile only.
 - **boundaries**: Generation and CI plumbing only. Existing clients/ui hand-written wire migration lives in u-p1-05.
-- **files touched**: `clients/sdk/csharp/`, `clients/sdk/swift/`, `clients/sdk/kotlin/`, `clients/sdk/ts/`, `Makefile`, `.github/workflows/ci.yml`, `test-harness/profiles.json`, `scripts/run-verification-profile.sh`
+- **files touched**: `clients/sdk/csharp/`, `clients/sdk/swift/`, `clients/sdk/kotlin/`, `clients/sdk/ts/`, `Makefile`, `.github/workflows/ci.yml`, `test-harness/profiles.json`, `scripts/run-verification-profile.sh`, `scripts/generate-sdks.sh`
 - **acceptance**:
     - scripts/run-verification-profile.sh pr compatibility exits zero on a clean tree.
     - make lint passes; Go-side stdlib-only depguard rule still enforces (no third-party Go imports from generated helpers).
-    - Two independent generation runs against the same protocol/ commit produce byte-identical output for all four SDK trees.
+    - Two independent generation runs against the same protocol/ commit produce byte-identical output for all four SDK model trees.
+    - Per-language serializer round-trip against the wire fixtures passes (Codable / kotlinx.serialization / System.Text.Json / TS JSON fidelity spot-check).
 - **contracts**: `contract-sdk-generation-determinism`, `contract-adr0021-supersede-stdlib-preservation`
-- **implementation decisions remaining**: `openapi-generator-template-set-choice`
+- **implementation decisions remaining**: `quicktype-emit-options-choice`
 
 ### `chunk-p1-03-simulator`
 
-- **depends on**: `chunk-p1-01-protocol-schemas`, `chunk-p1-02-sdk-codegen-openapi-generator`
+- **depends on**: `chunk-p1-01-protocol-schemas`, `chunk-p1-02-sdk-codegen-quicktype`
 - **components**: `component-simulator`
 
 #### unit `u-p1-03-simulator-fixtures-and-server`
@@ -704,7 +705,7 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
 
 ### `chunk-p1-04-compatibility-ci-gate`
 
-- **depends on**: `chunk-p1-02-sdk-codegen-openapi-generator`, `chunk-p1-03-simulator`
+- **depends on**: `chunk-p1-02-sdk-codegen-quicktype`, `chunk-p1-03-simulator`
 - **components**: `component-compatibility-ci-gate`
 
 #### unit `u-p1-04-compatibility-ci-profile`
@@ -721,7 +722,7 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
 
 ### `chunk-p1-05-clients-ui-hosted-mode-prep`
 
-- **depends on**: `chunk-p1-02-sdk-codegen-openapi-generator`
+- **depends on**: `chunk-p1-02-sdk-codegen-quicktype`
 - **components**: `component-ts-wire-migration-precedent`
 
 #### unit `u-p1-05-clients-ui-hosted-mode-prep`
@@ -738,13 +739,13 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
 
 ## Implementation decisions remaining (invariance-witnessed)
 
-### `openapi-generator-template-set-choice`
+### `quicktype-emit-options-choice`
 
 - **preserved contracts**: `contract-sdk-generation-determinism`, `contract-adr0021-supersede-stdlib-preservation`
-- **invariance argument**: Either template choice produces byte-identical output for identical schema input (satisfying contract-sdk-generation-determinism) and neither introduces a non-stdlib Go dependency (satisfying contract-adr0021-supersede-stdlib-preservation); the observable difference is code-review noise (file count / helper surface), not typed-behavior difference.
+- **invariance argument**: Either emit-option set produces byte-identical output for identical schema input at the pinned quicktype version (satisfying contract-sdk-generation-determinism) and neither introduces a non-stdlib Go dependency (satisfying contract-adr0021-supersede-stdlib-preservation); the observable difference is per-language serializer idiom (helper surface / annotation style), not typed-behavior difference, and each option set must pass the same wire-fixture round-trip.
 - **alternatives**:
-    - `alternative-oapigen-default-templates` — Use OpenAPI Generator's default per-language templates as shipped.
-    - `alternative-oapigen-minimal-templates` — Use a minimal template subset that only emits transport + typed messages + validation + version-negotiation code, stripping presentation-layer helpers.
+    - `alternative-quicktype-default-emit` — Use quicktype's default per-language emit options (e.g. Codable for Swift, kotlinx.serialization for Kotlin, System.Text.Json for C#).
+    - `alternative-quicktype-strict-emit` — Use stricter emit options (explicit optional handling, fail-on-unknown-field decoders) where the target language supports them, at the cost of more verbose generated code.
 
 ### `sim-server-language-choice`
 

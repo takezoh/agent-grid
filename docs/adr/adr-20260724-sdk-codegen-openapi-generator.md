@@ -1,42 +1,49 @@
 ---
 id: adr-20260724-sdk-codegen-openapi-generator
 kind: adr
-title: 'SDK codegen adopts OpenAPI Generator with pinned templates for C#/Swift/Kotlin/TypeScript'
-status: proposed
-created: 2026-07-24
-summary: 'SDK codegen adopts OpenAPI Generator with pinned templates for C#/Swift/Kotlin/TypeScript'
+title: SDK codegen adopts OpenAPI Generator with pinned templates for C#/Swift/Kotlin/TypeScript
+status: rejected
+created: '2026-07-24'
+summary: SDK codegen adopts OpenAPI Generator with pinned templates for C#/Swift/Kotlin/TypeScript
 decision_makers:
-  - agent-grid-maintainers
-  - product-owner
+- agent-grid-maintainers
+- product-owner
 consulted:
-  - runtime-maintainers
-  - server-api-maintainers
-  - contract-layer-maintainers
+- runtime-maintainers
+- server-api-maintainers
+- contract-layer-maintainers
 informed:
-  - agent-grid-users
+- agent-grid-users
 tags:
-  - native-clients
-  - phase0-1
+- native-clients
+- phase0-1
 owners:
-  - agent-grid-maintainers
+- agent-grid-maintainers
 relations:
-  - type: originatedFrom
-    target: change-20260723-native-clients-phase01
-source_paths:
-  []
+- {type: originatedFrom, target: change-20260723-native-clients-phase01}
+source_paths: []
 consequences:
   positive:
-    - Single generator covers both REST and event/command surfaces without stitching two tools.
-    - Multi-language coverage matches the four targets without additional per-language plumbing.
+  - Single generator covers both REST and event/command surfaces without stitching
+    two tools.
+  - Multi-language coverage matches the four targets without additional per-language
+    plumbing.
   negative:
-    - Template quality varies per language; the pinned template set must be reviewed once and updated only under the compatibility profile.
-    - 'OpenAPI Generator''s Java runtime is added to the SDK generation environment (not to the shipped clients).'
+  - Template quality varies per language; the pinned template set must be reviewed
+    once and updated only under the compatibility profile.
+  - OpenAPI Generator's Java runtime is added to the SDK generation environment (not
+    to the shipped clients).
   neutral:
-    - 'quicktype and hand-written codegen remain viable fallbacks if OpenAPI Generator''s output diverges from the schema in practice; the trade-off record is left in this ADR for a future revisit.'
+  - quicktype and hand-written codegen remain viable fallbacks if OpenAPI Generator's
+    output diverges from the schema in practice; the trade-off record is left in this
+    ADR for a future revisit.
+updated: '2026-07-24'
 ---
 
 
 # SDK codegen adopts OpenAPI Generator with pinned templates for C#/Swift/Kotlin/TypeScript
+
+> **Rejected 2026-07-24.** Superseded by `adr-20260724-sdk-codegen-quicktype-typegen` after `adr-20260724-protocol-message-schema-sot-rest-binding` re-layered the contract (message schemas = SoT, REST = binding annex), which removed the single-generator-input premise this decision rested on and with it the justification for a Java-based toolchain.
 
 ## Context
 

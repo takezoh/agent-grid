@@ -230,7 +230,7 @@ role: verification
 **Witnesses**
 
 - `witness-sdk-determinism-normal` [normal] risks: (normal)
-    - **precondition**: protocol/ HEAD is commit-X; pinned OpenAPI Generator version-Y.
+    - **precondition**: protocol/ HEAD is commit-X; pinned quicktype version-Y (npm lockfile).
     - **stimulus**: Run the generation twice from a clean workspace.
     - **expected**: The two runs produce byte-identical file trees for all four SDK targets.
     - **forbidden**: A timestamp or UUID appears in output.; A transitive dep version differs between runs.

@@ -16,8 +16,8 @@ Give agent-grid one platform-independent, contract-first wire layer for sessions
 - Phase 0: terminology docs pass separating runtime layers (host/*, server/*) from user-facing clients (clients/*)
 - Phase 0: capability negotiation and compatibility-policy skeleton
 - Phase 0: joint decision (with multi-host-gateway.md) on the auth/trust boundary for approval/question answering, scoped to what stays local-bearer-token-valid vs what is deferred to Phase R
-- Phase 1: protocol/ as the normative schema source (openapi.yaml, events/commands/capabilities/deep-links/notifications.schema.json)
-- Phase 1: generated C#/Swift/Kotlin/TypeScript clients via OpenAPI Generator; a new ADR superseding ADR-0021 for cross-language generation only (Go stays stdlib-only)
+- Phase 1: protocol/*.schema.json (events/commands/capabilities/deep-links/notifications) as the normative message-type SoT, with openapi.yaml as the REST-binding declaration (not a generator input)
+- Phase 1: typed C#/Swift/Kotlin/TypeScript SDKs — models generated via quicktype from the JSON Schemas, thin transport hand-written per language; a new ADR superseding ADR-0021 for cross-language generation only (Go stays stdlib-only)
 - Phase 1: simulator (deterministic fixtures + recorded event stream + simulation server) under protocol/simulator/ as a governed extension of plan-20260723-repo-structure.md
 - Phase 1: compatibility CI gate rejecting protocol drift and undocumented generated-SDK behavior
 - Phase 1: deep-links/handoff schema adopting the URI shape recorded in plans/remote-control-mobile-session-deep-link.md
@@ -90,11 +90,11 @@ When the server API mints a WebSocket ticket (server/api/ticket.go ticketStore.m
 
 ### FR-P1-01 (ubiquitous, must)
 
-protocol/ shall contain versioned wire-contract schemas (openapi.yaml, events.schema.json, commands.schema.json, capabilities.schema.json, deep-links.schema.json, notifications.schema.json) as the single normative source for every generated client; hand-written Go wire types in src/host/proto/ shall round-trip-validate against these schemas.
+protocol/ shall contain versioned wire-contract artifacts: message-type schemas (events.schema.json, commands.schema.json, capabilities.schema.json, deep-links.schema.json, notifications.schema.json) as the single normative source for every generated client, and openapi.yaml declaring the REST binding of those types; hand-written Go wire types in src/host/proto/ shall round-trip-validate against the message schemas.
 
 ### FR-P1-02 (event_driven, must)
 
-When protocol/*.schema.json or openapi.yaml changes, running the pinned generator (OpenAPI Generator, version pinned in the compatibility profile) for C#, Swift, Kotlin, and TypeScript against identical schema input shall produce byte-identical output across CI runs and developer machines.
+When protocol/*.schema.json changes, running the pinned generator (quicktype, version pinned via the npm lockfile and recorded in the compatibility profile) for C#, Swift, Kotlin, and TypeScript against identical schema input shall produce byte-identical typed-model output across CI runs and developer machines.
 
 ### FR-P1-03 (event_driven, must)
 
@@ -225,8 +225,8 @@ _Measurement_: reduce_teardown_test.go asserts len(state.PendingApprovals) == 0 
 | `FR-P0-10` | `adr-20260724-approval-answerer-identity-per-ws-instance` |
 | `FR-P0-11` | `adr-20260724-approval-lifecycle-teardown-cancel` |
 | `FR-P0-12` | `adr-20260724-approval-answerer-identity-per-ws-instance` |
-| `FR-P1-01` | `adr-20260724-protocol-cross-language-sdks-supersedes-0021` |
-| `FR-P1-02` | `adr-20260724-sdk-codegen-openapi-generator` |
+| `FR-P1-01` | `adr-20260724-protocol-cross-language-sdks-supersedes-0021`, `adr-20260724-protocol-message-schema-sot-rest-binding` |
+| `FR-P1-02` | `adr-20260724-sdk-codegen-quicktype-typegen` |
 | `FR-P1-03` | `adr-20260724-capability-negotiation-bundled-remote-two-axis` |
 | `FR-P1-04` | `adr-20260724-capability-negotiation-bundled-remote-two-axis` |
 | `FR-P1-08` | `adr-20260724-simulator-under-protocol-directory` |

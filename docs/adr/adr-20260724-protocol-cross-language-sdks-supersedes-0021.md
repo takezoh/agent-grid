@@ -29,7 +29,7 @@ consequences:
     - Contract SoT is a single tool-consumable schema; new languages come at generation cost, not hand-write cost.
     - Go-side stdlib-only property is preserved by the same lint rule already enforcing it.
   negative:
-    - Adds an OpenAPI-shaped schema authoring skill to the maintainer set.
+    - Adds a JSON Schema (2020-12) authoring skill to the maintainer set.
     - Generated code review becomes a diff-review discipline; tool version drift can hide meaningful contract change (mitigated by NFR-01 determinism gate).
   neutral:
     - ADR-0021 is marked superseded (status=superseded) with this ADR as supersededBy target; hand-written TS is a live migration source, not deleted immediately.
@@ -47,7 +47,7 @@ ADR-0021 accepted hand-written wire types for the browser TS client on the groun
 ## Decision
 
 {% decision %}
-A new accepted ADR supersedes ADR-0021 for cross-language generated clients only. Wire schema SoT is protocol/*.schema.json + openapi.yaml; C#/Swift/Kotlin/TS clients are generated from it. The Go-side rule (src/host/proto and any Go-side generated helper depend only on the Go standard library) survives verbatim under this ADR and is enforced by the existing stdlib-only depguard/build gate. The browser TS client's migration from hand-written wire (clients/ui/src/wire/*) to the generated TS SDK is incremental and outside this ADR's cutover requirement.
+A new accepted ADR supersedes ADR-0021 for cross-language generated clients only. Wire schema SoT is protocol/*.schema.json, with openapi.yaml declaring the REST binding of those types (adr-20260724-protocol-message-schema-sot-rest-binding); C#/Swift/Kotlin/TS typed models are generated from the schemas. The Go-side rule (src/host/proto and any Go-side generated helper depend only on the Go standard library) survives verbatim under this ADR and is enforced by the existing stdlib-only depguard/build gate. The browser TS client's migration from hand-written wire (clients/ui/src/wire/*) to the generated TS SDK is incremental and outside this ADR's cutover requirement.
 {% /decision %}
 
 ## Consequences
@@ -58,7 +58,7 @@ A new accepted ADR supersedes ADR-0021 for cross-language generated clients only
 {% /consequence %}
 
 {% consequence kind="negative" %}
-- Adds an OpenAPI-shaped schema authoring skill to the maintainer set.
+- Adds a JSON Schema (2020-12) authoring skill to the maintainer set.
 - Generated code review becomes a diff-review discipline; tool version drift can hide meaningful contract change (mitigated by NFR-01 determinism gate).
 {% /consequence %}
 

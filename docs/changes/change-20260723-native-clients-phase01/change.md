@@ -16,9 +16,9 @@ outcomes:
   cancel/teardown, and first-writer-wins two-client conflict resolution
 - Phase 0 per-WS-connection ephemeral client-instance-id giving `decided_by` a named
   producer without preempting multi-host-gateway.md's Phase R identity chain
-- Phase 1 protocol/ as normative wire SoT (OpenAPI 3.1 + JSON Schema 2020-12), C#/Swift/Kotlin/TS
-  SDK generation via OpenAPI Generator, simulator, and fail-closed compatibility CI
-  gate
+- Phase 1 protocol/*.schema.json as normative message SoT (JSON Schema 2020-12) with openapi.yaml
+  as REST-binding declaration; typed C#/Swift/Kotlin/TS SDKs via pinned quicktype model generation
+  + hand-written thin transport; simulator; fail-closed compatibility CI gate
 scope:
 - src/host/state (approval/question durable domain + reducers + reap)
 - src/host/proto (Evt*/Cmd*/Resp* wire types)
@@ -55,7 +55,7 @@ members:
   required: true
 promotion: []
 unresolved_decisions:
-- openapi-generator-template-set-choice
+- quicktype-emit-options-choice
 - sim-server-language-choice
 tags:
 - native-clients
@@ -68,14 +68,14 @@ relations: []
 source_paths: []
 summary: plan-20260723-native-clients.md の Phase 0 (approval/question サーバー側ドメイン + capability negotiation
   + auth 前提) と Phase 1 (typed schemas + deep links + 生成 SDK + simulator) の technical design;
-  8 accepted + 1 proposed ADR, 11 implementation contracts, 12 chunks.
+  11 accepted + 1 proposed (+1 rejected) ADR, 11 implementation contracts, 12 chunks.
 ---
 
 ## Summary
 
 Phase 0 replaces the synchronous auto-accept in `src/host/runtime/subsystem/stream/event.go handleRequest` with a durable `ApprovalRequest` / `QuestionRequest` state domain in `src/host/state/`. Two-client conflict resolves as first-committed-wins under the existing single-writer Reduce loop; expiry defaults to deny with the policy captured at creation (TOCTOU-free); frame/session teardown transitions pending state to cancelled and drains held driver JSON-RPC requests. A per-WS-connection ephemeral client-instance-id minted by an extended `ticketStore` gives `decided_by` a named producer without touching the bearer scheme, deferring cross-host identity to `multi-host-gateway.md` §6.2.
 
-Phase 1 turns `protocol/*.schema.json + openapi.yaml` into the normative wire SoT, generates C# / Swift / Kotlin / TypeScript SDKs from it via a pinned OpenAPI Generator, stands up a three-part simulator (fixture + recorded stream + sim server) under `protocol/simulator/`, and wires a new `compatibility` `test-harness/profiles.json` group that fails closed on undeclared SDK surface, inconclusive scans, and new-SDK targets skipping the shared recorded-scenario suite. Deep-link URI shape adopts `plans/remote-control-mobile-session-deep-link.md` verbatim.
+Phase 1 makes `protocol/*.schema.json` the single normative message SoT with `openapi.yaml` as the REST-binding declaration (REST carries bulk reads/bootstrap/commands; WS carries the event stream; a future DataChannel transport binds the same types). Typed C# / Swift / Kotlin / TypeScript models are generated via quicktype pinned in the npm lockfile, with per-SDK thin transport hand-written. A three-part simulator (fixture + recorded stream + sim server) lands under `protocol/simulator/`, and a new `compatibility` `test-harness/profiles.json` group fails closed on undeclared SDK surface, inconclusive scans, and new-SDK targets skipping the shared recorded-scenario suite. Deep-link URI shape adopts `plans/remote-control-mobile-session-deep-link.md` verbatim.
 
 ## Related documents
 
