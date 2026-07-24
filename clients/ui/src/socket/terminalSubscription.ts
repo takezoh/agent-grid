@@ -33,9 +33,13 @@ type ControllerOptions = {
   onDeliveryTimeout?: () => void;
   clientInstanceID?: string;
   onAuthoritativeTerminal?: (correlation: PublicCorrelation) => void;
+  // Interval between lease-renewal `ld` re-sends. Daemon-side lease expiry is
+  // 12s (ADR terminal-lifecycle-bounds); 4s gives three heartbeats of margin.
+  renewalIntervalMs?: number;
 };
 
 const defaultCooldown = () => new Promise<void>((resolve) => setTimeout(resolve, CAP_MS));
+const RENEWAL_INTERVAL_MS = 4000;
 
 export class TerminalSubscriptionController {
   private desired: {
@@ -63,6 +67,13 @@ export class TerminalSubscriptionController {
   private clientRevision = 0;
   private observation: TransportObservation | null = null;
   private observationTimer: ReturnType<typeof setTimeout> | null = null;
+  // Lease renewal: daemon expires our binding after 12s of no fresh `ld`. We
+  // re-send `ld(desired=true)` with a fresh revision every 4s while phase is
+  // "confirmed" so the subscription outlives idle periods (ADR
+  // terminal-lifecycle-bounds: "renewal 4s, expiry 12s").
+  private renewalTimer: ReturnType<typeof setTimeout> | null = null;
+  private renewalPending = false;
+  private readonly renewalIntervalMs: number;
 
   constructor(
     private readonly transport: TerminalSubscriptionTransport,
@@ -73,6 +84,7 @@ export class TerminalSubscriptionController {
     this.onDeliveryTimeout = options.onDeliveryTimeout;
     this.clientInstanceID = options.clientInstanceID ?? makeClientInstanceID();
     this.onAuthoritativeTerminal = options.onAuthoritativeTerminal;
+    this.renewalIntervalMs = options.renewalIntervalMs ?? RENEWAL_INTERVAL_MS;
   }
 
   acquire(sessionId: string): TerminalSubscriptionLease {
@@ -98,6 +110,7 @@ export class TerminalSubscriptionController {
           this.ownershipEpoch += 1;
           this.lastError = null;
           this.attempt = 0;
+          this.clearRenewalTimer();
           this.publish();
           this.schedule();
         });
@@ -121,6 +134,7 @@ export class TerminalSubscriptionController {
     this.connectionGeneration += 1;
     this.clientRevision += 1;
     this.clearObservationTimer();
+    this.clearRenewalTimer();
     this.observation = null;
     this.wireSessionId = null;
     this.wireGeometry = null;
@@ -139,6 +153,7 @@ export class TerminalSubscriptionController {
     this.connected = false;
     this.connectionEpoch += 1;
     this.clearObservationTimer();
+    this.clearRenewalTimer();
     if (this.observation?.kind === "observing") {
       this.observation = reduceTransportObservation(this.observation, { type: "socket_close" });
     }
@@ -177,6 +192,17 @@ export class TerminalSubscriptionController {
     if (next.kind === "observed_remote") this.clearObservationTimer();
     this.observation = next;
     if (next.kind === "observed_remote") this.onAuthoritativeTerminal?.(correlation);
+  }
+
+  /** Force an immediate lease renewal — used as the `visibilitychange`
+   *  safety net so a page that returns to visibility after being throttled
+   *  can recover a subscription silently expired by the daemon. No-op unless
+   *  a confirmed subscription exists. */
+  forceRenewal(): void {
+    if (this.phase !== "confirmed") return;
+    this.clearRenewalTimer();
+    this.renewalPending = true;
+    this.schedule();
   }
 
   private publish(): void {
@@ -227,15 +253,18 @@ export class TerminalSubscriptionController {
         this.phase = "idle";
         this.lastError = null;
         this.publish();
+        this.clearRenewalTimer();
         return;
       }
       const geometry = this.desired?.geometry ?? null;
       if (!geometry) {
         this.phase = "idle";
         this.publish();
+        this.clearRenewalTimer();
         return;
       }
       if (
+        !this.renewalPending &&
         this.wireSessionId === desiredId &&
         this.wireGeometry?.cols === geometry.cols &&
         this.wireGeometry?.rows === geometry.rows
@@ -243,11 +272,13 @@ export class TerminalSubscriptionController {
         this.phase = "confirmed";
         this.lastError = null;
         this.publish();
+        this.scheduleRenewal();
         return;
       }
       if (this.phase === "blocked") return;
 
       const epoch = this.connectionEpoch;
+      this.renewalPending = false;
       this.phase = "subscribing";
       this.publish();
       this.beginObservation();
@@ -294,6 +325,7 @@ export class TerminalSubscriptionController {
         this.attempt = 0;
         this.lastError = null;
         this.publish();
+        this.scheduleRenewal();
         continue;
       }
       if (outcome.lastError === "connection-closed") {
@@ -366,6 +398,25 @@ export class TerminalSubscriptionController {
   private clearObservationTimer(): void {
     if (this.observationTimer !== null) clearTimeout(this.observationTimer);
     this.observationTimer = null;
+  }
+
+  private scheduleRenewal(): void {
+    this.clearRenewalTimer();
+    if (!this.connected || !this.desired) return;
+    this.renewalTimer = setTimeout(() => {
+      this.renewalTimer = null;
+      // Only renew if still confirmed on the same session; a raced
+      // release/switch/close would have cleared the timer already, but the
+      // check keeps this defensive.
+      if (this.phase !== "confirmed" || !this.desired) return;
+      this.renewalPending = true;
+      this.schedule();
+    }, this.renewalIntervalMs);
+  }
+
+  private clearRenewalTimer(): void {
+    if (this.renewalTimer !== null) clearTimeout(this.renewalTimer);
+    this.renewalTimer = null;
   }
 
   private async waitForCooldownOrChange(): Promise<void> {

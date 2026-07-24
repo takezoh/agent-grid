@@ -69,6 +69,25 @@ export function App() {
     return () => conn.close();
   }, [conn]);
 
+  // visibilitychange safety net: the daemon expires terminal leases after
+  // 12s (ADR terminal-lifecycle-bounds). The 4s renewal timer inside
+  // TerminalSubscriptionController normally keeps the lease alive, but
+  // browsers throttle setTimeout in hidden tabs and a throttled renewal
+  // can miss the deadline — the tab then returns to visibility with a
+  // silently dead subscription. Firing a forced renewal on visible
+  // guarantees a fresh `ld` is sent (which the daemon accepts, replaces
+  // the binding, and resets the TTL), so output resumes without the user
+  // having to switch sessions to trigger a fresh subscribe.
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === "visible") {
+        conn.forceTerminalRenewal();
+      }
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, [conn]);
+
   // Hosted mode (Electron Workspace): 1-window-1-session view.
   // Token comes from preload (never URL); sidebar/new-session chrome is suppressed.
   useEffect(() => {

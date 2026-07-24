@@ -227,4 +227,134 @@ describe("TerminalSubscriptionController", () => {
       vi.useRealTimers();
     }
   });
+
+  // Lease renewal — ADR terminal-lifecycle-bounds mandates a 4s renewal cadence
+  // so daemon-side 12s expiry never fires under steady-state operation. Without
+  // it, TerminalRelay silently unsubscribes and output stops flowing.
+  it("renews the confirmed subscription every 4s to keep the daemon lease alive", async () => {
+    vi.useFakeTimers();
+    try {
+      const { transport } = fakeTransport();
+      const controller = new TerminalSubscriptionController(transport);
+
+      controller.onOpen();
+      controller.acquire("s1");
+      controller.updateGeometry("s1", 120, 40);
+      await flush();
+      expect(controller.snapshot().phase).toBe("confirmed");
+      expect(transport.subscribe).toHaveBeenCalledTimes(1);
+
+      // Renewal must fire every 4s while phase="confirmed" — same session, same
+      // geometry, but the daemon needs a fresh correlation to reset the 12s TTL.
+      vi.advanceTimersByTime(4000);
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(2);
+      expect(transport.subscribe).toHaveBeenLastCalledWith("s1", 120, 40);
+      expect(controller.snapshot().phase).toBe("confirmed");
+
+      vi.advanceTimersByTime(4000);
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(3);
+
+      // Third renewal to prove the loop is unbounded, not one-shot.
+      vi.advanceTimersByTime(4000);
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops the renewal timer when the last lease is released", async () => {
+    vi.useFakeTimers();
+    try {
+      const { transport } = fakeTransport();
+      const controller = new TerminalSubscriptionController(transport);
+      controller.onOpen();
+      const lease = controller.acquire("s1");
+      controller.updateGeometry("s1", 120, 40);
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(1);
+
+      lease.release();
+      await flush();
+
+      vi.advanceTimersByTime(20000);
+      await flush();
+      // No further subscribe calls after the release — renewal must not resurrect
+      // a released subscription.
+      expect(transport.subscribe).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops the renewal timer on socket close and resumes after re-open", async () => {
+    vi.useFakeTimers();
+    try {
+      const { transport } = fakeTransport();
+      const controller = new TerminalSubscriptionController(transport);
+      controller.onOpen();
+      controller.acquire("s1");
+      controller.updateGeometry("s1", 120, 40);
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(1);
+
+      controller.onClose();
+      await flush();
+      vi.advanceTimersByTime(20000);
+      await flush();
+      // While disconnected, renewal must not fire — it would leak wire frames
+      // into a torn-down transport.
+      expect(transport.subscribe).toHaveBeenCalledTimes(1);
+
+      controller.onOpen();
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(2);
+
+      vi.advanceTimersByTime(4000);
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("forceRenewal triggers an immediate re-subscribe while confirmed", async () => {
+    vi.useFakeTimers();
+    try {
+      const { transport } = fakeTransport();
+      const controller = new TerminalSubscriptionController(transport);
+      controller.onOpen();
+      controller.acquire("s1");
+      controller.updateGeometry("s1", 120, 40);
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(1);
+
+      // visibilitychange → visible calls forceRenewal to recover from any
+      // throttling-induced silent expiry.
+      controller.forceRenewal();
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(2);
+      expect(controller.snapshot().phase).toBe("confirmed");
+
+      // Renewal cadence resumes from the forced renewal — next automatic renewal
+      // is 4s later, not layered on top of the previous timer.
+      vi.advanceTimersByTime(4000);
+      await flush();
+      expect(transport.subscribe).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("forceRenewal is a no-op while not confirmed", async () => {
+    const { transport } = fakeTransport();
+    const controller = new TerminalSubscriptionController(transport);
+    controller.onOpen();
+    // Never acquire: forceRenewal must not fabricate a subscription.
+    controller.forceRenewal();
+    await flush();
+    expect(transport.subscribe).not.toHaveBeenCalled();
+  });
 });

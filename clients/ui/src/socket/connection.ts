@@ -102,6 +102,15 @@ export class Connection {
     this.terminalSubscriptions.updateGeometry(sessionId, cols, rows);
   }
 
+  /** Force an immediate terminal lease renewal. Wired to `visibilitychange`
+   *  so a page that returns to visibility after being throttled recovers a
+   *  subscription silently expired by the daemon (ADR
+   *  terminal-lifecycle-bounds: 4s renewal / 12s expiry). No-op unless a
+   *  confirmed terminal subscription exists. */
+  forceTerminalRenewal(): void {
+    this.terminalSubscriptions.forceRenewal();
+  }
+
   private async subscribeOnce(
     sessionId: string,
     cols: number,
