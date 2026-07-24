@@ -122,6 +122,10 @@ func (a *DaemonAdapter) SubscribeLifecycle(ctx context.Context) (<-chan proto.Se
 		proto.EvtNameAgentNotification,
 		proto.EvtNameActivityEvents,
 		proto.EvtNameSurfaceOutput,
+		proto.EvtNameApprovalRequested,
+		proto.EvtNameApprovalResolved,
+		proto.EvtNameQuestionRequested,
+		proto.EvtNameQuestionResolved,
 	}
 	if _, err := a.d.SendCommand(ctx, proto.CmdSubscribe{Filters: filters}); err != nil {
 		return nil, err
@@ -186,15 +190,31 @@ func readInitialGeometry(ctx context.Context, c *websocket.Conn) (uint16, uint16
 // arrives. The web client owns its own active-session-per-tab, so no active
 // session id is shipped.
 type helloFrame struct {
-	K          string              `json:"k"` // always "h"
-	Sessions   []proto.SessionInfo `json:"sessions"`
-	Features   []string            `json:"features"`
-	ServerTime int64               `json:"serverTime"`
+	K                string              `json:"k"` // always "h"
+	Sessions         []proto.SessionInfo `json:"sessions"`
+	Features         []string            `json:"features"`
+	ServerTime       int64               `json:"serverTime"`
+	ClientInstanceID string              `json:"clientInstanceId,omitempty"`
+	// ProtocolVersion is the bundled capability axis skeleton (FR-P1-03).
+	// Same-build clients match this constant and skip per-capability negotiation.
+	ProtocolVersion string   `json:"protocolVersion,omitempty"`
+	Capabilities    []string `json:"capabilities,omitempty"`
+}
+
+// ProtocolVersion is the Phase 0/1 wire contract version advertised on hello.
+const ProtocolVersion = "1.0.0-phase01"
+
+// BundledCapabilities is the capability set co-shipped with this daemon build.
+var BundledCapabilities = []string{
+	"approval.respond",
+	"question.respond",
+	"sessions.view_update",
+	"surface.subscribe",
 }
 
 // encodeHelloFrame encodes EvtSessionsChanged as the initial hello frame.
 // nil slices are replaced with empty slices so the browser always gets arrays.
-func encodeHelloFrame(sc proto.EvtSessionsChanged, serverTime int64) []byte {
+func encodeHelloFrame(sc proto.EvtSessionsChanged, serverTime int64, clientInstanceID string) []byte {
 	sessions := sc.Sessions
 	if sessions == nil {
 		sessions = []proto.SessionInfo{}
@@ -203,11 +223,15 @@ func encodeHelloFrame(sc proto.EvtSessionsChanged, serverTime int64) []byte {
 	if features == nil {
 		features = []string{}
 	}
+	caps := append([]string(nil), BundledCapabilities...)
 	h := helloFrame{
-		K:          "h",
-		Sessions:   sessions,
-		Features:   features,
-		ServerTime: serverTime,
+		K:                "h",
+		Sessions:         sessions,
+		Features:         features,
+		ServerTime:       serverTime,
+		ClientInstanceID: clientInstanceID,
+		ProtocolVersion:  ProtocolVersion,
+		Capabilities:     caps,
 	}
 	b, err := json.Marshal(h)
 	if err != nil {
@@ -266,7 +290,7 @@ func (s *lifecycleSubSet) drain() []string {
 // The read goroutine is required not only to dispatch inbound frames but to
 // drain the coder/websocket control frames (pings) — without it, the browser
 // keep-alive times out and forcibly closes the connection.
-func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) error {
+func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, clientInstanceID string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ch, err := sess.SubscribeLifecycle(ctx)
@@ -284,7 +308,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 		}
 	}()
 
-	go func() { readLifecycleInbound(ctx, sess, c, subs, subscriberID); cancel() }()
+	go func() { readLifecycleInbound(ctx, sess, c, subs, subscriberID, clientInstanceID); cancel() }()
 
 	helloSent := false
 	for {
@@ -310,12 +334,14 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 			switch e := ev.(type) {
 			case proto.EvtSessionsChanged:
 				if !helloSent {
-					frame = encodeHelloFrame(e, time.Now().Unix())
+					frame = encodeHelloFrame(e, time.Now().Unix(), clientInstanceID)
 					helloSent = true
 				} else {
 					frame = encodeServerEvent(e)
 				}
-			case proto.EvtSessionFileLine, proto.EvtAgentNotification, proto.EvtActivityEvents:
+			case proto.EvtSessionFileLine, proto.EvtAgentNotification, proto.EvtActivityEvents,
+				proto.EvtApprovalRequested, proto.EvtApprovalResolved,
+				proto.EvtQuestionRequested, proto.EvtQuestionResolved:
 				frame = encodeServerEvent(e)
 			case proto.EvtSurfaceOutput:
 				// Multiplexed surface output: only forward if this WS has
@@ -349,7 +375,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn) er
 // Without those responses the promise blocks until WS close, exhausting the
 // retry budget without ever surfacing the real error code (e.g.
 // "frame-not-ready" that drives the ADR 0018 backoff).
-func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn, subs *lifecycleSubSet, subscriberID string) {
+func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn, subs *lifecycleSubSet, subscriberID, clientInstanceID string) {
 	for {
 		_, data, err := c.Read(ctx)
 		if err != nil {
@@ -376,6 +402,10 @@ func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn,
 				continue
 			}
 			tryResize(ctx, sess, msg.SessionID, msg.Cols, msg.Rows, "lifecycle resize")
+		case "ar": // approval respond
+			handleLifecycleApprovalRespond(ctx, sess, c, &msg, clientInstanceID)
+		case "qr": // question respond
+			handleLifecycleQuestionRespond(ctx, sess, c, &msg, clientInstanceID)
 		}
 	}
 }

@@ -108,3 +108,24 @@ jobs:
         with:
           name: pr-schema-verification
           path: test-harness/profile-result-schema.json
+
+  # Protocol drift / undeclared generated-SDK surface gate (NFR-03, FR-P1-05/06).
+  # Wall-clock budget: stay within ~3x the schema-drift job.
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+      - name: Run compatibility verification profile
+        env:
+          AG_HARNESS_PROFILE_ARTIFACT: test-harness/profile-result-compatibility.json
+          GOCACHE: /tmp/gocache-agent-grid
+        run: scripts/run-verification-profile.sh compatibility
+      - name: Upload compatibility verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-compatibility-verification
+          path: test-harness/profile-result-compatibility.json

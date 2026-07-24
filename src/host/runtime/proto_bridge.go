@@ -178,9 +178,26 @@ func (r *Runtime) broadcastSessionsChanged() {
 // the effect determines the variant.
 func (r *Runtime) broadcastGenericEvent(e state.EffBroadcastEvent) {
 	var event proto.ServerEvent
-	if e.Name == "project-selected" {
+	switch e.Name {
+	case "project-selected":
 		if p, ok := e.Payload.(state.ProjectSelectedPayload); ok {
 			event = proto.EvtProjectSelected{Project: p.Project}
+		}
+	case state.EvtNameApprovalRequested:
+		if a, ok := e.Payload.(state.ApprovalRequest); ok {
+			event = proto.EvtApprovalRequested{Approval: approvalToWire(a)}
+		}
+	case state.EvtNameApprovalResolved:
+		if a, ok := e.Payload.(state.ApprovalRequest); ok {
+			event = proto.EvtApprovalResolved{Approval: approvalToWire(a)}
+		}
+	case state.EvtNameQuestionRequested:
+		if q, ok := e.Payload.(state.QuestionRequest); ok {
+			event = proto.EvtQuestionRequested{Question: questionToWire(q)}
+		}
+	case state.EvtNameQuestionResolved:
+		if q, ok := e.Payload.(state.QuestionRequest); ok {
+			event = proto.EvtQuestionResolved{Question: questionToWire(q)}
 		}
 	}
 	if event == nil {
@@ -193,6 +210,40 @@ func (r *Runtime) broadcastGenericEvent(e state.EffBroadcastEvent) {
 		return
 	}
 	r.broadcastWire(wire, e.Name)
+}
+
+func approvalToWire(a state.ApprovalRequest) proto.ApprovalWire {
+	return proto.ApprovalWire{
+		ID:                        string(a.ID),
+		SessionID:                 string(a.SessionID),
+		FrameID:                   string(a.FrameID),
+		Kind:                      a.Kind,
+		Command:                   a.Command,
+		Path:                      a.Path,
+		Reason:                    a.Reason,
+		CreatedAt:                 proto.FormatRFC3339(a.CreatedAt),
+		ExpiresAt:                 proto.FormatRFC3339(a.ExpiresAt),
+		Status:                    string(a.Status),
+		DefaultDecision:           string(a.DefaultDecision),
+		Decision:                  string(a.Decision),
+		ResolvingClientInstanceID: a.ResolvingClientInstanceID,
+		ResolutionReason:          string(a.ResolutionReason),
+	}
+}
+
+func questionToWire(q state.QuestionRequest) proto.QuestionWire {
+	return proto.QuestionWire{
+		ID:                        string(q.ID),
+		SessionID:                 string(q.SessionID),
+		FrameID:                   string(q.FrameID),
+		Prompt:                    q.Prompt,
+		CreatedAt:                 proto.FormatRFC3339(q.CreatedAt),
+		ExpiresAt:                 proto.FormatRFC3339(q.ExpiresAt),
+		Status:                    string(q.Status),
+		Answer:                    q.Answer,
+		ResolvingClientInstanceID: q.ResolvingClientInstanceID,
+		ResolutionReason:          string(q.ResolutionReason),
+	}
 }
 
 // broadcastAgentNotification encodes and broadcasts an OSC notification

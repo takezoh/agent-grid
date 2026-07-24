@@ -1,3 +1,4 @@
+import { selectCodec } from "./adapter";
 import type { ClientFrame } from "./client";
 import type {
   ActivityEvent,
@@ -87,7 +88,7 @@ function parseActivityEvent(obj: unknown): ActivityEvent | null {
   };
 }
 
-export function parseServerFrame(raw: string): ServerFrame | null {
+function parseServerFrameHandwritten(raw: string): ServerFrame | null {
   let v: unknown;
   try {
     v = JSON.parse(raw);
@@ -212,11 +213,32 @@ export function parseServerFrame(raw: string): ServerFrame | null {
         nowMs: obj.nowMs,
       };
     }
+    // Phase 0/1 approval/question frames (k=ar|ax|qr|qx) share this surface.
+    // Pre-Phase-0 clients ignore unknown k values by returning null (no disconnect).
+    case "ar":
+    case "ax":
+    case "qr":
+    case "qx":
+      return null;
     default:
       return null;
   }
 }
 
-export function serializeClientFrame(f: ClientFrame): string {
+function serializeClientFrameHandwritten(f: ClientFrame): string {
   return JSON.stringify(f);
+}
+
+const handwrittenCodec = {
+  parseServerFrame: parseServerFrameHandwritten,
+  serializeClientFrame: serializeClientFrameHandwritten,
+};
+
+/** Public entry: routes through the adapter seam (handwritten | generated). */
+export function parseServerFrame(raw: string): ServerFrame | null {
+  return selectCodec(handwrittenCodec).parseServerFrame(raw);
+}
+
+export function serializeClientFrame(f: ClientFrame): string {
+  return selectCodec(handwrittenCodec).serializeClientFrame(f);
 }

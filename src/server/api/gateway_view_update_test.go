@@ -98,7 +98,7 @@ func startLifecycleServer(t *testing.T, sess Attacher) *httptest.Server {
 			return
 		}
 		defer func() { _ = c.CloseNow() }()
-		_ = AttachLifecycleWS(r.Context(), sess, c)
+		_ = AttachLifecycleWS(r.Context(), sess, c, "test-ci")
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

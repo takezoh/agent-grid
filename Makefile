@@ -23,7 +23,8 @@ CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
         build-web-frontend \
         run-dev install install-systemd install-codex-remote-control-systemd install-web install-server update-web update-server clean test test-race vet lint \
         verify-bridge-deps \
-        codex-schema-update codex-schema-check verify-save verify-pre-push verify-pr verify-nightly
+        codex-schema-update codex-schema-check generate-sdks protocol-compat protocol-simserver \
+        verify-save verify-pre-push verify-pr verify-nightly verify-compatibility
 
 # build builds the main backend (cmd/server) — the merged daemon + HTTP/WS
 # gateway — plus the in-container helper binary.
@@ -212,8 +213,25 @@ verify-bridge-deps:
 	@echo "Checking that bridge does not import host/state, host/uiproc, or platform/features..."
 	@cd $(SRC_DIR) && go list -deps ./cmd/bridge | grep -E 'takezoh/agent-grid/(host/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
 
+# generate-sdks: quicktype models from protocol/*.schema.json into clients/sdk.
+# openapi.yaml is REST annex only (not an input). Pin: clients/sdk package-lock
+# + .quicktype-version. Transport under each language is hand-written.
+generate-sdks:
+	./scripts/generate-sdks.sh
+
+# protocol-compat runs the fail-closed compatibility gate (also CI job).
+protocol-compat verify-compatibility:
+	./scripts/check-protocol-compatibility.sh
+
+# protocol-simserver: stdlib-only Go replay server for protocol/simulator
+# recordings (sim-server-language-choice = Go). Outside root go.work on purpose.
+PROTOCOL_SIMSERVER := protocol-simserver
+protocol-simserver:
+	cd protocol/simulator/server && GOWORK=off go build -o $(CURDIR)/$(PROTOCOL_SIMSERVER) .
+# Note: if ~/.cache/go-build is unwritable, run with GOCACHE=/tmp/gocache-agent-grid.
+
 clean:
-	rm -f $(SERVER) $(WEB) $(BRIDGE) $(ORCHESTRATOR) $(CLAUDE_APP_SERVER)
+	rm -f $(SERVER) $(WEB) $(BRIDGE) $(ORCHESTRATOR) $(CLAUDE_APP_SERVER) $(PROTOCOL_SIMSERVER)
 
 # codex-schema-check — verify committed bundle files match current codex output.
 # Comparison is done with sorted keys so JSON object ordering doesn't matter.

@@ -57,4 +57,8 @@ const (
 const (
 	ApprovalAccept           = "accept"
 	ApprovalAcceptForSession = "acceptForSession"
+	// ApprovalDecline denies the command; the agent continues the turn.
+	ApprovalDecline = "decline"
+	// ApprovalCancel denies the command and interrupts the turn.
+	ApprovalCancel = "cancel"
 )

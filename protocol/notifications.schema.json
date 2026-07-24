@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.dev/protocol/notifications.schema.json",
+  "title": "Notifications",
+  "description": "Notification payload skeleton for Phase 0/1 (policy details in contracts/notification-policy.md).",
+  "type": "object",
+  "required": ["kind", "session_id"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": ["approval_pending", "question_pending", "agent_notification"]
+    },
+    "session_id": { "type": "string" },
+    "title": { "type": "string" },
+    "body": { "type": "string" },
+    "deep_link": {
+      "type": "string",
+      "pattern": "^agent-grid://(session|approval)/[^/]+$"
+    }
+  }
+}

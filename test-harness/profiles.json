@@ -31,7 +31,12 @@
       {"id":"fuzz-state","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzReduce$' -fuzztime=30s ./host/state/"},
       {"id":"fuzz-web","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzApplyInboundProto$' -fuzztime=30s ./server/api/"},
       {"id":"fuzz-osc","group":"fuzz","command":"cd src && go test -run '^$' -fuzz '^FuzzParseOsc$' -fuzztime=30s ./host/runtime/"},
-      {"id":"schema-drift","group":"schema","command":"make codex-schema-check"}
+      {"id":"schema-drift","group":"schema","command":"make codex-schema-check"},
+      {"id":"compatibility","group":"compatibility","command":"scripts/check-protocol-compatibility.sh"}
+    ]},
+    {"name":"compatibility","tier":"T1-T2 protocol","commands":[
+      {"id":"protocol-compat","group":"compatibility","command":"scripts/check-protocol-compatibility.sh"},
+      {"id":"simulator","group":"compatibility","command":"cd src && go test -count=1 ./protocolsim/"}
     ]},
     {"name":"nightly","tier":"T3","commands":[
       {"id":"nightly-fidelity","group":"core","command":"scripts/run-nightly-e2e-report.sh"}

@@ -1,0 +1,33 @@
+{
+  "$comment": "Checked-in per-language emit options for scripts/generate-sdks.sh (decision: quicktype-emit-options-choice). Changing this file must re-run generation and pass compatibility.",
+  "version": 1,
+  "languages": {
+    "typescript": {
+      "lang": "typescript",
+      "outSubdir": "ts/generated",
+      "extraArgs": ["--just-types", "--prefer-unions", "--prefer-const-values"]
+    },
+    "csharp": {
+      "lang": "csharp",
+      "outSubdir": "csharp/Generated",
+      "extraArgs": ["--framework", "SystemTextJson", "--features", "complete", "--namespace", "AgentGrid.Client.Models"]
+    },
+    "kotlin": {
+      "lang": "kotlin",
+      "outSubdir": "kotlin/generated",
+      "extraArgs": ["--framework", "kotlinx", "--package", "dev.agentgrid.client.models"]
+    },
+    "swift": {
+      "lang": "swift",
+      "outSubdir": "swift/Generated",
+      "extraArgs": ["--struct-or-class", "struct", "--access-level", "public"]
+    }
+  },
+  "schemas": [
+    "events.schema.json",
+    "commands.schema.json",
+    "capabilities.schema.json",
+    "deep-links.schema.json",
+    "notifications.schema.json"
+  ]
+}

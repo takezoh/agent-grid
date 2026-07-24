@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.dev/protocol/commands.schema.json",
+  "title": "ClientToServerCommands",
+  "description": "Commands clients send for approval/question resolution.",
+  "oneOf": [
+    { "$ref": "#/$defs/ApprovalRespond" },
+    { "$ref": "#/$defs/ApprovalCancel" },
+    { "$ref": "#/$defs/QuestionRespond" },
+    { "$ref": "#/$defs/QuestionCancel" }
+  ],
+  "$defs": {
+    "ApprovalRespond": {
+      "type": "object",
+      "required": ["session_id", "approval_id", "decision"],
+      "additionalProperties": false,
+      "properties": {
+        "session_id": { "type": "string" },
+        "approval_id": { "type": "string" },
+        "decision": { "type": "string", "enum": ["accept", "deny"] },
+        "client_instance_id": { "type": "string" }
+      }
+    },
+    "ApprovalCancel": {
+      "type": "object",
+      "required": ["session_id", "approval_id"],
+      "additionalProperties": false,
+      "properties": {
+        "session_id": { "type": "string" },
+        "approval_id": { "type": "string" },
+        "client_instance_id": { "type": "string" }
+      }
+    },
+    "QuestionRespond": {
+      "type": "object",
+      "required": ["session_id", "question_id", "answer"],
+      "additionalProperties": false,
+      "properties": {
+        "session_id": { "type": "string" },
+        "question_id": { "type": "string" },
+        "answer": {
+          "type": "string",
+          "description": "Free-text answer only; structured objects are rejected at the wire layer."
+        },
+        "client_instance_id": { "type": "string" }
+      }
+    },
+    "QuestionCancel": {
+      "type": "object",
+      "required": ["session_id", "question_id"],
+      "additionalProperties": false,
+      "properties": {
+        "session_id": { "type": "string" },
+        "question_id": { "type": "string" },
+        "client_instance_id": { "type": "string" }
+      }
+    }
+  }
+}

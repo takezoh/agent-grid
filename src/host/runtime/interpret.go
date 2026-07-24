@@ -26,6 +26,8 @@ func (r *Runtime) execute(eff state.Effect) {
 	case state.EffSendResponse, state.EffSendResponseSync, state.EffSendError,
 		state.EffBroadcastSessionsChanged, state.EffBroadcastEvent, state.EffCloseConn:
 		r.executeIPCEffect(e)
+	case state.EffReplyHeldApproval, state.EffReplyHeldQuestion:
+		r.executeHeldReply(e)
 
 	case state.EffWatchFile, state.EffUnwatchFile:
 		r.executeFSEffect(e)
@@ -300,6 +302,39 @@ func (r *Runtime) executeIPCEffect(eff state.Effect) {
 		r.broadcastGenericEvent(e)
 	case state.EffCloseConn:
 		r.closeConn(e.ConnID)
+	}
+}
+
+// humanInputReplier is the optional subsystem interface for completing held
+// driver JSON-RPC approval/question requests (stream backend).
+type humanInputReplier interface {
+	ReplyHeldApproval(approvalID string, decision string, errMsg string)
+	ReplyHeldQuestion(questionID string, answer string, errMsg string)
+}
+
+func (r *Runtime) executeHeldReply(eff state.Effect) {
+	var frameID state.FrameID
+	switch e := eff.(type) {
+	case state.EffReplyHeldApproval:
+		frameID = e.FrameID
+	case state.EffReplyHeldQuestion:
+		frameID = e.FrameID
+	default:
+		return
+	}
+	sub, ok := r.frameSubsystems[frameID]
+	if !ok || sub == nil {
+		return
+	}
+	replier, ok := sub.(humanInputReplier)
+	if !ok {
+		return
+	}
+	switch e := eff.(type) {
+	case state.EffReplyHeldApproval:
+		replier.ReplyHeldApproval(string(e.ApprovalID), string(e.Decision), e.Error)
+	case state.EffReplyHeldQuestion:
+		replier.ReplyHeldQuestion(string(e.QuestionID), e.Answer, e.Error)
 	}
 }
 

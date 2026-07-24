@@ -1,0 +1,12 @@
+{
+  "name": "agent-grid-sdk-codegen",
+  "private": true,
+  "description": "Pinned quicktype for protocol/*.schema.json model generation (adr-20260724-sdk-codegen-quicktype-typegen). Not a published package.",
+  "scripts": {
+    "generate": "../../scripts/generate-sdks.sh"
+  },
+  "devDependencies": {
+    "quicktype": "23.0.171",
+    "quicktype-core": "23.0.171"
+  }
+}

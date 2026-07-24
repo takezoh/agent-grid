@@ -77,6 +77,18 @@ func reduceSubsystem(s State, e EvSubsystem) (State, []Effect) {
 	s = next
 
 	s, effs := resolvePushDriverEffects(s, rawEffs)
+
+	// Materialise durable ApprovalRequest / QuestionRequest in the same
+	// Reduce cycle as the driver subsystem event (FR-P0-02).
+	if next, aEffs, handled := maybeCreateApprovalFromSubsystem(s, e); handled {
+		s = next
+		effs = append(effs, aEffs...)
+	}
+	if next, qEffs, handled := maybeCreateQuestionFromSubsystem(s, e); handled {
+		s = next
+		effs = append(effs, qEffs...)
+	}
+
 	effs = append(effs, EffPersistSnapshot{}, EffBroadcastSessionsChanged{})
 	if e.ConnID != 0 {
 		effs = append(effs, okResp(e.ConnID, e.ReqID, nil))

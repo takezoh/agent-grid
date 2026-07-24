@@ -538,6 +538,21 @@ func approvalFromParams(method string, raw json.RawMessage, auto bool) state.Sub
 	}
 }
 
+func questionFromParams(raw json.RawMessage) state.SubsystemQuestion {
+	id := nestedString(raw, "itemId")
+	if id == "" {
+		id = nestedString(raw, "id")
+	}
+	prompt := nestedString(raw, "prompt")
+	if prompt == "" {
+		prompt = nestedString(raw, "question")
+	}
+	return state.SubsystemQuestion{
+		ID:     id,
+		Prompt: prompt,
+	}
+}
+
 func appendHistory(history *[]state.SubsystemTurn, role, text string) {
 	text = strings.TrimSpace(text)
 	if text == "" {

@@ -82,6 +82,16 @@ type State struct {
 	// from the config file and never mutated. Reduce reads it as a
 	// read-only value, so it does not break pure-function semantics.
 	Features features.Set
+
+	// PendingApprovals holds durable ApprovalRequest objects keyed by
+	// session then approval id (FR-P0-01). Terminal tombstones remain until
+	// session/frame teardown reaps them so late CmdApprovalRespond can
+	// observe resolved-by-other (FR-P0-04). Not persisted across restarts.
+	PendingApprovals map[SessionID]map[ApprovalID]ApprovalRequest
+
+	// PendingQuestions holds durable QuestionRequest objects (FR-P0-07).
+	// Same lifecycle and non-persistence rules as PendingApprovals.
+	PendingQuestions map[SessionID]map[QuestionID]QuestionRequest
 }
 
 // Session is the static metadata + driver state of one client session.

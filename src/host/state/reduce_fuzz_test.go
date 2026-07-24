@@ -467,6 +467,8 @@ func assertReduceFuzzEffects(t *testing.T, effs []Effect) {
 			EffSendError,
 			EffBroadcastSessionsChanged,
 			EffBroadcastEvent,
+			EffReplyHeldApproval,
+			EffReplyHeldQuestion,
 			EffCloseConn,
 			EffSendFrameKeys,
 			EffPersistSnapshot,

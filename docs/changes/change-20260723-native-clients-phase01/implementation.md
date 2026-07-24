@@ -748,9 +748,9 @@ _Grounding rationale_: Directory listing confirms clients/ui/src/wire/{client,se
 
 ### `sim-server-language-choice` — decided: `alternative-sim-server-go`
 
-- **decision**: Sim server is a small stdlib-only Go binary under protocol/simulator/server/ built by the existing Makefile.
+- **decision**: Sim server is a small stdlib-only Go binary under `protocol/simulator/server/`, built via `make protocol-simserver` (repo Makefile; module is local with `GOWORK=off` so it does not enter the root `go.work`).
 - **rationale**: The recording sources (fakecodex .jsonl replay, fakeagents scenarios) are Go-side, so the format's producer and replayer share a language; compat CI needs npm only for quicktype itself.
-- **evidence**: `protocol/simulator/server/main.go`.
+- **evidence**: `protocol/simulator/server/main.go`, `Makefile` target `protocol-simserver`, T0 lock in `src/protocolsim`.
 - **preserved contracts** (invariance honored): `contract-simulator-recorded-scenario-replay` — deterministic fixture replay is language-independent; each SDK's observed sequence equals the fixture.
 
 ## Constraints

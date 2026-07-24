@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.dev/protocol/deep-links.schema.json",
+  "title": "DeepLinks",
+  "description": "agent-grid:// URI shapes adopted from plans/remote-control-mobile-session-deep-link.md (FR-P1-09).",
+  "type": "object",
+  "required": ["scheme", "kind", "id"],
+  "additionalProperties": false,
+  "properties": {
+    "scheme": { "const": "agent-grid" },
+    "kind": {
+      "type": "string",
+      "enum": ["session", "approval"],
+      "description": "Path kind: agent-grid://session/<id> or agent-grid://approval/<id>."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Session id or ApprovalRequest id."
+    },
+    "uri": {
+      "type": "string",
+      "pattern": "^agent-grid://(session|approval)/[^/]+$",
+      "description": "Full URI form for round-trip helpers."
+    }
+  },
+  "examples": [
+    {
+      "scheme": "agent-grid",
+      "kind": "session",
+      "id": "sess-1",
+      "uri": "agent-grid://session/sess-1"
+    },
+    {
+      "scheme": "agent-grid",
+      "kind": "approval",
+      "id": "ap-1",
+      "uri": "agent-grid://approval/ap-1"
+    }
+  ]
+}

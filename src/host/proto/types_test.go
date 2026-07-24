@@ -27,6 +27,10 @@ func TestCommandNames(t *testing.T) {
 		{CmdFrameReadByThread{}, CmdNameFrameReadByThread},
 		{CmdFrameSendByThread{}, CmdNameFrameSendByThread},
 		{CmdFrameReplyByThread{}, CmdNameFrameReplyByThread},
+		{CmdApprovalRespond{}, CmdNameApprovalRespond},
+		{CmdApprovalCancel{}, CmdNameApprovalCancel},
+		{CmdQuestionRespond{}, CmdNameQuestionRespond},
+		{CmdQuestionCancel{}, CmdNameQuestionCancel},
 	}
 	for _, c := range cases {
 		if got := c.c.CommandName(); got != c.name {

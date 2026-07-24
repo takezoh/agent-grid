@@ -147,6 +147,26 @@ type EffBroadcastEvent struct {
 	FilterTag string
 }
 
+// EffReplyHeldApproval asks the stream subsystem to Reply/ReplyError the
+// held driver JSON-RPC request for ApprovalID on FrameID's backend.
+// Error non-empty → ReplyError (e.g. connection-lost on cancel/teardown);
+// otherwise Reply with Decision (accept/deny).
+type EffReplyHeldApproval struct {
+	FrameID    FrameID
+	ApprovalID ApprovalID
+	Decision   ApprovalDecision
+	Error      string
+}
+
+// EffReplyHeldQuestion asks the stream subsystem to complete a held
+// free-text user-input JSON-RPC request.
+type EffReplyHeldQuestion struct {
+	FrameID    FrameID
+	QuestionID QuestionID
+	Answer     string
+	Error      string
+}
+
 // EffCloseConn closes a specific connection.
 type EffCloseConn struct {
 	ConnID ConnID
@@ -271,6 +291,8 @@ func (EffSendResponseSync) isEffect()          {}
 func (EffSendError) isEffect()                 {}
 func (EffBroadcastSessionsChanged) isEffect()  {}
 func (EffBroadcastEvent) isEffect()            {}
+func (EffReplyHeldApproval) isEffect()         {}
+func (EffReplyHeldQuestion) isEffect()         {}
 func (EffCloseConn) isEffect()                 {}
 func (EffPersistSnapshot) isEffect()           {}
 func (EffWatchFile) isEffect()                 {}

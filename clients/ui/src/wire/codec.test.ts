@@ -167,3 +167,37 @@ describe("serializeClientFrame", () => {
     ).toBe('{"k":"s","reqId":"r1","sessionId":"s1","cols":120,"rows":40}');
   });
 });
+
+describe("wire adapter seam", () => {
+  it("handwritten mode preserves fixture round-trip", async () => {
+    const { setWireMode, getWireMode } = await import("./adapter");
+    const prev = getWireMode();
+    setWireMode("handwritten");
+    try {
+      const raw = fixtures.hello;
+      const parsed = parseServerFrame(raw);
+      expect(parsed).not.toBeNull();
+      expect(parseServerFrame(JSON.stringify(parsed))).toEqual(parsed);
+    } finally {
+      setWireMode(prev);
+    }
+  });
+
+  it("generated mode stub still routes through handwritten codec", async () => {
+    const { setWireMode, getWireMode } = await import("./adapter");
+    const prev = getWireMode();
+    setWireMode("generated");
+    try {
+      const raw = fixtures.hello;
+      expect(parseServerFrame(raw)).not.toBeNull();
+      expect(parseServerFrame('{"k":"ar","approval":{}}')).toBeNull();
+    } finally {
+      setWireMode(prev);
+    }
+  });
+
+  it("ignores Phase-0 approval frames without disconnect (null)", () => {
+    expect(parseServerFrame('{"k":"ar","approval":{"id":"ap-1"}}')).toBeNull();
+    expect(parseServerFrame('{"k":"ax","approval":{"id":"ap-1"}}')).toBeNull();
+  });
+});

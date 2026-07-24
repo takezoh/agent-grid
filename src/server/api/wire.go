@@ -113,8 +113,46 @@ func encodeServerEvent(ev proto.ServerEvent) []byte {
 		return encodeFromSessionsChanged(e)
 	case proto.EvtActivityEvents:
 		return encodeFromActivityEvents(e)
+	case proto.EvtApprovalRequested:
+		return encodeApprovalFrame("ar", e.Approval)
+	case proto.EvtApprovalResolved:
+		return encodeApprovalFrame("ax", e.Approval)
+	case proto.EvtQuestionRequested:
+		return encodeQuestionFrame("qr", e.Question)
+	case proto.EvtQuestionResolved:
+		return encodeQuestionFrame("qx", e.Question)
 	}
 	return nil
+}
+
+// approvalFrame is a k=... discriminated-union member coexisting with
+// v/tt/et/n on the same lifecycle subscription surface (ADR-0023 / FR-P1-12).
+type approvalFrame struct {
+	K        string             `json:"k"` // "ar" requested | "ax" resolved
+	Approval proto.ApprovalWire `json:"approval"`
+}
+
+type questionFrame struct {
+	K        string             `json:"k"` // "qr" requested | "qx" resolved
+	Question proto.QuestionWire `json:"question"`
+}
+
+func encodeApprovalFrame(k string, a proto.ApprovalWire) []byte {
+	b, err := json.Marshal(approvalFrame{K: k, Approval: a})
+	if err != nil {
+		slog.Error("wire: failed to encode approval frame", "err", err)
+		return nil
+	}
+	return b
+}
+
+func encodeQuestionFrame(k string, q proto.QuestionWire) []byte {
+	b, err := json.Marshal(questionFrame{K: k, Question: q})
+	if err != nil {
+		slog.Error("wire: failed to encode question frame", "err", err)
+		return nil
+	}
+	return b
 }
 
 // transcriptTailFrame is the server→browser frame for a transcript tail line.
@@ -190,10 +228,14 @@ func encodeFromAgentNotification(e proto.EvtAgentNotification) []byte {
 // and lifecycle-multiplexed frames (AttachLifecycleWS path: "s" subscribe,
 // "u" unsubscribe, "i"/"r" with sessionId). Unused fields decode to zero.
 type inbound struct {
-	K         string `json:"k"` // "i" input | "r" resize | "s" subscribe | "u" unsubscribe
-	D         string `json:"d"`
-	Cols      int    `json:"cols"`
-	Rows      int    `json:"rows"`
-	SessionID string `json:"sessionId,omitempty"`
-	ReqID     string `json:"reqId,omitempty"`
+	K          string `json:"k"` // "i" input | "r" resize | "s" subscribe | "u" unsubscribe | "ar"/"qr" respond
+	D          string `json:"d"`
+	Cols       int    `json:"cols"`
+	Rows       int    `json:"rows"`
+	SessionID  string `json:"sessionId,omitempty"`
+	ReqID      string `json:"reqId,omitempty"`
+	ApprovalID string `json:"approvalId,omitempty"`
+	QuestionID string `json:"questionId,omitempty"`
+	Decision   string `json:"decision,omitempty"`
+	Answer     string `json:"answer,omitempty"`
 }

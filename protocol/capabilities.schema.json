@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.dev/protocol/capabilities.schema.json",
+  "title": "Capabilities",
+  "description": "Capability negotiation declaration for bundled vs remote clients (FR-P1-03, FR-P1-04).",
+  "type": "object",
+  "required": ["protocolVersion", "capabilities"],
+  "additionalProperties": false,
+  "properties": {
+    "protocolVersion": {
+      "type": "string",
+      "description": "Daemon/client contract version. Bundled clients match this string and skip per-capability negotiation."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "Feature flags the peer supports (e.g. approval.respond)."
+    },
+    "axis": {
+      "type": "string",
+      "enum": ["bundled", "remote"],
+      "description": "Two-axis compatibility policy skeleton."
+    }
+  }
+}

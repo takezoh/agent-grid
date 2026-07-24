@@ -10,7 +10,7 @@ role: verification
 - Phase 0 exit: a fake agent raises an approval; two subscribed clients under distinct client-instance-ids observe the pending request; one answers; both observe the resolution with `resolving_client_instance_id` set; a reconnecting third client's resubscribe snapshot converges with the still-connected clients.
 - Phase 0 lifecycle exit: an in-flight ApprovalRequest cancels cleanly on frame/session teardown without leaking a goroutine or map entry; an expired ApprovalRequest applies deny-by-default from the value captured at creation regardless of any mid-flight driver-policy mutation.
 - Phase 1 exit: every generated SDK (C# / Swift / Kotlin / TS) observes the identical typed event/command sequence when replayed against the simulator's recorded scenario; the compatibility CI gate fails closed on undeclared SDK surface, inconclusive scans, and new-SDK targets that skip the shared recorded-scenario suite.
-- Docs: `docs lint` is zero-error; all 11 accepted ADRs originatedFrom this change; `validate_plan.py` passes with the source draft attached.
+- Docs: `docs lint` is zero-error; all 12 accepted ADRs (plus 1 rejected) originatedFrom this change; `validate_plan.py` passes with the source draft attached.
 
 ## Verification matrix (per-contract)
 

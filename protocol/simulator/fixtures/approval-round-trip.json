@@ -1,0 +1,42 @@
+{
+  "id": "fixture-approval-round-trip-v1",
+  "description": "Deterministic approval request → accept sequence with fixed IDs/timestamps",
+  "protocolVersion": "1.0.0-phase01",
+  "events": [
+    {
+      "t": 0,
+      "k": "ar",
+      "approval": {
+        "id": "ap-fixed-1",
+        "session_id": "sess-fixed-1",
+        "frame_id": "frame-fixed-1",
+        "kind": "command",
+        "command": "echo hello",
+        "reason": "fixture",
+        "created_at": "2026-07-23T00:00:00.000Z",
+        "expires_at": "2026-07-23T00:00:30.000Z",
+        "status": "pending",
+        "default_decision": "deny"
+      }
+    },
+    {
+      "t": 100,
+      "k": "ax",
+      "approval": {
+        "id": "ap-fixed-1",
+        "session_id": "sess-fixed-1",
+        "frame_id": "frame-fixed-1",
+        "kind": "command",
+        "command": "echo hello",
+        "reason": "fixture",
+        "created_at": "2026-07-23T00:00:00.000Z",
+        "expires_at": "2026-07-23T00:00:30.000Z",
+        "status": "resolved",
+        "default_decision": "deny",
+        "decision": "accept",
+        "resolving_client_instance_id": "ci-fixed-A",
+        "resolution_reason": "client"
+      }
+    }
+  ]
+}

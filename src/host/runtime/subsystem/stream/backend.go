@@ -107,6 +107,13 @@ type Backend struct {
 	// chan pendingSlot design whose drain-check-put-back non-atomicity was
 	// the root cause of race chains around reaper / adopt / release.
 	initState *initState
+
+	// heldApprovals maps ApprovalRequest ID → held driver JSON-RPC request id.
+	// Populated by handleRequest hold-open; drained by ReplyHeldApproval or
+	// frame teardown.
+	heldApprovals map[string]codexclient.RequestID
+	// heldQuestions maps QuestionRequest ID → held driver JSON-RPC request id.
+	heldQuestions map[string]codexclient.RequestID
 }
 
 type frameBinding struct {
@@ -455,6 +462,9 @@ func (b *Backend) ReleaseFrame(frameID state.FrameID) {
 		}
 	}
 	b.mu.Unlock()
+	// Per-frame held-request drain is owned by host/state cancel effects
+	// (EffReplyHeldApproval/Question). Do not bulk-drain here: Backend is
+	// session-scoped and sibling frames may still own held requests.
 	if observerSubscribed && threadID != "" {
 		go func() {
 			b.bestEffortUnsubscribe(frameID, threadID)
@@ -493,6 +503,8 @@ func (b *Backend) Stop(ctx context.Context, cause subsystem.StopCause) {
 			"first_cause", b.terminalCause, "later_cause", cause)
 	}
 	b.mu.Unlock()
+	// Backend-wide teardown: drain any remaining held JSON-RPC requests.
+	b.drainHeldForFrame()
 	if b.cancel != nil {
 		b.cancel()
 	}

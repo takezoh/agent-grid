@@ -165,6 +165,18 @@ func DecodeCommand(env Envelope) (Command, error) {
 	case CmdNameFrameReplyByThread:
 		var c CmdFrameReplyByThread
 		return decodeInto(env.Data, &c)
+	case CmdNameApprovalRespond:
+		var c CmdApprovalRespond
+		return decodeInto(env.Data, &c)
+	case CmdNameApprovalCancel:
+		var c CmdApprovalCancel
+		return decodeInto(env.Data, &c)
+	case CmdNameQuestionRespond:
+		var c CmdQuestionRespond
+		return decodeInto(env.Data, &c)
+	case CmdNameQuestionCancel:
+		var c CmdQuestionCancel
+		return decodeInto(env.Data, &c)
 	}
 	return nil, fmt.Errorf("proto: unknown command: %q", env.Cmd)
 }
@@ -291,6 +303,18 @@ func DecodeEvent(env Envelope) (ServerEvent, error) {
 		return decodeIntoEvent(env.Data, &e)
 	case EvtNamePromptEvent:
 		var e EvtPromptEvent
+		return decodeIntoEvent(env.Data, &e)
+	case EvtNameApprovalRequested:
+		var e EvtApprovalRequested
+		return decodeIntoEvent(env.Data, &e)
+	case EvtNameApprovalResolved:
+		var e EvtApprovalResolved
+		return decodeIntoEvent(env.Data, &e)
+	case EvtNameQuestionRequested:
+		var e EvtQuestionRequested
+		return decodeIntoEvent(env.Data, &e)
+	case EvtNameQuestionResolved:
+		var e EvtQuestionResolved
 		return decodeIntoEvent(env.Data, &e)
 	}
 	return nil, fmt.Errorf("proto: unknown event: %q", env.Name)

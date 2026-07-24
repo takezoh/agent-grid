@@ -40,6 +40,8 @@ func FromStateCode(code string) ErrCode {
 		return ErrUnsupported
 	case "frame_not_ready":
 		return ErrFrameNotReady
+	case "resolved_by_other":
+		return ErrResolvedByOther
 	}
 	return ErrUnknown
 }

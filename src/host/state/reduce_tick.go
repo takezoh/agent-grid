@@ -27,7 +27,16 @@ func reduceTick(s State, e EvTick) (State, []Effect) {
 		effs = append(effs, EffReconcileWindows{})
 	}
 
-	if changed {
+	// Approval/question expiry uses the tick's Now value (never time.Now
+	// inside Reduce) so the transition is a pure function of (state, tick).
+	var aExp, qExp []Effect
+	s, aExp = expirePendingApprovals(s, e.Now)
+	s, qExp = expirePendingQuestions(s, e.Now)
+	expired := len(aExp) > 0 || len(qExp) > 0
+	effs = append(effs, aExp...)
+	effs = append(effs, qExp...)
+
+	if changed || expired {
 		effs = append(effs, EffPersistSnapshot{}, EffBroadcastSessionsChanged{})
 	}
 	return s, effs

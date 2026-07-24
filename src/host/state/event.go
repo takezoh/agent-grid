@@ -125,6 +125,45 @@ type EvCmdDriverList struct {
 	ReqID  string
 }
 
+// EvCmdApprovalRespond commits a human decision for a pending ApprovalRequest.
+// ClientInstanceID is the per-WS ephemeral identity (FR-P0-12).
+type EvCmdApprovalRespond struct {
+	ConnID           ConnID
+	ReqID            string
+	SessionID        SessionID
+	ApprovalID       ApprovalID
+	Decision         ApprovalDecision
+	ClientInstanceID string
+}
+
+// EvCmdApprovalCancel cancels a pending ApprovalRequest (FR-P0-11).
+type EvCmdApprovalCancel struct {
+	ConnID           ConnID
+	ReqID            string
+	SessionID        SessionID
+	ApprovalID       ApprovalID
+	ClientInstanceID string
+}
+
+// EvCmdQuestionRespond commits a free-text answer for a pending QuestionRequest.
+type EvCmdQuestionRespond struct {
+	ConnID           ConnID
+	ReqID            string
+	SessionID        SessionID
+	QuestionID       QuestionID
+	Answer           string
+	ClientInstanceID string
+}
+
+// EvCmdQuestionCancel cancels a pending QuestionRequest.
+type EvCmdQuestionCancel struct {
+	ConnID           ConnID
+	ReqID            string
+	SessionID        SessionID
+	QuestionID       QuestionID
+	ClientInstanceID string
+}
+
 // EvDriverEvent is a driver hook event from the agent process via
 // `server event <eventType>`. Routed to the session's driver.
 type EvDriverEvent struct {
@@ -297,6 +336,10 @@ func (EvCmdSurfaceUnsubscribe) isEvent()        {}
 func (EvCmdSurfaceResize) isEvent()             {}
 func (EvCmdSurfaceWriteRaw) isEvent()           {}
 func (EvCmdDriverList) isEvent()                {}
+func (EvCmdApprovalRespond) isEvent()           {}
+func (EvCmdApprovalCancel) isEvent()            {}
+func (EvCmdQuestionRespond) isEvent()           {}
+func (EvCmdQuestionCancel) isEvent()            {}
 func (EvEvent) isEvent()                        {}
 func (EvDriverEvent) isEvent()                  {}
 func (EvSubsystem) isEvent()                    {}

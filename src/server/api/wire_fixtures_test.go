@@ -49,7 +49,7 @@ func TestWireFixtures(t *testing.T) {
 					},
 				},
 				Features: []string{"surface"},
-			}, 1700000001),
+			}, 1700000001, ""),
 		},
 		{
 			name: "view-update",

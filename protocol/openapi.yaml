@@ -1,0 +1,135 @@
+openapi: 3.1.0
+info:
+  title: agent-grid native client protocol
+  version: 1.0.0-phase01
+  description: |
+    REST-binding annex (adr-20260724-protocol-message-schema-sot-rest-binding).
+
+    Message types (events, commands, capabilities, deep-links, notifications) are
+    defined only in protocol/*.schema.json — that is the normative wire SoT.
+    This file declares HTTP routes that carry those types for bulk reads,
+    bootstrap, and Phase 0/1 commands. It is NOT a code-generator input.
+    WS carries the event stream; a future DataChannel transport binds the same types.
+servers:
+  - url: http://localhost:8787
+    description: Local gateway
+paths:
+  /api/ws-ticket:
+    post:
+      operationId: mintWsTicket
+      summary: Mint a single-use WS ticket and ephemeral client-instance-id
+      responses:
+        "200":
+          description: Ticket pair
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ticket, client_instance_id]
+                properties:
+                  ticket: { type: string }
+                  client_instance_id: { type: string }
+  /api/capabilities:
+    get:
+      operationId: getCapabilities
+      summary: Daemon capability set (bundled/remote axis skeleton)
+      responses:
+        "200":
+          description: Capabilities
+          content:
+            application/json:
+              schema:
+                $ref: "./capabilities.schema.json"
+  /api/sessions/{id}/approvals/{approvalId}:
+    post:
+      operationId: respondApproval
+      summary: CmdApprovalRespond
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: approvalId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: X-Client-Instance-ID
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [accept, deny]
+                client_instance_id: { type: string }
+      responses:
+        "200":
+          description: Accepted
+        "409":
+          description: resolved_by_other
+  /api/sessions/{id}/questions/{questionId}:
+    post:
+      operationId: respondQuestion
+      summary: CmdQuestionRespond (free-text answer)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: X-Client-Instance-ID
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer]
+              properties:
+                answer:
+                  type: string
+                  description: Free-text only
+                client_instance_id: { type: string }
+      responses:
+        "200":
+          description: Accepted
+        "400":
+          description: Malformed (non-string answer)
+  /api/sessions/{id}/pending-human-input:
+    get:
+      operationId: getPendingHumanInput
+      summary: Authoritative pending ApprovalRequest/QuestionRequest set (resubscribe)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Pending set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approvals:
+                    type: array
+                    items:
+                      $ref: "./events.schema.json#/$defs/ApprovalWire"
+                  questions:
+                    type: array
+                    items:
+                      $ref: "./events.schema.json#/$defs/QuestionWire"

@@ -88,6 +88,14 @@ func Reduce(s State, ev Event) (State, []Effect) {
 		return reduceSurfaceResize(s, e)
 	case EvCmdSurfaceWriteRaw:
 		return reduceSurfaceWriteRaw(s, e)
+	case EvCmdApprovalRespond:
+		return reduceApprovalRespond(s, e)
+	case EvCmdApprovalCancel:
+		return reduceApprovalCancel(s, e)
+	case EvCmdQuestionRespond:
+		return reduceQuestionRespond(s, e)
+	case EvCmdQuestionCancel:
+		return reduceQuestionCancel(s, e)
 	}
 
 	panic(fmt.Sprintf("state.Reduce: unhandled event type %T", ev))
@@ -135,7 +143,9 @@ func reduceQuiescing(s State, ev Event) (State, []Effect) {
 		}
 		return s, []Effect{errResp(e.ConnID, e.ReqID, ErrCodeUnavailable, "runtime is shutting down")}
 	case EvCmdSurfaceSubscribe, EvCmdSurfaceSendText, EvCmdSurfaceSendKey,
-		EvCmdSurfaceResize, EvCmdSurfaceWriteRaw:
+		EvCmdSurfaceResize, EvCmdSurfaceWriteRaw,
+		EvCmdApprovalRespond, EvCmdApprovalCancel,
+		EvCmdQuestionRespond, EvCmdQuestionCancel:
 		connID, reqID := requestIdentity(ev)
 		return s, []Effect{errResp(connID, reqID, ErrCodeUnavailable, "runtime is shutting down")}
 	case EvDriverEvent:
@@ -168,6 +178,14 @@ func requestIdentity(ev Event) (ConnID, string) {
 	case EvCmdSurfaceResize:
 		return e.ConnID, e.ReqID
 	case EvCmdSurfaceWriteRaw:
+		return e.ConnID, e.ReqID
+	case EvCmdApprovalRespond:
+		return e.ConnID, e.ReqID
+	case EvCmdApprovalCancel:
+		return e.ConnID, e.ReqID
+	case EvCmdQuestionRespond:
+		return e.ConnID, e.ReqID
+	case EvCmdQuestionCancel:
 		return e.ConnID, e.ReqID
 	default:
 		panic(fmt.Sprintf("state.requestIdentity: unsupported event %T", ev))

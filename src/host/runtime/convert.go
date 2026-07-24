@@ -42,6 +42,40 @@ func commandToStateEvent(connID state.ConnID, reqID string, cmd proto.Command) s
 		}
 	case proto.CmdDriverList:
 		return state.EvCmdDriverList{ConnID: connID, ReqID: reqID}
+	case proto.CmdApprovalRespond:
+		return state.EvCmdApprovalRespond{
+			ConnID:           connID,
+			ReqID:            reqID,
+			SessionID:        state.SessionID(c.SessionID),
+			ApprovalID:       state.ApprovalID(c.ApprovalID),
+			Decision:         state.ApprovalDecision(c.Decision),
+			ClientInstanceID: c.ClientInstanceID,
+		}
+	case proto.CmdApprovalCancel:
+		return state.EvCmdApprovalCancel{
+			ConnID:           connID,
+			ReqID:            reqID,
+			SessionID:        state.SessionID(c.SessionID),
+			ApprovalID:       state.ApprovalID(c.ApprovalID),
+			ClientInstanceID: c.ClientInstanceID,
+		}
+	case proto.CmdQuestionRespond:
+		return state.EvCmdQuestionRespond{
+			ConnID:           connID,
+			ReqID:            reqID,
+			SessionID:        state.SessionID(c.SessionID),
+			QuestionID:       state.QuestionID(c.QuestionID),
+			Answer:           c.Answer,
+			ClientInstanceID: c.ClientInstanceID,
+		}
+	case proto.CmdQuestionCancel:
+		return state.EvCmdQuestionCancel{
+			ConnID:           connID,
+			ReqID:            reqID,
+			SessionID:        state.SessionID(c.SessionID),
+			QuestionID:       state.QuestionID(c.QuestionID),
+			ClientInstanceID: c.ClientInstanceID,
+		}
 	}
 	if ev := surfaceCommandToEvent(connID, reqID, cmd); ev != nil {
 		return ev

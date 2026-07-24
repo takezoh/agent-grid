@@ -75,22 +75,123 @@ func (b *Backend) handleRequest(id codexclient.RequestID, method string, params 
 			return
 		}
 		approval := approvalFromParams(method, params, b.autoApprove)
+		if approval.ID == "" {
+			// Without a stable id we cannot hold/resume; fall back to deny.
+			_ = b.conn.Reply(id, codexschema.ApprovalDecline)
+			return
+		}
+		b.holdApproval(approval.ID, id)
 		b.emit(frameID, state.SubsystemApprovalRequested, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
 			p.Approval = &approval
 		}))
-		result := codexschema.ApprovalAccept
-		if b.autoApprove {
-			result = codexschema.ApprovalAcceptForSession
+		// Resolution (accept/deny/cancel/expiry/auto) is driven by host/state
+		// via EffReplyHeldApproval → ReplyHeldApproval. Do not Reply here.
+	case codexschema.MethodItemToolRequestUserInput:
+		threadID := extractThreadID(params)
+		frameID := b.frameForThread(threadID)
+		if frameID == "" {
+			return
 		}
-		_ = b.conn.Reply(id, result)
-		approval.Resolved = true
-		b.emit(frameID, state.SubsystemApprovalResolved, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
-			p.Approval = &approval
+		q := questionFromParams(params)
+		if q.ID == "" {
+			_ = b.conn.ReplyError(id, "question id required")
+			return
+		}
+		b.holdQuestion(q.ID, id)
+		b.emit(frameID, state.SubsystemQuestionRequested, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
+			p.Question = &q
 		}))
 	default:
 		slog.Warn("stream backend: rejecting unhandled server request",
 			"method", method, "subsystem", b.subsystemID)
 		_ = b.conn.ReplyError(id, "method not supported by client")
+	}
+}
+
+func (b *Backend) holdApproval(approvalID string, reqID codexclient.RequestID) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.heldApprovals == nil {
+		b.heldApprovals = map[string]codexclient.RequestID{}
+	}
+	b.heldApprovals[approvalID] = reqID
+}
+
+func (b *Backend) holdQuestion(questionID string, reqID codexclient.RequestID) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.heldQuestions == nil {
+		b.heldQuestions = map[string]codexclient.RequestID{}
+	}
+	b.heldQuestions[questionID] = reqID
+}
+
+// ReplyHeldApproval completes a held approval JSON-RPC request.
+// Implements runtime.humanInputReplier.
+func (b *Backend) ReplyHeldApproval(approvalID string, decision string, errMsg string) {
+	b.mu.Lock()
+	reqID, ok := b.heldApprovals[approvalID]
+	if ok {
+		delete(b.heldApprovals, approvalID)
+	}
+	b.mu.Unlock()
+	if !ok || b.conn == nil {
+		return
+	}
+	if errMsg != "" {
+		_ = b.conn.ReplyError(reqID, errMsg)
+		return
+	}
+	result := codexschema.ApprovalDecline
+	switch decision {
+	case string(state.ApprovalDecisionAccept), "accept_for_session":
+		if b.autoApprove {
+			result = codexschema.ApprovalAcceptForSession
+		} else {
+			result = codexschema.ApprovalAccept
+		}
+	}
+	_ = b.conn.Reply(reqID, result)
+}
+
+// ReplyHeldQuestion completes a held free-text user-input JSON-RPC request.
+func (b *Backend) ReplyHeldQuestion(questionID string, answer string, errMsg string) {
+	b.mu.Lock()
+	reqID, ok := b.heldQuestions[questionID]
+	if ok {
+		delete(b.heldQuestions, questionID)
+	}
+	b.mu.Unlock()
+	if !ok || b.conn == nil {
+		return
+	}
+	if errMsg != "" {
+		_ = b.conn.ReplyError(reqID, errMsg)
+		return
+	}
+	// Phase 0/1 free-text answer envelope; structured shapes deferred.
+	_ = b.conn.Reply(reqID, map[string]any{
+		"answers": []map[string]string{{"answer": answer}},
+	})
+}
+
+// drainHeldForFrame replies connection-lost to every held request (best-effort).
+// Called from ReleaseFrame / Stop so no goroutine or map entry outlives the frame.
+func (b *Backend) drainHeldForFrame() {
+	b.mu.Lock()
+	approvals := b.heldApprovals
+	questions := b.heldQuestions
+	b.heldApprovals = nil
+	b.heldQuestions = nil
+	b.mu.Unlock()
+	if b.conn == nil {
+		return
+	}
+	for _, reqID := range approvals {
+		_ = b.conn.ReplyError(reqID, "connection-lost")
+	}
+	for _, reqID := range questions {
+		_ = b.conn.ReplyError(reqID, "connection-lost")
 	}
 }
 

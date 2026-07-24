@@ -80,6 +80,26 @@ Phase 1 makes `protocol/*.schema.json` the single normative message SoT with `op
 - Implementation: [`implementation.md`](./implementation.md)
 - Verification: [`verification.md`](./verification.md)
 - Plan artifact (SoT for validate_plan.py): `/home/ubuntu/.dev-skills/design/native-clients-phase01/artifacts/plan.json`
-- 11 originated ADRs — see `relations[]` above and `implementation.md` §Implementation contracts
+
+### Originated ADRs (12 accepted + 1 rejected)
+
+Accepted:
+
+- [`adr-20260724-approval-question-state-domain-in-host-state`](../../adr/adr-20260724-approval-question-state-domain-in-host-state.md)
+- [`adr-20260724-approval-expiry-deny-default-no-extension`](../../adr/adr-20260724-approval-expiry-deny-default-no-extension.md)
+- [`adr-20260724-approval-lifecycle-teardown-cancel`](../../adr/adr-20260724-approval-lifecycle-teardown-cancel.md)
+- [`adr-20260724-approval-single-writer-first-commit`](../../adr/adr-20260724-approval-single-writer-first-commit.md)
+- [`adr-20260724-approval-answerer-identity-per-ws-instance`](../../adr/adr-20260724-approval-answerer-identity-per-ws-instance.md)
+- [`adr-20260724-approval-broadcast-coexists-view-update`](../../adr/adr-20260724-approval-broadcast-coexists-view-update.md)
+- [`adr-20260724-capability-negotiation-bundled-remote-two-axis`](../../adr/adr-20260724-capability-negotiation-bundled-remote-two-axis.md)
+- [`adr-20260724-deep-link-shape-adopts-remote-control-plan`](../../adr/adr-20260724-deep-link-shape-adopts-remote-control-plan.md)
+- [`adr-20260724-protocol-cross-language-sdks-supersedes-0021`](../../adr/adr-20260724-protocol-cross-language-sdks-supersedes-0021.md)
+- [`adr-20260724-protocol-message-schema-sot-rest-binding`](../../adr/adr-20260724-protocol-message-schema-sot-rest-binding.md)
+- [`adr-20260724-sdk-codegen-quicktype-typegen`](../../adr/adr-20260724-sdk-codegen-quicktype-typegen.md)
+- [`adr-20260724-simulator-under-protocol-directory`](../../adr/adr-20260724-simulator-under-protocol-directory.md)
+
+Rejected (superseded):
+
+- [`adr-20260724-sdk-codegen-openapi-generator`](../../adr/adr-20260724-sdk-codegen-openapi-generator.md) — superseded by quicktype ADR after message-schema SoT re-layering
 
 ## Closure Notes

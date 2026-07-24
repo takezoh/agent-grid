@@ -193,12 +193,20 @@ func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependen
 			http.Error(w, "daemon unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		if !noAuth && !tickets.consume(r.URL.Query().Get("ticket")) {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
+		var clientInstanceID string
+		if !noAuth {
+			ci, ok := tickets.consume(r.URL.Query().Get("ticket"))
+			if !ok {
+				w.Header().Set("WWW-Authenticate", "Bearer")
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			clientInstanceID = ci
+		} else {
+			// no-auth local mode still needs a distinct producer id per WS.
+			clientInstanceID = randomOpaque24()
 		}
-		serveAttach(d, w, r)
+		serveAttach(d, w, r, clientInstanceID)
 	})
 	return mux
 }
@@ -222,8 +230,16 @@ func apiHandler(d *DaemonClient, tickets *ticketStore, dependencies muxDependenc
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/diff", handleWorkspaceDiff(d))
 	mux.HandleFunc("GET /api/session-config", handleSessionConfig())
 	mux.HandleFunc("POST /api/ws-ticket", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"ticket": tickets.mint()})
+		ticket, ci := tickets.mint()
+		writeJSON(w, http.StatusOK, map[string]string{
+			"ticket":             ticket,
+			"client_instance_id": ci,
+		})
 	})
+	mux.HandleFunc("POST /api/sessions/{id}/approvals/{approvalId}", handleApprovalRespond(d))
+	mux.HandleFunc("POST /api/sessions/{id}/questions/{questionId}", handleQuestionRespond(d))
+	mux.HandleFunc("GET /api/sessions/{id}/pending-human-input", handlePendingHumanInput(d))
+	mux.HandleFunc("GET /api/capabilities", handleCapabilities())
 	return mux
 }
 
@@ -653,7 +669,7 @@ func protoCodeToHTTP(code proto.ErrCode) (int, string) {
 	return http.StatusInternalServerError, "unmapped_code"
 }
 
-func serveAttach(d *DaemonClient, w http.ResponseWriter, r *http.Request) {
+func serveAttach(d *DaemonClient, w http.ResponseWriter, r *http.Request, clientInstanceID string) {
 	sessionID := r.URL.Query().Get("session")
 	// Leaving InsecureSkipVerify unset enforces the default origin check (the
 	// request Origin host must equal Host), which blocks cross-site WebSocket
@@ -664,7 +680,7 @@ func serveAttach(d *DaemonClient, w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = c.CloseNow() }()
 	if sessionID == "" {
-		_ = AttachLifecycleWS(r.Context(), NewDaemonAdapter(d), c)
+		_ = AttachLifecycleWS(r.Context(), NewDaemonAdapter(d), c, clientInstanceID)
 		return
 	}
 	_ = AttachWS(r.Context(), NewDaemonAdapter(d), sessionID, c)

@@ -5,6 +5,7 @@ sockbridge
 /claude-app-server
 /server
 /web
+/protocol-simserver
 src/arc
 src/bridge
 src/orchestrator

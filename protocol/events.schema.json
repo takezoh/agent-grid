@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.dev/protocol/events.schema.json",
+  "title": "ServerToClientEvents",
+  "description": "WS/event frames the daemon pushes to clients. Discriminated by k on the lifecycle surface.",
+  "oneOf": [
+    { "$ref": "#/$defs/ApprovalRequestedFrame" },
+    { "$ref": "#/$defs/ApprovalResolvedFrame" },
+    { "$ref": "#/$defs/QuestionRequestedFrame" },
+    { "$ref": "#/$defs/QuestionResolvedFrame" }
+  ],
+  "$defs": {
+    "ApprovalWire": {
+      "type": "object",
+      "required": ["id", "session_id", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "session_id": { "type": "string" },
+        "frame_id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["command", "file_change"] },
+        "command": { "type": "string" },
+        "path": { "type": "string" },
+        "reason": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "resolved", "expired", "cancelled"]
+        },
+        "default_decision": { "type": "string", "enum": ["accept", "deny"] },
+        "decision": { "type": "string", "enum": ["accept", "deny"] },
+        "resolving_client_instance_id": { "type": "string" },
+        "resolution_reason": {
+          "type": "string",
+          "enum": ["client", "expired", "cancelled", "auto"]
+        }
+      }
+    },
+    "QuestionWire": {
+      "type": "object",
+      "required": ["id", "session_id", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "session_id": { "type": "string" },
+        "frame_id": { "type": "string" },
+        "prompt": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "resolved", "expired", "cancelled"]
+        },
+        "answer": {
+          "type": "string",
+          "description": "Free-text only (HumanInputRequest.free_text)."
+        },
+        "resolving_client_instance_id": { "type": "string" },
+        "resolution_reason": {
+          "type": "string",
+          "enum": ["client", "expired", "cancelled"]
+        }
+      }
+    },
+    "ApprovalRequestedFrame": {
+      "type": "object",
+      "required": ["k", "approval"],
+      "additionalProperties": false,
+      "properties": {
+        "k": { "const": "ar" },
+        "approval": { "$ref": "#/$defs/ApprovalWire" }
+      }
+    },
+    "ApprovalResolvedFrame": {
+      "type": "object",
+      "required": ["k", "approval"],
+      "additionalProperties": false,
+      "properties": {
+        "k": { "const": "ax" },
+        "approval": { "$ref": "#/$defs/ApprovalWire" }
+      }
+    },
+    "QuestionRequestedFrame": {
+      "type": "object",
+      "required": ["k", "question"],
+      "additionalProperties": false,
+      "properties": {
+        "k": { "const": "qr" },
+        "question": { "$ref": "#/$defs/QuestionWire" }
+      }
+    },
+    "QuestionResolvedFrame": {
+      "type": "object",
+      "required": ["k", "question"],
+      "additionalProperties": false,
+      "properties": {
+        "k": { "const": "qx" },
+        "question": { "$ref": "#/$defs/QuestionWire" }
+      }
+    }
+  }
+}

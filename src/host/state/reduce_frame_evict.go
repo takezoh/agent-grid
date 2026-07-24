@@ -30,7 +30,14 @@ func evictRootFrame(s State, sessID SessionID, sess Session, killWindow bool) (S
 	allRemoved := truncateFrames(sess, 0)
 	s.Sessions = cloneSessions(s.Sessions)
 	delete(s.Sessions, sessID)
-	effs := make([]Effect, 0, len(allRemoved)*4+2)
+	// Reap approval/question domain for the whole session (FR-P0-11 / NFR-06).
+	var reapEffs []Effect
+	s, reapEffs = cancelApprovalsForSession(s, sessID)
+	var qReap []Effect
+	s, qReap = cancelQuestionsForSession(s, sessID)
+	effs := make([]Effect, 0, len(allRemoved)*4+2+len(reapEffs)+len(qReap))
+	effs = append(effs, reapEffs...)
+	effs = append(effs, qReap...)
 	for _, frame := range allRemoved {
 		effs = append(effs, frameTeardownEffects(frame.ID, killWindow)...)
 	}
@@ -54,7 +61,14 @@ func evictChildFrame(s State, sessID SessionID, sess Session, idx int, frameID F
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[sessID] = sess
 
+	// Child-frame teardown reaps only requests owned by that frame.
+	var reapEffs []Effect
+	s, reapEffs = cancelApprovalsForFrame(s, frameID)
+	var qReap []Effect
+	s, qReap = cancelQuestionsForFrame(s, frameID)
 	effs := frameTeardownEffects(removed.ID, killWindow)
+	effs = append(reapEffs, effs...)
+	effs = append(effs, qReap...)
 	effs = append(effs, EffPersistSnapshot{}, EffBroadcastSessionsChanged{})
 	return s, effs, true
 }

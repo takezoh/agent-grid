@@ -86,6 +86,8 @@ const (
 	SubsystemToolCompleted     SubsystemEventKind = "tool_completed"
 	SubsystemApprovalRequested SubsystemEventKind = "approval_requested"
 	SubsystemApprovalResolved  SubsystemEventKind = "approval_resolved"
+	SubsystemQuestionRequested SubsystemEventKind = "question_requested"
+	SubsystemQuestionResolved  SubsystemEventKind = "question_resolved"
 	SubsystemPlanUpdated       SubsystemEventKind = "plan_updated"
 	SubsystemDiffUpdated       SubsystemEventKind = "diff_updated"
 	SubsystemMessageUpdated    SubsystemEventKind = "message_updated"
@@ -117,6 +119,14 @@ type SubsystemApproval struct {
 	AutoApprove bool   `json:"auto_approve"`
 	Resolved    bool   `json:"resolved"`
 	Denied      bool   `json:"denied"`
+}
+
+// SubsystemQuestion is the driver-facing payload for a free-text human-input
+// request. Durable state lives in QuestionRequest (host/state).
+type SubsystemQuestion struct {
+	ID     string `json:"id"`
+	Prompt string `json:"prompt"`
+	Answer string `json:"answer,omitempty"`
 }
 
 type SubsystemPlan struct {
@@ -154,6 +164,7 @@ type SubsystemPayload struct {
 	TranscriptPath       string             `json:"transcript_path"`
 	Tool                 *SubsystemTool     `json:"tool,omitempty"`
 	Approval             *SubsystemApproval `json:"approval,omitempty"`
+	Question             *SubsystemQuestion `json:"question,omitempty"`
 	Plan                 *SubsystemPlan     `json:"plan,omitempty"`
 	Diff                 *SubsystemDiff     `json:"diff,omitempty"`
 	Message              *SubsystemMessage  `json:"message,omitempty"`
