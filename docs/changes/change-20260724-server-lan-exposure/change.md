@@ -2,7 +2,7 @@
 id: change-20260724-server-lan-exposure
 kind: change
 title: Server LAN exposure escape hatch
-status: draft
+status: active
 created: '2026-07-24'
 profile: sdd@1
 intent: 隔離された dev ネットワークで agent-grid-server を LAN に公開できる明示 opt-in を用意する。既存の loopback
@@ -52,6 +52,7 @@ source_paths:
 summary: Add -allow-non-loopback-no-auth opt-in flag so operators can deliberately
   expose the daemon on 0.0.0.0 with -no-auth for isolated dev networks; default loopback
   guard remains intact.
+updated: '2026-07-24'
 ---
 
 ## Summary
