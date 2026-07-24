@@ -2,7 +2,7 @@
 id: change-20260723-windows-shell-phase2
 kind: change
 title: 20260723 Windows Shell Phase 2 UX
-status: draft
+status: ready
 created: '2026-07-23'
 summary: UX requirements for the Windows desktop supervision surface (Phase 2 of native-clients plan).
 profile: sdd@1
@@ -39,14 +39,28 @@ members:
 - role: ux
   path: changes/change-20260723-windows-shell-phase2/ux.md
   required: true
-promotion: []
-unresolved_decisions:
-- panel-primary-vs-toast-primary-supervision-entry
-- panel-engage-focus-return-policy
-- jump-back-target-inventory-provenance
-- hosted-mode-visual-integration-scope
+promotion:
+- action: none
+  reason: 'Phase 2 change stays scoped to native-client behavior/capability additions; the 14 ADRs published under docs/adr/adr-20260724-*.md carry the design contracts. No persistent design/*.md upsert or retire is required in this pass — Windows Shell / Workspace / hosted-mode SPA are not represented in docs/design as first-class responsibility/boundary/ownership records today. Promotion is revisited if boundaries stabilize post-S5.'
+unresolved_decisions: []
 relations: []
 ---
+
+## Source plans
+
+- `plans/plan-20260723-windows-shell-design.md` — Phase 2 詳細設計
+- `plans/plan-20260723-native-clients.md` — 親計画 (Phase 2 は S1-S5 vertical slice)
+
+## Scheduled gates
+
+Change status は `ready`。以下 4 gate は S1 entry を塞がない conditional regression detector で、実装フェーズで発火条件を監視する。
+
+| id | chunk | covers | on_fail |
+|---|---|---|---|
+| `s3-prototypes-gate` | `chunk-s1a-s3-prototypes-gate` | `assumption-com-background-activation-unpackaged`, `assumption-appnotification-textbox-ime`, engage-restore AttachThreadInput screen-reader 互換性 | reopen `DP-SUPERVISION-PRIMARY-ENTRY` via new user consultation; blocks entry into `chunk-s2-panel-glance` and `chunk-s3-approval-round-trip` until resolved |
+| `wsl-detach-survival-verification` | `chunk-s1-connection-supervision` (`unit-wsl-detach-spike`) | `adr-20260724-boundary-3-wsl-detach-spike` (setsid+nohup survival) | supersede the ADR with a systemd --user alternative; re-run S1 |
+| `deep-link-upstream-additive-pr` | post-S5 follow-up (Track B of `adr-20260724-deep-link-schema-additive-extension`) | additive extension of `protocol/deep-links.schema.json` for `question` + `/jump` variants | amend the ADR to make Track A (client-side alias) the permanent implementation; no Phase 2 code change needed |
+| `reconnect-delay-p95-monitor` | post-S1 measurement | `NFR-daemon-restart-reconnect-delay=5s` | revise NFR value based on histogram; regression alarm at p95 > 5s |
 
 ## Scaffold
 
