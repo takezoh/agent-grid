@@ -4,7 +4,7 @@ kind: note
 title: Web Gateway
 status: published
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-24'
 tags:
 - technical
 - legacy-import

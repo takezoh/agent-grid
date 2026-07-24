@@ -17,6 +17,7 @@ source_paths:
 - scripts/
 - clients/ui/
 summary: 2026-07-15再監査で判明したfalse green、profile drift、Web silent failureをM1-M7で解消する実装roadmap
+updated: '2026-07-24'
 ---
 
 ## Summary

@@ -4,38 +4,78 @@ kind: design
 title: Platform architecture
 status: active
 created: '2026-06-24'
-summary: Governs shared process launch, PTY, agent protocol, sandbox, broker, observability, and test-double infrastructure.
+summary: Governs shared process launch, PTY, agent protocol, sandbox, broker, observability,
+  and test-double infrastructure.
 scope_type: area
 responsibilities:
-- {id: RESP-001, statement: Provide dependency-light infrastructure shared by client server and orchestrator areas.}
-- {id: RESP-002, statement: Own canonical process-launch and lifecycle primitives across host and sandbox execution.}
-- {id: RESP-003, statement: Define agent protocol transport and versioned wire contracts.}
-- {id: RESP-004, statement: Mediate credentials host execution MCP tools secrets and path translation across trust boundaries.}
-- {id: RESP-005, statement: Supply routing-safe PTY multiplexing and fidelity-backed test doubles for external protocols.}
-- {id: RESP-006, statement: Own runtime-authoritative executable search paths for host-mediated shims after launch environment preparation.}
+- id: RESP-001
+  statement: Provide dependency-light infrastructure shared by client server and orchestrator
+    areas.
+- id: RESP-002
+  statement: Own canonical process-launch and lifecycle primitives across host and
+    sandbox execution.
+- id: RESP-003
+  statement: Define agent protocol transport and versioned wire contracts.
+- id: RESP-004
+  statement: Mediate credentials host execution MCP tools secrets and path translation
+    across trust boundaries.
+- id: RESP-005
+  statement: Supply routing-safe PTY multiplexing and fidelity-backed test doubles
+    for external protocols.
+- id: RESP-006
+  statement: Own runtime-authoritative executable search paths for host-mediated shims
+    after launch environment preparation.
 invariants:
-- {id: INV-001, statement: Platform packages do not import client server or orchestrator policy layers., enforcement: conformance}
-- {id: INV-002, statement: 'Process launch has one canonical plan-to-execution path; callers do not recreate shell or lifecycle policy.', enforcement: conformance}
-- {id: INV-003, statement: PTY and protocol fan-out preserves per-session and per-subscriber isolation under concurrency., enforcement: test}
-- {id: INV-004, statement: Host mediation is deny-first and scopes credentials and capabilities to the requesting project., enforcement: contract}
-- {id: INV-005, statement: Long-lived host credentials are not copied into sandbox state when brokered access is available., enforcement: review}
-- {id: INV-006, statement: Generated protocol types remain pinned to an explicit upstream schema and drift check., enforcement: conformance}
-- {id: INV-007, statement: Fakes model documented wire behavior and retain a real-system fidelity backstop where practical., enforcement: contract}
-- {id: INV-008, statement: 'Frame launch reasserts authoritative shim directories after pre-exec evaluation; individual providers do not compete for PATH ownership.', enforcement: test}
+- id: INV-001
+  statement: Platform packages do not import client server or orchestrator policy
+    layers.
+  enforcement: conformance
+- id: INV-002
+  statement: Process launch has one canonical plan-to-execution path; callers do not
+    recreate shell or lifecycle policy.
+  enforcement: conformance
+- id: INV-003
+  statement: PTY and protocol fan-out preserves per-session and per-subscriber isolation
+    under concurrency.
+  enforcement: test
+- id: INV-004
+  statement: Host mediation is deny-first and scopes credentials and capabilities
+    to the requesting project.
+  enforcement: contract
+- id: INV-005
+  statement: Long-lived host credentials are not copied into sandbox state when brokered
+    access is available.
+  enforcement: review
+- id: INV-006
+  statement: Generated protocol types remain pinned to an explicit upstream schema
+    and drift check.
+  enforcement: conformance
+- id: INV-007
+  statement: Fakes model documented wire behavior and retain a real-system fidelity
+    backstop where practical.
+  enforcement: contract
+- id: INV-008
+  statement: Frame launch reasserts authoritative shim directories after pre-exec
+    evaluation; individual providers do not compete for PATH ownership.
+  enforcement: test
 boundaries:
   provides:
   - Process launch, process-group lifecycle, PTY multiplexing, and path translation.
   - Agent JSON-RPC transport, schemas, command builders, and compatibility shims.
-  - Sandbox lifecycle and brokered access to credentials, host commands, MCP, and secrets.
+  - Sandbox lifecycle and brokered access to credentials, host commands, MCP, and
+    secrets.
   - Shared logging, metrics, tracker adapters, and protocol-focused test doubles.
-  - Runtime-authoritative shim identity and search-path ordering for frame-launched processes.
+  - Runtime-authoritative shim identity and search-path ordering for frame-launched
+    processes.
   consumes:
   - Operating-system process, PTY, socket, filesystem, and credential facilities.
   - Upstream agent schemas and external provider protocols.
   forbidden:
   - Owning client session policy, browser behavior, or orchestrator scheduling decisions.
-  - Bypassing broker policy with direct host credential or executable access from a sandbox.
-  - Introducing caller-specific launch implementations parallel to the canonical launch path.
+  - Bypassing broker policy with direct host credential or executable access from
+    a sandbox.
+  - Introducing caller-specific launch implementations parallel to the canonical launch
+    path.
 variability:
   fixed:
   - Dependency direction toward platform and away from policy layers.
@@ -46,12 +86,18 @@ variability:
   - Agent protocol versions selected explicitly by consumers.
   - Test-double implementations paired with contract and fidelity checks.
 capabilities:
-- {id: 'cap:canonical-process-launch', uniqueness: global}
-- {id: 'cap:pty-multiplexing', uniqueness: global}
-- {id: 'cap:agent-protocol-transport', uniqueness: global}
-- {id: 'cap:sandbox-and-host-mediation', uniqueness: global}
-- {id: 'cap:shared-observability', uniqueness: global}
-- {id: 'cap:protocol-test-doubles', uniqueness: global}
+- id: cap:canonical-process-launch
+  uniqueness: global
+- id: cap:pty-multiplexing
+  uniqueness: global
+- id: cap:agent-protocol-transport
+  uniqueness: global
+- id: cap:sandbox-and-host-mediation
+  uniqueness: global
+- id: cap:shared-observability
+  uniqueness: global
+- id: cap:protocol-test-doubles
+  uniqueness: global
 relations:
 - {type: originatedFrom, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
@@ -64,24 +110,36 @@ relations:
 - {type: references, target: note-20260624-technical-guardrails}
 - {type: references, target: note-20260624-user-sandbox}
 failure_responsibilities:
-- Reject unsafe launch, path, credential, executable, tool, and secret requests at the platform boundary.
-- Reap owned processes, sockets, PTYs, providers, and subscriptions deterministically on failure or cancellation.
-- Surface protocol and broker failures without silently switching to a less constrained execution path.
+- Reject unsafe launch, path, credential, executable, tool, and secret requests at
+  the platform boundary.
+- Reap owned processes, sockets, PTYs, providers, and subscriptions deterministically
+  on failure or cancellation.
+- Surface protocol and broker failures without silently switching to a less constrained
+  execution path.
 - Contain subscriber and fake-backend failures so they cannot corrupt unrelated routes.
 trust_boundaries:
-- The sandbox-to-host socket boundary requires project-scoped authentication and per-operation policy.
-- Agent protocol streams and upstream schemas are external inputs requiring framing and version validation.
-- Host filesystem paths crossing into containers require explicit canonical translation and containment.
-- Writers of runtime-authoritative shim directories hold executable precedence and must remain limited to governed providers.
+- The sandbox-to-host socket boundary requires project-scoped authentication and per-operation
+  policy.
+- Agent protocol streams and upstream schemas are external inputs requiring framing
+  and version validation.
+- Host filesystem paths crossing into containers require explicit canonical translation
+  and containment.
+- Writers of runtime-authoritative shim directories hold executable precedence and
+  must remain limited to governed providers.
 compatibility_policies:
-- Schema upgrades are explicit, regenerate committed types, and pass drift and consumer contract checks.
-- Broker and launch contract changes preserve deny-first behavior and require paired caller migration.
-- Fakes change with their wire contract and remain checked against a real implementation where feasible.
-- Changes to authoritative PATH order require an observable migration and a bounded rollback mechanism.
+- Schema upgrades are explicit, regenerate committed types, and pass drift and consumer
+  contract checks.
+- Broker and launch contract changes preserve deny-first behavior and require paired
+  caller migration.
+- Fakes change with their wire contract and remain checked against a real implementation
+  where feasible.
+- Changes to authoritative PATH order require an observable migration and a bounded
+  rollback mechanism.
 - Keep legacy component identifiers resolvable through documentation aliases.
 source_paths:
 - src/cmd/claude-app-server/
 - src/platform/
+updated: '2026-07-24'
 ---
 
 # Platform architecture

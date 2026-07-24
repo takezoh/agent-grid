@@ -4,7 +4,7 @@ kind: note
 title: Testing
 status: published
 created: '2026-06-24'
-updated: '2026-07-05'
+updated: '2026-07-24'
 tags:
 - agent
 - legacy-import

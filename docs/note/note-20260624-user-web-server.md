@@ -4,7 +4,7 @@ kind: note
 title: Web client⇄server (`server` + `web`)
 status: published
 created: '2026-06-24'
-updated: '2026-07-04'
+updated: '2026-07-24'
 tags:
 - user
 - legacy-import
