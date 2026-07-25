@@ -114,7 +114,10 @@ public class RunDevGatewayE2ETests
 
     private sealed class AlwaysOkPipe : IWorkspaceControlClient
     {
-        public Task<ControlReply> SendAsync(ControlEnvelope envelope, CancellationToken ct = default) =>
+        public Task<ControlReply> SendAsync(
+            ControlEnvelope envelope,
+            CancellationToken ct = default,
+            Action<int>? onConnectedServerProcessId = default) =>
             Task.FromResult(ControlReply.Success());
     }
 

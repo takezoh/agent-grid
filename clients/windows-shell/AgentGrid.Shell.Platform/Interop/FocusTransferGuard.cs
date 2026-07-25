@@ -13,7 +13,17 @@ public static class FocusTransferGuard
     {
         JumpBack,
         EngageRestore,
-        /// <summary>Explicit user-initiated action (e.g. clicking the panel title).</summary>
+        /// <summary>
+        /// Explicit user-initiated action (e.g. clicking the panel title). Also covers
+        /// composition-layer delegation of cross-process foreground permission on
+        /// WorkspaceLauncherService's pipe-success openSession path
+        /// (ShellCompositionRoot.Build's <c>win32.AllowSetForegroundWindow</c> wiring,
+        /// debug-run-workspace-not-activated): reached only from explicit in-process user
+        /// actions -- SessionChip click, pending-session open, WinUI-hosted deep link
+        /// (PanelWindow.xaml.cs) -- NOT the headless Host deep-link path (Program.cs), which does
+        /// not have a foreground-authority caller and is intentionally out of scope (tracked as a
+        /// separate issue candidate; see investigation.json open_questions).
+        /// </summary>
         ExplicitUser,
     }
 

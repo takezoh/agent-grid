@@ -1,5 +1,6 @@
 using System.IO.Pipes;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace AgentGrid.Shell.Core.WorkspaceLauncher;
@@ -29,9 +30,12 @@ public sealed class NamedPipeWorkspaceControlClient : IWorkspaceControlClient, I
                ?? "/tmp/agent-grid-workspace.sock";
     }
 
-    public async Task<ControlReply> SendAsync(ControlEnvelope envelope, CancellationToken ct = default)
+    public async Task<ControlReply> SendAsync(
+        ControlEnvelope envelope,
+        CancellationToken ct = default,
+        Action<int>? onConnectedServerProcessId = default)
     {
-        await using var stream = await ConnectAsync(ct).ConfigureAwait(false);
+        await using var stream = await ConnectAsync(ct, onConnectedServerProcessId).ConfigureAwait(false);
         var line = envelope.ToJsonLine() + "\n";
         var bytes = Encoding.UTF8.GetBytes(line);
         await stream.WriteAsync(bytes, ct).ConfigureAwait(false);
@@ -46,7 +50,24 @@ public sealed class NamedPipeWorkspaceControlClient : IWorkspaceControlClient, I
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    private async Task<Stream> ConnectAsync(CancellationToken ct)
+    /// <summary>
+    /// Connects to the control endpoint, applying <see cref="_connectTimeout"/> via a linked
+    /// <see cref="CancellationTokenSource"/> derived from <paramref name="ct"/>.
+    /// </summary>
+    /// <remarks>
+    /// Exception contract (debug/workspace-not-launched): both the Windows named-pipe path
+    /// (<see cref="NamedPipeClientStream.ConnectAsync(CancellationToken)"/>) and the Unix-socket
+    /// path (<see cref="Socket.ConnectAsync(EndPoint, CancellationToken)"/>) surface a connect
+    /// timeout as <see cref="OperationCanceledException"/>, not <see cref="TimeoutException"/> --
+    /// the CancellationToken-only overloads pass <c>Timeout.Infinite</c> internally
+    /// (dotnet/runtime), so the linked CTS firing on <see cref="CancellationTokenSource.CancelAfter"/>
+    /// always throws OperationCanceledException. Because <c>linked</c> is derived from
+    /// <paramref name="ct"/>, this is indistinguishable by exception type alone from the caller
+    /// canceling <paramref name="ct"/> itself. Callers (see
+    /// <see cref="WorkspaceLauncherService.SendWithLaunchRetryAsync"/>) must check
+    /// <c>ct.IsCancellationRequested</c> to tell the two apart.
+    /// </remarks>
+    private async Task<Stream> ConnectAsync(CancellationToken ct, Action<int>? onConnectedServerProcessId)
     {
         if (OperatingSystem.IsWindows() && _path.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
         {
@@ -59,6 +80,16 @@ public sealed class NamedPipeWorkspaceControlClient : IWorkspaceControlClient, I
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
             linked.CancelAfter(_connectTimeout);
             await client.ConnectAsync(linked.Token).ConfigureAwait(false);
+
+            // Deliberately BEFORE the envelope is written below (contract on
+            // IWorkspaceControlClient.SendAsync's onConnectedServerProcessId): the
+            // pipe server (workspace) may act on the message -- including calling its own
+            // focus() -- as soon as it is written, so foreground permission must already be
+            // granted by then (debug-run-workspace-not-activated).
+            if (onConnectedServerProcessId is not null
+                && TryGetServerProcessId(client, out var serverPid))
+                onConnectedServerProcessId(serverPid);
+
             return client;
         }
 
@@ -77,6 +108,44 @@ public sealed class NamedPipeWorkspaceControlClient : IWorkspaceControlClient, I
             socket.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Discovers the process id of the connected named-pipe server via kernel32's
+    /// <c>GetNamedPipeServerProcessId</c> (self-contained P/Invoke -- no reference to
+    /// <c>AgentGrid.Shell.Platform</c>/<c>IWin32InteropService</c>, so this stays available from
+    /// Core even though only Platform is allowed to depend on Core, not the reverse; see
+    /// <see cref="WorkspaceLauncherService"/>'s <c>onForegroundTransferEligible</c> doc).
+    /// Fail-open: returns false (never throws) on any marshalling/OS failure, so a foreground-PID
+    /// lookup problem degrades to "no foreground delegation this call" rather than breaking the
+    /// openSession round-trip itself (debug-run-workspace-not-activated open_questions: exact
+    /// SafeHandle&#8594;HANDLE marshalling was not exercisable off a Windows host at fix time).
+    /// </summary>
+    private static bool TryGetServerProcessId(NamedPipeClientStream client, out int serverProcessId)
+    {
+        serverProcessId = 0;
+        try
+        {
+            var handle = client.SafePipeHandle;
+            if (handle is null || handle.IsInvalid)
+                return false;
+            if (!Native.GetNamedPipeServerProcessId(handle, out var pid))
+                return false;
+            serverProcessId = checked((int)pid);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static class Native
+    {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetNamedPipeServerProcessId(
+            Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint serverProcessId);
     }
 
     public static ControlReply ParseReply(string line)

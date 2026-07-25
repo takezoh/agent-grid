@@ -72,6 +72,72 @@ public class NamedPipeClientTests
         Assert.Equal(2, attempts);
     }
 
+    [Fact]
+    public async Task WorkspaceLauncher_spawns_when_pipe_connect_is_canceled()
+    {
+        // RED-test evidence for debug/workspace-not-launched: NamedPipeWorkspaceControlClient
+        // connects via NamedPipeClientStream.ConnectAsync(CancellationToken) (no numeric
+        // timeout). Per dotnet/runtime NamedPipeClientStream.ConnectInternal, that overload
+        // passes Timeout.Infinite, so the connect-timeout linked CancellationTokenSource firing
+        // always surfaces as OperationCanceledException -- never TimeoutException -- when the
+        // workspace process (and its pipe server) is not yet running. This is exactly the state
+        // observed in the field: chip click -> zero agent-grid-workspace processes, no error UI.
+        var attempts = 0;
+        var client = new ScriptedControlClient(() =>
+        {
+            attempts++;
+            if (attempts < 2)
+                throw new OperationCanceledException("pipe connect canceled (no server listening)");
+            return ControlReply.Success();
+        });
+        var spawned = 0;
+        var launcher = new WorkspaceLauncherService(
+            client,
+            new ScriptedProcess(() => { spawned++; return Task.CompletedTask; }),
+            maxAttempts: 3,
+            initialBackoff: TimeSpan.FromMilliseconds(1));
+
+        var reply = await launcher.OpenSessionAsync(new ServerSessionId("local", "s1"));
+
+        Assert.True(reply.Ok);
+        Assert.Equal(1, spawned);
+    }
+
+    [Fact]
+    public async Task WorkspaceLauncher_does_not_spawn_when_caller_cancels_ct()
+    {
+        // Companion to WorkspaceLauncher_spawns_when_pipe_connect_is_canceled
+        // (debug/workspace-not-launched round-2 critique, critic-red-test-non-discriminating,
+        // severity: blocker). That test proves the pipe-connect-timeout path must trigger a
+        // spawn even though it throws OperationCanceledException. This test proves the opposite
+        // provenance -- the *caller's own* CancellationToken (passed into OpenSessionAsync)
+        // being canceled -- must NOT trigger a spawn and must propagate OperationCanceledException
+        // untouched. A "blanket catch OperationCanceledException => retry/spawn" fix would make
+        // WorkspaceLauncher_spawns_when_pipe_connect_is_canceled pass but flip this test's
+        // spawned count to 1 and swallow the caller's cancellation, so the two tests together can
+        // only both be GREEN if the fix distinguishes connect-timeout-OCE (internal linked CTS,
+        // NamedPipeWorkspaceControlClient's own 2s budget) from caller-OCE (the ct the caller
+        // handed to OpenSessionAsync) by provenance, e.g. inspecting which token was actually
+        // canceled rather than the exception's runtime type alone.
+        using var cts = new CancellationTokenSource();
+        var client = new ScriptedControlClient(ct =>
+        {
+            cts.Cancel();
+            throw new OperationCanceledException("caller canceled ct", cts.Token);
+        });
+        var spawned = 0;
+        var launcher = new WorkspaceLauncherService(
+            client,
+            new ScriptedProcess(() => { spawned++; return Task.CompletedTask; }),
+            maxAttempts: 3,
+            initialBackoff: TimeSpan.FromMilliseconds(1));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => launcher.OpenSessionAsync(new ServerSessionId("local", "s1"), cts.Token));
+
+        Assert.Equal(0, spawned);
+    }
+
     private static Task<IAsyncDisposable> StartEchoServerAsync(string path)
     {
         var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
@@ -122,10 +188,14 @@ public class NamedPipeClientTests
 
     private sealed class ScriptedControlClient : IWorkspaceControlClient
     {
-        private readonly Func<ControlReply> _fn;
-        public ScriptedControlClient(Func<ControlReply> fn) => _fn = fn;
-        public Task<ControlReply> SendAsync(ControlEnvelope envelope, CancellationToken ct = default) =>
-            Task.FromResult(_fn());
+        private readonly Func<CancellationToken, ControlReply> _fn;
+        public ScriptedControlClient(Func<ControlReply> fn) : this(_ => fn()) { }
+        public ScriptedControlClient(Func<CancellationToken, ControlReply> fn) => _fn = fn;
+        public Task<ControlReply> SendAsync(
+            ControlEnvelope envelope,
+            CancellationToken ct = default,
+            Action<int>? onConnectedServerProcessId = default) =>
+            Task.FromResult(_fn(ct));
     }
 
     private sealed class ScriptedProcess : IWorkspaceProcessLauncher

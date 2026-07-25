@@ -73,7 +73,19 @@ public sealed class ShellCompositionRoot : IAsyncDisposable
             ?? new NamedPipeWorkspaceControlClient(opts.WorkspaceControlPath);
         IWorkspaceProcessLauncher process = opts.WorkspaceProcessLauncher
             ?? new ProcessWorkspaceLauncher(opts.WorkspaceExePath, opts.WorkspaceArguments);
-        var workspace = new WorkspaceLauncherService(pipe, process);
+        // debug-run-workspace-not-activated: decision authority for cross-process foreground
+        // transfer stays in this composition layer (Core cannot reference IWin32InteropService --
+        // Platform references Core, not the reverse). SessionChip clicks / deep-link opens reach
+        // WorkspaceLauncherService.OpenSessionAsync on the pipe-success path (workspace already
+        // running); without this, Electron's own focus() is demoted to a taskbar flash by
+        // Windows' foreground-lock restriction. Classified under FocusTransferGuard.ExplicitUser
+        // (see FocusTransferGuard.cs) -- reached only from explicit user actions in-process
+        // (SessionChip / pending-session open / WinUI deep link), not the headless Host deep-link
+        // path (Program.cs), which is out of scope here (separate issue candidate).
+        var workspace = new WorkspaceLauncherService(
+            pipe,
+            process,
+            onForegroundTransferEligible: pid => win32.AllowSetForegroundWindow(pid));
 
         Action quit = opts.QuitApplication ?? (() => { });
         var menu = new ShellMenuHandlers(supervisor, quit);
