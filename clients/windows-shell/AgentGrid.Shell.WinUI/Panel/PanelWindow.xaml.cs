@@ -23,11 +23,7 @@ namespace AgentGrid.Shell.WinUI.Panel;
 /// </summary>
 public sealed partial class PanelWindow : Window
 {
-    // Physical px; widths include the two 12-logical-px concave wings.
-    private const int ExpandedWidth = 490;
-    private const int ExpandedHeight = 540;
-    private const int CompactWidth = 370;
-    private const int CompactHeight = 48;
+    // Sizing lives in IslandMetrics (DIP-authored, DPI-scaled at render time).
     private const double DragThresholdDips = 4;
 
     private readonly ShellFleet _root;
@@ -36,6 +32,8 @@ public sealed partial class PanelWindow : Window
     private bool _noActivate = true;
     private IslandState _island = IslandState.Initial;
     private DispatcherQueueTimer? _morphTimer;
+    private double _appliedScale = 1.0;
+    private bool _syncQueued;
 
     // Horizontal drag anchor: center X in physical px; null = screen center.
     private int? _centerX;
@@ -55,20 +53,33 @@ public sealed partial class PanelWindow : Window
         ConfigureIslandChrome();
         AttachDragSurface(CompactBar);
         AttachDragSurface(HeaderBar);
-        MoveResizeTop(ExpandedWidth, ExpandedHeight);
+        MoveResizeTop(CurrentModeSize());
 
         _root.SnapshotChanged += snap =>
             DispatcherQueue.TryEnqueue(() => Render(PanelGlanceView.From(snap)));
         Render(_root.CurrentGlance());
 
-        // Apply NOACTIVATE after HWND exists; re-clip the notch region once
-        // the XAML root is live (rasterization scale is known by then).
+        // Apply NOACTIVATE after HWND exists. Sizing correction cannot ride on
+        // Activated alone: a NOACTIVATE window may never activate, so the
+        // 1.0-scale construction guess would stick. Loaded fires regardless of
+        // activation and is the earliest point the rasterization scale is
+        // real; XamlRoot.Changed catches later DPI changes.
         Activated += (_, _) =>
         {
             var hwnd = WindowNative.GetWindowHandle(this);
             if (_noActivate)
                 _win32.SetNoActivate(hwnd, noActivate: true);
-            ApplyNotchRegionForCurrentSize();
+            ApplyScaleIfChanged();
+        };
+        RootHost.Loaded += (_, _) =>
+        {
+            ApplyScaleIfChanged();
+            // Re-measure once real fonts/items are in the tree.
+            ScheduleExpandedSizeSync();
+            // Changed also fires on every resize (each morph tick) — only
+            // re-apply on an actual scale change or it fights the animation.
+            if (RootHost.XamlRoot is { } xamlRoot)
+                xamlRoot.Changed += (_, _) => ApplyScaleIfChanged();
         };
     }
 
@@ -197,6 +208,8 @@ public sealed partial class PanelWindow : Window
             view.PendingCount > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         ApplyIsland(IslandStateMachine.OnSnapshot(_island, view.PendingCount));
+        // Content changed → the expanded island re-hugs it (Vibe Island UX).
+        ScheduleExpandedSizeSync();
     }
 
     /// <summary>Applies a state-machine result: swap layers + morph the window.</summary>
@@ -212,14 +225,13 @@ public sealed partial class PanelWindow : Window
             ExitEngageIfNeeded();
             CompactBar.Visibility = Visibility.Visible;
             ExpandedRoot.Visibility = Visibility.Collapsed;
-            MorphTo(CompactWidth, CompactHeight);
         }
         else
         {
             CompactBar.Visibility = Visibility.Collapsed;
             ExpandedRoot.Visibility = Visibility.Visible;
-            MorphTo(ExpandedWidth, ExpandedHeight);
         }
+        MorphTo(CurrentModeSize());
     }
 
     private void OnCompactBarClick(object sender, RoutedEventArgs e)
@@ -368,9 +380,74 @@ public sealed partial class PanelWindow : Window
             _win32.SetNoActivate(hwnd, noActivate);
     }
 
-    /// <summary>Eased notch morph: a few MoveAndResize steps around the anchor.</summary>
-    private void MorphTo(int targetWidth, int targetHeight)
+    private IslandSize CurrentModeSize() =>
+        _island.Mode == IslandMode.Compact
+            ? IslandMetrics.Compact(Scale())
+            : ExpandedTargetSize();
+
+    /// <summary>
+    /// Measure the panel content at the max expanded width and unlimited
+    /// height; IslandMetrics clamps the result into the expanded bounds.
+    /// </summary>
+    private IslandSize ExpandedTargetSize()
     {
+        try
+        {
+            RootHost.Measure(new Windows.Foundation.Size(
+                IslandMetrics.ExpandedMaxWidthDips, double.PositiveInfinity));
+            var desired = RootHost.DesiredSize;
+            return IslandMetrics.ExpandedFor(desired.Width, desired.Height, Scale());
+        }
+        catch
+        {
+            return IslandMetrics.ExpandedFor(0, 0, Scale()); // min bounds
+        }
+    }
+
+    /// <summary>
+    /// Coalesced content-size re-sync: measure after the current dispatcher
+    /// work (item containers realize by then) and morph if the target moved.
+    /// MorphTo no-ops when the size is already right, so repeat calls are
+    /// cheap and cannot oscillate.
+    /// </summary>
+    private void ScheduleExpandedSizeSync()
+    {
+        if (_syncQueued)
+            return;
+        _syncQueued = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _syncQueued = false;
+            if (_island.Mode == IslandMode.Expanded)
+                MorphTo(ExpandedTargetSize());
+        });
+    }
+
+    private void ApplyScaleIfChanged()
+    {
+        var scale = Scale();
+        if (Math.Abs(scale - _appliedScale) < 0.001)
+            return;
+        _appliedScale = scale;
+        MoveResizeTop(CurrentModeSize());
+    }
+
+    /// <summary>Eased notch morph: a few MoveAndResize steps around the anchor.</summary>
+    private void MorphTo(IslandSize target)
+    {
+        // Fit up-front so the from==target no-op check compares the size that
+        // will actually be applied (repeat syncs stay idempotent at the edge).
+        try
+        {
+            var work = WorkArea();
+            target = IslandLayout.Fit(target, work.Width, work.Height);
+        }
+        catch
+        {
+            /* headless */
+        }
+
+        var (targetWidth, targetHeight) = target;
         _morphTimer?.Stop();
         int fromW, fromH;
         try
@@ -380,7 +457,7 @@ public sealed partial class PanelWindow : Window
         }
         catch
         {
-            MoveResizeTop(targetWidth, targetHeight);
+            MoveResizeTop(target);
             return;
         }
 
@@ -410,11 +487,17 @@ public sealed partial class PanelWindow : Window
     /// Fit to the top screen edge, horizontally anchored at the drag center
     /// (default: screen center) and clamped inside the work area.
     /// </summary>
+    private void MoveResizeTop(IslandSize size) => MoveResizeTop(size.Width, size.Height);
+
     private void MoveResizeTop(int width, int height)
     {
         try
         {
-            var work = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+            var work = WorkArea();
+            // Fit before clamping: on a small/heavily-scaled display the
+            // expanded island itself can be wider than the work area.
+            (width, height) = IslandLayout.Fit(
+                new IslandSize(width, height), work.Width, work.Height);
             var center = _centerX ?? work.X + work.Width / 2;
             var x = IslandLayout.ClampedX(center, width, work.X, work.Width);
             AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(
@@ -436,21 +519,6 @@ public sealed partial class PanelWindow : Window
         // AppWindow units are physical px, so the region size matches directly.
         Interop.WindowChrome.ApplyNotchRegion(
             Hwnd, width, height, NotchRadiusPhysical(), WingRadiusPhysical());
-    }
-
-    /// <summary>Re-clip using the actual current window size (post-activation).</summary>
-    private void ApplyNotchRegionForCurrentSize()
-    {
-        try
-        {
-            Interop.WindowChrome.ApplyNotchRegion(
-                Hwnd, AppWindow.Size.Width, AppWindow.Size.Height,
-                NotchRadiusPhysical(), WingRadiusPhysical());
-        }
-        catch
-        {
-            /* headless */
-        }
     }
 
     private int NotchRadiusPhysical() => (int)Math.Round(20 * Scale());
@@ -543,12 +611,18 @@ public sealed partial class PanelWindow : Window
         _dragging = false;
     }
 
+    /// <summary>Work area of the display the island actually occupies.</summary>
+    private Windows.Graphics.RectInt32 WorkArea() =>
+        Microsoft.UI.Windowing.DisplayArea
+            .GetFromWindowId(AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Nearest)
+            .WorkArea;
+
     /// <summary>Move to x (physical), clamped on-screen, glued to the top edge.</summary>
     private void MoveDragTo(int x)
     {
         try
         {
-            var work = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+            var work = WorkArea();
             var width = AppWindow.Size.Width;
             var clamped = IslandLayout.ClampLeft(x, width, work.X, work.Width);
             AppWindow.Move(new Windows.Graphics.PointInt32(clamped, work.Y));

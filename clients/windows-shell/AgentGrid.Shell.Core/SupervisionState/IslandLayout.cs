@@ -24,4 +24,12 @@ public static class IslandLayout
     /// </summary>
     public static int ClampedX(int centerX, int width, int workX, int workWidth) =>
         ClampLeft(centerX - width / 2, width, workX, workWidth);
+
+    /// <summary>
+    /// Cap a requested island size to the work area, so an expansion on a
+    /// small or heavily-scaled display never renders past the screen edges
+    /// (ClampLeft alone cannot help once width exceeds the work area).
+    /// </summary>
+    public static IslandSize Fit(IslandSize size, int workWidth, int workHeight) =>
+        new(Math.Min(size.Width, workWidth), Math.Min(size.Height, workHeight));
 }

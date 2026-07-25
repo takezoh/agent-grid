@@ -277,7 +277,7 @@
                 </ListView>
 
                 <!-- Empty state overlays the (empty) list; list stays in the UIA tree. -->
-                <StackPanel x:Name="EmptyState" Spacing="6"
+                <StackPanel x:Name="EmptyState" Spacing="6" Margin="0,14,0,14"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             Visibility="Collapsed">
                     <FontIcon Glyph="&#xE73E;" FontSize="18"
