@@ -60,8 +60,50 @@ public class WsFrameParserTests
     public void Ignores_output_array_and_unknown()
     {
         Assert.Null(WsFrameParser.TryParse("""[0,"o","Zg==","s1"]"""));
-        Assert.Null(WsFrameParser.TryParse("""{"k":"h","protocolVersion":"1"}"""));
         Assert.Null(WsFrameParser.TryParse("not-json"));
         Assert.Null(WsFrameParser.TryParse(""));
+    }
+
+    // RED (debug-run-shell-zero-sessions / hypothesis-hello-frame-dropped):
+    // the gateway's k="h" hello frame is the ONLY frame that carries the
+    // full session list at connect time when sessions already existed before
+    // this client subscribed (server/api/gateway.go SubscribeLifecycle:
+    // "the very first sessions-changed event arrives as a direct daemon-side
+    // reaction to CmdSubscribe" and is encoded via encodeHelloFrame, not
+    // encodeServerEvent — see lifecycleFrames' `if helloSent` branch and
+    // TestGatewayLifecycle_EmitsHelloFirst in gateway_view_update_test.go).
+    // WsFrameParser.TryParse's switch has no "h" arm, so it falls to the
+    // default `_ => null` and the hello-seeded sessions are silently
+    // dropped — SupervisionReducer never sees EvtViewUpdateSessions unless a
+    // *subsequent* session-list change fires a "v" frame after this client
+    // is already connected. This reproduces "notch panel always shows
+    // 0 session(s)" for a shell that connects to a gateway with pre-existing
+    // sessions and no session churn afterward.
+    //
+    // EXPECTED (currently FAILS): parsing a hello frame containing a
+    // sessions array must yield the same EvtViewUpdateSessions the "v" frame
+    // would, so the reducer can seed SupervisionSnapshot.Sessions from it.
+    [Fact]
+    public void Parses_hello_frame_seeds_initial_sessions()
+    {
+        var json = """
+            {"k":"h","sessions":[{"id":"s1","project":"/repo/p","command":"claude","state":"running","view":{"card":{"title":"T1"}}}],"features":["surface"],"serverTime":1700000001,"protocolVersion":"1.0.0-phase01","capabilities":["sessions.view_update"]}
+            """;
+        var ev = WsFrameParser.TryParse(json) as EvtViewUpdateSessions;
+        Assert.NotNull(ev);
+        Assert.Single(ev!.Sessions);
+        Assert.Equal("s1", ev.Sessions[0].SessionId);
+        Assert.Equal(SessionPhase.Running, ev.Sessions[0].Phase);
+        Assert.Equal("T1", ev.Sessions[0].Title);
+    }
+
+    // A hello frame that legitimately carries no session data (e.g. a
+    // capability-negotiation-only variant) must still be ignorable — this
+    // pins that the fix (routing "h" through the same sessions-array parse
+    // as "v") does not turn every hello frame into a forced snapshot reset.
+    [Fact]
+    public void Ignores_hello_frame_without_sessions_key()
+    {
+        Assert.Null(WsFrameParser.TryParse("""{"k":"h","protocolVersion":"1"}"""));
     }
 }

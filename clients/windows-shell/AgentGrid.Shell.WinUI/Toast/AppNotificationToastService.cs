@@ -3,6 +3,7 @@ using AgentGrid.Shell.Composition;
 using AgentGrid.Shell.Core.SupervisionState;
 using AgentGrid.Shell.Platform.Toast;
 using AgentGrid.Shell.WinUI.Panel;
+using Microsoft.UI.Dispatching;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 
@@ -23,6 +24,7 @@ public sealed class AppNotificationToastService : IToastNotifier, IDisposable
     private readonly ShellFleet _root;
     private readonly Func<PanelWindow?> _panel;
     private readonly SupervisionToastRouter _router;
+    private readonly DispatcherQueue _dispatcher;
     private bool _registered;
     private bool _comActivationOk;
 
@@ -36,8 +38,23 @@ public sealed class AppNotificationToastService : IToastNotifier, IDisposable
             panelFlyoutOpen: () => panel()?.IsFlyoutOpen ?? false,
             panelHwnd: () => panel()?.Hwnd ?? 0);
 
+        // ShellFleet.SnapshotChanged (backed by ApprovalSubmissionService
+        // .SnapshotChanged) may fire on an arbitrary thread (e.g. the WS
+        // receive-loop thread-pool thread) — marshal to the UI thread before
+        // the router touches WinUI-affine panel state (IsFlyoutOpen/Hwnd).
+        // Construction always happens on the UI thread, so capture it here.
+        _dispatcher = DispatcherQueue.GetForCurrentThread();
         root.SnapshotChanged += snap =>
-            _ = _router.OnSnapshotAsync(snap);
+        {
+            if (_dispatcher.HasThreadAccess)
+            {
+                _ = _router.OnSnapshotAsync(snap);
+            }
+            else
+            {
+                _dispatcher.TryEnqueue(() => _ = _router.OnSnapshotAsync(snap));
+            }
+        };
     }
 
     public bool ComActivationRegistered => _comActivationOk;

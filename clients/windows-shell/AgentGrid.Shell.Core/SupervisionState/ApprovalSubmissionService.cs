@@ -23,6 +23,16 @@ public sealed class ApprovalSubmissionService
         get { lock (_gate) return _state; }
     }
 
+    /// <summary>
+    /// Fires on whatever thread calls Apply — for the production wiring, that
+    /// is the WS receive-loop's thread-pool thread (SupervisionWsSession), not
+    /// guaranteed to be the UI thread. Any UI-toolkit subscriber MUST
+    /// self-marshal (e.g. DispatcherQueue.TryEnqueue) before touching UI
+    /// state. Each subscriber is invoked in isolation (see Raise): one
+    /// subscriber's exception is caught and logged, never propagated back
+    /// into Apply's caller, and never prevents delivery to the remaining
+    /// subscribers.
+    /// </summary>
     public event Action<SupervisionSnapshot>? SnapshotChanged;
 
     public void Apply(SupervisionEvent ev)
@@ -33,7 +43,34 @@ public sealed class ApprovalSubmissionService
             next = SupervisionReducer.Reduce(_state, ev);
             _state = next;
         }
-        SnapshotChanged?.Invoke(next);
+        Raise(next);
+    }
+
+    /// <summary>
+    /// Invokes each SnapshotChanged subscriber in isolation: a throwing
+    /// subscriber is caught and logged, and can neither stop delivery to the
+    /// other subscribers nor unwind back into Apply's caller (see
+    /// debug-run-shell-zero-sessions round 2 — the same defect shape as
+    /// DaemonSupervisorService.Raise, on the toast/approval producer).
+    /// </summary>
+    private void Raise(SupervisionSnapshot next)
+    {
+        var handlers = SnapshotChanged;
+        if (handlers is null)
+            return;
+
+        foreach (var handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                ((Action<SupervisionSnapshot>)handler)(next);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"ApprovalSubmissionService.SnapshotChanged subscriber threw: {ex}");
+            }
+        }
     }
 
     public async Task SubmitApprovalAsync(

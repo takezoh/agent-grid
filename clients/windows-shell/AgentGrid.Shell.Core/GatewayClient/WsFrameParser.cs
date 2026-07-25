@@ -7,12 +7,22 @@ namespace AgentGrid.Shell.Core.GatewayClient;
 /// Pure parser: daemon WS text frames → SupervisionEvent.
 /// Coexists with viewUpdate (k=v) and approval/question frames (k=ar|ax|qr|qx)
 /// per adr-20260724-approval-broadcast-coexists-view-update.
+///
+/// Hello/delta contract (src/server/api/gateway.go helloFrame /
+/// lifecycleFrames): the gateway sends the full current session list exactly
+/// once per lifecycle WS connection, as a k="h" hello frame, synchronously in
+/// reaction to subscribing. Every session-list change after that point is
+/// sent as a k="v" delta frame instead — "h" never recurs on the same
+/// connection. Both carry the sessions array in the same shape, so both are
+/// routed through ParseViewUpdate here: a client that only handles "v" and
+/// connects after sessions already exist would otherwise never learn about
+/// them, since no further "v" frame is guaranteed to ever arrive.
 /// </summary>
 public static class WsFrameParser
 {
     /// <summary>
     /// Parse one text frame. Returns null for frames the supervision surface ignores
-    /// (asciicast output arrays, hello, control, unknown).
+    /// (asciicast output arrays, control, unknown).
     /// </summary>
     public static SupervisionEvent? TryParse(string json)
     {
@@ -48,7 +58,7 @@ public static class WsFrameParser
                 "ax" => ParseApprovalResolved(doc.RootElement),
                 "qr" => ParseQuestionRequested(doc.RootElement),
                 "qx" => ParseQuestionResolved(doc.RootElement),
-                "v" => ParseViewUpdate(doc.RootElement),
+                "h" or "v" => ParseViewUpdate(doc.RootElement),
                 _ => null,
             };
         }

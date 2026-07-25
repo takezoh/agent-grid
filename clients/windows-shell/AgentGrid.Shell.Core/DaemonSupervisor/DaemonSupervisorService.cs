@@ -27,6 +27,17 @@ public sealed class DaemonSupervisorService
         get { lock (_gate) return _snapshot; }
     }
 
+    /// <summary>
+    /// Fires on whatever thread resumes the async effect that produced the
+    /// transition — a thread-pool thread for any real, non-precompleted async
+    /// I/O (health probe, spawn), not guaranteed to be the UI thread that
+    /// originally called StartAsync/HealthTickAsync/etc. Any UI-toolkit
+    /// subscriber MUST self-marshal (e.g. DispatcherQueue.TryEnqueue) before
+    /// touching UI state. Each subscriber is invoked in isolation (see Raise):
+    /// one subscriber's exception is caught and logged, never propagated back
+    /// into ApplyAsync's own effect chain, and never prevents delivery to the
+    /// remaining subscribers.
+    /// </summary>
     public event Action<DaemonSnapshot>? SnapshotChanged;
 
     public async Task StartAsync(CancellationToken ct = default)
@@ -121,5 +132,30 @@ public sealed class DaemonSupervisorService
         await ApplyAsync(ev, ct).ConfigureAwait(false);
     }
 
-    private void Raise(DaemonSnapshot snap) => SnapshotChanged?.Invoke(snap);
+    /// <summary>
+    /// Invokes each SnapshotChanged subscriber in isolation: a throwing
+    /// subscriber is caught and logged, and can neither stop delivery to the
+    /// other subscribers nor unwind back into ApplyAsync's own effect chain
+    /// (which would otherwise abort StartAsync/HealthTickAsync/etc. one
+    /// statement early — see debug-run-shell-zero-sessions round 2).
+    /// </summary>
+    private void Raise(DaemonSnapshot snap)
+    {
+        var handlers = SnapshotChanged;
+        if (handlers is null)
+            return;
+
+        foreach (var handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                ((Action<DaemonSnapshot>)handler)(snap);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"DaemonSupervisorService.SnapshotChanged subscriber threw: {ex}");
+            }
+        }
+    }
 }
