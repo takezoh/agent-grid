@@ -17,7 +17,13 @@ describe("StatusBanner", () => {
   it("shows reconnecting message", () => {
     useDaemonStore.setState({ status: "reconnecting" });
     render(<StatusBanner />);
-    expect(screen.getByRole("status").textContent).toMatch(/reconnecting/);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("stays hidden for connection closed because the bottom status bar already owns transport state", () => {
+    useDaemonStore.setState({ status: "closed" });
+    render(<StatusBanner />);
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("shows daemon-disconnected message", () => {

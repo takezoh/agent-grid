@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { DaemonConfigResolver } from "../src/main/daemon-config.js";
 import type { AppearanceConfig } from "../src/main/desktop-config.js";
 import {
@@ -108,11 +108,11 @@ function makeFakes(contentBounds: ChromeRect): {
   };
 }
 
-const stubConfig = {
-  resolve: () => Promise.resolve({ baseUrl: "http://127.0.0.1:1", token: "t" }),
-} as unknown as DaemonConfigResolver;
-
-function createHome(overrides: Partial<ElectronFactoryOptions>): Recorded {
+function createHome(
+  overrides: Partial<ElectronFactoryOptions>,
+  resolveImpl: DaemonConfigResolver["resolve"] = () =>
+    Promise.resolve({ baseUrl: "http://127.0.0.1:1", token: "t" }),
+): Recorded {
   const { BaseWindow, WebContentsView, recorded } = makeFakes({
     x: 0,
     y: 0,
@@ -120,7 +120,7 @@ function createHome(overrides: Partial<ElectronFactoryOptions>): Recorded {
     height: 700,
   });
   const factory = createElectronWindowFactory({
-    config: stubConfig,
+    config: { resolve: resolveImpl } as unknown as DaemonConfigResolver,
     BaseWindow,
     WebContentsView,
     preloadPath: "preload.cjs",
@@ -129,6 +129,26 @@ function createHome(overrides: Partial<ElectronFactoryOptions>): Recorded {
     ...overrides,
   });
   factory.createHome("srv");
+  return recorded;
+}
+
+function createSettings(overrides: Partial<ElectronFactoryOptions> = {}): Recorded {
+  const { BaseWindow, WebContentsView, recorded } = makeFakes({
+    x: 0,
+    y: 0,
+    width: 900,
+    height: 700,
+  });
+  const factory = createElectronWindowFactory({
+    config: { resolve: () => Promise.resolve({ baseUrl: "http://127.0.0.1:1", token: "t" }) } as unknown as DaemonConfigResolver,
+    BaseWindow,
+    WebContentsView,
+    preloadPath: "preload.cjs",
+    titleBarPreloadPath: "titlebar-preload.cjs",
+    uiEntryUrl: "file:///ui/index.html",
+    ...overrides,
+  });
+  factory.createSettings();
   return recorded;
 }
 
@@ -211,6 +231,44 @@ describe("frameless window chrome", () => {
     };
     expect(chrome.titleBarWebContentsId).not.toBe(chrome.contentWebContentsId);
   });
+
+  it("resolves daemon auth for the home window so the shared SPA can connect", async () => {
+    const resolve = vi.fn().mockResolvedValue({ baseUrl: "http://127.0.0.1:1", token: "t" });
+    const registered: unknown[] = [];
+    const recorded = createHome(
+      {
+        registerRendererInfo: (_webContentsId, info) => registered.push(info),
+      },
+      resolve,
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resolve).toHaveBeenCalledWith("srv");
+    expect(recorded.viewLoads[1]).toContain("file:///ui/index.html");
+    expect(registered).toEqual([
+      {
+        hosted: false,
+        baseUrl: "http://127.0.0.1:1",
+        token: "t",
+      },
+    ]);
+  });
+
+  it("loads the settings document in a dedicated settings window", async () => {
+    const recorded = createSettings();
+    await Promise.resolve();
+    expect(recorded.viewLoads[1]![0]).toMatch(/^data:text\/html/);
+    expect(decodeURIComponent(recorded.viewLoads[1]![0]!)).toContain("These entries are not a switcher");
+  });
+
+  it("does not resolve daemon auth for the dedicated settings window", async () => {
+    const resolve = vi.fn().mockResolvedValue({ baseUrl: "http://127.0.0.1:1", token: "t" });
+    createSettings({ config: { resolve } as unknown as DaemonConfigResolver });
+    await Promise.resolve();
+    expect(resolve).not.toHaveBeenCalled();
+  });
 });
 
 // ─── existing URL contract (kept close to the factory) ───────────────────────
@@ -221,5 +279,32 @@ describe("sessionPageUrl", () => {
       "file:///ui/index.html?hosted=1&session=s1",
     );
     expect(() => sessionPageUrl("http://example.com/index.html", "s1")).toThrow();
+  });
+});
+
+describe("session windows", () => {
+  it("keep loading the shared SPA and resolve daemon config", async () => {
+    const resolve = vi.fn().mockResolvedValue({ baseUrl: "http://127.0.0.1:1", token: "t" });
+    const { BaseWindow, WebContentsView, recorded } = makeFakes({
+      x: 0,
+      y: 0,
+      width: 900,
+      height: 700,
+    });
+    const factory = createElectronWindowFactory({
+      config: { resolve } as unknown as DaemonConfigResolver,
+      BaseWindow,
+      WebContentsView,
+      preloadPath: "preload.cjs",
+      titleBarPreloadPath: "titlebar-preload.cjs",
+      uiEntryUrl: "file:///ui/index.html",
+    });
+
+    factory.create({ serverId: "srv", sessionId: "sess-1" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resolve).toHaveBeenCalledWith("srv");
+    expect(recorded.viewLoads[1]).toContain("file:///ui/index.html?hosted=1&session=sess-1");
   });
 });

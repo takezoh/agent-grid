@@ -114,7 +114,7 @@ describe("menu-bar contract", () => {
 
 describe("window titles", () => {
   it("labels home and session windows distinctly", () => {
-    expect(windowDisplayTitle("local")).toBe("Agent Grid — local");
+    expect(windowDisplayTitle("local")).toBe("Agent Grid");
     expect(windowDisplayTitle("local", "s1")).toBe("local · s1");
   });
 });

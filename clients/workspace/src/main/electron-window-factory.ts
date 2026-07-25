@@ -18,6 +18,7 @@ import type { WindowBounds, WindowFactory, WindowHandle } from "./window-registr
 import type { DaemonConfigResolver, HostedModeInfo } from "./daemon-config.js";
 import type { AppearanceConfig, WorkspaceAppConfig } from "./desktop-config.js";
 import type { SessionRef } from "../shared/session-ref.js";
+import { settingsPageUrl } from "./settings-page.js";
 import {
   CHROME_COLORS,
   layoutChrome,
@@ -82,6 +83,8 @@ export interface ElectronFactoryOptions {
   uiEntryUrl: string;
   appearance?: AppearanceConfig;
   workspace?: WorkspaceAppConfig;
+  getAppearance?: () => AppearanceConfig | undefined;
+  getWorkspace?: () => WorkspaceAppConfig | undefined;
   /** OS dark-mode probe (nativeTheme in production; defaults to dark). */
   systemPrefersDark?: () => boolean;
   registerRendererInfo?: (webContentsId: number, info: HostedModeInfo) => void;
@@ -92,6 +95,7 @@ export interface ElectronFactoryOptions {
 
 export interface ElectronWindowFactory extends WindowFactory {
   createHome(serverId: string): WindowHandle;
+  createSettings(): WindowHandle;
 }
 
 export function sessionPageUrl(uiEntryUrl: string, sessionId?: string): string {
@@ -113,20 +117,23 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
   const { BaseWindow, WebContentsView } = opts;
 
   const createWindow = (
+    kind: "home" | "session" | "settings",
     serverId: string,
     sessionId?: string,
     bounds?: WindowBounds,
   ): WindowHandle => {
+      const appearance = opts.getAppearance?.() ?? opts.appearance;
+      const workspace = opts.getWorkspace?.() ?? opts.workspace;
       const chromeTheme = resolveChromeTheme(
-        opts.appearance?.theme,
+        appearance?.theme,
         opts.systemPrefersDark?.() ?? true,
       );
       const overlay = titleBarOverlayFor(chromeTheme);
       const win = new BaseWindow({
         x: bounds?.x,
         y: bounds?.y,
-        width: bounds?.width ?? opts.workspace?.default_window.width ?? 1280,
-        height: bounds?.height ?? opts.workspace?.default_window.height ?? 800,
+        width: bounds?.width ?? workspace?.default_window.width ?? 1280,
+        height: bounds?.height ?? workspace?.default_window.height ?? 800,
         show: true,
         titleBarStyle: "hidden",
         titleBarOverlay: overlay,
@@ -168,13 +175,91 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
       win.on("resize", applyLayout);
 
       void titleBar.webContents.loadURL(
-        titleBarDataUrl(chromeTheme, windowDisplayTitle(serverId, sessionId)),
+        titleBarDataUrl(
+          chromeTheme,
+          kind === "settings" ? "Settings" : windowDisplayTitle(serverId, sessionId),
+        ),
       );
       opts.registerWindowChrome?.({
         window: win,
         titleBarWebContentsId: titleBar.webContents.id,
         contentWebContentsId: content.webContents.id,
       });
+
+      if (kind === "settings") {
+        void content.webContents.loadURL(settingsPageUrl());
+        return {
+          id: "settings",
+          focus: () => {
+            if (win.isDestroyed()) return;
+            win.focus();
+            content.webContents.focus?.();
+          },
+          close: () => {
+            if (!win.isDestroyed()) win.close();
+          },
+          isDestroyed: () => win.isDestroyed(),
+          getBounds: () => {
+            if (win.isDestroyed()) return { x: 0, y: 0, width: 0, height: 0 };
+            const b = win.getBounds();
+            return { x: b.x, y: b.y, width: b.width, height: b.height };
+          },
+          setBounds: (b) => {
+            if (!win.isDestroyed()) win.setBounds(b);
+          },
+        };
+      }
+
+      if (kind === "home") {
+        void (async () => {
+          try {
+            const cfg = await opts.config.resolve(serverId);
+            const url = sessionPageUrl(opts.uiEntryUrl);
+            const info: HostedModeInfo = {
+              hosted: false,
+              baseUrl: cfg.baseUrl,
+              token: cfg.token,
+            };
+            opts.registerRendererInfo?.(content.webContents.id, info);
+            opts.configureServerTransport?.(content.webContents.id, cfg.baseUrl);
+            content.webContents.once("did-finish-load", () => {
+              void content.webContents.executeJavaScript(
+                `window.hostedModeInfo = ${JSON.stringify(info)};` +
+                `window.agentGridAppearance = ${JSON.stringify(appearance ?? null)};` +
+                `window.dispatchEvent(new CustomEvent("agent-grid-appearance"));`,
+              );
+            });
+            await content.webContents.loadURL(url);
+          } catch (e) {
+            const msg = (e as Error).message;
+            const colors = CHROME_COLORS[chromeTheme];
+            const html =
+              `<body style="margin:0;background:${colors.bg};color:${colors.fg};font-family:system-ui">` +
+              `<main style="padding:16px 24px"><h1>Connection error</h1><pre>${msg}</pre></main></body>`;
+            await content.webContents.loadURL(`data:text/html,${encodeURIComponent(html)}`);
+          }
+        })();
+        return {
+          id: `home:${serverId}`,
+          focus: () => {
+            if (win.isDestroyed()) return;
+            win.focus();
+            content.webContents.focus?.();
+          },
+          close: () => {
+            if (!win.isDestroyed()) win.close();
+          },
+          isDestroyed: () => win.isDestroyed(),
+          getBounds: () => {
+            if (win.isDestroyed()) return { x: 0, y: 0, width: 0, height: 0 };
+            const b = win.getBounds();
+            return { x: b.x, y: b.y, width: b.width, height: b.height };
+          },
+          setBounds: (b) => {
+            if (!win.isDestroyed()) win.setBounds(b);
+          },
+        };
+      }
 
       void (async () => {
         try {
@@ -191,7 +276,7 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
           content.webContents.once("did-finish-load", () => {
             void content.webContents.executeJavaScript(
               `window.hostedModeInfo = ${JSON.stringify(info)};` +
-              `window.agentGridAppearance = ${JSON.stringify(opts.appearance ?? null)};` +
+              `window.agentGridAppearance = ${JSON.stringify(appearance ?? null)};` +
               `window.dispatchEvent(new CustomEvent("agent-grid-appearance"));`,
             );
           });
@@ -207,7 +292,7 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
       })();
 
       return {
-        id: sessionId === undefined ? `home:${serverId}` : `${serverId}:${sessionId}`,
+        id: `${serverId}:${sessionId}`,
         focus: () => {
           if (win.isDestroyed()) return;
           win.focus();
@@ -230,10 +315,13 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
 
   return {
     create(session: SessionRef, bounds?: WindowBounds): WindowHandle {
-      return createWindow(session.serverId, session.sessionId, bounds);
+      return createWindow("session", session.serverId, session.sessionId, bounds);
     },
     createHome(serverId: string): WindowHandle {
-      return createWindow(serverId);
+      return createWindow("home", serverId);
+    },
+    createSettings(): WindowHandle {
+      return createWindow("settings", "__settings__");
     },
   };
 }

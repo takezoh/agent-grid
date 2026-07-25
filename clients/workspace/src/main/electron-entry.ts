@@ -1,4 +1,5 @@
 import {
+  BrowserWindow,
   BaseWindow,
   Menu,
   WebContentsView,
@@ -11,6 +12,12 @@ import {
 } from "electron";
 import { fileURLToPath } from "node:url";
 import { startWorkspaceApp } from "./app-entry.js";
+import {
+  loadEditableDesktopSettings,
+  saveEditableDesktopSettings,
+  type DesktopConfig,
+  type EditableDesktopSettings,
+} from "./desktop-config.js";
 import type {
   ElectronBaseWindowConstructor,
   ElectronWebContentsViewConstructor,
@@ -27,9 +34,43 @@ const titleBarPreloadPath = fileURLToPath(
   new URL("../preload/titlebar-preload.cjs", import.meta.url),
 );
 const rendererInfo = new Map<number, import("./daemon-config.js").HostedModeInfo>();
+let desktopConfig: DesktopConfig | null = null;
+let updateDesktopConfig: ((config: DesktopConfig) => void) | null = null;
+let openSettingsWindow: (() => void) | null = null;
 
 ipcMain.on("agent-grid:renderer-bootstrap", (event) => {
   event.returnValue = rendererInfo.get(event.sender.id) ?? null;
+});
+
+ipcMain.on("agent-grid:window-close", (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.close();
+});
+
+ipcMain.on("agent-grid:window-minimize", (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.minimize();
+});
+
+ipcMain.on("agent-grid:window-maximize", (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  if (win.isMaximized()) {
+    win.unmaximize();
+    return;
+  }
+  win.maximize();
+});
+
+ipcMain.handle("agent-grid:desktop-config-load", () => {
+  if (!desktopConfig) throw new Error("desktop config is not ready");
+  return loadEditableDesktopSettings(desktopConfig.configDirectory);
+});
+
+ipcMain.handle("agent-grid:desktop-config-save", (_event, settings: EditableDesktopSettings) => {
+  if (!desktopConfig) throw new Error("desktop config is not ready");
+  const next = saveEditableDesktopSettings(desktopConfig.configDirectory, settings);
+  desktopConfig = next;
+  updateDesktopConfig?.(next);
+  return next;
 });
 
 // ─── Window chrome (VSCode-style title bar) ─────────────────────────────────
@@ -54,6 +95,12 @@ function menuTemplateFor(
   switch (id) {
     case "file":
       return [
+        {
+          label: "Settings",
+          accelerator: "Ctrl+,",
+          click: () => openSettingsWindow?.(),
+        },
+        { type: "separator" },
         { label: "Close Window", accelerator: "Alt+F4", click: () => win.close() },
         { type: "separator" },
         { label: "Exit", click: () => app.quit() },
@@ -144,6 +191,9 @@ void startWorkspaceApp({
   WebContentsView: WebContentsView as unknown as ElectronWebContentsViewConstructor,
   preloadPath,
   titleBarPreloadPath,
+  onDesktopConfigLoaded: (config) => {
+    desktopConfig = config;
+  },
   systemPrefersDark: () => nativeTheme.shouldUseDarkColors,
   registerWindowChrome: (handles) => {
     const entry: WindowChromeEntry = {
@@ -179,8 +229,13 @@ void startWorkspaceApp({
       },
     );
   },
-}).catch((error: unknown) => {
-  console.error("Workspace startup failed", error);
-  app.quit();
-  process.exitCode = 1;
-});
+})
+  .then((started) => {
+    updateDesktopConfig = started.setDesktopConfig;
+    openSettingsWindow = started.openSettings;
+  })
+  .catch((error: unknown) => {
+    console.error("Workspace startup failed", error);
+    app.quit();
+    process.exitCode = 1;
+  });

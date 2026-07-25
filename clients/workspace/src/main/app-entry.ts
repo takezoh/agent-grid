@@ -55,11 +55,15 @@ export interface AppEntryOptions {
   registerRendererInfo?: ElectronFactoryOptions["registerRendererInfo"];
   configureServerTransport?: ElectronFactoryOptions["configureServerTransport"];
   registerWindowChrome?: ElectronFactoryOptions["registerWindowChrome"];
+  onDesktopConfigLoaded?: (config: DesktopConfig) => void;
 }
 
 export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
   registry: WindowRegistry;
   endpoint: ControlEndpoint;
+  desktopConfig: DesktopConfig;
+  setDesktopConfig: (config: DesktopConfig) => void;
+  openSettings: () => void;
   stop: () => Promise<void>;
 }> {
   if (!opts.app.requestSingleInstanceLock()) {
@@ -69,13 +73,16 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
 
   await opts.app.whenReady();
 
-  const desktopConfig = opts.config ?? loadOrCreateDesktopConfig(
+  let desktopConfig = opts.config ?? loadOrCreateDesktopConfig(
     resolveConfigDirectory(opts.args ?? process.argv.slice(1)),
   );
-  const config = DaemonConfigResolver.fromServers(desktopConfig.servers);
+  opts.onDesktopConfigLoaded?.(desktopConfig);
+  let config = DaemonConfigResolver.fromServers(desktopConfig.servers);
   const store = new FileStateStore(opts.statePath ?? defaultWorkspaceStatePath());
   const factory = createElectronWindowFactory({
-    config,
+    config: {
+      resolve: (serverId) => config.resolve(serverId),
+    } as DaemonConfigResolver,
     BaseWindow: opts.BaseWindow,
     WebContentsView: opts.WebContentsView,
     preloadPath: opts.preloadPath,
@@ -83,14 +90,17 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
     uiEntryUrl: opts.uiEntryUrl ?? new URL("../ui/index.html", import.meta.url).toString(),
     appearance: desktopConfig.appearance,
     workspace: desktopConfig.workspace,
+    getAppearance: () => desktopConfig.appearance,
+    getWorkspace: () => desktopConfig.workspace,
     systemPrefersDark: opts.systemPrefersDark,
     registerRendererInfo: opts.registerRendererInfo,
     configureServerTransport: opts.configureServerTransport,
     registerWindowChrome: opts.registerWindowChrome,
   });
   const registry = new WindowRegistry(factory, store);
-  const defaultServer = desktopConfig.servers.find((server) => server.enabled);
+  let defaultServer = desktopConfig.servers.find((server) => server.enabled);
   let home: ReturnType<typeof factory.createHome> | null = null;
+  let settings: ReturnType<typeof factory.createSettings> | null = null;
   const openHome = () => {
     if (!defaultServer) return;
     if (home && !home.isDestroyed()) {
@@ -99,12 +109,23 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
     }
     home = factory.createHome(defaultServer.id);
   };
+  const openSettings = () => {
+    if (settings && !settings.isDestroyed()) {
+      settings.focus();
+      return;
+    }
+    settings = factory.createSettings();
+    idle.onWindowsChanged();
+  };
   if (shouldOpenHome(opts.args ?? process.argv.slice(1))) {
     openHome();
   }
   const idle = new IdleQuitController({
     idleMs: opts.idleMs ?? desktopConfig.workspace.idle_quit_seconds * 1000,
-    openCount: () => registry.openCount + (home && !home.isDestroyed() ? 1 : 0),
+    openCount: () =>
+      registry.openCount +
+      (home && !home.isDestroyed() ? 1 : 0) +
+      (settings && !settings.isDestroyed() ? 1 : 0),
     onQuit: () => opts.app.quit(),
   });
   // Track closes via periodic poll is crude; wire openSession callers.
@@ -146,6 +167,14 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
   return {
     registry,
     endpoint,
+    desktopConfig,
+    setDesktopConfig: (next) => {
+      desktopConfig = next;
+      config = DaemonConfigResolver.fromServers(next.servers);
+      defaultServer = next.servers.find((server) => server.enabled);
+      idle.setIdleMs(next.workspace.idle_quit_seconds * 1000);
+    },
+    openSettings,
     stop: async () => {
       idle.dispose();
       await endpoint.stop();

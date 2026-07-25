@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DaemonConfigResolver } from "../src/main/daemon-config.js";
 import { sessionPageUrl } from "../src/main/electron-window-factory.js";
-import { assertTokenNotInUrl } from "../src/preload/index.js";
+import { assertTokenNotInUrl, buildPreloadApi } from "../src/preload/index.js";
 
 describe("daemon-config", () => {
   it("reads token fresh each resolve", async () => {
@@ -78,5 +78,31 @@ describe("assertTokenNotInUrl", () => {
     expect(() =>
       assertTokenNotInUrl("http://x/?token=abc", "abc"),
     ).toThrow(/token/);
+  });
+});
+
+describe("buildPreloadApi", () => {
+  it("can expose the desktop settings bridge without widening Node access", async () => {
+    const load = () =>
+      Promise.resolve({
+        configDirectory: "C:\\config",
+        servers: [],
+        appearance: { theme: "dark", density: "compact", font_scale: 1 },
+        shell: { workspace_executable: "agent-grid-workspace", health_poll_interval_seconds: 5 },
+        workspace: { idle_quit_seconds: 300, default_window: { width: 1280, height: 800 } },
+      });
+    const save = () => load();
+    const api = buildPreloadApi({
+      hostedModeInfo: null,
+      windowControls: { minimize() {}, maximize() {}, close() {} },
+      requestJumpBack: async () => {},
+      desktopConfig: { load, save },
+    });
+
+    expect(api.desktopConfig).toBeDefined();
+    await expect(api.desktopConfig?.load()).resolves.toMatchObject({
+      configDirectory: "C:\\config",
+      appearance: { theme: "dark" },
+    });
   });
 });

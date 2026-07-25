@@ -47,6 +47,12 @@ export interface DesktopConfig {
   workspace: WorkspaceAppConfig;
 }
 
+export interface EditableDesktopSettings {
+  servers: readonly ServerConfig[];
+  appearance: AppearanceConfig;
+  workspace: WorkspaceAppConfig;
+}
+
 type Versioned<T> = T & { schema_version: number };
 
 export function defaultConfigDirectory(): string {
@@ -109,6 +115,43 @@ export function loadOrCreateDesktopConfig(configDirectory: string): DesktopConfi
   };
 }
 
+export function loadEditableDesktopSettings(configDirectory: string): DesktopConfig {
+  return loadOrCreateDesktopConfig(configDirectory);
+}
+
+export function saveEditableDesktopSettings(
+  configDirectory: string,
+  settings: EditableDesktopSettings,
+): DesktopConfig {
+  const directory = path.resolve(configDirectory);
+  loadOrCreateDesktopConfig(directory);
+  const serversDoc: Versioned<{ servers: readonly ServerConfig[] }> = {
+    schema_version: CONFIG_SCHEMA_VERSION,
+    servers: settings.servers,
+  };
+  const appearanceDoc: Versioned<AppearanceConfig> = {
+    schema_version: CONFIG_SCHEMA_VERSION,
+    theme: settings.appearance.theme,
+    density: settings.appearance.density,
+    font_scale: settings.appearance.font_scale,
+  };
+  const workspaceDoc: Versioned<WorkspaceAppConfig> = {
+    schema_version: CONFIG_SCHEMA_VERSION,
+    idle_quit_seconds: settings.workspace.idle_quit_seconds,
+    default_window: {
+      width: settings.workspace.default_window.width,
+      height: settings.workspace.default_window.height,
+    },
+  };
+  validateServers([...serversDoc.servers]);
+  validateAppearance(appearanceDoc);
+  validateWorkspace(workspaceDoc);
+  writeJson(path.join(directory, "servers.json"), serversDoc);
+  writeJson(path.join(directory, "appearance.json"), appearanceDoc);
+  writeJson(path.join(directory, "workspace.json"), workspaceDoc);
+  return loadOrCreateDesktopConfig(directory);
+}
+
 function createIfMissing(filePath: string, value: unknown): void {
   try {
     const fd = fs.openSync(filePath, "wx");
@@ -129,6 +172,14 @@ function readJson<T>(directory: string, name: string): T {
   } catch (error) {
     throw new Error(`${name}: invalid or unreadable JSON: ${(error as Error).message}`);
   }
+}
+
+function writeJson(filePath: string, value: unknown): void {
+  const directory = path.dirname(filePath);
+  fs.mkdirSync(directory, { recursive: true });
+  const tempPath = `${filePath}.tmp-${process.pid}`;
+  fs.writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  fs.renameSync(tempPath, filePath);
 }
 
 function checkVersion(value: { schema_version?: unknown }, name: string): void {

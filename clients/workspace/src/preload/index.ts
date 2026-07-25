@@ -6,11 +6,18 @@
  * Hosted-mode token injection lives here (contract-b2-hosted-mode-token-injection).
  */
 
+import type { DesktopConfig, EditableDesktopSettings } from "../main/desktop-config.js";
+
 export interface HostedModeInfo {
   hosted: boolean;
   sessionId?: string;
   baseUrl: string;
   token: string;
+}
+
+export interface DesktopConfigBridge {
+  load(): Promise<DesktopConfig>;
+  save(settings: EditableDesktopSettings): Promise<DesktopConfig>;
 }
 
 export interface WindowControls {
@@ -23,6 +30,7 @@ export interface WorkspacePreloadApi {
   windowControls: WindowControls;
   hostedModeInfo: HostedModeInfo | null;
   requestJumpBack(sessionId: string): Promise<void>;
+  desktopConfig?: DesktopConfigBridge;
   /**
    * Re-syncs the native chrome (caption-button overlay, title-bar view,
    * popup menus) with the SPA theme. `mode` is the user's choice —
@@ -39,11 +47,13 @@ export function buildPreloadApi(opts: {
   hostedModeInfo: HostedModeInfo | null;
   windowControls: WindowControls;
   requestJumpBack: (sessionId: string) => Promise<void>;
+  desktopConfig?: DesktopConfigBridge;
 }): WorkspacePreloadApi {
   return {
     windowControls: opts.windowControls,
     hostedModeInfo: opts.hostedModeInfo,
     requestJumpBack: opts.requestJumpBack,
+    desktopConfig: opts.desktopConfig,
   };
 }
 

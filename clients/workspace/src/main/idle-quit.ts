@@ -17,7 +17,7 @@ export interface IdleQuitOptions {
 }
 
 export class IdleQuitController {
-  private readonly idleMs: number;
+  private idleMs: number;
   private readonly openCount: () => number;
   private readonly onQuit: () => void;
   private readonly now: () => number;
@@ -47,6 +47,13 @@ export class IdleQuitController {
 
   dispose(): void {
     this.clear();
+  }
+
+  setIdleMs(idleMs: number): void {
+    this.idleMs = idleMs;
+    if (this.openCount() === 0 && !this.quitFired) {
+      this.arm();
+    }
   }
 
   private arm(): void {

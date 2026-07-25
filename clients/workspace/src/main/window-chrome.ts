@@ -116,7 +116,7 @@ export function layoutChrome(bounds: { width: number; height: number }): ChromeL
 // ─── Window title ────────────────────────────────────────────────────────────
 
 export function windowDisplayTitle(serverId: string, sessionId?: string): string {
-  return sessionId ? `${serverId} · ${sessionId}` : `Agent Grid — ${serverId}`;
+  return sessionId ? `${serverId} · ${sessionId}` : "Agent Grid";
 }
 
 // ─── Title-bar document ──────────────────────────────────────────────────────
