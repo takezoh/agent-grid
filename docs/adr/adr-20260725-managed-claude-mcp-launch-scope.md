@@ -2,7 +2,7 @@
 id: adr-20260725-managed-claude-mcp-launch-scope
 kind: adr
 title: Managed Claude MCP exposure is launch-scoped and must preserve HOME
-status: accepted
+status: superseded
 created: '2026-07-25'
 decision_makers:
 - unknown
@@ -110,4 +110,9 @@ markers, and `TestFakeVsRealManagedClaudeMCPConfig`.
 
 {% transition from="proposed" to="accepted" date="2026-07-25" %}
 User approved the structural boundary correction and requested ADR fixation on 2026-07-25.
+{% /transition %}
+
+
+{% transition from="accepted" to="superseded" date="2026-07-25" %}
+Managed endpoint ownership and host placement were generalized by adr-20260725-managed-mcp-exposure-materialization; HOME preservation remains retained.
 {% /transition %}

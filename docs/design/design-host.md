@@ -48,6 +48,10 @@ invariants:
     state and RevisionOutcome; public correlation maps to a private gateway owner
     and old delivery is fenced.
   enforcement: contract
+- id: INV-008
+  statement: Host managed MCP requests are validated before frame authority issuance
+    and process spawn.
+  enforcement: contract
 boundaries:
   provides:
   - Interactive session and frame lifecycle operations.
@@ -257,6 +261,14 @@ Hook-driven agents (Claude, Gemini) receive `DEvHook`. Stream-backed agents (Cod
 Driver is a **value-type plugin**: no goroutines, no I/O, no mutexes. Per-frame state is embedded on each `SessionFrame.Driver` as a `DriverState` value, and round-trips as arguments and return values of `Driver.Step`. Side effects are returned as `[]Effect` and executed by the runtime's Effect interpreter.
 
 **Launch plan is resolved in the reducer, not the runtime.** `reduceCreateSession` (or `handlePendingCreate` for planner-gated flows) calls `Driver.PrepareLaunch` synchronously, writes the normalized `LaunchOptions` onto the frame, and bakes `launch.Command` / `launch.StartDir` / `launch.Options` into `EffSpawnFrame`. The runtime interprets the effect verbatim and never calls driver methods, keeping driver-specific logic entirely inside the pure functional core. (`LaunchPlan` and `WrappedLaunch` also carry `Argv []string` for `agentlaunch.Spawn`; the frame spawn path uses `Command`.)
+
+Claude launch plans additionally declare `ManagedMCPTools{agent_frames}`. This
+is a closed-world host placement contract: the direct launch boundary validates
+the set and host endpoint, appends Claude's inline `--mcp-config`, and derives
+the frame token requirement. Other drivers do not inherit Claude CLI syntax
+from the product capability. Container launches keep their existing
+container-authority rule; their workspace `.mcp.json` is provisioned at
+container scope by `platform/agentlaunch`, independently of a frame plan.
 
 ```go
 // state/view/status.go — canonical Status definition (stdlib-only; no state import)

@@ -236,20 +236,20 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 				// than losing both the fork attempt and the parent conversation.
 				slog.Info("claude: coldstart re-fork", "project", project, "parent", cs.ForkParentID)
 				return state.LaunchPlan{
-					Command:               claudecli.ForkCommand(command, cs.ForkParentID),
-					StartDir:              startDir,
-					Options:               PreserveLaunchOptions(options, req.Enabled),
+					Command:         claudecli.ForkCommand(command, cs.ForkParentID),
+					StartDir:        startDir,
+					Options:         PreserveLaunchOptions(options, req.Enabled),
 					ManagedMCPTools: claudeManagedMCPTools,
-					Stdin:                 options.InitialInput,
+					Stdin:           options.InitialInput,
 				}, nil
 			}
 			slog.Debug("claude: coldstart without resume", "project", project, "reason", "no_session_id")
 		}
 		return state.LaunchPlan{
-			Command:               command,
-			StartDir:              startDir,
-			Stdin:                 options.InitialInput,
-			Options:               PreserveLaunchOptions(options, req.Enabled),
+			Command:         command,
+			StartDir:        startDir,
+			Stdin:           options.InitialInput,
+			Options:         PreserveLaunchOptions(options, req.Enabled),
 			ManagedMCPTools: claudeManagedMCPTools,
 		}, nil
 	}
@@ -280,11 +280,11 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	}
 	slog.Info("claude: coldstart with resume", "project", project, "session", cs.ClaudeSessionID, "sandboxed", sandboxed)
 	return state.LaunchPlan{
-		Command:               command + " --resume " + cs.ClaudeSessionID,
-		StartDir:              startDir,
-		Options:               options,
+		Command:         command + " --resume " + cs.ClaudeSessionID,
+		StartDir:        startDir,
+		Options:         options,
 		ManagedMCPTools: claudeManagedMCPTools,
-		Stdin:                 options.InitialInput,
+		Stdin:           options.InitialInput,
 	}, nil
 }
 

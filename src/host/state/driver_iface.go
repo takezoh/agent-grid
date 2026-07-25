@@ -399,13 +399,13 @@ type LaunchPlan struct {
 	// Any non-zero exit aborts the launch and Argv is not executed.
 	PreCommands [][]string
 	// PreCommandTimeout is per-command deadline (default applied in the launcher).
-	PreCommandTimeout     time.Duration
-	StartDir              string
-	Project               string          // canonical project root passed opaquely to the sandbox launcher
-	Sandbox               SandboxOverride // session-level sandbox mode, written by reducer before dispatch
-	Options               LaunchOptions
-	Subsystem             LaunchSubsystem
-	Stream                StreamLaunchOptions
+	PreCommandTimeout time.Duration
+	StartDir          string
+	Project           string          // canonical project root passed opaquely to the sandbox launcher
+	Sandbox           SandboxOverride // session-level sandbox mode, written by reducer before dispatch
+	Options           LaunchOptions
+	Subsystem         LaunchSubsystem
+	Stream            StreamLaunchOptions
 	// ManagedMCPTools is the validated set of managed MCP endpoints the launched
 	// agent is compatible with. A non-empty set means the host-side dispatcher
 	// must append a trailing `--mcp-config` (Claude-compatible placement) and

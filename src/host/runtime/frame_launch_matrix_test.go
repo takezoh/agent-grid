@@ -733,8 +733,8 @@ func TestWarmStart_OrphanPruned(t *testing.T) {
 }
 
 // managedMessagingDriver mirrors minimalDriver but PrepareLaunch returns
-// LaunchPlan with ManagedFrameMessaging=true. Used by the cold-start
-// ManagedFrameMessaging matrix cell to prove the parallel spawnFrameWindow
+// LaunchPlan with managed MCP authority. Used by the cold-start
+// managed MCP matrix cell to prove the parallel spawnFrameWindow
 // implementation (bootstrap_coldstart.go:113) also threads the field.
 type managedMessagingDriver struct{}
 
@@ -754,9 +754,9 @@ func (managedMessagingDriver) Step(prev state.DriverState, _ state.FrameContext,
 }
 func (managedMessagingDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, command string, _ state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
 	return state.LaunchPlan{
-		Command:               command,
-		StartDir:              project,
-		ManagedMCPTools:       agentlaunchTestTools,
+		Command:         command,
+		StartDir:        project,
+		ManagedMCPTools: agentlaunchTestTools,
 	}, nil
 }
 func (managedMessagingDriver) StartDir(_ state.DriverState) string { return "" }
@@ -788,7 +788,7 @@ func assertNoManagedClaudeHome(t *testing.T, dataDir string) {
 
 // TestFrameLaunch_NewSession_Host_ManagedMessaging is the positive matrix cell
 // that would have caught the live symptom of the field-drop defect: a
-// host-launched claude session with LaunchPlan.ManagedFrameMessaging=true.
+// host-launched Claude session with managed MCP authority.
 //
 // Positive assertions (spec-20260714 FR-002):
 //   - AG_SOCKET_TOKEN is non-empty (wrapLaunchForSpawn's needsToken branch)
@@ -807,10 +807,10 @@ func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
 	sc := h.newSessionSpawn(t, state.EffSpawnFrame{
 		SessionID: "s-managed", FrameID: "f-managed",
 		Plan: state.LaunchPlan{
-			Project:               "/proj/host",
-			Command:               "minimal-test",
-			StartDir:              "/proj/host",
-			ManagedMCPTools:       agentlaunchTestTools,
+			Project:         "/proj/host",
+			Command:         "minimal-test",
+			StartDir:        "/proj/host",
+			ManagedMCPTools: agentlaunchTestTools,
 		},
 		Env: map[string]string{
 			"AG_SESSION_ID": "s-managed",
@@ -820,17 +820,17 @@ func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
 	})
 
 	if sc.token == "" {
-		t.Fatal("host+ManagedFrameMessaging must produce a bearer token (needsToken branch)")
+		t.Fatal("host+ManagedMCPTools must produce a bearer token (needsToken branch)")
 	}
 	env := h.spawnEnv(t)
 	if env["AG_SOCKET_TOKEN"] == "" {
-		t.Errorf("host+ManagedFrameMessaging spawn env has empty AG_SOCKET_TOKEN — token dropped between wrapLaunchForSpawn and the pty child")
+		t.Errorf("host+ManagedMCPTools spawn env has empty AG_SOCKET_TOKEN — token dropped between wrapLaunchForSpawn and the pty child")
 	}
 	if env["AG_SOCKET"] != h.sockPath {
 		t.Errorf("AG_SOCKET = %q, want %q", env["AG_SOCKET"], h.sockPath)
 	}
 	if got, want := h.spawnDir(t), "/proj/host"; got != want {
-		t.Errorf("host+ManagedFrameMessaging spawn cwd = %q, want %q — startDir dropped despite plan.StartDir being set", got, want)
+		t.Errorf("host+ManagedMCPTools spawn cwd = %q, want %q — startDir dropped despite plan.StartDir being set", got, want)
 	}
 	if env["HOME"] != "/home/managed-test-user" {
 		t.Errorf("HOME = %q, want caller HOME preserved", env["HOME"])
@@ -844,7 +844,7 @@ func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
 }
 
 // TestFrameLaunch_NewSession_Host asserts the negative case (FR-003): a host
-// launch WITHOUT ManagedFrameMessaging must NOT produce a token or an
+// launch WITHOUT managed MCP tools must NOT produce a token or an
 // overlay. This test already exists above; the pairing here documents the
 // symmetry.
 //
@@ -870,10 +870,10 @@ func TestFrameLaunch_ColdStart_Host_ManagedMessaging(t *testing.T) {
 
 	env := h.spawnEnv(t)
 	if env["AG_SOCKET_TOKEN"] == "" {
-		t.Errorf("cold-start host+ManagedFrameMessaging spawn env has empty AG_SOCKET_TOKEN — Runtime.spawnFrameWindow dropped the flag")
+		t.Errorf("cold-start host+ManagedMCPTools spawn env has empty AG_SOCKET_TOKEN — Runtime.spawnFrameWindow dropped the field")
 	}
 	if got, want := h.spawnDir(t), "/proj/host"; got != want {
-		t.Errorf("cold-start host+ManagedFrameMessaging spawn cwd = %q, want %q — startDir dropped between bootstrap_coldstart.wrapLaunchForSpawn and PtyBackend.SpawnFrame", got, want)
+		t.Errorf("cold-start host+ManagedMCPTools spawn cwd = %q, want %q — startDir dropped between bootstrap_coldstart.wrapLaunchForSpawn and PtyBackend.SpawnFrame", got, want)
 	}
 	assertNoManagedClaudeHome(t, h.dataDir)
 	var spec framelaunch.FrameSpec

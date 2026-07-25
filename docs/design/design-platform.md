@@ -58,6 +58,10 @@ invariants:
   statement: Frame launch reasserts authoritative shim directories after pre-exec
     evaluation; individual providers do not compete for PATH ownership.
   enforcement: test
+- id: INV-009
+  statement: Managed MCP endpoint semantics have one platform catalog; lifecycle-specific
+    materializers resolve only environment placement and endpoint values.
+  enforcement: contract
 boundaries:
   provides:
   - Process launch, process-group lifecycle, PTY multiplexing, and path translation.
@@ -985,13 +989,29 @@ A launch spec carries **two forms at once** (`agentlaunch/types.go`).
 
 Per-agent lib builders (`lib/codex`, `lib/claude/cli` — see [agent-protocol.md](../component/component-20260624-platform-agent-protocol.md)) populate both; the caller chooses which to use.
 
+### Managed MCP exposure
+
+`platform/agentlaunch` owns the managed MCP endpoint catalog: alias, stdio
+subcommand, collision posture, and frame-authority requirement. Host and
+container paths resolve only the environment-specific executable and socket.
+The host `LaunchPlan.ManagedMCPTools` contract is intentionally limited to
+clients compatible with Claude's trailing inline `--mcp-config`; it is not a
+universal product-capability flag.
+
+Container provisioning uses the same catalog with an explicit container-scope
+default set and materializes one read-only `.mcp.json` overlay per workspace.
+It does not derive provisioning from a per-frame launch plan.
+`platform/mcpproxy` contributes configured external aliases only; agentlaunch
+composes those aliases with managed endpoints. Codex `dynamicTools` remains a
+separate app-server protocol boundary.
+
 ## Types and relationships
 
 ```mermaid
 flowchart TD
     subgraph input["Launch input"]
         CMD["command string<br/>(WORKFLOW.md codex.command)"]
-        LP["LaunchPlan<br/>Command / Argv / Env<br/>StartDir / Project / ForceHost"]
+        LP["LaunchPlan<br/>Command / Argv / Env<br/>StartDir / Project / ForceHost<br/>ManagedMCPTools"]
     end
 
     subgraph disp["Dispatcher (applies sandbox)"]

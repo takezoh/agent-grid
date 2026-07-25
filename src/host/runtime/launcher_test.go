@@ -93,7 +93,7 @@ func TestDirectLauncher_stripsContainerToken(t *testing.T) {
 	}
 }
 
-func TestDirectLauncher_keepsManagedFrameMessagingToken(t *testing.T) {
+func TestDirectLauncher_keepsManagedMCPAuthorityToken(t *testing.T) {
 	home := t.TempDir()
 	l := DirectLauncher{SockPath: "/run/server.sock", SelfBin: "/usr/bin/server"}
 	got, err := l.WrapLaunch("f1", state.LaunchPlan{

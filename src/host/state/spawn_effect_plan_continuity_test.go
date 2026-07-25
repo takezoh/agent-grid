@@ -8,7 +8,7 @@ import (
 
 // TestSpawnEffect_PlanFieldContinuity is the Tier T0 reflection-driven guard
 // against future field-drop regressions of the same class as the
-// ManagedFrameMessaging silent-drop defect (spec-20260714, FR-001).
+// managed MCP authority silent-drop defect (spec-20260714, FR-001).
 //
 // The recursive walker populates every reachable exported field of
 // state.LaunchPlan (including nested exported structs LaunchOptions,
@@ -17,7 +17,7 @@ import (
 // passed into spawnEffect and the Plan field of the returned EffSpawnFrame.
 //
 // Currently-failing sentinels this test would have caught: Argv,
-// PreCommands, PreCommandTimeout, ManagedFrameMessaging. Those fields were
+// PreCommands, PreCommandTimeout, and ManagedMCPTools. Those fields were
 // silently dropped by the pre-fix interpret_spawn.go reconstruction literal
 // (masked in production only because stream/backend.go's BindFrame overwrote
 // Argv / PreCommands on the codex stream path). This test asserts the
