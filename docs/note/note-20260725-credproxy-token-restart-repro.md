@@ -1,3 +1,35 @@
+---
+id: note-20260725-credproxy-token-restart-repro
+kind: note
+title: credproxy gcloud token file lost across daemon restart (repro)
+status: published
+created: '2026-07-15'
+tags:
+- credproxy
+- gcloudcli
+- devcontainer
+- repro
+owners: []
+relations:
+- {type: originatedFrom, target: change-20260715-credproxy-materialization-contract}
+source_paths: []
+updated: '2026-07-25'
+summary: daemon 再起動を跨いだ devcontainer で gcloud-token が再生成されない事象の再現手順と RCA。ContainerSpec
+  に best-effort overlay 合成と must-succeed な credential rehydration が同居し materialization
+  成否の owner が不在だったことが根本原因。
+---
+
+## Summary
+
+daemon 再起動を跨いで devcontainer が生き残ったとき、gcloudcli provider が host 側に書く `gcloud-token` が再生成されず、コンテナ内の `gcloud` CLI が認証エラーで失敗し続けた事象の再現手順と RCA。metadata proxy 自体は健全であり、`ContainerSpec` という単一契約に「冪等・ベストエフォートな overlay 合成」と「restart 境界での must-succeed な credential rehydration」という失敗許容度の異なる 2 責務が同居し、materialization の成否を追跡する owner が不在だったことが構造的根本原因。
+
+この責務分割は change-20260715-credproxy-materialization-contract (`Provider.Materialize` の CQRS 分離 + caller-owned retry) で解消された。本 note は当時の調査記録であり、v1 の `docs/bugs/` から移行したもの。
+
+## Notes
+
+以下は `docs/bugs/credproxy-token-restart-20260715.md` からの verbatim 転記。
+
+````markdown
 # Repro: credproxy gcloud token file lost across daemon restart (2026-07-15)
 
 ## 症状
@@ -121,3 +153,9 @@ in-memory 状態がリセットされる」という本質的条件を再現で�
   再試行する」契約テストを追加し、あわせて agent-grid 側に
   FakeVsReal トリプル (fake gcloudcli, real gcloud CLI backstop,
   invariant-naming contract test) を新設する。
+````
+
+
+{% transition from="draft" to="published" date="2026-07-25" %}
+migrated from v1 docs/bugs
+{% /transition %}

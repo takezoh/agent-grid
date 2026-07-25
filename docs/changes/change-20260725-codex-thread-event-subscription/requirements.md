@@ -1,4 +1,14 @@
 ---
+change: change-20260725-codex-thread-event-subscription
+role: requirements
+---
+
+# Requirements
+
+## Legacy Source (verbatim)
+
+````markdown
+---
 id: spec-20260716-codex-thread-event-subscription
 kind: spec
 title: Codex thread event subscription ownership
@@ -348,3 +358,4 @@ Targeted shim relay/full broker、rollout file 操作、routing isolation の弱
 {% transition from="approved" to="implemented" date="2026-07-16" %}
 Codex observer subscription ownership を実装し受け入れ条件を検証。
 {% /transition %}
+````

@@ -47,7 +47,7 @@ consequences:
   - The existing fake-versus-real ADR is extended by a connection-scoped subscription
     invariant rather than superseded.
 confirmation: Required activation, one-shot ready, connection-scoped fake, release
-  matrix, gateway status, and T3 fidelity tests listed in plan-20260716-codex-thread-event-subscription
+  matrix, gateway status, and T3 fidelity tests listed in change-20260725-codex-thread-event-subscription
   must pass.
 summary: Codex frame observer subscription and SessionReady commit are explicit connection-scoped
   lifecycle responsibilities owned by one stream attach coordinator.
@@ -121,7 +121,7 @@ Error triage: canonical ID mismatch is an internal contract violation and fails 
 
 ## Confirmation
 
-The T0 predicate table, T1 runtime/stream and Go gateway scenarios, T2 protocol/fake contracts, minimum Web smoke, and T3 real Codex identity-only fidelity profile in `plan-20260716-codex-thread-event-subscription` collectively confirm this decision.
+The T0 predicate table, T1 runtime/stream and Go gateway scenarios, T2 protocol/fake contracts, minimum Web smoke, and T3 real Codex identity-only fidelity profile in `change-20260725-codex-thread-event-subscription` collectively confirm this decision.
 
 
 {% transition from="proposed" to="accepted" date="2026-07-16" %}

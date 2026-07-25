@@ -1,4 +1,14 @@
 ---
+change: change-20260725-vt-structural-reflow-contract
+role: implementation
+---
+
+# Implementation
+
+## Legacy Source (verbatim)
+
+````markdown
+---
 id: plan-20260716-vt-structural-reflow-contract
 kind: plan
 title: VT structural reflow contract implementation plan
@@ -230,3 +240,4 @@ alternatePhysicalResize(grid, geometry):
 - Required: mutation closure, defensive projections, screen-specific fixtures, concurrency, and failure mapping.
 - Recommended: retained-cell benchmarks and an API migration inventory.
 - Operational: merge #908, rebase #919, and verify both invariants together before publication.
+````

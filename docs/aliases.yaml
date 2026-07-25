@@ -69,3 +69,7 @@ aliases:
   component-20260624-platform-termvt-multiplexer-testing: design-platform
   component-20260704-platform-claude-fakeclaude: design-platform
   component-20260704-platform-fakecodex: design-platform
+  spec-20260716-codex-thread-event-subscription: change-20260725-codex-thread-event-subscription
+  plan-20260716-codex-thread-event-subscription: change-20260725-codex-thread-event-subscription
+  spec-20260716-vt-structural-reflow-contract: change-20260725-vt-structural-reflow-contract
+  plan-20260716-vt-structural-reflow-contract: change-20260725-vt-structural-reflow-contract

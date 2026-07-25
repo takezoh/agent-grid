@@ -1,4 +1,14 @@
 ---
+change: change-20260725-vt-structural-reflow-contract
+role: requirements
+---
+
+# Requirements
+
+## Legacy Source (verbatim)
+
+````markdown
+---
 id: spec-20260716-vt-structural-reflow-contract
 kind: spec
 title: VT structural reflow contract
@@ -217,3 +227,4 @@ The NFRs make race freedom, complexity, source compatibility, structural ownersh
 ## Worked Examples
 
 {% worked_example id="ex-001" %}Primary reflow, truncation, and stale-boundary examples.{% /worked_example %}
+````

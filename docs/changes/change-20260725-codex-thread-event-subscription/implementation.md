@@ -1,4 +1,14 @@
 ---
+change: change-20260725-codex-thread-event-subscription
+role: implementation
+---
+
+# Implementation
+
+## Legacy Source (verbatim)
+
+````markdown
+---
 id: plan-20260716-codex-thread-event-subscription
 kind: plan
 title: Implement Codex thread event subscription ownership
@@ -323,3 +333,4 @@ Task-grade unit — **Extend real Codex identity-only fidelity backstop**
 {% transition from="active" to="done" date="2026-07-16" %}
 実装と always-on/race/gateway/Web 検証が完了。
 {% /transition %}
+````

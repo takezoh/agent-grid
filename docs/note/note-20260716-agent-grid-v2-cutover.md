@@ -24,7 +24,7 @@ Agent-grid の canonical development docs を format v1 から format v2 へ tra
 
 ## Migration record
 
-- Exact manifest: `docs/migration/agent-grid-v2-manifest.yaml`
+- Exact manifest: `docs/migration/agent-grid-v2-manifest.yaml` — cutover 完了後の transient artifact として削除済み。内容は commit `df834977` の履歴から参照する。
 - Source snapshot: migration branch based on the repository state through the runtime PATH ownership implementation.
 - Inventory: 279 documents, 277 structured, 2 passthrough, no duplicate IDs.
 - Consolidation: 8 client components → `design-client`; 2 orchestrator components → `design-orchestrator`; 8 platform components → `design-platform`.
