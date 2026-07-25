@@ -1,0 +1,2973 @@
+{
+  "mode": "explore",
+  "revision": "explore-r5",
+  "goal": "Windows マシン上で Linux host server を、Windows Service (SCM) を唯一の supervisor として起動・readiness 確認・異常終了時の待機付き再起動・graceful 停止・最終手段の対象 distribution 限定 terminate・記録収集まで一貫して運用できるようにする。supervisor は対象 WSL distribution を所有する Windows ユーザーの security context で Session 0 に常駐し、その配下で wsl.exe を保持して Linux host server を foreground の supervised unit として動かす。plans/windows-service-wsl-host-supervision.md が採用候補としたこの構成を所与とし、その §2〜§15 を観察可能な受け入れ条件へ変換する (アーキテクチャ自体は再検討しない)。GUI クライアントは本件の対象外であり、監督主体・権限・fallback の判断軸には一切登場しない。",
+  "target_users": [
+    "マシンの所有者 / 運用者 — Windows にサインインしていない状態 (Session 0 のみ) を含む",
+    "host server が起動しない・落ち続けるときに Windows 側の記録から原因を追う運用者",
+    "plan §15 の受け入れ条件として PoC 検証項目 1-11 を実施する開発者 / 運用者"
+  ],
+  "user_goals": [
+    {
+      "id": "goal-connect-unsigned",
+      "actor": "マシンの所有者 / 運用者",
+      "context": "Windows 起動直後、誰もサインインしていない (Session 0 のみ)",
+      "desired_outcome": "サインインせずに host server の local endpoint へ到達でき、実際に稼働している状態が用意されている",
+      "success_observation": "サインイン操作を一度も行わないまま、同一マシン上の HTTP クライアントが host server の health endpoint から稼働中を示す成功応答 (status ok) を受け取る。gateway だけが応答し daemon が繋がっていない状態 (daemon-unavailable) は到達成功として数えない"
+    },
+    {
+      "id": "goal-recover-or-known-down",
+      "actor": "マシンの所有者 / 運用者",
+      "context": "host server または supervised unit が異常終了した後、誰も操作しない",
+      "desired_outcome": "放置していても復帰するか、復帰しないなら「復帰しない」と分かる状態になる",
+      "success_observation": "再試行間隔と連続失敗上限 (threshold-restart-backoff-schedule / threshold-max-consecutive-failures、いずれも design_owned) から導出される最大復旧予算の範囲内に health endpoint が再び稼働中を示す成功応答へ戻るか、その予算を超えた時点で再試行が止まったこと (終端状態) と止まった原因が記録から読み取れる"
+    },
+    {
+      "id": "goal-permanent-failure-not-silent-looped",
+      "actor": "マシンの所有者 / 運用者",
+      "context": "distribution not found / 実行ファイル not found / permission denied / invalid configuration など設定起因の恒久的な失敗が起きている",
+      "desired_outcome": "無限リトライで問題が隠れず、止まったことと止まった原因が記録に残る",
+      "success_observation": "連続失敗が上限に達した後は再試行の記録が増えなくなり、止まった原因 (どの設定値がどう解決できなかったか) が記録から読み取れる。一方、既存 instance が既に稼働しているだけの起動拒否は、この終端判定と混同されない"
+    },
+    {
+      "id": "goal-stop-really-stops",
+      "actor": "マシンの所有者 / 運用者",
+      "context": "運用者または SCM が停止操作を行う",
+      "desired_outcome": "停止操作をしたら本当に止まり、Linux 側にプロセスが残らない",
+      "success_observation": "SCM 上のサービス状態が Stopped になり、その後 local endpoint への呼び出しが応答を得られず、対象 WSL distribution 内に host server プロセスも launcher/shell process も残っていない"
+    },
+    {
+      "id": "goal-readable-record",
+      "actor": "マシンの所有者 / 運用者",
+      "context": "起動・異常終了・再起動・停止・強制終了のいずれかが起きた後",
+      "desired_outcome": "何が起きたかを後から読める記録が Windows 側にある",
+      "success_observation": "運用者が確定した記録面を開くと、service start/stop、対象 distribution と Linux user、supervised unit の識別子、readiness 結果、exit code、再試行回数、停止予算超過、強制終了の実行を後から読める。secret と environment variable の値はどこにも現れない"
+    },
+    {
+      "id": "goal-resume-after-disruption",
+      "actor": "マシンの所有者 / 運用者",
+      "context": "sleep / hibernate からの復帰後、マシン再起動を伴わない WSL subsystem の障害後、または Windows Update / WSL update 後",
+      "desired_outcome": "host server が中断前と同様に使える状態へ戻る、戻れないなら失敗として記録される",
+      "success_observation": "運用者が何も操作しないまま local endpoint が稼働中を示す成功応答へ戻る。その過程で process 生存だけを理由に稼働中と判定されておらず、health 確認が再実行された記録が残っている"
+    }
+  ],
+  "reference_ux": [
+    {
+      "name": "Windows SCM 標準サービスライフサイクル (通常の Windows Service を Log On As 指定アカウントで実行、Startup Automatic、Session 0)",
+      "stance": "modeled_on",
+      "aspects": [
+        "SCM への machine-wide 登録と Automatic startup",
+        "指定 Windows ユーザーアカウントの security context での process 実行",
+        "SCM stop request の受理と Stopped 到達"
+      ],
+      "reason": "plan §3 が採用形態として明示している。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#3"
+        ],
+        "rationale": "plan §3 が SCM registered service / Log On As / Startup Automatic / Session 0 を図示して採用形態としている。"
+      }
+    },
+    {
+      "name": "Windows per-user service template",
+      "stance": "rejected",
+      "aspects": [
+        "ユーザーごとに service instance を自動生成する per-user service template 方式"
+      ],
+      "reason": "plan §3 が『per-user service template ではなく通常の Windows Service を特定ユーザーで実行する方式』と明示的に区別している。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#3"
+        ],
+        "rationale": "採用形態の取り違えを塞ぐため、拒絶パターンとして保持する。"
+      }
+    },
+    {
+      "name": "LocalSystem から通常ユーザー所有の WSL distribution を利用する構成",
+      "stance": "rejected",
+      "aspects": [
+        "LocalSystem で service を実行し、そこから他ユーザー所有の distribution を起動する"
+      ],
+      "reason": "WSL distribution は Windows ユーザーに紐づくため、plan §3『採用しない構成』として退けられている。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#3"
+        ],
+        "rationale": "LocalSystem 実行は同じ結論へ再提案されやすいため、拒絶パターンとして固定する。"
+      }
+    },
+    {
+      "name": "`wsl.exe --shutdown` による停止",
+      "stance": "rejected",
+      "aspects": [
+        "全 WSL distribution を一括停止して supervised unit を終わらせる"
+      ],
+      "reason": "全 distribution を停止するため plan §7 が使用しないと明示している。強制終了は対象 distribution だけの terminate に限る。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#7"
+        ],
+        "rationale": "単一 distribution 環境では判別が消えるため、UAC-010 で記録面からも排除する。"
+      }
+    },
+    {
+      "name": "WSL 内 systemd unit による host server の autostart (Windows SCM と systemd の二重監督)",
+      "stance": "scope_rejected",
+      "aspects": [
+        "Linux 側 systemd に host server を登録して自動起動させる",
+        "終了原因・再起動所有権・ログ・停止順序を Windows と Linux の双方が持つ"
+      ],
+      "reason": "plan §1 と §14 の双方で非目的として退けられている。docs/note/note-20260624-user-systemd.md は比較材料としてのみ存在する。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#1",
+          "plans/windows-service-wsl-host-supervision.md#14"
+        ],
+        "rationale": "二重 supervisor を作らないことが本構成の中核前提であるため拒絶パターンとして保持する。"
+      }
+    }
+  ],
+  "legacy_context": {
+    "source_implementation": "Windows 上に host server を監督する常駐主体が現状存在しない。SCM への service 登録実装も golang.org/x/sys/windows/svc の利用も repo に無く (grep のヒットは plan doc のみ)、host server を Windows/WSL 上で動かすには誰かが手動で wsl.exe 経由で起動する必要がある。置き換える legacy は『Windows 上で host server を動かす現在の方法』そのものである。",
+    "inherited_behaviors": [
+      "Linux host server 自身の起動・shutdown 経路は変更しない。SIGINT/SIGTERM で graceful shutdown し、SIGHUP は記録のうえ無視する (src/cmd/server/coordinator.go:326)",
+      "drain timeout 8 秒 + gateway grace 5 秒はサービスマネージャの停止予算に収まるよう既に設計済みであり、この予算をそのまま継承する (src/cmd/server/coordinator.go:305 付近)",
+      "GET /healthz は認証不要で稼働しており、status ok / daemon-unavailable を返し unhealthy は 503。これをそのまま readiness 判定に使う (src/cmd/server/gateway.go:240, 272-288)",
+      "data dir の pid file に対する flock による二重起動拒否は host server 自身がすでに持ち、プロセス終了で自動解放されるため stale lock が残らない (src/cmd/server/daemon_lock.go:35)",
+      "host server の起動フラグ (-data-dir, -addr, -token-file, -insecure, -no-auth) をそのまま使う。~/.agent-grid が書けない環境が実在するため -data-dir は明示指定できる必要がある"
+    ],
+    "replaced_behaviors": [
+      "誰かが手動で起動しない限り host server は上がらない",
+      "host server や supervised unit が落ちても誰も起動し直さない",
+      "Windows にサインインしていない状態では host server が上がらない",
+      "sleep/hibernate 復帰後、マシン再起動を伴わない WSL subsystem 障害後、Windows Update / WSL update 後に host server が戻る保証がない",
+      "Windows 側に『何が起きたか』を後から読める記録が残らない"
+    ]
+  },
+  "confirmed_constraints": [
+    {
+      "id": "cc-service-runs-as-distribution-owner",
+      "statement": "Windows Service は LocalSystem ではなく、対象 WSL distribution を所有する Windows ユーザーアカウントの security context で実行する。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#2",
+          "plans/windows-service-wsl-host-supervision.md#3"
+        ],
+        "rationale": "plan §2 前提 1 と §3『採用しない構成』が LocalSystem 実行を明示的に退けている。"
+      }
+    },
+    {
+      "id": "cc-standard-service-session0-automatic",
+      "statement": "per-user service template ではなく通常の Windows Service を SCM へ machine-wide 登録し、Log On As は対象 distribution の所有アカウント、Startup は Automatic、実行は Session 0 とする。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#3"
+        ],
+        "rationale": "plan §3 が位置づけとして図示している。"
+      }
+    },
+    {
+      "id": "cc-explicit-distribution-and-linux-user",
+      "statement": "対象 WSL distribution と Linux user は起動引数で明示する。supervisor が実行時に distribution を探索・推測することは要件に含めない。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#2",
+          "plans/windows-service-wsl-host-supervision.md#4"
+        ],
+        "rationale": "plan §2 前提 2 と §4 の起動形。distribution 列挙は plan §12 検証項目 1 の PoC 手順であり supervisor の常時挙動ではない。"
+      }
+    },
+    {
+      "id": "cc-foreground-supervised-unit",
+      "statement": "Linux host server は foreground process として動き、その終了が supervised unit (wsl.exe) の終了に連動する。監督階層に余計な shell process を残さない。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#2",
+          "plans/windows-service-wsl-host-supervision.md#4"
+        ],
+        "rationale": "plan §2 前提 3 と §4。ここで確定するのは観察可能な結果 (foreground であること / 終了が連動すること / 余計な process が残らないこと) だけであり、direct exec か WSL 内 launcher + exec かという起動トポロジーの選択は DP-LAUNCH-INVOCATION-FORM として開いたままにする。"
+      }
+    },
+    {
+      "id": "cc-supervisor-holds-no-domain-state",
+      "statement": "Windows supervisor は host server のドメイン状態を持たない。session / frame / driver registry / sandbox lifecycle / devcontainer lifecycle / bridge protocol / credential broker policy / Linux process 単位の監督はすべて既存 Linux host server が所有し続け、supervisor から見る Linux host 全体は一つの supervised unit である。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#5"
+        ],
+        "rationale": "plan §5『担当しない』一覧。担当しない側を要件へ混ぜない境界として固定する。"
+      }
+    },
+    {
+      "id": "cc-sigterm-is-the-existing-stop-path",
+      "statement": "host server の graceful stop 経路は既存のシグナル経路 (SIGINT/SIGTERM) であり、新規の shutdown endpoint や control channel を設けない。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "src/cmd/server/coordinator.go:326",
+          "src/cmd/server/coordinator.go:305"
+        ],
+        "rationale": "plan §7 手順 1 は『shutdown endpoint または control channel』を挙げるが、SIGTERM で EventShutdown を enqueue し sandbox cleanup を drain する経路が実装済みであり、drain 8 秒 + gateway grace 5 秒がサービスマネージャの停止予算に収まるよう設計されている。endpoint 新設の再混入を塞ぐ。"
+      }
+    },
+    {
+      "id": "cc-no-wsl-shutdown",
+      "statement": "全 distribution を停止する `wsl.exe --shutdown` は使用しない。強制終了が必要な最終手段は対象 distribution だけを terminate する `wsl.exe --terminate <distribution>` に限る。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#7"
+        ],
+        "rationale": "plan §7 が明示。"
+      }
+    },
+    {
+      "id": "cc-no-secrets-in-record",
+      "statement": "secret と environment variable の値を記録に残さない。WSL command line は非秘密部分だけを記録する。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#9"
+        ],
+        "rationale": "plan §9 が明示。"
+      }
+    },
+    {
+      "id": "cc-credential-model-stays-in-wsl",
+      "statement": "現在の Linux host credential model は WSL 内に残す。Windows Service は credential broker policy も agent credential も保持しない。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#10"
+        ],
+        "rationale": "plan §10 の保持先指定。§5 の『担当しない』一覧とは別に、保持先を独立して固定する。"
+      }
+    },
+    {
+      "id": "cc-no-systemd-in-wsl",
+      "statement": "WSL 内へ systemd を追加せず、host server を systemd unit として登録しない。systemd と Windows SCM の二重監督も作らない。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#1",
+          "plans/windows-service-wsl-host-supervision.md#14"
+        ],
+        "rationale": "plan §1 の結論と §14 の非目的。"
+      }
+    },
+    {
+      "id": "cc-health-target-from-configuration",
+      "statement": "health 確認先の addr / port は固定値ではなく設定 (host server 起動時の -addr 等) 由来の単一の値から解決する。plan §13 の 7780 を既定として要件化しない。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "src/cmd/server/gateway.go:240",
+          "scripts/run-dev.sh"
+        ],
+        "rationale": "port 7780 は repo 内に根拠が無く、実際に使われている既定は 127.0.0.1:8443 で矛盾する。数値を確定せず設定由来にすることだけを固定する。"
+      }
+    },
+    {
+      "id": "cc-data-dir-explicitly-specifiable",
+      "statement": "host server の data dir は明示指定できる (-data-dir)。既定の ~/.agent-grid が書けない環境が実在するため、既定 path に依存しない。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "docs/design/design-host.md:435",
+          "clients/windows-shell/docs/wsl-detach-spike-result.md"
+        ],
+        "rationale": "~/.agent-grid が書けない環境が実測で判明しており、明示 -data-dir を渡す運用が既に採られている。"
+      }
+    },
+    {
+      "id": "cc-non-goals",
+      "statement": "host server の Windows native port、Windows Container sandbox、Windows process-isolated frame、Windows と Linux を跨ぐ bridge 接続、WSL distribution の汎用 daemon manager 化は本件の対象外。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#14"
+        ],
+        "rationale": "plan §14 の非目的一覧をそのまま保持する。"
+      }
+    },
+    {
+      "id": "cc-configurable-identity-and-distribution",
+      "statement": "supervisor サービスの実行 identity は任意の Windows ユーザーを指定でき、既定はサービス登録時にログオンしているユーザーとする。対象 WSL distribution も任意の distro を指定でき、既定は WSL の既定 distro とする。専用 Windows ユーザーも専用 distribution も必須にしない。",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-log-destination-and-identity",
+          "plans/windows-service-wsl-host-supervision.md#2",
+          "plans/windows-service-wsl-host-supervision.md#3"
+        ],
+        "rationale": "user が DP-SERVICE-IDENTITY-SCOPE への回答として逐語で確定した。plan §2 前提 2 (distribution と Linux user を起動引数で明示する) および plan §3 (専用 Windows ユーザーと専用 WSL distribution は必須ではない) と整合する。cc-service-runs-as-distribution-owner の LocalSystem 排除はそのまま有効で、この制約は identity の選択肢を狭めない。『共有か専用か』は UX の代替案ではなく、この制約のもとで設定により表現できる deployment 構成である。"
+      }
+    },
+    {
+      "id": "cc-record-surface-reachable-by-operator",
+      "statement": "記録面は運用者が到達できる場所に置く。サービスアカウントの profile 配下に閉じる path を記録面にしない。具体的な path と rotation の実装形は要件では確定せず design が所有する。",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-log-destination-and-identity",
+          "plans/windows-service-wsl-host-supervision.md#9"
+        ],
+        "rationale": "DP-LOG-DESTINATION が OPT-DEDICATED-LOG-FILE で確定したことの帰結。plan §9 が候補として挙げる %LOCALAPPDATA%\\AgentGrid\\logs\\wsl-host.log は profile 相対であり、Session 0 のサービスアカウントで実行される supervisor が書くと、運用者が自分の profile を見ても何も無いという空振りが起きる。goal-readable-record は『運用者が読める』ことを要求しており、到達可能性はその成立条件である。path そのものは確定せず、profile 配下に閉じないことだけを要件化する。"
+      }
+    }
+  ],
+  "existing_system_context": [
+    {
+      "id": "esc-signal-graceful-shutdown",
+      "statement": "src/cmd/server/coordinator.go:326 — SIGINT/SIGTERM/SIGHUP を Notify。SIGINT/SIGTERM で EventShutdown を enqueue し、reducer が sandbox cleanup を drain してから context cancel、event loop 終了。SIGHUP は記録のみで無視する。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "src/cmd/server/coordinator.go:326"
+        ],
+        "rationale": "2026-07-25 に直接確認済み。"
+      }
+    },
+    {
+      "id": "esc-stop-budget-designed-for-service-manager",
+      "statement": "src/cmd/server/coordinator.go:305 付近のコメント — drain timeout 8 秒 / gateway grace 5 秒は『サービスマネージャの TimeoutStopSec に収まるよう』既に設計されている。Windows 側の停止予算はこの実測可能な内訳から導出できる。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "src/cmd/server/coordinator.go:305"
+        ],
+        "rationale": "plan §13 の 30 秒に独立の根拠が無いことの対になる事実。"
+      }
+    },
+    {
+      "id": "esc-healthz-endpoint",
+      "statement": "src/cmd/server/gateway.go:240 — GET /healthz は認証不要。writeHealth (:272-288) は status ok / daemon-unavailable を返し、unhealthy は 503。gateway だけが listen して daemon が繋がっていない状態を区別できる。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "src/cmd/server/gateway.go:240",
+          "src/cmd/server/gateway.go:272-288"
+        ],
+        "rationale": "plan §6 の health check 方針が server 実装と整合することの根拠。"
+      }
+    },
+    {
+      "id": "esc-flock-double-start-refusal",
+      "statement": "src/cmd/server/daemon_lock.go:35 — data dir の pid file に flock(LOCK_EX|LOCK_NB)。取得失敗時は『another ... daemon is already running (pid %s); refusing to start』を返して起動を拒否し、socket も token file も触らない。flock はプロセス終了で自動解放されるため stale lock は残らない。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "src/cmd/server/daemon_lock.go:35"
+        ],
+        "rationale": "supervisor が二重に起動しても後発は静かに拒否される。この拒否を恒久的失敗と読み違えない必要がある。"
+      }
+    },
+    {
+      "id": "esc-server-launch-flags",
+      "statement": "host server の主な起動フラグは -data-dir / -addr / -token-file / -insecure / -no-auth。既定 addr は 127.0.0.1:8443 (scripts/run-dev.sh) であり、plan §13 の port 7780 とは矛盾する。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "scripts/run-dev.sh"
+        ],
+        "rationale": "設定由来の health target を要求する根拠。"
+      }
+    },
+    {
+      "id": "esc-no-windows-supervisor-implementation",
+      "statement": "現時点で repo に SCM への service 登録実装も golang.org/x/sys/windows/svc の利用も存在しない (grep のヒットは plan doc のみ)。ただし golang.org/x/sys 自体は go.mod の直接依存として既に存在する。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "src/go.mod:25"
+        ],
+        "rationale": "本件が新規追加であること、および Windows Service 実装が既存依存のサブパッケージ利用で済む見込みであることの根拠。"
+      }
+    },
+    {
+      "id": "esc-dev-run-is-separate-lineage",
+      "statement": "scripts/run-dev.sh / make run-dev は Linux 内の開発用 foreground 起動であり、readiness は server.sock の出現を最大 5 秒ポーリングする。Windows Service とは無関係の別系統である。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "scripts/run-dev.sh"
+        ],
+        "rationale": "混同を防ぐために明示する。"
+      }
+    },
+    {
+      "id": "esc-wsl-launch-survival-measurement",
+      "statement": "wsl.exe 経由で Linux プロセスを起動したときの生存挙動には実測がある (setsid nohup で detach すると起動元終了後も生存する / setsid しない background は起動元 kill で group ごと死ぬ / WSL2 の pid-1 reparenting 挙動に依存し WSL 更新で変わりうる)。ただしその実測は『起動元がすぐ終了する』文脈のものであり、常駐する親が居続ける本件を統治しない。機構の知見としてのみ扱う。",
+      "provenance": {
+        "source": "measured_data",
+        "confidence": "inferred",
+        "evidence_refs": [
+          "docs/adr/adr-20260724-boundary-3-wsl-detach-spike.md",
+          "clients/windows-shell/docs/wsl-detach-spike-result.md"
+        ],
+        "rationale": "foreground 保持が成立するかは本件では未検証であり、既存実測を否定材料として用いない。"
+      }
+    }
+  ],
+  "product_assumptions": [
+    {
+      "id": "pa-service-account-can-launch-distribution",
+      "statement": "Session 0 で対象ユーザーの security context に起動した Windows Service から、そのユーザー所有の WSL distribution を起動でき、サインインしていない状態でも readiness へ到達する。",
+      "validation": "plan §12 検証項目 1 (service account から `wsl.exe -l -q` で対象 distribution が見える) と検証項目 2 (ユーザー未ログイン状態で Windows 起動後に自動起動する) を最小 Windows Service の PoC で実施し、pass/fail と観測値を記録する。",
+      "invalidation_behavior": "成立しなければ本構成そのものが成立しないため、plan §15 の受け入れ条件が満たされなかったものとして採用判断を差し戻し、goal-connect-unsigned と F-001 / F-007 を取り下げる。",
+      "decision_refs": [
+        "DP-SERVICE-IDENTITY-SCOPE"
+      ],
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#15",
+          "plans/windows-service-wsl-host-supervision.md#12"
+        ],
+        "rationale": "plan §15 自身が本採用前の PoC 確認を受け入れ条件としている。"
+      }
+    },
+    {
+      "id": "pa-stop-signal-reaches-linux-process",
+      "statement": "Windows Service から発した停止操作が、選択した起動トポロジーを通って Linux 側 host server の既存 graceful shutdown 経路 (drain 8 秒 / gateway grace 5 秒) へ到達する。",
+      "validation": "plan §12 検証項目 7 (Service stop が graceful shutdown になる) を PoC で実施し、host server 自身が distribution 内に書く記録に停止要求の受領から drain 完了までが現れることを確認する。",
+      "invalidation_behavior": "到達しない場合は DP-LAUNCH-INVOCATION-FORM の option を到達可能な側へ固定し、それでも到達しないなら cc-sigterm-is-the-existing-stop-path を開き直して停止要求の伝達手段を design の必須課題として handoff する。UAC-008 は満たせないものとして再設計する。",
+      "decision_refs": [
+        "DP-LAUNCH-INVOCATION-FORM"
+      ],
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "src/cmd/server/coordinator.go:326",
+          "docs/adr/adr-20260724-boundary-3-wsl-detach-spike.md"
+        ],
+        "rationale": "SIGTERM を Windows Service から WSL 内 Linux プロセスへどう届けるかは未検証であり、plan §4 の起動形態の選択と不可分。"
+      }
+    },
+    {
+      "id": "pa-host-exit-propagates-to-unit-exit",
+      "statement": "Linux host server が終了すると supervised unit (wsl.exe) も終了し、対象 distribution 内に host server プロセスも launcher/shell process も残らない。",
+      "validation": "plan §12 検証項目 4 (host server 終了時に wsl.exe が終了する) を PoC で実施し、正常終了・異常終了の双方で distribution 内のプロセス残存を確認する。",
+      "invalidation_behavior": "連動しない場合は UAC-003 を満たせないものとして扱い、supervised unit の終了確認手段を DP-LAUNCH-INVOCATION-FORM の disqualifier として design へ差し戻す。",
+      "decision_refs": [
+        "DP-LAUNCH-INVOCATION-FORM"
+      ],
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#2",
+          "plans/windows-service-wsl-host-supervision.md#4"
+        ],
+        "rationale": "plan §2 前提 3 の成立可否そのものが未検証である。"
+      }
+    },
+    {
+      "id": "pa-dedicated-account-not-required",
+      "statement": "専用 Windows アカウントと専用 WSL distribution は必須ではなく、既定 (登録時にログオンしているユーザー / WSL の既定 distro) のまま既存ユーザー所有の distribution を対象にする deployment 構成で成立する。",
+      "validation": "既定のまま登録し (登録時にログオン中のユーザー / 登録時点の WSL 既定 distro)、その登録時に確定した distro を対象に PoC を実施して、対象 distribution 限定の強制終了が日常利用の WSL 作業を巻き込まないこと (plan §12 検証項目 8) を観測する。登録時に確定した distro が日常作業の distro と一致する環境で観測する。",
+      "invalidation_behavior": "成立しない場合 (既定 distro を対象にした terminate が日常作業を巻き込む等) は、専用アカウント + 専用 distribution 構成を 推奨既定として運用手順へ格上げし、handoff-service-account-hardening の design obligation とする。cc-configurable-identity-and-distribution 自体は変わらない (どちらも設定で表現できる)。",
+      "decision_refs": [
+        "DP-SERVICE-IDENTITY-SCOPE"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "consultation-20260725-log-destination-and-identity",
+          "plans/windows-service-wsl-host-supervision.md#3"
+        ],
+        "rationale": "user が『任意のユーザー / 任意の distro、既定はログオン中のユーザーと既定 distro』を確定したため、専用構成は必須ではない。ただし既定のまま運用したときに干渉が起きないかは未実測であり、仮定として validation を残す。"
+      }
+    },
+    {
+      "id": "pa-localhost-forwarding-recovers-or-is-detectable",
+      "statement": "sleep/hibernate 復帰や WSL subsystem 再起動のあと localhost forwarding が自動再確立されるか、再確立されない場合でも health 確認の失敗として検出できる。",
+      "validation": "plan §12 検証項目 9 (sleep/hibernate 復帰後に health が戻る) と検証項目 11 (Windows Update / WSL update 後に再起動できる) で復帰後の挙動と所要時間を観測する。",
+      "invalidation_behavior": "検出できない状態があれば F-006 の entry 条件を『local endpoint へ到達できない』へ広げ、復帰検知の契機を design へ handoff する。",
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#11"
+        ],
+        "rationale": "plan §11 が localhost forwarding の再確立を故障前提として挙げている。"
+      }
+    },
+    {
+      "id": "pa-poc-precedes-adoption",
+      "statement": "本採用は plan §12 の検証項目 1-11 を PoC で確認したあとに行う。これはアーキテクチャ上の否定材料ではなく受け入れ条件である。",
+      "validation": "検証項目ごとに pass/fail と観測値を記録として残し、未検証項目が無いことを採用判断前に確認する。",
+      "invalidation_behavior": "PoC を経ずに実装へ進む場合は、未検証の仮定が実装契約へ流れることを change package の unresolved decision として明示する。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#15"
+        ],
+        "rationale": "plan §15 が本採用の条件として明記している。"
+      }
+    },
+    {
+      "id": "pa-record-file-survives-supervisor-start-failure",
+      "statement": "記録面を専用ログファイルにした構成でも、supervisor プロセス自身が起動できなかった場合 (資格情報失敗、`Log on as a service` 権限の欠如、service executable / config の ACL 拒否) に、運用者が到達できる痕跡が残る。",
+      "validation": "`Log on as a service` 権限を外した状態で service を起動させ、運用者が到達できる記録面 (専用ログファイル、および supervisor プロセス起動前の失敗については OS 側の service 起動失敗記録) から『サービスが起動できなかったこと』と 『資格情報側に原因があること』を読み取れるかを確認する (UAC-007 の実測)。",
+      "invalidation_behavior": "痕跡が残らない場合、UAC-007 は専用ログファイル単独では成立しないものとして扱う。handoff-record-content-and-sink の 『supervisor 起動前の失敗も痕跡が残る経路を持つ』を必須 design obligation へ引き上げ、それでも成立しないなら DP-LOG-DESTINATION を再相談へ差し戻す。",
+      "decision_refs": [
+        "DP-LOG-DESTINATION"
+      ],
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "consultation-20260725-log-destination-and-identity",
+          "plans/windows-service-wsl-host-supervision.md#9",
+          "plans/windows-service-wsl-host-supervision.md#10"
+        ],
+        "rationale": "OPT-EVENT-LOG は『supervisor 自体が起動できなかった場合の痕跡が同じ面に残る』性質を自明に持っており、それが UAC-007 の成立に効いていた。OPT-DEDICATED-LOG-FILE が確定した以上、この性質は自明ではなく検証対象になる。"
+      }
+    }
+  ],
+  "design_hypotheses": [
+    {
+      "id": "dh-health-poll-shape",
+      "statement": "health 確認の polling 間隔・timeout・連続失敗の数え方は、実測の起動所要時間と復帰所要時間から決められる。",
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#6"
+        ],
+        "rationale": "plan §6 は判定順序だけを定め、周期や timeout を定めていない。UX 契約へは昇格させない。"
+      }
+    },
+    {
+      "id": "dh-failure-classification-signal",
+      "statement": "permanent failure と crash の区別は、supervised unit の exit code と stderr のパターンから実装可能である。",
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#8",
+          "src/cmd/server/daemon_lock.go:35"
+        ],
+        "rationale": "分類の必要性は UX 契約 (UAC-005 / UAC-006) だが、判定に使う信号の選択は design 所有。"
+      }
+    },
+    {
+      "id": "dh-record-sink-shape",
+      "statement": "記録先の実装形 (Event Log の source 登録と event ID 割り当て、あるいは専用 log file の size-based rotation) は、記録項目の要求を満たしたうえで選べる。",
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#9"
+        ],
+        "rationale": "記録『先』は DP-LOG-DESTINATION の product decision、記録の実装形は design 所有。"
+      }
+    },
+    {
+      "id": "dh-resume-detection-trigger",
+      "statement": "sleep/hibernate 復帰と WSL subsystem 障害の検知契機は、OS の電源イベント購読と定常 health 確認の組み合わせで賄える。",
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#11"
+        ],
+        "rationale": "UX 側が要求するのは『復帰後に health を再実行した記録が残ること』だけであり、検知手段は design 所有。"
+      }
+    }
+  ],
+  "technology_candidates": [
+    {
+      "id": "candidate-golang-windows-svc",
+      "candidate": "golang.org/x/sys/windows/svc (Go の Windows Service Control Manager 連携 API)",
+      "source": "explicit_user_input",
+      "proposed_for": [
+        "Windows Service wrapper 本体 (SCM 登録・Start/Stop ハンドラ・状態通知)",
+        "Session 0 での常駐と Automatic startup"
+      ],
+      "required_capabilities": [
+        "SCM への machine-wide 登録と Startup Automatic 設定",
+        "指定 Windows ユーザーの security context での実行 (Log On As)",
+        "SCM からの stop request の受理と、停止完了までの pending 状態通知",
+        "Session 0 から子プロセスとして wsl.exe を起動し、その終了を検知できること"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "誰もサインインしていない状態で起動が完了し health 確認まで到達できること (goal-connect-unsigned)",
+        "停止要求を受けてから Linux 側 teardown の完了を待てること (goal-stop-really-stops / UAC-008)",
+        "SCM 上は Running のままの Ready / Backoff / Failed を記録面で区別できること (state-supervised-unit-availability)"
+      ],
+      "design_questions": [
+        "Session 0 の service context から対象ユーザー所有の WSL distribution を起動できるか (plan §12 検証項目 1・2)",
+        "SCM の停止待ち予算と threshold-shutdown-wait-budget の関係をどう定めるか",
+        "service account の password 変更・期限切れ・`Log on as a service` 権限喪失を、起動できない状態としてどう記録面へ出すか (plan §10)"
+      ],
+      "disqualifiers": [
+        "Session 0 から対象 distribution を起動できない場合、本構成そのものが成立しない (pa-service-account-can-launch-distribution の反証)",
+        "SCM の停止待ち予算内に Linux 側 teardown が完了できない場合、UAC-008 を満たせない"
+      ]
+    },
+    {
+      "id": "candidate-existing-healthz-endpoint",
+      "candidate": "server 実装済みの GET /healthz (認証不要、status ok / daemon-unavailable、unhealthy は 503)",
+      "source": "repository_context",
+      "proposed_for": [
+        "起動シーケンス最終段の readiness 判定",
+        "定常 health 確認と、sleep 復帰後の health 再確認"
+      ],
+      "required_capabilities": [
+        "認証なしで到達性を判定できる",
+        "gateway は生きているが daemon が繋がっていない状態を daemon-unavailable として区別できる",
+        "接続先 addr / port を設定由来の単一の値から解決できる"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "『到達できた』と『稼働している』を混同しないこと (UAC-001 の判別性)",
+        "復帰後の health 再確認の実行と結果が記録面に現れること (UAC-011)"
+      ],
+      "design_questions": [
+        "readiness 到達判定と定常 health 判定で同じ endpoint を使うか、判定の厳しさを変えるか",
+        "port を host server の -addr 設定とどう同期させるか (plan §13 の 7780 は repo 内に根拠が無く既定 8443 と矛盾する)",
+        "health 確認 1 回あたりの timeout と、連続失敗の数え方をどう定めるか"
+      ],
+      "disqualifiers": [
+        "port を設定由来にできず固定値を新設する場合、cc-health-target-from-configuration に反する",
+        "daemon-unavailable を成功として扱う判定にした場合、UAC-001 の判別性が失われる"
+      ]
+    },
+    {
+      "id": "candidate-windows-event-log-sink",
+      "candidate": "Windows Event Log を supervisor の記録先にする",
+      "source": "explicit_user_input",
+      "proposed_for": [
+        "記録先としては不採用 (DP-LOG-DESTINATION は OPT-DEDICATED-LOG-FILE で確定)",
+        "supervisor プロセスが起動する前に失敗した場合の痕跡経路としてのみ design 評価対象に残す (UAC-007 / pa-record-file-survives-supervisor-start-failure)"
+      ],
+      "required_capabilities": [
+        "Session 0 のサービスプロセスから書ける",
+        "サインインした運用者が OS 標準ツールで後から読める",
+        "service 自体が起動できなかった場合でも痕跡が残る",
+        "secret を含めずに構造化して記録できる"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "再試行中と終端 (再試行停止) を記録から区別できること (UAC-004 / UAC-005)",
+        "資格情報起因で service が起動できないときにも原因が読めること (UAC-007)"
+      ],
+      "design_questions": [
+        "専用ログファイルを主たる記録面としたうえで、supervisor 起動前の失敗の痕跡だけを OS 側の記録へ残す併用形が成立するか",
+        "併用する場合、event source の登録に管理者権限が要る点をインストール手順にどう含めるか",
+        "併用しない場合、supervisor 起動前の失敗をどこから読ませるか"
+      ],
+      "disqualifiers": [
+        "event source を登録できない環境では記録がまったく残らず goal-readable-record が成立しない"
+      ]
+    },
+    {
+      "id": "candidate-localappdata-log-file",
+      "candidate": "専用ログファイル (size-based rotation 付き) — DP-LOG-DESTINATION の確定先。plan §9 が例示する %LOCALAPPDATA%\\AgentGrid\\logs\\wsl-host.log は profile 相対であり、Session 0 のサービスアカウントで実行される supervisor が書くと運用者の profile には現れないため、path は design で確定し直す",
+      "source": "explicit_user_input",
+      "proposed_for": [
+        "plan §9 の最低記録項目の出力先 (DP-LOG-DESTINATION = OPT-DEDICATED-LOG-FILE で確定)"
+      ],
+      "required_capabilities": [
+        "Session 0 のサービスアカウントから書ける path が解決できる",
+        "サインインした運用者が同じ場所を読める (サービスアカウントの profile 配下に閉じない / cc-record-surface-reachable-by-operator)",
+        "size-based rotation",
+        "運用者が場所を一意に知れる (登録手順・設定から path が提示される)"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "運用者が『どこを見ればよいか』を一意に知れること (goal-readable-record)",
+        "サインインしていない時間帯に起きた失敗も後から読めること"
+      ],
+      "design_questions": [
+        "サービスアカウントの %LOCALAPPDATA% は運用者がサインインする profile と異なりうるため、profile 相対ではない machine-wide な path をどこに置くか",
+        "service executable と config の ACL とログファイルの ACL をどう揃えるか (plan §10)",
+        "supervisor プロセスが起動する前に失敗した場合、ファイルへは書けないため痕跡をどこへ残すか (UAC-007)"
+      ],
+      "disqualifiers": [
+        "サービスアカウントの profile 配下に書かれ、運用者が自分の %LOCALAPPDATA% を見ても何も無い状態になる場合、記録面としての目的を果たさない"
+      ]
+    },
+    {
+      "id": "candidate-toml-supervisor-config",
+      "candidate": "supervisor 専用の TOML 設定ファイル (plan §13 の [host] / [restart] 例)",
+      "source": "explicit_user_input",
+      "proposed_for": [
+        "distribution / linux user / server path / health 確認先 / 各予算 / backoff の設定源"
+      ],
+      "required_capabilities": [
+        "Session 0 のサービスプロセスから読める path に置ける",
+        "ACL を設定できる",
+        "health 確認先を host server の起動設定と同じ正本から解決できる"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "distribution / Linux user / 接続先が二重管理されず、設定を 1 箇所直せば supervisor と host server の双方に効くこと",
+        "port を固定値として埋め込まないこと (cc-health-target-from-configuration)"
+      ],
+      "design_questions": [
+        "host server 起動引数 (-addr / -data-dir) と supervisor 設定の重複をどう防ぐか",
+        "設定を変更したときに supervisor へ反映されるまでに運用者が何をする必要があるか",
+        "設定不正 (invalid configuration) をどの時点で検出し、どう記録面へ出すか"
+      ],
+      "disqualifiers": [
+        "host server の起動引数と supervisor の health 確認先がドリフトしうる形になる場合、UAC-001 の稼働判定が構造的に不安定になる"
+      ]
+    }
+  ],
+  "quality_thresholds": [
+    {
+      "id": "threshold-restart-backoff-schedule",
+      "metric": "異常終了を検知してから再起動を試みるまでの待機時間の系列 (連続失敗 1 回目以降)",
+      "value": "1, 2, 5, 15, 60 (以降 60 で頭打ち)",
+      "unit": "秒",
+      "owner": "design",
+      "status": "design_owned",
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#8"
+        ],
+        "rationale": "plan §8 の著者提案 (『例』として提示) であり repo 内に根拠となる実測も既存設定も無い。UX の pass/fail 条件へは昇格させず、UX 側は『待機が存在し記録から観察できること』『上限が存在すること』だけを要求する。"
+      },
+      "validation_method": "plan §12 検証項目 6 (backoff 付き再起動が働く) を PoC で実施し、記録の timestamp から実際の待機間隔を逆算して系列を検証する。"
+    },
+    {
+      "id": "threshold-max-consecutive-failures",
+      "metric": "設定起因の恒久的な失敗について、再試行を止めて終端状態へ遷移するまでの同一原因の連続失敗回数",
+      "value": 5,
+      "unit": "回",
+      "owner": "design",
+      "status": "design_owned",
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#13",
+          "plans/windows-service-wsl-host-supervision.md#8"
+        ],
+        "rationale": "plan §13 の config 例 (max_fast_failures = 5) の著者提案であり repo 内に根拠が無い。plan §8 が名指しする『configuration error を無限再起動しない』ための上限であり、設定起因の恒久的な失敗にだけ適用される。一過性の失敗の終端上限 (threshold-transient-failure-terminal-limit) と health 再確認の再起動閾値 (threshold-health-recheck-failures-before-restart) はこれとは別物であり、同一の値へ潰さない。"
+      },
+      "validation_method": "設定起因の失敗 (例: 存在しない distribution 名) を意図的に発生させ、無限リトライにならず何回目で再試行が止まり原因が記録されるかを記録から確認する (plan §8 と goal-permanent-failure-not-silent-looped の合成検証)。あわせて、同じ回数の一過性の失敗では終端へ落ちないこと (UAC-017) を対にして確認する。"
+    },
+    {
+      "id": "threshold-transient-failure-terminal-limit",
+      "metric": "一過性の失敗 (host server の crash / health 確認 timeout / WSL subsystem の利用不可) について、再試行を止めて終端状態へ遷移するまでの連続失敗回数",
+      "value": "未確定。ただし threshold-max-consecutive-failures より厳密に大きいこと (plan §8 が permanent failure と crash の区別を明示要求しているため、両者が同じ回数で打ち切られてはならない)",
+      "unit": "回",
+      "owner": "design",
+      "status": "design_owned",
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#8"
+        ],
+        "rationale": "plan §8 は permanent failure (executable not found / distribution not found / permission denied / invalid configuration) と crash (health check timeout / host server crash / WSL subsystem unavailable) を区別せよと明示するが、crash 側の上限値を示していない。UX 側が要求するのは『一過性の失敗が設定起因と同じ回数では打ち切られないこと』(UAC-017) だけであり、具体値は design が所有する。"
+      },
+      "validation_method": "一過性の失敗 (host server の crash や WSL subsystem の一時的な利用不可) を threshold-max-consecutive-failures と同じ回数だけ連続発生させたのち原因を解消し、supervisor が終端状態へ落ちておらず再起動で稼働中へ戻ることを記録から確認する。さらに失敗を継続させ、どの回数で終端へ遷移し原因が記録されるかを実測して値を導出する。"
+    },
+    {
+      "id": "threshold-health-recheck-failures-before-restart",
+      "metric": "supervised unit のプロセスが生存したまま health 確認が失敗し続けるとき、graceful restart を開始するまでの health 確認の連続失敗回数",
+      "value": "未確定 (plan は値を示していない)",
+      "unit": "回",
+      "owner": "design",
+      "status": "design_owned",
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#11"
+        ],
+        "rationale": "plan §11 は『health failure が継続する場合は graceful restart を試みる』とだけ定め、継続の回数を示していない。これは再起動を駆動する閾値であり、終端状態へ遷移させる threshold-max-consecutive-failures / threshold-transient-failure-terminal-limit とは役割が異なる。同一の値へ潰すと、health 連続失敗で終端へ落とす実装と graceful restart する実装のどちらも同時には成立しなくなる。"
+      },
+      "validation_method": "sleep 復帰後に host server を health 確認だけが失敗する状態 (プロセスは生存) にし、何回連続失敗した時点で graceful restart が開始されるかを記録から実測する。あわせて、この回数に達しても終端状態へは遷移していないこと (UAC-012 と UAC-013 の順序) を確認する。"
+    },
+    {
+      "id": "threshold-startup-readiness-budget",
+      "metric": "起動開始から health 確認成功 (Ready) に到達するまでの許容時間",
+      "value": 60,
+      "unit": "秒",
+      "owner": "design",
+      "status": "design_owned",
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#13"
+        ],
+        "rationale": "plan §13 の config 例 (startup_timeout = 60s) の著者提案であり repo 内に根拠が無い。repo に根拠がある近い値は run-dev の readiness ポーリング最大 5 秒だけで、Windows Service 経由の起動時間は未実測。"
+      },
+      "validation_method": "plan §12 検証項目 2・3・11 の PoC で、supervised unit 起動 → host process 起動 → listen socket ready → health 成功 の実測所要時間を計測し、その分布から予算を導出し直す。"
+    },
+    {
+      "id": "threshold-shutdown-wait-budget",
+      "metric": "停止要求の発行から supervised unit の終了待ちを打ち切り強制終了へ切り替えるまでの許容時間。SCM stop 経路 (UAC-009 / UAC-010) と graceful restart の停止段 (UAC-013) で同一物であり、後者に別予算を新設しない",
+      "value": "host server の drain timeout (8 秒) + gateway grace (5 秒) に supervised unit の終了オーバーヘッドを加えた実測から再導出する。plan §13 の 30 秒は独立の根拠を持たないため、そのままでは採用しない",
+      "unit": "秒",
+      "owner": "design",
+      "status": "design_owned",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "src/cmd/server/coordinator.go:305",
+          "plans/windows-service-wsl-host-supervision.md#13"
+        ],
+        "rationale": "host server 自身の停止予算はサービスマネージャの停止予算に収まるよう既に設計されており (drain 8 秒 + gateway grace 5 秒)、Windows 側の停止予算はここから導出できる。30 秒を独立に置く根拠は repo に無い。導出式か独立値かの選択は DP-SHUTDOWN-TIMEOUT-PROVENANCE。"
+      },
+      "validation_method": "plan §12 検証項目 7・8 の PoC で、停止要求送出から host server の drain 完了・supervised unit 終了までの実測時間を計測し、drain 8 秒 + gateway grace 5 秒の実測分布と比較して予算を導出する。短すぎれば teardown が中断され、長すぎれば SCM の停止待ちに間に合わないため、両側の失敗を実測で挟む。",
+      "decision_refs": [
+        "DP-SHUTDOWN-TIMEOUT-PROVENANCE"
+      ]
+    },
+    {
+      "id": "threshold-resume-health-recheck-budget",
+      "metric": "sleep/hibernate 復帰の検知から health 再確認を実行するまでの許容時間",
+      "value": "未確定 (plan は値を示していない)",
+      "unit": "秒",
+      "owner": "design",
+      "status": "design_owned",
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#11"
+        ],
+        "rationale": "plan §11 は『復帰時は process alive だけでなく health を再実行する』とだけ定め、時間予算を示していない。UX 側は『復帰後に health 再確認の実行と結果が記録に現れること』を要求し、その上限値は design が所有する。"
+      },
+      "validation_method": "plan §12 検証項目 9 の PoC で、復帰イベントから health 再確認の実行までの実測遅れと、localhost forwarding の自然再確立に要する時間を計測し、自然回復と区別できる上限を導出する。"
+    }
+  ],
+  "states": [
+    "Stopped",
+    "Starting",
+    "Ready",
+    "Stopping",
+    "Backoff",
+    "Failed"
+  ],
+  "observable_state_contracts": [
+    {
+      "id": "state-supervised-unit-availability",
+      "subject": "運用者が観察できる supervised unit (wsl.exe + Linux host server) の可用性状態",
+      "states": [
+        "Stopped",
+        "Starting",
+        "Ready",
+        "Stopping",
+        "Backoff",
+        "Failed"
+      ],
+      "initial_state": "Stopped",
+      "transitions": [
+        {
+          "from": "Stopped",
+          "trigger": "SCM が Automatic 起動または明示的な start でサービスを起動する",
+          "to": "Starting"
+        },
+        {
+          "from": "Starting",
+          "trigger": "supervised unit 起動 → listen socket ready → health 確認成功 の全段が成功する",
+          "to": "Ready"
+        },
+        {
+          "from": "Starting",
+          "trigger": "起動予算を超える、または起動が失敗する",
+          "to": "Backoff"
+        },
+        {
+          "from": "Ready",
+          "trigger": "supervised unit が異常終了する",
+          "to": "Backoff"
+        },
+        {
+          "from": "Ready",
+          "trigger": "supervised unit のプロセスは生存したまま health 確認の連続失敗が threshold-health-recheck-failures-before-restart に達し、graceful restart を開始する",
+          "to": "Backoff"
+        },
+        {
+          "from": "Backoff",
+          "trigger": "待機後の再起動で health 確認が成功する",
+          "to": "Ready"
+        },
+        {
+          "from": "Backoff",
+          "trigger": "設定起因の恒久的な失敗について、同一原因の連続失敗が threshold-max-consecutive-failures に達する",
+          "to": "Failed"
+        },
+        {
+          "from": "Backoff",
+          "trigger": "一過性の失敗について、連続失敗が threshold-transient-failure-terminal-limit に達する",
+          "to": "Failed"
+        },
+        {
+          "from": "Ready",
+          "trigger": "SCM が stop request を発行する",
+          "to": "Stopping"
+        },
+        {
+          "from": "Backoff",
+          "trigger": "SCM が stop request を発行する",
+          "to": "Stopping"
+        },
+        {
+          "from": "Failed",
+          "trigger": "SCM が stop request を発行する",
+          "to": "Stopping"
+        },
+        {
+          "from": "Stopping",
+          "trigger": "supervised unit が終了する (graceful、または予算超過後の対象 distribution 限定 terminate)",
+          "to": "Stopped"
+        },
+        {
+          "from": "Failed",
+          "trigger": "運用者が記録に現れた原因を直してサービスを再起動する",
+          "to": "Starting"
+        }
+      ],
+      "invariants": [
+        "SCM のサービス状態に現れるのは Stopped / 起動保留 / 停止保留 / Running だけである。Ready・Backoff・Failed は SCM 上ではいずれも Running として見え、その区別は記録面の最新状態と health endpoint の応答でのみ観察できる。",
+        "Ready の間だけ health endpoint が稼働中を示す成功応答を返す。Backoff と Failed の間は稼働中を示す成功応答を返さない。",
+        "Backoff と Failed は記録面で区別できる。Backoff では再試行の記録が増え続け、Failed では止まった原因が記録され以後の再試行の記録が増えない。",
+        "Failed からは、運用者が記録に現れた原因を直して再起動するまで自動では Ready へ戻らない。",
+        "既存 instance が稼働しているために起動が拒否された状態は Backoff にも Failed にも入らず、Ready の判定へ進む。",
+        "再起動試行へ向かう遷移と終端へ向かう遷移は別の閾値で駆動される二段であり、同一の値へ潰さない。health 確認の連続失敗は threshold-health-recheck-failures-before-restart に達した時点でまず graceful restart (Ready → Backoff) を駆動し、その時点では Failed へ遷移しない。Failed への遷移は、設定起因の失敗については threshold-max-consecutive-failures、一過性の失敗については threshold-transient-failure-terminal-limit がそれぞれ独立に駆動する。",
+        "一過性の失敗 (host server の crash / health 確認 timeout / WSL subsystem の利用不可) は、設定起因の恒久的な失敗と同じ回数では Failed へ遷移しない。threshold-transient-failure-terminal-limit は threshold-max-consecutive-failures より厳密に大きい。"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-004",
+        "UAC-005",
+        "UAC-006",
+        "UAC-008",
+        "UAC-012",
+        "UAC-016",
+        "UAC-017"
+      ]
+    }
+  ],
+  "edge_cases": [
+    {
+      "id": "edge-permanent-failure-vs-crash",
+      "condition": "executable not found / distribution not found / permission denied / invalid configuration といった恒久的な失敗と、health 確認 timeout / host server crash / WSL subsystem unavailable といった一過性の失敗が同じ『起動できなかった』として現れる",
+      "expected_experience": "恒久的な失敗は設定起因の上限回数で再試行が止まり、止まった原因が記録から読み取れる。一過性の失敗は同じ回数では打ち切られず待機付きで再試行され続け、原因が解消すれば local endpoint が稼働中の応答へ戻る。設定起因の失敗が無限に再試行され続けることも、一過性の失敗が設定起因と同じ短さで見捨てられることもない。",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-005",
+        "UAC-017"
+      ]
+    },
+    {
+      "id": "edge-already-running-refusal",
+      "condition": "既に稼働している host server がいる状態で supervisor がもう一度起動を試み、host server 自身の二重起動防止によって後発の起動要求が拒否される",
+      "expected_experience": "健全に稼働している状態が障害として記録されない。拒否は『既に稼働中』として記録され、終端状態も失敗原因も記録されず、health endpoint は稼働中の応答を返し続ける。",
+      "scenario_refs": [
+        "UAC-006"
+      ]
+    },
+    {
+      "id": "edge-service-account-credentials",
+      "condition": "supervisor サービスの Log On As に指定した Windows アカウントの password が変更・期限切れになる、`Log on as a service` 権限が無い、user profile を読み込めない、または service executable と config の ACL で拒否される",
+      "expected_experience": "local endpoint へ到達できない状態になるが、原因不明の沈黙にはならず、Windows 側の記録から service の起動失敗と資格情報起因である旨を読み取れる。",
+      "scenario_refs": [
+        "UAC-007"
+      ]
+    },
+    {
+      "id": "edge-wsl-subsystem-unavailable-without-reboot",
+      "condition": "WSL update や WSL subsystem restart により、マシン再起動を伴わずに WSL subsystem が一時的に利用不可になり supervised unit が失われる",
+      "expected_experience": "マシン再起動という契機が来なくても、health 確認の失敗として検知され待機付きの再起動が試みられる。subsystem が戻れば local endpoint が稼働中の応答へ戻り、戻らなければ上限で再試行が止まり原因が記録される。",
+      "scenario_refs": [
+        "UAC-015"
+      ]
+    },
+    {
+      "id": "edge-forwarding-recovered-but-health-fails",
+      "condition": "sleep 復帰後に localhost forwarding は再確立したが、host server 自体は health 確認が失敗したまま回復しない",
+      "expected_experience": "プロセスが生存していることを理由に稼働中と判定され続けることはなく、連続失敗が上限に達すれば graceful restart が実行され、それでも回復しなければ対象 distribution だけが terminate されて起動がやり直される。",
+      "scenario_refs": [
+        "UAC-012",
+        "UAC-013"
+      ]
+    },
+    {
+      "id": "edge-force-terminate-still-leaves-processes",
+      "condition": "停止手順を最後まで進め、対象 distribution 限定の terminate を行ってもなお Linux 側にプロセスが残っているように見える",
+      "expected_experience": "強制終了を行ったこと自体が記録に現れ、対象 distribution 以外の distribution は停止しない。運用者は記録から、どの段階まで進めたうえで残ったのかを読み取れる。",
+      "scenario_refs": [
+        "UAC-009",
+        "UAC-010"
+      ]
+    },
+    {
+      "id": "edge-registration-bound-target",
+      "condition": "登録後に運用者が `wsl --set-default` で WSL の既定 distro を変更する、あるいは監督させたい distribution や 実行ユーザーを別のものへ変えたくなる",
+      "expected_experience": "supervisor の監督対象と、停止の最終手段である対象 distribution 限定 terminate の対象は、登録時に確定した値のまま動かない。既定の変更が supervisor の対象を勝手に変えることはなく、運用者の日常作業 distro が巻き添えで停止することもない。対象を変えるには再登録 (または設定変更と反映操作) が必要であり、その手順と『いま何を監督しているか』は記録面と登録内容から読み取れる。",
+      "scenario_refs": [
+        "UAC-009",
+        "UAC-016"
+      ]
+    }
+  ],
+  "ux_alternatives": [
+    {
+      "id": "ALT-SHARED-EXISTING-ACCOUNT",
+      "primary_entry": "運用者は既に日常利用している Windows アカウントと、そのアカウントが既に所有している WSL distribution をそのまま指定して supervisor サービスを登録する。専用アカウントも専用 distribution も事前に用意しない。",
+      "summary": "plan §3 が PoC の出発点として明示的に許可している最小構成。追加のプロビジョニング手順が無く、既存資産をそのまま再利用して成立性をまず確認できる。代償として、資格情報運用・distribution 所有権・filesystem access・Agent Grid 専用設定・日常利用 WSL との干渉がすべて同一アカウントに同居し、日常アカウントの password 変更や期限切れがそのまま host server の可用性リスクになる (plan §10)。 **explore-r3 で降格**: user が実行 identity と対象 distribution の双方を設定可能とし既定を定めたため (cc-configurable-identity-and-distribution)、この案は UX の代替案ではなく、同一契約下で設定により表現できる deployment 構成である。履歴として保持し、alternative_comparison は consultation event (primary_alternative) を 伴わないため explore-r2 の内容のまま変更していない。 **explore-r5 で確定**: user が『代替案としては廃し、deployment 構成として扱う』と回答し、降格が承認された。この構成は**既定 deployment 構成**である — 確定済みの既定 (登録時にログオンしているユーザー / WSL の既定 distro) と 一致するためであり、体験上優れているからではない。",
+      "structural_dimensions": [
+        "service 実行 identity = 既存の WSL owner Windows アカウント",
+        "対象 distribution = 既存ユーザー所有の distribution (専用ではない)",
+        "事前プロビジョニング = 不要",
+        "資格情報運用 = 日常アカウントと共有"
+      ],
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#3",
+          "draft-1#alt-shared-account",
+          "draft-2#ALT-poc-shared-eventlog",
+          "consultation-20260725-log-destination-and-identity",
+          "consultation-20260725-alternatives-demoted-to-deployment"
+        ],
+        "rationale": "draft-1 の alt-shared-account と draft-2 の ALT-poc-shared-eventlog は同一の構造軸 (identity と distribution の共有) を持つため、統合時に 1 案として保存した。draft-2 が同案に束ねていた記録先の次元は DP-LOG-DESTINATION として切り離し、alternative の選択が記録先を暗黙に決めてしまわないようにした。 explore-r3: user 回答により『共有か専用か』は UX alternative として競合しなくなり、deployment 構成へ降格した。削除はせず、選択の履歴として保存する。 explore-r5: user が降格を承認し、両案は同一体験契約下の deployment 構成として確定した。alternative_comparison は体験契約の優劣比較ではなく、既定 deployment 構成の記述である。"
+      }
+    },
+    {
+      "id": "ALT-DEDICATED-ACCOUNT-DISTRIBUTION",
+      "primary_entry": "運用者は専用 Windows アカウントと専用 WSL distribution を事前に作成し、その専用アカウントを Log On As に設定してから supervisor サービスを登録する。",
+      "summary": "plan §3 が『分離したい場合』の選択肢として挙げる構成。資格情報運用・distribution 所有権・filesystem access・Agent Grid 専用設定・日常利用 WSL との干渉を切り離せる。対象 distribution 限定の強制終了 (plan §7 手順 7) が日常作業を巻き込む余地も構造的に消える。代償は専用アカウントと専用 distribution の事前プロビジョニング手順が増えること。 **explore-r3 で降格**: user が実行 identity と対象 distribution の双方を設定可能とし既定を定めたため (cc-configurable-identity-and-distribution)、この案は UX の代替案ではなく、同一契約下で設定により表現できる deployment 構成である。履歴として保持し、alternative_comparison は consultation event (primary_alternative) を 伴わないため explore-r2 の内容のまま変更していない。 **explore-r5 で確定**: user が『代替案としては廃し、deployment 構成として扱う』と回答し、降格が承認された。この構成は **rejected ではない** — 登録時に実行 identity と対象 distribution を明示指定するだけで表現でき、plan §3 の 5 分離要件のいずれかが具体化した場合や無人運用で資格情報を切り離したい場合に選ぶ、既定ではない deployment 構成として保持する。",
+      "structural_dimensions": [
+        "service 実行 identity = 専用 Windows アカウント",
+        "対象 distribution = 専用 distribution (日常利用の WSL 環境から分離)",
+        "事前プロビジョニング = 専用アカウントと専用 distribution の作成が必要",
+        "資格情報運用 = 日常アカウントから独立"
+      ],
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#3",
+          "plans/windows-service-wsl-host-supervision.md#10",
+          "draft-2#ALT-isolated-dedicated-logfile",
+          "draft-1#alt-dedicated-account",
+          "consultation-20260725-log-destination-and-identity",
+          "consultation-20260725-alternatives-demoted-to-deployment"
+        ],
+        "rationale": "draft-2 の ALT-isolated-dedicated-logfile と draft-1 の alt-dedicated-account を 1 案として保存した。plan §3 が列挙する 5 つの分離要件と §10 の資格情報失敗モードが、この案を保持し続ける理由である。 explore-r3: user 回答により『共有か専用か』は UX alternative として競合しなくなり、deployment 構成へ降格した。削除はせず、選択の履歴として保存する。 explore-r5: user が降格を承認し、両案は同一体験契約下の deployment 構成として確定した。alternative_comparison は体験契約の優劣比較ではなく、既定 deployment 構成の記述である。"
+      }
+    }
+  ],
+  "alternative_comparison": {
+    "candidates": [
+      {
+        "alternative_ref": "ALT-SHARED-EXISTING-ACCOUNT",
+        "source_draft": "draft-1",
+        "disposition": "selected",
+        "rationale": [
+          "user が『代替案としては廃し、deployment 構成として扱う』と確定したため、この比較は体験契約の優劣比較ではなく 『同一契約下でどの deployment 構成を既定とするか』の記述である。",
+          "この構成が primary なのは、確定済みの既定 (DP-SERVICE-IDENTITY-SCOPE = OPT-BIND-AT-REGISTRATION により 登録時に解決される『ログオンしているユーザー』と『WSL の既定 distro』) と一致する既定 deployment 構成だからである。体験上優れているからではない。flow / scenario / observation は両構成で同一であり、cc-configurable-identity-and-distribution のもとで違いは登録時の指定値だけである。",
+          "運用上の代償は消えていない: 資格情報運用・distribution 所有権・filesystem access・Agent Grid 専用設定・日常利用 WSL との干渉 (plan §3 の 5 分離要件) がすべて同一アカウントに同居し、そのアカウントの password 変更・期限切れ・`Log on as a service` 権限の喪失が可用性へ直結する (plan §10)。これは edge-service-account-credentials / UAC-007 / handoff-service-account-hardening が持つ。"
+        ]
+      },
+      {
+        "alternative_ref": "ALT-DEDICATED-ACCOUNT-DISTRIBUTION",
+        "source_draft": "draft-2",
+        "disposition": "deferred",
+        "rationale": [
+          "rejected にしない。user は ALT-SHARED を選び ALT-DEDICATED を退けたのではなく、代替軸そのものを廃止した。この構成は登録時に実行 identity と対象 distribution を明示指定するだけで表現でき (cc-configurable-identity-and-distribution + DP-SERVICE-IDENTITY-SCOPE = OPT-BIND-AT-REGISTRATION)、体験契約を何も変えないため、既定ではない deployment 構成として保持する。",
+          "選ぶ判断材料は失わずに保持する: plan §3 が挙げる 5 つの分離要件 (資格情報運用 / distribution 所有権 / filesystem access / Agent Grid 専用設定 / 日常利用 WSL との干渉) のいずれかが具体化した場合、および無人運用で日常アカウントの資格情報変化を可用性から切り離したい場合に、この構成を選ぶ。登録時に確定した distro だけが terminate の対象になるため、日常作業との干渉も構造的に消える。",
+          "この構成を採る運用者向けの手順 (専用アカウントと専用 distribution の準備、`Log on as a service` 権限、executable / config / 記録面の ACL) は handoff-service-account-hardening が既に所有している。pa-dedicated-account-not-required が PoC で反証された場合は、この構成が推奨既定へ格上げされる。"
+        ]
+      }
+    ],
+    "selected_ref": "ALT-SHARED-EXISTING-ACCOUNT",
+    "approval": "confirmed",
+    "approved_by_user": true,
+    "approval_provenance": {
+      "source": "user_consultation",
+      "confidence": "confirmed",
+      "evidence_refs": [
+        "consultation-20260725-alternatives-demoted-to-deployment",
+        "consultation-20260725-default-target-binding-time",
+        "consultation-20260725-log-destination-and-identity"
+      ],
+      "rationale": "user 回答は逐語で『代替案としては廃し、deployment 構成として扱う』。UX 代替軸そのものの廃止指示であり、ALT-SHARED-EXISTING-ACCOUNT を primary とするのは確定済みの既定と一致する既定 deployment 構成だからである。ALT-DEDICATED-ACCOUNT-DISTRIBUTION は体験上劣るものとして退けたのではないため rejected にせず、登録時の明示指定で表現できる deployment 構成として保持する。"
+    }
+  },
+  "decision_points": [
+    {
+      "id": "DP-SERVICE-IDENTITY-SCOPE",
+      "decision_key": "default-target-binding-time",
+      "question": "実行 identity と対象 WSL distribution が設定可能で既定も定まった (cc-configurable-identity-and-distribution) うえで、運用者がどちらも明示指定せずにサービスを登録したとき、既定 (登録時にログオンしているユーザー / WSL の既定 distro) を 登録時点で解決して確定値として固定するか、起動のたびに実行時解決して現在の既定へ追従させるか。",
+      "layer": "product",
+      "subject": "default",
+      "consultation_policy": "must_ask",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-BIND-AT-REGISTRATION",
+          "label": "既定を登録時点で解決し、実行 identity と対象 distribution を確定値としてサービス設定へ記録する",
+          "outcome": "運用者は登録直後に『どのユーザーとして・どの distro を対象に動くか』を確定値として確認でき、以後 `wsl --set-default` で既定 distro が変わっても supervisor の対象は動かない。停止の最終手段である `wsl.exe --terminate <distribution>` の対象も登録時に確定した distro に固定される。一方、対象を変えるには再登録 (または設定変更と反映操作) が要る。"
+        },
+        {
+          "id": "OPT-RESOLVE-AT-EACH-LAUNCH",
+          "label": "起動のたびに現在の WSL 既定 distro とサービスの実行 identity を解決し、既定の変化へ追従させる",
+          "outcome": "既定 distro を切り替えるだけで supervisor の対象も追従し、再登録が要らない。一方、運用者が別作業で `wsl --set-default` した瞬間に対象が変わり、停止の最終手段である distribution terminate が意図しない distro を 巻き込みうる。運用者から見て『いま何を監督しているか』が登録内容から読めなくなる。"
+        }
+      ],
+      "user_impact": [
+        "運用者が明示指定を省いたとき、supervisor が監督する対象がいつ確定するかが変わる (登録時に固定されるか、起動のたびに現在の既定へ動くか)。",
+        "停止の最終手段である対象 distribution 限定の terminate (cc-no-wsl-shutdown) が、どの distro を対象にするかの予測可能性が変わる。既定へ追従する側では、運用者自身の `wsl --set-default` が対象を変えうる。",
+        "既定が『登録時にログオンしているユーザー』であるため、そのアカウントの password 変更・期限切れ・`Log on as a service` 権限の喪失がそのまま可用性へ直結する (plan §10、edge-service-account-credentials)。この帰結は既定を採る限りどちらの option でも残る。"
+      ],
+      "affected_refs": [
+        "goal-connect-unsigned",
+        "goal-stop-really-stops",
+        "edge-service-account-credentials",
+        "edge-force-terminate-still-leaves-processes",
+        "UAC-007",
+        "UAC-009",
+        "handoff-service-account-hardening",
+        "cc-configurable-identity-and-distribution"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-BIND-AT-REGISTRATION",
+        "basis": "repository_constraint",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#2",
+          "plans/windows-service-wsl-host-supervision.md#4",
+          "plans/windows-service-wsl-host-supervision.md#7"
+        ],
+        "confidence": "medium",
+        "reversibility": "moderate"
+      },
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-default-target-binding-time",
+          "consultation-20260725-log-destination-and-identity",
+          "plans/windows-service-wsl-host-supervision.md#7"
+        ],
+        "rationale": "explore-r3 で revision した軸 (明示指定が無いときに既定を登録時点で束縛するか、起動のたびに解決するか) に対し、user が宣言済み option OPT-BIND-AT-REGISTRATION を明示選択した。分類軸 (product / default / must_ask / default) も options も変更していない。explore-r2 の free_text 回答は、decision revision (explore-r3) を経てここで閉じた。帰結: (1) `wsl.exe --terminate <distribution>` の対象は登録時に確定した distro に固定され、運用者が別作業で `wsl --set-default` しても supervisor の対象は動かない (plan §7 手順 7 が意図しない distro を巻き込む懸念はこの選択で閉じる)、(2) 運用者は登録直後に『どのユーザーとして・どの distro を対象に動くか』を確定値として確認できる (Specify で UAC-016 の Then へ観察として追加する / scenario_impacts)、(3) 対象を変えるには再登録 (または設定変更と反映操作) が要る (edge-registration-bound-target / handoff-service-account-hardening)。既定が『登録時にログオン中のユーザー』であることによる plan §10 の資格情報起因の可用性直結は引き続き残り、handoff-service-account-hardening と UAC-007 が担う。"
+      },
+      "selected_option_ref": "OPT-BIND-AT-REGISTRATION"
+    },
+    {
+      "id": "DP-LOG-DESTINATION",
+      "decision_key": "log-destination",
+      "question": "plan §9 の最低記録項目 (service start/stop、WSL command line の非秘密部分、distribution / Linux user、child PID、readiness 結果、exit code、restart count、graceful shutdown timeout、force terminate 実行) を運用者が読む記録面をどこに置くか。",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-EVENT-LOG",
+          "label": "Windows Event Log に記録する",
+          "outcome": "運用者は OS 標準のイベント基盤から記録を読み、rotation と保持期間を OS 側の設定に委ねられる。supervisor が起動できなかった場合の痕跡も同じ面に残せる。一方、event source の登録に管理者権限が要り、登録できない環境では記録がまったく残らない。"
+        },
+        {
+          "id": "OPT-DEDICATED-LOG-FILE",
+          "label": "専用ログファイル (size-based rotation 付き) に記録する",
+          "outcome": "運用者は任意の手段でプレーンテキストとして読め、外部のログ収集・監視ツールと合わせやすい。一方、rotation を自前で持つ必要があり、サービスアカウントの profile 配下に書かれると運用者が自分の profile を見ても何も無いという空振りが起きうる。"
+        }
+      ],
+      "user_impact": [
+        "運用者が『何が起きたか』を調べるために開く場所と手段が変わる (OS 標準のイベント基盤か、path を知って開くテキストファイルか)。",
+        "サインインしていない時間帯に起きた失敗を、あとからどの経路で辿れるかが変わる。",
+        "supervisor 自身が起動できなかった場合 (資格情報失敗など) に痕跡が残るかどうかが変わり、goal-readable-record と UAC-007 の成立可否を左右する。"
+      ],
+      "affected_refs": [
+        "goal-readable-record",
+        "UAC-007",
+        "UAC-016",
+        "candidate-windows-event-log-sink",
+        "candidate-localappdata-log-file"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-EVENT-LOG",
+        "basis": "planner_judgment",
+        "evidence_refs": [],
+        "confidence": "low",
+        "reversibility": "moderate"
+      },
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-log-destination-and-identity",
+          "plans/windows-service-wsl-host-supervision.md#9"
+        ],
+        "rationale": "user が宣言済み option OPT-DEDICATED-LOG-FILE を明示選択した。分類軸 (interaction / outcome / must_ask / normative) も options も変更していない。planner 推奨は OPT-EVENT-LOG だったが user 判断が優先する。選択の帰結として二つの義務が発生する: (1) 記録面は運用者が到達できる場所であること (cc-record-surface-reachable-by-operator。plan §9 が例示する %LOCALAPPDATA% 配下は profile 相対であり、Session 0 のサービスアカウントで書くと運用者の profile には現れない)、(2) OPT-EVENT-LOG が自明に持っていた『supervisor 自体が起動できなかった場合の痕跡が同じ面に残る』性質 (UAC-007 の成立に効いていた) を専用ログファイル選択下で別途成立させること (pa-record-file-survives-supervisor-start-failure / handoff-record-content-and-sink)。"
+      },
+      "selected_option_ref": "OPT-DEDICATED-LOG-FILE"
+    },
+    {
+      "id": "DP-LAUNCH-INVOCATION-FORM",
+      "decision_key": "launch-invocation-form",
+      "question": "supervisor が supervised unit をどの形で起動するか — shell を挟まず `wsl.exe --distribution --user --exec <server>` を直接起動するか、環境変数と working directory の準備のために WSL 内の小さな launcher を経由し最後を `exec` で host server へ置き換えるか。",
+      "layer": "implementation",
+      "subject": "mechanism",
+      "consultation_policy": "defer",
+      "contract_effect": "handoff",
+      "answer_status": "unanswered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-DIRECT-EXEC",
+          "label": "shell を挟まず wsl.exe を直接起動する (launcher なし)",
+          "outcome": "監督階層が最も浅くなるが、data dir や PATH などの準備を起動引数だけで賄う必要がある。Windows 側の停止操作が Linux 側 host server の既存シグナル経路へ届くかは未検証である。"
+        },
+        {
+          "id": "OPT-WSL-LAUNCHER-EXEC",
+          "label": "WSL 内の launcher で環境変数と working directory を整え、最後を exec で host server へ置き換える",
+          "outcome": "環境の準備は確実になるが、launcher が exec で自身を置き換え損ねると監督階層に余計な shell process が残り、停止操作が host server へ届かなくなる。exec で置き換わることが追加の検証対象になる。"
+        }
+      ],
+      "user_impact": [
+        "この選択の結果によって『停止操作をしたら本当に止まる』(UAC-008) と『host server の終了で supervised unit も終わり Linux 側にプロセスが残らない』(UAC-003) が成立するかどうかが決まる。",
+        "停止要求が Linux 側へ届かない場合、host server の drain (sandbox cleanup) が実行されないまま消えるため、運用者から見ると停止操作のたびに後始末が中断される。"
+      ],
+      "affected_refs": [
+        "goal-stop-really-stops",
+        "UAC-003",
+        "UAC-008",
+        "handoff-launch-topology",
+        "pa-stop-signal-reaches-linux-process",
+        "pa-host-exit-propagates-to-unit-exit"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-DIRECT-EXEC",
+        "basis": "explicit_user_goal",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#4"
+        ],
+        "confidence": "low",
+        "reversibility": "easy"
+      },
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#4",
+          "docs/adr/adr-20260724-boundary-3-wsl-detach-spike.md"
+        ],
+        "rationale": "plan §4 は launcher 経由を『環境変数や working directory の準備が必要な場合』の条件付き選択として示しており確定していない。UX 側が要求するのは結果 (foreground であること / 終了が連動すること / 停止が届くこと / 余計な process が残らないこと) だけであり、どちらのトポロジーを採っても UAC-003 と UAC-008 の判定基準は変わらないため、選択自体は design へ委譲する。既存 ADR は起動元がすぐ終了する別文脈の実測であり本件を統治しない。"
+      }
+    },
+    {
+      "id": "DP-ALREADY-RUNNING-CLASSIFICATION",
+      "decision_key": "already-running-classification",
+      "question": "host server 自身の二重起動防止によって後発の起動要求が拒否されたとき、supervisor はその拒否をどの信号から『既に稼働中』として読み分けるか。",
+      "layer": "implementation",
+      "subject": "mechanism",
+      "consultation_policy": "defer",
+      "contract_effect": "handoff",
+      "answer_status": "defaulted",
+      "selected_option_ref": "OPT-TREAT-AS-ALREADY-RUNNING",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-TREAT-AS-ALREADY-RUNNING",
+          "label": "起動拒否を『既に稼働中』の信号として扱い、そのまま health 確認へ進む",
+          "outcome": "健全に稼働している instance がある状態で、supervisor が誤って終端状態へ落ちることがなくなる。運用者の記録には障害ではなく『既に稼働中』が残る。"
+        },
+        {
+          "id": "OPT-TREAT-AS-CONFIGURATION-FAILURE",
+          "label": "起動拒否を他の設定エラーと同列の恒久的失敗として扱う",
+          "outcome": "実際には健全に稼働している instance があるのに、連続失敗の上限に達した時点で終端状態と失敗原因が記録され、運用者に誤った障害記録が残る。"
+        }
+      ],
+      "user_impact": [
+        "誤って恒久的失敗として扱うと、実際には稼働している状態が障害として記録され、運用者は存在しない障害を追うことになる (goal-permanent-failure-not-silent-looped)。",
+        "読み分けが正しく組み込まれるかどうかが、plan §8 の permanent failure / crash 区別そのものの信頼性を左右する。"
+      ],
+      "affected_refs": [
+        "goal-permanent-failure-not-silent-looped",
+        "UAC-006",
+        "edge-already-running-refusal",
+        "handoff-already-running-detection"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-TREAT-AS-ALREADY-RUNNING",
+        "basis": "repository_constraint",
+        "evidence_refs": [
+          "src/cmd/server/daemon_lock.go:35"
+        ],
+        "confidence": "medium",
+        "reversibility": "easy"
+      },
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "inferred",
+        "evidence_refs": [
+          "src/cmd/server/daemon_lock.go:35"
+        ],
+        "rationale": "flock はプロセス終了時に自動解放され stale lock が残らないため、起動拒否は恒久的失敗ではなく『既に稼働している』状態を意味する。要求される結果は UAC-006 で規範化済みであり、どの信号 (exit code か stderr のパターンか) から読み分けるかという手段だけが design 所有として残る。"
+      }
+    },
+    {
+      "id": "DP-SHUTDOWN-TIMEOUT-PROVENANCE",
+      "decision_key": "shutdown-timeout-provenance",
+      "question": "停止予算 (graceful shutdown の待ち時間) を、host server 自身の drain timeout 8 秒 + gateway grace 5 秒から導出する式にするか、plan §13 が提案する独立値 30 秒をそのまま採用するか。",
+      "layer": "performance",
+      "subject": "assumption",
+      "consultation_policy": "validate",
+      "contract_effect": "validation_required",
+      "answer_status": "unanswered",
+      "validation_status": "required",
+      "options": [
+        {
+          "id": "OPT-DERIVE-FROM-SERVER-BUDGET",
+          "label": "host server の drain timeout + gateway grace に supervised unit の終了オーバーヘッドを加えた実測から導出する",
+          "outcome": "host server 側の drain / grace 設定が変わっても停止予算が追従する。導出には WSL 層の終了オーバーヘッドの実測が必要になる。"
+        },
+        {
+          "id": "OPT-INDEPENDENT-FIXED-30S",
+          "label": "plan §13 が提案する独立値 30 秒をそのまま採用する",
+          "outcome": "実装は単純だが、host server 側の停止予算が変わっても追従せず乖離する。30 秒という値自体は repo 内に根拠が無い。"
+        }
+      ],
+      "user_impact": [
+        "停止予算が短すぎると graceful shutdown の途中で強制終了へ切り替わり、実行中の frame と container の teardown が中断される (goal-stop-really-stops)。",
+        "停止予算が長すぎると SCM の停止待ちに間に合わず、運用者からは停止操作が応答しないまま止まらないように見える。"
+      ],
+      "affected_refs": [
+        "goal-stop-really-stops",
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "threshold-shutdown-wait-budget"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-DERIVE-FROM-SERVER-BUDGET",
+        "basis": "repository_constraint",
+        "evidence_refs": [
+          "src/cmd/server/coordinator.go:305"
+        ],
+        "confidence": "medium",
+        "reversibility": "easy"
+      },
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "src/cmd/server/coordinator.go:305",
+          "plans/windows-service-wsl-host-supervision.md#13"
+        ],
+        "rationale": "host server の停止予算はサービスマネージャの停止予算に収まるよう既に設計されており、Windows 側の予算はそこから導出できる。30 秒を独立に置く根拠は repo に無い。どちらを採るかは PoC 検証項目 7・8 の実測で決着させる。"
+      }
+    }
+  ],
+  "recommended_direction": [
+    {
+      "statement": "起動トポロジーは、UAC-003 (終了の連動) と UAC-008 (停止が Linux 側へ届く) を満たせるかという結果だけで選ぶ。plan §4 の直接起動を既定候補としつつ、環境変数と working directory の準備が必要になった時点で launcher + exec へ切り替える。",
+      "decision_refs": [
+        "DP-LAUNCH-INVOCATION-FORM"
+      ],
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#4"
+        ],
+        "rationale": "plan §4 自身が条件付きの選択として示しており、UX 契約はどちらでも変わらない。"
+      }
+    },
+    {
+      "statement": "停止予算は host server の drain 8 秒 + gateway grace 5 秒に supervised unit の終了オーバーヘッドを足した実測から導出し、plan §13 の 30 秒を独立の要件値として置かない。",
+      "decision_refs": [
+        "DP-SHUTDOWN-TIMEOUT-PROVENANCE"
+      ],
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "src/cmd/server/coordinator.go:305"
+        ],
+        "rationale": "repo に根拠がある唯一の内訳から導出できるため、根拠の無い独立値を新設しない。"
+      }
+    }
+  ],
+  "validation_questions": [],
+  "design_handoffs": [
+    {
+      "id": "handoff-launch-topology",
+      "required_outcome": "Linux host server が foreground の supervised unit として動き、その終了が supervised unit の終了に連動し、監督階層に余計な shell process が残らず、Windows 側の停止操作が host server の既存 graceful shutdown 経路へ到達する。どの起動トポロジーを選んでも UAC-003 と UAC-008 の判定基準は変わらない。",
+      "design_obligations": [
+        "直接起動と WSL 内 launcher + exec のどちらを採るかを決め、選んだ側で停止要求が Linux 側 host server の既存シグナル経路へ到達することを示す",
+        "launcher を置く場合は最後を exec にし、監督階層に shell process を残さないことを構造的に保証する (plan §4)",
+        "supervised unit の終了検知手段 (exit code の取得経路) と、host server の exit code を記録面へ渡す経路を定める",
+        "stdout / stderr を secret と environment variable の値を含めずに記録面へ渡す経路を定める (plan §9、cc-no-secrets-in-record)",
+        "既存 ADR の実測 (起動元がすぐ終了する文脈での detach 生存挙動) を本件の前提として持ち込まず、常駐する親が居続ける構成での挙動を独立に確かめる"
+      ],
+      "verification_obligations": [
+        "plan §12 検証項目 4: host server を正常終了・異常終了の双方で終わらせ、supervised unit も終了し distribution 内にプロセスが残らないことを実測する",
+        "plan §12 検証項目 7: SCM stop から host server 自身の drain 完了までが host server 側の記録に現れることを実測する",
+        "launcher 経由を採る場合、exec 後に shell process が残らないことを distribution 内のプロセス一覧で確認する"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#4",
+          "src/cmd/server/coordinator.go:326"
+        ],
+        "rationale": "critic pass2 が『起動形態の選択を confirmed constraint から外し design へ handoff する』ことを求めた。UX 側は結果だけを固定し、トポロジーの選択と検証を design が所有する。"
+      },
+      "decision_refs": [
+        "DP-LAUNCH-INVOCATION-FORM"
+      ]
+    },
+    {
+      "id": "handoff-already-running-detection",
+      "required_outcome": "既存 instance が稼働しているために起動が拒否された状態が、恒久的失敗としても crash としても分類されず、『既に稼働中』として記録されたうえで health 確認へ進む。健全に稼働している状態が障害として記録されない。",
+      "design_obligations": [
+        "起動拒否を識別する信号 (exit code / stderr のパターン) を定め、他の設定エラーと確実に区別できることを示す",
+        "識別できなかった場合に安全側 (再試行を続ける) へ倒れるか、危険側 (終端状態へ落ちる) へ倒れるかを明示し、危険側へ倒れない設計にする",
+        "『既に稼働中』として記録する内容を定める (どの instance が稼働していると判断したか)"
+      ],
+      "verification_obligations": [
+        "既に稼働している host server がある状態で supervisor に起動を試みさせ、終端状態も失敗原因も記録されず health 確認へ進むことを確認する",
+        "起動拒否と、綴り誤りの distribution 名による起動失敗を連続して起こし、両者が別種として記録されることを確認する"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "src/cmd/server/daemon_lock.go:35"
+        ],
+        "rationale": "要求される結果は UAC-006 で規範化済みであり、読み分けに使う信号の選択だけが design 所有として残る。"
+      },
+      "decision_refs": [
+        "DP-ALREADY-RUNNING-CLASSIFICATION"
+      ]
+    },
+    {
+      "id": "handoff-health-target-resolution",
+      "required_outcome": "supervisor が health 確認に使う接続先 (addr / port) が、host server の起動設定と同じ単一の正本から解決され、二重管理によるドリフトが『繋がらない』として運用者に現れない。固定 port を新設しない。",
+      "design_obligations": [
+        "health 確認先を host server 起動引数 (-addr) と同じ正本から解決する経路を定める。plan §13 の 7780 のような repo 既定 (127.0.0.1:8443) と矛盾する固定値を新設しない",
+        "data dir も同じ正本から解決し、既定の ~/.agent-grid が書けない環境で明示指定できることを保証する (cc-data-dir-explicitly-specifiable)",
+        "gateway だけが応答し daemon が繋がっていない状態 (daemon-unavailable) を、到達成功として扱わない判定にする",
+        "health 確認 1 回あたりの timeout と、連続失敗の数え方を明示する",
+        "設定を変更したときに supervisor へ反映されるまでに運用者が何をする必要があるかを定める"
+      ],
+      "verification_obligations": [
+        "plan §12 検証項目 10: 同一マシン上の HTTP クライアントから local endpoint へ実接続し、supervisor の判定と一致することを確認する",
+        "gateway は応答するが daemon が繋がっていない状態を作り、supervisor が Ready と判定しないことを確認する",
+        "host server の -addr を変更し、supervisor の health 確認先が追従することを確認する"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "src/cmd/server/gateway.go:240",
+          "scripts/run-dev.sh"
+        ],
+        "rationale": "plan §13 の port には repo 内に根拠が無く、実際の既定と矛盾する。数値を確定せず、設定由来にする義務だけを design へ渡す。"
+      }
+    },
+    {
+      "id": "handoff-record-content-and-sink",
+      "required_outcome": "運用者が記録を読むだけで『再試行を待っている』『再試行を止めた (止まった原因つき)』『既に稼働中だった』を区別でき、plan §9 の最低記録項目に到達できる。secret と environment variable の値はどこにも現れない。記録面は専用ログファイル (DP-LOG-DESTINATION = OPT-DEDICATED-LOG-FILE) とし、運用者が到達できる場所に置く (cc-record-surface-reachable-by-operator)。",
+      "design_obligations": [
+        "plan §9 の最低記録項目 (service start/stop、WSL command line の非秘密部分、distribution / Linux user、child PID、readiness 結果、exit code、restart count、graceful shutdown timeout、force terminate 実行) を記録面へ写す",
+        "再試行を待っている間も記録が増え続け、止まった状態と区別できるようにする",
+        "state-supervised-unit-availability の invariant (Ready / Backoff / Failed は SCM 上では区別できず記録面と health 応答でのみ区別できる) を満たす記録項目を定める",
+        "supervisor 自身が起動できなかった場合 (資格情報失敗など) にも痕跡が残る経路を定める",
+        "secret と environment variable の値を記録しない (cc-no-secrets-in-record)",
+        "記録面の path を確定する。サービスアカウントの profile 配下に閉じる path (plan §9 の %LOCALAPPDATA%\\AgentGrid\\logs\\wsl-host.log は profile 相対) を採らず、Session 0 のサービスアカウントが書けて、かつサインインした運用者が同じ場所を読める machine-wide な位置を選ぶ (cc-record-surface-reachable-by-operator)",
+        "運用者が『どこを見ればよいか』を一意に知れる経路 (登録手順・設定・記録面 path の提示) を定める。path を知らないと読めない記録面は goal-readable-record を満たさない",
+        "size-based rotation を自前で持つ形を定め、rotation 後も直近の失敗が読めることを保証する",
+        "専用ログファイル選択下で UAC-007 を成立させる経路を定める。supervisor プロセスが起動する前に失敗した場合はファイルへ書けないため、OS 側の service 起動失敗記録との併用を含めて『資格情報起因である旨が読める』経路を確保する (pa-record-file-survives-supervisor-start-failure)",
+        "記録内容の要求 (plan §9 の最低記録項目) は記録面の実装形に依存しないことを保証する"
+      ],
+      "verification_obligations": [
+        "設定起因の失敗を意図的に起こし、止まった原因の記録から直すべき設定値へ到達できることを確認する",
+        "再試行を待っている間に記録が増え続け、止まった状態と区別できることを確認する",
+        "記録に token / secret / environment variable の値が含まれないことを確認する",
+        "supervisor サービス自体が起動できない状態を作り、痕跡が残ることを確認する",
+        "サインインした運用者の権限で記録面を開き、Session 0 のサービスアカウントが書いた記録がそのまま読めることを確認する (profile 差による空振りが起きないこと)",
+        "rotation を発生させ、直近の失敗の記録が失われないことを確認する"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#9",
+          "consultation-20260725-log-destination-and-identity"
+        ],
+        "rationale": "critic pass2 が『記録面の legacy delta を独立 scenario で検収可能にする』ことを求めた。記録先の選択は DP-LOG-DESTINATION の product decision、記録内容と実装形は design 所有。 explore-r3: user が OPT-DEDICATED-LOG-FILE を選択したため、記録先は確定し、選択の帰結 (到達可能な path の確定と、supervisor 起動前の失敗に対する痕跡経路) が design obligation と verification obligation としてこの handoff に加わった。"
+      },
+      "decision_refs": [
+        "DP-LOG-DESTINATION"
+      ]
+    },
+    {
+      "id": "handoff-service-account-hardening",
+      "required_outcome": "service account 側の要因 (password 変更・期限切れ、`Log on as a service` 権限、user profile の読み込み、distribution registration、service executable と config の ACL) で起動できない状態が、原因不明の沈黙にならず記録から辿れる。既定 (登録時にログオンしているユーザー / WSL の既定 distro) のまま登録した運用者にも、この失敗モードが同じ形で観察できる。登録時に解決された実行 identity と対象 distribution は確定値としてサービス設定に記録され、以後 WSL の既定変更に追従しない (DP-SERVICE-IDENTITY-SCOPE = OPT-BIND-AT-REGISTRATION)。",
+      "design_obligations": [
+        "plan §10 が挙げる各要因について、起動できない状態をどう検出し何を記録するかを定める",
+        "service executable と config の ACL を定め、記録面の path にも同じ方針を適用する",
+        "Windows Credential Manager との将来連携を、現時点では credential model を WSL 内に残す前提 (cc-credential-model-stays-in-wsl) と矛盾しない形で保留する",
+        "実行 identity を任意の Windows ユーザーで指定できる登録経路と、既定 (登録時にログオンしているユーザー) の解決方法を定める (cc-configurable-identity-and-distribution)",
+        "対象 WSL distribution を任意の distro で指定できる経路と、既定 (WSL の既定 distro) の解決方法を定める。既定を採った場合、停止の最終手段である `wsl.exe --terminate <distribution>` の対象が運用者の日常作業 distro と一致しうることを運用手順として明示する",
+        "既定がログオン中のユーザーであるため、そのアカウントの password 変更・期限切れ・`Log on as a service` 権限の喪失が可用性へ直結することを運用手順として明示する (plan §10)",
+        "登録時点で実行 identity (既定: 登録時にログオンしているユーザー) と対象 distribution (既定: WSL の既定 distro) を解決し、確定値としてサービス設定へ記録する経路を定める。以後の `wsl --set-default` や対話ログオンの変化で対象が動かないことを構造的に保証する",
+        "運用者が登録直後に『どのユーザーとして・どの distro を対象に動くか』を確定値として確認できる経路 (登録結果の提示と記録面への出力) を定める",
+        "対象を変更するには再登録 (または設定変更と反映操作) が必要であるという運用コストを手順として明示し、変更前後で何が起きるか (稼働中 unit の停止と再起動) を定める (edge-registration-bound-target)"
+      ],
+      "verification_obligations": [
+        "`Log on as a service` 権限を外した状態で service を起動させ、起動失敗と資格情報起因である旨が記録から読めることを確認する",
+        "plan §12 検証項目 1: service account の security context から対象 distribution を扱えることを確認する",
+        "実行 identity と対象 distribution を明示指定した登録と、どちらも省略した登録の双方で service を起動し、supervisor が監督している identity / distribution が記録面から読めることを確認する",
+        "登録後に `wsl --set-default` で既定 distro を変更し、supervisor の監督対象と `wsl.exe --terminate <distribution>` の対象が登録時の distro のまま動かないことを実測する",
+        "対象を変更する再登録手順を実施し、変更後の対象が記録面から読み取れることを確認する"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "plans/windows-service-wsl-host-supervision.md#10",
+          "consultation-20260725-log-destination-and-identity",
+          "consultation-20260725-default-target-binding-time"
+        ],
+        "rationale": "critic pass1 が plan §10 の失敗モードがどの flow にも edge case にも写像されていないことを指摘した。UX 側は UAC-007 で『原因不明の沈黙にならない』ことだけを規範化し、検出と ACL は design が所有する。 explore-r3: user が実行 identity と対象 distribution を設定可能とし既定を定めたため (cc-configurable-identity-and-distribution)、共有 / 専用の二者択一は消えた。残るのは既定を採った運用者に何が起きるかであり、その明示がこの handoff の design obligation になった。 explore-r4: user が OPT-BIND-AT-REGISTRATION を選択したため、既定の解決時点が登録時に確定した。plan §10 の資格情報起因の失敗モードは既定が『登録時にログオン中のユーザー』である以上そのまま残るため、この handoff は弱めていない。"
+      },
+      "decision_refs": [
+        "DP-SERVICE-IDENTITY-SCOPE"
+      ]
+    }
+  ],
+  "experience_contracts": [
+    {
+      "id": "exp-headless-availability",
+      "subject": "サインインしていない状態で host server が利用可能になり、その状態が続くこと",
+      "goal_refs": [
+        "goal-connect-unsigned",
+        "goal-resume-after-disruption"
+      ],
+      "flow_refs": [
+        "F-001",
+        "F-007"
+      ],
+      "context_refs": [],
+      "interaction_rules": [
+        {
+          "condition": "supervised unit の起動には成功したが、health 確認がまだ成功していない",
+          "outcome": "稼働中とは判定せず、起動シーケンスの途中として扱う",
+          "rationale": "plan §6 は wsl.exe の生存だけでは Ready としないと定めている。spawn 成功で Ready を宣言する実装を排除する。"
+        },
+        {
+          "condition": "health endpoint は応答するが daemon が繋がっていない (daemon-unavailable)",
+          "outcome": "到達成功として数えず、稼働中の判定へ進まない",
+          "rationale": "到達可否と稼働可否を区別しないと、運用者が一切使えない状態を Ready と表示できてしまう。"
+        },
+        {
+          "condition": "運用者がサインインしていない",
+          "outcome": "起動から稼働中の判定までの全段が、運用者の操作を一切必要とせずに進む",
+          "rationale": "本件の核心成果はサインイン非依存の可用性である (plan §12 検証項目 2)。"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "Windows が起動し、誰もサインインしていない (Session 0 のみ)",
+          "observable": "運用者は電源投入以外の操作を行っていない"
+        },
+        {
+          "phase": "progress",
+          "condition": "起動シーケンスが進行している",
+          "observable": "記録に supervised unit 起動・listen socket ready・health 確認結果の各段が順に現れる"
+        },
+        {
+          "phase": "success",
+          "condition": "起動シーケンスの全段が成功した",
+          "observable": "同一マシン上の HTTP クライアントが health endpoint から稼働中を示す成功応答 (status ok) を受け取る"
+        },
+        {
+          "phase": "failure",
+          "condition": "起動シーケンスのいずれかの段が失敗した",
+          "observable": "local endpoint が稼働中の応答を返さず、失敗した段が記録に現れる"
+        },
+        {
+          "phase": "recovery",
+          "condition": "更新後の再起動や環境の擾乱があった",
+          "observable": "運用者がサインインも手動起動もしないまま、起動シーケンスが最初からやり直されて稼働中の応答へ戻る"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "稼働中の判定は health 確認の成功をもってのみ行われ、supervised unit の起動成功だけでは行われない。",
+        "この契約の観察は DP-SERVICE-IDENTITY-SCOPE と DP-LOG-DESTINATION のどちらの option を選んでも変わらない。identity の選択は運用者が事前に用意するものを変え、記録先の選択は記録を読む場所を変えるが、可用性の entry / progress / success / failure / recovery の観察は変えない。"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-014"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-supervised-unit-lifecycle",
+      "subject": "supervised unit の終了と、停止操作が本当に止まること",
+      "goal_refs": [
+        "goal-stop-really-stops"
+      ],
+      "flow_refs": [
+        "F-002",
+        "F-004",
+        "F-005"
+      ],
+      "context_refs": [],
+      "interaction_rules": [
+        {
+          "condition": "Linux host server が終了した",
+          "outcome": "supervised unit も終了し、対象 distribution 内に host server プロセスも余計な shell process も残らない",
+          "rationale": "plan §2 前提 3 と §12 検証項目 4。監督階層に process が残ると、次の起動と停止の判定が両方壊れる。"
+        },
+        {
+          "condition": "SCM から停止要求が来た",
+          "outcome": "supervised unit を即座に強制終了せず、host server の既存 graceful shutdown 経路を通して終了させ、その完了を待つ",
+          "rationale": "plan §7 の順序そのものが観察対象であり、即時 kill は実行中 frame と container の teardown を経ない。"
+        },
+        {
+          "condition": "停止予算を過ぎても supervised unit が終了しない",
+          "outcome": "対象 distribution だけを terminate する。全 distribution を停止する手段は用いない",
+          "rationale": "plan §7 の最終手段の限定。単一 distribution 環境でも記録面から判別できる必要がある。"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "supervisor が稼働中を記録し、health endpoint が稼働中を示す成功応答を返している",
+          "observable": "運用者は local endpoint から稼働中の応答を受け取れる"
+        },
+        {
+          "phase": "progress",
+          "condition": "停止手順が進行している",
+          "observable": "記録に停止要求の送出・host server の終了・supervised unit の終了が順に現れる"
+        },
+        {
+          "phase": "exit",
+          "condition": "停止手順が完了した",
+          "observable": "SCM 上のサービス状態が Stopped になり、local endpoint への呼び出しが応答を得られず、対象 distribution 内に host server プロセスが残っていない"
+        },
+        {
+          "phase": "failure",
+          "condition": "停止予算を過ぎても supervised unit が終了しない",
+          "observable": "記録に停止予算の超過と、対象 distribution を名指しした強制終了の実行が現れる"
+        },
+        {
+          "phase": "recovery",
+          "condition": "強制終了を行った",
+          "observable": "対象 distribution だけが停止し、他の distribution で動いていた作業は停止していない"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "停止経路のどの段でも、全 WSL distribution を停止する手段は用いられない。",
+        "この契約の観察は DP-LAUNCH-INVOCATION-FORM のどちらの起動トポロジーを選んでも変わらない。トポロジーは『停止が Linux 側へ届いたか』の実現手段であり、判定基準そのものではない。",
+        "停止予算の値は design が所有する (threshold-shutdown-wait-budget) が、『予算が存在し、超過が記録に現れ、超過後は対象 distribution 限定の強制終了へ進む』ことは値に依存しない。"
+      ],
+      "scenario_refs": [
+        "UAC-003",
+        "UAC-008",
+        "UAC-009",
+        "UAC-010"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-failure-recovery",
+      "subject": "異常終了・恒久的失敗・環境擾乱からの回復と、回復しないことが分かること",
+      "goal_refs": [
+        "goal-recover-or-known-down",
+        "goal-permanent-failure-not-silent-looped",
+        "goal-resume-after-disruption"
+      ],
+      "flow_refs": [
+        "F-003",
+        "F-006",
+        "F-008"
+      ],
+      "context_refs": [],
+      "interaction_rules": [
+        {
+          "condition": "一過性の失敗 (crash、health 確認 timeout、WSL subsystem の一時的な利用不可) を検知した",
+          "outcome": "待機したうえで再起動を試み、待機中であることと再試行回数を記録に残す",
+          "rationale": "plan §8。無音のまま止まると、運用者は復帰待ちなのか諦めたのか区別できない。"
+        },
+        {
+          "condition": "設定起因の恒久的な失敗 (executable not found / distribution not found / permission denied / invalid configuration) が threshold-max-consecutive-failures まで連続した",
+          "outcome": "再試行を止めて終端状態と止まった原因を記録し、以後は再試行の記録を増やさない",
+          "rationale": "plan §8 の『configuration error を無限再起動しない』。"
+        },
+        {
+          "condition": "一過性の失敗 (host server の crash / health 確認 timeout / WSL subsystem の利用不可) が、設定起因の失敗を終端へ落とすのと同じ回数だけ連続した",
+          "outcome": "まだ再試行を止めない。終端へ遷移するのは threshold-transient-failure-terminal-limit (設定起因の上限より厳密に大きい) に達したときだけである",
+          "rationale": "plan §8 は permanent failure と crash を区別せよと明示している。両者を同じ回数で打ち切る無分類の実装は、一時的に落ちただけの host server を設定ミスと同じ速さで見捨てる。"
+        },
+        {
+          "condition": "既存 instance が稼働しているために起動が拒否された",
+          "outcome": "恒久的失敗としても crash としても分類せず、既に稼働中として記録して health 確認へ進む",
+          "rationale": "健全に稼働している状態が障害として記録される誤りは回復不能である。"
+        },
+        {
+          "condition": "sleep/hibernate から復帰した、または WSL subsystem が利用不可になった",
+          "outcome": "supervised unit のプロセスが生存していることだけを理由に稼働中と判定せず、health 確認を再実行してその実行と結果を記録する",
+          "rationale": "plan §11。localhost forwarding が再確立されていない状態では、プロセスは生きていても到達できない。"
+        },
+        {
+          "condition": "supervised unit のプロセスは生存したまま health 確認だけが失敗し続ける",
+          "outcome": "threshold-health-recheck-failures-before-restart に達した時点で graceful restart を開始する。この閾値は再起動を駆動するものであり、終端状態への遷移を駆動しない",
+          "rationale": "再起動を駆動する閾値と終端を駆動する閾値を同一にすると、health 連続失敗で終端へ落とす実装と graceful restart する実装のどちらも同時には満たせない矛盾が生じる。"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "supervisor が稼働中を記録し、health endpoint が稼働中を示す成功応答を返している",
+          "observable": "運用者は local endpoint から稼働中の応答を受け取れる"
+        },
+        {
+          "phase": "progress",
+          "condition": "再試行が進行している",
+          "observable": "運用者が何も操作しないまま、記録に待機中であることと再試行回数の増加が現れる"
+        },
+        {
+          "phase": "success",
+          "condition": "再試行または再起動で回復した",
+          "observable": "local endpoint が稼働中を示す成功応答へ戻る"
+        },
+        {
+          "phase": "failure",
+          "condition": "同一原因の失敗が上限に達した、または service 自体が起動できない",
+          "observable": "記録に再試行を止めたことと止まった原因が現れ、以後の再試行の記録が増えない"
+        },
+        {
+          "phase": "recovery",
+          "condition": "運用者が記録に現れた原因を直してサービスを再起動した",
+          "observable": "起動シーケンスが最初からやり直され、稼働中の応答へ戻る"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "再試行を待っている状態と再試行を止めた状態は、記録面から常に区別できる。",
+        "健全に稼働している instance がある状態が、障害として記録されることはない。",
+        "回復判定は health 確認の結果によってのみ行われ、プロセスの生存だけでは行われない。",
+        "再起動を駆動する閾値 (threshold-health-recheck-failures-before-restart) と終端を駆動する閾値 (threshold-max-consecutive-failures / threshold-transient-failure-terminal-limit) は別物であり、同一の値へ潰さない。",
+        "一過性の失敗は、設定起因の恒久的な失敗と同じ回数では終端へ落とされない。",
+        "各閾値と再試行間隔の値は design が所有するが、『待機が存在し観察できること』『上限が存在し超えたら止まること』『設定起因と一過性で上限が異なること』は値に依存しない。"
+      ],
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-011",
+        "UAC-012",
+        "UAC-013",
+        "UAC-015",
+        "UAC-017"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-operational-record",
+      "subject": "何が起きたかを後から読めること",
+      "goal_refs": [
+        "goal-readable-record"
+      ],
+      "flow_refs": [
+        "F-009"
+      ],
+      "context_refs": [],
+      "interaction_rules": [
+        {
+          "condition": "運用者が記録面を開いた",
+          "outcome": "plan §9 の最低記録項目を読み取れる",
+          "rationale": "plan §9 の記録項目リストは要件そのものであり、記録先の選択に依存しない。"
+        },
+        {
+          "condition": "記録に何を書くか判断する",
+          "outcome": "secret と environment variable の値は書かない。WSL command line は非秘密部分だけを書く",
+          "rationale": "plan §9 の明示的な禁止。"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "起動・異常終了・再起動・停止・強制終了のいずれかが起きた後、運用者が記録面を開く",
+          "observable": "記録面に、直前に起きた出来事の項目が並んでいる"
+        },
+        {
+          "phase": "success",
+          "condition": "記録面を読んだ",
+          "observable": "service start/stop、対象 distribution と Linux user、supervised unit の識別子、readiness 結果、exit code、再試行回数、停止予算超過、強制終了の実行を読み取れる"
+        },
+        {
+          "phase": "failure",
+          "condition": "supervisor 自体が起動できなかった",
+          "observable": "起動できなかったことと、その原因の種別が記録面から読み取れる"
+        }
+      ],
+      "phase_exclusions": [
+        {
+          "phase": "progress",
+          "reason": "記録を読む行為は運用者側の単発の参照であり、進行段階として観察される中間状態を持たない。記録される側の進行は exp-failure-recovery の progress が担う。"
+        },
+        {
+          "phase": "recovery",
+          "reason": "記録面そのものの回復体験は本件の対象外である。記録先が壊れた場合の復旧は運用手順であり、host server の可用性契約に含まれない。"
+        }
+      ],
+      "invariants": [
+        "記録に含まれる項目の要求は DP-LOG-DESTINATION のどちらの option を選んでも同一である。決定が変えるのは運用者が記録を読む場所と手段だけであり、読める内容ではない。",
+        "secret と environment variable の値は、どの記録面にも現れない。"
+      ],
+      "scenario_refs": [
+        "UAC-016"
+      ],
+      "open_product_choices": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "F-001",
+      "name": "サインインなしでの自動起動と到達可能性",
+      "goal_refs": [
+        "goal-connect-unsigned"
+      ],
+      "experience_contract_refs": [
+        "exp-headless-availability"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] Windows が起動し、どの Windows ユーザーもサインインしない (Session 0 のみ)",
+        "[system] SCM が Automatic 起動設定に従い、対象 distribution を所有する Windows アカウントの security context で supervisor サービスを起動する",
+        "[system] supervisor が起動引数で明示された distribution と Linux user を指定して supervised unit を起動する",
+        "[system] Linux host server が foreground で起動し、listen socket が ready になる",
+        "[system] supervisor が health 確認に成功し、稼働中を記録する",
+        "[operator-cli] 運用者が同一マシン上の HTTP クライアントから host server の local endpoint を呼ぶ"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-001",
+          "contract_refs": [
+            "exp-headless-availability"
+          ],
+          "given": "Windows が起動しており、どの Windows ユーザーもサインインしていない (Session 0 のみ)。supervisor サービスは Automatic 起動に設定されており、まだ稼働していない",
+          "when": "SCM が Automatic 起動設定に従い supervisor サービスを起動する",
+          "then": "運用者がサインイン操作を一度も行わないまま、同一マシン上の HTTP クライアントから host server の health endpoint を呼ぶと稼働中を示す成功応答 (status ok) が返る。gateway だけが応答し daemon が繋がっていない状態 (daemon-unavailable) は到達成功として数えない (plan §12 検証項目 2・10)",
+          "observations": {
+            "user_visible": [
+              "電源投入以外の操作を一度も行わないまま、同一マシン上の HTTP クライアントが health endpoint から稼働中を示す成功応答 (status ok) を受け取る",
+              "記録に supervised unit の起動・listen socket の ready・health 確認の成功が順に現れ、health 確認の成功をもって初めて稼働中が記録されている"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: supervised unit の起動 (spawn) に成功した時点で稼働中を宣言し、health 確認を行わない supervisor。gateway だけが listen して daemon の起動に失敗した状態では health endpoint が daemon-unavailable を返し続けるため、Then が要求する『稼働中を示す成功応答 (status ok)』が得られず fail する。記録にも health 確認の成功が現れないため、observations の 2 件目も満たせない。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-002",
+          "contract_refs": [
+            "exp-headless-availability"
+          ],
+          "given": "supervisor が稼働中を記録し、host server の health endpoint が稼働中を示す成功応答を返している。誰もサインインしていない",
+          "when": "運用者が何の操作もせずに時間を経過させ、その間 supervisor サービスは稼働し続ける",
+          "then": "host server は supervised unit として稼働し続け、その間いつ health endpoint を呼んでも稼働中を示す成功応答が返る。この間、記録に再起動 (再試行回数の増加) は一度も現れない (plan §12 検証項目 3・10)",
+          "observations": {
+            "user_visible": [
+              "時間をおいて繰り返し呼んでも health endpoint が毎回稼働中を示す成功応答を返す",
+              "運用者は再起動操作も再接続操作も一度も行っていない",
+              "記録に再試行回数の増加が一度も現れない"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: supervised unit を background へ回して起動し、直後に戻った起動プロセスの exit を『supervised unit の異常終了』と読んで再起動ループへ入る supervisor。host server 自身の二重起動防止によって後発の起動は拒否されるため local endpoint の応答自体は続くが、記録に再試行回数の増加が繰り返し現れるため Then の『再起動が一度も現れない』を fail する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-002",
+      "name": "host server の終了と supervised unit の終了連動",
+      "goal_refs": [
+        "goal-stop-really-stops"
+      ],
+      "experience_contract_refs": [
+        "exp-supervised-unit-lifecycle"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] supervisor が稼働中を記録し、supervised unit が supervisor の管理下で生存している",
+        "[system] Linux 側の host server プロセスが正常終了または異常終了する",
+        "[system] supervised unit が host server の終了に連動して終了する",
+        "[system] supervisor が終了を exit code とともに記録する"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-003",
+          "contract_refs": [
+            "exp-supervised-unit-lifecycle"
+          ],
+          "given": "supervisor が稼働中を記録し、host server の health endpoint が稼働中を示す成功応答を返しており、supervised unit が supervisor の管理下で生存している",
+          "when": "Linux 側の host server プロセスが正常終了または異常終了のいずれかの経路で exit する",
+          "then": "supervised unit も終了し、対象 distribution 内に host server プロセスも監督階層の余計な shell process も残らない。supervisor はこの終了を exit code とともに記録する (plan §12 検証項目 4)",
+          "observations": {
+            "user_visible": [
+              "対象 distribution 内のプロセス一覧に host server プロセスが残っていない",
+              "対象 distribution 内に、起動時に経由した shell や launcher に相当するプロセスが残っていない",
+              "記録に supervised unit の終了と host server の exit code が現れる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: WSL 内 launcher を最後に exec で置き換えず、shell を親として残したまま host server を起動する構成。host server が exit しても親の shell process が対象 distribution 内に残り supervised unit も終了しないため、Then の『余計な shell process も残らない』と『supervised unit も終了する』を fail する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-003",
+      "name": "異常終了の検知・待機付き再起動・恒久的失敗の終端",
+      "goal_refs": [
+        "goal-recover-or-known-down",
+        "goal-permanent-failure-not-silent-looped"
+      ],
+      "experience_contract_refs": [
+        "exp-failure-recovery"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] supervised unit が異常終了する、または起動そのものが失敗する",
+        "[system] supervisor が失敗を検知し、待機したうえで再起動を試みる",
+        "[system] 設定起因の恒久的な失敗が threshold-max-consecutive-failures まで連続した場合、supervisor は再試行を止めて終端状態と原因を記録する",
+        "[system] 一過性の失敗は同じ回数では打ち切られず、threshold-transient-failure-terminal-limit に達するまで待機付きの再試行が続く",
+        "[operator-cli] 運用者があとから記録を読み、復帰待ちなのか止まったのかを判断する"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-004",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "supervisor が稼働中を記録し、host server の health endpoint が稼働中を示す成功応答を返している",
+          "when": "host server が一過性の異常終了をする (プロセスの異常終了、または health 確認の連続失敗)",
+          "then": "supervisor は待機したうえで再起動を試み、記録に待機中であることと再試行回数の増加が現れる。再起動後に health 確認が成功すれば local endpoint は再び稼働中を示す成功応答を返す (plan §12 検証項目 5・6)",
+          "observations": {
+            "user_visible": [
+              "運用者が何も操作しないまま、記録に待機中であることと再試行回数の増加が順に現れる",
+              "再試行間隔と連続失敗上限から導出される最大復旧予算の範囲内に、local endpoint が稼働中を示す成功応答へ戻る"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: 異常終了の原因を一切分類せず、一過性の異常終了を検知しても待機も再起動もまったく行わずに直ちに終端状態を記録して停止する supervisor。Then が要求する『待機したうえで再起動を試み、再試行回数が増える』が検知直後に破られるため、この scenario 単独で fail する。判別性は他の scenario の成立可否に依存しない。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-005",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "supervisor の設定が指す distribution が対象マシンに登録されていない (または Linux 側 server 実行ファイルの path が存在しない / 権限が拒否される / 設定が不正である)。supervisor は起動を試みるたびに同一原因で失敗しており、この時点で失敗原因の分類は何も行われていない",
+          "when": "同一原因の失敗が threshold-max-consecutive-failures で定めた連続回数 (design が所有する提案値) に達する",
+          "then": "supervisor は再試行を止めて終端状態を記録し、記録には止まった原因 (どの設定値がどう解決できなかったか) が現れる。以後、再試行を示す記録は増えない",
+          "observations": {
+            "user_visible": [
+              "記録に再試行を止めたことと、止まった原因が現れる",
+              "その後いくら待っても再試行の記録が増えない",
+              "運用者は記録に現れた原因から、直すべき設定値へ到達できる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: exit code も stderr も見ず、すべての失敗を一過性のものとして待機ループへ入れる supervisor。distribution 名を綴り誤った設定では上限なく再試行を続けるため、Then の『再試行を止めて終端状態を記録する』と『再試行の記録が増えない』を fail する。Given は分類前の生の事象 (設定が指す distribution が登録されていないこと) で書かれているため、分類できないこの誤実装も Given に到達し、vacuous pass にならない。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-006",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "対象 distribution 内で host server が既に稼働しており、health endpoint が稼働中を示す成功応答を返している",
+          "when": "supervisor がもう一度 host server を起動しようとし、host server 自身の二重起動防止によって後発の起動要求が拒否される",
+          "then": "supervisor はこの拒否を『再試行を止めるべき恒久的失敗』として扱わず、既に稼働中である旨を記録して稼働中の判定へ進む。終端状態も失敗原因も記録されない",
+          "observations": {
+            "user_visible": [
+              "記録に『既に稼働中』の旨が現れ、終端状態も失敗原因も記録されない",
+              "health endpoint は稼働中を示す成功応答を返し続ける"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: 起動拒否を他の設定エラーと同列に扱い、連続失敗の上限に達した時点で終端状態と失敗原因を記録して停止する supervisor。実際には健全に稼働している状態なのに Then の『終端状態も失敗原因も記録されない』を破るため fail する。運用者には存在しない障害の記録だけが残る。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-007",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "supervisor サービスの Log On As に指定した Windows アカウントの資格情報が失効している (password の変更・期限切れ、`Log on as a service` 権限の欠如、user profile の読み込み失敗、または service executable と config の ACL による拒否)",
+          "when": "Windows 起動後に SCM が supervisor サービスを起動しようとする",
+          "then": "運用者は host server の local endpoint へ到達できず、かつ『サービスが起動できなかったこと』と『資格情報側に原因があること』を Windows 側の記録から読み取れる。原因不明の沈黙にはならない (plan §10)",
+          "observations": {
+            "user_visible": [
+              "local endpoint への呼び出しが応答を得られない",
+              "Windows 側の記録に、サービスの起動失敗と資格情報起因である旨が現れる",
+              "運用者は記録から、直すべき対象 (アカウントの資格情報や権限設定) へ到達できる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: 記録の出力を supervisor プロセス自身の起動後にしか持たない構成。資格情報失敗ではプロセスが起動しないため記録がどこにも現れず、運用者から見ると endpoint が応答しないだけで原因が辿れないため Then の『読み取れる』を fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-017",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "supervisor の設定は正しく、起動と health 確認に一度は成功している。その稼働中に、設定に起因しない一過性の失敗 (host server の crash、または WSL subsystem の一時的な利用不可) が繰り返し発生している",
+          "when": "一過性の失敗が、設定起因の恒久的な失敗を終端へ落とす回数 (threshold-max-consecutive-failures) と同じ回数だけ連続して発生し、そのあと失敗の原因が解消する",
+          "then": "supervisor はこの時点で再試行を止めておらず、原因の解消後の再起動で local endpoint が稼働中を示す成功応答へ戻る。記録に終端状態は現れない。すなわち一過性の失敗は設定起因の失敗と同じ回数では打ち切られない (plan §8 が要求する permanent failure と crash の区別)",
+          "observations": {
+            "user_visible": [
+              "設定起因の失敗なら再試行が止まっているはずの回数を超えても、記録に再試行の継続が現れ終端状態は現れない",
+              "原因が解消したあと、運用者が何も操作しないまま local endpoint が稼働中を示す成功応答へ戻る"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: exit code も stderr も一切見ず、あらゆる失敗を一律に threshold-max-consecutive-failures 回で打ち切る無分類の supervisor。一時的に落ちただけの host server も設定ミスと同じ速さで見捨てるため、原因が解消しているのに既に終端状態へ落ちて再試行を止めており、Then の『稼働中へ戻る』と『終端状態は現れない』の双方を fail する。この誤実装は UAC-004 (上限未満の再試行で足りる)・UAC-005 (停止を要求するだけ)・UAC-015 (上限到達なら終端でよい) をいずれも pass してしまうため、permanent と crash の区別はこの scenario だけが判別する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-004",
+      "name": "SCM stop からの graceful shutdown",
+      "goal_refs": [
+        "goal-stop-really-stops"
+      ],
+      "experience_contract_refs": [
+        "exp-supervised-unit-lifecycle"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[operator-cli] 運用者または管理ツールが SCM に対して stop request を発行する",
+        "[system] supervisor が host server の既存 graceful shutdown 経路を通して停止要求を送る",
+        "[system] host server が新規 frame の受付を止め、既存 teardown contract に従って実行中の frame と container を終了させる",
+        "[system] host server が終了し、supervisor が supervised unit の終了を待つ",
+        "[system] SCM 上のサービス状態が Stopped になる"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-008",
+          "contract_refs": [
+            "exp-supervised-unit-lifecycle"
+          ],
+          "given": "supervisor が稼働中を記録し、host server の health endpoint が稼働中を示す成功応答を返しており、実行中の frame が存在しうる",
+          "when": "SCM から stop request が発行される",
+          "then": "supervisor は supervised unit を即座に強制終了せず、host server の既存 graceful shutdown 経路を通して停止させる。host server は新規 frame の受付を止め、既存 teardown contract に従って終了する。supervisor はその終了を待ち、最終的に SCM 上のサービス状態が Stopped になり local endpoint は応答しなくなる (plan §12 検証項目 7)",
+          "observations": {
+            "user_visible": [
+              "SCM 上のサービス状態が Stopped になり、その後 local endpoint への呼び出しが応答を得られない",
+              "host server 自身が対象 distribution 内に書く記録に、停止要求の受領から sandbox cleanup の drain 完了までの graceful shutdown の完了が現れる",
+              "Windows 側の記録に、停止要求の送出・supervised unit の終了・停止完了が順に現れる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: SCM stop を受けて Windows 側から supervised unit を即時に強制終了し、その戻りをもって『停止要求送信』『host server 終了』『終了待ち完了』の 3 行を Windows 側の記録へ書く supervisor。SCM は Stopped になり Windows 側の 3 段の記録も残るが、Linux 側 host server は停止シグナルを受け取らず drain を実行しないまま消えるため、host server 自身が書く graceful shutdown 完了の記録が存在せず fail する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-005",
+      "name": "停止予算超過時の対象 distribution 限定 terminate",
+      "goal_refs": [
+        "goal-stop-really-stops"
+      ],
+      "experience_contract_refs": [
+        "exp-supervised-unit-lifecycle"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] graceful shutdown の待機が停止予算に達する",
+        "[system] supervisor が supervised unit の強制終了を試みる",
+        "[system] それでも残る場合、supervisor は対象 distribution だけを terminate する",
+        "[system] supervisor が用いた強制終了の手段を記録する"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-009",
+          "contract_refs": [
+            "exp-supervised-unit-lifecycle"
+          ],
+          "given": "対象マシンには対象 distribution のほかに少なくとも 1 個の WSL distribution が登録され、そちらでも運用者の作業が動いている。supervisor は graceful shutdown を試みたが、停止予算を過ぎても supervised unit が終了しない",
+          "when": "supervisor が最終手段の強制終了へ進む",
+          "then": "対象 distribution だけが停止し、他の distribution で動いていた運用者の作業は停止しない。記録に停止予算の超過と強制終了の実行が現れる (plan §12 検証項目 8)",
+          "observations": {
+            "user_visible": [
+              "他の distribution で動かしていた運用者の作業が中断されない",
+              "対象 distribution だけが停止している",
+              "記録に停止予算の超過と強制終了の実行が現れる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: 停止予算の超過時に全 WSL distribution を停止する手段を呼ぶ supervisor。他の distribution で動いていた運用者の作業が巻き添えで停止するため、Then の『他の distribution で動いていた作業は停止しない』を fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-010",
+          "contract_refs": [
+            "exp-supervised-unit-lifecycle"
+          ],
+          "given": "対象マシンには対象 distribution しか登録されていない (plan §3 が出発点とする最小構成)。supervisor は graceful shutdown を試みたが、停止予算を過ぎても supervised unit が終了しない",
+          "when": "supervisor が最終手段の強制終了へ進む",
+          "then": "記録には対象 distribution を名指しした terminate の実行だけが現れ、全 distribution を停止する手段を用いた記録は現れない",
+          "observations": {
+            "user_visible": [
+              "記録に、対象 distribution 名を伴う terminate の実行が現れる",
+              "記録に、全 distribution を停止する手段を用いた形跡が現れない"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: 単一 distribution 環境では巻き添えの観察ができないことを利用し、常に全 distribution を停止する手段を呼ぶ supervisor。対象を名指しした terminate の記録が残らず、全停止手段の形跡が記録に現れるため Then を fail する。UAC-009 が空振りする環境でも、この scenario が記録面から判別する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-006",
+      "name": "sleep / hibernate 復帰後の health 再検証と段階的な回復",
+      "goal_refs": [
+        "goal-resume-after-disruption"
+      ],
+      "experience_contract_refs": [
+        "exp-failure-recovery"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] マシンが sleep / hibernate から復帰する",
+        "[system] supervisor がプロセスの生存確認だけでなく health 確認を再実行し、その実行と結果を記録する",
+        "[system] health 確認の失敗が続く場合、supervisor は supervised unit を graceful restart する",
+        "[system] graceful restart 後も失敗が続く場合、supervisor は対象 distribution だけを terminate してから起動をやり直す"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-011",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "supervisor が稼働中を記録した状態でマシンが sleep / hibernate に入り、復帰した。supervised unit のプロセスは生存している",
+          "when": "マシンが復帰する",
+          "then": "supervisor は『プロセスが生きている』ことだけを理由に稼働中の判定を保持せず、復帰の検知から threshold-resume-health-recheck-budget (design が所有する上限) の範囲内に health 確認を再実行し、その実行時刻と結果を記録する (plan §12 検証項目 9)",
+          "observations": {
+            "user_visible": [
+              "復帰後の記録に health 確認の再実行とその結果が現れる",
+              "health 確認の再実行が記録に現れないまま稼働中の記録だけが続くことはない"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: 復帰を検知せず、supervised unit のプロセスが生存していることだけを理由に稼働中の判定を保持し続ける supervisor。sleep 復帰後に localhost forwarding が OS 側で遅れて再確立されれば health は自然に通るようになるが、復帰後の記録に health 確認の再実行が一度も現れないため Then を fail する。localhost forwarding が戻らない環境では稼働中のまま放置される。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-012",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "sleep / hibernate からの復帰後、supervisor が再実行した health 確認が失敗し始めており、supervised unit のプロセスは生存したままである。この時点で supervisor はまだ再起動も終端も行っていない",
+          "when": "health 確認の連続失敗が threshold-health-recheck-failures-before-restart (design が所有する、再起動を駆動するための閾値) に達する",
+          "then": "supervisor は supervised unit を graceful restart し、記録に restart の実行が現れる。この時点では終端状態へは遷移しない (終端は設定起因なら threshold-max-consecutive-failures、一過性なら threshold-transient-failure-terminal-limit が別に駆動する)。restart 後に health 確認が成功すれば local endpoint は再び稼働中を示す成功応答を返す",
+          "observations": {
+            "user_visible": [
+              "記録に graceful restart の実行が現れる",
+              "restart 後に health 確認が成功すれば、運用者は何もしないまま local endpoint から稼働中の応答を受け取れる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: health 確認の失敗を記録するだけで再起動へ進まない supervisor。supervised unit のプロセスは生存しているため異常終了としても検知されず、記録に graceful restart の実行が現れないため Then を fail する。運用者から見ると到達できないまま永久に放置される。なお、health 連続失敗をそのまま終端状態への遷移に使う実装もこの Then (この時点では終端へ遷移しない) を破って fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-013",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "graceful restart を実行したあとも health 確認の失敗が続いている",
+          "when": "graceful restart による supervised unit の停止が、UAC-009 / UAC-010 と同一の threshold-shutdown-wait-budget (SCM stop 経路と同じ停止予算。graceful restart の停止段も supervised unit の停止であるため別予算を新設しない) を過ぎても完了せず、health 確認の失敗も続いている",
+          "then": "supervisor は対象 distribution だけを terminate してから起動をやり直す。記録に対象 distribution を名指しした terminate の実行が現れ、全 distribution を停止する手段は用いられない (plan §11)",
+          "observations": {
+            "user_visible": [
+              "記録に、graceful restart のあとに対象 distribution を名指しした terminate の実行が現れる",
+              "他の distribution で動いていた作業は停止しない"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: graceful restart までしか経路を持たず、それでも回復しない場合は health 失敗の記録を出し続けて待ち続ける supervisor。記録に terminate の実行が現れないため Then を fail する。plan §11 が最終段として定めた distribution terminate に到達しない。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-007",
+      "name": "マシン再起動を伴う Windows Update / WSL update 後の復帰",
+      "goal_refs": [
+        "goal-resume-after-disruption"
+      ],
+      "experience_contract_refs": [
+        "exp-headless-availability"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] Windows Update または WSL update が適用され、マシンが再起動する",
+        "[system] SCM が Automatic 起動設定に従い supervisor サービスを再度起動する",
+        "[system] supervisor が起動シーケンスを最初からやり直し、health 確認の成功まで到達する",
+        "[operator-cli] 運用者がサインインせずに local endpoint を呼ぶ"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-014",
+          "contract_refs": [
+            "exp-headless-availability"
+          ],
+          "given": "Windows Update または WSL update が適用されてマシンが再起動し、誰もサインインしていない",
+          "when": "SCM が Automatic 起動設定に従い supervisor サービスを起動する",
+          "then": "supervisor は起動シーケンス (supervised unit の起動 → host server の起動 → listen socket の ready → health 確認の成功) を最初からやり直し、health 確認が成功した時点で初めて稼働中を記録する。運用者はサインインせずに local endpoint から稼働中を示す成功応答を得られる (plan §12 検証項目 11)",
+          "observations": {
+            "user_visible": [
+              "再起動後、サインイン操作なしで local endpoint が稼働中を示す成功応答を返す",
+              "記録に起動シーケンスの各段 (supervised unit の起動 / listen socket の ready / health 確認の成功) の結果が順に現れる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: 再起動後に supervised unit の起動成功だけで稼働中を宣言し、listen socket の ready と health 確認の成功という後半 2 段を確認しないまま稼働中を記録する supervisor。host server の初期化が終わる前に稼働中と記録されるため、記録に後半 2 段の結果が現れず Then を fail する。運用者は稼働中と記録されているのに接続できない時間帯を踏む。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-008",
+      "name": "マシン再起動を伴わない WSL subsystem 障害からの復帰",
+      "goal_refs": [
+        "goal-resume-after-disruption"
+      ],
+      "experience_contract_refs": [
+        "exp-failure-recovery"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] WSL update や WSL subsystem restart により、マシン再起動を伴わずに WSL subsystem が一時的に利用不可になる",
+        "[system] supervised unit が失われ、health 確認が失敗する",
+        "[system] supervisor が待機付きで再起動を試み続ける",
+        "[system] WSL subsystem が再び利用可能になった時点で起動シーケンスが成功する、あるいは連続失敗が上限に達して終端状態が記録される"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-015",
+          "contract_refs": [
+            "exp-failure-recovery"
+          ],
+          "given": "supervisor が稼働中を記録して動いており、マシンは再起動していない",
+          "when": "WSL subsystem が (WSL update や subsystem restart により) 一時的に利用不可になり、supervised unit が失われる",
+          "then": "supervisor はマシン再起動という契機を待たずに health 確認の失敗を検知し、待機付きの再起動を試みる。WSL subsystem が再び利用可能になった時点で local endpoint は稼働中を示す成功応答へ戻る。利用不可が続く場合に終端状態と原因が記録されるのは、一過性の失敗の上限 threshold-transient-failure-terminal-limit に達したときであり、設定起因の上限 (threshold-max-consecutive-failures) では打ち切られない (plan §8, §11)",
+          "observations": {
+            "user_visible": [
+              "マシンを再起動しないまま、local endpoint が稼働中を示す成功応答へ戻る",
+              "記録に WSL subsystem 側の失敗と、待機付きの再試行が現れる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: 復帰の契機をマシン再起動時のサービス起動だけに持つ supervisor。マシンが再起動しない WSL subsystem 障害では復帰の契機が一度も訪れず、local endpoint は応答しないまま放置され記録にも再試行が現れないため Then を fail する。運用者は手動で再起動するまで原因も回復手段も得られない。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-009",
+      "name": "Windows 側の記録から何が起きたかを読む",
+      "goal_refs": [
+        "goal-readable-record"
+      ],
+      "experience_contract_refs": [
+        "exp-operational-record"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] supervisor の稼働中に service の start / stop、supervised unit の異常終了、再起動、graceful stop、強制終了のいずれかが起きる",
+        "[system] supervisor が plan §9 の最低記録項目を記録面へ書く",
+        "[operator-cli] 運用者があとから記録面を開く"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-016",
+          "contract_refs": [
+            "exp-operational-record"
+          ],
+          "given": "supervisor の稼働中に service の start / stop、supervised unit の異常終了、再起動、graceful stop、強制終了のいずれかが起きている",
+          "when": "運用者があとから supervisor の記録面を開く",
+          "then": "運用者は service の start / stop、対象 distribution と Linux user、supervised unit の識別子、health 確認の結果、exit code、再試行回数、停止予算の超過、強制終了の実行を読み取れる。secret と environment variable の値はどこにも現れない (plan §9)",
+          "observations": {
+            "user_visible": [
+              "記録面に plan §9 の最低記録項目が読み取れる形で現れる",
+              "記録面に token / secret / environment variable の値が現れず、WSL command line も非秘密部分だけが現れる",
+              "運用者は記録面だけを見て、再試行を待っている状態と再試行を止めた状態を区別できる"
+            ],
+            "assistive_technology": []
+          },
+          "counterexample": "誤実装: supervised unit の stdout / stderr を読み捨て、Windows 側にはサービスの起動と停止だけを残す supervisor。異常終了の exit code、再試行回数、停止予算の超過、強制終了の実行が記録面に現れないため Then を fail する。これは現状 (Windows 側に記録が残らない) と同じ観察であり、legacy delta が検収されない。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    }
+  ],
+  "reference_ux_traces": [
+    {
+      "reference_name": "Windows SCM 標準サービスライフサイクル (通常の Windows Service を Log On As 指定アカウントで実行、Startup Automatic、Session 0)",
+      "aspect": "SCM への machine-wide 登録と Automatic startup",
+      "flow_refs": [
+        "F-001",
+        "F-007"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-014"
+      ]
+    },
+    {
+      "reference_name": "Windows SCM 標準サービスライフサイクル (通常の Windows Service を Log On As 指定アカウントで実行、Startup Automatic、Session 0)",
+      "aspect": "指定 Windows ユーザーアカウントの security context での process 実行",
+      "flow_refs": [
+        "F-001"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-007"
+      ]
+    },
+    {
+      "reference_name": "Windows SCM 標準サービスライフサイクル (通常の Windows Service を Log On As 指定アカウントで実行、Startup Automatic、Session 0)",
+      "aspect": "SCM stop request の受理と Stopped 到達",
+      "flow_refs": [
+        "F-004"
+      ],
+      "scenario_refs": [
+        "UAC-008"
+      ]
+    }
+  ],
+  "legacy_behavior_traces": [
+    {
+      "behavior": "誰かが手動で起動しない限り host server は上がらない",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-014"
+      ]
+    },
+    {
+      "behavior": "host server や supervised unit が落ちても誰も起動し直さない",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-012",
+        "UAC-015"
+      ]
+    },
+    {
+      "behavior": "Windows にサインインしていない状態では host server が上がらない",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-014"
+      ]
+    },
+    {
+      "behavior": "sleep/hibernate 復帰後、マシン再起動を伴わない WSL subsystem 障害後、Windows Update / WSL update 後に host server が戻る保証がない",
+      "scenario_refs": [
+        "UAC-011",
+        "UAC-014",
+        "UAC-015"
+      ]
+    },
+    {
+      "behavior": "Windows 側に『何が起きたか』を後から読める記録が残らない",
+      "scenario_refs": [
+        "UAC-016"
+      ]
+    }
+  ],
+  "product_decisions_remaining": [
+    {
+      "decision": "supervised unit の起動トポロジー (直接起動か WSL 内 launcher + exec か)",
+      "decision_ref": "DP-LAUNCH-INVOCATION-FORM",
+      "contract_effect": "handoff",
+      "rationale": "UAC-003 と UAC-008 の判定基準はどちらを選んでも変わらないため、UX 契約ではなく design が所有する選択として handoff する。停止要求の到達性は pa-stop-signal-reaches-linux-process の validation で確かめる。"
+    },
+    {
+      "decision": "既存 instance の起動拒否を『既に稼働中』として読み分ける信号の選択",
+      "decision_ref": "DP-ALREADY-RUNNING-CLASSIFICATION",
+      "contract_effect": "handoff",
+      "rationale": "要求される結果は UAC-006 で規範化済み。既定として『既に稼働中』扱いを選び、検出手段の設計を design へ渡す。"
+    },
+    {
+      "decision": "停止予算を host server の drain + gateway grace から導出するか、独立値 30 秒を採るか",
+      "decision_ref": "DP-SHUTDOWN-TIMEOUT-PROVENANCE",
+      "contract_effect": "validation_required",
+      "rationale": "repo に根拠のある内訳 (drain 8 秒 + gateway grace 5 秒) から導出できるはずで、30 秒を独立に置く根拠が無い。PoC 検証項目 7・8 の実測で決着させる。"
+    }
+  ],
+  "critique_resolutions": [
+    {
+      "issue_ref": "UAC-d4 (F-d3) counterexample",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-004"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[0]",
+          "critique.json#pass2.improvements[0]"
+        ],
+        "rationale": "counterexample を『一過性の異常終了を検知しても待機も再起動もせず直ちに終端状態へ落ちる supervisor』へ差し替えた。この誤実装は UAC-004 自身の Then (待機して再起動を試み、再試行回数が増える) を検知直後に破るため、判別性を他 scenario へ委譲しなくなった。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d5 (F-d3) given",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-005"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[1]",
+          "critique.json#pass2.improvements[1]"
+        ],
+        "rationale": "Given を検収対象 (分類できること) から原因側の生の事象 (設定が指す distribution が登録されていない等) へ書き換えた。分類できない誤実装も Given へ到達するため vacuous pass が消え、UAC-004 との循環が切れた。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d2 (F-d1) observations.user_visible",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-001",
+        "goal-connect-unsigned",
+        "exp-headless-availability"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[2]",
+          "critique.json#pass2.improvements[2]"
+        ],
+        "rationale": "到達成功の観察を『稼働中を示す成功応答 (status ok)』に限定し、daemon-unavailable を成功として数えないことを goal-connect-unsigned と exp-headless-availability の interaction rule にも固定した。到達可否と稼働可否が区別されるようになった。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d6 (F-d4) then",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-008"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[3]",
+          "critique.json#pass2.improvements[3]"
+        ],
+        "rationale": "observations に『host server 自身が対象 distribution 内に書く記録に drain 完了が現れる』を追加した。Windows 側の自己申告だけを書く即時強制終了の誤実装は、Linux 側の drain 記録が存在しないため fail する。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d8 (F-d6) observations.user_visible",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-011",
+        "threshold-resume-health-recheck-budget"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[4]",
+          "critique.json#pass2.improvements[4]"
+        ],
+        "rationale": "『最終的に成功する』を、復帰検知から予算内の health 再確認の実行と結果が記録に現れることへ置き換えた。予算値そのものは threshold-resume-health-recheck-budget として design 所有にした。OS 側の自然回復だけで通る何もしない supervisor が fail する。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d7 (F-d5) observations.user_visible",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-009",
+        "UAC-010"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[5]",
+          "critique.json#pass2.improvements[5]"
+        ],
+        "rationale": "Given に他 distribution の存在を固定した UAC-009 と、単一 distribution 環境でコマンド発行の記録から判別する UAC-010 の 2 本に分けた。PoC の最小構成でも全 distribution 停止手段を呼ぶ誤実装が排除される。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d9 (F-d7) counterexample",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-014"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[6]",
+          "critique.json#pass2.improvements[6]"
+        ],
+        "rationale": "環境事象を述べていた counterexample を『supervised unit の起動成功だけで稼働中を宣言し listen socket ready と health 成功の 2 段を省く supervisor』へ差し替えた。除外対象が具体的な誤実装になった。"
+      }
+    },
+    {
+      "issue_ref": "states[] と UAC-d4 / UAC-d5 / UAC-d8 の Then",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "state-supervised-unit-availability",
+        "UAC-004",
+        "UAC-005",
+        "UAC-006",
+        "UAC-011"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[7]",
+          "critique.json#pass2.improvements[7]"
+        ],
+        "rationale": "6 状態の観察面マッピングを observable state contract として明示した (Stopped/起動保留/停止保留 は SCM、Ready/Backoff/Failed は SCM 上いずれも Running で記録面と health 応答でのみ区別)。各 scenario の Then から内部状態名を外し、記録面と応答の観察へ置き換えた。"
+      }
+    },
+    {
+      "issue_ref": "confirmed_constraints[2] (起動形態) と product_assumptions[0]",
+      "change_class": "implementation_detail",
+      "disposition": "handoff_to_design",
+      "resulting_refs": [
+        "cc-foreground-supervised-unit",
+        "DP-LAUNCH-INVOCATION-FORM",
+        "handoff-launch-topology",
+        "pa-stop-signal-reaches-linux-process",
+        "pa-host-exit-propagates-to-unit-exit"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[8]",
+          "critique.json#pass2.improvements[8]",
+          "critique.json#graft[0]"
+        ],
+        "rationale": "confirmed constraint に残すのを観察可能な結果 (foreground であること / 終了が連動すること / 余計な shell process を残さないこと) だけにし、direct exec と launcher + exec の選択は DP-LAUNCH-INVOCATION-FORM と handoff-launch-topology へ移した。SIGTERM 到達性は pa-stop-signal-reaches-linux-process の validation obligation が所有する。"
+      }
+    },
+    {
+      "issue_ref": "edge_cases[1] (flock 起動拒否) と F-d3",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-006",
+        "edge-already-running-refusal",
+        "DP-ALREADY-RUNNING-CLASSIFICATION",
+        "handoff-already-running-detection"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[9]",
+          "critique.json#pass2.improvements[9]",
+          "critique.json#graft[1]"
+        ],
+        "rationale": "edge case の文字列 1 件だった読み分けを独立 scenario UAC-006 へ昇格させ、第 3 の観察状態 (既に稼働中) を state contract の invariant にも固定した。検出手段は design handoff。"
+      }
+    },
+    {
+      "issue_ref": "edge_cases[] (plan §10 の資格情報失敗モード) と DP-service-identity-scope.user_impact",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-007",
+        "edge-service-account-credentials",
+        "DP-SERVICE-IDENTITY-SCOPE",
+        "handoff-service-account-hardening"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[10]",
+          "critique.json#pass2.improvements[10]",
+          "critique.json#graft[5]"
+        ],
+        "rationale": "plan §10 の失敗モードを edge case と独立 scenario UAC-007 へ写像し、DP-SERVICE-IDENTITY-SCOPE の user_impact に『日常アカウントの資格情報変化がそのまま可用性リスクになる』を追加して OPT-SHARED-EXISTING の代償を可視化した。"
+      }
+    },
+    {
+      "issue_ref": "F-d7 steps[0] (Windows Update / WSL update)",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "F-007",
+        "F-008",
+        "UAC-015",
+        "edge-wsl-subsystem-unavailable-without-reboot"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[11]",
+          "critique.json#pass2.improvements[11]",
+          "critique.json#graft[6]"
+        ],
+        "rationale": "マシン再起動を伴う経路 (F-007) と伴わない WSL subsystem 障害 (F-008 / UAC-015) を分離した。plan §8 の『WSL subsystem unavailable』がどの flow にも属さない状態を解消した。"
+      }
+    },
+    {
+      "issue_ref": "F-d2 (UAC-d3) given / when",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-003"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[12]",
+          "critique.json#pass2.improvements[12]"
+        ],
+        "rationale": "Given を entry observation (supervisor が稼働中を記録し health が成功応答を返し supervised unit が生存している) へ書き換え、When を host server プロセスの exit に限定した。事象の重複が解消され、起動していない状態での形式的成立が塞がれた。"
+      }
+    },
+    {
+      "issue_ref": "DP-log-destination (contract_effect / layer)",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "DP-LOG-DESTINATION",
+        "UAC-016",
+        "F-009",
+        "exp-operational-record"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[13]",
+          "critique.json#pass2.improvements[13]"
+        ],
+        "rationale": "layer を presentation から interaction、contract_effect を advisory から normative (must_ask) へ変更し、記録面の legacy delta を fail させる must-fail scenario UAC-016 と flow F-009 を新設した。記録項目の要求は記録先の選択に依存しない形で固定した。"
+      }
+    },
+    {
+      "issue_ref": "F-d1 steps[2] / UAC-d1 when",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "F-001",
+        "UAC-001",
+        "pa-service-account-can-launch-distribution",
+        "cc-explicit-distribution-and-linux-user"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[14]",
+          "critique.json#pass2.improvements[14]"
+        ],
+        "rationale": "distribution 列挙を acceptance scenario から外し、F-001 の step を『起動引数で明示された distribution と Linux user で supervised unit を起動する』へ置き換えた。PoC 検証項目 1 は pa-service-account-can-launch-distribution の validation method として保持し、被覆を落としていない。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d5 (F-d3) when",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-005",
+        "threshold-max-consecutive-failures"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[15]",
+          "critique.json#pass2.improvements[15]"
+        ],
+        "rationale": "『規定回数』を threshold-max-consecutive-failures への明示参照へ書き換え、その値が design 所有の提案値であることも scenario から読み取れるようにした。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d8 (F-d6) then",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-011",
+        "UAC-012",
+        "UAC-013"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[16]",
+          "critique.json#pass2.improvements[16]"
+        ],
+        "rationale": "4 つの振る舞いを連結していた Then を、health 再実行 (UAC-011) / 連続失敗後の graceful restart (UAC-012) / それでも回復しないときの対象 distribution terminate (UAC-013) の 3 scenario へ分割した。分岐条件の回数は threshold-max-consecutive-failures へ委譲した。"
+      }
+    },
+    {
+      "issue_ref": "goal-recover-or-known-down.success_observation",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "goal-recover-or-known-down",
+        "threshold-restart-backoff-schedule",
+        "threshold-max-consecutive-failures"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json#issues[17]",
+          "critique.json#pass2.improvements[17]"
+        ],
+        "rationale": "『一定時間後』を、再試行間隔と連続失敗上限から導出される最大復旧予算の範囲内か、その予算を超えた時点で終端状態と原因が読めるか、という時間境界付きの観察へ書き換えた。予算の値そのものは design 所有のまま。"
+      }
+    }
+  ],
+  "resolved_issues": [
+    {
+      "issue": "blocker: UAC-d4 の counterexample が判別性を別 scenario (UAC-d5) へ委譲していた",
+      "resolution": "UAC-004 の counterexample を『検知しても待機も再起動もせず直ちに終端へ落ちる supervisor』へ差し替え、UAC-004 単独で fail する論証に置き換えた。"
+    },
+    {
+      "issue": "blocker: UAC-d5 の Given が検収対象 (permanent failure を分類できること) を前提に置き vacuous pass していた",
+      "resolution": "UAC-005 の Given を分類前の生の事象 (設定が指す distribution が登録されていない等) へ書き換え、分類できない誤実装も Given へ到達するようにした。"
+    },
+    {
+      "issue": "blocker: UAC-d2 の観察が daemon-unavailable を到達成功として許容し、到達可否と稼働可否を区別できなかった",
+      "resolution": "UAC-001 の観察を『稼働中を示す成功応答 (status ok)』に限定し、goal-connect-unsigned と exp-headless-availability の interaction rule にも同じ区別を固定した。"
+    },
+    {
+      "issue": "blocker: UAC-d6 の Then の中核 (新規 frame 受付停止 / teardown contract に従った終了) に観察が割り当てられていなかった",
+      "resolution": "UAC-008 の観察に、host server 自身が distribution 内に書く drain 完了の記録を独立観察として追加した。Windows 側の自己申告だけでは通らない。"
+    },
+    {
+      "issue": "blocker: UAC-d8 の『最終的に成功する』が時間境界を持たず、何もしない supervisor でも通っていた",
+      "resolution": "UAC-011 の観察を、復帰検知から予算内の health 再確認の実行と結果が記録に現れることへ置き換え、予算を threshold-resume-health-recheck-budget として design 所有にした。"
+    },
+    {
+      "issue": "blocker: UAC-d7 の判別観察に『(存在する場合)』が付き、PoC の単一 distribution 環境で空振りしていた",
+      "resolution": "他 distribution の存在を Given に固定した UAC-009 と、単一 distribution 環境で記録面から判別する UAC-010 の 2 本へ分割した。"
+    },
+    {
+      "issue": "major: UAC-d9 の counterexample が実装ではなく環境事象を記述していた",
+      "resolution": "UAC-014 の counterexample を、起動シーケンス後半 2 段を省いて Ready を宣言する具体的な誤実装へ差し替えた。"
+    },
+    {
+      "issue": "major: 6 状態がどの観察面に現れるか未定義のまま状態遷移を判定根拠にしていた",
+      "resolution": "state-supervised-unit-availability を追加し、SCM 上の見え方・health 応答・記録面の 3 面へのマッピングを invariant として固定した。scenario の Then からは内部状態名を外した。"
+    },
+    {
+      "issue": "major: 起動形態 (direct exec / launcher + exec) が未検証のまま confirmed constraint として閉じられていた",
+      "resolution": "cc-foreground-supervised-unit を観察可能な結果だけに絞り、トポロジー選択を DP-LAUNCH-INVOCATION-FORM と handoff-launch-topology へ移し、到達性を product assumption の validation obligation にした。"
+    },
+    {
+      "issue": "major: flock 起動拒否が edge case の文字列 1 件で終わり、第 3 の観察状態が無かった",
+      "resolution": "UAC-006 として独立 scenario 化し、state contract の invariant にも『既に稼働中は Backoff にも Failed にも入らない』を追加した。"
+    },
+    {
+      "issue": "major: plan §10 の資格情報失敗モードがどの flow・edge case・user_impact にも写像されていなかった",
+      "resolution": "UAC-007 と edge-service-account-credentials を追加し、DP-SERVICE-IDENTITY-SCOPE の user_impact に OPT-SHARED-EXISTING の代償を明記し、handoff-service-account-hardening を新設した。"
+    },
+    {
+      "issue": "major: F-d7 がマシン再起動を必須要素にしており、再起動を伴わない WSL subsystem 障害がどの flow にも属さなかった",
+      "resolution": "F-007 (再起動あり) と F-008 / UAC-015 (再起動なし) に分離し、edge-wsl-subsystem-unavailable-without-reboot を追加した。"
+    },
+    {
+      "issue": "major: F-d2 の Given が When と同一事象で、flow の entry observation が存在しなかった",
+      "resolution": "UAC-003 の Given を entry observation へ書き換え、When を host server プロセスの exit に限定した。"
+    },
+    {
+      "issue": "major: DP-log-destination が advisory に分類されていたが goal-readable-record の成立可否を左右していた",
+      "resolution": "DP-LOG-DESTINATION を interaction / outcome / normative / must_ask へ変更し、記録面の legacy delta を fail させる UAC-016 と F-009 を新設した。"
+    },
+    {
+      "issue": "major: distribution 列挙 (PoC 手順) を supervisor の常時挙動として要件化していた",
+      "resolution": "列挙 scenario を削除して F-001 の step を明示引数での起動へ置き換え、PoC 検証項目 1 は pa-service-account-can-launch-distribution の validation method として保持した。"
+    },
+    {
+      "issue": "minor: UAC-d5 の『規定回数』が閾値への参照を持たなかった",
+      "resolution": "UAC-005 の When を threshold-max-consecutive-failures への明示参照へ書き換えた。"
+    },
+    {
+      "issue": "minor: UAC-d8 の Then に 4 つの振る舞いが連結され部分実装でも通った",
+      "resolution": "UAC-011 / UAC-012 / UAC-013 の 3 scenario へ分割した。"
+    },
+    {
+      "issue": "minor: goal-recover-or-known-down の『一定時間後』に境界が無く反証不能だった",
+      "resolution": "最大復旧予算の範囲内での回復か、予算超過時点での終端状態と原因の可読性か、という時間境界付きの観察へ書き換えた。"
+    },
+    {
+      "issue": "verify 差し戻し 1 (どの実装でも緑にできない矛盾): threshold-max-consecutive-failures が『終端へ遷移する回数』(F-003) と『graceful restart を駆動する回数』(F-006 / UAC-012) の 2 役に潰され、state contract の Backoff → Failed とも衝突していた。health 連続失敗で終端へ落とす実装は state contract に適合するが UAC-012 を fail し、UAC-012 に従う実装は state contract に反する。",
+      "resolution": "再起動を駆動する threshold-health-recheck-failures-before-restart を新設 (owner: design / status: design_owned / validation_method 付き) して UAC-012 の When をそちらへ張り替え、あわせて state contract の遷移を『再起動へ向かう二段目』と『終端へ向かう遷移』へ分離し、両者を同一値へ潰さないことを invariant として明記した。UAC-013 が使う予算は UAC-009 / UAC-010 と同一の threshold-shutdown-wait-budget である (graceful restart の停止段も supervised unit の停止であるため別予算を新設しない) ことを When に明記した。"
+    },
+    {
+      "issue": "verify 差し戻し 2: UAC-012 の Given『…連続回数に達している』と When『…その回数に達する』が同一事象で循環していた (critic が F-d2 に対して指摘し解消した欠陥と同型)。",
+      "resolution": "Given を entry observation (復帰後に health 確認が失敗し始めており、supervised unit のプロセスは生存し、まだ再起動も終端も行っていない) へ戻し、閾値到達は When 側だけに置いた。"
+    },
+    {
+      "issue": "verify 差し戻し 3: plan §8 が明示要求する permanent failure と crash の区別に crash 側の判別観察が無く、exit code も stderr も見ずあらゆる失敗を一律 N 回で打ち切る無分類 supervisor が 16 scenario すべてを pass できた。",
+      "resolution": "UAC-017 を F-003 へ追加した。設定起因の上限と同じ回数の一過性の失敗のあと原因が解消したとき、再試行が止まっておらず稼働中へ戻り終端状態が現れないことを要求する。あわせて threshold-transient-failure-terminal-limit (設定起因の上限より厳密に大きいこと) を新設し、UAC-015 の終端条件をそちらへ張り替え、exp-failure-recovery の interaction rule と state contract の invariant にも区別を固定した。無分類の supervisor は UAC-017 で fail する。"
+    },
+    {
+      "issue": "[consultation / DP-LOG-DESTINATION] 記録面の未決着 (explore-r2 の user consultation blocker)。",
+      "resolution": "user が宣言済み option OPT-DEDICATED-LOG-FILE を選択したため answered へ遷移し、分類軸と options は変更していない。選択の帰結を cc-record-surface-reachable-by-operator (profile 配下に閉じない)、pa-record-file-survives-supervisor-start-failure (UAC-007 の成立可否)、handoff-record-content-and-sink の design / verification obligation へ落とした。具体 path は確定していない。"
+    },
+    {
+      "issue": "[consultation / DP-SERVICE-IDENTITY-SCOPE] 回答が宣言済み option のいずれでもなく、分類軸そのものが誤っていた。",
+      "resolution": "近い option へ丸めず decision revision として扱った。確定内容 (identity と distribution は任意指定可、既定はログオン中のユーザーと WSL 既定 distro) は product choice ではなく confirmed constraint cc-configurable-identity-and-distribution として保存し、旧 options は破棄した。ALT-SHARED-EXISTING-ACCOUNT / ALT-DEDICATED-ACCOUNT-DISTRIBUTION は削除せず deployment 構成へ降格した。decision id は維持し、残る観察可能な軸 (既定の束縛時点) で revision したうえで再 consultation を要求している。"
+    },
+    {
+      "issue": "[検収差し戻し] threshold-shutdown-wait-budget の『SCM stop と graceful restart で同一物』が plan.json 側に無く、UAC-013 の When と ux.md の表にしか無かった。",
+      "resolution": "threshold-shutdown-wait-budget.metric に同一物であること (後者に別予算を新設しない) を明記し、正本を一元化した。"
+    },
+    {
+      "issue": "[consultation-2 / DP-SERVICE-IDENTITY-SCOPE] explore-r3 で revision した軸 (既定の束縛時点) が未回答だった。",
+      "resolution": "user が宣言済み option OPT-BIND-AT-REGISTRATION を明示選択したため answered へ遷移した。分類軸も options も変更していない。帰結は edge-registration-bound-target、handoff-service-account-hardening の design / verification obligation、および UAC-016 の rewrite_in_specify として落とした。"
+    },
+    {
+      "issue": "[explore-r3 の open question] 既定 distro が `wsl --set-default` で動き、terminate の対象が意図しない distro になりうる帰結の受諾可否。",
+      "resolution": "OPT-BIND-AT-REGISTRATION の確定により閉じた。対象は登録時に確定した distro に固定され、既定の変更では動かない。plan §7 手順 7 の最終手段が意図しない distro を巻き込む懸念はこの選択で解消した。残るのは『対象を変えるには再登録が要る』という運用コストであり、edge-registration-bound-target と handoff-service-account-hardening が持つ。"
+    },
+    {
+      "issue": "[explore-r3 の open question] 実行 identity と対象 distribution の共有 / 専用が UX alternative として選定を要するか。",
+      "resolution": "要さない。cc-configurable-identity-and-distribution と DP-SERVICE-IDENTITY-SCOPE = OPT-BIND-AT-REGISTRATION により、共有構成も専用構成も同一契約下で登録時の指定値だけが異なる deployment 構成となり、体験契約 (flow / scenario / observation) を 何も変えない。ALT-SHARED-EXISTING-ACCOUNT / ALT-DEDICATED-ACCOUNT-DISTRIBUTION は履歴として保持する。ただし alternative_comparison そのものは primary_alternative を含む consultation event なしには変更できないため explore-r3 のまま保持しており、Specify readiness が要求する『user 確定した primary alternative』は依然未取得である (open_questions に残す)。"
+    },
+    {
+      "issue": "[consultation-3 / explore-r4 の open question 1] primary alternative が user 確定でなく、最後の Specify blocker として残っていた。",
+      "resolution": "user が『代替案としては廃し、deployment 構成として扱う』と回答し、explore-r4 で提示した再評価の結論 (両案は登録時の指定値が違うだけで体験契約を何も変えないため UX alternative としての選定は不要) を承認した。primary_alternative consultation として ALT-SHARED-EXISTING-ACCOUNT を confirmed / approved_by_user へ適用し、alternative_comparison を『同一契約下でどの deployment 構成を既定とするか』の記述へ整理した。ALT-DEDICATED-ACCOUNT-DISTRIBUTION は rejected にせず deferred のまま保持し、plan §3 の 5 分離要件と 選択条件を rationale に残した。ALT-SHARED が primary である理由は『確定済みの既定と一致する既定 deployment 構成だから』に限定し、体験上の優劣を根拠にしていない。これにより Specify readiness の blocker は 0 件になった。"
+    }
+  ],
+  "open_questions": [
+    "[DP-LOG-DESTINATION 確定の派生義務] 記録面は専用ログファイルで確定した。派生する未決は 2 点: (1) 具体 path は design 所有で、要件は『サービスアカウントの profile 配下に閉じない』(cc-record-surface-reachable-by-operator) だけを固定している。plan §9 の %LOCALAPPDATA%\\AgentGrid\\logs\\wsl-host.log をそのまま採ると、Session 0 のサービスアカウントが書いた記録を 運用者が自分の profile で探して空振りする。(2) supervisor プロセス自身が起動できなかった場合の痕跡は専用ログファイルでは自明に残らないため、UAC-007 の成立は pa-record-file-survives-supervisor-start-failure の validation と handoff-record-content-and-sink の obligation で担保する。",
+    "[運用前提 / 残存リスク・再相談不要] 既定の実行 identity が『登録時にログオンしているユーザー』で確定したため、そのアカウントの password 変更・期限切れ・`Log on as a service` 権限の喪失は引き続き可用性へ直結する (plan §10 / edge-service-account-credentials / UAC-007)。user が確定した既定であり再相談はしない。無人運用で専用アカウントを使う選択は登録時の指定で表現でき、その運用手順の明示は handoff-service-account-hardening が持つ。",
+    "[Specify 持ち越し / UAC-005] Given が『先行する成功起動の有無』を固定していないため、『一度でも Ready に到達したか』だけで permanent / transient を分類する heuristic 実装が環境次第で緑になりうる。Specify で Given を 『一度も Ready に到達していない』と『稼働後に設定が壊れた』の 2 条件へ分けるか、後者を追加 scenario にすると閉じる。",
+    "[Specify 持ち越し / F-005 と F-006 の escalation 差] 同一の停止予算に対する escalation 動作が F-005 と F-006 で異なる (F-005 は plan §7 の『子 process 強制終了 → なお残れば distribution terminate』、UAC-013 は plan §11 の 『予算超過 → 直ちに distribution terminate』)。どちらも plan 由来で矛盾ではないが、plan §7 の順序に従って子 kill を 成功させる実装は UAC-013 を fail しうる。design で『復帰経路では中間段を踏まない』と明記すれば閉じる。",
+    "[Specify 持ち越し / UAC-016 の rewrite] OPT-BIND-AT-REGISTRATION の確定により『登録時に確定した対象 identity / distribution が 記録面から読み取れ、その後の `wsl --set-default` では変化しない』が観察可能になった。Specify で UAC-016 の Then と counterexample を拡張する (scenario_impacts で rewrite_in_specify に分類済み)。新規 flow / scenario は足していない — 登録という契機を持つ flow が存在せず、新設すると PoC 検証項目 1-11 の被覆表と 17 scenario の既検収構造を壊すため。",
+    "[PoC 実測待ち / DP-SHUTDOWN-TIMEOUT-PROVENANCE] 停止予算を host server の drain 8 秒 + gateway grace 5 秒から導出する式にするか、plan §13 の独立値 30 秒を採るか。30 秒には repo 内の根拠が無く、検証項目 7・8 の実測で決着させる必要がある。短すぎれば teardown が中断され、長すぎれば SCM の停止待ちに間に合わない。",
+    "[design 委譲 / DP-LAUNCH-INVOCATION-FORM] supervised unit の起動トポロジー (直接起動か WSL 内 launcher + exec か)。UAC-003 と UAC-008 の判定基準はどちらでも変わらないため UX 契約からは外したが、Windows Service から WSL 内 Linux プロセスへ 停止シグナルが到達するかは未検証であり、handoff-launch-topology の verification obligation として残っている。",
+    "[design 委譲 / DP-ALREADY-RUNNING-CLASSIFICATION] 既存 instance の起動拒否を『既に稼働中』と読み分ける信号 (exit code か stderr のパターンか) の選択。要求される結果は UAC-006 で規範化済みだが、検出手段は未確定で handoff-already-running-detection が所有する。",
+    "[数値未確定] 再試行間隔 (1/2/5/15/60 秒)、設定起因の連続失敗上限 (5 回)、一過性の失敗の終端上限 (未確定。設定起因の上限より 厳密に大きいことだけが要件)、health 再確認からの再起動閾値 (未確定)、起動予算 (60 秒)、復帰後 health 再確認予算 (未確定) は いずれも design_owned のままで、UX の pass/fail 条件へ昇格させていない。UX が固定しているのは値ではなく 『再起動を駆動する閾値と終端を駆動する閾値が別物であること』『一過性の失敗が設定起因と同じ回数では打ち切られないこと』『停止予算は SCM stop 経路と graceful restart の停止段で同一物であること』という関係だけである。plan §13 の health_url に含まれる port 7780 は repo 内に根拠が無く既定 8443 と矛盾するため threshold として保持せず、handoff-health-target-resolution の『port は設定由来にする』義務として扱っている。"
+  ],
+  "base_revision": "explore-r4",
+  "scenario_impacts": [
+    {
+      "scenario_ref": "UAC-007",
+      "decision_refs": [
+        "DP-LOG-DESTINATION",
+        "DP-SERVICE-IDENTITY-SCOPE"
+      ],
+      "action": "rewrite_in_specify",
+      "reason": "記録面が専用ログファイルに確定したことで、『supervisor プロセス自身が起動できなかった場合の痕跡が同じ面に残る』という OPT-EVENT-LOG が自明に持っていた性質が失われた。Then の『Windows 側の記録から読み取れる』を Specify で 『運用者が到達できる記録面から読み取れる (supervisor 起動前の失敗を含む)』へ書き直し、counterexample も『supervisor プロセス起動後にしか書けない記録面しか持たない実装』が fail することを明示する。あわせて、既定 identity が『登録時にログオン中のユーザー』で確定した (explore-r4) ため、Given の資格情報失敗が既定構成でそのまま起きうる点を Specify で明示する。"
+    },
+    {
+      "scenario_ref": "UAC-016",
+      "decision_refs": [
+        "DP-LOG-DESTINATION"
+      ],
+      "action": "retain",
+      "reason": "記録内容の要求は記録先に依存しない (handoff-record-content-and-sink)。Then の最低記録項目と secret 非記録、counterexample の判別性はいずれも記録面が専用ログファイルであることで変化しない。記録面の到達可能性は cc-record-surface-reachable-by-operator と handoff の design obligation が担い、scenario は据え置く。"
+    },
+    {
+      "scenario_ref": "UAC-009",
+      "decision_refs": [
+        "DP-SERVICE-IDENTITY-SCOPE"
+      ],
+      "action": "retain",
+      "reason": "『対象 distribution だけが停止し、他の distribution の作業は停止しない』という判定基準は、identity / distribution の 設定可否にも既定の束縛時点にも依存しない。explore-r4 で OPT-BIND-AT-REGISTRATION が確定したことにより、terminate の対象は登録時に確定した distro に固定され、運用者の `wsl --set-default` では動かなくなった。これは Given / Then を変えずに判定を安定させる方向の変化であるため retain とする。"
+    },
+    {
+      "scenario_ref": "UAC-016",
+      "decision_refs": [
+        "DP-SERVICE-IDENTITY-SCOPE"
+      ],
+      "action": "rewrite_in_specify",
+      "reason": "OPT-BIND-AT-REGISTRATION の確定により『登録時に解決された実行 identity と対象 distribution が確定値である』ことが 観察可能な事実になった。UAC-016 は既に『対象 distribution と Linux user を記録面から読み取れる』ことを要求しているため、新規 flow を作らず Specify でこの scenario の Then を『記録面から読み取れる対象 identity / distribution が 登録時に確定した値と一致し、その後の `wsl --set-default` では変化しない』へ拡張する。counterexample は『起動のたびに現在の既定 distro を解決して記録する実装』が fail することで判別する (vs_legacy は must-fail のまま)。新規 scenario を足さないのは、登録という契機を持つ flow が現状存在せず、契機を新設すると PoC 検証項目 1-11 の被覆表と 17 scenario の既検収構造を壊すためである。"
+    }
+  ]
+}

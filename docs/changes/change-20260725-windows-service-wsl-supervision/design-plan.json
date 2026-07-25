@@ -1,0 +1,3311 @@
+{
+  "revision": "design-r3",
+  "goal": "Specify the implementation contract for a Windows SCM service that owns one registration-bound WSL host server foreground unit, including readiness, recovery, stop, and operator evidence without involving GUI clients.",
+  "approach": "Add a Go Windows service adapter and pure wslhost controller, plus additive Linux host probe/stop commands. Bind configuration at registration, probe/adopt before spawn, launch directly in the foreground, use typed failure partitions and fixed budgets, and expose structured ProgramData records.",
+  "scope": {
+    "in_scope": [
+      "Windows Service registration and Session 0 lifecycle for one bound WSL host server",
+      "Typed pre-spawn adoption, health/readiness, retry, stop and target-distro escalation",
+      "Machine-wide structured records and SCM pre-start failure lookup",
+      "Additive host server probe/stop CLI contract"
+    ],
+    "out_of_scope": [
+      "GUI or Windows Shell client behavior",
+      "WSL systemd or dual supervision",
+      "Windows-native host, containers, cross-OS bridge redesign",
+      "Credential broker, session, frame, driver, sandbox, or devcontainer ownership"
+    ]
+  },
+  "components": [
+    {
+      "id": "component-service-registration",
+      "name": "Registration snapshot owner",
+      "responsibility": "Resolve and atomically persist the immutable service target and security configuration.",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "src/cmd/agent-grid-wsl-supervisor/main_windows.go",
+          "src/platform/wslhost/config.go"
+        ],
+        "owner": "Registration snapshot owner",
+        "integration_points": [
+          "Windows SCM and Session 0",
+          "WSL command/process boundary",
+          "existing host server contracts"
+        ],
+        "test_seams": [
+          "pure policy/controller seam",
+          "fake external boundary",
+          "FakeVsReal fidelity backstop"
+        ],
+        "rationale": "Registration snapshot owner is the single owner for this responsibility and preserves the existing host/platform layering.",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-3-adopt-before-spawn"
+        ]
+      },
+      "contract_refs": [
+        "contract-data-model",
+        "contract-security-boundary",
+        "contract-migration-compatibility"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-supervised-lifecycle",
+      "name": "Lifecycle controller",
+      "responsibility": "Serialize probe, adopt, spawn, readiness, health, resume, retry, and terminal transitions for one generation.",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "src/platform/wslhost/supervisor_windows.go",
+          "src/platform/wslhost/health_windows.go",
+          "src/platform/wslhost/process_windows.go"
+        ],
+        "owner": "Lifecycle controller",
+        "integration_points": [
+          "Windows SCM and Session 0",
+          "WSL command/process boundary",
+          "existing host server contracts"
+        ],
+        "test_seams": [
+          "pure policy/controller seam",
+          "fake external boundary",
+          "FakeVsReal fidelity backstop"
+        ],
+        "rationale": "Lifecycle controller is the single owner for this responsibility and preserves the existing host/platform layering.",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-3-adopt-before-spawn"
+        ]
+      },
+      "contract_refs": [
+        "contract-control-flow",
+        "contract-state-lifecycle",
+        "contract-concurrency",
+        "contract-performance-budget"
+      ],
+      "decision_closure_reason": "",
+      "depends_on": [
+        "component-service-registration",
+        "component-linux-control"
+      ]
+    },
+    {
+      "id": "component-linux-control",
+      "name": "Linux host probe and stop commands",
+      "responsibility": "Expose typed, machine-readable lock/process identity probing and ownership-checked SIGTERM delivery in the existing server binary.",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "src/cmd/server/supervisor_control.go",
+          "src/cmd/server/daemon_lock.go"
+        ],
+        "owner": "Linux host probe and stop commands",
+        "integration_points": [
+          "Windows SCM and Session 0",
+          "WSL command/process boundary",
+          "existing host server contracts"
+        ],
+        "test_seams": [
+          "pure policy/controller seam",
+          "fake external boundary",
+          "FakeVsReal fidelity backstop"
+        ],
+        "rationale": "Linux host probe and stop commands is the single owner for this responsibility and preserves the existing host/platform layering.",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-3-adopt-before-spawn"
+        ]
+      },
+      "contract_refs": [
+        "contract-integration-contract"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-stop-coordinator",
+      "name": "SCM stop and recovery escalation owner",
+      "responsibility": "Serialize stop authority, graceful budget, child handling, and registered-distro-only escalation.",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "src/platform/wslhost/service_windows.go",
+          "src/platform/wslhost/stop_windows.go"
+        ],
+        "owner": "SCM stop and recovery escalation owner",
+        "integration_points": [
+          "Windows SCM and Session 0",
+          "WSL command/process boundary",
+          "existing host server contracts"
+        ],
+        "test_seams": [
+          "pure policy/controller seam",
+          "fake external boundary",
+          "FakeVsReal fidelity backstop"
+        ],
+        "rationale": "SCM stop and recovery escalation owner is the single owner for this responsibility and preserves the existing host/platform layering.",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-3-adopt-before-spawn"
+        ]
+      },
+      "contract_refs": [
+        "contract-failure-recovery"
+      ],
+      "decision_closure_reason": "",
+      "depends_on": [
+        "component-supervised-lifecycle",
+        "component-linux-control"
+      ]
+    },
+    {
+      "id": "component-operator-recording",
+      "name": "Structured machine record owner",
+      "responsibility": "Write redacted structured lifecycle records with bounded rotation and document the SCM pre-start complement.",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "src/platform/wslhost/record_windows.go",
+          "src/platform/wslhost/config.go"
+        ],
+        "owner": "Structured machine record owner",
+        "integration_points": [
+          "Windows SCM and Session 0",
+          "WSL command/process boundary",
+          "existing host server contracts"
+        ],
+        "test_seams": [
+          "pure policy/controller seam",
+          "fake external boundary",
+          "FakeVsReal fidelity backstop"
+        ],
+        "rationale": "Structured machine record owner is the single owner for this responsibility and preserves the existing host/platform layering.",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-3-adopt-before-spawn"
+        ]
+      },
+      "contract_refs": [
+        "contract-resource-management",
+        "contract-user-observability"
+      ],
+      "decision_closure_reason": "",
+      "depends_on": [
+        "component-service-registration",
+        "component-supervised-lifecycle",
+        "component-stop-coordinator"
+      ]
+    }
+  ],
+  "chunks": [
+    {
+      "id": "milestone-1-registration-and-linux-control",
+      "members": [
+        "component-service-registration",
+        "component-linux-control"
+      ],
+      "units": [
+        {
+          "title": "Implement registration snapshot and ACL boundary",
+          "objective": "Create atomic JSON registration/apply semantics and fixed target binding.",
+          "output_format": "Go production code, T0/T2 tests, registration docs.",
+          "tool_guidance": "Use encoding/json and injected SCM/filesystem/ACL interfaces; preserve stdlib persistence types.",
+          "task_boundaries": "Do not implement runtime retry or stop sequencing.",
+          "files_touched": [
+            "src/cmd/agent-grid-wsl-supervisor/",
+            "src/platform/wslhost/config.go"
+          ],
+          "acceptance": [
+            "Atomic validated generation is the only runtime config source.",
+            "Default identity/distro are resolved only at registration."
+          ],
+          "contract_refs": [
+            "contract-data-model",
+            "contract-security-boundary",
+            "contract-migration-compatibility"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "Implement typed Linux probe and stop control",
+          "objective": "Add additive server CLI commands that classify lock ownership and deliver ownership-checked SIGTERM.",
+          "output_format": "Go commands, typed JSON/exit contract, T0/T2/T3 tests.",
+          "tool_guidance": "Reuse daemon_lock semantics; verify PID start token, executable and args before signal.",
+          "task_boundaries": "Do not add a second daemon or shutdown HTTP endpoint.",
+          "files_touched": [
+            "src/cmd/server/supervisor_control.go",
+            "src/cmd/server/daemon_lock.go"
+          ],
+          "acceptance": [
+            "Probe distinguishes absent, matched running, mismatch, unknown.",
+            "Stop rejects stale or mismatched ownership and reaches SIGTERM."
+          ],
+          "contract_refs": [
+            "contract-integration-contract"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        }
+      ]
+    },
+    {
+      "id": "milestone-2-lifecycle",
+      "depends_on": [
+        "milestone-1-registration-and-linux-control"
+      ],
+      "members": [
+        "component-supervised-lifecycle"
+      ],
+      "units": [
+        {
+          "title": "Implement supervised lifecycle and health state machine",
+          "objective": "Implement probe-before-spawn, direct foreground launch, readiness, resume invalidation, classifier, and fixed retry thresholds.",
+          "output_format": "Go controller, fake boundaries, state/contract tests, Windows fidelity test.",
+          "tool_guidance": "Use x/sys/windows/svc already present; use fake clock/process/health/WSL seams.",
+          "task_boundaries": "Do not own SCM stop escalation or record file rotation.",
+          "files_touched": [
+            "src/platform/wslhost/supervisor_windows.go",
+            "src/platform/wslhost/process_windows.go",
+            "src/platform/wslhost/health_windows.go"
+          ],
+          "acceptance": [
+            "All UAC-001..006,011,012,014,015,017 transitions are deterministic.",
+            "No spawn occurs before determinate absence."
+          ],
+          "contract_refs": [
+            "contract-control-flow",
+            "contract-state-lifecycle",
+            "contract-concurrency",
+            "contract-performance-budget"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        }
+      ]
+    },
+    {
+      "id": "milestone-3-stop-and-record",
+      "depends_on": [
+        "milestone-2-lifecycle"
+      ],
+      "members": [
+        "component-stop-coordinator",
+        "component-operator-recording"
+      ],
+      "units": [
+        {
+          "title": "Implement SCM stop and registered-distro escalation",
+          "objective": "Bridge SCM controls to ownership-checked SIGTERM and bounded escalation.",
+          "output_format": "Go SCM adapter, stop coordinator, T0/T2/T3 tests.",
+          "tool_guidance": "Inject SCM, Linux control, child process and WSL terminator interfaces.",
+          "task_boundaries": "Never introduce wsl --shutdown or GUI client behavior.",
+          "files_touched": [
+            "src/platform/wslhost/service_windows.go",
+            "src/platform/wslhost/stop_windows.go",
+            "src/cmd/agent-grid-wsl-supervisor/main_windows.go"
+          ],
+          "acceptance": [
+            "15-second graceful budget preserves existing drain/grace.",
+            "Only owned child and registered distro are escalation targets."
+          ],
+          "contract_refs": [
+            "contract-failure-recovery"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "Implement structured machine-wide recording",
+          "objective": "Provide operator-readable structured records, safe retention and pre-start lookup instructions.",
+          "output_format": "Go record sink/rotation, ACL tests, docs, Windows fidelity test.",
+          "tool_guidance": "Persist allowlisted structured fields only; do not persist raw stdout/stderr.",
+          "task_boundaries": "Do not make Event Log the primary runtime sink.",
+          "files_touched": [
+            "src/platform/wslhost/record_windows.go",
+            "src/platform/wslhost/config.go",
+            "docs/design/design-host.md"
+          ],
+          "acceptance": [
+            "ProgramData path/ACL/10MiB x5/30-day policy is enforced.",
+            "SCM pre-process failures have a deterministic documented lookup."
+          ],
+          "contract_refs": [
+            "contract-resource-management",
+            "contract-user-observability"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "FR-WSL-001",
+      "type": "state_driven",
+      "statement": "While the registered Windows Service is Running, the system shall report Ready only after the configured GET /healthz returns HTTP 200 with status ok; daemon-unavailable, transport success alone, and process existence shall remain non-Ready.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-001."
+    },
+    {
+      "id": "FR-WSL-002",
+      "type": "ubiquitous",
+      "statement": "The supervisor shall keep exactly one registration-bound host server supervised unit in the foreground and shall never leave a launcher or shell process in the supervision chain.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-002."
+    },
+    {
+      "id": "FR-WSL-003",
+      "type": "event_driven",
+      "statement": "When the Linux host server exits normally or abnormally, the supervised wsl.exe unit shall exit, the exit code shall be recorded, and no host server or launcher shell shall remain.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-003."
+    },
+    {
+      "id": "FR-WSL-004",
+      "type": "event_driven",
+      "statement": "When a transient crash or health failure occurs, the supervisor shall enter Backoff, record the delay and attempt number, retry according to the fixed schedule, and return to Ready only after health succeeds.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-004."
+    },
+    {
+      "id": "FR-WSL-005",
+      "type": "unwanted",
+      "statement": "If the same typed configuration failure occurs five consecutive times, the supervisor shall enter terminal Failed, record the specific invalid setting, and issue no further retry until a new applied registration generation or SCM restart resets the transaction.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-005."
+    },
+    {
+      "id": "FR-WSL-006",
+      "type": "event_driven",
+      "statement": "When the pre-spawn probe proves that a fingerprint-matched host already holds the registered data-directory lock, the supervisor shall adopt that instance before any spawn, record already-running, and shall not classify it as crash or configuration failure.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-006."
+    },
+    {
+      "id": "FR-WSL-007",
+      "type": "unwanted",
+      "statement": "If SCM cannot create the service process because of credentials, Log on as a service, profile, executable ACL, or configuration ACL, the Windows service-start record shall expose a credential or access category and a deterministic operator lookup path.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-007."
+    },
+    {
+      "id": "FR-WSL-008",
+      "type": "event_driven",
+      "statement": "When SCM requests stop, the supervisor shall use the registered instance control command to deliver SIGTERM, allow the existing 8-second drain and 5-second gateway grace within a 15-second graceful budget, and report Stopped only after the owned unit exits or bounded escalation completes.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-008."
+    },
+    {
+      "id": "FR-WSL-009",
+      "type": "unwanted",
+      "statement": "If graceful stop exceeds 15 seconds, the supervisor shall terminate only the owned wsl.exe child, wait 2 seconds, and only if the registered lock/health evidence persists shall invoke wsl.exe --terminate for the registration-bound distribution; it shall never invoke wsl.exe --shutdown.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-009."
+    },
+    {
+      "id": "FR-WSL-010",
+      "type": "ubiquitous",
+      "statement": "Every forced WSL action shall name the registration-bound distribution, and the record shall never contain an all-distribution shutdown action, including on a machine with only one distribution.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-010."
+    },
+    {
+      "id": "FR-WSL-011",
+      "type": "event_driven",
+      "statement": "When Windows resumes from sleep or hibernate, the supervisor shall invalidate pre-resume health evidence and start a fresh health probe within 10 seconds, recording its time, generation, and result.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-011."
+    },
+    {
+      "id": "FR-WSL-012",
+      "type": "event_driven",
+      "statement": "When three consecutive 5-second-cadence health probes fail for the same live generation, the supervisor shall start a graceful restart without entering terminal Failed; a later successful health probe shall restore Ready.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-012."
+    },
+    {
+      "id": "FR-WSL-013",
+      "type": "event_driven",
+      "statement": "If a graceful recovery restart exceeds the same 15-second shutdown budget and health remains failed, the supervisor shall skip child-only kill, terminate only the registration-bound distribution, and then restart from the pre-spawn probe.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-013."
+    },
+    {
+      "id": "FR-WSL-014",
+      "type": "event_driven",
+      "statement": "When Automatic service start follows a Windows or WSL update reboot with no signed-in user, the supervisor shall run probe-before-spawn and readiness from the beginning and shall expose Ready only after status ok.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-014."
+    },
+    {
+      "id": "FR-WSL-015",
+      "type": "event_driven",
+      "statement": "When the WSL subsystem becomes unavailable without a machine reboot, the supervisor shall retry as transient failure and shall not enter Failed before ten consecutive transient failures; recovery shall return to Ready without operator action.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-015."
+    },
+    {
+      "id": "FR-WSL-016",
+      "type": "ubiquitous",
+      "statement": "The Windows record surface shall expose service start/stop, registration-bound Windows identity, distribution and Linux user, generation, readiness result, exit code, retry count, budget expiry, and escalation at %ProgramData%\\AgentGrid\\logs\\wsl-host.log without secret, token, or environment values.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-016."
+    },
+    {
+      "id": "FR-WSL-017",
+      "type": "unwanted",
+      "statement": "A transient failure shall not be terminal at the five-failure configuration threshold; only the tenth consecutive transient failure may enter Failed, and any intervening Ready result shall reset the transient counter.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-017."
+    },
+    {
+      "id": "FR-WSL-018",
+      "type": "ubiquitous",
+      "statement": "The registration snapshot shall be the sole runtime authority for identity, distribution, Linux user, executable, data directory, address, TLS mode, health target, log path, and thresholds; interactive login and wsl --set-default changes shall not alter the running generation.",
+      "priority": "must",
+      "rationale": "Traces the confirmed constraint or UAC scenario associated with FR-WSL-018."
+    }
+  ],
+  "non_functional_requirements": [
+    {
+      "id": "NFR-WSL-RELIABILITY",
+      "type": "reliability",
+      "criteria": "Configuration failures terminate after 5 attempts; transient failures terminate after 10; retry delays are 1,2,5,15,60 seconds capped at 60.",
+      "measurement": "Fake-clock T0/T1 tests and Windows/WSL T3 timestamps."
+    },
+    {
+      "id": "NFR-WSL-PERFORMANCE",
+      "type": "performance",
+      "criteria": "Health request timeout is 2 seconds, cadence 5 seconds, resume recheck begins within 10 seconds, startup readiness budget is 60 seconds, and graceful stop budget is 15 seconds.",
+      "measurement": "Fake-clock deterministic tests plus FakeVsReal Windows duration measurements."
+    },
+    {
+      "id": "NFR-WSL-SECURITY",
+      "type": "security",
+      "criteria": "Config is administrator/service-identity readable only; logs are service-writable and operator-readable; no raw child stdout/stderr, token, secret, or environment value is persisted.",
+      "measurement": "ACL fidelity test and adversarial record scan."
+    },
+    {
+      "id": "NFR-WSL-MAINTAINABILITY",
+      "type": "maintainability",
+      "criteria": "SCM, WSL command execution, process inspection/signalling, HTTP health, filesystem/ACL, clock, resume notification, and record sink are injected boundaries.",
+      "measurement": "Contract tests instantiate the pure controller with fakes and no Windows or WSL process."
+    },
+    {
+      "id": "NFR-WSL-COMPATIBILITY",
+      "type": "compatibility",
+      "criteria": "Existing server SIGTERM, /healthz status semantics, and daemon flock remain authoritative; additive probe/stop commands preserve existing CLI behavior.",
+      "measurement": "Baseline and target Go gateway/CLI tests plus FakeVsReal Linux behavior."
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "AC-UAC-001",
+      "given": "no user is signed in and Automatic start runs",
+      "when": "the configured endpoint is queried",
+      "then": "status ok is returned only after the full readiness sequence; daemon-unavailable fails",
+      "requirement_refs": [
+        "FR-WSL-001",
+        "FR-WSL-014"
+      ]
+    },
+    {
+      "id": "AC-UAC-002",
+      "given": "the service has reached Ready",
+      "when": "time passes without a failure",
+      "then": "the foreground unit remains healthy and retry count does not increase",
+      "requirement_refs": [
+        "FR-WSL-002"
+      ]
+    },
+    {
+      "id": "AC-UAC-003",
+      "given": "the foreground unit is Ready",
+      "when": "the Linux server exits normally or abnormally",
+      "then": "wsl.exe exits with it, the code is recorded, and no shell or server remains",
+      "requirement_refs": [
+        "FR-WSL-003"
+      ]
+    },
+    {
+      "id": "AC-UAC-004",
+      "given": "a Ready generation suffers a transient crash",
+      "when": "the lifecycle controller observes the exit",
+      "then": "Backoff delay and attempt increase, then status ok restores Ready",
+      "requirement_refs": [
+        "FR-WSL-004"
+      ]
+    },
+    {
+      "id": "AC-UAC-005",
+      "given": "a distribution, executable, permission, or JSON setting is invalid",
+      "when": "the same typed cause reaches five consecutive failures",
+      "then": "Failed is recorded with the setting and retries stop",
+      "requirement_refs": [
+        "FR-WSL-005"
+      ]
+    },
+    {
+      "id": "AC-UAC-006",
+      "given": "a fingerprint-matched locked server is already healthy",
+      "when": "the service starts",
+      "then": "probe/adopt occurs before spawn and already-running is recorded without a failure",
+      "requirement_refs": [
+        "FR-WSL-006"
+      ]
+    },
+    {
+      "id": "AC-UAC-007",
+      "given": "SCM cannot start the process because its service identity or ACL is invalid",
+      "when": "SCM attempts Automatic start",
+      "then": "the OS service-start record identifies credential/access failure and the dedicated file is not falsely claimed",
+      "requirement_refs": [
+        "FR-WSL-007"
+      ]
+    },
+    {
+      "id": "AC-UAC-008",
+      "given": "an owned Ready generation may contain active frames",
+      "when": "SCM sends stop",
+      "then": "SIGTERM reaches the existing drain path and Stopped follows unit exit within the graceful budget",
+      "requirement_refs": [
+        "FR-WSL-008"
+      ]
+    },
+    {
+      "id": "AC-UAC-009",
+      "given": "another WSL distribution is active and graceful stop times out",
+      "when": "escalation runs",
+      "then": "only the bound child then bound distribution are affected and the other distribution survives",
+      "requirement_refs": [
+        "FR-WSL-009"
+      ]
+    },
+    {
+      "id": "AC-UAC-010",
+      "given": "only the target distribution exists and graceful stop times out",
+      "when": "escalation runs",
+      "then": "the record names --terminate target and contains no --shutdown action",
+      "requirement_refs": [
+        "FR-WSL-010"
+      ]
+    },
+    {
+      "id": "AC-UAC-011",
+      "given": "Windows resumes while the unit process survives",
+      "when": "resume is delivered",
+      "then": "old health is invalidated and a timestamped fresh probe starts within ten seconds",
+      "requirement_refs": [
+        "FR-WSL-011"
+      ]
+    },
+    {
+      "id": "AC-UAC-012",
+      "given": "a live process has failing health after resume",
+      "when": "the third consecutive probe fails",
+      "then": "graceful restart begins without terminal Failed and successful health restores Ready",
+      "requirement_refs": [
+        "FR-WSL-012"
+      ]
+    },
+    {
+      "id": "AC-UAC-013",
+      "given": "graceful recovery restart has exceeded 15 seconds",
+      "when": "health still fails",
+      "then": "the bound distribution is terminated directly, then probe-before-spawn restarts",
+      "requirement_refs": [
+        "FR-WSL-013"
+      ]
+    },
+    {
+      "id": "AC-UAC-014",
+      "given": "an update reboot finishes with no user signed in",
+      "when": "SCM Automatic start runs",
+      "then": "the complete readiness sequence runs and only status ok produces Ready",
+      "requirement_refs": [
+        "FR-WSL-014"
+      ]
+    },
+    {
+      "id": "AC-UAC-015",
+      "given": "WSL becomes unavailable without a reboot",
+      "when": "the supervisor observes exit or health loss",
+      "then": "transient retries continue beyond five and recovery before ten restores Ready",
+      "requirement_refs": [
+        "FR-WSL-015"
+      ]
+    },
+    {
+      "id": "AC-UAC-016",
+      "given": "a service was registered with snapshot generation G for identity A and distribution D, then wsl --set-default and the interactive identity/default are changed to A2/D2",
+      "when": "the same registered service is restarted, reaches Ready, is stopped, and the operator opens the machine-wide record",
+      "then": "the record, direct launch argv, health target, supervisor-probe/supervisor-stop authority, and any terminate target all remain bound to generation G and A/D; no event or command uses A2/D2, while required fields remain readable and secrets/environment values remain absent",
+      "requirement_refs": [
+        "FR-WSL-016",
+        "FR-WSL-018"
+      ]
+    },
+    {
+      "id": "AC-UAC-017",
+      "given": "a previously Ready configuration suffers transient failures",
+      "when": "five failures occur and the cause then clears",
+      "then": "retry has not stopped, no Failed record exists, and the next healthy generation becomes Ready",
+      "requirement_refs": [
+        "FR-WSL-017"
+      ]
+    }
+  ],
+  "adrs": [
+    {
+      "id": "adr-20260725-wsl-supervisor-registration-bound-json-config",
+      "title": "Bind WSL supervisor target at registration in an atomic JSON snapshot",
+      "status": "accepted",
+      "context": "The UX consultation confirmed registration-time binding. Runtime default lookup would redirect launch and terminate authority. TOML is only an Explore candidate and persistence types must remain stdlib-only.",
+      "decision": "Store versioned JSON under %ProgramData%\\AgentGrid\\wsl-host-supervisor.json using temp-file, fsync, rename, ACL validation, and generation fingerprint. Explicit identity/distro override defaults; omitted values are resolved once during registration. Apply requires stop, validate, atomic replace, then start.",
+      "consequences": [
+        "Positive: One immutable generation controls launch, health, stop, and records.",
+        "Negative: Target changes require an explicit stop/apply/start operation.",
+        "Neutral: Existing host flags remain unchanged and are projected from the JSON snapshot."
+      ],
+      "decision_input_refs": [
+        "decision-input-registration-binding"
+      ],
+      "alternatives": [
+        {
+          "option": "TOML supervisor config",
+          "why_not": "Adds a third-party codec and duplicates host launch values."
+        },
+        {
+          "option": "Runtime default lookup",
+          "why_not": "Breaks registration-bound target and stop authority."
+        }
+      ],
+      "related_requirements": [
+        "FR-WSL-018"
+      ],
+      "contract_refs": [
+        "contract-data-model",
+        "contract-security-boundary",
+        "contract-migration-compatibility"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-wsl-supervisor-adr-acceptance",
+          "user-message:7-adrs-accept"
+        ],
+        "rationale": "ユーザーが7件すべての採用と代替案の却下理由を明示的に承認した。"
+      }
+    },
+    {
+      "id": "adr-20260725-wsl-supervisor-direct-foreground-exec",
+      "title": "Launch the host server by direct foreground wsl.exe --exec",
+      "status": "accepted",
+      "context": "Foreground supervision requires child exit ownership and no residual shell. The original plan names direct exec as the primary form.",
+      "decision": "Launch wsl.exe --distribution <bound> --user <bound> --exec <server> with explicit host flags as the long-lived child. Do not insert cmd.exe, powershell, sh -c, a background process, or a launcher. Environment-dependent setup must become explicit argv/config, not a shell.",
+      "consequences": [
+        "Positive: The process tree and exit code have one owner and UAC-003 is directly testable.",
+        "Negative: Future environment setup must be represented as configuration or reconsider this ADR.",
+        "Neutral: Graceful stop uses the separate Linux control command, not Windows signal propagation through wsl.exe."
+      ],
+      "decision_input_refs": [
+        "decision-input-launch-topology"
+      ],
+      "alternatives": [
+        {
+          "option": "Launcher plus exec",
+          "why_not": "Unneeded for the confirmed explicit argv/config surface and creates another deployed artifact."
+        },
+        {
+          "option": "Detached/background launch",
+          "why_not": "Destroys exit ownership and causes false restart loops."
+        }
+      ],
+      "related_requirements": [
+        "FR-WSL-002",
+        "FR-WSL-003"
+      ],
+      "contract_refs": [
+        "contract-control-flow"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-wsl-supervisor-adr-acceptance",
+          "user-message:7-adrs-accept"
+        ],
+        "rationale": "ユーザーが7件すべての採用と代替案の却下理由を明示的に承認した。"
+      }
+    },
+    {
+      "id": "adr-20260725-wsl-supervisor-detach-adr-nonapplicability",
+      "title": "Do not apply the WSL detach spike to the foreground supervised service unit",
+      "status": "accepted",
+      "context": "The accepted detach ADR solves a short-lived Windows launcher whose Linux daemon must outlive it. This service is deliberately a long-lived parent whose child must not outlive supervision.",
+      "decision": "Treat adr-20260724-boundary-3-wsl-detach-spike as non-applicable, not superseded: no setsid or nohup is used in this service topology. Its accepted decision remains valid for Windows Shell Phase 2 only.",
+      "consequences": [
+        "Positive: Foreground ownership is explicit without weakening the accepted ADR in its own scope.",
+        "Negative: The service cannot reuse the Shell's detach invocation.",
+        "Neutral: adr-20260724-boundary-3-adopt-before-spawn remains applicable; the toast-separation ADR remains outside this GUI-free component."
+      ],
+      "decision_input_refs": [
+        "decision-input-detach-spike-nonapplicability"
+      ],
+      "alternatives": [
+        {
+          "option": "Apply setsid plus nohup",
+          "why_not": "Would sever the lifecycle and stop ownership required here."
+        },
+        {
+          "option": "Supersede the accepted detach ADR",
+          "why_not": "Incorrect because its original boundary and evidence remain valid."
+        }
+      ],
+      "related_requirements": [
+        "FR-WSL-002",
+        "FR-WSL-003"
+      ],
+      "contract_refs": [
+        "contract-control-flow"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-wsl-supervisor-adr-acceptance",
+          "user-message:7-adrs-accept"
+        ],
+        "rationale": "ユーザーが7件すべての採用と代替案の却下理由を明示的に承認した。"
+      }
+    },
+    {
+      "id": "adr-20260725-wsl-supervisor-adopt-authority-classifier",
+      "title": "Probe before spawn and adopt only a fingerprint-matched locked host instance",
+      "status": "accepted",
+      "context": "The accepted adopt-before-spawn ADR forbids learning adoption from a failed spawn. Stop ownership must also be explicit.",
+      "decision": "Before every spawn, invoke the additive Linux supervisor-probe command for the bound data directory and health target. It returns typed JSON and exit classes after checking flock holder PID, Linux start token, executable, argv fingerprint, and health. matched_running is adopted with stop authority bound to that token; absent alone permits one spawn; mismatch is configuration failure; unavailable/unknown is transient and never permits spawn. supervisor-stop revalidates the token before SIGTERM.",
+      "consequences": [
+        "Positive: Adoption, spawn permission, and stop authority derive from one typed identity proof.",
+        "Negative: Adds two additive Linux CLI operations and /proc-based fidelity requirements.",
+        "Neutral: The pid stored in the lock remains human-readable; authority additionally uses start token and fingerprint."
+      ],
+      "decision_input_refs": [
+        "decision-input-already-running"
+      ],
+      "alternatives": [
+        {
+          "option": "Parse spawn stderr for flock refusal",
+          "why_not": "Violates probe-before-spawn and is text-fragile."
+        },
+        {
+          "option": "Adopt healthy endpoint without process fingerprint",
+          "why_not": "Cannot establish data-dir identity or stop authority."
+        },
+        {
+          "option": "Never stop adopted instances",
+          "why_not": "Would make SCM Stopped while the required endpoint remains alive."
+        }
+      ],
+      "related_requirements": [
+        "FR-WSL-006",
+        "FR-WSL-008"
+      ],
+      "contract_refs": [
+        "contract-state-lifecycle",
+        "contract-integration-contract"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-wsl-supervisor-adr-acceptance",
+          "user-message:7-adrs-accept"
+        ],
+        "rationale": "ユーザーが7件すべての採用と代替案の却下理由を明示的に承認した。"
+      }
+    },
+    {
+      "id": "adr-20260725-wsl-supervisor-retry-health-thresholds",
+      "title": "Use typed failure classes and fixed two-stage health and terminal thresholds",
+      "status": "accepted",
+      "context": "The UX requires configuration, transient, already-running, and unknown outcomes to remain discriminating and requires different restart and terminal thresholds.",
+      "decision": "Use health URL and TLS mode projected from the same bound addr/config. Probe timeout 2s, cadence 5s, startup readiness 60s, resume probe start <=10s, health restart threshold 3, configuration terminal threshold 5, transient/unknown terminal threshold 10, and retry schedule 1,2,5,15,60 seconds capped at 60. Ready resets both counters. status ok alone is healthy; daemon-unavailable is unhealthy.",
+      "consequences": [
+        "Positive: Recovery and terminal time are bounded and fake-clock testable.",
+        "Negative: Numerical policy changes require a new design decision and operational retest.",
+        "Neutral: SCM Running does not encode Ready/Backoff/Failed; health plus records remain the read model."
+      ],
+      "decision_input_refs": [
+        "decision-input-health-config"
+      ],
+      "alternatives": [
+        {
+          "option": "One threshold for every failure",
+          "why_not": "Fails UAC-017 and hides classifier errors."
+        },
+        {
+          "option": "Unbounded retry",
+          "why_not": "Hides permanent configuration failure."
+        },
+        {
+          "option": "Fixed supervisor-only port",
+          "why_not": "Can drift from the server addr."
+        }
+      ],
+      "related_requirements": [
+        "FR-WSL-001",
+        "FR-WSL-004",
+        "FR-WSL-005",
+        "FR-WSL-011",
+        "FR-WSL-012",
+        "FR-WSL-015",
+        "FR-WSL-017"
+      ],
+      "contract_refs": [
+        "contract-state-lifecycle",
+        "contract-performance-budget"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-wsl-supervisor-adr-acceptance",
+          "user-message:7-adrs-accept"
+        ],
+        "rationale": "ユーザーが7件すべての採用と代替案の却下理由を明示的に承認した。"
+      }
+    },
+    {
+      "id": "adr-20260725-wsl-supervisor-shutdown-budget-escalation",
+      "title": "Use a 15-second graceful budget before registered-distro-only escalation",
+      "status": "accepted",
+      "context": "UX handoff DP-SHUTDOWN-TIMEOUT-PROVENANCE leaves the numeric source to design and recommends OPT-DERIVE-FROM-SERVER-BUDGET. The server drains for 8 seconds and then its gateway has a 5-second grace; the ungrounded 30-second proposal is not adopted.",
+      "decision": "Use one 15-second graceful shutdown budget for SCM stop and recovery restart: 8s drain + 5s gateway grace + 2s supervised-unit exit overhead. SCM stop then terminates the owned child, waits 2s, and conditionally terminates the bound distro. Recovery restart skips child-only kill after 15s and directly terminates the bound distro, matching UAC-013. Never call wsl --shutdown.",
+      "consequences": [
+        "Positive: The budget is derived from existing shutdown behavior and shared by both paths.",
+        "Negative: A stuck recovery can disrupt every process in the bound distribution.",
+        "Neutral: The service reports SCM stop-pending checkpoints while the bounded sequence runs."
+      ],
+      "decision_input_refs": [
+        "decision-input-shutdown-timeout-provenance"
+      ],
+      "alternatives": [
+        {
+          "option": "Thirty seconds",
+          "why_not": "Has no repository derivation and needlessly delays SCM."
+        },
+        {
+          "option": "Eight seconds",
+          "why_not": "Interrupts gateway grace and unit exit."
+        },
+        {
+          "option": "Always child-kill before distro terminate",
+          "why_not": "Contradicts the confirmed recovery escalation scenario."
+        }
+      ],
+      "related_requirements": [
+        "FR-WSL-008",
+        "FR-WSL-009",
+        "FR-WSL-010",
+        "FR-WSL-013"
+      ],
+      "contract_refs": [
+        "contract-failure-recovery",
+        "contract-performance-budget"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-wsl-supervisor-adr-acceptance",
+          "user-message:7-adrs-accept"
+        ],
+        "rationale": "ユーザーが7件すべての採用と代替案の却下理由を明示的に承認した。"
+      }
+    },
+    {
+      "id": "adr-20260725-wsl-supervisor-machine-wide-record",
+      "title": "Write structured records under ProgramData with bounded retention and SCM pre-start complement",
+      "status": "accepted",
+      "context": "Consultation selected a dedicated file, but a profile-relative path is not operator-reachable and no process can log before SCM creates it.",
+      "decision": "Use %ProgramData%\\AgentGrid\\logs\\wsl-host.log as primary structured JSON-lines record. ACL: SYSTEM and Administrators full control, configured service identity modify, BUILTIN\\Users read on logs only. Rotate at 10 MiB, keep 5 files, delete files older than 30 days. Persist only allowlisted supervisor fields and never raw stdout/stderr, argv secrets, tokens, or environment values. Pre-process failures are read through SCM's System event record and documented sc query/event lookup.",
+      "consequences": [
+        "Positive: Records are deterministic, operator-reachable, bounded, and structurally redacted.",
+        "Negative: Raw child diagnostics are not retained by the Windows supervisor.",
+        "Neutral: The Linux host retains its own existing logs; SCM owns failures before process creation."
+      ],
+      "decision_input_refs": [
+        "decision-input-dedicated-log"
+      ],
+      "alternatives": [
+        {
+          "option": "Windows Event Log as primary sink",
+          "why_not": "Rejected by user consultation; retain only SCM's unavoidable pre-start complement."
+        },
+        {
+          "option": "Service-account LocalAppData",
+          "why_not": "Not reliably reachable from the signed-in operator profile."
+        },
+        {
+          "option": "Persist raw stdout/stderr with redaction",
+          "why_not": "Cannot prove arbitrary application output contains no secret."
+        }
+      ],
+      "related_requirements": [
+        "FR-WSL-007",
+        "FR-WSL-016"
+      ],
+      "contract_refs": [
+        "contract-resource-management",
+        "contract-user-observability",
+        "contract-security-boundary"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260725-wsl-supervisor-adr-acceptance",
+          "user-message:7-adrs-accept"
+        ],
+        "rationale": "ユーザーが7件すべての採用と代替案の却下理由を明示的に承認した。"
+      }
+    }
+  ],
+  "decision_dispositions": [
+    {
+      "decision_input_ref": "decision-input-registration-binding",
+      "disposition": "adopted",
+      "rationale": "Registration-time binding is confirmed and closed by the atomic JSON snapshot ADR.",
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-registration-bound-json-config"
+      ],
+      "contract_refs": [
+        "contract-data-model",
+        "contract-security-boundary",
+        "contract-migration-compatibility"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-launch-topology",
+      "disposition": "adopted",
+      "rationale": "Direct foreground wsl.exe --exec is fixed; no launcher or shell remains.",
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-direct-foreground-exec"
+      ],
+      "contract_refs": [
+        "contract-control-flow"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-detach-spike-nonapplicability",
+      "disposition": "adopted",
+      "rationale": "The accepted detach ADR is explicitly non-applicable to a long-lived foreground parent.",
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-detach-adr-nonapplicability"
+      ],
+      "contract_refs": [
+        "contract-control-flow"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-already-running",
+      "disposition": "adopted",
+      "rationale": "Typed pre-spawn lock/process fingerprinting establishes adoption and stop authority.",
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-adopt-authority-classifier"
+      ],
+      "contract_refs": [
+        "contract-state-lifecycle",
+        "contract-integration-contract"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-health-config",
+      "disposition": "adopted",
+      "rationale": "Health target and all retry/readiness thresholds are fixed from the bound snapshot.",
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-retry-health-thresholds"
+      ],
+      "contract_refs": [
+        "contract-state-lifecycle",
+        "contract-performance-budget"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-dedicated-log",
+      "disposition": "adopted",
+      "rationale": "The selected dedicated log is concretized with ProgramData path, ACL, retention and SCM complement.",
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-machine-wide-record"
+      ],
+      "contract_refs": [
+        "contract-resource-management",
+        "contract-user-observability",
+        "contract-security-boundary"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-shutdown-timeout-provenance",
+      "disposition": "adopted",
+      "rationale": "Adopt OPT-DERIVE-FROM-SERVER-BUDGET: 8-second drain plus 5-second gateway grace plus 2-second measured unit-exit allowance yields the single 15-second graceful budget.",
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-shutdown-budget-escalation"
+      ],
+      "contract_refs": [
+        "contract-failure-recovery",
+        "contract-performance-budget"
+      ]
+    }
+  ],
+  "resolved_issues": [
+    {
+      "issue_ref": "issue-explore-phase-boundary",
+      "resolution": "Separated confirmed UX constraints/consultations from provisional handoff seeds; design choices are newly proposed ADRs and change remains draft."
+    },
+    {
+      "issue_ref": "issue-decision-input-set-loss",
+      "resolution": "Restored golang x/sys/windows/svc, JSON-vs-TOML, Event Log complement, dedicated log, and baseline comparisons in ADR alternatives and implementation seams."
+    },
+    {
+      "issue_ref": "issue-adopt-before-spawn-order",
+      "resolution": "Fixed typed supervisor-probe before every spawn; only determinate absence permits spawn."
+    },
+    {
+      "issue_ref": "issue-launch-topology-open",
+      "resolution": "Selected direct foreground wsl.exe --exec and rejected launcher/detach paths."
+    },
+    {
+      "issue_ref": "issue-adopted-stop-ownership-open",
+      "resolution": "Fingerprint-matched lock holder plus PID start token grants bounded adopted stop authority; token is revalidated before SIGTERM."
+    },
+    {
+      "issue_ref": "issue-failure-classification-nondiscriminating",
+      "resolution": "Closed configuration/transient/already-running/unknown partitions and fixed 5/10 thresholds."
+    },
+    {
+      "issue_ref": "issue-legacy-counterexample-translation-loss",
+      "resolution": "Translated UAC-001..017 into FR/acceptance rows and a verification trace matrix."
+    },
+    {
+      "issue_ref": "issue-dimension-contract-coverage",
+      "resolution": "Assigned all 11 dimensions to owner components, task units, typed failure, witnesses, and Tier verification."
+    }
+  ],
+  "critique_blockers": [],
+  "open_questions": [],
+  "design_dimensions": [
+    "data_model",
+    "control_flow",
+    "state_lifecycle",
+    "concurrency",
+    "resource_management",
+    "failure_recovery",
+    "integration_contract",
+    "security_boundary",
+    "performance_budget",
+    "migration_compatibility",
+    "user_observability"
+  ],
+  "implementation_contracts": [
+    {
+      "id": "contract-data-model",
+      "dimension": "data_model",
+      "subject": "Atomic versioned registration snapshot",
+      "owner_component_ref": "component-service-registration",
+      "related_requirements": [
+        "FR-WSL-018"
+      ],
+      "related_units": [
+        "Implement registration snapshot and ACL boundary"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-data-model-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-data-model"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-data-model"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-data-model",
+          "description": "The validated JSON generation is atomically installed and read once at service start. Adversarially: A partial, stale, or schema-invalid file is rejected and never becomes runtime authority.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-data-model"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-data-model",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-service-registration",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Atomic versioned registration snapshot",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-data-model-normal",
+            "witness-data-model-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "The validated JSON generation is atomically installed and read once at service start.",
+        "A partial, stale, or schema-invalid file is rejected and never becomes runtime authority."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-data-model",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "A partial, stale, or schema-invalid file is rejected and never becomes runtime authority.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-data-model",
+          "requirement_refs": [
+            "FR-WSL-018"
+          ],
+          "tier": "T0",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Atomic versioned registration snapshot.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-data-model-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-018"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "The validated JSON generation is atomically installed and read once at service start."
+          ],
+          "expected_observable_refs": [
+            "observable-data-model"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-data-model"
+          ]
+        },
+        {
+          "id": "witness-data-model-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-WSL-018"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "A partial, stale, or schema-invalid file is rejected and never becomes runtime authority."
+          ],
+          "expected_observable_refs": [
+            "observable-data-model"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-data-model"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-registration-bound-json-config"
+      ]
+    },
+    {
+      "id": "contract-control-flow",
+      "dimension": "control_flow",
+      "subject": "Probe-before-spawn and direct foreground launch ordering",
+      "owner_component_ref": "component-supervised-lifecycle",
+      "related_requirements": [
+        "FR-WSL-002",
+        "FR-WSL-003",
+        "FR-WSL-006"
+      ],
+      "related_units": [
+        "Implement supervised lifecycle and health state machine"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-control-flow-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-control-flow"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-control-flow"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-control-flow",
+          "description": "Probe proves absence, then exactly one direct foreground spawn occurs and exit is awaited. Adversarially: Unknown or already-running evidence never permits a speculative spawn; no shell remains.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-control-flow"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-control-flow",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-supervised-lifecycle",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Probe-before-spawn and direct foreground launch ordering",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-control-flow-normal",
+            "witness-control-flow-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Probe proves absence, then exactly one direct foreground spawn occurs and exit is awaited.",
+        "Unknown or already-running evidence never permits a speculative spawn; no shell remains."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-control-flow",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Unknown or already-running evidence never permits a speculative spawn; no shell remains.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-control-flow",
+          "requirement_refs": [
+            "FR-WSL-002",
+            "FR-WSL-003",
+            "FR-WSL-006"
+          ],
+          "tier": "T0",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Probe-before-spawn and direct foreground launch ordering.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-control-flow-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-002",
+            "FR-WSL-003",
+            "FR-WSL-006"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "Probe proves absence, then exactly one direct foreground spawn occurs and exit is awaited."
+          ],
+          "expected_observable_refs": [
+            "observable-control-flow"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-control-flow"
+          ]
+        },
+        {
+          "id": "witness-control-flow-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence"
+          ],
+          "requirement_refs": [
+            "FR-WSL-002",
+            "FR-WSL-003",
+            "FR-WSL-006"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Unknown or already-running evidence never permits a speculative spawn; no shell remains."
+          ],
+          "expected_observable_refs": [
+            "observable-control-flow"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-control-flow"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-direct-foreground-exec",
+        "adr-20260725-wsl-supervisor-detach-adr-nonapplicability"
+      ]
+    },
+    {
+      "id": "contract-state-lifecycle",
+      "dimension": "state_lifecycle",
+      "subject": "Ready Backoff Failed already-running outcome partition",
+      "owner_component_ref": "component-supervised-lifecycle",
+      "related_requirements": [
+        "FR-WSL-001",
+        "FR-WSL-004",
+        "FR-WSL-005",
+        "FR-WSL-006",
+        "FR-WSL-012",
+        "FR-WSL-015",
+        "FR-WSL-017"
+      ],
+      "related_units": [
+        "Implement supervised lifecycle and health state machine"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-state-lifecycle-determinate",
+          "condition": "Valid and mutually consistent evidence exists.",
+          "evidence_mode": "multi_source",
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the typed success or classified failure outcome.",
+          "observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "rationale": "Epistemic outcomes are explicit and mutually exclusive."
+        },
+        {
+          "id": "decision-state-lifecycle-unknown",
+          "condition": "Required evidence is unavailable.",
+          "evidence_mode": "multi_source",
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Remain non-authoritative and use the typed unknown policy.",
+          "observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "rationale": "Epistemic outcomes are explicit and mutually exclusive."
+        },
+        {
+          "id": "decision-state-lifecycle-inconclusive",
+          "condition": "Evidence exists but cannot establish the predicate.",
+          "evidence_mode": "multi_source",
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Do not round to success; retry or fail according to this contract.",
+          "observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "rationale": "Epistemic outcomes are explicit and mutually exclusive."
+        },
+        {
+          "id": "decision-state-lifecycle-conflicting",
+          "condition": "Independent sources disagree.",
+          "evidence_mode": "multi_source",
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "epistemic_state": "conflicting",
+          "outcome": "Use precedence and record conflict; never grant authority.",
+          "observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "rationale": "Epistemic outcomes are explicit and mutually exclusive."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-state-lifecycle",
+          "description": "Typed probe/health evidence produces one state transition and status ok alone reaches Ready. Adversarially: Conflicting, unknown, or inconclusive evidence remains non-Ready and cannot be rounded to already-running.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-state-lifecycle"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-state-lifecycle",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-supervised-lifecycle",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Ready Backoff Failed already-running outcome partition",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-state-lifecycle-normal",
+            "witness-state-lifecycle-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-state-lifecycle-partition",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-state-lifecycle-determinate",
+            "decision-state-lifecycle-unknown",
+            "decision-state-lifecycle-inconclusive",
+            "decision-state-lifecycle-conflicting"
+          ],
+          "failure_refs": [
+            "failure-state-lifecycle"
+          ],
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "coverage_basis": "Every observation is valid, unavailable, insufficient, or (for multi-source) conflicting; typed failures are included.",
+          "exclusivity_basis": "Validation precedence assigns exactly one epistemic state before any lifecycle transition.",
+          "precedence": "Internal generation/token mismatch, then conflicting identity, then determinate typed result, then inconclusive, then unknown.",
+          "default_policy": "Unknown and inconclusive never grant Ready, spawn permission, stop authority, or a permanent classification.",
+          "verification_ref": "verify-state-lifecycle",
+          "witness_refs": [
+            "witness-state-lifecycle-normal",
+            "witness-state-lifecycle-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "Typed probe/health evidence produces one state transition and status ok alone reaches Ready.",
+        "Conflicting, unknown, or inconclusive evidence remains non-Ready and cannot be rounded to already-running."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-state-lifecycle",
+          "class": "transient",
+          "source": "transient",
+          "outcome": "Conflicting, unknown, or inconclusive evidence remains non-Ready and cannot be rounded to already-running.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-state-lifecycle",
+          "requirement_refs": [
+            "FR-WSL-001",
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-006",
+            "FR-WSL-012",
+            "FR-WSL-015",
+            "FR-WSL-017"
+          ],
+          "tier": "T0",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Ready Backoff Failed already-running outcome partition.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-state-lifecycle-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-001",
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-006",
+            "FR-WSL-012",
+            "FR-WSL-015",
+            "FR-WSL-017"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "Typed probe/health evidence produces one state transition and status ok alone reaches Ready."
+          ],
+          "expected_observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-state-lifecycle"
+          ]
+        },
+        {
+          "id": "witness-state-lifecycle-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "recovery",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-WSL-001",
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-006",
+            "FR-WSL-012",
+            "FR-WSL-015",
+            "FR-WSL-017"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Conflicting, unknown, or inconclusive evidence remains non-Ready and cannot be rounded to already-running."
+          ],
+          "expected_observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-state-lifecycle"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-adopt-authority-classifier",
+        "adr-20260725-wsl-supervisor-retry-health-thresholds"
+      ],
+      "algorithm_ref": "alg-supervisor-lifecycle"
+    },
+    {
+      "id": "contract-concurrency",
+      "dimension": "concurrency",
+      "subject": "Generation linearization for health stop and retry",
+      "owner_component_ref": "component-supervised-lifecycle",
+      "related_requirements": [
+        "FR-WSL-004",
+        "FR-WSL-011",
+        "FR-WSL-012"
+      ],
+      "related_units": [
+        "Implement supervised lifecycle and health state machine"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-concurrency-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-concurrency"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-concurrency"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-concurrency",
+          "description": "A single controller goroutine owns generation and serializes SCM, exit, timer, health, and resume events. Adversarially: Late health/exit/timer results with an old generation are discarded and cannot change state.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-concurrency"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-concurrency",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-supervised-lifecycle",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Generation linearization for health stop and retry",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-concurrency-normal",
+            "witness-concurrency-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "A single controller goroutine owns generation and serializes SCM, exit, timer, health, and resume events.",
+        "Late health/exit/timer results with an old generation are discarded and cannot change state."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-concurrency",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Late health/exit/timer results with an old generation are discarded and cannot change state.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-concurrency",
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-011",
+            "FR-WSL-012"
+          ],
+          "tier": "T0",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Generation linearization for health stop and retry.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-concurrency-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-011",
+            "FR-WSL-012"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "A single controller goroutine owns generation and serializes SCM, exit, timer, health, and resume events."
+          ],
+          "expected_observable_refs": [
+            "observable-concurrency"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-concurrency"
+          ]
+        },
+        {
+          "id": "witness-concurrency-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "concurrency",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-011",
+            "FR-WSL-012"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Late health/exit/timer results with an old generation are discarded and cannot change state."
+          ],
+          "expected_observable_refs": [
+            "observable-concurrency"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-concurrency"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": []
+    },
+    {
+      "id": "contract-resource-management",
+      "dimension": "resource_management",
+      "subject": "Bounded process handles pipes and record rotation",
+      "owner_component_ref": "component-operator-recording",
+      "related_requirements": [
+        "FR-WSL-003",
+        "FR-WSL-016"
+      ],
+      "related_units": [
+        "Implement structured machine-wide recording"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-resource-management-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-resource-management"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-resource-management"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-resource-management",
+          "description": "Every spawned command handle and pipe is closed; structured records rotate at 10 MiB with five-file and 30-day caps. Adversarially: A blocked sink or full disk cannot block lifecycle; it emits a bounded SCM diagnostic and drops structured record events with a counter.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-resource-management"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-resource-management",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-operator-recording",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Bounded process handles pipes and record rotation",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-resource-management-normal",
+            "witness-resource-management-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Every spawned command handle and pipe is closed; structured records rotate at 10 MiB with five-file and 30-day caps.",
+        "A blocked sink or full disk cannot block lifecycle; it emits a bounded SCM diagnostic and drops structured record events with a counter."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-resource-management",
+          "class": "environmental",
+          "source": "environmental",
+          "outcome": "A blocked sink or full disk cannot block lifecycle; it emits a bounded SCM diagnostic and drops structured record events with a counter.",
+          "requirement_effect": "degrades",
+          "recovery": "degrade",
+          "approval_ref": "UX confirmed operator record is mandatory; SCM diagnostic preserves failure visibility while file writes are unavailable."
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-resource-management",
+          "requirement_refs": [
+            "FR-WSL-003",
+            "FR-WSL-016"
+          ],
+          "tier": "T0",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Bounded process handles pipes and record rotation.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-resource-management-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-003",
+            "FR-WSL-016"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "Every spawned command handle and pipe is closed; structured records rotate at 10 MiB with five-file and 30-day caps."
+          ],
+          "expected_observable_refs": [
+            "observable-resource-management"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-resource-management"
+          ]
+        },
+        {
+          "id": "witness-resource-management-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "scale",
+            "repeated_usage",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-WSL-003",
+            "FR-WSL-016"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "A blocked sink or full disk cannot block lifecycle; it emits a bounded SCM diagnostic and drops structured record events with a counter."
+          ],
+          "expected_observable_refs": [
+            "observable-resource-management"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-resource-management"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-machine-wide-record"
+      ]
+    },
+    {
+      "id": "contract-failure-recovery",
+      "dimension": "failure_recovery",
+      "subject": "Graceful stop retry and registered-distro-only escalation",
+      "owner_component_ref": "component-stop-coordinator",
+      "related_requirements": [
+        "FR-WSL-004",
+        "FR-WSL-005",
+        "FR-WSL-008",
+        "FR-WSL-009",
+        "FR-WSL-010",
+        "FR-WSL-013",
+        "FR-WSL-015",
+        "FR-WSL-017"
+      ],
+      "related_units": [
+        "Implement SCM stop and registered-distro escalation"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-failure-recovery-determinate",
+          "condition": "Valid and mutually consistent evidence exists.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-failure-recovery"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the typed success or classified failure outcome.",
+          "observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "rationale": "Epistemic outcomes are explicit and mutually exclusive."
+        },
+        {
+          "id": "decision-failure-recovery-unknown",
+          "condition": "Required evidence is unavailable.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-failure-recovery"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Remain non-authoritative and use the typed unknown policy.",
+          "observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "rationale": "Epistemic outcomes are explicit and mutually exclusive."
+        },
+        {
+          "id": "decision-failure-recovery-inconclusive",
+          "condition": "Evidence exists but cannot establish the predicate.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-failure-recovery"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Do not round to success; retry or fail according to this contract.",
+          "observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "rationale": "Epistemic outcomes are explicit and mutually exclusive."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-failure-recovery",
+          "description": "Owned SIGTERM is attempted within 15 seconds and escalation follows the SCM-stop or recovery-specific fixed branch. Adversarially: Stale ownership aborts child signalling; no path invokes all-distribution shutdown.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-failure-recovery"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-failure-recovery",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-stop-coordinator",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Graceful stop retry and registered-distro-only escalation",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-failure-recovery-normal",
+            "witness-failure-recovery-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-failure-recovery-partition",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-failure-recovery-determinate",
+            "decision-failure-recovery-unknown",
+            "decision-failure-recovery-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-failure-recovery"
+          ],
+          "input_refs": [
+            "input-failure-recovery"
+          ],
+          "coverage_basis": "Every observation is valid, unavailable, insufficient, or (for multi-source) conflicting; typed failures are included.",
+          "exclusivity_basis": "Validation precedence assigns exactly one epistemic state before any lifecycle transition.",
+          "precedence": "Internal generation/token mismatch, then conflicting identity, then determinate typed result, then inconclusive, then unknown.",
+          "default_policy": "Unknown and inconclusive never grant Ready, spawn permission, stop authority, or a permanent classification.",
+          "verification_ref": "verify-failure-recovery",
+          "witness_refs": [
+            "witness-failure-recovery-normal",
+            "witness-failure-recovery-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "Owned SIGTERM is attempted within 15 seconds and escalation follows the SCM-stop or recovery-specific fixed branch.",
+        "Stale ownership aborts child signalling; no path invokes all-distribution shutdown."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-failure-recovery",
+          "class": "transient",
+          "source": "transient",
+          "outcome": "Stale ownership aborts child signalling; no path invokes all-distribution shutdown.",
+          "requirement_effect": "preserves",
+          "recovery": "escalate"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-failure-recovery",
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-008",
+            "FR-WSL-009",
+            "FR-WSL-010",
+            "FR-WSL-013",
+            "FR-WSL-015",
+            "FR-WSL-017"
+          ],
+          "tier": "T2",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Graceful stop retry and registered-distro-only escalation.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-failure-recovery-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-008",
+            "FR-WSL-009",
+            "FR-WSL-010",
+            "FR-WSL-013",
+            "FR-WSL-015",
+            "FR-WSL-017"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "Owned SIGTERM is attempted within 15 seconds and escalation follows the SCM-stop or recovery-specific fixed branch."
+          ],
+          "expected_observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-failure-recovery"
+          ]
+        },
+        {
+          "id": "witness-failure-recovery-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "recovery",
+            "unsupported_environment",
+            "boundary",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence"
+          ],
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-008",
+            "FR-WSL-009",
+            "FR-WSL-010",
+            "FR-WSL-013",
+            "FR-WSL-015",
+            "FR-WSL-017"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Stale ownership aborts child signalling; no path invokes all-distribution shutdown."
+          ],
+          "expected_observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-failure-recovery"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-shutdown-budget-escalation"
+      ],
+      "algorithm_ref": "alg-stop-escalation",
+      "domain_details": {
+        "decision_input_refs": [
+          "decision-input-shutdown-timeout-provenance"
+        ],
+        "selected_candidate": "OPT-DERIVE-FROM-SERVER-BUDGET",
+        "derivation_witness_ref": "witness-performance-budget-shutdown-derivation"
+      }
+    },
+    {
+      "id": "contract-integration-contract",
+      "dimension": "integration_contract",
+      "subject": "Typed Linux probe stop and health protocol",
+      "owner_component_ref": "component-linux-control",
+      "related_requirements": [
+        "FR-WSL-001",
+        "FR-WSL-006",
+        "FR-WSL-008",
+        "FR-WSL-011"
+      ],
+      "related_units": [
+        "Implement typed Linux probe and stop control"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-integration-contract-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-integration-contract"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-integration-contract"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-integration-contract",
+          "description": "JSON probe/stop output and exit classes bind data-dir, executable, argv fingerprint, PID start token, and health generation. Adversarially: Malformed output, TLS mismatch, timeout, or token mismatch is non-authoritative and never grants spawn or signal authority.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-integration-contract"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-integration-contract",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-linux-control",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Linux host server and WSL runtime"
+          },
+          "source": "Validated input for Typed Linux probe stop and health protocol",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-integration-contract-normal",
+            "witness-integration-contract-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "JSON probe/stop output and exit classes bind data-dir, executable, argv fingerprint, PID start token, and health generation.",
+        "Malformed output, TLS mismatch, timeout, or token mismatch is non-authoritative and never grants spawn or signal authority."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-integration-contract",
+          "class": "unsupported_input",
+          "source": "unsupported_input",
+          "outcome": "Malformed output, TLS mismatch, timeout, or token mismatch is non-authoritative and never grants spawn or signal authority.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-integration-contract",
+          "requirement_refs": [
+            "FR-WSL-001",
+            "FR-WSL-006",
+            "FR-WSL-008",
+            "FR-WSL-011"
+          ],
+          "tier": "T2",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Typed Linux probe stop and health protocol.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-integration-contract-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-001",
+            "FR-WSL-006",
+            "FR-WSL-008",
+            "FR-WSL-011"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "JSON probe/stop output and exit classes bind data-dir, executable, argv fingerprint, PID start token, and health generation."
+          ],
+          "expected_observable_refs": [
+            "observable-integration-contract"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-integration-contract"
+          ]
+        },
+        {
+          "id": "witness-integration-contract-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "unsupported_environment",
+            "malformed",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence"
+          ],
+          "requirement_refs": [
+            "FR-WSL-001",
+            "FR-WSL-006",
+            "FR-WSL-008",
+            "FR-WSL-011"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Malformed output, TLS mismatch, timeout, or token mismatch is non-authoritative and never grants spawn or signal authority."
+          ],
+          "expected_observable_refs": [
+            "observable-integration-contract"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-integration-contract"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-adopt-authority-classifier"
+      ]
+    },
+    {
+      "id": "contract-security-boundary",
+      "dimension": "security_boundary",
+      "subject": "Service identity target ACL and stop authority",
+      "owner_component_ref": "component-service-registration",
+      "related_requirements": [
+        "FR-WSL-007",
+        "FR-WSL-008",
+        "FR-WSL-009",
+        "FR-WSL-010",
+        "FR-WSL-016",
+        "FR-WSL-018"
+      ],
+      "related_units": [
+        "Implement registration snapshot and ACL boundary"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-security-boundary-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-security-boundary"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-security-boundary"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-security-boundary",
+          "description": "Installer fixes service identity and ACLs; runtime uses only the bound distro/user and authority token. Adversarially: Interactive defaults, stale PIDs, config tampering, and unrelated distros cannot redirect launch, logs, signal, or terminate.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-security-boundary"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-security-boundary",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-service-registration",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Service identity target ACL and stop authority",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-security-boundary-normal",
+            "witness-security-boundary-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Installer fixes service identity and ACLs; runtime uses only the bound distro/user and authority token.",
+        "Interactive defaults, stale PIDs, config tampering, and unrelated distros cannot redirect launch, logs, signal, or terminate."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-security-boundary",
+          "class": "unsupported_input",
+          "source": "unsupported_input",
+          "outcome": "Interactive defaults, stale PIDs, config tampering, and unrelated distros cannot redirect launch, logs, signal, or terminate.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-security-boundary",
+          "requirement_refs": [
+            "FR-WSL-007",
+            "FR-WSL-008",
+            "FR-WSL-009",
+            "FR-WSL-010",
+            "FR-WSL-016",
+            "FR-WSL-018"
+          ],
+          "tier": "T2",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Service identity target ACL and stop authority.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-security-boundary-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-007",
+            "FR-WSL-008",
+            "FR-WSL-009",
+            "FR-WSL-010",
+            "FR-WSL-016",
+            "FR-WSL-018"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "Installer fixes service identity and ACLs; runtime uses only the bound distro/user and authority token."
+          ],
+          "expected_observable_refs": [
+            "observable-security-boundary"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-security-boundary"
+          ]
+        },
+        {
+          "id": "witness-security-boundary-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale",
+            "concurrency",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence"
+          ],
+          "requirement_refs": [
+            "FR-WSL-007",
+            "FR-WSL-008",
+            "FR-WSL-009",
+            "FR-WSL-010",
+            "FR-WSL-016",
+            "FR-WSL-018"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Interactive defaults, stale PIDs, config tampering, and unrelated distros cannot redirect launch, logs, signal, or terminate."
+          ],
+          "expected_observable_refs": [
+            "observable-security-boundary"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-security-boundary"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-registration-bound-json-config",
+        "adr-20260725-wsl-supervisor-machine-wide-record"
+      ]
+    },
+    {
+      "id": "contract-performance-budget",
+      "dimension": "performance_budget",
+      "subject": "Readiness retry health and shutdown convergence bounds",
+      "owner_component_ref": "component-supervised-lifecycle",
+      "related_requirements": [
+        "FR-WSL-004",
+        "FR-WSL-005",
+        "FR-WSL-011",
+        "FR-WSL-012",
+        "FR-WSL-013",
+        "FR-WSL-015",
+        "FR-WSL-017",
+        "NFR-WSL-PERFORMANCE",
+        "FR-WSL-008"
+      ],
+      "related_units": [
+        "Implement supervised lifecycle and health state machine"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-performance-budget-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-performance-budget"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-performance-budget"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-performance-budget",
+          "description": "Fake-clock policy enforces 2s probes, 5s cadence, 10s resume, 60s readiness, 15s stop, 1/2/5/15/60s backoff, and 5/10 terminal thresholds. Adversarially: Repeated failures converge to Failed within the matching bound and never busy-loop or exceed one pending timer.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-performance-budget"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-performance-budget",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-supervised-lifecycle",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Readiness retry health and shutdown convergence bounds",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-performance-budget-normal",
+            "witness-performance-budget-adversarial",
+            "witness-performance-budget-shutdown-derivation"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-performance-budget-cost",
+          "kind": "cost_convergence",
+          "workload_axis": "consecutive failed attempts and elapsed lifecycle time",
+          "cost_metric": "attempt count, pending timers, and wall-clock duration",
+          "bound": "configuration <=5 attempts; transient <=10 attempts; backoff capped at 60s; readiness <=60s per attempt; graceful stop <=15s",
+          "resource_cap": "one child, one health request, one timer, and one serialized stop transaction per generation",
+          "measurement_ref": "verify-performance-budget",
+          "witness_refs": [
+            "witness-performance-budget-adversarial",
+            "witness-performance-budget-shutdown-derivation"
+          ]
+        }
+      ],
+      "invariants": [
+        "Fake-clock policy enforces 2s probes, 5s cadence, 10s resume, 60s readiness, 15s stop, 1/2/5/15/60s backoff, and 5/10 terminal thresholds.",
+        "Repeated failures converge to Failed within the matching bound and never busy-loop or exceed one pending timer."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-performance-budget",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Repeated failures converge to Failed within the matching bound and never busy-loop or exceed one pending timer.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-performance-budget",
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-011",
+            "FR-WSL-012",
+            "FR-WSL-013",
+            "FR-WSL-015",
+            "FR-WSL-017",
+            "NFR-WSL-PERFORMANCE",
+            "FR-WSL-008"
+          ],
+          "tier": "T0",
+          "method": "Deterministic fake-clock derivation test plus T3 measurement of the existing 8-second drain, 5-second gateway grace, and <=2-second supervised-unit exit allowance.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Readiness retry health and shutdown convergence bounds. The shutdown witness must prove 8s + 5s + 2s = 15s and reject both an 8-second truncation and the ungrounded 30-second candidate.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-performance-budget-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-011",
+            "FR-WSL-012",
+            "FR-WSL-013",
+            "FR-WSL-015",
+            "FR-WSL-017",
+            "NFR-WSL-PERFORMANCE"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "Fake-clock policy enforces 2s probes, 5s cadence, 10s resume, 60s readiness, 15s stop, 1/2/5/15/60s backoff, and 5/10 terminal thresholds."
+          ],
+          "expected_observable_refs": [
+            "observable-performance-budget"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-performance-budget"
+          ]
+        },
+        {
+          "id": "witness-performance-budget-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "scale",
+            "repeated_usage",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-WSL-004",
+            "FR-WSL-005",
+            "FR-WSL-011",
+            "FR-WSL-012",
+            "FR-WSL-013",
+            "FR-WSL-015",
+            "FR-WSL-017",
+            "NFR-WSL-PERFORMANCE"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Repeated failures converge to Failed within the matching bound and never busy-loop or exceed one pending timer."
+          ],
+          "expected_observable_refs": [
+            "observable-performance-budget"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-performance-budget"
+          ]
+        },
+        {
+          "id": "witness-performance-budget-shutdown-derivation",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-008",
+            "FR-WSL-013",
+            "NFR-WSL-PERFORMANCE"
+          ],
+          "precondition": "The existing host shutdown contract exposes an 8-second drain and 5-second gateway grace, and the supervised-unit exit allowance is fixed at 2 seconds.",
+          "stimulus": "Derive and exercise the common graceful deadline for SCM stop and recovery restart.",
+          "expected_observables": [
+            "The deadline is exactly 15 seconds (8 + 5 + 2), preserves drain and gateway grace, and is shared by both paths."
+          ],
+          "expected_observable_refs": [
+            "observable-performance-budget"
+          ],
+          "forbidden_outcomes": [
+            "Escalation at 8 seconds before gateway grace completes.",
+            "Copying the ungrounded 30-second example.",
+            "Using different graceful budgets for SCM stop and recovery restart."
+          ],
+          "verification_refs": [
+            "verify-performance-budget"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-retry-health-thresholds",
+        "adr-20260725-wsl-supervisor-shutdown-budget-escalation"
+      ],
+      "domain_details": {
+        "decision_input_refs": [
+          "decision-input-shutdown-timeout-provenance"
+        ],
+        "selected_candidate": "OPT-DERIVE-FROM-SERVER-BUDGET",
+        "derivation": "8-second host drain + 5-second gateway grace + 2-second supervised-unit exit allowance = 15 seconds"
+      }
+    },
+    {
+      "id": "contract-migration-compatibility",
+      "dimension": "migration_compatibility",
+      "subject": "Additive config and server control rollout",
+      "owner_component_ref": "component-service-registration",
+      "related_requirements": [
+        "FR-WSL-018",
+        "NFR-WSL-COMPATIBILITY"
+      ],
+      "related_units": [
+        "Implement registration snapshot and ACL boundary"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-migration-compatibility-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-migration-compatibility"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-migration-compatibility"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-migration-compatibility",
+          "description": "A new registration writes schema v1 and requires stopped apply; existing server daemon mode and CLI remain unchanged. Adversarially: Unknown config versions or old server binaries lacking control commands fail before service start and rollback restores the prior snapshot/binary. After registration, changing wsl --set-default or the interactive identity/default and restarting the service preserves the same registration snapshot generation across record, launch, health, stop, and terminate targets; resolving A2/D2 at restart is observably forbidden.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-migration-compatibility"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-migration-compatibility",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-service-registration",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Additive config and server control rollout",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-migration-compatibility-normal",
+            "witness-migration-compatibility-adversarial",
+            "witness-migration-compatibility-registration-binding"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-migration-compatibility-evolution",
+          "kind": "contract_evolution",
+          "surface": "registration JSON schema v1 and additive server supervisor-probe/supervisor-stop CLI",
+          "consumer_refs": [
+            {
+              "kind": "component",
+              "component_ref": "component-supervised-lifecycle"
+            },
+            {
+              "kind": "external",
+              "external_identity": "installer/operator"
+            }
+          ],
+          "compatibility": "backward_compatible",
+          "migration_strategy": "Install compatible server and supervisor, stop service, validate and atomically apply schema v1, then start.",
+          "rollout": "Probe command support and config validation gate service start before replacing the active generation.",
+          "rollback": "Stop service, restore prior atomic snapshot and binary, then restart; no data-dir migration occurs.",
+          "baseline_verification_refs": [
+            "verify-migration-compatibility"
+          ],
+          "target_verification_refs": [
+            "verify-migration-compatibility"
+          ],
+          "witness_refs": [
+            "witness-migration-compatibility-adversarial",
+            "witness-migration-compatibility-registration-binding"
+          ]
+        }
+      ],
+      "invariants": [
+        "A new registration writes schema v1 and requires stopped apply; existing server daemon mode and CLI remain unchanged.",
+        "Unknown config versions or old server binaries lacking control commands fail before service start and rollback restores the prior snapshot/binary."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-migration-compatibility",
+          "class": "unsupported_input",
+          "source": "unsupported_input",
+          "outcome": "Unknown config versions or old server binaries lacking control commands fail before service start and rollback restores the prior snapshot/binary.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-migration-compatibility",
+          "requirement_refs": [
+            "FR-WSL-018",
+            "NFR-WSL-COMPATIBILITY"
+          ],
+          "tier": "T0",
+          "method": "T0 snapshot-generation contract test plus a T3 Windows/WSL restart test that changes wsl --set-default and the interactive default after registration.",
+          "criterion": "After registering generation G for A/D, change defaults to A2/D2 and restart; records and captured launch/health/stop/terminate commands must use only G and A/D. An implementation that re-resolves current defaults at each start must fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-migration-compatibility-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-018",
+            "NFR-WSL-COMPATIBILITY"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "A new registration writes schema v1 and requires stopped apply; existing server daemon mode and CLI remain unchanged."
+          ],
+          "expected_observable_refs": [
+            "observable-migration-compatibility"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-migration-compatibility"
+          ]
+        },
+        {
+          "id": "witness-migration-compatibility-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "stale",
+            "recovery",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-WSL-018",
+            "NFR-WSL-COMPATIBILITY"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Unknown config versions or old server binaries lacking control commands fail before service start and rollback restores the prior snapshot/binary."
+          ],
+          "expected_observable_refs": [
+            "observable-migration-compatibility"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-migration-compatibility"
+          ]
+        },
+        {
+          "id": "witness-migration-compatibility-registration-binding",
+          "case": "adversarial",
+          "risk_tags": [
+            "stale",
+            "recovery",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-WSL-018",
+            "NFR-WSL-COMPATIBILITY"
+          ],
+          "precondition": "Registration snapshot generation G binds Windows identity A and distribution D; after registration the interactive identity/default and wsl --set-default are changed to A2/D2.",
+          "stimulus": "Restart the same registered service, let it reach Ready, issue SCM stop, and force the target-selection branch under the fake/T3 harness.",
+          "expected_observables": [
+            "Every structured record carries generation G and A/D.",
+            "Captured direct launch argv, health target, supervisor-probe/supervisor-stop request, and terminate target use A/D only."
+          ],
+          "expected_observable_refs": [
+            "observable-migration-compatibility"
+          ],
+          "forbidden_outcomes": [
+            "Re-resolving A2 or D2 at service start.",
+            "Recording A/D while launching, stopping, or terminating A2/D2."
+          ],
+          "verification_refs": [
+            "verify-migration-compatibility"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-registration-bound-json-config"
+      ]
+    },
+    {
+      "id": "contract-user-observability",
+      "dimension": "user_observability",
+      "subject": "Operator state and failure record surface",
+      "owner_component_ref": "component-operator-recording",
+      "related_requirements": [
+        "FR-WSL-005",
+        "FR-WSL-007",
+        "FR-WSL-016",
+        "FR-WSL-018"
+      ],
+      "related_units": [
+        "Implement structured machine-wide recording"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-user-observability-determinate",
+          "condition": "The contract input is valid for the current generation.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-user-observability"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the fixed contract outcome.",
+          "observable_refs": [
+            "observable-user-observability"
+          ],
+          "rationale": "The owner validates representation before transition."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-user-observability",
+          "description": "Allowlisted JSON events plus SCM pre-start records distinguish Ready, Backoff, Failed, already-running, stop, and escalation. Adversarially: Raw output, secret/environment values, missing operator access, and silent pre-start failure are forbidden.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-user-observability"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-user-observability",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-operator-recording",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Windows SCM/WSL/OS boundary"
+          },
+          "source": "Validated input for Operator state and failure record surface",
+          "acquired_at": "At registration, generation start, or the triggering event",
+          "required_until": "The current generation transition is committed",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "The generation token binds acquisition to use.",
+          "invalidation_behavior": "Discard on generation change and reacquire before transition.",
+          "unavailable_outcome": "Use the contract's unknown/non-authoritative outcome; never silently succeed.",
+          "witness_refs": [
+            "witness-user-observability-normal",
+            "witness-user-observability-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Allowlisted JSON events plus SCM pre-start records distinguish Ready, Backoff, Failed, already-running, stop, and escalation.",
+        "Raw output, secret/environment values, missing operator access, and silent pre-start failure are forbidden."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-user-observability",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Raw output, secret/environment values, missing operator access, and silent pre-start failure are forbidden.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-user-observability",
+          "requirement_refs": [
+            "FR-WSL-005",
+            "FR-WSL-007",
+            "FR-WSL-016",
+            "FR-WSL-018"
+          ],
+          "tier": "T0",
+          "method": "Deterministic fake/contract test plus the verification member's mapped T3 fidelity backstop.",
+          "criterion": "Prove the normal observation and make the stated adversarial outcome fail for Operator state and failure record surface.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-user-observability-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-WSL-005",
+            "FR-WSL-007",
+            "FR-WSL-016",
+            "FR-WSL-018"
+          ],
+          "precondition": "All current-generation inputs and authority are valid.",
+          "stimulus": "Execute the contract's normal event.",
+          "expected_observables": [
+            "Allowlisted JSON events plus SCM pre-start records distinguish Ready, Backoff, Failed, already-running, stop, and escalation."
+          ],
+          "expected_observable_refs": [
+            "observable-user-observability"
+          ],
+          "forbidden_outcomes": [
+            "No silent fallback, stale transition, or unbounded work."
+          ],
+          "verification_refs": [
+            "verify-user-observability"
+          ]
+        },
+        {
+          "id": "witness-user-observability-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "malformed",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence"
+          ],
+          "requirement_refs": [
+            "FR-WSL-005",
+            "FR-WSL-007",
+            "FR-WSL-016",
+            "FR-WSL-018"
+          ],
+          "precondition": "An input is stale, unavailable, malformed, conflicting, repeated, or outside the ownership boundary.",
+          "stimulus": "Execute the same event at the adverse boundary.",
+          "expected_observables": [
+            "Raw output, secret/environment values, missing operator access, and silent pre-start failure are forbidden."
+          ],
+          "expected_observable_refs": [
+            "observable-user-observability"
+          ],
+          "forbidden_outcomes": [
+            "Ready/spawn/stop authority from insufficient evidence; all-distribution shutdown; silent success."
+          ],
+          "verification_refs": [
+            "verify-user-observability"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260725-wsl-supervisor-machine-wide-record"
+      ]
+    }
+  ],
+  "reference_algorithms": [
+    {
+      "id": "alg-supervisor-lifecycle",
+      "contract": "contract-state-lifecycle",
+      "inputs": [
+        "registration generation",
+        "typed pre-spawn probe",
+        "child exit",
+        "health result",
+        "resume event",
+        "retry timer"
+      ],
+      "outputs": [
+        "Stopped/Starting/Ready/Backoff/Failed/already-running transition",
+        "structured event"
+      ],
+      "state": [
+        "generation",
+        "ownership token",
+        "config failure count",
+        "transient failure count",
+        "health failure count",
+        "single pending timer"
+      ],
+      "pseudocode": "serialize event; discard if event.generation != current; on start probe before spawn; matched=>adopt, absent=>spawn once, mismatch=>config failure, unknown=>transient; Ready only on status ok; third health failure=>graceful restart; config count 5=>Failed; transient count 10=>Failed; Ready resets counters; resume invalidates health and schedules immediate probe.",
+      "bounds": [
+        "At most one spawn, health request and timer per generation.",
+        "Backoff is 1,2,5,15,60 seconds capped at 60.",
+        "All terminal partitions are exhaustive and mutually exclusive."
+      ],
+      "failure_cases": [
+        "Stale event is discarded.",
+        "Unknown/inconclusive/conflicting evidence never grants authority.",
+        "Internal impossible transition fails fast."
+      ]
+    },
+    {
+      "id": "alg-stop-escalation",
+      "contract": "contract-failure-recovery",
+      "inputs": [
+        "SCM or recovery stop intent",
+        "ownership token",
+        "15-second deadline",
+        "child exit",
+        "post-stop probe"
+      ],
+      "outputs": [
+        "Stopped or typed escalation failure",
+        "structured stop events"
+      ],
+      "state": [
+        "one serialized stop transaction",
+        "current generation",
+        "path kind SCM-stop or recovery"
+      ],
+      "pseudocode": "revalidate token; invoke supervisor-stop(SIGTERM); report pending checkpoints while waiting <=15s; if exited finish; if SCM-stop terminate owned child, wait 2s, probe, and terminate bound distro only if evidence persists; if recovery terminate bound distro immediately after 15s; after terminate re-probe absence before reporting completion; never invoke --shutdown.",
+      "bounds": [
+        "Graceful wait 15s; optional child wait 2s; one bound-distro terminate.",
+        "Duplicate/late stop controls cannot start another transaction."
+      ],
+      "failure_cases": [
+        "Ownership mismatch aborts signal and broad termination.",
+        "Terminate failure is recorded and SCM receives a non-success terminal result.",
+        "Unrelated distributions are never enumerated or targeted."
+      ]
+    }
+  ],
+  "implementation_decisions_remaining": [],
+  "decision_inputs": [
+    {
+      "id": "decision-input-registration-binding",
+      "subject": "Registration-time identity and distribution binding",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "ux.md#cc-configurable-identity-and-distribution, UX DP-SERVICE-IDENTITY-SCOPE"
+      },
+      "authority": "constraint",
+      "candidate": "Resolve explicit values or registration-time defaults once, persist them as the service snapshot, and require re-registration or an explicit apply operation to change them.",
+      "requirement_refs": [
+        "UX:cc-configurable-identity-and-distribution",
+        "UX:edge-registration-bound-target"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "Resolve WSL default distribution and interactive identity again at every service start."
+    },
+    {
+      "id": "decision-input-launch-topology",
+      "subject": "Foreground WSL launch invocation",
+      "source": {
+        "kind": "ux_design_handoff",
+        "ref": "ux.md#handoff-launch-topology"
+      },
+      "authority": "handoff",
+      "candidate": "Use direct wsl.exe --exec or a launcher ending in exec, selected only after proving signal and exit propagation with a long-lived SCM parent.",
+      "requirement_refs": [
+        "UX:cc-foreground-supervised-unit",
+        "UX:cc-sigterm-is-the-existing-stop-path"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "A detached shell/launcher that can outlive or obscure the supervised unit."
+    },
+    {
+      "id": "decision-input-detach-spike-nonapplicability",
+      "subject": "setsid/nohup detach behavior from the WSL detach spike ADR",
+      "source": {
+        "kind": "accepted_adr",
+        "ref": "adr-20260724-boundary-3-wsl-detach-spike"
+      },
+      "authority": "candidate",
+      "candidate": "Do not apply setsid/nohup detach behavior to this service because the supervisor must remain a long-lived parent that observes the foreground unit's lifecycle and owns bounded stop escalation.",
+      "requirement_refs": [
+        "UX:handoff-launch-topology",
+        "UX:cc-foreground-supervised-unit"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "The ADR's measured short-lived launch-origin context, where detached process survival is the objective."
+    },
+    {
+      "id": "decision-input-already-running",
+      "subject": "Already-running refusal classification and adoption ownership",
+      "source": {
+        "kind": "ux_design_handoff",
+        "ref": "ux.md#handoff-already-running-detection"
+      },
+      "authority": "handoff",
+      "candidate": "Use a proven flock-refusal signal to record already-running and continue health evaluation; leave whether the service owns later stop of the adopted instance as a separate design choice.",
+      "requirement_refs": [
+        "UX:edge-already-running-refusal",
+        "UX:state-supervised-unit-availability"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "Classify every launch refusal as permanent configuration failure or crash."
+    },
+    {
+      "id": "decision-input-health-config",
+      "subject": "Health target and data-dir configuration source",
+      "source": {
+        "kind": "ux_design_handoff",
+        "ref": "ux.md#handoff-health-target-resolution"
+      },
+      "authority": "handoff",
+      "candidate": "Derive the health target from the same persisted launch configuration that provides server -addr and -data-dir, accepting only /healthz status ok.",
+      "requirement_refs": [
+        "UX:cc-health-target-from-configuration",
+        "UX:cc-data-dir-explicitly-specifiable"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "A supervisor-only fixed localhost port or a separate health URL that can drift from server launch arguments."
+    },
+    {
+      "id": "decision-input-dedicated-log",
+      "subject": "Operator-reachable dedicated log with pre-start failure complement",
+      "source": {
+        "kind": "ux_technology_candidate",
+        "ref": "ux.md#candidate-localappdata-log-file and handoff-record-content-and-sink"
+      },
+      "authority": "constraint",
+      "candidate": "Use the selected dedicated rotating log at a machine-wide operator-readable path, with SCM/OS service-start records for failures before the supervisor can open the file.",
+      "requirement_refs": [
+        "UX:cc-record-surface-reachable-by-operator",
+        "UX:UAC-016",
+        "UX:UAC-007"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "A profile-relative service-account log file alone, or Windows Event Log as the primary sink."
+    },
+    {
+      "id": "decision-input-shutdown-timeout-provenance",
+      "subject": "Graceful shutdown wait budget provenance",
+      "source": {
+        "kind": "ux_design_handoff",
+        "ref": "ux.md#DP-SHUTDOWN-TIMEOUT-PROVENANCE"
+      },
+      "authority": "constraint",
+      "candidate": "OPT-DERIVE-FROM-SERVER-BUDGET",
+      "requirement_refs": [
+        "FR-WSL-008",
+        "FR-WSL-013",
+        "NFR-WSL-PERFORMANCE"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "OPT-USE-PLAN-THIRTY-SECONDS",
+      "candidates": [
+        {
+          "id": "OPT-DERIVE-FROM-SERVER-BUDGET",
+          "description": "Derive one budget from the existing 8-second server drain, 5-second gateway grace, and measured supervised-unit exit overhead."
+        },
+        {
+          "id": "OPT-USE-PLAN-THIRTY-SECONDS",
+          "description": "Use the original plan's ungrounded 30-second example."
+        }
+      ],
+      "constraint": "SCM stop and graceful recovery restart use the same shutdown wait budget; it must preserve the existing drain and gateway grace and must not copy the ungrounded 30-second example."
+    }
+  ],
+  "base_revision": "design-r2"
+}
