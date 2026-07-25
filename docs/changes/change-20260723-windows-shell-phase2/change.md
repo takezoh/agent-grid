@@ -46,14 +46,19 @@ members:
   required: false
 promotion:
 - action: none
-  reason: Phase 2 change stays scoped to native-client behavior/capability additions;
-    the 14 ADRs published under docs/adr/adr-20260724-*.md carry the design contracts.
-    No persistent design/*.md upsert or retire is required in this pass — Windows
-    Shell / Workspace / hosted-mode SPA are not represented in docs/design as first-class
-    responsibility/boundary/ownership records today. Promotion is revisited if boundaries
-    stabilize post-S5.
+  reason: 'The 14 ADRs published under docs/adr/adr-20260724-*.md carry the decision
+    contracts. The former gap ("Shell / Workspace / hosted-mode SPA not represented
+    in docs/design") was resolved in-flight on 2026-07-25: first-class design records
+    now exist as design-windows-shell, design-workspace-desktop, and design-clients-ui
+    (wired via introduces relations), created directly with the stabilized boundaries
+    from the S1-S5 implementation and the post-S5 debug runs. No additional upsert
+    or retire remains for closure; promotion re-opens only if those boundaries move
+    again before close.'
 unresolved_decisions: []
-relations: []
+relations:
+- {type: introduces, target: design-windows-shell}
+- {type: introduces, target: design-workspace-desktop}
+- {type: introduces, target: design-clients-ui}
 updated: '2026-07-24'
 ---
 

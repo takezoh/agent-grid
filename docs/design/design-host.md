@@ -106,6 +106,8 @@ compatibility_policies:
 source_paths:
 - src/host/
 - src/server/api/
+- src/cmd/server/
+- src/cmd/uihost/
 ---
 
 # Client architecture
