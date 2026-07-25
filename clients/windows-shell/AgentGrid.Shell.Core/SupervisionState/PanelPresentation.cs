@@ -47,26 +47,18 @@ public static class PanelPresentation
         _ => "muted",
     };
 
-    /// <summary>Chip label: explicit title when present, else short id.</summary>
-    public static string SessionLabel(SessionSummary session) =>
-        string.IsNullOrWhiteSpace(session.Title)
-            ? ShortSessionId(session.SessionId)
-            : CompactTitle(session.Title!);
-
-    /// <summary>
-    /// Path-like titles (the project-directory fallback) collapse to their
-    /// basename: a glance chip must never swallow the whole row with a long
-    /// absolute path — sibling chips would be pushed out of the island.
-    /// </summary>
-    public static string CompactTitle(string title)
+    /// <summary>Workspace StatusIcon visual kind for a desktop session phase.</summary>
+    public static string PhaseVisualKind(SessionPhase phase) => phase switch
     {
-        title = title.Trim();
-        var cut = title.TrimEnd('/', '\\');
-        var idx = cut.LastIndexOfAny(PathSeparators);
-        return idx >= 0 && idx < cut.Length - 1 ? cut[(idx + 1)..] : title;
-    }
+        SessionPhase.Running => "running",
+        SessionPhase.Waiting => "waiting",
+        SessionPhase.Failed => "stopped",
+        SessionPhase.Done => "idle",
+        _ => "unknown",
+    };
 
-    private static readonly char[] PathSeparators = ['/', '\\'];
+    /// <summary>Clients render the server-owned title without local fallback.</summary>
+    public static string SessionLabel(SessionSummary session) => session.Title ?? "";
 
     /// <summary>
     /// One-line aggregate for the compact island bar. Priority mirrors what the

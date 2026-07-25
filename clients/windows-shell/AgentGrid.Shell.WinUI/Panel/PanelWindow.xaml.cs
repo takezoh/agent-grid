@@ -4,10 +4,12 @@ using AgentGrid.Shell.Core.SupervisionState;
 using AgentGrid.Shell.Core.SessionIdentity;
 using AgentGrid.Shell.Core.Configuration;
 using AgentGrid.Shell.Platform.Interop;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
@@ -53,14 +55,6 @@ public sealed partial class PanelWindow : Window
         ConfigureIslandChrome();
         AttachDragSurface(CompactBar);
         AttachDragSurface(HeaderBar);
-        // Chip strip scrolls horizontally (scrollbar hidden) — route the
-        // vertical wheel into it so overflow chips stay reachable.
-        SessionRow.PointerWheelChanged += (_, e) =>
-        {
-            var delta = e.GetCurrentPoint(SessionRow).Properties.MouseWheelDelta;
-            SessionRow.ChangeView(SessionRow.HorizontalOffset - delta, null, null, true);
-            e.Handled = true;
-        };
         MoveResizeTop(CurrentModeSize());
 
         _root.SnapshotChanged += snap =>
@@ -362,6 +356,65 @@ public sealed partial class PanelWindow : Window
             return;
         await _root.OpenSessionAsync(
             new ServerSessionId(chip.Session.ServerId, chip.Session.SessionId));
+    }
+
+    private void OnRunningStatusIconLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement icon || icon.Visibility != Visibility.Visible)
+            return;
+        var visual = ElementCompositionPreview.GetElementVisual(icon);
+        visual.CenterPoint = new System.Numerics.Vector3(7, 7, 0);
+        var rotation = visual.Compositor.CreateScalarKeyFrameAnimation();
+        rotation.InsertKeyFrame(1, 360);
+        rotation.Duration = TimeSpan.FromMilliseconds(800);
+        rotation.IterationBehavior = AnimationIterationBehavior.Forever;
+        visual.StartAnimation(nameof(visual.RotationAngleInDegrees), rotation);
+    }
+
+    private void OnWaitingStatusDotLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement dot || dot.Visibility != Visibility.Visible)
+            return;
+        var visual = ElementCompositionPreview.GetElementVisual(dot);
+        ElementCompositionPreview.SetIsTranslationEnabled(dot, true);
+        var compositor = visual.Compositor;
+        var easing = compositor.CreateCubicBezierEasingFunction(
+            new System.Numerics.Vector2(0.42f, 0),
+            new System.Numerics.Vector2(0.58f, 1));
+        var offset = compositor.CreateScalarKeyFrameAnimation();
+        offset.InsertKeyFrame(0, 0);
+        offset.InsertKeyFrame(0.3f, -1.46f, easing);
+        offset.InsertKeyFrame(0.6f, 0, easing);
+        offset.InsertKeyFrame(1, 0);
+        offset.Duration = TimeSpan.FromMilliseconds(1200);
+        offset.DelayTime = TimeSpan.FromMilliseconds(
+            int.TryParse(dot.Tag?.ToString(), out var delay) ? delay : 0);
+        offset.IterationBehavior = AnimationIterationBehavior.Forever;
+        visual.StartAnimation("Translation.Y", offset);
+
+        var opacity = compositor.CreateScalarKeyFrameAnimation();
+        opacity.InsertKeyFrame(0, 0.35f);
+        opacity.InsertKeyFrame(0.3f, 1, easing);
+        opacity.InsertKeyFrame(0.6f, 0.35f, easing);
+        opacity.InsertKeyFrame(1, 0.35f);
+        opacity.Duration = offset.Duration;
+        opacity.DelayTime = offset.DelayTime;
+        opacity.IterationBehavior = AnimationIterationBehavior.Forever;
+        visual.StartAnimation(nameof(visual.Opacity), opacity);
+    }
+
+    private void OnIdleStatusIconLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement icon || icon.Visibility != Visibility.Visible)
+            return;
+        var visual = ElementCompositionPreview.GetElementVisual(icon);
+        var opacity = visual.Compositor.CreateScalarKeyFrameAnimation();
+        opacity.InsertKeyFrame(0, 0.55f);
+        opacity.InsertKeyFrame(0.5f, 0.95f);
+        opacity.InsertKeyFrame(1, 0.55f);
+        opacity.Duration = TimeSpan.FromMilliseconds(2600);
+        opacity.IterationBehavior = AnimationIterationBehavior.Forever;
+        visual.StartAnimation(nameof(visual.Opacity), opacity);
     }
 
     private async void OnOpenSession(object sender, RoutedEventArgs e)

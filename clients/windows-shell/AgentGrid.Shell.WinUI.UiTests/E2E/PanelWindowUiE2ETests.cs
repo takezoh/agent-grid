@@ -64,18 +64,29 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
     }
 
     [WinUiUiFact]
-    public void Session_chips_lay_out_horizontally_when_present()
+    public void Session_rows_fill_the_shell_content_width_when_present()
     {
-        // Regression: ListView + ItemsStackPanel(Horizontal) stacked chips
-        // vertically — every chip beyond the first had an empty bounding rect
-        // ("only one session visible"). With ≥2 sessions on the gateway the
-        // chips must all be laid out on one row. Vacuously passes on a
-        // sessionless gateway (this suite never mutates run-dev sessions).
+        // Full-width rows make the content define the island width rather than
+        // leaving short intrinsic-width chips inside an enlarged shell.
         _ = _ui.Find("StatusText");
         var chips = Retry.WhileEmpty(
             () => _ui.Window.FindAllDescendants(cf => cf.ByAutomationId("SessionChip")),
             TimeSpan.FromSeconds(10),
             interval: TimeSpan.FromMilliseconds(500)).Result ?? [];
+        if (chips.Length > 0)
+        {
+            var windowRect = _ui.Window.BoundingRectangle;
+            var stripRect = _ui.Find("SessionRow").BoundingRectangle;
+            Assert.True(stripRect.Left >= windowRect.Left && stripRect.Right <= windowRect.Right,
+                "session strip overflows the shell content bounds");
+            Assert.All(chips, chip =>
+            {
+                Assert.True(chip.BoundingRectangle.Width >= stripRect.Width - 2,
+                    $"session row width {chip.BoundingRectangle.Width} does not fill strip {stripRect.Width}");
+                Assert.NotNull(chip.FindFirstDescendant(
+                    cf => cf.ByAutomationId("SessionStatusIcon")));
+            });
+        }
         if (chips.Length < 2)
             return;
 
@@ -84,10 +95,9 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
             .Where(r => r.Width > 0 && r.Height > 0)
             .ToList();
         Assert.True(rects.Count >= 2,
-            $"{chips.Length} chips in tree but only {rects.Count} laid out — vertical stacking regression");
-        Assert.True(rects.Select(r => r.Top).Distinct().Count() == 1,
-            "session chips are not on a single horizontal row");
-        Assert.Equal(rects.Count, rects.Select(r => r.Left).Distinct().Count());
+            $"{chips.Length} rows in tree but only {rects.Count} laid out");
+        Assert.Single(rects.Select(r => r.Left).Distinct());
+        Assert.Equal(rects.Count, rects.Select(r => r.Top).Distinct().Count());
     }
 
     [WinUiUiFact]

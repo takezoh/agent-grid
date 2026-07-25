@@ -340,6 +340,7 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		rootDriverName = drv.Name()
 		_, rootDriverForkable = drv.(state.Forkable)
 	}
+	view.Card.Title = wireCardTitle(view.Card.Title)
 	if len(sess.Frames) > 1 {
 		if activeF, ok := sessionHeadFrame(sess); ok {
 			if activeDrv := state.GetDriver(activeF.Command); activeDrv != nil {
@@ -389,6 +390,14 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		info.StateChangedAt = view.StatusChangedAt.Format("2006-01-02T15:04:05Z07:00")
 	}
 	return info, true
+}
+
+func wireCardTitle(title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return stateview.DefaultCardTitle
+	}
+	return title
 }
 
 // buildFeatureList converts the state's runtime feature set into the wire

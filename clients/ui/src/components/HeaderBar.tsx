@@ -101,10 +101,8 @@ export function HeaderBar({
         {sessionId && onRequestTerminate && (
           <SessionTerminateButton
             sessionId={sessionId}
-            sessionLabel={sessionTitle ?? "New Session"}
-            onRequestTerminate={(id, opener) =>
-              onRequestTerminate(id, sessionTitle ?? "New Session", opener)
-            }
+            sessionLabel={sessionTitle ?? ""}
+            onRequestTerminate={(id, opener) => onRequestTerminate(id, sessionTitle ?? "", opener)}
           />
         )}
         <OverflowMenu />

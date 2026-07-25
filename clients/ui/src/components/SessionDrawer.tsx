@@ -119,9 +119,9 @@ export function SessionDrawer({
     if (!open) return;
     if (activeSessionID === null) return;
     if (prev === activeSessionID) return;
-    // displayLabel: title (or "New Session" placeholder) — shared with SessionList.
+    // The server owns the fallback; clients render the wire title.
     const sess = sessions.find((s) => s.id === activeSessionID);
-    const label = displayLabel(sess?.view?.card ?? {}, activeSessionID);
+    const label = displayLabel(sess?.view?.card ?? { title: "" }, activeSessionID);
     onSelectionClose(prev, activeSessionID, label);
   }, [open, activeSessionID, sessions, onSelectionClose]);
 

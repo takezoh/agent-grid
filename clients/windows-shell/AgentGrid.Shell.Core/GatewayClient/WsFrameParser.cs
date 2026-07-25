@@ -136,7 +136,6 @@ public static class WsFrameParser
             {
                 title = OptString(card, "title");
             }
-            title ??= OptString(s, "project") ?? OptString(s, "command");
             list.Add(new SessionSummary(id, phase, title));
         }
 

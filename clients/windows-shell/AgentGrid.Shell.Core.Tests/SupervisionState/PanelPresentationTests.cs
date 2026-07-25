@@ -30,6 +30,15 @@ public class PanelPresentationTests
         Assert.Equal(expected, PanelPresentation.ShortSessionId(id));
     }
 
+    [Fact]
+    public void Session_label_excludes_server_id()
+    {
+        var session = new SessionSummary(
+            "123456789abcdef", SessionPhase.Running, Title: "server title", ServerId: "remote");
+
+        Assert.Equal("server title", PanelPresentation.SessionLabel(session));
+    }
+
     [Theory]
     [InlineData(SessionPhase.Running, "Running", "success")]
     [InlineData(SessionPhase.Waiting, "Waiting", "warning")]
@@ -39,6 +48,16 @@ public class PanelPresentationTests
     {
         Assert.Equal(label, PanelPresentation.PhaseLabel(phase));
         Assert.Equal(accent, PanelPresentation.PhaseAccent(phase));
+    }
+
+    [Theory]
+    [InlineData(SessionPhase.Running, "running")]
+    [InlineData(SessionPhase.Waiting, "waiting")]
+    [InlineData(SessionPhase.Failed, "stopped")]
+    [InlineData(SessionPhase.Done, "idle")]
+    public void Phase_maps_to_workspace_status_icon_kind(SessionPhase phase, string visualKind)
+    {
+        Assert.Equal(visualKind, PanelPresentation.PhaseVisualKind(phase));
     }
 
     private static PanelGlanceView View(
@@ -151,26 +170,20 @@ public class PanelPresentationTests
     }
 
     [Fact]
-    public void Session_label_prefers_title_and_falls_back_to_short_id()
+    public void Session_label_matches_workspace_title_slot()
     {
         Assert.Equal("build fix", PanelPresentation.SessionLabel(
             new SessionSummary("123456789abcdef", SessionPhase.Running, "build fix")));
-        Assert.Equal("12345678", PanelPresentation.SessionLabel(
+        Assert.Equal("", PanelPresentation.SessionLabel(
             new SessionSummary("123456789abcdef", SessionPhase.Running)));
-        Assert.Equal("12345678", PanelPresentation.SessionLabel(
+        Assert.Equal("  ", PanelPresentation.SessionLabel(
             new SessionSummary("123456789abcdef", SessionPhase.Running, "  ")));
     }
 
     [Fact]
-    public void Path_like_titles_collapse_to_their_basename()
+    public void Session_label_preserves_workspace_title_content()
     {
-        // A project-path fallback title must not swallow the chip row —
-        // sibling session chips would be pushed out of the island.
-        Assert.Equal("dev-skills", PanelPresentation.CompactTitle("/home/dev/dev/dev-skills"));
-        Assert.Equal("agent-grid", PanelPresentation.CompactTitle("/workspace/agent-grid/"));
-        Assert.Equal("proj", PanelPresentation.CompactTitle(@"C:\Users\take\proj"));
-        Assert.Equal("claude --model opus", PanelPresentation.CompactTitle("claude --model opus"));
-        Assert.Equal("dev-skills", PanelPresentation.SessionLabel(
+        Assert.Equal("/home/dev/dev/dev-skills", PanelPresentation.SessionLabel(
             new SessionSummary("123456789abcdef", SessionPhase.Running, "/home/dev/dev/dev-skills")));
     }
 }

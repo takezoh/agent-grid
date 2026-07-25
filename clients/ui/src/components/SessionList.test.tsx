@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDaemonStore } from "../store/daemon";
-import { SessionList, TITLE_PLACEHOLDER, displayLabel, titleText } from "./SessionList";
+import { SessionList, displayLabel, titleText } from "./SessionList";
 
 const fakeConn = {
   subscribe: vi.fn(async () => {}),
@@ -11,32 +11,25 @@ const fakeConn = {
 } as unknown as import("../socket/connection").Connection;
 
 // ─── titleText (ADR-0079; the full aiTitle → collapseToSingleLine(summary)
-//     chain is resolved at the driver layer, so the Web client only adds
-//     the "New Session" placeholder. Card.Subtitle was removed from the
+//     chain and placeholder are resolved at the server layer. Card.Subtitle was removed from the
 //     wire — the matrix for the data-layer fallback lives in
 //     src/client/driver/title_chain_test.go.) ───────────────────────────────
 describe("titleText", () => {
-  it("returns trimmed card.title when present", () => {
+  it("returns card.title unchanged", () => {
     expect(titleText({ title: "My Session" })).toBe("My Session");
-    expect(titleText({ title: "  trimmed  " })).toBe("trimmed");
+    expect(titleText({ title: "  server value  " })).toBe("  server value  ");
   });
 
-  it("falls back to TITLE_PLACEHOLDER when title is empty / missing / whitespace", () => {
-    expect(titleText({})).toBe(TITLE_PLACEHOLDER);
-    expect(titleText({ title: "" })).toBe(TITLE_PLACEHOLDER);
-    expect(titleText({ title: "   " })).toBe(TITLE_PLACEHOLDER);
-    expect(titleText({ title: undefined })).toBe(TITLE_PLACEHOLDER);
-  });
-
-  it("TITLE_PLACEHOLDER is the literal 'New Session'", () => {
-    expect(TITLE_PLACEHOLDER).toBe("New Session");
+  it("does not synthesize a client-side placeholder", () => {
+    expect(titleText({})).toBe("");
+    expect(titleText({ title: "" })).toBe("");
   });
 });
 
 describe("displayLabel (deprecated, kept for back-compat)", () => {
   it("returns the title slot value (equivalent to titleText)", () => {
     expect(displayLabel({ title: "My Session" }, "s1")).toBe("My Session");
-    expect(displayLabel({}, "s1")).toBe(TITLE_PLACEHOLDER);
+    expect(displayLabel({ title: "New Session" }, "s1")).toBe("New Session");
   });
 
   it("does NOT return the id under any input (sessionID is hidden from UI now)", () => {
@@ -94,7 +87,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: {}, status: "stopped" },
+          view: { card: { title: "New Session" }, status: "stopped" },
         },
       ],
     });
@@ -103,7 +96,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
     expect(container.querySelector(".session-list__subtitle")).toBeNull();
   });
 
-  it("shows 'New Session' for empty title", () => {
+  it("does not replace an empty server title", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -116,11 +109,11 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
       ],
     });
     const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelector(".session-list__title")?.textContent).toBe("New Session");
+    expect(container.querySelector(".session-list__title")?.textContent).toBe("");
     expect(container.querySelector(".session-list__subtitle")).toBeNull();
   });
 
-  it("shows 'New Session' for whitespace-only title", () => {
+  it("does not trim the server title", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -133,7 +126,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
       ],
     });
     const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelector(".session-list__title")?.textContent).toBe("New Session");
+    expect(container.querySelector(".session-list__title")?.textContent).toBe("  ");
     expect(container.querySelector(".session-list__subtitle")).toBeNull();
   });
 
@@ -145,7 +138,7 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: {}, status: "idle" },
+          view: { card: { title: "New Session" }, status: "idle" },
         },
       ],
     });

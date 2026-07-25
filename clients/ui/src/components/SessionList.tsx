@@ -38,10 +38,8 @@ import { UnifiedListbox } from "./primitives/UnifiedListbox";
 // Title slot policy (ADR-0079)
 // ---------------------------------------------------------------------------
 
-export const TITLE_PLACEHOLDER = "New Session";
-
 export function titleText(card: Card): string {
-  return card.title?.trim() || TITLE_PLACEHOLDER;
+  return card.title ?? "";
 }
 
 /**

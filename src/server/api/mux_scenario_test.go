@@ -391,8 +391,8 @@ func assertSessionView(t *testing.T, frame map[string]any, sessionID, status str
 	if card == nil {
 		t.Fatalf("session %q missing view.card", sessionID)
 	}
-	if got, ok := card["title"]; ok && got != "" {
-		t.Fatalf("title = %v, want empty/absent", got)
+	if got := card["title"]; got != "New Session" {
+		t.Fatalf("title = %v, want %q", got, "New Session")
 	}
 	if got := view["status"]; got != status {
 		t.Fatalf("status = %v, want %q", got, status)

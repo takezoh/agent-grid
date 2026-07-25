@@ -57,6 +57,18 @@ public class WsFrameParserTests
     }
 
     [Fact]
+    public void View_update_does_not_promote_project_or_command_into_title()
+    {
+        var json = """
+            {"k":"v","sessions":[{"id":"s1","project":"/repo/p","command":"claude","state":"running","view":{"card":{}}}]}
+            """;
+
+        var ev = Assert.IsType<EvtViewUpdateSessions>(WsFrameParser.TryParse(json));
+
+        Assert.Null(Assert.Single(ev.Sessions).Title);
+    }
+
+    [Fact]
     public void Ignores_output_array_and_unknown()
     {
         Assert.Null(WsFrameParser.TryParse("""[0,"o","Zg==","s1"]"""));

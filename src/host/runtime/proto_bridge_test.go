@@ -17,6 +17,21 @@ import (
 	"github.com/takezoh/agent-grid/host/state"
 )
 
+func TestWireCardTitleOwnsPlaceholderAndTrimming(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		want  string
+	}{
+		{input: "", want: "New Session"},
+		{input: "   ", want: "New Session"},
+		{input: "  server title  ", want: "server title"},
+	} {
+		if got := wireCardTitle(tc.input); got != tc.want {
+			t.Errorf("wireCardTitle(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
 // newTestRelayAttached builds a Runtime with a standalone FileRelay
 // (no background goroutines) attached for inspecting registration.
 func newTestRelayAttached(t *testing.T) (*Runtime, *FileRelay) {

@@ -187,38 +187,87 @@
                 </Button>
             </Grid>
 
-            <!-- Session chips: one pill per live session; click opens it.
-                 ItemsControl + horizontal StackPanel, NOT ListView +
-                 ItemsStackPanel(Horizontal): the ListView pairing lays chips
-                 out vertically in practice (each item stretched to row width,
-                 later items virtualized away → "only one session visible"). -->
+            <!-- Full-width session rows participate in content measurement.
+                 Do not reintroduce intrinsic-width horizontal chips: they
+                 visually detach the list content from the island width. -->
             <ScrollViewer Grid.Row="1" x:Name="SessionRow" Margin="0,10,0,0"
+                          AutomationProperties.AutomationId="SessionRow"
                           Visibility="Collapsed"
-                          HorizontalScrollMode="Enabled"
-                          HorizontalScrollBarVisibility="Hidden"
-                          VerticalScrollMode="Disabled"
+                          HorizontalAlignment="Stretch"
+                          HorizontalScrollMode="Disabled"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollMode="Enabled"
                           VerticalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="SessionList"
+                              HorizontalAlignment="Stretch"
                               AutomationProperties.AutomationId="SessionList">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="8"/>
+                            <StackPanel Orientation="Vertical" Spacing="8"/>
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Style="{StaticResource ChipButtonStyle}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
                                     AutomationProperties.AutomationId="SessionChip"
                                     Tag="{Binding}" Click="OnSessionChipClick">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                                             Fill="{Binding PhaseBrush}"/>
-                                    <TextBlock Text="{Binding Label}" FontSize="12"
-                                               MaxWidth="180" MaxLines="1"
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Width="14" Height="14" VerticalAlignment="Center"
+                                          AutomationProperties.AutomationId="SessionStatusIcon"
+                                          AutomationProperties.Name="{Binding PhaseLabel}">
+                                        <!-- Workspace StatusIcon: running. -->
+                                        <Grid Visibility="{Binding RunningVisibility}"
+                                              Loaded="OnRunningStatusIconLoaded">
+                                            <Ellipse Width="10.5" Height="10.5"
+                                                     Stroke="{Binding PhaseBrush}"
+                                                     StrokeThickness="1.75" Opacity="0.28"/>
+                                            <Path Width="14" Height="14"
+                                                  Data="M 12.25,7 A 5.25,5.25 0 1 1 7,1.75"
+                                                  Stroke="{Binding PhaseBrush}"
+                                                  StrokeThickness="1.75"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"/>
+                                        </Grid>
+                                        <!-- Workspace StatusIcon: waiting. -->
+                                        <Canvas Width="14" Height="14"
+                                                Visibility="{Binding WaitingVisibility}">
+                                            <Ellipse Canvas.Left="1.52" Canvas.Top="5.6"
+                                                     Width="2.8" Height="2.8"
+                                                     Fill="{Binding PhaseBrush}" Tag="0"
+                                                     Visibility="{Binding WaitingVisibility}"
+                                                     Loaded="OnWaitingStatusDotLoaded"/>
+                                            <Ellipse Canvas.Left="5.6" Canvas.Top="5.6"
+                                                     Width="2.8" Height="2.8"
+                                                     Fill="{Binding PhaseBrush}" Tag="150"
+                                                     Visibility="{Binding WaitingVisibility}"
+                                                     Loaded="OnWaitingStatusDotLoaded"/>
+                                            <Ellipse Canvas.Left="9.68" Canvas.Top="5.6"
+                                                     Width="2.8" Height="2.8"
+                                                     Fill="{Binding PhaseBrush}" Tag="300"
+                                                     Visibility="{Binding WaitingVisibility}"
+                                                     Loaded="OnWaitingStatusDotLoaded"/>
+                                        </Canvas>
+                                        <!-- Workspace StatusIcon: idle. -->
+                                        <Ellipse Width="5.84" Height="5.84"
+                                                 Fill="{Binding PhaseBrush}"
+                                                 Visibility="{Binding IdleVisibility}"
+                                                 Loaded="OnIdleStatusIconLoaded"/>
+                                        <!-- Workspace SessionList override: stopped outline. -->
+                                        <Border Width="7" Height="7" CornerRadius="1.17"
+                                                BorderThickness="1.46"
+                                                BorderBrush="{Binding PhaseBrush}"
+                                                Visibility="{Binding StoppedVisibility}"/>
+                                    </Grid>
+                                    <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="12"
+                                               HorizontalAlignment="Stretch" MaxLines="1"
                                                TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding PhaseLabel}" FontSize="11"
-                                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                                </StackPanel>
+                                </Grid>
                             </Button>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

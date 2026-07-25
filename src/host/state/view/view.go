@@ -45,6 +45,8 @@ type Card struct {
 	BorderBadge          string `json:"border_badge,omitempty"`
 }
 
+const DefaultCardTitle = "New Session"
+
 // Tag is a colored chip rendered in the session card.
 type Tag struct {
 	Text       string `json:"text"`

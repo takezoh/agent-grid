@@ -83,10 +83,15 @@ describe("HeaderBar — terminate button (FR-024 / UAC-011)", () => {
     expect(onRequest.mock.calls[0]?.[2]).toBe(btn);
   });
 
-  it("uses New Session placeholder when card.title is absent", () => {
+  it("uses the server-provided New Session title", () => {
     const onRequest = vi.fn();
     render(
-      <HeaderBar card={{}} status="running" sessionId="s-empty" onRequestTerminate={onRequest} />,
+      <HeaderBar
+        card={{ title: "New Session" }}
+        status="running"
+        sessionId="s-empty"
+        onRequestTerminate={onRequest}
+      />,
     );
     const btn = screen.getByRole("button", { name: 'Stop "New Session"' });
     fireEvent.click(btn);
