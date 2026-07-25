@@ -2,6 +2,7 @@
   "version": 1,
   "suites": [
     {"id":"agent-hook","package":"./host/lib/agenthook/...","dependency_id":"claude-cli"},
+    {"id":"agentlaunch-claude-mcp","package":"./platform/agentlaunch/...","dependency_id":"claude-cli"},
     {"id":"claude-cli","package":"./platform/lib/claude/fakeclaude/...","dependency_id":"claude-cli"},
     {"id":"codex-app-server","package":"./platform/agent/fakecodex/...","dependency_id":"codex-app-server"},
     {"id":"docker-cli","package":"./platform/sandbox/devcontainer/...","dependency_id":"docker-cli"},

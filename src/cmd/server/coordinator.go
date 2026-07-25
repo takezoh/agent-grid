@@ -413,7 +413,6 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 			Direct: agentlaunch.DirectDispatcher{
 				SockPath: sockPath,
 				SelfBin:  selfBin,
-				DataDir:  dataDir,
 			},
 		}
 	}

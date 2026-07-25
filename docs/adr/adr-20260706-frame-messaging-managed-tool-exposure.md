@@ -3,7 +3,7 @@ id: adr-20260706-frame-messaging-managed-tool-exposure
 kind: adr
 title: Frame messaging tools are exposed through managed Claude overlay and Codex
   dynamicTools
-status: accepted
+status: superseded
 created: '2026-07-06'
 decision_makers:
 - unknown
@@ -20,7 +20,7 @@ source_paths:
 - src/cmd/server/
 summary: Claude は .mcp.json overlay/mcp-exec、Codex は app-server dynamicTools を使い、project/global
   user config 書き換えを避ける
-updated: '2026-07-06'
+updated: '2026-07-25'
 ---
 
 # Frame messaging tools are exposed through managed Claude overlay and Codex dynamicTools
@@ -66,4 +66,9 @@ Claude と Codex で tool exposure の実装 seam が分かれる。共通 MCP s
 
 {% transition from="proposed" to="accepted" date="2026-07-06" %}
 Decision extracted from promoted inter-session MCP plan
+{% /transition %}
+
+
+{% transition from="accepted" to="superseded" date="2026-07-25" %}
+Host Claude exposure moved from HOME overlay to launch-scoped --mcp-config; daemon, container, and Codex portions remain referenced by the superseding ADR.
 {% /transition %}

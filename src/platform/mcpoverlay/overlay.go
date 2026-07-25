@@ -16,11 +16,9 @@ type AliasEntry struct {
 // document and writes the result to path.
 //
 // Invariant: every non-mcpServers top-level key in the base document is
-// preserved verbatim in the output. This matters for HOME-overlay callers
-// (managed_claude_home) whose base is the user's ~/.claude/settings.json
-// carrying hooks, permissions, statusLine, enabledPlugins, etc. — losing
-// those silently would leave the launched claude with no lifecycle hooks
-// reaching the daemon (spec-20260714 FR-002 hook continuity).
+// preserved verbatim in the output. This keeps the helper safe for callers
+// that merge MCP aliases into broader JSON settings documents carrying hooks,
+// permissions, statusLine, enabledPlugins, and other unrelated configuration.
 //
 // If basePath does not exist or is unreadable, the output contains only the
 // mcpServers section built from aliases.

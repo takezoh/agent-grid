@@ -13,7 +13,6 @@ import (
 
 	"github.com/takezoh/agent-grid/host/config"
 	"github.com/takezoh/agent-grid/host/proto"
-	"github.com/takezoh/agent-grid/platform/agentlaunch"
 	"github.com/takezoh/agent-grid/platform/appid"
 	"golang.org/x/term"
 )
@@ -54,8 +53,6 @@ func Run(args []string) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		input, _ = io.ReadAll(os.Stdin)
 	}
-	input = rewriteManagedClaudePayload(input)
-
 	slog.Debug("event",
 		"type", eventType,
 		"sender", senderID,
@@ -76,46 +73,6 @@ func Run(args []string) error {
 		slog.Warn("event: send failed", "err", sendErr)
 	}
 	return nil
-}
-
-func rewriteManagedClaudePayload(input []byte) []byte {
-	overlayHome := strings.TrimSpace(os.Getenv(agentlaunch.ManagedClaudeOverlayHomeEnv))
-	realHome := strings.TrimSpace(os.Getenv(agentlaunch.ManagedClaudeRealHomeEnv))
-	if overlayHome == "" || realHome == "" || len(input) == 0 {
-		return input
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(input, &payload); err != nil {
-		return input
-	}
-	path, _ := payload["transcript_path"].(string)
-	rewritten, ok := rewriteManagedClaudePath(path, overlayHome, realHome)
-	if !ok {
-		return input
-	}
-	payload["transcript_path"] = rewritten
-	out, err := json.Marshal(payload)
-	if err != nil {
-		return input
-	}
-	return out
-}
-
-func rewriteManagedClaudePath(path, overlayHome, realHome string) (string, bool) {
-	if path == "" || overlayHome == "" || realHome == "" {
-		return "", false
-	}
-	cleanPath := filepath.Clean(path)
-	cleanOverlay := filepath.Clean(overlayHome)
-	cleanReal := filepath.Clean(realHome)
-	if cleanPath == cleanOverlay {
-		return cleanReal, true
-	}
-	prefix := cleanOverlay + string(os.PathSeparator)
-	if !strings.HasPrefix(cleanPath, prefix) {
-		return "", false
-	}
-	return filepath.Join(cleanReal, strings.TrimPrefix(cleanPath, prefix)), true
 }
 
 // errMissingEventType is returned by parseEventArgs when no positional

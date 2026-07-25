@@ -15,26 +15,23 @@ import (
 type DirectDispatcher struct {
 	SockPath string
 	SelfBin  string
-	DataDir  string
 }
 
 func (d DirectDispatcher) Wrap(_ context.Context, frameID string, plan LaunchPlan) (WrappedLaunch, error) {
 	merged := stripContainerOnlyEnv(plan.Env, plan.ManagedFrameMessaging)
-	var cleanup func(context.Context) error
 	if d.SockPath != "" {
 		merged = cloneAndSet(merged, "AG_SOCKET", d.SockPath)
-	}
-	if plan.ManagedFrameMessaging {
-		var err error
-		merged, cleanup, err = PrepareManagedClaudeHome(frameID, d.SelfBin, d.SockPath, d.DataDir, merged)
-		if err != nil {
-			return WrappedLaunch{}, err
-		}
 	}
 
 	plan, err := NormalizePlanForFrameExec(plan)
 	if err != nil {
 		return WrappedLaunch{}, err
+	}
+	if plan.ManagedFrameMessaging {
+		plan.Argv, err = AppendManagedClaudeMCPConfig(plan.Argv, d.SelfBin, d.SockPath)
+		if err != nil {
+			return WrappedLaunch{}, err
+		}
 	}
 	specJSON, err := EncodeFrameSpec(plan)
 	if err != nil {
@@ -51,7 +48,6 @@ func (d DirectDispatcher) Wrap(_ context.Context, frameID string, plan LaunchPla
 		Argv:     []string{selfBin, "frame-exec"},
 		StartDir: plan.StartDir,
 		Env:      merged,
-		Cleanup:  cleanup,
 	}, nil
 }
 

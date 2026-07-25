@@ -112,11 +112,9 @@ func TestWriteJSONMissingBaseUsesEmptyDoc(t *testing.T) {
 
 // TestWriteJSONPreservesNonMCPTopLevelKeys pins the invariant that fields
 // outside `mcpServers` (hooks / permissions / statusLine / enabledPlugins
-// / env — every key managed_claude_home writes overlay on top of) survive
-// the overlay write. Without this, host+claude launches under
-// managed_claude_home would silently strip every user-configured Claude
-// hook and permission, leaving the launched claude unable to signal the
-// daemon (regression on spec-20260714 FR-002 hook continuity).
+// / env — every non-MCP key in a broader settings document) survive the
+// overlay write. Without this, an overlay caller could silently strip
+// user-configured hooks and permissions.
 func TestWriteJSONPreservesNonMCPTopLevelKeys(t *testing.T) {
 	dir := t.TempDir()
 	basePath := filepath.Join(dir, "base.json")
@@ -149,7 +147,7 @@ func TestWriteJSONPreservesNonMCPTopLevelKeys(t *testing.T) {
 
 	for _, key := range []string{"hooks", "permissions", "statusLine", "enabledPlugins", "env"} {
 		if _, ok := out[key]; !ok {
-			t.Errorf("top-level key %q dropped by WriteJSON — this would silently strip user hooks / permissions under HOME overlay", key)
+			t.Errorf("top-level key %q dropped by WriteJSON — this would silently strip user hooks / permissions", key)
 		}
 	}
 

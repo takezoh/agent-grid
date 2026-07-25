@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,11 +13,10 @@ import (
 	"github.com/takezoh/agent-grid/host/state"
 	"github.com/takezoh/agent-grid/platform/agentlaunch"
 	platformconfig "github.com/takezoh/agent-grid/platform/config"
+	"github.com/takezoh/agent-grid/platform/framelaunch"
 	"github.com/takezoh/agent-grid/platform/sandbox"
 	sandboxdc "github.com/takezoh/agent-grid/platform/sandbox/devcontainer"
 )
-
-// Note: managedHomeDirs uses os.ReadDir; the os import above already covers it.
 
 // Frame-launch matrix driven through the REAL launcher stack
 // (NewDispatcherAdapter → SandboxDispatcher → DirectDispatcher /
@@ -235,14 +235,13 @@ func buildLaunchHarness(t *testing.T, env envKind, persistWarm bool) *launchHarn
 	}
 	resolver := platformconfig.NewSandboxResolver(user)
 
-	// SelfBin is a placeholder path; managed_claude_home / DirectDispatcher only
-	// require it to be non-empty to enter the overlay-generation branch (they do
-	// not exec it). Tests that observe the managed overlay depend on this being
-	// set, so keep it filled unconditionally.
+	// SelfBin is a placeholder path used in the launch-scoped agent_frames MCP
+	// config. DirectDispatcher serializes it but does not execute it in this
+	// harness, so keep it non-empty to exercise managed messaging.
 	selfBin := filepath.Join(dataDir, "fake-server")
 	disp := &agentlaunch.SandboxDispatcher{
 		Resolver: resolver,
-		Direct:   agentlaunch.DirectDispatcher{SockPath: sockPath, SelfBin: selfBin, DataDir: dataDir},
+		Direct:   agentlaunch.DirectDispatcher{SockPath: sockPath, SelfBin: selfBin},
 	}
 	if env != envHost {
 		disp.Devcontainer = agentlaunch.NewDevcontainerLauncher(
@@ -779,27 +778,12 @@ func registerManagedMessagingDriver(t *testing.T) {
 	}
 }
 
-// managedHomeDirs enumerates the `<frame-id>-XXX` overlay directories that
-// PrepareManagedClaudeHome creates under `<dataDir>/managed-claude-home/`.
-// Returns an empty slice if the base dir does not exist so callers can
-// distinguish "overlay never created" from "overlay created and cleaned up".
-func managedHomeDirs(t *testing.T, dataDir string) []string {
+func assertNoManagedClaudeHome(t *testing.T, dataDir string) {
 	t.Helper()
 	base := filepath.Join(dataDir, "managed-claude-home")
-	entries, err := os.ReadDir(base)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		t.Fatalf("read managed-claude-home dir: %v", err)
+	if _, err := os.Stat(base); !os.IsNotExist(err) {
+		t.Fatalf("managed Claude launch created obsolete HOME overlay %q: %v", base, err)
 	}
-	out := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if e.IsDir() {
-			out = append(out, filepath.Join(base, e.Name()))
-		}
-	}
-	return out
 }
 
 // TestFrameLaunch_NewSession_Host_ManagedMessaging is the positive matrix cell
@@ -808,8 +792,8 @@ func managedHomeDirs(t *testing.T, dataDir string) []string {
 //
 // Positive assertions (spec-20260714 FR-002):
 //   - AG_SOCKET_TOKEN is non-empty (wrapLaunchForSpawn's needsToken branch)
-//   - a managed-claude-home overlay directory was created under DataDir
-//   - the spawned process's HOME env is redirected to that overlay dir
+//   - HOME remains the caller's HOME
+//   - frame-exec MainCommand receives a trailing launch-scoped MCP config
 //
 // Anchored at h.newSessionSpawn (which routes through interpret_spawn.go's
 // free spawnFrameWindow) — NOT h.r.spawnFrameWindow, which uses the
@@ -828,7 +812,11 @@ func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
 			StartDir:              "/proj/host",
 			ManagedFrameMessaging: true,
 		},
-		Env: map[string]string{"AG_SESSION_ID": "s-managed", "AG_FRAME_ID": "f-managed"},
+		Env: map[string]string{
+			"AG_SESSION_ID": "s-managed",
+			"AG_FRAME_ID":   "f-managed",
+			"HOME":          "/home/managed-test-user",
+		},
 	})
 
 	if sc.token == "" {
@@ -844,30 +832,15 @@ func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
 	if got, want := h.spawnDir(t), "/proj/host"; got != want {
 		t.Errorf("host+ManagedFrameMessaging spawn cwd = %q, want %q — startDir dropped despite plan.StartDir being set", got, want)
 	}
-	overlays := managedHomeDirs(t, h.dataDir)
-	if len(overlays) == 0 {
-		t.Fatal("managed-claude-home overlay was not created — PrepareManagedClaudeHome was skipped despite ManagedFrameMessaging=true")
+	if env["HOME"] != "/home/managed-test-user" {
+		t.Errorf("HOME = %q, want caller HOME preserved", env["HOME"])
 	}
-	if env["HOME"] == "" {
-		t.Errorf("spawn env HOME is empty — overlay HOME was not injected")
-	} else {
-		matched := false
-		for _, o := range overlays {
-			if env["HOME"] == o {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			t.Errorf("spawn env HOME = %q does not match any created overlay dir %v", env["HOME"], overlays)
-		}
+	assertNoManagedClaudeHome(t, h.dataDir)
+	var spec framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(env[framelaunch.EnvVar]), &spec); err != nil {
+		t.Fatalf("AG_FRAME_SPEC: %v", err)
 	}
-	if env[agentlaunch.ManagedClaudeOverlayHomeEnv] == "" {
-		t.Errorf("%s env is empty — overlay marker missing", agentlaunch.ManagedClaudeOverlayHomeEnv)
-	}
-	if env[agentlaunch.ManagedClaudeRealHomeEnv] == "" {
-		t.Errorf("%s env is empty — real HOME marker missing", agentlaunch.ManagedClaudeRealHomeEnv)
-	}
+	assertManagedClaudeLaunchConfig(t, spec.MainCommand, filepath.Join(h.dataDir, "fake-server"), h.sockPath)
 }
 
 // TestFrameLaunch_NewSession_Host asserts the negative case (FR-003): a host
@@ -902,11 +875,10 @@ func TestFrameLaunch_ColdStart_Host_ManagedMessaging(t *testing.T) {
 	if got, want := h.spawnDir(t), "/proj/host"; got != want {
 		t.Errorf("cold-start host+ManagedFrameMessaging spawn cwd = %q, want %q — startDir dropped between bootstrap_coldstart.wrapLaunchForSpawn and PtyBackend.SpawnFrame", got, want)
 	}
-	overlays := managedHomeDirs(t, h.dataDir)
-	if len(overlays) == 0 {
-		t.Fatal("cold-start managed-claude-home overlay was not created — bootstrap_coldstart.go regressed independently of interpret_spawn.go")
+	assertNoManagedClaudeHome(t, h.dataDir)
+	var spec framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(env[framelaunch.EnvVar]), &spec); err != nil {
+		t.Fatalf("AG_FRAME_SPEC: %v", err)
 	}
-	if env[agentlaunch.ManagedClaudeOverlayHomeEnv] == "" {
-		t.Errorf("cold-start spawn env missing %s marker", agentlaunch.ManagedClaudeOverlayHomeEnv)
-	}
+	assertManagedClaudeLaunchConfig(t, spec.MainCommand, filepath.Join(h.dataDir, "fake-server"), h.sockPath)
 }

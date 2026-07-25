@@ -76,23 +76,12 @@ type ColdStartAware interface {
 type DirectLauncher struct {
 	SockPath string
 	SelfBin  string
-	DataDir  string
 }
 
 func (d DirectLauncher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
 	merged := stripContainerOnlyEnv(env, plan.ManagedFrameMessaging)
-	var cleanup func() error
 	if d.SockPath != "" {
 		merged = cloneAndSet(merged, "AG_SOCKET", d.SockPath)
-	}
-	if plan.ManagedFrameMessaging {
-		var rawCleanup func(context.Context) error
-		var err error
-		merged, rawCleanup, err = agentlaunch.PrepareManagedClaudeHome(string(frameID), d.SelfBin, d.SockPath, d.DataDir, merged)
-		if err != nil {
-			return WrappedLaunch{}, err
-		}
-		cleanup = adaptCleanup(rawCleanup)
 	}
 
 	// Every launch goes through `<SelfBin> frame-exec` (adr-20260711-0082).
@@ -105,6 +94,12 @@ func (d DirectLauncher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan,
 	})
 	if err != nil {
 		return WrappedLaunch{}, err
+	}
+	if plan.ManagedFrameMessaging {
+		normalized.Argv, err = agentlaunch.AppendManagedClaudeMCPConfig(normalized.Argv, d.SelfBin, d.SockPath)
+		if err != nil {
+			return WrappedLaunch{}, err
+		}
 	}
 	specJSON, err := agentlaunch.EncodeFrameSpec(normalized)
 	if err != nil {
@@ -119,7 +114,6 @@ func (d DirectLauncher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan,
 		Command:  agentlaunch.JoinArgs([]string{selfBin, "frame-exec"}),
 		StartDir: plan.StartDir,
 		Env:      merged,
-		Cleanup:  cleanup,
 	}, nil
 }
 

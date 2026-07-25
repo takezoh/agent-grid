@@ -2,12 +2,9 @@ package runtime
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/takezoh/agent-grid/host/state"
-	"github.com/takezoh/agent-grid/platform/agentlaunch"
 	"github.com/takezoh/agent-grid/platform/framelaunch"
 )
 
@@ -95,10 +92,7 @@ func TestDirectLauncher_stripsContainerToken(t *testing.T) {
 
 func TestDirectLauncher_keepsManagedFrameMessagingToken(t *testing.T) {
 	home := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	l := DirectLauncher{SockPath: "/run/server.sock", SelfBin: "/usr/bin/server", DataDir: t.TempDir()}
+	l := DirectLauncher{SockPath: "/run/server.sock", SelfBin: "/usr/bin/server"}
 	got, err := l.WrapLaunch("f1", state.LaunchPlan{
 		Command:               "claude",
 		ManagedFrameMessaging: true,
@@ -109,14 +103,36 @@ func TestDirectLauncher_keepsManagedFrameMessagingToken(t *testing.T) {
 	if got.Env["AG_SOCKET_TOKEN"] != "frame-token" {
 		t.Fatalf("AG_SOCKET_TOKEN = %q, want frame-token", got.Env["AG_SOCKET_TOKEN"])
 	}
-	if got.Env["HOME"] == home {
-		t.Fatal("managed frame messaging should use an overlay HOME")
+	if got.Env["HOME"] != home {
+		t.Fatalf("HOME = %q, want preserved %q", got.Env["HOME"], home)
 	}
-	if got.Env[agentlaunch.ManagedClaudeRealHomeEnv] != home {
-		t.Fatalf("%s = %q, want %q", agentlaunch.ManagedClaudeRealHomeEnv, got.Env[agentlaunch.ManagedClaudeRealHomeEnv], home)
+	if got.Cleanup != nil {
+		t.Fatal("launch-scoped MCP configuration must not install HOME cleanup")
 	}
-	if got.Cleanup == nil {
-		t.Fatal("managed frame messaging should install cleanup")
+	var spec framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(got.Env["AG_FRAME_SPEC"]), &spec); err != nil {
+		t.Fatalf("AG_FRAME_SPEC: %v", err)
+	}
+	assertManagedClaudeLaunchConfig(t, spec.MainCommand, "/usr/bin/server", "/run/server.sock")
+}
+
+func assertManagedClaudeLaunchConfig(t *testing.T, argv []string, wantBin, wantSock string) {
+	t.Helper()
+	if len(argv) < 3 || argv[len(argv)-2] != "--mcp-config" {
+		t.Fatalf("MainCommand = %#v, want trailing --mcp-config JSON", argv)
+	}
+	var config struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal([]byte(argv[len(argv)-1]), &config); err != nil {
+		t.Fatalf("managed MCP config JSON: %v", err)
+	}
+	entry, ok := config.MCPServers["agent_frames"]
+	if !ok || entry.Command != wantBin || len(entry.Args) != 3 || entry.Args[2] != wantSock {
+		t.Fatalf("agent_frames config = %#v, want command %q and socket %q", entry, wantBin, wantSock)
 	}
 }
 
