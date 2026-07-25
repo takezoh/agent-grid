@@ -1,0 +1,976 @@
+{
+  "mode": "specify",
+  "revision": "specify-r1",
+  "goal": "Codex エージェントのパーミッション要求 (コマンド実行/ファイル変更) とユーザー質問を、Vibe Island (Windows Shell) がフォーカスを奪わずネイティブに受けて応答往復を完了させる体験を、実装調査 (2026-07-25、gateway〜島の全経路) で検証済みの観察可能な契約として固定する。実装変更は伴わない契約 pin であり、調査で判明した 3 つの欠落 (再接続 replay / Claude 承認の一級化 / 選択肢付き質問) は未解決 decision point として明示的に保持する。",
+  "target_users": [
+    "Windows デスクトップで複数のエージェントセッション (Codex / Claude) を並行監督しながら別アプリで作業する開発者"
+  ],
+  "user_goals": [
+    {
+      "id": "goal-approve-without-context-switch",
+      "actor": "エージェント監督者",
+      "context": "別アプリで作業中に Codex がコマンド実行/ファイル変更の承認を待って停止した",
+      "desired_outcome": "作業アプリを離れず、数秒・1 操作で許可または拒否する",
+      "success_observation": "島のカードまたはトーストのボタン 1 回で該当カードが消え、セッションが実行中表示に戻る。作業中アプリのフォーカスは移動しない"
+    },
+    {
+      "id": "goal-answer-question-inline",
+      "actor": "エージェント監督者",
+      "context": "Codex が自由文の質問を出して停止した",
+      "desired_outcome": "島の返信欄で (IME を含め) 回答し、送信後すぐ元の作業へ戻る",
+      "success_observation": "Enter 送信でカードが消え、フォーカスが直前に使っていたアプリへ戻り、そのままタイプを継続できる"
+    },
+    {
+      "id": "goal-trust-single-resolution",
+      "actor": "エージェント監督者",
+      "context": "同じ承認要求が島・トースト・ブラウザ UI の複数面に同時に見えている",
+      "desired_outcome": "どの面から応答しても結果は 1 つで、二重適用や矛盾が起きないと信頼できる",
+      "success_observation": "先に応答した面の決定だけが効き、後から応答した面には「Handled elsewhere」が表示される。エラーダイアログは出ない"
+    },
+    {
+      "id": "goal-silent-when-healthy",
+      "actor": "エージェント監督者",
+      "context": "承認も質問も異常もない平常時",
+      "desired_outcome": "島が視界・フォーカス・通知を消費しない",
+      "success_observation": "コンパクトバーに 1 行のステータスのみが表示され、承認/質問の UI 要素は画面にも支援技術ツリーにも存在しない"
+    }
+  ],
+  "experience_dimensions": [
+    {
+      "id": "surface",
+      "values": ["island-panel", "toast", "workspace-browser"],
+      "rationale": "同一の pending human-input に触れられる 3 つの面。island と toast は本契約の対象、browser は単一解決 invariant のみ関与"
+    },
+    {
+      "id": "input-kind",
+      "values": ["approval", "question"],
+      "rationale": "承認 (二択ボタン) と質問 (自由文返信) で操作系と表示色が異なる"
+    },
+    {
+      "id": "resolution-outcome",
+      "values": ["accepted-locally", "resolved-by-other", "expired", "connection-lost"],
+      "rationale": "pending の終わり方 4 通りそれぞれで観察が異なる"
+    }
+  ],
+  "experience_contracts": [
+    {
+      "id": "exp-approval-roundtrip",
+      "subject": "承認要求の到着から解決までの往復",
+      "goal_refs": ["goal-approve-without-context-switch"],
+      "flow_refs": ["F-001", "F-004"],
+      "context_refs": ["surface", "input-kind", "resolution-outcome"],
+      "interaction_rules": [
+        {
+          "condition": "新しい承認 pending が到着した (収納中を含む)",
+          "outcome": "島はバッジを更新し自動展開して警告色のカードを表示するが、フォーカスは奪わない",
+          "rationale": "気づきの速さと作業非中断の両立 (Vibe Island の中核契約)"
+        },
+        {
+          "condition": "ユーザーが Allow / Deny を操作した",
+          "outcome": "1 操作で完了し、カードは即時に消える (楽観反映)。送信失敗時はカードが復元される",
+          "rationale": "数秒往復の体感を守りつつ、silent failure を許さない"
+        },
+        {
+          "condition": "パネルが注視されていない (収納・非表示・ロック外・DND でない)",
+          "outcome": "Windows トーストを 1 要求につき 1 回だけ発火し、トーストのボタンはパネルと同一の応答経路に合流する",
+          "rationale": "二重通知の防止と、どの面から応答しても同一結果になる経路一貫性"
+        }
+      ],
+      "observations": [
+        {"phase": "entry", "condition": "承認要求の到着", "observable": "島が自動展開し、警告色の「Permission request」カードに要求概要とセッション短縮 ID、Allow/Deny ボタンが表示される。コンパクトバーには件数バッジ"},
+        {"phase": "success", "condition": "Allow/Deny 操作後", "observable": "カードが即時に消え、セッションチップが実行中表示に戻る。同じ要求のカード/トーストは再出現しない"},
+        {"phase": "failure", "condition": "応答送信がネットワーク断で失敗", "observable": "消えたカードが復元表示され、オフラインバッジが出る。再操作できる"},
+        {"phase": "exit", "condition": "pending が 0 になった", "observable": "自動展開されていた島はコンパクトへ自動収納され、承認 UI は画面から消える"}
+      ],
+      "phase_exclusions": [
+        {"phase": "progress", "reason": "応答は 1 操作の楽観反映で完了し、ユーザーが観察すべき中間状態を持たない"},
+        {"phase": "recovery", "reason": "失敗時は復元されたカードが entry と同一の操作系で再試行されるため、独立した recovery 相を持たない"}
+      ],
+      "invariants": [
+        "承認の到着・表示・解決のどの時点でもフォーカスを奪わない",
+        "同一要求のカードは高々 1 枚、トーストは高々 1 回",
+        "トーストとパネルの決定は同一経路で同一効果を持つ"
+      ],
+      "scenario_refs": ["UAC-001", "UAC-002", "UAC-003", "UAC-030", "UAC-031", "UAC-032", "UAC-041"],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-question-inline-reply",
+      "subject": "質問への島内自由文返信",
+      "goal_refs": ["goal-answer-question-inline"],
+      "flow_refs": ["F-002"],
+      "context_refs": ["input-kind"],
+      "interaction_rules": [
+        {
+          "condition": "質問が到着した",
+          "outcome": "情報色の「Question」カードと返信欄が現れるが、フォーカスは移動しない",
+          "rationale": "到着時点での入力中断を防ぐ (自動フォーカスは作業破壊)"
+        },
+        {
+          "condition": "ユーザーが返信欄に触れた",
+          "outcome": "そのときだけ島が入力可能化され、IME を含む通常のテキスト入力ができる",
+          "rationale": "入力意思が明示された時点でのみアクティベートする focus discipline"
+        },
+        {
+          "condition": "Enter または送信ボタンで回答を送信した",
+          "outcome": "カードが消え、返信欄がクリアされ、フォーカスは直前に使っていたアプリへ返る",
+          "rationale": "質問回答を「作業の中断」ではなく「割り込みの完了」として閉じる"
+        }
+      ],
+      "observations": [
+        {"phase": "entry", "condition": "質問の到着", "observable": "「Question」カードに質問文、返信欄、「Reply below — Enter sends」ヒントが表示される。作業中アプリのキャレットは動かない"},
+        {"phase": "success", "condition": "Enter 送信後", "observable": "カード消滅・返信欄クリア・直前のアプリでそのままタイプ継続できる"},
+        {"phase": "failure", "condition": "送信がネットワーク断で失敗", "observable": "質問カードが復元表示され、再回答できる"}
+      ],
+      "phase_exclusions": [
+        {"phase": "progress", "reason": "送信は単一操作で完了し中間状態を持たない"},
+        {"phase": "recovery", "reason": "送信失敗時は復元された質問カードが entry と同一の操作系で再回答されるため、独立した recovery 相を持たない"}
+      ],
+      "invariants": [
+        "返信欄に触れるまで島はフォーカスを取得しない",
+        "送信後のフォーカスは島に残らず直前のフォアグラウンドへ返る",
+        "質問は自由文 1 回答で解決される"
+      ],
+      "scenario_refs": ["UAC-010", "UAC-011"],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-single-resolution",
+      "subject": "複数クライアント間での単一解決の保証",
+      "goal_refs": ["goal-trust-single-resolution"],
+      "flow_refs": ["F-003"],
+      "context_refs": ["resolution-outcome"],
+      "interaction_rules": [
+        {
+          "condition": "他のクライアント (ブラウザ等) が先に同じ要求を解決した",
+          "outcome": "島のカードは消え、「Handled elsewhere」の通知行に置き換わる。トーストは発火しない",
+          "rationale": "「なぜ消えたか」を観察可能にし、黙って消える不信を防ぐ"
+        },
+        {
+          "condition": "ほぼ同時に島からも応答して競り負けた",
+          "outcome": "エラーダイアログは出ず「Handled elsewhere」に正規化され、先着の決定だけがエージェントに効く",
+          "rationale": "競合は正常系であり、ユーザーに例外処理を強いない"
+        }
+      ],
+      "observations": [
+        {"phase": "entry", "condition": "同一要求が複数面に表示中", "observable": "島とブラウザに同じ内容の承認が見えている"},
+        {"phase": "success", "condition": "いずれかの面で解決", "observable": "全面からカードが消え、応答しなかった/競り負けた面には「Handled elsewhere」が表示される"},
+        {"phase": "exit", "condition": "後続イベント到着", "observable": "「Handled elsewhere」通知は恒久ダイアログにならず、パネルの通常運用に戻る"}
+      ],
+      "phase_exclusions": [
+        {"phase": "failure", "reason": "競り負けは失敗ではなく「Handled elsewhere」への正規化として success 側で観察される"},
+        {"phase": "progress", "reason": "解決は瞬時で中間状態を持たない"},
+        {"phase": "recovery", "reason": "競合後にユーザーが取るべき回復操作は存在しない"}
+      ],
+      "invariants": [
+        "1 つの要求に対する解決は正確に 1 回",
+        "競り負けた操作が決定を上書きしない"
+      ],
+      "scenario_refs": ["UAC-020", "UAC-021"],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-quiet-island",
+      "subject": "平常時の静穏と自動整理",
+      "goal_refs": ["goal-silent-when-healthy"],
+      "flow_refs": ["F-005"],
+      "context_refs": ["resolution-outcome"],
+      "interaction_rules": [
+        {
+          "condition": "pending が 0 かつ異常がない",
+          "outcome": "コンパクトバー 1 行のみ。承認/質問のセクションは非表示ではなく存在しない (支援技術ツリーからも消える)",
+          "rationale": "healthy is silent — 空のリストや不可視ボタンの残骸を許さない"
+        },
+        {
+          "condition": "自動展開の契機となった pending がすべて解決された",
+          "outcome": "島は自動でコンパクトへ戻る。ただしユーザーが自分で展開した場合は自動収納しない",
+          "rationale": "システム都合の展開はシステムが畳み、ユーザーの意思は尊重する"
+        },
+        {
+          "condition": "切断中に発生し既に解決された要求がある状態で再接続した",
+          "outcome": "過去の要求のカードやトーストを捏造して再表示しない",
+          "rationale": "既に済んだ判断を再提示することは誤操作と不信を生む"
+        }
+      ],
+      "observations": [
+        {"phase": "entry", "condition": "平常時", "observable": "コンパクトバーに「idle」等の 1 行のみ"},
+        {"phase": "recovery", "condition": "切断からの再接続直後", "observable": "島は静穏なまま。過去要求のカード/トーストは出現しない"},
+        {"phase": "exit", "condition": "最後の pending が解決", "observable": "自動展開されていた島がコンパクトへ収納される"}
+      ],
+      "phase_exclusions": [
+        {"phase": "progress", "reason": "静穏状態に中間相はない"},
+        {"phase": "failure", "reason": "接続異常はオフラインバッジとして exp-approval-roundtrip の failure 観察に属する"}
+      ],
+      "invariants": [
+        "pending 0 のとき承認/質問 UI 要素は UI ツリーに存在しない",
+        "ユーザーが開いた展開は自動収納されない"
+      ],
+      "scenario_refs": ["UAC-040", "UAC-042", "UAC-043"],
+      "open_product_choices": []
+    }
+  ],
+  "coverage_claims": [
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "surface", "value": "island-panel", "scenario_refs": ["UAC-001", "UAC-002", "UAC-003"], "exclusion_reason": ""},
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "surface", "value": "toast", "scenario_refs": ["UAC-030", "UAC-031", "UAC-032"], "exclusion_reason": ""},
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "surface", "value": "workspace-browser", "scenario_refs": [], "exclusion_reason": "ブラウザ SPA 側の体験は本契約の範囲外。単一解決 invariant のみ exp-single-resolution (F-003) で関与する"},
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "resolution-outcome", "value": "accepted-locally", "scenario_refs": ["UAC-002", "UAC-031"], "exclusion_reason": ""},
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "resolution-outcome", "value": "expired", "scenario_refs": ["UAC-041"], "exclusion_reason": ""},
+    {"contract_ref": "exp-question-inline-reply", "dimension_id": "input-kind", "value": "question", "scenario_refs": ["UAC-010", "UAC-011"], "exclusion_reason": ""},
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "input-kind", "value": "approval", "scenario_refs": ["UAC-001", "UAC-002"], "exclusion_reason": ""},
+    {"contract_ref": "exp-single-resolution", "dimension_id": "resolution-outcome", "value": "resolved-by-other", "scenario_refs": ["UAC-020", "UAC-021"], "exclusion_reason": ""},
+    {"contract_ref": "exp-quiet-island", "dimension_id": "resolution-outcome", "value": "connection-lost", "scenario_refs": ["UAC-043"], "exclusion_reason": ""},
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "input-kind", "value": "question", "scenario_refs": [], "exclusion_reason": "質問の往復体験は exp-question-inline-reply が所有する"},
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "resolution-outcome", "value": "resolved-by-other", "scenario_refs": [], "exclusion_reason": "他クライアント解決の体験は exp-single-resolution (UAC-020/021) が所有する"},
+    {"contract_ref": "exp-approval-roundtrip", "dimension_id": "resolution-outcome", "value": "connection-lost", "scenario_refs": ["UAC-003"], "exclusion_reason": ""},
+    {"contract_ref": "exp-question-inline-reply", "dimension_id": "input-kind", "value": "approval", "scenario_refs": [], "exclusion_reason": "承認の往復体験は exp-approval-roundtrip が所有する"},
+    {"contract_ref": "exp-single-resolution", "dimension_id": "resolution-outcome", "value": "accepted-locally", "scenario_refs": [], "exclusion_reason": "先着当人の解決体験は exp-approval-roundtrip (UAC-002) が所有する。本契約は競合の負け側のみを扱う"},
+    {"contract_ref": "exp-single-resolution", "dimension_id": "resolution-outcome", "value": "expired", "scenario_refs": [], "exclusion_reason": "期限切れはクライアント間競合ではなくサーバー側の自動解決であり、exp-approval-roundtrip (UAC-041) が所有する"},
+    {"contract_ref": "exp-single-resolution", "dimension_id": "resolution-outcome", "value": "connection-lost", "scenario_refs": [], "exclusion_reason": "切断時の体験は exp-quiet-island (UAC-043) が所有する"},
+    {"contract_ref": "exp-quiet-island", "dimension_id": "resolution-outcome", "value": "accepted-locally", "scenario_refs": ["UAC-040"], "exclusion_reason": ""},
+    {"contract_ref": "exp-quiet-island", "dimension_id": "resolution-outcome", "value": "resolved-by-other", "scenario_refs": [], "exclusion_reason": "他クライアント解決後の通知表示と整理は exp-single-resolution が所有する"},
+    {"contract_ref": "exp-quiet-island", "dimension_id": "resolution-outcome", "value": "expired", "scenario_refs": [], "exclusion_reason": "期限切れの静穏整理は exp-approval-roundtrip (UAC-041) が所有する"}
+  ],
+  "reference_ux": [
+    {
+      "name": "iOS Dynamic Island",
+      "stance": "modeled_on",
+      "aspects": ["到着イベント時の自動展開と内容に密着する可変サイズ", "非侵襲な常駐 (フォーカス・視界を消費しない)"],
+      "provenance": {"source": "existing_product_behavior", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260723-windows-shell-phase2/ux.md"], "rationale": "Vibe Island の命名と設計の原型。Phase 2 の user consultation で panel-primary lens として承認済み"}
+    },
+    {
+      "name": "Windows Action Center トースト慣行",
+      "stance": "modeled_on",
+      "aspects": ["ボタン付きトーストによる非注視時の応答", "DND / Focus Assist の尊重"],
+      "provenance": {"source": "existing_product_behavior", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/AgentGrid.Shell.Platform/Toast/ToastDecisionService.cs"], "rationale": "OS 通知規範に従い、パネル注視中は抑制する二次面として採用済み"}
+    }
+  ],
+  "reference_ux_traces": [
+    {"reference_name": "iOS Dynamic Island", "aspect": "到着イベント時の自動展開と内容に密着する可変サイズ", "flow_refs": ["F-001", "F-005"], "scenario_refs": ["UAC-001", "UAC-040"]},
+    {"reference_name": "iOS Dynamic Island", "aspect": "非侵襲な常駐 (フォーカス・視界を消費しない)", "flow_refs": ["F-001", "F-005"], "scenario_refs": ["UAC-001", "UAC-042"]},
+    {"reference_name": "Windows Action Center トースト慣行", "aspect": "ボタン付きトーストによる非注視時の応答", "flow_refs": ["F-004"], "scenario_refs": ["UAC-030", "UAC-031"]},
+    {"reference_name": "Windows Action Center トースト慣行", "aspect": "DND / Focus Assist の尊重", "flow_refs": ["F-004"], "scenario_refs": ["UAC-032"]}
+  ],
+  "legacy_context": {
+    "source_implementation": "clients/windows-shell (AgentGrid.Shell.Core/Platform/WinUI) + src/host/state + src/server/api — 2026-07-25 実施の全経路実装調査に基づく as-is 契約の固定 (置換なし)",
+    "inherited_behaviors": [
+      "新規 pending 到着ごとの自動展開と、自動展開分のみの自動収納",
+      "楽観送信 + 失敗時のカード復元 (contract-approve-submission-rollback)",
+      "競合解決の「Handled elsewhere」正規化 (contract-resolved-by-other-display)",
+      "パネル非注視時のみ 1 要求 1 回のトースト、応答経路はパネルと共通",
+      "healthy is silent — 空セクションは UI ツリーに存在しない",
+      "未応答 30 秒での既定決定による自動解決 (TTL)"
+    ],
+    "replaced_behaviors": []
+  },
+  "legacy_behavior_traces": [],
+  "flows": [
+    {
+      "id": "F-001",
+      "name": "承認要求の到着と島での解決",
+      "goal_refs": ["goal-approve-without-context-switch"],
+      "experience_contract_refs": ["exp-approval-roundtrip"],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] Codex がコマンド実行/ファイル変更の承認を要求すると、島のコンパクトバーに件数バッジが付き、収納中なら自動で展開する",
+        "[system] 展開パネルに警告色の「Permission request」カード (要求概要・セッション短縮 ID・Deny/Allow ボタン) が表示される。フォーカスは移動しない",
+        "[pointer-mouse|keyboard] Allow (Ctrl+Y) または Deny (Ctrl+N) を 1 操作で実行する",
+        "[system] カードが即時に消え、pending が 0 なら自動展開分は収納される。許可時はセッションが実行中表示に戻る"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-001",
+          "contract_refs": ["exp-approval-roundtrip"],
+          "given": "島がコンパクト表示で、監督者は別アプリでテキスト入力中",
+          "when": "Codex がコマンド実行の承認を要求する",
+          "then": "島が自動展開して警告色の「Permission request」カードに要求概要 (実行しようとするコマンド) が表示され、コンパクトバーには件数バッジが付く。監督者のキャレットは作業中アプリに残ったままで、入力は中断されない",
+          "observations": {
+            "user_visible": ["島の自動展開", "警告色カードと要求概要の表示", "件数バッジ", "作業中アプリのキャレットが動かない"],
+            "assistive_technology": ["カードの種別ラベル「Permission request」と要求概要が UIA ツリーで読み上げ可能"]
+          },
+          "instrumentation_hints": ["AutomationId: PendingList / CompactPendingText", "wire: {\"k\":\"ar\",\"approval\":{...}} フレーム"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "バッジ数だけ増やして展開しない実装は『通知した』と言えても本 scenario の展開+カード表示観察で fail する。逆に到着時に島へフォーカスを移す実装は『キャレットが作業中アプリに残る』観察で fail する。両側の誤実装を判別できるため判別的",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-002",
+          "contract_refs": ["exp-approval-roundtrip"],
+          "given": "「Permission request」カードが表示されている",
+          "when": "Allow ボタンを押す (または Ctrl+Y)",
+          "then": "カードは即時に消え、同じ要求のカード/トーストは再出現しない。該当セッションのチップが待機表示から実行中表示に戻る",
+          "observations": {
+            "user_visible": ["カードの即時消滅", "セッションチップの状態色の変化 (待機→実行中)", "同一要求の再出現なし"],
+            "assistive_technology": ["カード要素が UIA ツリーから除去される"]
+          },
+          "instrumentation_hints": ["AutomationId: ApproveButton (Tag に PanelGlanceItem)", "REST: POST /api/sessions/{id}/approvals/{approvalId} {decision:accept}"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "サーバー応答完了までカードを残すブロッキング実装は『即時に消える』で fail。ローカルでカードを消すだけでサーバーへ送らない実装はセッションが待機表示のままになり『実行中表示に戻る』で fail",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-003",
+          "contract_refs": ["exp-approval-roundtrip"],
+          "given": "カード表示中にネットワークが切断されている",
+          "when": "Allow を押す",
+          "then": "カードは一旦消えた後に復元表示され、オフラインバッジが現れる。復元されたカードから再試行できる",
+          "observations": {
+            "user_visible": ["カードの復元表示", "オフラインバッジ", "再操作可能なボタン"],
+            "assistive_technology": ["接続断テキストが UIA ツリーで読み上げ可能"]
+          },
+          "instrumentation_hints": ["AutomationId: ConnectionText", "EvtApprovalSubmitFailed → reducer 復元"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "失敗を握りつぶしてカードを消したままにする silent-failure 実装は『復元表示』観察で fail。承認されたと誤認させる最悪ケースを判別する",
+          "vs_legacy": "must-pass"
+        }
+      ]
+    },
+    {
+      "id": "F-002",
+      "name": "質問への島内 inline 返信",
+      "goal_refs": ["goal-answer-question-inline"],
+      "experience_contract_refs": ["exp-question-inline-reply"],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] Codex の質問が到着すると、情報色の「Question」カードと返信欄・「Reply below — Enter sends」ヒントが表示される。フォーカスは移動しない",
+        "[pointer-mouse] 返信欄をクリック (この時点で初めて島が入力を受け付ける)",
+        "[keyboard] IME を含む通常入力で回答を書き、Enter (または送信ボタン) で送信する",
+        "[system] カードが消え、返信欄がクリアされ、フォーカスは直前に使っていたアプリへ返る"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-010",
+          "contract_refs": ["exp-question-inline-reply"],
+          "given": "島に pending がなく、監督者は別アプリで入力中",
+          "when": "Codex が自由文の質問を送る",
+          "then": "島が展開して「Question」カードに質問文が表示され、返信欄と「Reply below — Enter sends」ヒントが現れる。返信欄へ自動フォーカスはされず、作業中アプリの入力は続行できる",
+          "observations": {
+            "user_visible": ["「Question」カードと質問文", "返信欄とヒント文言", "作業中アプリで入力が続行できる"],
+            "assistive_technology": ["種別ラベル「Question」と質問文が UIA ツリーで読み上げ可能"]
+          },
+          "instrumentation_hints": ["AutomationId: EngageBox / EngageSendButton", "wire: {\"k\":\"qr\",\"question\":{...}}"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "質問到着で返信欄へ自動フォーカスする実装は、作業中アプリの入力中断として観察され fail する (『気が利く』誤実装の排除)",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-011",
+          "contract_refs": ["exp-question-inline-reply"],
+          "given": "質問カードと返信欄が表示されている",
+          "when": "返信欄をクリックし、日本語 (IME 変換確定を含む) で回答を入力して Enter を押す",
+          "then": "確定済みの回答文がそのまま送信されてカードが消え、返信欄はクリアされる。フォーカスは直前に使っていたアプリへ戻り、そのままタイプを継続できる",
+          "observations": {
+            "user_visible": ["カード消滅と返信欄クリア", "直前のアプリでタイプ継続できる (フォーカス返却)"],
+            "assistive_technology": ["返信欄のフォーカス取得と解放が UIA フォーカスイベントとして観察できる"]
+          },
+          "instrumentation_hints": ["EngageFocusService.EnterEngage/ExitEngage", "REST: POST /api/sessions/{id}/questions/{questionId} {answer}"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "送信後にフォーカスが島に残る実装は『直前のアプリでタイプ継続』で fail。IME 未確定文字列のまま送信する実装は確定文字列との差で fail",
+          "vs_legacy": "must-pass"
+        }
+      ]
+    },
+    {
+      "id": "F-003",
+      "name": "複数クライアント間の単一解決",
+      "goal_refs": ["goal-trust-single-resolution"],
+      "experience_contract_refs": ["exp-single-resolution"],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] 同じ承認要求が島とブラウザ UI (Workspace) の両方に表示されている",
+        "[pointer-mouse] いずれかの面で許可または拒否を操作する",
+        "[system] 先着の決定だけがエージェントに適用され、他の面ではカードが「Handled elsewhere」通知に置き換わる"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-020",
+          "contract_refs": ["exp-single-resolution"],
+          "given": "同じ承認が島とブラウザ UI の両方に見えている",
+          "when": "ブラウザ側で先に許可する",
+          "then": "島のカードは消え、「Handled elsewhere」の通知行が表示される。島のトーストは発火しない",
+          "observations": {
+            "user_visible": ["カード消滅", "「Handled elsewhere」通知行", "トースト非発火"],
+            "assistive_technology": ["通知行テキストが UIA ツリーで読み上げ可能"]
+          },
+          "instrumentation_hints": ["AutomationId: NoticeText", "wire: {\"k\":\"ax\"} → EvtApprovalResolved"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "カードだけ黙って消す実装は『なぜ消えたか』を観察できず、通知行の存在確認で fail する",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-021",
+          "contract_refs": ["exp-single-resolution"],
+          "given": "同じ承認が両面に見えており、ブラウザ側が許可した直後",
+          "when": "ほぼ同時に島側で Deny を押す (競り負ける)",
+          "then": "エラーダイアログは出ず、島の表示は「Handled elsewhere」になる。エージェントには先着の決定 (許可) だけが効き、コマンドは実行される",
+          "observations": {
+            "user_visible": ["エラーダイアログなし", "「Handled elsewhere」表示", "エージェントの実行継続 (許可が有効)"],
+            "assistive_technology": ["モーダル割り込みが発生しない"]
+          },
+          "instrumentation_hints": ["HTTP 409 → EvtApprovalResolvedByOther", "server: resolved_by_other tombstone"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "後着の Deny を上書き適用する実装はエージェントが停止することで観察され fail。競合をエラーモーダルで提示する実装は『ダイアログなし』で fail",
+          "vs_legacy": "must-pass"
+        }
+      ]
+    },
+    {
+      "id": "F-004",
+      "name": "パネル非注視時のトースト経由承認",
+      "goal_refs": ["goal-approve-without-context-switch"],
+      "experience_contract_refs": ["exp-approval-roundtrip"],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] パネルが注視されていない状態で承認が到着すると、Windows トーストが 1 回だけ表示される (Approve/Deny ボタン付き)",
+        "[pointer-mouse] トーストのボタンで応答する",
+        "[system] パネルと同一の応答経路で解決され、島のカードも消える"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-030",
+          "contract_refs": ["exp-approval-roundtrip"],
+          "given": "島のパネルが閉じられ注視されておらず、DND でもない",
+          "when": "承認要求が到着する",
+          "then": "Approve/Deny ボタンを持つトーストが 1 回だけ表示される。同じ要求について 2 通目のトーストは出ない",
+          "observations": {
+            "user_visible": ["トーストの表示 (1 回のみ)", "Approve/Deny ボタン"],
+            "assistive_technology": ["トースト本文が Windows ナレーターで読み上げ可能"]
+          },
+          "instrumentation_hints": ["SupervisionToastRouter._seen による once 保証", "Tag=approvalId, Group=agent-grid-supervision"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "スナップショット更新のたびにトーストを再発火する実装は 2 通目の出現で fail する",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-031",
+          "contract_refs": ["exp-approval-roundtrip"],
+          "given": "承認トーストが表示されている",
+          "when": "トーストの Approve を押す",
+          "then": "パネルで許可した場合と同一の結果になる: 島のカードも消え、セッションが実行中表示に戻る",
+          "observations": {
+            "user_visible": ["トースト消滅", "島側カードの消滅", "セッションの実行再開表示"],
+            "assistive_technology": ["応答後にトーストが Action Center からも消える"]
+          },
+          "instrumentation_hints": ["OnNotificationInvoked → ShellFleet.SubmitApprovalAsync (パネルと同一 API)"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "トースト側だけを既読処理してサーバーへ送らない実装は、島のカードが残り続けることで fail する",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-032",
+          "contract_refs": ["exp-approval-roundtrip"],
+          "given": "展開パネルを注視している",
+          "when": "承認要求が到着する",
+          "then": "トーストは発火せず、パネルのカードだけで通知される",
+          "observations": {
+            "user_visible": ["パネルにカードが表示される", "トーストが出ない"],
+            "assistive_technology": ["通知の重複読み上げが発生しない"]
+          },
+          "instrumentation_hints": ["ToastDecisionService.DecideForNewPending (watched 抑制)"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "注視状態を無視して常にトーストも出す実装は二重通知として観察され fail する",
+          "vs_legacy": "must-pass"
+        }
+      ]
+    },
+    {
+      "id": "F-005",
+      "name": "静穏・自動整理・期限切れ",
+      "goal_refs": ["goal-silent-when-healthy"],
+      "experience_contract_refs": ["exp-quiet-island"],
+      "experience_closure_reason": "",
+      "steps": [
+        "[system] pending がすべて解決されると、自動展開されていた島はコンパクトへ自動収納される",
+        "[system] 30 秒間応答されなかった承認/質問は既定の決定で自動解決され、カードは消える",
+        "[system] 平常時はコンパクトバー 1 行のみが残り、承認/質問 UI は存在しない"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-040",
+          "contract_refs": ["exp-quiet-island"],
+          "given": "承認到着により島が自動展開され、pending が 1 件だけ残っている",
+          "when": "その承認を解決する",
+          "then": "島は自動でコンパクトへ戻る。ただし監督者が自分でコンパクトバーをクリックして展開していた場合は展開されたまま残る",
+          "observations": {
+            "user_visible": ["自動展開分の自動収納", "ユーザー展開分の維持"],
+            "assistive_technology": ["ウィンドウサイズ変化が UIA の BoundingRectangle 変化として観察できる"]
+          },
+          "instrumentation_hints": ["IslandStateMachine: Reason=AutoPending のみ自動収納"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "展開理由を区別せず一律自動収納する実装は、ユーザー展開が勝手に閉じることで fail する",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-041",
+          "contract_refs": ["exp-approval-roundtrip"],
+          "given": "承認カードが表示されたまま誰も操作しない",
+          "when": "30 秒の期限が経過する",
+          "then": "カードは自動で消え、エージェントには既定の決定 (通常は拒否) が適用される。島にエラーは表示されない",
+          "observations": {
+            "user_visible": ["無操作でのカード消滅", "エージェントが既定決定に従って進む (拒否なら実行されない)"],
+            "assistive_technology": ["期限切れ後にカード要素が UIA ツリーから除去される"]
+          },
+          "instrumentation_hints": ["DefaultApprovalTTL=30s、期限切れは default_decision を適用 (server tick reducer)"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "期限切れ後もカードを残す実装は、操作しても効かないゾンビカードとして観察され fail する",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-042",
+          "contract_refs": ["exp-quiet-island"],
+          "given": "pending もセッション異常もない",
+          "when": "島を目視および支援技術で走査する",
+          "then": "コンパクトバーに「idle」等の 1 行のみがあり、承認ボタン・返信欄・空リストなどの承認/質問 UI 要素は画面にも UIA ツリーにも存在しない",
+          "observations": {
+            "user_visible": ["コンパクトバー 1 行のみ"],
+            "assistive_technology": ["UIA ツリーに PendingList / EngageBox 相当の要素が存在しない"]
+          },
+          "instrumentation_hints": ["PanelSections 全 false → 要素を collapse ではなく非生成", "e2e: Empty_sections_do_not_exist_in_the_tree"],
+          "design_handoff_refs": ["handoff-uia-observation-contract"],
+          "counterexample": "空の ListView や不可視ボタンを残す実装は目視では pass するが、UIA ツリー走査で要素が発見され fail する",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-043",
+          "contract_refs": ["exp-quiet-island"],
+          "given": "島がサーバーと切断されている間に承認が発生し、ブラウザ側で解決済みになっている",
+          "when": "島が再接続する",
+          "then": "島は過去の要求のカードやトーストを捏造して表示しない (静穏なまま)。なお切断中に発生し未解決のまま残っている pending も現状は再接続直後には表示されない — この欠落は DP-PENDING-REPLAY (OPT-REPLAY-ON-CONNECT 決定済み) により後続 change で解消され、その際も本 scenario の非捏造不変条件は維持される",
+          "observations": {
+            "user_visible": ["再接続後の静穏 (既解決要求の再出現なし)"],
+            "assistive_technology": ["再接続を契機とする通知読み上げが発生しない"]
+          },
+          "instrumentation_hints": ["hello フレームは pending を含まない", "GET /api/sessions/{id}/pending-human-input は placeholder (空)"],
+          "design_handoff_refs": ["handoff-pending-replay", "handoff-uia-observation-contract"],
+          "counterexample": "再接続時にイベント履歴から既解決の要求を再構築して再表示・トースト再発火する実装は、済んだ判断の再提示として観察され fail する",
+          "vs_legacy": "must-pass"
+        }
+      ]
+    }
+  ],
+  "edge_cases": [
+    {"id": "edge-approval-ttl-expiry", "condition": "承認/質問が 30 秒間応答されない", "expected_experience": "カードが自動で消え、既定の決定がエージェントに適用される。島は静かに整理される", "scenario_refs": ["UAC-041"]},
+    {"id": "edge-submit-offline", "condition": "応答送信時にネットワーク断", "expected_experience": "カードが復元されオフラインバッジが表示される。silent failure にならない", "scenario_refs": ["UAC-003"]},
+    {"id": "edge-race-lost", "condition": "複数クライアントがほぼ同時に応答", "expected_experience": "先着のみ有効。競り負けた面はエラーではなく「Handled elsewhere」を観察する", "scenario_refs": ["UAC-021"]},
+    {"id": "edge-reconnect-blackout", "condition": "WS 切断中に承認/質問が発生", "expected_experience": "再接続後、既解決の要求は捏造再表示されない。未解決 pending の replay は導入決定済み (DP-PENDING-REPLAY) で後続 change が実装する", "scenario_refs": ["UAC-043"]}
+  ],
+  "assumptions": [
+    {
+      "id": "assumption-codex-only-source",
+      "statement": "承認/質問カードの供給源は Codex (app-server JSON-RPC 経由) のみであり、Claude セッションの permission_prompt はセッション待機表示にのみ反映される",
+      "validation": "実装調査で確認済み (src/host/driver/claude_event.go — hook 通知は status のみ、ApprovalRequest を生成しない)",
+      "invalidation_behavior": "Claude 供給源が一級化された場合、本契約の全 flow を供給源非依存として再検証し、供給源固有の差分 (TTL・既定決定) を明示する",
+      "scenario_refs": ["UAC-001"]
+    },
+    {
+      "id": "assumption-question-free-text",
+      "statement": "質問は自由文 1 回答のみで、選択肢はワイヤにも島 UI にも存在しない",
+      "validation": "実装調査で確認済み (wire の question に options フィールドなし、応答 API は文字列 answer のみ受理)",
+      "invalidation_behavior": "選択肢が導入された場合、F-002 を選択肢操作込みで書き換える (DP-QUESTION-OPTIONS)",
+      "scenario_refs": ["UAC-011"]
+    },
+    {
+      "id": "assumption-single-user-station",
+      "statement": "島・トースト・ブラウザは同一ユーザーの代替面であり、異なるユーザー間の承認競合は想定しない",
+      "validation": "現行のデスクトップ製品前提 (シングルユーザー監督)",
+      "invalidation_behavior": "マルチユーザー承認が要件化されたら単一解決契約 (exp-single-resolution) に権限概念を追加して再設計する",
+      "scenario_refs": ["UAC-020"]
+    }
+  ],
+  "confirmed_constraints": [
+    {
+      "id": "constraint-single-resolution",
+      "statement": "サーバーは first-writer-wins で 1 要求 1 解決を強制し、後着の応答には resolved_by_other を返す (tombstone 付き)",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/host/state/reduce_approval.go:19-51", "src/server/api/approval.go:135-159"], "rationale": "実装調査で reducer とエラーマッピングを確認"}
+    },
+    {
+      "id": "constraint-approval-ttl",
+      "statement": "未応答の承認/質問は 30 秒で期限切れとなり、作成時に捕捉した既定決定で自動解決される",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/host/state/approval_request.go:39"], "rationale": "DefaultApprovalTTL/DefaultQuestionTTL = 30s、tick reducer が適用"}
+    },
+    {
+      "id": "constraint-question-free-text-api",
+      "statement": "質問応答 API は自由文 (文字列) のみを受理し、構造化回答を拒否する",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/server/api/approval.go:65-112"], "rationale": "非文字列 answer は 400 で拒否される"}
+    }
+  ],
+  "existing_system_context": [
+    {
+      "id": "ctx-wire-frames",
+      "statement": "承認/質問は単一の多重化 WS 上で専用フレーム (ar/ax/qr/qx) として配信され、応答は REST POST (approvals/questions) で返る。エージェント側では app-server JSON-RPC リクエストが応答まで保留される",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/server/api/wire.go:104-132", "src/host/runtime/subsystem/stream/event.go:69-108", "clients/windows-shell/AgentGrid.Shell.Core/GatewayClient/WsFrameParser.cs"], "rationale": "実装調査でワイヤ形式と保留返信機構を確認"}
+    },
+    {
+      "id": "ctx-island-architecture",
+      "statement": "島は UI 非依存の純粋層 (frame parser / reducer / presentation / island state machine) の投影として描画され、体験契約の大半が T0 unit test で既に固定されている",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/AgentGrid.Shell.Core/SupervisionState/", "clients/windows-shell/AgentGrid.Shell.Core.Tests/"], "rationale": "PanelPresentationTests / SupervisionReducerTests / IslandStateMachineTests が契約を pin 済み"}
+    },
+    {
+      "id": "ctx-claude-status-only",
+      "statement": "Claude の permission_prompt は hook 通知として届き、セッション状態 (待機) の表示にのみ反映される。ApprovalID が存在しないため島から応答できない",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/host/driver/claude_event.go:23-44"], "rationale": "実装調査で Claude 経路に ApprovalRequest 生成がないことを確認"}
+    },
+    {
+      "id": "ctx-replay-placeholder",
+      "statement": "pending human-input の snapshot エンドポイントはプレースホルダで常に空を返すため、WS 切断中に発生した pending は再接続後に見えない",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/server/api/approval.go:117-123"], "rationale": "TODO コメントで chunk-p0-06 に本実装が予告されている"}
+    }
+  ],
+  "product_assumptions": [
+    {
+      "id": "pa-toast-com-activation",
+      "statement": "unpackaged 構成ではトーストボタンの COM background activation が失敗し得る",
+      "validation": "起動時の AppNotificationManager Register() 結果で実機判定される (失敗時 ComActivationOk=false)",
+      "invalidation_behavior": "COM 不能時、トーストは「Open panel」ボタンのみに縮退し、UAC-031 はパネル展開経由の応答として読み替える",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/AgentGrid.Shell.WinUI/Toast/AppNotificationToastService.cs:62"], "rationale": "S3-gate fallback として実装済み"},
+      "decision_refs": []
+    }
+  ],
+  "design_hypotheses": [
+    {
+      "id": "dh-attention-cost",
+      "statement": "「新規 pending ごとの自動展開 + 解決時の自動収納」は、常時展開や通知センター参照よりも監督の注意コストを最小化する",
+      "provenance": {"source": "existing_product_behavior", "confidence": "inferred", "evidence_refs": ["docs/changes/change-20260723-windows-shell-phase2/ux.md"], "rationale": "Phase 2 の panel-primary lens 選定の根拠を継承。実測比較は未実施"}
+    },
+    {
+      "id": "dh-focus-return",
+      "statement": "返信送信後にフォーカスを直前のアプリへ返すことで、質問回答が「作業の中断」ではなく「割り込みの完了」として体験される",
+      "provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260723-windows-shell-phase2/ux.md"], "rationale": "Phase 2 consultation r2 で DP-PANEL-ENGAGE-FOCUS-RETURN が normative 昇格済み"}
+    }
+  ],
+  "technology_candidates": [
+    {
+      "id": "candidate-winui3-appnotification",
+      "candidate": "WinUI 3 / Windows App SDK + AppNotificationManager (実装済みスタック)",
+      "source": "repository_context",
+      "proposed_for": ["F-001", "F-002", "F-004", "F-005"],
+      "required_capabilities": ["WS_EX_NOACTIVATE の常駐 notch ウィンドウ", "ボタン付きトーストと COM background activation", "HWND リージョンクリップによるノッチ形状", "UIA AutomationId 契約"],
+      "ux_constraints_relevant_to_evaluation": ["フォーカス非奪取 invariant", "トースト 1 要求 1 回", "空セクションの UI ツリー不存在"],
+      "design_questions": ["COM activation 失敗時の縮退文言と再登録リトライの要否"],
+      "disqualifiers": ["unpackaged で COM background activation が構造的に不能な環境では、トーストボタン応答を expand-only に縮退する"]
+    },
+    {
+      "id": "candidate-flaui-uia3-e2e",
+      "candidate": "FlaUI / UIA3 (AutomationId 契約に基づく UI e2e)",
+      "source": "repository_context",
+      "proposed_for": ["F-001", "F-002", "F-005"],
+      "required_capabilities": ["UIA ツリー走査による要素存在/不存在の検証", "実ウィンドウのフォーカス遷移観察"],
+      "ux_constraints_relevant_to_evaluation": ["UAC-042 の『要素が存在しない』検証は UIA 走査でのみ判別可能"],
+      "design_questions": ["フォーカス返却 (UAC-011) を CI 上の e2e で安定観察する方法"],
+      "disqualifiers": ["run-dev ハーネス外での実行 (実サーバーへのテスト流入) は禁止"]
+    }
+  ],
+  "quality_thresholds": [
+    {
+      "id": "threshold-approval-ttl",
+      "metric": "未応答の承認/質問が既定決定で自動解決されるまでの時間",
+      "value": 30,
+      "unit": "seconds",
+      "owner": "requirements",
+      "status": "confirmed",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/host/state/approval_request.go:39"], "rationale": "DefaultApprovalTTL として実装・テスト済みの実測値を契約化"},
+      "validation_method": "gateway scenario test (期限切れ時の default_decision 適用) + 島側の ax/qx フレーム反映 unit test",
+      "decision_refs": []
+    },
+    {
+      "id": "threshold-toast-per-pending",
+      "metric": "1 つの pending につき発火するトーストの回数上限",
+      "value": 1,
+      "unit": "count",
+      "owner": "requirements",
+      "status": "confirmed",
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/AgentGrid.Shell.Platform.Tests/Toast/SupervisionToastRouterTests.cs"], "rationale": "once-per-new-pending が unit test で pin 済み"},
+      "validation_method": "SupervisionToastRouter unit test (再スナップショットで再発火しない)",
+      "decision_refs": []
+    }
+  ],
+  "decision_points": [
+    {
+      "id": "DP-ISLAND-AUTOEXPAND",
+      "decision_key": "island-autoexpand",
+      "question": "新規 pending 到着時に島を自動展開するか、バッジ更新のみに留めるか",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "may_default",
+      "contract_effect": "normative",
+      "answer_status": "defaulted",
+      "validation_status": "not_applicable",
+      "options": [
+        {"id": "OPT-AUTOEXPAND-EACH", "label": "新規到着ごとに自動展開", "outcome": "収納中でも各新規 pending の到着で再展開し、自動展開分は解決で自動収納する"},
+        {"id": "OPT-BADGE-ONLY", "label": "バッジのみ", "outcome": "展開はユーザー操作のみ。到着はバッジとトーストで通知する"}
+      ],
+      "selected_option_ref": "OPT-AUTOEXPAND-EACH",
+      "user_impact": ["承認への気づきの速さ", "作業中の視覚的割り込み量"],
+      "affected_refs": ["F-001", "F-005", "UAC-001", "UAC-040"],
+      "provenance": {"source": "existing_product_behavior", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/AgentGrid.Shell.Core.Tests/SupervisionState/IslandStateMachineTests.cs"], "rationale": "出荷済み挙動として unit test で pin 済み。Phase 2 の panel-primary lens 承認に整合"}
+    },
+    {
+      "id": "DP-FOCUS-DISCIPLINE",
+      "decision_key": "focus-discipline",
+      "question": "pending 到着・応答時のフォーカスをどう扱うか",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {"id": "OPT-NOACTIVATE-RETURN", "label": "非奪取 + 返信後返却", "outcome": "到着でフォーカスを奪わず、返信欄操作時のみ activate、送信後は直前のアプリへ返却する"},
+        {"id": "OPT-ACTIVATE-ON-ARRIVAL", "label": "到着時アクティベート", "outcome": "到着で島にフォーカスを移し即応答可能にする"}
+      ],
+      "selected_option_ref": "OPT-NOACTIVATE-RETURN",
+      "user_impact": ["作業中断の有無", "即応答までの操作数"],
+      "affected_refs": ["F-001", "F-002", "UAC-001", "UAC-010", "UAC-011"],
+      "provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260723-windows-shell-phase2/ux.md"], "rationale": "Phase 2 consultation r2 で DP-PANEL-ENGAGE-FOCUS-RETURN として normative 昇格済み"}
+    },
+    {
+      "id": "DP-SUBMIT-FEEDBACK",
+      "decision_key": "submit-feedback-model",
+      "question": "応答送信の UI 反映を楽観 (即時反映+失敗復元) にするかブロッキング確認にするか",
+      "layer": "interaction",
+      "subject": "default",
+      "consultation_policy": "may_default",
+      "contract_effect": "default",
+      "answer_status": "defaulted",
+      "validation_status": "not_applicable",
+      "options": [
+        {"id": "OPT-OPTIMISTIC-ROLLBACK", "label": "楽観反映 + 失敗復元", "outcome": "操作で即カードを消し、送信失敗時のみ復元して再試行を促す"},
+        {"id": "OPT-BLOCKING-CONFIRM", "label": "ブロッキング確認", "outcome": "サーバー応答までカードにスピナーを表示する"}
+      ],
+      "selected_option_ref": "OPT-OPTIMISTIC-ROLLBACK",
+      "user_impact": ["応答の体感速度", "失敗時の分かりやすさ"],
+      "affected_refs": ["UAC-002", "UAC-003"],
+      "provenance": {"source": "existing_product_behavior", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/AgentGrid.Shell.Core.Tests/SupervisionState/ApprovalSubmissionServiceTests.cs"], "rationale": "contract-approve-submission-rollback として実装・テスト済み"}
+    },
+    {
+      "id": "DP-PENDING-REPLAY",
+      "decision_key": "reconnect-replay",
+      "question": "島の接続/再接続時に、その時点で未解決の pending をスナップショット配信して表示するか",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {"id": "OPT-REPLAY-ON-CONNECT", "label": "接続時に replay", "outcome": "接続直後に未解決 pending が島に表示され、切断中の要求を取りこぼさない (既解決分は再表示しない)"},
+        {"id": "OPT-BLACKOUT-STATUS-QUO", "label": "現状維持", "outcome": "接続後の新規イベントのみ表示。切断中の pending は TTL の既定決定に委ねる"}
+      ],
+      "selected_option_ref": "OPT-REPLAY-ON-CONNECT",
+      "user_impact": ["切断復帰後の承認取りこぼし (現状は 30 秒 TTL で既定拒否に落ちる)", "島起動直後の初期表示の完全性"],
+      "affected_refs": ["F-005", "UAC-043", "handoff-pending-replay"],
+      "recommendation": {"option_ref": "OPT-REPLAY-ON-CONNECT", "basis": "planner_judgment", "evidence_refs": ["src/server/api/approval.go:117-123"], "confidence": "medium", "reversibility": "moderate"},
+      "provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260725-vibe-island-human-input-contract/consultations/20260725-unresolved-dps.md", "src/server/api/approval.go:117-123"], "rationale": "2026-07-25 の user consultation で OPT-REPLAY-ON-CONNECT を選択 (原文「接続時に replay する」)。欠落の存在は実装調査で確認済み。実装は slice-gap-closure"}
+    },
+    {
+      "id": "DP-CLAUDE-FIRST-CLASS",
+      "decision_key": "claude-approval-source",
+      "question": "Claude セッションのパーミッション要求も島のカードとして表示・応答できるよう一級化するか",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "unanswered",
+      "validation_status": "not_applicable",
+      "options": [
+        {"id": "OPT-CLAUDE-HOOK-APPROVAL", "label": "hook 経由で一級化", "outcome": "Claude の permission 判断を hook (PreToolUse decision) 経由で仲介し、Codex と同じカード体験にする"},
+        {"id": "OPT-CLAUDE-STATUS-ONLY", "label": "現状維持 (status のみ)", "outcome": "Claude の承認は TUI 内で行い、島は待機状態の表示に留める"}
+      ],
+      "selected_option_ref": null,
+      "user_impact": ["Claude セッション監督時に島から応答できるか (現状はターミナルへ戻る必要がある)", "エージェント種別による体験の一貫性"],
+      "affected_refs": ["assumption-codex-only-source", "handoff-claude-approval-source"],
+      "recommendation": {"option_ref": "OPT-CLAUDE-HOOK-APPROVAL", "basis": "planner_judgment", "evidence_refs": ["src/host/driver/claude_event.go:23-44"], "confidence": "low", "reversibility": "moderate"},
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/host/driver/claude_event.go:23-44", "docs/changes/change-20260725-vibe-island-human-input-contract/consultations/20260725-unresolved-dps.md"], "rationale": "Claude 経路に ApprovalRequest が存在しないことを実装調査で確認。2026-07-25 の user consultation は「design 検証を先行」(宣言済み option の選択ではないため unanswered を維持)。hook decision 制御の可否判明後に再相談する"}
+    },
+    {
+      "id": "DP-QUESTION-OPTIONS",
+      "decision_key": "question-option-input",
+      "question": "選択肢付き質問 (AskUserQuestion 型) をワイヤと島 UI に載せ、ボタン選択で回答できるようにするか",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "may_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {"id": "OPT-OPTION-BUTTONS", "label": "選択肢ボタン", "outcome": "選択肢がある質問はボタンで 1 タップ回答でき、自由文は fallback として残る"},
+        {"id": "OPT-FREE-TEXT-ONLY", "label": "自由文のみ (現状)", "outcome": "すべての質問を自由文で回答する。選択肢はプロンプト文中の文字情報に平坦化される"}
+      ],
+      "selected_option_ref": "OPT-OPTION-BUTTONS",
+      "user_impact": ["選択肢質問への回答速度と誤入力率", "島カードの複雑さ"],
+      "affected_refs": ["F-002", "assumption-question-free-text", "handoff-question-options"],
+      "recommendation": {"option_ref": "OPT-OPTION-BUTTONS", "basis": "planner_judgment", "evidence_refs": ["src/server/api/approval.go:65-112"], "confidence": "medium", "reversibility": "easy"},
+      "provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260725-vibe-island-human-input-contract/consultations/20260725-unresolved-dps.md", "src/server/api/approval.go:65-112"], "rationale": "2026-07-25 の user consultation で OPT-OPTION-BUTTONS を選択 (原文「選択肢ボタンを導入」)。自由文限定の現状は実装調査で確認済み。実装は slice-gap-closure"}
+    }
+  ],
+  "product_decisions": [
+    {
+      "id": "decision-island-autoexpand",
+      "decision_ref": "DP-ISLAND-AUTOEXPAND",
+      "decision": "新規 pending 到着時に島を自動展開するか、バッジ更新のみに留めるか",
+      "selected_option_ref": "OPT-AUTOEXPAND-EACH",
+      "contract_effect": "normative",
+      "provenance": {"source": "existing_product_behavior", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/AgentGrid.Shell.Core.Tests/SupervisionState/IslandStateMachineTests.cs"], "rationale": "出荷済み挙動として unit test で pin 済み。Phase 2 の panel-primary lens 承認に整合"}
+    },
+    {
+      "id": "decision-focus-discipline",
+      "decision_ref": "DP-FOCUS-DISCIPLINE",
+      "decision": "pending 到着・応答時のフォーカスをどう扱うか",
+      "selected_option_ref": "OPT-NOACTIVATE-RETURN",
+      "contract_effect": "normative",
+      "provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260723-windows-shell-phase2/ux.md"], "rationale": "Phase 2 consultation r2 で DP-PANEL-ENGAGE-FOCUS-RETURN として normative 昇格済み"}
+    },
+    {
+      "id": "decision-submit-feedback",
+      "decision_ref": "DP-SUBMIT-FEEDBACK",
+      "decision": "応答送信の UI 反映を楽観 (即時反映+失敗復元) にするかブロッキング確認にするか",
+      "selected_option_ref": "OPT-OPTIMISTIC-ROLLBACK",
+      "contract_effect": "default",
+      "provenance": {"source": "existing_product_behavior", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/AgentGrid.Shell.Core.Tests/SupervisionState/ApprovalSubmissionServiceTests.cs"], "rationale": "contract-approve-submission-rollback として実装・テスト済み"}
+    },
+    {
+      "id": "decision-pending-replay",
+      "decision_ref": "DP-PENDING-REPLAY",
+      "decision": "島の接続/再接続時に、その時点で未解決の pending をスナップショット配信して表示するか",
+      "selected_option_ref": "OPT-REPLAY-ON-CONNECT",
+      "contract_effect": "normative",
+      "provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260725-vibe-island-human-input-contract/consultations/20260725-unresolved-dps.md", "src/server/api/approval.go:117-123"], "rationale": "2026-07-25 の user consultation で OPT-REPLAY-ON-CONNECT を選択 (原文「接続時に replay する」)。欠落の存在は実装調査で確認済み。実装は slice-gap-closure"}
+    },
+    {
+      "id": "decision-question-options",
+      "decision_ref": "DP-QUESTION-OPTIONS",
+      "decision": "選択肢付き質問 (AskUserQuestion 型) をワイヤと島 UI に載せ、ボタン選択で回答できるようにするか",
+      "selected_option_ref": "OPT-OPTION-BUTTONS",
+      "contract_effect": "normative",
+      "provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260725-vibe-island-human-input-contract/consultations/20260725-unresolved-dps.md", "src/server/api/approval.go:65-112"], "rationale": "2026-07-25 の user consultation で OPT-OPTION-BUTTONS を選択 (原文「選択肢ボタンを導入」)。自由文限定の現状は実装調査で確認済み。実装は slice-gap-closure"}
+    }
+  ],
+  "product_decisions_remaining": [
+    {
+      "decision": "Claude パーミッション要求の一級化",
+      "decision_ref": "DP-CLAUDE-FIRST-CLASS",
+      "contract_effect": "handoff",
+      "rationale": "2026-07-25 の user consultation で「design 検証を先行」と回答 (宣言済み option の選択ではないため unanswered を維持)。hook decision 制御の実現可否検証 (handoff-claude-approval-source) の結果が出た後に採否を再相談する。方針としては一級化志向"
+    }
+  ],
+  "delivery_slices": [
+    {
+      "id": "slice-asis-contract",
+      "horizon": "initial",
+      "goal": "実装調査で検証済みの as-is 体験を判別可能な契約として固定する (実装変更なし・verification のみ)",
+      "flow_refs": ["F-001", "F-002", "F-003", "F-004", "F-005"],
+      "excluded_capabilities": ["接続/再接続時の pending replay", "Claude パーミッション要求の一級化", "選択肢付き質問のボタン回答", "Workspace (ブラウザ SPA) 側の並行 UX"]
+    },
+    {
+      "id": "slice-gap-closure",
+      "horizon": "follow_up",
+      "goal": "user consultation (2026-07-25) で導入決定済みの pending replay (DP-PENDING-REPLAY) と選択肢付き質問 (DP-QUESTION-OPTIONS) を実装し、Claude 一級化 (DP-CLAUDE-FIRST-CLASS) は design 検証後に採否を再相談する",
+      "flow_refs": [],
+      "excluded_capabilities": []
+    }
+  ],
+  "observable_state_contracts": [
+    {
+      "id": "state-island-attention",
+      "subject": "島の展開状態 (注意要求の可視化)",
+      "states": ["expanded-initial", "compact", "expanded-auto", "expanded-user"],
+      "initial_state": "expanded-initial",
+      "transitions": [
+        {"from": "expanded-initial", "trigger": "ユーザーの収納操作", "to": "compact"},
+        {"from": "compact", "trigger": "新規 pending の到着", "to": "expanded-auto"},
+        {"from": "expanded-auto", "trigger": "pending が 0 になる", "to": "compact"},
+        {"from": "compact", "trigger": "ユーザーのコンパクトバークリック", "to": "expanded-user"},
+        {"from": "expanded-user", "trigger": "ユーザーの収納操作 (または Esc)", "to": "compact"}
+      ],
+      "invariants": ["ユーザーが開いた展開 (expanded-user) は自動収納されない", "収納中でも新規 pending の到着ごとに再展開する (0→1 に限らない)"],
+      "scenario_refs": ["UAC-001", "UAC-040"]
+    },
+    {
+      "id": "state-pending-card",
+      "subject": "承認/質問カードの表示ライフサイクル",
+      "states": ["visible", "absent", "notice-handled-elsewhere"],
+      "initial_state": "visible",
+      "transitions": [
+        {"from": "visible", "trigger": "本人の決定/回答 (楽観反映)", "to": "absent"},
+        {"from": "visible", "trigger": "送信失敗", "to": "visible"},
+        {"from": "visible", "trigger": "他クライアントの解決 (ax/qx または 409)", "to": "notice-handled-elsewhere"},
+        {"from": "visible", "trigger": "30 秒 TTL の期限切れ", "to": "absent"},
+        {"from": "notice-handled-elsewhere", "trigger": "同一 ID の新規要求到着", "to": "visible"}
+      ],
+      "invariants": ["同一要求のカードは高々 1 枚", "absent へ遷移した要求が再表示されることはない (同一 ID の新規要求を除く)"],
+      "scenario_refs": ["UAC-002", "UAC-003", "UAC-020", "UAC-041"]
+    }
+  ],
+  "design_handoffs": [
+    {
+      "id": "handoff-uia-observation-contract",
+      "required_outcome": "各 acceptance scenario の観察 (要素の存在/不存在・フォーカス遷移・通知発火) が、安定した UIA AutomationId 契約とテストシームによって機械検証可能であり続ける",
+      "design_obligations": [
+        "AutomationId 契約 (StatusText / PendingList / ApproveButton / DenyButton / EngageBox / NoticeText / ConnectionText 等) の維持と、UI 変更時の契約更新手順の遵守",
+        "instrumentation (wire フレーム形・REST エンドポイント・reducer イベント) と UX 観察の対応関係を verification が参照できる形に保つ"
+      ],
+      "verification_obligations": [
+        "FlaUI/UIA e2e が AutomationId 契約経由で scenario を検証する",
+        "T0 unit tests (parser / reducer / presentation / state machine) が wire→表示の対応を pin する"
+      ],
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["clients/windows-shell/docs/e2e.md", "docs/note/note-20260724-windows-shell-ui-e2e-authoring.md"], "rationale": "既存の AutomationId 契約と e2e 規約を scenario 検証のシームとして流用する"},
+      "decision_refs": []
+    },
+    {
+      "id": "handoff-pending-replay",
+      "required_outcome": "接続/再接続の直後に、その時点で未解決の承認/質問が島に表示され、既解決の要求は再表示されない",
+      "design_obligations": [
+        "server の pending-human-input snapshot (placeholder) の本実装と、島側の接続時初期同期の設計",
+        "既解決要求の重複排除 (replay とライブイベントの整合)"
+      ],
+      "verification_obligations": [
+        "Go gateway scenario test (subscribe → snapshot に pending が含まれる)",
+        "島側 reducer unit test (snapshot 適用とライブイベントの合流)"
+      ],
+      "provenance": {"source": "repository_evidence", "confidence": "confirmed", "evidence_refs": ["src/server/api/approval.go:117-123"], "rationale": "欠落の存在は確認済み。導入判断は DP-PENDING-REPLAY"},
+      "decision_refs": ["DP-PENDING-REPLAY"]
+    },
+    {
+      "id": "handoff-claude-approval-source",
+      "required_outcome": "Claude セッションのパーミッション要求もカードとして表示・応答できる (実現可否と方式は design が判定)",
+      "design_obligations": [
+        "Claude hook (PreToolUse の decision 制御) で保留→応答を仲介できるかの技術検証",
+        "供給源非依存の ApprovalRequest 契約の維持 (TTL・既定決定・単一解決の意味論を Claude 側でも成立させる)"
+      ],
+      "verification_obligations": [
+        "driver contract test (Claude 供給源での ApprovalRequest 生成)",
+        "FakeVsReal e2e backstop (実 Claude Code との fidelity)"
+      ],
+      "provenance": {"source": "planner_proposal", "confidence": "provisional", "evidence_refs": ["src/host/driver/claude_event.go:23-44"], "rationale": "現状 status-only であることは確認済みだが、hook 仲介の実現可否は未検証"},
+      "decision_refs": ["DP-CLAUDE-FIRST-CLASS"]
+    },
+    {
+      "id": "handoff-question-options",
+      "required_outcome": "選択肢付き質問を島でボタン選択でき、自由文 fallback も維持される",
+      "design_obligations": [
+        "ワイヤ (qr フレーム/REST) への options 追加を後方互換で設計する",
+        "島カードの選択肢描画・キーボード操作・AutomationId 契約の拡張"
+      ],
+      "verification_obligations": [
+        "wire codec の互換テスト (options なしクライアントが壊れない)",
+        "FlaUI e2e (選択肢ボタンの操作)"
+      ],
+      "provenance": {"source": "planner_proposal", "confidence": "provisional", "evidence_refs": ["src/server/api/approval.go:65-112"], "rationale": "自由文限定は確認済み。拡張形式は design 所有"},
+      "decision_refs": ["DP-QUESTION-OPTIONS"]
+    }
+  ],
+  "critique_resolutions": [],
+  "resolved_issues": [
+    {
+      "issue": "3 役プロトコル (planner / critic / integrator) の適用",
+      "resolution": "ユーザー指示によりスキル/サブエージェントを起動せず単一セッションで作成した。否定役 (critic) pass は未実施のため、counterexample の判別性はセッション内自己検査に留まる。正式運用に載せる場合は /requirements の critique phase で再検収する"
+    },
+    {
+      "issue": "未解決 decision point 3 件の user consultation",
+      "resolution": "2026-07-25 実施 (consultations/20260725-unresolved-dps.md)。DP-PENDING-REPLAY=OPT-REPLAY-ON-CONNECT、DP-QUESTION-OPTIONS=OPT-OPTION-BUTTONS を answered として projection に反映。DP-CLAUDE-FIRST-CLASS は「design 検証を先行」のため unanswered を維持し、可否判明後に再相談する"
+    }
+  ],
+  "open_questions": [
+    "DP-CLAUDE-FIRST-CLASS: hook 仲介の実現可否を design (handoff-claude-approval-source) で検証した後、採否を再相談する (2026-07-25 consultation: design 検証先行、方針は一級化志向)",
+    "否定役 (critic) pass 未実施: 本 plan はユーザー指示によりセッション内単独作成。counterexample の独立検収を行う場合は /requirements critique phase を別途実行する"
+  ]
+}

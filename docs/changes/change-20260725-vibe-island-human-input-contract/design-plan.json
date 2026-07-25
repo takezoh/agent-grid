@@ -1,0 +1,685 @@
+{
+  "revision": "design-r2",
+  "base_revision": "design-r1",
+  "goal": "ux.md (specify-r1) が固定した Vibe Island human-input (承認/質問) の体験契約を、実装コード変更なしで反証可能な技術契約 (EARS + implementation contract + Tier 検証) へ翻訳し、既存実装が契約から逸脱したとき機械的に検出できる状態にする。",
+  "approach": "as-is 契約 pin なので新規実装は行わない。設計の実体は (1) UX 契約の EARS 化、(2) 3 つの implementation contract (gateway 往復 / 島の注意観察 / カードライフサイクル) による decision closure、(3) witness を既存 T0 純粋層テスト・T1 Go テスト・T3 UIA e2e へ帰着させる検証戦略、(4) 対応が欠けている assert のテスト補強のみ。production code に seam 追加が必要になった場合は本 change を止めて再設計する。",
+  "scope": {
+    "in_scope": [
+      "ux.md の 14 UAC / 4 experience contract の EARS + implementation contract への翻訳",
+      "witness と既存テスト資産 (Core.Tests / Platform.Tests / go test / FlaUI) の対応付けと欠落 assert のテスト補強",
+      "verification member への UAC↔Tier↔テスト対応表の materialization"
+    ],
+    "out_of_scope": [
+      "pending replay (DP-PENDING-REPLAY) の実装 — slice-gap-closure の後続 change",
+      "選択肢付き質問 (DP-QUESTION-OPTIONS) のワイヤ/UI 拡張 — 同上",
+      "Claude 一級化 (DP-CLAUDE-FIRST-CLASS) の feasibility spike — design 検証後に再相談",
+      "production code の変更 (リファクタ・seam 追加を含む)"
+    ]
+  },
+  "design_dimensions": ["integration_contract", "user_observability", "state_lifecycle"],
+  "components": [
+    {
+      "id": "component-gateway-humaninput",
+      "name": "Gateway human-input 往復 (server/api + host/state + stream)",
+      "responsibility": "Codex app-server の JSON-RPC 承認/質問要求を保留・状態化し、WS/REST 経由の応答を単一解決として保留 RPC へ書き戻す",
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": ["src/server/api", "src/host/state", "src/host/runtime/subsystem/stream"],
+        "owner": "server バイナリ (host 層 + gateway)",
+        "integration_points": [
+          "stream.Backend.handleRequest → SubsystemApprovalRequested/QuestionRequested → state.Reduce",
+          "EffBroadcastEvent → proto → wire ar/ax/qr/qx フレーム",
+          "POST /api/sessions/{id}/approvals|questions/{itemId} → CmdApprovalRespond/CmdQuestionRespond → EffReplyHeldApproval/Question"
+        ],
+        "test_seams": [
+          "state.Reduce 純 reducer (reduce_approval_test.go / reduce_question_test.go)",
+          "gateway scenario tests (mux_*_test.go、fake agent)",
+          "stream helpers の payload 抽出単体テスト"
+        ],
+        "rationale": "実装調査 (2026-07-25) で確認済みの既存経路。本 change はこの経路を変更せず契約として固定する",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": ["contract-human-input-roundtrip"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-island-supervision-core",
+      "name": "Vibe Island 純粋層 (Shell.Core SupervisionState/GatewayClient + Platform Toast)",
+      "responsibility": "WS フレームを typed イベント→snapshot→UI 非依存の投影 (glance/presentation/island state machine) に変換し、応答送信の楽観反映とトースト発火判定を所有する",
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "clients/windows-shell/AgentGrid.Shell.Core/SupervisionState",
+          "clients/windows-shell/AgentGrid.Shell.Core/GatewayClient",
+          "clients/windows-shell/AgentGrid.Shell.Platform/Toast",
+          "clients/windows-shell/AgentGrid.Shell.Platform/Engage"
+        ],
+        "owner": "AgentGrid.Shell.Core / AgentGrid.Shell.Platform",
+        "integration_points": [
+          "SupervisionWsSession → WsFrameParser → ApprovalSubmissionService.Apply → SnapshotChanged",
+          "ShellFleet.SubmitApproval/QuestionAsync → ShellGatewayClient REST",
+          "SupervisionToastRouter.OnSnapshotAsync → ToastDecisionService",
+          "EngageFocusService.EnterEngage/ExitEngage"
+        ],
+        "test_seams": [
+          "WsFrameParser 純関数 (fixture 駆動)",
+          "ApprovalSubmissionService への fake gateway 注入",
+          "SupervisionToastRouter への IToastNotifier fake 注入",
+          "IslandStateMachine / PanelPresentation 純関数"
+        ],
+        "rationale": "契約の大半は既にこの純粋層の T0 テストで pin されている。witness をここへ帰着させる",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": ["contract-island-attention-observability", "contract-pending-card-lifecycle"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-island-winui-shell",
+      "name": "WinUI 描画殻 (PanelWindow / Toast サービス / UiTests)",
+      "responsibility": "Core の投影 (PanelGlanceView / PanelPresentation) を XAML に描画し、AutomationId 契約で観測面を安定化する",
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "clients/windows-shell/AgentGrid.Shell.WinUI",
+          "clients/windows-shell/AgentGrid.Shell.WinUI.UiTests"
+        ],
+        "owner": "AgentGrid.Shell.WinUI",
+        "integration_points": [
+          "SnapshotChanged → DispatcherQueue → PanelWindow.Render(view)",
+          "AppNotificationToastService.OnNotificationInvoked → ShellFleet.SubmitApprovalAsync"
+        ],
+        "test_seams": ["FlaUI/UIA3 e2e (AutomationId 契約)", "ToastXml 純関数"],
+        "rationale": "描画殻は Core 投影の 1:1 反映で独自判断を持たない",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": [],
+      "decision_closure_reason": "PanelWindow.Render は PanelPresentation/PanelGlanceView の純粋投影を機械的に描画するだけで独自の判断を持たず、描画実装差は AutomationId 契約 (UiTests) が観測レベルで固定するため、契約の観測・owner・failure semantics を変えない"
+    }
+  ],
+  "requirements": [
+    {"id": "FR-001", "type": "event_driven", "statement": "承認または質問の要求が到着したとき、島は自動展開して種別色のカードと件数バッジを表示し、フォーカスを移動しない。", "priority": "must", "rationale": "UAC-001 / UAC-010 (exp-approval-roundtrip / exp-question-inline-reply の entry 観察)"},
+    {"id": "FR-002", "type": "event_driven", "statement": "ユーザーが応答操作 (Allow/Deny/回答送信) を行ったとき、UI は楽観反映でカードを即時除去し、送信失敗時はカードを復元してオフラインバッジで可視化する。", "priority": "must", "rationale": "UAC-002 / UAC-003 (contract-approve-submission-rollback の契約化)"},
+    {"id": "FR-003", "type": "ubiquitous", "statement": "システムは 1 つの human-input 要求につき解決を正確に 1 回だけエージェントの保留 JSON-RPC へ返信し、後着の応答には resolved_by_other を返す。", "priority": "must", "rationale": "UAC-020 / UAC-021 (単一解決 invariant — ubiquitous)"},
+    {"id": "FR-004", "type": "state_driven", "statement": "パネルが注視されていない間、システムは新規承認 1 件につき最大 1 回だけトーストを発火し、注視中・DND 中は発火しない。", "priority": "must", "rationale": "UAC-030 / UAC-032 (state_driven invariant)"},
+    {"id": "FR-005", "type": "event_driven", "statement": "承認または質問が 30 秒間未応答のまま期限に達したとき、システムは作成時に捕捉した既定決定で自動解決し、カードを除去する。", "priority": "must", "rationale": "UAC-041 (threshold-approval-ttl、TOCTOU-free な既定適用)"},
+    {"id": "FR-006", "type": "event_driven", "statement": "質問回答の送信が完了したとき、システムは返信欄をクリアし、捕捉済みの直前フォアグラウンドウィンドウが生存していればフォーカスを返却する。", "priority": "must", "rationale": "UAC-011 (DP-FOCUS-DISCIPLINE normative)"},
+    {"id": "FR-007", "type": "state_driven", "statement": "pending が 0 の間、島は承認/質問の UI 要素を UI ツリーに生成しない。", "priority": "must", "rationale": "UAC-040 / UAC-042 (healthy is silent — 要素の非存在まで要求)"},
+    {"id": "FR-008", "type": "unwanted", "statement": "再接続時、システムは既に解決済みの要求のカードやトーストを再提示してはならない。", "priority": "must", "rationale": "UAC-043 (非捏造。未解決 pending の replay 導入後もこの禁止は維持される)"}
+  ],
+  "non_functional_requirements": [
+    {"id": "NFR-001", "type": "reliability", "criteria": "複数クライアントの同時応答・切断・期限切れが重なっても、エージェントへの決定返信は要求ごとに正確に 1 回であること", "measurement": "state reducer の並行応答テストと gateway scenario テストでの返信回数 assert"},
+    {"id": "NFR-002", "type": "usability", "criteria": "pending の到着・表示・解決のどの時点でも作業中アプリのフォーカスを奪わないこと", "measurement": "WS_EX_NOACTIVATE 属性の unit assert + UIA フォーカスイベントの e2e/手動観察"}
+  ],
+  "acceptance": [
+    {"id": "UAC-001", "given": "島がコンパクト表示で監督者が別アプリで入力中", "when": "Codex が承認を要求する", "then": "自動展開・警告色カード・バッジが表示され、キャレットは移動しない", "requirement_refs": ["FR-001"]},
+    {"id": "UAC-002", "given": "承認カード表示中", "when": "Allow (Ctrl+Y) を操作する", "then": "カードは即時に消え、同一要求は再出現せず、セッションが実行中表示に戻る", "requirement_refs": ["FR-002", "FR-003"]},
+    {"id": "UAC-003", "given": "ネットワーク断でカード表示中", "when": "Allow を操作する", "then": "カードが復元されオフラインバッジが表示され、再試行できる", "requirement_refs": ["FR-002"]},
+    {"id": "UAC-010", "given": "pending なしで別アプリ入力中", "when": "質問が到着する", "then": "Question カードと返信欄が表示され、自動フォーカスされない", "requirement_refs": ["FR-001"]},
+    {"id": "UAC-011", "given": "質問カードと返信欄が表示中", "when": "IME 入力で回答し Enter を押す", "then": "確定文字列が送信され、返信欄がクリアされ、フォーカスが直前のアプリへ返る", "requirement_refs": ["FR-006"]},
+    {"id": "UAC-020", "given": "同一承認が島とブラウザに表示中", "when": "ブラウザが先に許可する", "then": "島のカードが消え Handled elsewhere 通知が表示され、トーストは発火しない", "requirement_refs": ["FR-003"]},
+    {"id": "UAC-021", "given": "ブラウザが許可した直後", "when": "島で Deny して競り負ける", "then": "エラーダイアログなしで Handled elsewhere になり、先着の許可だけが効く", "requirement_refs": ["FR-003"]},
+    {"id": "UAC-030", "given": "パネル非注視・非 DND", "when": "承認が到着する", "then": "Approve/Deny ボタン付きトーストが 1 回だけ表示される", "requirement_refs": ["FR-004"]},
+    {"id": "UAC-031", "given": "承認トースト表示中", "when": "トーストの Approve を押す", "then": "パネルと同一経路で解決され、島のカードも消える", "requirement_refs": ["FR-003", "FR-004"]},
+    {"id": "UAC-032", "given": "展開パネル注視中", "when": "承認が到着する", "then": "トーストは発火せずパネルのカードのみで通知される", "requirement_refs": ["FR-004"]},
+    {"id": "UAC-040", "given": "自動展開中で pending 1 件", "when": "解決する", "then": "島は自動収納される。ユーザー展開分は収納されない", "requirement_refs": ["FR-007"]},
+    {"id": "UAC-041", "given": "承認カードを放置", "when": "30 秒経過する", "then": "カードが消え、既定決定がエージェントに適用される", "requirement_refs": ["FR-005"]},
+    {"id": "UAC-042", "given": "pending も異常もない", "when": "UI と支援技術で走査する", "then": "コンパクトバー 1 行のみで、承認/質問要素は UIA ツリーに存在しない", "requirement_refs": ["FR-007"]},
+    {"id": "UAC-043", "given": "切断中に発生し既解決の承認がある", "when": "再接続する", "then": "過去要求のカード/トーストは再提示されない", "requirement_refs": ["FR-008"]}
+  ],
+  "implementation_contracts": [
+    {
+      "id": "contract-human-input-roundtrip",
+      "dimension": "integration_contract",
+      "subject": "Codex 保留 JSON-RPC ↔ gateway 状態 ↔ クライアント応答の単一解決往復",
+      "owner_component_ref": "component-gateway-humaninput",
+      "related_requirements": ["FR-003", "FR-005", "FR-008", "NFR-001"],
+      "related_units": ["gateway 往復契約テストの確認と補強"],
+      "decision_rules": [
+        {
+          "id": "decision-first-writer-wins",
+          "condition": "pending の approval/question へ応答コマンド (decision/answer) が到着した",
+          "evidence_mode": "total",
+          "input_refs": ["input-client-decision", "input-pending-registry"],
+          "epistemic_state": "determinate",
+          "outcome": "最初の有効応答だけを解決として適用し保留 JSON-RPC へ 1 回だけ返信する。以後の応答には resolved_by_other (tombstone 参照) を返す",
+          "observable_refs": ["observable-agent-single-reply", "observable-conflict-normalized", "observable-resolution-broadcast"],
+          "rationale": "単一 writer の Reduce ループ内で authoritative registry を参照するため決定は全域的"
+        },
+        {
+          "id": "decision-ttl-default",
+          "condition": "pending が期限 (作成 + 30s) を過ぎた状態で tick された",
+          "evidence_mode": "total",
+          "input_refs": ["input-pending-registry"],
+          "epistemic_state": "determinate",
+          "outcome": "作成時に捕捉した default_decision で自動解決し、expired として broadcast、保留 JSON-RPC へ返信する",
+          "observable_refs": ["observable-resolution-broadcast", "observable-agent-single-reply"],
+          "rationale": "既定決定を作成時に捕捉することで TOCTOU なしの全域決定になる"
+        },
+        {
+          "id": "decision-teardown-cancel",
+          "condition": "frame または session の teardown が発生した",
+          "evidence_mode": "total",
+          "input_refs": ["input-pending-registry"],
+          "epistemic_state": "determinate",
+          "outcome": "保留 JSON-RPC へ connection-lost を返信し pending を除去する (再接続後の replay 対象に残さない)",
+          "observable_refs": ["observable-agent-single-reply"],
+          "rationale": "エージェントを永久待機させない。FR-008 の非捏造の基盤"
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-resolution-broadcast",
+          "description": "解決が ax/qx フレームとして全購読クライアントへ配信され、各面のカードが消える",
+          "scope": "global",
+          "operational_input_refs": ["input-pending-registry"],
+          "input_closure_reason": ""
+        },
+        {
+          "id": "observable-agent-single-reply",
+          "description": "保留中の JSON-RPC へ decision (accept/decline) または answer が正確に 1 回返信され、エージェントが再開または既定動作する",
+          "scope": "single",
+          "operational_input_refs": ["input-client-decision", "input-pending-registry"],
+          "input_closure_reason": ""
+        },
+        {
+          "id": "observable-conflict-normalized",
+          "description": "後着の応答者は HTTP 409 / resolved_by_other を受け、クライアントは Handled elsewhere として表示できる",
+          "scope": "local",
+          "operational_input_refs": ["input-client-decision", "input-pending-registry"],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-pending-registry",
+          "kind": "versioned_state",
+          "owner_component_ref": "component-gateway-humaninput",
+          "producer": {"kind": "external", "external_identity": "codex app-server (item/commandExecution|fileChange/requestApproval, item/tool/requestUserInput JSON-RPC)"},
+          "source": "stream backend が保留した JSON-RPC request id (heldApprovals/heldQuestions) と state の PendingApprovals/PendingQuestions + 解決 tombstone",
+          "acquired_at": "requestApproval/requestUserInput の受信時",
+          "required_until": "解決 (respond / expiry / teardown) の返信完了まで",
+          "preservation": "current_lookup",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "単一 writer の Reduce ループが全コマンドを直列化し、解決済みは tombstone で終端する",
+          "invalidation_behavior": "teardown は connection-lost 返信、期限切れは既定決定適用で registry から除去する",
+          "unavailable_outcome": "存在しない要求への応答は not_found (404) で拒否する",
+          "witness_refs": ["witness-race-adversarial"]
+        },
+        {
+          "id": "input-client-decision",
+          "kind": "information",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-gateway-humaninput",
+          "producer": {"kind": "external", "external_identity": "応答クライアント (Vibe Island / ブラウザ SPA / トースト) の REST/WS リクエスト"},
+          "source": "POST approvals/questions の body {decision|answer} + X-Client-Instance-ID / WS inbound ar/qr フレーム",
+          "acquired_at": "REST/WS 受信時",
+          "required_until": "reducer 適用まで",
+          "preservation": "snapshot",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "リクエスト body は受信時点で確定した不変値",
+          "invalidation_behavior": "検証エラー (不正 decision / 非文字列 answer) は 400 invalid_argument で拒否する",
+          "unavailable_outcome": "応答が来なければ TTL の既定決定が適用される",
+          "witness_refs": ["witness-race-adversarial"]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "1 要求につき保留 JSON-RPC への返信は正確に 1 回",
+        "後着応答は先着の決定を上書きしない (resolved_by_other tombstone)",
+        "期限切れは作成時に捕捉した default_decision のみを適用する",
+        "teardown された pending は再接続後に再配信されない"
+      ],
+      "failure_semantics": [
+        {"id": "failure-frame-teardown", "class": "agent-connection-loss", "source": "environmental", "outcome": "保留 JSON-RPC へ connection-lost を返信し pending を除去する", "requirement_effect": "preserves", "recovery": "none"},
+        {"id": "failure-invalid-response", "class": "malformed-client-request", "source": "unsupported_input", "outcome": "400 invalid_argument で拒否し pending は不変", "requirement_effect": "preserves", "recovery": "fail_fast"}
+      ],
+      "verification": [
+        {"id": "verify-gateway-scenario", "requirement_refs": ["FR-003", "FR-008", "NFR-001"], "tier": "T1", "method": "Go gateway scenario tests (src/server/api: ar/ax/qr/qx 配信、REST/WS respond、409 conflict、hello 非 replay)", "criterion": "単一解決・conflict 正規化・再接続非捏造の観測が assert されている", "command": "cd src && go test ./server/api/..."},
+        {"id": "verify-state-reducer", "requirement_refs": ["FR-003", "FR-005", "NFR-001"], "tier": "T1", "method": "state reducer tests (src/host/state: first-writer-wins、tombstone、TTL default decision、teardown reap)", "criterion": "reducer 契約 (返信 1 回・既定決定・reap) が assert されている", "command": "cd src && go test ./host/state/..."}
+      ],
+      "witnesses": [
+        {
+          "id": "witness-approve-roundtrip-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-003", "NFR-001"],
+          "precondition": "Codex が承認要求を出し pending が 1 件存在する",
+          "stimulus": "単一クライアントが accept を応答する",
+          "expected_observables": ["保留 JSON-RPC へ accept が 1 回返信される", "ax フレームが配信されカードが消える"],
+          "expected_observable_refs": ["observable-agent-single-reply", "observable-resolution-broadcast"],
+          "forbidden_outcomes": ["二重返信", "同一要求の再出現"],
+          "verification_refs": ["verify-gateway-scenario", "verify-state-reducer"]
+        },
+        {
+          "id": "witness-other-client-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-003"],
+          "precondition": "同一 pending を 2 クライアントが購読している",
+          "stimulus": "一方のクライアントが先に解決し、他方が続けて応答する",
+          "expected_observables": ["先着のみ適用", "後着は resolved_by_other を受ける", "ax が両者へ配信される"],
+          "expected_observable_refs": ["observable-conflict-normalized", "observable-resolution-broadcast"],
+          "forbidden_outcomes": ["後着決定の適用", "後着への 5xx"],
+          "verification_refs": ["verify-gateway-scenario"]
+        },
+        {
+          "id": "witness-expiry-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-005"],
+          "precondition": "誰も応答しない pending が存在する",
+          "stimulus": "作成から 30 秒経過後の tick",
+          "expected_observables": ["default_decision で自動解決", "expired として broadcast"],
+          "expected_observable_refs": ["observable-resolution-broadcast", "observable-agent-single-reply"],
+          "forbidden_outcomes": ["期限後の応答受理", "default 以外の決定適用"],
+          "verification_refs": ["verify-state-reducer"]
+        },
+        {
+          "id": "witness-race-adversarial",
+          "case": "adversarial",
+          "risk_tags": ["boundary", "concurrency", "stale"],
+          "requirement_refs": ["FR-003", "FR-008", "NFR-001"],
+          "precondition": "同一 pending へ複数クライアントがほぼ同時に応答し、直後に frame teardown と再接続が発生する",
+          "stimulus": "accept と deny の同時送信 + 不正 decision 値 + teardown + 再購読",
+          "expected_observables": ["保留 JSON-RPC への返信は 1 回のみ", "後着は resolved_by_other", "再接続後に既解決要求は配信されない"],
+          "expected_observable_refs": ["observable-agent-single-reply", "observable-conflict-normalized", "observable-resolution-broadcast"],
+          "forbidden_outcomes": ["2 回目の JSON-RPC 返信", "後着決定の適用", "既解決要求の再配信", "不正値の受理"],
+          "verification_refs": ["verify-gateway-scenario", "verify-state-reducer"]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260725-vibe-island-asis-contract-pin", "adr-20260725-vibe-island-verification-tiers"]
+    },
+    {
+      "id": "contract-island-attention-observability",
+      "dimension": "user_observability",
+      "subject": "pending 到着〜静穏までの島の注意観察 (自動展開・トースト・非奪取・非存在)",
+      "owner_component_ref": "component-island-supervision-core",
+      "related_requirements": ["FR-001", "FR-004", "FR-007", "NFR-002"],
+      "related_units": ["島側契約テストの整合確認と補強"],
+      "decision_rules": [
+        {
+          "id": "decision-autoexpand-on-arrival",
+          "condition": "収納中に snapshot の PendingCount が増加した",
+          "evidence_mode": "total",
+          "input_refs": ["input-supervision-snapshot"],
+          "epistemic_state": "determinate",
+          "outcome": "island を Expanded/AutoPending へ遷移し、種別色カードと件数バッジを描画する。フォーカスは移動しない",
+          "observable_refs": ["observable-card-and-badge", "observable-focus-untouched"],
+          "rationale": "IslandStateMachine.OnSnapshot は snapshot に対して全域的な純関数"
+        },
+        {
+          "id": "decision-toast-gate",
+          "condition": "新規 pending 到着時にパネル非注視・非ロック・非 DND (クエリ失敗は fail-open)",
+          "evidence_mode": "total",
+          "input_refs": ["input-supervision-snapshot", "input-attention-state"],
+          "epistemic_state": "determinate",
+          "outcome": "1 要求につき 1 回だけトーストを発火し、以後は _seen で抑制する",
+          "observable_refs": ["observable-toast-once"],
+          "rationale": "判定は同期 predicate で常に発火/抑制のどちらかに全域確定する (fail-open 込み)"
+        },
+        {
+          "id": "decision-quiet-collapse",
+          "condition": "AutoPending 展開中に PendingCount が 0 になった",
+          "evidence_mode": "total",
+          "input_refs": ["input-supervision-snapshot"],
+          "epistemic_state": "determinate",
+          "outcome": "自動収納し、承認/質問セクションを UI ツリーから除去する (ユーザー展開分は収納しない)",
+          "observable_refs": ["observable-silent-idle"],
+          "rationale": "PanelSections が空内容→要素非生成を決定する"
+        }
+      ],
+      "observable_effects": [
+        {"id": "observable-card-and-badge", "description": "警告色/情報色カード・件数バッジ・自動展開が表示される", "scope": "local", "operational_input_refs": ["input-supervision-snapshot"], "input_closure_reason": ""},
+        {"id": "observable-toast-once", "description": "1 pending につき最大 1 回のボタン付きトーストが発火する", "scope": "local", "operational_input_refs": ["input-supervision-snapshot", "input-attention-state"], "input_closure_reason": ""},
+        {"id": "observable-silent-idle", "description": "pending 0 で承認/質問 UI 要素が画面にも UIA ツリーにも存在しない", "scope": "local", "operational_input_refs": ["input-supervision-snapshot"], "input_closure_reason": ""},
+        {"id": "observable-focus-untouched", "description": "到着・表示・解決のどの時点でも作業中アプリのフォーカス/キャレットが移動しない", "scope": "local", "operational_input_refs": [], "input_closure_reason": "WS_EX_NOACTIVATE の静的ウィンドウ属性により、追加の情報・権限・状態取得なしに観測が成立する"}
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-supervision-snapshot",
+          "kind": "information",
+          "data_scope": "full",
+          "owner_component_ref": "component-island-supervision-core",
+          "producer": {"kind": "external", "external_identity": "gateway WS (ar/ax/qr/qx/h/v フレーム)"},
+          "source": "SupervisionWsSession → WsFrameParser → SupervisionReducer が構築する SupervisionSnapshot (immutable record)",
+          "acquired_at": "WS フレーム受信時 (reducer 適用)",
+          "required_until": "UI スレッドへ marshal した描画とトースト判定の完了まで",
+          "preservation": "snapshot",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "immutable snapshot を dispatcher へ渡すため取得後に変化しない",
+          "invalidation_behavior": "後続フレームが新しい snapshot で置換する",
+          "unavailable_outcome": "ConnectionFailed が立ちオフラインバッジが表示される",
+          "witness_refs": ["witness-frame-flood-adversarial"]
+        },
+        {
+          "id": "input-attention-state",
+          "kind": "information",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-island-supervision-core",
+          "producer": {"kind": "component", "component_ref": "component-island-winui-shell"},
+          "source": "PanelWindow.IsFlyoutOpen (注視) + OS のロック/DND クエリ (PanelWatchedPredicate)",
+          "acquired_at": "トースト発火判定の時点",
+          "required_until": "同判定の完了まで",
+          "preservation": "current_lookup",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "判定は単発の同期 predicate で、失敗時は fail-open (発火) に倒す",
+          "invalidation_behavior": "クエリ失敗時は fail-open でトーストを発火する",
+          "unavailable_outcome": "fail-open (トースト発火) — 通知の取りこぼしより二重通知を許容する",
+          "witness_refs": ["witness-frame-flood-adversarial"]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "到着・表示・解決のいずれでもフォーカスを奪わない",
+        "同一 pending のトーストは高々 1 回",
+        "空セクションは可視化制御ではなく要素として生成されない"
+      ],
+      "failure_semantics": [
+        {"id": "failure-ws-disconnect", "class": "gateway-connection-loss", "source": "transient", "outcome": "ConnectionFailed → オフラインバッジ表示、full-jitter backoff で再接続", "requirement_effect": "preserves", "recovery": "retry"},
+        {"id": "failure-com-activation", "class": "toast-com-activation-unavailable", "source": "environmental", "outcome": "トーストのボタンが Open panel のみに縮退し、応答はパネル展開経由になる", "requirement_effect": "degrades", "approval_ref": "ux.md pa-toast-com-activation (S3-gate fallback として requirements で承認済み)", "recovery": "degrade"}
+      ],
+      "verification": [
+        {"id": "verify-island-core-t0", "requirement_refs": ["FR-001", "FR-007", "NFR-002"], "tier": "T0", "method": "AgentGrid.Shell.Core.Tests (WsFrameParser / SupervisionReducer / PanelPresentation / IslandStateMachine / PanelGlance)", "criterion": "witness の観測 (自動展開・要素非生成・compact 文言優先順) が純粋層テストで assert されている", "command": "dotnet test clients/windows-shell/AgentGrid.Shell.Core.Tests"},
+        {"id": "verify-toast-router-t0", "requirement_refs": ["FR-004"], "tier": "T0", "method": "AgentGrid.Shell.Platform.Tests (SupervisionToastRouter / ToastDecisionService / PanelWatchedPredicate)", "criterion": "once-per-pending と注視/DND 抑制と fail-open が assert されている", "command": "dotnet test clients/windows-shell/AgentGrid.Shell.Platform.Tests"},
+        {"id": "verify-uia-e2e", "requirement_refs": ["FR-001", "FR-007", "NFR-002"], "tier": "T3", "method": "FlaUI/UIA3 e2e (AutomationId 契約: PendingList/CompactPendingText/空セクション非存在) — run-dev ハーネス", "criterion": "実ウィンドウで要素の存在/非存在と NOACTIVATE 属性が観察できる", "command": "make test-windows-shell-e2e"}
+      ],
+      "witnesses": [
+        {
+          "id": "witness-arrival-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-001", "NFR-002"],
+          "precondition": "島がコンパクトで監督者が別アプリ入力中",
+          "stimulus": "ar フレーム (承認到着)",
+          "expected_observables": ["自動展開とカード・バッジ表示", "フォーカス非移動"],
+          "expected_observable_refs": ["observable-card-and-badge", "observable-focus-untouched"],
+          "forbidden_outcomes": ["フォーカス奪取", "展開なしのバッジのみ"],
+          "verification_refs": ["verify-island-core-t0", "verify-uia-e2e"]
+        },
+        {
+          "id": "witness-unwatched-toast-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-004"],
+          "precondition": "パネル非注視・非 DND",
+          "stimulus": "新規承認到着後、snapshot が複数回再適用される",
+          "expected_observables": ["トーストがちょうど 1 回発火する"],
+          "expected_observable_refs": ["observable-toast-once"],
+          "forbidden_outcomes": ["2 通目のトースト", "注視中の発火"],
+          "verification_refs": ["verify-toast-router-t0"]
+        },
+        {
+          "id": "witness-quiet-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-007"],
+          "precondition": "自動展開中で pending 1 件",
+          "stimulus": "解決フレーム (ax) 到着",
+          "expected_observables": ["自動収納", "承認/質問要素の UIA ツリーからの消滅"],
+          "expected_observable_refs": ["observable-silent-idle"],
+          "forbidden_outcomes": ["空 ListView や不可視ボタンの残存", "ユーザー展開分の自動収納"],
+          "verification_refs": ["verify-island-core-t0", "verify-uia-e2e"]
+        },
+        {
+          "id": "witness-frame-flood-adversarial",
+          "case": "adversarial",
+          "risk_tags": ["boundary", "malformed", "repeated_usage"],
+          "requirement_refs": ["FR-001", "FR-004", "FR-007", "NFR-002"],
+          "precondition": "gateway から不正・重複・高頻度フレームが届き、注視状態も並行して変動する",
+          "stimulus": "未知 k フレーム / 同一 id の重複 ar / 連続 v フレーム / flyout 開閉の交錯",
+          "expected_observables": ["カードは同一 id につき 1 枚のみ", "トーストは 1 回のみ", "未知フレームは無視され描画は継続", "解決後は静穏へ戻る", "フォーカス非移動"],
+          "expected_observable_refs": ["observable-card-and-badge", "observable-toast-once", "observable-silent-idle", "observable-focus-untouched"],
+          "forbidden_outcomes": ["重複カード", "重複トースト", "未知フレームでのクラッシュ", "フォーカス奪取"],
+          "verification_refs": ["verify-island-core-t0", "verify-toast-router-t0", "verify-uia-e2e"]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260725-vibe-island-asis-contract-pin", "adr-20260725-vibe-island-verification-tiers"]
+    },
+    {
+      "id": "contract-pending-card-lifecycle",
+      "dimension": "state_lifecycle",
+      "subject": "カードの楽観反映・復元・競合通知とフォーカス返却のライフサイクル",
+      "owner_component_ref": "component-island-supervision-core",
+      "related_requirements": ["FR-002", "FR-006"],
+      "related_units": ["島側契約テストの整合確認と補強"],
+      "decision_rules": [
+        {
+          "id": "decision-optimistic-remove",
+          "condition": "ユーザーが Allow/Deny または回答送信を操作した",
+          "evidence_mode": "total",
+          "input_refs": [],
+          "epistemic_state": "determinate",
+          "outcome": "カードを即時除去し (EvtApprovalSubmitRequested / EvtQuestionResolved 楽観適用)、送信を開始する",
+          "observable_refs": ["observable-card-removed"],
+          "rationale": "楽観反映は操作イベントのみで全域確定する"
+        },
+        {
+          "id": "decision-submit-outcome",
+          "condition": "送信結果 (2xx / 409 / ネットワークエラー) を受信した",
+          "evidence_mode": "total",
+          "input_refs": ["input-submit-result"],
+          "epistemic_state": "determinate",
+          "outcome": "2xx は除去維持、409 は Handled elsewhere 通知へ変換、エラーはカード復元 (rollback)",
+          "observable_refs": ["observable-card-removed", "observable-notice-shown", "observable-card-restored"],
+          "rationale": "結果集合 {2xx, 409, その他} は全域分割で、各枝の UI 遷移は一意"
+        },
+        {
+          "id": "decision-focus-return",
+          "condition": "質問回答の送信が完了した",
+          "evidence_mode": "total",
+          "input_refs": ["input-preengage-foreground"],
+          "epistemic_state": "determinate",
+          "outcome": "EngageBox をクリアし、捕捉済み HWND が生存していればフォーカスを返却、破棄済みなら返却せず no-activate へ戻る",
+          "observable_refs": ["observable-focus-returned"],
+          "rationale": "ExitEngage は liveness を検証してから返却するため決定は全域的"
+        }
+      ],
+      "observable_effects": [
+        {"id": "observable-card-removed", "description": "操作直後にカードが即時除去され、成功時は除去が維持される", "scope": "local", "operational_input_refs": [], "input_closure_reason": "楽観反映はユーザー操作イベントのみで成立し、外部結果を待たずに観測できる"},
+        {"id": "observable-card-restored", "description": "送信失敗時にカードが復元され、オフラインバッジとともに再試行できる", "scope": "local", "operational_input_refs": ["input-submit-result"], "input_closure_reason": ""},
+        {"id": "observable-notice-shown", "description": "競合 (409/ax) で Handled elsewhere 通知が表示され、エラーダイアログは出ない", "scope": "local", "operational_input_refs": ["input-submit-result"], "input_closure_reason": ""},
+        {"id": "observable-focus-returned", "description": "回答送信後に返信欄がクリアされ、直前のフォアグラウンドへフォーカスが返る (島に残らない)", "scope": "local", "operational_input_refs": ["input-preengage-foreground"], "input_closure_reason": ""}
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-submit-result",
+          "kind": "information",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-island-supervision-core",
+          "producer": {"kind": "external", "external_identity": "gateway REST (POST approvals/questions の 2xx/409/エラー応答)"},
+          "source": "ShellGatewayClient.RespondApproval/QuestionAsync の結果 (Accepted / ResolvedByOther / ServerError / NetworkError)",
+          "acquired_at": "REST 応答受信時 (または例外捕捉時)",
+          "required_until": "reducer への結果イベント適用まで",
+          "preservation": "immutable_value",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "単一リクエストの終端結果で不変",
+          "invalidation_behavior": "適用は 1 回きりで、後続の WS フレームが最終状態を上書きし得る (authoritative は server)",
+          "unavailable_outcome": "タイムアウト/例外は NetworkError として rollback (カード復元) に写像する",
+          "witness_refs": ["witness-lifecycle-adversarial"]
+        },
+        {
+          "id": "input-preengage-foreground",
+          "kind": "information",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-island-supervision-core",
+          "producer": {"kind": "component", "component_ref": "component-island-winui-shell"},
+          "source": "EngageFocusService.EnterEngage が返信欄フォーカス時に捕捉する直前のフォアグラウンド HWND",
+          "acquired_at": "返信欄がフォーカスを得た時点 (EnterEngage)",
+          "required_until": "送信完了後の ExitEngage まで",
+          "preservation": "snapshot",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "HWND は使用時までに破棄され得るため、ExitEngage が liveness (IsWindow) を検証してから返却する",
+          "invalidation_behavior": "TargetDestroyed の場合は返却せず RestoreDenied/none として no-activate へ復帰する",
+          "unavailable_outcome": "フォーカス返却を行わない (島には残さない)",
+          "witness_refs": ["witness-lifecycle-adversarial"]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "同一要求のカードは高々 1 枚",
+        "失敗した送信は必ずカード復元として観察される (silent failure 禁止)",
+        "フォーカス返却は捕捉済みかつ生存するウィンドウにのみ行い、島にフォーカスを残さない"
+      ],
+      "failure_semantics": [
+        {"id": "failure-submit-network", "class": "submit-network-loss", "source": "transient", "outcome": "カード復元 + オフラインバッジ、ユーザー再試行で回復", "requirement_effect": "preserves", "recovery": "retry"},
+        {"id": "failure-engage-target-destroyed", "class": "focus-restore-target-lost", "source": "environmental", "outcome": "フォーカス返却をスキップし no-activate へ復帰する (破棄済み HWND へ強制返却しない)", "requirement_effect": "preserves", "recovery": "none"}
+      ],
+      "verification": [
+        {"id": "verify-lifecycle-core-t0", "requirement_refs": ["FR-002"], "tier": "T0", "method": "ApprovalSubmissionServiceTests / QuestionSubmissionServiceTests / SupervisionReducerTests (楽観除去・rollback・409→notice)", "criterion": "3 結果枝すべての UI 遷移が assert されている", "command": "dotnet test clients/windows-shell/AgentGrid.Shell.Core.Tests"},
+        {"id": "verify-engage-focus-t0", "requirement_refs": ["FR-006"], "tier": "T0", "method": "EngageFocusServiceTests / EngageAttachThreadInputTests / FocusTransferGuardTests (捕捉・返却・TargetDestroyed)", "criterion": "返却の liveness 検証と RestoreDenied/TargetDestroyed の分岐が assert されている", "command": "dotnet test clients/windows-shell/AgentGrid.Shell.Platform.Tests"}
+      ],
+      "witnesses": [
+        {
+          "id": "witness-submit-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-002", "FR-006"],
+          "precondition": "承認カードと質問カードが表示されている",
+          "stimulus": "Allow 押下と、返信欄への IME 入力→Enter 送信",
+          "expected_observables": ["カード即時除去", "返信欄クリアと直前アプリへのフォーカス返却"],
+          "expected_observable_refs": ["observable-card-removed", "observable-focus-returned"],
+          "forbidden_outcomes": ["サーバー応答待ちのブロッキング表示", "フォーカスが島に残る"],
+          "verification_refs": ["verify-lifecycle-core-t0", "verify-engage-focus-t0"]
+        },
+        {
+          "id": "witness-offline-rollback-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-002"],
+          "precondition": "ネットワーク断の状態で承認カードが表示されている",
+          "stimulus": "Allow を押す",
+          "expected_observables": ["一旦除去されたカードが復元される", "オフラインバッジ表示"],
+          "expected_observable_refs": ["observable-card-removed", "observable-card-restored"],
+          "forbidden_outcomes": ["復元なしの silent failure"],
+          "verification_refs": ["verify-lifecycle-core-t0"]
+        },
+        {
+          "id": "witness-race-loss-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": ["FR-002"],
+          "precondition": "同一承認が他クライアントにも表示されている",
+          "stimulus": "他クライアントが先に解決した後、島でも応答する (409)",
+          "expected_observables": ["カード除去", "Handled elsewhere 通知"],
+          "expected_observable_refs": ["observable-card-removed", "observable-notice-shown"],
+          "forbidden_outcomes": ["エラーダイアログ", "決定の上書き"],
+          "verification_refs": ["verify-lifecycle-core-t0"]
+        },
+        {
+          "id": "witness-lifecycle-adversarial",
+          "case": "adversarial",
+          "risk_tags": ["stale", "recovery", "boundary"],
+          "requirement_refs": ["FR-002", "FR-006"],
+          "precondition": "送信中に断続的なネットワーク断・遅延 409・engage 元ウィンドウの破棄が重なる",
+          "stimulus": "オフラインで Allow → 復元 → 再送で遅延 409、並行して質問送信後に捕捉元ウィンドウを破棄",
+          "expected_observables": ["復元→再送→Handled elsewhere の順に正規化される", "破棄済み HWND へは返却せず no-activate へ復帰", "カードは常に高々 1 枚"],
+          "expected_observable_refs": ["observable-card-removed", "observable-card-restored", "observable-notice-shown", "observable-focus-returned"],
+          "forbidden_outcomes": ["silent failure", "破棄済みウィンドウへの強制フォーカス", "重複カード"],
+          "verification_refs": ["verify-lifecycle-core-t0", "verify-engage-focus-t0"]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260725-vibe-island-asis-contract-pin", "adr-20260725-vibe-island-verification-tiers"]
+    }
+  ],
+  "chunks": [
+    {
+      "id": "chunk-contract-verification",
+      "depends_on": [],
+      "members": ["implementation", "verification"],
+      "units": [
+        {
+          "title": "UAC-テスト対応表と verification member の整備",
+          "objective": "ux.md の 14 UAC を Tier / テスト参照へ 1 対 1 で対応付け、未カバー行 (T3-manual 含む) を明示して verification member を materialize する",
+          "output_format": "docs/changes/change-20260725-vibe-island-human-input-contract/verification.md の対応表 (UAC / Tier / test 参照 / 状態)",
+          "tool_guidance": "既存テスト一覧 (Core.Tests / Platform.Tests / src go tests / WinUI.UiTests) と clients/windows-shell/docs/e2e.md を参照する",
+          "task_boundaries": "テストコードの追加・変更は行わない (他 unit の責務)。production code も触らない",
+          "files_touched": ["docs/changes/change-20260725-vibe-island-human-input-contract/verification.md"],
+          "acceptance": ["全 14 UAC 行に Tier と test 参照または T3-manual の明示理由がある", "docs lint が zero error"],
+          "contract_refs": [],
+          "decision_closure_reason": "文書整備であり、記法の選択が契約の観測・owner・failure semantics・検証結果を変えることはない",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "島側契約テストの整合確認と補強",
+          "objective": "contract-island-attention-observability と contract-pending-card-lifecycle の witness を既存 T0 テストへ帰着させ、対応する assert が無い witness にはテストを追加する",
+          "output_format": "追加/更新された xUnit テスト (Core.Tests / Platform.Tests)",
+          "tool_guidance": "SupervisionState / Toast / Engage の既存テストパターン (fake 注入・純関数 fixture) に倣う",
+          "task_boundaries": "production code は変更しない。seam 追加が必要と判明したら unit を止めて設計へ差し戻す。gateway 側テストは他 unit の責務",
+          "files_touched": ["clients/windows-shell/AgentGrid.Shell.Core.Tests", "clients/windows-shell/AgentGrid.Shell.Platform.Tests"],
+          "acceptance": ["dotnet test が両プロジェクトで green", "witness (arrival / toast-once / quiet / rollback / race-loss / focus-return / flood) それぞれに対応するテストが存在する"],
+          "contract_refs": ["contract-island-attention-observability", "contract-pending-card-lifecycle"],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "gateway 往復契約テストの確認と補強",
+          "objective": "contract-human-input-roundtrip の witness (単一解決 / 期限切れ / teardown / 再接続非捏造) を Go テストへ帰着させ、欠落 assert を補強する",
+          "output_format": "追加/更新された Go テスト (src/host/state / src/server/api)",
+          "tool_guidance": "reduce_approval_test.go の既存パターンと mux gateway scenario テスト (fake agent) に倣う",
+          "task_boundaries": "production code (reducer / gateway) は変更しない。pending-human-input replay の実装はスコープ外",
+          "files_touched": ["src/host/state", "src/server/api"],
+          "acceptance": ["cd src && go test ./host/state/... ./server/api/... が green", "first-writer-wins / TTL default / teardown connection-lost / 409 conflict / hello 非 replay の assert が存在する"],
+          "contract_refs": ["contract-human-input-roundtrip"],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        }
+      ]
+    }
+  ],
+  "adrs": [
+    {
+      "id": "adr-20260725-vibe-island-asis-contract-pin",
+      "title": "Vibe Island human-input 契約は検証層のみで pin する (実装コード変更なし)",
+      "status": "accepted",
+      "status_provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260725-vibe-island-human-input-contract/consultations/20260725-adr-acceptance.md"], "rationale": "2026-07-25 の user consultation で accept (原文「accept (Recommended)」)"},
+      "context": "実装調査 (2026-07-25) で Vibe Island の承認/質問ハンドリングは既に一貫した挙動を持つが、その体験は暗黙契約で、退行を機械検出できる正本が無かった。ux.md (specify-r1) が体験契約を固定したので、これを技術契約へ翻訳する必要がある。同時に、pending replay / 選択肢質問の導入が決定済み (slice-gap-closure) であり、大きな実装変更が近い。",
+      "decision": "本 change では production code を一切変更せず、EARS + implementation contract + 既存テスト資産への witness 帰着 (欠落 assert のテスト追加のみ) で as-is 契約を pin する。seam 追加が必要になった時点で本 change を中断し再設計する。",
+      "consequences": [
+        "positive: 後続の replay/選択肢実装が、退行検出可能な契約ベースラインの上で行える",
+        "positive: blast radius がテストと docs に閉じ、リスクゼロで契約化できる",
+        "negative: 既存実装の設計上の歪み (あれば) はこの change では直せず、契約が現状を固定化する",
+        "neutral: 契約の変更は後続 change が EARS/witness を書き換えることで行う (暗黙変更の禁止)"
+      ],
+      "decision_input_refs": [],
+      "alternatives": [
+        {"option": "replay/選択肢の実装と同時に契約化する", "why_not": "実装変更と契約 pin が混ざると、テストの失敗が退行なのか意図変更なのか判別できず、as-is ベースラインの意味が失われる"},
+        {"option": "UI e2e の全面新設で pin する", "why_not": "契約の大半は既に T0 純粋層テストで判別可能に固定されており、e2e 全面新設は重複・flake・実行コストを増やすだけで判別力を追加しない"}
+      ],
+      "related_requirements": ["FR-001", "FR-002", "FR-003", "FR-004", "FR-005", "FR-006", "FR-007", "FR-008"],
+      "contract_refs": ["contract-human-input-roundtrip", "contract-island-attention-observability", "contract-pending-card-lifecycle"]
+    },
+    {
+      "id": "adr-20260725-vibe-island-verification-tiers",
+      "title": "human-input 契約の検証を T0 純粋層 / T1 Go / T3 UIA の既存 Tier 資産へ帰着させる",
+      "status": "accepted",
+      "status_provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["docs/changes/change-20260725-vibe-island-human-input-contract/consultations/20260725-adr-acceptance.md"], "rationale": "2026-07-25 の user consultation で accept (背景・課題・意思決定の問いを平易に説明し直した後の回答原文「accept」)"},
+      "context": "witness の検証先として、(a) 既存の T0 純粋層テスト (WsFrameParser/Reducer/Presentation/StateMachine/Toast/Engage)、(b) T1 Go テスト (state reducer + gateway scenario)、(c) T3 FlaUI/UIA e2e (AutomationId 契約) が既に存在する。新しいテストハーネスを作るかどうかの判断が必要。",
+      "decision": "新ハーネスは作らず、witness を既存 3 層へ帰着させる。UI ツリーの要素非存在 (FR-007) と実フォーカス観察 (NFR-002) だけは UIA でしか判別できないため T3 に置き、フォーカス返却の実挙動 (UAC-011) は CI 安定性の観点から T3-manual を許容して verification member に明示する。",
+      "consequences": [
+        "positive: 検証コストが既存のテスト実行 (go test / dotnet test / e2e.sh) に閉じ、CI 構成の変更が不要",
+        "negative: T3 は常時実行されないため、UIA でしか観測できない退行 (要素残存・フォーカス) の検出が遅延し得る",
+        "neutral: T3-manual と明示した行は verification member 上で機械カバレッジ外であることが可視化され続ける"
+      ],
+      "decision_input_refs": [],
+      "alternatives": [
+        {"option": "WinAppDriver / 専用 UI オートメーションハーネスの新設", "why_not": "既存 FlaUI 規約 (note-20260724-windows-shell-ui-e2e-authoring) と重複し、保守面が増える。判別力の増分は AutomationId 契約の範囲で FlaUI と同等"},
+        {"option": "全 witness を T3 e2e で検証する", "why_not": "純粋層で判別できる契約を e2e に持ち上げると実行時間と flake が増え、T0 の高速フィードバックを失う"}
+      ],
+      "related_requirements": ["FR-001", "FR-004", "FR-007"],
+      "contract_refs": ["contract-human-input-roundtrip", "contract-island-attention-observability", "contract-pending-card-lifecycle"]
+    }
+  ],
+  "decision_dispositions": [],
+  "resolved_issues": [
+    {"issue_ref": "issue-protocol-bypass", "issue": "3 役プロトコル (planner/critic/integrator) の適用", "resolution": "ユーザー指示によりスキル/サブエージェントを起動せず単一セッションで作成。否定役 pass 未実施のため drift 検査はセッション内自己検査に留まる"}
+  ],
+  "critique_blockers": [],
+  "open_questions": [
+    "UAC-011 のフォーカス返却を CI で安定観測する方法が確立するまで T3-manual 扱いとする (verify-uia-e2e の範囲注記)"
+  ],
+  "reference_algorithms": [],
+  "implementation_decisions_remaining": []
+}
