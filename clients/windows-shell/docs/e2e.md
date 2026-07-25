@@ -79,9 +79,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
 | `assert-winui-layout.ps1` | Bootstrap + `Microsoft.ui.xaml.dll` next to EXE (prevents MSIX Runtime 1.6 dialog) |
 | `launch-smoke.ps1` | process stays up; on fail dumps `winui-startup-error.txt` (structured SoT) |
 | `WasdkBootstrapErrorsTests` | bootstrap failure report text is stable / includes Version 1.6 + MSIX hint |
-| `Panel_exposes_glance_elements_via_automation_ids` | UIA tree has the `AutomationId` contract of `PanelWindow.xaml` |
-| `Connection_text_reports_online_against_gateway` | live snapshot renders `online` (REST/WS wired end to end) |
-| `Engage_box_accepts_text_and_send_clears_it` | ValuePattern input + `Invoke` reach real handlers (no-question path clears box) |
+| `Panel_exposes_expanded_chrome_via_automation_ids` | UIA tree has the unconditional expanded-chrome `AutomationId` contract |
+| `Status_line_reflects_live_snapshot_and_healthy_state_is_silent` | live snapshot replaces the initial status text; no offline badge when healthy (REST/WS wired end to end) |
+| `Empty_sections_do_not_exist_in_the_tree` | Vibe Island contract: no pending → no `PendingList` / `EngageBox` / empty-state filler in UIA |
+| `Session_chips_lay_out_horizontally_when_present` | ≥2 sessions → chips all laid out on one row (vertical-stacking regression guard) |
+| `Island_collapses_to_compact_bar_and_expands_back` | notch morph swaps compact/expanded UIA trees and back |
 
 Enable gateway facts: `AG_E2E_RUN_DEV=1`. Skip otherwise (always-on `dotnet test` stays green without fixture).
 

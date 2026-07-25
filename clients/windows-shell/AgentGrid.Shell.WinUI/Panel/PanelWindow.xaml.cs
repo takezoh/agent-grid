@@ -53,6 +53,14 @@ public sealed partial class PanelWindow : Window
         ConfigureIslandChrome();
         AttachDragSurface(CompactBar);
         AttachDragSurface(HeaderBar);
+        // Chip strip scrolls horizontally (scrollbar hidden) — route the
+        // vertical wheel into it so overflow chips stay reachable.
+        SessionRow.PointerWheelChanged += (_, e) =>
+        {
+            var delta = e.GetCurrentPoint(SessionRow).Properties.MouseWheelDelta;
+            SessionRow.ChangeView(SessionRow.HorizontalOffset - delta, null, null, true);
+            e.Handled = true;
+        };
         MoveResizeTop(CurrentModeSize());
 
         _root.SnapshotChanged += snap =>
@@ -185,22 +193,25 @@ public sealed partial class PanelWindow : Window
 
     private void Render(PanelGlanceView view)
     {
-        StatusText.Text = view.StatusLine;
-        ConnectionText.Text = view.ConnectionFailed ? "offline" : "online";
-        ConnectionDot.Fill = view.ConnectionFailed ? PanelBrushes.Danger : PanelBrushes.Success;
-        PendingHeader.Text = view.PendingCount == 0 ? "No pending items" : $"{view.PendingCount} pending";
+        // Vibe Island: the headline is the same aggregate the compact pill
+        // shows; sections exist only when they have content (PanelSections).
+        var compact = PanelPresentation.Compact(view);
+        var sections = PanelPresentation.Sections(view);
+        StatusText.Text = compact.Text;
+        OfflineBadge.Visibility = sections.ShowOffline ? Visibility.Visible : Visibility.Collapsed;
+
         SessionList.ItemsSource = view.Sessions.Select(SessionChipVm.From).ToList();
+        SessionRow.Visibility = sections.ShowSessions ? Visibility.Visible : Visibility.Collapsed;
         PendingList.ItemsSource = view.Pending.Select(PanelItemVm.From).ToList();
-        EmptyState.Visibility = view.PendingCount == 0 ? Visibility.Visible : Visibility.Collapsed;
-        ShortcutHint.Visibility = view.Pending.Any(p => p.Kind == "approval")
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        PendingList.Visibility = sections.ShowPending ? Visibility.Visible : Visibility.Collapsed;
+        if (!sections.ShowReply)
+            ExitEngageIfNeeded();
+        EngageRow.Visibility = sections.ShowReply ? Visibility.Visible : Visibility.Collapsed;
 
         var notice = view.Notices.LastOrDefault();
         NoticeText.Text = notice?.Headline ?? string.Empty;
-        NoticeText.Visibility = notice is null ? Visibility.Collapsed : Visibility.Visible;
+        NoticeText.Visibility = sections.ShowNotice ? Visibility.Visible : Visibility.Collapsed;
 
-        var compact = PanelPresentation.Compact(view);
         CompactStatusText.Text = compact.Text;
         CompactDot.Fill = PanelBrushes.ForToken(compact.AccentToken);
         CompactPendingText.Text = view.PendingCount.ToString();

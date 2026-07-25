@@ -51,7 +51,22 @@ public static class PanelPresentation
     public static string SessionLabel(SessionSummary session) =>
         string.IsNullOrWhiteSpace(session.Title)
             ? ShortSessionId(session.SessionId)
-            : session.Title!;
+            : CompactTitle(session.Title!);
+
+    /// <summary>
+    /// Path-like titles (the project-directory fallback) collapse to their
+    /// basename: a glance chip must never swallow the whole row with a long
+    /// absolute path — sibling chips would be pushed out of the island.
+    /// </summary>
+    public static string CompactTitle(string title)
+    {
+        title = title.Trim();
+        var cut = title.TrimEnd('/', '\\');
+        var idx = cut.LastIndexOfAny(PathSeparators);
+        return idx >= 0 && idx < cut.Length - 1 ? cut[(idx + 1)..] : title;
+    }
+
+    private static readonly char[] PathSeparators = ['/', '\\'];
 
     /// <summary>
     /// One-line aggregate for the compact island bar. Priority mirrors what the
@@ -78,7 +93,28 @@ public static class PanelPresentation
             return new CompactSummary($"{view.Sessions.Count} session(s)", "muted");
         return new CompactSummary("idle", "muted");
     }
+
+    /// <summary>
+    /// Which expanded-island sections exist for this snapshot. Vibe Island
+    /// contract: content IS the UI — a section with nothing to show is not
+    /// rendered at all (no headers, no empty-state filler, no "online" badge),
+    /// and the content-hugging window shrinks around what remains.
+    /// </summary>
+    public static PanelSections Sections(PanelGlanceView view) => new(
+        ShowSessions: view.Sessions.Count > 0,
+        ShowNotice: view.Notices.Count > 0,
+        ShowPending: view.PendingCount > 0,
+        ShowReply: view.Pending.Any(p => p.Kind == "question"),
+        ShowOffline: view.ConnectionFailed);
 }
 
 /// <summary>Compact island bar line: text + semantic accent token.</summary>
 public sealed record CompactSummary(string Text, string AccentToken);
+
+/// <summary>Expanded-island section visibility (content-defined, no filler).</summary>
+public sealed record PanelSections(
+    bool ShowSessions,
+    bool ShowNotice,
+    bool ShowPending,
+    bool ShowReply,
+    bool ShowOffline);

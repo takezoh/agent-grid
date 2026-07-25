@@ -17,8 +17,10 @@ public class IslandMetricsTests
     public void Expanded_size_clamps_into_bounds()
     {
         // Tiny content still yields a usable island; huge content stops at the
-        // max bounds (the surplus scrolls inside the panel instead).
-        Assert.Equal(new IslandSize(400, 120), IslandMetrics.ExpandedFor(10, 5, 1.0));
+        // max bounds (the surplus scrolls inside the panel instead). The min
+        // bounds are a usability floor small enough that an island holding
+        // only the header strip hugs down to it (no filler space).
+        Assert.Equal(new IslandSize(320, 56), IslandMetrics.ExpandedFor(10, 5, 1.0));
         Assert.Equal(new IslandSize(680, 600), IslandMetrics.ExpandedFor(2000, 3000, 1.0));
     }
 
@@ -59,5 +61,14 @@ public class IslandMetricsTests
         Assert.Equal(IslandMetrics.Compact(1.0), IslandMetrics.Compact(scale));
         Assert.Equal(IslandMetrics.ExpandedFor(500, 300, 1.0),
             IslandMetrics.ExpandedFor(500, 300, scale));
+    }
+
+    [Fact]
+    public void Header_only_content_hugs_close_to_the_compact_pill()
+    {
+        // Vibe Island: with every section empty the expanded island is just
+        // the header strip — the floor must not force a big blank panel.
+        var minExpanded = IslandMetrics.ExpandedFor(0, 0, 1.0);
+        Assert.True(minExpanded.Height <= IslandMetrics.CompactHeightDips + 16);
     }
 }

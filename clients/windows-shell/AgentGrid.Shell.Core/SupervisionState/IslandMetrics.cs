@@ -15,11 +15,14 @@ public readonly record struct IslandSize(int Width, int Height);
 public static class IslandMetrics
 {
     // Widths include the two 12-DIP concave wings painted by the window.
+    // Min bounds are a usability floor, not a filler-space reserve: with all
+    // sections empty the expanded island is just the header strip, and the
+    // window hugs down to it instead of framing blank space.
     public const double CompactWidthDips = 280;
     public const double CompactHeightDips = 48;
-    public const double ExpandedMinWidthDips = 400;
+    public const double ExpandedMinWidthDips = 320;
     public const double ExpandedMaxWidthDips = 680;
-    public const double ExpandedMinHeightDips = 120;
+    public const double ExpandedMinHeightDips = 56;
     public const double ExpandedMaxHeightDips = 600;
 
     public static IslandSize Compact(double scale)

@@ -93,6 +93,63 @@ public class PanelPresentationTests
         }
     }
 
+    private static PanelGlanceView ViewWith(
+        bool offline = false,
+        int approvals = 0,
+        int questions = 0,
+        int notices = 0,
+        int sessions = 0)
+    {
+        var snap = new SupervisionSnapshot(
+            Enumerable.Range(0, sessions)
+                .Select(i => new SessionSummary($"s{i}", SessionPhase.Running)).ToList(),
+            Enumerable.Range(0, approvals)
+                .Select(i => new ApprovalItem($"a{i}", "s0", $"cmd {i}")).ToList(),
+            Enumerable.Range(0, questions)
+                .Select(i => new QuestionItem($"q{i}", "s0", $"ask {i}")).ToList(),
+            Enumerable.Range(0, notices)
+                .Select(i => new AlreadyHandledNotice($"n{i}", "s0", "approval", "handled")).ToList(),
+            ConnectionFailed: offline,
+            ConnectionFailureReason: offline ? "boom" : null);
+        return PanelGlanceView.From(snap);
+    }
+
+    [Fact]
+    public void Sections_render_nothing_when_there_is_nothing()
+    {
+        // Vibe Island: no content → no sections. No empty-state filler,
+        // no headers, no healthy-state connection badge.
+        var s = PanelPresentation.Sections(ViewWith());
+        Assert.Equal(new PanelSections(false, false, false, false, false), s);
+    }
+
+    [Fact]
+    public void Sections_show_only_what_has_content()
+    {
+        Assert.Equal(new PanelSections(true, false, false, false, false),
+            PanelPresentation.Sections(ViewWith(sessions: 2)));
+        Assert.Equal(new PanelSections(false, true, false, false, false),
+            PanelPresentation.Sections(ViewWith(notices: 1)));
+        Assert.Equal(new PanelSections(false, false, false, false, true),
+            PanelPresentation.Sections(ViewWith(offline: true)));
+    }
+
+    [Fact]
+    public void Approval_shows_pending_without_reply_entry()
+    {
+        var s = PanelPresentation.Sections(ViewWith(sessions: 1, approvals: 1));
+        Assert.True(s.ShowPending);
+        Assert.False(s.ShowReply);
+    }
+
+    [Fact]
+    public void Question_shows_pending_with_reply_entry()
+    {
+        var s = PanelPresentation.Sections(ViewWith(sessions: 1, questions: 1));
+        Assert.True(s.ShowPending);
+        Assert.True(s.ShowReply);
+    }
+
     [Fact]
     public void Session_label_prefers_title_and_falls_back_to_short_id()
     {
@@ -102,5 +159,18 @@ public class PanelPresentationTests
             new SessionSummary("123456789abcdef", SessionPhase.Running)));
         Assert.Equal("12345678", PanelPresentation.SessionLabel(
             new SessionSummary("123456789abcdef", SessionPhase.Running, "  ")));
+    }
+
+    [Fact]
+    public void Path_like_titles_collapse_to_their_basename()
+    {
+        // A project-path fallback title must not swallow the chip row —
+        // sibling session chips would be pushed out of the island.
+        Assert.Equal("dev-skills", PanelPresentation.CompactTitle("/home/dev/dev/dev-skills"));
+        Assert.Equal("agent-grid", PanelPresentation.CompactTitle("/workspace/agent-grid/"));
+        Assert.Equal("proj", PanelPresentation.CompactTitle(@"C:\Users\take\proj"));
+        Assert.Equal("claude --model opus", PanelPresentation.CompactTitle("claude --model opus"));
+        Assert.Equal("dev-skills", PanelPresentation.SessionLabel(
+            new SessionSummary("123456789abcdef", SessionPhase.Running, "/home/dev/dev/dev-skills")));
     }
 }

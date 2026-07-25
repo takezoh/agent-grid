@@ -25,12 +25,6 @@
             <SolidColorBrush x:Key="DenyFillBrush" Color="#14FFFFFF"/>
             <SolidColorBrush x:Key="BadgeFillBrush" Color="#33FBBF24"/>
 
-            <Style x:Key="ChipContainerStyle" TargetType="ListViewItem">
-                <Setter Property="Padding" Value="0"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="MinWidth" Value="0"/>
-                <Setter Property="MinHeight" Value="0"/>
-            </Style>
             <Style x:Key="CardContainerStyle" TargetType="ListViewItem">
                 <Setter Property="Padding" Value="0"/>
                 <Setter Property="Margin" Value="0,0,0,8"/>
@@ -126,9 +120,14 @@
         </Button>
 
         <!-- ============ Expanded panel ============ -->
-        <Grid x:Name="ExpandedRoot" Padding="16,14,16,14" RowSpacing="10">
+        <!-- Vibe Island contract: every section below the header exists only
+             when it has content — no section headers, no empty-state filler,
+             no healthy-state badges. Collapsed sections leave the layout (and
+             the UIA tree) entirely and the content-hugging window shrinks
+             around what remains. Inter-section gaps ride each section's top
+             Margin (not Grid.RowSpacing, which pads collapsed rows too). -->
+        <Grid x:Name="ExpandedRoot" Padding="16,14,16,14">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -136,7 +135,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Glance status strip; also the expanded-mode drag handle.
+            <!-- Aggregate headline strip; also the expanded-mode drag handle.
                  AutomationId is the UIA contract for FlaUI e2e (and Narrator);
                  keep ids stable — tests select by them like Playwright test-ids. -->
             <Grid x:Name="HeaderBar" ColumnSpacing="8" Background="Transparent">
@@ -160,12 +159,23 @@
                            FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" MaxLines="1"
                            Text="Agent Grid"/>
-                <Ellipse Grid.Column="2" x:Name="ConnectionDot" Width="7" Height="7"
-                         VerticalAlignment="Center" Fill="{StaticResource TextSecondaryBrush}"/>
-                <TextBlock Grid.Column="3" x:Name="ConnectionText"
-                           AutomationProperties.AutomationId="ConnectionText"
-                           FontSize="12" VerticalAlignment="Center"
-                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <!-- Offline badge: problem states surface, healthy states stay silent. -->
+                <StackPanel Grid.Column="2" x:Name="OfflineBadge" Orientation="Horizontal"
+                            Spacing="5" VerticalAlignment="Center" Visibility="Collapsed">
+                    <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                             Fill="{StaticResource DangerBrush}"/>
+                    <TextBlock AutomationProperties.AutomationId="ConnectionText"
+                               Text="offline" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{StaticResource DangerBrush}"/>
+                </StackPanel>
+                <Button Grid.Column="3" AutomationProperties.AutomationId="OpenSessionButton"
+                        AutomationProperties.Name="Open session"
+                        Style="{StaticResource IconButtonStyle}" Padding="6,4"
+                        ToolTipService.ToolTip="Open session in workspace"
+                        Click="OnOpenSession">
+                    <FontIcon Glyph="&#xE8A7;" FontSize="11"
+                              Foreground="{StaticResource TextSecondaryBrush}"/>
+                </Button>
                 <Button Grid.Column="4" x:Name="CollapseButton"
                         AutomationProperties.AutomationId="CollapseButton"
                         AutomationProperties.Name="Collapse to island"
@@ -177,62 +187,55 @@
                 </Button>
             </Grid>
 
-            <!-- Session chips: one pill per live session; click opens it. -->
-            <ListView Grid.Row="1" x:Name="SessionList"
-                      AutomationProperties.AutomationId="SessionList"
-                      SelectionMode="None"
-                      ItemContainerStyle="{StaticResource ChipContainerStyle}"
-                      ScrollViewer.HorizontalScrollMode="Enabled"
-                      ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                      ScrollViewer.VerticalScrollMode="Disabled"
-                      ScrollViewer.VerticalScrollBarVisibility="Hidden">
-                <ListView.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <ItemsStackPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ListView.ItemsPanel>
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <Button Style="{StaticResource ChipButtonStyle}"
-                                AutomationProperties.AutomationId="SessionChip"
-                                Tag="{Binding}" Click="OnSessionChipClick">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                                         Fill="{Binding PhaseBrush}"/>
-                                <TextBlock Text="{Binding Label}" FontSize="12"/>
-                                <TextBlock Text="{Binding PhaseLabel}" FontSize="11"
-                                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                            </StackPanel>
-                        </Button>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+            <!-- Session chips: one pill per live session; click opens it.
+                 ItemsControl + horizontal StackPanel, NOT ListView +
+                 ItemsStackPanel(Horizontal): the ListView pairing lays chips
+                 out vertically in practice (each item stretched to row width,
+                 later items virtualized away → "only one session visible"). -->
+            <ScrollViewer Grid.Row="1" x:Name="SessionRow" Margin="0,10,0,0"
+                          Visibility="Collapsed"
+                          HorizontalScrollMode="Enabled"
+                          HorizontalScrollBarVisibility="Hidden"
+                          VerticalScrollMode="Disabled"
+                          VerticalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="SessionList"
+                              AutomationProperties.AutomationId="SessionList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="8"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Style="{StaticResource ChipButtonStyle}"
+                                    AutomationProperties.AutomationId="SessionChip"
+                                    Tag="{Binding}" Click="OnSessionChipClick">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                             Fill="{Binding PhaseBrush}"/>
+                                    <TextBlock Text="{Binding Label}" FontSize="12"
+                                               MaxWidth="180" MaxLines="1"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding PhaseLabel}" FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
 
             <!-- Already-handled notice (resolved by another client). -->
-            <TextBlock Grid.Row="2" x:Name="NoticeText"
+            <TextBlock Grid.Row="2" x:Name="NoticeText" Margin="0,10,0,0"
                        AutomationProperties.AutomationId="NoticeText"
                        FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                        TextWrapping="WrapWholeWords" Visibility="Collapsed"/>
 
-            <Grid Grid.Row="3">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock x:Name="PendingHeader" AutomationProperties.AutomationId="PendingHeader"
-                           Text="Pending" FontSize="11" CharacterSpacing="60"
-                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                <TextBlock Grid.Column="1" x:Name="ShortcutHint"
-                           AutomationProperties.AutomationId="ShortcutHint"
-                           Text="Ctrl+Y allow · Ctrl+N deny" FontSize="10"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Visibility="Collapsed"/>
-            </Grid>
-
-            <Grid Grid.Row="4">
-                <ListView x:Name="PendingList" AutomationProperties.AutomationId="PendingList"
-                          SelectionMode="Single"
-                          ItemContainerStyle="{StaticResource CardContainerStyle}">
+            <ListView Grid.Row="3" x:Name="PendingList" Margin="0,10,0,0"
+                      Visibility="Collapsed"
+                      AutomationProperties.AutomationId="PendingList"
+                      SelectionMode="Single"
+                      ItemContainerStyle="{StaticResource CardContainerStyle}">
                     <ListView.ItemTemplate>
                         <DataTemplate>
                             <Border Background="{StaticResource CardBrush}"
@@ -274,61 +277,34 @@
                             </Border>
                         </DataTemplate>
                     </ListView.ItemTemplate>
-                </ListView>
+            </ListView>
 
-                <!-- Empty state overlays the (empty) list; list stays in the UIA tree. -->
-                <StackPanel x:Name="EmptyState" Spacing="6" Margin="0,14,0,14"
-                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Visibility="Collapsed">
-                    <FontIcon Glyph="&#xE73E;" FontSize="18"
-                              Foreground="{StaticResource SuccessBrush}"
-                              HorizontalAlignment="Center"/>
-                    <TextBlock Text="All clear" FontSize="13" FontWeight="SemiBold"
-                               AutomationProperties.AutomationId="EmptyStateText"
-                               HorizontalAlignment="Center"/>
-                    <TextBlock Text="Nothing needs your attention"
-                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                               HorizontalAlignment="Center"/>
-                </StackPanel>
-            </Grid>
-
-            <!-- Engage free-text for questions -->
-            <Grid Grid.Row="5" ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Border Background="{StaticResource CardBrush}"
-                        BorderBrush="{StaticResource CardStrokeBrush}"
-                        BorderThickness="1" CornerRadius="16" Padding="4,2,2,2">
-                    <Grid ColumnSpacing="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="EngageBox" AutomationProperties.AutomationId="EngageBox"
-                                 PlaceholderText="Reply… (Enter to send)"
-                                 Background="Transparent" BorderThickness="0"
-                                 VerticalAlignment="Center"
-                                 KeyDown="OnEngageKeyDown"
-                                 GotFocus="OnEngageGotFocus"/>
-                        <Button Grid.Column="1" AutomationProperties.AutomationId="EngageSendButton"
-                                AutomationProperties.Name="Send"
-                                Style="{StaticResource IconButtonStyle}"
-                                ToolTipService.ToolTip="Send"
-                                Click="OnEngageSend">
-                            <FontIcon Glyph="&#xE724;" FontSize="14"/>
-                        </Button>
-                    </Grid>
-                </Border>
-                <Button Grid.Column="1" AutomationProperties.AutomationId="OpenSessionButton"
-                        AutomationProperties.Name="Open session"
-                        Style="{StaticResource ChipButtonStyle}"
-                        ToolTipService.ToolTip="Open session in workspace"
-                        Click="OnOpenSession">
-                    <FontIcon Glyph="&#xE8A7;" FontSize="14"/>
-                </Button>
-            </Grid>
+            <!-- Reply entry: exists only while a question is pending. -->
+            <Border Grid.Row="4" x:Name="EngageRow" Margin="0,10,0,0"
+                    Visibility="Collapsed"
+                    Background="{StaticResource CardBrush}"
+                    BorderBrush="{StaticResource CardStrokeBrush}"
+                    BorderThickness="1" CornerRadius="16" Padding="4,2,2,2">
+                <Grid ColumnSpacing="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="EngageBox" AutomationProperties.AutomationId="EngageBox"
+                             PlaceholderText="Reply… (Enter to send)"
+                             Background="Transparent" BorderThickness="0"
+                             VerticalAlignment="Center"
+                             KeyDown="OnEngageKeyDown"
+                             GotFocus="OnEngageGotFocus"/>
+                    <Button Grid.Column="1" AutomationProperties.AutomationId="EngageSendButton"
+                            AutomationProperties.Name="Send"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTipService.ToolTip="Send"
+                            Click="OnEngageSend">
+                        <FontIcon Glyph="&#xE724;" FontSize="14"/>
+                    </Button>
+                </Grid>
+            </Border>
         </Grid>
 
         </Grid>
