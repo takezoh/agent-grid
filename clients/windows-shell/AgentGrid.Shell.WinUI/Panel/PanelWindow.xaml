@@ -3,8 +3,9 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Agent Grid">
-    <!-- Dynamic island: RootHost swaps between CompactBar (notch pill) and
-         ExpandedRoot (full panel); the window itself is resized to match.
+    <!-- Dynamic island: HeaderBar is the island in compact mode and remains
+         the unchanged header when expanded; only ExpandedContent is toggled.
+         The window itself is resized to match.
          Notch shape (macOS style): the window region (code-behind) cuts a
          flat top with CONCAVE fillet wings flaring into the screen edge, and
          a round-bottom slab. The wings are painted by the two Paths below;
@@ -85,26 +86,40 @@
                 BorderBrush="#24FFFFFF" BorderThickness="1,0,1,1">
         <Grid>
 
-        <!-- ============ Compact notch bar (island at rest) ============ -->
-        <Button x:Name="CompactBar" AutomationProperties.AutomationId="CompactBar"
-                AutomationProperties.Name="Expand Agent Grid panel"
-                Visibility="Collapsed" Click="OnCompactBarClick"
-                Background="Transparent" BorderThickness="0" CornerRadius="0,0,20,20"
-                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                HorizontalContentAlignment="Stretch" Padding="16,0,12,0">
-            <Grid ColumnSpacing="8" VerticalAlignment="Center">
+        <!-- ============ Expanded panel ============ -->
+        <!-- Vibe Island contract: every section below the header exists only
+             when it has content — no section headers, no empty-state filler,
+             no healthy-state badges. Collapsed sections leave the layout (and
+             the UIA tree) entirely and the content-hugging window shrinks
+             around what remains. Inter-section gaps ride each section's top
+             Margin (not Grid.RowSpacing, which pads collapsed rows too). -->
+        <Grid x:Name="ExpandedRoot">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- The compact island itself is the shared header. Its 32-DIP
+                 height does not change when detail content is expanded.
+                 AutomationId is the UIA contract for FlaUI e2e (and Narrator);
+                 keep ids stable — tests select by them like Playwright test-ids. -->
+            <Grid x:Name="HeaderBar" AutomationProperties.AutomationId="IslandHeader"
+                  Height="32" Padding="16,0,12,0"
+                  ColumnSpacing="8" Background="Transparent">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Ellipse x:Name="CompactDot" Width="8" Height="8" VerticalAlignment="Center"
                          Fill="{StaticResource TextSecondaryBrush}"/>
-                <TextBlock Grid.Column="1" x:Name="CompactStatusText"
-                           AutomationProperties.AutomationId="CompactStatusText"
+                <TextBlock Grid.Column="1" x:Name="StatusText"
+                           AutomationProperties.AutomationId="StatusText"
                            FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" MaxLines="1" Text="Agent Grid"/>
+                           TextTrimming="CharacterEllipsis" MaxLines="1"
+                           Text="Agent Grid"/>
                 <Border Grid.Column="2" x:Name="CompactPendingBadge" Visibility="Collapsed"
                         Background="{StaticResource BadgeFillBrush}" CornerRadius="9"
                         Padding="7,1,7,2" VerticalAlignment="Center">
@@ -113,62 +128,8 @@
                                FontSize="11" FontWeight="SemiBold"
                                Foreground="{StaticResource WarningBrush}"/>
                 </Border>
-                <FontIcon Grid.Column="3" Glyph="&#xE70D;" FontSize="10"
-                          Foreground="{StaticResource TextSecondaryBrush}"
-                          VerticalAlignment="Center"/>
-            </Grid>
-        </Button>
-
-        <!-- ============ Expanded panel ============ -->
-        <!-- Vibe Island contract: every section below the header exists only
-             when it has content — no section headers, no empty-state filler,
-             no healthy-state badges. Collapsed sections leave the layout (and
-             the UIA tree) entirely and the content-hugging window shrinks
-             around what remains. Inter-section gaps ride each section's top
-             Margin (not Grid.RowSpacing, which pads collapsed rows too). -->
-        <Grid x:Name="ExpandedRoot" Padding="16,14,16,14">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <!-- Aggregate headline strip; also the expanded-mode drag handle.
-                 AutomationId is the UIA contract for FlaUI e2e (and Narrator);
-                 keep ids stable — tests select by them like Playwright test-ids. -->
-            <Grid x:Name="HeaderBar" ColumnSpacing="8" Background="Transparent">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Ellipse Width="9" Height="9" VerticalAlignment="Center">
-                    <Ellipse.Fill>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#FF818CF8" Offset="0"/>
-                            <GradientStop Color="#FF34D399" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Ellipse.Fill>
-                </Ellipse>
-                <TextBlock Grid.Column="1" x:Name="StatusText"
-                           AutomationProperties.AutomationId="StatusText"
-                           FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" MaxLines="1"
-                           Text="Agent Grid"/>
-                <!-- Offline badge: problem states surface, healthy states stay silent. -->
-                <StackPanel Grid.Column="2" x:Name="OfflineBadge" Orientation="Horizontal"
-                            Spacing="5" VerticalAlignment="Center" Visibility="Collapsed">
-                    <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                             Fill="{StaticResource DangerBrush}"/>
-                    <TextBlock AutomationProperties.AutomationId="ConnectionText"
-                               Text="offline" FontSize="12" VerticalAlignment="Center"
-                               Foreground="{StaticResource DangerBrush}"/>
-                </StackPanel>
-                <Button Grid.Column="3" AutomationProperties.AutomationId="OpenSessionButton"
+                <Button Grid.Column="3" x:Name="OpenSessionButton"
+                        AutomationProperties.AutomationId="OpenSessionButton"
                         AutomationProperties.Name="Open session"
                         Style="{StaticResource IconButtonStyle}" Padding="6,4"
                         ToolTipService.ToolTip="Open session in workspace"
@@ -185,12 +146,26 @@
                     <FontIcon Glyph="&#xE70E;" FontSize="10"
                               Foreground="{StaticResource TextSecondaryBrush}"/>
                 </Button>
+                <Button x:Name="CompactBar" Grid.ColumnSpan="5"
+                        AutomationProperties.AutomationId="CompactBar"
+                        AutomationProperties.Name="Expand Agent Grid panel"
+                        Visibility="Collapsed" Click="OnCompactBarClick"
+                        Background="Transparent" BorderThickness="0"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
             </Grid>
+
+            <Grid Grid.Row="1" x:Name="ExpandedContent" Padding="16,0,16,14">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
             <!-- Full-width session rows participate in content measurement.
                  Do not reintroduce intrinsic-width horizontal chips: they
                  visually detach the list content from the island width. -->
-            <ScrollViewer Grid.Row="1" x:Name="SessionRow" Margin="0,10,0,0"
+            <ScrollViewer Grid.Row="0" x:Name="SessionRow" Margin="0,10,0,0"
                           AutomationProperties.AutomationId="SessionRow"
                           Visibility="Collapsed"
                           HorizontalAlignment="Stretch"
@@ -275,12 +250,12 @@
             </ScrollViewer>
 
             <!-- Already-handled notice (resolved by another client). -->
-            <TextBlock Grid.Row="2" x:Name="NoticeText" Margin="0,10,0,0"
+            <TextBlock Grid.Row="1" x:Name="NoticeText" Margin="0,10,0,0"
                        AutomationProperties.AutomationId="NoticeText"
                        FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                        TextWrapping="WrapWholeWords" Visibility="Collapsed"/>
 
-            <ListView Grid.Row="3" x:Name="PendingList" Margin="0,10,0,0"
+            <ListView Grid.Row="2" x:Name="PendingList" Margin="0,10,0,0"
                       Visibility="Collapsed"
                       AutomationProperties.AutomationId="PendingList"
                       SelectionMode="Single"
@@ -329,7 +304,7 @@
             </ListView>
 
             <!-- Reply entry: exists only while a question is pending. -->
-            <Border Grid.Row="4" x:Name="EngageRow" Margin="0,10,0,0"
+            <Border Grid.Row="3" x:Name="EngageRow" Margin="0,10,0,0"
                     Visibility="Collapsed"
                     Background="{StaticResource CardBrush}"
                     BorderBrush="{StaticResource CardStrokeBrush}"
@@ -354,6 +329,7 @@
                     </Button>
                 </Grid>
             </Border>
+            </Grid>
         </Grid>
 
         </Grid>

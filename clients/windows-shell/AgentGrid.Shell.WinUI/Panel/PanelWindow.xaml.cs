@@ -192,7 +192,10 @@ public sealed partial class PanelWindow : Window
         var compact = PanelPresentation.Compact(view);
         var sections = PanelPresentation.Sections(view);
         StatusText.Text = compact.Text;
-        OfflineBadge.Visibility = sections.ShowOffline ? Visibility.Visible : Visibility.Collapsed;
+        CompactDot.Fill = PanelBrushes.ForToken(compact.AccentToken);
+        CompactPendingText.Text = view.PendingCount.ToString();
+        CompactPendingBadge.Visibility =
+            view.PendingCount > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         SessionList.ItemsSource = view.Sessions.Select(SessionChipVm.From).ToList();
         SessionRow.Visibility = sections.ShowSessions ? Visibility.Visible : Visibility.Collapsed;
@@ -205,12 +208,6 @@ public sealed partial class PanelWindow : Window
         var notice = view.Notices.LastOrDefault();
         NoticeText.Text = notice?.Headline ?? string.Empty;
         NoticeText.Visibility = sections.ShowNotice ? Visibility.Visible : Visibility.Collapsed;
-
-        CompactStatusText.Text = compact.Text;
-        CompactDot.Fill = PanelBrushes.ForToken(compact.AccentToken);
-        CompactPendingText.Text = view.PendingCount.ToString();
-        CompactPendingBadge.Visibility =
-            view.PendingCount > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         ApplyIsland(IslandStateMachine.OnSnapshot(_island, view.PendingCount));
         // Content changed → the expanded island re-hugs it (Vibe Island UX).
@@ -229,12 +226,16 @@ public sealed partial class PanelWindow : Window
         {
             ExitEngageIfNeeded();
             CompactBar.Visibility = Visibility.Visible;
-            ExpandedRoot.Visibility = Visibility.Collapsed;
+            ExpandedContent.Visibility = Visibility.Collapsed;
+            OpenSessionButton.Visibility = Visibility.Collapsed;
+            CollapseButton.Visibility = Visibility.Collapsed;
         }
         else
         {
             CompactBar.Visibility = Visibility.Collapsed;
-            ExpandedRoot.Visibility = Visibility.Visible;
+            ExpandedContent.Visibility = Visibility.Visible;
+            OpenSessionButton.Visibility = Visibility.Visible;
+            CollapseButton.Visibility = Visibility.Visible;
         }
         MorphTo(CurrentModeSize());
     }

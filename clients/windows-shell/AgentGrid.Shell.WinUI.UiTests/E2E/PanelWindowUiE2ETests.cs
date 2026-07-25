@@ -103,18 +103,21 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
     [WinUiUiFact]
     public void Island_collapses_to_compact_bar_and_expands_back()
     {
-        // Vibe-island morph: CollapseButton → compact notch bar (expanded tree
-        // leaves UIA); CompactBar → expanded panel returns. UI-local state only,
-        // no session mutation (safe against a live run-dev).
+        // The compact island is the expanded panel's header, with the same
+        // measured height in both modes. Detail controls leave UIA on collapse.
+        var expandedHeaderHeight = _ui.Find("StatusText").BoundingRectangle.Height;
         _ui.Find("CollapseButton").AsButton().Invoke();
         _ui.Find("CompactBar");
-        _ui.Find("CompactStatusText");
+        _ui.Find("StatusText");
+        var compactHeaderHeight = _ui.Find("StatusText").BoundingRectangle.Height;
+        Assert.True(Math.Abs(expandedHeaderHeight - compactHeaderHeight) <= 1,
+            $"header height changed from {expandedHeaderHeight} to {compactHeaderHeight}");
 
         var expandedGone = Retry.WhileFalse(
-            () => _ui.Window.FindFirstDescendant(cf => cf.ByAutomationId("StatusText")) is null,
+            () => _ui.Window.FindFirstDescendant(cf => cf.ByAutomationId("OpenSessionButton")) is null,
             TimeSpan.FromSeconds(10),
             interval: TimeSpan.FromMilliseconds(250)).Result;
-        Assert.True(expandedGone, "StatusText still in UIA tree after collapse");
+        Assert.True(expandedGone, "expanded controls still in UIA tree after collapse");
 
         // Restore the expanded panel — later tests assert against its tree.
         _ui.Find("CompactBar").AsButton().Invoke();

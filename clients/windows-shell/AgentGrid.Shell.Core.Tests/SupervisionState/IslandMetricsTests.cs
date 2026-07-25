@@ -5,6 +5,12 @@ namespace AgentGrid.Shell.Core.Tests.SupervisionState;
 public class IslandMetricsTests
 {
     [Fact]
+    public void Compact_notch_is_wide_and_thin()
+    {
+        Assert.Equal(new IslandSize(312, 32), IslandMetrics.Compact(1.0));
+    }
+
+    [Fact]
     public void Expanded_size_tracks_measured_content()
     {
         // Vibe Island contract: the expanded island hugs its content instead
@@ -20,7 +26,7 @@ public class IslandMetricsTests
         // max bounds (the surplus scrolls inside the panel instead). The min
         // bounds are a usability floor small enough that an island holding
         // only the header strip hugs down to it (no filler space).
-        Assert.Equal(new IslandSize(320, 56), IslandMetrics.ExpandedFor(10, 5, 1.0));
+        Assert.Equal(new IslandSize(320, 32), IslandMetrics.ExpandedFor(10, 5, 1.0));
         Assert.Equal(new IslandSize(680, 600), IslandMetrics.ExpandedFor(2000, 3000, 1.0));
     }
 
@@ -32,7 +38,7 @@ public class IslandMetricsTests
         var compact = IslandMetrics.Compact(1.0);
         var minExpanded = IslandMetrics.ExpandedFor(0, 0, 1.0);
         Assert.True(minExpanded.Width > compact.Width);
-        Assert.True(minExpanded.Height > compact.Height);
+        Assert.True(minExpanded.Height >= compact.Height);
         Assert.True(IslandMetrics.ExpandedMaxWidthDips >= IslandMetrics.CompactWidthDips * 2);
     }
 
@@ -69,6 +75,6 @@ public class IslandMetricsTests
         // Vibe Island: with every section empty the expanded island is just
         // the header strip — the floor must not force a big blank panel.
         var minExpanded = IslandMetrics.ExpandedFor(0, 0, 1.0);
-        Assert.True(minExpanded.Height <= IslandMetrics.CompactHeightDips + 16);
+        Assert.Equal(IslandMetrics.CompactHeightDips, minExpanded.Height);
     }
 }
