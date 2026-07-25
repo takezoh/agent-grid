@@ -92,8 +92,9 @@ if (-not $ConfigDir) {
 }
 & (Join-Path $PSScriptRoot "write-test-config.ps1") `
   -ConfigDir $ConfigDir -GatewayUrl $GatewayUrl | Out-Null
-$psi.ArgumentList.Add("--config-dir")
-$psi.ArgumentList.Add($ConfigDir)
+# ArgumentList exists only on PowerShell 7 / .NET Core; WSL interop runs
+# Windows PowerShell 5.1 where it is null. Use the Arguments string instead.
+$psi.Arguments = "--config-dir `"$ConfigDir`""
 
 $p = New-Object System.Diagnostics.Process
 $p.StartInfo = $psi
