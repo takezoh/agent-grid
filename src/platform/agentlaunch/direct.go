@@ -18,7 +18,7 @@ type DirectDispatcher struct {
 }
 
 func (d DirectDispatcher) Wrap(_ context.Context, frameID string, plan LaunchPlan) (WrappedLaunch, error) {
-	merged := stripContainerOnlyEnv(plan.Env, plan.ManagedFrameMessaging)
+	merged := stripContainerOnlyEnv(plan.Env, plan.ManagedMCPTools.RequiresAuthority())
 	if d.SockPath != "" {
 		merged = cloneAndSet(merged, "AG_SOCKET", d.SockPath)
 	}
@@ -27,8 +27,9 @@ func (d DirectDispatcher) Wrap(_ context.Context, frameID string, plan LaunchPla
 	if err != nil {
 		return WrappedLaunch{}, err
 	}
-	if plan.ManagedFrameMessaging {
-		plan.Argv, err = AppendManagedClaudeMCPConfig(plan.Argv, d.SelfBin, d.SockPath)
+	if !plan.ManagedMCPTools.Empty() {
+		endpoint := ManagedMCPEndpoint{Executable: d.SelfBin, Socket: d.SockPath}
+		plan.Argv, err = AppendManagedMCPClaudeConfig(plan.Argv, plan.ManagedMCPTools, endpoint)
 		if err != nil {
 			return WrappedLaunch{}, err
 		}

@@ -756,7 +756,7 @@ func (managedMessagingDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchM
 	return state.LaunchPlan{
 		Command:               command,
 		StartDir:              project,
-		ManagedFrameMessaging: true,
+		ManagedMCPTools:       agentlaunchTestTools,
 	}, nil
 }
 func (managedMessagingDriver) StartDir(_ state.DriverState) string { return "" }
@@ -810,7 +810,7 @@ func TestFrameLaunch_NewSession_Host_ManagedMessaging(t *testing.T) {
 			Project:               "/proj/host",
 			Command:               "minimal-test",
 			StartDir:              "/proj/host",
-			ManagedFrameMessaging: true,
+			ManagedMCPTools:       agentlaunchTestTools,
 		},
 		Env: map[string]string{
 			"AG_SESSION_ID": "s-managed",

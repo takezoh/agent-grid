@@ -9,15 +9,16 @@ import (
 	"github.com/takezoh/agent-grid/platform/mcpproxy"
 )
 
-func TestMergeManagedAgentFramesMounts_AddsBuiltInToProxyOverlay(t *testing.T) {
+func TestMergeManagedContainerMCPMounts_AddsBuiltInToProxyOverlay(t *testing.T) {
 	runDir := t.TempDir()
 	base := filepath.Join(t.TempDir(), "proxy.mcp.json")
 	if err := os.WriteFile(base, []byte(`{"mcpServers":{"obs":{"command":"`+ContainerBinaryPath+`"}}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	mounts, err := mergeManagedAgentFramesMounts(runDir, []string{
+	mounts, err := mergeManagedContainerMCPMounts(runDir, []string{
 		"type=bind,source=" + base + ",target=/workspace/app/.mcp.json,readonly",
-	}, []mcpproxy.WorkspaceTarget{{HostRoot: t.TempDir(), ContainerWS: "/workspace/app"}})
+	}, []mcpproxy.WorkspaceTarget{{HostRoot: t.TempDir(), ContainerWS: "/workspace/app"}},
+		DefaultContainerManagedMCPTools)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +43,7 @@ func TestMergeManagedAgentFramesMounts_AddsBuiltInToProxyOverlay(t *testing.T) {
 		Command string   `json:"command"`
 		Args    []string `json:"args"`
 	}
-	if err := json.Unmarshal(doc.MCPServers[managedAgentFramesAlias], &entry); err != nil {
+	if err := json.Unmarshal(doc.MCPServers["agent_frames"], &entry); err != nil {
 		t.Fatal(err)
 	}
 	if entry.Command != ContainerBinaryPath {
@@ -53,7 +54,7 @@ func TestMergeManagedAgentFramesMounts_AddsBuiltInToProxyOverlay(t *testing.T) {
 	}
 }
 
-func TestMergeManagedAgentFramesMounts_PreservesWorkspaceCustomAlias(t *testing.T) {
+func TestMergeManagedContainerMCPMounts_PreservesWorkspaceCustomAlias(t *testing.T) {
 	runDir := t.TempDir()
 	hostA := t.TempDir()
 	hostB := t.TempDir()
@@ -65,12 +66,12 @@ func TestMergeManagedAgentFramesMounts_PreservesWorkspaceCustomAlias(t *testing.
 	if err := os.WriteFile(baseB, []byte(`{"mcpServers":{"obs":{"command":"bridge"}}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	mounts, err := mergeManagedAgentFramesMounts(runDir, []string{
+	mounts, err := mergeManagedContainerMCPMounts(runDir, []string{
 		"type=bind,source=" + baseB + ",target=/workspace/b/.mcp.json,readonly",
 	}, []mcpproxy.WorkspaceTarget{
 		{HostRoot: hostA, ContainerWS: "/workspace/a"},
 		{HostRoot: hostB, ContainerWS: "/workspace/b"},
-	})
+	}, DefaultContainerManagedMCPTools)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +100,7 @@ func TestMergeManagedAgentFramesMounts_PreservesWorkspaceCustomAlias(t *testing.
 		var entry struct {
 			Command string `json:"command"`
 		}
-		if err := json.Unmarshal(doc.MCPServers[managedAgentFramesAlias], &entry); err != nil {
+		if err := json.Unmarshal(doc.MCPServers["agent_frames"], &entry); err != nil {
 			t.Fatal(err)
 		}
 		return entry.Command
@@ -110,5 +111,49 @@ func TestMergeManagedAgentFramesMounts_PreservesWorkspaceCustomAlias(t *testing.
 	}
 	if got := readEntry(got["/workspace/b/.mcp.json"]); got != ContainerBinaryPath {
 		t.Fatalf("workspace b command = %q, want %q", got, ContainerBinaryPath)
+	}
+}
+
+func TestMergeManagedContainerMCPMounts_EmptyToolSetIsNoOp(t *testing.T) {
+	runDir := t.TempDir()
+	input := []string{"type=bind,source=/tmp/x,target=/workspace/app/.mcp.json,readonly"}
+	mounts, err := mergeManagedContainerMCPMounts(runDir, input,
+		[]mcpproxy.WorkspaceTarget{{HostRoot: "/host", ContainerWS: "/workspace/app"}},
+		ManagedMCPTools{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mounts) != len(input) || mounts[0] != input[0] {
+		t.Fatalf("empty tool set must return mounts unchanged, got %v (want %v)", mounts, input)
+	}
+}
+
+func TestMergeManagedContainerMCPMounts_SkipsNonAbsoluteTarget(t *testing.T) {
+	runDir := t.TempDir()
+	mounts, err := mergeManagedContainerMCPMounts(runDir, nil,
+		[]mcpproxy.WorkspaceTarget{{HostRoot: "/host/x", ContainerWS: "not-absolute"}},
+		DefaultContainerManagedMCPTools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mounts) != 0 {
+		t.Fatalf("non-absolute target must be skipped, got mounts=%v", mounts)
+	}
+}
+
+func TestMergeManagedContainerMCPMounts_DedupsAbsoluteTargets(t *testing.T) {
+	runDir := t.TempDir()
+	hostA := t.TempDir()
+	mounts, err := mergeManagedContainerMCPMounts(runDir, nil,
+		[]mcpproxy.WorkspaceTarget{
+			{HostRoot: hostA, ContainerWS: "/workspace/app"},
+			{HostRoot: hostA, ContainerWS: "/workspace/app"},
+		},
+		DefaultContainerManagedMCPTools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mounts) != 1 {
+		t.Fatalf("duplicate absolute targets must dedup to a single overlay, got %d: %v", len(mounts), mounts)
 	}
 }

@@ -34,6 +34,12 @@ const (
 	claudeKeyEffortSet           = "claude_effort_set"
 )
 
+// claudeManagedMCPTools is the validated managed MCP endpoint set every Claude
+// launch declares. It is the sole production host declarer today; any future
+// host driver that opts in to the trailing --mcp-config placement must add its
+// own contract test (design integrated.md FR-002).
+var claudeManagedMCPTools = agentlaunch.MustNewManagedMCPTools(agentlaunch.ManagedMCPToolAgentFrames)
+
 // pendingTool tracks an in-flight tool call from PreToolUse until
 // its corresponding PostToolUse or PostToolUseFailure arrives.
 // Keyed by tool_use_id in ClaudeState.PendingTools.
@@ -233,7 +239,7 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 					Command:               claudecli.ForkCommand(command, cs.ForkParentID),
 					StartDir:              startDir,
 					Options:               PreserveLaunchOptions(options, req.Enabled),
-					ManagedFrameMessaging: true,
+					ManagedMCPTools: claudeManagedMCPTools,
 					Stdin:                 options.InitialInput,
 				}, nil
 			}
@@ -244,16 +250,16 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 			StartDir:              startDir,
 			Stdin:                 options.InitialInput,
 			Options:               PreserveLaunchOptions(options, req.Enabled),
-			ManagedFrameMessaging: true,
+			ManagedMCPTools: claudeManagedMCPTools,
 		}, nil
 	}
 	if strings.Contains(command, "--resume") {
 		slog.Debug("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "already_has_resume")
-		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
+		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedMCPTools: claudeManagedMCPTools, Stdin: options.InitialInput}, nil
 	}
 	if !isAlphanumHyphen(cs.ClaudeSessionID) {
 		slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "invalid_session_id")
-		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
+		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedMCPTools: claudeManagedMCPTools, Stdin: options.InitialInput}, nil
 	}
 	// sandboxed: transcript_path lives inside the container and is not visible on
 	// the host, so skip both the path check and the existence stat. claude --resume
@@ -262,12 +268,12 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 		path := d.resolveTranscriptPath(cs)
 		if path == "" {
 			slog.Debug("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "no_transcript_path")
-			return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
+			return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedMCPTools: claudeManagedMCPTools, Stdin: options.InitialInput}, nil
 		}
 		if _, err := os.Stat(path); err != nil {
 			if os.IsNotExist(err) {
 				slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "transcript_not_found", "path", path)
-				return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedFrameMessaging: true, Stdin: options.InitialInput}, nil
+				return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedMCPTools: claudeManagedMCPTools, Stdin: options.InitialInput}, nil
 			}
 			return state.LaunchPlan{}, err
 		}
@@ -277,7 +283,7 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 		Command:               command + " --resume " + cs.ClaudeSessionID,
 		StartDir:              startDir,
 		Options:               options,
-		ManagedFrameMessaging: true,
+		ManagedMCPTools: claudeManagedMCPTools,
 		Stdin:                 options.InitialInput,
 	}, nil
 }

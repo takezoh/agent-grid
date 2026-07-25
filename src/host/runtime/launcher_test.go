@@ -5,8 +5,11 @@ import (
 	"testing"
 
 	"github.com/takezoh/agent-grid/host/state"
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
 	"github.com/takezoh/agent-grid/platform/framelaunch"
 )
+
+var agentlaunchTestTools = agentlaunch.MustNewManagedMCPTools(agentlaunch.ManagedMCPToolAgentFrames)
 
 func TestDirectLauncher_passthrough(t *testing.T) {
 	l := DirectLauncher{SelfBin: "/usr/bin/server"}
@@ -94,8 +97,8 @@ func TestDirectLauncher_keepsManagedFrameMessagingToken(t *testing.T) {
 	home := t.TempDir()
 	l := DirectLauncher{SockPath: "/run/server.sock", SelfBin: "/usr/bin/server"}
 	got, err := l.WrapLaunch("f1", state.LaunchPlan{
-		Command:               "claude",
-		ManagedFrameMessaging: true,
+		Command:         "claude",
+		ManagedMCPTools: agentlaunchTestTools,
 	}, map[string]string{"AG_SOCKET_TOKEN": "frame-token", "HOME": home})
 	if err != nil {
 		t.Fatalf("WrapLaunch: %v", err)
@@ -155,10 +158,10 @@ func TestDirectLauncher_masksAmbientContainerTokenFromSpawnEnv(t *testing.T) {
 }
 
 func TestWrapLaunchForSpawn_GeneratesTokenForManagedHostFrameMessaging(t *testing.T) {
-	l := DirectLauncher{}
+	l := DirectLauncher{SelfBin: "/usr/bin/server", SockPath: "/run/agent-grid/server.sock"}
 	res, err := wrapLaunchForSpawn(l, "f1", "/repo", state.LaunchPlan{
-		Command:               "claude",
-		ManagedFrameMessaging: true,
+		Command:         "claude",
+		ManagedMCPTools: agentlaunchTestTools,
 	}, map[string]string{"AG_FRAME_ID": "f1"})
 	if err != nil {
 		t.Fatalf("wrapLaunchForSpawn: %v", err)

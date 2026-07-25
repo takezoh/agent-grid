@@ -1,7 +1,6 @@
 package agentlaunch
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -12,9 +11,27 @@ import (
 	"github.com/takezoh/credproxy/container"
 )
 
-const managedAgentFramesAlias = "agent_frames"
+// mergeManagedContainerMCPMounts composes managed MCP alias overlays into the
+// per-workspace .mcp.json mounts. External proxy overlays already present in
+// mounts are consumed as merge bases (their alias entries survive when the
+// managed catalog does not force an override); managed aliases are added to
+// every absolute deduplicated workspace target.
+//
+// Empty tool sets are non-mutating: mounts is returned unchanged and no
+// overlay is written. This is the same fail-closed contract as the host
+// direct path (design integrated.md FR-004 / FR-006).
+func mergeManagedContainerMCPMounts(runDir string, mounts []string, targets []mcpproxy.WorkspaceTarget, tools ManagedMCPTools) ([]string, error) {
+	if tools.Empty() {
+		return mounts, nil
+	}
+	aliases, err := RenderManagedMCPAliases(tools, ManagedMCPEndpoint{
+		Executable: ContainerBinaryPath,
+		Socket:     ContainerSockFilePath,
+	})
+	if err != nil {
+		return nil, err
+	}
 
-func mergeManagedAgentFramesMounts(runDir string, mounts []string, targets []mcpproxy.WorkspaceTarget) ([]string, error) {
 	baseByTarget := map[string]string{}
 	out := make([]string, 0, len(mounts)+len(targets))
 	for _, mount := range mounts {
@@ -26,38 +43,30 @@ func mergeManagedAgentFramesMounts(runDir string, mounts []string, targets []mcp
 		}
 		out = append(out, mount)
 	}
+
+	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
 		if !filepath.IsAbs(target.ContainerWS) {
-			slog.Warn("agentlaunch: skip managed agent_frames overlay for non-absolute workspace target",
+			slog.Warn("agentlaunch: skip managed MCP overlay for non-absolute workspace target",
 				"containerWS", target.ContainerWS, "hostRoot", target.HostRoot)
 			continue
 		}
 		targetPath := target.ContainerWS + "/.mcp.json"
+		if _, dup := seen[targetPath]; dup {
+			continue
+		}
+		seen[targetPath] = struct{}{}
 		basePath := filepath.Join(target.HostRoot, ".mcp.json")
 		if source := baseByTarget[targetPath]; source != "" {
 			basePath = source
 		}
 		hostOverlay := filepath.Join(runDir, managedMCPJSONFileName(target.ContainerWS))
-		if err := writeManagedAgentFramesMCPJSON(hostOverlay, basePath); err != nil {
-			return nil, err
+		if err := mcpoverlay.WriteJSON(hostOverlay, basePath, aliases); err != nil {
+			return nil, fmt.Errorf("agentlaunch: write managed MCP overlay: %w", err)
 		}
 		out = append(out, fmt.Sprintf("type=bind,source=%s,target=%s,readonly", hostOverlay, targetPath))
 	}
 	return out, nil
-}
-
-func writeManagedAgentFramesMCPJSON(path, basePath string) error {
-	entry, err := json.Marshal(map[string]any{
-		"type":    "stdio",
-		"command": ContainerBinaryPath,
-		"args":    []string{"agent-frames-mcp", "--sock", ContainerSockFilePath},
-	})
-	if err != nil {
-		return err
-	}
-	return mcpoverlay.WriteJSON(path, basePath, map[string]mcpoverlay.AliasEntry{
-		managedAgentFramesAlias: {Value: entry},
-	})
 }
 
 func managedMCPJSONFileName(containerWS string) string {

@@ -20,13 +20,11 @@ func TestFakeVsRealManagedClaudeMCPConfig(t *testing.T) {
 	if _, err := exec.LookPath(bin); err != nil {
 		t.Skipf("AG_E2E_CLAUDE_BIN=%q is not executable: %v", bin, err)
 	}
-	args, err := AppendManagedClaudeMCPConfig(
-		[]string{"--init-only"},
-		"/bin/true",
-		"/tmp/agent-grid-contract.sock",
-	)
+	tools := MustNewManagedMCPTools(ManagedMCPToolAgentFrames)
+	endpoint := ManagedMCPEndpoint{Executable: "/bin/true", Socket: "/tmp/agent-grid-contract.sock"}
+	args, err := AppendManagedMCPClaudeConfig([]string{"--init-only"}, tools, endpoint)
 	if err != nil {
-		t.Fatalf("AppendManagedClaudeMCPConfig: %v", err)
+		t.Fatalf("AppendManagedMCPClaudeConfig: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

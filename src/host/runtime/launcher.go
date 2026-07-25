@@ -79,7 +79,7 @@ type DirectLauncher struct {
 }
 
 func (d DirectLauncher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
-	merged := stripContainerOnlyEnv(env, plan.ManagedFrameMessaging)
+	merged := stripContainerOnlyEnv(env, plan.ManagedMCPTools.RequiresAuthority())
 	if d.SockPath != "" {
 		merged = cloneAndSet(merged, "AG_SOCKET", d.SockPath)
 	}
@@ -91,12 +91,14 @@ func (d DirectLauncher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan,
 		Argv:              plan.Argv,
 		PreCommands:       plan.PreCommands,
 		PreCommandTimeout: plan.PreCommandTimeout,
+		ManagedMCPTools:   plan.ManagedMCPTools,
 	})
 	if err != nil {
 		return WrappedLaunch{}, err
 	}
-	if plan.ManagedFrameMessaging {
-		normalized.Argv, err = agentlaunch.AppendManagedClaudeMCPConfig(normalized.Argv, d.SelfBin, d.SockPath)
+	if !plan.ManagedMCPTools.Empty() {
+		endpoint := agentlaunch.ManagedMCPEndpoint{Executable: d.SelfBin, Socket: d.SockPath}
+		normalized.Argv, err = agentlaunch.AppendManagedMCPClaudeConfig(normalized.Argv, plan.ManagedMCPTools, endpoint)
 		if err != nil {
 			return WrappedLaunch{}, err
 		}
@@ -154,15 +156,15 @@ type dispatcherAdapter struct {
 
 func (a dispatcherAdapter) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
 	pp := agentlaunch.LaunchPlan{
-		Command:               plan.Command,
-		Argv:                  plan.Argv,
-		PreCommands:           plan.PreCommands,
-		PreCommandTimeout:     plan.PreCommandTimeout,
-		Env:                   env,
-		StartDir:              plan.StartDir,
-		Project:               plan.Project,
-		ForceHost:             plan.Sandbox == state.SandboxOverrideHost,
-		ManagedFrameMessaging: plan.ManagedFrameMessaging,
+		Command:           plan.Command,
+		Argv:              plan.Argv,
+		PreCommands:       plan.PreCommands,
+		PreCommandTimeout: plan.PreCommandTimeout,
+		Env:               env,
+		StartDir:          plan.StartDir,
+		Project:           plan.Project,
+		ForceHost:         plan.Sandbox == state.SandboxOverrideHost,
+		ManagedMCPTools:   plan.ManagedMCPTools,
 	}
 	w, err := a.d.Wrap(context.Background(), string(frameID), pp)
 	if err != nil {
@@ -271,7 +273,7 @@ type wrapLaunchResult struct {
 // host IPC socket). It has no side effects on runtime state — token
 // registration happens after spawn completes on the event loop.
 func wrapLaunchForSpawn(l AgentLauncher, frameID state.FrameID, project string, plan state.LaunchPlan, baseEnv map[string]string) (wrapLaunchResult, error) {
-	needsToken := l.IsContainer(project) || plan.ManagedFrameMessaging
+	needsToken := l.IsContainer(project) || plan.ManagedMCPTools.RequiresAuthority()
 	if !needsToken {
 		wrapped, err := l.WrapLaunch(frameID, plan, baseEnv)
 		return wrapLaunchResult{wrapped: wrapped}, err

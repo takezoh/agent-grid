@@ -51,7 +51,12 @@ func TestSpecBuilderEmptyServers(t *testing.T) {
 	}
 }
 
-func TestSpecBuilderManagedAgentFramesWithoutBrokerServers(t *testing.T) {
+// TestSpecBuilderEmptyServers_NoOverlayEmitted pins the ownership transfer:
+// mcpproxy no longer emits an overlay when the user has no external broker
+// servers configured. The managed agent_frames alias is composed by
+// platform/agentlaunch's container overlay on top of any mcpproxy output
+// (design integrated.md FR-006 / FR-007).
+func TestSpecBuilderEmptyServers_NoOverlayEmitted(t *testing.T) {
 	ctx := t.Context()
 	t.Setenv("TMPDIR", "/tmp")
 	runBase := t.TempDir()
@@ -73,25 +78,8 @@ func TestSpecBuilderManagedAgentFramesWithoutBrokerServers(t *testing.T) {
 	if len(spec.Env) != 0 {
 		t.Fatalf("expected no broker env, got %+v", spec.Env)
 	}
-	if len(spec.Mounts) != 1 {
-		t.Fatalf("expected 1 overlay mount, got %d: %+v", len(spec.Mounts), spec.Mounts)
-	}
-	srcs := overlaySources(spec.Mounts)
-	if len(srcs) != 1 {
-		t.Fatalf("expected 1 overlay source, got %v", srcs)
-	}
-	raw, err := os.ReadFile(srcs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	var doc struct {
-		MCPServers map[string]json.RawMessage `json:"mcpServers"`
-	}
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := doc.MCPServers["agent_frames"]; !ok {
-		t.Fatalf("managed agent_frames missing from overlay: %v", doc.MCPServers)
+	if len(spec.Mounts) != 0 {
+		t.Fatalf("mcpproxy must not emit any mount when no external servers configured, got %d: %+v", len(spec.Mounts), spec.Mounts)
 	}
 }
 
@@ -280,7 +268,11 @@ func TestSpecBuilder_MergesProjectMCPJSON(t *testing.T) {
 	}
 }
 
-func TestSpecBuilder_PreservesExistingAgentFramesAlias(t *testing.T) {
+// TestSpecBuilder_DoesNotEmitAgentFramesFromBase pins the ownership transfer:
+// mcpproxy passes through the base project's alias unchanged and no longer
+// injects a managed built-in. Composition of the managed agent_frames alias
+// is now agentlaunch's responsibility (design integrated.md FR-006 / FR-007).
+func TestSpecBuilder_DoesNotEmitAgentFramesFromBase(t *testing.T) {
 	ctx := t.Context()
 	t.Setenv("TMPDIR", "/tmp")
 	runBase := t.TempDir()
@@ -318,6 +310,9 @@ func TestSpecBuilder_PreservesExistingAgentFramesAlias(t *testing.T) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
+	// mcpproxy still respects the user's existing agent_frames entry when it
+	// merges the base .mcp.json — mcpoverlay.WriteJSON preserves unmodified
+	// base entries. But mcpproxy itself must NOT add or override the entry.
 	var entry struct {
 		Command string `json:"command"`
 	}
@@ -325,7 +320,7 @@ func TestSpecBuilder_PreservesExistingAgentFramesAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	if entry.Command != "custom-agent-frames" {
-		t.Fatalf("agent_frames.command = %q, want custom-agent-frames", entry.Command)
+		t.Fatalf("mcpproxy must not touch the base agent_frames entry, got command %q", entry.Command)
 	}
 }
 

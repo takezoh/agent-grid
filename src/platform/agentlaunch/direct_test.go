@@ -8,16 +8,17 @@ import (
 	"github.com/takezoh/agent-grid/platform/framelaunch"
 )
 
-func TestDirectDispatcher_WrapManagedFrameMessagingPreservesHomeAndInjectsMCPConfig(t *testing.T) {
+func TestDirectDispatcher_WrapManagedMCPToolsPreservesHomeAndInjectsMCPConfig(t *testing.T) {
 	realHome := t.TempDir()
+	tools := MustNewManagedMCPTools(ManagedMCPToolAgentFrames)
 	d := DirectDispatcher{
 		SockPath: "/run/agent-grid/server.sock",
 		SelfBin:  "/usr/bin/server",
 	}
 	wrapped, err := d.Wrap(context.Background(), "frame-1", LaunchPlan{
-		Command:               "claude --resume session-1",
-		ManagedFrameMessaging: true,
-		Env:                   map[string]string{"HOME": realHome, "AG_SOCKET_TOKEN": "tok"},
+		Command:         "claude --resume session-1",
+		ManagedMCPTools: tools,
+		Env:             map[string]string{"HOME": realHome, "AG_SOCKET_TOKEN": "tok"},
 	})
 	if err != nil {
 		t.Fatalf("Wrap: %v", err)
@@ -28,11 +29,50 @@ func TestDirectDispatcher_WrapManagedFrameMessagingPreservesHomeAndInjectsMCPCon
 	if wrapped.Cleanup != nil {
 		t.Fatal("launch-scoped MCP configuration must not install HOME cleanup")
 	}
+	if wrapped.Env["AG_SOCKET_TOKEN"] != "tok" {
+		t.Fatalf("AG_SOCKET_TOKEN = %q, want preserved 'tok' for authority-requiring tools", wrapped.Env["AG_SOCKET_TOKEN"])
+	}
 	var spec framelaunch.FrameSpec
 	if err := json.Unmarshal([]byte(wrapped.Env[framelaunch.EnvVar]), &spec); err != nil {
 		t.Fatalf("AG_FRAME_SPEC JSON: %v", err)
 	}
 	assertManagedClaudeMCPConfig(t, spec.MainCommand, "/usr/bin/server", "/run/agent-grid/server.sock")
+}
+
+func TestDirectDispatcher_WrapEmptyToolsClearsAmbientToken(t *testing.T) {
+	d := DirectDispatcher{SockPath: "/run/server.sock", SelfBin: "/usr/bin/server"}
+	wrapped, err := d.Wrap(context.Background(), "frame-1", LaunchPlan{
+		Command: "claude",
+		Env:     map[string]string{"AG_SOCKET_TOKEN": "leaked"},
+	})
+	if err != nil {
+		t.Fatalf("Wrap: %v", err)
+	}
+	if wrapped.Env["AG_SOCKET_TOKEN"] != "" {
+		t.Fatalf("empty tool set must clear ambient AG_SOCKET_TOKEN, got %q", wrapped.Env["AG_SOCKET_TOKEN"])
+	}
+	// Empty tools → no --mcp-config appended to argv.
+	var spec framelaunch.FrameSpec
+	if err := json.Unmarshal([]byte(wrapped.Env[framelaunch.EnvVar]), &spec); err != nil {
+		t.Fatalf("AG_FRAME_SPEC JSON: %v", err)
+	}
+	for _, arg := range spec.MainCommand {
+		if arg == "--mcp-config" {
+			t.Fatalf("empty tool set must not append --mcp-config, got argv %#v", spec.MainCommand)
+		}
+	}
+}
+
+func TestDirectDispatcher_MissingEndpointFailsClosed(t *testing.T) {
+	tools := MustNewManagedMCPTools(ManagedMCPToolAgentFrames)
+	d := DirectDispatcher{SockPath: "", SelfBin: ""}
+	_, err := d.Wrap(context.Background(), "f1", LaunchPlan{
+		Command:         "claude",
+		ManagedMCPTools: tools,
+	})
+	if err == nil {
+		t.Fatal("non-empty tools with empty endpoint must fail closed before spawn")
+	}
 }
 
 func assertManagedClaudeMCPConfig(t *testing.T, argv []string, wantBin, wantSock string) {

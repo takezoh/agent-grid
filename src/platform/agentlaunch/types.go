@@ -13,18 +13,24 @@ import (
 // Both are populated by per-agent lib builders; callers choose which to use.
 // PreCommands / PreExec are consumed by the in-process frame-exec launcher
 // (see platform/framelaunch and adr-20260711-0082).
+//
+// ManagedMCPTools is the validated set of managed MCP endpoints the launched
+// agent is compatible with. A non-empty set means the host-side dispatcher
+// must append a trailing `--mcp-config` (Claude-compatible placement) and
+// derive frame authority; an empty set is a non-mutating no-op and clears
+// ambient host authority (see design integrated.md FR-002/FR-003/FR-004).
 type LaunchPlan struct {
-	Command               string
-	Argv                  []string
-	PreCommands           [][]string
-	PreExec               string // devcontainer.json preExecCommand; forwarded to bridge frame-exec
-	LoginShell            string // absolute path; optional override (empty → framelaunch resolves)
-	PreCommandTimeout     time.Duration
-	Env                   map[string]string
-	StartDir              string
-	Project               string
-	ForceHost             bool
-	ManagedFrameMessaging bool
+	Command           string
+	Argv              []string
+	PreCommands       [][]string
+	PreExec           string // devcontainer.json preExecCommand; forwarded to bridge frame-exec
+	LoginShell        string // absolute path; optional override (empty → framelaunch resolves)
+	PreCommandTimeout time.Duration
+	Env               map[string]string
+	StartDir          string
+	Project           string
+	ForceHost         bool
+	ManagedMCPTools   ManagedMCPTools
 }
 
 // Mount is a host↔container path pair used to translate paths at the IPC boundary.

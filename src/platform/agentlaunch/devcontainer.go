@@ -308,9 +308,9 @@ func BuildContainerOverlay(
 		if plan.IsShared() {
 			targets = sharedMCPTargets(projects, dc.HostPathMountPrefix)
 		}
-		mounts, err = mergeManagedAgentFramesMounts(runDir, mounts, targets)
+		mounts, err = mergeManagedContainerMCPMounts(runDir, mounts, targets, DefaultContainerManagedMCPTools)
 		if err != nil {
-			return sandboxdc.SpecOverlay{}, fmt.Errorf("devcontainer: managed agent_frames overlay: %w", err)
+			return sandboxdc.SpecOverlay{}, fmt.Errorf("devcontainer: managed MCP overlay: %w", err)
 		}
 
 		postCreate := buildPostCreate(binPath, postCreateSubcmds, proxySpec.BridgeSpecs)

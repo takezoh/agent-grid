@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/takezoh/agent-grid/platform/appid"
 	"github.com/takezoh/agent-grid/platform/config"
 	"github.com/takezoh/agent-grid/platform/mcpoverlay"
 	"github.com/takezoh/credproxy/container"
@@ -82,25 +81,25 @@ func (b *SpecBuilder) Routes() []credproxylib.Route { return nil }
 // .mcp.json overlay. Returns an empty Spec when no servers are configured.
 func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (container.Spec, error) {
 	cfg := b.cfgFor(projectPath)
-	targets := b.workspaceTargets(projectPath)
 	servers := b.brokerServers(cfg)
-	if len(servers) == 0 && b.cfg.ContainerBinPath == "" {
+	if len(servers) == 0 {
+		// mcpproxy owns only external proxy aliases; managed built-ins are
+		// composed by platform/agentlaunch. Nothing to emit when the user has
+		// no external broker servers configured.
 		return container.Spec{}, nil
 	}
+	targets := b.workspaceTargets(projectPath)
 
 	projRunDir := filepath.Join(b.cfg.RunBase, container.ProjectRunHash(projectPath))
 	if err := os.MkdirAll(projRunDir, 0o700); err != nil {
 		return container.Spec{}, fmt.Errorf("mcpproxy: mkdir run dir: %w", err)
 	}
 
-	var mounts []string
-	if len(servers) > 0 {
-		if err := b.ensureBroker(projectPath, projRunDir, servers); err != nil {
-			return container.Spec{}, err
-		}
-		sockHostPath := filepath.Join(projRunDir, filepath.Base(b.cfg.ContainerSockPath))
-		mounts = append(mounts, fmt.Sprintf("type=bind,source=%s,target=%s", sockHostPath, b.cfg.ContainerSockPath))
+	if err := b.ensureBroker(projectPath, projRunDir, servers); err != nil {
+		return container.Spec{}, err
 	}
+	sockHostPath := filepath.Join(projRunDir, filepath.Base(b.cfg.ContainerSockPath))
+	mounts := []string{fmt.Sprintf("type=bind,source=%s,target=%s", sockHostPath, b.cfg.ContainerSockPath)}
 
 	overlayMounts, err := b.overlayMounts(projRunDir, projectPath, targets, servers)
 	if err != nil {
@@ -108,9 +107,9 @@ func (b *SpecBuilder) ContainerSpec(_ context.Context, projectPath string) (cont
 	}
 	mounts = append(mounts, overlayMounts...)
 
-	spec := container.Spec{Mounts: mounts}
-	if len(servers) > 0 {
-		spec.Env = map[string]string{"AG_MCP_SOCK": b.cfg.ContainerSockPath}
+	spec := container.Spec{
+		Mounts: mounts,
+		Env:    map[string]string{"AG_MCP_SOCK": b.cfg.ContainerSockPath},
 	}
 	return spec, nil
 }
@@ -165,8 +164,13 @@ func mcpJSONFileName(containerWS string) string {
 // shim entries for each alias so the broker aliases shadow any direct entries.
 // Entries not in servers pass through unchanged.
 // Skips the write when the file already contains identical content.
+//
+// This helper emits only configured external proxy aliases; managed built-ins
+// (agent_frames) are composed on top by platform/agentlaunch container overlay
+// so lifecycle ownership stays with the launch layer (design integrated.md
+// FR-006 / FR-007).
 func writeMCPJSON(path, projectMCPJSON string, servers map[string]config.MCPProxyServer, containerBin string) error {
-	aliases := make(map[string]mcpoverlay.AliasEntry, len(servers)+1)
+	aliases := make(map[string]mcpoverlay.AliasEntry, len(servers))
 	for alias := range servers {
 		shim, err := json.Marshal(map[string]any{
 			"type":    "stdio",
@@ -177,17 +181,6 @@ func writeMCPJSON(path, projectMCPJSON string, servers map[string]config.MCPProx
 			return err
 		}
 		aliases[alias] = mcpoverlay.AliasEntry{Value: shim, Override: true}
-	}
-	if containerBin != "" {
-		entry, err := json.Marshal(map[string]any{
-			"type":    "stdio",
-			"command": containerBin,
-			"args":    []string{"agent-frames-mcp", "--sock", appid.ContainerSockFilePath},
-		})
-		if err != nil {
-			return err
-		}
-		aliases["agent_frames"] = mcpoverlay.AliasEntry{Value: entry}
 	}
 	return mcpoverlay.WriteJSON(path, projectMCPJSON, aliases)
 }

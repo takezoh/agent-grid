@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/takezoh/agent-grid/platform/agentlaunch"
 )
 
 // DriverState is the per-session, per-driver private state value. Each
@@ -404,8 +406,13 @@ type LaunchPlan struct {
 	Options               LaunchOptions
 	Subsystem             LaunchSubsystem
 	Stream                StreamLaunchOptions
-	ManagedFrameMessaging bool   // true when the launched process must receive a frame-scoped AG_SOCKET_TOKEN for agent_frames
-	Stdin                 []byte // content piped into the spawned command; nil = no stdin
+	// ManagedMCPTools is the validated set of managed MCP endpoints the launched
+	// agent is compatible with. A non-empty set means the host-side dispatcher
+	// must append a trailing `--mcp-config` (Claude-compatible placement) and
+	// derive frame authority (mint AG_SOCKET_TOKEN); the empty set is a
+	// non-mutating no-op and clears ambient host authority.
+	ManagedMCPTools agentlaunch.ManagedMCPTools
+	Stdin           []byte // content piped into the spawned command; nil = no stdin
 }
 
 type LaunchPreparer interface {
