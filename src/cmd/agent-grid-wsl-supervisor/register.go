@@ -54,9 +54,13 @@ func runRegister(args []string, stdout io.Writer, src defaultSource, gate wslhos
 	if root == "" {
 		return errors.New("ProgramData root is required (set ProgramData or -program-data)")
 	}
-	defaults, err := src.Defaults()
-	if err != nil {
-		return err
+	var defaults wslhost.Defaults
+	if strings.TrimSpace(identity) == "" || strings.TrimSpace(distro) == "" {
+		var err error
+		defaults, err = src.Defaults()
+		if err != nil {
+			return err
+		}
 	}
 	acl := wslhost.NewOSACLApplier()
 	store := &wslhost.FileConfigStore{Path: wslhost.ConfigPath(root), ACL: acl}

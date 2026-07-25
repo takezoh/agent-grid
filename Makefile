@@ -2,6 +2,7 @@ BRIDGE           := bridge
 ORCHESTRATOR     := orchestrator
 CLAUDE_APP_SERVER := claude-app-server
 SERVER           := server
+WSL_SUPERVISOR   := dist/windows/agent-grid-wsl-supervisor.exe
 WEB              := web
 SRC_DIR     := src
 INSTALL_DIR    := $(HOME)/.local/bin
@@ -19,7 +20,7 @@ WEB_BIN     := agent-grid-web
 CODEX_SCHEMA_DIR := $(SRC_DIR)/platform/agent/codexschema
 CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
-.PHONY: build build-orchestrator build-claude-app-server build-server build-web build-all \
+.PHONY: build build-orchestrator build-claude-app-server build-server build-wsl-supervisor-windows build-web build-all \
         build-web-frontend \
         run-dev install install-systemd install-codex-remote-control-systemd install-web install-server update-web update-server clean test test-race vet lint \
         verify-bridge-deps \
@@ -41,6 +42,12 @@ build-claude-app-server:
 # REST/WebSocket gateway that browser/CLI clients connect to. It serves no UI.
 build-server:
 	cd $(SRC_DIR) && go build -o ../$(SERVER) ./cmd/server
+
+# Build the Windows SCM supervisor from any Go host. Copy the resulting binary
+# to a Windows-local, administrator-controlled directory before registration.
+build-wsl-supervisor-windows:
+	mkdir -p dist/windows
+	cd $(SRC_DIR) && GOOS=windows GOARCH=amd64 go build -o ../$(WSL_SUPERVISOR) ./cmd/agent-grid-wsl-supervisor
 
 WEB_DIR             := clients/ui
 WEB_DIST            := $(WEB_DIR)/dist/index.html

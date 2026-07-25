@@ -25,6 +25,7 @@ relations:
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
 - {type: references, target: note-20260715-user-codex-remote-control}
+- {type: references, target: note-20260726-user-windows-wsl-service}
 source_paths:
 - ARCHITECTURE.md
 - WORKFLOW.md
@@ -49,7 +50,7 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the canonical definition of the
 
 | Audience \ Layer | platform | client (server) | orchestrator | Cross-cutting |
 |---|---|---|---|---|
-| **User** | [sandbox setup](note-20260624-user-sandbox.md) | [web stack](note-20260624-user-web-server.md) · [systemd service](note-20260624-user-systemd.md) | [orchestrator](note-20260624-user-orchestrator.md) | [getting started](note-20260624-user-getting-started.md) · [Codex Remote Control](note-20260715-user-codex-remote-control.md) |
+| **User** | [sandbox setup](note-20260624-user-sandbox.md) | [web stack](note-20260624-user-web-server.md) · [systemd service](note-20260624-user-systemd.md) · [Windows WSL service](note-20260726-user-windows-wsl-service.md) | [orchestrator](note-20260624-user-orchestrator.md) | [getting started](note-20260624-user-getting-started.md) · [Codex Remote Control](note-20260715-user-codex-remote-control.md) |
 | **Agent** | — | — | [WORKFLOW.md authoring](note-20260624-agent-workflow-authoring.md) | [contributing](note-20260624-agent-contributing.md), [testing](note-20260624-agent-testing.md) |
 | **Technical** | [platform/](../design/design-platform.md) | [client/](../design/design-host.md) | [orchestrator/](../design/design-orchestrator.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) |
 
@@ -62,6 +63,7 @@ You want to launch agents, watch their status, and (optionally) run an unattende
 - [Getting started](note-20260624-user-getting-started.md) — requirements, install, first run, choosing a binary, agent setup
 - [web stack (ad-hoc launch)](note-20260624-user-web-server.md) — running `server` (daemon + HTTP/WS gateway) + `web` for browser-driven session management
 - [run as a systemd service](note-20260624-user-systemd.md) — production deployment of the three-process stack with token persistence
+- [run the WSL host as a Windows Service](note-20260726-user-windows-wsl-service.md) — register, update, inspect, and remove the unattended Windows supervisor
 - [Codex Remote Control](note-20260715-user-codex-remote-control.md) — host-scoped daemon setup, mobile pairing lifecycle, and host/devcontainer session behavior
 - [orchestrator](note-20260624-user-orchestrator.md) — running an unattended pipeline from a `WORKFLOW.md`, agent selection, observability HTTP
 - [sandbox setup](note-20260624-user-sandbox.md) — per-project devcontainer isolation and credential proxy configuration

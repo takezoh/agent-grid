@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,10 +12,27 @@ import (
 )
 
 type fixedDefaults struct {
-	d wslhost.Defaults
+	d   wslhost.Defaults
+	err error
 }
 
-func (f fixedDefaults) Defaults() (wslhost.Defaults, error) { return f.d, nil }
+func (f fixedDefaults) Defaults() (wslhost.Defaults, error) { return f.d, f.err }
+
+func TestRegisterCLIExplicitBindingDoesNotResolveElevatedUserDefaults(t *testing.T) {
+	root := t.TempDir()
+	err := runRegister([]string{
+		"-program-data", root,
+		"-linux-user", "agent",
+		"-server-executable", "/usr/local/bin/server",
+		"-data-dir", "/var/lib/agent-grid",
+		"-windows-identity", `CONTOSO\agentgrid`,
+		"-distribution", "Ubuntu-24.04",
+	}, &bytes.Buffer{}, fixedDefaults{err: errors.New("administrator has no WSL default")},
+		wslhost.StaticServiceGate{IsStopped: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestRegisterCLIBindsDefaultsOnce(t *testing.T) {
 	root := t.TempDir()
