@@ -148,6 +148,35 @@
   }
 }
 
+/* ─── Sidebar collapse toggle (desktop, >=768px) ─────────────────────────
+   The sidebar defaults to visible in every mode (browser AND hosted) and can
+   be collapsed via the header toggle; the choice is persisted (localStorage).
+   Below 768px the drawer/hamburger pair owns sidebar access instead. */
+
+/* Mobile: the desktop toggle is hidden (hamburger + drawer take over). */
+.sidebar-toggle {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  /* Swap: hamburger is display:none at these widths; the toggle appears. */
+  .sidebar-toggle {
+    display: inline-flex;
+  }
+
+  .app-shell[data-sidebar-collapsed="true"] {
+    grid-template-areas:
+      "banner"
+      "header"
+      "main";
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell[data-sidebar-collapsed="true"] .app-sidebar {
+    display: none;
+  }
+}
+
 /* ─── SessionDrawer (FR-DRAWER-001/002/005/ADR-0060) ────────────────────── */
 
 /* Scrim: covers main content area behind the drawer. backdrop-filter lifts
@@ -563,19 +592,9 @@ html[data-hosted="1"] .xterm {
   user-select: text;
 }
 
-.app-shell[data-hosted="true"] {
-  /* Single-session: no sidebar column even at desktop breakpoints */
-  grid-template-areas:
-    "banner"
-    "header"
-    "main";
-  grid-template-columns: 1fr;
-}
-
-.app-shell[data-hosted="true"] .app-sidebar,
-.app-shell[data-hosted="true"] .hamburger-toggle {
-  display: none !important;
-}
+/* Sidebar visibility is hosted-independent (user decision 2026-07-25):
+   default visible, collapsible via the sidebar-toggle, persisted. The
+   data-hosted attribute only drives drag-region / scrollbar styling. */
 
 .app-drag-region {
   -webkit-app-region: drag;
@@ -589,7 +608,7 @@ html[data-hosted="1"] .xterm {
 
 html[data-hosted="1"] * {
   scrollbar-width: thin;
-  scrollbar-color: var(--hairline, #666) transparent;
+  scrollbar-color: var(--hairline, var(--border-color)) transparent;
 }
 
 html[data-hosted="1"] ::-webkit-scrollbar {
@@ -597,7 +616,7 @@ html[data-hosted="1"] ::-webkit-scrollbar {
   height: 10px;
 }
 html[data-hosted="1"] ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--fg, #ccc) 35%, transparent);
+  background: color-mix(in srgb, var(--fg, currentColor) 35%, transparent);
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: content-box;

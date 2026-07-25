@@ -25,6 +25,30 @@ import { UndoSnackbar } from "./UndoSnackbar";
 const MOBILE_BREAKPOINT_PX = 768;
 const DRAWER_DEBOUNCE_MS = 50;
 
+/**
+ * Desktop sidebar collapse persistence (user decision 2026-07-25): the
+ * sidebar defaults to visible in every mode (browser AND hosted), can be
+ * toggled, and the choice survives restarts. localStorage is the cache in
+ * both contexts (the Electron Workspace partition persists it too).
+ */
+const SIDEBAR_COLLAPSED_KEY = "agent-grid.sidebar-collapsed";
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeSidebarCollapsed(collapsed: boolean): void {
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  } catch {
+    /* storage unavailable (private mode) — toggle still works in-session */
+  }
+}
+
 // ─── types ────────────────────────────────────────────────────────────────────
 
 export interface AppShellProps {
@@ -40,7 +64,9 @@ export interface AppShellProps {
   overlays?: ReactNode;
   /**
    * Electron Workspace hosted mode (contract-hosted-mode-existing-spa-compat).
-   * Suppresses session-list chrome; browser path must remain unchanged when false.
+   * Marks the document for hosted-only CSS (titlebar drag region, OS-style
+   * scrollbars). It does NOT affect sidebar visibility — the sidebar renders
+   * identically in browser and hosted modes (user decision 2026-07-25).
    */
   hosted?: boolean;
 }
@@ -61,6 +87,8 @@ export function AppShell({
 }: AppShellProps): ReactNode {
   // UI-local state — FR-STORE-001: do NOT lift to Zustand.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Desktop sidebar collapse — default visible, persisted across launches.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
   // previousActiveSessionId tracks the active session immediately BEFORE the
   // drawer-selection event that closed the drawer (FR-DRAWER-004 / FR-TOAST-003).
   // When non-null, UndoSnackbar renders with a 5s auto-dismiss; clicking Undo
@@ -116,6 +144,14 @@ export function AppShell({
 
   const toggleDrawer = useCallback(() => {
     setDrawerOpen((prev) => !prev);
+  }, []);
+
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      writeSidebarCollapsed(next);
+      return next;
+    });
   }, []);
 
   // B1 / B2 wire-up: drawer reports (previousId, newId, label) when
@@ -178,6 +214,7 @@ export function AppShell({
         ref={shellRef}
         className="app-shell"
         data-drawer-open={drawerOpen ? "true" : "false"}
+        data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
         data-hosted={hosted ? "true" : "false"}
       >
         {/* banner: spans full width */}
@@ -186,32 +223,43 @@ export function AppShell({
         {/* header: HeaderBar + hamburger (left on mobile, FR-013) */}
         <div className="app-header-area app-drag-region">
           <div className="app-header-inner">
-            {!hosted && (
-              <button
-                type="button"
-                className="hamburger-toggle app-no-drag"
-                data-role="hamburger"
-                aria-label="Open sessions"
-                aria-expanded={drawerOpen ? "true" : "false"}
-                onClick={toggleDrawer}
-              >
-                ☰
-              </button>
-            )}
+            <button
+              type="button"
+              className="hamburger-toggle app-no-drag"
+              data-role="hamburger"
+              aria-label="Open sessions"
+              aria-expanded={drawerOpen ? "true" : "false"}
+              onClick={toggleDrawer}
+            >
+              ☰
+            </button>
+            {/* Desktop (>=768px) counterpart of the hamburger: collapses the
+                sidebar column in place. Visibility is swapped with the
+                hamburger purely via CSS breakpoints. */}
+            <button
+              type="button"
+              className="hamburger-toggle sidebar-toggle app-no-drag"
+              data-role="sidebar-toggle"
+              aria-label="Toggle sidebar"
+              aria-expanded={sidebarCollapsed ? "false" : "true"}
+              onClick={toggleSidebarCollapsed}
+            >
+              ☰
+            </button>
             <div className="app-no-drag app-header-content">{header}</div>
           </div>
         </div>
 
-        {/* sidebar: hidden on <768px via CSS; shown as drawer via SessionDrawer */}
-        {!hosted && (
-          <div
-            className="app-sidebar"
-            data-drawer-open={drawerOpen ? "true" : "false"}
-            aria-hidden={drawerOpen ? "false" : undefined}
-          >
-            {sidebar}
-          </div>
-        )}
+        {/* sidebar: hidden on <768px via CSS; shown as drawer via SessionDrawer.
+            Rendered in hosted mode too — visibility is owned solely by the
+            collapse toggle + breakpoints. */}
+        <div
+          className="app-sidebar"
+          data-drawer-open={drawerOpen ? "true" : "false"}
+          aria-hidden={drawerOpen ? "false" : undefined}
+        >
+          {sidebar}
+        </div>
 
         {/* main content — id used by SessionDrawer for three-layer guard */}
         <div id="main-content" className="app-main">
@@ -220,15 +268,13 @@ export function AppShell({
       </div>
 
       {/* SessionDrawer — off-canvas drawer on mobile (FR-DRAWER-001/002/ADR-0060) */}
-      {!hosted && (
-        <SessionDrawer
-          open={drawerOpen}
-          onSelectionClose={handleSelectionClose}
-          onCancelClose={handleCancelClose}
-        >
-          {sidebar}
-        </SessionDrawer>
-      )}
+      <SessionDrawer
+        open={drawerOpen}
+        onSelectionClose={handleSelectionClose}
+        onCancelClose={handleCancelClose}
+      >
+        {sidebar}
+      </SessionDrawer>
 
       {/* Portal-mounted overlays (palette, toasts) */}
       {overlays}

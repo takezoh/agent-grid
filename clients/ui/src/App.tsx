@@ -99,8 +99,10 @@ export function App() {
     return () => document.removeEventListener("visibilitychange", handler);
   }, [conn]);
 
-  // Hosted mode (Electron Workspace): 1-window-1-session view.
-  // Token comes from preload (never URL); sidebar/new-session chrome is suppressed.
+  // Hosted mode (Electron Workspace): token comes from preload (never URL)
+  // and a deep-linked session is pre-selected. The sidebar is NOT suppressed —
+  // it renders identically in browser and hosted modes (user decision
+  // 2026-07-25: default visible, toggleable, persisted in AppShell).
   useEffect(() => {
     if (!hosted || !hostedSession) return;
     useDaemonStore.getState().selectSession(hostedSession);
@@ -270,7 +272,7 @@ export function App() {
     <HeaderBar mobile={isMobile} />
   );
 
-  const sidebarContent = hosted ? null : (
+  const sidebarContent = (
     <div className="sidebar-shell">
       <SidebarBrandRow />
       <SessionList conn={conn} onRequestTerminate={handleRequestTerminate} />

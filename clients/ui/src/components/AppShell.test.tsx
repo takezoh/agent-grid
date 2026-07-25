@@ -435,3 +435,78 @@ describe("m2: connected resize idempotent across AppShell debounce + SessionDraw
     vi.useRealTimers();
   });
 });
+
+// ─── Sidebar: hosted-independent default-visible + persisted collapse ────────
+// (user decision 2026-07-25: hosted mode must NOT suppress the sidebar; it is
+// default-visible everywhere, toggleable, and the choice survives restarts.)
+
+describe("sidebar visibility is hosted-independent and persisted", () => {
+  const KEY = "agent-grid.sidebar-collapsed";
+
+  beforeEach(() => {
+    window.localStorage.removeItem(KEY);
+  });
+
+  function renderHostedShell() {
+    return render(
+      <AppShell
+        banner={<div>Banner</div>}
+        header={<div>Header</div>}
+        sidebar={<div data-testid="sidebar-content">Sidebar</div>}
+        main={<div>Main</div>}
+        hosted={true}
+      />,
+    );
+  }
+
+  it("renders the sidebar and toggles even in hosted mode", () => {
+    const { container } = renderHostedShell();
+
+    const shell = container.querySelector(".app-shell");
+    expect(shell?.getAttribute("data-hosted")).toBe("true");
+    expect(container.querySelector(".app-sidebar")).not.toBeNull();
+    expect(document.querySelector("[data-role='sidebar-toggle']")).not.toBeNull();
+    expect(document.querySelector("[data-role='hamburger']")).not.toBeNull();
+  });
+
+  it("defaults to visible (not collapsed) when nothing is persisted", () => {
+    const { container } = renderHostedShell();
+
+    const shell = container.querySelector(".app-shell");
+    expect(shell?.getAttribute("data-sidebar-collapsed")).toBe("false");
+    const toggle = screen.getByRole("button", { name: "Toggle sidebar" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("toggle collapses the sidebar and persists the choice", () => {
+    const { container } = renderHostedShell();
+
+    const toggle = screen.getByRole("button", { name: "Toggle sidebar" });
+    act(() => {
+      fireEvent.click(toggle);
+    });
+
+    const shell = container.querySelector(".app-shell");
+    expect(shell?.getAttribute("data-sidebar-collapsed")).toBe("true");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(window.localStorage.getItem(KEY)).toBe("true");
+
+    act(() => {
+      fireEvent.click(toggle);
+    });
+    expect(shell?.getAttribute("data-sidebar-collapsed")).toBe("false");
+    expect(window.localStorage.getItem(KEY)).toBe("false");
+  });
+
+  it("restores a persisted collapsed state on next launch", () => {
+    window.localStorage.setItem(KEY, "true");
+
+    const { container } = renderHostedShell();
+
+    const shell = container.querySelector(".app-shell");
+    expect(shell?.getAttribute("data-sidebar-collapsed")).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "Toggle sidebar" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+});

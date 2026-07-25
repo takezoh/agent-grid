@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  hostedSessionId,
-  isHostedMode,
-  readBearerTokenFromHash,
-  resolveApiUrl,
-} from "./auth";
+import { hostedSessionId, isHostedMode, readBearerTokenFromHash, resolveApiUrl } from "./auth";
 
 describe("auth hosted mode", () => {
   afterEach(() => {
@@ -50,8 +45,6 @@ describe("auth hosted mode", () => {
 
     expect(isHostedMode()).toBe(false);
     expect(readBearerTokenFromHash()).toBe("desktop-token");
-    expect(resolveApiUrl("/api/sessions")).toBe(
-      "http://192.168.1.139:8443/api/sessions",
-    );
+    expect(resolveApiUrl("/api/sessions")).toBe("http://192.168.1.139:8443/api/sessions");
   });
 });

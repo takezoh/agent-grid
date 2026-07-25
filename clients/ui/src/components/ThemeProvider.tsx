@@ -110,8 +110,7 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
     function applyDesktopAppearance(): void {
       const configured = desktopAppearance();
       const stored = readStoredTheme();
-      const configuredTheme =
-        configured?.theme === "default" ? undefined : configured?.theme;
+      const configuredTheme = configured?.theme === "default" ? undefined : configured?.theme;
       setTheme(configuredTheme ?? stored ?? "system");
       if (configured) {
         if (configured.density === "compact") {
@@ -125,10 +124,7 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
           document.documentElement.style.fontSize = `${configured.font_scale * 100}%`;
         }
         if (configuredTheme) {
-          const resolved = resolveDataTheme(
-            configuredTheme,
-            window.matchMedia(DARK_QUERY).matches,
-          );
+          const resolved = resolveDataTheme(configuredTheme, window.matchMedia(DARK_QUERY).matches);
           document.documentElement.dataset.theme = resolved;
         }
       }
@@ -145,8 +141,7 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
   useLayoutEffect(() => {
     const configured = desktopAppearance();
     const mq = window.matchMedia(DARK_QUERY);
-    const configuredTheme =
-      configured?.theme === "default" ? undefined : configured?.theme;
+    const configuredTheme = configured?.theme === "default" ? undefined : configured?.theme;
     const effectiveTheme = configuredTheme ?? theme;
     const resolved = resolveDataTheme(effectiveTheme, mq.matches);
     document.documentElement.dataset.theme = resolved;
