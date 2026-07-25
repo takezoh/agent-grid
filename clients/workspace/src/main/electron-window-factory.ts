@@ -1,6 +1,13 @@
 /**
- * Electron BrowserWindow factory — the ONLY production site that may call
- * `new BrowserWindow` (contract-migration-window-per-session-invariant lint).
+ * Electron window factory — the ONLY production site that may construct
+ * Electron windows/views (contract-migration-window-per-session-invariant
+ * lint, scripts/check-browserwindow.mjs).
+ *
+ * Each Workspace window is a frameless BaseWindow split into two
+ * WebContentsViews (see window-chrome.ts): a Workspace-owned title bar
+ * (drag region + File/Edit/View/Window menu bar, VSCode-style) on top and
+ * the unmodified shared SPA below. Native caption buttons stay via the
+ * Window Controls Overlay.
  *
  * This module is intentionally free of a hard `electron` import so Linux CI
  * typecheck/vitest stay clean. Wire it from a Windows-only entry that passes
@@ -11,36 +18,76 @@ import type { WindowBounds, WindowFactory, WindowHandle } from "./window-registr
 import type { DaemonConfigResolver, HostedModeInfo } from "./daemon-config.js";
 import type { AppearanceConfig, WorkspaceAppConfig } from "./desktop-config.js";
 import type { SessionRef } from "../shared/session-ref.js";
+import {
+  CHROME_COLORS,
+  layoutChrome,
+  resolveChromeTheme,
+  titleBarDataUrl,
+  titleBarOverlayFor,
+  windowDisplayTitle,
+  type ChromeRect,
+} from "./window-chrome.js";
 
-/** Minimal surface of Electron BrowserWindow used by the factory. */
-export interface ElectronBrowserWindowLike {
+export type { ChromeRect } from "./window-chrome.js";
+
+/** Minimal surfaces of Electron BaseWindow / WebContentsView used here. */
+export interface ElectronWebContentsLike {
+  readonly id: number;
+  once(event: "did-finish-load", listener: () => void): void;
+  executeJavaScript(code: string): Promise<unknown>;
+  loadURL(url: string): Promise<void>;
+  focus?(): void;
+}
+
+export interface ElectronWebContentsViewLike {
+  webContents: ElectronWebContentsLike;
+  setBounds(bounds: ChromeRect): void;
+  setBackgroundColor?(color: string): void;
+}
+
+export interface ElectronWebContentsViewConstructor {
+  new (options: Record<string, unknown>): ElectronWebContentsViewLike;
+}
+
+export interface ElectronBaseWindowLike {
   focus(): void;
   close(): void;
   isDestroyed(): boolean;
-  getBounds(): { x: number; y: number; width: number; height: number };
-  setBounds(b: { x: number; y: number; width: number; height: number }): void;
-  loadURL(url: string): Promise<void>;
-  webContents: {
-    readonly id: number;
-    once(event: "did-finish-load", listener: () => void): void;
-    executeJavaScript(code: string): Promise<unknown>;
-  };
+  getBounds(): ChromeRect;
+  setBounds(bounds: ChromeRect): void;
+  getContentBounds(): ChromeRect;
+  on(event: "resize", listener: () => void): void;
+  contentView: { addChildView(view: ElectronWebContentsViewLike): void };
 }
 
-export interface ElectronBrowserWindowConstructor {
-  new (options: Record<string, unknown>): ElectronBrowserWindowLike;
+export interface ElectronBaseWindowConstructor {
+  new (options: Record<string, unknown>): ElectronBaseWindowLike;
+}
+
+export interface WindowChromeHandles {
+  window: ElectronBaseWindowLike;
+  titleBarWebContentsId: number;
+  contentWebContentsId: number;
 }
 
 export interface ElectronFactoryOptions {
   config: DaemonConfigResolver;
-  BrowserWindow: ElectronBrowserWindowConstructor;
+  BaseWindow: ElectronBaseWindowConstructor;
+  WebContentsView: ElectronWebContentsViewConstructor;
+  /** Preload for the SPA content view. */
   preloadPath: string;
+  /** Preload for the title-bar view (menu-popup bridge). */
+  titleBarPreloadPath: string;
   /** file: URL of the UI bundled with Workspace. */
   uiEntryUrl: string;
   appearance?: AppearanceConfig;
   workspace?: WorkspaceAppConfig;
+  /** OS dark-mode probe (nativeTheme in production; defaults to dark). */
+  systemPrefersDark?: () => boolean;
   registerRendererInfo?: (webContentsId: number, info: HostedModeInfo) => void;
   configureServerTransport?: (webContentsId: number, baseUrl: string) => void;
+  /** Lets the entry answer title-bar menu IPC / repaint chrome per window. */
+  registerWindowChrome?: (handles: WindowChromeHandles) => void;
 }
 
 export interface ElectronWindowFactory extends WindowFactory {
@@ -58,24 +105,44 @@ export function sessionPageUrl(uiEntryUrl: string, sessionId?: string): string {
 }
 
 /**
- * Build the sole BrowserWindow factory. Token is injected after load into
+ * Build the sole window factory. Token is injected after load into
  * `window.hostedModeInfo` for the SPA auth reader; production may replace the
  * injection with a contextBridge preload that receives the same payload via IPC.
  */
 export function createElectronWindowFactory(opts: ElectronFactoryOptions): ElectronWindowFactory {
-  const { BrowserWindow } = opts;
+  const { BaseWindow, WebContentsView } = opts;
 
   const createWindow = (
     serverId: string,
     sessionId?: string,
     bounds?: WindowBounds,
   ): WindowHandle => {
-      const win = new BrowserWindow({
+      const chromeTheme = resolveChromeTheme(
+        opts.appearance?.theme,
+        opts.systemPrefersDark?.() ?? true,
+      );
+      const overlay = titleBarOverlayFor(chromeTheme);
+      const win = new BaseWindow({
         x: bounds?.x,
         y: bounds?.y,
         width: bounds?.width ?? opts.workspace?.default_window.width ?? 1280,
         height: bounds?.height ?? opts.workspace?.default_window.height ?? 800,
         show: true,
+        titleBarStyle: "hidden",
+        titleBarOverlay: overlay,
+        // Pre-load background matching the theme so no white frame flashes.
+        backgroundColor: overlay.color,
+      });
+
+      const titleBar = new WebContentsView({
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+          preload: opts.titleBarPreloadPath,
+        },
+      });
+      const content = new WebContentsView({
         webPreferences: {
           contextIsolation: true,
           nodeIntegration: false,
@@ -86,6 +153,27 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
           partition: `persist:agent-grid-${encodeURIComponent(serverId)}`,
           preload: opts.preloadPath,
         },
+      });
+      titleBar.setBackgroundColor?.(overlay.color);
+      content.setBackgroundColor?.(overlay.color);
+      win.contentView.addChildView(titleBar);
+      win.contentView.addChildView(content);
+
+      const applyLayout = () => {
+        const layout = layoutChrome(win.getContentBounds());
+        titleBar.setBounds(layout.titleBar);
+        content.setBounds(layout.content);
+      };
+      applyLayout();
+      win.on("resize", applyLayout);
+
+      void titleBar.webContents.loadURL(
+        titleBarDataUrl(chromeTheme, windowDisplayTitle(serverId, sessionId)),
+      );
+      opts.registerWindowChrome?.({
+        window: win,
+        titleBarWebContentsId: titleBar.webContents.id,
+        contentWebContentsId: content.webContents.id,
       });
 
       void (async () => {
@@ -98,28 +186,32 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
             baseUrl: cfg.baseUrl,
             token: cfg.token,
           };
-          opts.registerRendererInfo?.(win.webContents.id, info);
-          opts.configureServerTransport?.(win.webContents.id, cfg.baseUrl);
-          win.webContents.once("did-finish-load", () => {
-            void win.webContents.executeJavaScript(
+          opts.registerRendererInfo?.(content.webContents.id, info);
+          opts.configureServerTransport?.(content.webContents.id, cfg.baseUrl);
+          content.webContents.once("did-finish-load", () => {
+            void content.webContents.executeJavaScript(
               `window.hostedModeInfo = ${JSON.stringify(info)};` +
               `window.agentGridAppearance = ${JSON.stringify(opts.appearance ?? null)};` +
               `window.dispatchEvent(new CustomEvent("agent-grid-appearance"));`,
             );
           });
-          await win.loadURL(url);
+          await content.webContents.loadURL(url);
         } catch (e) {
           const msg = (e as Error).message;
-          await win.loadURL(
-            `data:text/html,${encodeURIComponent(`<h1>Connection error</h1><pre>${msg}</pre>`)}`,
-          );
+          const colors = CHROME_COLORS[chromeTheme];
+          const html =
+            `<body style="margin:0;background:${colors.bg};color:${colors.fg};font-family:system-ui">` +
+            `<main style="padding:16px 24px"><h1>Connection error</h1><pre>${msg}</pre></main></body>`;
+          await content.webContents.loadURL(`data:text/html,${encodeURIComponent(html)}`);
         }
       })();
 
       return {
         id: sessionId === undefined ? `home:${serverId}` : `${serverId}:${sessionId}`,
         focus: () => {
-          if (!win.isDestroyed()) win.focus();
+          if (win.isDestroyed()) return;
+          win.focus();
+          content.webContents.focus?.();
         },
         close: () => {
           if (!win.isDestroyed()) win.close();

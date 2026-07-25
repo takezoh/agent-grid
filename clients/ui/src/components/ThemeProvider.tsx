@@ -92,6 +92,19 @@ function resolveDataTheme(theme: Theme, darkMatches: boolean): "dark" | "light" 
   return theme;
 }
 
+/**
+ * Single write point for the resolved theme. In hosted mode (Electron
+ * Workspace, frameless VSCode-style chrome) the native chrome — caption
+ * buttons, title bar, popup menus — must repaint with the SPA theme, so
+ * every data-theme write also notifies the preload bridge. `mode` carries
+ * the user's choice: "system" lets native UI keep following the OS palette
+ * instead of pinning it to a snapshot. No-op in the browser (bridge absent).
+ */
+function applyResolvedTheme(resolved: "dark" | "light", mode: Theme): void {
+  document.documentElement.dataset.theme = resolved;
+  window.agentGridWorkspace?.setTitleBarTheme?.(resolved, mode);
+}
+
 // ─── ThemeProvider ────────────────────────────────────────────────────────────
 
 interface ThemeProviderProps {
@@ -124,8 +137,10 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
           document.documentElement.style.fontSize = `${configured.font_scale * 100}%`;
         }
         if (configuredTheme) {
-          const resolved = resolveDataTheme(configuredTheme, window.matchMedia(DARK_QUERY).matches);
-          document.documentElement.dataset.theme = resolved;
+          applyResolvedTheme(
+            resolveDataTheme(configuredTheme, window.matchMedia(DARK_QUERY).matches),
+            configuredTheme,
+          );
         }
       }
     }
@@ -143,8 +158,7 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
     const mq = window.matchMedia(DARK_QUERY);
     const configuredTheme = configured?.theme === "default" ? undefined : configured?.theme;
     const effectiveTheme = configuredTheme ?? theme;
-    const resolved = resolveDataTheme(effectiveTheme, mq.matches);
-    document.documentElement.dataset.theme = resolved;
+    applyResolvedTheme(resolveDataTheme(effectiveTheme, mq.matches), effectiveTheme);
     if (!configuredTheme) persistTheme(theme);
   }, [theme]);
 
@@ -155,7 +169,7 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactNode {
 
     function handleChange(event: MediaQueryListEvent): void {
       if (useThemeStore.getState().theme !== "system") return;
-      document.documentElement.dataset.theme = event.matches ? "dark" : "light";
+      applyResolvedTheme(event.matches ? "dark" : "light", "system");
     }
 
     mq.addEventListener("change", handleChange);

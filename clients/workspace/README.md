@@ -8,7 +8,11 @@ JSON Lines control channel (named pipe on Windows).
 
 ```text
 src/main/
-  window-registry.ts    sole BrowserWindow creation point
+  window-registry.ts    window-per-session dedup over the sole creation point
+  electron-window-factory.ts  sole window/view creation point (frameless BaseWindow
+                              + title-bar / SPA WebContentsViews)
+  window-chrome.ts      VSCode-style title bar: colors, layout, menu-bar contract,
+                        title-bar document (pure, no electron import)
   control-endpoint.ts   named-pipe / Unix-socket JSON Lines server
   desktop-config.ts     shared config load/create + validation
   daemon-config.ts      per-server fresh token resolve + hosted URL
@@ -83,6 +87,20 @@ powershell.exe -NoProfile -Command "cd (wsl wslpath -w /workspace/agent-grid/cli
 
 ## Lint invariant
 
-`new BrowserWindow` must only appear in `electron-window-factory.ts`
-(the sole production creation site owned by `window-registry`). Enforced by
-`npm run lint:browserwindow` (`scripts/check-browserwindow.mjs`).
+`new BrowserWindow` / `new BaseWindow` / `new WebContentsView` must only
+appear in `electron-window-factory.ts` (the sole production creation site
+owned by `window-registry`). Enforced by `npm run lint:browserwindow`
+(`scripts/check-browserwindow.mjs`).
+
+## Window chrome
+
+Windows are frameless (`titleBarStyle: "hidden"` + Window Controls Overlay —
+native caption buttons with Win11 Snap Layouts). A Workspace-owned title-bar
+`WebContentsView` (38px, drag region + File/Edit/View/Window menu bar) sits
+above the unmodified shared SPA view; native popup menus are served by
+`electron-entry.ts` over `agent-grid:titlebar-menu`. The SPA reports theme
+switches (resolved value + chosen mode) via the preload `setTitleBarTheme`
+bridge and the entry repaints the overlay + title-bar palette and mirrors
+`nativeTheme.themeSource` so native popup menus render in the app palette
+(`agent-grid:titlebar-theme`; mode "system" stays on the OS palette —
+pinning it would freeze `prefers-color-scheme` for the renderers).

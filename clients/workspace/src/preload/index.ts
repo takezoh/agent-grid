@@ -23,6 +23,12 @@ export interface WorkspacePreloadApi {
   windowControls: WindowControls;
   hostedModeInfo: HostedModeInfo | null;
   requestJumpBack(sessionId: string): Promise<void>;
+  /**
+   * Re-syncs the native chrome (caption-button overlay, title-bar view,
+   * popup menus) with the SPA theme. `mode` is the user's choice —
+   * "system" keeps native UI following the OS palette.
+   */
+  setTitleBarTheme?(theme: "dark" | "light", mode?: "system" | "light" | "dark"): void;
 }
 
 /**

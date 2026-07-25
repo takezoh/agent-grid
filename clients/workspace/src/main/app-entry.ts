@@ -13,8 +13,9 @@ import {
 } from "./desktop-config.js";
 import {
   createElectronWindowFactory,
-  type ElectronBrowserWindowConstructor,
+  type ElectronBaseWindowConstructor,
   type ElectronFactoryOptions,
+  type ElectronWebContentsViewConstructor,
 } from "./electron-window-factory.js";
 import { FileStateStore, defaultWorkspaceStatePath } from "./file-state-store.js";
 import { IdleQuitController } from "./idle-quit.js";
@@ -39,8 +40,10 @@ export interface ElectronAppLike {
 
 export interface AppEntryOptions {
   app: ElectronAppLike;
-  BrowserWindow: ElectronBrowserWindowConstructor;
+  BaseWindow: ElectronBaseWindowConstructor;
+  WebContentsView: ElectronWebContentsViewConstructor;
   preloadPath: string;
+  titleBarPreloadPath: string;
   /** Test/packaging override; defaults to dist/ui/index.html. */
   uiEntryUrl?: string;
   args?: readonly string[];
@@ -48,8 +51,10 @@ export interface AppEntryOptions {
   controlPath?: string;
   statePath?: string;
   idleMs?: number;
+  systemPrefersDark?: ElectronFactoryOptions["systemPrefersDark"];
   registerRendererInfo?: ElectronFactoryOptions["registerRendererInfo"];
   configureServerTransport?: ElectronFactoryOptions["configureServerTransport"];
+  registerWindowChrome?: ElectronFactoryOptions["registerWindowChrome"];
 }
 
 export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
@@ -71,13 +76,17 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
   const store = new FileStateStore(opts.statePath ?? defaultWorkspaceStatePath());
   const factory = createElectronWindowFactory({
     config,
-    BrowserWindow: opts.BrowserWindow,
+    BaseWindow: opts.BaseWindow,
+    WebContentsView: opts.WebContentsView,
     preloadPath: opts.preloadPath,
+    titleBarPreloadPath: opts.titleBarPreloadPath,
     uiEntryUrl: opts.uiEntryUrl ?? new URL("../ui/index.html", import.meta.url).toString(),
     appearance: desktopConfig.appearance,
     workspace: desktopConfig.workspace,
+    systemPrefersDark: opts.systemPrefersDark,
     registerRendererInfo: opts.registerRendererInfo,
     configureServerTransport: opts.configureServerTransport,
+    registerWindowChrome: opts.registerWindowChrome,
   });
   const registry = new WindowRegistry(factory, store);
   const defaultServer = desktopConfig.servers.find((server) => server.enabled);

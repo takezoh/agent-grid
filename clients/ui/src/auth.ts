@@ -25,6 +25,12 @@ declare global {
     agentGridAppearance?: DesktopAppearance | null;
     agentGridWorkspace?: {
       hostedModeInfo?: HostedModeInfo;
+      /**
+       * Hosted chrome: re-syncs the native chrome (caption buttons, title
+       * bar, popup menus). `mode` is the user's choice — "system" keeps
+       * native UI following the OS palette.
+       */
+      setTitleBarTheme?: (theme: "dark" | "light", mode?: "system" | "light" | "dark") => void;
     };
   }
 }

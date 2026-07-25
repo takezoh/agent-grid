@@ -12,3 +12,8 @@ copyFileSync(
   resolve(import.meta.dirname, "../src/preload/electron-preload.cjs"),
   resolve(import.meta.dirname, "../dist/preload/electron-preload.cjs"),
 );
+
+copyFileSync(
+  resolve(import.meta.dirname, "../src/preload/titlebar-preload.cjs"),
+  resolve(import.meta.dirname, "../dist/preload/titlebar-preload.cjs"),
+);

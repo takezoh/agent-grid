@@ -31,6 +31,7 @@ function cleanup() {
   resetStore();
   localStorage.clear();
   window.agentGridAppearance = undefined;
+  window.agentGridWorkspace = undefined;
   delete document.documentElement.dataset.theme;
   delete document.documentElement.dataset.density;
   document.documentElement.style.removeProperty("font-size");
@@ -152,6 +153,53 @@ describe("desktop appearance configuration", () => {
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(document.documentElement.dataset.density).toBe("compact");
     expect(document.documentElement.style.fontSize).toBe("80%");
+  });
+});
+
+// ─── Hosted chrome — native caption-button overlay sync ──────────────────────
+
+describe("hosted title-bar theme sync (Electron Workspace)", () => {
+  beforeEach(cleanup);
+  afterEach(cleanup);
+
+  it("reports the resolved theme and the chosen mode on mount and on switch", () => {
+    const setTitleBarTheme = vi.fn();
+    window.agentGridWorkspace = { setTitleBarTheme };
+    globalThis.setMatchMedia(DARK_QUERY, true);
+
+    render(
+      <ThemeProvider>
+        <span />
+      </ThemeProvider>,
+    );
+
+    // Mount resolves system→dark and must repaint the native chrome too.
+    // mode "system" lets native popup menus keep following the OS palette.
+    expect(setTitleBarTheme).toHaveBeenLastCalledWith("dark", "system");
+
+    act(() => {
+      useThemeStore.getState().setTheme("light");
+    });
+    expect(setTitleBarTheme).toHaveBeenLastCalledWith("light", "light");
+
+    act(() => {
+      useThemeStore.getState().setTheme("system");
+      globalThis.setMatchMedia(DARK_QUERY, false);
+    });
+    expect(setTitleBarTheme).toHaveBeenLastCalledWith("light", "system");
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("browser mode (no bridge) keeps working without a hosted notification", () => {
+    globalThis.setMatchMedia(DARK_QUERY, true);
+
+    render(
+      <ThemeProvider>
+        <span />
+      </ThemeProvider>,
+    );
+
+    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 });
 
