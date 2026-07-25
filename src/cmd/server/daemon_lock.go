@@ -70,3 +70,44 @@ func readPid(f *os.File) string {
 	n, _ := f.ReadAt(buf, 0)
 	return strings.TrimSpace(string(buf[:n]))
 }
+
+// lockHolderInspect is a non-authoritative observation of the daemon pid-file
+// flock. Held=false means no process currently owns the exclusive lock
+// (absent). Held=true means flock refused; PID is the recorded holder when
+// the pid file is parseable.
+type lockHolderInspect struct {
+	Held bool
+	PID  int
+}
+
+// inspectDaemonLock reports whether path currently has an exclusive flock
+// holder. It never retains the lock: a successful non-blocking acquire is
+// released immediately so probe/stop never becomes a second daemon.
+//
+// Missing path is treated as absent (Held=false). Open/stat failures other
+// than NotExist are returned so callers can map them to unknown.
+func inspectDaemonLock(path string) (lockHolderInspect, error) {
+	f, err := os.OpenFile(path, os.O_RDWR, 0o644)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return lockHolderInspect{Held: false}, nil
+		}
+		return lockHolderInspect{}, fmt.Errorf("daemon lock inspect: open %s: %w", path, err)
+	}
+	defer f.Close()
+
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err == nil {
+		_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+		return lockHolderInspect{Held: false}, nil
+	}
+
+	holder := readPid(f)
+	if holder == "" {
+		return lockHolderInspect{Held: true, PID: 0}, nil
+	}
+	pid, err := strconv.Atoi(holder)
+	if err != nil || pid <= 0 {
+		return lockHolderInspect{Held: true, PID: 0}, nil
+	}
+	return lockHolderInspect{Held: true, PID: pid}, nil
+}

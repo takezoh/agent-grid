@@ -1,0 +1,34 @@
+{
+  "id": "task-20260726-typed-linux-control",
+  "title": "Implement typed Linux probe and stop control",
+  "objective": "Add additive server CLI commands that classify lock ownership and deliver ownership-checked SIGTERM.",
+  "output_format": "Go production code plus T0/T2 tests, FakeVsReal fidelity backstop, and invariant contract test.",
+  "tool_guidance": "Extend the existing server subcommand and daemon-lock seams without changing existing daemon mode behavior.",
+  "task_boundaries": "Own typed supervisor-probe and supervisor-stop Linux controls; exclude Windows lifecycle and SCM implementation.",
+  "files_touched": [
+    "src/cmd/server/supervisor_control*.go",
+    "src/cmd/server/daemon_lock*.go",
+    "src/cmd/server/main.go",
+    "src/cmd/server/main_test.go",
+    "src/cmd/server/subcommand.go"
+  ],
+  "acceptance": [
+    "Probe distinguishes absent, matched running, mismatch, and unknown.",
+    "Stop rejects stale or mismatched ownership and reaches SIGTERM.",
+    "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+  ],
+  "contract_refs": [
+    "contract-integration-contract"
+  ],
+  "decision_closure_reason": "Probe classification, ownership token revalidation, and SIGTERM behavior are fixed by the adoption authority ADR and implementation member.",
+  "implementation_decisions_remaining": [],
+  "depends_on": [
+    "task-20260726-registration-snapshot-acl"
+  ],
+  "max_diff_loc": 500,
+  "pinned_context": [
+    "docs/changes/change-20260725-windows-service-wsl-supervision/implementation.md",
+    "docs/changes/change-20260725-windows-service-wsl-supervision/verification.md",
+    "src/cmd/server/daemon_lock.go"
+  ]
+}

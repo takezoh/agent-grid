@@ -1,0 +1,36 @@
+{
+  "id": "task-20260726-supervised-lifecycle",
+  "title": "Implement supervised lifecycle and health state machine",
+  "objective": "Implement probe-before-spawn, direct foreground launch, readiness, resume invalidation, classifier, and fixed retry thresholds.",
+  "output_format": "Windows-tagged Go adapters, platform-neutral policy where possible, fake-clock tests, fidelity backstops, and invariant tests.",
+  "tool_guidance": "Use injected WSLRunner, HostControl, HealthProber, Clock, Timer, and ResumeSource seams.",
+  "task_boundaries": "Own lifecycle, launch, health, retry, resume, and generation policy; exclude SCM stop escalation and recording retention.",
+  "files_touched": [
+    "src/platform/wslhost/supervisor*.go",
+    "src/platform/wslhost/process*.go",
+    "src/platform/wslhost/health*.go"
+  ],
+  "acceptance": [
+    "All UAC-001..006,011,012,014,015,017 transitions are deterministic.",
+    "No spawn occurs before determinate absence.",
+    "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+  ],
+  "contract_refs": [
+    "contract-control-flow",
+    "contract-state-lifecycle",
+    "contract-concurrency",
+    "contract-performance-budget"
+  ],
+  "decision_closure_reason": "Launch topology, adoption classifier, retry thresholds, readiness, resume handling, and shutdown budget are fixed by accepted ADRs.",
+  "implementation_decisions_remaining": [],
+  "depends_on": [
+    "task-20260726-registration-snapshot-acl",
+    "task-20260726-typed-linux-control"
+  ],
+  "max_diff_loc": 900,
+  "pinned_context": [
+    "docs/changes/change-20260725-windows-service-wsl-supervision/implementation.md",
+    "docs/changes/change-20260725-windows-service-wsl-supervision/verification.md",
+    "docs/changes/change-20260725-windows-service-wsl-supervision/design-plan.json"
+  ]
+}

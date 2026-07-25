@@ -97,6 +97,9 @@ failure_responsibilities:
   statement: Browser delivery timeout replaces the connection without authoring remote
     outcome; producer telemetry is bounded to 250ms/4Hz and terminal status is ordered
     after finalSequence or explicit delivery_gap.
+- id: FAILURE-005
+  statement: Windows supervision may terminate only the registration-bound WSL distribution
+    and must preserve the host server SIGTERM drain and health semantics.
 trust_boundaries:
 - Treat IPC and browser commands as external input requiring validation and authorization
   at ingress.
@@ -119,6 +122,35 @@ source_paths:
 The client area is the interactive session authority. Reducers and value-type drivers decide state transitions and emit effects; the runtime owns external resources and feeds results back as events. Terminal and protocol routes remain keyed by frame identity, persistence uses explicit deletion, and browser presentation does not become an independent lifecycle authority.
 
 The complete legacy sources remain below as migration history. The governing contract above is the maintained design surface.
+
+## Windows WSL host supervisor — machine-wide structured record
+
+Governing ADR: `adr-20260725-wsl-supervisor-machine-wide-record`. Implementation lives in `src/platform/wslhost` (`RecordSink`, registration snapshot `log_path`).
+
+### Record surface
+
+| Item | Rule |
+|------|------|
+| Path | `%ProgramData%\AgentGrid\logs\wsl-host.log` (`AgentGrid/logs/wsl-host.log` under the machine ProgramData root) |
+| Format | JSON lines; allowlisted supervisor fields only |
+| ACL | SYSTEM + Administrators full control; configured service identity modify; `BUILTIN\Users` read (logs only) |
+| Retention | Rotate at 10 MiB; keep 5 files total; delete files older than 30 days |
+| Forbidden | Raw child stdout/stderr, environment values, tokens, secrets, argv secrets |
+
+Allowlisted events distinguish at least: service start/stop, Ready, Backoff, Failed (with reason class), already-running, child exit, budget expiry, and escalation. A blocked or full sink must not stall lifecycle: events are dropped with a counter after a bounded write attempt.
+
+### SCM pre-start failure lookup (deterministic)
+
+When Windows SCM cannot create the supervisor process (bad credentials, missing **Log on as a service**, profile failure, executable ACL, or configuration ACL), the ProgramData file is **not** written and must not be cited as proof of success or failure detail.
+
+Operators use this fixed path:
+
+1. `sc query <service-name>` — inspect `STATE` and `WIN32_EXIT_CODE` for credential/access failures.
+2. Windows Event Viewer → **Windows Logs → System**, Source = **Service Control Manager** — match start/logon/access events for the same service name.
+3. Classify as **credential** or **access** from those OS records.
+4. Only after a successful process start expect generation-start events under `%ProgramData%\AgentGrid\logs\wsl-host.log`.
+
+In code, `LookupSCMPreStartFailure(serviceName)` returns the same command, event channel, and step list for tests and operator docs.
 
 ## Legacy Source: component-20260624-client-interfaces
 

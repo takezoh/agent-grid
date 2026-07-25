@@ -58,3 +58,14 @@ make test-windows-wsl-supervisor-e2e
 ## Success gate
 
 All 17 rows must pass, every external dependency has the full triple, every `FakeVsReal*` assertion remains strict, the direct process tree contains no shell, no command trace contains `wsl.exe --shutdown`, and config/transient counters demonstrably terminate at 5/10 respectively.
+
+## Delivery evidence (2026-07-26)
+
+- `go test ./platform/wslhost/... ./cmd/server/... ./cmd/agent-grid-wsl-supervisor/...`: passed.
+- `go test -tags=e2e ./platform/wslhost/...`: passed; real-WSL subtests remain opt-in when the Windows/WSL environment marker is absent.
+- `GOOS=windows GOARCH=amd64 go test ./platform/wslhost ./cmd/agent-grid-wsl-supervisor -run '^$'`: passed.
+- `go test ./internal/harnesspolicy`: passed with the WSL runtime and Windows ACL process boundaries registered.
+- `go vet ./...`: passed.
+- Independent cross-task review found production-path defects in probe fingerprinting, ACL application, stopped-service gating, and persistent recording. Those defects were corrected and the affected Linux tests plus Windows cross-compilation were rerun.
+
+Real Session 0, unsigned-in SCM startup, and cross-distribution survival require a Windows host and remain opt-in T3 checks; they were not claimed as executed in this WSL delivery environment.

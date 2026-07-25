@@ -1,0 +1,31 @@
+{
+  "id": "task-20260726-registration-snapshot-acl",
+  "title": "Implement registration snapshot and ACL boundary",
+  "objective": "Create atomic JSON registration/apply semantics and fixed target binding.",
+  "output_format": "Go production code, deterministic tests, Windows fidelity backstops, and invariant contract tests.",
+  "tool_guidance": "Use stdlib JSON and existing project test harnesses; preserve wire and persistence types as stdlib-only.",
+  "task_boundaries": "Own registration snapshot validation, atomic replacement, target binding, and ACL application; exclude runtime supervision, stop sequencing, and record rotation.",
+  "files_touched": [
+    "src/cmd/agent-grid-wsl-supervisor/",
+    "src/platform/wslhost/config*.go"
+  ],
+  "acceptance": [
+    "Atomic validated generation is the only runtime config source.",
+    "Default identity and distribution are resolved only at registration.",
+    "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+  ],
+  "contract_refs": [
+    "contract-data-model",
+    "contract-security-boundary",
+    "contract-migration-compatibility"
+  ],
+  "decision_closure_reason": "Registration binding, JSON snapshot, ACL boundary, and compatibility behavior are fixed by the accepted ADRs and implementation member.",
+  "implementation_decisions_remaining": [],
+  "depends_on": [],
+  "max_diff_loc": 500,
+  "pinned_context": [
+    "docs/changes/change-20260725-windows-service-wsl-supervision/implementation.md",
+    "docs/changes/change-20260725-windows-service-wsl-supervision/verification.md",
+    "docs/changes/change-20260725-windows-service-wsl-supervision/design-plan.json"
+  ]
+}

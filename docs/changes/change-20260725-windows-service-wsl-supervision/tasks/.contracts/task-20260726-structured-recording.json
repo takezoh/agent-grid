@@ -1,0 +1,33 @@
+{
+  "id": "task-20260726-structured-recording",
+  "title": "Implement structured machine-wide recording",
+  "objective": "Provide operator-readable structured records, safe retention, and pre-start lookup instructions.",
+  "output_format": "Structured record sink, retention/ACL tests, fidelity backstop, invariant contract test, and operator documentation.",
+  "tool_guidance": "Record allowlisted fields only; do not persist raw stdout, stderr, environment, or secrets.",
+  "task_boundaries": "Own structured records, retention, ACL integration, and lookup documentation; exclude lifecycle decisions and stop authority.",
+  "files_touched": [
+    "src/platform/wslhost/record*.go",
+    "src/platform/wslhost/config*.go",
+    "docs/design/design-host.md"
+  ],
+  "acceptance": [
+    "ProgramData path, ACL, 10 MiB x5, and 30-day policy are enforced.",
+    "SCM pre-process failures have a deterministic documented lookup.",
+    "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+  ],
+  "contract_refs": [
+    "contract-resource-management",
+    "contract-user-observability"
+  ],
+  "decision_closure_reason": "The log path, retention, ACL, allowlist, and SCM complement are fixed by the machine-wide record ADR.",
+  "implementation_decisions_remaining": [],
+  "depends_on": [
+    "task-20260726-registration-snapshot-acl"
+  ],
+  "max_diff_loc": 600,
+  "pinned_context": [
+    "docs/changes/change-20260725-windows-service-wsl-supervision/implementation.md",
+    "docs/changes/change-20260725-windows-service-wsl-supervision/verification.md",
+    "docs/design/design-host.md"
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "task-20260726-scm-stop-escalation",
+  "title": "Implement SCM stop and registered-distro escalation",
+  "objective": "Bridge SCM controls to ownership-checked SIGTERM and bounded escalation.",
+  "output_format": "Windows SCM adapter, stop coordinator, entrypoint wiring, deterministic tests, fidelity backstops, and invariant contract tests.",
+  "tool_guidance": "Use injected SCM and WSL seams; serialize duplicate controls and never use global WSL shutdown.",
+  "task_boundaries": "Own SCM status/control and bounded stop escalation; exclude registration and general lifecycle retry policy.",
+  "files_touched": [
+    "src/platform/wslhost/service*.go",
+    "src/platform/wslhost/stop*.go",
+    "src/platform/wslhost/supervisor*.go",
+    "src/cmd/agent-grid-wsl-supervisor/main*.go",
+    "src/cmd/agent-grid-wsl-supervisor/register.go"
+  ],
+  "acceptance": [
+    "The 15-second graceful budget preserves existing drain and gateway grace.",
+    "Only the owned child and registered distribution are escalation targets.",
+    "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./platform/wslhost/... ./cmd/server/..."
+  ],
+  "contract_refs": [
+    "contract-failure-recovery"
+  ],
+  "decision_closure_reason": "The stop budget, child-first SCM escalation, recovery behavior, and bound-distribution-only force action are fixed by accepted ADRs.",
+  "implementation_decisions_remaining": [],
+  "depends_on": [
+    "task-20260726-supervised-lifecycle",
+    "task-20260726-typed-linux-control"
+  ],
+  "max_diff_loc": 700,
+  "pinned_context": [
+    "docs/changes/change-20260725-windows-service-wsl-supervision/implementation.md",
+    "docs/changes/change-20260725-windows-service-wsl-supervision/verification.md",
+    "docs/changes/change-20260725-windows-service-wsl-supervision/design-plan.json"
+  ]
+}

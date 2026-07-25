@@ -191,6 +191,8 @@ func TestRunMainClassifies(t *testing.T) {
 		{"mcp-exec subcommand", []string{"mcp-exec", "alias"}, commandKindCLI},
 		{"agent-frames-mcp subcommand", []string{"agent-frames-mcp", "--sock", "/tmp/x.sock"}, commandKindCLI},
 		{"frame-exec subcommand", []string{"frame-exec"}, commandKindCLI},
+		{"supervisor-probe subcommand", []string{"supervisor-probe", "-data-dir", "/tmp/x"}, commandKindCLI},
+		{"supervisor-stop subcommand", []string{"supervisor-stop", "-data-dir", "/tmp/x"}, commandKindCLI},
 		{"unknown positional", []string{"bogus-command"}, commandKindCLI},
 	}
 	for _, tc := range cases {

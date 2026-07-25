@@ -60,6 +60,13 @@
     {
       "id": "gcloud-cli", "strategy": "exception", "seam": {}, "fake": {}, "contract": {}, "fidelity": {},
       "exception": {"kind":"hermetic-real","reason":"gcloud CLI is invoked only via github.com/takezoh/credproxy's gcloudcli.SpecBuilder.Materialize and metadata handler. The fake (fakegcloud package), invariant contract test (TestMaterializeContract_*), and //go:build e2e FakeVsReal fidelity test (TestE2E_FakeVsRealMaterialize, gated by AG_E2E_GCLOUD_BIN) all live in the credproxy fork alongside the code they exercise; agent-grid consumes them by importing the fork via go.work locally and go.mod pseudo-version pin in CI. Duplicating the triple inside agent-grid would violate the responsibility boundary (adr-20260715-credproxy-materialize-method); the exception is that credproxy fork owns its own hermetic-real triple.","owner":"platform-credproxy","expiry":"2027-07-15","evidence":"docs/adr/adr-20260715-credproxy-fork-remote-replace.md"}
+    },
+    {
+      "id": "wsl-runtime", "strategy": "triple",
+      "seam": {"path":"src/platform/wslhost/process.go","symbol":"WSLRunner"},
+      "fake": {"path":"src/platform/wslhost/process.go","symbol":"FakeWSLRunner"},
+      "contract": {"path":"src/platform/wslhost/supervisor_contract_test.go","test":"TestContractNoShutdownAndBoundTarget","invariant":"force actions target only the registered distribution","assertion":"--shutdown"},
+      "fidelity": {"path":"src/platform/wslhost/wsl_runtime_e2e_test.go","test":"TestE2E_FakeVsRealWSLBoundDistribution","shared_input":"BuildWSLExecArgv","real_marker":"wsl.exe","suite_id":"wsl-runtime"}
     }
   ]
 }

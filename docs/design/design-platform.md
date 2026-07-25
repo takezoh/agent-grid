@@ -62,6 +62,10 @@ invariants:
   statement: Managed MCP endpoint semantics have one platform catalog; lifecycle-specific
     materializers resolve only environment placement and endpoint values.
   enforcement: contract
+- id: INV-010
+  statement: Every SCM, WSL, Windows process, ACL, resume, and OS-record dependency
+    ships a fake, invariant-naming contract test, and FakeVsReal fidelity backstop.
+  enforcement: contract
 boundaries:
   provides:
   - Process launch, process-group lifecycle, PTY multiplexing, and path translation.
@@ -102,6 +106,8 @@ capabilities:
   uniqueness: global
 - id: cap:protocol-test-doubles
   uniqueness: global
+- id: cap:windows-wsl-supervision
+  uniqueness: per-platform
 relations:
 - {type: originatedFrom, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}

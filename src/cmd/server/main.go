@@ -209,6 +209,10 @@ func runCommand(args []string, df *daemonFlagSet, stdout io.Writer) error {
 			return err
 		}
 		return nil
+	case "supervisor-probe":
+		return runSupervisorProbe(args[1:], stdout)
+	case "supervisor-stop":
+		return runSupervisorStop(args[1:], stdout)
 	}
 	return fmt.Errorf("unknown command: %s (run `%s help` for usage)", args[0], appid.ClientBin)
 }
@@ -247,5 +251,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s mcp-exec <alias>             Relay stdio to a host MCP server\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s agent-frames-mcp --sock <path>  Run the managed agent_frames MCP server\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s frame-exec                   Run preExec/pre-commands then exec main\n", appid.ClientBin)
+	fmt.Fprintf(w, "  %s supervisor-probe [flags]     Typed JSON lock/process ownership probe\n", appid.ClientBin)
+	fmt.Fprintf(w, "  %s supervisor-stop [flags]      Ownership-checked SIGTERM to lock holder\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s help                         Show this help message\n", appid.ClientBin)
 }
