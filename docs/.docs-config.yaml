@@ -12,3 +12,9 @@ evidence:
   - .run-dev/**
   meta_paths:
   - .gitignore
+  # 軽量 issue tracker (issues/README.md) — change scope の対象になる source ではない
+  - issues/**
+  # dev-docs infrastructure (CLI が維持する tracker meta)
+  - docs/.docs-config.yaml
+  - docs/aliases.yaml
+  - docs/migration/**

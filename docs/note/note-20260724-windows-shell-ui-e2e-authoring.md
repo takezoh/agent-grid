@@ -14,7 +14,7 @@ source_paths:
 - clients/windows-shell/scripts/e2e.sh
 summary: AI agents が Windows Shell (WinUI 3) の UI を変更・検証するときの UI e2e 実装規約。AutomationId
   契約、FlaUI/UIA テストの書き方、retry 規律、副作用規律、デバッグ手段 (Accessibility Insights) を定める。
-updated: '2026-07-24'
+updated: '2026-07-25'
 ---
 
 ## Summary
@@ -41,6 +41,15 @@ agent が守る規約**だけを定める。
   WinUI 3 では x:Name は AutomationId に自動反映されない前提で書く。
 - テスト側のセレクタは AutomationId のみ。表示文字列・座標・ツリー順序で
   要素を特定しない(文字列は locale/文言変更で、座標は DPI で壊れる)。
+- **状態依存 id と常時 id を区別する**(dynamic island 化以降)。panel は
+  Compact(`CompactBar` ほか)⇄ Expanded(`PendingList` ほか)をモーフィングし、
+  `Visibility.Collapsed` の要素は **UIA ツリーから消える**。AutomationId 契約
+  テスト(`Panel_exposes_glance_elements_via_automation_ids`)に載せてよいのは
+  起動直後(初回は Expanded)に常時存在する id だけ。状態依存 id
+  (`CompactBar` / `EmptyStateText` / `ShortcutHint` / `NoticeText` など)は
+  該当状態へ遷移させてから assert する。
+- UI 状態を切り替えるテスト(collapse/expand 等)は、**終了時に初期状態
+  (Expanded)へ戻す**。後続テストは展開ツリー前提で書かれている。
 
 ### 2. テストの書き方(FlaUI/UIA)
 
