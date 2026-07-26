@@ -37,6 +37,13 @@ func TestWireFixtures(t *testing.T) {
 						Command:       "claude",
 						WorkspaceRoot: "/workspace/p",
 						CreatedAt:     "2026-06-20T00:00:00Z",
+						Status: stateview.CompositeStatus(
+							stateview.StatusRunning,
+							time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC),
+							false,
+							false,
+							nil,
+						),
 						View: stateview.View{
 							Card:       stateview.Card{Title: "T1", Tags: []stateview.Tag{{Text: "tag"}}},
 							Status:     stateview.StatusRunning,
@@ -129,6 +136,7 @@ func wireFixtureSession(
 		Project:   "p",
 		Command:   "claude",
 		CreatedAt: "2026-06-20T00:00:00Z",
+		Status:    stateview.CompositeStatus(status, view.StatusChangedAt, status == stateview.StatusPending, view.Failed, nil),
 		View:      view,
 	}
 }

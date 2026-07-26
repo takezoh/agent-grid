@@ -38,13 +38,15 @@ type InitializeParams struct {
 
 // Client-declared capabilities negotiated during initialize.
 type InitializeCapabilities struct {
-	// Opt into receiving experimental API methods and fields.                                    
-	ExperimentalAPI                                                                      *bool    `json:"experimentalApi,omitempty"`
-	// Exact notification method names that should be suppressed for this connection (for         
-	// example `thread/started`).                                                                 
-	OptOutNotificationMethods                                                            []string `json:"optOutNotificationMethods"`
-	// Opt into `attestation/generate` requests for upstream `x-oai-attestation`.                 
-	RequestAttestation                                                                   *bool    `json:"requestAttestation,omitempty"`
+	// Opt into receiving experimental API methods and fields.
+	ExperimentalAPI *bool `json:"experimentalApi,omitempty"`
+	// Allow downstream MCP servers to request OpenAI extended form elicitations.
+	MCPServerOpenaiFormElicitation *bool `json:"mcpServerOpenaiFormElicitation,omitempty"`
+	// Exact notification method names that should be suppressed for this connection (for
+	// example `thread/started`).
+	OptOutNotificationMethods []string `json:"optOutNotificationMethods"`
+	// Opt into `attestation/generate` requests for upstream `x-oai-attestation`.
+	RequestAttestation *bool `json:"requestAttestation,omitempty"`
 }
 
 type ClientInfo struct {
@@ -54,12 +56,12 @@ type ClientInfo struct {
 }
 
 type InitializeResponse struct {
-	// Absolute path to the server's $CODEX_HOME directory.                                           
-	CodexHome                                                                                  string `json:"codexHome"`
-	// Platform family for the running app-server target, for example `"unix"` or `"windows"`.        
-	PlatformFamily                                                                             string `json:"platformFamily"`
-	// Operating system for the running app-server target, for example `"macos"`, `"linux"`, or       
-	// `"windows"`.                                                                                   
-	PlatformOS                                                                                 string `json:"platformOs"`
-	UserAgent                                                                                  string `json:"userAgent"`
+	// Absolute path to the server's $CODEX_HOME directory.
+	CodexHome string `json:"codexHome"`
+	// Platform family for the running app-server target, for example `"unix"` or `"windows"`.
+	PlatformFamily string `json:"platformFamily"`
+	// Operating system for the running app-server target, for example `"macos"`, `"linux"`, or
+	// `"windows"`.
+	PlatformOS string `json:"platformOs"`
+	UserAgent  string `json:"userAgent"`
 }

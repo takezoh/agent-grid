@@ -53,7 +53,8 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -70,7 +71,8 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -87,7 +89,8 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "New Session" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "New Session" } },
         },
       ],
     });
@@ -104,7 +107,8 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "" } },
         },
       ],
     });
@@ -121,7 +125,8 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "  " }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "  " } },
         },
       ],
     });
@@ -138,7 +143,8 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "New Session" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "New Session" } },
         },
       ],
     });
@@ -154,7 +160,8 @@ describe("SessionList rendering — one title slot (ADR-0079, no Subtitle row)",
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -185,7 +192,8 @@ describe("SessionList status indicator", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -193,7 +201,12 @@ describe("SessionList status indicator", () => {
     expect(container.querySelectorAll(".session-status-spinner").length).toBe(1);
   });
 
-  it("renders a spinning indicator for waiting sessions", () => {
+  it.each([
+    [{ lifecycle: "idle", human_input: false, failure: "none" }, "idle"],
+    [{ lifecycle: "stopped", human_input: false, failure: "none" }, "stopped"],
+    [{ lifecycle: "active", human_input: true, failure: "none" }, "action"],
+    [{ lifecycle: "idle", human_input: false, failure: "failed" }, "failed"],
+  ] as const)("renders one static %s icon and no spinner", (status, visual) => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -201,75 +214,16 @@ describe("SessionList status indicator", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "waiting" },
+          status,
+          view: { card: { title: "alpha" } },
         },
       ],
     });
     const { container } = render(<SessionList conn={fakeConn} />);
-    expect(container.querySelectorAll(".session-status-spinner").length).toBe(1);
+    expect(container.querySelectorAll(`.status-icon--${visual}`).length).toBe(1);
+    expect(container.querySelectorAll(".session-status-icon").length).toBe(1);
+    expect(container.querySelectorAll(".session-status-spinner").length).toBe(0);
   });
-
-  it.each(["idle", "stopped", "pending", undefined] as (string | undefined)[])(
-    "renders NO spinner for inactive status=%s (legacy ADR-0032 contract)",
-    (status) => {
-      useDaemonStore.setState({
-        sessions: [
-          {
-            id: "s1",
-            project: "p",
-            command: "claude",
-            created_at: "2026-06-20T00:00:00Z",
-            view: { card: { title: "alpha" }, status },
-          },
-        ],
-      });
-      const { container } = render(<SessionList conn={fakeConn} />);
-      expect(container.querySelectorAll(".session-status-spinner").length).toBe(0);
-    },
-  );
-
-  // ADR-0078 (supersedes ADR-0032 inactive-empty rule): every status renders
-  // a StatusIcon. Inactive states use .session-status-icon (no animation
-  // class), keeping the layout slot occupied so titles never jitter.
-  it.each(["running", "waiting", "idle", "stopped", "pending", undefined] as (
-    | string
-    | undefined
-  )[])("ADR-0078: every status=%s renders exactly one .status-icon in its slot", (status) => {
-    useDaemonStore.setState({
-      sessions: [
-        {
-          id: "s1",
-          project: "p",
-          command: "claude",
-          created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status },
-        },
-      ],
-    });
-    const { container } = render(<SessionList conn={fakeConn} />);
-    const slot = container.querySelector(".session-status-slot");
-    expect(slot).not.toBeNull();
-    expect(slot?.querySelectorAll(".status-icon").length).toBe(1);
-  });
-
-  it.each(["idle", "stopped", "pending", undefined] as (string | undefined)[])(
-    "inactive status=%s carries .session-status-icon (not spinner)",
-    (status) => {
-      useDaemonStore.setState({
-        sessions: [
-          {
-            id: "s1",
-            project: "p",
-            command: "claude",
-            created_at: "2026-06-20T00:00:00Z",
-            view: { card: { title: "alpha" }, status },
-          },
-        ],
-      });
-      const { container } = render(<SessionList conn={fakeConn} />);
-      expect(container.querySelectorAll(".session-status-icon").length).toBe(1);
-    },
-  );
 
   it("status slot precedes the title row (top-left placement)", () => {
     useDaemonStore.setState({
@@ -279,7 +233,8 @@ describe("SessionList status indicator", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -304,12 +259,13 @@ describe("SessionList status indicator", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
     render(<SessionList conn={fakeConn} />);
-    expect(screen.getByLabelText("status: stopped")).toBeDefined();
+    expect(screen.getByLabelText("status: Stopped")).toBeDefined();
   });
 
   it("does NOT render the textual status label inside the row", () => {
@@ -320,7 +276,8 @@ describe("SessionList status indicator", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -347,11 +304,11 @@ describe("SessionList metadata line (FR-009 / UAC-003)", () => {
           command: "claude",
           root_driver: "claude",
           created_at: "2026-06-20T00:00:00Z",
+          status: { lifecycle: "active", human_input: false, failure: "none" },
           view: {
             card: { title: "alpha" },
             model: "gpt-5",
             effort: "high",
-            status: "running",
           },
         },
       ],
@@ -373,7 +330,8 @@ describe("SessionList metadata line (FR-009 / UAC-003)", () => {
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -390,6 +348,7 @@ describe("SessionList metadata line (FR-009 / UAC-003)", () => {
           command: "codex",
           root_driver: "codex",
           created_at: "2026-06-20T00:00:00Z",
+          status: { lifecycle: "active", human_input: false, failure: "none" },
           view: {
             card: {
               title: "alpha",
@@ -398,7 +357,6 @@ describe("SessionList metadata line (FR-009 / UAC-003)", () => {
                 { text: "tag-b", bg: "#333" },
               ],
             },
-            status: "running",
             model: "gpt-5",
           },
         },
@@ -430,7 +388,8 @@ describe("WorkspaceSwitcher", () => {
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -447,7 +406,8 @@ describe("WorkspaceSwitcher", () => {
           workspace: "prod",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });
@@ -469,7 +429,8 @@ describe("WorkspaceSwitcher", () => {
           workspace: "default",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha-default" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "alpha-default" } },
         },
         {
           id: "s2",
@@ -477,7 +438,8 @@ describe("WorkspaceSwitcher", () => {
           workspace: "prod",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "beta-prod" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "beta-prod" } },
         },
       ],
     });
@@ -502,7 +464,8 @@ describe("WorkspaceSwitcher", () => {
           workspace: "default",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha-default" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "alpha-default" } },
         },
         {
           id: "s2",
@@ -510,7 +473,8 @@ describe("WorkspaceSwitcher", () => {
           workspace: "prod",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "beta-prod" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "beta-prod" } },
         },
       ],
     });
@@ -538,14 +502,16 @@ describe("ProjectGroup", () => {
           project: "/repo/beta",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "b" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "b" } },
         },
         {
           id: "s1",
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "a" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "a" } },
         },
       ],
     });
@@ -564,14 +530,16 @@ describe("ProjectGroup", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "a" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "a" } },
         },
         {
           id: "s2",
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "b" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "b" } },
         },
       ],
     });
@@ -587,7 +555,8 @@ describe("ProjectGroup", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "a" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "a" } },
         },
       ],
     });
@@ -606,14 +575,16 @@ describe("ProjectGroup", () => {
           project: "/home/a/web",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "in a" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "in a" } },
         },
         {
           id: "b",
           project: "/home/b/web",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "in b" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "in b" } },
         },
       ],
     });
@@ -635,7 +606,8 @@ describe("ProjectGroup", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "a" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "a" } },
         },
       ],
     });
@@ -656,14 +628,16 @@ describe("ProjectGroup", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "a" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "a" } },
         },
         {
           id: "s2",
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "b" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "b" } },
         },
       ],
     });
@@ -696,7 +670,8 @@ describe("SessionList empty state", () => {
           workspace: "prod",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "a" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "a" } },
         },
       ],
       selectedWorkspace: "prod",
@@ -720,14 +695,16 @@ describe("SessionList selectSession", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
         {
           id: "s2",
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "beta" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "beta" } },
         },
       ],
     });
@@ -773,14 +750,16 @@ describe("SessionList listbox a11y (FR-TOKEN-002)", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "a1" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "a1" } },
         },
         {
           id: "s2",
           project: "/repo/beta",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "b1" }, status: "idle" },
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "b1" } },
         },
       ],
     });
@@ -797,7 +776,8 @@ describe("SessionList listbox a11y (FR-TOKEN-002)", () => {
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "my-session" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "my-session" } },
         },
       ],
       daemonDisconnected: true,
@@ -814,7 +794,8 @@ describe("SessionList listbox a11y (FR-TOKEN-002)", () => {
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "my-session" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "my-session" } },
         },
       ],
       daemonDisconnected: true,
@@ -832,7 +813,8 @@ describe("SessionList listbox a11y (FR-TOKEN-002)", () => {
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "my-session" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "my-session" } },
         },
       ],
       daemonDisconnected: true,
@@ -849,14 +831,16 @@ describe("SessionList listbox a11y (FR-TOKEN-002)", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "first" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "first" } },
         },
         {
           id: "s2",
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "second" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "second" } },
         },
       ],
       activeSessionID: "s1",
@@ -884,7 +868,8 @@ describe("SessionList listbox a11y (FR-TOKEN-002)", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "first" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "first" } },
         },
       ],
       activeSessionID: "s1",
@@ -932,14 +917,16 @@ describe("SessionList selection accent (FR-010 / UAC-001)", () => {
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
         {
           id: "s2",
           project: "/repo/alpha",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "beta" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "beta" } },
         },
       ],
       activeSessionID: "s2",
@@ -982,7 +969,8 @@ describe("ADR-0032: session-status-slot and session-status-spinner are maintaine
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "active" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "active" } },
         },
       ],
     });
@@ -998,7 +986,8 @@ describe("ADR-0032: session-status-slot and session-status-spinner are maintaine
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "stopped" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "stopped" } },
         },
       ],
     });
@@ -1014,14 +1003,16 @@ describe("ADR-0032: session-status-slot and session-status-spinner are maintaine
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "s1" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "s1" } },
         },
         {
           id: "s2",
           project: "/repo/p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "s2" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "s2" } },
         },
       ],
     });

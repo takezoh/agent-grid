@@ -377,6 +377,12 @@ func sessionFromFrame(frame map[string]any, sessionID string) map[string]any {
 	return nil
 }
 
+func sessionLifecycle(session map[string]any) string {
+	status, _ := session["status"].(map[string]any)
+	lifecycle, _ := status["lifecycle"].(string)
+	return lifecycle
+}
+
 func assertSessionView(t *testing.T, frame map[string]any, sessionID, status string) {
 	t.Helper()
 	session := sessionFromFrame(frame, sessionID)
@@ -394,7 +400,7 @@ func assertSessionView(t *testing.T, frame map[string]any, sessionID, status str
 	if got := card["title"]; got != "New Session" {
 		t.Fatalf("title = %v, want %q", got, "New Session")
 	}
-	if got := view["status"]; got != status {
+	if got := sessionLifecycle(session); got != status {
 		t.Fatalf("status = %v, want %q", got, status)
 	}
 	if got := view["model"]; got != "claude-sonnet-4-5" {
@@ -412,7 +418,7 @@ func assertCodexSessionStatus(t *testing.T, frame map[string]any, sessionID, sta
 		t.Fatalf("session %q missing from frame", sessionID)
 	}
 	view, _ := session["view"].(map[string]any)
-	if got := view["status"]; got != status {
+	if got := sessionLifecycle(session); got != status {
 		t.Fatalf("status = %v, want %q", got, status)
 	}
 	if got := view["model"]; got != "gpt-5-codex" {
@@ -495,16 +501,14 @@ func TestE2E_GatewayScenarioFakeClaudeLifecycleAndSurface(t *testing.T) {
 
 	sendSurfaceInput(t, surface, "summarize this\n")
 	running := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "running"
+		return sessionLifecycle(session) == "active"
 	})
-	assertSessionView(t, running, sessionID, "running")
+	assertSessionView(t, running, sessionID, "active")
 
 	waiting := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "waiting"
+		return sessionLifecycle(session) == "idle"
 	})
-	assertSessionView(t, waiting, sessionID, "waiting")
+	assertSessionView(t, waiting, sessionID, "idle")
 
 	deleteSessionViaAPI(t, daemon, sessionID)
 	waitForSessionAbsent(t, lifecycle, 5*time.Second, sessionID)
@@ -523,23 +527,20 @@ func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState(t *testing.T) {
 	sessionID := createSessionViaAPI(t, daemon, project, "codex")
 	waitForSessionListed(t, daemon, sessionID, 5*time.Second, true)
 	waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "idle"
+		return sessionLifecycle(session) == "idle"
 	})
 
 	surface := dialGatewayWS(t, daemon, sessionID)
 	collectSurfaceOutputContaining(t, daemon, surface, 10*time.Second, "[READY] threadId=")
 	sendSurfaceInput(t, surface, "implement wire test\n")
 	running := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "running"
+		return sessionLifecycle(session) == "active"
 	})
-	assertCodexSessionStatus(t, running, sessionID, "running")
+	assertCodexSessionStatus(t, running, sessionID, "active")
 	waiting := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "waiting"
+		return sessionLifecycle(session) == "idle"
 	})
-	assertCodexSessionStatus(t, waiting, sessionID, "waiting")
+	assertCodexSessionStatus(t, waiting, sessionID, "idle")
 	collectSurfaceOutputContaining(t, daemon, surface, 10*time.Second,
 		"implement wire test", "method=turn/started")
 

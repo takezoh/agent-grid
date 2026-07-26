@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import "../css/icon-button.css";
 import type { Card } from "../wire/server";
+import type { SessionStatus } from "../wire/server";
 import { OverflowMenu } from "./OverflowMenu";
 import { RunStateBadge } from "./RunStateBadge";
 import { titleText } from "./SessionList";
@@ -13,7 +14,7 @@ export type HeaderBarProps = {
   /** Full project path — breadcrumb uses basename only (FR-011 / UAC-004). */
   project?: string;
   card?: Card;
-  status?: string;
+  status?: SessionStatus;
   model?: string;
   effort?: string;
   driver?: string;

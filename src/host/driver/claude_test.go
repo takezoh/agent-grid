@@ -1838,9 +1838,7 @@ func TestHandleWindowTitle_BrailleSpinner_SetsRunning(t *testing.T) {
 func TestHandleWindowTitle_BrailleSpinner_FromPending_SetsRunning(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.Status = state.StatusPending
-
 	next := d.handleWindowTitle(cs, "⠂ Claude Code", now)
-
 	if next.Status != state.StatusRunning {
 		t.Errorf("Status = %v, want Running", next.Status)
 	}
@@ -1849,9 +1847,7 @@ func TestHandleWindowTitle_BrailleSpinner_FromPending_SetsRunning(t *testing.T) 
 func TestHandleWindowTitle_BrailleSpinner_FromStopped_SetsRunning(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.Status = state.StatusStopped
-
 	next := d.handleWindowTitle(cs, "⠂ Claude Code", now)
-
 	if next.Status != state.StatusRunning {
 		t.Errorf("Status = %v, want Running", next.Status)
 	}
@@ -1860,9 +1856,7 @@ func TestHandleWindowTitle_BrailleSpinner_FromStopped_SetsRunning(t *testing.T) 
 func TestHandleWindowTitle_WaitingSymbol_SetsWaiting(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.Status = state.StatusRunning
-
 	next := d.handleWindowTitle(cs, "✳ Done", now)
-
 	if next.Status != state.StatusWaiting {
 		t.Errorf("Status = %v, want Waiting", next.Status)
 	}
@@ -1872,9 +1866,7 @@ func TestHandleWindowTitle_SameTitle_NoStatusChange(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.Status = state.StatusRunning
 	cs.LastWindowTitle = "⠂ Claude Code"
-
 	next := d.handleWindowTitle(cs, "⠂ Claude Code", now)
-
 	if next.Status != state.StatusRunning {
 		t.Errorf("Status changed unexpectedly: got %v", next.Status)
 	}
@@ -1883,12 +1875,11 @@ func TestHandleWindowTitle_SameTitle_NoStatusChange(t *testing.T) {
 func TestHandleWindowTitle_ViaStep_StatusTransitions(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.Status = state.StatusRunning
-
-	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: true}, state.DEvFrameOsc{Cmd: 0, Title: "✳ Done", Now: now})
-	nextCS := next.(ClaudeState)
-
-	if nextCS.Status != state.StatusWaiting {
-		t.Errorf("Status = %v, want Waiting", nextCS.Status)
+	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: true}, state.DEvFrameOsc{
+		Cmd: 0, Title: "✳ Done", Now: now,
+	})
+	if next.(ClaudeState).Status != state.StatusWaiting {
+		t.Errorf("Status = %v, want Waiting", next.(ClaudeState).Status)
 	}
 }
 

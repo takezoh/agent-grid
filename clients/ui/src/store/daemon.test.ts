@@ -21,7 +21,8 @@ function mkSession(id: string, overrides: Partial<SessionInfo> = {}): SessionInf
     project: "p",
     command: "claude",
     created_at: "2026-06-20T00:00:00Z",
-    view: { card: { title: id }, status: "running" },
+    status: { lifecycle: "active", human_input: false, failure: "none" },
+    view: { card: { title: id } },
     ...overrides,
   };
 }
@@ -41,7 +42,8 @@ describe("daemonStore", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "t" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "t" } },
         },
       ],
       activeSessionID: "s1",
@@ -95,11 +97,14 @@ describe("daemonStore", () => {
     const state = useDaemonStore.getState();
     expect(state.activeSessionID).toBe("s1");
     expect(state.sessions).toHaveLength(5);
-    expect(state.sessions[4]?.view.status).toBe("pending");
+    expect(state.sessions[4]?.status.human_input).toBe(true);
   });
 
   it("applyViewUpdate preserves sessions when frame omits sessions (activity-only)", () => {
-    const existing = mkSession("s1", { view: { card: { title: "keep" }, status: "idle" } });
+    const existing = mkSession("s1", {
+      status: { lifecycle: "idle", human_input: false, failure: "none" },
+      view: { card: { title: "keep" } },
+    });
     useDaemonStore.setState({ sessions: [existing], activeSessionID: "s1" });
     useDaemonStore.getState().applyViewUpdate({
       k: "v",
@@ -114,28 +119,44 @@ describe("daemonStore", () => {
   it("applies resumed Codex running then waiting updates without changing another session", () => {
     const codex = mkSession("codex-resumed", {
       command: "codex",
-      view: { card: { title: "Resumed Codex" }, status: "idle" },
+      status: { lifecycle: "idle", human_input: false, failure: "none" },
+      view: { card: { title: "Resumed Codex" } },
     });
     const foreign = mkSession("foreign", {
-      view: { card: { title: "Foreign" }, status: "idle" },
+      status: { lifecycle: "idle", human_input: false, failure: "none" },
+      view: { card: { title: "Foreign" } },
     });
     useDaemonStore.setState({ sessions: [codex, foreign], activeSessionID: codex.id });
 
     useDaemonStore.getState().applyViewUpdate({
       k: "v",
-      sessions: [{ ...codex, view: { ...codex.view, status: "running" } }, foreign],
+      sessions: [
+        {
+          ...codex,
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { ...codex.view },
+        },
+        foreign,
+      ],
     });
-    expect(useDaemonStore.getState().sessions.map((s) => s.view.status)).toEqual([
-      "running",
+    expect(useDaemonStore.getState().sessions.map((s) => s.status.lifecycle)).toEqual([
+      "active",
       "idle",
     ]);
 
     useDaemonStore.getState().applyViewUpdate({
       k: "v",
-      sessions: [{ ...codex, view: { ...codex.view, status: "waiting" } }, foreign],
+      sessions: [
+        {
+          ...codex,
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { ...codex.view },
+        },
+        foreign,
+      ],
     });
-    expect(useDaemonStore.getState().sessions.map((s) => s.view.status)).toEqual([
-      "waiting",
+    expect(useDaemonStore.getState().sessions.map((s) => s.status.lifecycle)).toEqual([
+      "active",
       "idle",
     ]);
   });
@@ -150,7 +171,8 @@ describe("daemonStore", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "t2" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "t2" } },
         },
       ],
     };
@@ -252,11 +274,21 @@ describe("daemonStore", () => {
 
   it("applyViewUpdate replaces sessions with view payload", () => {
     useDaemonStore.setState({
-      sessions: [mkSession("s1", { view: { card: { title: "old" }, status: "idle" } })],
+      sessions: [
+        mkSession("s1", {
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "old" } },
+        }),
+      ],
     });
     useDaemonStore.getState().applyViewUpdate({
       k: "v",
-      sessions: [mkSession("s1", { view: { card: { title: "new" }, status: "running" } })],
+      sessions: [
+        mkSession("s1", {
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "new" } },
+        }),
+      ],
     });
     expect(useDaemonStore.getState().sessions[0]?.view.card.title).toBe("new");
   });
@@ -272,11 +304,19 @@ describe("daemonStore", () => {
   });
 
   it("applyViewUpdate produces new ref for changed session", () => {
-    const session = mkSession("s1", { view: { card: { title: "s1" }, status: "idle" } });
+    const session = mkSession("s1", {
+      status: { lifecycle: "idle", human_input: false, failure: "none" },
+      view: { card: { title: "s1" } },
+    });
     useDaemonStore.setState({ sessions: [session] });
     useDaemonStore.getState().applyViewUpdate({
       k: "v",
-      sessions: [mkSession("s1", { view: { card: { title: "s1" }, status: "running" } })],
+      sessions: [
+        mkSession("s1", {
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "s1" } },
+        }),
+      ],
     });
     expect(useDaemonStore.getState().sessions[0]).not.toBe(session);
   });

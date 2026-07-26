@@ -25,8 +25,9 @@ type View struct {
 	// Status: NO omitempty. Status is `int` (iota) and StatusRunning == 0,
 	// so omitempty would drop the field for every running session and the
 	// web client would fall back to "unknown" (RunStateBadge).
-	Status          Status    `json:"status"`
-	StatusChangedAt time.Time `json:"status_changed_at,omitempty"`
+	Status          Status    `json:"-"`
+	StatusChangedAt time.Time `json:"-"`
+	Failed          bool      `json:"-"`
 }
 
 // Card is the driver-specific portion of the session list card.

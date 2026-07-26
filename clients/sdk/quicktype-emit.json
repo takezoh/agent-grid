@@ -28,6 +28,7 @@
     "commands.schema.json",
     "capabilities.schema.json",
     "deep-links.schema.json",
-    "notifications.schema.json"
+    "notifications.schema.json",
+    "session-status.schema.json"
   ]
 }

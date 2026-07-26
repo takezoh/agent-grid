@@ -1,5 +1,5 @@
 // Package codexschema provides pinned JSON Schema and method-name constants for the
-// Codex app-server stdio JSON-RPC protocol (codex-cli 0.133.0).
+// Codex app-server stdio JSON-RPC protocol (codex-cli 0.145.0).
 //
 // Generated Go types live in the v1/ and v2/ sub-packages.
 // The raw schema bundles used as the drift-detection reference are in schema/.
@@ -38,6 +38,7 @@ const (
 	MethodWarning                  = "warning"
 	MethodGuardianWarning          = "guardianWarning"
 	MethodDeprecationNotice        = "deprecationNotice"
+	MethodServerRequestResolved    = "serverRequest/resolved"
 )
 
 // Server → client requests (expect a reply from client).
@@ -50,7 +51,11 @@ const (
 	// MethodItemToolRequestUserInput is the EXPERIMENTAL server → client request
 	// the agent sends when the model requires user input (SPEC §10.5).
 	// Documented posture: automated orchestration treats this as a hard fail.
-	MethodItemToolRequestUserInput = "item/tool/requestUserInput"
+	MethodItemToolRequestUserInput       = "item/tool/requestUserInput"
+	MethodMCPServerElicitationRequest    = "mcpServer/elicitation/request"
+	MethodItemPermissionsRequestApproval = "item/permissions/requestApproval"
+	MethodApplyPatchApproval             = "applyPatchApproval"
+	MethodExecCommandApproval            = "execCommandApproval"
 )
 
 // Approval reply values.

@@ -114,6 +114,9 @@ type Backend struct {
 	heldApprovals map[string]codexclient.RequestID
 	// heldQuestions maps QuestionRequest ID → held driver JSON-RPC request id.
 	heldQuestions map[string]codexclient.RequestID
+	// unknownMethods is a bounded, per-connection diagnostic set. Unknown
+	// methods never mutate status and each distinct method is logged once.
+	unknownMethods map[string]struct{}
 }
 
 type frameBinding struct {

@@ -205,7 +205,8 @@ describe("SessionList — right-click on a session row", () => {
           project: "proj",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "alpha" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "alpha" } },
         },
       ],
     });

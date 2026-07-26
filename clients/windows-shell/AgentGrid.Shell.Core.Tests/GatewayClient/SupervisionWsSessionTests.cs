@@ -24,7 +24,7 @@ public class SupervisionWsSessionTests
 
         var frames = new ConcurrentQueue<string>();
         frames.Enqueue("""{"k":"ar","approval":{"id":"ap-1","session_id":"s1","status":"pending","command":"ls"}}""");
-        frames.Enqueue("""{"k":"v","sessions":[{"id":"s1","project":"p","command":"c","state":"waiting","view":{"card":{"title":"X"}}}]}""");
+        frames.Enqueue("""{"k":"v","sessions":[{"id":"s1","project":"p","command":"c","status":{"lifecycle":"idle","human_input":false,"failure":"none"},"view":{"card":{"title":"X"}}}]}""");
 
         var factory = new ScriptedWsFactory(frames);
         var session = new SupervisionWsSession(gateway, supervision, factory, backoff: _ => TimeSpan.Zero);
@@ -35,7 +35,7 @@ public class SupervisionWsSessionTests
         Assert.Single(supervision.Snapshot.Approvals);
         Assert.Equal("ap-1", supervision.Snapshot.Approvals[0].ApprovalId);
         Assert.Single(supervision.Snapshot.Sessions);
-        Assert.Equal(SessionPhase.Waiting, supervision.Snapshot.Sessions[0].Phase);
+        Assert.Equal(SessionPhase.Done, supervision.Snapshot.Sessions[0].Phase);
     }
 
     [Fact]

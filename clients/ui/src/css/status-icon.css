@@ -22,6 +22,25 @@
   vertical-align: -0.15em;
   color: currentColor;
   line-height: 0;
+  position: relative;
+}
+.status-icon__signal {
+  position: absolute;
+  right: -0.55em;
+  top: -0.45em;
+  font-size: 0.75em;
+  line-height: 1;
+}
+.status-icon__action {
+  fill: currentColor;
+  font-size: 20px;
+  font-weight: 800;
+}
+.status-icon__failed {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 /* Inner SVG fills the wrapper span exactly. overflow: visible so a rotated
    stroke at the bbox edge doesn't get clipped by the SVG viewport. */

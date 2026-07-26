@@ -57,7 +57,6 @@ type CodexState struct {
 	TranscriptInFlight  bool
 	WatchedFile         string
 	StatusLine          string
-	LastWindowTitle     string
 	Preview             string
 	DisplayFallback     string
 	PlanSummary         string
@@ -259,9 +258,6 @@ func (d CodexDriver) Step(prev state.DriverState, ctx state.FrameContext, ev sta
 	case state.DEvTick:
 		effs := cs.HandleTick(e, false)
 		return cs, effs, d.view(cs)
-	case state.DEvFrameOsc:
-		next := d.handleWindowTitle(cs, e.Title, e.Now)
-		return next, nil, d.view(next)
 	case state.DEvFileChanged:
 		next, effs := d.handleTranscriptChanged(cs, e)
 		return next, effs, d.view(next)

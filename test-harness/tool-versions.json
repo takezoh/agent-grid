@@ -2,7 +2,7 @@
   "version": 1,
   "codex": {
     "schema": {
-      "version": "0.133.0",
+      "version": "0.145.0",
       "purpose": "Generate and verify the committed app-server JSON Schema bundles"
     },
     "fidelity": {

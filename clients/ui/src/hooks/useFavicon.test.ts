@@ -49,7 +49,8 @@ describe("useFavicon", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-27T00:00:00Z",
-          view: { card: { title: "A" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "A" } },
         },
       ],
     });
@@ -67,26 +68,29 @@ describe("useFavicon", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-27T00:00:00Z",
-          view: { card: { title: "A" }, status: "stopped" },
+          status: { lifecycle: "stopped", human_input: false, failure: "none" },
+          view: { card: { title: "A" } },
         },
         {
           id: "b",
           project: "p",
           command: "claude",
           created_at: "2026-06-27T00:00:00Z",
-          view: { card: { title: "B" }, status: "waiting" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "B" } },
         },
         {
           id: "c",
           project: "p",
           command: "claude",
           created_at: "2026-06-27T00:00:00Z",
-          view: { card: { title: "C" }, status: "pending" },
+          status: { lifecycle: "idle", human_input: true, failure: "none" },
+          view: { card: { title: "C" } },
         },
       ],
     });
     renderHook(() => useFavicon());
-    expect(decodeHref(link)).toContain('stroke-dasharray="3 3"');
+    expect(decodeHref(link)).toContain(">!</text>");
   });
 
   it("re-paints when the top status transitions post-mount (zustand subscribe path)", () => {
@@ -101,7 +105,8 @@ describe("useFavicon", () => {
             project: "p",
             command: "claude",
             created_at: "2026-06-27T00:00:00Z",
-            view: { card: { title: "A" }, status: "running" },
+            status: { lifecycle: "active", human_input: false, failure: "none" },
+            view: { card: { title: "A" } },
           },
         ],
       });
@@ -116,7 +121,8 @@ describe("useFavicon", () => {
             project: "p",
             command: "claude",
             created_at: "2026-06-27T00:00:00Z",
-            view: { card: { title: "A" }, status: "stopped" },
+            status: { lifecycle: "stopped", human_input: false, failure: "none" },
+            view: { card: { title: "A" } },
           },
         ],
       });
@@ -132,7 +138,8 @@ describe("useFavicon", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-27T00:00:00Z",
-          view: { card: { title: "A" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "A" } },
         },
       ],
     });

@@ -16,9 +16,9 @@ import { type StatusKind, normalizeStatus } from "../components/StatusIcon";
 import type { SessionInfo } from "../wire/server";
 
 export const PRIORITY: readonly StatusKind[] = [
+  "failed",
+  "action",
   "running",
-  "pending",
-  "waiting",
   "idle",
   "stopped",
   "unknown",
@@ -27,7 +27,7 @@ export const PRIORITY: readonly StatusKind[] = [
 /** Pick the highest-priority status across all sessions.
  *  Returns "unknown" for an empty list (matches the pre-JS HTML default). */
 export function selectTopStatus(sessions: readonly SessionInfo[]): StatusKind {
-  const present = new Set(sessions.map((s) => normalizeStatus(s.view.status)));
+  const present = new Set(sessions.map((s) => normalizeStatus(s.status)));
   return PRIORITY.find((k) => present.has(k)) ?? "unknown";
 }
 
@@ -39,8 +39,8 @@ export type FaviconColors = Record<StatusKind, string>;
 
 export const FALLBACK_COLORS: FaviconColors = {
   running: "#2c7a4d",
-  pending: "#2c4a8a",
-  waiting: "#b59300",
+  action: "#b59300",
+  failed: "#b91c1c",
   idle: "#555555",
   stopped: "#6e2222",
   unknown: "#555555",
@@ -71,12 +71,10 @@ const GEOMETRY = {
   running: (c: string) =>
     `<circle cx="12" cy="12" r="9" fill="none" stroke="${c}" stroke-width="3" opacity="0.28"/>` +
     `<path d="M21 12 A 9 9 0 1 1 12 3" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"/>`,
-  pending: (c: string) =>
-    `<circle cx="12" cy="12" r="8" fill="none" stroke="${c}" stroke-width="2" stroke-dasharray="3 3" opacity="0.75"/>`,
-  waiting: (c: string) =>
-    `<circle cx="5" cy="12" r="2.4" fill="${c}"/>` +
-    `<circle cx="12" cy="12" r="2.4" fill="${c}"/>` +
-    `<circle cx="19" cy="12" r="2.4" fill="${c}"/>`,
+  action: (c: string) =>
+    `<text x="12" y="17" text-anchor="middle" fill="${c}" font-size="20" font-weight="800">!</text>`,
+  failed: (c: string) =>
+    `<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"/>`,
   idle: (c: string) => `<circle cx="12" cy="12" r="5" fill="${c}" opacity="0.75"/>`,
   stopped: (c: string) =>
     `<rect x="6" y="6" width="12" height="12" rx="2" fill="${c}" opacity="0.85"/>`,

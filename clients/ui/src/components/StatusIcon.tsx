@@ -10,19 +10,36 @@
 // / idle into visually identical static glyphs.
 
 import type { ReactNode } from "react";
+import type { SessionStatus } from "../wire/server";
 import "../css/status-icon.css";
 
-export type StatusKind = "running" | "waiting" | "idle" | "stopped" | "pending" | "unknown";
+export type StatusKind = "running" | "action" | "idle" | "stopped" | "failed" | "unknown";
 
-const KNOWN = new Set<string>(["running", "waiting", "idle", "stopped", "pending"]);
-const ACTIVE = new Set<StatusKind>(["running", "waiting"]);
+const ACTIVE = new Set<StatusKind>(["running"]);
 
-export function normalizeStatus(raw?: string): StatusKind {
-  return (raw && KNOWN.has(raw) ? raw : "unknown") as StatusKind;
+export function normalizeStatus(status?: SessionStatus): StatusKind {
+  if (!status) return "unknown";
+  if (status.failure === "failed") return "failed";
+  if (status.human_input) return "action";
+  if (status.lifecycle === "active") return "running";
+  if (status.lifecycle === "stopped") return "stopped";
+  if (status.lifecycle === "idle") return "idle";
+  return "unknown";
 }
 
 export function isActiveStatus(kind: StatusKind): boolean {
   return ACTIVE.has(kind);
+}
+
+export function statusLabel(kind: StatusKind): string {
+  return {
+    running: "Working",
+    action: "Action required",
+    idle: "Idle",
+    stopped: "Stopped",
+    failed: "Failed",
+    unknown: "Unknown",
+  }[kind];
 }
 
 // `satisfies` enforces exhaustive coverage at compile time: adding a new
@@ -34,28 +51,32 @@ const GEOMETRY = {
       <path className="status-icon__arc" d="M21 12 A 9 9 0 1 1 12 3" />
     </>
   ),
-  waiting: (
-    <>
-      <circle className="status-icon__dot status-icon__dot--1" cx="5" cy="12" r="2.4" />
-      <circle className="status-icon__dot status-icon__dot--2" cx="12" cy="12" r="2.4" />
-      <circle className="status-icon__dot status-icon__dot--3" cx="19" cy="12" r="2.4" />
-    </>
+  action: (
+    <text className="status-icon__action" x="12" y="17" textAnchor="middle">
+      !
+    </text>
   ),
-  pending: <circle className="status-icon__dashed" cx="12" cy="12" r="8" />,
   idle: <circle className="status-icon__filled" cx="12" cy="12" r="5" />,
   stopped: <rect className="status-icon__square" x="6" y="6" width="12" height="12" rx="2" />,
+  failed: <path className="status-icon__failed" d="M6 6l12 12M18 6L6 18" />,
   unknown: <line className="status-icon__dash" x1="6" y1="12" x2="18" y2="12" />,
 } satisfies Record<StatusKind, ReactNode>;
 
 export interface StatusIconProps {
   status: StatusKind;
+  signal?: boolean;
   /** Class layered on active states only (e.g. legacy spinner contract). */
   activeClass?: string;
   /** Class layered on inactive states only. */
   inactiveClass?: string;
 }
 
-export function StatusIcon({ status, activeClass, inactiveClass }: StatusIconProps): JSX.Element {
+export function StatusIcon({
+  status,
+  signal,
+  activeClass,
+  inactiveClass,
+}: StatusIconProps): JSX.Element {
   const active = isActiveStatus(status);
   const className = ["status-icon", `status-icon--${status}`, active ? activeClass : inactiveClass]
     .filter(Boolean)
@@ -65,6 +86,11 @@ export function StatusIcon({ status, activeClass, inactiveClass }: StatusIconPro
       <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
         {GEOMETRY[status]}
       </svg>
+      {signal ? (
+        <span className="status-icon__signal" aria-hidden="true">
+          🔔
+        </span>
+      ) : null}
     </span>
   );
 }

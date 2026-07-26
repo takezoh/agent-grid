@@ -32,6 +32,7 @@ const (
 	ApprovalReasonExpired   ApprovalResolutionReason = "expired"
 	ApprovalReasonCancelled ApprovalResolutionReason = "cancelled"
 	ApprovalReasonAuto      ApprovalResolutionReason = "auto"
+	ApprovalReasonServer    ApprovalResolutionReason = "server"
 )
 
 // DefaultApprovalTTL is the Phase 0 expiry window captured at creation.

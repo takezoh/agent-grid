@@ -53,7 +53,7 @@ func (d GrokDriver) NewState(now time.Time) state.DriverState {
 
 func (d GrokDriver) View(s state.DriverState) state.View {
 	gs, _ := s.(GrokState)
-	return state.View{Card: state.Card{Title: resolveCardTitle(gs.Title, gs.Summary), Tags: CommonTags(gs.CommonState), BorderTitle: CommandTag(GrokDriverName), BorderBadge: fishpath.Shorten(gs.StartDir, "")}, DisplayName: GrokDriverName, Model: gs.Model, Effort: gs.Effort, Status: gs.Status, StatusChangedAt: gs.StatusChangedAt, InfoExtras: grokInfo(gs)}
+	return state.View{Card: state.Card{Title: resolveCardTitle(gs.Title, gs.Summary), Tags: CommonTags(gs.CommonState), BorderTitle: CommandTag(GrokDriverName), BorderBadge: fishpath.Shorten(gs.StartDir, "")}, DisplayName: GrokDriverName, Model: gs.Model, Effort: gs.Effort, Status: gs.Status, StatusChangedAt: gs.StatusChangedAt, Failed: gs.Failed, InfoExtras: grokInfo(gs)}
 }
 
 func grokInfo(gs GrokState) []state.InfoLine {

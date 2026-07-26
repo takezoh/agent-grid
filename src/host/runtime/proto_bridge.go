@@ -371,6 +371,14 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		})
 	}
 	activeF, _ := sessionHeadFrame(sess)
+	humanInput := len(state.PendingApprovalsForSession(r.state, sess.ID)) > 0 ||
+		len(state.PendingQuestionsForSession(r.state, sess.ID)) > 0
+	var signal *stateview.StatusSignal
+	if sequence := r.state.StatusSignals[sess.ID]; sequence > 0 {
+		signal = &stateview.StatusSignal{
+			Kind: "bell", Epoch: r.state.StatusEpoch, Sequence: sequence,
+		}
+	}
 	info := proto.SessionInfo{
 		ID:                 string(sess.ID),
 		Project:            sess.Project,
@@ -379,15 +387,12 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		RootDriver:         rootDriverName,
 		RootDriverForkable: rootDriverForkable,
 		CreatedAt:          sess.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		State:              view.Status,
+		Status:             stateview.CompositeStatus(view.Status, view.StatusChangedAt, humanInput, view.Failed, signal),
 		View:               view,
 		Frames:             frames,
 		HeadFrameID:        string(activeF.ID),
 		WorkspaceRoot:      ResolveWorkspaceRoot(activeF, sess),
 		FrameGeneration:    sess.FrameGeneration,
-	}
-	if !view.StatusChangedAt.IsZero() {
-		info.StateChangedAt = view.StatusChangedAt.Format("2006-01-02T15:04:05Z07:00")
 	}
 	return info, true
 }

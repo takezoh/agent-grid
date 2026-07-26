@@ -1,0 +1,790 @@
+{
+  "mode": "explore",
+  "revision": "requirements-explore-r2",
+  "goal": "OSC に依存しない構造化観測を全 Driver の共通セッション状態契約へ正規化し、Windows Shell・Workspace・Web UI で同じ意味とアイコンを表示するため、未決定の観察契約を比較可能にする。",
+  "target_users": [
+    "複数の agent Driver を切り替えて使う利用者",
+    "Windows Shell・Workspace・Web UI でセッションを監視する利用者",
+    "状態表示を支援技術で確認する利用者"
+  ],
+  "user_goals": [
+    {
+      "id": "goal-understand-status",
+      "actor": "セッション利用者",
+      "context": "任意の Driver とクライアントでセッションを監視している",
+      "desired_outcome": "進行、要応答、停止、失敗、不明を Driver やクライアントによらず同じ意味で判別する",
+      "success_observation": "同じ意味の状態は三クライアントで同じアイコンとアクセシブル名称で示される"
+    },
+    {
+      "id": "goal-trust-observation",
+      "actor": "セッション利用者",
+      "context": "Codex app-server の既知または未知のメッセージが届く",
+      "desired_outcome": "OSC の副作用や未分類イベントによる誤った状態表示を避ける",
+      "success_observation": "OSC 0/2 と OSC notification だけでは状態が変わらず、未知イベントは黙って idle に変換されない"
+    },
+    {
+      "id": "goal-respond-to-request",
+      "actor": "セッション利用者",
+      "context": "agent が入力、選択、承認、または tool proposal への判断を求める",
+      "desired_outcome": "要求を見逃さず、利用中の modality で応答地点へ到達する",
+      "success_observation": "visual と支援技術で要応答を認識でき、keyboard と pointer の双方で応答操作へ到達できる"
+    }
+  ],
+  "confirmed_constraints": [
+    {
+      "id": "constraint-remove-osc-status",
+      "statement": "OSC 0/2 title と OSC notification を agent の状態検出に使用しない。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "user:remove-osc-status-detection"
+        ],
+        "rationale": "ユーザーが OSC status detection の削除を明示した。"
+      }
+    },
+    {
+      "id": "constraint-all-codex-messages",
+      "statement": "Codex app-server の notification、server request、response、lifecycle event を、elicitation と tool proposal を含めて分類対象にする。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "user:all-codex-app-server-events"
+        ],
+        "rationale": "ユーザーが全 app-server event の正確な処理を明示した。"
+      }
+    },
+    {
+      "id": "constraint-tui-language",
+      "statement": "進行、要応答、失敗の表示は Codex TUI の spinner、bell、! に着想を得る。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "user:spinner-bell-bang"
+        ],
+        "rationale": "ユーザーが参照する状態言語を明示した。"
+      }
+    },
+    {
+      "id": "constraint-unified-clients-drivers",
+      "statement": "状態の意味とアイコンを Windows Shell・Workspace・Web UI で統一し、共通状態定義を全 Driver に適用する。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "user:unified-icons",
+          "user:all-drivers"
+        ],
+        "rationale": "ユーザーが対象 client と Driver の範囲を明示した。"
+      }
+    }
+  ],
+  "existing_system_context": [
+    {
+      "id": "context-existing-status",
+      "statement": "既存 server-side Status は pending、running、waiting、idle、stopped を持ち、クライアントへ View として渡される。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "draft.json:existing_system_context"
+        ],
+        "rationale": "planner が repository context として確認した。"
+      }
+    },
+    {
+      "id": "context-unresolved-change-decisions",
+      "statement": "change root は状態粒度、同時 pending request と running の優先順位、Shell の適合方法を未解決としている。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "docs/changes/change-20260726-unified-driver-session-status/change.md:unresolved_decisions"
+        ],
+        "rationale": "change package の正本に未解決事項として記録されている。"
+      }
+    }
+  ],
+  "product_assumptions": [
+    {
+      "id": "assumption-distinguishable-without-color",
+      "statement": "利用者は色や動きだけに依存せず、形状とアクセシブル名称で状態を区別する必要がある。",
+      "validation": "三クライアントの status matrix を visual と assistive-technology の両方で評価する。",
+      "invalidation_behavior": "区別できない modality があれば、その表示案を採用せずアイコンと名称を再設計する。",
+      "decision_refs": [
+        "DP-STATUS-GRANULARITY",
+        "DP-CONCURRENT-ATTENTION"
+      ],
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "draft.json:product_assumptions"
+        ],
+        "rationale": "アクセシビリティを維持するための検証可能な仮説である。"
+      }
+    }
+  ],
+  "design_hypotheses": [
+    {
+      "id": "hypothesis-shared-icon-contract",
+      "statement": "一つの検証可能な icon specification から三クライアントの native rendering を整合させられる。",
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "draft.json:design_hypotheses"
+        ],
+        "rationale": "実装方式は design が評価すべきであり UX 要件として固定しない。"
+      }
+    },
+    {
+      "id": "hypothesis-message-inventory",
+      "statement": "Codex app-server message inventory を機械的に列挙すれば、新規イベントの未分類を検出できる。",
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "draft.json:design_hypotheses"
+        ],
+        "rationale": "全イベント分類を満たす設計候補である。"
+      }
+    }
+  ],
+  "technology_candidates": [
+    {
+      "id": "candidate-shared-status-spec",
+      "candidate": "検証可能な共有 status/icon specification",
+      "source": "planner_proposal",
+      "proposed_for": [
+        "三クライアントの表示整合"
+      ],
+      "required_capabilities": [
+        "状態、形状、animation、アクセシブル名称の対応を表現できる"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "Driver 名で表示を分岐しない",
+        "同じ状態は同じ意味で観察できる"
+      ],
+      "design_questions": [
+        "native UI と Web の生成・検証境界をどこに置くか"
+      ],
+      "disqualifiers": [
+        "client ごとに意味や名称が独立して drift する"
+      ]
+    },
+    {
+      "id": "candidate-codex-message-inventory",
+      "candidate": "Codex app-server protocol message inventory",
+      "source": "planner_proposal",
+      "proposed_for": [
+        "既知 message の網羅分類と未知 message の互換性処理"
+      ],
+      "required_capabilities": [
+        "notification、request、response、lifecycle、elicitation、tool proposal を分類できる"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "未知 message を idle として黙って受理しない"
+      ],
+      "design_questions": [
+        "protocol 追加をどの gate で検知するか"
+      ],
+      "disqualifiers": [
+        "default 分岐で未知 message を捨てる"
+      ]
+    }
+  ],
+  "design_handoffs": [
+    {
+      "id": "handoff-shared-status-spec",
+      "required_outcome": "三クライアントが同じ状態意味、アイコン、animation、アクセシブル名称を表示できる検証境界を定める。",
+      "design_obligations": [
+        "native stack の違いを越えて共有できる status/icon specification を評価する。"
+      ],
+      "verification_obligations": [
+        "三クライアントで同じ status matrix とアクセシブル名称を照合する。"
+      ],
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "user:unified-icons"
+        ],
+        "rationale": "表示統一は確認済みだが実装方式は design が決める。"
+      }
+    },
+    {
+      "id": "handoff-message-inventory",
+      "required_outcome": "notification、server request、response、lifecycle、elicitation、tool proposal を分類し、protocol 追加時の未分類を検出する。",
+      "design_obligations": [
+        "既知 message inventory と未知 message の compatibility boundary を定める。"
+      ],
+      "verification_obligations": [
+        "fake、FakeVsReal、invariant-naming contract test で分類網羅性を検証する。"
+      ],
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "user:all-codex-app-server-events"
+        ],
+        "rationale": "全 app-server event の正確な処理を実現する設計入力。"
+      }
+    }
+  ],
+  "quality_thresholds": [],
+  "ux_alternatives": [
+    {
+      "id": "ALT-EXCLUSIVE",
+      "primary_entry": "セッション一覧または詳細の単一 status icon",
+      "summary": "一時点に一つの共通状態だけを表示し、要応答などの競合は選択した優先順位で一つの icon と名称へ畳み込む。",
+      "structural_dimensions": [
+        "単一排他的状態",
+        "一つの icon slot",
+        "競合時の表示優先順位"
+      ],
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "draft-1:status-lifecycle"
+        ],
+        "rationale": "draft の scalar status 案を、未承認部分を選択肢へ戻して保持する。"
+      }
+    },
+    {
+      "id": "ALT-COMPOSITE",
+      "primary_entry": "セッション一覧または詳細の基底 status と注意 indication",
+      "summary": "活動・ライフサイクルと要応答を別の観察軸として保持し、spinner と bell を同時に伝えられる表示へ統合する。",
+      "structural_dimensions": [
+        "直交する状態軸",
+        "基底 icon と注意 indication",
+        "同時活動の可視化"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "critique.json:UAC-d2"
+        ],
+        "rationale": "優先順位を未承認のまま固定せず、作業継続と要応答の双方を観察できる構造的代替案である。"
+      }
+    }
+  ],
+  "alternative_comparison": {
+    "candidates": [
+      {
+        "alternative_ref": "ALT-EXCLUSIVE",
+        "source_draft": "draft-1",
+        "disposition": "deferred",
+        "rationale": [
+          "既存の単一 Status wire contract と整合しやすい",
+          "client ごとの表示構造差を最小化できる"
+        ]
+      },
+      {
+        "alternative_ref": "ALT-COMPOSITE",
+        "source_draft": "draft-2",
+        "disposition": "selected",
+        "rationale": [
+          "同時 activity と要応答を lossless に伝えられる",
+          "wire contract と三クライアントの表示構造への影響を評価する必要がある"
+        ]
+      }
+    ],
+    "selected_ref": "ALT-COMPOSITE",
+    "approval": "confirmed",
+    "approved_by_user": true,
+    "approval_provenance": {
+      "source": "user_consultation",
+      "confidence": "confirmed",
+      "evidence_refs": [
+        "consultation-codex-status-pattern-evidence",
+        "user:2026-07-26-status-combinations",
+        "user:2026-07-26-proceed"
+      ],
+      "rationale": "ユーザーは spinner と ! の排他性、および bell と ! の併存を裏取りした複合モデルで進めることを承認した。"
+    }
+  },
+  "decision_points": [
+    {
+      "id": "DP-STATUS-GRANULARITY",
+      "decision_key": "status-granularity",
+      "question": "共通状態集合はどの粒度で利用者へ見せるか。",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-STATUS-FIVE-PLUS-SIGNALS",
+          "label": "既存5状態と signals",
+          "outcome": "既存状態を維持し、失敗と不明は別 indication として伝える。"
+        },
+        {
+          "id": "OPT-STATUS-SEVEN",
+          "label": "7状態へ拡張",
+          "outcome": "pending、running、waiting、idle、stopped、failed、unknown を排他的な共通状態にする。"
+        },
+        {
+          "id": "OPT-STATUS-FACETS",
+          "label": "直交 facets",
+          "outcome": "lifecycle、activity、attention、outcome を別軸で保持し、表示契約で組み合わせる。"
+        }
+      ],
+      "user_impact": [
+        "失敗と停止の判別方法が変わる",
+        "未知イベント後の主表示が変わる",
+        "既存 client との互換性に影響する"
+      ],
+      "affected_refs": [
+        "ALT-EXCLUSIVE",
+        "ALT-COMPOSITE"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-STATUS-SEVEN",
+        "basis": "planner_judgment",
+        "evidence_refs": [
+          "draft.json:states"
+        ],
+        "confidence": "medium",
+        "reversibility": "hard"
+      },
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-codex-status-pattern-evidence",
+          "user:2026-07-26-status-combinations",
+          "assistant:2026-07-26-evidence-backed-model",
+          "user:2026-07-26-proceed"
+        ],
+        "rationale": "bellを通知signal、spinnerと!を排他的な主状態として扱う直交facetモデルが承認された。"
+      },
+      "selected_option_ref": "OPT-STATUS-FACETS"
+    },
+    {
+      "id": "DP-CONCURRENT-ATTENTION",
+      "decision_key": "concurrent-attention-display",
+      "question": "running activity と未解決 human-input request が併存するとき何を表示するか。",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "unanswered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-ATTENTION-PRIORITY",
+          "label": "bell を優先",
+          "outcome": "一件でも未解決要求があれば bell と要応答名称だけを表示する。"
+        },
+        {
+          "id": "OPT-ATTENTION-COMPOSITE",
+          "label": "両方を表示",
+          "outcome": "spinner による進行と bell による要応答を同時に観察できる。"
+        },
+        {
+          "id": "OPT-ACTIVITY-PRIORITY",
+          "label": "spinner を優先",
+          "outcome": "進行を主表示にし、要応答は応答地点だけで伝える。"
+        }
+      ],
+      "user_impact": [
+        "要求の見逃しやすさが変わる",
+        "agent の継続作業が見えるかが変わる",
+        "最後の要求解決後の変化が異なる"
+      ],
+      "affected_refs": [
+        "ALT-EXCLUSIVE",
+        "ALT-COMPOSITE"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-ATTENTION-COMPOSITE",
+        "basis": "planner_judgment",
+        "evidence_refs": [
+          "critique.json:UAC-d2"
+        ],
+        "confidence": "medium",
+        "reversibility": "moderate"
+      },
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "change.md:unresolved_decisions",
+          "critique.json:UAC-d2"
+        ],
+        "rationale": "表示優先順位は change root で未解決である。"
+      }
+    },
+    {
+      "id": "DP-FAILURE-BOUNDARY",
+      "decision_key": "failure-display-boundary",
+      "question": "! の failed 表示に含める失敗事象の境界はどこか。",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "unanswered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-FAIL-SESSION",
+          "label": "session failure のみ",
+          "outcome": "process 異常終了や継続不能だけを failed とし、turn/tool の失敗は session 状態を維持する。"
+        },
+        {
+          "id": "OPT-FAIL-TURN",
+          "label": "turn failure も含む",
+          "outcome": "session failure と回復不能な turn failure を failed にする。"
+        },
+        {
+          "id": "OPT-FAIL-ALL",
+          "label": "全 failure を含む",
+          "outcome": "tool failure、拒否、cancel を含む failure event を failed にする。"
+        }
+      ],
+      "user_impact": [
+        "! が示す重大度と回復行動が変わる",
+        "Driver 間で同じ event を同じ意味にできるかが変わる"
+      ],
+      "affected_refs": [
+        "goal-understand-status"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-FAIL-SESSION",
+        "basis": "planner_judgment",
+        "evidence_refs": [
+          "critique.json:UAC-d3"
+        ],
+        "confidence": "low",
+        "reversibility": "moderate"
+      },
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "critique.json:UAC-d3"
+        ],
+        "rationale": "draft の failure 用語は包含境界を定めていない。"
+      }
+    },
+    {
+      "id": "DP-SHELL-OBSERVATION",
+      "decision_key": "shell-non-osc-observation",
+      "question": "Shell Driver は OSC 状態推定なしで共通契約へどう適合するか。",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "unanswered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-SHELL-LIFECYCLE",
+          "label": "process lifecycle",
+          "outcome": "開始、存続、exit の観測だけで表現できる共通状態へ写像する。"
+        },
+        {
+          "id": "OPT-SHELL-UNKNOWN",
+          "label": "観測不能は unknown",
+          "outcome": "構造化された進行観測がない間は unknown を表示する。"
+        },
+        {
+          "id": "OPT-SHELL-REDUCED",
+          "label": "縮退 profile",
+          "outcome": "Shell は表現可能な状態 subset だけを共通意味で提供する。"
+        }
+      ],
+      "user_impact": [
+        "Shell の running、idle、unknown の見え方が変わる",
+        "全 Driver 共通という主張の範囲が変わる"
+      ],
+      "affected_refs": [
+        "goal-trust-observation"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-SHELL-REDUCED",
+        "basis": "planner_judgment",
+        "evidence_refs": [
+          "change.md:unresolved_decisions"
+        ],
+        "confidence": "low",
+        "reversibility": "hard"
+      },
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "change.md:unresolved_decisions",
+          "critique.json:UAC-d5"
+        ],
+        "rationale": "非 OSC 観測源と観測不能時の利用者向け結果が未決定である。"
+      }
+    },
+    {
+      "id": "DP-UNKNOWN-DISPLAY",
+      "decision_key": "unknown-message-display",
+      "question": "未知の Codex message を受信した直後、既知状態と不明 indication をどう見せるか。",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "unanswered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-UNKNOWN-REPLACE",
+          "label": "unknown へ切替",
+          "outcome": "主 status を unknown の icon と名称へ切り替える。"
+        },
+        {
+          "id": "OPT-UNKNOWN-ADJUNCT",
+          "label": "既知状態と併記",
+          "outcome": "最後の既知状態を維持し、不明な観測があったことを別 indication で伝える。"
+        }
+      ],
+      "user_impact": [
+        "既知の進行表示を維持するかが変わる",
+        "未知 event の発見方法と回復表示が変わる"
+      ],
+      "affected_refs": [
+        "goal-trust-observation",
+        "ALT-EXCLUSIVE",
+        "ALT-COMPOSITE"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-UNKNOWN-ADJUNCT",
+        "basis": "planner_judgment",
+        "evidence_refs": [
+          "critique.json:UAC-d4"
+        ],
+        "confidence": "medium",
+        "reversibility": "moderate"
+      },
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "critique.json:UAC-d4"
+        ],
+        "rationale": "draft は既知状態維持と unknown 切替の双方を許し、観察が閉じていない。"
+      }
+    }
+  ],
+  "recommended_direction": [
+    {
+      "statement": "Shell は確認できない進行状態を推測せず、観測可能な lifecycle だけを共通意味へ写像する縮退 profile を第一候補とする。",
+      "decision_refs": [
+        "DP-SHELL-OBSERVATION"
+      ],
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "change.md:unresolved_decisions"
+        ],
+        "rationale": "OSC 推定を別名の heuristic で置換しないためである。"
+      }
+    }
+  ],
+  "validation_questions": [
+    {
+      "question": "running 中に要応答 request がある場合、bell 優先、spinner と bell の併記、spinner 優先のどれにしますか。",
+      "decision_refs": [
+        "DP-CONCURRENT-ATTENTION"
+      ]
+    },
+    {
+      "question": "! は session failure のみ、回復不能な turn failure まで、tool failure・拒否・cancel を含む全 failure のどこまでを表しますか。",
+      "decision_refs": [
+        "DP-FAILURE-BOUNDARY"
+      ]
+    },
+    {
+      "question": "Shell は process lifecycle で写像、観測不能を unknown、表現可能な subset だけの縮退 profile のどれにしますか。",
+      "decision_refs": [
+        "DP-SHELL-OBSERVATION"
+      ]
+    },
+    {
+      "question": "未知 Codex message の受信時は主 status を unknown に切り替えますか、それとも最後の既知状態と不明 indication を併記しますか。",
+      "decision_refs": [
+        "DP-UNKNOWN-DISPLAY"
+      ]
+    }
+  ],
+  "critique_resolutions": [
+    {
+      "issue_ref": "states / observable_state_contracts.status-lifecycle",
+      "change_class": "new_product_capability",
+      "disposition": "create_decision_point",
+      "resulting_refs": [
+        "DP-STATUS-GRANULARITY"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json:issues[0]"
+        ],
+        "rationale": "7状態を normative から外し比較対象へ戻した。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d2 / edge_cases / handoff-state-priority",
+      "change_class": "new_product_capability",
+      "disposition": "create_decision_point",
+      "resulting_refs": [
+        "DP-CONCURRENT-ATTENTION"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json:issues[1]"
+        ],
+        "rationale": "waiting 優先を未承認の選択肢へ戻した。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d4 experience closure",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "DP-UNKNOWN-DISPLAY"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json:issues[2]"
+        ],
+        "rationale": "未知 message 後の観察を一軸の decision として分離した。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d4 discrimination",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "DP-UNKNOWN-DISPLAY"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json:issues[3]"
+        ],
+        "rationale": "diagnostics のみと利用者向け indication の差を選択肢で明示した。"
+      }
+    },
+    {
+      "issue_ref": "F-d2 / UAC-d2 modality reachability",
+      "change_class": "preserve_modality_equivalence",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "goal-respond-to-request"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json:issues[4]"
+        ],
+        "rationale": "発見と応答地点への visual、AT、keyboard、pointer 到達性を user goal に追加した。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d3 failure boundary",
+      "change_class": "new_product_capability",
+      "disposition": "create_decision_point",
+      "resulting_refs": [
+        "DP-FAILURE-BOUNDARY"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json:issues[5]"
+        ],
+        "rationale": "failed の包含境界を選択可能にした。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d1 premature idle",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "recommended-direction:event-bound-transitions"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json:issues[6]"
+        ],
+        "rationale": "Specify 時に start と completion を別 scenario にする義務として保持した。"
+      }
+    },
+    {
+      "issue_ref": "UAC-d5 unsupported fallback",
+      "change_class": "new_product_capability",
+      "disposition": "create_decision_point",
+      "resulting_refs": [
+        "DP-SHELL-OBSERVATION"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json:issues[7]"
+        ],
+        "rationale": "確認されていない fallback を normative な状態源から外した。"
+      }
+    }
+  ],
+  "resolved_issues": [
+    {
+      "issue": "未承認の7状態固定",
+      "resolution": "DP-STATUS-GRANULARITY へ戻した。"
+    },
+    {
+      "issue": "未承認の waiting 優先",
+      "resolution": "DP-CONCURRENT-ATTENTION へ戻した。"
+    },
+    {
+      "issue": "未知 message 後の観察矛盾",
+      "resolution": "DP-UNKNOWN-DISPLAY の排他的選択肢へ分離した。"
+    },
+    {
+      "issue": "human-input request の modality 到達不能",
+      "resolution": "発見と応答地点への visual、AT、keyboard、pointer 到達を user goal に固定した。"
+    },
+    {
+      "issue": "failed の未定義境界",
+      "resolution": "DP-FAILURE-BOUNDARY へ戻した。"
+    },
+    {
+      "issue": "開始と完了を一つの scenario に混在",
+      "resolution": "Specify では start と completion を別 event-bound scenario にする。"
+    },
+    {
+      "issue": "Shell の未確認 fallback",
+      "resolution": "DP-SHELL-OBSERVATION へ戻し、fallback による任意遷移を認めない。"
+    }
+  ],
+  "rejected_improvements": [],
+  "open_questions": [
+    "BLOCKER DP-CONCURRENT-ATTENTION: free_text は既存optionのいずれにも一致しない。bellをnotification signal、!を未解決human-input requestとして分離し、spinnerと!は排他、bellと!は併存可能という観測契約を表せるようdecision optionsを改訂して再相談する必要がある。",
+    "BLOCKER DP-FAILURE-BOUNDARY: free_text は既存optionの前提（! がfailureを表す）を否定する。!を未解決human-input request、failureを別表示とするoptionへdecisionを改訂して再相談する必要がある。",
+    "DP-SHELL-OBSERVATION と DP-UNKNOWN-DISPLAY のユーザー回答が必要。"
+  ],
+  "base_revision": "requirements-explore-r1",
+  "scenario_impacts": []
+}

@@ -41,6 +41,7 @@ func (d CodexDriver) view(cs CodexState) state.View {
 		Effort:          cs.Effort,
 		Status:          cs.Status,
 		StatusChangedAt: cs.StatusChangedAt,
+		Failed:          cs.Failed || cs.FailureReason != "",
 	}
 }
 

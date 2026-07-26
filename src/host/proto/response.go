@@ -41,25 +41,22 @@ func (RespSessions) isResponse() {}
 
 // SessionInfo is the per-session payload shipped on the wire. Mirrors
 // state.Session + the driver's View output. Carried inside
-// RespSessions and EvtSessionsChanged. State and StateChangedAt are
-// duplicated from View.Status / View.StatusChangedAt for client-side
-// convenience (clients render status colors and elapsed time without
-// unwrapping the View).
+// RespSessions and EvtSessionsChanged. Status is the sole, composite status
+// wire; the former scalar SessionInfo.State and View.Status fields are removed.
 type SessionInfo struct {
-	ID                 string           `json:"id"`
-	Project            string           `json:"project"`
-	Workspace          string           `json:"workspace,omitempty"`
-	Command            string           `json:"command"`
-	RootDriver         string           `json:"root_driver,omitempty"`
-	RootDriverForkable bool             `json:"root_driver_forkable,omitempty"`
-	CreatedAt          string           `json:"created_at"`
-	State              stateview.Status `json:"state,omitempty"`
-	StateChangedAt     string           `json:"state_changed_at,omitempty"`
-	View               stateview.View   `json:"view"`
-	Frames             []FrameInfo      `json:"frames,omitempty"`
-	HeadFrameID        string           `json:"head_frame_id,omitempty"`
-	WorkspaceRoot      string           `json:"workspace_root,omitempty"`
-	FrameGeneration    int              `json:"frame_generation,omitempty"`
+	ID                 string                  `json:"id"`
+	Project            string                  `json:"project"`
+	Workspace          string                  `json:"workspace,omitempty"`
+	Command            string                  `json:"command"`
+	RootDriver         string                  `json:"root_driver,omitempty"`
+	RootDriverForkable bool                    `json:"root_driver_forkable,omitempty"`
+	CreatedAt          string                  `json:"created_at"`
+	Status             stateview.SessionStatus `json:"status"`
+	View               stateview.View          `json:"view"`
+	Frames             []FrameInfo             `json:"frames,omitempty"`
+	HeadFrameID        string                  `json:"head_frame_id,omitempty"`
+	WorkspaceRoot      string                  `json:"workspace_root,omitempty"`
+	FrameGeneration    int                     `json:"frame_generation,omitempty"`
 }
 
 // FrameInfo is the per-frame wire payload for header tab rendering.
@@ -89,14 +86,13 @@ func (si SessionInfo) CreatedAtTime() time.Time {
 	return t
 }
 
-// StateChangedAtTime parses StateChangedAt, falling back to CreatedAt
-// when the state has not been touched yet.
+// StateChangedAtTime parses the composite status timestamp, falling back to
+// CreatedAt when the status has not been touched yet.
 func (si SessionInfo) StateChangedAtTime() time.Time {
-	if si.StateChangedAt == "" {
+	if si.Status.ChangedAt == nil {
 		return si.CreatedAtTime()
 	}
-	t, _ := time.Parse(time.RFC3339, si.StateChangedAt)
-	return t
+	return *si.Status.ChangedAt
 }
 
 // RespSurfaceText is the response to surface.read_text.

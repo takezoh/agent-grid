@@ -38,6 +38,7 @@ type CommonState struct {
 	// Status bookkeeping
 	Status          state.Status
 	StatusChangedAt time.Time
+	Failed          bool
 
 	// Branch & Git context
 	BranchTag          string
@@ -84,6 +85,7 @@ func (c *CommonState) ApplyWorktreeResolved(e state.DEvWorktreeResolved) {
 func (c *CommonState) ApplyCommandExited(e state.DEvCommandExited) {
 	if e.ExitCode != 0 {
 		c.Status = state.StatusStopped
+		c.Failed = true
 	}
 	if !e.Timestamp.IsZero() {
 		c.StatusChangedAt = e.Timestamp
@@ -182,6 +184,7 @@ const (
 	keyWorktreeName         = "worktree_name"
 	keyStatus               = "status"
 	keyStatusChangedAt      = "status_changed_at"
+	keyFailed               = "failed"
 	keyBranchTag            = "branch_tag"
 	keyBranchBG             = "branch_bg"
 	keyBranchFG             = "branch_fg"
@@ -214,6 +217,9 @@ func (c *CommonState) PersistCommon(out map[string]string) {
 	out[keyStatus] = c.Status.String()
 	if !c.StatusChangedAt.IsZero() {
 		out[keyStatusChangedAt] = c.StatusChangedAt.UTC().Format(time.RFC3339)
+	}
+	if c.Failed {
+		out[keyFailed] = "1"
 	}
 	if c.BranchTag != "" {
 		out[keyBranchTag] = c.BranchTag
@@ -275,6 +281,7 @@ func (c *CommonState) RestoreCommon(bag map[string]string) {
 			c.StatusChangedAt = t
 		}
 	}
+	c.Failed = bag[keyFailed] == "1"
 	c.BranchTag = bag[keyBranchTag]
 	c.BranchBG = bag[keyBranchBG]
 	c.BranchFG = bag[keyBranchFG]

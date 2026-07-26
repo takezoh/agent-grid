@@ -296,6 +296,7 @@ describe("Connection", () => {
             project: "/repo/app",
             command: "codex",
             created_at: "2026-07-06T00:00:00Z",
+            status: { lifecycle: "idle", human_input: false, failure: "none" },
             view: {
               card: { title: "Agent" },
               frame_messaging_summary: {
@@ -329,6 +330,7 @@ describe("Connection", () => {
             project: "/repo/app",
             command: "codex",
             created_at: "2026-07-06T00:00:00Z",
+            status: { lifecycle: "idle", human_input: false, failure: "none" },
             view: {
               card: { title: "Agent" },
             },

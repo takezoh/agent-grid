@@ -238,6 +238,21 @@
                                                 BorderThickness="1.46"
                                                 BorderBrush="{Binding PhaseBrush}"
                                                 Visibility="{Binding StoppedVisibility}"/>
+                                        <TextBlock Text="!" FontSize="14" FontWeight="Bold"
+                                                   Foreground="{Binding PhaseBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="{Binding ActionVisibility}"/>
+                                        <TextBlock Text="×" FontSize="14" FontWeight="Bold"
+                                                   Foreground="{Binding PhaseBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="{Binding FailedVisibility}"/>
+                                        <TextBlock Text="🔔" FontSize="7"
+                                                   HorizontalAlignment="Right"
+                                                   VerticalAlignment="Top"
+                                                   Margin="0,-5,-7,0"
+                                                   Visibility="{Binding BellVisibility}"/>
                                     </Grid>
                                     <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="12"
                                                HorizontalAlignment="Stretch" MaxLines="1"

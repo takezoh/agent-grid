@@ -19,5 +19,6 @@ func (d GenericDriver) view(gs GenericState) state.View {
 		DisplayName:     d.displayName,
 		Status:          gs.Status,
 		StatusChangedAt: gs.StatusChangedAt,
+		Failed:          gs.Failed,
 	}
 }

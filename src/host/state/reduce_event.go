@@ -88,10 +88,59 @@ func reduceSubsystem(s State, e EvSubsystem) (State, []Effect) {
 		s = next
 		effs = append(effs, qEffs...)
 	}
+	if next, resolvedEffs, handled := maybeResolveHumanInputFromSubsystem(s, e); handled {
+		s = next
+		effs = append(effs, resolvedEffs...)
+	}
+	if e.Kind == SubsystemTurnCompleted ||
+		e.Kind == SubsystemApprovalRequested ||
+		e.Kind == SubsystemQuestionRequested {
+		s.StatusSignals = cloneStatusSignals(s.StatusSignals)
+		s.StatusSignals[sessID]++
+	}
 
 	effs = append(effs, EffPersistSnapshot{}, EffBroadcastSessionsChanged{})
 	if e.ConnID != 0 {
 		effs = append(effs, okResp(e.ConnID, e.ReqID, nil))
 	}
 	return s, effs
+}
+
+func maybeResolveHumanInputFromSubsystem(s State, e EvSubsystem) (State, []Effect, bool) {
+	switch e.Kind {
+	case SubsystemApprovalResolved:
+		if e.Payload.Approval == nil {
+			return s, nil, false
+		}
+		request, _, ok := FindApproval(s, ApprovalID(e.Payload.Approval.ID))
+		if !ok || request.Status != ApprovalPending {
+			return s, nil, ok
+		}
+		request.Status = ApprovalResolved
+		request.ResolutionReason = ApprovalReasonServer
+		s = putApproval(s, request)
+		return s, []Effect{approvalResolvedBroadcast(request)}, true
+	case SubsystemQuestionResolved:
+		if e.Payload.Question == nil {
+			return s, nil, false
+		}
+		request, _, ok := FindQuestion(s, QuestionID(e.Payload.Question.ID))
+		if !ok || request.Status != QuestionPending {
+			return s, nil, ok
+		}
+		request.Status = QuestionResolved
+		request.ResolutionReason = QuestionReasonServer
+		s = putQuestion(s, request)
+		return s, []Effect{questionResolvedBroadcast(request)}, true
+	default:
+		return s, nil, false
+	}
+}
+
+func cloneStatusSignals(in map[SessionID]uint64) map[SessionID]uint64 {
+	out := make(map[SessionID]uint64, len(in)+1)
+	for id, sequence := range in {
+		out[id] = sequence
+	}
+	return out
 }

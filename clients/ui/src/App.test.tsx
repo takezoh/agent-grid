@@ -70,12 +70,12 @@ describe("App", () => {
           command: "claude",
           root_driver: "claude",
           created_at: "2026-06-20T00:00:00Z",
+          status: { lifecycle: "active", human_input: false, failure: "none" },
           view: {
             card: {
               title: "Hello driver",
               tags: [{ text: "feature", fg: "#000", bg: "#fff" }],
             },
-            status: "running",
             model: "gpt-5",
             effort: "high",
             status_line: "Thinking",
@@ -110,9 +110,18 @@ describe("App", () => {
       command: rootDriver,
       root_driver: rootDriver,
       created_at: "2026-06-20T00:00:00Z",
+      status: {
+        lifecycle:
+          ("running" as const) === "running" || ("running" as const) === "waiting"
+            ? "active"
+            : ("running" as const) === "stopped"
+              ? "stopped"
+              : "idle",
+        human_input: ("running" as const) === "pending",
+        failure: "none",
+      },
       view: {
         card: {},
-        status: "running" as const,
         ...(prompt !== undefined ? { last_user_prompt: prompt } : {}),
       },
     });
@@ -162,9 +171,9 @@ describe("App", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
+          status: { lifecycle: "active", human_input: false, failure: "none" },
           view: {
             card: {},
-            status: "running",
             log_tabs: [{ label: "Output", path: "/tmp/out.log", kind: "text" }],
           },
         },
@@ -186,9 +195,9 @@ describe("App", () => {
           project: "p",
           command: "claude",
           created_at: "2026-07-06T00:00:00Z",
+          status: { lifecycle: "active", human_input: false, failure: "none" },
           view: {
             card: { title: "Message session" },
-            status: "running",
             log_tabs: [
               {
                 label: "TRANSCRIPT",
@@ -233,9 +242,9 @@ describe("App", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
+          status: { lifecycle: "active", human_input: false, failure: "none" },
           view: {
             card: { title: "Driver session" },
-            status: "running",
             log_tabs: [
               {
                 label: "TRANSCRIPT",
@@ -266,9 +275,9 @@ describe("App", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
+          status: { lifecycle: "active", human_input: false, failure: "none" },
           view: {
             card: {},
-            status: "running",
             suppress_info: false,
             log_tabs: [{ label: "EVENTS", path: "/x/s3.log", kind: "text" }],
           },
@@ -297,14 +306,16 @@ describe("App", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: {}, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: {} },
         },
         {
           id: "s2",
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: {}, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: {} },
         },
       ],
       activeSessionID: "s1",
@@ -335,7 +346,17 @@ describe("App", () => {
       command: "claude",
       created_at: "2026-06-20T00:00:00Z",
       head_frame_id: "f1",
-      view: { card: {}, status: "running" as const },
+      status: {
+        lifecycle:
+          ("running" as const) === "running" || ("running" as const) === "waiting"
+            ? "active"
+            : ("running" as const) === "stopped"
+              ? "stopped"
+              : "idle",
+        human_input: ("running" as const) === "pending",
+        failure: "none",
+      },
+      view: { card: {} },
     };
     useDaemonStore.setState({ sessions: [session], activeSessionID: "s1" });
     const { rerender } = render(<App />);
@@ -369,14 +390,16 @@ describe("App", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: {}, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: {} },
         },
         {
           id: "s2",
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: {}, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: {} },
         },
       ],
       activeSessionID: "s1",
@@ -628,14 +651,16 @@ describe("App", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "Session A" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "Session A" } },
         },
         {
           id: "s2",
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "Session B" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "Session B" } },
         },
       ],
       activeSessionID: "s1",
@@ -688,14 +713,16 @@ describe("App", () => {
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "Session A" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "Session A" } },
         },
         {
           id: "s2",
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
-          view: { card: { title: "Session B" }, status: "running" },
+          status: { lifecycle: "active", human_input: false, failure: "none" },
+          view: { card: { title: "Session B" } },
         },
       ],
       activeSessionID: "s1",

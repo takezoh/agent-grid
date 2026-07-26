@@ -1,3 +1,6 @@
+// exhaustive Codex notification/request inventory can be audited in one place.
+//
+//revive:disable:file-length-limit Router classification stays cohesive so the
 package stream
 
 import (
@@ -37,12 +40,21 @@ func (b *Backend) handleNotification(method string, params json.RawMessage) {
 		b.handleThreadStatusChanged(params)
 	case codexschema.MethodThreadNameUpdated:
 		b.handleThreadNameUpdated(params)
+	case codexschema.MethodServerRequestResolved:
+		b.handleServerRequestResolved(params)
 	case codexschema.MethodItemAgentMessageDelta:
 		b.handleAgentMessageDelta(params)
 	case codexschema.MethodError:
 		slog.Error("stream backend: app-server error", "subsystem", b.subsystemID, "params", string(params))
 	case codexschema.MethodWarning, codexschema.MethodGuardianWarning, codexschema.MethodDeprecationNotice:
 		slog.Warn("stream backend: app-server notice", "method", method, "subsystem", b.subsystemID, "params", string(params))
+	default:
+		if codexschema.IsKnownServerNotification(method) {
+			slog.Debug("stream backend: app-server notification has no session-status effect",
+				"method", method, "subsystem", b.subsystemID)
+			return
+		}
+		b.logUnknownMethod("notification", method)
 	}
 }
 
@@ -68,10 +80,15 @@ func (b *Backend) handleTurnStarted(raw json.RawMessage) {
 
 func (b *Backend) handleRequest(id codexclient.RequestID, method string, params json.RawMessage) {
 	switch method {
-	case codexschema.MethodItemCommandExecutionRequestApproval, codexschema.MethodItemFileChangeRequestApproval:
+	case codexschema.MethodItemCommandExecutionRequestApproval,
+		codexschema.MethodItemFileChangeRequestApproval,
+		codexschema.MethodItemPermissionsRequestApproval,
+		codexschema.MethodApplyPatchApproval,
+		codexschema.MethodExecCommandApproval:
 		threadID := extractThreadID(params)
-		frameID := b.frameForThread(threadID)
+		frameID := b.frameForRequest(threadID)
 		if frameID == "" {
+			_ = b.conn.ReplyError(id, "request cannot be correlated to a frame")
 			return
 		}
 		approval := approvalFromParams(method, params, b.autoApprove)
@@ -86,25 +103,105 @@ func (b *Backend) handleRequest(id codexclient.RequestID, method string, params 
 		}))
 		// Resolution (accept/deny/cancel/expiry/auto) is driven by host/state
 		// via EffReplyHeldApproval → ReplyHeldApproval. Do not Reply here.
-	case codexschema.MethodItemToolRequestUserInput:
+	case codexschema.MethodItemToolRequestUserInput, codexschema.MethodMCPServerElicitationRequest:
 		threadID := extractThreadID(params)
-		frameID := b.frameForThread(threadID)
+		frameID := b.frameForRequest(threadID)
 		if frameID == "" {
+			_ = b.conn.ReplyError(id, "request cannot be correlated to a frame")
 			return
 		}
 		q := questionFromParams(params)
 		if q.ID == "" {
-			_ = b.conn.ReplyError(id, "question id required")
-			return
+			q.ID = "codex-request:" + id.String()
 		}
 		b.holdQuestion(q.ID, id)
 		b.emit(frameID, state.SubsystemQuestionRequested, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
 			p.Question = &q
 		}))
 	default:
-		slog.Warn("stream backend: rejecting unhandled server request",
-			"method", method, "subsystem", b.subsystemID)
+		if !codexschema.IsKnownServerRequest(method) {
+			b.logUnknownMethod("request", method)
+		}
 		_ = b.conn.ReplyError(id, "method not supported by client")
+	}
+}
+
+func (b *Backend) frameForRequest(threadID string) state.FrameID {
+	if frameID := b.frameForThread(threadID); frameID != "" {
+		return frameID
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.frames) != 1 {
+		return ""
+	}
+	for frameID := range b.frames {
+		return frameID
+	}
+	return ""
+}
+
+const unknownMethodLimit = 64
+
+func (b *Backend) logUnknownMethod(kind, method string) {
+	b.mu.Lock()
+	if b.unknownMethods == nil {
+		b.unknownMethods = make(map[string]struct{}, unknownMethodLimit)
+	}
+	key := kind + ":" + method
+	_, seen := b.unknownMethods[key]
+	recorded := false
+	if !seen && len(b.unknownMethods) < unknownMethodLimit {
+		b.unknownMethods[key] = struct{}{}
+		recorded = true
+	}
+	b.mu.Unlock()
+	if recorded {
+		slog.Warn("stream backend: unknown app-server method",
+			"kind", kind, "method", method, "subsystem", b.subsystemID)
+	}
+}
+
+func (b *Backend) handleServerRequestResolved(params json.RawMessage) {
+	resolved, err := codexschemav2.UnmarshalServerRequestResolvedNotification(params)
+	if err != nil || resolved.RequestID == nil {
+		return
+	}
+	rawID, err := json.Marshal(resolved.RequestID)
+	if err != nil {
+		return
+	}
+	requestID := codexclient.RequestID(rawID)
+	b.mu.Lock()
+	var approvalID, questionID string
+	for id, held := range b.heldApprovals {
+		if held.Equal(requestID) {
+			approvalID = id
+			delete(b.heldApprovals, id)
+			break
+		}
+	}
+	for id, held := range b.heldQuestions {
+		if held.Equal(requestID) {
+			questionID = id
+			delete(b.heldQuestions, id)
+			break
+		}
+	}
+	b.mu.Unlock()
+	frameID := b.frameForThread(resolved.ThreadID)
+	if frameID == "" {
+		return
+	}
+	if approvalID != "" {
+		b.emit(frameID, state.SubsystemApprovalResolved, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
+			p.Approval = &state.SubsystemApproval{ID: approvalID, Resolved: true}
+		}))
+	}
+	if questionID != "" {
+		b.emit(frameID, state.SubsystemQuestionResolved, b.payloadWith(frameID, func(p *state.SubsystemPayload) {
+			p.Question = &state.SubsystemQuestion{ID: questionID}
+		}))
 	}
 }
 

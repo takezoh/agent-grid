@@ -3,6 +3,8 @@ package proto
 import (
 	"testing"
 	"time"
+
+	stateview "github.com/takezoh/agent-grid/host/state/view"
 )
 
 func TestCommandNames(t *testing.T) {
@@ -109,7 +111,8 @@ func TestSessionInfoHelpers(t *testing.T) {
 	if !si3.StateChangedAtTime().Equal(si3.CreatedAtTime()) {
 		t.Errorf("StateChangedAtTime fallback wrong")
 	}
-	si4 := SessionInfo{StateChangedAt: ts}
+	changedAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+	si4 := SessionInfo{Status: stateview.SessionStatus{ChangedAt: &changedAt}}
 	if si4.StateChangedAtTime().IsZero() {
 		t.Errorf("StateChangedAtTime parse failed")
 	}

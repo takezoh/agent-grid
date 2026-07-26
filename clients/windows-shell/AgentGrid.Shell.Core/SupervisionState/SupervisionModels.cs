@@ -12,7 +12,10 @@ public sealed record SessionSummary(
     string SessionId,
     SessionPhase Phase,
     string? Title = null,
-    string ServerId = "");
+    string ServerId = "",
+    bool HumanInput = false,
+    bool Bell = false,
+    string Lifecycle = "");
 
 public sealed record ApprovalItem(
     string ApprovalId,

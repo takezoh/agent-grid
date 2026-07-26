@@ -75,20 +75,27 @@ public sealed class SessionChipVm
     public required Visibility WaitingVisibility { get; init; }
     public required Visibility IdleVisibility { get; init; }
     public required Visibility StoppedVisibility { get; init; }
+    public required Visibility ActionVisibility { get; init; }
+    public required Visibility BellVisibility { get; init; }
+    public required Visibility FailedVisibility { get; init; }
 
     public static SessionChipVm From(SessionSummary session)
     {
-        var visualKind = PanelPresentation.PhaseVisualKind(session.Phase);
+        var visualKind = PanelPresentation.SessionVisualKind(session);
         return new SessionChipVm
         {
             Session = session,
             Label = PanelPresentation.SessionLabel(session),
-            PhaseLabel = PanelPresentation.PhaseLabel(session.Phase),
-            PhaseBrush = PanelBrushes.ForToken(PanelPresentation.PhaseAccent(session.Phase)),
+            PhaseLabel = PanelPresentation.SessionStatusLabel(session) +
+                (session.Bell ? "; Notification" : ""),
+            PhaseBrush = PanelBrushes.ForToken(PanelPresentation.SessionStatusAccent(session)),
             RunningVisibility = ForKind(visualKind, "running"),
             WaitingVisibility = ForKind(visualKind, "waiting"),
             IdleVisibility = ForKind(visualKind, "idle"),
             StoppedVisibility = ForKind(visualKind, "stopped"),
+            ActionVisibility = ForKind(visualKind, "action"),
+            BellVisibility = session.Bell ? Visibility.Visible : Visibility.Collapsed,
+            FailedVisibility = ForKind(visualKind, "failed"),
         };
     }
 

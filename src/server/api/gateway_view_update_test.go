@@ -141,6 +141,7 @@ func sampleSession(id, title string, status stateview.Status) proto.SessionInfo 
 		ID:      id,
 		Project: "proj",
 		Command: "claude",
+		Status:  stateview.CompositeStatus(status, time.Time{}, false, false, nil),
 		View: stateview.View{
 			Card:   stateview.Card{Title: title},
 			Status: status,
@@ -234,12 +235,8 @@ func TestGatewayLifecycle_BroadcastsViewUpdate(t *testing.T) {
 	if !ok {
 		t.Fatalf("sessions[0] is not object: %T", sessions[0])
 	}
-	viewObj, ok := sess0["view"].(map[string]any)
-	if !ok {
-		t.Fatalf("sessions[0].view is not object: %T", sess0["view"])
-	}
-	if viewObj["status"] != "idle" {
-		t.Errorf("sessions[0].view.status = %q, want \"idle\"", viewObj["status"])
+	if got := sessionLifecycle(sess0); got != "idle" {
+		t.Errorf("sessions[0].status.lifecycle = %q, want \"idle\"", got)
 	}
 }
 

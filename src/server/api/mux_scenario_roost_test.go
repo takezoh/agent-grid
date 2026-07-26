@@ -32,16 +32,14 @@ func TestE2E_GatewayScenarioFakeClaudeLifecycleAndSurface_SanitizesAmbientRoostE
 
 	sendSurfaceInput(t, surface, "summarize this\n")
 	running := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "running"
+		return sessionLifecycle(session) == "active"
 	})
-	assertSessionView(t, running, sessionID, "running")
+	assertSessionView(t, running, sessionID, "active")
 
 	waiting := waitForSessionFrame(t, lifecycle, sessionID, func(session map[string]any) bool {
-		view, _ := session["view"].(map[string]any)
-		return view["status"] == "waiting"
+		return sessionLifecycle(session) == "idle"
 	})
-	assertSessionView(t, waiting, sessionID, "waiting")
+	assertSessionView(t, waiting, sessionID, "idle")
 
 	deleteSessionViaAPI(t, daemon, sessionID)
 	waitForSessionAbsent(t, lifecycle, 5*time.Second, sessionID)

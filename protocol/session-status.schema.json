@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.dev/schema/session-status.schema.json",
+  "title": "SessionStatus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lifecycle", "human_input", "failure"],
+  "properties": {
+    "lifecycle": {
+      "type": "string",
+      "enum": ["active", "idle", "stopped"]
+    },
+    "human_input": {
+      "type": "boolean"
+    },
+    "failure": {
+      "type": "string",
+      "enum": ["none", "failed"]
+    },
+    "changed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signal": {
+      "$ref": "#/$defs/statusSignal"
+    }
+  },
+  "$defs": {
+    "statusSignal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "epoch", "sequence"],
+      "properties": {
+        "kind": {
+          "const": "bell"
+        },
+        "epoch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/takezoh/agent-grid/host/state"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 	codexschemav2 "github.com/takezoh/agent-grid/platform/agent/codexschema/v2"
 )
 
@@ -525,11 +526,20 @@ func diffPaths(raw json.RawMessage) []string {
 
 func approvalFromParams(method string, raw json.RawMessage, auto bool) state.SubsystemApproval {
 	kind := "command"
-	if strings.Contains(method, "fileChange") {
+	switch {
+	case strings.Contains(method, "fileChange"):
 		kind = "file_change"
+	case method == codexschema.MethodApplyPatchApproval:
+		kind = "file_change"
+	case strings.Contains(method, "permissions"):
+		kind = "permissions"
+	}
+	id := nestedString(raw, "itemId")
+	if id == "" {
+		id = nestedString(raw, "callId")
 	}
 	return state.SubsystemApproval{
-		ID:          nestedString(raw, "itemId"),
+		ID:          id,
 		Kind:        kind,
 		Command:     nestedString(raw, "command"),
 		Path:        nestedString(raw, "path"),
@@ -543,9 +553,15 @@ func questionFromParams(raw json.RawMessage) state.SubsystemQuestion {
 	if id == "" {
 		id = nestedString(raw, "id")
 	}
+	if id == "" {
+		id = nestedString(raw, "elicitationId")
+	}
 	prompt := nestedString(raw, "prompt")
 	if prompt == "" {
 		prompt = nestedString(raw, "question")
+	}
+	if prompt == "" {
+		prompt = nestedString(raw, "message")
 	}
 	return state.SubsystemQuestion{
 		ID:     id,

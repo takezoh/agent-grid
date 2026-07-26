@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { SessionConfig, SessionConfigProject } from "../api/sessions";
 import type { DaemonOccupant, DaemonSnapshot } from "../lib/tools";
 import type { HelloFrame, SessionInfo, ViewUpdateFrame } from "../wire/server";
+import { consumeStatusSignals, resetConsumedStatusSignals } from "./statusSignals";
 import { useWorkspaceActivityStore } from "./workspaceActivity";
 
 // Mirror of Go's config.DefaultWorkspaceName — the daemon emits this literal
@@ -254,25 +255,26 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
   ...initialState,
   seedHello: (frame) => {
     const s = get();
+    const sessions = consumeStatusSignals(frame.sessions);
     // The daemon no longer ships an active session id; the web client owns
     // its own selection. Seed the initial selection from the first session
     // (falling back to a value the daemon supplies only if a pre-upgrade
     // daemon still sends one).
-    const seededActive = frame.activeSessionID ?? frame.sessions[0]?.id ?? null;
+    const seededActive = frame.activeSessionID ?? sessions[0]?.id ?? null;
     // Follow the seeded session into its workspace on hello so the
     // partition matching it is what the user sees first.
     let ws = s.selectedWorkspace;
     if (seededActive !== null) {
-      const active = frame.sessions.find((x) => x.id === seededActive);
+      const active = sessions.find((x) => x.id === seededActive);
       if (active) ws = workspaceOf(active);
     }
     // Reset to DEFAULT_WORKSPACE if the previously selected workspace no
     // longer exists in the seeded session set.
-    const known = selectDistinctWorkspaces(frame.sessions);
+    const known = selectDistinctWorkspaces(sessions);
     if (!known.includes(ws)) ws = DEFAULT_WORKSPACE;
     useWorkspaceActivityStore.getState().setScopedSession(seededActive);
     set({
-      sessions: frame.sessions,
+      sessions,
       activeSessionID: seededActive,
       features: frame.features,
       serverTime: frame.serverTime,
@@ -282,15 +284,17 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
   },
   applyViewUpdate: (frame) => {
     const s = get();
+    const incomingSessions =
+      frame.sessions === undefined ? undefined : consumeStatusSignals(frame.sessions);
     // Resolve effective activeSessionID.
     let nextActiveId =
       frame.activeSessionID === undefined ? s.activeSessionID : frame.activeSessionID;
     // Activity-only view updates omit sessions (ADR-20260705). Use the
     // current store snapshot for workspace-follow logic in that case.
-    const sessionsForWorkspace = frame.sessions ?? s.sessions;
+    const sessionsForWorkspace = incomingSessions ?? s.sessions;
     const workspaceBeforeUpdate = useWorkspaceActivityStore.getState();
     const activeDisappeared =
-      frame.sessions !== undefined &&
+      incomingSessions !== undefined &&
       s.activeSessionID !== null &&
       !sessionsForWorkspace.some((session) => session.id === s.activeSessionID);
     const activeWorkspaceDirty = Object.values(workspaceBeforeUpdate.dirtyBuffers).some(
@@ -329,14 +333,14 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
     useWorkspaceActivityStore.getState().applyViewUpdate(frame);
 
     const sessionPatch =
-      frame.sessions === undefined
+      incomingSessions === undefined
         ? {}
         : {
             sessions: (() => {
               // best-effort identity preservation: keep the previous SessionInfo
               // object when its JSON shape is structurally unchanged.
               const byId = new Map(s.sessions.map((x) => [x.id, x]));
-              return frame.sessions.map((incoming) => {
+              return incomingSessions.map((incoming) => {
                 const prev = byId.get(incoming.id);
                 if (prev && JSON.stringify(prev) === JSON.stringify(incoming)) {
                   return prev;
@@ -400,12 +404,14 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
       else next.add(project);
       return { foldedProjects: next };
     }),
-  reset: () =>
+  reset: () => {
+    resetConsumedStatusSignals();
     set(() => ({
       ...initialState,
       // Fresh Set so a reset never aliases the module-level instance —
       // toggleProjectFold always replaces the Set, but a future caller that
       // mutates in place would otherwise leak across reset boundaries.
       foldedProjects: new Set<string>(),
-    })),
+    }));
+  },
 }));

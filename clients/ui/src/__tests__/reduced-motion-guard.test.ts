@@ -211,11 +211,13 @@ describe("FR-MOTION-001: RunStateBadge running state readable with reduced-motio
     globalThis.setMatchMedia("(prefers-reduced-motion: reduce)", true);
 
     const { getByRole, container } = render(
-      React.createElement(RunStateBadge, { status: "running" }),
+      React.createElement(RunStateBadge, {
+        status: { lifecycle: "active", human_input: false, failure: "none" },
+      }),
     );
 
     // The badge element is readable via aria-label.
-    const badge = getByRole("generic", { name: /status:\s*running/i });
+    const badge = getByRole("generic", { name: /status:\s*Working/i });
     expect(badge).toBeTruthy();
 
     // The text content includes "running".
@@ -230,7 +232,11 @@ describe("FR-MOTION-001: RunStateBadge running state readable with reduced-motio
   it("renders status text 'running' visible in the DOM", () => {
     globalThis.setMatchMedia("(prefers-reduced-motion: reduce)", true);
 
-    const { container } = render(React.createElement(RunStateBadge, { status: "running" }));
+    const { container } = render(
+      React.createElement(RunStateBadge, {
+        status: { lifecycle: "active", human_input: false, failure: "none" },
+      }),
+    );
 
     // Text node "running" should be present inside the badge.
     const badge = container.querySelector(".run-state-badge");

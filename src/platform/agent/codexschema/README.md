@@ -4,7 +4,7 @@ Pinned JSON Schema and generated Go types for the Codex app-server stdio JSON-RP
 
 ## Pinned version
 
-**codex-cli 0.133.0** (default output, no `--experimental` flag).
+**codex-cli 0.145.0** (default output, no `--experimental` flag).
 The machine-readable SSOT is `test-harness/tool-versions.json` under the
 `codex.schema` role; the separate `codex.fidelity` pin intentionally tracks
 the real CLI version used by FakeVsReal contracts.

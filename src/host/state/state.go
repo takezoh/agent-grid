@@ -92,6 +92,11 @@ type State struct {
 	// PendingQuestions holds durable QuestionRequest objects (FR-P0-07).
 	// Same lifecycle and non-persistence rules as PendingApprovals.
 	PendingQuestions map[SessionID]map[QuestionID]QuestionRequest
+
+	// StatusEpoch and StatusSignals own transient signal identity. They are
+	// runtime-only and reset on daemon restart.
+	StatusEpoch   string
+	StatusSignals map[SessionID]uint64
 }
 
 // Session is the static metadata + driver state of one client session.
@@ -144,11 +149,12 @@ type JobMeta struct {
 // are initialised so callers can write into them without nil checks.
 func New() State {
 	return State{
-		Lifecycle:   LifecycleRunning,
-		Sessions:    map[SessionID]Session{},
-		Subscribers: map[ConnID]Subscriber{},
-		SurfaceSubs: map[ConnID]map[SurfaceSubscription]SurfaceGeometry{},
-		Jobs:        map[JobID]JobMeta{},
+		Lifecycle:     LifecycleRunning,
+		Sessions:      map[SessionID]Session{},
+		Subscribers:   map[ConnID]Subscriber{},
+		SurfaceSubs:   map[ConnID]map[SurfaceSubscription]SurfaceGeometry{},
+		Jobs:          map[JobID]JobMeta{},
+		StatusSignals: map[SessionID]uint64{},
 	}
 }
 

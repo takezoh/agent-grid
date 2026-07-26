@@ -16,6 +16,7 @@ func (d ShellDriver) view(ss ShellState) state.View {
 		DisplayName:     d.displayName,
 		Status:          ss.Status,
 		StatusChangedAt: ss.StatusChangedAt,
+		Failed:          ss.Failed || (ss.LastExitCode != nil && *ss.LastExitCode != 0),
 	}
 }
 

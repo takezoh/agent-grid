@@ -8,7 +8,7 @@ describe("HeaderBar (FR-011 / UAC-004)", () => {
       <HeaderBar
         project="/home/dev/dev/agent-grid"
         card={{ title: "Fix WS reconnect backoff" }}
-        status="running"
+        status={{ lifecycle: "active", human_input: false, failure: "none" }}
         model="gpt-5"
         effort="high"
         driver="claude"
@@ -18,7 +18,7 @@ describe("HeaderBar (FR-011 / UAC-004)", () => {
     expect(screen.getByText("Fix WS reconnect backoff")).toBeTruthy();
     expect(screen.getByText("agent-grid / Fix WS reconnect backoff".split(" / ")[0])).toBeTruthy();
     expect(screen.getByLabelText("session metadata")?.textContent).toBe("claude · gpt-5 · high");
-    expect(screen.getByLabelText(/status: running/)).toBeTruthy();
+    expect(screen.getByLabelText(/status: Working/)).toBeTruthy();
   });
 
   it("mobile layout shows session title only (FR-013)", () => {
@@ -27,7 +27,7 @@ describe("HeaderBar (FR-011 / UAC-004)", () => {
         mobile
         project="/home/dev/dev/agent-grid"
         card={{ title: "Mobile session" }}
-        status="idle"
+        status={{ lifecycle: "idle", human_input: false, failure: "none" }}
       />,
     );
     expect(screen.getByText("Mobile session")).toBeTruthy();
@@ -49,7 +49,7 @@ describe("HeaderBar — terminate button (FR-024 / UAC-011)", () => {
     const { container } = render(
       <HeaderBar
         card={{ title: "alpha" }}
-        status="running"
+        status={{ lifecycle: "active", human_input: false, failure: "none" }}
         sessionId="s1"
         onRequestTerminate={vi.fn()}
       />,
@@ -60,7 +60,11 @@ describe("HeaderBar — terminate button (FR-024 / UAC-011)", () => {
 
   it("omits stop button when onRequestTerminate is absent", () => {
     const { container } = render(
-      <HeaderBar card={{ title: "alpha" }} status="running" sessionId="s1" />,
+      <HeaderBar
+        card={{ title: "alpha" }}
+        status={{ lifecycle: "active", human_input: false, failure: "none" }}
+        sessionId="s1"
+      />,
     );
     expect(container.querySelector(".session-terminate-button")).toBeNull();
   });
@@ -70,7 +74,7 @@ describe("HeaderBar — terminate button (FR-024 / UAC-011)", () => {
     render(
       <HeaderBar
         card={{ title: "alpha" }}
-        status="running"
+        status={{ lifecycle: "active", human_input: false, failure: "none" }}
         sessionId="s-id-42"
         onRequestTerminate={onRequest}
       />,
@@ -88,7 +92,7 @@ describe("HeaderBar — terminate button (FR-024 / UAC-011)", () => {
     render(
       <HeaderBar
         card={{ title: "New Session" }}
-        status="running"
+        status={{ lifecycle: "active", human_input: false, failure: "none" }}
         sessionId="s-empty"
         onRequestTerminate={onRequest}
       />,
@@ -119,7 +123,7 @@ describe("HeaderBar — FR-022 dissolution (UAC-010)", () => {
       <HeaderBar
         project="/home/dev/dev/agent-grid"
         card={{ title: "Session title", tags: [{ text: "tag-a" }] }}
-        status="running"
+        status={{ lifecycle: "active", human_input: false, failure: "none" }}
         model="gpt-5"
         effort="high"
         driver="claude"

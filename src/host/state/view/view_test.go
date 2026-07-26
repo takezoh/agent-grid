@@ -94,7 +94,7 @@ func TestViewJSONOmitEmpty(t *testing.T) {
 // field for every running session and the web client would render it as
 // "unknown". Round-trip a running View and assert the JSON contains the
 // status key.
-func TestViewJSONStatusAlwaysEmitted(t *testing.T) {
+func TestViewJSONNeverEmitsInternalDriverStatus(t *testing.T) {
 	for _, s := range []Status{StatusRunning, StatusWaiting, StatusIdle, StatusStopped, StatusPending} {
 		v := View{Card: Card{Title: "x"}, Status: s}
 		b, err := json.Marshal(v)
@@ -105,13 +105,8 @@ func TestViewJSONStatusAlwaysEmitted(t *testing.T) {
 		if err := json.Unmarshal(b, &obj); err != nil {
 			t.Fatalf("unmarshal %v: %v", s, err)
 		}
-		got, ok := obj["status"]
-		if !ok {
-			t.Errorf("status field missing for %v; json=%s", s, b)
-			continue
-		}
-		if got != s.String() {
-			t.Errorf("status field = %q, want %q (status %v)", got, s.String(), s)
+		if _, ok := obj["status"]; ok {
+			t.Errorf("legacy status field emitted for %v; json=%s", s, b)
 		}
 	}
 }

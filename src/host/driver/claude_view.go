@@ -58,6 +58,7 @@ func (d ClaudeDriver) view(cs ClaudeState) state.View {
 		Effort:          cs.Effort,
 		Status:          cs.Status,
 		StatusChangedAt: cs.StatusChangedAt,
+		Failed:          cs.Failed,
 	}
 }
 

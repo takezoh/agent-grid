@@ -22,6 +22,7 @@ const (
 	QuestionReasonClient    QuestionResolutionReason = "client"
 	QuestionReasonExpired   QuestionResolutionReason = "expired"
 	QuestionReasonCancelled QuestionResolutionReason = "cancelled"
+	QuestionReasonServer    QuestionResolutionReason = "server"
 )
 
 // DefaultQuestionTTL is the Phase 0 expiry window for free-text questions.

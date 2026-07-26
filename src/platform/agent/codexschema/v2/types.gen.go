@@ -16,11 +16,23 @@
 //    appListUpdatedNotification, err := UnmarshalAppListUpdatedNotification(bytes)
 //    bytes, err = appListUpdatedNotification.Marshal()
 //
+//    appsInstalledParams, err := UnmarshalAppsInstalledParams(bytes)
+//    bytes, err = appsInstalledParams.Marshal()
+//
+//    appsInstalledResponse, err := UnmarshalAppsInstalledResponse(bytes)
+//    bytes, err = appsInstalledResponse.Marshal()
+//
 //    appsListParams, err := UnmarshalAppsListParams(bytes)
 //    bytes, err = appsListParams.Marshal()
 //
 //    appsListResponse, err := UnmarshalAppsListResponse(bytes)
 //    bytes, err = appsListResponse.Marshal()
+//
+//    appsReadParams, err := UnmarshalAppsReadParams(bytes)
+//    bytes, err = appsReadParams.Marshal()
+//
+//    appsReadResponse, err := UnmarshalAppsReadResponse(bytes)
+//    bytes, err = appsReadResponse.Marshal()
 //
 //    cancelLoginAccountParams, err := UnmarshalCancelLoginAccountParams(bytes)
 //    bytes, err = cancelLoginAccountParams.Marshal()
@@ -79,11 +91,20 @@
 //    configWriteResponse, err := UnmarshalConfigWriteResponse(bytes)
 //    bytes, err = configWriteResponse.Marshal()
 //
+//    consumeAccountRateLimitResetCreditParams, err := UnmarshalConsumeAccountRateLimitResetCreditParams(bytes)
+//    bytes, err = consumeAccountRateLimitResetCreditParams.Marshal()
+//
+//    consumeAccountRateLimitResetCreditResponse, err := UnmarshalConsumeAccountRateLimitResetCreditResponse(bytes)
+//    bytes, err = consumeAccountRateLimitResetCreditResponse.Marshal()
+//
 //    contextCompactedNotification, err := UnmarshalContextCompactedNotification(bytes)
 //    bytes, err = contextCompactedNotification.Marshal()
 //
 //    deprecationNoticeNotification, err := UnmarshalDeprecationNoticeNotification(bytes)
 //    bytes, err = deprecationNoticeNotification.Marshal()
+//
+//    environmentConnectionNotification, err := UnmarshalEnvironmentConnectionNotification(bytes)
+//    bytes, err = environmentConnectionNotification.Marshal()
 //
 //    errorNotification, err := UnmarshalErrorNotification(bytes)
 //    bytes, err = errorNotification.Marshal()
@@ -109,8 +130,14 @@
 //    externalAgentConfigImportCompletedNotification, err := UnmarshalExternalAgentConfigImportCompletedNotification(bytes)
 //    bytes, err = externalAgentConfigImportCompletedNotification.Marshal()
 //
+//    externalAgentConfigImportHistoriesReadResponse, err := UnmarshalExternalAgentConfigImportHistoriesReadResponse(bytes)
+//    bytes, err = externalAgentConfigImportHistoriesReadResponse.Marshal()
+//
 //    externalAgentConfigImportParams, err := UnmarshalExternalAgentConfigImportParams(bytes)
 //    bytes, err = externalAgentConfigImportParams.Marshal()
+//
+//    externalAgentConfigImportProgressNotification, err := UnmarshalExternalAgentConfigImportProgressNotification(bytes)
+//    bytes, err = externalAgentConfigImportProgressNotification.Marshal()
 //
 //    externalAgentConfigImportResponse, err := UnmarshalExternalAgentConfigImportResponse(bytes)
 //    bytes, err = externalAgentConfigImportResponse.Marshal()
@@ -192,6 +219,12 @@
 //
 //    getAccountResponse, err := UnmarshalGetAccountResponse(bytes)
 //    bytes, err = getAccountResponse.Marshal()
+//
+//    getAccountTokenUsageResponse, err := UnmarshalGetAccountTokenUsageResponse(bytes)
+//    bytes, err = getAccountTokenUsageResponse.Marshal()
+//
+//    getWorkspaceMessagesResponse, err := UnmarshalGetWorkspaceMessagesResponse(bytes)
+//    bytes, err = getWorkspaceMessagesResponse.Marshal()
 //
 //    guardianWarningNotification, err := UnmarshalGuardianWarningNotification(bytes)
 //    bytes, err = guardianWarningNotification.Marshal()
@@ -298,6 +331,9 @@
 //    modelReroutedNotification, err := UnmarshalModelReroutedNotification(bytes)
 //    bytes, err = modelReroutedNotification.Marshal()
 //
+//    modelSafetyBufferingUpdatedNotification, err := UnmarshalModelSafetyBufferingUpdatedNotification(bytes)
+//    bytes, err = modelSafetyBufferingUpdatedNotification.Marshal()
+//
 //    modelVerificationNotification, err := UnmarshalModelVerificationNotification(bytes)
 //    bytes, err = modelVerificationNotification.Marshal()
 //
@@ -382,6 +418,9 @@
 //    processOutputDeltaNotification, err := UnmarshalProcessOutputDeltaNotification(bytes)
 //    bytes, err = processOutputDeltaNotification.Marshal()
 //
+//    rawResponseCompletedNotification, err := UnmarshalRawResponseCompletedNotification(bytes)
+//    bytes, err = rawResponseCompletedNotification.Marshal()
+//
 //    rawResponseItemCompletedNotification, err := UnmarshalRawResponseItemCompletedNotification(bytes)
 //    bytes, err = rawResponseItemCompletedNotification.Marshal()
 //
@@ -421,6 +460,12 @@
 //    skillsConfigWriteResponse, err := UnmarshalSkillsConfigWriteResponse(bytes)
 //    bytes, err = skillsConfigWriteResponse.Marshal()
 //
+//    skillsExtraRootsSetParams, err := UnmarshalSkillsExtraRootsSetParams(bytes)
+//    bytes, err = skillsExtraRootsSetParams.Marshal()
+//
+//    skillsExtraRootsSetResponse, err := UnmarshalSkillsExtraRootsSetResponse(bytes)
+//    bytes, err = skillsExtraRootsSetResponse.Marshal()
+//
 //    skillsListParams, err := UnmarshalSkillsListParams(bytes)
 //    bytes, err = skillsListParams.Marshal()
 //
@@ -453,6 +498,15 @@
 //
 //    threadCompactStartResponse, err := UnmarshalThreadCompactStartResponse(bytes)
 //    bytes, err = threadCompactStartResponse.Marshal()
+//
+//    threadDeleteParams, err := UnmarshalThreadDeleteParams(bytes)
+//    bytes, err = threadDeleteParams.Marshal()
+//
+//    threadDeleteResponse, err := UnmarshalThreadDeleteResponse(bytes)
+//    bytes, err = threadDeleteResponse.Marshal()
+//
+//    threadDeletedNotification, err := UnmarshalThreadDeletedNotification(bytes)
+//    bytes, err = threadDeletedNotification.Marshal()
 //
 //    threadForkParams, err := UnmarshalThreadForkParams(bytes)
 //    bytes, err = threadForkParams.Marshal()
@@ -610,6 +664,9 @@
 //    turnInterruptResponse, err := UnmarshalTurnInterruptResponse(bytes)
 //    bytes, err = turnInterruptResponse.Marshal()
 //
+//    turnModerationMetadataNotification, err := UnmarshalTurnModerationMetadataNotification(bytes)
+//    bytes, err = turnModerationMetadataNotification.Marshal()
+//
 //    turnPlanUpdatedNotification, err := UnmarshalTurnPlanUpdatedNotification(bytes)
 //    bytes, err = turnPlanUpdatedNotification.Marshal()
 //
@@ -703,6 +760,26 @@ func (r *AppListUpdatedNotification) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+func UnmarshalAppsInstalledParams(data []byte) (AppsInstalledParams, error) {
+	var r AppsInstalledParams
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *AppsInstalledParams) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalAppsInstalledResponse(data []byte) (AppsInstalledResponse, error) {
+	var r AppsInstalledResponse
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *AppsInstalledResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
 func UnmarshalAppsListParams(data []byte) (AppsListParams, error) {
 	var r AppsListParams
 	err := json.Unmarshal(data, &r)
@@ -720,6 +797,26 @@ func UnmarshalAppsListResponse(data []byte) (AppsListResponse, error) {
 }
 
 func (r *AppsListResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalAppsReadParams(data []byte) (AppsReadParams, error) {
+	var r AppsReadParams
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *AppsReadParams) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalAppsReadResponse(data []byte) (AppsReadResponse, error) {
+	var r AppsReadResponse
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *AppsReadResponse) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
@@ -919,6 +1016,26 @@ func (r *ConfigWriteResponse) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+func UnmarshalConsumeAccountRateLimitResetCreditParams(data []byte) (ConsumeAccountRateLimitResetCreditParams, error) {
+	var r ConsumeAccountRateLimitResetCreditParams
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *ConsumeAccountRateLimitResetCreditParams) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalConsumeAccountRateLimitResetCreditResponse(data []byte) (ConsumeAccountRateLimitResetCreditResponse, error) {
+	var r ConsumeAccountRateLimitResetCreditResponse
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *ConsumeAccountRateLimitResetCreditResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
 func UnmarshalContextCompactedNotification(data []byte) (ContextCompactedNotification, error) {
 	var r ContextCompactedNotification
 	err := json.Unmarshal(data, &r)
@@ -936,6 +1053,16 @@ func UnmarshalDeprecationNoticeNotification(data []byte) (DeprecationNoticeNotif
 }
 
 func (r *DeprecationNoticeNotification) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalEnvironmentConnectionNotification(data []byte) (EnvironmentConnectionNotification, error) {
+	var r EnvironmentConnectionNotification
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *EnvironmentConnectionNotification) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
@@ -1009,8 +1136,6 @@ func (r *ExternalAgentConfigDetectResponse) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
-type ExternalAgentConfigImportCompletedNotification map[string]interface{}
-
 func UnmarshalExternalAgentConfigImportCompletedNotification(data []byte) (ExternalAgentConfigImportCompletedNotification, error) {
 	var r ExternalAgentConfigImportCompletedNotification
 	err := json.Unmarshal(data, &r)
@@ -1018,6 +1143,16 @@ func UnmarshalExternalAgentConfigImportCompletedNotification(data []byte) (Exter
 }
 
 func (r *ExternalAgentConfigImportCompletedNotification) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalExternalAgentConfigImportHistoriesReadResponse(data []byte) (ExternalAgentConfigImportHistoriesReadResponse, error) {
+	var r ExternalAgentConfigImportHistoriesReadResponse
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *ExternalAgentConfigImportHistoriesReadResponse) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
@@ -1031,7 +1166,15 @@ func (r *ExternalAgentConfigImportParams) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
-type ExternalAgentConfigImportResponse map[string]interface{}
+func UnmarshalExternalAgentConfigImportProgressNotification(data []byte) (ExternalAgentConfigImportProgressNotification, error) {
+	var r ExternalAgentConfigImportProgressNotification
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *ExternalAgentConfigImportProgressNotification) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
 
 func UnmarshalExternalAgentConfigImportResponse(data []byte) (ExternalAgentConfigImportResponse, error) {
 	var r ExternalAgentConfigImportResponse
@@ -1310,6 +1453,26 @@ func UnmarshalGetAccountResponse(data []byte) (GetAccountResponse, error) {
 }
 
 func (r *GetAccountResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalGetAccountTokenUsageResponse(data []byte) (GetAccountTokenUsageResponse, error) {
+	var r GetAccountTokenUsageResponse
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *GetAccountTokenUsageResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalGetWorkspaceMessagesResponse(data []byte) (GetWorkspaceMessagesResponse, error) {
+	var r GetWorkspaceMessagesResponse
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *GetWorkspaceMessagesResponse) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
@@ -1669,6 +1832,16 @@ func (r *ModelReroutedNotification) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+func UnmarshalModelSafetyBufferingUpdatedNotification(data []byte) (ModelSafetyBufferingUpdatedNotification, error) {
+	var r ModelSafetyBufferingUpdatedNotification
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *ModelSafetyBufferingUpdatedNotification) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
 func UnmarshalModelVerificationNotification(data []byte) (ModelVerificationNotification, error) {
 	var r ModelVerificationNotification
 	err := json.Unmarshal(data, &r)
@@ -1955,6 +2128,16 @@ func (r *ProcessOutputDeltaNotification) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+func UnmarshalRawResponseCompletedNotification(data []byte) (RawResponseCompletedNotification, error) {
+	var r RawResponseCompletedNotification
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *RawResponseCompletedNotification) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
 func UnmarshalRawResponseItemCompletedNotification(data []byte) (RawResponseItemCompletedNotification, error) {
 	var r RawResponseItemCompletedNotification
 	err := json.Unmarshal(data, &r)
@@ -2087,6 +2270,28 @@ func (r *SkillsConfigWriteResponse) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+func UnmarshalSkillsExtraRootsSetParams(data []byte) (SkillsExtraRootsSetParams, error) {
+	var r SkillsExtraRootsSetParams
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *SkillsExtraRootsSetParams) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+type SkillsExtraRootsSetResponse map[string]interface{}
+
+func UnmarshalSkillsExtraRootsSetResponse(data []byte) (SkillsExtraRootsSetResponse, error) {
+	var r SkillsExtraRootsSetResponse
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *SkillsExtraRootsSetResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
 func UnmarshalSkillsListParams(data []byte) (SkillsListParams, error) {
 	var r SkillsListParams
 	err := json.Unmarshal(data, &r)
@@ -2200,6 +2405,38 @@ func UnmarshalThreadCompactStartResponse(data []byte) (ThreadCompactStartRespons
 }
 
 func (r *ThreadCompactStartResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalThreadDeleteParams(data []byte) (ThreadDeleteParams, error) {
+	var r ThreadDeleteParams
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *ThreadDeleteParams) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+type ThreadDeleteResponse map[string]interface{}
+
+func UnmarshalThreadDeleteResponse(data []byte) (ThreadDeleteResponse, error) {
+	var r ThreadDeleteResponse
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *ThreadDeleteResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+func UnmarshalThreadDeletedNotification(data []byte) (ThreadDeletedNotification, error) {
+	var r ThreadDeletedNotification
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *ThreadDeletedNotification) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
@@ -2731,6 +2968,16 @@ func (r *TurnInterruptResponse) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+func UnmarshalTurnModerationMetadataNotification(data []byte) (TurnModerationMetadataNotification, error) {
+	var r TurnModerationMetadataNotification
+	err := json.Unmarshal(data, &r)
+	return r, err
+}
+
+func (r *TurnModerationMetadataNotification) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
 func UnmarshalTurnPlanUpdatedNotification(data []byte) (TurnPlanUpdatedNotification, error) {
 	var r TurnPlanUpdatedNotification
 	err := json.Unmarshal(data, &r)
@@ -2857,24 +3104,39 @@ type AccountLoginCompletedNotification struct {
 	Success bool    `json:"success"`
 }
 
+// Sparse rolling rate-limit update.
+//
+// Clients should merge available values into the most recent `account/rateLimits/read`
+// response or refetch that snapshot. Nullable account metadata may be unavailable in a
+// rolling update and does not clear a previously observed value.
 type AccountRateLimitsUpdatedNotification struct {
 	RateLimits AccountRateLimitsUpdatedNotificationRateLimits `json:"rateLimits"`
 }
 
 type AccountRateLimitsUpdatedNotificationRateLimits struct {
-	Credits              *PurpleCreditsSnapshot `json:"credits"`
-	LimitID              *string                `json:"limitId"`
-	LimitName            *string                `json:"limitName"`
-	PlanType             *PlanType              `json:"planType"`
-	Primary              *PurpleRateLimitWindow `json:"primary"`
-	RateLimitReachedType *RateLimitReachedType  `json:"rateLimitReachedType"`
-	Secondary            *PurpleRateLimitWindow `json:"secondary"`
+	Credits              *PurpleCreditsSnapshot           `json:"credits"`
+	IndividualLimit      *PurpleSpendControlLimitSnapshot `json:"individualLimit"`
+	LimitID              *string                          `json:"limitId"`
+	LimitName            *string                          `json:"limitName"`
+	PlanType             *PlanType                        `json:"planType"`
+	Primary              *PurpleRateLimitWindow           `json:"primary"`
+	RateLimitReachedType *RateLimitReachedType            `json:"rateLimitReachedType"`
+	Secondary            *PurpleRateLimitWindow           `json:"secondary"`
+	// Backend-reported spend-control state. `None` is unavailable, not a sparse-update recovery.
+	SpendControlReached *bool `json:"spendControlReached"`
 }
 
 type PurpleCreditsSnapshot struct {
 	Balance    *string `json:"balance"`
 	HasCredits bool    `json:"hasCredits"`
 	Unlimited  bool    `json:"unlimited"`
+}
+
+type PurpleSpendControlLimitSnapshot struct {
+	Limit            string `json:"limit"`
+	RemainingPercent int64  `json:"remainingPercent"`
+	ResetsAt         int64  `json:"resetsAt"`
+	Used             string `json:"used"`
 }
 
 type PurpleRateLimitWindow struct {
@@ -2902,21 +3164,23 @@ type AppListUpdatedNotification struct {
 
 // EXPERIMENTAL - app metadata returned by app-list APIs.
 type AppListUpdatedNotificationDatum struct {
-	AppMetadata                                                                             *PurpleAppMetadata `json:"appMetadata"`
-	Branding                                                                                *PurpleAppBranding `json:"branding"`
-	Description                                                                             *string            `json:"description"`
-	DistributionChannel                                                                     *string            `json:"distributionChannel"`
-	ID                                                                                      string             `json:"id"`
-	InstallURL                                                                              *string            `json:"installUrl"`
-	IsAccessible                                                                            *bool              `json:"isAccessible,omitempty"`
-	// Whether this app is enabled in config.toml. Example: ```toml [apps.bad_app] enabled =                   
-	// false ```                                                                                               
-	IsEnabled                                                                               *bool              `json:"isEnabled,omitempty"`
-	Labels                                                                                  map[string]string  `json:"labels"`
-	LogoURL                                                                                 *string            `json:"logoUrl"`
-	LogoURLDark                                                                             *string            `json:"logoUrlDark"`
-	Name                                                                                    string             `json:"name"`
-	PluginDisplayNames                                                                      []string           `json:"pluginDisplayNames,omitempty"`
+	AppMetadata         *PurpleAppMetadata `json:"appMetadata"`
+	Branding            *PurpleAppBranding `json:"branding"`
+	Description         *string            `json:"description"`
+	DistributionChannel *string            `json:"distributionChannel"`
+	IconAssets          map[string]string  `json:"iconAssets"`
+	IconDarkAssets      map[string]string  `json:"iconDarkAssets"`
+	ID                  string             `json:"id"`
+	InstallURL          *string            `json:"installUrl"`
+	IsAccessible        *bool              `json:"isAccessible,omitempty"`
+	// Whether this app is enabled in config.toml. Example: ```toml [apps.bad_app] enabled =
+	// false ```
+	IsEnabled          *bool             `json:"isEnabled,omitempty"`
+	Labels             map[string]string `json:"labels"`
+	LogoURL            *string           `json:"logoUrl"`
+	LogoURLDark        *string           `json:"logoUrlDark"`
+	Name               string            `json:"name"`
+	PluginDisplayNames []string          `json:"pluginDisplayNames,omitempty"`
 }
 
 type PurpleAppMetadata struct {
@@ -2954,43 +3218,73 @@ type PurpleAppBranding struct {
 	Website           *string `json:"website"`
 }
 
+// Read the committed installed connector runtime snapshot.
+type AppsInstalledParams struct {
+	// When true and Apps are permitted, refresh and publish the hosted connector runtime tool
+	// snapshot first.
+	ForceRefresh *bool `json:"forceRefresh,omitempty"`
+	// Optional loaded thread id used to evaluate effective app configuration.
+	ThreadID *string `json:"threadId"`
+}
+
+// The installed connectors in one committed runtime snapshot.
+type AppsInstalledResponse struct {
+	Apps []InstalledApp `json:"apps"`
+}
+
+// Installed connector runtime state.
+type InstalledApp struct {
+	// Whether the connector is enabled and has a non-synthetic, model-visible tool allowed by
+	// effective MCP and app/tool policy in the committed runtime snapshot.
+	Callable bool `json:"callable"`
+	// Effective enabled state after applying global, workspace, local, and managed
+	// configuration at read time.
+	Enabled bool   `json:"enabled"`
+	ID      string `json:"id"`
+	// Best-effort name carried by the runtime tool catalog. Canonical app metadata remains
+	// owned by `app/read`.
+	RuntimeName *string `json:"runtimeName"`
+}
+
 // EXPERIMENTAL - list available apps/connectors.
 type AppsListParams struct {
-	// Opaque pagination cursor returned by a previous call.                                    
-	Cursor                                                                              *string `json:"cursor"`
-	// When true, bypass app caches and fetch the latest data from sources.                     
-	ForceRefetch                                                                        *bool   `json:"forceRefetch,omitempty"`
-	// Optional page size; defaults to a reasonable server-side value.                          
-	Limit                                                                               *int64  `json:"limit"`
-	// Optional thread id used to evaluate app feature gating from that thread's config.        
-	ThreadID                                                                            *string `json:"threadId"`
+	// Opaque pagination cursor returned by a previous call.
+	Cursor *string `json:"cursor"`
+	// When true, bypass app caches and fetch the latest data from sources.
+	ForceRefetch *bool `json:"forceRefetch,omitempty"`
+	// Optional page size; defaults to a reasonable server-side value.
+	Limit *int64 `json:"limit"`
+	// Optional thread id used to evaluate app feature gating from that thread's config.
+	ThreadID *string `json:"threadId"`
 }
 
 // EXPERIMENTAL - app list response.
 type AppsListResponse struct {
-	Data                                                                                     []AppsListResponseDatum `json:"data"`
-	// Opaque cursor to pass to the next call to continue after the last item. If None, there                        
-	// are no more items to return.                                                                                  
-	NextCursor                                                                               *string                 `json:"nextCursor"`
+	Data []AppsListResponseDatum `json:"data"`
+	// Opaque cursor to pass to the next call to continue after the last item. If None, there
+	// are no more items to return.
+	NextCursor *string `json:"nextCursor"`
 }
 
 // EXPERIMENTAL - app metadata returned by app-list APIs.
 type AppsListResponseDatum struct {
-	AppMetadata                                                                             *FluffyAppMetadata `json:"appMetadata"`
-	Branding                                                                                *FluffyAppBranding `json:"branding"`
-	Description                                                                             *string            `json:"description"`
-	DistributionChannel                                                                     *string            `json:"distributionChannel"`
-	ID                                                                                      string             `json:"id"`
-	InstallURL                                                                              *string            `json:"installUrl"`
-	IsAccessible                                                                            *bool              `json:"isAccessible,omitempty"`
-	// Whether this app is enabled in config.toml. Example: ```toml [apps.bad_app] enabled =                   
-	// false ```                                                                                               
-	IsEnabled                                                                               *bool              `json:"isEnabled,omitempty"`
-	Labels                                                                                  map[string]string  `json:"labels"`
-	LogoURL                                                                                 *string            `json:"logoUrl"`
-	LogoURLDark                                                                             *string            `json:"logoUrlDark"`
-	Name                                                                                    string             `json:"name"`
-	PluginDisplayNames                                                                      []string           `json:"pluginDisplayNames,omitempty"`
+	AppMetadata         *FluffyAppMetadata `json:"appMetadata"`
+	Branding            *FluffyAppBranding `json:"branding"`
+	Description         *string            `json:"description"`
+	DistributionChannel *string            `json:"distributionChannel"`
+	IconAssets          map[string]string  `json:"iconAssets"`
+	IconDarkAssets      map[string]string  `json:"iconDarkAssets"`
+	ID                  string             `json:"id"`
+	InstallURL          *string            `json:"installUrl"`
+	IsAccessible        *bool              `json:"isAccessible,omitempty"`
+	// Whether this app is enabled in config.toml. Example: ```toml [apps.bad_app] enabled =
+	// false ```
+	IsEnabled          *bool             `json:"isEnabled,omitempty"`
+	Labels             map[string]string `json:"labels"`
+	LogoURL            *string           `json:"logoUrl"`
+	LogoURLDark        *string           `json:"logoUrlDark"`
+	Name               string            `json:"name"`
+	PluginDisplayNames []string          `json:"pluginDisplayNames,omitempty"`
 }
 
 type FluffyAppMetadata struct {
@@ -3028,6 +3322,41 @@ type FluffyAppBranding struct {
 	Website           *string `json:"website"`
 }
 
+// EXPERIMENTAL - read metadata for specific apps/connectors.
+type AppsReadParams struct {
+	// App ids to read. The server accepts at most 100 ids and deduplicates repeated ids while
+	// preserving their first-request order.
+	AppIDS []string `json:"appIds"`
+	// When true, include display-only public tool summaries in the returned metadata.
+	IncludeTools *bool `json:"includeTools,omitempty"`
+}
+
+// EXPERIMENTAL - app/read response.
+type AppsReadResponse struct {
+	Apps          []ConnectorMetadata `json:"apps"`
+	MissingAppIDS []string            `json:"missingAppIds"`
+}
+
+// EXPERIMENTAL - metadata returned by app/read.
+type ConnectorMetadata struct {
+	Description         *string          `json:"description"`
+	DistributionChannel *string          `json:"distributionChannel"`
+	IconURL             *string          `json:"iconUrl"`
+	IconURLDark         *string          `json:"iconUrlDark"`
+	ID                  string           `json:"id"`
+	InstallURL          *string          `json:"installUrl"`
+	Name                string           `json:"name"`
+	PluginDisplayNames  []string         `json:"pluginDisplayNames,omitempty"`
+	ToolSummaries       []AppToolSummary `json:"toolSummaries"`
+}
+
+// EXPERIMENTAL - metadata returned by app/read.
+type AppToolSummary struct {
+	Description string  `json:"description"`
+	Name        string  `json:"name"`
+	Title       *string `json:"title"`
+}
+
 type CancelLoginAccountParams struct {
 	LoginID string `json:"loginId"`
 }
@@ -3041,15 +3370,15 @@ type CancelLoginAccountResponse struct {
 // These notifications are connection-scoped. If the originating connection closes, the
 // server terminates the process.
 type CommandExecOutputDeltaNotification struct {
-	// `true` on the final streamed chunk for a stream when `outputBytesCap` truncated later                
-	// output on that stream.                                                                               
-	CapReached                                                                                 bool         `json:"capReached"`
-	// Base64-encoded output bytes.                                                                         
-	DeltaBase64                                                                                string       `json:"deltaBase64"`
-	// Client-supplied, connection-scoped `processId` from the original `command/exec` request.             
-	ProcessID                                                                                  string       `json:"processId"`
-	// Output stream for this chunk.                                                                        
-	Stream                                                                                     OutputStream `json:"stream"`
+	// `true` on the final streamed chunk for a stream when `outputBytesCap` truncated later
+	// output on that stream.
+	CapReached bool `json:"capReached"`
+	// Base64-encoded output bytes.
+	DeltaBase64 string `json:"deltaBase64"`
+	// Client-supplied, connection-scoped `processId` from the original `command/exec` request.
+	ProcessID string `json:"processId"`
+	// Output stream for this chunk.
+	Stream OutputStream `json:"stream"`
 }
 
 // Run a standalone command (argv vector) in the server sandbox without creating a thread or
@@ -3058,57 +3387,57 @@ type CommandExecOutputDeltaNotification struct {
 // The final `command/exec` response is deferred until the process exits and is sent only
 // after all `command/exec/outputDelta` notifications for that connection have been emitted.
 type CommandExecParams struct {
-	// Command argv vector. Empty arrays are rejected.                                                                                        
-	Command                                                                                   []string                                        `json:"command"`
-	// Optional working directory. Defaults to the server cwd.                                                                                
-	Cwd                                                                                       *string                                         `json:"cwd"`
-	// Disable stdout/stderr capture truncation for this request.                                                                             
-	//                                                                                                                                        
-	// Cannot be combined with `outputBytesCap`.                                                                                              
-	DisableOutputCap                                                                          *bool                                           `json:"disableOutputCap,omitempty"`
-	// Disable the timeout entirely for this request.                                                                                         
-	//                                                                                                                                        
-	// Cannot be combined with `timeoutMs`.                                                                                                   
-	DisableTimeout                                                                            *bool                                           `json:"disableTimeout,omitempty"`
-	// Optional environment overrides merged into the server-computed environment.                                                            
-	//                                                                                                                                        
-	// Matching names override inherited values. Set a key to `null` to unset an inherited                                                    
-	// variable.                                                                                                                              
-	Env                                                                                       map[string]*string                              `json:"env"`
-	// Optional per-stream stdout/stderr capture cap in bytes.                                                                                
-	//                                                                                                                                        
-	// When omitted, the server default applies. Cannot be combined with `disableOutputCap`.                                                  
-	OutputBytesCap                                                                            *int64                                          `json:"outputBytesCap"`
-	// Optional client-supplied, connection-scoped process id.                                                                                
-	//                                                                                                                                        
-	// Required for `tty`, `streamStdin`, `streamStdoutStderr`, and follow-up                                                                 
-	// `command/exec/write`, `command/exec/resize`, and `command/exec/terminate` calls. When                                                  
-	// omitted, buffered execution gets an internal id that is not exposed to the client.                                                     
-	ProcessID                                                                                 *string                                         `json:"processId"`
-	// Optional sandbox policy for this command.                                                                                              
-	//                                                                                                                                        
-	// Uses the same shape as thread/turn execution sandbox configuration and defaults to the                                                 
-	// user's configured policy when omitted. Cannot be combined with `permissionProfile`.                                                    
-	SandboxPolicy                                                                             *CommandExecParamsDangerFullAccessSandboxPolicy `json:"sandboxPolicy"`
-	// Optional initial PTY size in character cells. Only valid when `tty` is true.                                                           
-	Size                                                                                      *CommandExecTerminalSize                        `json:"size"`
-	// Allow follow-up `command/exec/write` requests to write stdin bytes.                                                                    
-	//                                                                                                                                        
-	// Requires a client-supplied `processId`.                                                                                                
-	StreamStdin                                                                               *bool                                           `json:"streamStdin,omitempty"`
-	// Stream stdout/stderr via `command/exec/outputDelta` notifications.                                                                     
-	//                                                                                                                                        
-	// Streamed bytes are not duplicated into the final response and require a client-supplied                                                
-	// `processId`.                                                                                                                           
-	StreamStdoutStderr                                                                        *bool                                           `json:"streamStdoutStderr,omitempty"`
-	// Optional timeout in milliseconds.                                                                                                      
-	//                                                                                                                                        
-	// When omitted, the server default applies. Cannot be combined with `disableTimeout`.                                                    
-	TimeoutMS                                                                                 *int64                                          `json:"timeoutMs"`
-	// Enable PTY mode.                                                                                                                       
-	//                                                                                                                                        
-	// This implies `streamStdin` and `streamStdoutStderr`.                                                                                   
-	TTY                                                                                       *bool                                           `json:"tty,omitempty"`
+	// Command argv vector. Empty arrays are rejected.
+	Command []string `json:"command"`
+	// Optional working directory. Defaults to the server cwd.
+	Cwd *string `json:"cwd"`
+	// Disable stdout/stderr capture truncation for this request.
+	//
+	// Cannot be combined with `outputBytesCap`.
+	DisableOutputCap *bool `json:"disableOutputCap,omitempty"`
+	// Disable the timeout entirely for this request.
+	//
+	// Cannot be combined with `timeoutMs`.
+	DisableTimeout *bool `json:"disableTimeout,omitempty"`
+	// Optional environment overrides merged into the server-computed environment.
+	//
+	// Matching names override inherited values. Set a key to `null` to unset an inherited
+	// variable.
+	Env map[string]*string `json:"env"`
+	// Optional per-stream stdout/stderr capture cap in bytes.
+	//
+	// When omitted, the server default applies. Cannot be combined with `disableOutputCap`.
+	OutputBytesCap *int64 `json:"outputBytesCap"`
+	// Optional client-supplied, connection-scoped process id.
+	//
+	// Required for `tty`, `streamStdin`, `streamStdoutStderr`, and follow-up
+	// `command/exec/write`, `command/exec/resize`, and `command/exec/terminate` calls. When
+	// omitted, buffered execution gets an internal id that is not exposed to the client.
+	ProcessID *string `json:"processId"`
+	// Optional sandbox policy for this command.
+	//
+	// Uses the same shape as thread/turn execution sandbox configuration and defaults to the
+	// user's configured policy when omitted. Cannot be combined with `permissionProfile`.
+	SandboxPolicy *CommandExecParamsDangerFullAccessSandboxPolicy `json:"sandboxPolicy"`
+	// Optional initial PTY size in character cells. Only valid when `tty` is true.
+	Size *CommandExecTerminalSize `json:"size"`
+	// Allow follow-up `command/exec/write` requests to write stdin bytes.
+	//
+	// Requires a client-supplied `processId`.
+	StreamStdin *bool `json:"streamStdin,omitempty"`
+	// Stream stdout/stderr via `command/exec/outputDelta` notifications.
+	//
+	// Streamed bytes are not duplicated into the final response and require a client-supplied
+	// `processId`.
+	StreamStdoutStderr *bool `json:"streamStdoutStderr,omitempty"`
+	// Optional timeout in milliseconds.
+	//
+	// When omitted, the server default applies. Cannot be combined with `disableTimeout`.
+	TimeoutMS *int64 `json:"timeoutMs"`
+	// Enable PTY mode.
+	//
+	// This implies `streamStdin` and `streamStdoutStderr`.
+	TTY *bool `json:"tty,omitempty"`
 }
 
 type CommandExecParamsDangerFullAccessSandboxPolicy struct {
@@ -3121,58 +3450,58 @@ type CommandExecParamsDangerFullAccessSandboxPolicy struct {
 
 // PTY size in character cells for `command/exec` PTY sessions.
 type CommandExecTerminalSize struct {
-	// Terminal width in character cells.       
-	Cols                                  int64 `json:"cols"`
-	// Terminal height in character cells.      
-	Rows                                  int64 `json:"rows"`
+	// Terminal width in character cells.
+	Cols int64 `json:"cols"`
+	// Terminal height in character cells.
+	Rows int64 `json:"rows"`
 }
 
 // Resize a running PTY-backed `command/exec` session.
 type CommandExecResizeParams struct {
-	// Client-supplied, connection-scoped `processId` from the original `command/exec` request.          
-	ProcessID                                                                                  string    `json:"processId"`
-	// New PTY size in character cells.                                                                  
-	Size                                                                                       SizeClass `json:"size"`
+	// Client-supplied, connection-scoped `processId` from the original `command/exec` request.
+	ProcessID string `json:"processId"`
+	// New PTY size in character cells.
+	Size SizeClass `json:"size"`
 }
 
 // New PTY size in character cells.
 //
 // PTY size in character cells for `command/exec` PTY sessions.
 type SizeClass struct {
-	// Terminal width in character cells.       
-	Cols                                  int64 `json:"cols"`
-	// Terminal height in character cells.      
-	Rows                                  int64 `json:"rows"`
+	// Terminal width in character cells.
+	Cols int64 `json:"cols"`
+	// Terminal height in character cells.
+	Rows int64 `json:"rows"`
 }
 
 // Final buffered result for `command/exec`.
 type CommandExecResponse struct {
-	// Process exit code.                                                   
-	ExitCode                                                         int64  `json:"exitCode"`
-	// Buffered stderr capture.                                             
-	//                                                                      
-	// Empty when stderr was streamed via `command/exec/outputDelta`.       
-	Stderr                                                           string `json:"stderr"`
-	// Buffered stdout capture.                                             
-	//                                                                      
-	// Empty when stdout was streamed via `command/exec/outputDelta`.       
-	Stdout                                                           string `json:"stdout"`
+	// Process exit code.
+	ExitCode int64 `json:"exitCode"`
+	// Buffered stderr capture.
+	//
+	// Empty when stderr was streamed via `command/exec/outputDelta`.
+	Stderr string `json:"stderr"`
+	// Buffered stdout capture.
+	//
+	// Empty when stdout was streamed via `command/exec/outputDelta`.
+	Stdout string `json:"stdout"`
 }
 
 // Terminate a running `command/exec` session.
 type CommandExecTerminateParams struct {
-	// Client-supplied, connection-scoped `processId` from the original `command/exec` request.       
-	ProcessID                                                                                  string `json:"processId"`
+	// Client-supplied, connection-scoped `processId` from the original `command/exec` request.
+	ProcessID string `json:"processId"`
 }
 
 // Write stdin bytes to a running `command/exec` session, close stdin, or both.
 type CommandExecWriteParams struct {
-	// Close stdin after writing `deltaBase64`, if present.                                            
-	CloseStdin                                                                                 *bool   `json:"closeStdin,omitempty"`
-	// Optional base64-encoded stdin bytes to write.                                                   
-	DeltaBase64                                                                                *string `json:"deltaBase64"`
-	// Client-supplied, connection-scoped `processId` from the original `command/exec` request.        
-	ProcessID                                                                                  string  `json:"processId"`
+	// Close stdin after writing `deltaBase64`, if present.
+	CloseStdin *bool `json:"closeStdin,omitempty"`
+	// Optional base64-encoded stdin bytes to write.
+	DeltaBase64 *string `json:"deltaBase64"`
+	// Client-supplied, connection-scoped `processId` from the original `command/exec` request.
+	ProcessID string `json:"processId"`
 }
 
 type CommandExecutionOutputDeltaNotification struct {
@@ -3183,12 +3512,12 @@ type CommandExecutionOutputDeltaNotification struct {
 }
 
 type ConfigBatchWriteParams struct {
-	Edits                                                                                  []ConfigEdit `json:"edits"`
-	ExpectedVersion                                                                        *string      `json:"expectedVersion"`
-	// Path to the config file to write; defaults to the user's `config.toml` when omitted.             
-	FilePath                                                                               *string      `json:"filePath"`
-	// When true, hot-reload the updated user config into all loaded threads after writing.             
-	ReloadUserConfig                                                                       *bool        `json:"reloadUserConfig,omitempty"`
+	Edits           []ConfigEdit `json:"edits"`
+	ExpectedVersion *string      `json:"expectedVersion"`
+	// Path to the config file to write; defaults to the user's `config.toml` when omitted.
+	FilePath *string `json:"filePath"`
+	// When true, hot-reload the updated user config into all loaded threads after writing.
+	ReloadUserConfig *bool `json:"reloadUserConfig,omitempty"`
 }
 
 type ConfigEdit struct {
@@ -3198,11 +3527,11 @@ type ConfigEdit struct {
 }
 
 type ConfigReadParams struct {
-	// Optional working directory to resolve project config layers. If specified, return the           
-	// effective config as seen from that directory (i.e., including any project layers between        
-	// `cwd` and the project/repo root).                                                               
-	Cwd                                                                                        *string `json:"cwd"`
-	IncludeLayers                                                                              *bool   `json:"includeLayers,omitempty"`
+	// Optional working directory to resolve project config layers. If specified, return the
+	// effective config as seen from that directory (i.e., including any project layers between
+	// `cwd` and the project/repo root).
+	Cwd           *string `json:"cwd"`
+	IncludeLayers *bool   `json:"includeLayers,omitempty"`
 }
 
 type ConfigReadResponse struct {
@@ -3212,32 +3541,30 @@ type ConfigReadResponse struct {
 }
 
 type ConfigClass struct {
-	Analytics                                                                        *AnalyticsConfig            `json:"analytics"`
-	ApprovalPolicy                                                                   *ApprovalPolicyUnion        `json:"approval_policy"`
-	// [UNSTABLE] Optional default for where approval requests are routed for review.                            
-	ApprovalsReviewer                                                                *ApprovalsReviewer          `json:"approvals_reviewer"`
-	CompactPrompt                                                                    *string                     `json:"compact_prompt"`
-	Desktop                                                                          map[string]interface{}      `json:"desktop"`
-	DeveloperInstructions                                                            *string                     `json:"developer_instructions"`
-	ForcedChatgptWorkspaceID                                                         *ForcedChatgptWorkspaceIDS  `json:"forced_chatgpt_workspace_id"`
-	ForcedLoginMethod                                                                *ForcedLoginMethod          `json:"forced_login_method"`
-	Instructions                                                                     *string                     `json:"instructions"`
-	Model                                                                            *string                     `json:"model"`
-	ModelAutoCompactTokenLimit                                                       *int64                      `json:"model_auto_compact_token_limit"`
-	ModelAutoCompactTokenLimitScope                                                  *AutoCompactTokenLimitScope `json:"model_auto_compact_token_limit_scope"`
-	ModelContextWindow                                                               *int64                      `json:"model_context_window"`
-	ModelProvider                                                                    *string                     `json:"model_provider"`
-	ModelReasoningEffort                                                             *ReasoningEffort            `json:"model_reasoning_effort"`
-	ModelReasoningSummary                                                            *ReasoningSummary           `json:"model_reasoning_summary"`
-	ModelVerbosity                                                                   *Verbosity                  `json:"model_verbosity"`
-	Profile                                                                          *string                     `json:"profile"`
-	Profiles                                                                         map[string]ProfileV2        `json:"profiles,omitempty"`
-	ReviewModel                                                                      *string                     `json:"review_model"`
-	SandboxMode                                                                      *SandboxMode                `json:"sandbox_mode"`
-	SandboxWorkspaceWrite                                                            *SandboxWorkspaceWrite      `json:"sandbox_workspace_write"`
-	ServiceTier                                                                      *string                     `json:"service_tier"`
-	Tools                                                                            *ToolsV2                    `json:"tools"`
-	WebSearch                                                                        *WebSearchMode              `json:"web_search"`
+	Analytics      *AnalyticsConfig     `json:"analytics"`
+	ApprovalPolicy *ApprovalPolicyUnion `json:"approval_policy"`
+	// [UNSTABLE] Optional default for where approval requests are routed for review.
+	ApprovalsReviewer               *ApprovalsReviewer          `json:"approvals_reviewer"`
+	CompactPrompt                   *string                     `json:"compact_prompt"`
+	Desktop                         map[string]interface{}      `json:"desktop"`
+	DeveloperInstructions           *string                     `json:"developer_instructions"`
+	ForcedChatgptWorkspaceID        *ForcedChatgptWorkspaceIDS  `json:"forced_chatgpt_workspace_id"`
+	ForcedLoginMethod               *ForcedLoginMethod          `json:"forced_login_method"`
+	Instructions                    *string                     `json:"instructions"`
+	Model                           *string                     `json:"model"`
+	ModelAutoCompactTokenLimit      *int64                      `json:"model_auto_compact_token_limit"`
+	ModelAutoCompactTokenLimitScope *AutoCompactTokenLimitScope `json:"model_auto_compact_token_limit_scope"`
+	ModelContextWindow              *int64                      `json:"model_context_window"`
+	ModelProvider                   *string                     `json:"model_provider"`
+	ModelReasoningEffort            *string                     `json:"model_reasoning_effort"`
+	ModelReasoningSummary           *ReasoningSummary           `json:"model_reasoning_summary"`
+	ModelVerbosity                  *Verbosity                  `json:"model_verbosity"`
+	ReviewModel                     *string                     `json:"review_model"`
+	SandboxMode                     *SandboxMode                `json:"sandbox_mode"`
+	SandboxWorkspaceWrite           *SandboxWorkspaceWrite      `json:"sandbox_workspace_write"`
+	ServiceTier                     *string                     `json:"service_tier"`
+	Tools                           *ToolsV2                    `json:"tools"`
+	WebSearch                       *WebSearchMode              `json:"web_search"`
 }
 
 type AnalyticsConfig struct {
@@ -3256,20 +3583,11 @@ type PurpleGranular struct {
 	SkillApproval      *bool `json:"skill_approval,omitempty"`
 }
 
-type ProfileV2 struct {
-	ApprovalPolicy                                                                          *ApprovalPolicyUnion `json:"approval_policy"`
-	// [UNSTABLE] Optional profile-level override for where approval requests are routed for                     
-	// review. If omitted, the enclosing config default is used.                                                 
-	ApprovalsReviewer                                                                       *ApprovalsReviewer   `json:"approvals_reviewer"`
-	ChatgptBaseURL                                                                          *string              `json:"chatgpt_base_url"`
-	Model                                                                                   *string              `json:"model"`
-	ModelProvider                                                                           *string              `json:"model_provider"`
-	ModelReasoningEffort                                                                    *ReasoningEffort     `json:"model_reasoning_effort"`
-	ModelReasoningSummary                                                                   *ReasoningSummary    `json:"model_reasoning_summary"`
-	ModelVerbosity                                                                          *Verbosity           `json:"model_verbosity"`
-	ServiceTier                                                                             *string              `json:"service_tier"`
-	Tools                                                                                   *ToolsV2             `json:"tools"`
-	WebSearch                                                                               *WebSearchMode       `json:"web_search"`
+type SandboxWorkspaceWrite struct {
+	ExcludeSlashTmp     *bool    `json:"exclude_slash_tmp,omitempty"`
+	ExcludeTmpdirEnvVar *bool    `json:"exclude_tmpdir_env_var,omitempty"`
+	NetworkAccess       *bool    `json:"network_access,omitempty"`
+	WritableRoots       []string `json:"writable_roots,omitempty"`
 }
 
 type ToolsV2 struct {
@@ -3289,13 +3607,6 @@ type WebSearchLocation struct {
 	Timezone *string `json:"timezone"`
 }
 
-type SandboxWorkspaceWrite struct {
-	ExcludeSlashTmp     *bool    `json:"exclude_slash_tmp,omitempty"`
-	ExcludeTmpdirEnvVar *bool    `json:"exclude_tmpdir_env_var,omitempty"`
-	NetworkAccess       *bool    `json:"network_access,omitempty"`
-	WritableRoots       []string `json:"writable_roots,omitempty"`
-}
-
 type ConfigLayer struct {
 	Config         interface{}            `json:"config"`
 	DisabledReason *string                `json:"disabledReason"`
@@ -3306,6 +3617,8 @@ type ConfigLayer struct {
 // Managed preferences layer delivered by MDM (macOS only).
 //
 // Managed config layer from a file (usually `managed_config.toml`).
+//
+// Enterprise-managed config layer delivered by the cloud config bundle.
 //
 // User config layer from $CODEX_HOME/config.toml. This layer is special in that it is
 // expected to be: - writable by the user - generally outside the workspace directory
@@ -3320,17 +3633,22 @@ type ConfigLayer struct {
 // variant as a "best effort" while we phase out `managed_config.toml` in favor of
 // `requirements.toml`.
 type LayerConfigLayerSource struct {
-	Domain                                                                                     *string               `json:"domain,omitempty"`
-	Key                                                                                        *string               `json:"key,omitempty"`
-	Type                                                                                       ConfigLayerSourceType `json:"type"`
-	// This is the path to the system config.toml file, though it is not guaranteed to exist.                        
-	//                                                                                                               
-	// This is the path to the user's config.toml file, though it is not guaranteed to exist.                        
-	File                                                                                       *string               `json:"file,omitempty"`
-	// Name of the selected profile-v2 config layered on top of the base user config, when this                      
-	// layer represents one.                                                                                         
-	Profile                                                                                    *string               `json:"profile"`
-	DotCodexFolder                                                                             *string               `json:"dotCodexFolder,omitempty"`
+	Domain *string               `json:"domain,omitempty"`
+	Key    *string               `json:"key,omitempty"`
+	Type   ConfigLayerSourceType `json:"type"`
+	// This is the path to the system config.toml file, though it is not guaranteed to exist.
+	//
+	// This is the path to the user's config.toml file, though it is not guaranteed to exist.
+	File *string `json:"file,omitempty"`
+	// Stable identifier for the delivered layer.
+	ID *string `json:"id,omitempty"`
+	// Admin-facing name for the delivered layer. This is surfaced in diagnostics so users know
+	// which cloud layer needs administrator attention.
+	Name *string `json:"name,omitempty"`
+	// Name of the selected profile-v2 config layered on top of the base user config, when this
+	// layer represents one.
+	Profile        *string `json:"profile"`
+	DotCodexFolder *string `json:"dotCodexFolder,omitempty"`
 }
 
 type OriginValue struct {
@@ -3339,19 +3657,24 @@ type OriginValue struct {
 }
 
 type ConfigRequirementsReadResponse struct {
-	// Null if no requirements are configured (e.g. no requirements.toml/MDM entries).                    
-	Requirements                                                                      *ConfigRequirements `json:"requirements"`
+	// Null if no requirements are configured (e.g. no requirements.toml/MDM entries).
+	Requirements *ConfigRequirements `json:"requirements"`
 }
 
 type ConfigRequirements struct {
-	AllowedApprovalPolicies []AskForApprovalElement  `json:"allowedApprovalPolicies"`
-	AllowedPermissions      []string                 `json:"allowedPermissions"`
-	AllowedSandboxModes     []SandboxMode            `json:"allowedSandboxModes"`
-	AllowedWebSearchModes   []WebSearchMode          `json:"allowedWebSearchModes"`
-	AllowManagedHooksOnly   *bool                    `json:"allowManagedHooksOnly"`
-	ComputerUse             *ComputerUseRequirements `json:"computerUse"`
-	EnforceResidency        *ResidencyRequirement    `json:"enforceResidency"`
-	FeatureRequirements     map[string]bool          `json:"featureRequirements"`
+	AllowAppshots                        *bool                     `json:"allowAppshots"`
+	AllowedApprovalPolicies              []AskForApprovalElement   `json:"allowedApprovalPolicies"`
+	AllowedPermissionProfiles            map[string]bool           `json:"allowedPermissionProfiles"`
+	AllowedSandboxModes                  []SandboxMode             `json:"allowedSandboxModes"`
+	AllowedWebSearchModes                []WebSearchMode           `json:"allowedWebSearchModes"`
+	AllowedWindowsSandboxImplementations []WindowsSandboxSetupMode `json:"allowedWindowsSandboxImplementations"`
+	AllowManagedHooksOnly                *bool                     `json:"allowManagedHooksOnly"`
+	AllowRemoteControl                   *bool                     `json:"allowRemoteControl"`
+	ComputerUse                          *ComputerUseRequirements  `json:"computerUse"`
+	DefaultPermissions                   *string                   `json:"defaultPermissions"`
+	EnforceResidency                     *ResidencyRequirement     `json:"enforceResidency"`
+	FeatureRequirements                  map[string]bool           `json:"featureRequirements"`
+	Models                               *ModelsRequirements       `json:"models"`
 }
 
 type PurpleGranularAskForApproval struct {
@@ -3370,24 +3693,34 @@ type ComputerUseRequirements struct {
 	AllowLockedComputerUse *bool `json:"allowLockedComputerUse"`
 }
 
+type ModelsRequirements struct {
+	NewThread *NewThreadModelDefaults `json:"newThread"`
+}
+
+type NewThreadModelDefaults struct {
+	Model                *string `json:"model"`
+	ModelReasoningEffort *string `json:"modelReasoningEffort"`
+	ServiceTier          *string `json:"serviceTier"`
+}
+
 type ConfigValueWriteParams struct {
-	ExpectedVersion                                                                        *string       `json:"expectedVersion"`
-	// Path to the config file to write; defaults to the user's `config.toml` when omitted.              
-	FilePath                                                                               *string       `json:"filePath"`
-	KeyPath                                                                                string        `json:"keyPath"`
-	MergeStrategy                                                                          MergeStrategy `json:"mergeStrategy"`
-	Value                                                                                  interface{}   `json:"value"`
+	ExpectedVersion *string `json:"expectedVersion"`
+	// Path to the config file to write; defaults to the user's `config.toml` when omitted.
+	FilePath      *string       `json:"filePath"`
+	KeyPath       string        `json:"keyPath"`
+	MergeStrategy MergeStrategy `json:"mergeStrategy"`
+	Value         interface{}   `json:"value"`
 }
 
 type ConfigWarningNotification struct {
-	// Optional extra guidance or error details.                               
-	Details                                                         *string    `json:"details"`
-	// Optional path to the config file that triggered the warning.            
-	Path                                                            *string    `json:"path"`
-	// Optional range for the error location inside the config file.           
-	Range                                                           *TextRange `json:"range"`
-	// Concise summary of the warning.                                         
-	Summary                                                         string     `json:"summary"`
+	// Optional extra guidance or error details.
+	Details *string `json:"details"`
+	// Optional path to the config file that triggered the warning.
+	Path *string `json:"path"`
+	// Optional range for the error location inside the config file.
+	Range *TextRange `json:"range"`
+	// Concise summary of the warning.
+	Summary string `json:"summary"`
 }
 
 type TextRange struct {
@@ -3396,18 +3729,18 @@ type TextRange struct {
 }
 
 type TextPosition struct {
-	// 1-based column number (in Unicode scalar values).      
-	Column                                              int64 `json:"column"`
-	// 1-based line number.                                   
-	Line                                                int64 `json:"line"`
+	// 1-based column number (in Unicode scalar values).
+	Column int64 `json:"column"`
+	// 1-based line number.
+	Line int64 `json:"line"`
 }
 
 type ConfigWriteResponse struct {
-	// Canonical path to the config file that was written.                    
-	FilePath                                              string              `json:"filePath"`
-	OverriddenMetadata                                    *OverriddenMetadata `json:"overriddenMetadata"`
-	Status                                                WriteStatus         `json:"status"`
-	Version                                               string              `json:"version"`
+	// Canonical path to the config file that was written.
+	FilePath           string              `json:"filePath"`
+	OverriddenMetadata *OverriddenMetadata `json:"overriddenMetadata"`
+	Status             WriteStatus         `json:"status"`
+	Version            string              `json:"version"`
 }
 
 type OverriddenMetadata struct {
@@ -3425,6 +3758,8 @@ type OverridingLayerClass struct {
 //
 // Managed config layer from a file (usually `managed_config.toml`).
 //
+// Enterprise-managed config layer delivered by the cloud config bundle.
+//
 // User config layer from $CODEX_HOME/config.toml. This layer is special in that it is
 // expected to be: - writable by the user - generally outside the workspace directory
 //
@@ -3438,17 +3773,35 @@ type OverridingLayerClass struct {
 // variant as a "best effort" while we phase out `managed_config.toml` in favor of
 // `requirements.toml`.
 type OverridingLayerConfigLayerSource struct {
-	Domain                                                                                     *string               `json:"domain,omitempty"`
-	Key                                                                                        *string               `json:"key,omitempty"`
-	Type                                                                                       ConfigLayerSourceType `json:"type"`
-	// This is the path to the system config.toml file, though it is not guaranteed to exist.                        
-	//                                                                                                               
-	// This is the path to the user's config.toml file, though it is not guaranteed to exist.                        
-	File                                                                                       *string               `json:"file,omitempty"`
-	// Name of the selected profile-v2 config layered on top of the base user config, when this                      
-	// layer represents one.                                                                                         
-	Profile                                                                                    *string               `json:"profile"`
-	DotCodexFolder                                                                             *string               `json:"dotCodexFolder,omitempty"`
+	Domain *string               `json:"domain,omitempty"`
+	Key    *string               `json:"key,omitempty"`
+	Type   ConfigLayerSourceType `json:"type"`
+	// This is the path to the system config.toml file, though it is not guaranteed to exist.
+	//
+	// This is the path to the user's config.toml file, though it is not guaranteed to exist.
+	File *string `json:"file,omitempty"`
+	// Stable identifier for the delivered layer.
+	ID *string `json:"id,omitempty"`
+	// Admin-facing name for the delivered layer. This is surfaced in diagnostics so users know
+	// which cloud layer needs administrator attention.
+	Name *string `json:"name,omitempty"`
+	// Name of the selected profile-v2 config layered on top of the base user config, when this
+	// layer represents one.
+	Profile        *string `json:"profile"`
+	DotCodexFolder *string `json:"dotCodexFolder,omitempty"`
+}
+
+type ConsumeAccountRateLimitResetCreditParams struct {
+	// Opaque reset-credit identifier to redeem. When omitted, the backend selects the next
+	// available credit.
+	CreditID *string `json:"creditId"`
+	// Identifies one logical reset attempt. A UUID is recommended; reuse the same value when
+	// retrying that attempt.
+	IdempotencyKey string `json:"idempotencyKey"`
+}
+
+type ConsumeAccountRateLimitResetCreditResponse struct {
+	Outcome ConsumeAccountRateLimitResetCreditOutcome `json:"outcome"`
 }
 
 // Deprecated: Use `ContextCompaction` item type instead.
@@ -3458,10 +3811,15 @@ type ContextCompactedNotification struct {
 }
 
 type DeprecationNoticeNotification struct {
-	// Optional extra guidance, such as migration steps or rationale.        
-	Details                                                          *string `json:"details"`
-	// Concise summary of what is deprecated.                                
-	Summary                                                          string  `json:"summary"`
+	// Optional extra guidance, such as migration steps or rationale.
+	Details *string `json:"details"`
+	// Concise summary of what is deprecated.
+	Summary string `json:"summary"`
+}
+
+type EnvironmentConnectionNotification struct {
+	EnvironmentID string `json:"environmentId"`
+	ThreadID      string `json:"threadId"`
 }
 
 type ErrorNotification struct {
@@ -3514,60 +3872,65 @@ type PurpleResponseTooManyFailedAttempts struct {
 }
 
 type ExperimentalFeatureEnablementSetParams struct {
-	// Process-wide runtime feature enablement keyed by canonical feature name.                               
-	//                                                                                                        
-	// Only named features are updated. Omitted features are left unchanged. Send an empty map                
-	// for a no-op.                                                                                           
-	Enablement                                                                                map[string]bool `json:"enablement"`
+	// Process-wide runtime feature enablement keyed by canonical feature name.
+	//
+	// Only named features are updated. Omitted features are left unchanged. Send an empty map
+	// for a no-op.
+	Enablement map[string]bool `json:"enablement"`
 }
 
 type ExperimentalFeatureEnablementSetResponse struct {
-	// Feature enablement entries updated by this request.                
-	Enablement                                            map[string]bool `json:"enablement"`
+	// Feature enablement entries updated by this request.
+	Enablement map[string]bool `json:"enablement"`
 }
 
 type ExperimentalFeatureListParams struct {
-	// Opaque pagination cursor returned by a previous call.                                            
-	Cursor                                                                                      *string `json:"cursor"`
-	// Optional page size; defaults to a reasonable server-side value.                                  
-	Limit                                                                                       *int64  `json:"limit"`
-	// Optional loaded thread id. Pass this when showing feature state for an existing thread so        
-	// enablement is computed from that thread's refreshed config, including project-local              
-	// config for the thread's cwd.                                                                     
-	ThreadID                                                                                    *string `json:"threadId"`
+	// Opaque pagination cursor returned by a previous call.
+	Cursor *string `json:"cursor"`
+	// Optional page size; defaults to a reasonable server-side value.
+	Limit *int64 `json:"limit"`
+	// Optional loaded thread id. Pass this when showing feature state for an existing thread so
+	// enablement is computed from that thread's refreshed config, including project-local
+	// config for the thread's cwd.
+	ThreadID *string `json:"threadId"`
 }
 
 type ExperimentalFeatureListResponse struct {
-	Data                                                                                     []ExperimentalFeature `json:"data"`
-	// Opaque cursor to pass to the next call to continue after the last item. If None, there                      
-	// are no more items to return.                                                                                
-	NextCursor                                                                               *string               `json:"nextCursor"`
+	Data []ExperimentalFeature `json:"data"`
+	// Opaque cursor to pass to the next call to continue after the last item. If None, there
+	// are no more items to return.
+	NextCursor *string `json:"nextCursor"`
 }
 
 type ExperimentalFeature struct {
-	// Announcement copy shown to users when the feature is introduced. Null when this feature                           
-	// is not in beta.                                                                                                   
-	Announcement                                                                                *string                  `json:"announcement"`
-	// Whether this feature is enabled by default.                                                                       
-	DefaultEnabled                                                                              bool                     `json:"defaultEnabled"`
-	// Short summary describing what the feature does. Null when this feature is not in beta.                            
-	Description                                                                                 *string                  `json:"description"`
-	// User-facing display name shown in the experimental features UI. Null when this feature is                         
-	// not in beta.                                                                                                      
-	DisplayName                                                                                 *string                  `json:"displayName"`
-	// Whether this feature is currently enabled in the loaded config.                                                   
-	Enabled                                                                                     bool                     `json:"enabled"`
-	// Stable key used in config.toml and CLI flag toggles.                                                              
-	Name                                                                                        string                   `json:"name"`
-	// Lifecycle stage of this feature flag.                                                                             
-	Stage                                                                                       ExperimentalFeatureStage `json:"stage"`
+	// Announcement copy shown to users when the feature is introduced. Null when this feature
+	// is not in beta.
+	Announcement *string `json:"announcement"`
+	// Whether this feature is enabled by default.
+	DefaultEnabled bool `json:"defaultEnabled"`
+	// Short summary describing what the feature does. Null when this feature is not in beta.
+	Description *string `json:"description"`
+	// User-facing display name shown in the experimental features UI. Null when this feature is
+	// not in beta.
+	DisplayName *string `json:"displayName"`
+	// Whether this feature is currently enabled in the loaded config.
+	Enabled bool `json:"enabled"`
+	// Stable key used in config.toml and CLI flag toggles.
+	Name string `json:"name"`
+	// Lifecycle stage of this feature flag.
+	Stage ExperimentalFeatureStage `json:"stage"`
 }
 
 type ExternalAgentConfigDetectParams struct {
-	// Zero or more working directories to include for repo-scoped detection.                
-	Cwds                                                                            []string `json:"cwds"`
-	// If true, include detection under the user's home (~/.claude, ~/.codex, etc.).         
-	IncludeHome                                                                     *bool    `json:"includeHome,omitempty"`
+	// Zero or more working directories to include for repo-scoped detection.
+	Cwds []string `json:"cwds"`
+	// If true, include detection under the user's home directory.
+	IncludeHome *bool `json:"includeHome,omitempty"`
+	// Optional migration-source selector. Missing or unrecognized values use the default source.
+	MigrationSource *string `json:"migrationSource"`
+	// Deprecated field retained for compatibility. This field is ignored; use `migrationSource`
+	// to select the migration source.
+	Source *string `json:"source"`
 }
 
 type ExternalAgentConfigDetectResponse struct {
@@ -3575,19 +3938,21 @@ type ExternalAgentConfigDetectResponse struct {
 }
 
 type ItemElement struct {
-	// Null or empty means home-scoped migration; non-empty means repo-scoped migration.                                     
-	Cwd                                                                                 *string                              `json:"cwd"`
-	Description                                                                         string                               `json:"description"`
-	Details                                                                             *ItemMigrationDetails                `json:"details"`
-	ItemType                                                                            ExternalAgentConfigMigrationItemType `json:"itemType"`
+	// Null or empty means home-scoped migration; non-empty means repo-scoped migration.
+	Cwd         *string                              `json:"cwd"`
+	Description string                               `json:"description"`
+	Details     *ItemMigrationDetails                `json:"details"`
+	ItemType    ExternalAgentConfigMigrationItemType `json:"itemType"`
 }
 
 type ItemMigrationDetails struct {
 	Commands   []PurpleCommandMigration   `json:"commands,omitempty"`
 	Hooks      []PurpleHookMigration      `json:"hooks,omitempty"`
 	MCPServers []PurpleMCPServerMigration `json:"mcpServers,omitempty"`
+	Memory     []string                   `json:"memory,omitempty"`
 	Plugins    []PurplePluginsMigration   `json:"plugins,omitempty"`
 	Sessions   []PurpleSessionMigration   `json:"sessions,omitempty"`
+	Skills     []PurpleSkillMigration     `json:"skills,omitempty"`
 	Subagents  []PurpleSubagentMigration  `json:"subagents,omitempty"`
 }
 
@@ -3614,28 +3979,102 @@ type PurpleSessionMigration struct {
 	Title *string `json:"title"`
 }
 
+type PurpleSkillMigration struct {
+	Name string `json:"name"`
+}
+
 type PurpleSubagentMigration struct {
 	Name string `json:"name"`
 }
 
+type ExternalAgentConfigImportCompletedNotification struct {
+	ImportID        string                                                         `json:"importId"`
+	ItemTypeResults []ExternalAgentConfigImportCompletedNotificationItemTypeResult `json:"itemTypeResults"`
+}
+
+type ExternalAgentConfigImportCompletedNotificationItemTypeResult struct {
+	Failures  []PurpleExternalAgentConfigImportItemTypeFailure `json:"failures"`
+	ItemType  ExternalAgentConfigMigrationItemType             `json:"itemType"`
+	Successes []PurpleExternalAgentConfigImportItemTypeSuccess `json:"successes"`
+}
+
+type PurpleExternalAgentConfigImportItemTypeFailure struct {
+	Cwd          *string                              `json:"cwd"`
+	ErrorType    *string                              `json:"errorType"`
+	FailureStage string                               `json:"failureStage"`
+	ItemType     ExternalAgentConfigMigrationItemType `json:"itemType"`
+	Message      string                               `json:"message"`
+	Source       *string                              `json:"source"`
+	SubErrorType *string                              `json:"subErrorType"`
+}
+
+type PurpleExternalAgentConfigImportItemTypeSuccess struct {
+	Cwd      *string                              `json:"cwd"`
+	ItemType ExternalAgentConfigMigrationItemType `json:"itemType"`
+	Source   *string                              `json:"source"`
+	Target   *string                              `json:"target"`
+}
+
+type ExternalAgentConfigImportHistoriesReadResponse struct {
+	Connectors []ExternalAgentImportedConnectorCandidate `json:"connectors"`
+	Data       []ExternalAgentConfigImportHistory        `json:"data"`
+}
+
+type ExternalAgentImportedConnectorCandidate struct {
+	Name         string                               `json:"name"`
+	SessionCount int64                                `json:"sessionCount"`
+	Source       ExternalAgentImportedConnectorSource `json:"source"`
+}
+
+type ExternalAgentConfigImportHistory struct {
+	CompletedAtMS int64          `json:"completedAtMs"`
+	Failures      []DatumFailure `json:"failures"`
+	ImportID      string         `json:"importId"`
+	Successes     []DatumSuccess `json:"successes"`
+}
+
+type DatumFailure struct {
+	Cwd          *string                              `json:"cwd"`
+	ErrorType    *string                              `json:"errorType"`
+	FailureStage string                               `json:"failureStage"`
+	ItemType     ExternalAgentConfigMigrationItemType `json:"itemType"`
+	Message      string                               `json:"message"`
+	Source       *string                              `json:"source"`
+	SubErrorType *string                              `json:"subErrorType"`
+}
+
+type DatumSuccess struct {
+	Cwd      *string                              `json:"cwd"`
+	ItemType ExternalAgentConfigMigrationItemType `json:"itemType"`
+	Source   *string                              `json:"source"`
+	Target   *string                              `json:"target"`
+}
+
 type ExternalAgentConfigImportParams struct {
 	MigrationItems []MigrationItemElement `json:"migrationItems"`
+	// Migration-source selector used to produce the migration items. Pass the same value to
+	// detection and import; missing or unrecognized values use the default source.
+	MigrationSource *string `json:"migrationSource"`
+	// Optional identifier for the product that initiated the import.
+	Source *string `json:"source"`
 }
 
 type MigrationItemElement struct {
-	// Null or empty means home-scoped migration; non-empty means repo-scoped migration.                                     
-	Cwd                                                                                 *string                              `json:"cwd"`
-	Description                                                                         string                               `json:"description"`
-	Details                                                                             *MigrationItemMigrationDetails       `json:"details"`
-	ItemType                                                                            ExternalAgentConfigMigrationItemType `json:"itemType"`
+	// Null or empty means home-scoped migration; non-empty means repo-scoped migration.
+	Cwd         *string                              `json:"cwd"`
+	Description string                               `json:"description"`
+	Details     *MigrationItemMigrationDetails       `json:"details"`
+	ItemType    ExternalAgentConfigMigrationItemType `json:"itemType"`
 }
 
 type MigrationItemMigrationDetails struct {
 	Commands   []FluffyCommandMigration   `json:"commands,omitempty"`
 	Hooks      []FluffyHookMigration      `json:"hooks,omitempty"`
 	MCPServers []FluffyMCPServerMigration `json:"mcpServers,omitempty"`
+	Memory     []string                   `json:"memory,omitempty"`
 	Plugins    []FluffyPluginsMigration   `json:"plugins,omitempty"`
 	Sessions   []FluffySessionMigration   `json:"sessions,omitempty"`
+	Skills     []FluffySkillMigration     `json:"skills,omitempty"`
 	Subagents  []FluffySubagentMigration  `json:"subagents,omitempty"`
 }
 
@@ -3662,14 +4101,50 @@ type FluffySessionMigration struct {
 	Title *string `json:"title"`
 }
 
+type FluffySkillMigration struct {
+	Name string `json:"name"`
+}
+
 type FluffySubagentMigration struct {
 	Name string `json:"name"`
+}
+
+type ExternalAgentConfigImportProgressNotification struct {
+	ImportID        string                                                        `json:"importId"`
+	ItemTypeResults []ExternalAgentConfigImportProgressNotificationItemTypeResult `json:"itemTypeResults"`
+}
+
+type ExternalAgentConfigImportProgressNotificationItemTypeResult struct {
+	Failures  []FluffyExternalAgentConfigImportItemTypeFailure `json:"failures"`
+	ItemType  ExternalAgentConfigMigrationItemType             `json:"itemType"`
+	Successes []FluffyExternalAgentConfigImportItemTypeSuccess `json:"successes"`
+}
+
+type FluffyExternalAgentConfigImportItemTypeFailure struct {
+	Cwd          *string                              `json:"cwd"`
+	ErrorType    *string                              `json:"errorType"`
+	FailureStage string                               `json:"failureStage"`
+	ItemType     ExternalAgentConfigMigrationItemType `json:"itemType"`
+	Message      string                               `json:"message"`
+	Source       *string                              `json:"source"`
+	SubErrorType *string                              `json:"subErrorType"`
+}
+
+type FluffyExternalAgentConfigImportItemTypeSuccess struct {
+	Cwd      *string                              `json:"cwd"`
+	ItemType ExternalAgentConfigMigrationItemType `json:"itemType"`
+	Source   *string                              `json:"source"`
+	Target   *string                              `json:"target"`
+}
+
+type ExternalAgentConfigImportResponse struct {
+	ImportID string `json:"importId"`
 }
 
 type FeedbackUploadParams struct {
 	Classification string            `json:"classification"`
 	ExtraLogFiles  []string          `json:"extraLogFiles"`
-	IncludeLogs    bool              `json:"includeLogs"`
+	IncludeLogs    *bool             `json:"includeLogs,omitempty"`
 	Reason         *string           `json:"reason"`
 	Tags           map[string]string `json:"tags"`
 	ThreadID       *string           `json:"threadId"`
@@ -3709,153 +4184,189 @@ type PurplePatchChangeKind struct {
 
 // Filesystem watch notification emitted for `fs/watch` subscribers.
 type FSChangedNotification struct {
-	// File or directory paths associated with this event.         
-	ChangedPaths                                          []string `json:"changedPaths"`
-	// Watch identifier previously provided to `fs/watch`.         
-	WatchID                                               string   `json:"watchId"`
+	// File or directory paths associated with this event.
+	ChangedPaths []string `json:"changedPaths"`
+	// Watch identifier previously provided to `fs/watch`.
+	WatchID string `json:"watchId"`
 }
 
 // Copy a file or directory tree on the host filesystem.
 type FSCopyParams struct {
-	// Absolute destination path.                                    
-	DestinationPath                                           string `json:"destinationPath"`
-	// Required for directory copies; ignored for file copies.       
-	Recursive                                                 *bool  `json:"recursive,omitempty"`
-	// Absolute source path.                                         
-	SourcePath                                                string `json:"sourcePath"`
+	// Absolute destination path.
+	DestinationPath string `json:"destinationPath"`
+	// Required for directory copies; ignored for file copies.
+	Recursive *bool `json:"recursive,omitempty"`
+	// Absolute source path.
+	SourcePath string `json:"sourcePath"`
 }
 
 // Create a directory on the host filesystem.
 type FSCreateDirectoryParams struct {
-	// Absolute directory path to create.                                           
-	Path                                                                     string `json:"path"`
-	// Whether parent directories should also be created. Defaults to `true`.       
-	Recursive                                                                *bool  `json:"recursive"`
+	// Absolute directory path to create.
+	Path string `json:"path"`
+	// Whether parent directories should also be created. Defaults to `true`.
+	Recursive *bool `json:"recursive"`
 }
 
 // Request metadata for an absolute path.
 type FSGetMetadataParams struct {
-	// Absolute path to inspect.       
-	Path                        string `json:"path"`
+	// Absolute path to inspect.
+	Path string `json:"path"`
 }
 
 // Metadata returned by `fs/getMetadata`.
 type FSGetMetadataResponse struct {
-	// File creation time in Unix milliseconds when available, otherwise `0`.          
-	CreatedAtMS                                                                  int64 `json:"createdAtMs"`
-	// Whether the path resolves to a directory.                                       
-	IsDirectory                                                                  bool  `json:"isDirectory"`
-	// Whether the path resolves to a regular file.                                    
-	IsFile                                                                       bool  `json:"isFile"`
-	// Whether the path itself is a symbolic link.                                     
-	IsSymlink                                                                    bool  `json:"isSymlink"`
-	// File modification time in Unix milliseconds when available, otherwise `0`.      
-	ModifiedAtMS                                                                 int64 `json:"modifiedAtMs"`
+	// File creation time in Unix milliseconds when available, otherwise `0`.
+	CreatedAtMS int64 `json:"createdAtMs"`
+	// Whether the path resolves to a directory.
+	IsDirectory bool `json:"isDirectory"`
+	// Whether the path resolves to a regular file.
+	IsFile bool `json:"isFile"`
+	// Whether the path itself is a symbolic link.
+	IsSymlink bool `json:"isSymlink"`
+	// File modification time in Unix milliseconds when available, otherwise `0`.
+	ModifiedAtMS int64 `json:"modifiedAtMs"`
 }
 
 // List direct child names for a directory.
 type FSReadDirectoryParams struct {
-	// Absolute directory path to read.       
-	Path                               string `json:"path"`
+	// Absolute directory path to read.
+	Path string `json:"path"`
 }
 
 // Directory entries returned by `fs/readDirectory`.
 type FSReadDirectoryResponse struct {
-	// Direct child entries in the requested directory.                       
-	Entries                                            []FSReadDirectoryEntry `json:"entries"`
+	// Direct child entries in the requested directory.
+	Entries []FSReadDirectoryEntry `json:"entries"`
 }
 
 // A directory entry returned by `fs/readDirectory`.
 type FSReadDirectoryEntry struct {
-	// Direct child entry name only, not an absolute or relative path.       
-	FileName                                                          string `json:"fileName"`
-	// Whether this entry resolves to a directory.                           
-	IsDirectory                                                       bool   `json:"isDirectory"`
-	// Whether this entry resolves to a regular file.                        
-	IsFile                                                            bool   `json:"isFile"`
+	// Direct child entry name only, not an absolute or relative path.
+	FileName string `json:"fileName"`
+	// Whether this entry resolves to a directory.
+	IsDirectory bool `json:"isDirectory"`
+	// Whether this entry resolves to a regular file.
+	IsFile bool `json:"isFile"`
 }
 
 // Read a file from the host filesystem.
 type FSReadFileParams struct {
-	// Absolute path to read.       
-	Path                     string `json:"path"`
+	// Absolute path to read.
+	Path string `json:"path"`
 }
 
 // Base64-encoded file contents returned by `fs/readFile`.
 type FSReadFileResponse struct {
-	// File contents encoded as base64.       
-	DataBase64                         string `json:"dataBase64"`
+	// File contents encoded as base64.
+	DataBase64 string `json:"dataBase64"`
 }
 
 // Remove a file or directory tree from the host filesystem.
 type FSRemoveParams struct {
-	// Whether missing paths should be ignored. Defaults to `true`.        
-	Force                                                           *bool  `json:"force"`
-	// Absolute path to remove.                                            
-	Path                                                            string `json:"path"`
-	// Whether directory removal should recurse. Defaults to `true`.       
-	Recursive                                                       *bool  `json:"recursive"`
+	// Whether missing paths should be ignored. Defaults to `true`.
+	Force *bool `json:"force"`
+	// Absolute path to remove.
+	Path string `json:"path"`
+	// Whether directory removal should recurse. Defaults to `true`.
+	Recursive *bool `json:"recursive"`
 }
 
 // Stop filesystem watch notifications for a prior `fs/watch`.
 type FSUnwatchParams struct {
-	// Watch identifier previously provided to `fs/watch`.       
-	WatchID                                               string `json:"watchId"`
+	// Watch identifier previously provided to `fs/watch`.
+	WatchID string `json:"watchId"`
 }
 
 // Start filesystem watch notifications for an absolute path.
 type FSWatchParams struct {
-	// Absolute file or directory path to watch.                                        
-	Path                                                                         string `json:"path"`
-	// Connection-scoped watch identifier used for `fs/unwatch` and `fs/changed`.       
-	WatchID                                                                      string `json:"watchId"`
+	// Absolute file or directory path to watch.
+	Path string `json:"path"`
+	// Connection-scoped watch identifier used for `fs/unwatch` and `fs/changed`.
+	WatchID string `json:"watchId"`
 }
 
 // Successful response for `fs/watch`.
 type FSWatchResponse struct {
-	// Canonicalized path associated with the watch.       
-	Path                                            string `json:"path"`
+	// Canonicalized path associated with the watch.
+	Path string `json:"path"`
 }
 
 // Write a file on the host filesystem.
 type FSWriteFileParams struct {
-	// File contents encoded as base64.       
-	DataBase64                         string `json:"dataBase64"`
-	// Absolute path to write.                
-	Path                               string `json:"path"`
+	// File contents encoded as base64.
+	DataBase64 string `json:"dataBase64"`
+	// Absolute path to write.
+	Path string `json:"path"`
 }
 
 type GetAccountParams struct {
-	// When `true`, requests a proactive token refresh before returning.                            
-	//                                                                                              
-	// In managed auth mode this triggers the normal refresh-token flow. In external auth mode      
-	// this flag is ignored. Clients should refresh tokens themselves and call                      
-	// `account/login/start` with `chatgptAuthTokens`.                                              
-	RefreshToken                                                                              *bool `json:"refreshToken,omitempty"`
+	// When `true`, requests a proactive token refresh before returning.
+	//
+	// In managed auth mode this triggers the normal refresh-token flow. In external auth mode
+	// this flag is ignored. Clients should refresh tokens themselves and call
+	// `account/login/start` with `chatgptAuthTokens`.
+	RefreshToken *bool `json:"refreshToken,omitempty"`
 }
 
 type GetAccountRateLimitsResponse struct {
-	// Backward-compatible single-bucket view; mirrors the historical payload.                                    
-	RateLimits                                                                RateLimitsByLimitIDClass            `json:"rateLimits"`
-	// Multi-bucket view keyed by metered `limit_id` (for example, `codex`).                                      
-	RateLimitsByLimitID                                                       map[string]RateLimitsByLimitIDClass `json:"rateLimitsByLimitId"`
+	RateLimitResetCredits *RateLimitResetCreditsSummary `json:"rateLimitResetCredits"`
+	// Backward-compatible single-bucket view; mirrors the historical payload.
+	RateLimits RateLimitsByLimitIDClass `json:"rateLimits"`
+	// Multi-bucket view keyed by metered `limit_id` (for example, `codex`).
+	RateLimitsByLimitID map[string]RateLimitsByLimitIDClass `json:"rateLimitsByLimitId"`
+}
+
+type RateLimitResetCreditsSummary struct {
+	AvailableCount int64 `json:"availableCount"`
+	// Detail rows for available reset credits, when the backend provides them.
+	//
+	// `null` means only `availableCount` is known, while an empty array means details were
+	// fetched and no available credits were returned. The backend may cap this list, so its
+	// length can be less than `availableCount`.
+	Credits []RateLimitResetCredit `json:"credits"`
+}
+
+type RateLimitResetCredit struct {
+	// Backend-provided display description for this credit, or `null` when unavailable.
+	Description *string `json:"description"`
+	// Unix timestamp in seconds when the credit expires, or `null` if it does not expire.
+	ExpiresAt *int64 `json:"expiresAt"`
+	// Unix timestamp in seconds when the credit was granted.
+	GrantedAt int64 `json:"grantedAt"`
+	// Opaque backend identifier for this reset credit.
+	ID        string                     `json:"id"`
+	ResetType RateLimitResetType         `json:"resetType"`
+	Status    RateLimitResetCreditStatus `json:"status"`
+	// Backend-provided display title for this credit, or `null` when unavailable.
+	Title *string `json:"title"`
 }
 
 // Backward-compatible single-bucket view; mirrors the historical payload.
 type RateLimitsByLimitIDClass struct {
-	Credits              *RateLimitsByLimitIDCreditsSnapshot `json:"credits"`
-	LimitID              *string                             `json:"limitId"`
-	LimitName            *string                             `json:"limitName"`
-	PlanType             *PlanType                           `json:"planType"`
-	Primary              *RateLimitsByLimitIDRateLimitWindow `json:"primary"`
-	RateLimitReachedType *RateLimitReachedType               `json:"rateLimitReachedType"`
-	Secondary            *RateLimitsByLimitIDRateLimitWindow `json:"secondary"`
+	Credits              *RateLimitsByLimitIDCreditsSnapshot           `json:"credits"`
+	IndividualLimit      *RateLimitsByLimitIDSpendControlLimitSnapshot `json:"individualLimit"`
+	LimitID              *string                                       `json:"limitId"`
+	LimitName            *string                                       `json:"limitName"`
+	PlanType             *PlanType                                     `json:"planType"`
+	Primary              *RateLimitsByLimitIDRateLimitWindow           `json:"primary"`
+	RateLimitReachedType *RateLimitReachedType                         `json:"rateLimitReachedType"`
+	Secondary            *RateLimitsByLimitIDRateLimitWindow           `json:"secondary"`
+	// Backend-reported spend-control state. `None` is unavailable, not a sparse-update recovery.
+	SpendControlReached *bool `json:"spendControlReached"`
 }
 
 type RateLimitsByLimitIDCreditsSnapshot struct {
 	Balance    *string `json:"balance"`
 	HasCredits bool    `json:"hasCredits"`
 	Unlimited  bool    `json:"unlimited"`
+}
+
+type RateLimitsByLimitIDSpendControlLimitSnapshot struct {
+	Limit            string `json:"limit"`
+	RemainingPercent int64  `json:"remainingPercent"`
+	ResetsAt         int64  `json:"resetsAt"`
+	Used             string `json:"used"`
 }
 
 type RateLimitsByLimitIDRateLimitWindow struct {
@@ -3870,16 +4381,52 @@ type GetAccountResponse struct {
 }
 
 type Account struct {
-	Type     AccountType `json:"type"`
-	Email    *string     `json:"email,omitempty"`
-	PlanType *PlanType   `json:"planType,omitempty"`
+	Type                        AccountType `json:"type"`
+	Email                       *string     `json:"email"`
+	PlanType                    *PlanType   `json:"planType,omitempty"`
+	UsesCodexManagedCredentials *bool       `json:"usesCodexManagedCredentials,omitempty"`
+}
+
+type GetAccountTokenUsageResponse struct {
+	DailyUsageBuckets []AccountTokenUsageDailyBucket `json:"dailyUsageBuckets"`
+	Summary           AccountTokenUsageSummary       `json:"summary"`
+}
+
+type AccountTokenUsageDailyBucket struct {
+	StartDate string `json:"startDate"`
+	Tokens    int64  `json:"tokens"`
+}
+
+type AccountTokenUsageSummary struct {
+	CurrentStreakDays     *int64 `json:"currentStreakDays"`
+	LifetimeTokens        *int64 `json:"lifetimeTokens"`
+	LongestRunningTurnSEC *int64 `json:"longestRunningTurnSec"`
+	LongestStreakDays     *int64 `json:"longestStreakDays"`
+	PeakDailyTokens       *int64 `json:"peakDailyTokens"`
+}
+
+type GetWorkspaceMessagesResponse struct {
+	// Whether the workspace-message backend route is available for this client.
+	FeatureEnabled bool `json:"featureEnabled"`
+	// Active workspace messages returned by the backend.
+	Messages []WorkspaceMessage `json:"messages"`
+}
+
+type WorkspaceMessage struct {
+	// Unix timestamp (in seconds) when the message was archived.
+	ArchivedAt *int64 `json:"archivedAt"`
+	// Unix timestamp (in seconds) when the message was created.
+	CreatedAt   *int64               `json:"createdAt"`
+	MessageBody string               `json:"messageBody"`
+	MessageID   string               `json:"messageId"`
+	MessageType WorkspaceMessageType `json:"messageType"`
 }
 
 type GuardianWarningNotification struct {
-	// Concise guardian warning message for the user.       
-	Message                                          string `json:"message"`
-	// Thread target for the guardian warning.              
-	ThreadID                                         string `json:"threadId"`
+	// Concise guardian warning message for the user.
+	Message string `json:"message"`
+	// Thread target for the guardian warning.
+	ThreadID string `json:"threadId"`
 }
 
 type HookCompletedNotification struct {
@@ -3939,8 +4486,8 @@ type FluffyHookOutputEntry struct {
 }
 
 type HooksListParams struct {
-	// When empty, defaults to the current session working directory.         
-	Cwds                                                             []string `json:"cwds,omitempty"`
+	// When empty, defaults to the current session working directory.
+	Cwds []string `json:"cwds,omitempty"`
 }
 
 type HooksListResponse struct {
@@ -3960,97 +4507,113 @@ type HookErrorInfo struct {
 }
 
 type HookMetadata struct {
-	Command       *string         `json:"command"`
-	CurrentHash   string          `json:"currentHash"`
-	DisplayOrder  int64           `json:"displayOrder"`
-	Enabled       bool            `json:"enabled"`
-	EventName     HookEventName   `json:"eventName"`
-	HandlerType   HookHandlerType `json:"handlerType"`
-	IsManaged     bool            `json:"isManaged"`
-	Key           string          `json:"key"`
-	Matcher       *string         `json:"matcher"`
-	PluginID      *string         `json:"pluginId"`
-	Source        HookSource      `json:"source"`
-	SourcePath    string          `json:"sourcePath"`
-	StatusMessage *string         `json:"statusMessage"`
-	TimeoutSEC    int64           `json:"timeoutSec"`
-	TrustStatus   HookTrustStatus `json:"trustStatus"`
+	// Configured `additionalContext` spill threshold. `null` uses 2,500 tokens; `0` disables
+	// spilling.
+	AdditionalContextLimit *int64          `json:"additionalContextLimit"`
+	Command                *string         `json:"command"`
+	CurrentHash            string          `json:"currentHash"`
+	DisplayOrder           int64           `json:"displayOrder"`
+	Enabled                bool            `json:"enabled"`
+	EventName              HookEventName   `json:"eventName"`
+	HandlerType            HookHandlerType `json:"handlerType"`
+	IsManaged              bool            `json:"isManaged"`
+	Key                    string          `json:"key"`
+	Matcher                *string         `json:"matcher"`
+	PluginID               *string         `json:"pluginId"`
+	Source                 HookSource      `json:"source"`
+	SourcePath             string          `json:"sourcePath"`
+	StatusMessage          *string         `json:"statusMessage"`
+	TimeoutSEC             int64           `json:"timeoutSec"`
+	TrustStatus            HookTrustStatus `json:"trustStatus"`
 }
 
 type ItemCompletedNotification struct {
-	// Unix timestamp (in milliseconds) when this item lifecycle completed.                                    
-	CompletedAtMS                                                          int64                               `json:"completedAtMs"`
-	Item                                                                   ItemCompletedNotificationThreadItem `json:"item"`
-	ThreadID                                                               string                              `json:"threadId"`
-	TurnID                                                                 string                              `json:"turnId"`
+	// Unix timestamp (in milliseconds) when this item lifecycle completed.
+	CompletedAtMS int64                               `json:"completedAtMs"`
+	Item          ItemCompletedNotificationThreadItem `json:"item"`
+	ThreadID      string                              `json:"threadId"`
+	TurnID        string                              `json:"turnId"`
 }
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type ItemCompletedNotificationThreadItem struct {
-	Content                                                                                     []PurpleContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                      
-	ID                                                                                          string                                   `json:"id"`
-	Type                                                                                        ThreadItemType                           `json:"type"`
-	Fragments                                                                                   []PurpleHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *PurpleMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                            `json:"phase"`
-	Text                                                                                        *string                                  `json:"text,omitempty"`
-	Summary                                                                                     []string                                 `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                          
-	AggregatedOutput                                                                            *string                                  `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                       
-	Command                                                                                     *string                                  `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                            
-	// returns a list of CommandAction objects because a single shell command may be composed of                                         
-	// many commands piped together.                                                                                                     
-	CommandActions                                                                              []PurpleCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                  
-	Cwd                                                                                         *string                                  `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                            
-	//                                                                                                                                   
-	// The duration of the MCP tool call in milliseconds.                                                                                
-	//                                                                                                                                   
-	// The duration of the dynamic tool call in milliseconds.                                                                            
-	DurationMS                                                                                  *int64                                   `json:"durationMs"`
-	// The command's exit code.                                                                                                          
-	ExitCode                                                                                    *int64                                   `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                       
-	ProcessID                                                                                   *string                                  `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                  `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                           
-	Status                                                                                      *string                                  `json:"status,omitempty"`
-	Changes                                                                                     []PurpleFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                              `json:"arguments"`
-	Error                                                                                       *PurpleMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                  `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                  `json:"pluginId"`
-	Result                                                                                      *PurpleResult                            `json:"result"`
-	Server                                                                                      *string                                  `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                         
-	Tool                                                                                        *string                                  `json:"tool,omitempty"`
-	ContentItems                                                                                []PurpleDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                  `json:"namespace"`
-	Success                                                                                     *bool                                    `json:"success"`
-	// Last known status of the target agents, when available.                                                                           
-	AgentsStates                                                                                map[string]PurpleCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                           
-	Model                                                                                       *string                                  `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                 
-	Prompt                                                                                      *string                                  `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                
-	ReasoningEffort                                                                             *ReasoningEffort                         `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                               
-	// corresponds to the newly spawned agent.                                                                                           
-	ReceiverThreadIDS                                                                           []string                                 `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                
-	SenderThreadID                                                                              *string                                  `json:"senderThreadId,omitempty"`
-	Action                                                                                      *PurpleWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                  `json:"query,omitempty"`
-	Path                                                                                        *string                                  `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                  `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                  `json:"savedPath"`
-	Review                                                                                      *string                                  `json:"review,omitempty"`
+	ClientID *string      `json:"clientId"`
+	Content  []UserInput3 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                     `json:"id"`
+	Type           ThreadItemType             `json:"type"`
+	Fragments      []PurpleHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *PurpleMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase              `json:"phase"`
+	Text           *string                    `json:"text,omitempty"`
+	Summary        []string                   `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []PurpleCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                      `json:"status,omitempty"`
+	Changes    []PurpleFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *PurpleMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                  `json:"arguments"`
+	Error      *PurpleMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string       `json:"mcpAppResourceUri"`
+	PluginID          *string       `json:"pluginId"`
+	Result            *PurpleResult `json:"result"`
+	Server            *string       `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                  `json:"tool,omitempty"`
+	ContentItems []PurpleDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                  `json:"namespace"`
+	Success      *bool                                    `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]PurpleCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                `json:"senderThreadId,omitempty"`
+	AgentPath      *string                `json:"agentPath,omitempty"`
+	AgentThreadID  *string                `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind  `json:"kind,omitempty"`
+	Action         *PurpleWebSearchAction `json:"action"`
+	Query          *string                `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type PurpleWebSearchAction struct {
@@ -4064,6 +4627,14 @@ type PurpleWebSearchAction struct {
 type PurpleCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type PurpleMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type PurpleFileUpdateChange struct {
@@ -4086,21 +4657,21 @@ type PurpleCommandAction struct {
 }
 
 type PurpleUserInput struct {
-	Text                                                                         *string             `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                    
-	TextElements                                                                 []PurpleTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType       `json:"type"`
-	Detail                                                                       *ImageDetail        `json:"detail"`
-	URL                                                                          *string             `json:"url,omitempty"`
-	Path                                                                         *string             `json:"path,omitempty"`
-	Name                                                                         *string             `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []PurpleTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType       `json:"type"`
+	Detail       *ImageDetail        `json:"detail"`
+	URL          *string             `json:"url,omitempty"`
+	Path         *string             `json:"path,omitempty"`
+	Name         *string             `json:"name,omitempty"`
 }
 
 type PurpleTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                       
-	ByteRange                                                                   PurpleByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                
-	Placeholder                                                                 *string         `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange PurpleByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -4113,6 +4684,7 @@ type PurpleDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type PurpleMCPToolCallError struct {
@@ -4145,29 +4717,29 @@ type PurpleMCPToolCallResult struct {
 // [UNSTABLE] Temporary notification payload for approval auto-review. This shape is
 // expected to change soon.
 type ItemGuardianApprovalReviewCompletedNotification struct {
-	Action                                                                                      ItemGuardianApprovalReviewCompletedNotificationGuardianApprovalReviewAction `json:"action"`
-	// Unix timestamp (in milliseconds) when this review completed.                                                                                                         
-	CompletedAtMS                                                                               int64                                                                       `json:"completedAtMs"`
-	DecisionSource                                                                              AutoReviewDecisionSource                                                    `json:"decisionSource"`
-	Review                                                                                      ItemGuardianApprovalReviewCompletedNotificationReview                       `json:"review"`
-	// Stable identifier for this review.                                                                                                                                   
-	ReviewID                                                                                    string                                                                      `json:"reviewId"`
-	// Unix timestamp (in milliseconds) when this review started.                                                                                                           
-	StartedAtMS                                                                                 int64                                                                       `json:"startedAtMs"`
-	// Identifier for the reviewed item or tool call when one exists.                                                                                                       
-	//                                                                                                                                                                      
-	// In most cases, one review maps to one target item. The exceptions are - execve reviews,                                                                              
-	// where a single command may contain multiple execve calls to review (only possible when                                                                               
-	// using the shell_zsh_fork feature) - network policy reviews, where there is no target                                                                                 
-	// item                                                                                                                                                                 
-	//                                                                                                                                                                      
-	// A network call is triggered by a CommandExecution item, so having a target_item_id set to                                                                            
-	// the CommandExecution item would be misleading because the review is about the network                                                                                
-	// call, not the command execution. Therefore, target_item_id is set to None for network                                                                                
-	// policy reviews.                                                                                                                                                      
-	TargetItemID                                                                                *string                                                                     `json:"targetItemId"`
-	ThreadID                                                                                    string                                                                      `json:"threadId"`
-	TurnID                                                                                      string                                                                      `json:"turnId"`
+	Action ItemGuardianApprovalReviewCompletedNotificationGuardianApprovalReviewAction `json:"action"`
+	// Unix timestamp (in milliseconds) when this review completed.
+	CompletedAtMS  int64                                                 `json:"completedAtMs"`
+	DecisionSource AutoReviewDecisionSource                              `json:"decisionSource"`
+	Review         ItemGuardianApprovalReviewCompletedNotificationReview `json:"review"`
+	// Stable identifier for this review.
+	ReviewID string `json:"reviewId"`
+	// Unix timestamp (in milliseconds) when this review started.
+	StartedAtMS int64 `json:"startedAtMs"`
+	// Identifier for the reviewed item or tool call when one exists.
+	//
+	// In most cases, one review maps to one target item. The exceptions are - execve reviews,
+	// where a single command may contain multiple execve calls to review (only possible when
+	// using the shell_zsh_fork feature) - network policy reviews, where there is no target
+	// item
+	//
+	// A network call is triggered by a CommandExecution item, so having a target_item_id set to
+	// the CommandExecution item would be misleading because the review is about the network
+	// call, not the command execution. Therefore, target_item_id is set to None for network
+	// policy reviews.
+	TargetItemID *string `json:"targetItemId"`
+	ThreadID     string  `json:"threadId"`
+	TurnID       string  `json:"turnId"`
 }
 
 type ItemGuardianApprovalReviewCompletedNotificationGuardianApprovalReviewAction struct {
@@ -4197,12 +4769,12 @@ type PurpleRequestPermissionProfile struct {
 }
 
 type PurpleAdditionalFileSystemPermissions struct {
-	Entries                                       []PurpleFileSystemSandboxEntry `json:"entries"`
-	GlobScanMaxDepth                              *int64                         `json:"globScanMaxDepth"`
-	// This will be removed in favor of `entries`.                               
-	Read                                          []string                       `json:"read"`
-	// This will be removed in favor of `entries`.                               
-	Write                                         []string                       `json:"write"`
+	Entries          []PurpleFileSystemSandboxEntry `json:"entries"`
+	GlobScanMaxDepth *int64                         `json:"globScanMaxDepth"`
+	// This will be removed in favor of `entries`.
+	Read []string `json:"read"`
+	// This will be removed in favor of `entries`.
+	Write []string `json:"write"`
 }
 
 type PurpleFileSystemSandboxEntry struct {
@@ -4239,26 +4811,26 @@ type ItemGuardianApprovalReviewCompletedNotificationReview struct {
 // [UNSTABLE] Temporary notification payload for approval auto-review. This shape is
 // expected to change soon.
 type ItemGuardianApprovalReviewStartedNotification struct {
-	Action                                                                                      ItemGuardianApprovalReviewStartedNotificationGuardianApprovalReviewAction `json:"action"`
-	Review                                                                                      ItemGuardianApprovalReviewStartedNotificationReview                       `json:"review"`
-	// Stable identifier for this review.                                                                                                                                 
-	ReviewID                                                                                    string                                                                    `json:"reviewId"`
-	// Unix timestamp (in milliseconds) when this review started.                                                                                                         
-	StartedAtMS                                                                                 int64                                                                     `json:"startedAtMs"`
-	// Identifier for the reviewed item or tool call when one exists.                                                                                                     
-	//                                                                                                                                                                    
-	// In most cases, one review maps to one target item. The exceptions are - execve reviews,                                                                            
-	// where a single command may contain multiple execve calls to review (only possible when                                                                             
-	// using the shell_zsh_fork feature) - network policy reviews, where there is no target                                                                               
-	// item                                                                                                                                                               
-	//                                                                                                                                                                    
-	// A network call is triggered by a CommandExecution item, so having a target_item_id set to                                                                          
-	// the CommandExecution item would be misleading because the review is about the network                                                                              
-	// call, not the command execution. Therefore, target_item_id is set to None for network                                                                              
-	// policy reviews.                                                                                                                                                    
-	TargetItemID                                                                                *string                                                                   `json:"targetItemId"`
-	ThreadID                                                                                    string                                                                    `json:"threadId"`
-	TurnID                                                                                      string                                                                    `json:"turnId"`
+	Action ItemGuardianApprovalReviewStartedNotificationGuardianApprovalReviewAction `json:"action"`
+	Review ItemGuardianApprovalReviewStartedNotificationReview                       `json:"review"`
+	// Stable identifier for this review.
+	ReviewID string `json:"reviewId"`
+	// Unix timestamp (in milliseconds) when this review started.
+	StartedAtMS int64 `json:"startedAtMs"`
+	// Identifier for the reviewed item or tool call when one exists.
+	//
+	// In most cases, one review maps to one target item. The exceptions are - execve reviews,
+	// where a single command may contain multiple execve calls to review (only possible when
+	// using the shell_zsh_fork feature) - network policy reviews, where there is no target
+	// item
+	//
+	// A network call is triggered by a CommandExecution item, so having a target_item_id set to
+	// the CommandExecution item would be misleading because the review is about the network
+	// call, not the command execution. Therefore, target_item_id is set to None for network
+	// policy reviews.
+	TargetItemID *string `json:"targetItemId"`
+	ThreadID     string  `json:"threadId"`
+	TurnID       string  `json:"turnId"`
 }
 
 type ItemGuardianApprovalReviewStartedNotificationGuardianApprovalReviewAction struct {
@@ -4288,12 +4860,12 @@ type FluffyRequestPermissionProfile struct {
 }
 
 type FluffyAdditionalFileSystemPermissions struct {
-	Entries                                       []FluffyFileSystemSandboxEntry `json:"entries"`
-	GlobScanMaxDepth                              *int64                         `json:"globScanMaxDepth"`
-	// This will be removed in favor of `entries`.                               
-	Read                                          []string                       `json:"read"`
-	// This will be removed in favor of `entries`.                               
-	Write                                         []string                       `json:"write"`
+	Entries          []FluffyFileSystemSandboxEntry `json:"entries"`
+	GlobScanMaxDepth *int64                         `json:"globScanMaxDepth"`
+	// This will be removed in favor of `entries`.
+	Read []string `json:"read"`
+	// This will be removed in favor of `entries`.
+	Write []string `json:"write"`
 }
 
 type FluffyFileSystemSandboxEntry struct {
@@ -4328,79 +4900,92 @@ type ItemGuardianApprovalReviewStartedNotificationReview struct {
 }
 
 type ItemStartedNotification struct {
-	Item                                                                 ItemStartedNotificationThreadItem `json:"item"`
-	// Unix timestamp (in milliseconds) when this item lifecycle started.                                  
-	StartedAtMS                                                          int64                             `json:"startedAtMs"`
-	ThreadID                                                             string                            `json:"threadId"`
-	TurnID                                                               string                            `json:"turnId"`
+	Item ItemStartedNotificationThreadItem `json:"item"`
+	// Unix timestamp (in milliseconds) when this item lifecycle started.
+	StartedAtMS int64  `json:"startedAtMs"`
+	ThreadID    string `json:"threadId"`
+	TurnID      string `json:"turnId"`
 }
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type ItemStartedNotificationThreadItem struct {
-	Content                                                                                     []FluffyContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                      
-	ID                                                                                          string                                   `json:"id"`
-	Type                                                                                        ThreadItemType                           `json:"type"`
-	Fragments                                                                                   []FluffyHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *FluffyMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                            `json:"phase"`
-	Text                                                                                        *string                                  `json:"text,omitempty"`
-	Summary                                                                                     []string                                 `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                          
-	AggregatedOutput                                                                            *string                                  `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                       
-	Command                                                                                     *string                                  `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                            
-	// returns a list of CommandAction objects because a single shell command may be composed of                                         
-	// many commands piped together.                                                                                                     
-	CommandActions                                                                              []FluffyCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                  
-	Cwd                                                                                         *string                                  `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                            
-	//                                                                                                                                   
-	// The duration of the MCP tool call in milliseconds.                                                                                
-	//                                                                                                                                   
-	// The duration of the dynamic tool call in milliseconds.                                                                            
-	DurationMS                                                                                  *int64                                   `json:"durationMs"`
-	// The command's exit code.                                                                                                          
-	ExitCode                                                                                    *int64                                   `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                       
-	ProcessID                                                                                   *string                                  `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                  `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                           
-	Status                                                                                      *string                                  `json:"status,omitempty"`
-	Changes                                                                                     []FluffyFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                              `json:"arguments"`
-	Error                                                                                       *FluffyMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                  `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                  `json:"pluginId"`
-	Result                                                                                      *FluffyResult                            `json:"result"`
-	Server                                                                                      *string                                  `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                         
-	Tool                                                                                        *string                                  `json:"tool,omitempty"`
-	ContentItems                                                                                []FluffyDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                  `json:"namespace"`
-	Success                                                                                     *bool                                    `json:"success"`
-	// Last known status of the target agents, when available.                                                                           
-	AgentsStates                                                                                map[string]FluffyCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                           
-	Model                                                                                       *string                                  `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                 
-	Prompt                                                                                      *string                                  `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                
-	ReasoningEffort                                                                             *ReasoningEffort                         `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                               
-	// corresponds to the newly spawned agent.                                                                                           
-	ReceiverThreadIDS                                                                           []string                                 `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                
-	SenderThreadID                                                                              *string                                  `json:"senderThreadId,omitempty"`
-	Action                                                                                      *FluffyWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                  `json:"query,omitempty"`
-	Path                                                                                        *string                                  `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                  `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                  `json:"savedPath"`
-	Review                                                                                      *string                                  `json:"review,omitempty"`
+	ClientID *string      `json:"clientId"`
+	Content  []UserInput4 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                     `json:"id"`
+	Type           ThreadItemType             `json:"type"`
+	Fragments      []FluffyHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *FluffyMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase              `json:"phase"`
+	Text           *string                    `json:"text,omitempty"`
+	Summary        []string                   `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []FluffyCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                      `json:"status,omitempty"`
+	Changes    []FluffyFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *FluffyMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                  `json:"arguments"`
+	Error      *FluffyMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string       `json:"mcpAppResourceUri"`
+	PluginID          *string       `json:"pluginId"`
+	Result            *FluffyResult `json:"result"`
+	Server            *string       `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                  `json:"tool,omitempty"`
+	ContentItems []FluffyDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                  `json:"namespace"`
+	Success      *bool                                    `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]FluffyCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                `json:"senderThreadId,omitempty"`
+	AgentPath      *string                `json:"agentPath,omitempty"`
+	AgentThreadID  *string                `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind  `json:"kind,omitempty"`
+	Action         *FluffyWebSearchAction `json:"action"`
+	Query          *string                `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type FluffyWebSearchAction struct {
@@ -4414,6 +4999,14 @@ type FluffyWebSearchAction struct {
 type FluffyCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type FluffyMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type FluffyFileUpdateChange struct {
@@ -4436,21 +5029,21 @@ type FluffyCommandAction struct {
 }
 
 type FluffyUserInput struct {
-	Text                                                                         *string             `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                    
-	TextElements                                                                 []FluffyTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType       `json:"type"`
-	Detail                                                                       *ImageDetail        `json:"detail"`
-	URL                                                                          *string             `json:"url,omitempty"`
-	Path                                                                         *string             `json:"path,omitempty"`
-	Name                                                                         *string             `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []FluffyTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType       `json:"type"`
+	Detail       *ImageDetail        `json:"detail"`
+	URL          *string             `json:"url,omitempty"`
+	Path         *string             `json:"path,omitempty"`
+	Name         *string             `json:"name,omitempty"`
 }
 
 type FluffyTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                       
-	ByteRange                                                                   FluffyByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                
-	Placeholder                                                                 *string         `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange FluffyByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -4463,6 +5056,7 @@ type FluffyDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type FluffyMCPToolCallError struct {
@@ -4493,20 +5087,21 @@ type FluffyMCPToolCallResult struct {
 }
 
 type ListMCPServerStatusParams struct {
-	// Opaque pagination cursor returned by a previous call.                                                        
-	Cursor                                                                                   *string                `json:"cursor"`
-	// Controls how much MCP inventory data to fetch for each server. Defaults to `Full` when                       
-	// omitted.                                                                                                     
-	Detail                                                                                   *MCPServerStatusDetail `json:"detail"`
-	// Optional page size; defaults to a server-defined value.                                                      
-	Limit                                                                                    *int64                 `json:"limit"`
+	// Opaque pagination cursor returned by a previous call.
+	Cursor *string `json:"cursor"`
+	// Controls how much MCP inventory data to fetch for each server. Defaults to `Full` when
+	// omitted.
+	Detail *MCPServerStatusDetail `json:"detail"`
+	// Optional page size; defaults to a server-defined value.
+	Limit    *int64  `json:"limit"`
+	ThreadID *string `json:"threadId"`
 }
 
 type ListMCPServerStatusResponse struct {
-	Data                                                                                     []MCPServerStatus `json:"data"`
-	// Opaque cursor to pass to the next call to continue after the last item. If None, there                  
-	// are no more items to return.                                                                            
-	NextCursor                                                                               *string           `json:"nextCursor"`
+	Data []MCPServerStatus `json:"data"`
+	// Opaque cursor to pass to the next call to continue after the last item. If None, there
+	// are no more items to return.
+	NextCursor *string `json:"nextCursor"`
 }
 
 type MCPServerStatus struct {
@@ -4514,6 +5109,7 @@ type MCPServerStatus struct {
 	Name              string             `json:"name"`
 	Resources         []Resource         `json:"resources"`
 	ResourceTemplates []ResourceTemplate `json:"resourceTemplates"`
+	ServerInfo        *MCPServerInfo     `json:"serverInfo"`
 	Tools             map[string]Tool    `json:"tools"`
 }
 
@@ -4540,6 +5136,16 @@ type Resource struct {
 	URI         string        `json:"uri"`
 }
 
+// Presentation metadata advertised by an initialized MCP server.
+type MCPServerInfo struct {
+	Description *string       `json:"description"`
+	Icons       []interface{} `json:"icons"`
+	Name        string        `json:"name"`
+	Title       *string       `json:"title"`
+	Version     string        `json:"version"`
+	WebsiteURL  *string       `json:"websiteUrl"`
+}
+
 // Definition for a tool the client can call.
 type Tool struct {
 	Meta         interface{}   `json:"_meta"`
@@ -4554,31 +5160,36 @@ type Tool struct {
 
 // [UNSTABLE] FOR OPENAI INTERNAL USE ONLY - DO NOT USE. The access token must contain the
 // same scopes that Codex-managed ChatGPT auth tokens have.
+//
+// [UNSTABLE] Managed Amazon Bedrock login is experimental.
 type LoginAccountParams struct {
-	APIKey                                                                                   *string                `json:"apiKey,omitempty"`
-	Type                                                                                     LoginAccountParamsType `json:"type"`
-	CodexStreamlinedLogin                                                                    *bool                  `json:"codexStreamlinedLogin,omitempty"`
-	// Access token (JWT) supplied by the client. This token is used for backend API requests                       
-	// and email extraction.                                                                                        
-	AccessToken                                                                              *string                `json:"accessToken,omitempty"`
-	// Workspace/account identifier supplied by the client.                                                         
-	ChatgptAccountID                                                                         *string                `json:"chatgptAccountId,omitempty"`
-	// Optional plan type supplied by the client.                                                                   
-	//                                                                                                              
-	// When `null`, Codex attempts to derive the plan type from access-token claims. If                             
-	// unavailable, the plan defaults to `unknown`.                                                                 
-	ChatgptPlanType                                                                          *string                `json:"chatgptPlanType"`
+	APIKey                    *string                `json:"apiKey,omitempty"`
+	Type                      LoginAccountParamsType `json:"type"`
+	AppBrand                  *LoginAppBrand         `json:"appBrand"`
+	CodexStreamlinedLogin     *bool                  `json:"codexStreamlinedLogin,omitempty"`
+	UseHostedLoginSuccessPage *bool                  `json:"useHostedLoginSuccessPage,omitempty"`
+	// Access token (JWT) supplied by the client. This token is used for backend API requests
+	// and email extraction.
+	AccessToken *string `json:"accessToken,omitempty"`
+	// Workspace/account identifier supplied by the client.
+	ChatgptAccountID *string `json:"chatgptAccountId,omitempty"`
+	// Optional plan type supplied by the client.
+	//
+	// When `null`, Codex attempts to derive the plan type from access-token claims. If
+	// unavailable, the plan defaults to `unknown`.
+	ChatgptPlanType *string `json:"chatgptPlanType"`
+	Region          *string `json:"region,omitempty"`
 }
 
 type LoginAccountResponse struct {
-	Type                                                                             LoginAccountParamsType `json:"type"`
-	// URL the client should open in a browser to initiate the OAuth flow.                                  
-	AuthURL                                                                          *string                `json:"authUrl,omitempty"`
-	LoginID                                                                          *string                `json:"loginId,omitempty"`
-	// One-time code the user must enter after signing in.                                                  
-	UserCode                                                                         *string                `json:"userCode,omitempty"`
-	// URL the client should open in a browser to complete device code authorization.                       
-	VerificationURL                                                                  *string                `json:"verificationUrl,omitempty"`
+	Type LoginAccountParamsType `json:"type"`
+	// URL the client should open in a browser to initiate the OAuth flow.
+	AuthURL *string `json:"authUrl,omitempty"`
+	LoginID *string `json:"loginId,omitempty"`
+	// One-time code the user must enter after signing in.
+	UserCode *string `json:"userCode,omitempty"`
+	// URL the client should open in a browser to complete device code authorization.
+	VerificationURL *string `json:"verificationUrl,omitempty"`
 }
 
 type MarketplaceAddParams struct {
@@ -4629,23 +5240,25 @@ type MCPResourceReadResponse struct {
 
 // Contents returned when reading a resource from an MCP server.
 type ResourceContent struct {
-	Meta                        interface{} `json:"_meta"`
-	MIMEType                    *string     `json:"mimeType"`
-	Text                        *string     `json:"text,omitempty"`
-	// The URI of this resource.            
-	URI                         string      `json:"uri"`
-	Blob                        *string     `json:"blob,omitempty"`
+	Meta     interface{} `json:"_meta"`
+	MIMEType *string     `json:"mimeType"`
+	Text     *string     `json:"text,omitempty"`
+	// The URI of this resource.
+	URI  string  `json:"uri"`
+	Blob *string `json:"blob,omitempty"`
 }
 
 type MCPServerOauthLoginCompletedNotification struct {
-	Error   *string `json:"error"`
-	Name    string  `json:"name"`
-	Success bool    `json:"success"`
+	Error    *string `json:"error"`
+	Name     string  `json:"name"`
+	Success  bool    `json:"success"`
+	ThreadID *string `json:"threadId"`
 }
 
 type MCPServerOauthLoginParams struct {
 	Name        string   `json:"name"`
 	Scopes      []string `json:"scopes"`
+	ThreadID    *string  `json:"threadId"`
 	TimeoutSecs *int64   `json:"timeoutSecs"`
 }
 
@@ -4654,9 +5267,11 @@ type MCPServerOauthLoginResponse struct {
 }
 
 type MCPServerStatusUpdatedNotification struct {
-	Error  *string               `json:"error"`
-	Name   string                `json:"name"`
-	Status MCPServerStartupState `json:"status"`
+	Error         *string                        `json:"error"`
+	FailureReason *MCPServerStartupFailureReason `json:"failureReason"`
+	Name          string                         `json:"name"`
+	Status        MCPServerStartupState          `json:"status"`
+	ThreadID      *string                        `json:"threadId"`
 }
 
 type MCPServerToolCallParams struct {
@@ -4682,40 +5297,40 @@ type MCPToolCallProgressNotification struct {
 }
 
 type ModelListParams struct {
-	// Opaque pagination cursor returned by a previous call.                          
-	Cursor                                                                    *string `json:"cursor"`
-	// When true, include models that are hidden from the default picker list.        
-	IncludeHidden                                                             *bool   `json:"includeHidden"`
-	// Optional page size; defaults to a reasonable server-side value.                
-	Limit                                                                     *int64  `json:"limit"`
+	// Opaque pagination cursor returned by a previous call.
+	Cursor *string `json:"cursor"`
+	// When true, include models that are hidden from the default picker list.
+	IncludeHidden *bool `json:"includeHidden"`
+	// Optional page size; defaults to a reasonable server-side value.
+	Limit *int64 `json:"limit"`
 }
 
 type ModelListResponse struct {
-	Data                                                                                     []Model `json:"data"`
-	// Opaque cursor to pass to the next call to continue after the last item. If None, there        
-	// are no more items to return.                                                                  
-	NextCursor                                                                               *string `json:"nextCursor"`
+	Data []Model `json:"data"`
+	// Opaque cursor to pass to the next call to continue after the last item. If None, there
+	// are no more items to return.
+	NextCursor *string `json:"nextCursor"`
 }
 
 type Model struct {
-	// Deprecated: use `serviceTiers` instead.                                                        
-	AdditionalSpeedTiers                                                      []string                `json:"additionalSpeedTiers,omitempty"`
-	AvailabilityNux                                                           *ModelAvailabilityNux   `json:"availabilityNux"`
-	DefaultReasoningEffort                                                    ReasoningEffort         `json:"defaultReasoningEffort"`
-	// Catalog default service tier id for this model, when one is configured.                        
-	DefaultServiceTier                                                        *string                 `json:"defaultServiceTier"`
-	Description                                                               string                  `json:"description"`
-	DisplayName                                                               string                  `json:"displayName"`
-	Hidden                                                                    bool                    `json:"hidden"`
-	ID                                                                        string                  `json:"id"`
-	InputModalities                                                           []InputModality         `json:"inputModalities,omitempty"`
-	IsDefault                                                                 bool                    `json:"isDefault"`
-	Model                                                                     string                  `json:"model"`
-	ServiceTiers                                                              []ModelServiceTier      `json:"serviceTiers,omitempty"`
-	SupportedReasoningEfforts                                                 []ReasoningEffortOption `json:"supportedReasoningEfforts"`
-	SupportsPersonality                                                       *bool                   `json:"supportsPersonality,omitempty"`
-	Upgrade                                                                   *string                 `json:"upgrade"`
-	UpgradeInfo                                                               *ModelUpgradeInfo       `json:"upgradeInfo"`
+	// Deprecated: use `serviceTiers` instead.
+	AdditionalSpeedTiers   []string              `json:"additionalSpeedTiers,omitempty"`
+	AvailabilityNux        *ModelAvailabilityNux `json:"availabilityNux"`
+	DefaultReasoningEffort string                `json:"defaultReasoningEffort"`
+	// Catalog default service tier id for this model, when one is configured.
+	DefaultServiceTier        *string                 `json:"defaultServiceTier"`
+	Description               string                  `json:"description"`
+	DisplayName               string                  `json:"displayName"`
+	Hidden                    bool                    `json:"hidden"`
+	ID                        string                  `json:"id"`
+	InputModalities           []InputModality         `json:"inputModalities,omitempty"`
+	IsDefault                 bool                    `json:"isDefault"`
+	Model                     string                  `json:"model"`
+	ServiceTiers              []ModelServiceTier      `json:"serviceTiers,omitempty"`
+	SupportedReasoningEfforts []ReasoningEffortOption `json:"supportedReasoningEfforts"`
+	SupportsPersonality       *bool                   `json:"supportsPersonality,omitempty"`
+	Upgrade                   *string                 `json:"upgrade"`
+	UpgradeInfo               *ModelUpgradeInfo       `json:"upgradeInfo"`
 }
 
 type ModelAvailabilityNux struct {
@@ -4729,8 +5344,8 @@ type ModelServiceTier struct {
 }
 
 type ReasoningEffortOption struct {
-	Description     string          `json:"description"`
-	ReasoningEffort ReasoningEffort `json:"reasoningEffort"`
+	Description     string `json:"description"`
+	ReasoningEffort string `json:"reasoningEffort"`
 }
 
 type ModelUpgradeInfo struct {
@@ -4754,6 +5369,16 @@ type ModelReroutedNotification struct {
 	TurnID    string             `json:"turnId"`
 }
 
+type ModelSafetyBufferingUpdatedNotification struct {
+	FasterModel     *string  `json:"fasterModel"`
+	Model           string   `json:"model"`
+	Reasons         []string `json:"reasons"`
+	ShowBufferingUI bool     `json:"showBufferingUi"`
+	ThreadID        string   `json:"threadId"`
+	TurnID          string   `json:"turnId"`
+	UseCases        []string `json:"useCases"`
+}
+
 type ModelVerificationNotification struct {
 	ThreadID      string              `json:"threadId"`
 	TurnID        string              `json:"turnId"`
@@ -4761,26 +5386,28 @@ type ModelVerificationNotification struct {
 }
 
 type PermissionProfileListParams struct {
-	// Opaque pagination cursor returned by a previous call.               
-	Cursor                                                         *string `json:"cursor"`
-	// Optional working directory to resolve project config layers.        
-	Cwd                                                            *string `json:"cwd"`
-	// Optional page size; defaults to the full result set.                
-	Limit                                                          *int64  `json:"limit"`
+	// Opaque pagination cursor returned by a previous call.
+	Cursor *string `json:"cursor"`
+	// Optional working directory to resolve project config layers.
+	Cwd *string `json:"cwd"`
+	// Optional page size; defaults to the full result set.
+	Limit *int64 `json:"limit"`
 }
 
 type PermissionProfileListResponse struct {
-	Data                                                                                     []PermissionProfileSummary `json:"data"`
-	// Opaque cursor to pass to the next call to continue after the last item. If None, there                           
-	// are no more items to return.                                                                                     
-	NextCursor                                                                               *string                    `json:"nextCursor"`
+	Data []PermissionProfileSummary `json:"data"`
+	// Opaque cursor to pass to the next call to continue after the last item. If None, there
+	// are no more items to return.
+	NextCursor *string `json:"nextCursor"`
 }
 
 type PermissionProfileSummary struct {
-	// Optional user-facing description for display in clients.        
-	Description                                                *string `json:"description"`
-	// Available permission profile identifier.                        
-	ID                                                         string  `json:"id"`
+	// Whether the effective requirements allow selecting this profile.
+	Allowed bool `json:"allowed"`
+	// Optional user-facing description for display in clients.
+	Description *string `json:"description"`
+	// Available permission profile identifier.
+	ID string `json:"id"`
 }
 
 // EXPERIMENTAL - proposed plan streaming deltas for plan items. Clients should not assume
@@ -4805,19 +5432,19 @@ type PluginInstallResponse struct {
 
 // EXPERIMENTAL - app metadata summary for plugin responses.
 type AppsNeedingAuthElement struct {
+	Category    *string `json:"category"`
 	Description *string `json:"description"`
 	ID          string  `json:"id"`
 	InstallURL  *string `json:"installUrl"`
 	Name        string  `json:"name"`
-	NeedsAuth   bool    `json:"needsAuth"`
 }
 
 type PluginInstalledParams struct {
-	// Optional working directories used to discover repo marketplaces.                                  
-	Cwds                                                                                        []string `json:"cwds"`
-	// Additional uninstalled plugin names that should be returned when present locally. This is         
-	// used by mention surfaces that intentionally expose install entrypoints.                           
-	InstallSuggestionPluginNames                                                                []string `json:"installSuggestionPluginNames"`
+	// Optional working directories used to discover repo marketplaces.
+	Cwds []string `json:"cwds"`
+	// Additional uninstalled plugin names that should be returned when present locally. This is
+	// used by mention surfaces that intentionally expose install entrypoints.
+	InstallSuggestionPluginNames []string `json:"installSuggestionPluginNames"`
 }
 
 type PluginInstalledResponse struct {
@@ -4831,12 +5458,12 @@ type PluginInstalledResponseMarketplaceLoadError struct {
 }
 
 type PluginInstalledResponseMarketplace struct {
-	Interface                                                                                 *PurpleMarketplaceInterface `json:"interface"`
-	Name                                                                                      string                      `json:"name"`
-	// Local marketplace file path when the marketplace is backed by a local file. Remote-only                            
-	// catalog marketplaces do not have a local path.                                                                     
-	Path                                                                                      *string                     `json:"path"`
-	Plugins                                                                                   []PurplePluginSummary       `json:"plugins"`
+	Interface *PurpleMarketplaceInterface `json:"interface"`
+	Name      string                      `json:"name"`
+	// Local marketplace file path when the marketplace is backed by a local file. Remote-only
+	// catalog marketplaces do not have a local path.
+	Path    *string               `json:"path"`
+	Plugins []PurplePluginSummary `json:"plugins"`
 }
 
 type PurpleMarketplaceInterface struct {
@@ -4844,62 +5471,70 @@ type PurpleMarketplaceInterface struct {
 }
 
 type PurplePluginSummary struct {
-	AuthPolicy                                                           PluginAuthPolicy          `json:"authPolicy"`
-	// Availability state for installing and using the plugin.                                     
-	Availability                                                         *PluginAvailability       `json:"availability,omitempty"`
-	Enabled                                                              bool                      `json:"enabled"`
-	ID                                                                   string                    `json:"id"`
-	Installed                                                            bool                      `json:"installed"`
-	InstallPolicy                                                        PluginInstallPolicy       `json:"installPolicy"`
-	Interface                                                            *PurplePluginInterface    `json:"interface"`
-	Keywords                                                             []string                  `json:"keywords,omitempty"`
-	// Version of the locally materialized plugin package when available.                          
-	LocalVersion                                                         *string                   `json:"localVersion"`
-	Name                                                                 string                    `json:"name"`
-	// Backend remote plugin identifier when available.                                            
-	RemotePluginID                                                       *string                   `json:"remotePluginId"`
-	// Remote sharing context associated with this plugin when available.                          
-	ShareContext                                                         *PurplePluginShareContext `json:"shareContext"`
-	Source                                                               PurplePluginSource        `json:"source"`
+	AuthPolicy PluginAuthPolicy `json:"authPolicy"`
+	// Availability state for installing and using the plugin.
+	Availability        *PluginAvailability        `json:"availability,omitempty"`
+	Enabled             bool                       `json:"enabled"`
+	ID                  string                     `json:"id"`
+	Installed           bool                       `json:"installed"`
+	InstallPolicy       PluginInstallPolicy        `json:"installPolicy"`
+	InstallPolicySource *PluginInstallPolicySource `json:"installPolicySource"`
+	Interface           *PurplePluginInterface     `json:"interface"`
+	Keywords            []string                   `json:"keywords,omitempty"`
+	// Version of the locally materialized plugin package when available.
+	LocalVersion                     *string `json:"localVersion"`
+	MustShowInstallationInterstitial *bool   `json:"mustShowInstallationInterstitial"`
+	Name                             string  `json:"name"`
+	// Backend remote plugin identifier when available.
+	RemotePluginID *string `json:"remotePluginId"`
+	// Remote sharing context associated with this plugin when available.
+	ShareContext *PurplePluginShareContext `json:"shareContext"`
+	Source       PurplePluginSource        `json:"source"`
+	// Version advertised by the remote marketplace backend when available.
+	Version *string `json:"version"`
 }
 
 type PurplePluginInterface struct {
-	BrandColor                                                                                 *string  `json:"brandColor"`
-	Capabilities                                                                               []string `json:"capabilities"`
-	Category                                                                                   *string  `json:"category"`
-	// Local composer icon path, resolved from the installed plugin package.                            
-	ComposerIcon                                                                               *string  `json:"composerIcon"`
-	// Remote composer icon URL from the plugin catalog.                                                
-	ComposerIconURL                                                                            *string  `json:"composerIconUrl"`
-	// Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per         
-	// entry.                                                                                           
-	DefaultPrompt                                                                              []string `json:"defaultPrompt"`
-	DeveloperName                                                                              *string  `json:"developerName"`
-	DisplayName                                                                                *string  `json:"displayName"`
-	// Local logo path, resolved from the installed plugin package.                                     
-	Logo                                                                                       *string  `json:"logo"`
-	// Remote logo URL from the plugin catalog.                                                         
-	LogoURL                                                                                    *string  `json:"logoUrl"`
-	LongDescription                                                                            *string  `json:"longDescription"`
-	PrivacyPolicyURL                                                                           *string  `json:"privacyPolicyUrl"`
-	// Local screenshot paths, resolved from the installed plugin package.                              
-	Screenshots                                                                                []string `json:"screenshots"`
-	// Remote screenshot URLs from the plugin catalog.                                                  
-	ScreenshotUrls                                                                             []string `json:"screenshotUrls"`
-	ShortDescription                                                                           *string  `json:"shortDescription"`
-	TermsOfServiceURL                                                                          *string  `json:"termsOfServiceUrl"`
-	WebsiteURL                                                                                 *string  `json:"websiteUrl"`
+	BrandColor   *string  `json:"brandColor"`
+	Capabilities []string `json:"capabilities"`
+	Category     *string  `json:"category"`
+	// Local composer icon path, resolved from the installed plugin package.
+	ComposerIcon *string `json:"composerIcon"`
+	// Remote composer icon URL from the plugin catalog.
+	ComposerIconURL *string `json:"composerIconUrl"`
+	// Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per
+	// entry.
+	DefaultPrompt []string `json:"defaultPrompt"`
+	DeveloperName *string  `json:"developerName"`
+	DisplayName   *string  `json:"displayName"`
+	// Local logo path, resolved from the installed plugin package.
+	Logo *string `json:"logo"`
+	// Local dark-mode logo path, resolved from the installed plugin package.
+	LogoDark *string `json:"logoDark"`
+	// Remote logo URL from the plugin catalog.
+	LogoURL *string `json:"logoUrl"`
+	// Remote dark-mode logo URL from the plugin catalog.
+	LogoURLDark      *string `json:"logoUrlDark"`
+	LongDescription  *string `json:"longDescription"`
+	PrivacyPolicyURL *string `json:"privacyPolicyUrl"`
+	// Local screenshot paths, resolved from the installed plugin package.
+	Screenshots []string `json:"screenshots"`
+	// Remote screenshot URLs from the plugin catalog.
+	ScreenshotUrls    []string `json:"screenshotUrls"`
+	ShortDescription  *string  `json:"shortDescription"`
+	TermsOfServiceURL *string  `json:"termsOfServiceUrl"`
+	WebsiteURL        *string  `json:"websiteUrl"`
 }
 
 type PurplePluginShareContext struct {
-	CreatorAccountUserID                                          *string                      `json:"creatorAccountUserId"`
-	CreatorName                                                   *string                      `json:"creatorName"`
-	Discoverability                                               *PluginShareDiscoverability  `json:"discoverability"`
-	RemotePluginID                                                string                       `json:"remotePluginId"`
-	// Version of the remote shared plugin release when available.                             
-	RemoteVersion                                                 *string                      `json:"remoteVersion"`
-	SharePrincipals                                               []PurplePluginSharePrincipal `json:"sharePrincipals"`
-	ShareURL                                                      *string                      `json:"shareUrl"`
+	CreatorAccountUserID *string                     `json:"creatorAccountUserId"`
+	CreatorName          *string                     `json:"creatorName"`
+	Discoverability      *PluginShareDiscoverability `json:"discoverability"`
+	RemotePluginID       string                      `json:"remotePluginId"`
+	// Version of the remote shared plugin release when available.
+	RemoteVersion   *string                      `json:"remoteVersion"`
+	SharePrincipals []PurplePluginSharePrincipal `json:"sharePrincipals"`
+	ShareURL        *string                      `json:"shareUrl"`
 }
 
 type PurplePluginSharePrincipal struct {
@@ -4917,15 +5552,20 @@ type PurplePluginSource struct {
 	RefName *string          `json:"refName"`
 	SHA     *string          `json:"sha"`
 	URL     *string          `json:"url,omitempty"`
+	Package *string          `json:"package,omitempty"`
+	// Optional HTTPS registry URL. Authentication stays in the user's npm config.
+	Registry *string `json:"registry"`
+	// Optional npm version or version range.
+	Version *string `json:"version"`
 }
 
 type PluginListParams struct {
-	// Optional working directories used to discover repo marketplaces. When omitted, only                                  
-	// home-scoped marketplaces and the official curated marketplace are considered.                                        
-	Cwds                                                                                        []string                    `json:"cwds"`
-	// Optional marketplace kind filter. When omitted, only local marketplaces are queried, plus                            
-	// the default remote catalog when enabled by feature flag.                                                             
-	MarketplaceKinds                                                                            []PluginListMarketplaceKind `json:"marketplaceKinds"`
+	// Optional working directories used to discover repo marketplaces. When omitted, only
+	// home-scoped marketplaces and the official curated marketplace are considered.
+	Cwds []string `json:"cwds"`
+	// Optional marketplace kind filter. When omitted, only local marketplaces are queried, plus
+	// the default remote catalog when enabled by feature flag.
+	MarketplaceKinds []PluginListMarketplaceKind `json:"marketplaceKinds"`
 }
 
 type PluginListResponse struct {
@@ -4940,12 +5580,12 @@ type PluginListResponseMarketplaceLoadError struct {
 }
 
 type PluginListResponseMarketplace struct {
-	Interface                                                                                 *FluffyMarketplaceInterface `json:"interface"`
-	Name                                                                                      string                      `json:"name"`
-	// Local marketplace file path when the marketplace is backed by a local file. Remote-only                            
-	// catalog marketplaces do not have a local path.                                                                     
-	Path                                                                                      *string                     `json:"path"`
-	Plugins                                                                                   []FluffyPluginSummary       `json:"plugins"`
+	Interface *FluffyMarketplaceInterface `json:"interface"`
+	Name      string                      `json:"name"`
+	// Local marketplace file path when the marketplace is backed by a local file. Remote-only
+	// catalog marketplaces do not have a local path.
+	Path    *string               `json:"path"`
+	Plugins []FluffyPluginSummary `json:"plugins"`
 }
 
 type FluffyMarketplaceInterface struct {
@@ -4953,62 +5593,70 @@ type FluffyMarketplaceInterface struct {
 }
 
 type FluffyPluginSummary struct {
-	AuthPolicy                                                           PluginAuthPolicy          `json:"authPolicy"`
-	// Availability state for installing and using the plugin.                                     
-	Availability                                                         *PluginAvailability       `json:"availability,omitempty"`
-	Enabled                                                              bool                      `json:"enabled"`
-	ID                                                                   string                    `json:"id"`
-	Installed                                                            bool                      `json:"installed"`
-	InstallPolicy                                                        PluginInstallPolicy       `json:"installPolicy"`
-	Interface                                                            *FluffyPluginInterface    `json:"interface"`
-	Keywords                                                             []string                  `json:"keywords,omitempty"`
-	// Version of the locally materialized plugin package when available.                          
-	LocalVersion                                                         *string                   `json:"localVersion"`
-	Name                                                                 string                    `json:"name"`
-	// Backend remote plugin identifier when available.                                            
-	RemotePluginID                                                       *string                   `json:"remotePluginId"`
-	// Remote sharing context associated with this plugin when available.                          
-	ShareContext                                                         *FluffyPluginShareContext `json:"shareContext"`
-	Source                                                               FluffyPluginSource        `json:"source"`
+	AuthPolicy PluginAuthPolicy `json:"authPolicy"`
+	// Availability state for installing and using the plugin.
+	Availability        *PluginAvailability        `json:"availability,omitempty"`
+	Enabled             bool                       `json:"enabled"`
+	ID                  string                     `json:"id"`
+	Installed           bool                       `json:"installed"`
+	InstallPolicy       PluginInstallPolicy        `json:"installPolicy"`
+	InstallPolicySource *PluginInstallPolicySource `json:"installPolicySource"`
+	Interface           *FluffyPluginInterface     `json:"interface"`
+	Keywords            []string                   `json:"keywords,omitempty"`
+	// Version of the locally materialized plugin package when available.
+	LocalVersion                     *string `json:"localVersion"`
+	MustShowInstallationInterstitial *bool   `json:"mustShowInstallationInterstitial"`
+	Name                             string  `json:"name"`
+	// Backend remote plugin identifier when available.
+	RemotePluginID *string `json:"remotePluginId"`
+	// Remote sharing context associated with this plugin when available.
+	ShareContext *FluffyPluginShareContext `json:"shareContext"`
+	Source       FluffyPluginSource        `json:"source"`
+	// Version advertised by the remote marketplace backend when available.
+	Version *string `json:"version"`
 }
 
 type FluffyPluginInterface struct {
-	BrandColor                                                                                 *string  `json:"brandColor"`
-	Capabilities                                                                               []string `json:"capabilities"`
-	Category                                                                                   *string  `json:"category"`
-	// Local composer icon path, resolved from the installed plugin package.                            
-	ComposerIcon                                                                               *string  `json:"composerIcon"`
-	// Remote composer icon URL from the plugin catalog.                                                
-	ComposerIconURL                                                                            *string  `json:"composerIconUrl"`
-	// Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per         
-	// entry.                                                                                           
-	DefaultPrompt                                                                              []string `json:"defaultPrompt"`
-	DeveloperName                                                                              *string  `json:"developerName"`
-	DisplayName                                                                                *string  `json:"displayName"`
-	// Local logo path, resolved from the installed plugin package.                                     
-	Logo                                                                                       *string  `json:"logo"`
-	// Remote logo URL from the plugin catalog.                                                         
-	LogoURL                                                                                    *string  `json:"logoUrl"`
-	LongDescription                                                                            *string  `json:"longDescription"`
-	PrivacyPolicyURL                                                                           *string  `json:"privacyPolicyUrl"`
-	// Local screenshot paths, resolved from the installed plugin package.                              
-	Screenshots                                                                                []string `json:"screenshots"`
-	// Remote screenshot URLs from the plugin catalog.                                                  
-	ScreenshotUrls                                                                             []string `json:"screenshotUrls"`
-	ShortDescription                                                                           *string  `json:"shortDescription"`
-	TermsOfServiceURL                                                                          *string  `json:"termsOfServiceUrl"`
-	WebsiteURL                                                                                 *string  `json:"websiteUrl"`
+	BrandColor   *string  `json:"brandColor"`
+	Capabilities []string `json:"capabilities"`
+	Category     *string  `json:"category"`
+	// Local composer icon path, resolved from the installed plugin package.
+	ComposerIcon *string `json:"composerIcon"`
+	// Remote composer icon URL from the plugin catalog.
+	ComposerIconURL *string `json:"composerIconUrl"`
+	// Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per
+	// entry.
+	DefaultPrompt []string `json:"defaultPrompt"`
+	DeveloperName *string  `json:"developerName"`
+	DisplayName   *string  `json:"displayName"`
+	// Local logo path, resolved from the installed plugin package.
+	Logo *string `json:"logo"`
+	// Local dark-mode logo path, resolved from the installed plugin package.
+	LogoDark *string `json:"logoDark"`
+	// Remote logo URL from the plugin catalog.
+	LogoURL *string `json:"logoUrl"`
+	// Remote dark-mode logo URL from the plugin catalog.
+	LogoURLDark      *string `json:"logoUrlDark"`
+	LongDescription  *string `json:"longDescription"`
+	PrivacyPolicyURL *string `json:"privacyPolicyUrl"`
+	// Local screenshot paths, resolved from the installed plugin package.
+	Screenshots []string `json:"screenshots"`
+	// Remote screenshot URLs from the plugin catalog.
+	ScreenshotUrls    []string `json:"screenshotUrls"`
+	ShortDescription  *string  `json:"shortDescription"`
+	TermsOfServiceURL *string  `json:"termsOfServiceUrl"`
+	WebsiteURL        *string  `json:"websiteUrl"`
 }
 
 type FluffyPluginShareContext struct {
-	CreatorAccountUserID                                          *string                      `json:"creatorAccountUserId"`
-	CreatorName                                                   *string                      `json:"creatorName"`
-	Discoverability                                               *PluginShareDiscoverability  `json:"discoverability"`
-	RemotePluginID                                                string                       `json:"remotePluginId"`
-	// Version of the remote shared plugin release when available.                             
-	RemoteVersion                                                 *string                      `json:"remoteVersion"`
-	SharePrincipals                                               []FluffyPluginSharePrincipal `json:"sharePrincipals"`
-	ShareURL                                                      *string                      `json:"shareUrl"`
+	CreatorAccountUserID *string                     `json:"creatorAccountUserId"`
+	CreatorName          *string                     `json:"creatorName"`
+	Discoverability      *PluginShareDiscoverability `json:"discoverability"`
+	RemotePluginID       string                      `json:"remotePluginId"`
+	// Version of the remote shared plugin release when available.
+	RemoteVersion   *string                      `json:"remoteVersion"`
+	SharePrincipals []FluffyPluginSharePrincipal `json:"sharePrincipals"`
+	ShareURL        *string                      `json:"shareUrl"`
 }
 
 type FluffyPluginSharePrincipal struct {
@@ -5026,6 +5674,11 @@ type FluffyPluginSource struct {
 	RefName *string          `json:"refName"`
 	SHA     *string          `json:"sha"`
 	URL     *string          `json:"url,omitempty"`
+	Package *string          `json:"package,omitempty"`
+	// Optional HTTPS registry URL. Authentication stays in the user's npm config.
+	Registry *string `json:"registry"`
+	// Optional npm version or version range.
+	Version *string `json:"version"`
 }
 
 type PluginReadParams struct {
@@ -5039,28 +5692,57 @@ type PluginReadResponse struct {
 }
 
 type PluginDetail struct {
-	Apps            []AppElement        `json:"apps"`
-	Description     *string             `json:"description"`
-	Hooks           []PluginHookSummary `json:"hooks"`
-	MarketplaceName string              `json:"marketplaceName"`
-	MarketplacePath *string             `json:"marketplacePath"`
-	MCPServers      []string            `json:"mcpServers"`
-	Skills          []SkillSummary      `json:"skills"`
-	Summary         SummaryClass        `json:"summary"`
+	Apps            []AppElement           `json:"apps"`
+	AppTemplates    []AppTemplateSummary   `json:"appTemplates"`
+	Description     *string                `json:"description"`
+	Hooks           []PluginHookSummary    `json:"hooks"`
+	MarketplaceName string                 `json:"marketplaceName"`
+	MarketplacePath *string                `json:"marketplacePath"`
+	MCPServers      []string               `json:"mcpServers"`
+	ScheduledTasks  []ScheduledTaskSummary `json:"scheduledTasks"`
+	ShareURL        *string                `json:"shareUrl"`
+	Skills          []SkillSummary         `json:"skills"`
+	Summary         SummaryClass           `json:"summary"`
+}
+
+type AppTemplateSummary struct {
+	CanonicalConnectorID *string                       `json:"canonicalConnectorId"`
+	Category             *string                       `json:"category"`
+	Description          *string                       `json:"description"`
+	LogoURL              *string                       `json:"logoUrl"`
+	LogoURLDark          *string                       `json:"logoUrlDark"`
+	MaterializedAppIDS   []string                      `json:"materializedAppIds"`
+	Name                 string                        `json:"name"`
+	Reason               *AppTemplateUnavailableReason `json:"reason"`
+	TemplateID           string                        `json:"templateId"`
 }
 
 // EXPERIMENTAL - app metadata summary for plugin responses.
 type AppElement struct {
+	Category    *string `json:"category"`
 	Description *string `json:"description"`
 	ID          string  `json:"id"`
 	InstallURL  *string `json:"installUrl"`
 	Name        string  `json:"name"`
-	NeedsAuth   bool    `json:"needsAuth"`
 }
 
 type PluginHookSummary struct {
 	EventName HookEventName `json:"eventName"`
 	Key       string        `json:"key"`
+}
+
+type ScheduledTaskSummary struct {
+	Key      string                `json:"key"`
+	Name     string                `json:"name"`
+	Prompt   string                `json:"prompt"`
+	Schedule ScheduledTaskSchedule `json:"schedule"`
+}
+
+type ScheduledTaskSchedule struct {
+	Days          []ScheduledTaskWeekday    `json:"days"`
+	IntervalHours *int64                    `json:"intervalHours,omitempty"`
+	Type          ScheduledTaskScheduleType `json:"type"`
+	Time          *string                   `json:"time,omitempty"`
 }
 
 type SkillSummary struct {
@@ -5082,62 +5764,70 @@ type PurpleSkillInterface struct {
 }
 
 type SummaryClass struct {
-	AuthPolicy                                                           PluginAuthPolicy           `json:"authPolicy"`
-	// Availability state for installing and using the plugin.                                      
-	Availability                                                         *PluginAvailability        `json:"availability,omitempty"`
-	Enabled                                                              bool                       `json:"enabled"`
-	ID                                                                   string                     `json:"id"`
-	Installed                                                            bool                       `json:"installed"`
-	InstallPolicy                                                        PluginInstallPolicy        `json:"installPolicy"`
-	Interface                                                            *SummaryPluginInterface    `json:"interface"`
-	Keywords                                                             []string                   `json:"keywords,omitempty"`
-	// Version of the locally materialized plugin package when available.                           
-	LocalVersion                                                         *string                    `json:"localVersion"`
-	Name                                                                 string                     `json:"name"`
-	// Backend remote plugin identifier when available.                                             
-	RemotePluginID                                                       *string                    `json:"remotePluginId"`
-	// Remote sharing context associated with this plugin when available.                           
-	ShareContext                                                         *SummaryPluginShareContext `json:"shareContext"`
-	Source                                                               SummaryPluginSource        `json:"source"`
+	AuthPolicy PluginAuthPolicy `json:"authPolicy"`
+	// Availability state for installing and using the plugin.
+	Availability        *PluginAvailability        `json:"availability,omitempty"`
+	Enabled             bool                       `json:"enabled"`
+	ID                  string                     `json:"id"`
+	Installed           bool                       `json:"installed"`
+	InstallPolicy       PluginInstallPolicy        `json:"installPolicy"`
+	InstallPolicySource *PluginInstallPolicySource `json:"installPolicySource"`
+	Interface           *SummaryPluginInterface    `json:"interface"`
+	Keywords            []string                   `json:"keywords,omitempty"`
+	// Version of the locally materialized plugin package when available.
+	LocalVersion                     *string `json:"localVersion"`
+	MustShowInstallationInterstitial *bool   `json:"mustShowInstallationInterstitial"`
+	Name                             string  `json:"name"`
+	// Backend remote plugin identifier when available.
+	RemotePluginID *string `json:"remotePluginId"`
+	// Remote sharing context associated with this plugin when available.
+	ShareContext *SummaryPluginShareContext `json:"shareContext"`
+	Source       SummaryPluginSource        `json:"source"`
+	// Version advertised by the remote marketplace backend when available.
+	Version *string `json:"version"`
 }
 
 type SummaryPluginInterface struct {
-	BrandColor                                                                                 *string  `json:"brandColor"`
-	Capabilities                                                                               []string `json:"capabilities"`
-	Category                                                                                   *string  `json:"category"`
-	// Local composer icon path, resolved from the installed plugin package.                            
-	ComposerIcon                                                                               *string  `json:"composerIcon"`
-	// Remote composer icon URL from the plugin catalog.                                                
-	ComposerIconURL                                                                            *string  `json:"composerIconUrl"`
-	// Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per         
-	// entry.                                                                                           
-	DefaultPrompt                                                                              []string `json:"defaultPrompt"`
-	DeveloperName                                                                              *string  `json:"developerName"`
-	DisplayName                                                                                *string  `json:"displayName"`
-	// Local logo path, resolved from the installed plugin package.                                     
-	Logo                                                                                       *string  `json:"logo"`
-	// Remote logo URL from the plugin catalog.                                                         
-	LogoURL                                                                                    *string  `json:"logoUrl"`
-	LongDescription                                                                            *string  `json:"longDescription"`
-	PrivacyPolicyURL                                                                           *string  `json:"privacyPolicyUrl"`
-	// Local screenshot paths, resolved from the installed plugin package.                              
-	Screenshots                                                                                []string `json:"screenshots"`
-	// Remote screenshot URLs from the plugin catalog.                                                  
-	ScreenshotUrls                                                                             []string `json:"screenshotUrls"`
-	ShortDescription                                                                           *string  `json:"shortDescription"`
-	TermsOfServiceURL                                                                          *string  `json:"termsOfServiceUrl"`
-	WebsiteURL                                                                                 *string  `json:"websiteUrl"`
+	BrandColor   *string  `json:"brandColor"`
+	Capabilities []string `json:"capabilities"`
+	Category     *string  `json:"category"`
+	// Local composer icon path, resolved from the installed plugin package.
+	ComposerIcon *string `json:"composerIcon"`
+	// Remote composer icon URL from the plugin catalog.
+	ComposerIconURL *string `json:"composerIconUrl"`
+	// Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per
+	// entry.
+	DefaultPrompt []string `json:"defaultPrompt"`
+	DeveloperName *string  `json:"developerName"`
+	DisplayName   *string  `json:"displayName"`
+	// Local logo path, resolved from the installed plugin package.
+	Logo *string `json:"logo"`
+	// Local dark-mode logo path, resolved from the installed plugin package.
+	LogoDark *string `json:"logoDark"`
+	// Remote logo URL from the plugin catalog.
+	LogoURL *string `json:"logoUrl"`
+	// Remote dark-mode logo URL from the plugin catalog.
+	LogoURLDark      *string `json:"logoUrlDark"`
+	LongDescription  *string `json:"longDescription"`
+	PrivacyPolicyURL *string `json:"privacyPolicyUrl"`
+	// Local screenshot paths, resolved from the installed plugin package.
+	Screenshots []string `json:"screenshots"`
+	// Remote screenshot URLs from the plugin catalog.
+	ScreenshotUrls    []string `json:"screenshotUrls"`
+	ShortDescription  *string  `json:"shortDescription"`
+	TermsOfServiceURL *string  `json:"termsOfServiceUrl"`
+	WebsiteURL        *string  `json:"websiteUrl"`
 }
 
 type SummaryPluginShareContext struct {
-	CreatorAccountUserID                                          *string                         `json:"creatorAccountUserId"`
-	CreatorName                                                   *string                         `json:"creatorName"`
-	Discoverability                                               *PluginShareDiscoverability     `json:"discoverability"`
-	RemotePluginID                                                string                          `json:"remotePluginId"`
-	// Version of the remote shared plugin release when available.                                
-	RemoteVersion                                                 *string                         `json:"remoteVersion"`
-	SharePrincipals                                               []TentacledPluginSharePrincipal `json:"sharePrincipals"`
-	ShareURL                                                      *string                         `json:"shareUrl"`
+	CreatorAccountUserID *string                     `json:"creatorAccountUserId"`
+	CreatorName          *string                     `json:"creatorName"`
+	Discoverability      *PluginShareDiscoverability `json:"discoverability"`
+	RemotePluginID       string                      `json:"remotePluginId"`
+	// Version of the remote shared plugin release when available.
+	RemoteVersion   *string                         `json:"remoteVersion"`
+	SharePrincipals []TentacledPluginSharePrincipal `json:"sharePrincipals"`
+	ShareURL        *string                         `json:"shareUrl"`
 }
 
 type TentacledPluginSharePrincipal struct {
@@ -5155,6 +5845,11 @@ type SummaryPluginSource struct {
 	RefName *string          `json:"refName"`
 	SHA     *string          `json:"sha"`
 	URL     *string          `json:"url,omitempty"`
+	Package *string          `json:"package,omitempty"`
+	// Optional HTTPS registry URL. Authentication stays in the user's npm config.
+	Registry *string `json:"registry"`
+	// Optional npm version or version range.
+	Version *string `json:"version"`
 }
 
 type PluginShareCheckoutParams struct {
@@ -5185,62 +5880,70 @@ type PluginShareListItem struct {
 }
 
 type DatumPlugin struct {
-	AuthPolicy                                                           PluginAuthPolicy             `json:"authPolicy"`
-	// Availability state for installing and using the plugin.                                        
-	Availability                                                         *PluginAvailability          `json:"availability,omitempty"`
-	Enabled                                                              bool                         `json:"enabled"`
-	ID                                                                   string                       `json:"id"`
-	Installed                                                            bool                         `json:"installed"`
-	InstallPolicy                                                        PluginInstallPolicy          `json:"installPolicy"`
-	Interface                                                            *TentacledPluginInterface    `json:"interface"`
-	Keywords                                                             []string                     `json:"keywords,omitempty"`
-	// Version of the locally materialized plugin package when available.                             
-	LocalVersion                                                         *string                      `json:"localVersion"`
-	Name                                                                 string                       `json:"name"`
-	// Backend remote plugin identifier when available.                                               
-	RemotePluginID                                                       *string                      `json:"remotePluginId"`
-	// Remote sharing context associated with this plugin when available.                             
-	ShareContext                                                         *TentacledPluginShareContext `json:"shareContext"`
-	Source                                                               TentacledPluginSource        `json:"source"`
+	AuthPolicy PluginAuthPolicy `json:"authPolicy"`
+	// Availability state for installing and using the plugin.
+	Availability        *PluginAvailability        `json:"availability,omitempty"`
+	Enabled             bool                       `json:"enabled"`
+	ID                  string                     `json:"id"`
+	Installed           bool                       `json:"installed"`
+	InstallPolicy       PluginInstallPolicy        `json:"installPolicy"`
+	InstallPolicySource *PluginInstallPolicySource `json:"installPolicySource"`
+	Interface           *TentacledPluginInterface  `json:"interface"`
+	Keywords            []string                   `json:"keywords,omitempty"`
+	// Version of the locally materialized plugin package when available.
+	LocalVersion                     *string `json:"localVersion"`
+	MustShowInstallationInterstitial *bool   `json:"mustShowInstallationInterstitial"`
+	Name                             string  `json:"name"`
+	// Backend remote plugin identifier when available.
+	RemotePluginID *string `json:"remotePluginId"`
+	// Remote sharing context associated with this plugin when available.
+	ShareContext *TentacledPluginShareContext `json:"shareContext"`
+	Source       TentacledPluginSource        `json:"source"`
+	// Version advertised by the remote marketplace backend when available.
+	Version *string `json:"version"`
 }
 
 type TentacledPluginInterface struct {
-	BrandColor                                                                                 *string  `json:"brandColor"`
-	Capabilities                                                                               []string `json:"capabilities"`
-	Category                                                                                   *string  `json:"category"`
-	// Local composer icon path, resolved from the installed plugin package.                            
-	ComposerIcon                                                                               *string  `json:"composerIcon"`
-	// Remote composer icon URL from the plugin catalog.                                                
-	ComposerIconURL                                                                            *string  `json:"composerIconUrl"`
-	// Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per         
-	// entry.                                                                                           
-	DefaultPrompt                                                                              []string `json:"defaultPrompt"`
-	DeveloperName                                                                              *string  `json:"developerName"`
-	DisplayName                                                                                *string  `json:"displayName"`
-	// Local logo path, resolved from the installed plugin package.                                     
-	Logo                                                                                       *string  `json:"logo"`
-	// Remote logo URL from the plugin catalog.                                                         
-	LogoURL                                                                                    *string  `json:"logoUrl"`
-	LongDescription                                                                            *string  `json:"longDescription"`
-	PrivacyPolicyURL                                                                           *string  `json:"privacyPolicyUrl"`
-	// Local screenshot paths, resolved from the installed plugin package.                              
-	Screenshots                                                                                []string `json:"screenshots"`
-	// Remote screenshot URLs from the plugin catalog.                                                  
-	ScreenshotUrls                                                                             []string `json:"screenshotUrls"`
-	ShortDescription                                                                           *string  `json:"shortDescription"`
-	TermsOfServiceURL                                                                          *string  `json:"termsOfServiceUrl"`
-	WebsiteURL                                                                                 *string  `json:"websiteUrl"`
+	BrandColor   *string  `json:"brandColor"`
+	Capabilities []string `json:"capabilities"`
+	Category     *string  `json:"category"`
+	// Local composer icon path, resolved from the installed plugin package.
+	ComposerIcon *string `json:"composerIcon"`
+	// Remote composer icon URL from the plugin catalog.
+	ComposerIconURL *string `json:"composerIconUrl"`
+	// Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per
+	// entry.
+	DefaultPrompt []string `json:"defaultPrompt"`
+	DeveloperName *string  `json:"developerName"`
+	DisplayName   *string  `json:"displayName"`
+	// Local logo path, resolved from the installed plugin package.
+	Logo *string `json:"logo"`
+	// Local dark-mode logo path, resolved from the installed plugin package.
+	LogoDark *string `json:"logoDark"`
+	// Remote logo URL from the plugin catalog.
+	LogoURL *string `json:"logoUrl"`
+	// Remote dark-mode logo URL from the plugin catalog.
+	LogoURLDark      *string `json:"logoUrlDark"`
+	LongDescription  *string `json:"longDescription"`
+	PrivacyPolicyURL *string `json:"privacyPolicyUrl"`
+	// Local screenshot paths, resolved from the installed plugin package.
+	Screenshots []string `json:"screenshots"`
+	// Remote screenshot URLs from the plugin catalog.
+	ScreenshotUrls    []string `json:"screenshotUrls"`
+	ShortDescription  *string  `json:"shortDescription"`
+	TermsOfServiceURL *string  `json:"termsOfServiceUrl"`
+	WebsiteURL        *string  `json:"websiteUrl"`
 }
 
 type TentacledPluginShareContext struct {
-	CreatorAccountUserID                                          *string                      `json:"creatorAccountUserId"`
-	CreatorName                                                   *string                      `json:"creatorName"`
-	Discoverability                                               *PluginShareDiscoverability  `json:"discoverability"`
-	RemotePluginID                                                string                       `json:"remotePluginId"`
-	// Version of the remote shared plugin release when available.                             
-	RemoteVersion                                                 *string                      `json:"remoteVersion"`
-	SharePrincipals                                               []StickyPluginSharePrincipal `json:"sharePrincipals"`
-	ShareURL                                                      *string                      `json:"shareUrl"`
+	CreatorAccountUserID *string                     `json:"creatorAccountUserId"`
+	CreatorName          *string                     `json:"creatorName"`
+	Discoverability      *PluginShareDiscoverability `json:"discoverability"`
+	RemotePluginID       string                      `json:"remotePluginId"`
+	// Version of the remote shared plugin release when available.
+	RemoteVersion   *string                      `json:"remoteVersion"`
+	SharePrincipals []StickyPluginSharePrincipal `json:"sharePrincipals"`
+	ShareURL        *string                      `json:"shareUrl"`
 }
 
 type StickyPluginSharePrincipal struct {
@@ -5258,6 +5961,11 @@ type TentacledPluginSource struct {
 	RefName *string          `json:"refName"`
 	SHA     *string          `json:"sha"`
 	URL     *string          `json:"url,omitempty"`
+	Package *string          `json:"package,omitempty"`
+	// Optional HTTPS registry URL. Authentication stays in the user's npm config.
+	Registry *string `json:"registry"`
+	// Optional npm version or version range.
+	Version *string `json:"version"`
 }
 
 type PluginShareSaveParams struct {
@@ -5279,7 +5987,7 @@ type PluginShareSaveResponse struct {
 }
 
 type PluginShareUpdateTargetsParams struct {
-	Discoverability PluginShareUpdateDiscoverability            `json:"discoverability"`
+	Discoverability PluginShareDiscoverability                  `json:"discoverability"`
 	RemotePluginID  string                                      `json:"remotePluginId"`
 	ShareTargets    []PluginShareUpdateTargetsParamsShareTarget `json:"shareTargets"`
 }
@@ -5318,41 +6026,59 @@ type PluginUninstallParams struct {
 
 // Final process exit notification for `process/spawn`.
 type ProcessExitedNotification struct {
-	// Process exit code.                                                                          
-	ExitCode                                                                                int64  `json:"exitCode"`
-	// Client-supplied, connection-scoped `processHandle` from `process/spawn`.                    
-	ProcessHandle                                                                           string `json:"processHandle"`
-	// Buffered stderr capture.                                                                    
-	//                                                                                             
-	// Empty when stderr was streamed via `process/outputDelta`.                                   
-	Stderr                                                                                  string `json:"stderr"`
-	// Whether stderr reached `outputBytesCap`.                                                    
-	//                                                                                             
-	// In streaming mode, stderr is empty and cap state is also reported on the final stderr       
-	// `process/outputDelta` notification.                                                         
-	StderrCapReached                                                                        bool   `json:"stderrCapReached"`
-	// Buffered stdout capture.                                                                    
-	//                                                                                             
-	// Empty when stdout was streamed via `process/outputDelta`.                                   
-	Stdout                                                                                  string `json:"stdout"`
-	// Whether stdout reached `outputBytesCap`.                                                    
-	//                                                                                             
-	// In streaming mode, stdout is empty and cap state is also reported on the final stdout       
-	// `process/outputDelta` notification.                                                         
-	StdoutCapReached                                                                        bool   `json:"stdoutCapReached"`
+	// Process exit code.
+	ExitCode int64 `json:"exitCode"`
+	// Client-supplied, connection-scoped `processHandle` from `process/spawn`.
+	ProcessHandle string `json:"processHandle"`
+	// Buffered stderr capture.
+	//
+	// Empty when stderr was streamed via `process/outputDelta`.
+	Stderr string `json:"stderr"`
+	// Whether stderr reached `outputBytesCap`.
+	//
+	// In streaming mode, stderr is empty and cap state is also reported on the final stderr
+	// `process/outputDelta` notification.
+	StderrCapReached bool `json:"stderrCapReached"`
+	// Buffered stdout capture.
+	//
+	// Empty when stdout was streamed via `process/outputDelta`.
+	Stdout string `json:"stdout"`
+	// Whether stdout reached `outputBytesCap`.
+	//
+	// In streaming mode, stdout is empty and cap state is also reported on the final stdout
+	// `process/outputDelta` notification.
+	StdoutCapReached bool `json:"stdoutCapReached"`
 }
 
 // Base64-encoded output chunk emitted for a streaming `process/spawn` request.
 type ProcessOutputDeltaNotification struct {
-	// True on the final streamed chunk for this stream when output was truncated by             
-	// `outputBytesCap`.                                                                         
-	CapReached                                                                      bool         `json:"capReached"`
-	// Base64-encoded output bytes.                                                              
-	DeltaBase64                                                                     string       `json:"deltaBase64"`
-	// Client-supplied, connection-scoped `processHandle` from `process/spawn`.                  
-	ProcessHandle                                                                   string       `json:"processHandle"`
-	// Output stream this chunk belongs to.                                                      
-	Stream                                                                          OutputStream `json:"stream"`
+	// True on the final streamed chunk for this stream when output was truncated by
+	// `outputBytesCap`.
+	CapReached bool `json:"capReached"`
+	// Base64-encoded output bytes.
+	DeltaBase64 string `json:"deltaBase64"`
+	// Client-supplied, connection-scoped `processHandle` from `process/spawn`.
+	ProcessHandle string `json:"processHandle"`
+	// Output stream this chunk belongs to.
+	Stream OutputStream `json:"stream"`
+}
+
+// Internal-only notification containing the exact usage from one upstream Responses API
+// completion.
+type RawResponseCompletedNotification struct {
+	ResponseID string               `json:"responseId"`
+	ThreadID   string               `json:"threadId"`
+	TurnID     string               `json:"turnId"`
+	Usage      *TokenUsageBreakdown `json:"usage"`
+}
+
+type TokenUsageBreakdown struct {
+	CachedInputTokens     int64  `json:"cachedInputTokens"`
+	CacheWriteInputTokens *int64 `json:"cacheWriteInputTokens,omitempty"`
+	InputTokens           int64  `json:"inputTokens"`
+	OutputTokens          int64  `json:"outputTokens"`
+	ReasoningOutputTokens int64  `json:"reasoningOutputTokens"`
+	TotalTokens           int64  `json:"totalTokens"`
 }
 
 type RawResponseItemCompletedNotification struct {
@@ -5362,47 +6088,60 @@ type RawResponseItemCompletedNotification struct {
 }
 
 type ResponseItem struct {
-	Content                                                           []ContentItem                   `json:"content"`
-	// Legacy id field retained for compatibility with older payloads.                                
-	ID                                                                *string                         `json:"id"`
-	Phase                                                             *MessagePhase                   `json:"phase"`
-	Role                                                              *string                         `json:"role,omitempty"`
-	Type                                                              ResponseItemType                `json:"type"`
-	EncryptedContent                                                  *string                         `json:"encrypted_content"`
-	Summary                                                           []ReasoningItemReasoningSummary `json:"summary,omitempty"`
-	Action                                                            *ResponsesAPIWebSearchAction    `json:"action"`
-	// Set when using the Responses API.                                                              
-	CallID                                                            *string                         `json:"call_id"`
-	Status                                                            *string                         `json:"status"`
-	Arguments                                                         interface{}                     `json:"arguments"`
-	Name                                                              *string                         `json:"name"`
-	Namespace                                                         *string                         `json:"namespace"`
-	Execution                                                         *string                         `json:"execution,omitempty"`
-	Output                                                            *FunctionCallOutputBody         `json:"output"`
-	Input                                                             *string                         `json:"input,omitempty"`
-	Tools                                                             []interface{}                   `json:"tools,omitempty"`
-	Result                                                            *string                         `json:"result,omitempty"`
-	RevisedPrompt                                                     *string                         `json:"revised_prompt"`
+	Content []ContentItem `json:"content"`
+	// Legacy id field retained for compatibility with older payloads.
+	ID                                     *string                                 `json:"id"`
+	InternalChatMessageMetadataPassthrough *InternalChatMessageMetadataPassthrough `json:"internal_chat_message_metadata_passthrough"`
+	Phase                                  *MessagePhase                           `json:"phase"`
+	Role                                   *string                                 `json:"role,omitempty"`
+	Type                                   ResponseItemType                        `json:"type"`
+	Author                                 *string                                 `json:"author,omitempty"`
+	Recipient                              *string                                 `json:"recipient,omitempty"`
+	EncryptedContent                       *string                                 `json:"encrypted_content"`
+	Summary                                []ReasoningItemReasoningSummary         `json:"summary,omitempty"`
+	Action                                 *Action                                 `json:"action"`
+	// Set when using the Responses API.
+	CallID        *string                 `json:"call_id"`
+	Status        *string                 `json:"status"`
+	Arguments     interface{}             `json:"arguments"`
+	Name          *string                 `json:"name"`
+	Namespace     *string                 `json:"namespace"`
+	Execution     *string                 `json:"execution,omitempty"`
+	Output        *FunctionCallOutputBody `json:"output"`
+	Input         *string                 `json:"input,omitempty"`
+	Tools         []interface{}           `json:"tools,omitempty"`
+	Result        *string                 `json:"result,omitempty"`
+	RevisedPrompt *string                 `json:"revised_prompt"`
 }
 
-type ResponsesAPIWebSearchAction struct {
-	Command          []string                 `json:"command,omitempty"`
-	Env              map[string]string        `json:"env"`
-	TimeoutMS        *int64                   `json:"timeout_ms"`
-	Type             ExecLocalShellActionType `json:"type"`
-	User             *string                  `json:"user"`
-	WorkingDirectory *string                  `json:"working_directory"`
-	Queries          []string                 `json:"queries"`
-	Query            *string                  `json:"query"`
-	URL              *string                  `json:"url"`
-	Pattern          *string                  `json:"pattern"`
+type Action struct {
+	Command          []string          `json:"command,omitempty"`
+	Env              map[string]string `json:"env"`
+	TimeoutMS        *int64            `json:"timeout_ms"`
+	Type             ActionType        `json:"type"`
+	User             *string           `json:"user"`
+	WorkingDirectory *string           `json:"working_directory"`
+	Queries          []string          `json:"queries"`
+	Query            *string           `json:"query"`
+	URL              *string           `json:"url"`
+	Pattern          *string           `json:"pattern"`
 }
 
 type ContentItem struct {
-	Text     *string      `json:"text,omitempty"`
-	Type     ContentType  `json:"type"`
-	Detail   *ImageDetail `json:"detail"`
-	ImageURL *string      `json:"image_url,omitempty"`
+	Text             *string      `json:"text,omitempty"`
+	Type             ContentType  `json:"type"`
+	Detail           *ImageDetail `json:"detail"`
+	ImageURL         *string      `json:"image_url,omitempty"`
+	AudioURL         *string      `json:"audio_url,omitempty"`
+	EncryptedContent *string      `json:"encrypted_content,omitempty"`
+}
+
+// Internal Responses API passthrough metadata copied into underlying chat messages.
+//
+// Responses API strongly types this payload. Do not modify it without first getting API
+// approval and making the corresponding Responses API change.
+type InternalChatMessageMetadataPassthrough struct {
+	TurnID *string `json:"turn_id"`
 }
 
 // Responses API compatible content items that can be returned by a tool call. This is a
@@ -5412,6 +6151,7 @@ type FunctionCallOutputContentItem struct {
 	Type             FunctionCallOutputContentItemType `json:"type"`
 	Detail           *ImageDetail                      `json:"detail"`
 	ImageURL         *string                           `json:"image_url,omitempty"`
+	AudioURL         *string                           `json:"audio_url,omitempty"`
 	EncryptedContent *string                           `json:"encrypted_content,omitempty"`
 }
 
@@ -5452,11 +6192,11 @@ type RemoteControlStatusChangedNotification struct {
 }
 
 type ReviewStartParams struct {
-	// Where to run the review: inline (default) on the current thread or detached on a new                
-	// thread (returned in `reviewThreadId`).                                                              
-	Delivery                                                                               *ReviewDelivery `json:"delivery"`
-	Target                                                                                 ReviewTarget    `json:"target"`
-	ThreadID                                                                               string          `json:"threadId"`
+	// Where to run the review: inline (default) on the current thread or detached on a new
+	// thread (returned in `reviewThreadId`).
+	Delivery *ReviewDelivery `json:"delivery"`
+	Target   ReviewTarget    `json:"target"`
+	ThreadID string          `json:"threadId"`
 }
 
 // Review the working tree: staged, unstaged, and untracked files.
@@ -5467,38 +6207,39 @@ type ReviewStartParams struct {
 //
 // Arbitrary instructions, equivalent to the old free-form prompt.
 type ReviewTarget struct {
-	Type                                                            ReviewTargetType `json:"type"`
-	Branch                                                          *string          `json:"branch,omitempty"`
-	SHA                                                             *string          `json:"sha,omitempty"`
-	// Optional human-readable label (e.g., commit subject) for UIs.                 
-	Title                                                           *string          `json:"title"`
-	Instructions                                                    *string          `json:"instructions,omitempty"`
+	Type   ReviewTargetType `json:"type"`
+	Branch *string          `json:"branch,omitempty"`
+	SHA    *string          `json:"sha,omitempty"`
+	// Optional human-readable label (e.g., commit subject) for UIs.
+	Title        *string `json:"title"`
+	Instructions *string `json:"instructions,omitempty"`
 }
 
 type ReviewStartResponse struct {
-	// Identifies the thread where the review runs.                                                                    
-	//                                                                                                                 
-	// For inline reviews, this is the original thread id. For detached reviews, this is the id                        
-	// of the new review thread.                                                                                       
-	ReviewThreadID                                                                             string                  `json:"reviewThreadId"`
-	Turn                                                                                       ReviewStartResponseTurn `json:"turn"`
+	// Identifies the thread where the review runs.
+	//
+	// For inline reviews, this is the original thread id. For detached reviews, this is the id
+	// of the new review thread.
+	ReviewThreadID string                  `json:"reviewThreadId"`
+	Turn           ReviewStartResponseTurn `json:"turn"`
 }
 
 type ReviewStartResponseTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                    
-	CompletedAt                                                             *int64             `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                   
-	DurationMS                                                              *int64             `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                        
-	Error                                                                   *PurpleTurnError   `json:"error"`
-	ID                                                                      string             `json:"id"`
-	// Thread items currently included in this turn payload.                                   
-	Items                                                                   []PurpleThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                            
-	ItemsView                                                               *TurnItemsView     `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                      
-	StartedAt                                                               *int64             `json:"startedAt"`
-	Status                                                                  TurnStatus         `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *PurpleTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []PurpleThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type PurpleTurnError struct {
@@ -5545,70 +6286,83 @@ type FluffyResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type PurpleThreadItem struct {
-	Content                                                                                     []TentacledContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                         
-	ID                                                                                          string                                      `json:"id"`
-	Type                                                                                        ThreadItemType                              `json:"type"`
-	Fragments                                                                                   []TentacledHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *TentacledMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                               `json:"phase"`
-	Text                                                                                        *string                                     `json:"text,omitempty"`
-	Summary                                                                                     []string                                    `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                             
-	AggregatedOutput                                                                            *string                                     `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                          
-	Command                                                                                     *string                                     `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                               
-	// returns a list of CommandAction objects because a single shell command may be composed of                                            
-	// many commands piped together.                                                                                                        
-	CommandActions                                                                              []TentacledCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                     
-	Cwd                                                                                         *string                                     `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                               
-	//                                                                                                                                      
-	// The duration of the MCP tool call in milliseconds.                                                                                   
-	//                                                                                                                                      
-	// The duration of the dynamic tool call in milliseconds.                                                                               
-	DurationMS                                                                                  *int64                                      `json:"durationMs"`
-	// The command's exit code.                                                                                                             
-	ExitCode                                                                                    *int64                                      `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                          
-	ProcessID                                                                                   *string                                     `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                     `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                              
-	Status                                                                                      *string                                     `json:"status,omitempty"`
-	Changes                                                                                     []TentacledFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                                 `json:"arguments"`
-	Error                                                                                       *TentacledMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                     `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                     `json:"pluginId"`
-	Result                                                                                      *TentacledResult                            `json:"result"`
-	Server                                                                                      *string                                     `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                            
-	Tool                                                                                        *string                                     `json:"tool,omitempty"`
-	ContentItems                                                                                []TentacledDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                     `json:"namespace"`
-	Success                                                                                     *bool                                       `json:"success"`
-	// Last known status of the target agents, when available.                                                                              
-	AgentsStates                                                                                map[string]TentacledCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                              
-	Model                                                                                       *string                                     `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                    
-	Prompt                                                                                      *string                                     `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                   
-	ReasoningEffort                                                                             *ReasoningEffort                            `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                                  
-	// corresponds to the newly spawned agent.                                                                                              
-	ReceiverThreadIDS                                                                           []string                                    `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                   
-	SenderThreadID                                                                              *string                                     `json:"senderThreadId,omitempty"`
-	Action                                                                                      *TentacledWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                     `json:"query,omitempty"`
-	Path                                                                                        *string                                     `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                     `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                     `json:"savedPath"`
-	Review                                                                                      *string                                     `json:"review,omitempty"`
+	ClientID *string      `json:"clientId"`
+	Content  []UserInput5 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                        `json:"id"`
+	Type           ThreadItemType                `json:"type"`
+	Fragments      []TentacledHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *TentacledMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase                 `json:"phase"`
+	Text           *string                       `json:"text,omitempty"`
+	Summary        []string                      `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []TentacledCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                         `json:"status,omitempty"`
+	Changes    []TentacledFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *TentacledMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                     `json:"arguments"`
+	Error      *TentacledMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string          `json:"mcpAppResourceUri"`
+	PluginID          *string          `json:"pluginId"`
+	Result            *TentacledResult `json:"result"`
+	Server            *string          `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                     `json:"tool,omitempty"`
+	ContentItems []TentacledDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                     `json:"namespace"`
+	Success      *bool                                       `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]TentacledCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                   `json:"senderThreadId,omitempty"`
+	AgentPath      *string                   `json:"agentPath,omitempty"`
+	AgentThreadID  *string                   `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind     `json:"kind,omitempty"`
+	Action         *TentacledWebSearchAction `json:"action"`
+	Query          *string                   `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type TentacledWebSearchAction struct {
@@ -5622,6 +6376,14 @@ type TentacledWebSearchAction struct {
 type TentacledCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type TentacledMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type TentacledFileUpdateChange struct {
@@ -5644,21 +6406,21 @@ type TentacledCommandAction struct {
 }
 
 type TentacledUserInput struct {
-	Text                                                                         *string                `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                       
-	TextElements                                                                 []TentacledTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType          `json:"type"`
-	Detail                                                                       *ImageDetail           `json:"detail"`
-	URL                                                                          *string                `json:"url,omitempty"`
-	Path                                                                         *string                `json:"path,omitempty"`
-	Name                                                                         *string                `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []TentacledTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType          `json:"type"`
+	Detail       *ImageDetail           `json:"detail"`
+	URL          *string                `json:"url,omitempty"`
+	Path         *string                `json:"path,omitempty"`
+	Name         *string                `json:"name,omitempty"`
 }
 
 type TentacledTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                          
-	ByteRange                                                                   TentacledByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                   
-	Placeholder                                                                 *string            `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange TentacledByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -5671,6 +6433,7 @@ type TentacledDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type TentacledMCPToolCallError struct {
@@ -5714,22 +6477,26 @@ type ServerRequestResolvedNotification struct {
 }
 
 type SkillsConfigWriteParams struct {
-	Enabled                bool    `json:"enabled"`
-	// Name-based selector.        
-	Name                   *string `json:"name"`
-	// Path-based selector.        
-	Path                   *string `json:"path"`
+	Enabled bool `json:"enabled"`
+	// Name-based selector.
+	Name *string `json:"name"`
+	// Path-based selector.
+	Path *string `json:"path"`
 }
 
 type SkillsConfigWriteResponse struct {
 	EffectiveEnabled bool `json:"effectiveEnabled"`
 }
 
+type SkillsExtraRootsSetParams struct {
+	ExtraRoots []string `json:"extraRoots"`
+}
+
 type SkillsListParams struct {
-	// When empty, defaults to the current session working directory.           
-	Cwds                                                               []string `json:"cwds,omitempty"`
-	// When true, bypass the skills cache and re-scan skills from disk.         
-	ForceReload                                                        *bool    `json:"forceReload,omitempty"`
+	// When empty, defaults to the current session working directory.
+	Cwds []string `json:"cwds,omitempty"`
+	// When true, bypass the skills cache and re-scan skills from disk.
+	ForceReload *bool `json:"forceReload,omitempty"`
 }
 
 type SkillsListResponse struct {
@@ -5748,15 +6515,15 @@ type SkillErrorInfo struct {
 }
 
 type SkillMetadata struct {
-	Dependencies                                                                             *SkillDependencies    `json:"dependencies"`
-	Description                                                                              string                `json:"description"`
-	Enabled                                                                                  bool                  `json:"enabled"`
-	Interface                                                                                *FluffySkillInterface `json:"interface"`
-	Name                                                                                     string                `json:"name"`
-	Path                                                                                     string                `json:"path"`
-	Scope                                                                                    SkillScope            `json:"scope"`
-	// Legacy short_description from SKILL.md. Prefer SKILL.json interface.short_description.                      
-	ShortDescription                                                                         *string               `json:"shortDescription"`
+	Dependencies *SkillDependencies    `json:"dependencies"`
+	Description  string                `json:"description"`
+	Enabled      bool                  `json:"enabled"`
+	Interface    *FluffySkillInterface `json:"interface"`
+	Name         string                `json:"name"`
+	Path         string                `json:"path"`
+	Scope        SkillScope            `json:"scope"`
+	// Legacy short_description from SKILL.md. Prefer SKILL.json interface.short_description.
+	ShortDescription *string `json:"shortDescription"`
 }
 
 type SkillDependencies struct {
@@ -5790,9 +6557,9 @@ type TerminalInteractionNotification struct {
 }
 
 type ThreadApproveGuardianDeniedActionParams struct {
-	// Serialized `codex_protocol::protocol::GuardianAssessmentEvent`.            
-	Event                                                             interface{} `json:"event"`
-	ThreadID                                                          string      `json:"threadId"`
+	// Serialized `codex_protocol::protocol::GuardianAssessmentEvent`.
+	Event    interface{} `json:"event"`
+	ThreadID string      `json:"threadId"`
 }
 
 type ThreadArchiveParams struct {
@@ -5811,6 +6578,14 @@ type ThreadCompactStartParams struct {
 	ThreadID string `json:"threadId"`
 }
 
+type ThreadDeleteParams struct {
+	ThreadID string `json:"threadId"`
+}
+
+type ThreadDeletedNotification struct {
+	ThreadID string `json:"threadId"`
+}
+
 // There are two ways to fork a thread: 1. By thread_id: load the thread from disk by
 // thread_id and fork it into a new thread. 2. By path: load the thread from disk by path
 // and fork it into a new thread.
@@ -5820,23 +6595,28 @@ type ThreadCompactStartParams struct {
 //
 // Prefer using thread_id whenever possible.
 type ThreadForkParams struct {
-	ApprovalPolicy                                                                         *ThreadForkParamsApprovalPolicy `json:"approvalPolicy"`
-	// Override where approval requests are routed for review on this thread and subsequent                                
-	// turns.                                                                                                              
-	ApprovalsReviewer                                                                      *ApprovalsReviewer              `json:"approvalsReviewer"`
-	BaseInstructions                                                                       *string                         `json:"baseInstructions"`
-	Config                                                                                 map[string]interface{}          `json:"config"`
-	Cwd                                                                                    *string                         `json:"cwd"`
-	DeveloperInstructions                                                                  *string                         `json:"developerInstructions"`
-	Ephemeral                                                                              *bool                           `json:"ephemeral,omitempty"`
-	// Configuration overrides for the forked thread, if any.                                                              
-	Model                                                                                  *string                         `json:"model"`
-	ModelProvider                                                                          *string                         `json:"modelProvider"`
-	Sandbox                                                                                *SandboxMode                    `json:"sandbox"`
-	ServiceTier                                                                            *string                         `json:"serviceTier"`
-	ThreadID                                                                               string                          `json:"threadId"`
-	// Optional client-supplied analytics source classification for this forked thread.                                    
-	ThreadSource                                                                           *ThreadSource                   `json:"threadSource"`
+	ApprovalPolicy *ThreadForkParamsApprovalPolicy `json:"approvalPolicy"`
+	// Override where approval requests are routed for review on this thread and subsequent
+	// turns.
+	ApprovalsReviewer     *ApprovalsReviewer     `json:"approvalsReviewer"`
+	BaseInstructions      *string                `json:"baseInstructions"`
+	Config                map[string]interface{} `json:"config"`
+	Cwd                   *string                `json:"cwd"`
+	DeveloperInstructions *string                `json:"developerInstructions"`
+	Ephemeral             *bool                  `json:"ephemeral,omitempty"`
+	// Optional last turn id to fork through, inclusive.
+	//
+	// When specified, turns after `last_turn_id` are omitted from the fork. The referenced turn
+	// cannot be in progress.
+	LastTurnID *string `json:"lastTurnId"`
+	// Configuration overrides for the forked thread, if any.
+	Model         *string      `json:"model"`
+	ModelProvider *string      `json:"modelProvider"`
+	Sandbox       *SandboxMode `json:"sandbox"`
+	ServiceTier   *string      `json:"serviceTier"`
+	ThreadID      string       `json:"threadId"`
+	// Optional client-supplied analytics source classification for this forked thread.
+	ThreadSource *string `json:"threadSource"`
 }
 
 type FluffyGranularAskForApproval struct {
@@ -5852,20 +6632,20 @@ type TentacledGranular struct {
 }
 
 type ThreadForkResponse struct {
-	ApprovalPolicy                                                                         *ThreadForkResponseAskForApproval `json:"approvalPolicy"`
-	// Reviewer currently used for approval requests on this thread.                                                         
-	ApprovalsReviewer                                                                      ApprovalsReviewer                 `json:"approvalsReviewer"`
-	Cwd                                                                                    string                            `json:"cwd"`
-	// Instruction source files currently loaded for this thread.                                                            
-	InstructionSources                                                                     []string                          `json:"instructionSources,omitempty"`
-	Model                                                                                  string                            `json:"model"`
-	ModelProvider                                                                          string                            `json:"modelProvider"`
-	ReasoningEffort                                                                        *ReasoningEffort                  `json:"reasoningEffort"`
-	// Legacy sandbox policy retained for compatibility. Experimental clients should prefer                                  
-	// `activePermissionProfile` for profile provenance.                                                                     
-	Sandbox                                                                                ThreadForkResponseSandboxPolicy   `json:"sandbox"`
-	ServiceTier                                                                            *string                           `json:"serviceTier"`
-	Thread                                                                                 ThreadForkResponseThread          `json:"thread"`
+	ApprovalPolicy *ThreadForkResponseAskForApproval `json:"approvalPolicy"`
+	// Reviewer currently used for approval requests on this thread.
+	ApprovalsReviewer ApprovalsReviewer `json:"approvalsReviewer"`
+	Cwd               string            `json:"cwd"`
+	// Environment-native paths to instruction source files currently loaded for this thread.
+	InstructionSources []string `json:"instructionSources,omitempty"`
+	Model              string   `json:"model"`
+	ModelProvider      string   `json:"modelProvider"`
+	ReasoningEffort    *string  `json:"reasoningEffort"`
+	// Legacy sandbox policy retained for compatibility. Experimental clients should prefer
+	// `activePermissionProfile` for profile provenance.
+	Sandbox     ThreadForkResponseSandboxPolicy `json:"sandbox"`
+	ServiceTier *string                         `json:"serviceTier"`
+	Thread      ThreadForkResponseThread        `json:"thread"`
 }
 
 type TentacledGranularAskForApproval struct {
@@ -5891,45 +6671,50 @@ type ThreadForkResponseSandboxPolicy struct {
 }
 
 type ThreadForkResponseThread struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                              
-	AgentNickname                                                                            *string               `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                   
-	AgentRole                                                                                *string               `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                                 
-	CLIVersion                                                                               string                `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                    
-	CreatedAt                                                                                int64                 `json:"createdAt"`
-	// Working directory captured for the thread.                                                                  
-	Cwd                                                                                      string                `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                     
-	Ephemeral                                                                                bool                  `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                    
-	ForkedFromID                                                                             *string               `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                                 
-	GitInfo                                                                                  *PurpleGitInfo        `json:"gitInfo"`
-	ID                                                                                       string                `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                                
-	ModelProvider                                                                            string                `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                          
-	Name                                                                                     *string               `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                      
-	Path                                                                                     *string               `json:"path"`
-	// Usually the first user message in the thread, if available.                                                 
-	Preview                                                                                  string                `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                          
-	SessionID                                                                                string                `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                     
-	Source                                                                                   *MagentaSessionSource `json:"source"`
-	// Current runtime status for the thread.                                                                      
-	Status                                                                                   PurpleThreadStatus    `json:"status"`
-	// Optional analytics source classification for this thread.                                                   
-	ThreadSource                                                                             *ThreadSource         `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                      
-	// (when `includeTurns` is true) responses. For all other responses and notifications                          
-	// returning a Thread, the turns field will be an empty list.                                                  
-	Turns                                                                                    []PurpleTurn          `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                               
-	UpdatedAt                                                                                int64                 `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *PurpleGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *MagentaSessionSource `json:"source"`
+	// Current runtime status for the thread.
+	Status PurpleThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []PurpleTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type PurpleGitInfo struct {
@@ -5963,20 +6748,21 @@ type PurpleThreadStatus struct {
 }
 
 type PurpleTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                    
-	CompletedAt                                                             *int64             `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                   
-	DurationMS                                                              *int64             `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                        
-	Error                                                                   *FluffyTurnError   `json:"error"`
-	ID                                                                      string             `json:"id"`
-	// Thread items currently included in this turn payload.                                   
-	Items                                                                   []FluffyThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                            
-	ItemsView                                                               *TurnItemsView     `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                      
-	StartedAt                                                               *int64             `json:"startedAt"`
-	Status                                                                  TurnStatus         `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *FluffyTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []FluffyThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type FluffyTurnError struct {
@@ -6023,70 +6809,83 @@ type TentacledResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type FluffyThreadItem struct {
-	Content                                                                                     []StickyContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                      
-	ID                                                                                          string                                   `json:"id"`
-	Type                                                                                        ThreadItemType                           `json:"type"`
-	Fragments                                                                                   []StickyHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *StickyMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                            `json:"phase"`
-	Text                                                                                        *string                                  `json:"text,omitempty"`
-	Summary                                                                                     []string                                 `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                          
-	AggregatedOutput                                                                            *string                                  `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                       
-	Command                                                                                     *string                                  `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                            
-	// returns a list of CommandAction objects because a single shell command may be composed of                                         
-	// many commands piped together.                                                                                                     
-	CommandActions                                                                              []StickyCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                  
-	Cwd                                                                                         *string                                  `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                            
-	//                                                                                                                                   
-	// The duration of the MCP tool call in milliseconds.                                                                                
-	//                                                                                                                                   
-	// The duration of the dynamic tool call in milliseconds.                                                                            
-	DurationMS                                                                                  *int64                                   `json:"durationMs"`
-	// The command's exit code.                                                                                                          
-	ExitCode                                                                                    *int64                                   `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                       
-	ProcessID                                                                                   *string                                  `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                  `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                           
-	Status                                                                                      *string                                  `json:"status,omitempty"`
-	Changes                                                                                     []StickyFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                              `json:"arguments"`
-	Error                                                                                       *StickyMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                  `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                  `json:"pluginId"`
-	Result                                                                                      *StickyResult                            `json:"result"`
-	Server                                                                                      *string                                  `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                         
-	Tool                                                                                        *string                                  `json:"tool,omitempty"`
-	ContentItems                                                                                []StickyDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                  `json:"namespace"`
-	Success                                                                                     *bool                                    `json:"success"`
-	// Last known status of the target agents, when available.                                                                           
-	AgentsStates                                                                                map[string]StickyCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                           
-	Model                                                                                       *string                                  `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                 
-	Prompt                                                                                      *string                                  `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                
-	ReasoningEffort                                                                             *ReasoningEffort                         `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                               
-	// corresponds to the newly spawned agent.                                                                                           
-	ReceiverThreadIDS                                                                           []string                                 `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                
-	SenderThreadID                                                                              *string                                  `json:"senderThreadId,omitempty"`
-	Action                                                                                      *StickyWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                  `json:"query,omitempty"`
-	Path                                                                                        *string                                  `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                  `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                  `json:"savedPath"`
-	Review                                                                                      *string                                  `json:"review,omitempty"`
+	ClientID *string      `json:"clientId"`
+	Content  []UserInput6 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                     `json:"id"`
+	Type           ThreadItemType             `json:"type"`
+	Fragments      []StickyHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *StickyMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase              `json:"phase"`
+	Text           *string                    `json:"text,omitempty"`
+	Summary        []string                   `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []StickyCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                      `json:"status,omitempty"`
+	Changes    []StickyFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *StickyMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                  `json:"arguments"`
+	Error      *StickyMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string       `json:"mcpAppResourceUri"`
+	PluginID          *string       `json:"pluginId"`
+	Result            *StickyResult `json:"result"`
+	Server            *string       `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                  `json:"tool,omitempty"`
+	ContentItems []StickyDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                  `json:"namespace"`
+	Success      *bool                                    `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]StickyCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                `json:"senderThreadId,omitempty"`
+	AgentPath      *string                `json:"agentPath,omitempty"`
+	AgentThreadID  *string                `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind  `json:"kind,omitempty"`
+	Action         *StickyWebSearchAction `json:"action"`
+	Query          *string                `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type StickyWebSearchAction struct {
@@ -6100,6 +6899,14 @@ type StickyWebSearchAction struct {
 type StickyCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type StickyMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type StickyFileUpdateChange struct {
@@ -6122,21 +6929,21 @@ type StickyCommandAction struct {
 }
 
 type StickyUserInput struct {
-	Text                                                                         *string             `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                    
-	TextElements                                                                 []StickyTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType       `json:"type"`
-	Detail                                                                       *ImageDetail        `json:"detail"`
-	URL                                                                          *string             `json:"url,omitempty"`
-	Path                                                                         *string             `json:"path,omitempty"`
-	Name                                                                         *string             `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []StickyTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType       `json:"type"`
+	Detail       *ImageDetail        `json:"detail"`
+	URL          *string             `json:"url,omitempty"`
+	Path         *string             `json:"path,omitempty"`
+	Name         *string             `json:"name,omitempty"`
 }
 
 type StickyTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                       
-	ByteRange                                                                   StickyByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                
-	Placeholder                                                                 *string         `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange StickyByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -6149,6 +6956,7 @@ type StickyDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type StickyMCPToolCallError struct {
@@ -6249,91 +7057,96 @@ type ThreadGoalUpdatedNotificationGoal struct {
 }
 
 type ThreadInjectItemsParams struct {
-	// Raw Responses API items to append to the thread's model-visible history.              
-	Items                                                                      []interface{} `json:"items"`
-	ThreadID                                                                   string        `json:"threadId"`
+	// Raw Responses API items to append to the thread's model-visible history.
+	Items    []interface{} `json:"items"`
+	ThreadID string        `json:"threadId"`
 }
 
 type ThreadListParams struct {
-	// Optional archived filter; when set to true, only archived threads are returned. If false                           
-	// or null, only non-archived threads are returned.                                                                   
-	Archived                                                                                   *bool                      `json:"archived"`
-	// Opaque pagination cursor returned by a previous call.                                                              
-	Cursor                                                                                     *string                    `json:"cursor"`
-	// Optional cwd filter or filters; when set, only threads whose session cwd exactly matches                           
-	// one of these paths are returned.                                                                                   
-	Cwd                                                                                        *ForcedChatgptWorkspaceIDS `json:"cwd"`
-	// Optional page size; defaults to a reasonable server-side value.                                                    
-	Limit                                                                                      *int64                     `json:"limit"`
-	// Optional provider filter; when set, only sessions recorded under these providers are                               
-	// returned. When present but empty, includes all providers.                                                          
-	ModelProviders                                                                             []string                   `json:"modelProviders"`
-	// Optional substring filter for the extracted thread title.                                                          
-	SearchTerm                                                                                 *string                    `json:"searchTerm"`
-	// Optional sort direction; defaults to descending (newest first).                                                    
-	SortDirection                                                                              *SortDirection             `json:"sortDirection"`
-	// Optional sort key; defaults to created_at.                                                                         
-	SortKey                                                                                    *ThreadSortKey             `json:"sortKey"`
-	// Optional source filter; when set, only sessions from these source kinds are returned.                              
-	// When omitted or empty, defaults to interactive sources.                                                            
-	SourceKinds                                                                                []ThreadSourceKind         `json:"sourceKinds"`
-	// If true, return from the state DB without scanning JSONL rollouts to repair thread                                 
-	// metadata. Omitted or false preserves scan-and-repair behavior.                                                     
-	UseStateDBOnly                                                                             *bool                      `json:"useStateDbOnly,omitempty"`
+	// Optional archived filter; when set to true, only archived threads are returned. If false
+	// or null, only non-archived threads are returned.
+	Archived *bool `json:"archived"`
+	// Opaque pagination cursor returned by a previous call.
+	Cursor *string `json:"cursor"`
+	// Optional cwd filter or filters; when set, only threads whose session cwd exactly matches
+	// one of these paths are returned.
+	Cwd *ForcedChatgptWorkspaceIDS `json:"cwd"`
+	// Optional page size; defaults to a reasonable server-side value.
+	Limit *int64 `json:"limit"`
+	// Optional provider filter; when set, only sessions recorded under these providers are
+	// returned. When present but empty, includes all providers.
+	ModelProviders []string `json:"modelProviders"`
+	// Optional substring filter for the extracted thread title.
+	SearchTerm *string `json:"searchTerm"`
+	// Optional sort direction; defaults to descending (newest first).
+	SortDirection *SortDirection `json:"sortDirection"`
+	// Optional sort key; defaults to created_at.
+	SortKey *ThreadSortKey `json:"sortKey"`
+	// Optional source filter; when set, only sessions from these source kinds are returned.
+	// When omitted or empty, defaults to interactive sources.
+	SourceKinds []ThreadSourceKind `json:"sourceKinds"`
+	// If true, return from the state DB without scanning JSONL rollouts to repair thread
+	// metadata. Omitted or false preserves scan-and-repair behavior.
+	UseStateDBOnly *bool `json:"useStateDbOnly,omitempty"`
 }
 
 type ThreadListResponse struct {
-	// Opaque cursor to pass as `cursor` when reversing `sortDirection`. This is only populated                
-	// when the page contains at least one thread. Use it with the opposite `sortDirection`; for               
-	// timestamp sorts it anchors at the start of the page timestamp so same-second updates are                
-	// not skipped.                                                                                            
-	BackwardsCursor                                                                             *string        `json:"backwardsCursor"`
-	Data                                                                                        []DatumElement `json:"data"`
-	// Opaque cursor to pass to the next call to continue after the last item. if None, there                  
-	// are no more items to return.                                                                            
-	NextCursor                                                                                  *string        `json:"nextCursor"`
+	// Opaque cursor to pass as `cursor` when reversing `sortDirection`. This is only populated
+	// when the page contains at least one thread. Use it with the opposite `sortDirection`; for
+	// timestamp sorts it anchors at the start of the page timestamp so same-second updates are
+	// not skipped.
+	BackwardsCursor *string        `json:"backwardsCursor"`
+	Data            []DatumElement `json:"data"`
+	// Opaque cursor to pass to the next call to continue after the last item. if None, there
+	// are no more items to return.
+	NextCursor *string `json:"nextCursor"`
 }
 
 type DatumElement struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                            
-	AgentNickname                                                                            *string             `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                 
-	AgentRole                                                                                *string             `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                               
-	CLIVersion                                                                               string              `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                  
-	CreatedAt                                                                                int64               `json:"createdAt"`
-	// Working directory captured for the thread.                                                                
-	Cwd                                                                                      string              `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                   
-	Ephemeral                                                                                bool                `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                  
-	ForkedFromID                                                                             *string             `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                               
-	GitInfo                                                                                  *DatumGitInfo       `json:"gitInfo"`
-	ID                                                                                       string              `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                              
-	ModelProvider                                                                            string              `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                        
-	Name                                                                                     *string             `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                    
-	Path                                                                                     *string             `json:"path"`
-	// Usually the first user message in the thread, if available.                                               
-	Preview                                                                                  string              `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                        
-	SessionID                                                                                string              `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                   
-	Source                                                                                   *DatumSessionSource `json:"source"`
-	// Current runtime status for the thread.                                                                    
-	Status                                                                                   DatumThreadStatus   `json:"status"`
-	// Optional analytics source classification for this thread.                                                 
-	ThreadSource                                                                             *ThreadSource       `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                    
-	// (when `includeTurns` is true) responses. For all other responses and notifications                        
-	// returning a Thread, the turns field will be an empty list.                                                
-	Turns                                                                                    []DatumTurn         `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                             
-	UpdatedAt                                                                                int64               `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *DatumGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *DatumSessionSource `json:"source"`
+	// Current runtime status for the thread.
+	Status DatumThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []DatumTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type DatumGitInfo struct {
@@ -6367,20 +7180,21 @@ type DatumThreadStatus struct {
 }
 
 type DatumTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                       
-	CompletedAt                                                             *int64                `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                      
-	DurationMS                                                              *int64                `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                           
-	Error                                                                   *TentacledTurnError   `json:"error"`
-	ID                                                                      string                `json:"id"`
-	// Thread items currently included in this turn payload.                                      
-	Items                                                                   []TentacledThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                               
-	ItemsView                                                               *TurnItemsView        `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                         
-	StartedAt                                                               *int64                `json:"startedAt"`
-	Status                                                                  TurnStatus            `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *TentacledTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []TentacledThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type TentacledTurnError struct {
@@ -6427,70 +7241,83 @@ type StickyResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type TentacledThreadItem struct {
-	Content                                                                                     []IndigoContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                      
-	ID                                                                                          string                                   `json:"id"`
-	Type                                                                                        ThreadItemType                           `json:"type"`
-	Fragments                                                                                   []IndigoHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *IndigoMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                            `json:"phase"`
-	Text                                                                                        *string                                  `json:"text,omitempty"`
-	Summary                                                                                     []string                                 `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                          
-	AggregatedOutput                                                                            *string                                  `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                       
-	Command                                                                                     *string                                  `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                            
-	// returns a list of CommandAction objects because a single shell command may be composed of                                         
-	// many commands piped together.                                                                                                     
-	CommandActions                                                                              []IndigoCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                  
-	Cwd                                                                                         *string                                  `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                            
-	//                                                                                                                                   
-	// The duration of the MCP tool call in milliseconds.                                                                                
-	//                                                                                                                                   
-	// The duration of the dynamic tool call in milliseconds.                                                                            
-	DurationMS                                                                                  *int64                                   `json:"durationMs"`
-	// The command's exit code.                                                                                                          
-	ExitCode                                                                                    *int64                                   `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                       
-	ProcessID                                                                                   *string                                  `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                  `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                           
-	Status                                                                                      *string                                  `json:"status,omitempty"`
-	Changes                                                                                     []IndigoFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                              `json:"arguments"`
-	Error                                                                                       *IndigoMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                  `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                  `json:"pluginId"`
-	Result                                                                                      *IndigoResult                            `json:"result"`
-	Server                                                                                      *string                                  `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                         
-	Tool                                                                                        *string                                  `json:"tool,omitempty"`
-	ContentItems                                                                                []IndigoDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                  `json:"namespace"`
-	Success                                                                                     *bool                                    `json:"success"`
-	// Last known status of the target agents, when available.                                                                           
-	AgentsStates                                                                                map[string]IndigoCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                           
-	Model                                                                                       *string                                  `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                 
-	Prompt                                                                                      *string                                  `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                
-	ReasoningEffort                                                                             *ReasoningEffort                         `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                               
-	// corresponds to the newly spawned agent.                                                                                           
-	ReceiverThreadIDS                                                                           []string                                 `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                
-	SenderThreadID                                                                              *string                                  `json:"senderThreadId,omitempty"`
-	Action                                                                                      *IndigoWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                  `json:"query,omitempty"`
-	Path                                                                                        *string                                  `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                  `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                  `json:"savedPath"`
-	Review                                                                                      *string                                  `json:"review,omitempty"`
+	ClientID *string      `json:"clientId"`
+	Content  []UserInput7 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                     `json:"id"`
+	Type           ThreadItemType             `json:"type"`
+	Fragments      []IndigoHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *IndigoMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase              `json:"phase"`
+	Text           *string                    `json:"text,omitempty"`
+	Summary        []string                   `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []IndigoCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                      `json:"status,omitempty"`
+	Changes    []IndigoFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *IndigoMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                  `json:"arguments"`
+	Error      *IndigoMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string       `json:"mcpAppResourceUri"`
+	PluginID          *string       `json:"pluginId"`
+	Result            *IndigoResult `json:"result"`
+	Server            *string       `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                  `json:"tool,omitempty"`
+	ContentItems []IndigoDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                  `json:"namespace"`
+	Success      *bool                                    `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]IndigoCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                `json:"senderThreadId,omitempty"`
+	AgentPath      *string                `json:"agentPath,omitempty"`
+	AgentThreadID  *string                `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind  `json:"kind,omitempty"`
+	Action         *IndigoWebSearchAction `json:"action"`
+	Query          *string                `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type IndigoWebSearchAction struct {
@@ -6504,6 +7331,14 @@ type IndigoWebSearchAction struct {
 type IndigoCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type IndigoMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type IndigoFileUpdateChange struct {
@@ -6526,21 +7361,21 @@ type IndigoCommandAction struct {
 }
 
 type IndigoUserInput struct {
-	Text                                                                         *string             `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                    
-	TextElements                                                                 []IndigoTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType       `json:"type"`
-	Detail                                                                       *ImageDetail        `json:"detail"`
-	URL                                                                          *string             `json:"url,omitempty"`
-	Path                                                                         *string             `json:"path,omitempty"`
-	Name                                                                         *string             `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []IndigoTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType       `json:"type"`
+	Detail       *ImageDetail        `json:"detail"`
+	URL          *string             `json:"url,omitempty"`
+	Path         *string             `json:"path,omitempty"`
+	Name         *string             `json:"name,omitempty"`
 }
 
 type IndigoTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                       
-	ByteRange                                                                   IndigoByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                
-	Placeholder                                                                 *string         `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange IndigoByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -6553,6 +7388,7 @@ type IndigoDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type IndigoMCPToolCallError struct {
@@ -6583,37 +7419,37 @@ type IndigoMCPToolCallResult struct {
 }
 
 type ThreadLoadedListParams struct {
-	// Opaque pagination cursor returned by a previous call.        
-	Cursor                                                  *string `json:"cursor"`
-	// Optional page size; defaults to no limit.                    
-	Limit                                                   *int64  `json:"limit"`
+	// Opaque pagination cursor returned by a previous call.
+	Cursor *string `json:"cursor"`
+	// Optional page size; defaults to no limit.
+	Limit *int64 `json:"limit"`
 }
 
 type ThreadLoadedListResponse struct {
-	// Thread ids for sessions currently loaded in memory.                                            
-	Data                                                                                     []string `json:"data"`
-	// Opaque cursor to pass to the next call to continue after the last item. if None, there         
-	// are no more items to return.                                                                   
-	NextCursor                                                                               *string  `json:"nextCursor"`
+	// Thread ids for sessions currently loaded in memory.
+	Data []string `json:"data"`
+	// Opaque cursor to pass to the next call to continue after the last item. if None, there
+	// are no more items to return.
+	NextCursor *string `json:"nextCursor"`
 }
 
 type ThreadMetadataUpdateParams struct {
-	// Patch the stored Git metadata for this thread. Omit a field to leave it unchanged, set it                                   
-	// to `null` to clear it, or provide a string to replace the stored value.                                                     
-	GitInfo                                                                                     *ThreadMetadataGitInfoUpdateParams `json:"gitInfo"`
-	ThreadID                                                                                    string                             `json:"threadId"`
+	// Patch the stored Git metadata for this thread. Omit a field to leave it unchanged, set it
+	// to `null` to clear it, or provide a string to replace the stored value.
+	GitInfo  *ThreadMetadataGitInfoUpdateParams `json:"gitInfo"`
+	ThreadID string                             `json:"threadId"`
 }
 
 type ThreadMetadataGitInfoUpdateParams struct {
-	// Omit to leave the stored branch unchanged, set to `null` to clear it, or provide a            
-	// non-empty string to replace it.                                                               
-	Branch                                                                                   *string `json:"branch"`
-	// Omit to leave the stored origin URL unchanged, set to `null` to clear it, or provide a        
-	// non-empty string to replace it.                                                               
-	OriginURL                                                                                *string `json:"originUrl"`
-	// Omit to leave the stored commit unchanged, set to `null` to clear it, or provide a            
-	// non-empty string to replace it.                                                               
-	SHA                                                                                      *string `json:"sha"`
+	// Omit to leave the stored branch unchanged, set to `null` to clear it, or provide a
+	// non-empty string to replace it.
+	Branch *string `json:"branch"`
+	// Omit to leave the stored origin URL unchanged, set to `null` to clear it, or provide a
+	// non-empty string to replace it.
+	OriginURL *string `json:"originUrl"`
+	// Omit to leave the stored commit unchanged, set to `null` to clear it, or provide a
+	// non-empty string to replace it.
+	SHA *string `json:"sha"`
 }
 
 type ThreadMetadataUpdateResponse struct {
@@ -6621,45 +7457,50 @@ type ThreadMetadataUpdateResponse struct {
 }
 
 type ThreadMetadataUpdateResponseThread struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                             
-	AgentNickname                                                                            *string              `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                  
-	AgentRole                                                                                *string              `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                                
-	CLIVersion                                                                               string               `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                   
-	CreatedAt                                                                                int64                `json:"createdAt"`
-	// Working directory captured for the thread.                                                                 
-	Cwd                                                                                      string               `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                    
-	Ephemeral                                                                                bool                 `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                   
-	ForkedFromID                                                                             *string              `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                                
-	GitInfo                                                                                  *FluffyGitInfo       `json:"gitInfo"`
-	ID                                                                                       string               `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                               
-	ModelProvider                                                                            string               `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                         
-	Name                                                                                     *string              `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                     
-	Path                                                                                     *string              `json:"path"`
-	// Usually the first user message in the thread, if available.                                                
-	Preview                                                                                  string               `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                         
-	SessionID                                                                                string               `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                    
-	Source                                                                                   *FriskySessionSource `json:"source"`
-	// Current runtime status for the thread.                                                                     
-	Status                                                                                   FluffyThreadStatus   `json:"status"`
-	// Optional analytics source classification for this thread.                                                  
-	ThreadSource                                                                             *ThreadSource        `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                     
-	// (when `includeTurns` is true) responses. For all other responses and notifications                         
-	// returning a Thread, the turns field will be an empty list.                                                 
-	Turns                                                                                    []FluffyTurn         `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                              
-	UpdatedAt                                                                                int64                `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *FluffyGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *FriskySessionSource `json:"source"`
+	// Current runtime status for the thread.
+	Status FluffyThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []FluffyTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type FluffyGitInfo struct {
@@ -6693,20 +7534,21 @@ type FluffyThreadStatus struct {
 }
 
 type FluffyTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                    
-	CompletedAt                                                             *int64             `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                   
-	DurationMS                                                              *int64             `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                        
-	Error                                                                   *StickyTurnError   `json:"error"`
-	ID                                                                      string             `json:"id"`
-	// Thread items currently included in this turn payload.                                   
-	Items                                                                   []StickyThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                            
-	ItemsView                                                               *TurnItemsView     `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                      
-	StartedAt                                                               *int64             `json:"startedAt"`
-	Status                                                                  TurnStatus         `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *StickyTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []StickyThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type StickyTurnError struct {
@@ -6753,70 +7595,83 @@ type IndigoResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type StickyThreadItem struct {
-	Content                                                                                     []IndecentContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                        
-	ID                                                                                          string                                     `json:"id"`
-	Type                                                                                        ThreadItemType                             `json:"type"`
-	Fragments                                                                                   []IndecentHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *IndecentMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                              `json:"phase"`
-	Text                                                                                        *string                                    `json:"text,omitempty"`
-	Summary                                                                                     []string                                   `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                            
-	AggregatedOutput                                                                            *string                                    `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                         
-	Command                                                                                     *string                                    `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                              
-	// returns a list of CommandAction objects because a single shell command may be composed of                                           
-	// many commands piped together.                                                                                                       
-	CommandActions                                                                              []IndecentCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                    
-	Cwd                                                                                         *string                                    `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                              
-	//                                                                                                                                     
-	// The duration of the MCP tool call in milliseconds.                                                                                  
-	//                                                                                                                                     
-	// The duration of the dynamic tool call in milliseconds.                                                                              
-	DurationMS                                                                                  *int64                                     `json:"durationMs"`
-	// The command's exit code.                                                                                                            
-	ExitCode                                                                                    *int64                                     `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                         
-	ProcessID                                                                                   *string                                    `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                    `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                             
-	Status                                                                                      *string                                    `json:"status,omitempty"`
-	Changes                                                                                     []IndecentFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                                `json:"arguments"`
-	Error                                                                                       *IndecentMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                    `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                    `json:"pluginId"`
-	Result                                                                                      *IndecentResult                            `json:"result"`
-	Server                                                                                      *string                                    `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                           
-	Tool                                                                                        *string                                    `json:"tool,omitempty"`
-	ContentItems                                                                                []IndecentDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                    `json:"namespace"`
-	Success                                                                                     *bool                                      `json:"success"`
-	// Last known status of the target agents, when available.                                                                             
-	AgentsStates                                                                                map[string]IndecentCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                             
-	Model                                                                                       *string                                    `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                   
-	Prompt                                                                                      *string                                    `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                  
-	ReasoningEffort                                                                             *ReasoningEffort                           `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                                 
-	// corresponds to the newly spawned agent.                                                                                             
-	ReceiverThreadIDS                                                                           []string                                   `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                  
-	SenderThreadID                                                                              *string                                    `json:"senderThreadId,omitempty"`
-	Action                                                                                      *IndecentWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                    `json:"query,omitempty"`
-	Path                                                                                        *string                                    `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                    `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                    `json:"savedPath"`
-	Review                                                                                      *string                                    `json:"review,omitempty"`
+	ClientID *string      `json:"clientId"`
+	Content  []UserInput8 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                       `json:"id"`
+	Type           ThreadItemType               `json:"type"`
+	Fragments      []IndecentHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *IndecentMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase                `json:"phase"`
+	Text           *string                      `json:"text,omitempty"`
+	Summary        []string                     `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []IndecentCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                        `json:"status,omitempty"`
+	Changes    []IndecentFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *IndecentMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                    `json:"arguments"`
+	Error      *IndecentMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string         `json:"mcpAppResourceUri"`
+	PluginID          *string         `json:"pluginId"`
+	Result            *IndecentResult `json:"result"`
+	Server            *string         `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                    `json:"tool,omitempty"`
+	ContentItems []IndecentDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                    `json:"namespace"`
+	Success      *bool                                      `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]IndecentCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                  `json:"senderThreadId,omitempty"`
+	AgentPath      *string                  `json:"agentPath,omitempty"`
+	AgentThreadID  *string                  `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind    `json:"kind,omitempty"`
+	Action         *IndecentWebSearchAction `json:"action"`
+	Query          *string                  `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type IndecentWebSearchAction struct {
@@ -6830,6 +7685,14 @@ type IndecentWebSearchAction struct {
 type IndecentCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type IndecentMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type IndecentFileUpdateChange struct {
@@ -6852,21 +7715,21 @@ type IndecentCommandAction struct {
 }
 
 type IndecentUserInput struct {
-	Text                                                                         *string               `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                      
-	TextElements                                                                 []IndecentTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType         `json:"type"`
-	Detail                                                                       *ImageDetail          `json:"detail"`
-	URL                                                                          *string               `json:"url,omitempty"`
-	Path                                                                         *string               `json:"path,omitempty"`
-	Name                                                                         *string               `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []IndecentTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType         `json:"type"`
+	Detail       *ImageDetail          `json:"detail"`
+	URL          *string               `json:"url,omitempty"`
+	Path         *string               `json:"path,omitempty"`
+	Name         *string               `json:"name,omitempty"`
 }
 
 type IndecentTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                         
-	ByteRange                                                                   IndecentByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                  
-	Placeholder                                                                 *string           `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange IndecentByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -6879,6 +7742,7 @@ type IndecentDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type IndecentMCPToolCallError struct {
@@ -6914,9 +7778,9 @@ type ThreadNameUpdatedNotification struct {
 }
 
 type ThreadReadParams struct {
-	// When true, include turns and their items from rollout history.       
-	IncludeTurns                                                     *bool  `json:"includeTurns,omitempty"`
-	ThreadID                                                         string `json:"threadId"`
+	// When true, include turns and their items from rollout history.
+	IncludeTurns *bool  `json:"includeTurns,omitempty"`
+	ThreadID     string `json:"threadId"`
 }
 
 type ThreadReadResponse struct {
@@ -6924,45 +7788,50 @@ type ThreadReadResponse struct {
 }
 
 type ThreadReadResponseThread struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                                  
-	AgentNickname                                                                            *string                   `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                       
-	AgentRole                                                                                *string                   `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                                     
-	CLIVersion                                                                               string                    `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                        
-	CreatedAt                                                                                int64                     `json:"createdAt"`
-	// Working directory captured for the thread.                                                                      
-	Cwd                                                                                      string                    `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                         
-	Ephemeral                                                                                bool                      `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                        
-	ForkedFromID                                                                             *string                   `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                                     
-	GitInfo                                                                                  *TentacledGitInfo         `json:"gitInfo"`
-	ID                                                                                       string                    `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                                    
-	ModelProvider                                                                            string                    `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                              
-	Name                                                                                     *string                   `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                          
-	Path                                                                                     *string                   `json:"path"`
-	// Usually the first user message in the thread, if available.                                                     
-	Preview                                                                                  string                    `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                              
-	SessionID                                                                                string                    `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                         
-	Source                                                                                   *MischievousSessionSource `json:"source"`
-	// Current runtime status for the thread.                                                                          
-	Status                                                                                   TentacledThreadStatus     `json:"status"`
-	// Optional analytics source classification for this thread.                                                       
-	ThreadSource                                                                             *ThreadSource             `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                          
-	// (when `includeTurns` is true) responses. For all other responses and notifications                              
-	// returning a Thread, the turns field will be an empty list.                                                      
-	Turns                                                                                    []TentacledTurn           `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                                   
-	UpdatedAt                                                                                int64                     `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *TentacledGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *MischievousSessionSource `json:"source"`
+	// Current runtime status for the thread.
+	Status TentacledThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []TentacledTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type TentacledGitInfo struct {
@@ -6996,20 +7865,21 @@ type TentacledThreadStatus struct {
 }
 
 type TentacledTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                    
-	CompletedAt                                                             *int64             `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                   
-	DurationMS                                                              *int64             `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                        
-	Error                                                                   *IndigoTurnError   `json:"error"`
-	ID                                                                      string             `json:"id"`
-	// Thread items currently included in this turn payload.                                   
-	Items                                                                   []IndigoThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                            
-	ItemsView                                                               *TurnItemsView     `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                      
-	StartedAt                                                               *int64             `json:"startedAt"`
-	Status                                                                  TurnStatus         `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *IndigoTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []IndigoThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type IndigoTurnError struct {
@@ -7056,70 +7926,83 @@ type IndecentResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type IndigoThreadItem struct {
-	Content                                                                                     []HilariousContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                         
-	ID                                                                                          string                                      `json:"id"`
-	Type                                                                                        ThreadItemType                              `json:"type"`
-	Fragments                                                                                   []HilariousHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *HilariousMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                               `json:"phase"`
-	Text                                                                                        *string                                     `json:"text,omitempty"`
-	Summary                                                                                     []string                                    `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                             
-	AggregatedOutput                                                                            *string                                     `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                          
-	Command                                                                                     *string                                     `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                               
-	// returns a list of CommandAction objects because a single shell command may be composed of                                            
-	// many commands piped together.                                                                                                        
-	CommandActions                                                                              []HilariousCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                     
-	Cwd                                                                                         *string                                     `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                               
-	//                                                                                                                                      
-	// The duration of the MCP tool call in milliseconds.                                                                                   
-	//                                                                                                                                      
-	// The duration of the dynamic tool call in milliseconds.                                                                               
-	DurationMS                                                                                  *int64                                      `json:"durationMs"`
-	// The command's exit code.                                                                                                             
-	ExitCode                                                                                    *int64                                      `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                          
-	ProcessID                                                                                   *string                                     `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                     `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                              
-	Status                                                                                      *string                                     `json:"status,omitempty"`
-	Changes                                                                                     []HilariousFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                                 `json:"arguments"`
-	Error                                                                                       *HilariousMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                     `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                     `json:"pluginId"`
-	Result                                                                                      *HilariousResult                            `json:"result"`
-	Server                                                                                      *string                                     `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                            
-	Tool                                                                                        *string                                     `json:"tool,omitempty"`
-	ContentItems                                                                                []HilariousDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                     `json:"namespace"`
-	Success                                                                                     *bool                                       `json:"success"`
-	// Last known status of the target agents, when available.                                                                              
-	AgentsStates                                                                                map[string]HilariousCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                              
-	Model                                                                                       *string                                     `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                    
-	Prompt                                                                                      *string                                     `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                   
-	ReasoningEffort                                                                             *ReasoningEffort                            `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                                  
-	// corresponds to the newly spawned agent.                                                                                              
-	ReceiverThreadIDS                                                                           []string                                    `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                   
-	SenderThreadID                                                                              *string                                     `json:"senderThreadId,omitempty"`
-	Action                                                                                      *HilariousWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                     `json:"query,omitempty"`
-	Path                                                                                        *string                                     `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                     `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                     `json:"savedPath"`
-	Review                                                                                      *string                                     `json:"review,omitempty"`
+	ClientID *string      `json:"clientId"`
+	Content  []UserInput9 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                        `json:"id"`
+	Type           ThreadItemType                `json:"type"`
+	Fragments      []HilariousHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *HilariousMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase                 `json:"phase"`
+	Text           *string                       `json:"text,omitempty"`
+	Summary        []string                      `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []HilariousCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                         `json:"status,omitempty"`
+	Changes    []HilariousFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *HilariousMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                     `json:"arguments"`
+	Error      *HilariousMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string          `json:"mcpAppResourceUri"`
+	PluginID          *string          `json:"pluginId"`
+	Result            *HilariousResult `json:"result"`
+	Server            *string          `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                     `json:"tool,omitempty"`
+	ContentItems []HilariousDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                     `json:"namespace"`
+	Success      *bool                                       `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]HilariousCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                   `json:"senderThreadId,omitempty"`
+	AgentPath      *string                   `json:"agentPath,omitempty"`
+	AgentThreadID  *string                   `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind     `json:"kind,omitempty"`
+	Action         *HilariousWebSearchAction `json:"action"`
+	Query          *string                   `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type HilariousWebSearchAction struct {
@@ -7133,6 +8016,14 @@ type HilariousWebSearchAction struct {
 type HilariousCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type HilariousMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type HilariousFileUpdateChange struct {
@@ -7155,21 +8046,21 @@ type HilariousCommandAction struct {
 }
 
 type HilariousUserInput struct {
-	Text                                                                         *string                `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                       
-	TextElements                                                                 []HilariousTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType          `json:"type"`
-	Detail                                                                       *ImageDetail           `json:"detail"`
-	URL                                                                          *string                `json:"url,omitempty"`
-	Path                                                                         *string                `json:"path,omitempty"`
-	Name                                                                         *string                `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []HilariousTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType          `json:"type"`
+	Detail       *ImageDetail           `json:"detail"`
+	URL          *string                `json:"url,omitempty"`
+	Path         *string                `json:"path,omitempty"`
+	Name         *string                `json:"name,omitempty"`
 }
 
 type HilariousTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                          
-	ByteRange                                                                   HilariousByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                   
-	Placeholder                                                                 *string            `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange HilariousByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -7182,6 +8073,7 @@ type HilariousDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type HilariousMCPToolCallError struct {
@@ -7259,18 +8151,18 @@ type ThreadRealtimeStartedNotification struct {
 
 // EXPERIMENTAL - flat transcript delta emitted whenever realtime transcript text changes.
 type ThreadRealtimeTranscriptDeltaNotification struct {
-	// Live transcript delta from the realtime event.       
-	Delta                                            string `json:"delta"`
-	Role                                             string `json:"role"`
-	ThreadID                                         string `json:"threadId"`
+	// Live transcript delta from the realtime event.
+	Delta    string `json:"delta"`
+	Role     string `json:"role"`
+	ThreadID string `json:"threadId"`
 }
 
 // EXPERIMENTAL - final transcript text emitted when realtime completes a transcript part.
 type ThreadRealtimeTranscriptDoneNotification struct {
-	Role                                           string `json:"role"`
-	// Final complete text for the transcript part.       
-	Text                                           string `json:"text"`
-	ThreadID                                       string `json:"threadId"`
+	Role string `json:"role"`
+	// Final complete text for the transcript part.
+	Text     string `json:"text"`
+	ThreadID string `json:"threadId"`
 }
 
 // There are three ways to resume a thread: 1. By thread_id: load the thread from disk by
@@ -7287,21 +8179,21 @@ type ThreadRealtimeTranscriptDoneNotification struct {
 //
 // Prefer using thread_id whenever possible.
 type ThreadResumeParams struct {
-	ApprovalPolicy                                                                         *ThreadResumeParamsApprovalPolicy `json:"approvalPolicy"`
-	// Override where approval requests are routed for review on this thread and subsequent                                  
-	// turns.                                                                                                                
-	ApprovalsReviewer                                                                      *ApprovalsReviewer                `json:"approvalsReviewer"`
-	BaseInstructions                                                                       *string                           `json:"baseInstructions"`
-	Config                                                                                 map[string]interface{}            `json:"config"`
-	Cwd                                                                                    *string                           `json:"cwd"`
-	DeveloperInstructions                                                                  *string                           `json:"developerInstructions"`
-	// Configuration overrides for the resumed thread, if any.                                                               
-	Model                                                                                  *string                           `json:"model"`
-	ModelProvider                                                                          *string                           `json:"modelProvider"`
-	Personality                                                                            *Personality                      `json:"personality"`
-	Sandbox                                                                                *SandboxMode                      `json:"sandbox"`
-	ServiceTier                                                                            *string                           `json:"serviceTier"`
-	ThreadID                                                                               string                            `json:"threadId"`
+	ApprovalPolicy *ThreadResumeParamsApprovalPolicy `json:"approvalPolicy"`
+	// Override where approval requests are routed for review on this thread and subsequent
+	// turns.
+	ApprovalsReviewer     *ApprovalsReviewer     `json:"approvalsReviewer"`
+	BaseInstructions      *string                `json:"baseInstructions"`
+	Config                map[string]interface{} `json:"config"`
+	Cwd                   *string                `json:"cwd"`
+	DeveloperInstructions *string                `json:"developerInstructions"`
+	// Configuration overrides for the resumed thread, if any.
+	Model         *string      `json:"model"`
+	ModelProvider *string      `json:"modelProvider"`
+	Personality   *Personality `json:"personality"`
+	Sandbox       *SandboxMode `json:"sandbox"`
+	ServiceTier   *string      `json:"serviceTier"`
+	ThreadID      string       `json:"threadId"`
 }
 
 type StickyGranularAskForApproval struct {
@@ -7317,20 +8209,20 @@ type IndigoGranular struct {
 }
 
 type ThreadResumeResponse struct {
-	ApprovalPolicy                                                                         *ThreadResumeResponseAskForApproval `json:"approvalPolicy"`
-	// Reviewer currently used for approval requests on this thread.                                                           
-	ApprovalsReviewer                                                                      ApprovalsReviewer                   `json:"approvalsReviewer"`
-	Cwd                                                                                    string                              `json:"cwd"`
-	// Instruction source files currently loaded for this thread.                                                              
-	InstructionSources                                                                     []string                            `json:"instructionSources,omitempty"`
-	Model                                                                                  string                              `json:"model"`
-	ModelProvider                                                                          string                              `json:"modelProvider"`
-	ReasoningEffort                                                                        *ReasoningEffort                    `json:"reasoningEffort"`
-	// Legacy sandbox policy retained for compatibility. Experimental clients should prefer                                    
-	// `activePermissionProfile` for profile provenance.                                                                       
-	Sandbox                                                                                ThreadResumeResponseSandboxPolicy   `json:"sandbox"`
-	ServiceTier                                                                            *string                             `json:"serviceTier"`
-	Thread                                                                                 ThreadResumeResponseThread          `json:"thread"`
+	ApprovalPolicy *ThreadResumeResponseAskForApproval `json:"approvalPolicy"`
+	// Reviewer currently used for approval requests on this thread.
+	ApprovalsReviewer ApprovalsReviewer `json:"approvalsReviewer"`
+	Cwd               string            `json:"cwd"`
+	// Environment-native paths to instruction source files currently loaded for this thread.
+	InstructionSources []string `json:"instructionSources,omitempty"`
+	Model              string   `json:"model"`
+	ModelProvider      string   `json:"modelProvider"`
+	ReasoningEffort    *string  `json:"reasoningEffort"`
+	// Legacy sandbox policy retained for compatibility. Experimental clients should prefer
+	// `activePermissionProfile` for profile provenance.
+	Sandbox     ThreadResumeResponseSandboxPolicy `json:"sandbox"`
+	ServiceTier *string                           `json:"serviceTier"`
+	Thread      ThreadResumeResponseThread        `json:"thread"`
 }
 
 type IndigoGranularAskForApproval struct {
@@ -7356,45 +8248,50 @@ type ThreadResumeResponseSandboxPolicy struct {
 }
 
 type ThreadResumeResponseThread struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                                    
-	AgentNickname                                                                            *string                     `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                         
-	AgentRole                                                                                *string                     `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                                       
-	CLIVersion                                                                               string                      `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                          
-	CreatedAt                                                                                int64                       `json:"createdAt"`
-	// Working directory captured for the thread.                                                                        
-	Cwd                                                                                      string                      `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                           
-	Ephemeral                                                                                bool                        `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                          
-	ForkedFromID                                                                             *string                     `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                                       
-	GitInfo                                                                                  *StickyGitInfo              `json:"gitInfo"`
-	ID                                                                                       string                      `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                                      
-	ModelProvider                                                                            string                      `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                                
-	Name                                                                                     *string                     `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                            
-	Path                                                                                     *string                     `json:"path"`
-	// Usually the first user message in the thread, if available.                                                       
-	Preview                                                                                  string                      `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                                
-	SessionID                                                                                string                      `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                           
-	Source                                                                                   *BraggadociousSessionSource `json:"source"`
-	// Current runtime status for the thread.                                                                            
-	Status                                                                                   StickyThreadStatus          `json:"status"`
-	// Optional analytics source classification for this thread.                                                         
-	ThreadSource                                                                             *ThreadSource               `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                            
-	// (when `includeTurns` is true) responses. For all other responses and notifications                                
-	// returning a Thread, the turns field will be an empty list.                                                        
-	Turns                                                                                    []StickyTurn                `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                                     
-	UpdatedAt                                                                                int64                       `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *StickyGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *BraggadociousSessionSource `json:"source"`
+	// Current runtime status for the thread.
+	Status StickyThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []StickyTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type StickyGitInfo struct {
@@ -7428,20 +8325,21 @@ type StickyThreadStatus struct {
 }
 
 type StickyTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                      
-	CompletedAt                                                             *int64               `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                     
-	DurationMS                                                              *int64               `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                          
-	Error                                                                   *IndecentTurnError   `json:"error"`
-	ID                                                                      string               `json:"id"`
-	// Thread items currently included in this turn payload.                                     
-	Items                                                                   []IndecentThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                              
-	ItemsView                                                               *TurnItemsView       `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                        
-	StartedAt                                                               *int64               `json:"startedAt"`
-	Status                                                                  TurnStatus           `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *IndecentTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []IndecentThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type IndecentTurnError struct {
@@ -7488,70 +8386,83 @@ type HilariousResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type IndecentThreadItem struct {
-	Content                                                                                     []AmbitiousContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                         
-	ID                                                                                          string                                      `json:"id"`
-	Type                                                                                        ThreadItemType                              `json:"type"`
-	Fragments                                                                                   []AmbitiousHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *AmbitiousMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                               `json:"phase"`
-	Text                                                                                        *string                                     `json:"text,omitempty"`
-	Summary                                                                                     []string                                    `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                             
-	AggregatedOutput                                                                            *string                                     `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                          
-	Command                                                                                     *string                                     `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                               
-	// returns a list of CommandAction objects because a single shell command may be composed of                                            
-	// many commands piped together.                                                                                                        
-	CommandActions                                                                              []AmbitiousCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                     
-	Cwd                                                                                         *string                                     `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                               
-	//                                                                                                                                      
-	// The duration of the MCP tool call in milliseconds.                                                                                   
-	//                                                                                                                                      
-	// The duration of the dynamic tool call in milliseconds.                                                                               
-	DurationMS                                                                                  *int64                                      `json:"durationMs"`
-	// The command's exit code.                                                                                                             
-	ExitCode                                                                                    *int64                                      `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                          
-	ProcessID                                                                                   *string                                     `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                     `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                              
-	Status                                                                                      *string                                     `json:"status,omitempty"`
-	Changes                                                                                     []AmbitiousFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                                 `json:"arguments"`
-	Error                                                                                       *AmbitiousMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                     `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                     `json:"pluginId"`
-	Result                                                                                      *AmbitiousResult                            `json:"result"`
-	Server                                                                                      *string                                     `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                            
-	Tool                                                                                        *string                                     `json:"tool,omitempty"`
-	ContentItems                                                                                []AmbitiousDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                     `json:"namespace"`
-	Success                                                                                     *bool                                       `json:"success"`
-	// Last known status of the target agents, when available.                                                                              
-	AgentsStates                                                                                map[string]AmbitiousCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                              
-	Model                                                                                       *string                                     `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                    
-	Prompt                                                                                      *string                                     `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                   
-	ReasoningEffort                                                                             *ReasoningEffort                            `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                                  
-	// corresponds to the newly spawned agent.                                                                                              
-	ReceiverThreadIDS                                                                           []string                                    `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                   
-	SenderThreadID                                                                              *string                                     `json:"senderThreadId,omitempty"`
-	Action                                                                                      *AmbitiousWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                     `json:"query,omitempty"`
-	Path                                                                                        *string                                     `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                     `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                     `json:"savedPath"`
-	Review                                                                                      *string                                     `json:"review,omitempty"`
+	ClientID *string       `json:"clientId"`
+	Content  []UserInput10 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                        `json:"id"`
+	Type           ThreadItemType                `json:"type"`
+	Fragments      []AmbitiousHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *AmbitiousMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase                 `json:"phase"`
+	Text           *string                       `json:"text,omitempty"`
+	Summary        []string                      `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []AmbitiousCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                         `json:"status,omitempty"`
+	Changes    []AmbitiousFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *AmbitiousMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                     `json:"arguments"`
+	Error      *AmbitiousMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string          `json:"mcpAppResourceUri"`
+	PluginID          *string          `json:"pluginId"`
+	Result            *AmbitiousResult `json:"result"`
+	Server            *string          `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                     `json:"tool,omitempty"`
+	ContentItems []AmbitiousDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                     `json:"namespace"`
+	Success      *bool                                       `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]AmbitiousCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                   `json:"senderThreadId,omitempty"`
+	AgentPath      *string                   `json:"agentPath,omitempty"`
+	AgentThreadID  *string                   `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind     `json:"kind,omitempty"`
+	Action         *AmbitiousWebSearchAction `json:"action"`
+	Query          *string                   `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type AmbitiousWebSearchAction struct {
@@ -7565,6 +8476,14 @@ type AmbitiousWebSearchAction struct {
 type AmbitiousCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type AmbitiousMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type AmbitiousFileUpdateChange struct {
@@ -7587,21 +8506,21 @@ type AmbitiousCommandAction struct {
 }
 
 type AmbitiousUserInput struct {
-	Text                                                                         *string                `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                       
-	TextElements                                                                 []AmbitiousTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType          `json:"type"`
-	Detail                                                                       *ImageDetail           `json:"detail"`
-	URL                                                                          *string                `json:"url,omitempty"`
-	Path                                                                         *string                `json:"path,omitempty"`
-	Name                                                                         *string                `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []AmbitiousTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType          `json:"type"`
+	Detail       *ImageDetail           `json:"detail"`
+	URL          *string                `json:"url,omitempty"`
+	Path         *string                `json:"path,omitempty"`
+	Name         *string                `json:"name,omitempty"`
 }
 
 type AmbitiousTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                          
-	ByteRange                                                                   AmbitiousByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                   
-	Placeholder                                                                 *string            `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange AmbitiousByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -7614,6 +8533,7 @@ type AmbitiousDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type AmbitiousMCPToolCallError struct {
@@ -7643,22 +8563,23 @@ type AmbitiousMCPToolCallResult struct {
 	StructuredContent interface{}   `json:"structuredContent"`
 }
 
+// DEPRECATED: `thread/rollback` will be removed soon.
 type ThreadRollbackParams struct {
-	// The number of turns to drop from the end of the thread. Must be >= 1.                          
-	//                                                                                                
-	// This only modifies the thread's history and does not revert local file changes that have       
-	// been made by the agent. Clients are responsible for reverting these changes.                   
-	NumTurns                                                                                   int64  `json:"numTurns"`
-	ThreadID                                                                                   string `json:"threadId"`
+	// The number of turns to drop from the end of the thread. Must be >= 1.
+	//
+	// This only modifies the thread's history and does not revert local file changes that have
+	// been made by the agent. Clients are responsible for reverting these changes.
+	NumTurns int64  `json:"numTurns"`
+	ThreadID string `json:"threadId"`
 }
 
 type ThreadRollbackResponse struct {
-	// The updated thread after applying the rollback, with `turns` populated.                                          
-	//                                                                                                                  
-	// The ThreadItems stored in each Turn are lossy since we explicitly do not persist all                             
-	// agent interactions, such as command executions. This is the same behavior as                                     
-	// `thread/resume`.                                                                                                 
-	Thread                                                                                 ThreadRollbackResponseThread `json:"thread"`
+	// The updated thread after applying the rollback, with `turns` populated.
+	//
+	// The ThreadItems stored in each Turn are lossy since we explicitly do not persist all
+	// agent interactions, such as command executions. This is the same behavior as
+	// `thread/resume`.
+	Thread ThreadRollbackResponseThread `json:"thread"`
 }
 
 // The updated thread after applying the rollback, with `turns` populated.
@@ -7667,45 +8588,50 @@ type ThreadRollbackResponse struct {
 // agent interactions, such as command executions. This is the same behavior as
 // `thread/resume`.
 type ThreadRollbackResponseThread struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                           
-	AgentNickname                                                                            *string            `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                
-	AgentRole                                                                                *string            `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                              
-	CLIVersion                                                                               string             `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                 
-	CreatedAt                                                                                int64              `json:"createdAt"`
-	// Working directory captured for the thread.                                                               
-	Cwd                                                                                      string             `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                  
-	Ephemeral                                                                                bool               `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                 
-	ForkedFromID                                                                             *string            `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                              
-	GitInfo                                                                                  *IndigoGitInfo     `json:"gitInfo"`
-	ID                                                                                       string             `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                             
-	ModelProvider                                                                            string             `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                       
-	Name                                                                                     *string            `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                   
-	Path                                                                                     *string            `json:"path"`
-	// Usually the first user message in the thread, if available.                                              
-	Preview                                                                                  string             `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                       
-	SessionID                                                                                string             `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                  
-	Source                                                                                   *SessionSource1    `json:"source"`
-	// Current runtime status for the thread.                                                                   
-	Status                                                                                   IndigoThreadStatus `json:"status"`
-	// Optional analytics source classification for this thread.                                                
-	ThreadSource                                                                             *ThreadSource      `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                   
-	// (when `includeTurns` is true) responses. For all other responses and notifications                       
-	// returning a Thread, the turns field will be an empty list.                                               
-	Turns                                                                                    []IndigoTurn       `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                            
-	UpdatedAt                                                                                int64              `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *IndigoGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *SessionSource1 `json:"source"`
+	// Current runtime status for the thread.
+	Status IndigoThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []IndigoTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type IndigoGitInfo struct {
@@ -7739,20 +8665,21 @@ type IndigoThreadStatus struct {
 }
 
 type IndigoTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                       
-	CompletedAt                                                             *int64                `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                      
-	DurationMS                                                              *int64                `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                           
-	Error                                                                   *HilariousTurnError   `json:"error"`
-	ID                                                                      string                `json:"id"`
-	// Thread items currently included in this turn payload.                                      
-	Items                                                                   []HilariousThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                               
-	ItemsView                                                               *TurnItemsView        `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                         
-	StartedAt                                                               *int64                `json:"startedAt"`
-	Status                                                                  TurnStatus            `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *HilariousTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []HilariousThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type HilariousTurnError struct {
@@ -7799,70 +8726,83 @@ type AmbitiousResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type HilariousThreadItem struct {
-	Content                                                                                     []CunningContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                       
-	ID                                                                                          string                                    `json:"id"`
-	Type                                                                                        ThreadItemType                            `json:"type"`
-	Fragments                                                                                   []CunningHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *CunningMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                             `json:"phase"`
-	Text                                                                                        *string                                   `json:"text,omitempty"`
-	Summary                                                                                     []string                                  `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                           
-	AggregatedOutput                                                                            *string                                   `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                        
-	Command                                                                                     *string                                   `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                             
-	// returns a list of CommandAction objects because a single shell command may be composed of                                          
-	// many commands piped together.                                                                                                      
-	CommandActions                                                                              []CunningCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                   
-	Cwd                                                                                         *string                                   `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                             
-	//                                                                                                                                    
-	// The duration of the MCP tool call in milliseconds.                                                                                 
-	//                                                                                                                                    
-	// The duration of the dynamic tool call in milliseconds.                                                                             
-	DurationMS                                                                                  *int64                                    `json:"durationMs"`
-	// The command's exit code.                                                                                                           
-	ExitCode                                                                                    *int64                                    `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                        
-	ProcessID                                                                                   *string                                   `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                   `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                            
-	Status                                                                                      *string                                   `json:"status,omitempty"`
-	Changes                                                                                     []CunningFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                               `json:"arguments"`
-	Error                                                                                       *CunningMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                   `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                   `json:"pluginId"`
-	Result                                                                                      *CunningResult                            `json:"result"`
-	Server                                                                                      *string                                   `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                          
-	Tool                                                                                        *string                                   `json:"tool,omitempty"`
-	ContentItems                                                                                []CunningDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                   `json:"namespace"`
-	Success                                                                                     *bool                                     `json:"success"`
-	// Last known status of the target agents, when available.                                                                            
-	AgentsStates                                                                                map[string]CunningCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                            
-	Model                                                                                       *string                                   `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                  
-	Prompt                                                                                      *string                                   `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                 
-	ReasoningEffort                                                                             *ReasoningEffort                          `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                                
-	// corresponds to the newly spawned agent.                                                                                            
-	ReceiverThreadIDS                                                                           []string                                  `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                 
-	SenderThreadID                                                                              *string                                   `json:"senderThreadId,omitempty"`
-	Action                                                                                      *CunningWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                   `json:"query,omitempty"`
-	Path                                                                                        *string                                   `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                   `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                   `json:"savedPath"`
-	Review                                                                                      *string                                   `json:"review,omitempty"`
+	ClientID *string       `json:"clientId"`
+	Content  []UserInput11 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                      `json:"id"`
+	Type           ThreadItemType              `json:"type"`
+	Fragments      []CunningHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *CunningMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase               `json:"phase"`
+	Text           *string                     `json:"text,omitempty"`
+	Summary        []string                    `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []CunningCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                       `json:"status,omitempty"`
+	Changes    []CunningFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *CunningMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                   `json:"arguments"`
+	Error      *CunningMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string        `json:"mcpAppResourceUri"`
+	PluginID          *string        `json:"pluginId"`
+	Result            *CunningResult `json:"result"`
+	Server            *string        `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                   `json:"tool,omitempty"`
+	ContentItems []CunningDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                   `json:"namespace"`
+	Success      *bool                                     `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]CunningCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                 `json:"senderThreadId,omitempty"`
+	AgentPath      *string                 `json:"agentPath,omitempty"`
+	AgentThreadID  *string                 `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind   `json:"kind,omitempty"`
+	Action         *CunningWebSearchAction `json:"action"`
+	Query          *string                 `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type CunningWebSearchAction struct {
@@ -7876,6 +8816,14 @@ type CunningWebSearchAction struct {
 type CunningCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type CunningMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type CunningFileUpdateChange struct {
@@ -7898,21 +8846,21 @@ type CunningCommandAction struct {
 }
 
 type CunningUserInput struct {
-	Text                                                                         *string              `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                     
-	TextElements                                                                 []CunningTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType        `json:"type"`
-	Detail                                                                       *ImageDetail         `json:"detail"`
-	URL                                                                          *string              `json:"url,omitempty"`
-	Path                                                                         *string              `json:"path,omitempty"`
-	Name                                                                         *string              `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []CunningTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType        `json:"type"`
+	Detail       *ImageDetail         `json:"detail"`
+	URL          *string              `json:"url,omitempty"`
+	Path         *string              `json:"path,omitempty"`
+	Name         *string              `json:"name,omitempty"`
 }
 
 type CunningTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                        
-	ByteRange                                                                   CunningByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                 
-	Placeholder                                                                 *string          `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange CunningByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -7925,6 +8873,7 @@ type CunningDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type CunningMCPToolCallError struct {
@@ -7970,7 +8919,7 @@ type ThreadSettings struct {
 	ApprovalsReviewer       ApprovalsReviewer             `json:"approvalsReviewer"`
 	CollaborationMode       CollaborationMode             `json:"collaborationMode"`
 	Cwd                     string                        `json:"cwd"`
-	Effort                  *ReasoningEffort              `json:"effort"`
+	Effort                  *string                       `json:"effort"`
 	Model                   string                        `json:"model"`
 	ModelProvider           string                        `json:"modelProvider"`
 	Personality             *Personality                  `json:"personality"`
@@ -7980,12 +8929,12 @@ type ThreadSettings struct {
 }
 
 type ActivePermissionProfile struct {
-	// Parent profile identifier from the selected permissions profile's `extends` setting, when        
-	// present.                                                                                         
-	Extends                                                                                     *string `json:"extends"`
-	// Identifier from `default_permissions` or the implicit built-in default, such as                  
-	// `:workspace` or a user-defined `[permissions.<id>]` profile.                                     
-	ID                                                                                          string  `json:"id"`
+	// Parent profile identifier from the selected permissions profile's `extends` setting, when
+	// present.
+	Extends *string `json:"extends"`
+	// Identifier from `default_permissions` or the implicit built-in default, such as
+	// `:workspace` or a user-defined `[permissions.<id>]` profile.
+	ID string `json:"id"`
 }
 
 type IndecentGranularAskForApproval struct {
@@ -8008,9 +8957,9 @@ type CollaborationMode struct {
 
 // Settings for a collaboration mode.
 type Settings struct {
-	DeveloperInstructions *string          `json:"developer_instructions"`
-	Model                 string           `json:"model"`
-	ReasoningEffort       *ReasoningEffort `json:"reasoning_effort"`
+	DeveloperInstructions *string `json:"developer_instructions"`
+	Model                 string  `json:"model"`
+	ReasoningEffort       *string `json:"reasoning_effort"`
 }
 
 type ThreadSettingsSandboxPolicy struct {
@@ -8022,32 +8971,32 @@ type ThreadSettingsSandboxPolicy struct {
 }
 
 type ThreadShellCommandParams struct {
-	// Shell command string evaluated by the thread's configured shell. Unlike `command/exec`,       
-	// this intentionally preserves shell syntax such as pipes, redirects, and quoting. This         
-	// runs unsandboxed with full access rather than inheriting the thread sandbox policy.           
-	Command                                                                                   string `json:"command"`
-	ThreadID                                                                                  string `json:"threadId"`
+	// Shell command string evaluated by the thread's configured shell. Unlike `command/exec`,
+	// this intentionally preserves shell syntax such as pipes, redirects, and quoting. This
+	// runs unsandboxed with full access rather than inheriting the thread sandbox policy.
+	Command  string `json:"command"`
+	ThreadID string `json:"threadId"`
 }
 
 type ThreadStartParams struct {
-	ApprovalPolicy                                                                         *ThreadStartParamsApprovalPolicy `json:"approvalPolicy"`
-	// Override where approval requests are routed for review on this thread and subsequent                                 
-	// turns.                                                                                                               
-	ApprovalsReviewer                                                                      *ApprovalsReviewer               `json:"approvalsReviewer"`
-	BaseInstructions                                                                       *string                          `json:"baseInstructions"`
-	Config                                                                                 map[string]interface{}           `json:"config"`
-	Cwd                                                                                    *string                          `json:"cwd"`
-	DeveloperInstructions                                                                  *string                          `json:"developerInstructions"`
-	Ephemeral                                                                              *bool                            `json:"ephemeral"`
-	Model                                                                                  *string                          `json:"model"`
-	ModelProvider                                                                          *string                          `json:"modelProvider"`
-	Personality                                                                            *Personality                     `json:"personality"`
-	Sandbox                                                                                *SandboxMode                     `json:"sandbox"`
-	ServiceName                                                                            *string                          `json:"serviceName"`
-	ServiceTier                                                                            *string                          `json:"serviceTier"`
-	SessionStartSource                                                                     *ThreadStartSource               `json:"sessionStartSource"`
-	// Optional client-supplied analytics source classification for this thread.                                            
-	ThreadSource                                                                           *ThreadSource                    `json:"threadSource"`
+	ApprovalPolicy *ThreadStartParamsApprovalPolicy `json:"approvalPolicy"`
+	// Override where approval requests are routed for review on this thread and subsequent
+	// turns.
+	ApprovalsReviewer     *ApprovalsReviewer     `json:"approvalsReviewer"`
+	BaseInstructions      *string                `json:"baseInstructions"`
+	Config                map[string]interface{} `json:"config"`
+	Cwd                   *string                `json:"cwd"`
+	DeveloperInstructions *string                `json:"developerInstructions"`
+	Ephemeral             *bool                  `json:"ephemeral"`
+	Model                 *string                `json:"model"`
+	ModelProvider         *string                `json:"modelProvider"`
+	Personality           *Personality           `json:"personality"`
+	Sandbox               *SandboxMode           `json:"sandbox"`
+	ServiceName           *string                `json:"serviceName"`
+	ServiceTier           *string                `json:"serviceTier"`
+	SessionStartSource    *ThreadStartSource     `json:"sessionStartSource"`
+	// Optional client-supplied analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
 }
 
 type HilariousGranularAskForApproval struct {
@@ -8063,20 +9012,20 @@ type AmbitiousGranular struct {
 }
 
 type ThreadStartResponse struct {
-	ApprovalPolicy                                                                         *ThreadStartResponseAskForApproval `json:"approvalPolicy"`
-	// Reviewer currently used for approval requests on this thread.                                                          
-	ApprovalsReviewer                                                                      ApprovalsReviewer                  `json:"approvalsReviewer"`
-	Cwd                                                                                    string                             `json:"cwd"`
-	// Instruction source files currently loaded for this thread.                                                             
-	InstructionSources                                                                     []string                           `json:"instructionSources,omitempty"`
-	Model                                                                                  string                             `json:"model"`
-	ModelProvider                                                                          string                             `json:"modelProvider"`
-	ReasoningEffort                                                                        *ReasoningEffort                   `json:"reasoningEffort"`
-	// Legacy sandbox policy retained for compatibility. Experimental clients should prefer                                   
-	// `activePermissionProfile` for profile provenance.                                                                      
-	Sandbox                                                                                ThreadStartResponseSandboxPolicy   `json:"sandbox"`
-	ServiceTier                                                                            *string                            `json:"serviceTier"`
-	Thread                                                                                 ThreadStartResponseThread          `json:"thread"`
+	ApprovalPolicy *ThreadStartResponseAskForApproval `json:"approvalPolicy"`
+	// Reviewer currently used for approval requests on this thread.
+	ApprovalsReviewer ApprovalsReviewer `json:"approvalsReviewer"`
+	Cwd               string            `json:"cwd"`
+	// Environment-native paths to instruction source files currently loaded for this thread.
+	InstructionSources []string `json:"instructionSources,omitempty"`
+	Model              string   `json:"model"`
+	ModelProvider      string   `json:"modelProvider"`
+	ReasoningEffort    *string  `json:"reasoningEffort"`
+	// Legacy sandbox policy retained for compatibility. Experimental clients should prefer
+	// `activePermissionProfile` for profile provenance.
+	Sandbox     ThreadStartResponseSandboxPolicy `json:"sandbox"`
+	ServiceTier *string                          `json:"serviceTier"`
+	Thread      ThreadStartResponseThread        `json:"thread"`
 }
 
 type AmbitiousGranularAskForApproval struct {
@@ -8102,45 +9051,50 @@ type ThreadStartResponseSandboxPolicy struct {
 }
 
 type ThreadStartResponseThread struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                             
-	AgentNickname                                                                            *string              `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                  
-	AgentRole                                                                                *string              `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                                
-	CLIVersion                                                                               string               `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                   
-	CreatedAt                                                                                int64                `json:"createdAt"`
-	// Working directory captured for the thread.                                                                 
-	Cwd                                                                                      string               `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                    
-	Ephemeral                                                                                bool                 `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                   
-	ForkedFromID                                                                             *string              `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                                
-	GitInfo                                                                                  *IndecentGitInfo     `json:"gitInfo"`
-	ID                                                                                       string               `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                               
-	ModelProvider                                                                            string               `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                         
-	Name                                                                                     *string              `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                     
-	Path                                                                                     *string              `json:"path"`
-	// Usually the first user message in the thread, if available.                                                
-	Preview                                                                                  string               `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                         
-	SessionID                                                                                string               `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                    
-	Source                                                                                   *SessionSource2      `json:"source"`
-	// Current runtime status for the thread.                                                                     
-	Status                                                                                   IndecentThreadStatus `json:"status"`
-	// Optional analytics source classification for this thread.                                                  
-	ThreadSource                                                                             *ThreadSource        `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                     
-	// (when `includeTurns` is true) responses. For all other responses and notifications                         
-	// returning a Thread, the turns field will be an empty list.                                                 
-	Turns                                                                                    []IndecentTurn       `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                              
-	UpdatedAt                                                                                int64                `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *IndecentGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *SessionSource2 `json:"source"`
+	// Current runtime status for the thread.
+	Status IndecentThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []IndecentTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type IndecentGitInfo struct {
@@ -8174,20 +9128,21 @@ type IndecentThreadStatus struct {
 }
 
 type IndecentTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                       
-	CompletedAt                                                             *int64                `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                      
-	DurationMS                                                              *int64                `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                           
-	Error                                                                   *AmbitiousTurnError   `json:"error"`
-	ID                                                                      string                `json:"id"`
-	// Thread items currently included in this turn payload.                                      
-	Items                                                                   []AmbitiousThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                               
-	ItemsView                                                               *TurnItemsView        `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                         
-	StartedAt                                                               *int64                `json:"startedAt"`
-	Status                                                                  TurnStatus            `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *AmbitiousTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []AmbitiousThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type AmbitiousTurnError struct {
@@ -8234,70 +9189,83 @@ type CunningResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type AmbitiousThreadItem struct {
-	Content                                                                                     []MagentaContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                       
-	ID                                                                                          string                                    `json:"id"`
-	Type                                                                                        ThreadItemType                            `json:"type"`
-	Fragments                                                                                   []MagentaHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *MagentaMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                             `json:"phase"`
-	Text                                                                                        *string                                   `json:"text,omitempty"`
-	Summary                                                                                     []string                                  `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                           
-	AggregatedOutput                                                                            *string                                   `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                        
-	Command                                                                                     *string                                   `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                             
-	// returns a list of CommandAction objects because a single shell command may be composed of                                          
-	// many commands piped together.                                                                                                      
-	CommandActions                                                                              []MagentaCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                   
-	Cwd                                                                                         *string                                   `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                             
-	//                                                                                                                                    
-	// The duration of the MCP tool call in milliseconds.                                                                                 
-	//                                                                                                                                    
-	// The duration of the dynamic tool call in milliseconds.                                                                             
-	DurationMS                                                                                  *int64                                    `json:"durationMs"`
-	// The command's exit code.                                                                                                           
-	ExitCode                                                                                    *int64                                    `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                        
-	ProcessID                                                                                   *string                                   `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                   `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                            
-	Status                                                                                      *string                                   `json:"status,omitempty"`
-	Changes                                                                                     []MagentaFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                               `json:"arguments"`
-	Error                                                                                       *MagentaMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                   `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                   `json:"pluginId"`
-	Result                                                                                      *MagentaResult                            `json:"result"`
-	Server                                                                                      *string                                   `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                          
-	Tool                                                                                        *string                                   `json:"tool,omitempty"`
-	ContentItems                                                                                []MagentaDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                   `json:"namespace"`
-	Success                                                                                     *bool                                     `json:"success"`
-	// Last known status of the target agents, when available.                                                                            
-	AgentsStates                                                                                map[string]MagentaCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                            
-	Model                                                                                       *string                                   `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                  
-	Prompt                                                                                      *string                                   `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                 
-	ReasoningEffort                                                                             *ReasoningEffort                          `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                                
-	// corresponds to the newly spawned agent.                                                                                            
-	ReceiverThreadIDS                                                                           []string                                  `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                 
-	SenderThreadID                                                                              *string                                   `json:"senderThreadId,omitempty"`
-	Action                                                                                      *MagentaWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                   `json:"query,omitempty"`
-	Path                                                                                        *string                                   `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                   `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                   `json:"savedPath"`
-	Review                                                                                      *string                                   `json:"review,omitempty"`
+	ClientID *string       `json:"clientId"`
+	Content  []UserInput12 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                      `json:"id"`
+	Type           ThreadItemType              `json:"type"`
+	Fragments      []MagentaHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *MagentaMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase               `json:"phase"`
+	Text           *string                     `json:"text,omitempty"`
+	Summary        []string                    `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []MagentaCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                       `json:"status,omitempty"`
+	Changes    []MagentaFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *MagentaMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                   `json:"arguments"`
+	Error      *MagentaMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string        `json:"mcpAppResourceUri"`
+	PluginID          *string        `json:"pluginId"`
+	Result            *MagentaResult `json:"result"`
+	Server            *string        `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                   `json:"tool,omitempty"`
+	ContentItems []MagentaDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                   `json:"namespace"`
+	Success      *bool                                     `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]MagentaCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                 `json:"senderThreadId,omitempty"`
+	AgentPath      *string                 `json:"agentPath,omitempty"`
+	AgentThreadID  *string                 `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind   `json:"kind,omitempty"`
+	Action         *MagentaWebSearchAction `json:"action"`
+	Query          *string                 `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type MagentaWebSearchAction struct {
@@ -8311,6 +9279,14 @@ type MagentaWebSearchAction struct {
 type MagentaCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type MagentaMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type MagentaFileUpdateChange struct {
@@ -8333,21 +9309,21 @@ type MagentaCommandAction struct {
 }
 
 type MagentaUserInput struct {
-	Text                                                                         *string              `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                     
-	TextElements                                                                 []MagentaTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType        `json:"type"`
-	Detail                                                                       *ImageDetail         `json:"detail"`
-	URL                                                                          *string              `json:"url,omitempty"`
-	Path                                                                         *string              `json:"path,omitempty"`
-	Name                                                                         *string              `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []MagentaTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType        `json:"type"`
+	Detail       *ImageDetail         `json:"detail"`
+	URL          *string              `json:"url,omitempty"`
+	Path         *string              `json:"path,omitempty"`
+	Name         *string              `json:"name,omitempty"`
 }
 
 type MagentaTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                        
-	ByteRange                                                                   MagentaByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                 
-	Placeholder                                                                 *string          `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange MagentaByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -8360,6 +9336,7 @@ type MagentaDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type MagentaMCPToolCallError struct {
@@ -8394,45 +9371,50 @@ type ThreadStartedNotification struct {
 }
 
 type ThreadStartedNotificationThread struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                              
-	AgentNickname                                                                            *string               `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                   
-	AgentRole                                                                                *string               `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                                 
-	CLIVersion                                                                               string                `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                    
-	CreatedAt                                                                                int64                 `json:"createdAt"`
-	// Working directory captured for the thread.                                                                  
-	Cwd                                                                                      string                `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                     
-	Ephemeral                                                                                bool                  `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                    
-	ForkedFromID                                                                             *string               `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                                 
-	GitInfo                                                                                  *HilariousGitInfo     `json:"gitInfo"`
-	ID                                                                                       string                `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                                
-	ModelProvider                                                                            string                `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                          
-	Name                                                                                     *string               `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                      
-	Path                                                                                     *string               `json:"path"`
-	// Usually the first user message in the thread, if available.                                                 
-	Preview                                                                                  string                `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                          
-	SessionID                                                                                string                `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                     
-	Source                                                                                   *SessionSource3       `json:"source"`
-	// Current runtime status for the thread.                                                                      
-	Status                                                                                   HilariousThreadStatus `json:"status"`
-	// Optional analytics source classification for this thread.                                                   
-	ThreadSource                                                                             *ThreadSource         `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                      
-	// (when `includeTurns` is true) responses. For all other responses and notifications                          
-	// returning a Thread, the turns field will be an empty list.                                                  
-	Turns                                                                                    []HilariousTurn       `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                               
-	UpdatedAt                                                                                int64                 `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *HilariousGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *SessionSource3 `json:"source"`
+	// Current runtime status for the thread.
+	Status HilariousThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []HilariousTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type HilariousGitInfo struct {
@@ -8466,20 +9448,21 @@ type HilariousThreadStatus struct {
 }
 
 type HilariousTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                     
-	CompletedAt                                                             *int64              `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                    
-	DurationMS                                                              *int64              `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                         
-	Error                                                                   *CunningTurnError   `json:"error"`
-	ID                                                                      string              `json:"id"`
-	// Thread items currently included in this turn payload.                                    
-	Items                                                                   []CunningThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                             
-	ItemsView                                                               *TurnItemsView      `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                       
-	StartedAt                                                               *int64              `json:"startedAt"`
-	Status                                                                  TurnStatus          `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *CunningTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []CunningThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type CunningTurnError struct {
@@ -8526,70 +9509,83 @@ type MagentaResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type CunningThreadItem struct {
-	Content                                                                                     []FriskyContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                      
-	ID                                                                                          string                                   `json:"id"`
-	Type                                                                                        ThreadItemType                           `json:"type"`
-	Fragments                                                                                   []FriskyHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *FriskyMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                            `json:"phase"`
-	Text                                                                                        *string                                  `json:"text,omitempty"`
-	Summary                                                                                     []string                                 `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                          
-	AggregatedOutput                                                                            *string                                  `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                       
-	Command                                                                                     *string                                  `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                            
-	// returns a list of CommandAction objects because a single shell command may be composed of                                         
-	// many commands piped together.                                                                                                     
-	CommandActions                                                                              []FriskyCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                  
-	Cwd                                                                                         *string                                  `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                            
-	//                                                                                                                                   
-	// The duration of the MCP tool call in milliseconds.                                                                                
-	//                                                                                                                                   
-	// The duration of the dynamic tool call in milliseconds.                                                                            
-	DurationMS                                                                                  *int64                                   `json:"durationMs"`
-	// The command's exit code.                                                                                                          
-	ExitCode                                                                                    *int64                                   `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                       
-	ProcessID                                                                                   *string                                  `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                  `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                           
-	Status                                                                                      *string                                  `json:"status,omitempty"`
-	Changes                                                                                     []FriskyFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                              `json:"arguments"`
-	Error                                                                                       *FriskyMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                  `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                  `json:"pluginId"`
-	Result                                                                                      *FriskyResult                            `json:"result"`
-	Server                                                                                      *string                                  `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                         
-	Tool                                                                                        *string                                  `json:"tool,omitempty"`
-	ContentItems                                                                                []FriskyDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                  `json:"namespace"`
-	Success                                                                                     *bool                                    `json:"success"`
-	// Last known status of the target agents, when available.                                                                           
-	AgentsStates                                                                                map[string]FriskyCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                           
-	Model                                                                                       *string                                  `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                 
-	Prompt                                                                                      *string                                  `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                
-	ReasoningEffort                                                                             *ReasoningEffort                         `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                               
-	// corresponds to the newly spawned agent.                                                                                           
-	ReceiverThreadIDS                                                                           []string                                 `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                
-	SenderThreadID                                                                              *string                                  `json:"senderThreadId,omitempty"`
-	Action                                                                                      *FriskyWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                  `json:"query,omitempty"`
-	Path                                                                                        *string                                  `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                  `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                  `json:"savedPath"`
-	Review                                                                                      *string                                  `json:"review,omitempty"`
+	ClientID *string       `json:"clientId"`
+	Content  []UserInput13 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                     `json:"id"`
+	Type           ThreadItemType             `json:"type"`
+	Fragments      []FriskyHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *FriskyMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase              `json:"phase"`
+	Text           *string                    `json:"text,omitempty"`
+	Summary        []string                   `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []FriskyCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                      `json:"status,omitempty"`
+	Changes    []FriskyFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *FriskyMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                  `json:"arguments"`
+	Error      *FriskyMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string       `json:"mcpAppResourceUri"`
+	PluginID          *string       `json:"pluginId"`
+	Result            *FriskyResult `json:"result"`
+	Server            *string       `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                  `json:"tool,omitempty"`
+	ContentItems []FriskyDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                  `json:"namespace"`
+	Success      *bool                                    `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]FriskyCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                `json:"senderThreadId,omitempty"`
+	AgentPath      *string                `json:"agentPath,omitempty"`
+	AgentThreadID  *string                `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind  `json:"kind,omitempty"`
+	Action         *FriskyWebSearchAction `json:"action"`
+	Query          *string                `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type FriskyWebSearchAction struct {
@@ -8603,6 +9599,14 @@ type FriskyWebSearchAction struct {
 type FriskyCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type FriskyMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type FriskyFileUpdateChange struct {
@@ -8625,21 +9629,21 @@ type FriskyCommandAction struct {
 }
 
 type FriskyUserInput struct {
-	Text                                                                         *string             `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                    
-	TextElements                                                                 []FriskyTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType       `json:"type"`
-	Detail                                                                       *ImageDetail        `json:"detail"`
-	URL                                                                          *string             `json:"url,omitempty"`
-	Path                                                                         *string             `json:"path,omitempty"`
-	Name                                                                         *string             `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []FriskyTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType       `json:"type"`
+	Detail       *ImageDetail        `json:"detail"`
+	URL          *string             `json:"url,omitempty"`
+	Path         *string             `json:"path,omitempty"`
+	Name         *string             `json:"name,omitempty"`
 }
 
 type FriskyTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                       
-	ByteRange                                                                   FriskyByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                
-	Placeholder                                                                 *string         `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange FriskyByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -8652,6 +9656,7 @@ type FriskyDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type FriskyMCPToolCallError struct {
@@ -8698,17 +9703,18 @@ type ThreadTokenUsageUpdatedNotification struct {
 }
 
 type ThreadTokenUsage struct {
-	Last               TokenUsageBreakdown `json:"last"`
-	ModelContextWindow *int64              `json:"modelContextWindow"`
-	Total              TokenUsageBreakdown `json:"total"`
+	Last               LastClass `json:"last"`
+	ModelContextWindow *int64    `json:"modelContextWindow"`
+	Total              LastClass `json:"total"`
 }
 
-type TokenUsageBreakdown struct {
-	CachedInputTokens     int64 `json:"cachedInputTokens"`
-	InputTokens           int64 `json:"inputTokens"`
-	OutputTokens          int64 `json:"outputTokens"`
-	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
-	TotalTokens           int64 `json:"totalTokens"`
+type LastClass struct {
+	CachedInputTokens     int64  `json:"cachedInputTokens"`
+	CacheWriteInputTokens *int64 `json:"cacheWriteInputTokens,omitempty"`
+	InputTokens           int64  `json:"inputTokens"`
+	OutputTokens          int64  `json:"outputTokens"`
+	ReasoningOutputTokens int64  `json:"reasoningOutputTokens"`
+	TotalTokens           int64  `json:"totalTokens"`
 }
 
 type ThreadUnarchiveParams struct {
@@ -8720,45 +9726,50 @@ type ThreadUnarchiveResponse struct {
 }
 
 type ThreadUnarchiveResponseThread struct {
-	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.                              
-	AgentNickname                                                                            *string               `json:"agentNickname"`
-	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.                                   
-	AgentRole                                                                                *string               `json:"agentRole"`
-	// Version of the CLI that created the thread.                                                                 
-	CLIVersion                                                                               string                `json:"cliVersion"`
-	// Unix timestamp (in seconds) when the thread was created.                                                    
-	CreatedAt                                                                                int64                 `json:"createdAt"`
-	// Working directory captured for the thread.                                                                  
-	Cwd                                                                                      string                `json:"cwd"`
-	// Whether the thread is ephemeral and should not be materialized on disk.                                     
-	Ephemeral                                                                                bool                  `json:"ephemeral"`
-	// Source thread id when this thread was created by forking another thread.                                    
-	ForkedFromID                                                                             *string               `json:"forkedFromId"`
-	// Optional Git metadata captured when the thread was created.                                                 
-	GitInfo                                                                                  *AmbitiousGitInfo     `json:"gitInfo"`
-	ID                                                                                       string                `json:"id"`
-	// Model provider used for this thread (for example, 'openai').                                                
-	ModelProvider                                                                            string                `json:"modelProvider"`
-	// Optional user-facing thread title.                                                                          
-	Name                                                                                     *string               `json:"name"`
-	// [UNSTABLE] Path to the thread on disk.                                                                      
-	Path                                                                                     *string               `json:"path"`
-	// Usually the first user message in the thread, if available.                                                 
-	Preview                                                                                  string                `json:"preview"`
-	// Session id shared by threads that belong to the same session tree.                                          
-	SessionID                                                                                string                `json:"sessionId"`
-	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).                                     
-	Source                                                                                   *SessionSource4       `json:"source"`
-	// Current runtime status for the thread.                                                                      
-	Status                                                                                   AmbitiousThreadStatus `json:"status"`
-	// Optional analytics source classification for this thread.                                                   
-	ThreadSource                                                                             *ThreadSource         `json:"threadSource"`
-	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`                      
-	// (when `includeTurns` is true) responses. For all other responses and notifications                          
-	// returning a Thread, the turns field will be an empty list.                                                  
-	Turns                                                                                    []AmbitiousTurn       `json:"turns"`
-	// Unix timestamp (in seconds) when the thread was last updated.                                               
-	UpdatedAt                                                                                int64                 `json:"updatedAt"`
+	// Optional random unique nickname assigned to an AgentControl-spawned sub-agent.
+	AgentNickname *string `json:"agentNickname"`
+	// Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.
+	AgentRole *string `json:"agentRole"`
+	// Version of the CLI that created the thread.
+	CLIVersion string `json:"cliVersion"`
+	// Unix timestamp (in seconds) when the thread was created.
+	CreatedAt int64 `json:"createdAt"`
+	// Working directory captured for the thread.
+	Cwd string `json:"cwd"`
+	// Whether the thread is ephemeral and should not be materialized on disk.
+	Ephemeral bool `json:"ephemeral"`
+	// Source thread id when this thread was created by forking another thread.
+	ForkedFromID *string `json:"forkedFromId"`
+	// Optional Git metadata captured when the thread was created.
+	GitInfo *AmbitiousGitInfo `json:"gitInfo"`
+	// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+	ID string `json:"id"`
+	// Model provider used for this thread (for example, 'openai').
+	ModelProvider string `json:"modelProvider"`
+	// Optional user-facing thread title.
+	Name *string `json:"name"`
+	// The ID of the parent thread. This will only be set if this thread is a subagent.
+	ParentThreadID *string `json:"parentThreadId"`
+	// [UNSTABLE] Path to the thread on disk.
+	Path *string `json:"path"`
+	// Usually the first user message in the thread, if available.
+	Preview string `json:"preview"`
+	// Unix timestamp (in seconds) used for thread recency ordering.
+	RecencyAt *int64 `json:"recencyAt"`
+	// Session id shared by threads that belong to the same session tree.
+	SessionID string `json:"sessionId"`
+	// Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).
+	Source *SessionSource4 `json:"source"`
+	// Current runtime status for the thread.
+	Status AmbitiousThreadStatus `json:"status"`
+	// Optional analytics source classification for this thread.
+	ThreadSource *string `json:"threadSource"`
+	// Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read`
+	// (when `includeTurns` is true) responses. For all other responses and notifications
+	// returning a Thread, the turns field will be an empty list.
+	Turns []AmbitiousTurn `json:"turns"`
+	// Unix timestamp (in seconds) when the thread was last updated.
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 type AmbitiousGitInfo struct {
@@ -8792,20 +9803,21 @@ type AmbitiousThreadStatus struct {
 }
 
 type AmbitiousTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                     
-	CompletedAt                                                             *int64              `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                    
-	DurationMS                                                              *int64              `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                         
-	Error                                                                   *MagentaTurnError   `json:"error"`
-	ID                                                                      string              `json:"id"`
-	// Thread items currently included in this turn payload.                                    
-	Items                                                                   []MagentaThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                             
-	ItemsView                                                               *TurnItemsView      `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                       
-	StartedAt                                                               *int64              `json:"startedAt"`
-	Status                                                                  TurnStatus          `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *MagentaTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []MagentaThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type MagentaTurnError struct {
@@ -8852,70 +9864,83 @@ type FriskyResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type MagentaThreadItem struct {
-	Content                                                                                     []MischievousContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                           
-	ID                                                                                          string                                        `json:"id"`
-	Type                                                                                        ThreadItemType                                `json:"type"`
-	Fragments                                                                                   []MischievousHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *MischievousMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                                 `json:"phase"`
-	Text                                                                                        *string                                       `json:"text,omitempty"`
-	Summary                                                                                     []string                                      `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                               
-	AggregatedOutput                                                                            *string                                       `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                            
-	Command                                                                                     *string                                       `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                                 
-	// returns a list of CommandAction objects because a single shell command may be composed of                                              
-	// many commands piped together.                                                                                                          
-	CommandActions                                                                              []MischievousCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                       
-	Cwd                                                                                         *string                                       `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                                 
-	//                                                                                                                                        
-	// The duration of the MCP tool call in milliseconds.                                                                                     
-	//                                                                                                                                        
-	// The duration of the dynamic tool call in milliseconds.                                                                                 
-	DurationMS                                                                                  *int64                                        `json:"durationMs"`
-	// The command's exit code.                                                                                                               
-	ExitCode                                                                                    *int64                                        `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                            
-	ProcessID                                                                                   *string                                       `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                       `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                                
-	Status                                                                                      *string                                       `json:"status,omitempty"`
-	Changes                                                                                     []MischievousFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                                   `json:"arguments"`
-	Error                                                                                       *MischievousMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                       `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                       `json:"pluginId"`
-	Result                                                                                      *MischievousResult                            `json:"result"`
-	Server                                                                                      *string                                       `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                              
-	Tool                                                                                        *string                                       `json:"tool,omitempty"`
-	ContentItems                                                                                []MischievousDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                       `json:"namespace"`
-	Success                                                                                     *bool                                         `json:"success"`
-	// Last known status of the target agents, when available.                                                                                
-	AgentsStates                                                                                map[string]MischievousCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                                
-	Model                                                                                       *string                                       `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                      
-	Prompt                                                                                      *string                                       `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                     
-	ReasoningEffort                                                                             *ReasoningEffort                              `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                                    
-	// corresponds to the newly spawned agent.                                                                                                
-	ReceiverThreadIDS                                                                           []string                                      `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                     
-	SenderThreadID                                                                              *string                                       `json:"senderThreadId,omitempty"`
-	Action                                                                                      *MischievousWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                       `json:"query,omitempty"`
-	Path                                                                                        *string                                       `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                       `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                       `json:"savedPath"`
-	Review                                                                                      *string                                       `json:"review,omitempty"`
+	ClientID *string       `json:"clientId"`
+	Content  []UserInput14 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                          `json:"id"`
+	Type           ThreadItemType                  `json:"type"`
+	Fragments      []MischievousHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *MischievousMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase                   `json:"phase"`
+	Text           *string                         `json:"text,omitempty"`
+	Summary        []string                        `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []MischievousCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                           `json:"status,omitempty"`
+	Changes    []MischievousFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *MischievousMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                       `json:"arguments"`
+	Error      *MischievousMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string            `json:"mcpAppResourceUri"`
+	PluginID          *string            `json:"pluginId"`
+	Result            *MischievousResult `json:"result"`
+	Server            *string            `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                       `json:"tool,omitempty"`
+	ContentItems []MischievousDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                       `json:"namespace"`
+	Success      *bool                                         `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]MischievousCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                     `json:"senderThreadId,omitempty"`
+	AgentPath      *string                     `json:"agentPath,omitempty"`
+	AgentThreadID  *string                     `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind       `json:"kind,omitempty"`
+	Action         *MischievousWebSearchAction `json:"action"`
+	Query          *string                     `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type MischievousWebSearchAction struct {
@@ -8929,6 +9954,14 @@ type MischievousWebSearchAction struct {
 type MischievousCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type MischievousMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type MischievousFileUpdateChange struct {
@@ -8951,21 +9984,21 @@ type MischievousCommandAction struct {
 }
 
 type MischievousUserInput struct {
-	Text                                                                         *string                  `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                         
-	TextElements                                                                 []MischievousTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType            `json:"type"`
-	Detail                                                                       *ImageDetail             `json:"detail"`
-	URL                                                                          *string                  `json:"url,omitempty"`
-	Path                                                                         *string                  `json:"path,omitempty"`
-	Name                                                                         *string                  `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []MischievousTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType            `json:"type"`
+	Detail       *ImageDetail             `json:"detail"`
+	URL          *string                  `json:"url,omitempty"`
+	Path         *string                  `json:"path,omitempty"`
+	Name         *string                  `json:"name,omitempty"`
 }
 
 type MischievousTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                            
-	ByteRange                                                                   MischievousByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                     
-	Placeholder                                                                 *string              `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange MischievousByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -8978,6 +10011,7 @@ type MischievousDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type MischievousMCPToolCallError struct {
@@ -9025,20 +10059,21 @@ type TurnCompletedNotification struct {
 }
 
 type TurnCompletedNotificationTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                    
-	CompletedAt                                                             *int64             `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                   
-	DurationMS                                                              *int64             `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                        
-	Error                                                                   *FriskyTurnError   `json:"error"`
-	ID                                                                      string             `json:"id"`
-	// Thread items currently included in this turn payload.                                   
-	Items                                                                   []FriskyThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                            
-	ItemsView                                                               *TurnItemsView     `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                      
-	StartedAt                                                               *int64             `json:"startedAt"`
-	Status                                                                  TurnStatus         `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *FriskyTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []FriskyThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type FriskyTurnError struct {
@@ -9085,70 +10120,83 @@ type MischievousResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type FriskyThreadItem struct {
-	Content                                                                                     []BraggadociousContent                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                             
-	ID                                                                                          string                                          `json:"id"`
-	Type                                                                                        ThreadItemType                                  `json:"type"`
-	Fragments                                                                                   []BraggadociousHookPromptFragment               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *BraggadociousMemoryCitation                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                                   `json:"phase"`
-	Text                                                                                        *string                                         `json:"text,omitempty"`
-	Summary                                                                                     []string                                        `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                                 
-	AggregatedOutput                                                                            *string                                         `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                              
-	Command                                                                                     *string                                         `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                                   
-	// returns a list of CommandAction objects because a single shell command may be composed of                                                
-	// many commands piped together.                                                                                                            
-	CommandActions                                                                              []BraggadociousCommandAction                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                                         
-	Cwd                                                                                         *string                                         `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                                   
-	//                                                                                                                                          
-	// The duration of the MCP tool call in milliseconds.                                                                                       
-	//                                                                                                                                          
-	// The duration of the dynamic tool call in milliseconds.                                                                                   
-	DurationMS                                                                                  *int64                                          `json:"durationMs"`
-	// The command's exit code.                                                                                                                 
-	ExitCode                                                                                    *int64                                          `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                              
-	ProcessID                                                                                   *string                                         `json:"processId"`
-	Source                                                                                      *CommandExecutionSource                         `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                                  
-	Status                                                                                      *string                                         `json:"status,omitempty"`
-	Changes                                                                                     []BraggadociousFileUpdateChange                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                                     `json:"arguments"`
-	Error                                                                                       *BraggadociousMCPToolCallError                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                                         `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                                         `json:"pluginId"`
-	Result                                                                                      *BraggadociousResult                            `json:"result"`
-	Server                                                                                      *string                                         `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                                
-	Tool                                                                                        *string                                         `json:"tool,omitempty"`
-	ContentItems                                                                                []BraggadociousDynamicToolCallOutputContentItem `json:"contentItems"`
-	Namespace                                                                                   *string                                         `json:"namespace"`
-	Success                                                                                     *bool                                           `json:"success"`
-	// Last known status of the target agents, when available.                                                                                  
-	AgentsStates                                                                                map[string]BraggadociousCollabAgentState        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                                  
-	Model                                                                                       *string                                         `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                                        
-	Prompt                                                                                      *string                                         `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                                       
-	ReasoningEffort                                                                             *ReasoningEffort                                `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                                      
-	// corresponds to the newly spawned agent.                                                                                                  
-	ReceiverThreadIDS                                                                           []string                                        `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                                       
-	SenderThreadID                                                                              *string                                         `json:"senderThreadId,omitempty"`
-	Action                                                                                      *BraggadociousWebSearchAction                   `json:"action"`
-	Query                                                                                       *string                                         `json:"query,omitempty"`
-	Path                                                                                        *string                                         `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                                         `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                                         `json:"savedPath"`
-	Review                                                                                      *string                                         `json:"review,omitempty"`
+	ClientID *string       `json:"clientId"`
+	Content  []UserInput15 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                            `json:"id"`
+	Type           ThreadItemType                    `json:"type"`
+	Fragments      []BraggadociousHookPromptFragment `json:"fragments,omitempty"`
+	MemoryCitation *BraggadociousMemoryCitation      `json:"memoryCitation"`
+	Phase          *MessagePhase                     `json:"phase"`
+	Text           *string                           `json:"text,omitempty"`
+	Summary        []string                          `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []BraggadociousCommandAction `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                             `json:"status,omitempty"`
+	Changes    []BraggadociousFileUpdateChange     `json:"changes,omitempty"`
+	AppContext *BraggadociousMCPToolCallAppContext `json:"appContext"`
+	Arguments  interface{}                         `json:"arguments"`
+	Error      *BraggadociousMCPToolCallError      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string              `json:"mcpAppResourceUri"`
+	PluginID          *string              `json:"pluginId"`
+	Result            *BraggadociousResult `json:"result"`
+	Server            *string              `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                                         `json:"tool,omitempty"`
+	ContentItems []BraggadociousDynamicToolCallOutputContentItem `json:"contentItems"`
+	Namespace    *string                                         `json:"namespace"`
+	Success      *bool                                           `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]BraggadociousCollabAgentState `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string                       `json:"senderThreadId,omitempty"`
+	AgentPath      *string                       `json:"agentPath,omitempty"`
+	AgentThreadID  *string                       `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind         `json:"kind,omitempty"`
+	Action         *BraggadociousWebSearchAction `json:"action"`
+	Query          *string                       `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type BraggadociousWebSearchAction struct {
@@ -9162,6 +10210,14 @@ type BraggadociousWebSearchAction struct {
 type BraggadociousCollabAgentState struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type BraggadociousMCPToolCallAppContext struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type BraggadociousFileUpdateChange struct {
@@ -9184,21 +10240,21 @@ type BraggadociousCommandAction struct {
 }
 
 type BraggadociousUserInput struct {
-	Text                                                                         *string                    `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.                           
-	TextElements                                                                 []BraggadociousTextElement `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType              `json:"type"`
-	Detail                                                                       *ImageDetail               `json:"detail"`
-	URL                                                                          *string                    `json:"url,omitempty"`
-	Path                                                                         *string                    `json:"path,omitempty"`
-	Name                                                                         *string                    `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []BraggadociousTextElement `json:"text_elements,omitempty"`
+	Type         UserInputType              `json:"type"`
+	Detail       *ImageDetail               `json:"detail"`
+	URL          *string                    `json:"url,omitempty"`
+	Path         *string                    `json:"path,omitempty"`
+	Name         *string                    `json:"name,omitempty"`
 }
 
 type BraggadociousTextElement struct {
-	// Byte range in the parent `text` buffer that this element occupies.                              
-	ByteRange                                                                   BraggadociousByteRange `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.                       
-	Placeholder                                                                 *string                `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange BraggadociousByteRange `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -9211,6 +10267,7 @@ type BraggadociousDynamicToolCallOutputContentItem struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type BraggadociousMCPToolCallError struct {
@@ -9253,6 +10310,12 @@ type TurnInterruptParams struct {
 	TurnID   string `json:"turnId"`
 }
 
+type TurnModerationMetadataNotification struct {
+	Metadata interface{} `json:"metadata"`
+	ThreadID string      `json:"threadId"`
+	TurnID   string      `json:"turnId"`
+}
+
 type TurnPlanUpdatedNotification struct {
 	Explanation *string        `json:"explanation"`
 	Plan        []TurnPlanStep `json:"plan"`
@@ -9266,28 +10329,29 @@ type TurnPlanStep struct {
 }
 
 type TurnStartParams struct {
-	// Override the approval policy for this turn and subsequent turns.                                                                       
-	ApprovalPolicy                                                                              *TurnStartParamsApprovalPolicy                `json:"approvalPolicy"`
-	// Override where approval requests are routed for review on this turn and subsequent turns.                                              
-	ApprovalsReviewer                                                                           *ApprovalsReviewer                            `json:"approvalsReviewer"`
-	// Override the working directory for this turn and subsequent turns.                                                                     
-	Cwd                                                                                         *string                                       `json:"cwd"`
-	// Override the reasoning effort for this turn and subsequent turns.                                                                      
-	Effort                                                                                      *ReasoningEffort                              `json:"effort"`
-	Input                                                                                       []TurnStartParamsUserInput                    `json:"input"`
-	// Override the model for this turn and subsequent turns.                                                                                 
-	Model                                                                                       *string                                       `json:"model"`
-	// Optional JSON Schema used to constrain the final assistant message for this turn.                                                      
-	OutputSchema                                                                                interface{}                                   `json:"outputSchema"`
-	// Override the personality for this turn and subsequent turns.                                                                           
-	Personality                                                                                 *Personality                                  `json:"personality"`
-	// Override the sandbox policy for this turn and subsequent turns.                                                                        
-	SandboxPolicy                                                                               *TurnStartParamsDangerFullAccessSandboxPolicy `json:"sandboxPolicy"`
-	// Override the service tier for this turn and subsequent turns.                                                                          
-	ServiceTier                                                                                 *string                                       `json:"serviceTier"`
-	// Override the reasoning summary for this turn and subsequent turns.                                                                     
-	Summary                                                                                     *ReasoningSummary                             `json:"summary"`
-	ThreadID                                                                                    string                                        `json:"threadId"`
+	// Override the approval policy for this turn and subsequent turns.
+	ApprovalPolicy *TurnStartParamsApprovalPolicy `json:"approvalPolicy"`
+	// Override where approval requests are routed for review on this turn and subsequent turns.
+	ApprovalsReviewer   *ApprovalsReviewer `json:"approvalsReviewer"`
+	ClientUserMessageID *string            `json:"clientUserMessageId"`
+	// Override the working directory for this turn and subsequent turns.
+	Cwd *string `json:"cwd"`
+	// Override the reasoning effort for this turn and subsequent turns.
+	Effort *string                    `json:"effort"`
+	Input  []TurnStartParamsUserInput `json:"input"`
+	// Override the model for this turn and subsequent turns.
+	Model *string `json:"model"`
+	// Optional JSON Schema used to constrain the final assistant message for this turn.
+	OutputSchema interface{} `json:"outputSchema"`
+	// Override the personality for this turn and subsequent turns.
+	Personality *Personality `json:"personality"`
+	// Override the sandbox policy for this turn and subsequent turns.
+	SandboxPolicy *TurnStartParamsDangerFullAccessSandboxPolicy `json:"sandboxPolicy"`
+	// Override the service tier for this turn and subsequent turns.
+	ServiceTier *string `json:"serviceTier"`
+	// Override the reasoning summary for this turn and subsequent turns.
+	Summary  *ReasoningSummary `json:"summary"`
+	ThreadID string            `json:"threadId"`
 }
 
 type CunningGranularAskForApproval struct {
@@ -9303,21 +10367,21 @@ type MagentaGranular struct {
 }
 
 type TurnStartParamsUserInput struct {
-	Text                                                                         *string        `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.               
-	TextElements                                                                 []TextElement1 `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType  `json:"type"`
-	Detail                                                                       *ImageDetail   `json:"detail"`
-	URL                                                                          *string        `json:"url,omitempty"`
-	Path                                                                         *string        `json:"path,omitempty"`
-	Name                                                                         *string        `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []TextElement1 `json:"text_elements,omitempty"`
+	Type         UserInputType  `json:"type"`
+	Detail       *ImageDetail   `json:"detail"`
+	URL          *string        `json:"url,omitempty"`
+	Path         *string        `json:"path,omitempty"`
+	Name         *string        `json:"name,omitempty"`
 }
 
 type TextElement1 struct {
-	// Byte range in the parent `text` buffer that this element occupies.                  
-	ByteRange                                                                   ByteRange1 `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.           
-	Placeholder                                                                 *string    `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange ByteRange1 `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -9339,20 +10403,21 @@ type TurnStartResponse struct {
 }
 
 type TurnStartResponseTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                         
-	CompletedAt                                                             *int64                  `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                        
-	DurationMS                                                              *int64                  `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                             
-	Error                                                                   *MischievousTurnError   `json:"error"`
-	ID                                                                      string                  `json:"id"`
-	// Thread items currently included in this turn payload.                                        
-	Items                                                                   []MischievousThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                                 
-	ItemsView                                                               *TurnItemsView          `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                           
-	StartedAt                                                               *int64                  `json:"startedAt"`
-	Status                                                                  TurnStatus              `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *MischievousTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []MischievousThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type MischievousTurnError struct {
@@ -9399,70 +10464,83 @@ type BraggadociousResponseTooManyFailedAttempts struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type MischievousThreadItem struct {
-	Content                                                                                     []Content1                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                 
-	ID                                                                                          string                              `json:"id"`
-	Type                                                                                        ThreadItemType                      `json:"type"`
-	Fragments                                                                                   []HookPromptFragment1               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *MemoryCitation1                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                       `json:"phase"`
-	Text                                                                                        *string                             `json:"text,omitempty"`
-	Summary                                                                                     []string                            `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                     
-	AggregatedOutput                                                                            *string                             `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                  
-	Command                                                                                     *string                             `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                       
-	// returns a list of CommandAction objects because a single shell command may be composed of                                    
-	// many commands piped together.                                                                                                
-	CommandActions                                                                              []CommandAction1                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                             
-	Cwd                                                                                         *string                             `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                       
-	//                                                                                                                              
-	// The duration of the MCP tool call in milliseconds.                                                                           
-	//                                                                                                                              
-	// The duration of the dynamic tool call in milliseconds.                                                                       
-	DurationMS                                                                                  *int64                              `json:"durationMs"`
-	// The command's exit code.                                                                                                     
-	ExitCode                                                                                    *int64                              `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                  
-	ProcessID                                                                                   *string                             `json:"processId"`
-	Source                                                                                      *CommandExecutionSource             `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                      
-	Status                                                                                      *string                             `json:"status,omitempty"`
-	Changes                                                                                     []FileUpdateChange1                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                         `json:"arguments"`
-	Error                                                                                       *MCPToolCallError1                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                             `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                             `json:"pluginId"`
-	Result                                                                                      *Result1                            `json:"result"`
-	Server                                                                                      *string                             `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                    
-	Tool                                                                                        *string                             `json:"tool,omitempty"`
-	ContentItems                                                                                []DynamicToolCallOutputContentItem1 `json:"contentItems"`
-	Namespace                                                                                   *string                             `json:"namespace"`
-	Success                                                                                     *bool                               `json:"success"`
-	// Last known status of the target agents, when available.                                                                      
-	AgentsStates                                                                                map[string]CollabAgentState1        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                      
-	Model                                                                                       *string                             `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                            
-	Prompt                                                                                      *string                             `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                           
-	ReasoningEffort                                                                             *ReasoningEffort                    `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                          
-	// corresponds to the newly spawned agent.                                                                                      
-	ReceiverThreadIDS                                                                           []string                            `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                           
-	SenderThreadID                                                                              *string                             `json:"senderThreadId,omitempty"`
-	Action                                                                                      *WebSearchAction1                   `json:"action"`
-	Query                                                                                       *string                             `json:"query,omitempty"`
-	Path                                                                                        *string                             `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                             `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                             `json:"savedPath"`
-	Review                                                                                      *string                             `json:"review,omitempty"`
+	ClientID *string       `json:"clientId"`
+	Content  []UserInput16 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                `json:"id"`
+	Type           ThreadItemType        `json:"type"`
+	Fragments      []HookPromptFragment1 `json:"fragments,omitempty"`
+	MemoryCitation *MemoryCitation1      `json:"memoryCitation"`
+	Phase          *MessagePhase         `json:"phase"`
+	Text           *string               `json:"text,omitempty"`
+	Summary        []string              `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []CommandAction1 `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                 `json:"status,omitempty"`
+	Changes    []FileUpdateChange1     `json:"changes,omitempty"`
+	AppContext *MCPToolCallAppContext1 `json:"appContext"`
+	Arguments  interface{}             `json:"arguments"`
+	Error      *MCPToolCallError1      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string  `json:"mcpAppResourceUri"`
+	PluginID          *string  `json:"pluginId"`
+	Result            *Result1 `json:"result"`
+	Server            *string  `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                             `json:"tool,omitempty"`
+	ContentItems []DynamicToolCallOutputContentItem1 `json:"contentItems"`
+	Namespace    *string                             `json:"namespace"`
+	Success      *bool                               `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]CollabAgentState1 `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string               `json:"senderThreadId,omitempty"`
+	AgentPath      *string               `json:"agentPath,omitempty"`
+	AgentThreadID  *string               `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind `json:"kind,omitempty"`
+	Action         *WebSearchAction1     `json:"action"`
+	Query          *string               `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type WebSearchAction1 struct {
@@ -9476,6 +10554,14 @@ type WebSearchAction1 struct {
 type CollabAgentState1 struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type MCPToolCallAppContext1 struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type FileUpdateChange1 struct {
@@ -9498,21 +10584,21 @@ type CommandAction1 struct {
 }
 
 type UserInput1 struct {
-	Text                                                                         *string        `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.               
-	TextElements                                                                 []TextElement2 `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType  `json:"type"`
-	Detail                                                                       *ImageDetail   `json:"detail"`
-	URL                                                                          *string        `json:"url,omitempty"`
-	Path                                                                         *string        `json:"path,omitempty"`
-	Name                                                                         *string        `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []TextElement2 `json:"text_elements,omitempty"`
+	Type         UserInputType  `json:"type"`
+	Detail       *ImageDetail   `json:"detail"`
+	URL          *string        `json:"url,omitempty"`
+	Path         *string        `json:"path,omitempty"`
+	Name         *string        `json:"name,omitempty"`
 }
 
 type TextElement2 struct {
-	// Byte range in the parent `text` buffer that this element occupies.                  
-	ByteRange                                                                   ByteRange2 `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.           
-	Placeholder                                                                 *string    `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange ByteRange2 `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -9525,6 +10611,7 @@ type DynamicToolCallOutputContentItem1 struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type MCPToolCallError1 struct {
@@ -9560,20 +10647,21 @@ type TurnStartedNotification struct {
 }
 
 type TurnStartedNotificationTurn struct {
-	// Unix timestamp (in seconds) when the turn completed.                                           
-	CompletedAt                                                             *int64                    `json:"completedAt"`
-	// Duration between turn start and completion in milliseconds, if known.                          
-	DurationMS                                                              *int64                    `json:"durationMs"`
-	// Only populated when the Turn's status is failed.                                               
-	Error                                                                   *BraggadociousTurnError   `json:"error"`
-	ID                                                                      string                    `json:"id"`
-	// Thread items currently included in this turn payload.                                          
-	Items                                                                   []BraggadociousThreadItem `json:"items"`
-	// Describes how much of `items` has been loaded for this turn.                                   
-	ItemsView                                                               *TurnItemsView            `json:"itemsView,omitempty"`
-	// Unix timestamp (in seconds) when the turn started.                                             
-	StartedAt                                                               *int64                    `json:"startedAt"`
-	Status                                                                  TurnStatus                `json:"status"`
+	// Unix timestamp (in seconds) when the turn completed.
+	CompletedAt *int64 `json:"completedAt"`
+	// Duration between turn start and completion in milliseconds, if known.
+	DurationMS *int64 `json:"durationMs"`
+	// Only populated when the Turn's status is failed.
+	Error *BraggadociousTurnError `json:"error"`
+	// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+	ID string `json:"id"`
+	// Thread items currently included in this turn payload.
+	Items []BraggadociousThreadItem `json:"items"`
+	// Describes how much of `items` has been loaded for this turn.
+	ItemsView *TurnItemsView `json:"itemsView,omitempty"`
+	// Unix timestamp (in seconds) when the turn started.
+	StartedAt *int64     `json:"startedAt"`
+	Status    TurnStatus `json:"status"`
 }
 
 type BraggadociousTurnError struct {
@@ -9620,70 +10708,83 @@ type ResponseTooManyFailedAttempts1 struct {
 
 // EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and
 // may not match the concatenation of `PlanDelta` text.
+//
+// Display item emitted by the interruptible `clock.sleep` tool.
 type BraggadociousThreadItem struct {
-	Content                                                                                     []Content2                          `json:"content,omitempty"`
-	// Unique identifier for this collab tool call.                                                                                 
-	ID                                                                                          string                              `json:"id"`
-	Type                                                                                        ThreadItemType                      `json:"type"`
-	Fragments                                                                                   []HookPromptFragment2               `json:"fragments,omitempty"`
-	MemoryCitation                                                                              *MemoryCitation2                    `json:"memoryCitation"`
-	Phase                                                                                       *MessagePhase                       `json:"phase"`
-	Text                                                                                        *string                             `json:"text,omitempty"`
-	Summary                                                                                     []string                            `json:"summary,omitempty"`
-	// The command's output, aggregated from stdout and stderr.                                                                     
-	AggregatedOutput                                                                            *string                             `json:"aggregatedOutput"`
-	// The command to be executed.                                                                                                  
-	Command                                                                                     *string                             `json:"command,omitempty"`
-	// A best-effort parsing of the command to understand the action(s) it will perform. This                                       
-	// returns a list of CommandAction objects because a single shell command may be composed of                                    
-	// many commands piped together.                                                                                                
-	CommandActions                                                                              []CommandAction2                    `json:"commandActions,omitempty"`
-	// The command's working directory.                                                                                             
-	Cwd                                                                                         *string                             `json:"cwd,omitempty"`
-	// The duration of the command execution in milliseconds.                                                                       
-	//                                                                                                                              
-	// The duration of the MCP tool call in milliseconds.                                                                           
-	//                                                                                                                              
-	// The duration of the dynamic tool call in milliseconds.                                                                       
-	DurationMS                                                                                  *int64                              `json:"durationMs"`
-	// The command's exit code.                                                                                                     
-	ExitCode                                                                                    *int64                              `json:"exitCode"`
-	// Identifier for the underlying PTY process (when available).                                                                  
-	ProcessID                                                                                   *string                             `json:"processId"`
-	Source                                                                                      *CommandExecutionSource             `json:"source,omitempty"`
-	// Current status of the collab tool call.                                                                                      
-	Status                                                                                      *string                             `json:"status,omitempty"`
-	Changes                                                                                     []FileUpdateChange2                 `json:"changes,omitempty"`
-	Arguments                                                                                   interface{}                         `json:"arguments"`
-	Error                                                                                       *MCPToolCallError2                  `json:"error"`
-	MCPAppResourceURI                                                                           *string                             `json:"mcpAppResourceUri"`
-	PluginID                                                                                    *string                             `json:"pluginId"`
-	Result                                                                                      *Result2                            `json:"result"`
-	Server                                                                                      *string                             `json:"server,omitempty"`
-	// Name of the collab tool that was invoked.                                                                                    
-	Tool                                                                                        *string                             `json:"tool,omitempty"`
-	ContentItems                                                                                []DynamicToolCallOutputContentItem2 `json:"contentItems"`
-	Namespace                                                                                   *string                             `json:"namespace"`
-	Success                                                                                     *bool                               `json:"success"`
-	// Last known status of the target agents, when available.                                                                      
-	AgentsStates                                                                                map[string]CollabAgentState2        `json:"agentsStates,omitempty"`
-	// Model requested for the spawned agent, when applicable.                                                                      
-	Model                                                                                       *string                             `json:"model"`
-	// Prompt text sent as part of the collab tool call, when available.                                                            
-	Prompt                                                                                      *string                             `json:"prompt"`
-	// Reasoning effort requested for the spawned agent, when applicable.                                                           
-	ReasoningEffort                                                                             *ReasoningEffort                    `json:"reasoningEffort"`
-	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this                                          
-	// corresponds to the newly spawned agent.                                                                                      
-	ReceiverThreadIDS                                                                           []string                            `json:"receiverThreadIds,omitempty"`
-	// Thread ID of the agent issuing the collab request.                                                                           
-	SenderThreadID                                                                              *string                             `json:"senderThreadId,omitempty"`
-	Action                                                                                      *WebSearchAction2                   `json:"action"`
-	Query                                                                                       *string                             `json:"query,omitempty"`
-	Path                                                                                        *string                             `json:"path,omitempty"`
-	RevisedPrompt                                                                               *string                             `json:"revisedPrompt"`
-	SavedPath                                                                                   *string                             `json:"savedPath"`
-	Review                                                                                      *string                             `json:"review,omitempty"`
+	ClientID *string       `json:"clientId"`
+	Content  []UserInput17 `json:"content,omitempty"`
+	// Unique identifier for this collab tool call.
+	ID             string                `json:"id"`
+	Type           ThreadItemType        `json:"type"`
+	Fragments      []HookPromptFragment2 `json:"fragments,omitempty"`
+	MemoryCitation *MemoryCitation2      `json:"memoryCitation"`
+	Phase          *MessagePhase         `json:"phase"`
+	Text           *string               `json:"text,omitempty"`
+	Summary        []string              `json:"summary,omitempty"`
+	// The command's output, aggregated from stdout and stderr.
+	AggregatedOutput *string `json:"aggregatedOutput"`
+	// The command to be executed.
+	Command *string `json:"command,omitempty"`
+	// A best-effort parsing of the command to understand the action(s) it will perform. This
+	// returns a list of CommandAction objects because a single shell command may be composed of
+	// many commands piped together.
+	CommandActions []CommandAction2 `json:"commandActions,omitempty"`
+	// The command's working directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// The duration of the command execution in milliseconds.
+	//
+	// The duration of the MCP tool call in milliseconds.
+	//
+	// The duration of the dynamic tool call in milliseconds.
+	DurationMS *int64 `json:"durationMs"`
+	// The command's exit code.
+	ExitCode *int64 `json:"exitCode"`
+	// Identifier for the underlying PTY process (when available).
+	ProcessID *string                 `json:"processId"`
+	Source    *CommandExecutionSource `json:"source,omitempty"`
+	// Current status of the collab tool call.
+	Status     *string                 `json:"status,omitempty"`
+	Changes    []FileUpdateChange2     `json:"changes,omitempty"`
+	AppContext *MCPToolCallAppContext2 `json:"appContext"`
+	Arguments  interface{}             `json:"arguments"`
+	Error      *MCPToolCallError2      `json:"error"`
+	// Deprecated: use `appContext.resourceUri` instead.
+	MCPAppResourceURI *string  `json:"mcpAppResourceUri"`
+	PluginID          *string  `json:"pluginId"`
+	Result            *Result2 `json:"result"`
+	Server            *string  `json:"server,omitempty"`
+	// Name of the collab tool that was invoked.
+	Tool         *string                             `json:"tool,omitempty"`
+	ContentItems []DynamicToolCallOutputContentItem2 `json:"contentItems"`
+	Namespace    *string                             `json:"namespace"`
+	Success      *bool                               `json:"success"`
+	// Last known status of the target agents, when available.
+	AgentsStates map[string]CollabAgentState2 `json:"agentsStates,omitempty"`
+	// Model requested for the spawned agent, when applicable.
+	Model *string `json:"model"`
+	// Prompt text sent as part of the collab tool call, when available.
+	Prompt *string `json:"prompt"`
+	// Reasoning effort requested for the spawned agent, when applicable.
+	ReasoningEffort *string `json:"reasoningEffort"`
+	// Thread ID of the receiving agent, when applicable. In case of spawn operation, this
+	// corresponds to the newly spawned agent.
+	ReceiverThreadIDS []string `json:"receiverThreadIds,omitempty"`
+	// Thread ID of the agent issuing the collab request.
+	SenderThreadID *string               `json:"senderThreadId,omitempty"`
+	AgentPath      *string               `json:"agentPath,omitempty"`
+	AgentThreadID  *string               `json:"agentThreadId,omitempty"`
+	Kind           *SubAgentActivityKind `json:"kind,omitempty"`
+	Action         *WebSearchAction2     `json:"action"`
+	Query          *string               `json:"query,omitempty"`
+	// Structured search results returned out-of-band by standalone web search.
+	//
+	// These stay as opaque JSON at the extension/app-server boundary so new result fields and
+	// result types can pass through without a Codex release.
+	Results       []interface{} `json:"results"`
+	Path          *string       `json:"path,omitempty"`
+	RevisedPrompt *string       `json:"revisedPrompt"`
+	SavedPath     *string       `json:"savedPath"`
+	Review        *string       `json:"review,omitempty"`
 }
 
 type WebSearchAction2 struct {
@@ -9697,6 +10798,14 @@ type WebSearchAction2 struct {
 type CollabAgentState2 struct {
 	Message *string           `json:"message"`
 	Status  CollabAgentStatus `json:"status"`
+}
+
+type MCPToolCallAppContext2 struct {
+	ActionName  *string `json:"actionName"`
+	AppName     *string `json:"appName"`
+	ConnectorID string  `json:"connectorId"`
+	LinkID      *string `json:"linkId"`
+	ResourceURI *string `json:"resourceUri"`
 }
 
 type FileUpdateChange2 struct {
@@ -9719,21 +10828,21 @@ type CommandAction2 struct {
 }
 
 type UserInput2 struct {
-	Text                                                                         *string        `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.               
-	TextElements                                                                 []TextElement3 `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType  `json:"type"`
-	Detail                                                                       *ImageDetail   `json:"detail"`
-	URL                                                                          *string        `json:"url,omitempty"`
-	Path                                                                         *string        `json:"path,omitempty"`
-	Name                                                                         *string        `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []TextElement3 `json:"text_elements,omitempty"`
+	Type         UserInputType  `json:"type"`
+	Detail       *ImageDetail   `json:"detail"`
+	URL          *string        `json:"url,omitempty"`
+	Path         *string        `json:"path,omitempty"`
+	Name         *string        `json:"name,omitempty"`
 }
 
 type TextElement3 struct {
-	// Byte range in the parent `text` buffer that this element occupies.                  
-	ByteRange                                                                   ByteRange3 `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.           
-	Placeholder                                                                 *string    `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange ByteRange3 `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -9746,6 +10855,7 @@ type DynamicToolCallOutputContentItem2 struct {
 	Text     *string                                   `json:"text,omitempty"`
 	Type     InputDynamicToolCallOutputContentItemType `json:"type"`
 	ImageURL *string                                   `json:"imageUrl,omitempty"`
+	AudioURL *string                                   `json:"audioUrl,omitempty"`
 }
 
 type MCPToolCallError2 struct {
@@ -9776,29 +10886,30 @@ type MCPToolCallResult2 struct {
 }
 
 type TurnSteerParams struct {
-	// Required active turn id precondition. The request fails when it does not match the                           
-	// currently active turn.                                                                                       
-	ExpectedTurnID                                                                       string                     `json:"expectedTurnId"`
-	Input                                                                                []TurnSteerParamsUserInput `json:"input"`
-	ThreadID                                                                             string                     `json:"threadId"`
+	ClientUserMessageID *string `json:"clientUserMessageId"`
+	// Required active turn id precondition. The request fails when it does not match the
+	// currently active turn.
+	ExpectedTurnID string                     `json:"expectedTurnId"`
+	Input          []TurnSteerParamsUserInput `json:"input"`
+	ThreadID       string                     `json:"threadId"`
 }
 
 type TurnSteerParamsUserInput struct {
-	Text                                                                         *string        `json:"text,omitempty"`
-	// UI-defined spans within `text` used to render or persist special elements.               
-	TextElements                                                                 []TextElement4 `json:"text_elements,omitempty"`
-	Type                                                                         UserInputType  `json:"type"`
-	Detail                                                                       *ImageDetail   `json:"detail"`
-	URL                                                                          *string        `json:"url,omitempty"`
-	Path                                                                         *string        `json:"path,omitempty"`
-	Name                                                                         *string        `json:"name,omitempty"`
+	Text *string `json:"text,omitempty"`
+	// UI-defined spans within `text` used to render or persist special elements.
+	TextElements []TextElement4 `json:"text_elements,omitempty"`
+	Type         UserInputType  `json:"type"`
+	Detail       *ImageDetail   `json:"detail"`
+	URL          *string        `json:"url,omitempty"`
+	Path         *string        `json:"path,omitempty"`
+	Name         *string        `json:"name,omitempty"`
 }
 
 type TextElement4 struct {
-	// Byte range in the parent `text` buffer that this element occupies.                  
-	ByteRange                                                                   ByteRange4 `json:"byteRange"`
-	// Optional human-readable placeholder for the element, displayed in the UI.           
-	Placeholder                                                                 *string    `json:"placeholder"`
+	// Byte range in the parent `text` buffer that this element occupies.
+	ByteRange ByteRange4 `json:"byteRange"`
+	// Optional human-readable placeholder for the element, displayed in the UI.
+	Placeholder *string `json:"placeholder"`
 }
 
 // Byte range in the parent `text` buffer that this element occupies.
@@ -9812,10 +10923,10 @@ type TurnSteerResponse struct {
 }
 
 type WarningNotification struct {
-	// Concise warning message for the user.                                        
-	Message                                                                 string  `json:"message"`
-	// Optional thread target when the warning applies to a specific thread.        
-	ThreadID                                                                *string `json:"threadId"`
+	// Concise warning message for the user.
+	Message string `json:"message"`
+	// Optional thread target when the warning applies to a specific thread.
+	ThreadID *string `json:"threadId"`
 }
 
 type WindowsSandboxReadinessResponse struct {
@@ -9879,7 +10990,13 @@ const (
 // ChatGPT auth tokens are supplied by an external host app and are only stored in memory.
 // Token refresh must be handled by the external host app.
 //
+// Backend auth supplied as request headers.
+//
 // Programmatic Codex auth backed by a registered Agent Identity.
+//
+// Programmatic Codex auth backed by a personal access token.
+//
+// Amazon Bedrock bearer token managed by Codex.
 type AuthMode string
 
 const (
@@ -9887,6 +11004,9 @@ const (
 	Apikey                    AuthMode = "apikey"
 	AuthModeChatgpt           AuthMode = "chatgpt"
 	AuthModeChatgptAuthTokens AuthMode = "chatgptAuthTokens"
+	BedrockAPIKey             AuthMode = "bedrockApiKey"
+	Headers                   AuthMode = "headers"
+	PersonalAccessToken       AuthMode = "personalAccessToken"
 )
 
 type CancelLoginAccountStatus string
@@ -9914,11 +11034,11 @@ const (
 	Stdout OutputStream = "stdout"
 )
 
-type NetworkAccessEnum string
+type NetworkAccess string
 
 const (
-	Enabled    NetworkAccessEnum = "enabled"
-	Restricted NetworkAccessEnum = "restricted"
+	Enabled    NetworkAccess = "enabled"
+	Restricted NetworkAccess = "restricted"
 )
 
 type SandboxPolicyType string
@@ -9942,7 +11062,6 @@ type ApprovalPolicyEnum string
 const (
 	AskForApprovalUntrusted ApprovalPolicyEnum = "untrusted"
 	Never                   ApprovalPolicyEnum = "never"
-	OnFailure               ApprovalPolicyEnum = "on-failure"
 	OnRequest               ApprovalPolicyEnum = "on-request"
 )
 
@@ -9978,26 +11097,13 @@ const (
 	Total           AutoCompactTokenLimitScope = "total"
 )
 
-// See
-// https://platform.openai.com/docs/guides/reasoning?api-mode=responses#get-started-with-reasoning
-type ReasoningEffort string
-
-const (
-	ReasoningEffortHigh    ReasoningEffort = "high"
-	ReasoningEffortLow     ReasoningEffort = "low"
-	ReasoningEffortMedium  ReasoningEffort = "medium"
-	ReasoningEffortMinimal ReasoningEffort = "minimal"
-	ReasoningEffortNone    ReasoningEffort = "none"
-	Xhigh                  ReasoningEffort = "xhigh"
-)
-
 // Option to disable reasoning summaries.
 type ReasoningSummary string
 
 const (
-	Auto                 ReasoningSummary = "auto"
 	Concise              ReasoningSummary = "concise"
 	Detailed             ReasoningSummary = "detailed"
+	ReasoningSummaryAuto ReasoningSummary = "auto"
 	ReasoningSummaryNone ReasoningSummary = "none"
 )
 
@@ -10011,20 +11117,21 @@ const (
 	VerbosityMedium Verbosity = "medium"
 )
 
-type WebSearchMode string
-
-const (
-	Cached                WebSearchMode = "cached"
-	Live                  WebSearchMode = "live"
-	WebSearchModeDisabled WebSearchMode = "disabled"
-)
-
 type SandboxMode string
 
 const (
 	SandboxModeDangerFullAccess SandboxMode = "danger-full-access"
 	SandboxModeReadOnly         SandboxMode = "read-only"
 	SandboxModeWorkspaceWrite   SandboxMode = "workspace-write"
+)
+
+type WebSearchMode string
+
+const (
+	Cached                WebSearchMode = "cached"
+	Indexed               WebSearchMode = "indexed"
+	Live                  WebSearchMode = "live"
+	WebSearchModeDisabled WebSearchMode = "disabled"
 )
 
 type ConfigLayerSourceType string
@@ -10035,8 +11142,16 @@ const (
 	ConfigLayerSourceTypeSessionFlags ConfigLayerSourceType = "sessionFlags"
 	ConfigLayerSourceTypeSystem       ConfigLayerSourceType = "system"
 	ConfigLayerSourceTypeUser         ConfigLayerSourceType = "user"
+	EnterpriseManaged                 ConfigLayerSourceType = "enterpriseManaged"
 	LegacyManagedConfigTomlFromFile   ConfigLayerSourceType = "legacyManagedConfigTomlFromFile"
 	LegacyManagedConfigTomlFromMdm    ConfigLayerSourceType = "legacyManagedConfigTomlFromMdm"
+)
+
+type WindowsSandboxSetupMode string
+
+const (
+	Elevated   WindowsSandboxSetupMode = "elevated"
+	Unelevated WindowsSandboxSetupMode = "unelevated"
 )
 
 type ResidencyRequirement string
@@ -10050,6 +11165,22 @@ type WriteStatus string
 const (
 	Ok           WriteStatus = "ok"
 	OkOverridden WriteStatus = "okOverridden"
+)
+
+// A reset credit was consumed and the eligible rate-limit windows were reset.
+//
+// No current rate-limit window is eligible for a reset.
+//
+// The account has no earned reset credits available.
+//
+// The same idempotency key already completed a reset successfully.
+type ConsumeAccountRateLimitResetCreditOutcome string
+
+const (
+	AlreadyRedeemed ConsumeAccountRateLimitResetCreditOutcome = "alreadyRedeemed"
+	NoCredit        ConsumeAccountRateLimitResetCreditOutcome = "noCredit"
+	NothingToReset  ConsumeAccountRateLimitResetCreditOutcome = "nothingToReset"
+	Reset           ConsumeAccountRateLimitResetCreditOutcome = "reset"
 )
 
 type NonSteerableTurnKind string
@@ -10069,6 +11200,7 @@ const (
 	InternalServerError   CodexErrorInfoEnum = "internalServerError"
 	SandboxError          CodexErrorInfoEnum = "sandboxError"
 	ServerOverloaded      CodexErrorInfoEnum = "serverOverloaded"
+	SessionBudgetExceeded CodexErrorInfoEnum = "sessionBudgetExceeded"
 	ThreadRollbackFailed  CodexErrorInfoEnum = "threadRollbackFailed"
 	Unauthorized          CodexErrorInfoEnum = "unauthorized"
 	UsageLimitExceeded    CodexErrorInfoEnum = "usageLimitExceeded"
@@ -10103,10 +11235,17 @@ const (
 	Config          ExternalAgentConfigMigrationItemType = "CONFIG"
 	Hooks           ExternalAgentConfigMigrationItemType = "HOOKS"
 	MCPServerConfig ExternalAgentConfigMigrationItemType = "MCP_SERVER_CONFIG"
+	Memory          ExternalAgentConfigMigrationItemType = "MEMORY"
 	Plugins         ExternalAgentConfigMigrationItemType = "PLUGINS"
 	Sessions        ExternalAgentConfigMigrationItemType = "SESSIONS"
 	Skills          ExternalAgentConfigMigrationItemType = "SKILLS"
 	Subagents       ExternalAgentConfigMigrationItemType = "SUBAGENTS"
+)
+
+type ExternalAgentImportedConnectorSource string
+
+const (
+	RemoteMCPServersConfig ExternalAgentImportedConnectorSource = "remoteMcpServersConfig"
 )
 
 type PatchChangeKindType string
@@ -10117,12 +11256,36 @@ const (
 	Update PatchChangeKindType = "update"
 )
 
+type RateLimitResetType string
+
+const (
+	CodexRateLimits           RateLimitResetType = "codexRateLimits"
+	RateLimitResetTypeUnknown RateLimitResetType = "unknown"
+)
+
+type RateLimitResetCreditStatus string
+
+const (
+	Available                         RateLimitResetCreditStatus = "available"
+	RateLimitResetCreditStatusUnknown RateLimitResetCreditStatus = "unknown"
+	Redeemed                          RateLimitResetCreditStatus = "redeemed"
+	Redeeming                         RateLimitResetCreditStatus = "redeeming"
+)
+
 type AccountType string
 
 const (
-	AccountTypeAPIKey  AccountType = "apiKey"
-	AccountTypeChatgpt AccountType = "chatgpt"
-	AmazonBedrock      AccountType = "amazonBedrock"
+	AccountTypeAPIKey        AccountType = "apiKey"
+	AccountTypeAmazonBedrock AccountType = "amazonBedrock"
+	AccountTypeChatgpt       AccountType = "chatgpt"
+)
+
+type WorkspaceMessageType string
+
+const (
+	Announcement                WorkspaceMessageType = "announcement"
+	Headline                    WorkspaceMessageType = "headline"
+	WorkspaceMessageTypeUnknown WorkspaceMessageType = "unknown"
 )
 
 type HookOutputEntryKind string
@@ -10144,6 +11307,7 @@ const (
 	PostToolUse       HookEventName = "postToolUse"
 	PreCompact        HookEventName = "preCompact"
 	PreToolUse        HookEventName = "preToolUse"
+	SessionEnd        HookEventName = "sessionEnd"
 	SessionStart      HookEventName = "sessionStart"
 	SubagentStart     HookEventName = "subagentStart"
 	SubagentStop      HookEventName = "subagentStop"
@@ -10175,6 +11339,7 @@ const (
 type HookSource string
 
 const (
+	CloudManagedConfig      HookSource = "cloudManagedConfig"
 	CloudRequirements       HookSource = "cloudRequirements"
 	HookSourceMdm           HookSource = "mdm"
 	HookSourceProject       HookSource = "project"
@@ -10239,16 +11404,20 @@ const (
 type ImageDetail string
 
 const (
+	ImageDetailAuto ImageDetail = "auto"
 	ImageDetailHigh ImageDetail = "high"
+	ImageDetailLow  ImageDetail = "low"
 	Original        ImageDetail = "original"
 )
 
 type UserInputType string
 
 const (
+	LocalAudio         UserInputType = "localAudio"
 	LocalImage         UserInputType = "localImage"
 	Mention            UserInputType = "mention"
 	Skill              UserInputType = "skill"
+	UserInputTypeAudio UserInputType = "audio"
 	UserInputTypeImage UserInputType = "image"
 	UserInputTypeText  UserInputType = "text"
 )
@@ -10256,8 +11425,17 @@ const (
 type InputDynamicToolCallOutputContentItemType string
 
 const (
+	InputAudio InputDynamicToolCallOutputContentItemType = "inputAudio"
 	InputImage InputDynamicToolCallOutputContentItemType = "inputImage"
 	InputText  InputDynamicToolCallOutputContentItemType = "inputText"
+)
+
+type SubAgentActivityKind string
+
+const (
+	Interacted                      SubAgentActivityKind = "interacted"
+	Started                         SubAgentActivityKind = "started"
+	SubAgentActivityKindInterrupted SubAgentActivityKind = "interrupted"
 )
 
 // Mid-turn assistant text (for example preamble/progress narration).
@@ -10295,6 +11473,8 @@ const (
 	HookPrompt                ThreadItemType = "hookPrompt"
 	ImageGeneration           ThreadItemType = "imageGeneration"
 	ImageView                 ThreadItemType = "imageView"
+	Sleep                     ThreadItemType = "sleep"
+	SubAgentActivity          ThreadItemType = "subAgentActivity"
 	ThreadItemTypeMCPToolCall ThreadItemType = "mcpToolCall"
 	ThreadItemTypePlan        ThreadItemType = "plan"
 	ThreadItemTypeReasoning   ThreadItemType = "reasoning"
@@ -10321,8 +11501,8 @@ const (
 type Kind string
 
 const (
-	KindMinimal  Kind = "minimal"
 	KindUnknown  Kind = "unknown"
+	Minimal      Kind = "minimal"
 	ProjectRoots Kind = "project_roots"
 	Root         Kind = "root"
 	SlashTmp     Kind = "slash_tmp"
@@ -10348,12 +11528,12 @@ const (
 type GuardianApprovalReviewActionType string
 
 const (
-	ApplyPatch                                  GuardianApprovalReviewActionType = "applyPatch"
-	Execve                                      GuardianApprovalReviewActionType = "execve"
-	GuardianApprovalReviewActionTypeCommand     GuardianApprovalReviewActionType = "command"
-	GuardianApprovalReviewActionTypeMCPToolCall GuardianApprovalReviewActionType = "mcpToolCall"
-	NetworkAccess                               GuardianApprovalReviewActionType = "networkAccess"
-	RequestPermissions                          GuardianApprovalReviewActionType = "requestPermissions"
+	ApplyPatch                                    GuardianApprovalReviewActionType = "applyPatch"
+	Execve                                        GuardianApprovalReviewActionType = "execve"
+	GuardianApprovalReviewActionTypeCommand       GuardianApprovalReviewActionType = "command"
+	GuardianApprovalReviewActionTypeMCPToolCall   GuardianApprovalReviewActionType = "mcpToolCall"
+	GuardianApprovalReviewActionTypeNetworkAccess GuardianApprovalReviewActionType = "networkAccess"
+	RequestPermissions                            GuardianApprovalReviewActionType = "requestPermissions"
 )
 
 // [UNSTABLE] Source that produced a terminal approval auto-review decision.
@@ -10410,13 +11590,27 @@ const (
 	Unsupported MCPAuthStatus = "unsupported"
 )
 
+type LoginAppBrand string
+
+const (
+	Codex                LoginAppBrand = "codex"
+	LoginAppBrandChatgpt LoginAppBrand = "chatgpt"
+)
+
 type LoginAccountParamsType string
 
 const (
 	ChatgptDeviceCode     LoginAccountParamsType = "chatgptDeviceCode"
 	TypeAPIKey            LoginAccountParamsType = "apiKey"
+	TypeAmazonBedrock     LoginAccountParamsType = "amazonBedrock"
 	TypeChatgpt           LoginAccountParamsType = "chatgpt"
 	TypeChatgptAuthTokens LoginAccountParamsType = "chatgptAuthTokens"
+)
+
+type MCPServerStartupFailureReason string
+
+const (
+	ReauthenticationRequired MCPServerStartupFailureReason = "reauthenticationRequired"
 )
 
 type MCPServerStartupState string
@@ -10433,9 +11627,12 @@ const (
 // Plain text turns and tool payloads.
 //
 // Image attachments included in user turns.
+//
+// Audio attachments included in user turns.
 type InputModality string
 
 const (
+	InputModalityAudio InputModality = "audio"
 	InputModalityImage InputModality = "image"
 	InputModalityText  InputModality = "text"
 )
@@ -10479,12 +11676,19 @@ const (
 	PluginInstallPolicyAVAILABLE PluginInstallPolicy = "AVAILABLE"
 )
 
+type PluginInstallPolicySource string
+
+const (
+	ImplicitCanonicalApp PluginInstallPolicySource = "IMPLICIT_CANONICAL_APP"
+	WorkspaceSetting     PluginInstallPolicySource = "WORKSPACE_SETTING"
+)
+
 type PluginShareDiscoverability string
 
 const (
-	Listed                             PluginShareDiscoverability = "LISTED"
-	PluginShareDiscoverabilityPRIVATE  PluginShareDiscoverability = "PRIVATE"
-	PluginShareDiscoverabilityUNLISTED PluginShareDiscoverability = "UNLISTED"
+	Listed   PluginShareDiscoverability = "LISTED"
+	Private  PluginShareDiscoverability = "PRIVATE"
+	Unlisted PluginShareDiscoverability = "UNLISTED"
 )
 
 type PluginSharePrincipalType string
@@ -10507,6 +11711,7 @@ type PluginSourceType string
 
 const (
 	Git                   PluginSourceType = "git"
+	Npm                   PluginSourceType = "npm"
 	PluginSourceTypeLocal PluginSourceType = "local"
 	Remote                PluginSourceType = "remote"
 )
@@ -10514,10 +11719,39 @@ const (
 type PluginListMarketplaceKind string
 
 const (
+	CreatedByMeRemote              PluginListMarketplaceKind = "created-by-me-remote"
 	PluginListMarketplaceKindLocal PluginListMarketplaceKind = "local"
 	SharedWithMe                   PluginListMarketplaceKind = "shared-with-me"
 	Vertical                       PluginListMarketplaceKind = "vertical"
 	WorkspaceDirectory             PluginListMarketplaceKind = "workspace-directory"
+)
+
+type AppTemplateUnavailableReason string
+
+const (
+	NoActiveWorkspace         AppTemplateUnavailableReason = "NO_ACTIVE_WORKSPACE"
+	NotConfiguredForWorkspace AppTemplateUnavailableReason = "NOT_CONFIGURED_FOR_WORKSPACE"
+)
+
+type ScheduledTaskWeekday string
+
+const (
+	Fr ScheduledTaskWeekday = "FR"
+	Mo ScheduledTaskWeekday = "MO"
+	Sa ScheduledTaskWeekday = "SA"
+	Su ScheduledTaskWeekday = "SU"
+	Th ScheduledTaskWeekday = "TH"
+	Tu ScheduledTaskWeekday = "TU"
+	We ScheduledTaskWeekday = "WE"
+)
+
+type ScheduledTaskScheduleType string
+
+const (
+	Daily    ScheduledTaskScheduleType = "daily"
+	Hourly   ScheduledTaskScheduleType = "hourly"
+	Weekdays ScheduledTaskScheduleType = "weekdays"
+	Weekly   ScheduledTaskScheduleType = "weekly"
 )
 
 type PluginShareTargetRole string
@@ -10527,39 +11761,35 @@ const (
 	PluginShareTargetRoleReader PluginShareTargetRole = "reader"
 )
 
-type PluginShareUpdateDiscoverability string
+type ActionType string
 
 const (
-	PluginShareUpdateDiscoverabilityPRIVATE  PluginShareUpdateDiscoverability = "PRIVATE"
-	PluginShareUpdateDiscoverabilityUNLISTED PluginShareUpdateDiscoverability = "UNLISTED"
-)
-
-type ExecLocalShellActionType string
-
-const (
-	ExecLocalShellActionTypeExec       ExecLocalShellActionType = "exec"
-	ExecLocalShellActionTypeFindInPage ExecLocalShellActionType = "find_in_page"
-	ExecLocalShellActionTypeOpenPage   ExecLocalShellActionType = "open_page"
-	ExecLocalShellActionTypeOther      ExecLocalShellActionType = "other"
-	ExecLocalShellActionTypeSearch     ExecLocalShellActionType = "search"
+	ActionTypeExec       ActionType = "exec"
+	ActionTypeFindInPage ActionType = "find_in_page"
+	ActionTypeOpenPage   ActionType = "open_page"
+	ActionTypeOther      ActionType = "other"
+	ActionTypeSearch     ActionType = "search"
 )
 
 type ContentType string
 
 const (
-	OutputText     ContentType = "output_text"
-	ReasoningText  ContentType = "reasoning_text"
-	TypeInputImage ContentType = "input_image"
-	TypeInputText  ContentType = "input_text"
-	TypeText       ContentType = "text"
+	OutputText           ContentType = "output_text"
+	ReasoningText        ContentType = "reasoning_text"
+	TypeEncryptedContent ContentType = "encrypted_content"
+	TypeInputAudio       ContentType = "input_audio"
+	TypeInputImage       ContentType = "input_image"
+	TypeInputText        ContentType = "input_text"
+	TypeText             ContentType = "text"
 )
 
 type FunctionCallOutputContentItemType string
 
 const (
-	EncryptedContent                            FunctionCallOutputContentItemType = "encrypted_content"
-	FunctionCallOutputContentItemTypeInputImage FunctionCallOutputContentItemType = "input_image"
-	FunctionCallOutputContentItemTypeInputText  FunctionCallOutputContentItemType = "input_text"
+	FunctionCallOutputContentItemTypeEncryptedContent FunctionCallOutputContentItemType = "encrypted_content"
+	FunctionCallOutputContentItemTypeInputAudio       FunctionCallOutputContentItemType = "input_audio"
+	FunctionCallOutputContentItemTypeInputImage       FunctionCallOutputContentItemType = "input_image"
+	FunctionCallOutputContentItemTypeInputText        FunctionCallOutputContentItemType = "input_text"
 )
 
 type SummaryTextReasoningItemReasoningSummaryType string
@@ -10580,6 +11810,7 @@ const (
 	ImageGenerationCall               ResponseItemType = "image_generation_call"
 	LocalShellCall                    ResponseItemType = "local_shell_call"
 	Message                           ResponseItemType = "message"
+	ResponseItemTypeAgentMessage      ResponseItemType = "agent_message"
 	ResponseItemTypeContextCompaction ResponseItemType = "context_compaction"
 	ResponseItemTypeOther             ResponseItemType = "other"
 	ResponseItemTypeReasoning         ResponseItemType = "reasoning"
@@ -10661,20 +11892,12 @@ const (
 	SkillScopeUser   SkillScope = "user"
 )
 
-type ThreadSource string
-
-const (
-	Subagent                        ThreadSource = "subagent"
-	ThreadSourceMemoryConsolidation ThreadSource = "memory_consolidation"
-	ThreadSourceUser                ThreadSource = "user"
-)
-
 type SubAgentSource string
 
 const (
-	SubAgentSourceCompact             SubAgentSource = "compact"
-	SubAgentSourceMemoryConsolidation SubAgentSource = "memory_consolidation"
-	SubAgentSourceReview              SubAgentSource = "review"
+	MemoryConsolidation   SubAgentSource = "memory_consolidation"
+	SubAgentSourceCompact SubAgentSource = "compact"
+	SubAgentSourceReview  SubAgentSource = "review"
 )
 
 type SessionSource string
@@ -10725,6 +11948,7 @@ type ThreadSortKey string
 
 const (
 	CreatedAt ThreadSortKey = "created_at"
+	RecencyAt ThreadSortKey = "recency_at"
 	UpdatedAt ThreadSortKey = "updated_at"
 )
 
@@ -10748,6 +11972,7 @@ type RealtimeConversationVersion string
 const (
 	V1 RealtimeConversationVersion = "v1"
 	V2 RealtimeConversationVersion = "v2"
+	V3 RealtimeConversationVersion = "v3"
 )
 
 type Personality string
@@ -10797,16 +12022,9 @@ const (
 	WindowsSandboxReadinessReady WindowsSandboxReadiness = "ready"
 )
 
-type WindowsSandboxSetupMode string
-
-const (
-	Elevated   WindowsSandboxSetupMode = "elevated"
-	Unelevated WindowsSandboxSetupMode = "unelevated"
-)
-
 type NetworkAccessUnion struct {
 	Bool *bool
-	Enum *NetworkAccessEnum
+	Enum *NetworkAccess
 }
 
 func (x *NetworkAccessUnion) UnmarshalJSON(data []byte) error {
@@ -10915,12 +12133,12 @@ func (x *ErrorCodexErrorInfo) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.PurpleCodexErrorInfo != nil, x.PurpleCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type PurpleContent struct {
+type UserInput3 struct {
 	PurpleUserInput *PurpleUserInput
 	String          *string
 }
 
-func (x *PurpleContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput3) UnmarshalJSON(data []byte) error {
 	x.PurpleUserInput = nil
 	var c PurpleUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -10933,7 +12151,7 @@ func (x *PurpleContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *PurpleContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput3) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.PurpleUserInput != nil, x.PurpleUserInput, false, nil, false, nil, false)
 }
 
@@ -10959,12 +12177,12 @@ func (x *PurpleResult) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.PurpleMCPToolCallResult != nil, x.PurpleMCPToolCallResult, false, nil, false, nil, true)
 }
 
-type FluffyContent struct {
+type UserInput4 struct {
 	FluffyUserInput *FluffyUserInput
 	String          *string
 }
 
-func (x *FluffyContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput4) UnmarshalJSON(data []byte) error {
 	x.FluffyUserInput = nil
 	var c FluffyUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -10977,7 +12195,7 @@ func (x *FluffyContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *FluffyContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput4) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.FluffyUserInput != nil, x.FluffyUserInput, false, nil, false, nil, false)
 }
 
@@ -11046,12 +12264,12 @@ func (x *CodexErrorInfo2) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.FluffyCodexErrorInfo != nil, x.FluffyCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type TentacledContent struct {
+type UserInput5 struct {
 	String             *string
 	TentacledUserInput *TentacledUserInput
 }
 
-func (x *TentacledContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput5) UnmarshalJSON(data []byte) error {
 	x.TentacledUserInput = nil
 	var c TentacledUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -11064,7 +12282,7 @@ func (x *TentacledContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *TentacledContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput5) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.TentacledUserInput != nil, x.TentacledUserInput, false, nil, false, nil, false)
 }
 
@@ -11225,12 +12443,12 @@ func (x *CodexErrorInfo3) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.TentacledCodexErrorInfo != nil, x.TentacledCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type StickyContent struct {
+type UserInput6 struct {
 	StickyUserInput *StickyUserInput
 	String          *string
 }
 
-func (x *StickyContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput6) UnmarshalJSON(data []byte) error {
 	x.StickyUserInput = nil
 	var c StickyUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -11243,7 +12461,7 @@ func (x *StickyContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *StickyContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput6) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.StickyUserInput != nil, x.StickyUserInput, false, nil, false, nil, false)
 }
 
@@ -11339,12 +12557,12 @@ func (x *CodexErrorInfo4) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.StickyCodexErrorInfo != nil, x.StickyCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type IndigoContent struct {
+type UserInput7 struct {
 	IndigoUserInput *IndigoUserInput
 	String          *string
 }
 
-func (x *IndigoContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput7) UnmarshalJSON(data []byte) error {
 	x.IndigoUserInput = nil
 	var c IndigoUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -11357,7 +12575,7 @@ func (x *IndigoContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *IndigoContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput7) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.IndigoUserInput != nil, x.IndigoUserInput, false, nil, false, nil, false)
 }
 
@@ -11453,12 +12671,12 @@ func (x *CodexErrorInfo5) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.IndigoCodexErrorInfo != nil, x.IndigoCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type IndecentContent struct {
+type UserInput8 struct {
 	IndecentUserInput *IndecentUserInput
 	String            *string
 }
 
-func (x *IndecentContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput8) UnmarshalJSON(data []byte) error {
 	x.IndecentUserInput = nil
 	var c IndecentUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -11471,7 +12689,7 @@ func (x *IndecentContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *IndecentContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput8) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.IndecentUserInput != nil, x.IndecentUserInput, false, nil, false, nil, false)
 }
 
@@ -11567,12 +12785,12 @@ func (x *CodexErrorInfo6) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.IndecentCodexErrorInfo != nil, x.IndecentCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type HilariousContent struct {
+type UserInput9 struct {
 	HilariousUserInput *HilariousUserInput
 	String             *string
 }
 
-func (x *HilariousContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput9) UnmarshalJSON(data []byte) error {
 	x.HilariousUserInput = nil
 	var c HilariousUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -11585,7 +12803,7 @@ func (x *HilariousContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *HilariousContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput9) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.HilariousUserInput != nil, x.HilariousUserInput, false, nil, false, nil, false)
 }
 
@@ -11727,12 +12945,12 @@ func (x *CodexErrorInfo7) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.HilariousCodexErrorInfo != nil, x.HilariousCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type AmbitiousContent struct {
+type UserInput10 struct {
 	AmbitiousUserInput *AmbitiousUserInput
 	String             *string
 }
 
-func (x *AmbitiousContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput10) UnmarshalJSON(data []byte) error {
 	x.AmbitiousUserInput = nil
 	var c AmbitiousUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -11745,7 +12963,7 @@ func (x *AmbitiousContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *AmbitiousContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput10) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.AmbitiousUserInput != nil, x.AmbitiousUserInput, false, nil, false, nil, false)
 }
 
@@ -11841,12 +13059,12 @@ func (x *CodexErrorInfo8) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.AmbitiousCodexErrorInfo != nil, x.AmbitiousCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type CunningContent struct {
+type UserInput11 struct {
 	CunningUserInput *CunningUserInput
 	String           *string
 }
 
-func (x *CunningContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput11) UnmarshalJSON(data []byte) error {
 	x.CunningUserInput = nil
 	var c CunningUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -11859,7 +13077,7 @@ func (x *CunningContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *CunningContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput11) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.CunningUserInput != nil, x.CunningUserInput, false, nil, false, nil, false)
 }
 
@@ -12024,12 +13242,12 @@ func (x *CodexErrorInfo9) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.CunningCodexErrorInfo != nil, x.CunningCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type MagentaContent struct {
+type UserInput12 struct {
 	MagentaUserInput *MagentaUserInput
 	String           *string
 }
 
-func (x *MagentaContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput12) UnmarshalJSON(data []byte) error {
 	x.MagentaUserInput = nil
 	var c MagentaUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -12042,7 +13260,7 @@ func (x *MagentaContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *MagentaContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput12) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.MagentaUserInput != nil, x.MagentaUserInput, false, nil, false, nil, false)
 }
 
@@ -12138,12 +13356,12 @@ func (x *CodexErrorInfo10) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.MagentaCodexErrorInfo != nil, x.MagentaCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type FriskyContent struct {
+type UserInput13 struct {
 	FriskyUserInput *FriskyUserInput
 	String          *string
 }
 
-func (x *FriskyContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput13) UnmarshalJSON(data []byte) error {
 	x.FriskyUserInput = nil
 	var c FriskyUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -12156,7 +13374,7 @@ func (x *FriskyContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *FriskyContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput13) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.FriskyUserInput != nil, x.FriskyUserInput, false, nil, false, nil, false)
 }
 
@@ -12252,12 +13470,12 @@ func (x *CodexErrorInfo11) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.FriskyCodexErrorInfo != nil, x.FriskyCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type MischievousContent struct {
+type UserInput14 struct {
 	MischievousUserInput *MischievousUserInput
 	String               *string
 }
 
-func (x *MischievousContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput14) UnmarshalJSON(data []byte) error {
 	x.MischievousUserInput = nil
 	var c MischievousUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -12270,7 +13488,7 @@ func (x *MischievousContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *MischievousContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput14) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.MischievousUserInput != nil, x.MischievousUserInput, false, nil, false, nil, false)
 }
 
@@ -12319,12 +13537,12 @@ func (x *CodexErrorInfo12) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.MischievousCodexErrorInfo != nil, x.MischievousCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type BraggadociousContent struct {
+type UserInput15 struct {
 	BraggadociousUserInput *BraggadociousUserInput
 	String                 *string
 }
 
-func (x *BraggadociousContent) UnmarshalJSON(data []byte) error {
+func (x *UserInput15) UnmarshalJSON(data []byte) error {
 	x.BraggadociousUserInput = nil
 	var c BraggadociousUserInput
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -12337,7 +13555,7 @@ func (x *BraggadociousContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *BraggadociousContent) MarshalJSON() ([]byte, error) {
+func (x *UserInput15) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.BraggadociousUserInput != nil, x.BraggadociousUserInput, false, nil, false, nil, false)
 }
 
@@ -12410,12 +13628,12 @@ func (x *CodexErrorInfo13) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.BraggadociousCodexErrorInfo != nil, x.BraggadociousCodexErrorInfo, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type Content1 struct {
+type UserInput16 struct {
 	String     *string
 	UserInput1 *UserInput1
 }
 
-func (x *Content1) UnmarshalJSON(data []byte) error {
+func (x *UserInput16) UnmarshalJSON(data []byte) error {
 	x.UserInput1 = nil
 	var c UserInput1
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -12428,7 +13646,7 @@ func (x *Content1) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *Content1) MarshalJSON() ([]byte, error) {
+func (x *UserInput16) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.UserInput1 != nil, x.UserInput1, false, nil, false, nil, false)
 }
 
@@ -12477,12 +13695,12 @@ func (x *CodexErrorInfo14) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, nil, false, nil, x.CodexErrorInfo1 != nil, x.CodexErrorInfo1, false, nil, x.Enum != nil, x.Enum, true)
 }
 
-type Content2 struct {
+type UserInput17 struct {
 	String     *string
 	UserInput2 *UserInput2
 }
 
-func (x *Content2) UnmarshalJSON(data []byte) error {
+func (x *UserInput17) UnmarshalJSON(data []byte) error {
 	x.UserInput2 = nil
 	var c UserInput2
 	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
@@ -12495,7 +13713,7 @@ func (x *Content2) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (x *Content2) MarshalJSON() ([]byte, error) {
+func (x *UserInput17) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.UserInput2 != nil, x.UserInput2, false, nil, false, nil, false)
 }
 
@@ -12523,113 +13741,113 @@ func (x *Result2) MarshalJSON() ([]byte, error) {
 
 func unmarshalUnion(data []byte, pi **int64, pf **float64, pb **bool, ps **string, haveArray bool, pa interface{}, haveObject bool, pc interface{}, haveMap bool, pm interface{}, haveEnum bool, pe interface{}, nullable bool) (bool, error) {
 	if pi != nil {
-			*pi = nil
+		*pi = nil
 	}
 	if pf != nil {
-			*pf = nil
+		*pf = nil
 	}
 	if pb != nil {
-			*pb = nil
+		*pb = nil
 	}
 	if ps != nil {
-			*ps = nil
+		*ps = nil
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	tok, err := dec.Token()
 	if err != nil {
-			return false, err
+		return false, err
 	}
 
 	switch v := tok.(type) {
 	case json.Number:
-			if pi != nil {
-					i, err := v.Int64()
-					if err == nil {
-							*pi = &i
-							return false, nil
-					}
+		if pi != nil {
+			i, err := v.Int64()
+			if err == nil {
+				*pi = &i
+				return false, nil
 			}
-			if pf != nil {
-					f, err := v.Float64()
-					if err == nil {
-							*pf = &f
-							return false, nil
-					}
-					return false, errors.New("Unparsable number")
+		}
+		if pf != nil {
+			f, err := v.Float64()
+			if err == nil {
+				*pf = &f
+				return false, nil
 			}
-			return false, errors.New("Union does not contain number")
+			return false, errors.New("Unparsable number")
+		}
+		return false, errors.New("Union does not contain number")
 	case float64:
-			return false, errors.New("Decoder should not return float64")
+		return false, errors.New("Decoder should not return float64")
 	case bool:
-			if pb != nil {
-					*pb = &v
-					return false, nil
-			}
-			return false, errors.New("Union does not contain bool")
+		if pb != nil {
+			*pb = &v
+			return false, nil
+		}
+		return false, errors.New("Union does not contain bool")
 	case string:
-			if haveEnum {
-					return false, json.Unmarshal(data, pe)
-			}
-			if ps != nil {
-					*ps = &v
-					return false, nil
-			}
-			return false, errors.New("Union does not contain string")
+		if haveEnum {
+			return false, json.Unmarshal(data, pe)
+		}
+		if ps != nil {
+			*ps = &v
+			return false, nil
+		}
+		return false, errors.New("Union does not contain string")
 	case nil:
-			if nullable {
-					return false, nil
-			}
-			return false, errors.New("Union does not contain null")
+		if nullable {
+			return false, nil
+		}
+		return false, errors.New("Union does not contain null")
 	case json.Delim:
-			if v == '{' {
-					if haveObject {
-							return true, json.Unmarshal(data, pc)
-					}
-					if haveMap {
-							return false, json.Unmarshal(data, pm)
-					}
-					return false, errors.New("Union does not contain object")
+		if v == '{' {
+			if haveObject {
+				return true, json.Unmarshal(data, pc)
 			}
-			if v == '[' {
-					if haveArray {
-							return false, json.Unmarshal(data, pa)
-					}
-					return false, errors.New("Union does not contain array")
+			if haveMap {
+				return false, json.Unmarshal(data, pm)
 			}
-			return false, errors.New("Cannot handle delimiter")
+			return false, errors.New("Union does not contain object")
+		}
+		if v == '[' {
+			if haveArray {
+				return false, json.Unmarshal(data, pa)
+			}
+			return false, errors.New("Union does not contain array")
+		}
+		return false, errors.New("Cannot handle delimiter")
 	}
 	return false, errors.New("Cannot unmarshal union")
 }
 
 func marshalUnion(pi *int64, pf *float64, pb *bool, ps *string, haveArray bool, pa interface{}, haveObject bool, pc interface{}, haveMap bool, pm interface{}, haveEnum bool, pe interface{}, nullable bool) ([]byte, error) {
 	if pi != nil {
-			return json.Marshal(*pi)
+		return json.Marshal(*pi)
 	}
 	if pf != nil {
-			return json.Marshal(*pf)
+		return json.Marshal(*pf)
 	}
 	if pb != nil {
-			return json.Marshal(*pb)
+		return json.Marshal(*pb)
 	}
 	if ps != nil {
-			return json.Marshal(*ps)
+		return json.Marshal(*ps)
 	}
 	if haveArray {
-			return json.Marshal(pa)
+		return json.Marshal(pa)
 	}
 	if haveObject {
-			return json.Marshal(pc)
+		return json.Marshal(pc)
 	}
 	if haveMap {
-			return json.Marshal(pm)
+		return json.Marshal(pm)
 	}
 	if haveEnum {
-			return json.Marshal(pe)
+		return json.Marshal(pe)
 	}
 	if nullable {
-			return json.Marshal(nil)
+		return json.Marshal(nil)
 	}
 	return nil, errors.New("Union must not be null")
 }

@@ -43,12 +43,32 @@ describe("parseServerFrame", () => {
     expect(frame).not.toBeNull();
     if (!frame || Array.isArray(frame) || frame.k !== "v") throw new Error("expected v frame");
     expect(frame.sessions).toHaveLength(5);
-    expect(frame.sessions.map((sess) => sess.view.status)).toEqual([
-      "running",
-      "waiting",
-      "idle",
-      "stopped",
-      "pending",
+    expect(frame.sessions.map((sess) => sess.status)).toEqual([
+      {
+        lifecycle: "active",
+        human_input: false,
+        failure: "none",
+        changed_at: "2026-06-20T00:02:00Z",
+      },
+      {
+        lifecycle: "idle",
+        human_input: false,
+        failure: "none",
+        changed_at: "2026-06-20T00:02:00Z",
+      },
+      {
+        lifecycle: "idle",
+        human_input: false,
+        failure: "none",
+        changed_at: "2026-06-20T00:02:00Z",
+      },
+      {
+        lifecycle: "stopped",
+        human_input: false,
+        failure: "none",
+        changed_at: "2026-06-20T00:02:00Z",
+      },
+      { lifecycle: "idle", human_input: true, failure: "none", changed_at: "2026-06-20T00:02:00Z" },
     ]);
     expect(frame.sessions[1]?.view.card.title).toBe("T2");
     expect(frame.sessions[1]?.view.model).toBe("claude-sonnet");

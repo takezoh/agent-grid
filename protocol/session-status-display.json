@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "precedence": ["failed", "human_input", "active", "stopped", "idle"],
+  "visuals": {
+    "active": {"primary": "spinner", "label": "Working", "animated": true},
+    "human_input": {"primary": "!", "label": "Action required", "animated": false},
+    "idle": {"primary": "dot", "label": "Idle", "animated": false},
+    "stopped": {"primary": "square", "label": "Stopped", "animated": false},
+    "failed": {"primary": "x", "label": "Failed", "animated": false},
+    "unknown": {"primary": "dash", "label": "Unknown", "animated": false}
+  },
+  "signal": {"kind": "bell", "glyph": "🔔", "label": "Notification"},
+  "invariants": {
+    "spinner_and_human_input": "forbidden",
+    "bell_and_human_input": "allowed",
+    "bell_and_spinner": "allowed"
+  }
+}

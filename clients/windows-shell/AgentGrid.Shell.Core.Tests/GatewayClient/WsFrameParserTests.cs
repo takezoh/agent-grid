@@ -46,7 +46,7 @@ public class WsFrameParserTests
     public void Parses_view_update_sessions()
     {
         var json = """
-            {"k":"v","sessions":[{"id":"s1","project":"/repo/p","command":"claude","state":"running","view":{"card":{"title":"T1"}}}]}
+            {"k":"v","sessions":[{"id":"s1","project":"/repo/p","command":"claude","status":{"lifecycle":"active","human_input":false,"failure":"none"},"view":{"card":{"title":"T1"}}}]}
             """;
         var ev = WsFrameParser.TryParse(json) as EvtViewUpdateSessions;
         Assert.NotNull(ev);
@@ -60,12 +60,30 @@ public class WsFrameParserTests
     public void View_update_does_not_promote_project_or_command_into_title()
     {
         var json = """
-            {"k":"v","sessions":[{"id":"s1","project":"/repo/p","command":"claude","state":"running","view":{"card":{}}}]}
+            {"k":"v","sessions":[{"id":"s1","project":"/repo/p","command":"claude","status":{"lifecycle":"active","human_input":false,"failure":"none"},"view":{"card":{}}}]}
             """;
 
         var ev = Assert.IsType<EvtViewUpdateSessions>(WsFrameParser.TryParse(json));
 
         Assert.Null(Assert.Single(ev.Sessions).Title);
+    }
+
+    [Fact]
+    public void Composite_status_rejects_legacy_scalar_and_consumes_each_signal_once()
+    {
+        var legacy = WsFrameParser.TryParse(
+            """{"k":"v","sessions":[{"id":"legacy","state":"running","view":{"card":{}}}]}""")
+            as EvtViewUpdateSessions;
+        Assert.NotNull(legacy);
+        Assert.Empty(legacy!.Sessions);
+
+        const string frame =
+            """{"k":"v","sessions":[{"id":"signal","status":{"lifecycle":"idle","human_input":true,"failure":"none","signal":{"kind":"bell","epoch":"parser-test","sequence":1}},"view":{"card":{}}}]}""";
+        var first = Assert.IsType<EvtViewUpdateSessions>(WsFrameParser.TryParse(frame));
+        var replay = Assert.IsType<EvtViewUpdateSessions>(WsFrameParser.TryParse(frame));
+        Assert.True(Assert.Single(first.Sessions).Bell);
+        Assert.False(Assert.Single(replay.Sessions).Bell);
+        Assert.True(Assert.Single(first.Sessions).HumanInput);
     }
 
     [Fact]
@@ -111,7 +129,7 @@ public class WsFrameParserTests
     public void Parses_hello_frame_seeds_initial_sessions()
     {
         var json = """
-            {"k":"h","sessions":[{"id":"s1","project":"/repo/p","command":"claude","state":"running","view":{"card":{"title":"T1"}}}],"features":["surface"],"serverTime":1700000001,"protocolVersion":"1.0.0-phase01","capabilities":["sessions.view_update"]}
+            {"k":"h","sessions":[{"id":"s1","project":"/repo/p","command":"claude","status":{"lifecycle":"active","human_input":false,"failure":"none"},"view":{"card":{"title":"T1"}}}],"features":["surface"],"serverTime":1700000001,"protocolVersion":"1.0.0-phase01","capabilities":["sessions.view_update"]}
             """;
         var ev = WsFrameParser.TryParse(json) as EvtViewUpdateSessions;
         Assert.NotNull(ev);

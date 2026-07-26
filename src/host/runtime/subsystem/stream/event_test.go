@@ -2,10 +2,12 @@ package stream
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/takezoh/agent-grid/host/state"
 	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 )
 
 func newTestBackend() (*Backend, *fakeRuntime) {
@@ -446,6 +448,83 @@ func TestHandleNotificationRoutesToHandlers(t *testing.T) {
 	}
 	if len(fr.events) != 5 {
 		t.Errorf("expected 5 events from known methods, got %d", len(fr.events))
+	}
+}
+
+func TestPinnedNotificationInventoryIsExplicitlyClassified(t *testing.T) {
+	b, _ := newTestBackend()
+	for _, method := range codexschema.ServerNotifications {
+		b.handleNotification(method, json.RawMessage(`{}`))
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.unknownMethods) != 0 {
+		t.Fatalf("known notifications classified as unknown: %v", b.unknownMethods)
+	}
+}
+
+func TestUnknownMethodDiagnosticsAreBounded(t *testing.T) {
+	b, _ := newTestBackend()
+	for i := 0; i < unknownMethodLimit+20; i++ {
+		b.handleNotification(fmt.Sprintf("future/%d", i), json.RawMessage(`{}`))
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.unknownMethods) != unknownMethodLimit {
+		t.Fatalf("unknown method set size = %d, want %d", len(b.unknownMethods), unknownMethodLimit)
+	}
+}
+
+func TestApprovalAndElicitationRequestsBecomeHeldHumanInput(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.mu.Unlock()
+
+	b.handleRequest(codexclient.RequestID(`1`), codexschema.MethodItemPermissionsRequestApproval,
+		json.RawMessage(`{"threadId":"t1","itemId":"permission-1","reason":"network"}`))
+	b.handleRequest(codexclient.RequestID(`"q-1"`), codexschema.MethodMCPServerElicitationRequest,
+		json.RawMessage(`{"threadId":"t1","serverName":"tools","mode":"form","message":"Choose","requestedSchema":{"type":"object"}}`))
+
+	if len(fr.events) != 2 {
+		t.Fatalf("events = %#v", fr.events)
+	}
+	if got := fr.events[0].(state.EvSubsystem); got.Kind != state.SubsystemApprovalRequested ||
+		got.Payload.Approval == nil || got.Payload.Approval.Kind != "permissions" {
+		t.Fatalf("approval event = %#v", fr.events[0])
+	}
+	if got := fr.events[1].(state.EvSubsystem); got.Kind != state.SubsystemQuestionRequested ||
+		got.Payload.Question == nil || got.Payload.Question.ID != `codex-request:"q-1"` ||
+		got.Payload.Question.Prompt != "Choose" {
+		t.Fatalf("question event = %#v", fr.events[1])
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.heldApprovals) != 1 || len(b.heldQuestions) != 1 {
+		t.Fatalf("held approvals/questions = %d/%d", len(b.heldApprovals), len(b.heldQuestions))
+	}
+}
+
+func TestServerRequestResolvedReleasesHeldRequest(t *testing.T) {
+	b, fr := newTestBackend()
+	b.mu.Lock()
+	b.frames["f1"] = &frameBinding{frameID: "f1", threadID: "t1"}
+	b.threads["t1"] = "f1"
+	b.heldApprovals = map[string]codexclient.RequestID{}
+	b.heldApprovals["approval-1"] = codexclient.RequestID(`42`)
+	b.mu.Unlock()
+
+	b.handleNotification(codexschema.MethodServerRequestResolved,
+		json.RawMessage(`{"threadId":"t1","requestId":42}`))
+
+	if len(fr.events) != 1 {
+		t.Fatalf("events = %#v", fr.events)
+	}
+	got := fr.events[0].(state.EvSubsystem)
+	if got.Kind != state.SubsystemApprovalResolved || got.Payload.Approval == nil ||
+		got.Payload.Approval.ID != "approval-1" {
+		t.Fatalf("resolved event = %#v", got)
 	}
 }
 

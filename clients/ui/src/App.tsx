@@ -258,7 +258,7 @@ export function App() {
     <HeaderBar
       project={activeSession.project}
       card={activeSession.view.card}
-      status={activeSession.view.status}
+      status={activeSession.status}
       model={activeSession.view.model}
       effort={activeSession.view.effort}
       driver={activeSession.root_driver}
@@ -327,7 +327,7 @@ export function App() {
         {activeSession && (
           <StatusBar
             statusLine={activeSession.view.status_line}
-            statusChangedAt={activeSession.view.status_changed_at}
+            statusChangedAt={activeSession.status.changed_at}
           />
         )}
       </div>

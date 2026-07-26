@@ -70,6 +70,7 @@ function mkSessionInfo(s: Partial<SessionInfo>, i: number): SessionInfo {
     project: s.project ?? "/p",
     command: s.command ?? "claude",
     created_at: s.created_at ?? "2026-06-24T00:00:00Z",
+    status: s.status ?? { lifecycle: "idle", human_input: false, failure: "none" },
     view: s.view ?? { card: { title: id } },
     ...s,
   };

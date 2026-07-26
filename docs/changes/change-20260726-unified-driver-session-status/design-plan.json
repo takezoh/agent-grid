@@ -1,0 +1,3155 @@
+{
+  "revision": "design-r3",
+  "goal": "Replace OSC-derived agent status with an exhaustive all-Driver composite contract and identical status semantics across Web, Workspace, and Windows Shell.",
+  "approach": "Centralize authority in host/state, normalize authoritative Driver observations, exhaustively route Codex app-server messages, replace the legacy wire in one flag-day cutover, and render one checked-in semantic matrix.",
+  "scope": {
+    "in_scope": [
+      "Common facets and reducer",
+      "All Driver normalizers",
+      "Codex exhaustive inventory and held requests",
+      "Codex OSC agent-status removal with other Driver OSC contracts retained",
+      "Composite wire migration",
+      "Three-client rendering parity"
+    ],
+    "out_of_scope": [
+      "New Shell structured protocol",
+      "Raw agent events on client wire",
+      "New notification channel or user setting"
+    ]
+  },
+  "components": [
+    {
+      "id": "component-common-status",
+      "name": "Common session status model and reducer",
+      "responsibility": "Owns valid composite facets, pending-request projection, signal epoch/sequence, precedence, and failure transitions",
+      "depends_on": [],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "src/host/state",
+          "src/host/state/view/status.go"
+        ],
+        "owner": "component-common-status",
+        "integration_points": [
+          "typed status operation boundary"
+        ],
+        "test_seams": [
+          "pure contract tests",
+          "wired propagation tests"
+        ],
+        "rationale": "Repository inspection identified this as the existing or planned responsibility boundary.",
+        "accepted_adr_refs": [
+          "adr-20260624-0032-runstate-spinner-additive"
+        ]
+      },
+      "contract_refs": [
+        "contract-status-model",
+        "contract-state-lifecycle",
+        "contract-failure-recovery"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-codex-router",
+      "name": "Codex app-server inventory and router",
+      "responsibility": "Owns exhaustive Codex method disposition, held-request terminalization, and bounded unknown diagnostics",
+      "depends_on": [],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "src/host/runtime/subsystem/stream/event.go"
+        ],
+        "owner": "component-codex-router",
+        "integration_points": [
+          "typed status operation boundary"
+        ],
+        "test_seams": [
+          "pure contract tests",
+          "wired propagation tests"
+        ],
+        "rationale": "Repository inspection identified this as the existing or planned responsibility boundary.",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": [
+        "contract-codex-router",
+        "contract-request-concurrency",
+        "contract-resource-bound",
+        "contract-performance-budget"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-driver-normalizers",
+      "name": "All-driver observation normalizers",
+      "responsibility": "Maps each Driver's authoritative observations to common operations; Shell is explicitly limited-capability",
+      "depends_on": [],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "src/host/driver",
+          "src/host/runtime/subsystem"
+        ],
+        "owner": "Maps each Driver's authoritative observations to common operations; Shell is explicitly limited-capability",
+        "integration_points": [
+          "typed status operation boundary"
+        ],
+        "test_seams": [
+          "pure contract tests",
+          "wired propagation tests"
+        ],
+        "rationale": "Repository inspection identified this as the existing or planned responsibility boundary.",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": [
+        "contract-driver-normalization"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-status-wire",
+      "name": "Common status wire and generated SDK contract",
+      "responsibility": "Owns composite snapshot evolution and the atomic composite-only consumer cutover",
+      "depends_on": [],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "src/server/api",
+          "clients/workspace",
+          "clients/windows-shell",
+          "clients/ui"
+        ],
+        "owner": "component-status-wire",
+        "integration_points": [
+          "typed status operation boundary"
+        ],
+        "test_seams": [
+          "pure contract tests",
+          "wired propagation tests"
+        ],
+        "rationale": "Repository inspection identified this as the existing or planned responsibility boundary.",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": [
+        "contract-wire-migration"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-client-renderers",
+      "name": "Cross-client status renderers",
+      "responsibility": "Owns projections from one checked-in semantic matrix to Web, Workspace, and Windows Shell",
+      "depends_on": [],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "clients/ui/src/components/StatusIcon.tsx",
+          "clients/workspace",
+          "clients/windows-shell/AgentGrid.Shell.Core/SupervisionState/PanelPresentation.cs"
+        ],
+        "owner": "component-client-renderers",
+        "integration_points": [
+          "typed status operation boundary"
+        ],
+        "test_seams": [
+          "pure contract tests",
+          "wired propagation tests"
+        ],
+        "rationale": "Repository inspection identified this as the existing or planned responsibility boundary.",
+        "accepted_adr_refs": [
+          "adr-20260624-0032-runstate-spinner-additive",
+          "adr-20260624-0080-status-indicator-exempt-from-reduced-motion"
+        ]
+      },
+      "contract_refs": [
+        "contract-display-parity"
+      ],
+      "decision_closure_reason": ""
+    }
+  ],
+  "chunks": [
+    {
+      "id": "milestone-1-status-core",
+      "members": [
+        "component-common-status",
+        "component-codex-router",
+        "component-driver-normalizers"
+      ],
+      "units": [
+        {
+          "title": "Implement composite status reducer and signal identity",
+          "objective": "Make valid facets, pending IDs, precedence, and epoch/sequence the host-state authority.",
+          "output_format": "Go production code plus reducer/view tests.",
+          "tool_guidance": "Use typed operations and pure reducer tests; preserve accepted spinner/text accessibility contracts.",
+          "task_boundaries": "Do not implement Driver routing or client rendering.",
+          "files_touched": [
+            "src/host/state",
+            "src/host/state/view/status.go"
+          ],
+          "acceptance": [
+            "Spinner and ! are exclusive; bell and ! can coexist.",
+            "Invalid internal states fail fast."
+          ],
+          "contract_refs": [
+            "contract-status-model",
+            "contract-state-lifecycle",
+            "contract-failure-recovery"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "Implement Codex exhaustive router and held-request lifecycle",
+          "objective": "Classify known methods, bound unknown diagnostics, and terminalize held requests once.",
+          "output_format": "Go router code, fake, contract tests, and FakeVsReal backstop.",
+          "tool_guidance": "Use an explicit inventory and atomic map removal linearization point.",
+          "task_boundaries": "Do not alter common presentation mapping.",
+          "files_touched": [
+            "src/host/runtime/subsystem/stream"
+          ],
+          "acceptance": [
+            "Known methods have exactly one disposition.",
+            "Late/duplicate resolution cannot double reply or leave stale !."
+          ],
+          "contract_refs": [
+            "contract-codex-router",
+            "contract-request-concurrency",
+            "contract-resource-bound",
+            "contract-performance-budget"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "Implement all-driver normalizers and remove Codex OSC inference",
+          "objective": "Give every Driver an authoritative source table and common typed operation output.",
+          "output_format": "Driver/runtime adapters and table-driven/Harness regression tests.",
+          "tool_guidance": "Retain Shell OSC 133; delete only OSC 0/2/notification status authority.",
+          "task_boundaries": "Do not introduce a new Shell protocol.",
+          "files_touched": [
+            "src/host/driver",
+            "src/host/runtime/subsystem"
+          ],
+          "acceptance": [
+            "Codex, Claude, Gemini, Grok, and Shell cover supported/unsupported/malformed/unavailable.",
+            "Codex OSC 0/2 and BEL cannot mutate facets; Claude/Gemini and Shell retain their existing OSC contracts."
+          ],
+          "contract_refs": [
+            "contract-driver-normalization"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        }
+      ]
+    },
+    {
+      "id": "milestone-2-wire-and-clients",
+      "depends_on": [
+        "milestone-1-status-core"
+      ],
+      "members": [
+        "component-status-wire",
+        "component-client-renderers"
+      ],
+      "units": [
+        {
+          "title": "Replace the wire schema and regenerate every SDK atomically",
+          "objective": "Delete the legacy scalar status and all fallback producers while landing the composite-only server, generated SDKs, and all clients in one revision.",
+          "output_format": "Composite-only schema/server projection, regenerated SDKs, migrated Web/Workspace/Windows Shell clients, and zero-legacy contract fixtures.",
+          "tool_guidance": "Regenerate every SDK from the canonical schema and make generation cleanliness, repository zero-legacy searches, gateway fixtures, and all-client builds one cutover gate.",
+          "task_boundaries": "Do not add mixed-version support, scalar projection, legacy event fallback, OSC status inference, or runtime rollback mode.",
+          "files_touched": [
+            "src/server/api",
+            "clients/workspace",
+            "clients/windows-shell",
+            "clients/ui"
+          ],
+          "acceptance": [
+            "The server, all generated SDKs, Web, Workspace, and Windows Shell use only the composite shape in the same revision.",
+            "The legacy scalar field, legacy event fallback, and OSC status inference have zero producers and consumers.",
+            "Any stale SDK or partial client migration fails the atomic cutover gate."
+          ],
+          "contract_refs": [
+            "contract-wire-migration"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "Implement cross-client display matrix renderers",
+          "objective": "Render one semantic matrix in Web, Workspace, and Windows Shell with accessibility parity.",
+          "output_format": "Checked-in fixture, renderer changes, DOM/accessibility/UIA tests.",
+          "tool_guidance": "Keep semantic fixture language-neutral; native code maps glyph implementation only.",
+          "task_boundaries": "Do not put glyph metadata on the runtime wire.",
+          "files_touched": [
+            "clients/ui",
+            "clients/workspace",
+            "clients/windows-shell"
+          ],
+          "acceptance": [
+            "All semantic keys and accessible labels match.",
+            "Unknown is dedicated; spinner+! is impossible; bell+! passes."
+          ],
+          "contract_refs": [
+            "contract-display-parity"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "FR-STATUS-001",
+      "ears": "The system shall keep a driver-neutral composite session status as the sole status authority and shall not delegate status decisions to clients or terminal titles.",
+      "type": "ubiquitous",
+      "rationale": "Prevents split authority.",
+      "acceptance": [
+        "The same typed operations produce the same snapshot for every Driver.",
+        "An OSC title cannot mutate the snapshot."
+      ]
+    },
+    {
+      "id": "FR-CODEX-002",
+      "ears": "When a Codex app-server message is received, the router shall classify every known notification, server request, response, lifecycle, elicitation, and tool-proposal method into exactly one stateful or explicit no-state-effect disposition.",
+      "type": "event_driven",
+      "rationale": "Makes handling exhaustive.",
+      "acceptance": [
+        "The checked-in inventory has no unclassified known method.",
+        "Unknown methods use the diagnostic path."
+      ]
+    },
+    {
+      "id": "FR-UNKNOWN-003",
+      "ears": "When an unknown, malformed, or inventory-unavailable structured message is observed, the system shall preserve the current trustworthy facets and emit a bounded correlated diagnostic without fabricating idle or another status.",
+      "type": "event_driven",
+      "rationale": "Preserves forward compatibility without false state.",
+      "acceptance": [
+        "Unknown and malformed are distinguishable.",
+        "Diagnostic floods are rate-limited and bounded."
+      ]
+    },
+    {
+      "id": "FR-HUMAN-004",
+      "ears": "While at least one unresolved human-input request exists, the system shall expose human input required, suppress the activity spinner, and terminalize each request exactly once on resolution, cancellation, expiry, or connection loss.",
+      "type": "state_driven",
+      "rationale": "Fixes spinner/! exclusivity and request lifecycle.",
+      "acceptance": [
+        "Spinner and ! never coexist.",
+        "One remaining request keeps ! visible."
+      ]
+    },
+    {
+      "id": "FR-SIGNAL-005",
+      "ears": "When a notification-worthy event occurs, the system shall issue a transient monotonically identified signal that may coexist with human input required and shall not replace the base status.",
+      "type": "event_driven",
+      "rationale": "Bell is a signal, not state.",
+      "acceptance": [
+        "Bell and ! may coexist.",
+        "A client does not replay an already consumed signal in the same server epoch."
+      ]
+    },
+    {
+      "id": "FR-DRIVER-006",
+      "ears": "The system shall normalize Codex, Claude, Gemini, Grok, and Shell authoritative observations through one typed facet-operation contract and shall produce explicit unsupported, malformed, or unavailable outcomes instead of title-based inference.",
+      "type": "ubiquitous",
+      "rationale": "Applies the common contract to all Drivers.",
+      "acceptance": [
+        "Every Driver has an authoritative-source row and exhaustive disposition.",
+        "Codex Driver does not read OSC 0/2 as agent status; other Drivers retain their existing observation contracts."
+      ]
+    },
+    {
+      "id": "FR-UI-007",
+      "ears": "Web, Workspace, and Windows Shell shall consume only the composite session-status wire and render the same semantic visual key, animation rule, and accessible label from the shared matrix without Driver branching, legacy scalar status, legacy event fallback, or OSC-derived status.",
+      "type": "ubiquitous",
+      "rationale": "Prevents client drift.",
+      "acceptance": [
+        "Parity fixtures pass in all three clients against the regenerated composite-only SDKs.",
+        "Unknown has a dedicated visual and label; stale last-known and every legacy status fallback are absent.",
+        "Repository search and schema fixtures prove that the legacy scalar status is no longer emitted or consumed."
+      ]
+    },
+    {
+      "id": "FR-OSC-008",
+      "ears": "If OSC 0/2 title, BEL, or OSC notification is received without an authoritative structured observation, the system shall not change agent session facets, while Shell OSC 133 prompt semantics shall remain operational.",
+      "type": "unwanted",
+      "rationale": "Removes agent OSC inference without breaking shell prompts.",
+      "acceptance": [
+        "Conflicting OSC cannot override structured status.",
+        "OSC 133 regression tests pass."
+      ]
+    },
+    {
+      "id": "FR-FAILURE-009",
+      "ears": "When failure or connection loss occurs, the system shall expose a failure indication distinct from human input required and shall drain held requests with correlated diagnostics.",
+      "type": "state_driven",
+      "rationale": "Separates failure from !.",
+      "acceptance": [
+        "Failure never renders as !.",
+        "Connection loss drains pending requests exactly once."
+      ]
+    }
+  ],
+  "non_functional_requirements": [
+    {
+      "id": "NFR-COMPAT-001",
+      "requirement": "The composite status wire shall replace the legacy scalar status as an intentional breaking flag-day change: server schema, generated SDKs, Web, Workspace, and Windows Shell shall land atomically, with no mixed-version support, compatibility projection, legacy event fallback, or OSC status inference.",
+      "verification": "Composite-only schema fixtures, regenerated-SDK cleanliness, repository-wide zero-legacy searches, all-client compile/tests, and gateway contract tests must pass in the same revision."
+    },
+    {
+      "id": "NFR-A11Y-002",
+      "requirement": "Status shall not depend on color or motion alone and all clients shall publish the same accessible name.",
+      "verification": "DOM, accessibility tree, and UIA assertions consume the shared matrix."
+    },
+    {
+      "id": "NFR-EXHAUSTIVE-003",
+      "requirement": "Protocol and display inventory additions shall fail an invariant-naming contract test when unclassified.",
+      "verification": "Fake, FakeVsReal, and contract tests form the external-dependency triple."
+    },
+    {
+      "id": "NFR-RESOURCE-004",
+      "requirement": "Unknown diagnostics and transient signals shall use bounded memory and non-blocking backpressure.",
+      "verification": "Flood and sequence-bound tests prove fixed caps and explicit drops."
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "AC-001",
+      "requirement_refs": [
+        "FR-HUMAN-004",
+        "FR-SIGNAL-005"
+      ],
+      "criterion": "User-reachable snapshots prove spinner+! impossible and bell+! possible."
+    },
+    {
+      "id": "AC-002",
+      "requirement_refs": [
+        "FR-DRIVER-006",
+        "FR-OSC-008"
+      ],
+      "criterion": "Every Driver has an exhaustive source row and OSC status input changes no facets."
+    },
+    {
+      "id": "AC-003",
+      "requirement_refs": [
+        "FR-UI-007"
+      ],
+      "criterion": "Web DOM, Workspace accessibility, and Windows UIA publish the same matrix labels."
+    }
+  ],
+  "adrs": [
+    {
+      "id": "adr-20260726-composite-session-status",
+      "title": "Use a valid composite status model with presentation precedence",
+      "status": "accepted",
+      "context": "Activity, unresolved human input, failure, and signal have different lifecycles; a scalar loses observable combinations.",
+      "decision": "Own tagged lifecycle/failure and pending-request IDs in host/state. Derive ! from a non-empty pending set, choose ! over spinner, keep failure distinct, and treat signal as orthogonal.",
+      "consequences": [
+        "Spinner and ! are structurally exclusive.",
+        "Bell and ! may coexist.",
+        "Invalid internal combinations fail fast."
+      ],
+      "decision_input_refs": [
+        "decision-input-composite-facets"
+      ],
+      "alternatives": [
+        {
+          "option": "Single scalar status",
+          "why_not": "Cannot preserve concurrent signal and human-input semantics."
+        }
+      ],
+      "related_requirements": [
+        "FR-STATUS-001",
+        "FR-HUMAN-004",
+        "FR-SIGNAL-005",
+        "FR-FAILURE-009"
+      ],
+      "contract_refs": [
+        "contract-status-model",
+        "contract-state-lifecycle",
+        "contract-failure-recovery"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-unified-status-adrs",
+          "user:2026-07-26-proceed"
+        ],
+        "rationale": "Codex TUIで裏取りした複合状態モデルで進める指示。"
+      }
+    },
+    {
+      "id": "adr-20260726-transient-signal-epoch",
+      "title": "Identify transient signals by server epoch and monotonic sequence",
+      "status": "accepted",
+      "context": "Snapshot replay must neither duplicate a signal on reconnect nor suppress new signals after restart.",
+      "decision": "The status owner issues (serverEpoch, signalSequence). Each client keeps an in-process highest-consumed marker per session/epoch; reconnect does not replay, and client or server restart resets the consumption scope.",
+      "consequences": [
+        "Reconnect behavior is deterministic.",
+        "No durable user configuration is introduced.",
+        "A client restart may replay the latest still-present signal once; the signal is non-authoritative and transient."
+      ],
+      "decision_input_refs": [],
+      "alternatives": [
+        {
+          "option": "Durable per-user marker",
+          "why_not": "Adds persistence and cross-device semantics outside scope."
+        }
+      ],
+      "related_requirements": [
+        "FR-SIGNAL-005"
+      ],
+      "contract_refs": [
+        "contract-status-model",
+        "contract-state-lifecycle"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-unified-status-adrs",
+          "user:2026-07-26-proceed"
+        ],
+        "rationale": "bellを状態ではなく一過性signalとして扱う方針の承認。"
+      }
+    },
+    {
+      "id": "adr-20260726-codex-exhaustive-inventory",
+      "title": "Use a build-time Codex method inventory with runtime unknown diagnostics",
+      "status": "accepted",
+      "context": "The real app-server does not provide a dependable connection-time protocol-version handshake for routing authority.",
+      "decision": "Bind a checked-in inventory to the supported Codex version and route every known method explicitly. Use fake, FakeVsReal, and invariant-naming contract tests; unknown and malformed messages preserve state and enter bounded diagnostics.",
+      "consequences": [
+        "Protocol drift is visible and testable.",
+        "Runtime does not depend on a nonexistent handshake.",
+        "Inventory updates accompany Codex upgrades."
+      ],
+      "decision_input_refs": [
+        "decision-input-message-inventory",
+        "decision-input-external-triple"
+      ],
+      "alternatives": [
+        {
+          "option": "Connection-time version inventory",
+          "why_not": "No verified authoritative runtime source exists."
+        },
+        {
+          "option": "Default no-op switch",
+          "why_not": "Silently accepts drift."
+        }
+      ],
+      "related_requirements": [
+        "FR-CODEX-002",
+        "FR-UNKNOWN-003",
+        "NFR-EXHAUSTIVE-003"
+      ],
+      "contract_refs": [
+        "contract-codex-router",
+        "contract-request-concurrency",
+        "contract-resource-bound",
+        "contract-performance-budget"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-unified-status-adrs",
+          "user:2026-07-26-proceed"
+        ],
+        "rationale": "app-server eventを正確に全てhandleする要求の実装方針。"
+      }
+    },
+    {
+      "id": "adr-20260726-driver-observation-boundaries",
+      "title": "Normalize authoritative Driver events and keep Shell limited-capability",
+      "status": "accepted",
+      "context": "Drivers expose different evidence; inventing a new Shell protocol or retaining title inference would split authority.",
+      "decision": "Codex uses app-server; Claude/Gemini/Grok use structured driver/runtime lifecycle sources; Shell uses process lifecycle and retained OSC 133 prompt boundaries only. Codex OSC 0/2 and notification/BEL status inference is removed; Claude/Gemini and Shell retain their existing OSC observation contracts.",
+      "consequences": [
+        "All Drivers implement one operation contract.",
+        "Shell reports unsupported detail as unknown.",
+        "OSC 133 remains intact."
+      ],
+      "decision_input_refs": [
+        "decision-input-remove-osc",
+        "decision-input-retain-osc133"
+      ],
+      "alternatives": [
+        {
+          "option": "New Shell structured protocol",
+          "why_not": "Adds an unrequested producer/wire boundary."
+        },
+        {
+          "option": "Terminal-title inference",
+          "why_not": "Is explicitly forbidden and non-authoritative."
+        }
+      ],
+      "related_requirements": [
+        "FR-DRIVER-006",
+        "FR-OSC-008"
+      ],
+      "contract_refs": [
+        "contract-driver-normalization"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-unified-status-adrs",
+          "user:all-drivers",
+          "user:2026-07-26-proceed"
+        ],
+        "rationale": "OSC状態推定を削除し全Driverを共通契約へ正規化する要求。"
+      }
+    },
+    {
+      "id": "adr-20260726-status-wire-migration",
+      "title": "Migrate composite status with a temporary deterministic scalar projection",
+      "status": "rejected",
+      "context": "Three clients and generated SDKs cannot switch atomically.",
+      "decision": "Add composite fields server-first while retaining a deterministic scalar projection; update generated SDKs and all clients; remove legacy status only after a zero-consumer and baseline/target fixture gate.",
+      "consequences": [
+        "Mixed versions remain parseable.",
+        "Legacy semantics are explicit, not client-invented.",
+        "Removal requires evidence."
+      ],
+      "decision_input_refs": [],
+      "alternatives": [
+        {
+          "option": "Flag-day replacement",
+          "why_not": "Breaks mixed-version consumers."
+        }
+      ],
+      "related_requirements": [
+        "FR-UI-007",
+        "NFR-COMPAT-001"
+      ],
+      "contract_refs": [
+        "contract-wire-migration"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "user:2026-07-26-no-backward-compat",
+          "consultation-unified-status-adrs"
+        ],
+        "rationale": "旧scalar status、旧event、OSC推定への互換projectionやfallbackを明示的に不要とした。"
+      }
+    },
+    {
+      "id": "adr-20260726-shared-status-display-matrix",
+      "title": "Use one checked-in language-neutral status display matrix",
+      "status": "accepted",
+      "context": "API metadata and independent client mappings create competing owners and runtime payload complexity.",
+      "decision": "Keep one checked-in semantic-key fixture consumed directly by parity tests and renderer adapters. Do not place glyph metadata on the runtime wire. Use dedicated unknown rather than stale last-known.",
+      "consequences": [
+        "All clients share labels and allowed combinations.",
+        "Unknown cannot masquerade as current state.",
+        "Native renderers remain free to use platform glyph implementations within the fixed semantic role."
+      ],
+      "decision_input_refs": [
+        "decision-input-shared-display"
+      ],
+      "alternatives": [
+        {
+          "option": "Generated API metadata",
+          "why_not": "Couples presentation assets to runtime wire and duplicates native mapping boundaries."
+        },
+        {
+          "option": "Last-known plus stale",
+          "why_not": "Can present unauthoritative state as current."
+        }
+      ],
+      "related_requirements": [
+        "FR-UI-007",
+        "NFR-A11Y-002"
+      ],
+      "contract_refs": [
+        "contract-display-parity"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-unified-status-adrs",
+          "user:unified-icons",
+          "user:2026-07-26-proceed"
+        ],
+        "rationale": "Windows Shell、Workspace、Web UIの表示統一要求。"
+      }
+    },
+    {
+      "id": "adr-20260726-status-wire-flag-day-replacement",
+      "title": "Replace the legacy scalar status wire in one atomic flag-day cutover",
+      "status": "accepted",
+      "context": "The user explicitly rejects backward compatibility and fallback. Keeping a scalar projection, legacy event fallback, or OSC status inference would preserve multiple authorities and allow clients to observe divergent status semantics.",
+      "decision": "Replace the legacy scalar status with the composite status wire as a breaking flag-day change. In the same landed change, remove the legacy scalar field, legacy event fallback, and OSC 0/2, BEL, and OSC notification status inference; regenerate every SDK and update Web, Workspace, and Windows Shell atomically. No mixed-version operation or runtime rollback fallback is supported.",
+      "consequences": [
+        "Every in-repository consumer moves to the composite contract in one commit.",
+        "Old clients and SDKs are intentionally incompatible with the new server wire.",
+        "Repository-wide generation, compile, contract, and client parity gates prevent a partial cutover."
+      ],
+      "decision_input_refs": [],
+      "alternatives": [
+        {
+          "option": "Temporary scalar projection and mixed-version rollout",
+          "why_not": "Rejected by explicit user consultation because it retains legacy authority and fallback behavior."
+        },
+        {
+          "option": "Composite wire with legacy event or OSC inference fallback",
+          "why_not": "Would split status authority and permit old observations to repopulate the replacement model."
+        }
+      ],
+      "related_requirements": [
+        "FR-UI-007",
+        "NFR-COMPAT-001"
+      ],
+      "contract_refs": [
+        "contract-wire-migration"
+      ],
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "user:2026-07-26-no-backward-compat",
+          "consultation-unified-status-adrs"
+        ],
+        "rationale": "The user explicitly selected a flag-day composite replacement with no backward compatibility or fallback."
+      }
+    }
+  ],
+  "decision_inputs": [
+    {
+      "id": "decision-input-remove-osc",
+      "subject": "agent status OSC detection removal",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "constraint-remove-osc-status"
+      },
+      "authority": "constraint",
+      "candidate": "OSC 0/2 title と OSC notification/BEL を status input から除外する",
+      "requirement_refs": [
+        "FR-OSC-008"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "既存 terminal title parser による driver-specific status inference"
+    },
+    {
+      "id": "decision-input-composite-facets",
+      "subject": "spinner, human input, and bell semantics",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "user:2026-07-26-status-combinations"
+      },
+      "authority": "constraint",
+      "candidate": "activity、unresolved human input、transient signal を別 facets とし spinner と ! を排他、bell と ! を併存可能にする",
+      "requirement_refs": [
+        "FR-STATUS-001",
+        "FR-HUMAN-004",
+        "FR-SIGNAL-005"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "単一 scalar status と一つの icon slot へ競合を畳み込む方式"
+    },
+    {
+      "id": "decision-input-message-inventory",
+      "subject": "Codex exhaustive message handling",
+      "source": {
+        "kind": "ux_technology_candidate",
+        "ref": "candidate-codex-message-inventory"
+      },
+      "authority": "candidate",
+      "candidate": "version-aware known-method inventory と unknown diagnostic boundary",
+      "requirement_refs": [
+        "FR-CODEX-002",
+        "FR-UNKNOWN-003"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "部分 switch と notification default no-op"
+    },
+    {
+      "id": "decision-input-shared-display",
+      "subject": "cross-client icon and accessibility parity",
+      "source": {
+        "kind": "ux_design_handoff",
+        "ref": "handoff-shared-status-spec"
+      },
+      "authority": "handoff",
+      "candidate": "検証可能な共有 status/icon/animation/accessible-label matrix",
+      "requirement_refs": [
+        "FR-UI-007"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "Web StatusIcon と Windows PanelPresentation が独立 mapping を所有する方式"
+    },
+    {
+      "id": "decision-input-external-triple",
+      "subject": "Codex app-server verification",
+      "source": {
+        "kind": "repository_policy",
+        "ref": "AGENTS.md external dependency triple"
+      },
+      "authority": "constraint",
+      "candidate": "fake + FakeVsReal e2e + invariant-naming contract test",
+      "requirement_refs": [
+        "NFR-TEST-005",
+        "NFR-EXHAUSTIVE-003"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "fake-only unit coverage"
+    },
+    {
+      "id": "decision-input-retain-osc133",
+      "subject": "Shell prompt semantics",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "change.md non_goals: Shell OSC 133"
+      },
+      "authority": "constraint",
+      "candidate": "Shell OSC 133 prompt semantics を保持し agent OSC 0/2 status inference のみ削除する",
+      "requirement_refs": [
+        "FR-OSC-008",
+        "FR-DRIVER-006"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "全 OSC processing を一律削除する方式"
+    }
+  ],
+  "decision_dispositions": [
+    {
+      "decision_input_ref": "decision-input-remove-osc",
+      "disposition": "adopted",
+      "rationale": "The accepted constraint or selected design is fixed by the referenced proposed ADR and implementation contract.",
+      "adr_refs": [
+        "adr-20260726-driver-observation-boundaries"
+      ],
+      "contract_refs": [
+        "contract-driver-normalization"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-composite-facets",
+      "disposition": "adopted",
+      "rationale": "The accepted constraint or selected design is fixed by the referenced proposed ADR and implementation contract.",
+      "adr_refs": [
+        "adr-20260726-composite-session-status"
+      ],
+      "contract_refs": [
+        "contract-failure-recovery",
+        "contract-state-lifecycle",
+        "contract-status-model"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-message-inventory",
+      "disposition": "adopted",
+      "rationale": "The accepted constraint or selected design is fixed by the referenced proposed ADR and implementation contract.",
+      "adr_refs": [
+        "adr-20260726-codex-exhaustive-inventory"
+      ],
+      "contract_refs": [
+        "contract-codex-router",
+        "contract-performance-budget",
+        "contract-request-concurrency",
+        "contract-resource-bound"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-shared-display",
+      "disposition": "adopted",
+      "rationale": "The accepted constraint or selected design is fixed by the referenced proposed ADR and implementation contract.",
+      "adr_refs": [
+        "adr-20260726-shared-status-display-matrix"
+      ],
+      "contract_refs": [
+        "contract-display-parity"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-external-triple",
+      "disposition": "adopted",
+      "rationale": "The accepted constraint or selected design is fixed by the referenced proposed ADR and implementation contract.",
+      "adr_refs": [
+        "adr-20260726-codex-exhaustive-inventory"
+      ],
+      "contract_refs": [
+        "contract-codex-router",
+        "contract-performance-budget",
+        "contract-request-concurrency",
+        "contract-resource-bound"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-retain-osc133",
+      "disposition": "adopted",
+      "rationale": "The accepted constraint or selected design is fixed by the referenced proposed ADR and implementation contract.",
+      "adr_refs": [
+        "adr-20260726-driver-observation-boundaries"
+      ],
+      "contract_refs": [
+        "contract-driver-normalization"
+      ]
+    }
+  ],
+  "resolved_issues": [
+    {
+      "issue_ref": "issue-accepted-adr-context-unsearched",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-open-shell-boundary",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-open-unknown-display",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-transient-signal-boundary",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-status-facet-invalid-states",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-codex-version-source-assumed",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-all-driver-source-coverage",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-held-request-linearization",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-wire-migration-not-closed",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-resource-and-concurrency-dimensions-omitted",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    },
+    {
+      "issue_ref": "issue-display-matrix-artifact-choice",
+      "resolution": "Applied the critic patch direction and fixed the owner, boundary, outcome, resource, migration, or observable contract in the canonical plan."
+    }
+  ],
+  "critique_blockers": [],
+  "open_questions": [],
+  "design_dimensions": [
+    "data_model",
+    "control_flow",
+    "state_lifecycle",
+    "failure_recovery",
+    "integration_contract",
+    "migration_compatibility",
+    "user_observability",
+    "concurrency",
+    "resource_management",
+    "performance_budget"
+  ],
+  "implementation_contracts": [
+    {
+      "id": "contract-status-model",
+      "dimension": "data_model",
+      "subject": "Valid composite session status and signal lifecycle",
+      "owner_component_ref": "component-common-status",
+      "related_requirements": [
+        "FR-STATUS-001",
+        "FR-HUMAN-004",
+        "FR-SIGNAL-005",
+        "FR-FAILURE-009"
+      ],
+      "related_units": [
+        "Implement composite status reducer and signal identity"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-status-model-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-status-model"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-status-model"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-status-model-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-status-model"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-status-model"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-status-model-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-status-model"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-status-model"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-status-model",
+          "description": "Lifecycle is stopped/active/idle or failure; humanInput is derived from a non-empty pending-ID set; presentation chooses ! over spinner; signal is orthogonal and may coexist with !. Adversarially: Zero value and active+failure are unrepresentable or fail fast; client consumption is keyed by (serverEpoch, signalSequence), persists for the client process, does not replay on reconnect, and resets on either server or client restart.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-status-model"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-status-model",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-common-status",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-common-status"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-status-model-normal",
+            "witness-status-model-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-status-model-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-status-model-determinate",
+            "decision-status-model-unknown",
+            "decision-status-model-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-status-model"
+          ],
+          "input_refs": [
+            "input-status-model"
+          ],
+          "coverage_basis": "Valid, unavailable, malformed/stale/insufficient, and typed failure cover the boundary.",
+          "exclusivity_basis": "Authority and generation validation select exactly one state before mutation.",
+          "precedence": "Internal violation, stale/malformed, unavailable, then determinate.",
+          "default_policy": "Unknown and inconclusive preserve trustworthy state and never infer status.",
+          "verification_ref": "verify-status-model",
+          "witness_refs": [
+            "witness-status-model-normal",
+            "witness-status-model-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "Lifecycle is stopped/active/idle or failure; humanInput is derived from a non-empty pending-ID set; presentation chooses ! over spinner; signal is orthogonal and may coexist with !.",
+        "Zero value and active+failure are unrepresentable or fail fast; client consumption is keyed by (serverEpoch, signalSequence), persists for the client process, does not replay on reconnect, and resets on either server or client restart."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-status-model",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Zero value and active+failure are unrepresentable or fail fast; client consumption is keyed by (serverEpoch, signalSequence), persists for the client process, does not replay on reconnect, and resets on either server or client restart.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-status-model",
+          "requirement_refs": [
+            "FR-STATUS-001",
+            "FR-HUMAN-004",
+            "FR-SIGNAL-005",
+            "FR-FAILURE-009"
+          ],
+          "tier": "T0",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-status-model-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-STATUS-001",
+            "FR-HUMAN-004",
+            "FR-SIGNAL-005",
+            "FR-FAILURE-009"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "Lifecycle is stopped/active/idle or failure; humanInput is derived from a non-empty pending-ID set; presentation chooses ! over spinner; signal is orthogonal and may coexist with !."
+          ],
+          "expected_observable_refs": [
+            "observable-status-model"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-status-model"
+          ]
+        },
+        {
+          "id": "witness-status-model-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-STATUS-001",
+            "FR-HUMAN-004",
+            "FR-SIGNAL-005",
+            "FR-FAILURE-009"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "Zero value and active+failure are unrepresentable or fail fast; client consumption is keyed by (serverEpoch, signalSequence), persists for the client process, does not replay on reconnect, and resets on either server or client restart."
+          ],
+          "expected_observable_refs": [
+            "observable-status-model"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-status-model"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-composite-session-status",
+        "adr-20260726-transient-signal-epoch"
+      ]
+    },
+    {
+      "id": "contract-codex-router",
+      "dimension": "integration_contract",
+      "subject": "Exhaustive Codex inventory, bounded diagnostics, and held-request linearization",
+      "owner_component_ref": "component-codex-router",
+      "related_requirements": [
+        "FR-CODEX-002",
+        "FR-UNKNOWN-003",
+        "FR-HUMAN-004",
+        "NFR-EXHAUSTIVE-003",
+        "NFR-RESOURCE-004"
+      ],
+      "related_units": [
+        "Implement Codex exhaustive router and held-request lifecycle"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-codex-router-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-codex-router"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-codex-router"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-codex-router-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-codex-router"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-codex-router"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-codex-router-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-codex-router"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-codex-router"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-codex-router",
+          "description": "A build-time inventory bound to the supported Codex version classifies every known method; the router atomically removes a held entry as the single terminalization linearization point and only successful removal emits the reducer terminalize command. Adversarially: Unknown method, known-malformed, inventory-unavailable, duplicate/late/unknown request ID, connection-loss drain, and reply failure are exclusive outcomes; diagnostics use a fixed-size rate-limited buffer and cannot block routing.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-codex-router"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-codex-router",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-codex-router",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Driver/app-server/client build boundary"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-codex-router-normal",
+            "witness-codex-router-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-codex-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-codex-router-determinate",
+            "decision-codex-router-unknown",
+            "decision-codex-router-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-codex-router"
+          ],
+          "input_refs": [
+            "input-codex-router"
+          ],
+          "coverage_basis": "Known-valid, known-no-effect, unknown, malformed, inventory-unavailable, duplicate/late/unknown ID, drain, and reply failure cover the routing boundary.",
+          "exclusivity_basis": "Inventory lookup precedes decode; atomic held-entry removal precedes reducer terminalization.",
+          "precedence": "Internal invariant violation, inventory unavailable, unknown method, known malformed, determinate disposition.",
+          "default_policy": "Never mutate status from unknown or malformed input; never reply or terminalize twice.",
+          "verification_ref": "verify-codex-router",
+          "witness_refs": [
+            "witness-codex-router-normal",
+            "witness-codex-router-adversarial"
+          ]
+        },
+        {
+          "id": "profile-codex-resource",
+          "kind": "cost_convergence",
+          "workload_axis": "unknown messages, held requests, and transient signals per connection",
+          "cost_metric": "diagnostic entries, held-map entries, and routing latency",
+          "bound": "diagnostic storage is a fixed-size ring with per-method rate limiting; held entries are bounded by outstanding app-server requests and drained on connection loss; routing performs O(1) inventory/map operations",
+          "resource_cap": "No unbounded queue; drops increment a correlated counter and never block message routing",
+          "measurement_ref": "verify-codex-router",
+          "witness_refs": [
+            "witness-codex-router-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "A build-time inventory bound to the supported Codex version classifies every known method; the router atomically removes a held entry as the single terminalization linearization point and only successful removal emits the reducer terminalize command.",
+        "Unknown method, known-malformed, inventory-unavailable, duplicate/late/unknown request ID, connection-loss drain, and reply failure are exclusive outcomes; diagnostics use a fixed-size rate-limited buffer and cannot block routing."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-codex-router",
+          "class": "external_failure",
+          "source": "external",
+          "outcome": "Unknown method, known-malformed, inventory-unavailable, duplicate/late/unknown request ID, connection-loss drain, and reply failure are exclusive outcomes; diagnostics use a fixed-size rate-limited buffer and cannot block routing.",
+          "requirement_effect": "preserves",
+          "recovery": "typed_recovery"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-codex-router",
+          "requirement_refs": [
+            "FR-CODEX-002",
+            "FR-UNKNOWN-003",
+            "FR-HUMAN-004",
+            "NFR-EXHAUSTIVE-003",
+            "NFR-RESOURCE-004"
+          ],
+          "tier": "T2",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-codex-router-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-CODEX-002",
+            "FR-UNKNOWN-003",
+            "FR-HUMAN-004",
+            "NFR-EXHAUSTIVE-003",
+            "NFR-RESOURCE-004"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "A build-time inventory bound to the supported Codex version classifies every known method; the router atomically removes a held entry as the single terminalization linearization point and only successful removal emits the reducer terminalize command."
+          ],
+          "expected_observable_refs": [
+            "observable-codex-router"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-codex-router"
+          ]
+        },
+        {
+          "id": "witness-codex-router-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-CODEX-002",
+            "FR-UNKNOWN-003",
+            "FR-HUMAN-004",
+            "NFR-EXHAUSTIVE-003",
+            "NFR-RESOURCE-004"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "Unknown method, known-malformed, inventory-unavailable, duplicate/late/unknown request ID, connection-loss drain, and reply failure are exclusive outcomes; diagnostics use a fixed-size rate-limited buffer and cannot block routing."
+          ],
+          "expected_observable_refs": [
+            "observable-codex-router"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-codex-router"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-codex-exhaustive-inventory"
+      ]
+    },
+    {
+      "id": "contract-driver-normalization",
+      "dimension": "control_flow",
+      "subject": "All-driver authoritative source and OSC boundary",
+      "owner_component_ref": "component-driver-normalizers",
+      "related_requirements": [
+        "FR-DRIVER-006",
+        "FR-OSC-008"
+      ],
+      "related_units": [
+        "Implement all-driver normalizers and remove Codex OSC inference"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-driver-normalization-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-driver-normalization"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-driver-normalization"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-driver-normalization-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-driver-normalization"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-driver-normalization"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-driver-normalization-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-driver-normalization"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-driver-normalization"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-driver-normalization",
+          "description": "Codex uses app-server events; Claude, Gemini, and Grok use their structured runtime/driver lifecycle events; Shell uses process lifecycle plus retained OSC 133 prompt boundaries, producing only lifecycle active/idle/stopped and explicit unknown for unsupported attention/failure detail. Adversarially: For every Driver, unsupported, malformed, and unavailable observations have explicit no-state-effect diagnostics; Codex OSC never produces facet operations, while Claude/Gemini title observations and Shell OSC 133 remain operational.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-driver-normalization"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-driver-normalization",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-driver-normalizers",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Driver/app-server/client build boundary"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-driver-normalization-normal",
+            "witness-driver-normalization-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-driver-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-driver-normalization-determinate",
+            "decision-driver-normalization-unknown",
+            "decision-driver-normalization-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-driver-normalization"
+          ],
+          "input_refs": [
+            "input-driver-normalization"
+          ],
+          "coverage_basis": "Each of Codex, Claude, Gemini, Grok, and Shell has supported, unsupported, malformed, and unavailable rows.",
+          "exclusivity_basis": "Driver identity and declared capability select one row before normalization.",
+          "precedence": "Malformed/unavailable, explicit unsupported, then supported typed observation.",
+          "default_policy": "No terminal-title fallback; unsupported detail remains unknown.",
+          "verification_ref": "verify-driver-normalization",
+          "witness_refs": [
+            "witness-driver-normalization-normal",
+            "witness-driver-normalization-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "Codex uses app-server events; Claude, Gemini, and Grok use their structured runtime/driver lifecycle events; Shell uses process lifecycle plus retained OSC 133 prompt boundaries, producing only lifecycle active/idle/stopped and explicit unknown for unsupported attention/failure detail.",
+        "For every Driver, unsupported, malformed, and unavailable observations have explicit no-state-effect diagnostics; Codex OSC never produces facet operations, while Claude/Gemini title observations and Shell OSC 133 remain operational."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-driver-normalization",
+          "class": "external_failure",
+          "source": "external",
+          "outcome": "For every Driver, unsupported, malformed, and unavailable observations have explicit no-state-effect diagnostics; Codex OSC never produces facet operations, while Claude/Gemini title observations and Shell OSC 133 remain operational.",
+          "requirement_effect": "preserves",
+          "recovery": "typed_recovery"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-driver-normalization",
+          "requirement_refs": [
+            "FR-DRIVER-006",
+            "FR-OSC-008"
+          ],
+          "tier": "T0",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-driver-normalization-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-DRIVER-006",
+            "FR-OSC-008"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "Codex uses app-server events; Claude, Gemini, and Grok use their structured runtime/driver lifecycle events; Shell uses process lifecycle plus retained OSC 133 prompt boundaries, producing only lifecycle active/idle/stopped and explicit unknown for unsupported attention/failure detail."
+          ],
+          "expected_observable_refs": [
+            "observable-driver-normalization"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-driver-normalization"
+          ]
+        },
+        {
+          "id": "witness-driver-normalization-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-DRIVER-006",
+            "FR-OSC-008"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "For every Driver, unsupported, malformed, and unavailable observations have explicit no-state-effect diagnostics; Codex OSC never produces facet operations, while Claude/Gemini title observations and Shell OSC 133 remain operational."
+          ],
+          "expected_observable_refs": [
+            "observable-driver-normalization"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-driver-normalization"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-driver-observation-boundaries"
+      ]
+    },
+    {
+      "id": "contract-wire-migration",
+      "dimension": "migration_compatibility",
+      "subject": "Atomic composite-only status wire replacement for every generated SDK and in-repository client",
+      "owner_component_ref": "component-status-wire",
+      "related_requirements": [
+        "FR-UI-007",
+        "NFR-COMPAT-001"
+      ],
+      "related_units": [
+        "Replace the wire schema and regenerate every SDK atomically"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-wire-migration-determinate",
+          "condition": "The composite-only schema, server projection, regenerated SDKs, all three clients, legacy-source removal, and OSC inference removal are present in the same revision.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-wire-migration"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Accept the atomic cutover revision and expose only the composite wire.",
+          "observable_refs": [
+            "observable-wire-migration"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-wire-migration-unknown",
+          "condition": "Any generated artifact, client migration, or zero-legacy proof is unavailable.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-wire-migration"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Reject the cutover revision; do not ship a compatibility projection or runtime fallback.",
+          "observable_refs": [
+            "observable-wire-migration"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-wire-migration-inconclusive",
+          "condition": "Any schema, generated SDK, client, legacy-event removal, or OSC-inference check is stale, malformed, or inconsistent.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-wire-migration"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the whole cutover revision and emit the typed build/test failure.",
+          "observable_refs": [
+            "observable-wire-migration"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-wire-migration",
+          "description": "After the single cutover revision, the server emits only composite status; regenerated SDKs and Web, Workspace, and Windows Shell consume only that shape. The legacy scalar field, legacy event fallback, and OSC 0/2, BEL, or OSC notification status inference are absent. Partial or mixed-version revisions fail build and contract gates rather than running with fallback.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-wire-migration"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-wire-migration",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-status-wire",
+          "producer": {
+            "kind": "external",
+            "external_identity": "Canonical status schema, SDK generator, server, and in-repository client build boundary"
+          },
+          "source": "Composite-only schema, generated SDK diff, repository zero-legacy search, and client/gateway contract fixtures",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Fail the cutover gate; no compatibility projection, legacy event path, or OSC status inference is enabled.",
+          "witness_refs": [
+            "witness-wire-migration-normal",
+            "witness-wire-migration-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-wire-evolution",
+          "kind": "contract_evolution",
+          "surface": "server view schema, generated SDKs, Web, Workspace, Windows Shell, legacy scalar field, legacy event fallback, and OSC status inference",
+          "consumer_refs": [
+            {
+              "kind": "component",
+              "component_ref": "component-client-renderers"
+            },
+            {
+              "kind": "external",
+              "external_identity": "Web, Workspace, Windows Shell, and generated SDK consumers"
+            }
+          ],
+          "compatibility": "breaking",
+          "migration_strategy": "Land the composite-only server schema, regenerated SDKs, all client migrations, legacy scalar deletion, legacy event fallback deletion, and OSC status-inference deletion in one revision.",
+          "rollout": "One atomic repository cutover; partial and mixed-version deployment are unsupported and mechanically rejected.",
+          "rollback": "Revert the entire change revision as a unit before release; there is no runtime dual-wire or legacy fallback mode.",
+          "baseline_verification_refs": [
+            "verify-wire-migration"
+          ],
+          "target_verification_refs": [
+            "verify-wire-migration"
+          ],
+          "witness_refs": [
+            "witness-wire-migration-normal",
+            "witness-wire-migration-adversarial"
+          ]
+        },
+        {
+          "id": "profile-wire-migration-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-wire-migration-determinate",
+            "decision-wire-migration-unknown",
+            "decision-wire-migration-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-wire-migration"
+          ],
+          "input_refs": [
+            "input-wire-migration"
+          ],
+          "coverage_basis": "Valid, unavailable, malformed/stale/insufficient, and typed failure cover the boundary.",
+          "exclusivity_basis": "Authority and generation validation select exactly one state before mutation.",
+          "precedence": "Internal violation, stale/malformed, unavailable, then determinate.",
+          "default_policy": "Unknown and inconclusive preserve trustworthy state and never infer status.",
+          "verification_ref": "verify-wire-migration",
+          "witness_refs": [
+            "witness-wire-migration-normal",
+            "witness-wire-migration-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "The post-cutover server emits only composite status and every in-repository client consumes the regenerated composite-only SDK contract.",
+        "Legacy scalar status, legacy event fallback, and OSC 0/2, BEL, or OSC notification status inference are removed in the same revision.",
+        "A partial cutover fails generation, compilation, repository zero-legacy, or contract tests; runtime compatibility fallback is forbidden."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-wire-migration",
+          "class": "external_failure",
+          "source": "external",
+          "outcome": "Reject the entire cutover revision when any server, SDK, client, legacy-event, or OSC-removal gate fails; do not restore legacy behavior inside the new revision.",
+          "requirement_effect": "preserves",
+          "recovery": "typed_recovery"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-wire-migration",
+          "requirement_refs": [
+            "FR-UI-007",
+            "NFR-COMPAT-001"
+          ],
+          "tier": "T2",
+          "method": "Composite-only schema/gateway contract tests, SDK regeneration cleanliness, repository-wide zero-legacy searches, and all-client build/parity tests in one revision.",
+          "criterion": "Only the atomic composite-only revision passes; any legacy scalar producer/consumer, legacy event fallback, OSC status inference, stale SDK, or unmigrated client fails.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-wire-migration-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-UI-007",
+            "NFR-COMPAT-001"
+          ],
+          "precondition": "The server schema, regenerated SDKs, Web, Workspace, and Windows Shell are all from the same composite-only revision.",
+          "stimulus": "Build and exercise the composite status snapshot through each public client boundary.",
+          "expected_observables": [
+            "Only composite status is emitted and consumed, and all three clients render the shared semantic matrix."
+          ],
+          "expected_observable_refs": [
+            "observable-wire-migration"
+          ],
+          "forbidden_outcomes": [
+            "Legacy scalar status, legacy event fallback, OSC-derived status, or Driver-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-wire-migration"
+          ]
+        },
+        {
+          "id": "witness-wire-migration-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-UI-007",
+            "NFR-COMPAT-001"
+          ],
+          "precondition": "At least one legacy scalar producer/consumer, legacy event fallback, OSC status inference path, stale SDK, or unmigrated client remains.",
+          "stimulus": "Run generation, repository zero-legacy, gateway contract, and all-client build/parity gates.",
+          "expected_observables": [
+            "The cutover revision is rejected before release with a typed build or contract failure."
+          ],
+          "expected_observable_refs": [
+            "observable-wire-migration"
+          ],
+          "forbidden_outcomes": [
+            "Mixed-version runtime operation, scalar projection, legacy event fallback, or OSC status inference."
+          ],
+          "verification_refs": [
+            "verify-wire-migration"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-status-wire-migration",
+        "adr-20260726-status-wire-flag-day-replacement"
+      ]
+    },
+    {
+      "id": "contract-display-parity",
+      "dimension": "user_observability",
+      "subject": "Checked-in semantic display matrix parity",
+      "owner_component_ref": "component-client-renderers",
+      "related_requirements": [
+        "FR-UI-007",
+        "NFR-A11Y-002",
+        "NFR-EXHAUSTIVE-003"
+      ],
+      "related_units": [
+        "Implement cross-client display matrix renderers"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-display-parity-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-display-parity"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-display-parity"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-display-parity-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-display-parity"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-display-parity"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-display-parity-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-display-parity"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-display-parity"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-display-parity",
+          "description": "A language-neutral checked-in fixture is the sole semantic matrix; status-wire supplies semantic keys but does not carry glyph metadata; Web, Workspace, and Windows Shell render and test the same key, animation, glyph role, and accessible label. Active uses spinner, unresolved input uses !, failure uses a distinct glyph, and unknown uses a dedicated unknown visual. Adversarially: The matrix cannot encode spinner+!; bell+! is allowed; unknown never displays last-known as current; fixture/schema changes land before renderer updates and parity gates reject missing or extra keys. Existing visible text, shape/color/label redundancy, and functional spinner behavior from accepted ADRs remain.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-display-parity"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-display-parity",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-client-renderers",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-client-renderers"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-display-parity-normal",
+            "witness-display-parity-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-display-parity-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-display-parity-determinate",
+            "decision-display-parity-unknown",
+            "decision-display-parity-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-display-parity"
+          ],
+          "input_refs": [
+            "input-display-parity"
+          ],
+          "coverage_basis": "Valid, unavailable, malformed/stale/insufficient, and typed failure cover the boundary.",
+          "exclusivity_basis": "Authority and generation validation select exactly one state before mutation.",
+          "precedence": "Internal violation, stale/malformed, unavailable, then determinate.",
+          "default_policy": "Unknown and inconclusive preserve trustworthy state and never infer status.",
+          "verification_ref": "verify-display-parity",
+          "witness_refs": [
+            "witness-display-parity-normal",
+            "witness-display-parity-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "A language-neutral checked-in fixture is the sole semantic matrix; status-wire supplies semantic keys but does not carry glyph metadata; Web, Workspace, and Windows Shell render and test the same key, animation, glyph role, and accessible label. Active uses spinner, unresolved input uses !, failure uses a distinct glyph, and unknown uses a dedicated unknown visual.",
+        "The matrix cannot encode spinner+!; bell+! is allowed; unknown never displays last-known as current; fixture/schema changes land before renderer updates and parity gates reject missing or extra keys. Existing visible text, shape/color/label redundancy, and functional spinner behavior from accepted ADRs remain."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-display-parity",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "The matrix cannot encode spinner+!; bell+! is allowed; unknown never displays last-known as current; fixture/schema changes land before renderer updates and parity gates reject missing or extra keys. Existing visible text, shape/color/label redundancy, and functional spinner behavior from accepted ADRs remain.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-display-parity",
+          "requirement_refs": [
+            "FR-UI-007",
+            "NFR-A11Y-002",
+            "NFR-EXHAUSTIVE-003"
+          ],
+          "tier": "T1",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd clients/ui && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-display-parity-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-UI-007",
+            "NFR-A11Y-002",
+            "NFR-EXHAUSTIVE-003"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "A language-neutral checked-in fixture is the sole semantic matrix; status-wire supplies semantic keys but does not carry glyph metadata; Web, Workspace, and Windows Shell render and test the same key, animation, glyph role, and accessible label. Active uses spinner, unresolved input uses !, failure uses a distinct glyph, and unknown uses a dedicated unknown visual."
+          ],
+          "expected_observable_refs": [
+            "observable-display-parity"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-display-parity"
+          ]
+        },
+        {
+          "id": "witness-display-parity-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-UI-007",
+            "NFR-A11Y-002",
+            "NFR-EXHAUSTIVE-003"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "The matrix cannot encode spinner+!; bell+! is allowed; unknown never displays last-known as current; fixture/schema changes land before renderer updates and parity gates reject missing or extra keys. Existing visible text, shape/color/label redundancy, and functional spinner behavior from accepted ADRs remain."
+          ],
+          "expected_observable_refs": [
+            "observable-display-parity"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-display-parity"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-shared-status-display-matrix"
+      ]
+    },
+    {
+      "id": "contract-request-concurrency",
+      "dimension": "concurrency",
+      "subject": "Exactly-once held request terminalization",
+      "owner_component_ref": "component-codex-router",
+      "related_requirements": [
+        "FR-HUMAN-004",
+        "FR-FAILURE-009"
+      ],
+      "related_units": [
+        "Implement Codex exhaustive router and held-request lifecycle"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-request-concurrency-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-request-concurrency"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-request-concurrency"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-request-concurrency-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-request-concurrency"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-request-concurrency"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-request-concurrency-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-request-concurrency"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-request-concurrency"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-request-concurrency",
+          "description": "Atomic held-entry removal linearizes resolution, cancellation, expiry, and connection-loss drain; only the winner emits reply and reducer terminalization. Adversarially: Late, duplicate, unknown, and racing outcomes cannot double reply, leak an entry, or leave stale !.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-request-concurrency"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-request-concurrency",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-codex-router",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-codex-router"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-request-concurrency-normal",
+            "witness-request-concurrency-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-request-concurrency-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-request-concurrency-determinate",
+            "decision-request-concurrency-unknown",
+            "decision-request-concurrency-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-request-concurrency"
+          ],
+          "input_refs": [
+            "input-request-concurrency"
+          ],
+          "coverage_basis": "Valid, unavailable, malformed/stale/insufficient, and typed failure cover the boundary.",
+          "exclusivity_basis": "Authority and generation validation select exactly one state before mutation.",
+          "precedence": "Internal violation, stale/malformed, unavailable, then determinate.",
+          "default_policy": "Unknown and inconclusive preserve trustworthy state and never infer status.",
+          "verification_ref": "verify-request-concurrency",
+          "witness_refs": [
+            "witness-request-concurrency-normal",
+            "witness-request-concurrency-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "Atomic held-entry removal linearizes resolution, cancellation, expiry, and connection-loss drain; only the winner emits reply and reducer terminalization.",
+        "Late, duplicate, unknown, and racing outcomes cannot double reply, leak an entry, or leave stale !."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-request-concurrency",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Late, duplicate, unknown, and racing outcomes cannot double reply, leak an entry, or leave stale !.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-request-concurrency",
+          "requirement_refs": [
+            "FR-HUMAN-004",
+            "FR-FAILURE-009"
+          ],
+          "tier": "T0",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-request-concurrency-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-HUMAN-004",
+            "FR-FAILURE-009"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "Atomic held-entry removal linearizes resolution, cancellation, expiry, and connection-loss drain; only the winner emits reply and reducer terminalization."
+          ],
+          "expected_observable_refs": [
+            "observable-request-concurrency"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-request-concurrency"
+          ]
+        },
+        {
+          "id": "witness-request-concurrency-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-HUMAN-004",
+            "FR-FAILURE-009"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "Late, duplicate, unknown, and racing outcomes cannot double reply, leak an entry, or leave stale !."
+          ],
+          "expected_observable_refs": [
+            "observable-request-concurrency"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-request-concurrency"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-codex-exhaustive-inventory"
+      ]
+    },
+    {
+      "id": "contract-state-lifecycle",
+      "dimension": "state_lifecycle",
+      "subject": "Pending request and signal consumption lifecycle",
+      "owner_component_ref": "component-common-status",
+      "related_requirements": [
+        "FR-HUMAN-004",
+        "FR-SIGNAL-005"
+      ],
+      "related_units": [
+        "Implement composite status reducer and signal identity"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-state-lifecycle-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-state-lifecycle-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-state-lifecycle-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-state-lifecycle",
+          "description": "Pending IDs remain until exactly one terminal event; signal consumption is scoped to client process, session, and server epoch. Adversarially: Reconnect, client restart, server restart, sequence reset, and connection loss each have deterministic replay/drain outcomes.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-state-lifecycle"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-state-lifecycle",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-common-status",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-common-status"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-state-lifecycle-normal",
+            "witness-state-lifecycle-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-state-lifecycle-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-state-lifecycle-determinate",
+            "decision-state-lifecycle-unknown",
+            "decision-state-lifecycle-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-state-lifecycle"
+          ],
+          "input_refs": [
+            "input-state-lifecycle"
+          ],
+          "coverage_basis": "Valid, unavailable, malformed/stale/insufficient, and typed failure cover the boundary.",
+          "exclusivity_basis": "Authority and generation validation select exactly one state before mutation.",
+          "precedence": "Internal violation, stale/malformed, unavailable, then determinate.",
+          "default_policy": "Unknown and inconclusive preserve trustworthy state and never infer status.",
+          "verification_ref": "verify-state-lifecycle",
+          "witness_refs": [
+            "witness-state-lifecycle-normal",
+            "witness-state-lifecycle-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "Pending IDs remain until exactly one terminal event; signal consumption is scoped to client process, session, and server epoch.",
+        "Reconnect, client restart, server restart, sequence reset, and connection loss each have deterministic replay/drain outcomes."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-state-lifecycle",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Reconnect, client restart, server restart, sequence reset, and connection loss each have deterministic replay/drain outcomes.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-state-lifecycle",
+          "requirement_refs": [
+            "FR-HUMAN-004",
+            "FR-SIGNAL-005"
+          ],
+          "tier": "T0",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-state-lifecycle-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-HUMAN-004",
+            "FR-SIGNAL-005"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "Pending IDs remain until exactly one terminal event; signal consumption is scoped to client process, session, and server epoch."
+          ],
+          "expected_observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-state-lifecycle"
+          ]
+        },
+        {
+          "id": "witness-state-lifecycle-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-HUMAN-004",
+            "FR-SIGNAL-005"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "Reconnect, client restart, server restart, sequence reset, and connection loss each have deterministic replay/drain outcomes."
+          ],
+          "expected_observable_refs": [
+            "observable-state-lifecycle"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-state-lifecycle"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-composite-session-status",
+        "adr-20260726-transient-signal-epoch"
+      ]
+    },
+    {
+      "id": "contract-failure-recovery",
+      "dimension": "failure_recovery",
+      "subject": "External unavailable versus internal invalid-state recovery",
+      "owner_component_ref": "component-common-status",
+      "related_requirements": [
+        "FR-UNKNOWN-003",
+        "FR-FAILURE-009"
+      ],
+      "related_units": [
+        "Implement composite status reducer and signal identity"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-failure-recovery-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-failure-recovery"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-failure-recovery-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-failure-recovery"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-failure-recovery-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-failure-recovery"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-failure-recovery",
+          "description": "External unavailable evidence maps to explicit unknown/failure and drains requests; internal impossible representations fail fast. Adversarially: No malformed or conflicting external evidence fabricates idle, while no internal contract violation is silently recovered.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-failure-recovery"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-failure-recovery",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-common-status",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-common-status"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-failure-recovery-normal",
+            "witness-failure-recovery-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-failure-recovery-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-failure-recovery-determinate",
+            "decision-failure-recovery-unknown",
+            "decision-failure-recovery-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-failure-recovery"
+          ],
+          "input_refs": [
+            "input-failure-recovery"
+          ],
+          "coverage_basis": "Valid, unavailable, malformed/stale/insufficient, and typed failure cover the boundary.",
+          "exclusivity_basis": "Authority and generation validation select exactly one state before mutation.",
+          "precedence": "Internal violation, stale/malformed, unavailable, then determinate.",
+          "default_policy": "Unknown and inconclusive preserve trustworthy state and never infer status.",
+          "verification_ref": "verify-failure-recovery",
+          "witness_refs": [
+            "witness-failure-recovery-normal",
+            "witness-failure-recovery-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "External unavailable evidence maps to explicit unknown/failure and drains requests; internal impossible representations fail fast.",
+        "No malformed or conflicting external evidence fabricates idle, while no internal contract violation is silently recovered."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-failure-recovery",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "No malformed or conflicting external evidence fabricates idle, while no internal contract violation is silently recovered.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-failure-recovery",
+          "requirement_refs": [
+            "FR-UNKNOWN-003",
+            "FR-FAILURE-009"
+          ],
+          "tier": "T0",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-failure-recovery-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-UNKNOWN-003",
+            "FR-FAILURE-009"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "External unavailable evidence maps to explicit unknown/failure and drains requests; internal impossible representations fail fast."
+          ],
+          "expected_observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-failure-recovery"
+          ]
+        },
+        {
+          "id": "witness-failure-recovery-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-UNKNOWN-003",
+            "FR-FAILURE-009"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "No malformed or conflicting external evidence fabricates idle, while no internal contract violation is silently recovered."
+          ],
+          "expected_observable_refs": [
+            "observable-failure-recovery"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-failure-recovery"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-composite-session-status"
+      ]
+    },
+    {
+      "id": "contract-resource-bound",
+      "dimension": "resource_management",
+      "subject": "Bounded diagnostic and request resources",
+      "owner_component_ref": "component-codex-router",
+      "related_requirements": [
+        "FR-UNKNOWN-003",
+        "NFR-RESOURCE-004"
+      ],
+      "related_units": [
+        "Implement Codex exhaustive router and held-request lifecycle"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-resource-bound-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-resource-bound"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-resource-bound"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-resource-bound-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-resource-bound"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-resource-bound"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-resource-bound-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-resource-bound"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-resource-bound"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-resource-bound",
+          "description": "Unknown diagnostics use a fixed ring and rate counter; held entries equal outstanding requests and drain on loss. Adversarially: Floods drop diagnostics with a counter rather than allocate or block; no orphaned held entry remains.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-resource-bound"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-resource-bound",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-codex-router",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-codex-router"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-resource-bound-normal",
+            "witness-resource-bound-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-resource-bound-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-resource-bound-determinate",
+            "decision-resource-bound-unknown",
+            "decision-resource-bound-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-resource-bound"
+          ],
+          "input_refs": [
+            "input-resource-bound"
+          ],
+          "coverage_basis": "Valid, unavailable, malformed/stale/insufficient, and typed failure cover the boundary.",
+          "exclusivity_basis": "Authority and generation validation select exactly one state before mutation.",
+          "precedence": "Internal violation, stale/malformed, unavailable, then determinate.",
+          "default_policy": "Unknown and inconclusive preserve trustworthy state and never infer status.",
+          "verification_ref": "verify-resource-bound",
+          "witness_refs": [
+            "witness-resource-bound-normal",
+            "witness-resource-bound-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "Unknown diagnostics use a fixed ring and rate counter; held entries equal outstanding requests and drain on loss.",
+        "Floods drop diagnostics with a counter rather than allocate or block; no orphaned held entry remains."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-resource-bound",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Floods drop diagnostics with a counter rather than allocate or block; no orphaned held entry remains.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-resource-bound",
+          "requirement_refs": [
+            "FR-UNKNOWN-003",
+            "NFR-RESOURCE-004"
+          ],
+          "tier": "T0",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-resource-bound-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-UNKNOWN-003",
+            "NFR-RESOURCE-004"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "Unknown diagnostics use a fixed ring and rate counter; held entries equal outstanding requests and drain on loss."
+          ],
+          "expected_observable_refs": [
+            "observable-resource-bound"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-resource-bound"
+          ]
+        },
+        {
+          "id": "witness-resource-bound-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "FR-UNKNOWN-003",
+            "NFR-RESOURCE-004"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "Floods drop diagnostics with a counter rather than allocate or block; no orphaned held entry remains."
+          ],
+          "expected_observable_refs": [
+            "observable-resource-bound"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-resource-bound"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-codex-exhaustive-inventory"
+      ]
+    },
+    {
+      "id": "contract-performance-budget",
+      "dimension": "performance_budget",
+      "subject": "Constant-work status routing and rendering",
+      "owner_component_ref": "component-codex-router",
+      "related_requirements": [
+        "NFR-RESOURCE-004"
+      ],
+      "related_units": [
+        "Implement Codex exhaustive router and held-request lifecycle"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-performance-budget-determinate",
+          "condition": "Authoritative input is valid and current.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-performance-budget"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Apply the unique typed transition.",
+          "observable_refs": [
+            "observable-performance-budget"
+          ],
+          "rationale": "The owner validates authority and generation before mutation."
+        },
+        {
+          "id": "decision-performance-budget-unknown",
+          "condition": "Required external evidence is unavailable or explicitly unsupported.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-performance-budget"
+          ],
+          "epistemic_state": "unknown",
+          "outcome": "Preserve trustworthy state and expose the contract's unknown outcome.",
+          "observable_refs": [
+            "observable-performance-budget"
+          ],
+          "rationale": "Unavailable evidence cannot authorize inferred state."
+        },
+        {
+          "id": "decision-performance-budget-inconclusive",
+          "condition": "Input exists but is malformed, stale, or insufficient.",
+          "evidence_mode": "fallible",
+          "input_refs": [
+            "input-performance-budget"
+          ],
+          "epistemic_state": "inconclusive",
+          "outcome": "Reject the transition and emit the typed diagnostic/failure.",
+          "observable_refs": [
+            "observable-performance-budget"
+          ],
+          "rationale": "Insufficient evidence cannot fabricate status."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-performance-budget",
+          "description": "Inventory lookup, held-map operation, reducer operation, and semantic-key lookup are O(1) per event. Adversarially: Repeated unknowns, signals, and resolutions do not create unbounded queues, timers, or linear scans.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-performance-budget"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-performance-budget",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-codex-router",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-codex-router"
+          },
+          "source": "Typed observation, schema, or fixture at the owning boundary",
+          "acquired_at": "At message receipt, state transition, snapshot generation, or client build",
+          "required_until": "The current transition or render completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": true,
+          "stability_basis": "An epoch, request identity, schema version, or checked-in revision binds acquisition to use.",
+          "invalidation_behavior": "Discard stale input and reacquire or expose unknown; never infer from terminal text.",
+          "unavailable_outcome": "Preserve trustworthy facets and expose an explicit unavailable diagnostic/unknown visual.",
+          "witness_refs": [
+            "witness-performance-budget-normal",
+            "witness-performance-budget-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-performance-budget-cost",
+          "kind": "cost_convergence",
+          "workload_axis": "repeated unknown messages, signals, and held-request resolutions",
+          "cost_metric": "per-event lookup work, retained entries, timers, and queue depth",
+          "bound": "O(1) lookup/transition per event with fixed diagnostic ring; held entries bounded by outstanding requests",
+          "resource_cap": "one bounded diagnostic ring per connection and no unbounded signal queue",
+          "measurement_ref": "verify-performance-budget",
+          "witness_refs": [
+            "witness-performance-budget-adversarial"
+          ]
+        },
+        {
+          "id": "profile-performance-budget-outcomes",
+          "kind": "outcome_partition",
+          "decision_rule_refs": [
+            "decision-performance-budget-determinate",
+            "decision-performance-budget-unknown",
+            "decision-performance-budget-inconclusive"
+          ],
+          "failure_refs": [
+            "failure-performance-budget"
+          ],
+          "input_refs": [
+            "input-performance-budget"
+          ],
+          "coverage_basis": "Valid, unavailable, malformed/stale/insufficient, and typed failure cover the boundary.",
+          "exclusivity_basis": "Authority and generation validation select exactly one state before mutation.",
+          "precedence": "Internal violation, stale/malformed, unavailable, then determinate.",
+          "default_policy": "Unknown and inconclusive preserve trustworthy state and never infer status.",
+          "verification_ref": "verify-performance-budget",
+          "witness_refs": [
+            "witness-performance-budget-normal",
+            "witness-performance-budget-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "Inventory lookup, held-map operation, reducer operation, and semantic-key lookup are O(1) per event.",
+        "Repeated unknowns, signals, and resolutions do not create unbounded queues, timers, or linear scans."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-performance-budget",
+          "class": "internal_violation",
+          "source": "internal_violation",
+          "outcome": "Repeated unknowns, signals, and resolutions do not create unbounded queues, timers, or linear scans.",
+          "requirement_effect": "preserves",
+          "recovery": "fail_fast"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-performance-budget",
+          "requirement_refs": [
+            "NFR-RESOURCE-004"
+          ],
+          "tier": "T0",
+          "method": "Deterministic contract and propagation tests at the public observation boundary.",
+          "criterion": "Prove the normal observation and make the adversarial outcome fail.",
+          "command": "cd src && GOCACHE=/tmp/gocache-agent-grid go test ./host/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-performance-budget-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "NFR-RESOURCE-004"
+          ],
+          "precondition": "Authoritative current input is available.",
+          "stimulus": "Apply the normal event through the public owner boundary.",
+          "expected_observables": [
+            "Inventory lookup, held-map operation, reducer operation, and semantic-key lookup are O(1) per event."
+          ],
+          "expected_observable_refs": [
+            "observable-performance-budget"
+          ],
+          "forbidden_outcomes": [
+            "Driver-specific or terminal-title-derived meaning."
+          ],
+          "verification_refs": [
+            "verify-performance-budget"
+          ]
+        },
+        {
+          "id": "witness-performance-budget-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "stale",
+            "unknown",
+            "inconclusive",
+            "conflicting_evidence",
+            "boundary",
+            "concurrency",
+            "repeated_usage",
+            "scale",
+            "recovery",
+            "unsupported_environment"
+          ],
+          "requirement_refs": [
+            "NFR-RESOURCE-004"
+          ],
+          "precondition": "Input is stale, repeated, unavailable, malformed, conflicting, or concurrent.",
+          "stimulus": "Apply the same event at the adverse boundary.",
+          "expected_observables": [
+            "Repeated unknowns, signals, and resolutions do not create unbounded queues, timers, or linear scans."
+          ],
+          "expected_observable_refs": [
+            "observable-performance-budget"
+          ],
+          "forbidden_outcomes": [
+            "Silent idle, duplicate terminalization, unbounded retention, or client-specific meaning."
+          ],
+          "verification_refs": [
+            "verify-performance-budget"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260726-codex-exhaustive-inventory"
+      ]
+    }
+  ],
+  "reference_algorithms": [],
+  "implementation_decisions_remaining": [],
+  "base_revision": "design-r2",
+  "adr_impacts": [
+    {
+      "ref": "FR-UI-007",
+      "adr_refs": [
+        "adr-20260726-status-wire-migration"
+      ],
+      "action": "retain",
+      "reason": "Reworked to require composite-only rendering and zero legacy fallback under the accepted flag-day replacement ADR."
+    },
+    {
+      "ref": "NFR-COMPAT-001",
+      "adr_refs": [
+        "adr-20260726-status-wire-migration"
+      ],
+      "action": "retain",
+      "reason": "Reworked from mixed-version compatibility to an explicit breaking atomic cutover under the accepted flag-day replacement ADR."
+    },
+    {
+      "ref": "contract-wire-migration",
+      "adr_refs": [
+        "adr-20260726-status-wire-migration"
+      ],
+      "action": "retain",
+      "reason": "Reworked to a breaking flag-day contract with atomic SDK/client regeneration and zero legacy producers or consumers."
+    }
+  ]
+}

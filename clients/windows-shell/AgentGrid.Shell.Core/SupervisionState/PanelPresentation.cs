@@ -57,6 +57,32 @@ public static class PanelPresentation
         _ => "unknown",
     };
 
+    public static string SessionVisualKind(SessionSummary session) =>
+        session.Phase == SessionPhase.Failed ? "failed" :
+        session.HumanInput ? "action" :
+        session.Lifecycle == "stopped" ? "stopped" :
+        PhaseVisualKind(session.Phase);
+
+    public static string SessionStatusLabel(SessionSummary session) =>
+        SessionVisualKind(session) switch
+        {
+            "running" => "Working",
+            "action" => "Action required",
+            "idle" => "Idle",
+            "stopped" => "Stopped",
+            "failed" => "Failed",
+            _ => "Unknown",
+        };
+
+    public static string SessionStatusAccent(SessionSummary session) =>
+        SessionVisualKind(session) switch
+        {
+            "running" => "success",
+            "action" => "warning",
+            "failed" => "danger",
+            _ => "muted",
+        };
+
     /// <summary>Clients render the server-owned title without local fallback.</summary>
     public static string SessionLabel(SessionSummary session) => session.Title ?? "";
 

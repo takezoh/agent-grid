@@ -20,6 +20,9 @@ namespace AgentGrid.Shell.Core.GatewayClient;
 /// </summary>
 public static class WsFrameParser
 {
+    private static readonly object SignalLock = new();
+    private static readonly Dictionary<string, long> HighestConsumedSignal = new();
+
     /// <summary>
     /// Parse one text frame. Returns null for frames the supervision surface ignores
     /// (asciicast output arrays, control, unknown).
@@ -127,7 +130,19 @@ public static class WsFrameParser
             var id = ReqString(s, "id");
             if (id is null)
                 continue;
-            var phase = MapPhase(OptString(s, "state"));
+            if (!s.TryGetProperty("status", out var status) ||
+                status.ValueKind != JsonValueKind.Object)
+                continue;
+            var lifecycle = OptString(status, "lifecycle");
+            var failure = OptString(status, "failure");
+            if (lifecycle is not ("active" or "idle" or "stopped") ||
+                failure is not ("none" or "failed") ||
+                !status.TryGetProperty("human_input", out var input) ||
+                input.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                continue;
+            var phase = MapPhase(lifecycle, failure);
+            var humanInput = input.ValueKind == JsonValueKind.True;
+            var bell = ConsumeBell(id, status);
             string? title = null;
             if (s.TryGetProperty("view", out var view) &&
                 view.ValueKind == JsonValueKind.Object &&
@@ -136,7 +151,8 @@ public static class WsFrameParser
             {
                 title = OptString(card, "title");
             }
-            list.Add(new SessionSummary(id, phase, title));
+            list.Add(new SessionSummary(
+                id, phase, title, HumanInput: humanInput, Bell: bell, Lifecycle: lifecycle));
         }
 
         return new EvtViewUpdateSessions(list);
@@ -156,15 +172,36 @@ public static class WsFrameParser
         return OptString(a, "kind") ?? "approval";
     }
 
-    private static SessionPhase MapPhase(string? state) =>
-        state?.ToLowerInvariant() switch
+    private static SessionPhase MapPhase(string? lifecycle, string? failure) =>
+        failure == "failed" ? SessionPhase.Failed :
+        lifecycle?.ToLowerInvariant() switch
         {
-            "running" or "thinking" or "streaming" => SessionPhase.Running,
-            "waiting" or "pending" or "approval" or "question" => SessionPhase.Waiting,
-            "failed" or "error" => SessionPhase.Failed,
-            "done" or "stopped" or "idle" => SessionPhase.Done,
+            "active" => SessionPhase.Running,
+            "stopped" or "idle" => SessionPhase.Done,
             _ => SessionPhase.Running,
         };
+
+    private static bool ConsumeBell(string sessionId, JsonElement status)
+    {
+        if (!status.TryGetProperty("signal", out var signal) ||
+            signal.ValueKind != JsonValueKind.Object ||
+            OptString(signal, "kind") != "bell")
+            return false;
+        var epoch = OptString(signal, "epoch");
+        if (string.IsNullOrEmpty(epoch) ||
+            !signal.TryGetProperty("sequence", out var sequenceEl) ||
+            !sequenceEl.TryGetInt64(out var sequence) ||
+            sequence < 1)
+            return false;
+        var key = sessionId + "\0" + epoch;
+        lock (SignalLock)
+        {
+            if (HighestConsumedSignal.TryGetValue(key, out var highest) && sequence <= highest)
+                return false;
+            HighestConsumedSignal[key] = sequence;
+            return true;
+        }
+    }
 
     private static string? ReqString(JsonElement el, string name) =>
         el.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String

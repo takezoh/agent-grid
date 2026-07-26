@@ -34,6 +34,7 @@ func (d GeminiDriver) view(gs GeminiState) state.View {
 		LastUserPrompt:  lastUserPromptPreview(gs.LastPrompt),
 		Status:          gs.Status,
 		StatusChangedAt: gs.StatusChangedAt,
+		Failed:          gs.Failed,
 	}
 }
 

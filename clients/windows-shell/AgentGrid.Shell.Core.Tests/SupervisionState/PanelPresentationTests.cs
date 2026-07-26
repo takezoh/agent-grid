@@ -60,6 +60,19 @@ public class PanelPresentationTests
         Assert.Equal(visualKind, PanelPresentation.PhaseVisualKind(phase));
     }
 
+    [Fact]
+    public void Composite_session_precedence_matches_shared_status_matrix()
+    {
+        Assert.Equal("action", PanelPresentation.SessionVisualKind(
+            new SessionSummary("a", SessionPhase.Running, HumanInput: true)));
+        Assert.Equal("failed", PanelPresentation.SessionVisualKind(
+            new SessionSummary("f", SessionPhase.Failed, HumanInput: true)));
+        Assert.Equal("stopped", PanelPresentation.SessionVisualKind(
+            new SessionSummary("s", SessionPhase.Done, Lifecycle: "stopped")));
+        Assert.Equal("idle", PanelPresentation.SessionVisualKind(
+            new SessionSummary("i", SessionPhase.Done, Lifecycle: "idle")));
+    }
+
     private static PanelGlanceView View(
         bool offline = false,
         int pending = 0,

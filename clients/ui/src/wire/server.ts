@@ -47,8 +47,20 @@ export type View = {
   last_user_prompt?: string;
   model?: string;
   effort?: string;
-  status?: string; // "running" | "waiting" | "idle" | "stopped" | "pending"
-  status_changed_at?: string; // RFC3339
+};
+
+export type SessionStatusSignal = {
+  kind: "bell";
+  epoch: string;
+  sequence: number;
+};
+
+export type SessionStatus = {
+  lifecycle: "active" | "idle" | "stopped";
+  human_input: boolean;
+  failure: "none" | "failed";
+  changed_at?: string;
+  signal?: SessionStatusSignal;
 };
 
 export type FrameMessagingSummary = {
@@ -80,8 +92,7 @@ export type SessionInfo = {
   root_driver?: string;
   root_driver_forkable?: boolean;
   created_at: string; // RFC3339 string (Go: time.Time formatted)
-  state?: string;
-  state_changed_at?: string;
+  status: SessionStatus;
   view: View;
   frames?: FrameInfo[];
   head_frame_id?: string;

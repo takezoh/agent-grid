@@ -29,7 +29,7 @@ import {
 } from "../store/daemon";
 import type { Card, SessionInfo } from "../wire/server";
 import { SessionContextMenu } from "./SessionContextMenu";
-import { StatusIcon, normalizeStatus as toStatusKind } from "./StatusIcon";
+import { StatusIcon, statusLabel, normalizeStatus as toStatusKind } from "./StatusIcon";
 import { SegmentedControl } from "./primitives/SegmentedControl";
 import { TagPill } from "./primitives/TagPill";
 import { UnifiedListbox } from "./primitives/UnifiedListbox";
@@ -75,14 +75,15 @@ function SessionRow({
 }: SessionRowProps) {
   const now = useNow1Hz();
   const card = session.view.card;
-  const status = session.view.status;
+  const status = session.status;
   const normalized = toStatusKind(status);
+  const signal = status.signal?.kind === "bell";
   const title = titleText(card);
   const driver = session.root_driver?.trim() || undefined;
   const metadata = metadataLine(driver, session.view.model, session.view.effort);
   const tags = card.tags ?? [];
-  const elapsed = session.view.status_changed_at
-    ? formatElapsed(now - new Date(session.view.status_changed_at).getTime())
+  const elapsed = session.status.changed_at
+    ? formatElapsed(now - new Date(session.status.changed_at).getTime())
     : "";
 
   return (
@@ -103,11 +104,12 @@ function SessionRow({
       >
         <span
           className={`session-status-slot session-status-${normalized}`}
-          aria-label={`status: ${normalized}`}
+          aria-label={`status: ${statusLabel(normalized)}${signal ? "; Notification" : ""}`}
           title={normalized}
         >
           <StatusIcon
             status={normalized}
+            signal={signal}
             activeClass="session-status-spinner"
             inactiveClass="session-status-icon"
           />

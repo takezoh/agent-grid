@@ -448,9 +448,7 @@ func TestGeminiPersistRestoreWorktreeName(t *testing.T) {
 func TestGeminiWindowTitleActionRequiredTransitionsPending(t *testing.T) {
 	d, gs, now := newGemini(t)
 	gs.Status = state.StatusRunning
-
 	next := d.handleWindowTitle(gs, "[ ! ] Action Required | agent-roost", now)
-
 	if next.Status != state.StatusPending {
 		t.Fatalf("Status = %v, want pending", next.Status)
 	}
@@ -462,9 +460,7 @@ func TestGeminiWindowTitleActionRequiredTransitionsPending(t *testing.T) {
 func TestGeminiWindowTitleHandTransitionsPending(t *testing.T) {
 	d, gs, now := newGemini(t)
 	gs.Status = state.StatusRunning
-
 	next := d.handleWindowTitle(gs, "✋ Action Required | Gemini CLI", now)
-
 	if next.Status != state.StatusPending {
 		t.Fatalf("Status = %v, want pending", next.Status)
 	}
@@ -473,9 +469,7 @@ func TestGeminiWindowTitleHandTransitionsPending(t *testing.T) {
 func TestGeminiWindowTitleWorkingTransitionsRunning(t *testing.T) {
 	d, gs, now := newGemini(t)
 	gs.Status = state.StatusWaiting
-
 	next := d.handleWindowTitle(gs, "✦ Thinking about files", now)
-
 	if next.Status != state.StatusRunning {
 		t.Fatalf("Status = %v, want running", next.Status)
 	}
@@ -484,9 +478,7 @@ func TestGeminiWindowTitleWorkingTransitionsRunning(t *testing.T) {
 func TestGeminiWindowTitleReadyTransitionsWaiting(t *testing.T) {
 	d, gs, now := newGemini(t)
 	gs.Status = state.StatusRunning
-
 	next := d.handleWindowTitle(gs, "◇ Ready", now)
-
 	if next.Status != state.StatusWaiting {
 		t.Fatalf("Status = %v, want waiting", next.Status)
 	}
@@ -496,9 +488,7 @@ func TestGeminiWindowTitleIdleUnchanged(t *testing.T) {
 	d, gs, now := newGemini(t)
 	gs.Status = state.StatusIdle
 	gs.StatusChangedAt = now.Add(-time.Minute)
-
 	next := d.handleWindowTitle(gs, "✦ Thinking about files", now)
-
 	if next.Status != state.StatusIdle {
 		t.Fatalf("Status = %v, want idle", next.Status)
 	}
@@ -511,9 +501,7 @@ func TestGeminiWindowTitleStoppedUnchanged(t *testing.T) {
 	d, gs, now := newGemini(t)
 	gs.Status = state.StatusStopped
 	gs.StatusChangedAt = now.Add(-time.Minute)
-
 	next := d.handleWindowTitle(gs, "◇ Ready", now)
-
 	if next.Status != state.StatusStopped {
 		t.Fatalf("Status = %v, want stopped", next.Status)
 	}

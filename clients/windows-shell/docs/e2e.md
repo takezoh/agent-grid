@@ -50,6 +50,37 @@ make test-windows-shell-e2e
 
 When a full `make run-dev` is already on `:8443`, omit `--start-run-dev` and the harness attaches to it.
 
+### Windows .NET SDK prerequisite and diagnosis
+
+When invoked from WSL on a Windows host, the harness runs the tests with
+Windows `dotnet.exe` and copies the Shell source to a local Windows directory
+before building. It resolves `dotnet.exe` in this order:
+
+1. `%LOCALAPPDATA%\Microsoft\dotnet\dotnet.exe`
+2. `C:\Program Files\dotnet\dotnet.exe`
+
+Do not diagnose the environment from `C:\Program Files\dotnet` alone. That
+installation may contain only the runtime while the SDK used by the harness is
+installed under `%LOCALAPPDATA%`. Conversely, the existence of `dotnet.exe`
+does not prove that an SDK is installed. Check the exact executable selected by
+the harness:
+
+```powershell
+$dotnet = Join-Path $env:LOCALAPPDATA 'Microsoft\dotnet\dotnet.exe'
+if (-not (Test-Path $dotnet)) {
+  $dotnet = 'C:\Program Files\dotnet\dotnet.exe'
+}
+Write-Host "Windows Shell E2E dotnet: $dotnet"
+& $dotnet --list-sdks
+& $dotnet --info
+```
+
+At least one .NET 8 SDK must appear under `.NET SDKs installed`. A host/runtime
+entry under `.NET runtimes installed` is insufficient for `dotnet test` and
+`dotnet build`. This prerequisite is independent of Codex filesystem
+sandboxing: run the command above on Windows before attributing a failure to
+the sandbox.
+
 ### C. From Windows PowerShell
 
 ```powershell

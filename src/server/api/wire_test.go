@@ -125,6 +125,13 @@ func TestWireEncodeServerEvent_SessionsChanged_ViewUpdate(t *testing.T) {
 				Project:   "p",
 				Command:   "claude",
 				CreatedAt: "2026-06-20T00:00:00Z",
+				Status: view.CompositeStatus(
+					view.StatusWaiting,
+					changedAt,
+					false,
+					false,
+					nil,
+				),
 				View: view.View{
 					Card: view.Card{
 						Title:       "T",
@@ -160,8 +167,12 @@ func TestWireEncodeServerEvent_SessionsChanged_ViewUpdate(t *testing.T) {
 	if card["title"] != "T" {
 		t.Errorf("view.card.title: got %v, want \"T\"", card["title"])
 	}
-	if v["status"] != "waiting" {
-		t.Errorf("view.status: got %v, want \"waiting\"", v["status"])
+	status := sess["status"].(map[string]any)
+	if status["lifecycle"] != "idle" {
+		t.Errorf("status.lifecycle: got %v, want \"idle\"", status["lifecycle"])
+	}
+	if _, exists := v["status"]; exists {
+		t.Errorf("legacy view.status must be absent")
 	}
 }
 
