@@ -20,14 +20,12 @@ public class ShellCompositionRootTests
             });
         using var httpClient = new HttpClient(http) { BaseAddress = new Uri("http://127.0.0.1:9") };
 
-        var runner = new FakeRunner();
         var root = ShellCompositionRoot.Build(new ShellHostOptions
         {
             GatewayBaseUri = new Uri("http://127.0.0.1:9"),
             TokenPath = Path.Combine(Path.GetTempPath(), $"ag-t-{Guid.NewGuid():N}"),
             TokenSource = new StaticToken("tok"),
             HttpClient = httpClient,
-            DaemonRunner = runner,
             Win32 = new NullWin32InteropService(),
             WorkspaceControlClient = new AlwaysOkPipe(),
             WorkspaceProcessLauncher = new NoopProcess(),
@@ -37,7 +35,7 @@ public class ShellCompositionRootTests
 
         await using (root)
         {
-            // Probe succeeds via scripted HTTP → Adopted without spawn.
+            // Probe succeeds via scripted HTTP.
             await root.Supervisor.StartAsync();
             Assert.True(root.Supervisor.Snapshot.IsConnected);
             Assert.Equal(TrayIconKind.Connected, TrayAppearanceMapper.From(root.Supervisor.Snapshot).Kind);
@@ -101,7 +99,6 @@ public class ShellCompositionRootTests
             TokenPath = Path.Combine(Path.GetTempPath(), $"ag-t-{Guid.NewGuid():N}"),
             TokenSource = new StaticToken("tok"),
             HttpClient = httpClient,
-            DaemonRunner = new FakeRunner(),
             Win32 = new NullWin32InteropService(),
             WorkspaceControlClient = new AlwaysOkPipe(),
             WorkspaceProcessLauncher = new NoopProcess(),
@@ -184,7 +181,6 @@ public class ShellCompositionRootTests
             GatewayBaseUri = new Uri("http://127.0.0.1:9"),
             TokenPath = Path.Combine(Path.GetTempPath(), $"ag-t-{Guid.NewGuid():N}"),
             TokenSource = new StaticToken("tok"),
-            DaemonRunner = new FakeRunner(),
             Win32 = win32,
             // AlwaysOkPipe simulates the pipe-success path: workspace is already running and
             // replies {"ok":true} without ever being spawned -- exactly the reproduction in
@@ -299,13 +295,6 @@ public class ShellCompositionRootTests
             var completed = await Task.WhenAny(_created.Task, Task.Delay(timeout)).ConfigureAwait(false);
             return completed == _created.Task;
         }
-    }
-
-    private sealed class FakeRunner : IDaemonRunner
-    {
-        public Task<SpawnResult> SpawnAsync(CancellationToken ct = default) =>
-            Task.FromResult(new SpawnResult(SpawnResultKind.Started));
-        public Task ShutdownAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class AlwaysOkPipe : IWorkspaceControlClient

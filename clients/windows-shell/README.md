@@ -1,7 +1,7 @@
 # Agent Grid — Windows Shell (Phase 2)
 
-Native supervision surface for Windows: always-on panel, tray, toast, deep links,
-daemon supervision of the WSL-hosted `server` binary. Workspace windows are owned
+Native supervision surface for Windows: always-on panel, tray, toast, and deep links.
+It connects to configured servers but never starts or stops them. Workspace windows are owned
 by the sibling Electron app at `clients/workspace/`.
 
 ## Configuration
@@ -11,7 +11,7 @@ Shell and Workspace share the four JSON files described in
 directory is `%APPDATA%\agent-grid\config`; `--config-dir <path>` replaces it
 for both apps and is the required test-isolation mechanism.
 
-Every enabled `servers.json` entry gets an independent supervisor and gateway
+Every enabled `servers.json` entry gets an independent connection monitor and gateway
 connection. Desktop session identity is `{serverId, sessionId}`; requests sent
 on that server connection continue to carry only `sessionId`.
 
@@ -19,7 +19,7 @@ on that server connection continue to carry only `sessionId`.
 
 ```text
 AgentGrid.Shell.Core/       UI-independent pure logic + thin I/O shells (xUnit target)
-  DaemonSupervisor/         Boundary-3 state machine (adopt-before-spawn)
+  DaemonSupervisor/         Legacy-named client connection-health state machine
   GatewayClient/            Boundary-2 token + ticket + probe
   SupervisionState/         Pure reducer (optimistic approve + resolved-by-other)
   DeepLinkRouter/           agent-grid:// routing + Track A alias table
@@ -30,8 +30,8 @@ AgentGrid.Shell.Platform/   Win32 interop behind IWin32InteropService
   Engage/                   Focus capture + restore
   Toast/                    Panel-watched predicate (fail-open)
 AgentGrid.Shell/            UI composition (menu handlers, tray binding)
-  Menu/                     Quit vs Stop-daemon structural split
-  TrayIcon/                 Daemon health → tray appearance
+  Menu/                     Client application commands
+  TrayIcon/                 Connection health → tray appearance
   Panel/                    (WinUI XAML — Windows-only; not built on Linux CI)
 ```
 
@@ -100,13 +100,12 @@ dotnet test
 
 | Contract | Owner |
 |---|---|
-| `contract-b3-daemon-supervisor-state-machine` | `DaemonSupervisorMachine` |
+| Client connection-health state machine | `DaemonSupervisorMachine` |
 | `contract-b2-token-acquisition` | `FileTokenSource` / `ShellGatewayClient` |
 | `contract-approve-submission-rollback` | `SupervisionReducer` |
 | `contract-resolved-by-other-display` | `SupervisionReducer` |
 | `contract-deep-link-question-jump-kind-gap` | `DeepLinkRouter` + `AliasTable` |
 | `contract-b1-jsonlines-envelope-shape` | `ControlEnvelope` |
-| `contract-quit-vs-daemon-stop` | `ShellMenuHandlers` |
 | `contract-jump-back-staged-resolution` | `JumpBackService` |
 | `contract-engage-focus-return-mechanism` | `EngageFocusService` |
 | `contract-toast-panel-watched-detection` | `PanelWatchedPredicate` |
@@ -184,8 +183,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
 Auth-enabled gateway (non-e2e):  
 `dev-up.ps1 -NoAuth:$false -TokenPath 'C:\path\to\gateway-token'`.
 
-Product-time adopt/spawn of the daemon is **`DaemonSupervisor`**, not these scripts.  
-Detach spike remains `docs/wsl-detach-spike-*.md` (server binary fidelity), separate from e2e.
+Server lifecycle is outside the desktop clients. The Shell only observes and connects
+to the configured gateway.
 
 ## Deep-link alias (Track A)
 

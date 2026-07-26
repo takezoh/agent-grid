@@ -54,20 +54,12 @@ public sealed class ShellFleet : IAsyncDisposable
         var roots = new Dictionary<string, ShellCompositionRoot>(StringComparer.Ordinal);
         foreach (var server in config.Servers.Where(server => server.Enabled))
         {
-            IDaemonRunner? runner = server.Launch.Mode == "connect_only"
-                ? new ConnectOnlyDaemonRunner()
-                : null;
             roots.Add(server.Id, ShellCompositionRoot.Build(new ShellHostOptions
             {
                 GatewayBaseUri = server.Url,
                 TokenPath = server.TokenPath,
-                TokenPathInWsl = server.Launch.TokenPathInWsl ?? "~/.agent-grid/gateway-token",
-                WslDistro = server.Launch.WslDistro ?? "Ubuntu-22.04",
-                ServerPathInWsl = server.Launch.ServerPathInWsl ?? "~/agent-grid/server",
-                GatewayPort = server.Url.Port,
                 WorkspaceExePath = ResolveWorkspaceExecutable(config.Shell.WorkspaceExecutable),
                 WorkspaceArguments = WorkspaceLaunchArguments(config.ConfigDirectory),
-                DaemonRunner = runner,
                 QuitApplication = quit,
             }));
         }
@@ -173,12 +165,6 @@ public sealed class ShellFleet : IAsyncDisposable
         CancellationToken ct = default) =>
         Root(serverId).Supervision.SubmitQuestionAsync(
             questionId, sessionId, answer, prompt, ct);
-
-    public Task RestartAllAsync(CancellationToken ct = default) =>
-        Task.WhenAll(_roots.Values.Select(root => root.Supervisor.RestartAsync(ct)));
-
-    public Task StopAllAsync(CancellationToken ct = default) =>
-        Task.WhenAll(_roots.Values.Select(root => root.Supervisor.StopDaemonAsync(ct)));
 
     public void Quit() => _quit();
 

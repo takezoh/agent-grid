@@ -16,14 +16,7 @@ public sealed record ServerConfig(
     string DisplayName,
     bool Enabled,
     Uri Url,
-    string TokenPath,
-    ServerLaunchConfig Launch);
-
-public sealed record ServerLaunchConfig(
-    string Mode,
-    string? WslDistro,
-    string? ServerPathInWsl,
-    string? TokenPathInWsl);
+    string TokenPath);
 
 public sealed record AppearanceConfig(string Theme, string Density, double FontScale);
 
@@ -129,27 +122,12 @@ public static partial class DesktopConfigLoader
             throw new DesktopConfigException($"servers.json: server '{server.Id}' has invalid url");
         if (string.IsNullOrWhiteSpace(server.TokenPath))
             throw new DesktopConfigException($"servers.json: server '{server.Id}' needs token_path");
-        if (server.Launch.Mode is not ("managed_wsl" or "connect_only"))
-            throw new DesktopConfigException(
-                $"servers.json: server '{server.Id}' launch.mode must be managed_wsl or connect_only");
-        if (server.Launch.Mode == "managed_wsl" &&
-            (string.IsNullOrWhiteSpace(server.Launch.WslDistro) ||
-             string.IsNullOrWhiteSpace(server.Launch.ServerPathInWsl) ||
-             string.IsNullOrWhiteSpace(server.Launch.TokenPathInWsl)))
-            throw new DesktopConfigException(
-                $"servers.json: managed_wsl server '{server.Id}' needs all WSL launch fields");
-
         return new ServerConfig(
             server.Id,
             server.DisplayName,
             server.Enabled,
             url,
-            Environment.ExpandEnvironmentVariables(server.TokenPath),
-            new ServerLaunchConfig(
-                server.Launch.Mode,
-                server.Launch.WslDistro,
-                server.Launch.ServerPathInWsl,
-                server.Launch.TokenPathInWsl));
+            Environment.ExpandEnvironmentVariables(server.TokenPath));
     }
 
     private static void ValidateAppearance(AppearanceDocument value)
@@ -241,12 +219,7 @@ public static partial class DesktopConfigLoader
                         "Local",
                         true,
                         "http://127.0.0.1:8443",
-                        Path.Combine(localAppData, "agent-grid", "gateway-token"),
-                        new LaunchDocument(
-                            "managed_wsl",
-                            "Ubuntu-22.04",
-                            "~/agent-grid/server",
-                            "~/.agent-grid/gateway-token"))
+                        Path.Combine(localAppData, "agent-grid", "gateway-token"))
                 ]),
             ["appearance.json"] = new AppearanceDocument(SchemaVersion, "default", "comfortable", 1.0),
             ["shell.json"] = new ShellDocument(SchemaVersion, "agent-grid-workspace", 5),
@@ -270,13 +243,11 @@ public static partial class DesktopConfigLoader
         [property: JsonPropertyName("enabled")] bool Enabled,
         [property: JsonPropertyName("url")] string Url,
         [property: JsonPropertyName("token_path")] string TokenPath,
-        [property: JsonPropertyName("launch")] LaunchDocument Launch);
-
-    private sealed record LaunchDocument(
-        [property: JsonPropertyName("mode")] string Mode,
-        [property: JsonPropertyName("wsl_distro")] string? WslDistro,
-        [property: JsonPropertyName("server_path_in_wsl")] string? ServerPathInWsl,
-        [property: JsonPropertyName("token_path_in_wsl")] string? TokenPathInWsl);
+        // Read-only compatibility for schema v1 files created before desktop
+        // clients stopped owning server lifecycle. It is never mapped or written.
+        [property: JsonPropertyName("launch")]
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        JsonElement? LegacyLaunch = null);
 
     private sealed record AppearanceDocument(
         [property: JsonPropertyName("schema_version")] int SchemaVersion,

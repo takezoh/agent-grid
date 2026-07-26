@@ -62,21 +62,19 @@ public class RunDevGatewayE2ETests
     }
 
     [RunDevFact]
-    public async Task DaemonSupervisor_adopts_running_run_dev_without_spawn()
+    public async Task Connection_monitor_observes_running_run_dev()
     {
         await RunDevGateway.EnsureReachableAsync();
 
         var gateway = new ShellGatewayClient(
             RunDevGateway.BaseUri,
             new NoAuthTokenSource());
-        var runner = new CountingRunner();
-        var svc = new DaemonSupervisorService(runner, new GatewayHealthProbe(gateway));
+        var svc = new DaemonSupervisorService(new GatewayHealthProbe(gateway));
 
         await svc.StartAsync();
 
         Assert.True(svc.Snapshot.IsConnected);
-        Assert.Equal(DaemonState.Adopted, svc.Snapshot.State);
-        Assert.Equal(0, runner.SpawnCalls);
+        Assert.Equal(DaemonState.Healthy, svc.Snapshot.State);
     }
 
     [RunDevFact]
@@ -89,7 +87,6 @@ public class RunDevGatewayE2ETests
             GatewayBaseUri = RunDevGateway.BaseUri,
             TokenPath = "/dev/null",
             NoAuth = true,
-            DaemonRunner = new CountingRunner(),
             Win32 = new NullWin32InteropService(),
             WorkspaceControlClient = new AlwaysOkPipe(),
             WorkspaceProcessLauncher = new NoopProcess(),
@@ -99,17 +96,6 @@ public class RunDevGatewayE2ETests
         await root.Supervisor.StartAsync();
         Assert.True(root.Supervisor.Snapshot.IsConnected);
         Assert.True(await root.Gateway.ProbeSessionsAsync());
-    }
-
-    private sealed class CountingRunner : IDaemonRunner
-    {
-        public int SpawnCalls { get; private set; }
-        public Task<SpawnResult> SpawnAsync(CancellationToken ct = default)
-        {
-            SpawnCalls++;
-            return Task.FromResult(new SpawnResult(SpawnResultKind.Started));
-        }
-        public Task ShutdownAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class AlwaysOkPipe : IWorkspaceControlClient

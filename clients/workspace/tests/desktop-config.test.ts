@@ -39,6 +39,8 @@ describe("desktop config", () => {
       "shell.json",
       "workspace.json",
     ]);
+    expect(JSON.parse(fs.readFileSync(path.join(directory, "servers.json"), "utf8")).servers[0])
+      .not.toHaveProperty("launch");
   });
 
   it("resolves --config-dir for isolated test configuration", () => {
@@ -144,6 +146,5 @@ function server(id: string, enabled: boolean) {
     enabled,
     url: "http://127.0.0.1:8443",
     token_path: "token",
-    launch: { mode: "connect_only" },
   };
 }

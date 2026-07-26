@@ -25,10 +25,10 @@ public static class TrayAppearanceMapper
     public static TrayAppearance From(DaemonSnapshot snap) =>
         snap.State switch
         {
-            DaemonState.Healthy or DaemonState.Adopted =>
+            DaemonState.Healthy =>
                 new TrayAppearance(TrayIconKind.Connected, "Agent Grid — connected", true),
 
-            DaemonState.Spawning or DaemonState.Swapping =>
+            DaemonState.NotRunning =>
                 new TrayAppearance(TrayIconKind.Connecting, "Agent Grid — connecting…", false),
 
             DaemonState.Degraded =>
@@ -38,6 +38,6 @@ public static class TrayAppearanceMapper
                     false),
 
             _ =>
-                new TrayAppearance(TrayIconKind.Stopped, "Agent Grid — daemon not running", false),
+                new TrayAppearance(TrayIconKind.Degraded, "Agent Grid — unavailable", false),
         };
 }

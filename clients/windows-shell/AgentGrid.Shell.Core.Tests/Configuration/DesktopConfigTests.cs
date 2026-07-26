@@ -19,6 +19,11 @@ public sealed class DesktopConfigTests : IDisposable
         Assert.All(
             ["servers.json", "appearance.json", "shell.json", "workspace.json"],
             name => Assert.True(File.Exists(Path.Combine(_directory, name))));
+        using var servers = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(_directory, "servers.json")));
+        Assert.False(servers.RootElement
+            .GetProperty("servers")[0]
+            .TryGetProperty("launch", out _));
     }
 
     [Fact]
@@ -49,7 +54,6 @@ public sealed class DesktopConfigTests : IDisposable
         var config = DesktopConfigLoader.LoadOrCreate(_directory);
 
         Assert.Equal(["one", "two"], config.Servers.Select(s => s.Id));
-        Assert.All(config.Servers, server => Assert.Equal("connect_only", server.Launch.Mode));
     }
 
     [Fact]
@@ -66,6 +70,39 @@ public sealed class DesktopConfigTests : IDisposable
         Assert.Equal("""{"schema_version":1,"theme":"blue"}""", File.ReadAllText(path));
     }
 
+    [Fact]
+    public void Legacy_launch_settings_are_ignored_for_read_compatibility()
+    {
+        DesktopConfigLoader.LoadOrCreate(_directory);
+        var path = Path.Combine(_directory, "servers.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(new
+        {
+            schema_version = 1,
+            servers = new[]
+            {
+                new
+                {
+                    id = "legacy",
+                    display_name = "Legacy",
+                    enabled = true,
+                    url = "http://127.0.0.1:8443",
+                    token_path = "token",
+                    launch = new
+                    {
+                        mode = "managed_wsl",
+                        wsl_distro = "Ubuntu",
+                        server_path_in_wsl = "/tmp/server",
+                        token_path_in_wsl = "/tmp/token",
+                    },
+                },
+            },
+        }));
+
+        var config = DesktopConfigLoader.LoadOrCreate(_directory);
+
+        Assert.Equal("legacy", Assert.Single(config.Servers).Id);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))
@@ -79,6 +116,5 @@ public sealed class DesktopConfigTests : IDisposable
         enabled = true,
         url,
         token_path = "token",
-        launch = new { mode = "connect_only" },
     };
 }

@@ -13,8 +13,8 @@ responsibilities:
   statement: Consume the gateway supervision surface (REST ticket mint + lifecycle
     WS) per configured server and reduce frames into one merged supervision snapshot.
 - id: RESP-003
-  statement: Supervise per-server daemon availability (probe, connect-only or WSL
-    spawn) and surface degraded state through tray appearance.
+  statement: Observe per-server gateway availability without controlling server
+    lifecycle, and surface degraded connections through tray appearance.
 - id: RESP-004
   statement: Launch or address the workspace app for a session (named-pipe first,
     process spawn fallback) and delegate foreground rights so the workspace can
@@ -91,9 +91,10 @@ variability:
   - Hello/delta lifecycle WS contract and discriminated k-frame union.
   - One merged supervision snapshot across servers with per-server ServerId tagging.
   - Foreground delegation flowing from shell interaction to workspace activation.
+  - Server lifecycle is owned outside Windows Shell and Workspace; desktop clients
+    only connect to configured gateway URLs.
   free:
   - Visual styling of the island (sizes, radii, colors, morph animation).
-  - Daemon launch modes per server (connect_only vs WSL spawn).
   - Additional supervision frame kinds, provided the parser handles them explicitly.
 capabilities:
 - id: cap:notch-supervision-surface
@@ -103,7 +104,7 @@ capabilities:
 failure_responsibilities:
 - Connection failures degrade to offline indication and full-jitter reconnect;
   they never crash the panel or stop other servers' surfaces.
-- Daemon probe/spawn failures surface as tray degradation, never as blocking UI.
+- Gateway probe failures surface as tray degradation, never as blocking UI.
 trust_boundaries:
 - Gateway endpoints are configured, possibly non-loopback servers; tokens come
   from per-server token files and are never embedded in URLs.

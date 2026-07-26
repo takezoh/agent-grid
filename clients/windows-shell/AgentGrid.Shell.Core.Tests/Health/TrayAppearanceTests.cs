@@ -7,11 +7,8 @@ public class TrayAppearanceTests
 {
     [Theory]
     [InlineData(DaemonState.Healthy, TrayIconKind.Connected, true)]
-    [InlineData(DaemonState.Adopted, TrayIconKind.Connected, true)]
-    [InlineData(DaemonState.Spawning, TrayIconKind.Connecting, false)]
-    [InlineData(DaemonState.Swapping, TrayIconKind.Connecting, false)]
     [InlineData(DaemonState.Degraded, TrayIconKind.Degraded, false)]
-    [InlineData(DaemonState.NotRunning, TrayIconKind.Stopped, false)]
+    [InlineData(DaemonState.NotRunning, TrayIconKind.Connecting, false)]
     public void Maps_state_to_appearance(DaemonState state, TrayIconKind kind, bool connected)
     {
         var snap = DaemonSnapshot.Initial with { State = state, LastFailureReason = "x" };

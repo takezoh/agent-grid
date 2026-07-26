@@ -8,7 +8,7 @@ public class HealthToastBudgetTests
     [Theory]
     [InlineData(DaemonState.Healthy, DaemonState.Degraded)]
     [InlineData(DaemonState.Degraded, DaemonState.Healthy)]
-    [InlineData(DaemonState.NotRunning, DaemonState.Spawning)]
+    [InlineData(DaemonState.NotRunning, DaemonState.Healthy)]
     public void Health_transitions_would_violate_if_toasted(DaemonState from, DaemonState to)
     {
         Assert.True(HealthToastBudget.WouldViolateBudget(from, to));

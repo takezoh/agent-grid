@@ -48,15 +48,7 @@ public sealed class ShellCompositionRoot : IAsyncDisposable
         var supervision = new ApprovalSubmissionService(gateway);
         var ws = new SupervisionWsSession(gateway, supervision, opts.WebSocketFactory);
 
-        IDaemonRunner runner = opts.DaemonRunner
-            ?? ProcessRunner.CreateWslRunner(
-                opts.WslDistro,
-                opts.ServerPathInWsl,
-                opts.GatewayPort,
-                opts.TokenPathInWsl);
-
         var supervisor = new DaemonSupervisorService(
-            runner,
             new GatewayHealthProbe(gateway),
             resubscriber: ws);
 
@@ -88,7 +80,7 @@ public sealed class ShellCompositionRoot : IAsyncDisposable
             onForegroundTransferEligible: pid => win32.AllowSetForegroundWindow(pid));
 
         Action quit = opts.QuitApplication ?? (() => { });
-        var menu = new ShellMenuHandlers(supervisor, quit);
+        var menu = new ShellMenuHandlers(quit);
 
         return new ShellCompositionRoot
         {
@@ -126,17 +118,12 @@ public sealed class ShellHostOptions
     /// Loopback e2e against scripts/run-dev.sh (-no-auth). Skips bearer file.
     /// </summary>
     public bool NoAuth { get; init; }
-    public string TokenPathInWsl { get; init; } = "~/.agent-grid/gateway-token";
-    public string WslDistro { get; init; } = "Ubuntu-22.04";
-    public string ServerPathInWsl { get; init; } = "~/agent-grid/server";
-    public int GatewayPort { get; init; } = 8443;
     public string WorkspaceExePath { get; init; } = "agent-grid-workspace";
     public string[] WorkspaceArguments { get; init; } = Array.Empty<string>();
     public string? WorkspaceControlPath { get; init; }
     public ITokenSource? TokenSource { get; init; }
     public HttpClient? HttpClient { get; init; }
     public IWebSocketTransportFactory? WebSocketFactory { get; init; }
-    public IDaemonRunner? DaemonRunner { get; init; }
     public IWin32InteropService? Win32 { get; init; }
     public IWorkspaceControlClient? WorkspaceControlClient { get; init; }
     public IWorkspaceProcessLauncher? WorkspaceProcessLauncher { get; init; }

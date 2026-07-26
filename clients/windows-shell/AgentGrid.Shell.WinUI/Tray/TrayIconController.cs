@@ -9,8 +9,7 @@ using Microsoft.UI.Xaml.Controls;
 namespace AgentGrid.Shell.WinUI.Tray;
 
 /// <summary>
-/// Tray icon bound to DaemonSupervisor health (contract-daemon-health-toast-budget:
-/// tray only — no health toasts). Menu structurally separates Quit vs Stop-daemon.
+/// Tray icon bound to connection health.
 /// </summary>
 public sealed class TrayIconController : IDisposable
 {
@@ -30,16 +29,7 @@ public sealed class TrayIconController : IDisposable
 
         var menu = new MenuFlyout();
         menu.Items.Add(MakeItem("Show panel", (_, _) => _panel.ToggleGlance()));
-        menu.Items.Add(MakeItem("Restart daemon", async (_, _) =>
-        {
-            await _root.RestartAllAsync();
-        }));
-        menu.Items.Add(MakeItem("Stop daemon", async (_, _) =>
-        {
-            await _root.StopAllAsync();
-        }));
         menu.Items.Add(new MenuFlyoutSeparator());
-        // Quit MUST NOT call StopDaemon — ShellMenuHandlers.OnQuit enforces this.
         menu.Items.Add(MakeItem("Quit", (_, _) =>
         {
             _root.Quit();

@@ -496,9 +496,6 @@ export function buildSettingsPageHtml(): string {
           enabled: true,
           url: "http://127.0.0.1:8443",
           token_path: "",
-          launch: {
-            mode: "connect_only",
-          },
         };
       }
 
@@ -526,8 +523,6 @@ export function buildSettingsPageHtml(): string {
           return;
         }
         els.servers.innerHTML = servers.map((server, index) => {
-          const launch = server.launch || { mode: "connect_only" };
-          const mode = launch.mode === "managed_wsl" ? "managed_wsl" : "connect_only";
           return [
             '<article class="server-card" data-server-index="' + index + '">',
             '<div class="server-card__header">',
@@ -547,15 +542,6 @@ export function buildSettingsPageHtml(): string {
             '<div class="field"><label>Gateway URL</label><input data-field="url" data-index="' + index + '" value="' + escapeHtml(server.url || "") + '"></div>',
             '<div class="field"><label>Token path</label><input data-field="token_path" data-index="' + index + '" value="' + escapeHtml(server.token_path || "") + '"><small>Windows path to the gateway bearer token file.</small></div>',
             '</div>',
-            '<div class="field"><label>Launch mode</label><select data-field="launch.mode" data-index="' + index + '">',
-            '<option value="connect_only"' + (mode === "connect_only" ? " selected" : "") + '>Connect only</option>',
-            '<option value="managed_wsl"' + (mode === "managed_wsl" ? " selected" : "") + '>Managed WSL</option>',
-            '</select></div>',
-            '<div class="form-row">',
-            '<div class="field"><label>WSL distro</label><input data-field="launch.wsl_distro" data-index="' + index + '" value="' + escapeHtml(launch.wsl_distro || "") + '" ' + (mode === "managed_wsl" ? "" : "disabled") + '></div>',
-            '<div class="field"><label>Server path in WSL</label><input data-field="launch.server_path_in_wsl" data-index="' + index + '" value="' + escapeHtml(launch.server_path_in_wsl || "") + '" ' + (mode === "managed_wsl" ? "" : "disabled") + '></div>',
-            '</div>',
-            '<div class="field"><label>Token path in WSL</label><input data-field="launch.token_path_in_wsl" data-index="' + index + '" value="' + escapeHtml(launch.token_path_in_wsl || "") + '" ' + (mode === "managed_wsl" ? "" : "disabled") + '></div>',
             '</div>',
             '<div class="server-card__footer">',
             '<label class="toggle"><input type="checkbox" data-field="enabled" data-index="' + index + '"' + (server.enabled ? " checked" : "") + '>Enabled</label>',
@@ -587,21 +573,6 @@ export function buildSettingsPageHtml(): string {
           server.enabled = Boolean(value);
           return;
         }
-        if (field === "launch.mode") {
-          server.launch.mode = value;
-          if (value !== "managed_wsl") {
-            delete server.launch.wsl_distro;
-            delete server.launch.server_path_in_wsl;
-            delete server.launch.token_path_in_wsl;
-          }
-          renderServers();
-          return;
-        }
-        if (field.startsWith("launch.")) {
-          const key = field.slice("launch.".length);
-          server.launch[key] = String(value);
-          return;
-        }
         server[field] = String(value);
         if (field === "display_name" || field === "id") {
           renderServers();
@@ -611,22 +582,12 @@ export function buildSettingsPageHtml(): string {
       function collectPayload() {
         return {
           servers: (state.snapshot?.servers ?? []).map((server) => {
-            const launchMode = server.launch.mode === "managed_wsl" ? "managed_wsl" : "connect_only";
-            const launch = {
-              mode: launchMode,
-            };
-            if (launchMode === "managed_wsl") {
-              launch.wsl_distro = (server.launch.wsl_distro || "").trim();
-              launch.server_path_in_wsl = (server.launch.server_path_in_wsl || "").trim();
-              launch.token_path_in_wsl = (server.launch.token_path_in_wsl || "").trim();
-            }
             return {
               id: (server.id || "").trim(),
               display_name: (server.display_name || "").trim(),
               enabled: Boolean(server.enabled),
               url: (server.url || "").trim(),
               token_path: (server.token_path || "").trim(),
-              launch,
             };
           }),
           appearance: {

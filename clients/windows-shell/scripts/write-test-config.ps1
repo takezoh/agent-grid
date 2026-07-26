@@ -20,7 +20,6 @@ if (-not $TokenPath) {
     enabled = $true
     url = $GatewayUrl
     token_path = $TokenPath
-    launch = @{ mode = "connect_only" }
   })
 } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $ConfigDir "servers.json")
 

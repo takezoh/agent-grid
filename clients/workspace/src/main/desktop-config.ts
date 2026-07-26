@@ -7,20 +7,12 @@ export const CONFIG_DIR_ARGUMENT = "--config-dir";
 
 export type Theme = "default" | "system" | "light" | "dark";
 export type Density = "compact" | "comfortable";
-export type LaunchMode = "managed_wsl" | "connect_only";
-
 export interface ServerConfig {
   id: string;
   display_name: string;
   enabled: boolean;
   url: string;
   token_path: string;
-  launch: {
-    mode: LaunchMode;
-    wsl_distro?: string;
-    server_path_in_wsl?: string;
-    token_path_in_wsl?: string;
-  };
 }
 
 export interface AppearanceConfig {
@@ -215,16 +207,6 @@ function validateServers(servers: unknown): asserts servers is ServerConfig[] {
     if (typeof server.token_path !== "string" || !server.token_path.trim()) {
       throw new Error(`servers.json: server '${server.id}' needs token_path`);
     }
-    if (!isRecord(server.launch) ||
-        (server.launch.mode !== "managed_wsl" && server.launch.mode !== "connect_only")) {
-      throw new Error(`servers.json: server '${server.id}' has invalid launch.mode`);
-    }
-    if (server.launch.mode === "managed_wsl" &&
-        (!server.launch.wsl_distro ||
-         !server.launch.server_path_in_wsl ||
-         !server.launch.token_path_in_wsl)) {
-      throw new Error(`servers.json: managed_wsl server '${server.id}' needs all WSL fields`);
-    }
   }
   if (enabled === 0) throw new Error("servers.json: at least one server must be enabled");
 }
@@ -300,12 +282,6 @@ function defaultDocuments(): Record<string, unknown> {
         enabled: true,
         url: "http://127.0.0.1:8443",
         token_path: path.join(localAppData, "agent-grid", "gateway-token"),
-        launch: {
-          mode: "managed_wsl",
-          wsl_distro: "Ubuntu-22.04",
-          server_path_in_wsl: "~/agent-grid/server",
-          token_path_in_wsl: "~/.agent-grid/gateway-token",
-        },
       }],
     },
     "appearance.json": {

@@ -8,7 +8,7 @@
 | **Windows Shell client** | Connect (REST/WS), panel, toast, tray | Starting the gateway |
 | **e2e harness** | Opt-in T3 tests; optional **backend** fixture with the same flags as run-dev | Product client code paths |
 
-The Shell **client** never starts `server`. Product-time adopt/spawn is `DaemonSupervisor` inside the Shell process.
+The Shell **client** never starts or stops `server`; product-time server lifecycle is external.
 
 For **tests**, prefer a live `make run-dev`. The harness `--start-run-dev` starts only the **gateway binary** with the same `-insecure -no-auth -addr 127.0.0.1:8443 -data-dir .run-dev/server` posture as `scripts/run-dev.sh` (web/`npm` not required for Shell Core e2e).
 ## Stack
@@ -18,7 +18,7 @@ WSL:   make run-dev
          → ./server -insecure -no-auth -addr 127.0.0.1:8443 -data-dir $ROOT/.run-dev/server
          → ./web    -insecure -addr 127.0.0.1:8080 -server http://127.0.0.1:8443
 
-Win:   AG_E2E_RUN_DEV=1  → xUnit T3 facts (probe / ticket+WS / adopt / composition)
+Win:   AG_E2E_RUN_DEV=1  → xUnit T3 facts (probe / ticket+WS / composition)
        + WinUI self-contained layout assert + launch smoke (default)
        + AG_E2E_WINUI_UI=1 → FlaUI/UIA panel automation (AutomationId contract)
        scripts/dev-up.ps1 → optional longer manual UI against same gateway
@@ -74,7 +74,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
 |---|---|
 | `Probe_sessions_against_run_dev_no_auth` | `GET /api/sessions` via `ShellGatewayClient` + `NoAuthTokenSource` |
 | `Mint_ticket_and_open_websocket` | `POST /api/ws-ticket` + `ClientWebSocket` open |
-| `DaemonSupervisor_adopts_running_run_dev_without_spawn` | adopt-before-spawn: **Connected/Adopted**, spawn count **0** |
+| `Connection_monitor_observes_running_run_dev` | configured gateway becomes **Healthy** |
 | `Composition_root_connects_with_no_auth_against_run_dev` | full composition wiring against real gateway |
 | `assert-winui-layout.ps1` | Bootstrap + `Microsoft.ui.xaml.dll` next to EXE (prevents MSIX Runtime 1.6 dialog) |
 | `launch-smoke.ps1` | process stays up; on fail dumps `winui-startup-error.txt` (structured SoT) |

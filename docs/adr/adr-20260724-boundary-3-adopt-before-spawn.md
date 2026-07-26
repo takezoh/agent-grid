@@ -3,7 +3,7 @@ id: adr-20260724-boundary-3-adopt-before-spawn
 kind: adr
 title: DaemonSupervisor uses adopt-first-then-spawn lifecycle ordering; at most one
   spawn per boot
-status: accepted
+status: deprecated
 created: '2026-07-24'
 summary: DaemonSupervisor uses adopt-first-then-spawn lifecycle ordering; at most
   one spawn per boot
@@ -22,8 +22,7 @@ tags:
 owners:
 - agent-grid-maintainers
 relations:
-- type: originatedFrom
-  target: change-20260723-windows-shell-phase2
+- {type: originatedFrom, target: change-20260723-windows-shell-phase2}
 source_paths: []
 consequences:
   positive:
@@ -33,6 +32,7 @@ consequences:
   - One extra sub-second round trip on every cold start; acceptable against loopback.
   neutral:
   - FR-B3-02 and FR-B3-03 are enforceable by the state-machine outcome partition.
+updated: '2026-07-26'
 ---
 # DaemonSupervisor uses adopt-first-then-spawn lifecycle ordering; at most one spawn per boot
 
@@ -73,3 +73,8 @@ Adopt-first-then-spawn: DaemonSupervisor probes the configured port with the UNC
 - requirements: `FR-B3-01`, `FR-B3-02`, `FR-B3-03`
 - contracts: `contract-b3-daemon-supervisor-state-machine`
 - change: `change-20260723-windows-shell-phase2`
+
+
+{% transition from="accepted" to="deprecated" date="2026-07-26" %}
+Windows Shell and Workspace are clients; server lifecycle ownership moved outside desktop clients.
+{% /transition %}

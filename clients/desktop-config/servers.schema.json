@@ -12,24 +12,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "display_name", "enabled", "url", "token_path", "launch"],
+        "required": ["id", "display_name", "enabled", "url", "token_path"],
         "properties": {
           "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
           "display_name": { "type": "string", "minLength": 1 },
           "enabled": { "type": "boolean" },
           "url": { "type": "string", "format": "uri" },
-          "token_path": { "type": "string", "minLength": 1 },
-          "launch": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["mode"],
-            "properties": {
-              "mode": { "enum": ["managed_wsl", "connect_only"] },
-              "wsl_distro": { "type": "string", "minLength": 1 },
-              "server_path_in_wsl": { "type": "string", "minLength": 1 },
-              "token_path_in_wsl": { "type": "string", "minLength": 1 }
-            }
-          }
+          "token_path": { "type": "string", "minLength": 1 }
         }
       }
     }

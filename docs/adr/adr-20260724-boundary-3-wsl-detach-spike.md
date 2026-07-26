@@ -3,7 +3,7 @@ id: adr-20260724-boundary-3-wsl-detach-spike
 kind: adr
 title: WSL-side daemon detach uses setsid + nohup wrapping wsl.exe -d <distro> --
   setsid nohup <path>/server ...
-status: accepted
+status: deprecated
 created: '2026-07-24'
 summary: WSL-side daemon detach uses setsid + nohup wrapping wsl.exe -d <distro> --
   setsid nohup <path>/server ...
@@ -22,8 +22,7 @@ tags:
 owners:
 - agent-grid-maintainers
 relations:
-- type: originatedFrom
-  target: change-20260723-windows-shell-phase2
+- {type: originatedFrom, target: change-20260723-windows-shell-phase2}
 source_paths: []
 consequences:
   positive:
@@ -41,6 +40,7 @@ consequences:
   - adr-20260716-restart-continuity-compatibility-axes's per-server restart semantics
     are unaffected — the daemon's own restart flow is orthogonal to detach mechanism
     selection.
+updated: '2026-07-26'
 ---
 # WSL-side daemon detach uses setsid + nohup wrapping wsl.exe -d <distro> -- setsid nohup <path>/server ...
 
@@ -83,3 +83,8 @@ DaemonSupervisor spawns the WSL-side daemon via `wsl.exe -d <distro> -- setsid n
 - requirements: `FR-B3-05`
 - contracts: `contract-b3-wsl-detach-mechanism`
 - change: `change-20260723-windows-shell-phase2`
+
+
+{% transition from="accepted" to="deprecated" date="2026-07-26" %}
+The desktop clients no longer spawn WSL server processes, so the detach decision is no longer applicable.
+{% /transition %}

@@ -131,7 +131,6 @@ public sealed class PanelUiSession : IDisposable
                         enabled = true,
                         url = gatewayUrl,
                         token_path = tokenPath,
-                        launch = new { mode = "connect_only" },
                     },
                 },
             }, options));
