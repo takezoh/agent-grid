@@ -15,13 +15,23 @@ namespace AgentGrid.Shell.WinUI.UiTests.E2E;
 /// single-instance (AppInstance redirect) and would kill our freshly
 /// launched child otherwise.
 /// </summary>
-public sealed class PanelUiSession : IDisposable
+public class PanelUiSession : IDisposable
 {
     private readonly object _gate = new();
+    private readonly FakeGatewayServer _gateway;
     private Application? _app;
     private UIA3Automation? _automation;
     private Window? _window;
     private string? _configDirectory;
+
+    public PanelUiSession() : this(includeRequests: false)
+    {
+    }
+
+    protected PanelUiSession(bool includeRequests)
+    {
+        _gateway = new FakeGatewayServer(includeRequests);
+    }
 
     public Window Window
     {
@@ -96,7 +106,7 @@ public sealed class PanelUiSession : IDisposable
             UseShellExecute = false,
         };
         psi.Environment["AG_WINUI_NO_MSGBOX"] = "1";
-        _configDirectory = WriteTestConfig(WinUiUi.GatewayUrl);
+        _configDirectory = WriteTestConfig(_gateway.BaseUri.ToString());
         psi.ArgumentList.Add("--config-dir");
         psi.ArgumentList.Add(_configDirectory);
 
@@ -170,10 +180,18 @@ public sealed class PanelUiSession : IDisposable
             /* already exited */
         }
         _app?.Dispose();
+        _gateway.Dispose();
         if (_configDirectory is not null)
         {
             try { Directory.Delete(_configDirectory, recursive: true); }
             catch { /* best-effort test cleanup */ }
         }
+    }
+}
+
+public sealed class PendingPanelUiSession : PanelUiSession
+{
+    public PendingPanelUiSession() : base(includeRequests: true)
+    {
     }
 }

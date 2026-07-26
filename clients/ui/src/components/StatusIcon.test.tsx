@@ -68,4 +68,11 @@ describe("StatusIcon", () => {
     expect(action.querySelector(".spinner")).toBeNull();
     expect(action.querySelector(".static")).not.toBeNull();
   });
+
+  it("uses the Codex radial-dot geometry for running instead of a progress ring", () => {
+    const { container } = render(<StatusIcon status="running" />);
+    expect(container.querySelectorAll(".status-icon__spinner-dot")).toHaveLength(8);
+    expect(container.querySelector(".status-icon__ring")).toBeNull();
+    expect(container.querySelector(".status-icon__arc")).toBeNull();
+  });
 });

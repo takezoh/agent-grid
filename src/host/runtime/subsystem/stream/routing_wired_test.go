@@ -33,9 +33,14 @@ type wired struct {
 }
 
 func newWired(t *testing.T) *wired {
+	return newWiredWithConfig(t, fake.Config{})
+}
+
+func newWiredWithConfig(t *testing.T, cfg fake.Config) *wired {
 	t.Helper()
 	rt := &recordingRuntime{}
-	srv := fake.New(fake.Config{Sock: filepath.Join(t.TempDir(), "wired.sock")})
+	cfg.Sock = filepath.Join(t.TempDir(), "wired.sock")
+	srv := fake.New(cfg)
 	if err := srv.Start(); err != nil {
 		t.Fatalf("fake.Start: %v", err)
 	}
@@ -65,6 +70,48 @@ func newWired(t *testing.T) *wired {
 		t.Fatalf("cli initialize: %v", err)
 	}
 	return &wired{t: t, b: b, rt: rt, srv: srv, cli: cli}
+}
+
+// TestStreamServerRequestWiredDelivery proves the status-critical request path
+// without relying on a model to decide whether to call a tool. The scripted
+// fake emits the same JSON-RPC request through the real UDS/WebSocket
+// connection and the Backend must deliver it to the subscribed frame.
+func TestStreamServerRequestWiredDelivery(t *testing.T) {
+	w := newWiredWithConfig(t, fake.Config{
+		TurnHandler: func(req fake.TurnRequest, emit fake.Emitter) {
+			emit.Request(codexschema.MethodItemCommandExecutionRequestApproval, map[string]any{
+				"threadId": req.ThreadID,
+				"turnId":   req.TurnID,
+				"itemId":   "approval-wired",
+				"command":  "printf approval",
+				"reason":   "wired delivery contract",
+			})
+		},
+	})
+	threadID := w.bindCold("approval", "/work")
+	if err := codexclient.StartTurn(
+		w.cli,
+		threadID,
+		"/work",
+		[]byte("request approval"),
+		codexclient.TurnOptions{},
+	); err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		w.rt.mu.Lock()
+		for _, event := range w.rt.events {
+			if event.FrameID == "approval" && event.Kind == state.SubsystemApprovalRequested {
+				w.rt.mu.Unlock()
+				return
+			}
+		}
+		w.rt.mu.Unlock()
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatal("approval request did not reach the subscribed frame")
 }
 
 // bindCold runs a fresh cold-start BindFrame and then simulates the CLI

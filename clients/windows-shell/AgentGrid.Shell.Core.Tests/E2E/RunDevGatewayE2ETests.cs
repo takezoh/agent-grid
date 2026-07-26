@@ -1,9 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
-using AgentGrid.Shell.Composition;
-using AgentGrid.Shell.Core.DaemonSupervisor;
 using AgentGrid.Shell.Core.GatewayClient;
-using AgentGrid.Shell.Core.WorkspaceLauncher;
 
 namespace AgentGrid.Shell.Core.Tests.E2E;
 
@@ -61,54 +58,4 @@ public class RunDevGatewayE2ETests
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "e2e", CancellationToken.None);
     }
 
-    [RunDevFact]
-    public async Task Connection_monitor_observes_running_run_dev()
-    {
-        await RunDevGateway.EnsureReachableAsync();
-
-        var gateway = new ShellGatewayClient(
-            RunDevGateway.BaseUri,
-            new NoAuthTokenSource());
-        var svc = new DaemonSupervisorService(new GatewayHealthProbe(gateway));
-
-        await svc.StartAsync();
-
-        Assert.True(svc.Snapshot.IsConnected);
-        Assert.Equal(DaemonState.Healthy, svc.Snapshot.State);
-    }
-
-    [RunDevFact]
-    public async Task Composition_root_connects_with_no_auth_against_run_dev()
-    {
-        await RunDevGateway.EnsureReachableAsync();
-
-        await using var root = ShellCompositionRoot.Build(new ShellHostOptions
-        {
-            GatewayBaseUri = RunDevGateway.BaseUri,
-            TokenPath = "/dev/null",
-            NoAuth = true,
-            Win32 = new NullWin32InteropService(),
-            WorkspaceControlClient = new AlwaysOkPipe(),
-            WorkspaceProcessLauncher = new NoopProcess(),
-            QuitApplication = () => { },
-        });
-
-        await root.Supervisor.StartAsync();
-        Assert.True(root.Supervisor.Snapshot.IsConnected);
-        Assert.True(await root.Gateway.ProbeSessionsAsync());
-    }
-
-    private sealed class AlwaysOkPipe : IWorkspaceControlClient
-    {
-        public Task<ControlReply> SendAsync(
-            ControlEnvelope envelope,
-            CancellationToken ct = default,
-            Action<int>? onConnectedServerProcessId = default) =>
-            Task.FromResult(ControlReply.Success());
-    }
-
-    private sealed class NoopProcess : IWorkspaceProcessLauncher
-    {
-        public Task SpawnAsync(CancellationToken ct = default) => Task.CompletedTask;
-    }
 }

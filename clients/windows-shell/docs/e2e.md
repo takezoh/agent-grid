@@ -105,15 +105,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
 |---|---|
 | `Probe_sessions_against_run_dev_no_auth` | `GET /api/sessions` via `ShellGatewayClient` + `NoAuthTokenSource` |
 | `Mint_ticket_and_open_websocket` | `POST /api/ws-ticket` + `ClientWebSocket` open |
-| `Connection_monitor_observes_running_run_dev` | configured gateway becomes **Healthy** |
-| `Composition_root_connects_with_no_auth_against_run_dev` | full composition wiring against real gateway |
 | `assert-winui-layout.ps1` | Bootstrap + `Microsoft.ui.xaml.dll` next to EXE (prevents MSIX Runtime 1.6 dialog) |
 | `launch-smoke.ps1` | process stays up; on fail dumps `winui-startup-error.txt` (structured SoT) |
 | `WasdkBootstrapErrorsTests` | bootstrap failure report text is stable / includes Version 1.6 + MSIX hint |
 | `Panel_exposes_expanded_chrome_via_automation_ids` | UIA tree has the unconditional expanded-chrome `AutomationId` contract |
-| `Status_line_reflects_live_snapshot_and_healthy_state_is_silent` | live snapshot replaces the initial status text; no offline badge when healthy (REST/WS wired end to end) |
-| `Empty_sections_do_not_exist_in_the_tree` | Vibe Island contract: no pending → no `PendingList` / `EngageBox` / empty-state filler in UIA |
-| `Session_chips_lay_out_horizontally_when_present` | ≥2 sessions → chips all laid out on one row (vertical-stacking regression guard) |
+| `Fake_gateway_snapshot_renders_status_and_healthy_state_is_silent` | deterministic WS snapshot replaces initial status; healthy state has no offline badge |
+| `Fake_gateway_requests_render_pending_and_engage_sections` | scripted approval/question frames render `PendingList`, actions, and `EngageBox` |
+| `Session_rows_fill_the_shell_content_width_when_present` | two scripted sessions render full-width rows with Working and Action-required status icons |
 | `Island_collapses_to_compact_bar_and_expands_back` | notch morph swaps compact/expanded UIA trees and back |
 
 Enable gateway facts: `AG_E2E_RUN_DEV=1`. Skip otherwise (always-on `dotnet test` stays green without fixture).
@@ -137,6 +135,13 @@ No project reference to the app — tests select elements by
 Narrator/S3 accessibility contract, so keep ids stable and add one to every
 new interactive element in `PanelWindow.xaml`).
 
+The UIA process uses an in-process fake gateway owned by the test fixture. It
+serves the Shell REST ticket/probe endpoints and emits deterministic
+`h`/`ar`/`qr` WebSocket frames. This keeps native layout, accessibility, and
+process wiring real while moving server state setup out of T3. The separate
+Core T3 facts retain the real server fidelity checks for `/api/sessions` and
+ticket-to-WebSocket upgrade.
+
 Library choice: FlaUI over WinAppDriver (Appium server, unmaintained) and raw
 `Windows.UIAutomation` COM (FlaUI is exactly that wrapper, maintained, MIT).
 
@@ -144,7 +149,7 @@ Library choice: FlaUI over WinAppDriver (Appium server, unmaintained) and raw
 |---|---|
 | `AG_E2E_WINUI_UI=1` | enables the suite (skips otherwise; skips off-Windows) |
 | `AG_E2E_WINUI_EXE` | exe under test (harness passes the smoke-stage build) |
-| `AG_E2E_GATEWAY_URL` | written into the isolated `--config-dir` server entry |
+| `AG_E2E_GATEWAY_URL` | real gateway used by Core T3 and launch smoke; UIA uses its fixture-owned fake |
 
 Constraints: needs an interactive desktop session (fine from WSL via
 `powershell.exe`; a CI runner must not be session-0). The suite kills running

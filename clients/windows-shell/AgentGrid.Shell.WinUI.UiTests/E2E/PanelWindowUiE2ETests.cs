@@ -13,6 +13,7 @@ namespace AgentGrid.Shell.WinUI.UiTests.E2E;
 /// ConnectionText leave the UIA tree with their sections). Only the expanded
 /// header chrome is unconditional.
 /// </summary>
+[Collection(PanelUiCollection.Name)]
 public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
 {
     private readonly PanelUiSession _ui;
@@ -32,7 +33,7 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
     }
 
     [WinUiUiFact]
-    public void Status_line_reflects_live_snapshot_and_healthy_state_is_silent()
+    public void Fake_gateway_snapshot_renders_status_and_healthy_state_is_silent()
     {
         // PanelWindow.Render replaces the construction-time "Agent Grid" text
         // with the aggregate summary on the first supervision snapshot —
@@ -46,21 +47,11 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
         {
             var shot = _ui.TryCaptureWindow("no-snapshot-rendered");
             Assert.Fail(
-                $"StatusText never left its initial text (gateway {WinUiUi.GatewayUrl})" +
+                "StatusText never left its initial text (deterministic fake gateway)" +
                 (shot is null ? "" : $"; screenshot: {shot}"));
         }
 
         Assert.Null(_ui.Window.FindFirstDescendant(cf => cf.ByAutomationId("ConnectionText")));
-    }
-
-    [WinUiUiFact]
-    public void Empty_sections_do_not_exist_in_the_tree()
-    {
-        // No pending items → no pending list, no reply entry, no empty-state
-        // filler. (run-dev has no live agent, so nothing is ever pending.)
-        _ = _ui.Find("StatusText");
-        Assert.Null(_ui.Window.FindFirstDescendant(cf => cf.ByAutomationId("PendingList")));
-        Assert.Null(_ui.Window.FindFirstDescendant(cf => cf.ByAutomationId("EngageBox")));
     }
 
     [WinUiUiFact]
@@ -73,6 +64,7 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
             () => _ui.Window.FindAllDescendants(cf => cf.ByAutomationId("SessionChip")),
             TimeSpan.FromSeconds(10),
             interval: TimeSpan.FromMilliseconds(500)).Result ?? [];
+        Assert.Equal(2, chips.Length);
         if (chips.Length > 0)
         {
             var windowRect = _ui.Window.BoundingRectangle;
@@ -87,9 +79,6 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
                     cf => cf.ByAutomationId("SessionStatusIcon")));
             });
         }
-        if (chips.Length < 2)
-            return;
-
         var rects = chips
             .Select(c => c.BoundingRectangle)
             .Where(r => r.Width > 0 && r.Height > 0)
@@ -98,6 +87,13 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
             $"{chips.Length} rows in tree but only {rects.Count} laid out");
         Assert.Single(rects.Select(r => r.Left).Distinct());
         Assert.Equal(rects.Count, rects.Select(r => r.Top).Distinct().Count());
+
+        var statusNames = chips
+            .Select(chip => chip.FindFirstDescendant(
+                cf => cf.ByAutomationId("SessionStatusIcon"))?.Name)
+            .ToHashSet();
+        Assert.Contains("Working", statusNames);
+        Assert.Contains("Action required; Notification", statusNames);
     }
 
     [WinUiUiFact]
@@ -123,4 +119,28 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
         _ui.Find("CompactBar").AsButton().Invoke();
         _ = _ui.Find("StatusText");
     }
+}
+
+[Collection(PanelUiCollection.Name)]
+public sealed class PanelWindowUiE2EPendingTests : IClassFixture<PendingPanelUiSession>
+{
+    private readonly PendingPanelUiSession _ui;
+
+    public PanelWindowUiE2EPendingTests(PendingPanelUiSession ui) => _ui = ui;
+
+    [WinUiUiFact]
+    public void Fake_gateway_requests_render_pending_and_engage_sections()
+    {
+        _ = _ui.Find("PendingList");
+        _ = _ui.Find("ApproveButton");
+        _ = _ui.Find("DenyButton");
+        _ = _ui.Find("EngageBox");
+        Assert.Equal("2 waiting", _ui.Find("StatusText").Name);
+    }
+}
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class PanelUiCollection
+{
+    public const string Name = "Panel UIA";
 }

@@ -47,8 +47,54 @@ export function statusLabel(kind: StatusKind): string {
 const GEOMETRY = {
   running: (
     <>
-      <circle className="status-icon__ring" cx="12" cy="12" r="9" />
-      <path className="status-icon__arc" d="M21 12 A 9 9 0 1 1 12 3" />
+      <circle
+        className="status-icon__spinner-dot status-icon__spinner-dot--1"
+        cx="12"
+        cy="3"
+        r="1.8"
+      />
+      <circle
+        className="status-icon__spinner-dot status-icon__spinner-dot--2"
+        cx="18.36"
+        cy="5.64"
+        r="1.8"
+      />
+      <circle
+        className="status-icon__spinner-dot status-icon__spinner-dot--3"
+        cx="21"
+        cy="12"
+        r="1.8"
+      />
+      <circle
+        className="status-icon__spinner-dot status-icon__spinner-dot--4"
+        cx="18.36"
+        cy="18.36"
+        r="1.8"
+      />
+      <circle
+        className="status-icon__spinner-dot status-icon__spinner-dot--5"
+        cx="12"
+        cy="21"
+        r="1.8"
+      />
+      <circle
+        className="status-icon__spinner-dot status-icon__spinner-dot--6"
+        cx="5.64"
+        cy="18.36"
+        r="1.8"
+      />
+      <circle
+        className="status-icon__spinner-dot status-icon__spinner-dot--7"
+        cx="3"
+        cy="12"
+        r="1.8"
+      />
+      <circle
+        className="status-icon__spinner-dot status-icon__spinner-dot--8"
+        cx="5.64"
+        cy="5.64"
+        r="1.8"
+      />
     </>
   ),
   action: (

@@ -61,22 +61,37 @@
 }
 
 /* ─── running ───────────────────────────────────────────────────────────── */
-/* Faded full ring + 3/4 foreground arc; the outer span rotates so only the
-   arc visibly sweeps (the ring is rotationally symmetric). */
+/* Codex-style radial dot spinner. The opacity trail rotates with the outer
+   span, reading as a compact constellation rather than a progress ring. */
 .status-icon--running {
   animation: status-icon-spin 0.8s linear infinite;
 }
-.status-icon--running .status-icon__ring {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3;
+.status-icon--running .status-icon__spinner-dot {
+  fill: currentColor;
+}
+.status-icon__spinner-dot--1 {
+  opacity: 1;
+}
+.status-icon__spinner-dot--2 {
+  opacity: 0.88;
+}
+.status-icon__spinner-dot--3 {
+  opacity: 0.76;
+}
+.status-icon__spinner-dot--4 {
+  opacity: 0.64;
+}
+.status-icon__spinner-dot--5 {
+  opacity: 0.52;
+}
+.status-icon__spinner-dot--6 {
+  opacity: 0.4;
+}
+.status-icon__spinner-dot--7 {
   opacity: 0.28;
 }
-.status-icon--running .status-icon__arc {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3;
-  stroke-linecap: round;
+.status-icon__spinner-dot--8 {
+  opacity: 0.16;
 }
 @keyframes status-icon-spin {
   from {

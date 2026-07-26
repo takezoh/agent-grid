@@ -66,6 +66,14 @@ This is orthogonal to the S-D coverage tiers below: T0-T3 answers **what kind of
 
 New external dependencies follow the **triple**: ship an in-process fake, a `FakeVsReal*` T3 backstop, and a T2 contract that names the invariant. If T3 fails, fix the fake rather than weakening the assertion.
 
+`FakeVsReal*` compares deterministic observables owned by the external
+boundary: wire methods and shapes, initialization, lifecycle transitions,
+argv/stdout, or persisted artifacts. It MUST NOT ask a live language model to
+choose a particular tool merely to induce an approval, elicitation, or status
+event. Those status-critical requests are scripted by the protocol fake and
+run through the real adapter/gateway/UI wiring; real Codex T3 remains a
+protocol-drift backstop rather than a model-behavior assertion.
+
 ## Test patterns by layer
 
 Both decision-loop layers (`client/` and `orchestrator/scheduler`) share the Functional Core / Imperative Shell test style: the pure `Reduce` is verified by its return value with no mocks, and the shell is exercised by injecting fakes for its dependencies. `platform/`, a library layer, injects fakes through interface seams. Test files live beside the target as `*_test.go`.
