@@ -142,6 +142,29 @@ public class PanelPresentationTests
         Assert.Equal(new PanelSections(false, false, false, false, false), s);
     }
 
+    // witness-quiet-normal, presentation-model half: the section flags flip from
+    // true (pending present) to false (pending drained).
+    //
+    // Scope note: this does NOT reject the counterexample "empty ListView kept
+    // collapsed". PanelWindow consumes these flags as
+    // `PendingList.Visibility = sections.ShowPending ? Visible : Collapsed`, so a
+    // collapsed-but-present element satisfies these assertions. The invariant
+    // 「空セクションは可視化制御ではなく要素として生成されない」 is discriminated only by
+    // PanelWindowUiE2ETests.Empty_sections_do_not_exist_in_the_tree (T3, not
+    // always-on) — recorded as such in verification.md.
+    [Fact]
+    public void Pending_drain_hides_approval_and_reply_sections()
+    {
+        var withPending = PanelPresentation.Sections(ViewWith(approvals: 1, questions: 1));
+        Assert.True(withPending.ShowPending);
+        Assert.True(withPending.ShowReply);
+
+        var drained = PanelPresentation.Sections(ViewWith());
+        Assert.False(drained.ShowPending);
+        Assert.False(drained.ShowReply);
+        Assert.False(drained.ShowNotice);
+    }
+
     [Fact]
     public void Sections_show_only_what_has_content()
     {

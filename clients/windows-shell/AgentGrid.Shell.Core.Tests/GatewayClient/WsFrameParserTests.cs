@@ -76,6 +76,18 @@ public class WsFrameParserTests
         Assert.Null(WsFrameParser.TryParse(""));
     }
 
+    // witness-frame-flood-adversarial: unknown k never becomes an event (no crash, no state).
+    [Fact]
+    public void Ignores_unknown_k_frame_without_throwing()
+    {
+        Assert.Null(WsFrameParser.TryParse("""{"k":"mystery","payload":{"id":"x"}}"""));
+        Assert.Null(WsFrameParser.TryParse("""{"k":"","approval":{"id":"a","session_id":"s"}}"""));
+        // A subsequent well-formed frame still parses after junk — flood resilience.
+        var ev = WsFrameParser.TryParse(
+            """{"k":"ar","approval":{"id":"ap-1","session_id":"s1","command":"echo","status":"pending"}}""");
+        Assert.IsType<EvtApprovalRequested>(ev);
+    }
+
     // RED (debug-run-shell-zero-sessions / hypothesis-hello-frame-dropped):
     // the gateway's k="h" hello frame is the ONLY frame that carries the
     // full session list at connect time when sessions already existed before

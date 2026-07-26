@@ -18,6 +18,10 @@ public class ApprovalSubmissionServiceTests
 
         Assert.Empty(svc.Snapshot.Approvals);
         Assert.Empty(svc.Snapshot.AlreadyHandled);
+        // rejects counterexample: card removed locally without ever issuing the POST
+        // (the agent would stay blocked). AssertApprovalPost alone cannot catch this
+        // because it only runs for requests that are actually sent.
+        AssertRequestCount(http, 1);
     }
 
     [Fact]
@@ -31,6 +35,12 @@ public class ApprovalSubmissionServiceTests
 
         Assert.Single(svc.Snapshot.Approvals);
         Assert.Equal("a1", svc.Snapshot.Approvals[0].ApprovalId);
+        // rejects counterexample: a short-circuit that skips the POST entirely while
+        // offline (leaving the card in place without ever contacting the gateway)
+        // would also leave exactly one card here. Requests++ runs before the throw
+        // in FakeHttp.SendAsync, so this distinguishes "tried and failed" from
+        // "never tried".
+        AssertRequestCount(http, 1);
     }
 
     [Fact]
@@ -44,6 +54,92 @@ public class ApprovalSubmissionServiceTests
 
         Assert.Empty(svc.Snapshot.Approvals);
         Assert.Single(svc.Snapshot.AlreadyHandled);
+        // witness-race-loss-normal: Handled elsewhere notice, not a blocking error dialog
+        var glance = PanelGlanceView.From(svc.Snapshot);
+        Assert.Empty(glance.Pending);
+        Assert.Single(glance.Notices);
+        Assert.Equal("already-handled", glance.Notices[0].Kind);
+        Assert.Equal("Handled elsewhere", PanelPresentation.KindLabel(glance.Notices[0].Kind));
+    }
+
+    // witness-submit-normal: optimistic removal is visible before the HTTP response
+    // (rejects counterexample: spinner/blocked UI waiting on 2xx).
+    [Fact]
+    public async Task Submit_removes_card_before_http_response_completes()
+    {
+        var gate = new TaskCompletionSource<HttpResponseMessage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var http = new GatedHttp(gate.Task);
+        var svc = MakeService(http);
+        svc.Apply(new EvtApprovalRequested("a1", "s1", "cmd"));
+        // Precondition: the card must exist, else the poll below exits immediately
+        // and Assert.Empty would pass without optimistic removal ever happening.
+        Assert.Single(svc.Snapshot.Approvals);
+
+        var submit = svc.SubmitApprovalAsync("a1", "s1", "accept", "cmd");
+        // Yield until optimistic Apply has run (HTTP still blocked).
+        for (var i = 0; i < 50 && svc.Snapshot.Approvals.Count > 0; i++)
+            await Task.Delay(10);
+        Assert.Empty(svc.Snapshot.Approvals);
+        Assert.Empty(svc.Snapshot.AlreadyHandled);
+
+        gate.SetResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json"),
+        });
+        await submit;
+        Assert.Empty(svc.Snapshot.Approvals);
+        // The optimistic removal must not replace the request: exactly one POST issued.
+        AssertRequestCount(http, 1);
+    }
+
+    // witness-lifecycle-adversarial: restore → resubmit → delayed 409 normalizes
+    // to Handled elsewhere; card count stays ≤ 1; silent failure forbidden.
+    [Fact]
+    public async Task Rollback_then_resubmit_conflict_normalizes_to_handled_elsewhere()
+    {
+        var http = new SequenceHttp(
+            new HttpRequestException("network down"),
+            HttpStatusCode.Conflict);
+        var svc = MakeService(http);
+        svc.Apply(new EvtApprovalRequested("a1", "s1", "cmd"));
+
+        await svc.SubmitApprovalAsync("a1", "s1", "accept", "cmd");
+        Assert.Single(svc.Snapshot.Approvals); // restored
+        Assert.Empty(svc.Snapshot.AlreadyHandled);
+
+        // Re-issue of same id must not stack a second card (flood + lifecycle).
+        svc.Apply(new EvtApprovalRequested("a1", "s1", "cmd"));
+        Assert.Single(svc.Snapshot.Approvals);
+
+        await svc.SubmitApprovalAsync("a1", "s1", "accept", "cmd");
+        Assert.Empty(svc.Snapshot.Approvals);
+        Assert.Single(svc.Snapshot.AlreadyHandled);
+        Assert.Equal("a1", svc.Snapshot.AlreadyHandled[0].ItemId);
+    }
+
+    // witness-offline-rollback-normal: restored card coexists with offline badge.
+    [Fact]
+    public async Task Network_error_restores_card_and_connection_failure_surfaces_offline()
+    {
+        var http = new FakeHttp(throwNetwork: true);
+        var svc = MakeService(http);
+        svc.Apply(new EvtApprovalRequested("a1", "s1", "cmd"));
+
+        await svc.SubmitApprovalAsync("a1", "s1", "accept", "cmd");
+        Assert.Single(svc.Snapshot.Approvals); // not silent failure
+
+        svc.Apply(new EvtConnectionFailed("ws down"));
+        var glance = PanelGlanceView.From(svc.Snapshot);
+        Assert.True(glance.ConnectionFailed);
+        Assert.Single(glance.Pending);
+        var sections = PanelPresentation.Sections(glance);
+        Assert.True(sections.ShowOffline);
+        Assert.True(sections.ShowPending);
+        // Compact prioritizes offline badge over pending count.
+        var compact = PanelPresentation.Compact(glance);
+        Assert.Equal("offline", compact.Text);
+        Assert.Equal("danger", compact.AccentToken);
     }
 
     /// <summary>
@@ -88,7 +184,7 @@ public class ApprovalSubmissionServiceTests
         Assert.Empty(svc.Snapshot.Approvals);
     }
 
-    private static ApprovalSubmissionService MakeService(FakeHttp handler)
+    private static ApprovalSubmissionService MakeService(HttpMessageHandler handler)
     {
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
         var tokens = new StaticToken("t");
@@ -103,8 +199,47 @@ public class ApprovalSubmissionServiceTests
         public Task<string> ReadFreshAsync(CancellationToken ct = default) => Task.FromResult(_t);
     }
 
-    private sealed class FakeHttp : HttpMessageHandler
+    // UAC-002 counterexample rejection: 「ローカルで消すだけの実装はセッションが待機の
+    // ままになることで fail する」.
+    //
+    // Two halves are needed and neither alone is sufficient:
+    //   (a) AssertApprovalPost validates the shape of a request that IS issued. It runs
+    //       inside SendAsync, so by construction it can never fire for an implementation
+    //       that issues no request at all.
+    //   (b) IRequestCounter.Requests records whether a request was issued. Tests that
+    //       claim the "removed the card but never POSTed" counterexample is rejected must
+    //       assert this counter — that is the half with the discriminating power.
+    // Mirrors QuestionSubmissionServiceTests' Scripted handler, which asserts the
+    // /questions/ path.
+    private interface IRequestCounter
     {
+        int Requests { get; }
+    }
+
+    // Referencing the interface as a type (not just the concrete Requests property)
+    // means a future fake that forgets to implement IRequestCounter fails to compile
+    // at the call site, instead of silently never being asked the question.
+    private static void AssertRequestCount(IRequestCounter counter, int expected)
+    {
+        Assert.Equal(expected, counter.Requests);
+    }
+
+    private static void AssertApprovalPost(HttpRequestMessage request)
+    {
+        if (request.Method != HttpMethod.Post)
+            throw new InvalidOperationException($"expected POST, got {request.Method}");
+        var path = request.RequestUri!.AbsolutePath;
+        if (!path.Contains("/approvals/", StringComparison.Ordinal))
+            throw new InvalidOperationException($"expected an /approvals/ path, got {path}");
+        var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? "";
+        if (!body.Contains("\"decision\"", StringComparison.Ordinal))
+            throw new InvalidOperationException($"expected a decision in the body, got {body}");
+    }
+
+    private sealed class FakeHttp : HttpMessageHandler, IRequestCounter
+    {
+        public int Requests { get; private set; }
+
         private readonly HttpStatusCode _code;
         private readonly bool _throwNetwork;
 
@@ -118,9 +253,54 @@ public class ApprovalSubmissionServiceTests
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            AssertApprovalPost(request);
+            Requests++;
             if (_throwNetwork)
                 throw new HttpRequestException("network down");
             return Task.FromResult(new HttpResponseMessage(_code)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json"),
+            });
+        }
+    }
+
+    private sealed class GatedHttp : HttpMessageHandler, IRequestCounter
+    {
+        public int Requests { get; private set; }
+
+        private readonly Task<HttpResponseMessage> _response;
+        public GatedHttp(Task<HttpResponseMessage> response) => _response = response;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            AssertApprovalPost(request);
+            Requests++;
+            return _response;
+        }
+    }
+
+    private sealed class SequenceHttp : HttpMessageHandler, IRequestCounter
+    {
+        public int Requests { get; private set; }
+
+        private readonly object[] _steps;
+        private int _i;
+
+        public SequenceHttp(params object[] steps) => _steps = steps;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            AssertApprovalPost(request);
+            Requests++;
+            var step = _steps[_i++];
+            if (step is Exception ex)
+                throw ex;
+            var code = (HttpStatusCode)step;
+            return Task.FromResult(new HttpResponseMessage(code)
             {
                 Content = new StringContent("{}", Encoding.UTF8, "application/json"),
             });

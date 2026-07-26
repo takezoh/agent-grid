@@ -81,6 +81,40 @@ public class SupervisionReducerTests
         Assert.Empty(s.Questions);
     }
 
+    // witness-frame-flood-adversarial: same-id ar is upserted, never stacked.
+    [Fact]
+    public void Duplicate_approval_request_keeps_a_single_card()
+    {
+        var s = WithApproval("a1", "s1", "cmd-v1");
+        s = SupervisionReducer.Reduce(s, new EvtApprovalRequested("a1", "s1", "cmd-v2"));
+        Assert.Single(s.Approvals);
+        Assert.Equal("a1", s.Approvals[0].ApprovalId);
+        Assert.Equal("cmd-v2", s.Approvals[0].Summary);
+    }
+
+    // witness-quiet-normal: ax resolves pending without inventing a notice or ghost card.
+    [Fact]
+    public void Approval_resolved_removes_item_without_notice()
+    {
+        var s = WithApproval("a1", "s1", "cmd");
+        s = SupervisionReducer.Reduce(s, new EvtApprovalResolved("a1", "s1", "accept", "ci-A"));
+        Assert.Empty(s.Approvals);
+        Assert.Empty(s.AlreadyHandled);
+        Assert.Equal(0, s.PendingCount);
+    }
+
+    // witness-lifecycle-adversarial: notice upsert stays high-water 1 for same id.
+    [Fact]
+    public void Duplicate_resolved_by_other_keeps_a_single_notice()
+    {
+        var s = WithApproval("a1", "s1", "cmd");
+        s = SupervisionReducer.Reduce(s, new EvtApprovalSubmitRequested("a1", "s1", "accept"));
+        s = SupervisionReducer.Reduce(s, new EvtApprovalResolvedByOther("a1", "s1"));
+        s = SupervisionReducer.Reduce(s, new EvtApprovalResolvedByOther("a1", "s1"));
+        Assert.Empty(s.Approvals);
+        Assert.Single(s.AlreadyHandled);
+    }
+
     private static SupervisionSnapshot WithApproval(string id, string session, string summary) =>
         SupervisionReducer.Reduce(
             SupervisionSnapshot.Empty,
