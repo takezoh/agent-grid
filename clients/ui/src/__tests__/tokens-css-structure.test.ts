@@ -52,6 +52,15 @@ describe("FR-FRAMEWORK-001: CSS file structure (3-file split, each <= 500 lines)
   });
 });
 
+describe("scrollbar layout contract", () => {
+  it("reserves inline space so overlay scrollbars do not cover text", () => {
+    const appContent = readCss("app.css");
+    const universalRule = appContent.match(/\*\s*\{([^}]*)\}/)?.[1] ?? "";
+
+    expect(universalRule).toMatch(/scrollbar-gutter:\s*stable/);
+  });
+});
+
 // ─── FR-001: primitive layer exists ──────────────────────────────────────────
 describe("FR-001: tokens.css declares primitive layer", () => {
   let tokens: string;

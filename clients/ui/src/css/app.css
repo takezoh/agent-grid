@@ -16,9 +16,11 @@ body {
 }
 
 /* Modern scrollbars — thin, pill thumb, invisible track. One owner here;
-   components never restyle scrollbars locally. Firefox via scrollbar-*,
-   Chromium/WebKit (xterm viewport included) via ::-webkit-scrollbar. */
+   components never restyle scrollbars locally. Reserve the scrollbar gutter
+   so overlay scrollbars cannot cover text at the inline edge. Firefox via
+   scrollbar-*, Chromium/WebKit (xterm viewport included) via ::-webkit-scrollbar. */
 * {
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
