@@ -16,8 +16,10 @@ import (
 // recorderClient captures every notification a client receives, keyed by
 // method. Broadcast assertions read from this in the tests below.
 type recorderClient struct {
-	mu     sync.Mutex
-	events []recordedEvent
+	mu       sync.Mutex
+	conn     *codexclient.Conn
+	events   []recordedEvent
+	requests []recordedEvent
 }
 
 type recordedEvent struct {
@@ -30,7 +32,18 @@ func (r *recorderClient) OnNotification(method string, params json.RawMessage) {
 	defer r.mu.Unlock()
 	r.events = append(r.events, recordedEvent{Method: method, Params: append(json.RawMessage(nil), params...)})
 }
-func (r *recorderClient) OnServerRequest(codexclient.RequestID, string, json.RawMessage) {}
+func (r *recorderClient) OnServerRequest(id codexclient.RequestID, method string, params json.RawMessage) {
+	r.mu.Lock()
+	r.requests = append(r.requests, recordedEvent{
+		Method: method,
+		Params: append(json.RawMessage(nil), params...),
+	})
+	conn := r.conn
+	r.mu.Unlock()
+	if conn != nil {
+		_ = conn.Reply(id, codexschema.ApprovalDecline)
+	}
+}
 
 func (r *recorderClient) filter(method string) []recordedEvent {
 	r.mu.Lock()
@@ -39,6 +52,18 @@ func (r *recorderClient) filter(method string) []recordedEvent {
 	for _, e := range r.events {
 		if e.Method == method {
 			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func (r *recorderClient) requestFilter(method string) []recordedEvent {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []recordedEvent
+	for _, request := range r.requests {
+		if request.Method == method {
+			out = append(out, request)
 		}
 	}
 	return out
@@ -53,7 +78,7 @@ func dialClient(t *testing.T, sock string) (*codexclient.Conn, *recorderClient) 
 		t.Fatalf("dial: %v", err)
 	}
 	conn := codexclient.NewConn(tr, 5*time.Second)
-	rec := &recorderClient{}
+	rec := &recorderClient{conn: conn}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go func() { _ = conn.Run(ctx, rec) }()
@@ -61,6 +86,38 @@ func dialClient(t *testing.T, sock string) (*codexclient.Conn, *recorderClient) 
 		t.Fatalf("initialize: %v", err)
 	}
 	return conn, rec
+}
+
+func TestTurnEmitterRequestTargetsSubscribedObserverNotCLIInitiator(t *testing.T) {
+	const method = codexschema.MethodItemCommandExecutionRequestApproval
+	srv := startFake(t, Config{
+		TurnHandler: func(req TurnRequest, emit Emitter) {
+			emit.Request(method, map[string]any{
+				"threadId": req.ThreadID,
+				"turnId":   req.TurnID,
+				"itemId":   "approval-contract",
+				"command":  "printf contract",
+			})
+		},
+	})
+	initiator, initiatorRec := dialClient(t, srv.SockPath())
+	observer, observerRec := dialClient(t, srv.SockPath())
+	session, err := codexclient.StartThread(initiator, "/work", nil, codexclient.ThreadOptions{})
+	if err != nil {
+		t.Fatalf("StartThread: %v", err)
+	}
+	if _, err := codexclient.ResumeThread(observer, codexclient.ResumeOptions{ThreadID: session.ThreadID}); err != nil {
+		t.Fatalf("ResumeThread(observer): %v", err)
+	}
+	if err := codexclient.StartTurn(initiator, session.ThreadID, "/work", []byte("request approval"), codexclient.TurnOptions{}); err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	waitFor(t, time.Second, func() bool {
+		return len(observerRec.requestFilter(method)) == 1
+	}, "approval request on subscribed observer")
+	if got := len(initiatorRec.requestFilter(method)); got != 0 {
+		t.Fatalf("initiator approval request count = %d, want 0", got)
+	}
 }
 
 func startFake(t *testing.T, cfg Config) *AppServer {

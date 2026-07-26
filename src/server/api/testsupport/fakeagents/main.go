@@ -17,6 +17,8 @@ import (
 	"time"
 
 	streamfake "github.com/takezoh/agent-grid/host/runtime/subsystem/stream/fake"
+	"github.com/takezoh/agent-grid/platform/agent/codexclient"
+	"github.com/takezoh/agent-grid/platform/agent/codexschema"
 	"github.com/takezoh/agent-grid/platform/lib/claude/fakeclaude"
 	claudehookpayload "github.com/takezoh/agent-grid/platform/lib/claude/hookpayload"
 )
@@ -189,7 +191,11 @@ func runCodex(args []string) error {
 		if err != nil {
 			return err
 		}
-		srv := streamfake.New(streamfake.Config{Sock: sock})
+		cfg := streamfake.Config{Sock: sock}
+		if os.Getenv("AG_UI_E2E_STATUS_SCENARIOS") == "1" {
+			cfg.TurnHandler = uiStatusTurnHandler
+		}
+		srv := streamfake.New(cfg)
 		if err := srv.Start(); err != nil {
 			return err
 		}
@@ -201,6 +207,34 @@ func runCodex(args []string) error {
 		return err
 	}
 	return streamfake.RunCLI(cliArgs)
+}
+
+func uiStatusTurnHandler(req streamfake.TurnRequest, emit streamfake.Emitter) {
+	switch {
+	case strings.Contains(req.Input, "[agent-grid-e2e:active]"):
+		_ = emit.Emit(codexschema.MethodTurnStarted,
+			codexclient.TurnStartedParams(req.ThreadID, req.TurnID))
+		_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
+			"threadId": req.ThreadID,
+			"status":   map[string]any{"type": "active"},
+		})
+	case strings.Contains(req.Input, "[agent-grid-e2e:approval]"):
+		_ = emit.Emit(codexschema.MethodTurnStarted,
+			codexclient.TurnStartedParams(req.ThreadID, req.TurnID))
+		_ = emit.Emit(codexschema.MethodThreadStatusChanged, map[string]any{
+			"threadId": req.ThreadID,
+			"status":   map[string]any{"type": "active"},
+		})
+		emit.Request(codexschema.MethodItemCommandExecutionRequestApproval, map[string]any{
+			"threadId": req.ThreadID,
+			"turnId":   req.TurnID,
+			"itemId":   "agent-grid-e2e-approval",
+			"command":  "printf e2e",
+			"reason":   "deterministic UI status E2E",
+		})
+	default:
+		streamfake.DefaultTurnHandler(req, emit)
+	}
 }
 
 func codexListenSock(args []string) (string, error) {

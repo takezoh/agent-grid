@@ -71,6 +71,23 @@ func TestStreamRoutingE2EIsolation(t *testing.T) {
 	}
 }
 
+// TestStreamServerRequestE2EFidelity is the real-side backstop for the fake
+// app-server's subscribed-observer request routing. A command that writes
+// outside the workspace must reach the Backend observer as an approval
+// request; otherwise the UI status E2E fake could produce a false-positive
+// human-input state that real Codex never delivers on that connection.
+func TestStreamServerRequestE2EFidelity(t *testing.T) {
+	backends := configuredE2EBackends()
+	if len(backends) == 0 {
+		t.Skip("no real app-server configured; set AG_E2E_CODEX_BIN and/or AG_E2E_APPSERVER_BIN")
+	}
+	for _, be := range backends {
+		t.Run(be.name, func(t *testing.T) {
+			runE2EServerRequestDelivery(t, be)
+		})
+	}
+}
+
 // TestStreamRoutingE2EBackstopFidelity is intentionally a placeholder — the
 // scenario runner in routing_backstop_test.go relies on the emitter's
 // mintThread + emitMarker helpers, which are fake-only. Real codex only
@@ -132,5 +149,56 @@ func runE2EIsolation(t *testing.T, be e2eBackend) {
 
 	for _, f := range frames {
 		assertMarkerFrames(t, rt, f.marker, f.id)
+	}
+}
+
+func runE2EServerRequestDelivery(t *testing.T, be e2eBackend) {
+	rt := &recordingRuntime{}
+	sockDir := e2etest.NewWorkspaceTempDir(t, ".codex-e2e-approval-sock-")
+	listen := filepath.Join(sockDir, "appserver-e2e.sock")
+	args := append([]string(nil), be.args...)
+	if be.name == "codex" {
+		args = append(args,
+			"-c", `approval_policy="on-request"`,
+			"-c", `sandbox_mode="workspace-write"`,
+		)
+	}
+	be.args = args
+	b := newE2EBackend(rt, be, listen)
+
+	ctx := context.Background()
+	if err := b.Start(ctx); err != nil {
+		t.Fatalf("start real %s app-server: %v", be.name, err)
+	}
+	t.Cleanup(func() { b.Stop(ctx, subsystem.StopCauseRuntimeShutdown) })
+
+	if _, err := b.BindFrame(ctx, subsystem.BindRequest{
+		FrameID: "approval",
+		Plan: state.LaunchPlan{
+			StartDir: t.TempDir(),
+		},
+		Stdin: []byte("Use the shell now to write the word approval to /etc/agent-grid-e2e-fidelity. Do not only explain the command."),
+	}); err != nil {
+		t.Fatalf("BindFrame(approval): %v", err)
+	}
+
+	deadline := time.Now().Add(3 * time.Minute)
+	for {
+		rt.mu.Lock()
+		found := false
+		for _, event := range rt.events {
+			if event.FrameID == "approval" && event.Kind == state.SubsystemApprovalRequested {
+				found = true
+				break
+			}
+		}
+		rt.mu.Unlock()
+		if found {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for real app-server approval request on subscribed observer")
+		}
+		time.Sleep(250 * time.Millisecond)
 	}
 }

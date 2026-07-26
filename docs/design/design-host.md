@@ -2084,9 +2084,13 @@ summary: Playwright browser smoke と fake backend で Web UI の session hydrat
 
 ## Overview
 
-`uihost` の browser harness は、happy-dom では証明し切れないブラウザ配線を常時検証する
-Playwright smoke 層である。責務は UI の見た目を比較することではなく、実ブラウザ上で
-「アプリが起動し、session 一覧と command 導線が正しくつながっている」ことを短時間で pin する点にある。
+`uihost` の browser harness は二層で構成する。
+
+- T1 browser smoke は happy-dom では証明し切れないブラウザ配線を、in-page fake backend
+  で常時検証する。
+- T3 UI/UX E2E は実 `server` と実 `uihost` を起動し、決定的 fake agent から `/api`・`/ws`
+  を経て実ブラウザ DOM に至る経路を検証する。Agent Grid におけるクライアント UI/UX E2E
+  の境界はこの `uihost ↔ server` 経路とする。
 
 現在の常時シナリオは次の 3 つで固定する。
 
@@ -2099,14 +2103,16 @@ REST は `page.route()` で `/api/ws-ticket` / `/api/session-config` / `/api/ses
 WebSocket は `page.addInitScript()` で差し替えて初期 event 列を制御する。これにより flaky な外部依存を
 持ち込まず、`npm run test:web` を PR CI の必須 gate にできる。
 
-ブラウザ smoke が保証するのは wiring までであり、次は意図的に対象外とする。
+ブラウザ smoke が保証するのは wiring までであり、本物の backend / websocket daemon を使う
+検証は `playwright.real.config.ts` のT3 UI/UX E2Eが担当する。両層とも実 soft keyboard、
+実 VoiceOver、visual regressionは対象外とする。
 
 - 実 soft keyboard / 実 VoiceOver / 実 long-press のような OS 実機依存挙動
 - visual regression や screenshot diff
-- 本物の backend / websocket daemon を使う fidelity 検証
 
 実機依存の観察は `docs/specs/web-terminal-mobile-ux/` の手動検証チェックリストが正本で、backend 側の
-server→view 貫通は `src/server/api` の gateway scenario e2e が担当する。
+server→view の単独契約は `src/server/api` の gateway scenario e2e が担当する。Windows E2Eは
+ShellのWinUI/UIAとWorkspaceのElectron配線など、OS固有surfaceに限定し、共有Web UI/UXを重複検証しない。
 
 ## Parts
 
@@ -2115,12 +2121,23 @@ server→view 貫通は `src/server/api` の gateway scenario e2e が担当す�
 - `playwright.config.ts`: dev server 起動と Chromium smoke project の定義
 - `e2e/support/fake-backend.ts`: deterministic fake backend と fake WebSocket
 - `e2e/app.smoke.spec.ts`: hydrate / palette / new-session の常時シナリオ
+- `playwright.real.config.ts`: 実server＋uihostを使うT3 UI/UX E2E project
+- `scripts/e2e-real-stack.sh`: 実server＋uihost＋PATH注入fake agent fixture
+- `e2e/real-stack/`: agent eventからDOMまでを通すUI/UX fidelity spec
 - `package.json` の `test:e2e` / `test:web`: unit・build・browser smoke を分離した入口
+- `package.json` の `test:e2e:real`: UI/UX E2Eのローカル／nightly入口
 - `.github/workflows/ci.yml`: Chromium install を含む CI gate
 
 ## Running locally
 
 Run commands: [AGENTS.md](../../AGENTS.md) (Build & Test → E2E → Web Playwright smoke). Below is harness-specific detail for troubleshooting.
+
+実server＋uihostでUI/UX E2Eを実行する:
+
+```sh
+cd clients/ui
+npm run test:e2e:real
+```
 
 PR CI (`.github/workflows/ci.yml`) と同じ browser gate を手元で再現する。
 

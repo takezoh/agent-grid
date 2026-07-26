@@ -101,6 +101,7 @@ the test-pinned enforcement catalogued in
 - **wire fixtures pipeline (T1 + CI gate)** — Go generates canonical wire JSON fixtures, vitest consumes the same files, and CI fails on regeneration drift. Enforcement is catalogued in [code-enforcement.md §11](note-20260624-technical-code-enforcement.md).
 - **gateway scenario e2e (T1)** — a real-`server` + fake-agent scenario now verifies `session create → WS viewUpdate` in the always-on Go suite for the server→view path.
 - **clients/ui browser smoke (T1)** — Playwright runs a deterministic fake-backend browser harness for session hydrate, command palette open, and new-session submit. This covers browser wiring that happy-dom cannot prove, while keeping real soft keyboard / assistive-tech flows on the manual-device checklist.
+- **uihost ↔ server UI/UX E2E (T3)** — Playwright runs the real `server` and real `uihost` with a PATH-injected deterministic fake agent, then asserts the browser DOM reached through real `/api` and `/ws`. This is the canonical shared-client UI/UX E2E boundary. Windows E2E owns only Shell WinUI/UIA and Workspace Electron-specific wiring.
 - **fakedocker + `FakeVsRealDocker` (T1 + T3)** — devcontainer lifecycle tests run against PATH-injected `fakedocker`, and an opt-in real-docker backstop verifies the fake's output shape. Enforcement is catalogued in [code-enforcement.md §10](note-20260624-technical-code-enforcement.md).
 
 Local e2e run commands live in [AGENTS.md](../../AGENTS.md) (Build & Test → E2E).

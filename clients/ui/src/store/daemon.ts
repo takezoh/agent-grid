@@ -2,7 +2,11 @@ import { create } from "zustand";
 import type { SessionConfig, SessionConfigProject } from "../api/sessions";
 import type { DaemonOccupant, DaemonSnapshot } from "../lib/tools";
 import type { HelloFrame, SessionInfo, ViewUpdateFrame } from "../wire/server";
-import { consumeStatusSignals, resetConsumedStatusSignals } from "./statusSignals";
+import {
+  consumeStatusSignals,
+  resetConsumedStatusSignals,
+  seedStatusSignals,
+} from "./statusSignals";
 import { useWorkspaceActivityStore } from "./workspaceActivity";
 
 // Mirror of Go's config.DefaultWorkspaceName — the daemon emits this literal
@@ -255,7 +259,7 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
   ...initialState,
   seedHello: (frame) => {
     const s = get();
-    const sessions = consumeStatusSignals(frame.sessions);
+    const sessions = seedStatusSignals(frame.sessions);
     // The daemon no longer ships an active session id; the web client owns
     // its own selection. Seed the initial selection from the first session
     // (falling back to a value the daemon supplies only if a pre-upgrade

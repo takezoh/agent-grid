@@ -45,6 +45,7 @@ type TurnHandler func(req TurnRequest, emit Emitter)
 // notifications fan out to subscribers of that thread.
 type Emitter interface {
 	Emit(method string, params any) error
+	Request(method string, params any)
 }
 
 // Thread captures the (small) subset of thread state the fake tracks. Kept
@@ -100,7 +101,7 @@ type Config struct {
 // serve.
 func New(cfg Config) *AppServer {
 	if cfg.TurnHandler == nil {
-		cfg.TurnHandler = defaultTurnHandler
+		cfg.TurnHandler = DefaultTurnHandler
 	}
 	return &AppServer{
 		sock:         cfg.Sock,
@@ -385,6 +386,22 @@ func (e turnEmitter) Emit(method string, params any) error {
 	return nil
 }
 
+// Request sends an app-server initiated request without blocking the fake
+// server's JSON-RPC reader. A synchronous request from TurnHandler would
+// deadlock because the response is consumed by that same reader.
+func (e turnEmitter) Request(method string, params any) {
+	for _, target := range e.app.subscribers(e.threadID) {
+		if target == e.initiator {
+			continue
+		}
+		go func(target *serverConn) {
+			if _, err := target.conn.Request(method, params); err != nil {
+				slog.Debug("fake app-server: scripted request failed", "method", method, "err", err)
+			}
+		}(target)
+	}
+}
+
 func (e turnEmitter) targetsFor(method string) []*serverConn {
 	if isInitiatorScopedMethod(method) {
 		return []*serverConn{e.initiator}
@@ -454,12 +471,12 @@ func (s *serverConn) OnServerRequest(id codexclient.RequestID, method string, pa
 	}
 }
 
-// defaultTurnHandler emits the minimum event sequence that carries the driver
+// DefaultTurnHandler emits the minimum event sequence that carries the driver
 // through Idle → Running → Waiting. Real codex scopes turn/* notifications to
 // the initiating client while broadcasting thread-level state changes to every
 // subscriber; the fake mirrors that split so observers must rely on
 // thread/status/changed rather than illicit turn/* fan-out.
-func defaultTurnHandler(req TurnRequest, emit Emitter) {
+func DefaultTurnHandler(req TurnRequest, emit Emitter) {
 	startedAt := time.Now()
 	_ = emit.Emit(codexschema.MethodTurnStarted, codexclient.TurnStartedParamsAt(req.ThreadID, req.TurnID, startedAt))
 	_ = emit.Emit(codexschema.MethodThreadSettingsUpdated, map[string]any{

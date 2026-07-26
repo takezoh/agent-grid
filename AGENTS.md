@@ -20,6 +20,7 @@ make test-race               # Race detector on concurrency-sensitive subtrees
 | Go gateway scenario | T1 | Always-on (`go test ./...`) | `src/server/api` (`mux_*_test.go`, etc.) |
 | Go opt-in fidelity | T3 | Manual / nightly; subtests skip without `AG_E2E_*` | `make test-e2e` |
 | Web Playwright smoke | T1 | PR CI (`npm run test:web`) | `clients/ui` `npm run test:e2e` |
+| Web UI/UX real stack | T3 | Manual / nightly | `clients/ui` `npm run test:e2e:real` |
 
 **Go gateway scenario** — no extra command; included in `go test ./...`. Exercises real `server` + fake agent (`session create → WS viewUpdate`, etc.).
 
@@ -46,6 +47,16 @@ npm ci
 npx playwright install chromium   # first run or after @playwright/test bump; CI uses --with-deps
 npm run test:e2e                # build (tsc + vite) then playwright test
 npm run test:web                # lint + unit + e2e (CI web gate)
+```
+
+**Web UI/UX real stack** — canonical shared-client UI/UX E2E. Starts the real
+`server` and real `uihost`, injects deterministic fake agents through `PATH`,
+and drives the real `/api` and `/ws` path from Playwright. Windows E2E is
+reserved for Shell WinUI/UIA and Workspace Electron-specific wiring.
+
+```sh
+cd clients/ui
+npm run test:e2e:real
 ```
 
 If home-directory caches are not writable (sandbox agents), redirect caches:
