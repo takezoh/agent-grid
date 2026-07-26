@@ -75,13 +75,16 @@ func TestRegisterOneHostAgentHook_EmptyDataDirOmitsFlag(t *testing.T) {
 // to prevent.
 func TestAgentHookPostCreateSubcmds_MatchesAll(t *testing.T) {
 	got := agentHookPostCreateSubcmds()
-	if len(got) != len(agenthook.All) {
-		t.Fatalf("got %d subcmds, want %d", len(got), len(agenthook.All))
+	if len(got) != len(agenthook.All)+1 {
+		t.Fatalf("got %d subcmds, want %d", len(got), len(agenthook.All)+1)
 	}
 	for i, spec := range agenthook.All {
 		if got[i] != spec.SubcmdName {
 			t.Errorf("subcmd[%d] = %q, want %q", i, got[i], spec.SubcmdName)
 		}
+	}
+	if got[len(got)-1] != agenthook.AntigravitySetupSubcommand {
+		t.Errorf("last subcmd = %q, want %q", got[len(got)-1], agenthook.AntigravitySetupSubcommand)
 	}
 }
 

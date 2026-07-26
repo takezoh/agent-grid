@@ -45,6 +45,25 @@ func TestRecoverableOnColdStart(t *testing.T) {
 	}
 }
 
+func TestCodexIgnoresTerminalStatusSignals(t *testing.T) {
+	d := NewCodexDriver("")
+	now := time.Date(2026, 7, 26, 0, 0, 0, 0, time.UTC)
+	cs := d.NewState(now).(CodexState)
+	cs.Status = state.StatusWaiting
+
+	for _, event := range []state.DEvFrameOsc{
+		{Kind: state.TerminalSignalWindowTitle, Title: "⠋ Working", Now: now.Add(time.Second)},
+		{Kind: state.TerminalSignalProgress, ProgressState: 3, Now: now.Add(2 * time.Second)},
+		{Kind: state.TerminalSignalBell, Now: now.Add(3 * time.Second)},
+	} {
+		next, _, _ := d.Step(cs, state.FrameContext{IsRoot: true}, event)
+		cs = next.(CodexState)
+		if cs.Status != state.StatusWaiting {
+			t.Fatalf("terminal signal changed Codex status to %v", cs.Status)
+		}
+	}
+}
+
 func newCodex(t *testing.T) (CodexDriver, CodexState, time.Time) {
 	t.Helper()
 	now := time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC)

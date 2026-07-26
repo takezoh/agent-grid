@@ -11,14 +11,11 @@ func TestReduceFrameOsc_EmitsRecordNotification(t *testing.T) {
 	frameID := FrameID(sessID)
 
 	ev := EvFrameOsc{FrameID: frameID, Cmd: 9, Title: "hello", Body: ""}
-	_, effs := Reduce(s, ev)
+	next, effs := Reduce(s, ev)
 
-	if len(effs) != 1 {
-		t.Fatalf("expected 1 effect, got %d", len(effs))
-	}
-	rec, ok := effs[0].(EffRecordNotification)
+	rec, ok := findEff[EffRecordNotification](effs)
 	if !ok {
-		t.Fatalf("expected EffRecordNotification, got %T", effs[0])
+		t.Fatalf("expected EffRecordNotification, got %#v", effs)
 	}
 	if rec.FrameID != frameID {
 		t.Errorf("frameID: got %q, want %q", rec.FrameID, frameID)
@@ -28,6 +25,9 @@ func TestReduceFrameOsc_EmitsRecordNotification(t *testing.T) {
 	}
 	if rec.Cmd != 9 || rec.Title != "hello" {
 		t.Errorf("unexpected content: cmd=%d title=%q", rec.Cmd, rec.Title)
+	}
+	if next.StatusSignals[sessID] != 1 {
+		t.Fatalf("notification signal sequence = %d, want 1", next.StatusSignals[sessID])
 	}
 }
 
@@ -269,5 +269,41 @@ func TestReduceFrameOsc_OSC9_StillEmitsRecordNotification(t *testing.T) {
 	_, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Cmd: 9, Title: "ping"})
 	if _, ok := findEff[EffRecordNotification](effs); !ok {
 		t.Error("OSC 9 should still produce EffRecordNotification")
+	}
+}
+
+func TestReduceFrameOsc_OSC94RoutesProgressWithoutNotification(t *testing.T) {
+	s := New()
+	sessID := SessionID("sess1")
+	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
+	frameID := FrameID(sessID)
+
+	_, effs := Reduce(s, EvFrameOsc{
+		FrameID: frameID, Cmd: 9, Kind: TerminalSignalProgress, ProgressState: 3,
+	})
+	for _, eff := range effs {
+		if _, ok := eff.(EffRecordNotification); ok {
+			t.Fatal("OSC 9;4 progress was emitted as a notification")
+		}
+	}
+	logEff, ok := findEff[EffEventLogAppend](effs)
+	if !ok || logEff.Line != "[osc9;4] state=3 value=0" {
+		t.Fatalf("progress log = %#v, %v", logEff, ok)
+	}
+}
+
+func TestReduceFrameOsc_BareBellIsTransientLogOnly(t *testing.T) {
+	s := New()
+	sessID := SessionID("sess1")
+	s.Sessions = map[SessionID]Session{sessID: stubSession(sessID)}
+	frameID := FrameID(sessID)
+
+	next, effs := Reduce(s, EvFrameOsc{FrameID: frameID, Kind: TerminalSignalBell})
+	logEff, ok := findEff[EffEventLogAppend](effs)
+	if !ok || logEff.Line != "[bell]" {
+		t.Fatalf("effects = %#v, want bell log", effs)
+	}
+	if next.StatusSignals[sessID] != 1 {
+		t.Fatalf("bell sequence = %d, want 1", next.StatusSignals[sessID])
 	}
 }

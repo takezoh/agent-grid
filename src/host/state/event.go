@@ -277,12 +277,27 @@ type EvSpawnFailed struct {
 // notification is detected in the raw byte stream from a frame.
 // Title and Body are already parsed from the raw payload.
 type EvFrameOsc struct {
-	FrameID FrameID
-	Cmd     int
-	Title   string
-	Body    string
-	Now     time.Time
+	FrameID       FrameID
+	Cmd           int
+	Kind          TerminalSignalKind
+	Title         string
+	Body          string
+	ProgressState int
+	ProgressValue int
+	Now           time.Time
 }
+
+// TerminalSignalKind separates lifecycle/progress evidence from transient
+// terminal notifications before either reaches a Driver.
+type TerminalSignalKind string
+
+const (
+	TerminalSignalUnknown      TerminalSignalKind = ""
+	TerminalSignalWindowTitle  TerminalSignalKind = "window_title"
+	TerminalSignalNotification TerminalSignalKind = "notification"
+	TerminalSignalProgress     TerminalSignalKind = "progress"
+	TerminalSignalBell         TerminalSignalKind = "bell"
+)
 
 // PromptPhase classifies an OSC 133 semantic-prompt event.
 type PromptPhase int

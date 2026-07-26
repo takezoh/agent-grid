@@ -34,7 +34,7 @@ import (
 // so that hooks fired in completely unrelated contexts (e.g. a Claude Code
 // invocation on a host with no daemon configured) do not spam dial errors.
 func Run(args []string) error {
-	eventType, dataDir, err := parseEventArgs(args)
+	eventType, dataDir, contract, err := parseEventArgsExtended(args)
 	if err != nil {
 		if errors.Is(err, errMissingEventType) {
 			fmt.Fprintf(os.Stderr, "usage: %s event <event-type> [-data-dir DIR]\n", appid.ClientBin)
@@ -72,6 +72,9 @@ func Run(args []string) error {
 	if sendErr != nil {
 		slog.Warn("event: send failed", "err", sendErr)
 	}
+	if response := hookResponse(contract, eventType); len(response) != 0 {
+		_, _ = os.Stdout.Write(response)
+	}
 	return nil
 }
 
@@ -95,28 +98,51 @@ var errMissingEventType = errors.New("event: missing event type")
 // anywhere in args, and treats the first remaining token as the event type.
 // Unknown flags surface as an error so a typo in the hook command is loud.
 func parseEventArgs(args []string) (eventType, dataDir string, err error) {
+	eventType, dataDir, _, err = parseEventArgsExtended(args)
+	return eventType, dataDir, err
+}
+
+func parseEventArgsExtended(args []string) (eventType, dataDir, contract string, err error) {
 	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "-data-dir" || a == "--data-dir":
 			if i+1 >= len(args) {
-				return "", "", fmt.Errorf("event: -data-dir requires a value")
+				return "", "", "", fmt.Errorf("event: -data-dir requires a value")
 			}
 			dataDir = args[i+1]
 			i++
 		case strings.HasPrefix(a, "-data-dir=") || strings.HasPrefix(a, "--data-dir="):
 			_, dataDir, _ = strings.Cut(a, "=")
+		case a == "-hook-contract" || a == "--hook-contract":
+			if i+1 >= len(args) {
+				return "", "", "", fmt.Errorf("event: -hook-contract requires a value")
+			}
+			contract = args[i+1]
+			i++
+		case strings.HasPrefix(a, "-hook-contract=") || strings.HasPrefix(a, "--hook-contract="):
+			_, contract, _ = strings.Cut(a, "=")
 		case strings.HasPrefix(a, "-") && a != "-" && a != "--":
-			return "", "", fmt.Errorf("event: unknown flag: %s", a)
+			return "", "", "", fmt.Errorf("event: unknown flag: %s", a)
 		default:
 			rest = append(rest, a)
 		}
 	}
 	if len(rest) == 0 {
-		return "", "", errMissingEventType
+		return "", "", "", errMissingEventType
 	}
-	return rest[0], dataDir, nil
+	return rest[0], dataDir, contract, nil
+}
+
+func hookResponse(contract, event string) []byte {
+	if contract != "agy" {
+		return nil
+	}
+	if event == "Stop" {
+		return []byte(`{"decision":"stop"}`)
+	}
+	return []byte(`{}`)
 }
 
 // ResolveSocketPath returns the server daemon UDS path. Resolution order:

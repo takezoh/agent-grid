@@ -77,3 +77,57 @@ func TestGrokDoesNotInferMetadataFromTerminalEvents(t *testing.T) {
 		t.Fatalf("terminal event inferred metadata: %#v", got)
 	}
 }
+
+func TestGrokMapsTerminalSignalsToCanonicalStatus(t *testing.T) {
+	d := NewGrokDriver("")
+	now := time.Date(2026, 7, 26, 0, 0, 0, 0, time.UTC)
+	gs := d.NewState(now).(GrokState)
+
+	next, _, _ := d.Step(gs, state.FrameContext{IsRoot: true}, state.DEvFrameOsc{
+		Kind: state.TerminalSignalWindowTitle, Title: "⠋ - Thinking - grok", Now: now.Add(time.Second),
+	})
+	if got := next.(GrokState).Status; got != state.StatusRunning {
+		t.Fatalf("spinner status = %v, want running", got)
+	}
+	next, _, _ = d.Step(next, state.FrameContext{IsRoot: true}, state.DEvFrameOsc{
+		Kind: state.TerminalSignalWindowTitle, Title: "⚠ Action Required - ⠙ - grok", Now: now.Add(2 * time.Second),
+	})
+	if got := next.(GrokState).Status; got != state.StatusRunning {
+		t.Fatalf("unresolved blinking title changed status = %v, want running", got)
+	}
+}
+
+func TestGrokBlinkingActionTitleDoesNotCreateTimeBasedPending(t *testing.T) {
+	now := time.Date(2026, 7, 26, 0, 0, 0, 0, time.UTC)
+	gs := GrokState{CommonState: CommonState{Status: state.StatusWaiting}}
+	gs = handleGrokTerminalSignal(gs, state.DEvFrameOsc{
+		Kind: state.TerminalSignalWindowTitle, Title: "⚠ Action Required - ⠋ - grok", Now: now,
+	})
+	if gs.Status != state.StatusWaiting {
+		t.Fatalf("action title status = %v, want unchanged waiting", gs.Status)
+	}
+	gs = handleGrokTerminalSignal(gs, state.DEvFrameOsc{
+		Kind: state.TerminalSignalWindowTitle, Title: "⠙ - Waiting - grok", Now: now.Add(time.Second),
+	})
+	if gs.Status != state.StatusRunning {
+		t.Fatalf("blink-hidden status = %v, want running from explicit spinner", gs.Status)
+	}
+}
+
+func TestBuiltinDriversRegistersAgyProgressDriver(t *testing.T) {
+	drivers := builtinDrivers(RegisterOptions{IdleThreshold: time.Minute})
+	for _, candidate := range drivers {
+		if candidate.Name() != "agy" {
+			continue
+		}
+		now := time.Now()
+		next, _, _ := candidate.Step(candidate.NewState(now), state.FrameContext{IsRoot: true}, state.DEvFrameOsc{
+			Kind: state.TerminalSignalProgress, ProgressState: 3, Now: now,
+		})
+		if candidate.Status(next) != state.StatusRunning {
+			t.Fatalf("agy progress status = %v, want running", candidate.Status(next))
+		}
+		return
+	}
+	t.Fatal("agy driver is not registered")
+}

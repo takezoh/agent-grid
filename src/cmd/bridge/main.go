@@ -83,6 +83,10 @@ func main() {
 			err = runAgentSetupHooks(rest, spec)
 			break
 		}
+		if sub == agenthook.AntigravitySetupSubcommand {
+			err = runAntigravitySetupHooks(rest)
+			break
+		}
 		fmt.Fprintf(os.Stderr, "%s: unknown subcommand: %s\n", appid.BridgeBin, sub)
 		usage()
 		os.Exit(1)
@@ -382,5 +386,25 @@ func runAgentSetupHooks(args []string, spec agenthook.Spec) error {
 		return nil
 	}
 	fmt.Fprintf(os.Stderr, "%s: registered %d events in %s\n", spec.SubcmdName, len(registered), *settingsPath)
+	return nil
+}
+
+func runAntigravitySetupHooks(args []string) error {
+	fs := flag.NewFlagSet(agenthook.AntigravitySetupSubcommand, flag.ContinueOnError)
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return fmt.Errorf("%s: HOME unresolved: %w", agenthook.AntigravitySetupSubcommand, err)
+	}
+	homeDir := fs.String("home", home, "home directory containing Antigravity plugin roots")
+	dataDir := fs.String("data-dir", "", "append -data-dir DIR to hook command")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	changed, err := agenthook.InstallAntigravityPlugins(*homeDir, appid.ContainerBinaryPath, *dataDir)
+	if err != nil {
+		return fmt.Errorf("%s: %w", agenthook.AntigravitySetupSubcommand, err)
+	}
+	fmt.Fprintf(os.Stderr, "%s: registered %d plugins\n",
+		agenthook.AntigravitySetupSubcommand, len(changed))
 	return nil
 }

@@ -27,6 +27,17 @@ func TestRunRejectsUnknownFlag(t *testing.T) {
 	}
 }
 
+func TestAgyHookResponseContract(t *testing.T) {
+	if got := string(hookResponse("agy", "Stop")); got != `{"decision":"stop"}` {
+		t.Fatalf("Stop response = %q", got)
+	}
+	for _, event := range []string{"PreInvocation", "PostInvocation", "PostToolUse"} {
+		if got := string(hookResponse("agy", event)); got != `{}` {
+			t.Fatalf("%s response = %q", event, got)
+		}
+	}
+}
+
 func TestResolveSocketPathFromEnv(t *testing.T) {
 	t.Setenv("AG_SOCKET", "/tmp/custom.sock")
 	got, err := ResolveSocketPath("")

@@ -24,3 +24,8 @@ type OscNotification struct {
 	Cmd     int    // 9, 99, or 777
 	Payload string // raw payload (leading ';' stripped)
 }
+
+type OscProgress struct {
+	State int
+	Value int
+}

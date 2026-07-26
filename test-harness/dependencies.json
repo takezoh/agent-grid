@@ -47,6 +47,13 @@
       "fidelity": {"path":"src/platform/lib/grok/grok_real_e2e_test.go","test":"TestFakeVsRealGrokLifecycleFlags","shared_input":"--session-id","real_marker":"AG_E2E_GROK_BIN","suite_id":"grok-cli"}
     },
     {
+      "id": "agy-hooks", "strategy": "triple",
+      "seam": {"path":"src/host/driver/agy.go","symbol":"AgyDriver"},
+      "fake": {"path":"src/host/driver/drivertest/agy.go","symbol":"FakeAgyLifecycle"},
+      "contract": {"path":"src/host/driver/agy_test.go","test":"TestAgyHookLifecycle","invariant":"passive PreInvocation and fully-idle Stop project Running then Waiting","assertion":"want Waiting"},
+      "fidelity": {"path":"src/host/driver/agy_real_e2e_test.go","test":"TestFakeVsRealAgyPassiveLifecycle","shared_input":"FakeAgyLifecycle","real_marker":"AG_E2E_AGY_BIN","suite_id":"agy-hooks"}
+    },
+    {
       "id": "docker-cli", "strategy": "triple",
       "seam": {"path":"src/platform/sandbox/devcontainer/manager.go","symbol":"Manager"},
       "fake": {"path":"src/platform/sandbox/devcontainer/fakedocker/config.go","symbol":"LoadConfig"},

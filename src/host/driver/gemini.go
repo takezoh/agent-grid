@@ -127,12 +127,21 @@ func (d GeminiDriver) Step(prev state.DriverState, ctx state.FrameContext, ev st
 	switch e := ev.(type) {
 	case state.DEvHook:
 		next, effs := d.handleHook(gs, ctx, e)
+		if ctx.IsRoot {
+			observeGeminiHookStatus(&next.CommonState, e)
+		}
 		return next, effs, d.view(next)
 	case state.DEvTick:
 		effs := gs.HandleTick(e, false)
+		gs.ResolveStatus(e.Now)
 		return gs, effs, d.view(gs)
 	case state.DEvFrameOsc:
-		next := d.handleWindowTitle(gs, e.Title, e.Now)
+		next := gs
+		if e.Kind == state.TerminalSignalProgress {
+			next.ObserveStatus(StatusSourceProgress, progressStatus(e.ProgressState), e.Now)
+		} else {
+			next = d.handleWindowTitle(gs, e.Title, e.Now)
+		}
 		return next, nil, d.view(next)
 	case state.DEvFileChanged:
 		next, effs := d.handleTranscriptChanged(gs, e)

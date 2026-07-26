@@ -8,9 +8,8 @@ import (
 )
 
 // Generic driver: polling-driven status producer for arbitrary terminal frames
-// (vim, tig, build output, unknown commands, fallback). Receives OSC events
-// via DEvFrameOsc when the frame emits semantic sequences; otherwise transitions
-// Running → Waiting after IdleThreshold elapses.
+// (vim, tig, build output, unknown commands, fallback). Receives characterized
+// OSC progress events via DEvFrameOsc. Elapsed time is not lifecycle evidence.
 //
 // Shell-specific logic (OSC 133, promptRe heuristic) lives in ShellDriver.
 //
@@ -184,6 +183,12 @@ func (d GenericDriver) Step(prev state.DriverState, ctx state.FrameContext, ev s
 
 	case state.DEvHook:
 		// generic drivers don't consume hooks
+		return gs, nil, d.view(gs)
+
+	case state.DEvFrameOsc:
+		if e.Kind == state.TerminalSignalProgress {
+			gs.ObserveStatus(StatusSourceProgress, progressStatus(e.ProgressState), e.Now)
+		}
 		return gs, nil, d.view(gs)
 
 	case state.DEvWorktreeResolved:

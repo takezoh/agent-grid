@@ -21,6 +21,7 @@ type Terminal struct {
 	OnOscNotification func(OscNotification)
 	OnPromptEvent     func(PromptEvent)
 	OnWindowTitle     func(cmd int, title string)
+	OnBell            func()
 }
 
 // New creates a Terminal sized cols×rows. Defaults to 80×24 for zero values.
@@ -63,6 +64,13 @@ func oscStripPrefix(data []byte) string {
 }
 
 func (t *Terminal) registerOscHandlers() {
+	t.em.SetCallbacks(xvt.Callbacks{
+		Bell: func() {
+			if t.OnBell != nil {
+				t.OnBell()
+			}
+		},
+	})
 	t.em.RegisterOscHandler(0, func(data []byte) bool {
 		if t.OnWindowTitle != nil {
 			t.OnWindowTitle(0, oscStripPrefix(data))

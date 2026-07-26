@@ -34,13 +34,32 @@ func deriveHookState(hp hookPayload) string {
 		return "idle"
 	case "Notification":
 		switch hp.NotificationType {
-		case "permission_prompt":
+		case "permission_prompt", "elicitation_dialog":
 			return "pending"
-		case "idle_prompt", "elicitation_dialog":
+		case "idle_prompt":
 			return "waiting"
 		}
 	}
 	return ""
+}
+
+func observeClaudeHookStatus(common *CommonState, e state.DEvHook) {
+	hp := parseHookPayload(e.Payload)
+	if hp.ToolName == "Agent" {
+		return
+	}
+	switch deriveHookState(hp) {
+	case "running":
+		common.ObserveStatus(StatusSourceHook, state.StatusRunning, e.Timestamp)
+	case "waiting":
+		common.ObserveStatus(StatusSourceHook, state.StatusWaiting, e.Timestamp)
+	case "idle":
+		common.ObserveStatus(StatusSourceHook, state.StatusIdle, e.Timestamp)
+	case "stopped":
+		common.ObserveStatus(StatusSourceHook, state.StatusStopped, e.Timestamp)
+	case "pending":
+		common.ObserveStatus(StatusSourceHook, state.StatusPending, e.Timestamp)
+	}
 }
 
 func formatHookLog(hp hookPayload) string {
@@ -315,15 +334,9 @@ func (d ClaudeDriver) handleWindowTitle(cs ClaudeState, title string, now time.T
 	r, _ := firstRune(title)
 	switch {
 	case r == '✳':
-		if cs.Status != state.StatusWaiting {
-			cs.Status = state.StatusWaiting
-			cs.StatusChangedAt = now
-		}
+		cs.ObserveStatus(StatusSourceTerminal, state.StatusWaiting, now)
 	case unicode.In(r, unicode.Braille):
-		if cs.Status != state.StatusRunning {
-			cs.Status = state.StatusRunning
-			cs.StatusChangedAt = now
-		}
+		cs.ObserveStatus(StatusSourceTerminal, state.StatusRunning, now)
 	}
 	return cs
 }

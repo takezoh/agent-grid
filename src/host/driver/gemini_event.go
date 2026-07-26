@@ -23,6 +23,24 @@ type geminiHookPayload struct {
 	StopReason       string         `json:"stop_reason"`
 }
 
+func observeGeminiHookStatus(common *CommonState, e state.DEvHook) {
+	hp := parseGeminiHookPayload(e.Payload)
+	switch hp.HookEventName {
+	case "SessionStart":
+		common.ObserveStatus(StatusSourceHook, state.StatusIdle, e.Timestamp)
+	case "BeforeAgent", "BeforeTool", "AfterTool":
+		common.ObserveStatus(StatusSourceHook, state.StatusRunning, e.Timestamp)
+	case "AfterAgent":
+		common.ObserveStatus(StatusSourceHook, state.StatusWaiting, e.Timestamp)
+	case "SessionEnd":
+		common.ObserveStatus(StatusSourceHook, state.StatusStopped, e.Timestamp)
+	case "Notification":
+		if hp.NotificationType == "ToolPermission" {
+			common.ObserveStatus(StatusSourceHook, state.StatusPending, e.Timestamp)
+		}
+	}
+}
+
 func (hp geminiHookPayload) formatLog() string {
 	name := hp.HookEventName
 	detail := ""
@@ -65,14 +83,13 @@ func (d GeminiDriver) handleWindowTitle(gs GeminiState, title string, now time.T
 	}
 	switch {
 	case strings.Contains(title, "✋") || strings.Contains(title, "Action Required"):
-		gs.Status = state.StatusPending
-		gs.StatusChangedAt = statusTime(now, gs.StatusChangedAt)
+		gs.ObserveStatus(StatusSourceTerminal, state.StatusPending, now)
 	case strings.Contains(title, "✦"):
-		gs.Status = state.StatusRunning
-		gs.StatusChangedAt = statusTime(now, gs.StatusChangedAt)
+		gs.ObserveStatus(StatusSourceTerminal, state.StatusRunning, now)
+	case strings.Contains(title, "⏲"):
+		gs.ObserveStatus(StatusSourceTerminal, state.StatusRunning, now)
 	case strings.Contains(title, "◇"):
-		gs.Status = state.StatusWaiting
-		gs.StatusChangedAt = statusTime(now, gs.StatusChangedAt)
+		gs.ObserveStatus(StatusSourceTerminal, state.StatusWaiting, now)
 	}
 	return gs
 }

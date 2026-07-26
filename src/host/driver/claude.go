@@ -314,9 +314,13 @@ func (d ClaudeDriver) Step(prev state.DriverState, ctx state.FrameContext, ev st
 	switch e := ev.(type) {
 	case state.DEvHook:
 		next, effs := d.handleHook(cs, ctx, e)
+		if ctx.IsRoot {
+			observeClaudeHookStatus(&next.CommonState, e)
+		}
 		return next, effs, d.view(next)
 	case state.DEvTick:
 		next, effs := d.handleTick(cs, e)
+		next.ResolveStatus(e.Now)
 		return next, effs, d.view(next)
 	case state.DEvFileChanged:
 		next, effs := d.handleTranscriptChanged(cs, e)
@@ -325,7 +329,12 @@ func (d ClaudeDriver) Step(prev state.DriverState, ctx state.FrameContext, ev st
 		next := d.handleJobResult(cs, e)
 		return next, nil, d.view(next)
 	case state.DEvFrameOsc:
-		next := d.handleWindowTitle(cs, e.Title, e.Now)
+		next := cs
+		if e.Kind == state.TerminalSignalProgress {
+			next.ObserveStatus(StatusSourceProgress, progressStatus(e.ProgressState), e.Now)
+		} else {
+			next = d.handleWindowTitle(cs, e.Title, e.Now)
+		}
 		return next, nil, d.view(next)
 	case state.DEvStatusLineClick:
 		next, effs := d.handleStatusLineClick(cs, e)

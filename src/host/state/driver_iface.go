@@ -220,15 +220,17 @@ type DEvFileChanged struct {
 
 func (DEvFileChanged) isDriverEvent() {}
 
-// DEvFrameOsc delivers a parsed OSC sequence from the FrameTap byte stream to
-// the driver. Only OSC 0/2 (window title) is routed here; OSC 9/99/777 go
-// directly to EffRecordNotification in the state reducer instead. The driver
-// interprets the title string and may update its status accordingly.
+// DEvFrameOsc delivers a classified terminal status sequence from the FrameTap
+// byte stream to the driver. Window titles and OSC 9;4 progress are routed
+// here; transient OSC notifications and bare BEL remain host-owned signals.
 type DEvFrameOsc struct {
-	Cmd   int
-	Title string
-	Body  string
-	Now   time.Time
+	Cmd           int
+	Kind          TerminalSignalKind
+	Title         string
+	Body          string
+	ProgressState int
+	ProgressValue int
+	Now           time.Time
 }
 
 func (DEvFrameOsc) isDriverEvent() {}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/takezoh/agent-grid/host/lib/agenthook"
@@ -116,6 +117,25 @@ func TestRunAgentSetupHooks_Gemini(t *testing.T) {
 	wantCmd := appid.ContainerBinaryPath + " event gemini"
 	if cmd != wantCmd {
 		t.Errorf("BeforeTool command = %q, want %q", cmd, wantCmd)
+	}
+}
+
+func TestRunAntigravitySetupHooksWritesPassivePlugin(t *testing.T) {
+	home := t.TempDir()
+	if err := runAntigravitySetupHooks([]string{"-home", home}); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range agenthook.AntigravityPluginDirs {
+		raw, err := os.ReadFile(filepath.Join(home, rel, "hooks.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(raw), `"PreToolUse"`) {
+			t.Fatalf("%s contains policy-changing PreToolUse", rel)
+		}
+		if !strings.Contains(string(raw), appid.ContainerBinaryPath+" event Stop -hook-contract agy") {
+			t.Fatalf("%s does not route Stop through container bridge", rel)
+		}
 	}
 }
 

@@ -49,6 +49,34 @@ func TestFeed_OscNotification9(t *testing.T) {
 	}
 }
 
+func TestParseOscProgressSeparatesOSC9Subcommand(t *testing.T) {
+	got, ok := ParseOscProgress(OscNotification{Cmd: 9, Payload: "4;3;0"})
+	if !ok || got.State != 3 || got.Value != 0 {
+		t.Fatalf("progress = %+v, %v; want state=3 value=0", got, ok)
+	}
+	if _, ok := ParseOscProgress(OscNotification{Cmd: 9, Payload: "Agent finished"}); ok {
+		t.Fatal("plain OSC 9 notification classified as progress")
+	}
+}
+
+func TestTerminalBareBellIsSeparateFromOSCTerminator(t *testing.T) {
+	term := New(80, 24)
+	bells := 0
+	term.OnBell = func() { bells++ }
+	if err := term.Feed([]byte("\x1b]9;notice\x07")); err != nil {
+		t.Fatal(err)
+	}
+	if bells != 0 {
+		t.Fatalf("OSC terminator produced %d bare bell events", bells)
+	}
+	if err := term.Feed([]byte("\x07")); err != nil {
+		t.Fatal(err)
+	}
+	if bells != 1 {
+		t.Fatalf("bare bell events = %d, want 1", bells)
+	}
+}
+
 func TestFeed_OscNotification99(t *testing.T) {
 	term := New(40, 10)
 	var notifs []OscNotification

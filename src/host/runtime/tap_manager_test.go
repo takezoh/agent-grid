@@ -183,6 +183,29 @@ func TestFrameTapTerminal_ProcessesOscAfterScrollSequences(t *testing.T) {
 	}
 }
 
+func TestFrameTapTerminal_ClassifiesProgressAndBareBell(t *testing.T) {
+	frameID := state.FrameID("f1")
+	var events []state.Event
+	term := newFrameTapTerminal(frameID, eventSinkFunc(func(e state.Event) {
+		events = append(events, e)
+	}))
+	if err := term.Feed([]byte("\x1b]9;4;3;0\x07\x07")); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events = %+v, want progress and bell", events)
+	}
+	progress, ok := events[0].(state.EvFrameOsc)
+	if !ok || progress.Kind != state.TerminalSignalProgress ||
+		progress.ProgressState != 3 || progress.ProgressValue != 0 {
+		t.Fatalf("progress event = %#v", events[0])
+	}
+	bell, ok := events[1].(state.EvFrameOsc)
+	if !ok || bell.Kind != state.TerminalSignalBell {
+		t.Fatalf("bell event = %#v", events[1])
+	}
+}
+
 // readTap must survive a chunk full of scroll sequences at 1x1 and still
 // deliver the OSC payload from the following chunk. Before the upstream
 // bounds fixes this was the daemon-killing path: the emulator panicked in

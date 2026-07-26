@@ -145,14 +145,28 @@ func newFrameTapTerminal(frameID state.FrameID, sink EventSink) *vt.Terminal {
 	term := vt.New(1, 1)
 	term.OnWindowTitle = func(cmd int, title string) {
 		if title != "" {
-			sink.Enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: cmd, Title: title, Now: time.Now()})
+			sink.Enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: cmd, Kind: state.TerminalSignalWindowTitle, Title: title, Now: time.Now()})
 		}
 	}
 	term.OnOscNotification = func(n vt.OscNotification) {
+		if progress, ok := vt.ParseOscProgress(n); ok {
+			sink.Enqueue(state.EvFrameOsc{
+				FrameID:       frameID,
+				Cmd:           n.Cmd,
+				Kind:          state.TerminalSignalProgress,
+				ProgressState: progress.State,
+				ProgressValue: progress.Value,
+				Now:           time.Now(),
+			})
+			return
+		}
 		title, body := parseOscNotification(n)
 		if title != "" || body != "" {
-			sink.Enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: n.Cmd, Title: title, Body: body, Now: time.Now()})
+			sink.Enqueue(state.EvFrameOsc{FrameID: frameID, Cmd: n.Cmd, Kind: state.TerminalSignalNotification, Title: title, Body: body, Now: time.Now()})
 		}
+	}
+	term.OnBell = func() {
+		sink.Enqueue(state.EvFrameOsc{FrameID: frameID, Kind: state.TerminalSignalBell, Now: time.Now()})
 	}
 	term.OnPromptEvent = func(e vt.PromptEvent) {
 		sink.Enqueue(state.EvFramePrompt{FrameID: frameID, Phase: vtPromptPhase(e.Phase), ExitCode: e.ExitCode, Now: time.Now()})

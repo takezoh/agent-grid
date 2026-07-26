@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/takezoh/agent-grid/host/state"
 	libgrok "github.com/takezoh/agent-grid/platform/lib/grok"
@@ -20,10 +21,11 @@ const (
 
 type GrokState struct {
 	CommonState
-	GrokSessionID string
-	ForkParentID  string
-	Model         string
-	Effort        string
+	GrokSessionID   string
+	ForkParentID    string
+	Model           string
+	Effort          string
+	LastWindowTitle string
 }
 
 type GrokDriver struct{ eventLogDir string }
@@ -137,13 +139,43 @@ func (d GrokDriver) Step(prev state.DriverState, ctx state.FrameContext, ev stat
 	}
 	switch e := ev.(type) {
 	case state.DEvTick:
+		gs.ResolveStatus(e.Now)
 		return gs, gs.HandleTick(e, false), d.View(gs)
+	case state.DEvFrameOsc:
+		gs = handleGrokTerminalSignal(gs, e)
 	case state.DEvWorktreeResolved:
 		gs.ApplyWorktreeResolved(e)
 	case state.DEvCommandExited:
 		gs.ApplyCommandExited(e)
 	}
 	return gs, nil, d.View(gs)
+}
+
+func handleGrokTerminalSignal(gs GrokState, e state.DEvFrameOsc) GrokState {
+	if e.Kind == state.TerminalSignalProgress {
+		gs.ObserveStatus(StatusSourceProgress, progressStatus(e.ProgressState), e.Now)
+		return gs
+	}
+	if e.Kind != state.TerminalSignalWindowTitle || e.Title == gs.LastWindowTitle {
+		return gs
+	}
+	gs.LastWindowTitle = e.Title
+	if strings.Contains(e.Title, "Action Required") || strings.Contains(e.Title, "⚠") {
+		// Grok blinks this title by alternating it with a title that contains no
+		// action marker. Without an explicit resolved event, neither edge can
+		// deterministically own Pending; keep it notification-only.
+		return gs
+	}
+	for _, r := range e.Title {
+		if unicode.In(r, unicode.Braille) {
+			gs.ObserveStatus(StatusSourceTerminal, state.StatusRunning, e.Now)
+			return gs
+		}
+	}
+	if strings.TrimSpace(e.Title) == "grok" {
+		gs.ObserveStatus(StatusSourceTerminal, state.StatusWaiting, e.Now)
+	}
+	return gs
 }
 
 func (GrokDriver) Persist(s state.DriverState) map[string]string {

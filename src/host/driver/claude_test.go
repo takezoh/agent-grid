@@ -442,6 +442,21 @@ func TestClaudeHookPreToolUseThenNotification(t *testing.T) {
 	}
 }
 
+func TestClaudeElicitationDialogRequiresUserAction(t *testing.T) {
+	d, cs, now := newClaude(t)
+	cs.ClaudeSessionID = "uuid"
+
+	next, _, _ := d.Step(cs, state.FrameContext{IsRoot: true}, hookEvent("Notification", map[string]string{
+		"session_id":        "uuid",
+		"hook_event_name":   "Notification",
+		"notification_type": "elicitation_dialog",
+	}, now))
+
+	if got := next.(ClaudeState).Status; got != state.StatusPending {
+		t.Fatalf("elicitation_dialog status = %v, want Pending", got)
+	}
+}
+
 func TestClaudeHookSubagentEventsDoNotChangeStatus(t *testing.T) {
 	d, cs, now := newClaude(t)
 	cs.ClaudeSessionID = "uuid"
@@ -1880,6 +1895,32 @@ func TestHandleWindowTitle_ViaStep_StatusTransitions(t *testing.T) {
 	})
 	if next.(ClaudeState).Status != state.StatusWaiting {
 		t.Errorf("Status = %v, want Waiting", next.(ClaudeState).Status)
+	}
+}
+
+func TestClaudeEscInterruptTerminalIdleSupersedesHookRunning(t *testing.T) {
+	d, cs, now := newClaude(t)
+	running, _, _ := d.Step(cs, state.FrameContext{IsRoot: true}, hookEvent(
+		"UserPromptSubmit",
+		map[string]string{
+			"session_id":      "session",
+			"hook_event_name": "UserPromptSubmit",
+			"prompt":          "count",
+		},
+		now,
+	))
+	if running.(ClaudeState).Status != state.StatusRunning {
+		t.Fatalf("hook status = %v, want Running", running.(ClaudeState).Status)
+	}
+
+	waiting, _, _ := d.Step(running, state.FrameContext{IsRoot: true}, state.DEvFrameOsc{
+		Cmd:   0,
+		Kind:  state.TerminalSignalWindowTitle,
+		Title: "✳ Claude Code",
+		Now:   now.Add(70 * time.Millisecond),
+	})
+	if waiting.(ClaudeState).Status != state.StatusWaiting {
+		t.Fatalf("OSC idle status = %v, want Waiting", waiting.(ClaudeState).Status)
 	}
 }
 

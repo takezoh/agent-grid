@@ -39,6 +39,7 @@ type CommonState struct {
 	Status          state.Status
 	StatusChangedAt time.Time
 	Failed          bool
+	StatusEvidence  StatusEvidence
 
 	// Branch & Git context
 	BranchTag          string
@@ -84,8 +85,8 @@ func (c *CommonState) ApplyWorktreeResolved(e state.DEvWorktreeResolved) {
 // branch info) for inspection on cold start.
 func (c *CommonState) ApplyCommandExited(e state.DEvCommandExited) {
 	if e.ExitCode != 0 {
-		c.Status = state.StatusStopped
 		c.Failed = true
+		c.ObserveStatus(StatusSourceProcess, state.StatusStopped, e.Timestamp)
 	}
 	if !e.Timestamp.IsZero() {
 		c.StatusChangedAt = e.Timestamp

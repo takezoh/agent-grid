@@ -113,10 +113,11 @@ func registerDefaultDrivers(cfg *config.Config, dataDir string, idleThreshold ti
 // container, derived from agenthook.All so adding an agent in one place
 // flows through to the container surface automatically.
 func agentHookPostCreateSubcmds() []string {
-	out := make([]string, 0, len(agenthook.All))
+	out := make([]string, 0, len(agenthook.All)+1)
 	for _, spec := range agenthook.All {
 		out = append(out, spec.SubcmdName)
 	}
+	out = append(out, agenthook.AntigravitySetupSubcommand)
 	return out
 }
 
@@ -162,6 +163,11 @@ func registerHostAgentHooks(dataDir string) {
 	}
 	for _, spec := range agenthook.All {
 		registerOneHostAgentHook(home, exe, dataDir, spec)
+	}
+	if changed, installErr := agenthook.InstallAntigravityPlugins(home, exe, dataDir); installErr != nil {
+		slog.Warn("host agent hooks: Antigravity registration failed", "err", installErr)
+	} else {
+		slog.Info("host agent hooks: Antigravity plugins registered", "plugins", len(changed))
 	}
 }
 

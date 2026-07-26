@@ -1,6 +1,33 @@
 package vt
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
+
+// ParseOscProgress recognizes ConEmu/Windows Terminal OSC 9;4 progress.
+// Payload is the portion after "9;" and therefore starts with "4;".
+func ParseOscProgress(n OscNotification) (OscProgress, bool) {
+	if n.Cmd != 9 {
+		return OscProgress{}, false
+	}
+	parts := strings.Split(n.Payload, ";")
+	if len(parts) < 2 || parts[0] != "4" {
+		return OscProgress{}, false
+	}
+	state, err := strconv.Atoi(parts[1])
+	if err != nil || state < 0 || state > 4 {
+		return OscProgress{}, false
+	}
+	value := 0
+	if len(parts) >= 3 {
+		value, err = strconv.Atoi(parts[2])
+		if err != nil {
+			return OscProgress{}, false
+		}
+	}
+	return OscProgress{State: state, Value: value}, true
+}
 
 // ParseOscNotification extracts title and body from an OSC notification payload.
 // OSC 9 (iTerm2): payload is the title text.
