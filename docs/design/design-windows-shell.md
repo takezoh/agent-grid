@@ -93,6 +93,9 @@ variability:
   - Foreground delegation flowing from shell interaction to workspace activation.
   - Server lifecycle is owned outside Windows Shell and Workspace; desktop clients
     only connect to configured gateway URLs.
+  - ServerId is not client-selected configuration. Both desktop clients derive it
+    from the canonical gateway URL using the shared SHA-256 contract; display_name
+    remains independently editable per server entry.
   free:
   - Visual styling of the island (sizes, radii, colors, morph animation).
   - Additional supervision frame kinds, provided the parser handles them explicitly.

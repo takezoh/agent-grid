@@ -14,7 +14,7 @@ export interface DaemonConfig {
 }
 
 export interface DaemonConfigSource {
-  /** Stable client-local server identifier. */
+  /** Stable identifier derived from the canonical gateway URL by every client. */
   serverId: string;
   /** Absolute path to the gateway bearer token file (UNC on Windows). */
   tokenPath: string;

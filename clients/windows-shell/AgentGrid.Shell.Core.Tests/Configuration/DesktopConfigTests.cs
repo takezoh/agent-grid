@@ -13,7 +13,9 @@ public sealed class DesktopConfigTests : IDisposable
     {
         var config = DesktopConfigLoader.LoadOrCreate(_directory);
 
-        Assert.Equal(["local"], config.Servers.Select(s => s.Id));
+        Assert.Equal(
+            ["srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a"],
+            config.Servers.Select(s => s.Id));
         Assert.Equal("default", config.Appearance.Theme);
         Assert.Equal("agent-grid-workspace", config.Shell.WorkspaceExecutable);
         Assert.All(
@@ -24,6 +26,9 @@ public sealed class DesktopConfigTests : IDisposable
         Assert.False(servers.RootElement
             .GetProperty("servers")[0]
             .TryGetProperty("launch", out _));
+        Assert.False(servers.RootElement
+            .GetProperty("servers")[0]
+            .TryGetProperty("id", out _));
     }
 
     [Fact]
@@ -53,7 +58,12 @@ public sealed class DesktopConfigTests : IDisposable
 
         var config = DesktopConfigLoader.LoadOrCreate(_directory);
 
-        Assert.Equal(["one", "two"], config.Servers.Select(s => s.Id));
+        Assert.Equal(
+            [
+                "srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a",
+                "srv_f1e2c7da767e6e0fc3eac0819fdd3a622967f18748c6f0a875c3a5b0a165031e",
+            ],
+            config.Servers.Select(s => s.Id));
     }
 
     [Fact]
@@ -100,7 +110,21 @@ public sealed class DesktopConfigTests : IDisposable
 
         var config = DesktopConfigLoader.LoadOrCreate(_directory);
 
-        Assert.Equal("legacy", Assert.Single(config.Servers).Id);
+        Assert.Equal(
+            "srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a",
+            Assert.Single(config.Servers).Id);
+    }
+
+    [Fact]
+    public void Identifier_is_derived_from_the_cross_client_canonical_url_contract()
+    {
+        var canonical = DesktopConfigLoader.CanonicalServerUrl(
+            new Uri("HTTP://Example.TEST:80/api///?token=ignored#fragment"));
+
+        Assert.Equal("http://example.test/api", canonical);
+        Assert.Equal(
+            "srv_36edcc69555ffb4873eb2d2b461c03839096e08cbb4dd60ba5ecc53f8175a5d0",
+            DesktopConfigLoader.ServerIdentifier(canonical));
     }
 
     public void Dispose()
@@ -109,10 +133,9 @@ public sealed class DesktopConfigTests : IDisposable
             Directory.Delete(_directory, recursive: true);
     }
 
-    private static object Server(string id, string url) => new
+    private static object Server(string displayName, string url) => new
     {
-        id,
-        display_name = id,
+        display_name = displayName,
         enabled = true,
         url,
         token_path = "token",

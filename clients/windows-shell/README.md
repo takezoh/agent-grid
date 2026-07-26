@@ -13,7 +13,9 @@ for both apps and is the required test-isolation mechanism.
 
 Every enabled `servers.json` entry gets an independent connection monitor and gateway
 connection. Desktop session identity is `{serverId, sessionId}`; requests sent
-on that server connection continue to carry only `sessionId`.
+on that server connection continue to carry only `sessionId`. `serverId` is
+derived from the canonical gateway URL by the shared desktop-config contract;
+users configure only the per-entry display name, URL, enabled state, and token path.
 
 ## Layout
 

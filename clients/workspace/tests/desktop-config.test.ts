@@ -6,6 +6,7 @@ import {
   loadOrCreateDesktopConfig,
   resolveConfigDirectory,
   saveEditableDesktopSettings,
+  serverIdentifier,
 } from "../src/main/desktop-config.js";
 
 const directories: string[] = [];
@@ -27,7 +28,9 @@ describe("desktop config", () => {
     const directory = tempDir();
     const config = loadOrCreateDesktopConfig(directory);
 
-    expect(config.servers.map((server) => server.id)).toEqual(["local"]);
+    expect(config.servers.map((server) => server.id)).toEqual([
+      "srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a",
+    ]);
     expect(config.appearance).toEqual({
       theme: "default",
       density: "comfortable",
@@ -41,6 +44,8 @@ describe("desktop config", () => {
     ]);
     expect(JSON.parse(fs.readFileSync(path.join(directory, "servers.json"), "utf8")).servers[0])
       .not.toHaveProperty("launch");
+    expect(JSON.parse(fs.readFileSync(path.join(directory, "servers.json"), "utf8")).servers[0])
+      .not.toHaveProperty("id");
   });
 
   it("resolves --config-dir for isolated test configuration", () => {
@@ -56,16 +61,22 @@ describe("desktop config", () => {
       JSON.stringify({
         schema_version: 1,
         servers: [
-          server("one", true),
-          server("two", false),
+          server("One", true, "http://127.0.0.1:8443"),
+          server("Two", false, "https://example.test"),
         ],
       }),
     );
 
     const config = loadOrCreateDesktopConfig(directory);
     expect(config.servers.map(({ id, enabled }) => ({ id, enabled }))).toEqual([
-      { id: "one", enabled: true },
-      { id: "two", enabled: false },
+      {
+        id: "srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a",
+        enabled: true,
+      },
+      {
+        id: "srv_f1e2c7da767e6e0fc3eac0819fdd3a622967f18748c6f0a875c3a5b0a165031e",
+        enabled: false,
+      },
     ]);
   });
 
@@ -103,7 +114,7 @@ describe("desktop config", () => {
 
     expect(updated.servers).toMatchObject([
       {
-        id: "local",
+        id: "srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a",
         display_name: "Updated Local",
       },
     ]);
@@ -131,20 +142,43 @@ describe("desktop config", () => {
       schema_version: 1,
       servers: [
         {
-          id: "local",
           display_name: "Updated Local",
         },
       ],
     });
   });
+
+  it("derives the cross-client identifier from the canonical URL", () => {
+    expect(serverIdentifier("HTTP://Example.TEST:80/api///?token=ignored#fragment")).toBe(
+      "srv_36edcc69555ffb4873eb2d2b461c03839096e08cbb4dd60ba5ecc53f8175a5d0",
+    );
+  });
+
+  it("ignores a legacy client-selected id and removes it on save", () => {
+    const directory = tempDir();
+    const initial = loadOrCreateDesktopConfig(directory);
+    const serversPath = path.join(directory, "servers.json");
+    const persisted = JSON.parse(fs.readFileSync(serversPath, "utf8"));
+    persisted.servers[0].id = "client-chosen";
+    fs.writeFileSync(serversPath, JSON.stringify(persisted));
+
+    const loaded = loadOrCreateDesktopConfig(directory);
+    expect(loaded.servers[0]?.id).toBe(initial.servers[0]?.id);
+    saveEditableDesktopSettings(directory, {
+      servers: loaded.servers,
+      appearance: loaded.appearance,
+      workspace: loaded.workspace,
+    });
+
+    expect(JSON.parse(fs.readFileSync(serversPath, "utf8")).servers[0]).not.toHaveProperty("id");
+  });
 });
 
-function server(id: string, enabled: boolean) {
+function server(displayName: string, enabled: boolean, url: string) {
   return {
-    id,
-    display_name: id,
+    display_name: displayName,
     enabled,
-    url: "http://127.0.0.1:8443",
+    url,
     token_path: "token",
   };
 }

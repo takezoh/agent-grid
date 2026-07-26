@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace AgentGrid.Shell.Core.Configuration;
 
@@ -32,7 +33,7 @@ public sealed record WorkspaceAppConfig(
 /// Missing files are created from the same schema-versioned defaults. Existing
 /// files are never overwritten.
 /// </summary>
-public static partial class DesktopConfigLoader
+public static class DesktopConfigLoader
 {
     public const int SchemaVersion = 1;
     public const string ConfigDirectoryArgument = "--config-dir";
@@ -112,22 +113,43 @@ public static partial class DesktopConfigLoader
 
     private static ServerConfig MapServer(ServerDocument server)
     {
-        if (!ServerIdRegex().IsMatch(server.Id))
-            throw new DesktopConfigException(
-                $"servers.json: invalid server id '{server.Id}' (use letters, digits, '.', '_' or '-')");
         if (string.IsNullOrWhiteSpace(server.DisplayName))
-            throw new DesktopConfigException($"servers.json: server '{server.Id}' needs display_name");
+            throw new DesktopConfigException("servers.json: every server needs display_name");
         if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var url) ||
             url.Scheme is not ("http" or "https"))
-            throw new DesktopConfigException($"servers.json: server '{server.Id}' has invalid url");
+            throw new DesktopConfigException(
+                $"servers.json: server '{server.DisplayName}' has invalid url");
         if (string.IsNullOrWhiteSpace(server.TokenPath))
-            throw new DesktopConfigException($"servers.json: server '{server.Id}' needs token_path");
+            throw new DesktopConfigException(
+                $"servers.json: server '{server.DisplayName}' needs token_path");
+        var canonicalUrl = CanonicalServerUrl(url);
         return new ServerConfig(
-            server.Id,
+            ServerIdentifier(canonicalUrl),
             server.DisplayName,
             server.Enabled,
-            url,
+            new Uri(canonicalUrl),
             Environment.ExpandEnvironmentVariables(server.TokenPath));
+    }
+
+    public static string CanonicalServerUrl(Uri url)
+    {
+        var builder = new UriBuilder(url)
+        {
+            UserName = "",
+            Password = "",
+            Query = "",
+            Fragment = "",
+        };
+        var canonical = builder.Uri.GetComponents(
+            UriComponents.SchemeAndServer | UriComponents.Path,
+            UriFormat.UriEscaped);
+        return canonical.TrimEnd('/');
+    }
+
+    public static string ServerIdentifier(string canonicalUrl)
+    {
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalUrl));
+        return $"srv_{Convert.ToHexString(digest).ToLowerInvariant()}";
     }
 
     private static void ValidateAppearance(AppearanceDocument value)
@@ -215,7 +237,6 @@ public static partial class DesktopConfigLoader
                 SchemaVersion,
                 [
                     new ServerDocument(
-                        "local",
                         "Local",
                         true,
                         "http://127.0.0.1:8443",
@@ -230,19 +251,20 @@ public static partial class DesktopConfigLoader
         };
     }
 
-    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
-    private static partial Regex ServerIdRegex();
-
     private sealed record ServersDocument(
         [property: JsonPropertyName("schema_version")] int SchemaVersion,
         [property: JsonPropertyName("servers")] IReadOnlyList<ServerDocument> Servers);
 
     private sealed record ServerDocument(
-        [property: JsonPropertyName("id")] string Id,
         [property: JsonPropertyName("display_name")] string DisplayName,
         [property: JsonPropertyName("enabled")] bool Enabled,
         [property: JsonPropertyName("url")] string Url,
         [property: JsonPropertyName("token_path")] string TokenPath,
+        // Read-only compatibility for schema v1 files that persisted a
+        // client-selected routing identifier. The value is never mapped or written.
+        [property: JsonPropertyName("id")]
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        JsonElement? LegacyId = null,
         // Read-only compatibility for schema v1 files created before desktop
         // clients stopped owning server lifecycle. It is never mapped or written.
         [property: JsonPropertyName("launch")]

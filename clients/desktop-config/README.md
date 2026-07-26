@@ -3,7 +3,7 @@
 Windows Shell and Workspace read the same four JSON files from
 `%APPDATA%\agent-grid\config`:
 
-- `servers.json`: enabled server connections and local launch policy
+- `servers.json`: enabled server connections and their client-local display names
 - `appearance.json`: theme, density, and UI font scale
 - `shell.json`: Shell process settings
 - `workspace.json`: Workspace process settings
@@ -15,12 +15,16 @@ configuration directory.
 
 Missing files are generated with `schema_version: 1`. Existing files are never
 overwritten. Configuration is loaded once at process start; malformed files,
-unsupported versions, duplicate server IDs, and invalid values stop startup
+unsupported versions, duplicate server URLs, and invalid values stop startup
 with a file-specific error.
 
-`server.id` is a stable client-local routing key. Desktop session identity is
-`{serverId, sessionId}`. Once a request has been routed to a server connection,
-only `sessionId` is sent to that server.
+Clients derive `serverId` as `srv_` plus the lowercase SHA-256 hex digest of the
+canonical gateway URL. Canonicalization removes query, fragment, credentials,
+and trailing path slashes; URL parsing normalizes scheme, host, and default
+ports. It is not user-configurable or persisted, so every conforming client
+given the same gateway URL uses the same identifier. `display_name` remains
+editable per server entry. Desktop session identity is `{serverId, sessionId}`.
+Once routed to a server connection, only `sessionId` is sent to that server.
 
 Workspace loads the UI bundled in the application. Server entries therefore
 contain only the backend `url`; they do not contain a UI origin.

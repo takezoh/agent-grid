@@ -126,7 +126,6 @@ public sealed class PanelUiSession : IDisposable
                 {
                     new
                     {
-                        id = "test",
                         display_name = "Test",
                         enabled = true,
                         url = gatewayUrl,

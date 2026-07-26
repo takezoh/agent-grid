@@ -491,7 +491,6 @@ export function buildSettingsPageHtml(): string {
 
       function createEmptyServer() {
         return {
-          id: "server-" + Math.random().toString(16).slice(2, 8),
           display_name: "New server",
           enabled: true,
           url: "http://127.0.0.1:8443",
@@ -512,7 +511,7 @@ export function buildSettingsPageHtml(): string {
       }
 
       function serverSummary(server) {
-        return (server.display_name && server.display_name.trim()) || server.id || "Server";
+        return (server.display_name && server.display_name.trim()) || "Server";
       }
 
       function renderServers() {
@@ -528,15 +527,14 @@ export function buildSettingsPageHtml(): string {
             '<div class="server-card__header">',
             '<div class="server-card__title">',
             '<strong>' + escapeHtml(serverSummary(server)) + '</strong>',
-            '<span>' + escapeHtml(server.id || "No identifier yet") + '</span>',
+            '<span>' + escapeHtml(server.id || "Identifier is derived after saving") + '</span>',
             '</div>',
             '<button type="button" class="btn btn--danger" data-action="remove-server" data-index="' + index + '">Remove</button>',
             '</div>',
             '<div class="server-card__body">',
             '<div class="form-grid">',
             '<div class="form-row">',
-            '<div class="field"><label>Identifier</label><input data-field="id" data-index="' + index + '" value="' + escapeHtml(server.id || "") + '"><small>Stable client-local key for this server entry.</small></div>',
-            '<div class="field"><label>Display name</label><input data-field="display_name" data-index="' + index + '" value="' + escapeHtml(server.display_name || "") + '"><small>Shown anywhere the server label is needed.</small></div>',
+            '<div class="field"><label>Display name</label><input data-field="display_name" data-index="' + index + '" value="' + escapeHtml(server.display_name || "") + '"><small>Shown anywhere the server label is needed. This name is local to this server entry.</small></div>',
             '</div>',
             '<div class="form-row">',
             '<div class="field"><label>Gateway URL</label><input data-field="url" data-index="' + index + '" value="' + escapeHtml(server.url || "") + '"></div>',
@@ -574,7 +572,7 @@ export function buildSettingsPageHtml(): string {
           return;
         }
         server[field] = String(value);
-        if (field === "display_name" || field === "id") {
+        if (field === "display_name") {
           renderServers();
         }
       }
@@ -583,7 +581,6 @@ export function buildSettingsPageHtml(): string {
         return {
           servers: (state.snapshot?.servers ?? []).map((server) => {
             return {
-              id: (server.id || "").trim(),
               display_name: (server.display_name || "").trim(),
               enabled: Boolean(server.enabled),
               url: (server.url || "").trim(),

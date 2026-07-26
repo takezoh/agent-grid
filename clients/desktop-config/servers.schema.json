@@ -12,9 +12,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "display_name", "enabled", "url", "token_path"],
+        "required": ["display_name", "enabled", "url", "token_path"],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+          "id": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Ignored read-only compatibility field; clients derive the identifier from url."
+          },
           "display_name": { "type": "string", "minLength": 1 },
           "enabled": { "type": "boolean" },
           "url": { "type": "string", "format": "uri" },

@@ -15,7 +15,6 @@ if (-not $TokenPath) {
 @{
   schema_version = 1
   servers = @(@{
-    id = "test"
     display_name = "Test"
     enabled = $true
     url = $GatewayUrl

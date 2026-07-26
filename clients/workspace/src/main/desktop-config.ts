@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { createHash } from "node:crypto";
 
 export const CONFIG_SCHEMA_VERSION = 1;
 export const CONFIG_DIR_ARGUMENT = "--config-dir";
@@ -8,12 +9,15 @@ export const CONFIG_DIR_ARGUMENT = "--config-dir";
 export type Theme = "default" | "system" | "light" | "dark";
 export type Density = "compact" | "comfortable";
 export interface ServerConfig {
+  /** Deterministic routing identifier derived from the canonical gateway URL. */
   id: string;
   display_name: string;
   enabled: boolean;
   url: string;
   token_path: string;
 }
+
+type ServerDocument = Omit<ServerConfig, "id"> & { id?: unknown; launch?: unknown };
 
 export interface AppearanceConfig {
   theme: Theme;
@@ -72,7 +76,7 @@ export function loadOrCreateDesktopConfig(configDirectory: string): DesktopConfi
     createIfMissing(path.join(directory, name), value);
   }
 
-  const serversDoc = readJson<Versioned<{ servers: ServerConfig[] }>>(directory, "servers.json");
+  const serversDoc = readJson<Versioned<{ servers: ServerDocument[] }>>(directory, "servers.json");
   const appearanceDoc = readJson<Versioned<AppearanceConfig>>(directory, "appearance.json");
   const shellDoc = readJson<Versioned<ShellAppConfig>>(directory, "shell.json");
   const workspaceDoc = readJson<Versioned<WorkspaceAppConfig>>(directory, "workspace.json");
@@ -82,15 +86,13 @@ export function loadOrCreateDesktopConfig(configDirectory: string): DesktopConfi
   checkVersion(workspaceDoc, "workspace.json");
 
   validateServers(serversDoc.servers);
+  const servers = serversDoc.servers.map(mapServer);
   validateAppearance(appearanceDoc);
   validateShell(shellDoc);
   validateWorkspace(workspaceDoc);
   return {
     configDirectory: directory,
-    servers: serversDoc.servers.map((server) => ({
-      ...server,
-      token_path: expandWindowsEnvironment(server.token_path),
-    })),
+    servers,
     appearance: {
       theme: appearanceDoc.theme,
       density: appearanceDoc.density,
@@ -117,9 +119,9 @@ export function saveEditableDesktopSettings(
 ): DesktopConfig {
   const directory = path.resolve(configDirectory);
   loadOrCreateDesktopConfig(directory);
-  const serversDoc: Versioned<{ servers: readonly ServerConfig[] }> = {
+  const serversDoc: Versioned<{ servers: readonly ServerDocument[] }> = {
     schema_version: CONFIG_SCHEMA_VERSION,
-    servers: settings.servers,
+    servers: settings.servers.map(({ id: _id, ...server }) => server),
   };
   const appearanceDoc: Versioned<AppearanceConfig> = {
     schema_version: CONFIG_SCHEMA_VERSION,
@@ -182,7 +184,7 @@ function checkVersion(value: { schema_version?: unknown }, name: string): void {
   }
 }
 
-function validateServers(servers: unknown): asserts servers is ServerConfig[] {
+function validateServers(servers: unknown): asserts servers is ServerDocument[] {
   if (!Array.isArray(servers) || servers.length === 0) {
     throw new Error("servers.json: at least one server is required");
   }
@@ -190,25 +192,47 @@ function validateServers(servers: unknown): asserts servers is ServerConfig[] {
   let enabled = 0;
   for (const raw of servers) {
     if (!isRecord(raw)) throw new Error("servers.json: every server must be an object");
-    const server = raw as unknown as ServerConfig;
-    if (typeof server.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(server.id)) {
-      throw new Error(`servers.json: invalid server id '${String(server.id)}'`);
-    }
-    if (ids.has(server.id)) throw new Error(`servers.json: duplicate server id '${server.id}'`);
-    ids.add(server.id);
+    const server = raw as unknown as ServerDocument;
+    const label = typeof server.display_name === "string" && server.display_name.trim()
+      ? server.display_name
+      : "unnamed server";
     if (typeof server.display_name !== "string" || !server.display_name.trim()) {
-      throw new Error(`servers.json: server '${server.id}' needs display_name`);
+      throw new Error("servers.json: every server needs display_name");
     }
     if (typeof server.enabled !== "boolean") {
-      throw new Error(`servers.json: server '${server.id}' enabled must be boolean`);
+      throw new Error(`servers.json: server '${label}' enabled must be boolean`);
     }
     if (server.enabled) enabled++;
-    assertHttpUrl(server.url, `servers.json: server '${server.id}' url`);
+    assertHttpUrl(server.url, `servers.json: server '${label}' url`);
+    const id = serverIdentifier(server.url);
+    if (ids.has(id)) throw new Error(`servers.json: duplicate server url '${server.url}'`);
+    ids.add(id);
     if (typeof server.token_path !== "string" || !server.token_path.trim()) {
-      throw new Error(`servers.json: server '${server.id}' needs token_path`);
+      throw new Error(`servers.json: server '${label}' needs token_path`);
     }
   }
   if (enabled === 0) throw new Error("servers.json: at least one server must be enabled");
+}
+
+function mapServer(server: ServerDocument): ServerConfig {
+  return {
+    id: serverIdentifier(server.url),
+    display_name: server.display_name,
+    enabled: server.enabled,
+    url: canonicalServerUrl(server.url),
+    token_path: expandWindowsEnvironment(server.token_path),
+  };
+}
+
+export function canonicalServerUrl(value: string): string {
+  const url = new URL(value);
+  const pathname = url.pathname.replace(/\/+$/, "");
+  return `${url.protocol}//${url.host}${pathname}`;
+}
+
+export function serverIdentifier(value: string): string {
+  const digest = createHash("sha256").update(canonicalServerUrl(value), "utf8").digest("hex");
+  return `srv_${digest}`;
 }
 
 function validateAppearance(value: Versioned<AppearanceConfig>): void {
@@ -277,7 +301,6 @@ function defaultDocuments(): Record<string, unknown> {
     "servers.json": {
       schema_version: CONFIG_SCHEMA_VERSION,
       servers: [{
-        id: "local",
         display_name: "Local",
         enabled: true,
         url: "http://127.0.0.1:8443",

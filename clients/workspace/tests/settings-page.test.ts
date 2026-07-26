@@ -16,6 +16,9 @@ describe("settings page", () => {
     expect(html).toContain("desktopConfig");
     expect(html).toContain("These entries are not a switcher");
     expect(html).toContain("windowControls?.close");
+    expect(html).toContain("<label>Display name</label>");
+    expect(html).not.toContain("<label>Identifier</label>");
+    expect(html).not.toContain('data-field="id"');
   });
 
   it("packs the page as a data URL", () => {
