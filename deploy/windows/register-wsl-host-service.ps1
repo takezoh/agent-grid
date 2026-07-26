@@ -69,7 +69,16 @@ function Assert-InstallParameters {
         }
     }
     if ($null -eq $Credential) {
-        $script:Credential = Get-Credential -Message "Credentials for the Windows account that owns the WSL distribution"
+        $script:Credential = Get-Credential -UserName $env:USERNAME -Message "Credentials for the Windows account that owns the WSL distribution. Use the local account name (as shown by 'whoami'), not an email address or Microsoft-account UPN -- icacls cannot resolve those to a SID."
+    }
+    # New-Service rejects a bare account name ("takeg") with "The account
+    # name is invalid" -- SCM requires it qualified as COMPUTERNAME\user
+    # (or DOMAIN\user). Qualify it here so both icacls (-windows-identity,
+    # which accepts the qualified form) and New-Service (-Credential, which
+    # requires it) work from the same credential.
+    if ($script:Credential.UserName -notmatch '[\\@]') {
+        $script:Credential = New-Object System.Management.Automation.PSCredential(
+            "$env:COMPUTERNAME\$($script:Credential.UserName)", $script:Credential.Password)
     }
     $script:SupervisorExe = (Resolve-Path -LiteralPath $SupervisorExe).Path
 }
@@ -94,6 +103,53 @@ function Register-AgentGridSnapshot {
     & $SupervisorExe @arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Supervisor registration failed with exit code $LASTEXITCODE"
+    }
+}
+
+function Grant-ServiceLogonRight {
+    param([string]$AccountName)
+    $sid = ([System.Security.Principal.NTAccount]$AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value
+    $sidToken = "*$sid"
+
+    $cfgPath = Join-Path $env:TEMP "agentgrid-secpol-$PID.cfg"
+    $dbPath = Join-Path $env:TEMP "agentgrid-secpol-$PID.sdb"
+    try {
+        $exportOutput = & secedit.exe /export /cfg $cfgPath /areas USER_RIGHTS 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "secedit export failed with exit code ${LASTEXITCODE}: $exportOutput"
+        }
+        # secedit /export writes UTF-16LE ("Unicode" in PowerShell's -Encoding
+        # naming). Reading/writing with the default encoding mangles non-ASCII
+        # principal names already present in the file (e.g. localized "NT
+        # SERVICE\ALL SERVICES" aliases), silently corrupting unrelated grants
+        # on /configure re-import.
+        $lines = Get-Content -LiteralPath $cfgPath -Encoding Unicode
+        $existingLine = $lines | Where-Object { $_ -match '^SeServiceLogonRight\s*=' } | Select-Object -First 1
+        if ($existingLine -and $existingLine -match [regex]::Escape($sidToken)) {
+            return # already granted; secedit re-import is a no-op we can skip
+        }
+
+        if ($existingLine) {
+            $updatedLine = "$existingLine,$sidToken"
+            $lines = $lines | ForEach-Object { if ($_ -eq $existingLine) { $updatedLine } else { $_ } }
+        } else {
+            $inserted = $false
+            $lines = $lines | ForEach-Object {
+                $_
+                if (-not $inserted -and $_ -eq '[Privilege Rights]') {
+                    "SeServiceLogonRight = $sidToken"
+                    $inserted = $true
+                }
+            }
+        }
+        Set-Content -LiteralPath $cfgPath -Value $lines -Encoding Unicode
+
+        $configureOutput = & secedit.exe /configure /db $dbPath /cfg $cfgPath /areas USER_RIGHTS 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "secedit configure failed with exit code ${LASTEXITCODE}: $configureOutput"
+        }
+    } finally {
+        Remove-Item -LiteralPath $cfgPath, $dbPath -ErrorAction SilentlyContinue
     }
 }
 
@@ -133,6 +189,7 @@ if ($PSCmdlet.ShouldProcess($ServiceName, "$Action registration snapshot and Win
     if ($Action -eq "Update") {
         Remove-AgentGridService
     }
+    Grant-ServiceLogonRight -AccountName $Credential.UserName
     New-AgentGridService
     if (-not $NoStart) {
         Start-Service -Name $ServiceName

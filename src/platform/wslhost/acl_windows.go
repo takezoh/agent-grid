@@ -25,6 +25,9 @@ func (WindowsACLApplier) ApplyLogACL(path, serviceIdentity string) error {
 }
 
 func applyWindowsACL(path, serviceIdentity string, usersRead bool) error {
+	if _, _, _, err := windows.LookupSID("", serviceIdentity); err != nil {
+		return fmt.Errorf("wslhost: resolve identity %q: %w (use the local Windows account name shown by `whoami`, not an email address or Microsoft-account UPN)", serviceIdentity, err)
+	}
 	if out, err := exec.Command("icacls.exe", path, "/reset").CombinedOutput(); err != nil {
 		return fmt.Errorf("wslhost: icacls reset: %w: %s", err, out)
 	}

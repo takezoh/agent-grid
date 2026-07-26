@@ -15,6 +15,7 @@ relations:
 - {type: references, target: adr-20260725-wsl-supervisor-registration-bound-json-config}
 source_paths:
 - deploy/windows/register-wsl-host-service.ps1
+- deploy/windows/register-wsl-host-service.bat
 - src/cmd/agent-grid-wsl-supervisor/
 summary: Build, register, update, inspect, and remove the Agent Grid WSL host Windows
   Service.
@@ -37,9 +38,11 @@ distribution の組み合わせで Linux `server` を常駐させる Windows Ser
 
 - Windows 10/11またはWindows ServerでWSLが利用可能である
 - 対象WindowsユーザーにWSL distributionが登録されている
-- 対象ユーザーへ「サービスとしてログオン」権限が付与されている
 - Linux側の `server` とdata directoryが準備済みである
 - 管理者として起動したWindows PowerShell 5.1以降を使う
+
+「サービスとしてログオン」権限（`SeServiceLogonRight`）は登録処理が
+`secedit` 経由で自動的に付与するため、事前に手動設定する必要はありません。
 
 distribution名は対象ユーザーで `wsl.exe --list --quiet` を実行して確認します。
 サービス登録時には誤ったユーザーの既定distributionを採用しないよう、
@@ -58,7 +61,38 @@ make build-wsl-supervisor-windows
 Windowsローカルかつ一般ユーザーが書き換えられない場所へコピーします。
 SCMの実行ファイルに `\\wsl.localhost\...` のようなUNCパスは使わないでください。
 
-## 初回登録
+## .bat ランチャー（非elevatedなcmd.exeから始める場合）
+
+管理者PowerShellを自分で開かずに済ませたい場合は、
+[`deploy/windows/register-wsl-host-service.bat`](../../deploy/windows/register-wsl-host-service.bat)
+を**非elevatedなcmd.exeまたはPowerShellのターミナルから、引数を付けて**実行します。UAC
+プロンプトで昇格した後、同じ引数で `register-wsl-host-service.ps1` を elevated PowerShell
+から実行します。`-Credential` を省略すると `Get-Credential` が elevated セッション内で
+対話的に実行されます。
+
+> [!WARNING]
+> Explorerでの**ダブルクリック**や**右クリック→「管理者として実行」**では起動しないで
+> ください。Explorerからの起動はコマンドライン引数を渡す手段がなく、`-Distribution`
+> などの必須パラメータが空のまま `register-wsl-host-service.ps1` に渡り
+> `-Distribution is required for Install.` のようなエラーになります。
+
+```
+cd deploy\windows
+register-wsl-host-service.bat -Action Install ^
+  -SupervisorExe "C:\Program Files\AgentGrid\agent-grid-wsl-supervisor.exe" ^
+  -Distribution "Ubuntu-24.04" ^
+  -LinuxUser "agentgrid" ^
+  -ServerExecutable "/home/agentgrid/.local/bin/server" ^
+  -DataDir "/home/agentgrid/.local/share/agent-grid" ^
+  -Addr "127.0.0.1:8443"
+```
+
+`Get-Credential` を**非elevatedなcmd.exe**で直接実行しようとすると
+`'Get-Credential' is not recognized...` になります。PowerShellでもelevatedでもない
+プロンプトで迷ったときは、この`.bat`を使うか、管理者としてPowerShellを開き直してください
+（プロンプトが `PS C:\...>` になっていればPowerShellです）。
+
+## 初回登録（PowerShellを直接使う場合）
 
 管理者PowerShellでリポジトリのWindowsパスへ移動し、資格情報を取得して登録します。
 
