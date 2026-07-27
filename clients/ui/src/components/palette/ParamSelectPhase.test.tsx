@@ -933,23 +933,28 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 0);
+    seedPalette("new-session", { project: "/repo/a", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    const actions = document.querySelector(".palette-project-options");
+    const actions = screen.getByTestId("palette-actions");
     expect(actions).not.toBeNull();
     expect(actions?.querySelector("[data-toggle='worktree']")).not.toBeNull();
     expect(actions?.querySelector("[data-toggle='host']")).not.toBeNull();
-    const projectList = document.getElementById("palette-param-project");
+    const commandList = document.getElementById("palette-param-command");
+    const submit = screen.getByTestId("palette-submit");
     expect(
-      actions !== null &&
-        projectList !== null &&
-        (actions.compareDocumentPosition(projectList) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      commandList !== null &&
+        (commandList.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+    ).toBe(true);
+    expect(
+      ((actions.querySelector("[data-toggle='host']")?.compareDocumentPosition(submit) ?? 0) &
+        Node.DOCUMENT_POSITION_FOLLOWING) !==
+        0,
     ).toBe(true);
   });
 
-  it("keeps the project filter and worktree/host controls before the scrollable project list", () => {
+  it("does not render worktree/host controls on the project step", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
@@ -960,18 +965,8 @@ describe("ParamSelectPhase", () => {
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    const input = projectFilterInput();
-    const actions = document.querySelector(".palette-project-options");
-    const list = document.getElementById("palette-param-project");
-    expect(actions).not.toBeNull();
-    expect(list).not.toBeNull();
-    expect(
-      input.compareDocumentPosition(actions as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).not.toBe(0);
-    expect(
-      (actions as Node).compareDocumentPosition(list as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).not.toBe(0);
-    expect(list?.classList.contains("palette-param-listbox")).toBe(true);
+    expect(document.querySelector("[data-toggle='worktree']")).toBeNull();
+    expect(document.querySelector("[data-toggle='host']")).toBeNull();
   });
 
   it("shows the server-qualified project before the fixed command filter and candidate list", () => {
@@ -1014,7 +1009,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/plain" }, 0);
+    seedPalette("new-session", { project: "/repo/plain", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -1030,7 +1025,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/git" }, 0);
+    seedPalette("new-session", { project: "/repo/git", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -1050,7 +1045,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 0);
+    seedPalette("new-session", { project: "/repo/a", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -1076,7 +1071,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 0);
+    seedPalette("new-session", { project: "/repo/a", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -1100,7 +1095,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 0);
+    seedPalette("new-session", { project: "/repo/a", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -1121,7 +1116,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 0);
+    seedPalette("new-session", { project: "/repo/a", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={ctx} />);
 
@@ -1152,7 +1147,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/sandbox" }, 0);
+    seedPalette("new-session", { project: "/repo/sandbox", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -1165,7 +1160,7 @@ describe("ParamSelectPhase", () => {
       usePaletteStore.getState().setParam("project", "/repo/plain");
     });
 
-    expect(document.activeElement).toBe(projectFilterInput());
+    expect(document.activeElement).toBe(commandInput());
   });
 
   // UAC-010 / FR-022: selectedProject becomes null → both chips disappear → focus returns to command input
@@ -1176,7 +1171,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/sandbox" }, 0);
+    seedPalette("new-session", { project: "/repo/sandbox", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -1189,7 +1184,9 @@ describe("ParamSelectPhase", () => {
       usePaletteStore.getState().setParam("project", null);
     });
 
-    expect(document.activeElement).toBe(document.getElementById("palette-param-project-input"));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(document.getElementById("palette-param-project-input"));
+    });
   });
 
   // -------------------------------------------------------------------------

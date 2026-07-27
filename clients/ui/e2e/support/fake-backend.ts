@@ -205,7 +205,15 @@ export async function installFakeBackend(
     });
   });
 
-  await page.route("**/api/session-config", async (route) => {
+  await page.route("**/*/api/capabilities", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ protocolVersion: "protocol-2" }),
+    });
+  });
+
+  await page.route("**/*session-config*", async (route) => {
     const sessionConfig = options.sessionConfig ?? {
       project_roots: [],
       project_paths: [],

@@ -219,8 +219,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   const hasCommandField = params.some((p) => p.id === "command");
   const showHostToggle = hasCommandField && selectedProject?.isSandboxed === true;
   const hostOn = paramValues.host === true;
-  // FR-013: worktree only applies to git projects (moved here from the
-  // footer so options sit next to the confirm action).
+  // FR-013: worktree only applies to git projects.
   const showWorktreeToggle = hasCommandField && selectedProject?.isGit === true;
   const worktreeOn = paramValues.worktree === true;
 
@@ -229,9 +228,9 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   // the chip visibility flags so hotkeys are only active when the chip is
   // visible.
   useChipHotkey({
-    worktreeChipVisible: paramCursor === 0 && showWorktreeToggle,
-    hostChipVisible: paramCursor === 0 && showHostToggle,
-    commandFieldVisible: paramCursor === 0 && hasCommandField,
+    worktreeChipVisible: paramCursor === 1 && showWorktreeToggle,
+    hostChipVisible: paramCursor === 1 && showHostToggle,
+    commandFieldVisible: paramCursor === 1 && hasCommandField,
   });
 
   // FR-022: when a chip's visibility transitions from true → false while
@@ -256,8 +255,13 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   useEffect(() => {
     if (!focusWasOnChipRef.current) return;
     focusWasOnChipRef.current = false;
-    (commandInputRef.current ?? projectInputRef.current)?.focus();
-  }, [showHostToggle]);
+    const fallback = commandInputRef.current ?? projectInputRef.current;
+    if (fallback !== null) {
+      fallback.focus();
+      return;
+    }
+    moveCursor(-1);
+  }, [showHostToggle, moveCursor]);
 
   if (tool === null) {
     // Bug at the shell level (CommandPalette should render
@@ -412,36 +416,6 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
                 onCompositionStart={() => setComposing(true)}
                 onCompositionEnd={() => setComposing(false)}
                 inputRef={isCommand ? commandInputRef : isProject ? projectInputRef : undefined}
-                afterInput={
-                  isProject && (showWorktreeToggle || showHostToggle) ? (
-                    <div className="palette-project-options">
-                      <fieldset className="palette-actions__options" aria-label="session options">
-                        {showWorktreeToggle && (
-                          <ChipSwitch
-                            hintKey="W"
-                            label="worktree"
-                            checked={worktreeOn}
-                            onToggle={toggleWorktree}
-                            disabled={submitting}
-                            composing={composing}
-                            testId="worktree"
-                          />
-                        )}
-                        {showHostToggle && (
-                          <ChipSwitch
-                            hintKey="H"
-                            label="Run on host"
-                            checked={hostOn}
-                            onToggle={toggleHost}
-                            disabled={submitting}
-                            composing={composing}
-                            testId="host"
-                          />
-                        )}
-                      </fieldset>
-                    </div>
-                  ) : null
-                }
               />
               {chips}
             </div>
@@ -477,7 +451,30 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
       )}
       {paramCursor === 1 && selectedProfile && (
         <div className="palette-actions" data-testid="palette-actions">
-          <fieldset className="palette-actions__options" aria-label="session options" />
+          <fieldset className="palette-actions__options" aria-label="session options">
+            {showWorktreeToggle && (
+              <ChipSwitch
+                hintKey="W"
+                label="worktree"
+                checked={worktreeOn}
+                onToggle={toggleWorktree}
+                disabled={submitting}
+                composing={composing}
+                testId="worktree"
+              />
+            )}
+            {showHostToggle && (
+              <ChipSwitch
+                hintKey="H"
+                label="Run on host"
+                checked={hostOn}
+                onToggle={toggleHost}
+                disabled={submitting}
+                composing={composing}
+                testId="host"
+              />
+            )}
+          </fieldset>
           <button
             ref={submitRef}
             type="submit"

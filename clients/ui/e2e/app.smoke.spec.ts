@@ -121,6 +121,149 @@ test("renders live sessions and completes a new-session submission against the f
     });
 });
 
+test("project and command candidate lists remain scrollable while their filters stay fixed", async ({
+  page,
+}) => {
+  const projects = Array.from({ length: 60 }, (_, index) => ({
+    path: `/repo/project-${String(index).padStart(2, "0")}`,
+    isGit: true,
+    isSandboxed: true,
+  }));
+  const commands = Array.from(
+    { length: 60 },
+    (_, index) => `command-${String(index).padStart(2, "0")}`,
+  );
+  const activeSession = makeSessionInfo({
+    id: "session-scroll",
+    project: projects[0]?.path ?? "/repo/project-00",
+    command: commands[0] ?? "command-00",
+    title: "Scroll fixture",
+    status: "running",
+  });
+  const backend = await installFakeBackend(page, {
+    sessions: [activeSession],
+    sessionConfig: {
+      project_roots: projects.map((project) => project.path),
+      project_paths: projects.map((project) => project.path),
+      projects,
+      commands,
+      push_commands: [],
+    },
+  });
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 900, height: 500 });
+  await page.goto("/?server=test-server#token=test");
+  await backend.waitForSocketOpen();
+  await backend.emit({
+    k: "h",
+    sessions: [activeSession],
+    activeSessionID: activeSession.id,
+    features: ["surface"],
+    serverTime: 1_720_000_000_000,
+  });
+  await page.getByRole("button", { name: "Open command menu" }).click();
+  await page.getByTestId("palette-input").press("Enter");
+
+  const projectFilter = page.getByTestId("palette-param-project-filter");
+  const projectList = page.locator("#palette-param-project");
+  await expect(projectFilter).toBeVisible();
+  await expect(projectList).toBeVisible();
+  const paramInsets = await page.locator("[data-param-id='project']").evaluate((param) => {
+    const body = param.closest(".palette-body");
+    if (!(body instanceof HTMLElement)) throw new Error("palette body is missing");
+    const bodyRect = body.getBoundingClientRect();
+    const paramRect = param.getBoundingClientRect();
+    return {
+      left: paramRect.left - bodyRect.left,
+      right: bodyRect.right - paramRect.right,
+    };
+  });
+  expect(paramInsets.right, `param insets must match: ${JSON.stringify(paramInsets)}`).toBe(
+    paramInsets.left,
+  );
+  const projectMetrics = await projectList.evaluate((element) => {
+    const nodes = [
+      element,
+      element.parentElement,
+      element.parentElement?.parentElement,
+      element.closest(".palette-param-select"),
+      element.closest(".palette-body"),
+    ].filter((node): node is HTMLElement => node instanceof HTMLElement);
+    return nodes.map((node) => ({
+      className: node.className,
+      clientHeight: node.clientHeight,
+      scrollHeight: node.scrollHeight,
+      height: getComputedStyle(node).height,
+      flex: getComputedStyle(node).flex,
+      minHeight: getComputedStyle(node).minHeight,
+      overflowY: getComputedStyle(node).overflowY,
+    }));
+  });
+  expect(
+    projectMetrics[0]?.scrollHeight > (projectMetrics[0]?.clientHeight ?? 0),
+    `the project list itself must own a constrained scroll viewport: ${JSON.stringify(projectMetrics)}`,
+  ).toBe(true);
+  const projectFilterY = (await projectFilter.boundingBox())?.y;
+  await projectList.hover();
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => projectList.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect((await projectFilter.boundingBox())?.y).toBe(projectFilterY);
+
+  await projectFilter.press("Enter");
+  const commandFilter = page.getByTestId("palette-param-command-filter");
+  const commandList = page.locator("#palette-param-command");
+  await expect(commandFilter).toBeVisible();
+  await expect(commandList).toBeVisible();
+  expect(
+    await commandList.evaluate((element) => element.scrollHeight > element.clientHeight),
+    "the command list itself must own a constrained scroll viewport",
+  ).toBe(true);
+  const projectSummaryY = (await page.getByTestId("palette-project-summary").boundingBox())?.y;
+  const commandFilterY = (await commandFilter.boundingBox())?.y;
+  const actionsY = (await page.getByTestId("palette-actions").boundingBox())?.y;
+  const worktree = page.getByRole("switch", { name: "worktree" });
+  const host = page.getByRole("switch", { name: "Run on host" });
+  const worktreeY = (await worktree.boundingBox())?.y;
+  const hostY = (await host.boundingBox())?.y;
+  await commandList.hover();
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => commandList.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect((await page.getByTestId("palette-project-summary").boundingBox())?.y).toBe(
+    projectSummaryY,
+  );
+  expect((await commandFilter.boundingBox())?.y).toBe(commandFilterY);
+  expect((await page.getByTestId("palette-actions").boundingBox())?.y).toBe(actionsY);
+  expect((await worktree.boundingBox())?.y).toBe(worktreeY);
+  expect((await host.boundingBox())?.y).toBe(hostY);
+
+  const dialog = page.getByRole("dialog", { name: "Command Palette" });
+  const dialogBox = await dialog.boundingBox();
+  const dialogGeometry = await dialog.evaluate((element) => {
+    const sheet = element.parentElement;
+    const dialogStyle = getComputedStyle(element);
+    const sheetStyle = sheet ? getComputedStyle(sheet) : null;
+    return {
+      dialogRect: element.getBoundingClientRect().toJSON(),
+      dialogClientWidth: element.clientWidth,
+      dialogGutter: dialogStyle.scrollbarGutter,
+      sheetRect: sheet?.getBoundingClientRect().toJSON(),
+      sheetClientWidth: sheet?.clientWidth,
+      sheetGutter: sheetStyle?.scrollbarGutter,
+    };
+  });
+  expect(dialogBox).not.toBeNull();
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  expect(
+    Math.abs(
+      (dialogBox?.x ?? 0) -
+        ((viewport?.width ?? 0) - ((dialogBox?.x ?? 0) + (dialogBox?.width ?? 0))),
+    ),
+    `the palette dialog must have equal left and right viewport margins: ${JSON.stringify(dialogGeometry)}`,
+  ).toBeLessThanOrEqual(1);
+});
+
 test("renders resumed Codex status updates from running to waiting", async ({ page }) => {
   const resumed = makeSessionInfo({
     id: "codex-resumed",

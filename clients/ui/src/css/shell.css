@@ -571,6 +571,7 @@
   max-width: 560px;
   margin: 10vh auto 0;
   box-sizing: border-box;
+  scrollbar-gutter: auto;
 }
 
 /* ─── Hosted mode (Electron Workspace) — plan §4.3 ─────────────────────────
