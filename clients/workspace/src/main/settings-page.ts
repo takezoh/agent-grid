@@ -524,6 +524,21 @@ export function buildSettingsPageHtml(): string {
         return (server.display_name && server.display_name.trim()) || "Server";
       }
 
+      function serverHealthPresentation(server) {
+        const health = state.health.get(server.id);
+        const healthState = health?.state || (server.enabled ? "checking" : "disabled");
+        const healthLabel =
+          healthState === "connected" ? "Connected" :
+          healthState === "disabled" ? "Disabled" :
+          healthState === "checking" ? "Checking…" : "Unavailable";
+        const healthDetail = health?.reason ? " — " + health.reason : "";
+        return {
+          state: healthState,
+          label: healthLabel + healthDetail,
+          detail: healthDetail,
+        };
+      }
+
       function renderServers() {
         const servers = state.snapshot?.servers ?? [];
         els.connectionsCount.textContent = String(servers.length);
@@ -532,22 +547,16 @@ export function buildSettingsPageHtml(): string {
           return;
         }
         els.servers.innerHTML = servers.map((server, index) => {
-          const health = state.health.get(server.id);
-          const healthState = health?.state || (server.enabled ? "checking" : "disabled");
-          const healthLabel =
-            healthState === "connected" ? "Connected" :
-            healthState === "disabled" ? "Disabled" :
-            healthState === "checking" ? "Checking…" : "Unavailable";
-          const healthDetail = health?.reason ? " — " + health.reason : "";
+          const health = serverHealthPresentation(server);
           return [
             '<article class="server-card" data-server-index="' + index + '">',
             '<div class="server-card__header">',
             '<div class="server-card__title">',
-            '<strong>' + escapeHtml(serverSummary(server)) + '</strong>',
-            '<span>' + escapeHtml(server.id || "Identifier is derived after saving") + '</span>',
+            '<strong data-role="server-summary">' + escapeHtml(serverSummary(server)) + '</strong>',
+            '<span data-role="server-id">' + escapeHtml(server.id || "Identifier is derived after saving") + '</span>',
             '</div>',
-            '<span class="server-health" data-state="' + healthState + '" title="' +
-              escapeHtml(healthDetail) + '">' + healthLabel + escapeHtml(healthDetail) + '</span>',
+            '<span class="server-health" data-role="server-health" data-state="' + health.state +
+              '" title="' + escapeHtml(health.detail) + '">' + escapeHtml(health.label) + '</span>',
             '<button type="button" class="btn btn--danger" data-action="remove-server" data-index="' + index + '">Remove</button>',
             '</div>',
             '<div class="server-card__body">',
@@ -568,6 +577,30 @@ export function buildSettingsPageHtml(): string {
             '</article>',
           ].join("");
         }).join("");
+      }
+
+      function updateServerPresentation(index) {
+        const server = state.snapshot?.servers?.[index];
+        const card = els.servers.querySelector('[data-server-index="' + index + '"]');
+        if (!server || !card) return;
+        const summary = card.querySelector('[data-role="server-summary"]');
+        const serverId = card.querySelector('[data-role="server-id"]');
+        const healthElement = card.querySelector('[data-role="server-health"]');
+        if (summary) summary.textContent = serverSummary(server);
+        if (serverId) {
+          serverId.textContent = server.id || "Identifier is derived after saving";
+        }
+        if (healthElement) {
+          const health = serverHealthPresentation(server);
+          healthElement.dataset.state = health.state;
+          healthElement.title = health.detail;
+          healthElement.textContent = health.label;
+        }
+      }
+
+      function updateServerPresentations() {
+        const servers = state.snapshot?.servers ?? [];
+        servers.forEach((_server, index) => updateServerPresentation(index));
       }
 
       function applySnapshot(snapshot) {
@@ -592,7 +625,7 @@ export function buildSettingsPageHtml(): string {
         }
         server[field] = String(value);
         if (field === "display_name") {
-          renderServers();
+          updateServerPresentation(index);
         }
       }
 
@@ -641,7 +674,7 @@ export function buildSettingsPageHtml(): string {
         try {
           const fleet = await healthApi.list();
           state.health = new Map(fleet.servers.map((server) => [server.serverId, server]));
-          renderServers();
+          updateServerPresentations();
         } catch {
           // Configuration remains editable when health observation is unavailable.
         }
