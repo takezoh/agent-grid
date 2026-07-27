@@ -234,6 +234,33 @@ describe("ParamSelectPhase", () => {
     expect(screen.getByText("Unavailable — connection refused")).toBeTruthy();
   });
 
+  it("keeps an incompatible server visible with its version evidence", () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [{ path: "/repo/a", serverId: "healthy", serverLabel: "Healthy" }],
+        profileIds: ["claude"],
+        serverOutcomes: [
+          {
+            serverId: "old",
+            serverLabel: "Old Server",
+            state: "incompatible_protocol",
+            reason: "incompatible protocol: client protocol-2, server protocol-1",
+          },
+        ],
+      }),
+    );
+    seedPalette("new-session");
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    expect(screen.getByText("Old Server")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Incompatible protocol — incompatible protocol: client protocol-2, server protocol-1",
+      ),
+    ).toBeTruthy();
+  });
+
   beforeEach(() => {
     resetStores();
   });

@@ -1,5 +1,6 @@
 import { type JSX, useEffect, useState } from "react";
 import type { FleetHealth } from "../auth";
+import { summarizeFleet } from "../fleet/presentation";
 import { makeFleetProvider } from "../fleet/provider";
 import { formatElapsed, useNow1Hz } from "../hooks/useNow1Hz";
 import { type ConnectionStatus, useDaemonStore } from "../store/daemon";
@@ -15,15 +16,6 @@ function isConnectionNominal(status: ConnectionStatus, daemonDisconnected: boole
   return status === "open" && !daemonDisconnected;
 }
 
-function fleetLabel(fleet: FleetHealth | null): string | null {
-  if (!fleet) return null;
-  const enabled = fleet.servers.filter((server) => server.state !== "disabled");
-  const unavailable = enabled.filter((server) => server.state === "unavailable");
-  if (unavailable.length === 0) return null;
-  if (unavailable.length === enabled.length) return "all servers unavailable";
-  return `${unavailable.length}/${enabled.length} servers unavailable`;
-}
-
 function connectionLabel(
   status: ConnectionStatus,
   daemonDisconnected: boolean,
@@ -33,7 +25,7 @@ function connectionLabel(
   if (daemonDisconnected) return "daemon disconnected, reconnecting…";
   if (status === "reconnecting") return "reconnecting to server…";
   if (status === "connecting") return "connecting…";
-  return fleetLabel(fleet) ?? "connected";
+  return summarizeFleet(fleet?.servers ?? []) ?? "connected";
 }
 
 /**
@@ -78,7 +70,7 @@ export function StatusBar({
       window.clearInterval(timer);
     };
   }, []);
-  const fleetDegraded = fleetLabel(fleet) !== null;
+  const fleetDegraded = summarizeFleet(fleet?.servers ?? []) !== null;
   const nominal = isConnectionNominal(status, daemonDisconnected) && !fleetDegraded;
   const conn = connectionLabel(status, daemonDisconnected, fleet);
 

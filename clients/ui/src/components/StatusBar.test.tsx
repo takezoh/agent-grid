@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDaemonStore } from "../store/daemon";
 import { StatusBar } from "./StatusBar";
@@ -58,6 +58,33 @@ describe("StatusBar (FR-023 / UAC-010)", () => {
     useDaemonStore.setState({ status: "open", daemonDisconnected: false });
     render(<StatusBar />);
     expect(await screen.findByText("1/2 servers unavailable")).toBeTruthy();
+  });
+
+  it("does not report a fleet with an incompatible server as nominally connected", async () => {
+    window.agentGridWorkspace = {
+      sessionFleet: {
+        listConfigs: vi.fn(async () => [
+          { serverId: "a", serverLabel: "A", state: "connected" },
+          {
+            serverId: "b",
+            serverLabel: "B",
+            state: "incompatible_protocol",
+            reason: "incompatible protocol: client protocol-2, server protocol-1",
+          },
+        ]),
+        create: vi.fn(),
+      },
+    };
+    useDaemonStore.setState({ status: "open", daemonDisconnected: false });
+
+    render(<StatusBar />);
+
+    const connectionState = screen.getByLabelText("connection state");
+    await waitFor(() => {
+      expect(connectionState.dataset.nominal).toBe("false");
+    });
+    expect(connectionState.textContent).toContain("incompatible");
+    expect(connectionState.textContent).not.toBe("connected");
   });
 
   it("renders ticking elapsed next to status_line", () => {

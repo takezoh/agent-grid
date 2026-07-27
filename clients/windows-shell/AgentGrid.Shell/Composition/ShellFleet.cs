@@ -130,14 +130,40 @@ public sealed class ShellFleet : IAsyncDisposable
 
     public TrayAppearance CurrentTrayAppearance()
     {
-        var values = _roots.Values.Select(root => root.CurrentTrayAppearance()).ToList();
-        var connected = values.Count(value => value.IsConnected);
+        var values = _roots.Values
+            .Select(root => (
+                Appearance: root.CurrentTrayAppearance(),
+                FailureReason: root.Supervision.Snapshot.ConnectionFailureReason))
+            .ToList();
+        return AggregateTrayAppearances(values);
+    }
+
+    public static TrayAppearance AggregateTrayAppearances(
+        IEnumerable<(TrayAppearance Appearance, string? FailureReason)> source)
+    {
+        var values = source.ToList();
+        var connected = values.Count(value => value.Appearance.IsConnected);
         var total = values.Count;
         if (connected == total)
             return new TrayAppearance(TrayIconKind.Connected, $"Agent Grid — {connected}/{total} connected", true);
+        var incompatible = values
+            .Where(value => value.FailureReason?.Contains(
+                "incompatible protocol",
+                StringComparison.OrdinalIgnoreCase) == true)
+            .ToList();
+        if (incompatible.Count > 0)
+        {
+            var reasons = string.Join(
+                "; ",
+                incompatible.Select(value => value.FailureReason).Distinct(StringComparer.Ordinal));
+            return new TrayAppearance(
+                TrayIconKind.Degraded,
+                $"Agent Grid — {incompatible.Count}/{total} servers incompatible: {reasons}",
+                false);
+        }
         if (connected > 0)
             return new TrayAppearance(TrayIconKind.Degraded, $"Agent Grid — {connected}/{total} connected", false);
-        if (values.Any(value => value.Kind == TrayIconKind.Connecting))
+        if (values.Any(value => value.Appearance.Kind == TrayIconKind.Connecting))
             return new TrayAppearance(TrayIconKind.Connecting, "Agent Grid — connecting…", false);
         return new TrayAppearance(TrayIconKind.Degraded, "Agent Grid — all servers unavailable", false);
     }

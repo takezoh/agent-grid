@@ -529,6 +529,7 @@ export function buildSettingsPageHtml(): string {
         const healthState = health?.state || (server.enabled ? "checking" : "disabled");
         const healthLabel =
           healthState === "connected" ? "Connected" :
+          healthState === "incompatible_protocol" ? "Incompatible protocol" :
           healthState === "disabled" ? "Disabled" :
           healthState === "checking" ? "Checking…" : "Unavailable";
         const healthDetail = health?.reason ? " — " + health.reason : "";

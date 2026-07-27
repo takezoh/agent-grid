@@ -1,4 +1,5 @@
 using AgentGrid.Shell.Composition;
+using AgentGrid.Shell.Core.Health;
 using AgentGrid.Shell.Core.SupervisionState;
 
 namespace AgentGrid.Shell.Core.Tests.Composition;
@@ -65,6 +66,29 @@ public sealed class ShellFleetTests
         Assert.Equal(
             ["--config-dir", @"C:\test-config", "--background"],
             ShellFleet.WorkspaceLaunchArguments(@"C:\test-config"));
+    }
+
+    [Fact]
+    public void Tray_aggregate_preserves_protocol_mismatch_cause_and_healthy_peer()
+    {
+        var connected = new TrayAppearance(
+            TrayIconKind.Connected,
+            "Agent Grid — connected",
+            true);
+        var degraded = new TrayAppearance(
+            TrayIconKind.Degraded,
+            "Agent Grid — degraded",
+            false);
+
+        var aggregate = ShellFleet.AggregateTrayAppearances([
+            (connected, null),
+            (degraded, "incompatible protocol: client protocol-2, server protocol-1"),
+        ]);
+
+        Assert.Equal(TrayIconKind.Degraded, aggregate.Kind);
+        Assert.False(aggregate.IsConnected);
+        Assert.Contains("1/2 servers incompatible", aggregate.Tooltip);
+        Assert.Contains("client protocol-2, server protocol-1", aggregate.Tooltip);
     }
 
     private static SupervisionSnapshot Snapshot(string sessionId) => new(

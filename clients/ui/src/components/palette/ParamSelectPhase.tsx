@@ -21,6 +21,7 @@
 //     materializeKey → ParamOption[]; store / wire stay daemon-free)
 
 import { useEffect, useMemo, useRef } from "react";
+import { fleetOutcomeLabel } from "../../fleet/presentation";
 import { useChipHotkey } from "../../hooks/useChipHotkey";
 import {
   type DaemonSnapshot,
@@ -334,14 +335,15 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
       }}
     >
       {snapshot.serverOutcomes
-        .filter((outcome) => outcome.state === "unavailable")
-        .map((outcome) => (
+        .map((outcome) => ({ outcome, label: fleetOutcomeLabel(outcome) }))
+        .filter((entry): entry is typeof entry & { label: string } => entry.label !== null)
+        .map(({ outcome, label }) => (
           <output
             key={outcome.serverId}
-            className="palette-server-outcome palette-server-outcome--unavailable"
+            className={`palette-server-outcome palette-server-outcome--${outcome.state}`}
           >
             <strong>{outcome.serverLabel}</strong>
-            <span>Unavailable{outcome.reason ? ` — ${outcome.reason}` : ""}</span>
+            <span>{label}</span>
           </output>
         ))}
       {params.slice(0, stopIdx).map((param, idx) => {

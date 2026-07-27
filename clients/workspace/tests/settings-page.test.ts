@@ -65,9 +65,26 @@ describe("settings page", () => {
       await close();
     },
   );
+
+  it("presents protocol mismatch as typed incompatibility", async () => {
+    const { window, close } = await loadSettingsPage({
+      state: "incompatible_protocol",
+      reason: "incompatible protocol: client protocol-2, server protocol-1",
+    });
+
+    expect(window.document.querySelector('[data-role="server-health"]')?.textContent).toBe(
+      "Incompatible protocol — incompatible protocol: client protocol-2, server protocol-1",
+    );
+    await close();
+  });
 });
 
-async function loadSettingsPage(): Promise<{
+async function loadSettingsPage(
+  initialHealth: { state: string; reason: string } = {
+    state: "unavailable",
+    reason: "starting",
+  },
+): Promise<{
   window: BrowserWindow;
   runHealthRefresh: () => Promise<void>;
   close: () => Promise<void>;
@@ -112,8 +129,8 @@ async function loadSettingsPage(): Promise<{
           return {
             servers: [{
               serverId: "srv_local",
-              state: healthCalls === 1 ? "unavailable" : "connected",
-              reason: healthCalls === 1 ? "starting" : "",
+              state: healthCalls === 1 ? initialHealth.state : "connected",
+              reason: healthCalls === 1 ? initialHealth.reason : "",
             }],
           };
         },
