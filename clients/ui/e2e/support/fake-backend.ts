@@ -4,7 +4,7 @@ import type { ServerFrame, SessionInfo, ViewUpdateFrame } from "../../src/wire/s
 
 export type FakeBackendOptions = {
   sessions: SessionInfo[];
-  sessionConfig: {
+  sessionConfig?: {
     project_roots: string[];
     project_paths: string[];
     projects: Array<{ path: string; isGit: boolean; isSandboxed: boolean }>;
@@ -26,6 +26,10 @@ export type FakeBackend = {
 function cloneSession(session: SessionInfo): SessionInfo {
   return {
     ...session,
+    status: {
+      ...session.status,
+      signal: session.status.signal ? { ...session.status.signal } : undefined,
+    },
     view: {
       ...session.view,
       card: {
@@ -59,6 +63,17 @@ export async function installFakeBackend(
   let sessions = options.sessions.map(cloneSession);
   const createSessionRequests: CreateSessionPayload[] = [];
 
+  await page.route("**/host/config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: 2,
+        servers: [{ serverId: "test-server", displayName: "Test", enabled: true }],
+      }),
+    });
+  });
+
   await page.addInitScript(() => {
     type ClientRecord = { raw: string; parsed: Record<string, unknown> | null };
     type ServerRecord = { raw: string; parsed: Record<string, unknown> | null };
@@ -72,7 +87,7 @@ export async function installFakeBackend(
       if (socket.readyState !== 1 || !socket.url) return false;
       try {
         const parsed = new URL(socket.url, "http://127.0.0.1");
-        return parsed.pathname === "/ws" && parsed.searchParams.get("ticket") !== null;
+        return parsed.pathname.endsWith("/ws") && parsed.searchParams.get("ticket") !== null;
       } catch {
         return false;
       }
@@ -191,10 +206,29 @@ export async function installFakeBackend(
   });
 
   await page.route("**/api/session-config", async (route) => {
+    const sessionConfig = options.sessionConfig ?? {
+      project_roots: [],
+      project_paths: [],
+      projects: [],
+      commands: [],
+      push_commands: [],
+    };
+    const commandProfiles = sessionConfig.commands.map((command) => ({
+      id: command,
+      label: command,
+      revision: `${command}-e2e`,
+      parameters: [],
+    }));
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(options.sessionConfig),
+      body: JSON.stringify({
+        ...sessionConfig,
+        projects: sessionConfig.projects.map((project) => ({
+          ...project,
+          command_profiles: commandProfiles,
+        })),
+      }),
     });
   });
 
@@ -211,11 +245,11 @@ export async function installFakeBackend(
     const createdSession = cloneSession({
       id: createdSessionId,
       project: body.project,
-      command: body.command,
+      command: body.profile_id,
       created_at: "2026-07-05T00:00:00Z",
+      status: { lifecycle: "active", human_input: false, failure: "none" },
       view: {
         card: { title: "Browser smoke" },
-        status: "running",
       },
     });
     sessions = [...sessions, createdSession];
@@ -226,7 +260,7 @@ export async function installFakeBackend(
       body: JSON.stringify({
         id: createdSessionId,
         project: body.project,
-        command: body.command,
+        command: body.profile_id,
         created_at: "2026-07-05T00:00:00Z",
       }),
     });
@@ -254,7 +288,7 @@ export async function installFakeBackend(
           if (socket.readyState !== 1 || !socket.url) return false;
           try {
             const parsed = new URL(socket.url, "http://127.0.0.1");
-            return parsed.pathname === "/ws" && parsed.searchParams.get("ticket") !== null;
+            return parsed.pathname.endsWith("/ws") && parsed.searchParams.get("ticket") !== null;
           } catch {
             return false;
           }
@@ -315,7 +349,7 @@ export function makeSessionInfo(input: {
   project: string;
   command: string;
   title: string;
-  status: NonNullable<SessionInfo["view"]["status"]>;
+  status: "running" | "waiting" | "idle" | "stopped" | "failed";
   workspace?: string;
 }): SessionInfo {
   return {
@@ -324,9 +358,18 @@ export function makeSessionInfo(input: {
     command: input.command,
     workspace: input.workspace,
     created_at: "2026-07-05T00:00:00Z",
+    status:
+      input.status === "running"
+        ? { lifecycle: "active", human_input: false, failure: "none" }
+        : input.status === "waiting"
+          ? { lifecycle: "idle", human_input: true, failure: "none" }
+          : input.status === "stopped"
+            ? { lifecycle: "stopped", human_input: false, failure: "none" }
+            : input.status === "failed"
+              ? { lifecycle: "stopped", human_input: false, failure: "failed" }
+              : { lifecycle: "idle", human_input: false, failure: "none" },
     view: {
       card: { title: input.title },
-      status: input.status,
     },
   };
 }

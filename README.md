@@ -13,13 +13,16 @@ Agent Grid is a web control surface for running Claude, Codex, Gemini, and other
 - **Run each agent in its own sandbox.** Optional per-project devcontainer with brokered AWS / gcloud / SSH credentials and a policy-gated host-exec channel. Long-lived secrets stay on the host.
 - **Automate end to end.** The orchestrator reads a `WORKFLOW.md`, polls a tracker, and drives agents through issues with no human in the loop.
 
-## Three binaries, three layers
+## Repository structure
 
-This module builds three binaries from a single Go module, mapping onto a three-layer architecture (`platform/` · `client/` · `orchestrator/`):
+Non-client deployables live in the independent `services/` Go module. Client
+applications and hosts live in `clients/`; the Web host is independently
+buildable and does not import the services module.
 
-- **`server`** — the single-process backend: the pty session daemon that owns every agent session (pty-multiplexer–backed; the `client` layer) plus the HTTP/WS gateway that translates browser REST/WS traffic into in-process daemon calls
+- **`server`** — the single-process backend: the pty session daemon plus HTTP/WS gateway
 - **`orchestrator`** — the scheduling brain that reads `WORKFLOW.md`, dispatches work to agents, and reconciles state — the `orchestrator` layer
 - **`claude-app-server`** — a stdio JSON-RPC shim that wraps a Claude agent as a drop-in Codex app-server
+- **`web-host`** — a configured Web client host under `clients/web-host`
 
 The layers and their enforced import boundaries are defined in [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -43,7 +46,8 @@ server                              # start the backend (daemon + HTTP/WS gatewa
                                     # path on every boot — no manual setup.
 ```
 
-To reach sessions from a browser, run `make run-dev` (boots `server` + `web` together) or follow [web stack (ad-hoc launch)](docs/note/note-20260624-user-web-server.md).
+To reach sessions from a browser, run `make run-dev` (boots `server` +
+`web-host` together) or follow [web stack (ad-hoc launch)](docs/note/note-20260624-user-web-server.md).
 
 See [Getting started](docs/note/note-20260624-user-getting-started.md) for the full walkthrough.
 

@@ -16,13 +16,13 @@ relations:
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-technical-guardrails}
 source_paths:
-- src/platform/agent/codexclient/
+- services/platform/agent/codexclient/
 - WORKFLOW.md
 - AGENTS.md
-- src/orchestrator/agent/runner.go
-- src/cmd/claude-app-server/turn.go
-- src/cmd/claude-app-server/toolbridge.go
-- src/orchestrator/agent/runner_test.go
+- services/orchestrator/agent/runner.go
+- services/cmd/claude-app-server/turn.go
+- services/cmd/claude-app-server/toolbridge.go
+- services/orchestrator/agent/runner_test.go
 - scripts/check-coverage.sh
 topic: technical
 summary: A point-in-time assessment (2026-05-31) of agent-grid evaluated as a piece

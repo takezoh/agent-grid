@@ -1,7 +1,7 @@
 # Harness policy changes are always escalated to repository ownership review.
 /test-harness/ @takezoh
-/src/internal/harnesspolicy/ @takezoh
-/src/cmd/harness-check/ @takezoh
+/services/internal/harnesspolicy/ @takezoh
+/services/cmd/harness-check/ @takezoh
 /scripts/check-harness-dependencies.sh @takezoh
 /scripts/check-harness-tampering.sh @takezoh
 /scripts/run-trusted-harness-gate.sh @takezoh
@@ -13,7 +13,7 @@
 /scripts/run-go-e2e.sh @takezoh
 /scripts/run-verification-profile.sh @takezoh
 /scripts/coverage-floors.txt @takezoh
-/src/gorules/static_enforcement_test.go @takezoh
+/services/gorules/static_enforcement_test.go @takezoh
 /.github/workflows/ci.yml @takezoh
 /.github/workflows/e2e-nightly.yml @takezoh
 /.github/CODEOWNERS @takezoh

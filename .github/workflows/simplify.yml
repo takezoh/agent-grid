@@ -22,8 +22,10 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: src/go.mod
-          cache-dependency-path: src/go.sum
+          go-version-file: services/go.mod
+          cache-dependency-path: |
+            services/go.sum
+            clients/web-host/go.sum
 
       - name: Simplify review
         uses: anthropics/claude-code-action@v1
@@ -46,7 +48,7 @@ jobs:
 
             3. Verify nothing regressed:
                make vet
-               cd src && go test ./...
+               cd services && go test ./...
                make build-all
                scripts/check-coverage.sh
                make lint

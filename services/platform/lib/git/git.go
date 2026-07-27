@@ -1,0 +1,256 @@
+package git
+
+import (
+	"context"
+	"fmt"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/takezoh/agent-grid/services/platform/appid"
+)
+
+var (
+	cmdOnce  sync.Once
+	cmdFound bool
+)
+
+// DetectBranch returns the current git branch name for the given directory.
+// Returns an empty string if the directory is not a git repository.
+func DetectBranch(ctx context.Context, dir string) string {
+	cmdOnce.Do(func() { _, err := exec.LookPath("git"); cmdFound = err == nil })
+	if !cmdFound {
+		return ""
+	}
+	if findGitRoot(dir) == "" {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "branch", "--show-current").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// DetectRemoteHost returns the hostname of the "origin" remote
+// (e.g. "github.com"). Returns "" if the remote cannot be determined.
+func DetectRemoteHost(ctx context.Context, dir string) string {
+	cmdOnce.Do(func() { _, err := exec.LookPath("git"); cmdFound = err == nil })
+	if !cmdFound || findGitRoot(dir) == "" {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		return ""
+	}
+	return parseHost(strings.TrimSpace(string(out)))
+}
+
+// parseHost extracts the hostname from a git remote URL.
+// Supports SSH (git@host:path) and HTTPS (https://host/path) forms.
+func parseHost(raw string) string {
+	if strings.Contains(raw, "://") {
+		u, err := url.Parse(raw)
+		if err != nil || u.Host == "" {
+			return ""
+		}
+		return strings.ToLower(u.Hostname())
+	}
+	// SSH form: git@github.com:user/repo.git
+	if at := strings.Index(raw, "@"); at >= 0 {
+		rest := raw[at+1:]
+		if colon := strings.Index(rest, ":"); colon > 0 {
+			return strings.ToLower(rest[:colon])
+		}
+	}
+	return ""
+}
+
+// IsWorktree reports whether dir is inside a linked git worktree (not
+// the main working tree). In a linked worktree .git is a regular file
+// containing a gitdir pointer; in the main tree it is a directory.
+func IsWorktree(dir string) bool {
+	root := findGitRoot(dir)
+	if root == "" {
+		return false
+	}
+	fi, err := os.Lstat(filepath.Join(root, ".git"))
+	if err != nil {
+		return false
+	}
+	return fi.Mode().IsRegular()
+}
+
+// DetectMainBranch returns the branch checked out in the main working
+// tree. This is useful when called from a linked worktree to show
+// which branch the parent repo is on. Returns "" on any failure.
+func DetectMainBranch(ctx context.Context, dir string) string {
+	cmdOnce.Do(func() { _, err := exec.LookPath("git"); cmdFound = err == nil })
+	if !cmdFound || findGitRoot(dir) == "" {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "worktree", "list", "--porcelain").Output()
+	if err != nil {
+		return ""
+	}
+	return parseMainBranch(string(out))
+}
+
+// parseMainBranch extracts the branch name from the first entry of
+// `git worktree list --porcelain` output. The first entry is always
+// the main working tree.
+func parseMainBranch(output string) string {
+	const prefix = "branch refs/heads/"
+	for _, line := range strings.Split(output, "\n") {
+		if line == "" {
+			// End of first entry — stop scanning.
+			return ""
+		}
+		if strings.HasPrefix(line, prefix) {
+			return line[len(prefix):]
+		}
+	}
+	return ""
+}
+
+// IsRepo reports whether dir is inside a git repository (main or linked worktree).
+// Filesystem-only check; does not invoke the git binary.
+func IsRepo(dir string) bool {
+	return findGitRoot(dir) != ""
+}
+
+// findGitRoot walks up the directory tree from dir looking for a .git
+// entry (directory for main trees, regular file for linked worktrees).
+// Returns the directory containing .git, or "" if not found.
+func findGitRoot(dir string) string {
+	d := dir
+	for {
+		if _, err := os.Lstat(filepath.Join(d, ".git")); err == nil {
+			return d
+		}
+		parent := filepath.Dir(d)
+		if parent == d {
+			return ""
+		}
+		d = parent
+	}
+}
+
+// RepoRoot returns the canonical git top-level directory for dir.
+func RepoRoot(ctx context.Context, dir string) (string, error) {
+	cmdOnce.Do(func() { _, err := exec.LookPath("git"); cmdFound = err == nil })
+	if !cmdFound || findGitRoot(dir) == "" {
+		return "", fmt.Errorf("%s is not a git repository", dir)
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "", fmt.Errorf("resolve git root: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func commonGitRoot(ctx context.Context, dir string) (string, error) {
+	cmdOnce.Do(func() { _, err := exec.LookPath("git"); cmdFound = err == nil })
+	if !cmdFound || findGitRoot(dir) == "" {
+		return "", fmt.Errorf("%s is not a git repository", dir)
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir").Output()
+	if err != nil {
+		return "", fmt.Errorf("resolve git common dir: %w", err)
+	}
+	return filepath.Dir(strings.TrimSpace(string(out))), nil
+}
+
+// CreateWorktree creates a new linked git worktree under
+// <repo>/.agent-grid/worktrees/<name> and returns that path.
+func CreateWorktree(ctx context.Context, dir, name string) (string, error) {
+	root, err := RepoRoot(ctx, dir)
+	if err != nil {
+		return "", err
+	}
+	if name == "" {
+		return "", fmt.Errorf("worktree name required")
+	}
+	worktreeDir := filepath.Join(root, appid.DotDir, "worktrees", name)
+	if _, err := os.Stat(worktreeDir); err == nil {
+		return "", fmt.Errorf("worktree already exists: %s", worktreeDir)
+	}
+	if err := os.MkdirAll(filepath.Dir(worktreeDir), 0o755); err != nil {
+		return "", err
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", root, "worktree", "add", "-b", name, worktreeDir).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git worktree add failed: %s", strings.TrimSpace(string(out)))
+	}
+	return worktreeDir, nil
+}
+
+// DiffHeadOutcome classifies HEAD-vs-worktree diff helper results.
+type DiffHeadOutcome string
+
+const (
+	DiffHeadOK                 DiffHeadOutcome = "ok"
+	DiffHeadNotARepo           DiffHeadOutcome = "not_a_repo"
+	DiffHeadGitMetadataCorrupt DiffHeadOutcome = "git_metadata_corrupted"
+	DiffHeadGitBinaryMissing   DiffHeadOutcome = "git_binary_missing"
+)
+
+// DiffHeadResult is the typed outcome partition for DiffHeadVsWorktree.
+type DiffHeadResult struct {
+	Outcome DiffHeadOutcome `json:"outcome"`
+	Diff    string          `json:"diff,omitempty"`
+}
+
+// DiffHeadVsWorktree returns the unified diff of HEAD vs the worktree for
+// relPath under repoRoot. Non-ok outcomes distinguish missing git metadata,
+// corrupted metadata, and a missing git binary.
+func DiffHeadVsWorktree(ctx context.Context, repoRoot, relPath string) DiffHeadResult {
+	if _, err := exec.LookPath("git"); err != nil {
+		return DiffHeadResult{Outcome: DiffHeadGitBinaryMissing}
+	}
+	root := filepath.Clean(repoRoot)
+	if !workspaceHasGitMetadata(root) {
+		return DiffHeadResult{Outcome: DiffHeadNotARepo}
+	}
+	args := []string{"-C", root, "diff", "HEAD", "--"}
+	if relPath != "" {
+		args = append(args, relPath)
+	}
+	out, err := exec.CommandContext(ctx, "git", args...).CombinedOutput()
+	if err != nil {
+		if workspaceHasGitMetadata(root) {
+			return DiffHeadResult{Outcome: DiffHeadGitMetadataCorrupt}
+		}
+		return DiffHeadResult{Outcome: DiffHeadNotARepo}
+	}
+	return DiffHeadResult{Outcome: DiffHeadOK, Diff: string(out)}
+}
+
+// workspaceHasGitMetadata reports whether dir itself carries a .git entry
+// (directory or gitdir pointer). Parent-repo discovery is intentionally
+// excluded so workspace-local non-git directories do not inherit HEAD diffs.
+func workspaceHasGitMetadata(dir string) bool {
+	_, err := os.Lstat(filepath.Join(filepath.Clean(dir), ".git"))
+	return err == nil
+}
+
+// RemoveWorktree removes a reactor-managed git worktree created under
+// <repo>/.agent-grid/worktrees/<name>.
+func RemoveWorktree(ctx context.Context, path string) error {
+	clean := filepath.Clean(path)
+	root, err := commonGitRoot(ctx, clean)
+	if err != nil {
+		return err
+	}
+	if filepath.Dir(clean) != filepath.Join(root, appid.DotDir, "worktrees") {
+		return fmt.Errorf("not a managed worktree path: %s", clean)
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", root, "worktree", "remove", "--force", clean).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git worktree remove failed: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}

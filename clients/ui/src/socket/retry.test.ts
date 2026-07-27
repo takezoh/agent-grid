@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RespErrFrame, RespOKFrame } from "../wire/server";
-import { type RetryDeps, subscribeWithRetry } from "./retry";
+import { type RetryDeps, matchResp, subscribeWithRetry } from "./retry";
 
 function makeDeps(responses: (RespOKFrame | RespErrFrame)[]): {
   deps: RetryDeps;
@@ -28,6 +28,15 @@ function makeDeps(responses: (RespOKFrame | RespErrFrame)[]): {
 }
 
 describe("subscribeWithRetry", () => {
+  it("matches only response frames for the requested ID", () => {
+    expect(matchResp(["legacy"], "r1")).toBeNull();
+    expect(matchResp({ k: "r", reqId: "other" }, "r1")).toBeNull();
+    expect(matchResp({ k: "e", reqId: "r1", code: "x", message: "x" }, "r1")).toMatchObject({
+      k: "e",
+      reqId: "r1",
+    });
+  });
+
   it("succeeds on first try when RespOK comes back", async () => {
     const { deps, sent } = makeDeps([{ k: "r", reqId: "x" }]);
     const out = await subscribeWithRetry("s1", 120, 40, deps);

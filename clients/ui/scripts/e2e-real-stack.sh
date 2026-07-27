@@ -10,7 +10,9 @@ WEB_ADDR="${AG_UI_E2E_WEB_ADDR:-127.0.0.1:18081}"
 RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agent-grid-ui-e2e.XXXXXX")"
 FAKE_BIN_DIR="$RUN_DIR/bin"
 DATA_DIR="$RUN_DIR/server"
-mkdir -p "$FAKE_BIN_DIR" "$DATA_DIR"
+CONFIG_DIR="$RUN_DIR/client-config"
+SERVER_HOME="$RUN_DIR/home"
+mkdir -p "$FAKE_BIN_DIR" "$DATA_DIR" "$CONFIG_DIR" "$SERVER_HOME/.agent-grid"
 
 pids=()
 cleanup() {
@@ -41,13 +43,24 @@ trap cleanup EXIT INT TERM
 
 make -C "$ROOT" build-server build-web
 (
-  cd "$ROOT/src"
+  cd "$ROOT/services"
   go build -o "$FAKE_BIN_DIR/fake-agents" ./server/api/testsupport/fakeagents
 )
 cp "$FAKE_BIN_DIR/fake-agents" "$FAKE_BIN_DIR/codex"
 
-PATH="$FAKE_BIN_DIR:$PATH" AG_UI_E2E_STATUS_SCENARIOS=1 \
-  "$ROOT/server" -insecure -no-auth -addr "$BACKEND_ADDR" -data-dir "$DATA_DIR" \
+cat >"$SERVER_HOME/.agent-grid/settings.toml" <<EOF
+[projects]
+project_roots = ["$ROOT"]
+project_paths = ["$ROOT"]
+
+[[session.command_profiles]]
+id = "codex"
+label = "codex"
+executable = "codex"
+EOF
+
+HOME="$SERVER_HOME" PATH="$FAKE_BIN_DIR:$PATH" AG_UI_E2E_STATUS_SCENARIOS=1 \
+  "$ROOT/dist/bin/server" -insecure -no-auth -addr "$BACKEND_ADDR" -data-dir "$DATA_DIR" \
   >"$RUN_DIR/server.log" 2>&1 &
 pids+=("$!")
 
@@ -62,7 +75,10 @@ if ! curl --fail --silent "http://$BACKEND_ADDR/api/sessions" >/dev/null; then
   exit 1
 fi
 
-"$ROOT/web" -insecure -addr "$WEB_ADDR" -server "http://$BACKEND_ADDR" \
+printf '%s\n' \
+  '{"schema_version":2,"servers":[{"display_name":"E2E","enabled":true,"url":"http://'"$BACKEND_ADDR"'","auth":{"mode":"none"}}]}' \
+  >"$CONFIG_DIR/servers.json"
+"$ROOT/dist/bin/web-host" -insecure -addr "$WEB_ADDR" -config-dir "$CONFIG_DIR" \
   >"$RUN_DIR/uihost.log" 2>&1 &
 pids+=("$!")
 
@@ -78,4 +94,4 @@ if ! curl --fail --silent "http://$WEB_ADDR/" >/dev/null; then
 fi
 
 echo "UI/UX E2E stack ready: web=http://$WEB_ADDR backend=http://$BACKEND_ADDR"
-wait -n
+npx playwright test --config playwright.real.config.ts "$@"

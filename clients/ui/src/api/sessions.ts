@@ -2,7 +2,7 @@
 // the command palette and tool registry. This is the single seam through
 // which web UI talks to the gateway for session CRUD + push.
 //
-// Wire formats mirror src/server/web/mux.go:
+// Wire formats mirror services/server/web/mux.go:
 //   - POST   /api/sessions             → 201 Created, body: apiSessionInfo
 //   - DELETE /api/sessions/{id}        → 204 No Content
 //   - POST   /api/sessions/{id}/push   → 200 OK (empty body); 4xx/5xx error
@@ -10,10 +10,11 @@
 //   - GET    /api/session-config       → 200 OK, body: apiSessionConfig
 //
 // The push route (POST /api/sessions/{id}/push) is implemented by
-// src/server/web/mux_push.go (ADR-0045 SendCommand pattern; ADR-0046 409
+// services/server/web/mux_push.go (ADR-0045 SendCommand pattern; ADR-0046 409
 // active-mismatch). pushCommand below is the client side of that contract.
 
-import { readBearerTokenFromHash, resolveApiUrl } from "../auth";
+import { readBearerTokenFromHash } from "../auth";
+import { makeFleetProvider } from "../fleet/provider";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -290,46 +291,6 @@ function makeNetworkError(cause: unknown): Error {
   return new Error("network", { cause });
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function parseRetryAfter(header: string | null): number | null {
-  if (!header) return null;
-  const trimmed = header.trim();
-  if (trimmed === "") return null;
-  if (/^\d+$/.test(trimmed)) {
-    return Number(trimmed) * 1000;
-  }
-  const parsed = Date.parse(trimmed);
-  if (Number.isNaN(parsed)) return null;
-  return Math.max(0, parsed - Date.now());
-}
-
-interface RetryOpts {
-  maxAttempts?: number;
-  baseDelayMs?: number;
-  capMs?: number;
-}
-
-// minRetryFloorMs is the shortest delay we'll ever wait between retries even
-// when the server hints Retry-After: 0. Below this a valid HTTP hint would
-// collapse to a synchronous hot loop against the origin.
-const minRetryFloorMs = 100;
-
-function retryDelayMs(attempt: number, res: Response, baseDelayMs: number, capMs: number): number {
-  const backoff = baseDelayMs * 2 ** attempt;
-  // Retry-After: 0 (or a past HTTP-date) is a valid server hint that would
-  // collapse to no delay under `retryAfter ?? backoff` — nullish coalescing
-  // treats 0 as a valid value. Floor the header at minRetryFloorMs so a
-  // 0-hint can't hot-spin the loop while a legitimate short hint (say
-  // "1s") can still shorten our exponential backoff, which is exactly why
-  // the server sent it (see host.go's 502→503 upstream-not-ready map).
-  const retryAfter = parseRetryAfter(res.headers.get("Retry-After"));
-  const desired = retryAfter !== null ? Math.max(retryAfter, minRetryFloorMs) : backoff;
-  return Math.max(0, Math.min(desired, capMs));
-}
-
 async function throwHttpError(url: string, res: Response): Promise<never> {
   let body = "";
   try {
@@ -372,42 +333,6 @@ async function doFetch(fetchImpl: typeof fetch, url: string, init: RequestInit):
     throw makeNetworkError(e);
   }
   return res;
-}
-
-async function requestWithRetry(
-  fetchImpl: typeof fetch,
-  url: string,
-  init: RequestInit,
-  opts: RetryOpts = {},
-): Promise<Response> {
-  // Defaults to 4 total attempts: the initial request plus 3 retries, with
-  // 200ms / 400ms / 800ms backoff capped at 1.4s total.
-  const maxAttempts = opts.maxAttempts ?? 4;
-  const baseDelayMs = opts.baseDelayMs ?? 200;
-  const capMs = opts.capMs ?? 1400;
-  let attempt = 0;
-  let elapsed = 0;
-
-  for (;;) {
-    const res = await doFetch(fetchImpl, url, init);
-    if (res.ok) {
-      return res;
-    }
-    if (res.status < 500 || res.status >= 600 || attempt >= maxAttempts - 1) {
-      await throwHttpError(url, res);
-    }
-
-    const remaining = Math.max(0, capMs - elapsed);
-    if (remaining === 0) {
-      await throwHttpError(url, res);
-    }
-    const delay = retryDelayMs(attempt, res, baseDelayMs, remaining);
-    if (delay > 0) {
-      await sleep(delay);
-      elapsed += delay;
-    }
-    attempt++;
-  }
 }
 
 // Distinguishes "field absent" (legitimate forward/backward compat) from
@@ -529,39 +454,28 @@ function normalizeStringList(raw: unknown, fieldName: string): string[] {
 export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
   const f = fetchImpl ?? fetch.bind(globalThis);
   const authHeader = makeAuthHeaderFn();
+  const fleet = makeFleetProvider(f);
+
+  const currentURL = (pathname: string): string => {
+    const serverId = fleet.currentServerId();
+    if (!serverId) throw new Error("No server selected");
+    return fleet.apiUrl(serverId, pathname);
+  };
 
   return {
     async createSession(payload: CreateSessionPayload): Promise<{ id: string; serverId?: string }> {
-      const fleet = window.agentGridWorkspace?.sessionFleet;
-      if (fleet && payload.server_id) {
-        const { server_id: serverId, ...serverPayload } = payload;
-        const body = (await fleet.create(serverId, serverPayload)) as Record<string, unknown>;
-        if (typeof body.id !== "string" || body.id === "") {
-          throw makeWireFormatError("sessionFleet.create", "missing string `id`", body);
-        }
-        return { id: body.id, serverId };
-      }
-      const url = resolveApiUrl("/api/sessions");
-      const res = await request(f, url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader(url),
-        },
-        body: JSON.stringify(payload),
-      });
-      // Server returns apiSessionInfo {id, project, command, created_at}. We
-      // only need id. parseJsonBody converts SyntaxError → ApiWireFormatError
-      // so the JSON-parse path is no longer a silent typed leak.
-      const body = await parseJsonBody(url, res);
+      const serverId = payload.server_id ?? fleet.currentServerId();
+      if (!serverId) throw new Error("createSession requires server_id");
+      const { server_id: _, ...serverPayload } = payload;
+      const body = (await fleet.create(serverId, serverPayload)) as Record<string, unknown>;
       if (typeof body.id !== "string" || body.id === "") {
-        throw makeWireFormatError(url, "missing string `id` in response", body);
+        throw makeWireFormatError("FleetProvider.create", "missing string `id`", body);
       }
-      return { id: body.id };
+      return { id: body.id, serverId };
     },
 
     async deleteSession(id: string): Promise<void> {
-      const url = resolveApiUrl(`/api/sessions/${encodeURIComponent(id)}`);
+      const url = currentURL(`/api/sessions/${encodeURIComponent(id)}`);
       await request(f, url, {
         method: "DELETE",
         headers: { ...authHeader(url) },
@@ -579,7 +493,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
       // allowlist rejects anything outside [A-Za-z0-9_-], but if a UI bug
       // ever leaks a stray '/' we don't want it to silently retarget a
       // different path segment (same defense as deleteSession above).
-      const url = resolveApiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/push`);
+      const url = currentURL(`/api/sessions/${encodeURIComponent(sessionId)}/push`);
       await request(f, url, {
         method: "POST",
         headers: {
@@ -589,14 +503,13 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
         body: JSON.stringify({ command }),
       });
       // No body to parse — server writes only WriteHeader(200) on success
-      // (see sendPushDriver in src/server/web/mux_push.go). Returning void
+      // (see sendPushDriver in services/server/web/mux_push.go). Returning void
       // is the contract palette-store / tools-registry-dynamic-push expect.
     },
 
     async getSessionConfig(): Promise<SessionConfig> {
-      const fleet = window.agentGridWorkspace?.sessionFleet;
-      if (fleet) {
-        const outcomes = (await fleet.listConfigs()) as Array<Record<string, unknown>>;
+      {
+        const outcomes = await fleet.listConfigs();
         const projects: SessionConfigProject[] = [];
         const serverOutcomes: ServerConfigOutcome[] = [];
         const pushCommands = new Set<string>();
@@ -631,35 +544,10 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
           pushCommands: [...pushCommands],
         };
       }
-      const url = resolveApiUrl("/api/session-config");
-      const res = await requestWithRetry(f, url, {
-        method: "GET",
-        headers: { ...authHeader(url) },
-      });
-      // parseJsonBody surfaces SyntaxError / non-object responses as a typed
-      // ApiWireFormatError so palette-store can branch on it (review finding
-      // "minor — res.json SyntaxError leak").
-      const raw = await parseJsonBody(url, res);
-      // Forward-compat: session-config-extension will add project_roots /
-      // project_paths / push_commands to the wire. Until then they're absent
-      // and we default to [] silently. normalizeStringList / normalizeProjects
-      // distinguish absent (silent) from present-but-malformed (warn) so a
-      // gateway bug that drops a field leaves a breadcrumb in the dev console.
-      const projectRoots = normalizeStringList(raw.project_roots, "project_roots");
-      const projectPaths = normalizeStringList(raw.project_paths, "project_paths");
-      const pushCommands = normalizeStringList(raw.push_commands, "push_commands");
-      const projects = normalizeProjects(raw.projects);
-      return {
-        projectRoots,
-        projectPaths,
-        projects,
-        serverOutcomes: [],
-        pushCommands,
-      };
     },
 
     async getSessionMessages(sessionId: string): Promise<SessionMessagesResponse> {
-      const url = resolveApiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/messages`);
+      const url = currentURL(`/api/sessions/${encodeURIComponent(sessionId)}/messages`);
       const res = await request(f, url, {
         method: "GET",
         headers: { ...authHeader(url) },
@@ -677,7 +565,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
     },
 
     async markSessionMessagesRead(sessionId: string, lastReadMessageId?: string): Promise<void> {
-      const url = resolveApiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/messages/read`);
+      const url = currentURL(`/api/sessions/${encodeURIComponent(sessionId)}/messages/read`);
       await request(f, url, {
         method: "POST",
         headers: {

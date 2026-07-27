@@ -87,7 +87,7 @@ run_case() {
     for attempt in $(seq 1 "$REPEAT"); do
         start="$(node -e 'process.stdout.write(String(Date.now()))')"
         if [[ "$language" == "go" ]]; then
-            (cd "$ROOT/src" && GODEBUG="randautoseed=0" run_with_timeout go test -count=1 -shuffle="$SEED" "$target")
+            (cd "$ROOT/services" && GODEBUG="randautoseed=0" run_with_timeout go test -count=1 -shuffle="$SEED" "$target")
             exit_code=$?
         elif [[ "$target" == "__ALL__" ]]; then
             (cd "$ROOT/clients/ui" && VITEST_POOL_ID="$SEED" run_with_timeout npm test -- --run --sequence.seed "$SEED")

@@ -1,5 +1,5 @@
 // Read-only workspace HTTP client for the agent workspace viewer.
-// Mirrors src/server/web/workspace.go response shapes.
+// Mirrors services/server/web/workspace.go response shapes.
 
 import { readBearerTokenFromHash } from "../auth";
 

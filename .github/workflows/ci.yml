@@ -14,8 +14,10 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version-file: src/go.mod
-          cache-dependency-path: src/go.sum
+          go-version-file: services/go.mod
+          cache-dependency-path: |
+            services/go.sum
+            clients/web-host/go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -45,8 +47,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: src/go.mod
-          cache-dependency-path: src/go.sum
+          go-version-file: services/go.mod
+          cache-dependency-path: |
+            services/go.sum
+            clients/web-host/go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -69,8 +73,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: src/go.mod
-          cache-dependency-path: src/go.sum
+          go-version-file: services/go.mod
+          cache-dependency-path: |
+            services/go.sum
+            clients/web-host/go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -117,7 +123,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: src/go.mod
+          go-version-file: services/go.mod
       - name: Run compatibility verification profile
         env:
           AG_HARNESS_PROFILE_ARTIFACT: test-harness/profile-result-compatibility.json

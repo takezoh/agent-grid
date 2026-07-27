@@ -26,11 +26,11 @@
 | 語 | 意味 | 実体 |
 |---|---|---|
 | `ui` | 共有 SPA (React/TS/xterm.js)。単体ではクライアントでなく、全 GUI クライアントが使う UI 資産 | `clients/ui/` |
-| `uihost` | ui の配信機 (Go: dist embed + /api,/ws リバースプロキシ)。ブラウザと Electron workspace の両方がこの origin をロードする | `src/uihost/` + `src/cmd/uihost/` (成果物バイナリ名・systemd unit は歴史的に `web` / `agent-grid-web` を維持) |
+| `uihost` | ui の配信機 (Go: dist embed + /api,/ws リバースプロキシ)。ブラウザと Electron workspace の両方がこの origin をロードする | `src/uihost/` + `services/cmd/uihost/` (成果物バイナリ名・systemd unit は歴史的に `web` / `agent-grid-web` を維持) |
 | ブラウザクライアント | `uihost` の origin をブラウザで直接開く**配信モード**。固有コードを持たないため専用ディレクトリなし | — |
-| `api` (server 層内) | 全クライアント向け HTTP/WS gateway (旧 `server/web`) | `src/server/api/` |
+| `api` (server 層内) | 全クライアント向け HTTP/WS gateway (旧 `server/web`) | `services/server/api/` |
 | `gateway` (最上位・予約) | multi-host plan の公開 relay/tunnel/authorizer | `src/gateway/` (未作成・予約) |
-| `host` | 実行プレーンのデーモン層 (旧 `client/`) | `src/host/` |
+| `host` | 実行プレーンのデーモン層 (旧 `client/`) | `services/host/` |
 | `clients` | ユーザー向けクライアント群 | `clients/` |
 
 ## 3. 現在の構造 (M0 + 命名修正 実施後)
@@ -70,31 +70,31 @@ agent-grid/
 ### 実施済み (本ブランチ)
 
 1. **M0**: `clients/` `protocol/` `contracts/` を所有権 README 付きで新設。
-2. **`src/server/web` → `src/server/api`** (package `web` → `api`)。参照更新: `cmd/server`、`.golangci.yml`、test-harness、coverage floors。
+2. **`services/server/web` → `services/server/api`** (package `web` → `api`)。参照更新: `cmd/server`、`.golangci.yml`、test-harness、coverage floors。
 3. **SPA 移設**: npm プロジェクトを `clients/ui/` へ、Go 側 (embed + `Handler` + proxy) を `src/uihost/` へ分割。`cmd/web` → `cmd/uihost`。参照更新: Makefile (dist 同期ステップ新設)、CI workflows、scripts、test-harness、`wire_fixtures_test` の出力先、gorules/harnesspolicy テスト、生きているドキュメント一式。**成果物バイナリ名 `web` と systemd unit 名 `agent-grid-web` は維持** (稼働環境と deploy/ を壊さない。ops 語彙の改名は配布開始時の課題)。
 4. **強制機構の修理 (棚卸しでの発見)**: `.golangci.yml` の depguard/forbidigo が旧モジュールパス `agent-reactor` を参照しており、**層境界強制の大半が無効化されていた**。`agent-grid` へ修正して復活。復活で表面化した違反 2 件を処置:
    - `client/runtime/workspace_root.go` — driver import を消費側ローカルの structural interface に置換 (正攻法で解消)。
    - `client/runtime/frame_messaging_store.go` — driver 名定数の参照。能力ベース判定への置換が本筋のため、**文書化した逸脱**として単一ファイル exclusion を追加 (弱体化ではなく明示)。
    - あわせて no-mutex forbidigo をテストのフェイク実装に適用しない exclusion を追加 (invariant は本番コアの production code が対象)。
 
-### M2 — Rename: `src/client/` → `src/host/` (実施済み、735b6e2)
+### M2 — Rename: `src/client/` → `services/host/` (実施済み、735b6e2)
 
 multi-host plan の語彙 (Host) と一致させ、「client = ユーザー向け」の衝突を解消した。
 
 - import path 一括書換 (207 ファイル)。パッケージ名は維持 (`state`, `runtime`, `proto`, …) のため参照式は不変。
-- `src/.golangci.yml`: ルール名 (`host-no-orchestrator`, `platform-no-host-or-orchestrator`) とパス更新。`gorules/purecore.go` の PkgPath 正規表現、Makefile (`test-race` / `verify-bridge-deps`)、test-harness、coverage floors も追随。
+- `services/.golangci.yml`: ルール名 (`host-no-orchestrator`, `platform-no-host-or-orchestrator`) とパス更新。`gorules/purecore.go` の PkgPath 正規表現、Makefile (`test-race` / `verify-bridge-deps`)、test-harness、coverage floors も追随。
 - `docs/design/design-client.md` → **`design-host.md`** に改名し、歴史文書からの旧リンクのため旧パスにリダイレクトスタブを設置。ARCHITECTURE.md / AGENTS.md / 生きている note・plan の語彙・パスを更新 (multi-host plan の提案パッケージ名 `host/webrtc/` 等を含む)。ADR・docs/changes・docs/specs は不変。
 - Gate 実績: `go build`/`go vet` 全体、full `go test` (78 ok、残 2 件は基準コミットでも同一の既知環境起因)、gorules・harnesspolicy 強制テスト green。
 
 ### M3 — multi-host / 契約層の着地 (該当プラン側で実施)
 
-- multi-host plan 着工時: `src/gateway/` + `src/cmd/gateway/` + `src/platform/transport/` を予約名どおりに新設。depguard に `gateway-layer` ルール追加 (gateway は platform のみ import 可、no-domain 原則の機械的裏付け)。
+- multi-host plan 着工時: `src/gateway/` + `services/cmd/gateway/` + `services/platform/transport/` を予約名どおりに新設。depguard に `gateway-layer` ルール追加 (gateway は platform のみ import 可、no-domain 原則の機械的裏付け)。
 - native-clients plan Phase 1 着工時: `protocol/` にスキーマ、`contracts/` に契約文書、生成物を各消費者へ。
 - Phase 2 着工時: `clients/windows-shell/` `clients/workspace/` に実体。
 
 ## 5. やらないこと
 
-- `src/server/` 層自体の改名 — host-local façade として実体と一致 (`api` subpackage への改名で十分)。
+- `services/server/` 層自体の改名 — host-local façade として実体と一致 (`api` subpackage への改名で十分)。
 - `orchestrator/` `platform/` の再配置 — 境界は健全で動機がない。
 - 成果物バイナリ / systemd unit の改名 (`web` / `agent-grid-web`) — 稼働環境に対する破壊的変更。配布開始時に扱う。
 - モノレポツール (nx/turbo 等) の導入 — clients/ 配下は各自のツールチェーンで独立ビルド。必要が実証されてから。

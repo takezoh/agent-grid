@@ -27,7 +27,7 @@ test("renders live sessions and completes a new-session submission against the f
     createdSessionId: "session-new",
   });
 
-  await page.goto("/#token=test");
+  await page.goto("/?server=test-server#token=test");
   await backend.waitForSocketOpen();
 
   await backend.emit({
@@ -82,7 +82,10 @@ test("renders live sessions and completes a new-session submission against the f
   expect(await backend.createSessionRequests()).toEqual([
     {
       project: "/repo/app",
-      command: "claude",
+      version: 2,
+      profile_id: "claude",
+      profile_revision: "claude-e2e",
+      parameters: {},
       cols: fittedCols,
       rows: fittedRows,
     },
@@ -137,7 +140,7 @@ test("renders resumed Codex status updates from running to waiting", async ({ pa
     },
   });
 
-  await page.goto("/#token=test");
+  await page.goto("/?server=test-server#token=test");
   await backend.waitForSocketOpen();
   await backend.emit({
     k: "h",
@@ -149,13 +152,25 @@ test("renders resumed Codex status updates from running to waiting", async ({ pa
 
   await backend.emit({
     k: "v",
-    sessions: [{ ...resumed, view: { ...resumed.view, status: "running" } }],
+    sessions: [
+      {
+        ...resumed,
+        status: { lifecycle: "active", human_input: false, failure: "none" },
+      },
+    ],
   });
-  await expect(page.locator('.run-state-badge[aria-label="status: running"]')).toBeVisible();
+  await expect(page.locator('.run-state-badge[aria-label="status: Working"]')).toBeVisible();
 
   await backend.emit({
     k: "v",
-    sessions: [{ ...resumed, view: { ...resumed.view, status: "waiting" } }],
+    sessions: [
+      {
+        ...resumed,
+        status: { lifecycle: "idle", human_input: true, failure: "none" },
+      },
+    ],
   });
-  await expect(page.locator('.run-state-badge[aria-label="status: waiting"]')).toBeVisible();
+  await expect(
+    page.locator('.run-state-badge[aria-label="status: Action required"]'),
+  ).toBeVisible();
 });

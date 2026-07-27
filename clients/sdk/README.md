@@ -19,7 +19,7 @@ Design:
 ## Rules
 
 - Do **not** hand-edit `generated/` / `Generated/` trees; re-run `scripts/generate-sdks.sh`.
-- Go remains hand-written + stdlib-only (`src/host/proto`, `src/server/api/wire.go`).
+- Go remains hand-written + stdlib-only (`services/host/proto`, `services/server/api/wire.go`).
 - Compatibility CI fails on undeclared surface, missing pins, or missing shared simulator scenarios.
 
 ## Generate

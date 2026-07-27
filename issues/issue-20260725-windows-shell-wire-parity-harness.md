@@ -2,7 +2,7 @@
 
 - status: open
 - created: 2026-07-25
-- area: clients/windows-shell (WsFrameParser) / src/server/api (wire fixtures)
+- area: clients/windows-shell (WsFrameParser) / services/server/api (wire fixtures)
 - origin: debug-run-shell-zero-sessions (`~/.dev-skills/debug/shell-zero-sessions/`)
 
 ## 背景

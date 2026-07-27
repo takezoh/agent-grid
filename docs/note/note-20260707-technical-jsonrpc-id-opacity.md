@@ -16,10 +16,10 @@ relations:
 - {type: references, target: adr-20260707-jsonrpc-id-opaque-forwarding}
 - {type: references, target: adr-20260707-shim-bytes-preserving-id-proxy}
 source_paths:
-- src/platform/agent/codexclient
-- src/cmd/bridge
-- src/host/runtime/subsystem/stream/fake
-- src/platform/agent/fakecodex
+- services/platform/agent/codexclient
+- services/cmd/bridge
+- services/host/runtime/subsystem/stream/fake
+- services/platform/agent/fakecodex
 summary: JSON-RPC 2.0 proxy / relay / bridge を書くとき、envelope の id と error object は
   ともに bytes-preserving で扱う (int64 決め打ち禁止 / message-only error 禁止)
 updated: '2026-07-07'
@@ -58,16 +58,16 @@ JSON-RPC 2.0 spec §4 は `id` を `String, Number, or NULL value` と規定し�
 
 現時点で本 invariant が適用される JSON-RPC 境界:
 
-- `src/platform/agent/codexclient/conn.go` — 参照実装 (`RequestID = json.RawMessage` の named type / pending map int64 key + reply 時 `strconv.ParseInt` 照合)
-- `src/cmd/bridge/codex_app_server_shim.go` — 2 方向 proxy (downstream reply は bytes echo / upstream server-initiated request は shim 側で renumber して echo back)
-- `src/host/runtime/subsystem/stream/fake/appserver.go` / `cli.go` — fake app-server / cli の Handler impl
-- `src/platform/agent/fakecodex/fakecodex.go` — string id を受け付ける fake codex
+- `services/platform/agent/codexclient/conn.go` — 参照実装 (`RequestID = json.RawMessage` の named type / pending map int64 key + reply 時 `strconv.ParseInt` 照合)
+- `services/cmd/bridge/codex_app_server_shim.go` — 2 方向 proxy (downstream reply は bytes echo / upstream server-initiated request は shim 側で renumber して echo back)
+- `services/host/runtime/subsystem/stream/fake/appserver.go` / `cli.go` — fake app-server / cli の Handler impl
+- `services/platform/agent/fakecodex/fakecodex.go` — string id を受け付ける fake codex
 
 **将来追加する境界も本 note を継承**する: claude-app-server 側の app-server 化 / orchestrator の 別 driver 対応 / MCP transport 追加 / 別 CLI (Anthropic 系 / OpenAI 系) の bridge — いずれも proxy / relay を書く時点で本 invariant を満たすこと。
 
 ### 4. 参照実装
 
-`src/platform/agent/codexclient/conn.go` を canonical とする。次の 3 要素が揃っていることを確認:
+`services/platform/agent/codexclient/conn.go` を canonical とする。次の 3 要素が揃っていることを確認:
 
 1. `type RequestID json.RawMessage` の named type 定義 (alias ではない — caller の型追従漏れを `go build ./...` の非ゼロ終了で検出できるようにするため)
 2. `rpcMessage.UnmarshalJSON` が「id 未出現 (`Request` は id 必須) / id: null / id: bytes」の 3 状態を明示的に区別する (spec で notification は id 無し)
@@ -94,8 +94,8 @@ JSON-RPC 2.0 spec §4 は `id` を `String, Number, or NULL value` と規定し�
 
 #### 6.2 適用範囲
 
-- `src/platform/agent/codexclient/conn.go` — 参照実装 (`RPCError` typed error / `ReplyError` code auto-fill / `ReplyRPCError` bytes-preserving forwarder)
-- `src/cmd/bridge/codex_app_server_shim.go` — 2 方向 proxy の error 経路は `ReplyRPCError` のみ (`ReplyError(id, err.Error())` は禁止)
+- `services/platform/agent/codexclient/conn.go` — 参照実装 (`RPCError` typed error / `ReplyError` code auto-fill / `ReplyRPCError` bytes-preserving forwarder)
+- `services/cmd/bridge/codex_app_server_shim.go` — 2 方向 proxy の error 経路は `ReplyRPCError` のみ (`ReplyError(id, err.Error())` は禁止)
 - 他 caller (orchestrator/agent / claude-app-server 等) は local error 生成者なので `ReplyError` のまま (code は自動的に -32603 に fill される)
 
 #### 6.3 参照実装のテスト規律

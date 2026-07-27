@@ -91,8 +91,9 @@ export function currentServerIdentity(): { id: string; label: string } {
   if (hosted?.serverId) {
     return { id: hosted.serverId, label: hosted.serverLabel || hosted.serverId };
   }
-  const origin = new URL(desktopBaseUrl() ?? window.location.origin).origin.toLowerCase();
-  return { id: `origin:${origin}`, label: new URL(origin).host };
+  const serverId = new URLSearchParams(window.location.search).get("server");
+  if (!serverId) throw new Error("No server selected");
+  return { id: serverId, label: serverId };
 }
 
 export function resolveApiUrl(pathname: string): string {

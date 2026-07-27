@@ -1,15 +1,15 @@
 ## Build & Test
 
 ```sh
-make build-server            # Build Go sources under src/ → ./server (+ bridge)
+make build-server            # Build services Go module → dist/bin/server (+ bridge)
 make build-orchestrator      # Build → ./orchestrator
 make build-claude-app-server # Build → ./claude-app-server
 make build-all               # Build all 3 main binaries
 make vet                     # go vet ./...
 make lint                    # golangci-lint (depguard, funlen, staticcheck, etc.)
-cd src && go test ./...          # Run all tests
-cd src && go test ./path/to/pkg  # Run tests for a specific package
-cd src && go test -run TestName ./...  # Run a specific test
+cd services && go test ./...          # Run all tests
+cd services && go test ./path/to/pkg  # Run tests for a specific package
+cd services && go test -run TestName ./...  # Run a specific test
 make test-race               # Race detector on concurrency-sensitive subtrees
 ```
 
@@ -17,7 +17,7 @@ make test-race               # Race detector on concurrency-sensitive subtrees
 
 | Kind | Tier | When | Entry |
 |------|------|------|-------|
-| Go gateway scenario | T1 | Always-on (`go test ./...`) | `src/server/api` (`mux_*_test.go`, etc.) |
+| Go gateway scenario | T1 | Always-on (`go test ./...`) | `services/server/api` (`mux_*_test.go`, etc.) |
 | Go opt-in fidelity | T3 | Manual / nightly; subtests skip without `AG_E2E_*` | `make test-e2e` |
 | Web Playwright smoke | T1 | PR CI (`npm run test:web`) | `clients/ui` `npm run test:e2e` |
 | Web UI/UX real stack | T3 | Manual / nightly | `clients/ui` `npm run test:e2e:real` |
@@ -63,7 +63,7 @@ If home-directory caches are not writable (sandbox agents), redirect caches:
 
 ```sh
 GOCACHE=/tmp/gocache-agent-grid GOLANGCI_LINT_CACHE=/tmp/golangci-lint-cache make lint
-cd src && GOCACHE=/tmp/gocache-agent-grid go test ./...
+cd services && GOCACHE=/tmp/gocache-agent-grid go test ./...
 cd clients/ui
 NPM_CONFIG_CACHE=/tmp/npm-cache-agent-grid npm ci
 PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npx playwright install chromium
@@ -78,7 +78,7 @@ Playwright escape hatches: `PLAYWRIGHT_BROWSERS_PATH` when `~/.cache/ms-playwrig
 ```sh
 GOCACHE=/tmp/gocache-agent-grid GOLANGCI_LINT_CACHE=/tmp/golangci-lint-cache make lint
 cd clients/ui && NPM_CONFIG_CACHE=/tmp/npm-cache-agent-grid npm run lint
-cd src && GOCACHE=/tmp/gocache-agent-grid go test ./...
+cd services && GOCACHE=/tmp/gocache-agent-grid go test ./...
 cd clients/ui && npm run test:unit
 GOCACHE=/tmp/gocache-agent-grid make test-e2e
 cd clients/ui && PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright npm run test:e2e
@@ -92,13 +92,13 @@ One Go module, three top-level trees under `src/` and three binaries:
 
 | Binary | Source | Layer | Role |
 |---|---|---|---|
-| `server` | `src/cmd/server/` | `host/` | Single-process backend — pty session daemon + HTTP/WS gateway in one binary (Unix-socket IPC plus browser-facing REST/WS) |
-| `orchestrator` | `src/cmd/orchestrator/` | `orchestrator/` | Symphony SPEC implementation — autonomous poll/dispatch/reconcile + observability HTTP |
-| `claude-app-server` | `src/cmd/claude-app-server/` | `platform/` + `orchestrator/` | Codex app-server stdio shim for Claude; enables agent-switch via `codex.command` in WORKFLOW.md |
+| `server` | `services/cmd/server/` | `host/` | Single-process backend — pty session daemon + HTTP/WS gateway in one binary (Unix-socket IPC plus browser-facing REST/WS) |
+| `orchestrator` | `services/cmd/orchestrator/` | `orchestrator/` | Symphony SPEC implementation — autonomous poll/dispatch/reconcile + observability HTTP |
+| `claude-app-server` | `services/cmd/claude-app-server/` | `platform/` + `orchestrator/` | Codex app-server stdio shim for Claude; enables agent-switch via `codex.command` in WORKFLOW.md |
 
-`platform/` is shared infrastructure; `host/` (formerly `client/`) is agent-grid's session daemon and `server/` is its HTTP/WS gateway (`server/api`), both shipped as the single `server` binary; the browser SPA lives at `clients/ui/` and is served by `cmd/uihost` (embedded via `src/uihost`); `orchestrator/` is the Symphony pipeline. Import direction (enforced by `depguard`, `src/.golangci.yml`): `platform/*` imports neither `host/*` nor `orchestrator/*`; `host/*` does not import `orchestrator/*`; `orchestrator/*` does not import `host/*`. Full layer definition: [ARCHITECTURE.md](ARCHITECTURE.md).
+`services/platform/` is shared service infrastructure; `services/host/` is agent-grid's session daemon and `services/server/` is its HTTP/WS gateway, both shipped as `dist/bin/server`. The SPA lives at `clients/ui/` and its independent Go host at `clients/web-host/`; Workspace Electron lives at `clients/workspace/`. Web host and Electron are equal client hosts: both load `clients/config`'s `servers.json` contract and expose the same server-qualified fleet semantics. Their only permitted difference is delivery transport (same-origin HTTP/WS versus preload/IPC); browser-single-server or Electron-only multi-server policy is forbidden. `services/orchestrator/` is the Symphony pipeline. Import direction is enforced by `services/.golangci.yml`.
 
-Orchestrator-scoped test run: `cd src && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...`
+Orchestrator-scoped test run: `cd services && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...`
 Conformance: `docs/design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。
 
 ## Rules

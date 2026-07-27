@@ -42,8 +42,10 @@ jobs:
       - uses: actions/setup-go@v5
         if: steps.guard.outputs.prior_success == '0'
         with:
-          go-version-file: src/go.mod
-          cache-dependency-path: src/go.sum
+          go-version-file: services/go.mod
+          cache-dependency-path: |
+            services/go.sum
+            clients/web-host/go.sum
 
       - name: Auto-fix with Claude Code
         if: steps.guard.outputs.prior_success == '0'
@@ -63,6 +65,6 @@ jobs:
                tests are required for any new or changed behavior.
 
             3. Verify all checks pass:
-               cd src && go vet ./... && go test ./... && go build -o ../arc . && go tool golangci-lint run ./...
+               cd services && go vet ./... && go test ./... && go build -o ../dist/bin/server ./cmd/server && go tool golangci-lint run ./...
 
             4. Commit and push the fix to main with a descriptive commit message.

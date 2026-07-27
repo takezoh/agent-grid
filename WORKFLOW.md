@@ -117,7 +117,7 @@ query Comments($id: String!) { issue(id: $id) { comments { nodes { body createdA
      既存のブランチ/PR を確認する。**既に PR があれば新規作成せず続きから**進める(未了の実装・
      テスト・指摘対応を終え、step 4 以降の push / コメント / 遷移へ。PR は作り直さない)。
   1. `AGENTS.md` / `CLAUDE.md` を読み、ビルド/テスト/ルールに従う。
-  2. 課題を実装し、必要なテストを書く。`cd src && go test ./...` と `make lint` が緑になることを確認。
+  2. 課題を実装し、必要なテストを書く。`cd services && go test ./...` と `make lint` が緑になることを確認。
   3. `symphony/{{ issue.identifier }}` に論理的な commit を作る。
   4. `git push -u origin symphony/{{ issue.identifier }}` で push する。
   5. base ブランチは `git config symphony.base` で取得できる(clone 時に記録済み)。

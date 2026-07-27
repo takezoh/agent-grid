@@ -23,4 +23,4 @@ simulator/                # fixtures + recordings + sim server (ADR simulator)
 - SDK 生成: `scripts/generate-sdks.sh` / `make generate-sdks`（pin: `clients/sdk/package-lock.json` + `.quicktype-version`）。
 - 互換ゲート: `scripts/check-protocol-compatibility.sh` / `make protocol-compat`。
 
-Go IPC/HTTP 実体: `src/host/proto` と `src/server/api/wire.go` (スキーマに対して round-trip 検証)。
+Go IPC/HTTP 実体: `services/host/proto` と `services/server/api/wire.go` (スキーマに対して round-trip 検証)。

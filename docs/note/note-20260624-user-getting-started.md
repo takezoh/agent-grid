@@ -15,11 +15,11 @@ relations:
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
 source_paths:
-- src/cmd/server/coordinator.go
+- services/cmd/server/coordinator.go
 - Makefile
-- src/cmd/server/
-- src/cmd/orchestrator/
-- src/cmd/claude-app-server/
+- services/cmd/server/
+- services/cmd/orchestrator/
+- services/cmd/claude-app-server/
 topic: user
 summary: Installs server to ~/.local/bin/server (with support files under ~/.local/lib/agent-grid/).
 ---

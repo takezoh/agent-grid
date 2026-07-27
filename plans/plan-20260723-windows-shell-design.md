@@ -75,7 +75,7 @@ Windows デスクトップは **2 コンポーネント + デーモン** で構�
 
 ## 2. デーモン接続 (両コンポーネント共通)
 
-現行実装 (`src/cmd/server`) を **Linux バイナリのまま WSL 内で動かす**。Windows 移植 (named pipe / ConPTY 化) は行わない — pty・Unix socket・sandbox は Linux 前提のまま無傷で使え、これが本プランで最も高くつくはずだった作業を丸ごと消す。ゲートウェイは `-addr` (既定 `:8443`)、bearer token (`-token-file` で永続化可、`0600`)、ブラウザ WS 用の短命チケット (`/ws?ticket=`, 30s/単回) を持つ。
+現行実装 (`services/cmd/server`) を **Linux バイナリのまま WSL 内で動かす**。Windows 移植 (named pipe / ConPTY 化) は行わない — pty・Unix socket・sandbox は Linux 前提のまま無傷で使え、これが本プランで最も高くつくはずだった作業を丸ごと消す。ゲートウェイは `-addr` (既定 `:8443`)、bearer token (`-token-file` で永続化可、`0600`)、ブラウザ WS 用の短命チケット (`/ws?ticket=`, 30s/単回) を持つ。
 
 - 起動形態: Shell が `wsl.exe -d <distro> -- <path>/server -addr 127.0.0.1:<port> -token-file ~/.agent-grid/gateway-token` を spawn する。WSL2 の localhost フォワーディングで Windows 側から `127.0.0.1:<port>` に到達できる。**`127.0.0.1` bind を明示する** (既定 `:8443` は全インターフェース bind のため)。リモート Linux ホストで動かす場合は接続先 host:port を設定で差し替えるだけ (spawn はしない、adopt のみ)。
 - port・distro・接続先は設定ファイル (`%APPDATA%\agent-grid\shell.json`) で固定 (既定 8443)。
@@ -216,7 +216,7 @@ hosted モードで SPA に入る変更 (mode flag で分岐、ブラウザ向�
 | 対象 | 手法 |
 |---|---|
 | Shell Core (SupervisionState / DaemonSupervisor / DeepLinkRouter) | xUnit。pure 状態機械としてイベント列→状態/効果を検証 (FC/IS なので殻なしで回る) |
-| DaemonSupervisor 統合 | fake server バイナリ (即応答する小さな Go プログラム、`src/server/api/testsupport/fakeagents` の流儀を踏襲) に対する spawn/adopt/restart。`wsl.exe` 境界は Runner インターフェースで抽象化し fake 差替 |
+| DaemonSupervisor 統合 | fake server バイナリ (即応答する小さな Go プログラム、`services/server/api/testsupport/fakeagents` の流儀を踏襲) に対する spawn/adopt/restart。`wsl.exe` 境界は Runner インターフェースで抽象化し fake 差替 |
 | Workspace main (window-registry, control-endpoint) | vitest (unit) + **Playwright for Electron** で窓規律 e2e: 再アクティベートで窓が増えない、復元、pipe 経由 openSession |
 | hosted モード SPA | 既存 `clients/ui` の unit + Playwright に hosted フラグの分岐ケースを追加 (`e2e/support/fake-backend.ts` 再利用) |
 | 契約適合 | Shell は生成 C# クライアント、Workspace/SPA は生成 TS クライアント経由に限定し、記録済みシナリオ (native-clients plan Phase 1) を両方に流す |

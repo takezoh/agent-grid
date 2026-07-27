@@ -14,9 +14,9 @@
     "test:unit": "vitest --run --allowOnly false",
     "test:coverage": "vitest --run --allowOnly false --coverage",
     "test:unit:watch": "vitest",
-    "test:e2e": "npm run build && playwright test",
-    "test:e2e:real": "npm run build && playwright test --config playwright.real.config.ts",
-    "test:e2e:screenshots": "npm run build && AG_E2E_SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts",
+    "test:e2e": "npm run build && ./scripts/e2e-smoke.sh",
+    "test:e2e:real": "npm run build && ./scripts/e2e-real-stack.sh",
+    "test:e2e:screenshots": "npm run build && AG_E2E_SCREENSHOTS=1 ./scripts/e2e-smoke.sh e2e/screenshots.spec.ts",
     "test:web": "npm run lint && npm run test:coverage && npm run test:e2e"
   },
   "dependencies": {

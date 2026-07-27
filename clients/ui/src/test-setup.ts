@@ -17,6 +17,7 @@ function stringifyConsoleArg(value: unknown): string {
 }
 
 beforeEach(() => {
+  window.history.replaceState({}, "", "/?server=test-server");
   consoleCalls = [];
   console.error = (...args: unknown[]) => {
     const message = args.map(stringifyConsoleArg).join(" ");

@@ -12,8 +12,8 @@ owners: []
 relations:
 - {type: references, target: design-platform}
 source_paths:
-- src/platform/sandbox/
-- src/platform/credproxy/
+- services/platform/sandbox/
+- services/platform/credproxy/
 topic: user
 summary: Each agent runs inside a project-scoped devcontainer instead of the host
   shell, isolating filesystem, network, and credentials per project.

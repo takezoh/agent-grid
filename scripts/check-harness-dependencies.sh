@@ -10,7 +10,7 @@ e2e_registry=test-harness/e2e-suites.json
 case "${1:-}" in
   --fixture)
     [ "$#" -eq 2 ] || { echo "usage: $0 --fixture NAME" >&2; exit 2; }
-    root=$repo_root/src/internal/harnesspolicy/testdata/dependencies/repo
+    root=$repo_root/services/internal/harnesspolicy/testdata/dependencies/repo
     registry=../"$2".json
     boundaries=
     e2e_registry=e2e-suites.json
@@ -23,5 +23,5 @@ case "${1:-}" in
   *) echo "usage: $0 [--fixture NAME | --registry PATH]" >&2; exit 2 ;;
 esac
 
-cd "$repo_root/src"
+cd "$repo_root/services"
 go run ./cmd/harness-check --root "$root" --registry "$registry" --boundaries "$boundaries" --e2e-registry "$e2e_registry"

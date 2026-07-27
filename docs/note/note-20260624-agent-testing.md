@@ -22,14 +22,14 @@ relations:
 - {type: references, target: design-platform}
 - {type: references, target: note-20260624-technical-code-enforcement}
 source_paths:
-- src/orchestrator/scheduler/
-- src/host/runtime/
-- src/platform/termvt/
-- src/server/api/
+- services/orchestrator/scheduler/
+- services/host/runtime/
+- services/platform/termvt/
+- services/server/api/
 - Makefile
 - scripts/check-coverage.sh
 - scripts/coverage-floors.txt
-- src/cmd/bridge/
+- services/cmd/bridge/
 topic: agent
 summary: Testability is a primary design constraint, not an afterthought. When a function
   reaches for os/exec, the filesystem, a socket, or any other external dependency,
@@ -138,7 +138,7 @@ signal stays actionable instead of drowning in unrelated startup paths:
 
 ```sh
 make test-race
-# → cd src && go test -race -count=1 ./platform/termvt/... ./host/runtime/...
+# → cd services && go test -race -count=1 ./platform/termvt/... ./host/runtime/...
 ```
 
 This is the canonical "did my concurrency refactor regress something" smoke
@@ -160,14 +160,14 @@ Coverage targets are tiered by architectural blast radius. A regression in `stat
 | **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/stream`, `driver`, `config`, `sandbox/devcontainer`, `platform/termvt`, `uihost`, `server/api` (gateway scenario + browser smoke keep this tier honest) |
 | **B** | ≥60% | Infrastructure integrations | `lib/*` (except thin CLI wrappers), `proto/sessions`, `hostexec`, `mcpproxy`, `tools`, `platform/agent/fakecodex` |
 | **C** | ≥40% | Thin CLI & wiring | `cmd/claude-app-server`, `cmd/orchestrator`, `runtime/subsystem/cli`, `host/lib/claude/transcript`, `host/lib/codex/transcript` |
-| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/uihost`, `cmd/bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli` |
+| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli`; `clients/web-host` is gated independently |
 
 Tier S and A packages must not lose coverage in a PR. Tier B packages should improve over time; new B-tier code arrives with tests. Tier C packages aim for the goldenpath; full coverage isn't expected. Tier D packages need at least one test that exercises the package surface.
 
 ## Running Coverage
 
 ```sh
-cd src && TMPDIR=/tmp go test -short -cover ./...
+cd services && TMPDIR=/tmp go test -short -cover ./...
 ```
 
 `TMPDIR=/tmp` is required because the sandbox blocks Unix socket creation under the default `TMPDIR`. Packages that exercise sockets (`proto`, `proto/sessions`, `mcpproxy`, etc.) will fail without it.
@@ -175,7 +175,7 @@ cd src && TMPDIR=/tmp go test -short -cover ./...
 Per-package detail:
 
 ```sh
-cd src && TMPDIR=/tmp go test -coverprofile=/tmp/c.out ./path/to/pkg
+cd services && TMPDIR=/tmp go test -coverprofile=/tmp/c.out ./path/to/pkg
 go tool cover -func=/tmp/c.out
 ```
 

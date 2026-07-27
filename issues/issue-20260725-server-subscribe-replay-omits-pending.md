@@ -2,13 +2,13 @@
 
 - status: open
 - created: 2026-07-25
-- area: src/host (state replay) / src/server/api (lifecycle WS)
+- area: services/host (state replay) / services/server/api (lifecycle WS)
 - origin: debug-run-shell-zero-sessions の horizontal scan (`~/.dev-skills/debug/shell-zero-sessions/investigation.json`)
 
 ## 症状 (潜在)
 
 lifecycle WS の subscribe 時 replay はセッション一覧のみを hello (`k:"h"`) で再送し、
-**pending 中の approvals / questions を再送しない** (`src/host/state/reduce_conn.go:39-51`)。
+**pending 中の approvals / questions を再送しない** (`services/host/state/reduce_conn.go:39-51`)。
 クライアント (Shell / Workspace / browser UI) が「承認要求が発生した後」に接続・再接続すると、
 その承認/質問はどのクライアントにも表示されず、resolve もタイムアウトもされないまま
 エージェントがブロックし続ける可能性がある。

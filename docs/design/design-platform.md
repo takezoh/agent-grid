@@ -147,8 +147,8 @@ compatibility_policies:
   rollback mechanism.
 - Keep legacy component identifiers resolvable through documentation aliases.
 source_paths:
-- src/cmd/claude-app-server/
-- src/platform/
+- services/cmd/claude-app-server/
+- services/platform/
 updated: '2026-07-24'
 ---
 
@@ -183,14 +183,14 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/platform/agent/codexclient/
-- src/platform/agent/codexschema/
-- src/platform/lib/codex/
-- src/platform/lib/claude/
-- src/platform/agent/codexschema/README.md
-- src/cmd/claude-app-server/
-- src/orchestrator/agent/handler.go
-- src/cmd/claude-app-server/main.go
+- services/platform/agent/codexclient/
+- services/platform/agent/codexschema/
+- services/platform/lib/codex/
+- services/platform/lib/claude/
+- services/platform/agent/codexschema/README.md
+- services/cmd/claude-app-server/
+- services/orchestrator/agent/handler.go
+- services/cmd/claude-app-server/main.go
 provides:
 - agent-protocol-the-codex-app-server-protocol-layer
 summary: The shared stdio JSON-RPC protocol the orchestrator uses to drive an agent
@@ -370,12 +370,12 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/platform/credproxy/
-- src/platform/hostexec/
-- src/platform/mcpproxy/
-- src/platform/secretenv/
-- src/platform/secretenv/broker.go
-- src/platform/secretenv/gate.go
+- services/platform/credproxy/
+- services/platform/hostexec/
+- services/platform/mcpproxy/
+- services/platform/secretenv/
+- services/platform/secretenv/broker.go
+- services/platform/secretenv/gate.go
 provides:
 - brokers-host-mediation-and-policy-enforcement
 summary: Implementation deep dive of the three brokers that give an in-container agent
@@ -597,14 +597,14 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/platform/sandbox/
-- src/platform/hostexec/
-- src/platform/mcpproxy/
-- src/platform/pathmap/
-- src/platform/logger/
-- src/platform/lib/
-- src/platform/tracker/
-- src/platform/metrics/
+- services/platform/sandbox/
+- services/platform/hostexec/
+- services/platform/mcpproxy/
+- services/platform/pathmap/
+- services/platform/logger/
+- services/platform/lib/
+- services/platform/tracker/
+- services/platform/metrics/
 provides:
 - platform-shared-infrastructure
 summary: platform/ is the base layer. Both the server backend (client/) and the orchestrator/
@@ -688,8 +688,8 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-overview}
 - {type: referencedBy, target: note-20260624-user-sandbox}
 source_paths:
-- src/platform/sandbox/
-- src/platform/sandbox/devcontainer/
+- services/platform/sandbox/
+- services/platform/sandbox/devcontainer/
 provides:
 - sandbox-backends
 summary: User-facing setup (devcontainer.json, [sandbox.*] settings, credential proxy
@@ -960,11 +960,11 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/platform/agentlaunch/
-- src/platform/procgroup/
-- src/platform/pathmap/
+- services/platform/agentlaunch/
+- services/platform/procgroup/
+- services/platform/pathmap/
 - WORKFLOW.md
-- src/host/state/
+- services/host/state/
 provides:
 - spawn-launch-centralized-agent-process-launching
 summary: The platform/ layer owns the single answer to "how does a command string
@@ -1159,8 +1159,8 @@ relations:
 - {type: referencedBy, target: note-20260624-agent-testing}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 source_paths:
-- src/platform/termvt/
-- src/server/api/
+- services/platform/termvt/
+- services/server/api/
 provides:
 - termvt-multiplexer-fan-out-isolation-test-harness
 summary: 'platform/termvt is the PTY multiplexer primitive: it runs a command in a
@@ -1237,7 +1237,7 @@ markers travel as ordinary pty output (`cat` echoes a written marker), so
 
 ```sh
 # regression guards + fuzz seed corpus (the ci job's test step)
-cd src && TMPDIR=/tmp go test ./platform/termvt/
+cd services && TMPDIR=/tmp go test ./platform/termvt/
 
 # concurrency check — guards the single-writer fan-out under concurrent
 # subscribe/drain. Use the project-level target so the audited subtree stays
@@ -1288,7 +1288,7 @@ tags:
 owners: []
 provides: []
 source_paths:
-- src/platform/lib/claude/fakeclaude
+- services/platform/lib/claude/fakeclaude
 relations:
 - {type: implements, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
 summary: 'Reusable in-memory fake for the two wire surfaces the Claude CLI exposes:
@@ -1407,13 +1407,13 @@ event — Claude does not deterministically fire every event on a short prompt.
 
 ## Consumer sites
 
-- `src/cmd/claude-app-server/shim_test.go` — the `fakeLauncherSequence`
+- `services/cmd/claude-app-server/shim_test.go` — the `fakeLauncherSequence`
   helper is a thin wrapper delegating to `fakeclaude.NewLauncher`; the six
   `line*` const are aliases of `fakeclaude.Line*`
-- `src/cmd/claude-app-server/conformance_test.go`
-- `src/cmd/claude-app-server/toolbridge_test.go`
-- `src/cmd/claude-app-server/main_test.go`
-- `src/host/lib/agenthook/hook_e2e_test.go` (build tag `e2e`)
+- `services/cmd/claude-app-server/conformance_test.go`
+- `services/cmd/claude-app-server/toolbridge_test.go`
+- `services/cmd/claude-app-server/main_test.go`
+- `services/host/lib/agenthook/hook_e2e_test.go` (build tag `e2e`)
 
 Do not clone fixtures into new tests — import them.
 
@@ -1433,7 +1433,7 @@ When the real Claude CLI wire contract changes, refresh the committed
 recordings before updating `lines.go`:
 
 ```sh
-cd src
+cd services
 AG_E2E_CLAUDE_BIN=claude go test -tags e2e ./platform/lib/claude/fakeclaude -run 'Recorded.*Fixture' -record
 go test ./platform/lib/claude/fakeclaude
 ```
@@ -1464,7 +1464,7 @@ tags:
 owners: []
 provides: []
 source_paths:
-- src/platform/agent/fakecodex
+- services/platform/agent/fakecodex
 relations:
 - {type: implements, target: adr-20260704-cli-fake-validated-by-real-cli-e2e}
 - {type: references, target: adr-20260624-0002-optin-appserver-e2e-validates-fakes}
@@ -1570,13 +1570,13 @@ whole turn lifecycle over one pipe.
 
 ## Consumer sites
 
-- `src/orchestrator/agent/runner_test.go` — the `fakeServer` struct is a thin
+- `services/orchestrator/agent/runner_test.go` — the `fakeServer` struct is a thin
   adapter wrapping `fakecodex.Server`.
-- `src/orchestrator/agent/handler_test.go`
-- `src/orchestrator/agent/runner_events_test.go`
-- `src/orchestrator/agent/runner_loop_test.go`
-- `src/orchestrator/agent/worker_test.go`
-- `src/platform/agent/fakecodex/codex_appserver_e2e_test.go` (build tag `e2e`)
+- `services/orchestrator/agent/handler_test.go`
+- `services/orchestrator/agent/runner_events_test.go`
+- `services/orchestrator/agent/runner_loop_test.go`
+- `services/orchestrator/agent/worker_test.go`
+- `services/platform/agent/fakecodex/codex_appserver_e2e_test.go` (build tag `e2e`)
 
 ## Import rules
 
@@ -1593,7 +1593,7 @@ When a Codex app-server upgrade changes notification shape or ordering, refresh
 the committed recordings first and then adjust `presets.go` if needed:
 
 ```sh
-cd src
+cd services
 mkdir -p ../.gocache-e2e
 GOCACHE=$(pwd)/../.gocache-e2e \
   AG_E2E_CODEX_BIN=$(which codex) \

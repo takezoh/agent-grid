@@ -25,13 +25,13 @@ relations:
 - {type: references, target: note-20260624-technical-guardrails}
 source_paths:
 - ARCHITECTURE.md
-- src/.golangci.yml
-- src/platform/lib/
-- src/host/driver/vt/
-- src/host/state/
-- src/orchestrator/scheduler/
-- src/gorules/purecore.go
-- src/platform/features/features.go
+- services/.golangci.yml
+- services/platform/lib/
+- services/host/driver/vt/
+- services/host/state/
+- services/orchestrator/scheduler/
+- services/gorules/purecore.go
+- services/platform/features/features.go
 topic: technical
 summary: 'The mechanisms that keep the codebase true to its intended architecture.
   Unlike review-dependent conventions, most are rejected mechanically at lint or compile
@@ -48,7 +48,7 @@ The design principles themselves are owned by [ARCHITECTURE.md](../../ARCHITECTU
 
 ## 1. Import boundaries (depguard)
 
-The dependency direction across the three layers (platform / client / orchestrator), and intra-layer subsystem isolation, are enforced by `depguard`. Definitions are in `depguard.rules` of `src/.golangci.yml`; violations are rejected by `make lint`.
+The dependency direction across the three layers (platform / client / orchestrator), and intra-layer subsystem isolation, are enforced by `depguard`. Definitions are in `depguard.rules` of `services/.golangci.yml`; violations are rejected by `make lint`.
 
 ```mermaid
 flowchart TD

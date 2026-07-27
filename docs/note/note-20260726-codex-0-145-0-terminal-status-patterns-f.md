@@ -13,8 +13,8 @@ owners: []
 relations:
 - {type: references, target: change-20260726-unified-driver-session-status}
 source_paths:
-- src/host/runtime/subsystem/stream
-- src/host/driver/codex.go
+- services/host/runtime/subsystem/stream
+- services/host/driver/codex.go
 summary: Codex 0.145.0 の app-server event、TUI terminal-title、BEL/OSC9 notification 実装を突合し、spinner・Action Required・bell の意味と許可される組合せを固定する調査記録。
 updated: '2026-07-26'
 ---

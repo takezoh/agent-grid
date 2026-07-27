@@ -9,16 +9,16 @@ sockbridge
 /dist/
 src/arc
 src/bridge
-src/orchestrator
+services/orchestrator
 src/claude-app-server
-# The patterns above ignore the built binaries (e.g. `src/orchestrator`), but
-# `src/orchestrator` also matches the orchestrator source package directory, and
-# `bridge` matches `src/cmd/bridge/`. Re-include the directories
+# The patterns above ignore the built binaries (e.g. `services/orchestrator`), but
+# `services/orchestrator` also matches the orchestrator source package directory, and
+# `bridge` matches `services/cmd/bridge/`. Re-include the directories
 # (trailing slash = dirs only) so their sources are tracked; the binaries, being
 # regular files, stay ignored.
-!src/orchestrator/
-!src/cmd/arc/
-!src/cmd/bridge/
+!services/orchestrator/
+!services/cmd/arc/
+!services/cmd/bridge/
 notify.ps1
 arc.log
 .agent-grid/worktrees/

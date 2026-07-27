@@ -116,7 +116,7 @@ compatibility_policies:
   require a migration path.
 source_paths:
 - clients/windows-shell/
-- clients/desktop-config/
+- clients/config/
 tags:
 - native-clients
 - windows

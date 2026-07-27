@@ -13,7 +13,7 @@ FLOORS_FILE="$REPO_ROOT/scripts/coverage-floors.txt"
 TEST_LOG="${TMPDIR:-/tmp}/coverage-check-$$.log"
 trap 'rm -f "$TEST_LOG"' EXIT
 
-cd "$REPO_ROOT/src"
+cd "$REPO_ROOT/services"
 
 # TMPDIR=/tmp so Unix-socket tests can listen; the sandbox blocks the
 # default TMPDIR.
@@ -37,7 +37,7 @@ while read -r pkg test_files xtest_files; do
         no_test_packages[$pkg]=1
     fi
 done < <(
-    cd "$REPO_ROOT/src" &&
+    cd "$REPO_ROOT/services" &&
         go list -f '{{if .GoFiles}}{{.ImportPath}} {{len .TestGoFiles}} {{len .XTestGoFiles}}{{end}}' ./... |
         sed '/^$/d'
 )

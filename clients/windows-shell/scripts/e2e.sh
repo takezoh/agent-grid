@@ -106,10 +106,10 @@ if ! probe; then
   export GOMODCACHE="${GOMODCACHE:-/tmp/gomodcache-agent-grid}"
   mkdir -p "$GOCACHE" "$GOMODCACHE"
   (
-    cd "$ROOT/src"
-    go build -o "$ROOT/server" ./cmd/server
+    cd "$ROOT/services"
+    go build -o "$ROOT/dist/bin/server" ./cmd/server
   ) >>"$ROOT/.run-dev/e2e-run-dev.log" 2>&1
-  if [[ ! -x "$ROOT/server" ]]; then
+  if [[ ! -x "$ROOT/dist/bin/server" ]]; then
     echo "go build server failed; log:" >&2
     cat "$ROOT/.run-dev/e2e-run-dev.log" >&2
     exit 1
@@ -130,7 +130,7 @@ if ! probe; then
   fi
 
   # Logs go primarily to $SERVER_DATA_DIR/server.log (slog); keep stdout/err too.
-  setsid "$ROOT/server" -insecure -no-auth -addr "$BACKEND_ADDR" -data-dir "$SERVER_DATA_DIR" \
+  setsid "$ROOT/dist/bin/server" -insecure -no-auth -addr "$BACKEND_ADDR" -data-dir "$SERVER_DATA_DIR" \
     >>"$ROOT/.run-dev/e2e-run-dev.log" 2>&1 < /dev/null &
   RUN_DEV_PID=$!
   disown "$RUN_DEV_PID" 2>/dev/null || true

@@ -18,12 +18,12 @@ relations:
 - {type: references, target: adr-20260624-0027-notification-toast-auto-dismiss-policy}
 - {type: references, target: note-20260624-user-web-server}
 source_paths:
-- src/server/api/
-- src/host/runtime/
+- services/server/api/
+- services/host/runtime/
 - ARCHITECTURE.md
-- src/cmd/server/
-- src/server/api/wire.go
-- src/server/api/gateway.go
+- services/cmd/server/
+- services/server/api/wire.go
+- services/server/api/gateway.go
 - clients/ui/src/wire/server.ts
 - clients/ui/src/wire/client.ts
 topic: technical
@@ -69,8 +69,8 @@ All WebSocket frames are UTF-8 JSON text frames. The framing rules are:
   JSON object whose `"k"` field identifies the frame kind.
 - **Browser → server**: always a JSON object with a `"k"` field.
 
-Implementation source of truth: `src/server/api/wire.go` (`encodeServerEvent`,
-type declarations) and `src/server/api/gateway.go` (`AttachLifecycleWS`,
+Implementation source of truth: `services/server/api/wire.go` (`encodeServerEvent`,
+type declarations) and `services/server/api/gateway.go` (`AttachLifecycleWS`,
 `writeOutbound`, `readInbound`).
 
 ### Server → browser frames

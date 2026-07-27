@@ -28,5 +28,5 @@ set -- --mode tampering --base-root "$base_root" --head-root "$head_root"
 [ -z "$request" ] || set -- "$@" --request "$request"
 [ -z "$output" ] || set -- "$@" --output "$output"
 
-cd "$repo_root/src"
+cd "$repo_root/services"
 go run ./cmd/harness-check "$@"

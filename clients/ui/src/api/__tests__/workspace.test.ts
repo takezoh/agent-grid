@@ -103,4 +103,72 @@ describe("workspace save", () => {
       api.save("s1", "x.txt", { sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/w" }, "x"),
     ).rejects.toSatisfy((err: unknown) => WorkspaceApiError.isAuditEmitFailed(err));
   });
+
+  it("covers every read operation with qualified handle parameters", async () => {
+    const fetchFn = vi.fn().mockImplementation(() => jsonResponse({ outcome: "ok" }, 200));
+    const api = makeWorkspaceApi(fetchFn);
+    const pinned = { sessionId: "s1", frameGeneration: 2, resolvedRootPath: "/workspace" };
+
+    await api.getRootHandle("s/1");
+    await api.getTree("s1", "", pinned);
+    await api.getTree("s1", "src", pinned);
+    await api.getDiff("s1", "", pinned);
+    await api.getDiff("s1", "src/a.ts", pinned);
+
+    expect(fetchFn).toHaveBeenCalledTimes(5);
+    expect(String(fetchFn.mock.calls[0]?.[0])).toContain("/sessions/s%2F1/");
+    expect(String(fetchFn.mock.calls[2]?.[0])).toContain("path=src");
+    expect(String(fetchFn.mock.calls[4]?.[0])).toContain("path=src%2Fa.ts");
+  });
+
+  it("attaches bearer auth and maps an untyped unreadable failure", async () => {
+    window.location.hash = "#token=secret";
+    const response = {
+      ok: false,
+      status: 502,
+      statusText: "Bad Gateway",
+      text: vi.fn().mockRejectedValue(new Error("unreadable")),
+    } as unknown as Response;
+    const fetchFn = vi.fn().mockResolvedValue(response);
+
+    await expect(makeWorkspaceApi(fetchFn).getRootHandle("s1")).rejects.toMatchObject({
+      code: "http_error",
+      status: 502,
+    });
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: { Authorization: "Bearer secret" },
+      }),
+    );
+  });
+
+  it("maps an untyped save failure", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response("nope", { status: 418 }));
+    await expect(
+      makeWorkspaceApi(fetchFn).save(
+        "s1",
+        "x",
+        { sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/w" },
+        "body",
+      ),
+    ).rejects.toMatchObject({ code: "http_error", status: 418 });
+  });
+
+  it("maps a save failure even when its body cannot be read", async () => {
+    const response = {
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      text: vi.fn().mockRejectedValue(new Error("unreadable")),
+    } as unknown as Response;
+    await expect(
+      makeWorkspaceApi(vi.fn().mockResolvedValue(response)).save(
+        "s1",
+        "x",
+        { sessionId: "s1", frameGeneration: 1, resolvedRootPath: "/w" },
+        "body",
+      ),
+    ).rejects.toMatchObject({ code: "http_error", status: 500 });
+  });
 });

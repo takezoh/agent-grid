@@ -23,7 +23,7 @@ export type LogTabsProps = {
  * tab does not map to a known transcript kind.
  *
  * Detection order: label first, path second — symmetric with server
- * matchLogTab (src/server/web/transcript.go), which scans labelTokens before
+ * matchLogTab (services/server/web/transcript.go), which scans labelTokens before
  * pathSuffixes. Label priority matters because Claude/Codex TRANSCRIPT tabs
  * ship a `.jsonl` path that would otherwise collide with the `.jsonl`
  * event-log fallback and resolve both TRANSCRIPT and EVENTS to event-log.

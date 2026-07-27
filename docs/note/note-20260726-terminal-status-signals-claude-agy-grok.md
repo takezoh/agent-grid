@@ -127,7 +127,7 @@ activity-based status transition がなかった。この terminal evidence を
 
 ### Agent Grid parsing defect
 
-変更前の `src/host/state/reduce_osc.go` は every non-title OSC を
+変更前の `services/host/state/reduce_osc.go` は every non-title OSC を
 `EffRecordNotification` に送り、`EvFrameOsc` は OSC 9 subcommand を保持・
 分類していなかった。Consequently:
 

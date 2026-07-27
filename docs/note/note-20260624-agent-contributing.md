@@ -17,7 +17,7 @@ source_paths:
 - AGENTS.md
 - ARCHITECTURE.md
 - Makefile
-- src/.golangci.yml
+- services/.golangci.yml
 topic: agent
 summary: This expands the summary in AGENTS.md. Read ARCHITECTURE.md first — every
   rule below exists to keep the three-layer structure intact.
@@ -32,22 +32,22 @@ This expands the summary in [AGENTS.md](../../AGENTS.md). Read [ARCHITECTURE.md]
 ## Build & test
 
 ```sh
-make build-server            # Build src/ → ./server (+ bridge)
+make build-server            # Build services/ → dist/bin/server (+ bridge)
 make build-orchestrator      # → ./orchestrator
 make build-claude-app-server # → ./claude-app-server
 make build-all               # All 3 main binaries
 make vet                     # go vet ./...
 make lint                    # golangci-lint (depguard, funlen, staticcheck, etc.)
 
-cd src && go test ./...                 # All tests
-cd src && go test ./path/to/pkg         # One package
-cd src && go test -run TestName ./...   # One test
+cd services && go test ./...                 # All tests
+cd services && go test ./path/to/pkg         # One package
+cd services && go test -run TestName ./...   # One test
 ```
 
 Layer-scoped test run for orchestrator changes:
 
 ```sh
-cd src && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...
+cd services && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...
 ```
 
 ## Architecture & Code Enforcement

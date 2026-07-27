@@ -13,7 +13,7 @@ The **core principles** below are normative for every layer that owns a decision
 ### Core principles (all layers)
 
 - **Testability is the primary design constraint**: decision logic is a pure function of its inputs, so it can be exercised by feeding inputs and asserting outputs/state. "We can't test it" is a design defect, not a justification. This is the *why* behind the next two principles. Per-layer test patterns and the Coverage Tier scheme: [docs/note/note-20260624-agent-testing.md](docs/note/note-20260624-agent-testing.md)
-- **Single-writer event loop**: state mutation is owned by one loop. Long-lived I/O sources (worker pool, stream readers, retry timers, file watchers) may only *emit events* to that loop — they never mutate state themselves. The client `runtime` loop and the orchestrator's `scheduler.Run` (`src/orchestrator/scheduler/scheduler.go`, one `for { select {} }`) are both instances of this.
+- **Single-writer event loop**: state mutation is owned by one loop. Long-lived I/O sources (worker pool, stream readers, retry timers, file watchers) may only *emit events* to that loop — they never mutate state themselves. The client `runtime` loop and the orchestrator's `scheduler.Run` (`services/orchestrator/scheduler/scheduler.go`, one `for { select {} }`) are both instances of this.
 - **Decisions separated from I/O**: the code that decides *what should happen* is a pure function; I/O, concurrency, and live handles live in a thin imperative shell. The shell performs the I/O and feeds the result back to the core as the next event — it never lets I/O leak into the decision.
 - **No fabricated fallbacks**: do not synthesize "if source A is unavailable, use B" in a way that invents truth. In the client the status does not change until `Driver.Step` updates it; in the orchestrator issue truth comes from the tracker via reconcile and is never faked (a failed workflow reload keeps last-known-good config but *gates* dispatch rather than fabricating issue state).
 
@@ -32,18 +32,17 @@ All documentation is stored as structured docs-skill records under [`docs/`](doc
 
 ## Layer Structure
 
-Three top-level trees under `src/`:
+Repository ownership is explicit at the top level:
 
 ```
-platform/      Shared infrastructure — the host, server, and orchestrator all depend on this
-host/          Session-daemon code (formerly client/) — state machine, runtime, drivers, IPC
-uihost/        Shared-UI host — embeds the clients/ui SPA build and reverse-proxies /api,/ws
-orchestrator/  Symphony SPEC implementation — poll/dispatch/reconcile + observability HTTP
-server/        HTTP/WS gateway — stateless proxy fronting the in-process daemon over its Unix socket
-cmd/           Binary entry points — cmd/server/, cmd/bridge/, cmd/orchestrator/, cmd/claude-app-server/
+services/      Independent Go module for non-client deployables and service infrastructure
+clients/       Client applications, client hosts, and their shared configuration contract
+protocol/      Language-neutral protocol definitions and generated-consumer inputs
+contracts/     Cross-boundary contracts
+docs/          Persistent design, ADRs, changes, and guides
 ```
 
-**Import direction**: `cmd/*` → `host/*` + `orchestrator/*` + `server/*` + `platform/*` → (no reverse). The layer boundaries are enforced by `depguard` (see `src/.golangci.yml`, rules `platform-no-host-or-orchestrator`, `host-no-orchestrator`, and `server-layer`):
+Within `services/`, **import direction** is `cmd/*` → `host/*` + `orchestrator/*` + `server/*` + `platform/*` → (no reverse). The layer boundaries are enforced by `depguard` (see `services/.golangci.yml`):
 
 | from \ to      | platform | host/proto | host/state | host/runtime | orchestrator | server |
 |----------------|----------|--------------|--------------|----------------|--------------|--------|
@@ -63,7 +62,8 @@ The full set of `depguard` rules (including the intra-`host/` isolation rules) a
 ### The layers at a glance
 
 - **[`platform/`](docs/design/design-platform.md)** — shared base: the agent-launch primitive (`agentlaunch`: argv-based `Spawn` + `SplitArgs`, host/container `Dispatcher`, on `procgroup`), sandbox backends, host-exec and MCP-proxy brokers, path translation, logger, tool wrappers (`lib/<tool>`), trackers, metrics, credential providers. Tool-specific knowledge is allowed here so it stays out of the generic layers above. Agent-agnostic launch lives here; per-agent command construction stays in `lib/<tool>`, while transport, `codexclient.Conn`, and `Handler` remain per-layer.
-- **[`host/`](docs/design/design-host.md)** — the session daemon (formerly `client/`): the pure `state/` domain core, `runtime/` imperative shell, value-type `driver/` plugins, `runtime/subsystem/` (`cli` and `stream`), and the `proto/` IPC wire layer. The browser SPA now lives at `clients/ui/` (repo root), served by `src/uihost`. Terminology, the design-decision log, and the full dependency graph are documented there.
+- **[`services/host/`](docs/design/design-host.md)** — the session daemon: the pure `state/` domain core, `runtime/` imperative shell, value-type `driver/` plugins, runtime subsystems, and IPC wire layer.
+- **[`clients/`](clients/README.md)** — client implementations and hosts. `clients/ui` is the shared SPA, `clients/web-host` is its independent Web delivery host, and `clients/workspace` is the Electron delivery host. Web and Electron consume the same configured, server-qualified fleet contract; they may differ only in HTTP/WS versus preload/IPC delivery transport. Host-kind-dependent cardinality, implicit default servers, and browser-origin server identity are architectural violations.
 - **[`orchestrator/`](docs/design/design-orchestrator.md)** — a single-authority headless service implementing the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md): `workflowfile/`, `wfconfig/`, `scheduler/` (poll/dispatch/reconcile), `workspace/`, `agent/`, `prompt/`, `httpserver/`, `lineargql/`. It shares `platform/` with the host daemon but does not import `host/`. Per-issue workspaces are local git clones of the source repo (GitHub); issue state lives in the tracker (Linear or GitHub). SPEC ↔ package correspondence and deviation posture: [`docs/design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance`](docs/design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance).
 - **`server/`** — HTTP/WS gateway that fronts the in-process session daemon over its Unix socket; stateless proxy bridging the browser front-end to `host/runtime`. Does not import `orchestrator/*`. See [Server gateway (server/*)](#server-gateway-server) below for full detail.
 

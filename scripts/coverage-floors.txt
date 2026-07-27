@@ -9,119 +9,118 @@
 # gains durable coverage — never lower it without a written justification.
 
 # host/ — session lifecycle layer (the daemon)
-github.com/takezoh/agent-grid/host/config                       85
-github.com/takezoh/agent-grid/host/driver                       75
-github.com/takezoh/agent-grid/host/driver/drivertest            0
-github.com/takezoh/agent-grid/host/driver/vt                    55
-github.com/takezoh/agent-grid/host/event                        20
-github.com/takezoh/agent-grid/host/lib/agenthook               80
-github.com/takezoh/agent-grid/host/lib/claude/transcript        75
-github.com/takezoh/agent-grid/host/lib/codex/transcript         60
-github.com/takezoh/agent-grid/host/lib/editor                   80
-github.com/takezoh/agent-grid/host/procio                       95
-github.com/takezoh/agent-grid/host/proto                        85
-github.com/takezoh/agent-grid/host/proto/protofake             75
-github.com/takezoh/agent-grid/host/proto/sessions               80
-github.com/takezoh/agent-grid/host/runtime                      58
-github.com/takezoh/agent-grid/host/runtime/framereg             95
-github.com/takezoh/agent-grid/host/runtime/runtimetest          0
-github.com/takezoh/agent-grid/host/runtime/subsystem            15
-github.com/takezoh/agent-grid/host/runtime/subsystem/cli        70
-github.com/takezoh/agent-grid/host/runtime/subsystem/stream     74
-github.com/takezoh/agent-grid/host/runtime/subsystem/stream/fake 75
-github.com/takezoh/agent-grid/host/runtime/worker               90
-github.com/takezoh/agent-grid/host/state                        80
-github.com/takezoh/agent-grid/host/state/view                   95
-github.com/takezoh/agent-grid/host/tools                        50
-github.com/takezoh/agent-grid/uihost                          90
+github.com/takezoh/agent-grid/services/host/config                       85
+github.com/takezoh/agent-grid/services/host/driver                       75
+github.com/takezoh/agent-grid/services/host/driver/drivertest            0
+github.com/takezoh/agent-grid/services/host/driver/vt                    55
+github.com/takezoh/agent-grid/services/host/event                        20
+github.com/takezoh/agent-grid/services/host/lib/agenthook               80
+github.com/takezoh/agent-grid/services/host/lib/claude/transcript        75
+github.com/takezoh/agent-grid/services/host/lib/codex/transcript         60
+github.com/takezoh/agent-grid/services/host/lib/editor                   80
+github.com/takezoh/agent-grid/services/host/procio                       95
+github.com/takezoh/agent-grid/services/host/proto                        85
+github.com/takezoh/agent-grid/services/host/proto/protofake             75
+github.com/takezoh/agent-grid/services/host/proto/sessions               80
+github.com/takezoh/agent-grid/services/host/runtime                      58
+github.com/takezoh/agent-grid/services/host/runtime/framereg             95
+github.com/takezoh/agent-grid/services/host/runtime/runtimetest          0
+github.com/takezoh/agent-grid/services/host/runtime/subsystem            15
+github.com/takezoh/agent-grid/services/host/runtime/subsystem/cli        70
+github.com/takezoh/agent-grid/services/host/runtime/subsystem/stream     74
+github.com/takezoh/agent-grid/services/host/runtime/subsystem/stream/fake 75
+github.com/takezoh/agent-grid/services/host/runtime/worker               90
+github.com/takezoh/agent-grid/services/host/state                        80
+github.com/takezoh/agent-grid/services/host/state/view                   95
+github.com/takezoh/agent-grid/services/host/tools                        50
+github.com/takezoh/agent-grid/services/uihost                          90
 
 # cmd/ — binary entry points
-github.com/takezoh/agent-grid/cmd/claude-app-server               60
-github.com/takezoh/agent-grid/cmd/credproxy-run                    0
-github.com/takezoh/agent-grid/cmd/harness-check                    0
-github.com/takezoh/agent-grid/cmd/linear-graphql-cli               0
+github.com/takezoh/agent-grid/services/cmd/claude-app-server               60
+github.com/takezoh/agent-grid/services/cmd/credproxy-run                    0
+github.com/takezoh/agent-grid/services/cmd/harness-check                    0
+github.com/takezoh/agent-grid/services/cmd/linear-graphql-cli               0
 # cmd/orchestrator: buildDevcontainerLauncher (requires Docker) and main() are
 # structurally untestable in unit tests; floor reflects achievable non-Docker coverage.
-github.com/takezoh/agent-grid/cmd/orchestrator                    55
-github.com/takezoh/agent-grid/cmd/bridge                     0
+github.com/takezoh/agent-grid/services/cmd/orchestrator                    55
+github.com/takezoh/agent-grid/services/cmd/bridge                     0
 # cmd/server hosts the merged daemon + HTTP/WS gateway. runDaemon binds sockets
 # and blocks (untestable in a unit test); the dispatch / flag-parse / gateway
 # helpers (resolveAuth, tokenFromFile, classifyCommand, runMain) are covered.
-github.com/takezoh/agent-grid/cmd/server                           15
-github.com/takezoh/agent-grid/cmd/uihost                              0
+github.com/takezoh/agent-grid/services/cmd/server                           15
 
 # internal/ — repo-internal tooling, not shipped in any binary
-github.com/takezoh/agent-grid/internal/harnesspolicy               75
+github.com/takezoh/agent-grid/services/internal/harnesspolicy               75
 
 # orchestrator/ — Symphony scheduler service
-github.com/takezoh/agent-grid/orchestrator/agent                  80
-github.com/takezoh/agent-grid/orchestrator/httpserver             75
-github.com/takezoh/agent-grid/orchestrator/lineargql              90
-github.com/takezoh/agent-grid/orchestrator/prompt                 95
-github.com/takezoh/agent-grid/orchestrator/scheduler              82
-github.com/takezoh/agent-grid/orchestrator/tracker                85
-github.com/takezoh/agent-grid/orchestrator/wfconfig               70
-github.com/takezoh/agent-grid/orchestrator/workflowfile           95
-github.com/takezoh/agent-grid/orchestrator/workspace              80
+github.com/takezoh/agent-grid/services/orchestrator/agent                  80
+github.com/takezoh/agent-grid/services/orchestrator/httpserver             75
+github.com/takezoh/agent-grid/services/orchestrator/lineargql              90
+github.com/takezoh/agent-grid/services/orchestrator/prompt                 95
+github.com/takezoh/agent-grid/services/orchestrator/scheduler              82
+github.com/takezoh/agent-grid/services/orchestrator/tracker                85
+github.com/takezoh/agent-grid/services/orchestrator/wfconfig               70
+github.com/takezoh/agent-grid/services/orchestrator/workflowfile           95
+github.com/takezoh/agent-grid/services/orchestrator/workspace              80
 
 # platform/ — shared execution base
-github.com/takezoh/agent-grid/platform/agent/codexclient          80
-github.com/takezoh/agent-grid/platform/agent/codexschema           0
+github.com/takezoh/agent-grid/services/platform/agent/codexclient          80
+github.com/takezoh/agent-grid/services/platform/agent/codexschema           0
 # 2026-07-05 floor recalibration: always-on fakecodex contract coverage now
 # measures ~75% in short mode, so the enforced floor was reset from 80 to 70
 # to reflect steady-state coverage rather than an aspirational target.
-github.com/takezoh/agent-grid/platform/agent/fakecodex             70
-github.com/takezoh/agent-grid/platform/tracker/linear             80
-github.com/takezoh/agent-grid/platform/agent/codexschema/v1        0
-github.com/takezoh/agent-grid/platform/agent/codexschema/v2        0
-github.com/takezoh/agent-grid/platform/agentlaunch                63
-github.com/takezoh/agent-grid/platform/appid                       0
-github.com/takezoh/agent-grid/platform/codexconfig                 70
-github.com/takezoh/agent-grid/platform/config                     62
-github.com/takezoh/agent-grid/platform/credproxy                  10
-github.com/takezoh/agent-grid/platform/e2etest                    45
-github.com/takezoh/agent-grid/platform/features                   85
-github.com/takezoh/agent-grid/platform/framelaunch                 83
-github.com/takezoh/agent-grid/platform/hostexec                   50
-github.com/takezoh/agent-grid/platform/internal/globutil          95
-github.com/takezoh/agent-grid/platform/lib/claude/cli             95
-github.com/takezoh/agent-grid/platform/lib/claude/fakeclaude      80
-github.com/takezoh/agent-grid/platform/lib/claude/hookpayload     40
-github.com/takezoh/agent-grid/platform/lib/claude/streamjson      85
-github.com/takezoh/agent-grid/platform/lib/codex                  75
-github.com/takezoh/agent-grid/platform/lib/dockercli              95
-github.com/takezoh/agent-grid/platform/lib/git                    70
-github.com/takezoh/agent-grid/platform/lib/github                 85
-github.com/takezoh/agent-grid/platform/lib/grok                    45
-github.com/takezoh/agent-grid/platform/lib/grok/fake                0
-github.com/takezoh/agent-grid/platform/lib/openurl                60
-github.com/takezoh/agent-grid/platform/lib/plastic                45
-github.com/takezoh/agent-grid/platform/lib/systemdnotify          95
+github.com/takezoh/agent-grid/services/platform/agent/fakecodex             70
+github.com/takezoh/agent-grid/services/platform/tracker/linear             80
+github.com/takezoh/agent-grid/services/platform/agent/codexschema/v1        0
+github.com/takezoh/agent-grid/services/platform/agent/codexschema/v2        0
+github.com/takezoh/agent-grid/services/platform/agentlaunch                63
+github.com/takezoh/agent-grid/services/platform/appid                       0
+github.com/takezoh/agent-grid/services/platform/codexconfig                 70
+github.com/takezoh/agent-grid/services/platform/config                     62
+github.com/takezoh/agent-grid/services/platform/credproxy                  10
+github.com/takezoh/agent-grid/services/platform/e2etest                    45
+github.com/takezoh/agent-grid/services/platform/features                   85
+github.com/takezoh/agent-grid/services/platform/framelaunch                 83
+github.com/takezoh/agent-grid/services/platform/hostexec                   50
+github.com/takezoh/agent-grid/services/platform/internal/globutil          95
+github.com/takezoh/agent-grid/services/platform/lib/claude/cli             95
+github.com/takezoh/agent-grid/services/platform/lib/claude/fakeclaude      80
+github.com/takezoh/agent-grid/services/platform/lib/claude/hookpayload     40
+github.com/takezoh/agent-grid/services/platform/lib/claude/streamjson      85
+github.com/takezoh/agent-grid/services/platform/lib/codex                  75
+github.com/takezoh/agent-grid/services/platform/lib/dockercli              95
+github.com/takezoh/agent-grid/services/platform/lib/git                    70
+github.com/takezoh/agent-grid/services/platform/lib/github                 85
+github.com/takezoh/agent-grid/services/platform/lib/grok                    45
+github.com/takezoh/agent-grid/services/platform/lib/grok/fake                0
+github.com/takezoh/agent-grid/services/platform/lib/openurl                60
+github.com/takezoh/agent-grid/services/platform/lib/plastic                45
+github.com/takezoh/agent-grid/services/platform/lib/systemdnotify          95
 # 2026-07-05 floor recalibration: tlsdev's short-mode coverage stabilizes near
 # 25%, so the enforced floor was reset from 30 to 20 pending more fidelity
 # tests.
-github.com/takezoh/agent-grid/platform/lib/tlsdev                 20
-github.com/takezoh/agent-grid/platform/lib/vcs                    85
-github.com/takezoh/agent-grid/platform/lib/wsl                    45
-github.com/takezoh/agent-grid/platform/logger                     60
-github.com/takezoh/agent-grid/platform/mcpoverlay                  90
-github.com/takezoh/agent-grid/platform/mcpproxy                   50
-github.com/takezoh/agent-grid/platform/metrics                    95
-github.com/takezoh/agent-grid/platform/pathmap                    95
-github.com/takezoh/agent-grid/platform/procgroup                  75
-github.com/takezoh/agent-grid/platform/sandbox                    90
-github.com/takezoh/agent-grid/platform/sandbox/devcontainer       86
-github.com/takezoh/agent-grid/platform/sandbox/devcontainer/fakedocker 0
-github.com/takezoh/agent-grid/platform/sandbox/devcontainer/fakedocker/cmd/docker 0
-github.com/takezoh/agent-grid/platform/secretenv                  34
-github.com/takezoh/agent-grid/platform/shellalias                  90
-github.com/takezoh/agent-grid/platform/socketpath                95
-github.com/takezoh/agent-grid/platform/termvt                     85
-github.com/takezoh/agent-grid/platform/tracker                    0
+github.com/takezoh/agent-grid/services/platform/lib/tlsdev                 20
+github.com/takezoh/agent-grid/services/platform/lib/vcs                    85
+github.com/takezoh/agent-grid/services/platform/lib/wsl                    45
+github.com/takezoh/agent-grid/services/platform/logger                     60
+github.com/takezoh/agent-grid/services/platform/mcpoverlay                  90
+github.com/takezoh/agent-grid/services/platform/mcpproxy                   50
+github.com/takezoh/agent-grid/services/platform/metrics                    95
+github.com/takezoh/agent-grid/services/platform/pathmap                    95
+github.com/takezoh/agent-grid/services/platform/procgroup                  75
+github.com/takezoh/agent-grid/services/platform/sandbox                    90
+github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer       86
+github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer/fakedocker 0
+github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer/fakedocker/cmd/docker 0
+github.com/takezoh/agent-grid/services/platform/secretenv                  34
+github.com/takezoh/agent-grid/services/platform/shellalias                  90
+github.com/takezoh/agent-grid/services/platform/socketpath                95
+github.com/takezoh/agent-grid/services/platform/termvt                     85
+github.com/takezoh/agent-grid/services/platform/tracker                    0
 
 # server/ — pty session daemon + co-resident web gateway
 # 2026-07-05 floor recalibration: after the browser smoke and gateway scenario
 # backstops landed, short-mode coverage stabilized near 77%, so the enforced
 # floor was reset from 90 to 75 to match measured coverage.
-github.com/takezoh/agent-grid/server/api                          75
-github.com/takezoh/agent-grid/server/api/testsupport/fakeagents    0
+github.com/takezoh/agent-grid/services/server/api                          75
+github.com/takezoh/agent-grid/services/server/api/testsupport/fakeagents    0

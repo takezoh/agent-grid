@@ -294,22 +294,11 @@ const newSessionTool: ToolDef = {
     if (worktree !== undefined) req.worktree = worktree;
     if (sandbox !== undefined) req.sandbox = sandbox;
     const rc = await ctx.http.createSession(req);
-    // A session created through the local adapter can be selected
-    // immediately. A remote fleet result is selected only when that
-    // server's sessions are already projected into this snapshot; otherwise
-    // selecting its server-local ID would point the current connection at a
-    // non-existent row.
-    if (!rc.serverId || ctx.daemon.sessions.some((session) => session.serverId === rc.serverId)) {
-      ctx.daemonActions.selectSession(rc.id);
-    }
+    ctx.daemonActions.selectSession(rc.id);
     // Notification first, then close: if notify throws the palette stays
     // open with the active error toast visible. close() is idempotent so a
     // future re-entry that calls submit() twice is fine.
-    ctx.notify.success(
-      rc.serverId
-        ? `Session created on ${selectedProject?.serverLabel ?? rc.serverId}`
-        : "Session created",
-    );
+    ctx.notify.success("Session created");
     ctx.store.close();
   },
 };

@@ -187,7 +187,7 @@ PY
 
 # 7. Simulator recorded-scenario unit test (main Go module).
 (
-  cd src
+  cd services
   GOCACHE="${GOCACHE:-/tmp/gocache-agent-grid}" go test -count=1 ./protocolsim/
 ) || fail "simulator tests failed"
 

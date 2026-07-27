@@ -1,90 +1,210 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type ApiHttpError,
-  type ApiWireFormatError,
-  type CreateSessionPayload,
-  makeSessionsApi,
-} from "./sessions";
+import type { ApiHttpError, ApiWireFormatError } from "./sessions";
+import { makeSessionsApi } from "./sessions";
 
-// makeResponse builds a fetch-compatible Response. Body defaults to "" so
-// callers don't have to think about JSON.parse failures on 204/etc.
-function makeResponse(
-  body: string,
-  status: number,
-  headers: Record<string, string> = {},
-): Response {
-  return new Response(body, { status, headers });
+function json(value: unknown, status = 200): Response {
+  return Response.json(value, { status });
 }
-
-function jsonResponse(value: unknown, status: number): Response {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-// asApiHttpError narrows an unknown caught value to ApiHttpError. We use it
-// instead of a bare cast so a regression (e.g. throwing plain Error) fails
-// the assertion at the type guard rather than at a downstream property read.
-function asApiHttpError(e: unknown): ApiHttpError {
-  if (!(e instanceof Error) || typeof (e as ApiHttpError).status !== "number") {
-    throw new Error(`expected ApiHttpError, got: ${String(e)}`);
-  }
-  return e as ApiHttpError;
-}
-
-// asApiWireFormatError narrows to ApiWireFormatError. The `wireFormat: true`
-// discriminant lets palette-store branch on wire-shape failure separately
-// from HTTP status errors and the "network" sentinel.
-function asApiWireFormatError(e: unknown): ApiWireFormatError {
-  if (!(e instanceof Error) || (e as ApiWireFormatError).wireFormat !== true) {
-    throw new Error(`expected ApiWireFormatError, got: ${String(e)}`);
-  }
-  return e as ApiWireFormatError;
-}
-
-const originalHash = "";
 
 beforeEach(() => {
-  // Default: no bearer token. Individual tests override window.location.hash.
-  window.location.hash = originalHash;
+  window.history.replaceState({}, "", "/?server=srv-current");
 });
 
 afterEach(() => {
-  if (window.agentGridWorkspace) window.agentGridWorkspace.sessionFleet = undefined;
-  window.location.hash = originalHash;
+  window.agentGridWorkspace = undefined;
   vi.restoreAllMocks();
-  vi.useRealTimers();
 });
 
-describe("hosted session fleet", () => {
-  it("aggregates server-qualified projects and preserves partial failures", async () => {
+describe("server-qualified SessionsApi", () => {
+  it("aggregates healthy configs while preserving typed partial failure", async () => {
     window.agentGridWorkspace = {
-      ...(window.agentGridWorkspace ?? {}),
       sessionFleet: {
         listConfigs: vi.fn().mockResolvedValue([
           {
-            serverId: "one",
-            serverLabel: "One",
+            serverId: "srv-a",
+            serverLabel: "A",
+            state: "connected",
+            config: { projects: ["/a"], push_commands: ["/clear"] },
+          },
+          {
+            serverId: "srv-b",
+            serverLabel: "B",
+            state: "unavailable",
+            reason: "offline",
+          },
+        ]),
+        create: vi.fn(),
+      },
+    };
+
+    const config = await makeSessionsApi(vi.fn()).getSessionConfig();
+
+    expect(config.projects).toEqual([
+      {
+        path: "/a",
+        isGit: false,
+        isSandboxed: false,
+        serverId: "srv-a",
+        serverLabel: "A",
+      },
+    ]);
+    expect(config.serverOutcomes).toEqual([
+      { serverId: "srv-a", serverLabel: "A", state: "connected" },
+      { serverId: "srv-b", serverLabel: "B", state: "unavailable", reason: "offline" },
+    ]);
+    expect(config.pushCommands).toEqual(["/clear"]);
+  });
+
+  it("creates through the provider with an explicit server ID", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "session-1" });
+    window.agentGridWorkspace = {
+      sessionFleet: { listConfigs: vi.fn(), create },
+    };
+
+    const result = await makeSessionsApi(vi.fn()).createSession({
+      server_id: "srv-b",
+      project: "/repo",
+      version: 2,
+      profile_id: "shell",
+      profile_revision: "r1",
+    });
+
+    expect(result).toEqual({ id: "session-1", serverId: "srv-b" });
+    expect(create).toHaveBeenCalledWith("srv-b", {
+      project: "/repo",
+      version: 2,
+      profile_id: "shell",
+      profile_revision: "r1",
+    });
+  });
+
+  it("uses the explicitly selected server when create payload omits server_id", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("/host/servers/srv-current/api/sessions");
+      return json({ id: "session-2" }, 201);
+    }) as typeof fetch;
+
+    const result = await makeSessionsApi(fetchImpl).createSession({
+      project: "/repo",
+      version: 2,
+      profile_id: "shell",
+      profile_revision: "r1",
+    });
+
+    expect(result).toEqual({ id: "session-2", serverId: "srv-current" });
+  });
+
+  it("fails closed when no server is selected", async () => {
+    window.history.replaceState({}, "", "/");
+    await expect(
+      makeSessionsApi(vi.fn()).createSession({
+        project: "/repo",
+        version: 2,
+        profile_id: "shell",
+        profile_revision: "r1",
+      }),
+    ).rejects.toThrow("requires server_id");
+  });
+
+  it("qualifies session-scoped REST routes", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const api = makeSessionsApi(fetchImpl);
+
+    await api.deleteSession("a/b");
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/host/servers/srv-current/api/sessions/a%2Fb",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("preserves typed HTTP errors on qualified routes", async () => {
+    const api = makeSessionsApi(
+      vi.fn().mockResolvedValue(new Response("conflict", { status: 409 })),
+    );
+
+    try {
+      await api.pushCommand("session-1", "/clear");
+      throw new Error("expected rejection");
+    } catch (error) {
+      expect((error as ApiHttpError).status).toBe(409);
+      expect((error as ApiHttpError).body).toBe("conflict");
+    }
+  });
+
+  it("preserves typed wire errors from provider create", async () => {
+    window.agentGridWorkspace = {
+      sessionFleet: {
+        listConfigs: vi.fn(),
+        create: vi.fn().mockResolvedValue({ unexpected: true }),
+      },
+    };
+
+    try {
+      await makeSessionsApi(vi.fn()).createSession({
+        server_id: "srv-a",
+        project: "/repo",
+        version: 2,
+        profile_id: "shell",
+        profile_revision: "r1",
+      });
+      throw new Error("expected rejection");
+    } catch (error) {
+      expect((error as ApiWireFormatError).wireFormat).toBe(true);
+      expect((error as ApiWireFormatError).url).toBe("FleetProvider.create");
+    }
+  });
+
+  it("normalizes typed projects, profiles, and every parameter variant", async () => {
+    window.agentGridWorkspace = {
+      sessionFleet: {
+        listConfigs: vi.fn().mockResolvedValue([
+          {
+            serverId: "srv-a",
+            serverLabel: "A",
             state: "connected",
             config: {
-              commands: ["shell"],
               projects: [
                 {
-                  path: "/repo",
+                  path: "/typed",
                   isGit: true,
+                  isSandboxed: true,
                   command_profiles: [
                     {
-                      id: "sol",
-                      label: "Sol",
-                      revision: "rev-1",
+                      id: "profile",
+                      revision: "r1",
                       parameters: [
                         {
-                          name: "effort",
-                          label: "Effort",
+                          name: "choice",
+                          label: "Choice",
                           type: "enum",
                           required: true,
-                          values: ["low", "high"],
+                          default: "a",
+                          values: ["a", 2],
+                        },
+                        {
+                          name: "flag",
+                          label: "Flag",
+                          type: "boolean",
+                          required: false,
+                          default: true,
+                        },
+                        {
+                          name: "text",
+                          label: "Text",
+                          type: "string",
+                          required: false,
+                          default: "x",
+                          pattern: "^x",
+                        },
+                        {
+                          name: "count",
+                          label: "Count",
+                          type: "number",
+                          required: false,
+                          default: 2,
+                          min: 1,
+                          max: 3,
                         },
                       ],
                     },
@@ -93,875 +213,172 @@ describe("hosted session fleet", () => {
               ],
             },
           },
-          { serverId: "two", serverLabel: "Two", state: "unavailable", reason: "offline" },
         ]),
         create: vi.fn(),
       },
     };
-    const cfg = await makeSessionsApi(vi.fn()).getSessionConfig();
-    expect(cfg.projects).toEqual([
-      expect.objectContaining({
-        path: "/repo",
-        serverId: "one",
-        serverLabel: "One",
-        commandProfiles: [expect.objectContaining({ id: "sol", revision: "rev-1" })],
-      }),
-    ]);
-  });
 
-  it("routes create through the selected server without exposing credentials", async () => {
-    const create = vi.fn().mockResolvedValue({ id: "created" });
-    window.agentGridWorkspace = {
-      ...(window.agentGridWorkspace ?? {}),
-      sessionFleet: { listConfigs: vi.fn(), create },
-    };
-    const result = await makeSessionsApi(vi.fn()).createSession({
-      server_id: "two",
-      project: "/repo",
-      version: 2,
-      profile_id: "sol",
-      profile_revision: "rev",
-      parameters: { effort: "high" },
-    });
-    expect(result).toEqual({ id: "created", serverId: "two" });
-    expect(create).toHaveBeenCalledWith("two", {
-      project: "/repo",
-      version: 2,
-      profile_id: "sol",
-      profile_revision: "rev",
-      parameters: { effort: "high" },
-    });
-  });
-});
+    const config = await makeSessionsApi(vi.fn()).getSessionConfig();
 
-// ---------------------------------------------------------------------------
-// createSession
-// ---------------------------------------------------------------------------
-
-describe("createSession", () => {
-  it("TestCreateSession_PostsJsonWithBearerAndReturnsId", async () => {
-    window.location.hash = "#token=tok-abc";
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse(
-          { id: "sess-1", project: "/p", command: "claude", created_at: "2026-06-24T00:00:00Z" },
-          201,
-        ),
-      );
-    const api = makeSessionsApi(fetchFn);
-    const payload: CreateSessionPayload = {
-      project: "/home/me/repo",
-      command: "claude",
-      worktree: true,
-      sandbox: "host",
-    };
-
-    const out = await api.createSession(payload);
-
-    expect(out).toEqual({ id: "sess-1" });
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/sessions");
-    expect(init.method).toBe("POST");
-    const headers = init.headers as Record<string, string>;
-    expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers.Authorization).toBe("Bearer tok-abc");
-    expect(JSON.parse(init.body as string)).toEqual(payload);
-  });
-
-  it("TestCreateSession_4xx_ThrowsApiHttpErrorWithStatus", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("bad project", 400));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.createSession({ project: "", command: "claude" });
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(400);
-      expect(err.body).toBe("bad project");
-    }
-  });
-
-  it("TestCreateSession_401_ThrowsApiHttpError401_ForPaletteAuthBranch", async () => {
-    // FR-024: palette-store branches on status === 401 to surface an auth toast.
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("unauthorized", 401));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.createSession({ project: "/p", command: "claude" });
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(401);
-    }
-  });
-
-  it("TestCreateSession_5xx_ThrowsApiHttpErrorWith5xxStatus", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("daemon down", 503));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.createSession({ project: "/p", command: "claude" });
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(503);
-      expect(err.body).toBe("daemon down");
-    }
-  });
-
-  it("TestCreateSession_FetchRejects_ThrowsGenericNetworkError", async () => {
-    const fetchFn = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
-    const api = makeSessionsApi(fetchFn);
-
-    await expect(api.createSession({ project: "/p", command: "claude" })).rejects.toThrow(
-      "network",
-    );
-  });
-
-  it("TestCreateSession_FetchRejects_PreservesCauseForLogging", async () => {
-    // Review finding "major — fetch reject silent network": the original
-    // TypeError / DOMException / CORS reason must reach logError(Sentry) via
-    // `cause`. Otherwise we cannot tell offline from CORS from TLS in prod.
-    const root = new TypeError("Failed to fetch: CORS preflight");
-    const fetchFn = vi.fn().mockRejectedValue(root);
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.createSession({ project: "/p", command: "claude" });
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(e).toBeInstanceOf(Error);
-      expect((e as Error).message).toBe("network");
-      // `cause` preserves the original failure so the caller (and Sentry)
-      // can distinguish failure modes that all surface as the same sentinel.
-      expect((e as Error).cause).toBe(root);
-    }
-  });
-
-  it("TestCreateSession_FetchAborted_RethrowsAbortErrorUntouched", async () => {
-    // User-initiated cancel (AbortController.abort()) is functionally
-    // different from a network failure. Callers usually want to ignore it
-    // (no toast, no retry). We re-throw the original DOMException so its
-    // `.name === 'AbortError'` shape survives.
-    const aborted = new DOMException("aborted", "AbortError");
-    const fetchFn = vi.fn().mockRejectedValue(aborted);
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.createSession({ project: "/p", command: "claude" });
-      throw new Error("expected throw");
-    } catch (e) {
-      // Same identity as the thrown DOMException — not wrapped in a generic
-      // "network" Error.
-      expect(e).toBe(aborted);
-      expect((e as Error).message).not.toBe("network");
-    }
-  });
-
-  it("TestCreateSession_MalformedJson_ThrowsApiWireFormatErrorWithCause", async () => {
-    // Review finding "minor — res.json SyntaxError leak": if the server
-    // returns Content-Type: application/json but a malformed body, the raw
-    // SyntaxError used to leak out untyped. It must surface as a typed
-    // ApiWireFormatError with the original SyntaxError preserved as `cause`
-    // so palette-store can branch separately from ApiHttpError and the
-    // network sentinel.
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response("{not valid json", {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.createSession({ project: "/p", command: "claude" });
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiWireFormatError(e);
-      expect(err.url).toBe("/api/sessions");
-      // Underlying SyntaxError reachable for Sentry / dev console.
-      expect(err.cause).toBeInstanceOf(SyntaxError);
-    }
-  });
-
-  it("TestCreateSession_MissingId_ThrowsApiWireFormatErrorNotPlainError", async () => {
-    // The previous "missing id in response" plain Error meant palette-store
-    // couldn't distinguish a wire-shape bug from an arbitrary runtime
-    // failure. Surface it as ApiWireFormatError instead.
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValue(jsonResponse({ project: "/p", command: "claude" }, 201));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.createSession({ project: "/p", command: "claude" });
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiWireFormatError(e);
-      expect(err.message).toMatch(/missing string `id`/);
-      expect(err.url).toBe("/api/sessions");
-    }
-  });
-
-  it("TestCreateSession_NonObjectJson_ThrowsApiWireFormatError", async () => {
-    // Top-level JSON array / string / number is a wire-format violation
-    // (server contract is an object). Must throw ApiWireFormatError, not
-    // crash at a downstream property access.
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response('"just a string"', {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.createSession({ project: "/p", command: "claude" });
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiWireFormatError(e);
-      expect(err.message).toMatch(/top-level is not a JSON object/);
-    }
-  });
-
-  it("TestCreateSession_NoBearer_OmitsAuthorizationHeaderAndEmitsWarn", async () => {
-    // Review finding "minor — token missing silent path": when the developer
-    // forgets `#token=...` in the URL, the request goes out without auth
-    // (server returns 401, user sees toast), but the dev console should
-    // also receive a one-shot warning so the cause is obvious in local
-    // debugging. Warning is per-SessionsApi instance.
-    window.location.hash = "";
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // Each call needs its own Response — Response bodies can only be read
-    // once, so a shared mockResolvedValue would throw on the second call.
-    const fetchFn = vi
-      .fn()
-      .mockImplementation(() => Promise.resolve(jsonResponse({ id: "sess-2" }, 201)));
-    const api = makeSessionsApi(fetchFn);
-
-    await api.createSession({ project: "/p", command: "claude" });
-    await api.createSession({ project: "/p", command: "claude" });
-
-    // Auth header omitted on both requests.
-    for (const call of fetchFn.mock.calls) {
-      const [, init] = call as [string, RequestInit];
-      const headers = init.headers as Record<string, string>;
-      expect(headers.Authorization).toBeUndefined();
-    }
-    // But the warn fired only once across both calls.
-    const noBearerWarns = warnSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("no bearer token"),
-    );
-    expect(noBearerWarns).toHaveLength(1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// deleteSession
-// ---------------------------------------------------------------------------
-
-describe("deleteSession", () => {
-  it("TestDeleteSession_204_Returns", async () => {
-    window.location.hash = "#token=tok-x";
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("", 204));
-    const api = makeSessionsApi(fetchFn);
-
-    await expect(api.deleteSession("sess-1")).resolves.toBeUndefined();
-
-    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/sessions/sess-1");
-    expect(init.method).toBe("DELETE");
-    const headers = init.headers as Record<string, string>;
-    expect(headers.Authorization).toBe("Bearer tok-x");
-  });
-
-  it("TestDeleteSession_EncodesId", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("", 204));
-    const api = makeSessionsApi(fetchFn);
-
-    // The server's session ID allowlist rejects "/" but encodeURIComponent
-    // protects us if a UI bug ever passes through a stray character — verify
-    // it's percent-encoded so the URL never lifts out into another path
-    // segment.
-    await api.deleteSession("a/b");
-    const [url] = fetchFn.mock.calls[0] as [string];
-    expect(url).toBe("/api/sessions/a%2Fb");
-  });
-
-  it("TestDeleteSession_4xx_ThrowsApiHttpError", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("not found", 404));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.deleteSession("sess-missing");
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(404);
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// pushCommand
-// ---------------------------------------------------------------------------
-
-describe("pushCommand", () => {
-  it("TestPushCommand_200_PostsJsonBodyWithBearerAndResolves", async () => {
-    // Happy path: server returns 200 with empty body (see sendPushDriver in
-    // src/server/web/mux_push.go). pushCommand resolves to void; URL is
-    // /api/sessions/{id}/push; body is JSON {command}; Authorization +
-    // Content-Type headers are present.
-    window.location.hash = "#token=tok-push";
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("", 200));
-    const api = makeSessionsApi(fetchFn);
-
-    await expect(api.pushCommand("sess-1", "/clear")).resolves.toBeUndefined();
-
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/sessions/sess-1/push");
-    expect(init.method).toBe("POST");
-    const headers = init.headers as Record<string, string>;
-    expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers.Authorization).toBe("Bearer tok-push");
-    expect(JSON.parse(init.body as string)).toEqual({ command: "/clear" });
-  });
-
-  it("TestPushCommand_EncodesSessionId", async () => {
-    // Defense-in-depth: the server's session-id allowlist rejects '/' so this
-    // input would never land in production, but if a UI bug leaks a stray
-    // separator we must percent-encode it instead of letting it lift out into
-    // a different path segment (same guarantee as deleteSession).
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("", 200));
-    const api = makeSessionsApi(fetchFn);
-
-    await api.pushCommand("a/b", "/clear");
-    const [url] = fetchFn.mock.calls[0] as [string];
-    expect(url).toBe("/api/sessions/a%2Fb/push");
-  });
-
-  it("TestPushCommand_401_ThrowsApiHttpError401_ForPaletteAuthBranch", async () => {
-    // FR-024: palette-store.submit branches on status === 401 to surface an
-    // auth-error toast AND close the palette (token is stale, retry is
-    // pointless). Must reach the catch as ApiHttpError with status=401.
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("unauthorized", 401));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.pushCommand("sess-1", "/clear");
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(401);
-      expect(err.body).toBe("unauthorized");
-    }
-  });
-
-  it("TestPushCommand_404_ThrowsApiHttpError404", async () => {
-    // ADR-0045/0046: 404 = session id is unknown to the daemon. palette-store
-    // surfaces it as a generic error and keeps the palette open so the user
-    // can pick a different tool (the stale entry can then be re-evaluated by
-    // disabledReason on the next snapshot).
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("session not found", 404));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.pushCommand("sess-gone", "/clear");
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(404);
-      expect(err.body).toBe("session not found");
-    }
-  });
-
-  it("TestPushCommand_409_ThrowsApiHttpError409_ForActiveMismatch", async () => {
-    // FR-026 / ADR-0046: stale-tab guard. The path id is known but does not
-    // match the daemon-global ActiveSessionID, so the server returns 409 to
-    // refuse the silent retarget. palette-store catches and keeps the palette
-    // open with an error message so disabledReason can re-evaluate against
-    // the fresh snapshot.
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("path session id does not match", 409));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.pushCommand("sess-stale", "/clear");
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(409);
-      expect(err.body).toMatch(/does not match/);
-    }
-  });
-
-  it("TestPushCommand_413_ThrowsApiHttpError413", async () => {
-    // Reviewer fix (major T4): the server rejects oversized push bodies
-    // with 413 (body too large) — see src/server/web/mux_push.go's
-    // MaxBytesReader guard. The client must surface this as a typed
-    // ApiHttpError with status=413 so palette-store can keep the palette
-    // open with an inline-error explaining the rejection (consistent with
-    // the 4xx-non-401 branch) rather than crashing or showing a generic
-    // toast.
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("request body too large", 413));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.pushCommand("sess-1", "/clear");
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(413);
-      expect(err.body).toMatch(/too large/);
-    }
-  });
-
-  it("TestPushCommand_5xx_ThrowsApiHttpErrorWith5xxStatus", async () => {
-    // Daemon-down / RPC failure surfaces as 502/503/504 via handleProtoError
-    // on the server. palette-store surfaces a generic "server error" toast.
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("daemon unavailable", 503));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.pushCommand("sess-1", "/clear");
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(503);
-      expect(err.body).toBe("daemon unavailable");
-    }
-  });
-
-  it("TestPushCommand_FetchRejects_ThrowsGenericNetworkError", async () => {
-    // Fetch itself failing (offline, CORS preflight, TLS) surfaces as the
-    // "network" sentinel Error, not as ApiHttpError. palette-store treats it
-    // the same as a 5xx (generic error toast).
-    const fetchFn = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
-    const api = makeSessionsApi(fetchFn);
-
-    await expect(api.pushCommand("sess-1", "/clear")).rejects.toThrow("network");
-  });
-
-  it("TestPushCommand_FetchRejects_PreservesCauseForLogging", async () => {
-    // Symmetry with createSession: the original TypeError / DOMException must
-    // reach Sentry through `cause` so offline vs CORS vs TLS stay
-    // distinguishable in prod logs.
-    const root = new TypeError("Failed to fetch: TLS handshake");
-    const fetchFn = vi.fn().mockRejectedValue(root);
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.pushCommand("sess-1", "/clear");
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(e).toBeInstanceOf(Error);
-      expect((e as Error).message).toBe("network");
-      expect((e as Error).cause).toBe(root);
-    }
-  });
-
-  it("TestPushCommand_FetchAborted_RethrowsAbortErrorUntouched", async () => {
-    // User cancel (palette closed mid-flight via AbortController) re-throws
-    // the original DOMException so callers can ignore it cleanly.
-    const aborted = new DOMException("aborted", "AbortError");
-    const fetchFn = vi.fn().mockRejectedValue(aborted);
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.pushCommand("sess-1", "/clear");
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(e).toBe(aborted);
-      expect((e as Error).message).not.toBe("network");
-    }
-  });
-
-  it("TestPushCommand_NoBearer_OmitsAuthorizationHeader", async () => {
-    // Same per-instance one-shot warn that createSession / deleteSession use
-    // when window.location.hash has no #token=... — the dev console gets a
-    // breadcrumb but the request still fires (server returns 401 → palette
-    // store surfaces the auth toast).
-    window.location.hash = "";
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("", 200));
-    const api = makeSessionsApi(fetchFn);
-
-    await api.pushCommand("sess-1", "/clear");
-
-    const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
-    const headers = init.headers as Record<string, string>;
-    expect(headers.Authorization).toBeUndefined();
-    // Content-Type still set; only Authorization is conditional.
-    expect(headers["Content-Type"]).toBe("application/json");
-    const noBearerWarns = warnSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("no bearer token"),
-    );
-    expect(noBearerWarns).toHaveLength(1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getSessionConfig
-// ---------------------------------------------------------------------------
-
-describe("getSessionConfig", () => {
-  it("TestGetSessionConfig_LegacyProjectsStringArray_NormalizedToObjects", async () => {
-    // Today's server (pre session-config-extension) returns projects as
-    // plain string[]. The client normalizes to {path, isGit:false,
-    // isSandboxed:false} so palette UI never branches on shape.
-    window.location.hash = "#token=tok-z";
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse(
+    expect(config.projects[0]).toMatchObject({
+      path: "/typed",
+      isGit: true,
+      isSandboxed: true,
+      commandProfiles: [
         {
-          default_command: "claude",
-          commands: ["claude", "codex"],
-          projects: ["/home/me/repo", "/home/me/other"],
-        },
-        200,
-      ),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    const cfg = await api.getSessionConfig();
-
-    expect(cfg.projects).toEqual([
-      { path: "/home/me/repo", isGit: false, isSandboxed: false },
-      { path: "/home/me/other", isGit: false, isSandboxed: false },
-    ]);
-    // Forward-compat fields default to [] when absent on the wire.
-    expect(cfg.projectRoots).toEqual([]);
-    expect(cfg.projectPaths).toEqual([]);
-    expect(cfg.pushCommands).toEqual([]);
-
-    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/session-config");
-    expect(init.method).toBe("GET");
-    const headers = init.headers as Record<string, string>;
-    expect(headers.Authorization).toBe("Bearer tok-z");
-  });
-
-  it("TestGetSessionConfig_NewServerWithObjectProjects_PassesThrough", async () => {
-    // Post-extension wire: projects already a list of objects, plus
-    // project_roots / project_paths / push_commands populated.
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse(
-        {
-          default_command: "claude",
-          commands: ["claude"],
-          project_roots: ["/home/me/work"],
-          project_paths: ["/home/me/extra"],
-          projects: [
-            { path: "/home/me/work/a", isGit: true, isSandboxed: false },
-            { path: "/home/me/extra", isGit: false, isSandboxed: true },
+          id: "profile",
+          label: "profile",
+          revision: "r1",
+          parameters: [
+            expect.objectContaining({ name: "choice", values: ["a", 2] }),
+            expect.objectContaining({ name: "flag", default: true }),
+            expect.objectContaining({ name: "text", pattern: "^x" }),
+            expect.objectContaining({ name: "count", min: 1, max: 3 }),
           ],
-          push_commands: ["/clear", "/exit"],
         },
-        200,
-      ),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    const cfg = await api.getSessionConfig();
-
-    expect(cfg.projectRoots).toEqual(["/home/me/work"]);
-    expect(cfg.projectPaths).toEqual(["/home/me/extra"]);
-    expect(cfg.projects).toEqual([
-      { path: "/home/me/work/a", isGit: true, isSandboxed: false },
-      { path: "/home/me/extra", isGit: false, isSandboxed: true },
-    ]);
-    expect(cfg.pushCommands).toEqual(["/clear", "/exit"]);
+      ],
+    });
   });
 
-  it("TestGetSessionConfig_401_ThrowsApiHttpError401", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("unauthorized", 401));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.getSessionConfig();
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(401);
-    }
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-  });
-
-  it("TestGetSessionConfig_503Then200_RetriesAndRespectsRetryAfter", async () => {
-    vi.useFakeTimers();
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(makeResponse("upstream not ready", 503, { "Retry-After": "1" }))
-      .mockResolvedValueOnce(
-        jsonResponse(
+  it("keeps a safe shape for malformed optional config fields", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.agentGridWorkspace = {
+      sessionFleet: {
+        listConfigs: vi.fn().mockResolvedValue([
           {
-            commands: ["claude"],
-            projects: ["/p"],
+            serverId: "srv-a",
+            serverLabel: "A",
+            state: "connected",
+            config: {
+              projects: [7, { nope: true }, null],
+              push_commands: "wrong",
+            },
           },
-          200,
+        ]),
+        create: vi.fn(),
+      },
+    };
+
+    const config = await makeSessionsApi(vi.fn()).getSessionConfig();
+
+    expect(config.projects).toHaveLength(3);
+    expect(config.projects.every((project) => project.serverId === "srv-a")).toBe(true);
+    expect(config.pushCommands).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("deduplicates push commands across healthy servers", async () => {
+    window.agentGridWorkspace = {
+      sessionFleet: {
+        listConfigs: vi.fn().mockResolvedValue(
+          ["a", "b"].map((serverId) => ({
+            serverId,
+            serverLabel: serverId,
+            state: "connected",
+            config: { projects: [], push_commands: ["/clear", `/${serverId}`] },
+          })),
         ),
-      );
-    const api = makeSessionsApi(fetchFn);
+        create: vi.fn(),
+      },
+    };
 
-    const promise = api.getSessionConfig();
-
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(999);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(1);
-
-    const cfg = await promise;
-    expect(fetchFn).toHaveBeenCalledTimes(2);
-    expect(cfg.projects).toEqual([{ path: "/p", isGit: false, isSandboxed: false }]);
+    expect((await makeSessionsApi(vi.fn()).getSessionConfig()).pushCommands).toEqual([
+      "/clear",
+      "/a",
+      "/b",
+    ]);
   });
 
-  it("TestGetSessionConfig_RetryAfterZero_FloorsAtMinRetry", async () => {
-    // Regression: `retryAfter ?? backoff` treated Retry-After: 0 as valid,
-    // yielding delay=0 and a synchronous hot loop against the server. The
-    // fix floors the header at minRetryFloorMs (100ms) so a 0-hint cannot
-    // collapse pacing, while a legitimate short hint (e.g. 1s from
-    // host.go's 502→503 map) can still shorten the exponential backoff.
-    vi.useFakeTimers();
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(makeResponse("upstream not ready", 503, { "Retry-After": "0" }))
-      .mockResolvedValueOnce(jsonResponse({ commands: ["claude"], projects: ["/p"] }, 200));
-    const api = makeSessionsApi(fetchFn);
+  it("posts push commands to the qualified current server", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
 
-    const promise = api.getSessionConfig();
+    await makeSessionsApi(fetchImpl).pushCommand("s/1", "/clear");
 
-    // 100ms MIN floor should elapse even though the header said 0.
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(99);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(1);
-
-    const cfg = await promise;
-    expect(fetchFn).toHaveBeenCalledTimes(2);
-  });
-
-  it("TestGetSessionConfig_5xxEventuallyThrowsAfterRetryBudget", async () => {
-    vi.useFakeTimers();
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("settings.toml broken", 500));
-    const api = makeSessionsApi(fetchFn);
-
-    const settled = api.getSessionConfig().then(
-      (value) => ({ ok: true as const, value }),
-      (error) => ({ ok: false as const, error }),
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/host/servers/srv-current/api/sessions/s%2F1/push",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ command: "/clear" }),
+      }),
     );
-    await vi.advanceTimersByTimeAsync(1400);
+  });
 
-    const result = await settled;
+  it("reads messages and supplies safe defaults for an incomplete response", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json({ messages: null }));
+
+    const response = await makeSessionsApi(fetchImpl).getSessionMessages("s/1");
+
+    expect(response).toEqual({ session_id: "s/1", summary: undefined, messages: [] });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/host/servers/srv-current/api/sessions/s%2F1/messages",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("reads message summaries and marks a specific message read", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        json({
+          session_id: "server-session",
+          summary: { unread_count: 1, pending_delivery_count: 0 },
+          messages: [{ id: "m1" }],
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const api = makeSessionsApi(fetchImpl);
+
+    const response = await api.getSessionMessages("s1");
+    await api.markSessionMessagesRead("s1", "m1");
+
+    expect(response.session_id).toBe("server-session");
+    expect(response.messages).toEqual([{ id: "m1" }]);
+    expect(fetchImpl).toHaveBeenLastCalledWith(
+      "/host/servers/srv-current/api/sessions/s1/messages/read",
+      expect.objectContaining({ body: JSON.stringify({ last_read_message_id: "m1" }) }),
+    );
+  });
+
+  it("marks all messages read when no message ID is supplied", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    await makeSessionsApi(fetchImpl).markSessionMessagesRead("s1");
+    expect(fetchImpl).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: "{}" }),
+    );
+  });
+
+  it("wraps network failures while preserving the cause", async () => {
+    const cause = new TypeError("offline");
+    const api = makeSessionsApi(vi.fn().mockRejectedValue(cause));
     try {
-      if (result.ok) {
-        throw new Error("expected throw");
-      }
-      throw result.error;
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(500);
-      expect(err.body).toBe("settings.toml broken");
-    }
-    expect(fetchFn).toHaveBeenCalledTimes(4);
-  });
-
-  it("TestGetSessionConfig_500_ThrowsApiHttpError500", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(makeResponse("settings.toml broken", 500));
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.getSessionConfig();
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(500);
-      expect(err.body).toBe("settings.toml broken");
+      await api.deleteSession("s1");
+      throw new Error("expected rejection");
+    } catch (error) {
+      expect((error as Error).message).toBe("network");
+      expect((error as Error).cause).toBe(cause);
     }
   });
 
-  it("TestGetSessionConfig_FetchRejects_ThrowsGenericNetworkError", async () => {
-    const fetchFn = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
-    const api = makeSessionsApi(fetchFn);
-
-    await expect(api.getSessionConfig()).rejects.toThrow("network");
+  it("does not wrap an AbortError", async () => {
+    const aborted = new DOMException("cancelled", "AbortError");
+    const api = makeSessionsApi(vi.fn().mockRejectedValue(aborted));
+    await expect(api.deleteSession("s1")).rejects.toBe(aborted);
   });
 
-  it("TestGetSessionConfig_BodyReadFails_RecordsUnreadableMarkerAndWarns", async () => {
-    // Review finding "major — res.text() empty catch": when the body read
-    // itself fails (already-consumed stream / network drop mid-body /
-    // backpressure error), we must NOT swallow it silently. The body field
-    // gets an `<unreadable: ...>` sentinel and a console.warn fires so the
-    // dev can distinguish 5xx vs 5xx+body-read-error.
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const fakeResponse = {
+  it("records an unreadable HTTP error body", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const response = {
       ok: false,
       status: 500,
-      headers: new Headers(),
-      text: () => Promise.reject(new TypeError("stream drained")),
+      text: vi.fn().mockRejectedValue(new Error("body failed")),
     } as unknown as Response;
-    const fetchFn = vi.fn().mockResolvedValue(fakeResponse);
-    const api = makeSessionsApi(fetchFn);
-
     try {
-      await api.getSessionConfig();
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiHttpError(e);
-      expect(err.status).toBe(500);
-      expect(err.body).toMatch(/<unreadable:/);
+      await makeSessionsApi(vi.fn().mockResolvedValue(response)).deleteSession("s1");
+      throw new Error("expected rejection");
+    } catch (error) {
+      expect((error as ApiHttpError).body).toContain("unreadable");
+      expect(warn).toHaveBeenCalled();
     }
-    const matched = warnSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("failed to read error body"),
-    );
-    expect(matched.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("TestGetSessionConfig_MalformedProjectsObject_WarnsAndEmptyArray", async () => {
-    // Review finding "major — silent normalize fallback": `projects` present
-    // but not an array (e.g. proxy/gateway bug that wraps it) must produce
-    // [] AND surface a console.warn so the breakage is traceable instead of
-    // showing as "no projects configured".
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse(
-        {
-          commands: ["claude"],
-          projects: { wrapped: ["/p"] }, // object instead of array
-        },
-        200,
-      ),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    const cfg = await api.getSessionConfig();
-
-    expect(cfg.projects).toEqual([]);
-    const matched = warnSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("`projects` field present"),
-    );
-    expect(matched.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("TestGetSessionConfig_MalformedProjectsEntry_WarnsPerEntry", async () => {
-    // Review finding "major — silent normalize fallback": per-entry garbage
-    // (entry that is neither string nor object) and per-entry missing
-    // `path` must each leave a console.warn breadcrumb instead of being
-    // silently mapped to {path: ""}.
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse(
-        {
-          commands: ["claude"],
-          projects: [
-            "/good/string",
-            { path: "/good/object", isGit: true, isSandboxed: false },
-            { isGit: true }, // missing path
-            42, // neither string nor object
-          ],
-        },
-        200,
-      ),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    const cfg = await api.getSessionConfig();
-
-    // Still returns a safe shape so palette UI doesn't crash.
-    expect(cfg.projects).toEqual([
-      { path: "/good/string", isGit: false, isSandboxed: false },
-      { path: "/good/object", isGit: true, isSandboxed: false },
-      { path: "", isGit: true, isSandboxed: false },
-      { path: "", isGit: false, isSandboxed: false },
-    ]);
-    // Two diagnostics: one for the path-missing object, one for the non-
-    // string-non-object entry.
-    const pathWarns = warnSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("missing string `path`"),
-    );
-    const shapeWarns = warnSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("neither string nor object"),
-    );
-    expect(pathWarns).toHaveLength(1);
-    expect(shapeWarns).toHaveLength(1);
-  });
-
-  it("TestGetSessionConfig_MalformedJson_ThrowsApiWireFormatErrorWithCause", async () => {
-    // Same review finding ("minor — res.json SyntaxError leak") on the
-    // getSessionConfig path: a daemon that returns garbled JSON must surface
-    // as ApiWireFormatError, not as a raw SyntaxError that masquerades as a
-    // generic runtime error.
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response("definitely not json", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.getSessionConfig();
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiWireFormatError(e);
-      expect(err.url).toBe("/api/session-config");
-      expect(err.cause).toBeInstanceOf(SyntaxError);
-    }
-  });
-
-  it("TestGetSessionConfig_TopLevelArray_ThrowsApiWireFormatError", async () => {
-    // Wire-format contract: /api/session-config returns a JSON object. An
-    // array (or other non-object) is a server bug — palette-store needs to
-    // be able to branch on this without inheriting field-access crashes.
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response("[1,2,3]", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    try {
-      await api.getSessionConfig();
-      throw new Error("expected throw");
-    } catch (e) {
-      const err = asApiWireFormatError(e);
-      expect(err.message).toMatch(/top-level is not a JSON object/);
-    }
-  });
-
-  it("TestGetSessionConfig_MalformedStringList_WarnsAndEmptyArray", async () => {
-    // Review finding "major — silent normalize fallback": absent string-list
-    // fields are silent (legitimate forward-compat), but present-but-wrong-
-    // type values must warn.
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse(
-        {
-          commands: ["claude"],
-          push_commands: "oops, a string", // wrong type
-          // project_roots / project_paths absent → silent [] is OK.
-        },
-        200,
-      ),
-    );
-    const api = makeSessionsApi(fetchFn);
-
-    const cfg = await api.getSessionConfig();
-
-    expect(cfg.pushCommands).toEqual([]);
-    // No warn for legitimately-absent forward-compat fields.
-    const absentWarns = warnSpy.mock.calls.filter(
-      (args) =>
-        typeof args[0] === "string" &&
-        (args[0].includes("`project_roots`") || args[0].includes("`project_paths`")),
-    );
-    expect(absentWarns).toHaveLength(0);
-    // But a warn for the present-but-wrong-type field.
-    const wrongTypeWarns = warnSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("`push_commands` present"),
-    );
-    expect(wrongTypeWarns).toHaveLength(1);
   });
 });

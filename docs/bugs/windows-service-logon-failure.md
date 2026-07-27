@@ -6,7 +6,7 @@
 ## 環境 (必須)
 - OS: Windows 10/11 build 10.0.26100.8894
 - Runtime: Windows PowerShell 5.1.26100.8894 (elevated, `Start-Process -Verb RunAs -Wait` 経由で `register-wsl-host-service.bat` から起動)
-- Version / branch / commit: `main` @ 6e0d3e1e + 作業ツリーの未コミット変更 (`deploy/windows/register-wsl-host-service.ps1`, `deploy/windows/register-wsl-host-service.bat`, `docs/note/note-20260726-user-windows-wsl-service.md`, `src/internal/harnesspolicy/windows_service_deploy_test.go`, `src/platform/wslhost/acl_windows.go`)
+- Version / branch / commit: `main` @ 6e0d3e1e + 作業ツリーの未コミット変更 (`deploy/windows/register-wsl-host-service.ps1`, `deploy/windows/register-wsl-host-service.bat`, `docs/note/note-20260726-user-windows-wsl-service.md`, `services/internal/harnesspolicy/windows_service_deploy_test.go`, `services/platform/wslhost/acl_windows.go`)
 - 依存: なし (Windows 標準の `sc.exe` / `secedit.exe` / `New-Service` cmdlet のみ)
 - その他: 対象アカウントは local account `DESKTOP-PJNFA6R\takeg` (SID `S-1-5-21-4034758344-1153060747-2724949352-1001`)。同一デバッグセッション内でこの `.ps1` に対し ACL 識別子解決・New-Service 用アカウント名の完全修飾化・`SeServiceLogonRight` の自動付与、の3件の修正を先に適用済み。
 
@@ -37,7 +37,7 @@ investigation-2.json 参照 (`/home/take/.dev-skills/debug/windows-service-logon
 ## Validation 方法 (テスト代替)
 - 静的検証: `Assert-InstallParameters` / `New-AgentGridService` のコードパスを読み、`$Credential.Password` (SecureString) を変換・複製・再構築する経路が存在しないことを再確認済み。
 - live 観測: `Get-LocalUser takeg | Select-Object Name,PrincipalSource,PasswordRequired,Enabled` → `PrincipalSource=MicrosoftAccount, PasswordRequired=True`。`Get-WinEvent -FilterHashtable @{LogName='System';ProviderName='Service Control Manager';Id=7038;StartTime=(Get-Date).AddHours(-2)}` → 2件の独立した RecordId (274913, 274929)。
-- 既存の contract test `src/internal/harnesspolicy/windows_service_deploy_test.go::TestWindowsServiceRegistrationAssets` はスクリプト本文の文字列 pin のみを行い、ライブのログオン成否やアカウント種別検証・rollback 挙動は検証しない — investigation-2.json の harness_gaps に記録済み。
+- 既存の contract test `services/internal/harnesspolicy/windows_service_deploy_test.go::TestWindowsServiceRegistrationAssets` はスクリプト本文の文字列 pin のみを行い、ライブのログオン成否やアカウント種別検証・rollback 挙動は検証しない — investigation-2.json の harness_gaps に記録済み。
 - **決定的観測1 (2周目 causal-critic の指摘により実施)**: 同じ資格情報で service logon とは別の logon type (`Start-Process -Credential -FilePath cmd.exe -ArgumentList '/c','exit'`, interactive logon 相当) を試したところ、**同一の「The user name or password is incorrect.」で失敗**した。これは「MSA 連携アカウントは `LOGON32_LOGON_SERVICE` に特有に非互換」という investigation-2.json の主要因仮説を **反証** する (真に service logon 固有の非互換なら interactive logon は成功するはず)。investigation-2.json の RCA はこの観測により更新が必要 (未反映)。
 - **決定的観測2 (conductor が Web 検索と実機の設定画面キャプチャで確認、最終確定)**: Microsoft 公式情報では「MSA のパスワードはローカル認証にも通常使える (protector 機構経由)」とあり、「MSA は原理的に LogonUser 系 API を使えない」という一般化は不正確と判明。代わりに、実機の `設定 > アカウント > サインイン オプション > 追加設定` を確認したところ、**「このデバイスでは Microsoft アカウントに Windows Hello サインインのみ許可する (推奨)」が On** であることを確認した (ユーザーがスクリーンショットで確認、2026-07-26)。この設定はデバイス全体でパスワードベースのサインインを無効化するため、`LogonUser` 経由の認証 (service logon・interactive logon 問わず) が正しいパスワードを入力しても一律に失敗する。観測1・観測2 を突き合わせることで根本原因が確定した。
 

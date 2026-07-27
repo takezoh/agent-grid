@@ -8,7 +8,7 @@ namespace AgentGrid.Shell.Core.GatewayClient;
 /// Coexists with viewUpdate (k=v) and approval/question frames (k=ar|ax|qr|qx)
 /// per adr-20260724-approval-broadcast-coexists-view-update.
 ///
-/// Hello/delta contract (src/server/api/gateway.go helloFrame /
+/// Hello/delta contract (services/server/api/gateway.go helloFrame /
 /// lifecycleFrames): the gateway sends the full current session list exactly
 /// once per lifecycle WS connection, as a k="h" hello frame, synchronously in
 /// reaction to subscribing. Every session-list change after that point is

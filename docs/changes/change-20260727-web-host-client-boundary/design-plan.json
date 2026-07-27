@@ -1,0 +1,463 @@
+{
+  "revision": "rev-20260727-03",
+  "base_revision": "rev-20260727-02",
+  "goal": "Web host と Workspace Electron を同じ設定・fleet/provider 契約を実装する対等な clients/ui host にし、非client deployable servicesと専用共有基盤を独立 services Go moduleへ flag-day 移行する。",
+  "approach": "clients/config の servers.json v2 を両 host の起動時 immutable snapshot とし、credential-free fleet projectionを共通化する。Web hostはclients/web-host独立module、非client service群はgithub.com/takezoh/agent-grid/services独立moduleとし、top-level ownershipをservices/, clients/, protocol/, contracts/, docs/, deploy/, scripts/, test-harness/へ固定する。",
+  "scope": {
+    "in_scope": [
+      "src/uihost と src/cmd/uihost を clients/web-host 独立 Go moduleへ移動し web-host と命名する",
+      "servers.json v2、host-neutral fleet/provider、credential boundary、typed partial failureを Web host と Workspace に共通化する",
+      "src module contentsをservices/へflag-day移動する",
+      "clients/desktop-configをclients/configへflag-day renameし全client host共通のlanguage-neutral schema/fixtures ownerにする",
+      "active consumersをtop-level services/, clients/, protocol/, contracts/, docs/, deploy/, scripts/, test-harness/ layoutへ更新する",
+      "既存 Web static/CSP/security header/same-origin WS/retryable upstream semantics を server-qualified routeで保持する"
+    ],
+    "out_of_scope": [
+      "completed/abandoned change package本文を現在実装へ同期すること",
+      "clients/web-host から services moduleへの require、replace、internal import",
+      "repository-root Go moduleまたはflat Go package tree",
+      "runtime config reload、credential の browser/renderer projection、legacy unqualified proxy routeの互換 shim"
+    ]
+  },
+  "components": [
+    {
+      "id": "component-client-config",
+      "name": "Versioned client config and provider contract",
+      "responsibility": "servers.json v2 の正規化、serverId、host-neutral projection、snapshot lifecycle、typed outcomeを所有する。",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": ["clients/config", "clients/ui/src/auth.ts"],
+        "owner": "shared client-host contract",
+        "integration_points": ["clients/workspace/src/main/desktop-config.ts", "clients/ui provider boundary", "planned clients/web-host config loader"],
+        "test_seams": ["clients/config/fixtures", "provider parity fixtures", "typed outcome matrix"],
+        "rationale": "現 clients/desktop-config の servers.json v2 schema/fixturesをclients/configへflag-day renameし、全client hostのlanguage-neutral contract ownerとして一般化する。",
+        "accepted_adr_refs": ["adr-20260727-single-user-server-auth", "adr-20260727-fleet-provider-boundary", "adr-20260727-server-qualified-identity-partial-failure"]
+      },
+      "depends_on": [],
+      "contract_refs": ["contract-client-config-model", "contract-config-snapshot", "contract-config-outcomes", "contract-host-neutral-provider", "contract-host-credential-boundary"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-web-host",
+      "name": "Independent Web host",
+      "responsibility": "SPA serving、host config projection、credentialed fleet routing、same-origin security boundaryを独立 moduleとして所有する。",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": ["clients/web-host", "clients/web-host/go.mod"],
+        "owner": "Web host",
+        "integration_points": ["clients/ui/dist embed", "qualified same-origin REST/WS", "servers.json v2", "upstream gateways"],
+        "test_seams": ["httptest transport tests", "fake upstream fleet", "GOWORK=off nested-module audit", "TLS serving tests"],
+        "rationale": "現 src/uihost と src/cmd/uihost を parent-module依存なしで移す。",
+        "accepted_adr_refs": ["adr-20260727-single-user-server-auth", "adr-20260727-server-qualified-identity-partial-failure"]
+      },
+      "depends_on": ["component-client-config"],
+      "contract_refs": ["contract-host-neutral-provider", "contract-host-credential-boundary", "contract-web-transport", "contract-web-module"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-workspace-host",
+      "name": "Workspace Electron host adapter",
+      "responsibility": "既存 main-process routing を共通 provider 契約へ適合し、credentialを mainに保持する。",
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": ["clients/workspace", "clients/workspace/src/main/desktop-config.ts"],
+        "owner": "Workspace Electron main process",
+        "integration_points": ["preload typed bridge", "clients/ui provider boundary", "servers.json v2"],
+        "test_seams": ["clients/workspace/tests/desktop-config.test.ts", "provider parity fixture", "credential omission assertion"],
+        "rationale": "criticで誤記された clients/electron ではなく実所有 path は clients/workspace。",
+        "accepted_adr_refs": ["adr-20260727-fleet-provider-boundary", "adr-20260727-server-qualified-identity-partial-failure"]
+      },
+      "depends_on": ["component-client-config"],
+      "contract_refs": ["contract-host-neutral-provider", "contract-host-credential-boundary"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-services-layout",
+      "name": "Independent services Go module migration",
+      "responsibility": "非client deployable servicesと専用共有基盤のmodule ownership、top-level layout、active reference classifierを所有する。",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": ["services/go.mod", "services/cmd", "services/host", "services/server", "services/platform", "services/orchestrator", "services/internal", "services/gorules", "services/protocolsim", "services/.golangci.yml"],
+        "owner": "services module",
+        "integration_points": ["Makefile", ".github/workflows", "scripts", "AGENTS.md", "ARCHITECTURE.md", "current docs"],
+        "test_seams": ["services GOWORK=off go test", "services lint", "top-level ownership audit", "active src-reference audit"],
+        "rationale": "services is the explicit umbrella for nonclient deployable services and their dedicated shared infrastructure; client hosts remain under clients。",
+        "accepted_adr_refs": []
+      },
+      "depends_on": ["component-web-host"],
+      "contract_refs": ["contract-services-flag-day"],
+      "decision_closure_reason": ""
+    }
+  ],
+  "chunks": [
+    {
+      "id": "chunk-1-provider-boundary",
+      "members": ["component:component-client-config", "component:component-workspace-host", "req:FR-WHC-001", "req:FR-WHC-002", "req:FR-WHC-003", "req:FR-WHC-004"],
+      "depends_on": [],
+      "units": [
+        {
+          "title": "Define shared client config and provider fixtures",
+          "objective": "servers.json v2からcredential-free fleet projectionまでをlanguage-neutral fixtureで固定する。",
+          "output_format": "schema/fixtures, TypeScript and Go contract tests, current contract documentation",
+          "tool_guidance": "clients/config schema/fixtures と accepted auth/identity ADRを正本にする。",
+          "task_boundaries": "host transportやservices source移動は行わない。",
+          "files_touched": ["clients/config", "clients/ui/src", "clients/workspace/tests", "clients/web-host"],
+          "acceptance": ["両hostが同じfixtureから同じserverId/display/auth-capability projectionを得る", "token文字列はprojectionに存在しない"],
+          "contract_refs": ["contract-client-config-model", "contract-config-snapshot", "contract-config-outcomes", "contract-host-neutral-provider", "contract-host-credential-boundary"],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "max_diff_loc": 300
+        },
+        {
+          "title": "Generalize UI and Workspace fleet provider",
+          "objective": "browser/Electron分岐とone-server adapterを削除しWorkspaceを共通providerへ適合する。",
+          "output_format": "clients/ui and clients/workspace production/test changes",
+          "tool_guidance": "accepted compound identity, generation fencing, retry semanticsを保持する。",
+          "task_boundaries": "Web host process実装とGo layout移動は行わない。",
+          "files_touched": ["clients/ui/src", "clients/ui/e2e", "clients/workspace/src", "clients/workspace/tests"],
+          "acceptance": ["host-kind判定とsingle-server synthesisが0件", "multi-server fixtureで両hostのUI-visible resultsが一致"],
+          "contract_refs": ["contract-host-neutral-provider", "contract-host-credential-boundary", "contract-config-outcomes"],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "max_diff_loc": 500,
+          "depends_on": ["Define shared client config and provider fixtures"]
+        }
+      ]
+    },
+    {
+      "id": "chunk-2-web-host",
+      "members": ["component:component-web-host", "req:FR-WHC-005", "req:FR-WHC-006", "adr:adr-20260727-independent-web-host-module", "adr:adr-20260727-web-host-transport-continuity"],
+      "depends_on": ["chunk-1-provider-boundary"],
+      "units": [
+        {
+          "title": "Relocate and generalize Web host",
+          "objective": "clients/web-host nested moduleでconfig load、qualified fleet proxy、embed、TLSを所有する。",
+          "output_format": "independent Go module, moved tests, fake upstream contract tests",
+          "tool_guidance": "stdlib-only wire/config typesを優先し、parent tlsdevの小さな必要責務はweb-host internal packageへ移す。",
+          "task_boundaries": "services module packageをimportせず、legacy /api /ws shimを残さない。",
+          "files_touched": ["clients/web-host", "Makefile", "scripts/run-dev.sh"],
+          "acceptance": ["GOWORK=off go test ./...がnested module内で成功", "go.modにservices module require/replaceがない", "qualified same-origin routesでCSP/WS/retry semanticsが維持"],
+          "contract_refs": ["contract-client-config-model", "contract-config-snapshot", "contract-config-outcomes", "contract-host-neutral-provider", "contract-host-credential-boundary", "contract-web-transport", "contract-web-module"],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "max_diff_loc": 600
+        }
+      ]
+    },
+    {
+      "id": "chunk-3-services-flag-day",
+      "members": ["component:component-services-layout", "req:FR-WHC-007", "req:FR-WHC-008", "adr:adr-20260727-services-go-module-flag-day"],
+      "depends_on": ["chunk-2-web-host"],
+      "units": [
+        {
+          "title": "Execute services Go module flag day",
+          "objective": "src module contentsをservicesへ移しclients config renameとtop-level ownershipを同一commitで確定する。",
+          "output_format": "independent services module and clients config, updated build/CI/scripts/current docs/tests",
+          "tool_guidance": "tracked file inventoryとchange statusによるactive classifierを使い、completed historyを編集しない。",
+          "task_boundaries": "src compatibility symlink/forwarderを残さず、completed/abandoned change本文を書換えない。",
+          "files_touched": ["services", "clients/config", "Makefile", ".github", "scripts", "AGENTS.md", "ARCHITECTURE.md", "docs/design", "docs/note", "docs/changes/change-20260727-multi-server-session-palette"],
+          "acceptance": ["src directoryが存在しない", "servicesとclients/web-host module gatesが独立成功", "active src/とclients/desktop-config referenceが0件", "top-level ownership auditが成功"],
+          "contract_refs": ["contract-services-flag-day"],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "max_diff_loc": 1200
+        },
+        {
+          "title": "Enforce host parity and documentation invariants",
+          "objective": "将来browser/Electron特別扱いが再導入されないfitness functionsとpersistent design更新を追加する。",
+          "output_format": "contract tests, docs promotion application, active change reconciliation",
+          "tool_guidance": "design-clients-ui/design-workspace-desktopとactive multi-server changeだけを現在契約へ更新する。",
+          "task_boundaries": "completed historyの語彙を一括置換しない。",
+          "files_touched": ["clients/ui", "clients/workspace", "clients/web-host", "docs/design/design-clients-ui.md", "docs/design/design-workspace-desktop.md", "docs/changes/change-20260727-multi-server-session-palette"],
+          "acceptance": ["host parity counterexampleがsingle-server collapseを検出", "current docsにhost differences are transport only invariantが存在", "docs lint --conformance成功"],
+          "contract_refs": ["contract-host-neutral-provider", "contract-host-credential-boundary", "contract-services-flag-day"],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "max_diff_loc": 400,
+          "depends_on": ["Execute services Go module flag day"]
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {"id": "FR-WHC-001", "type": "ubiquitous", "statement": "The system MUST expose one host-neutral, credential-free, server-qualified fleet/provider contract to clients/ui regardless of whether the host is Web host or Workspace Electron.", "priority": "must", "rationale": "恒久的なhost parity invariant。"},
+    {"id": "FR-WHC-002", "type": "unwanted", "statement": "If a host provides a fleet, the system MUST NOT branch on browser versus Electron, collapse the fleet to one server, or synthesize an implicit server.", "priority": "must", "rationale": "旧browser one-server adapterを判別可能に禁止する。"},
+    {"id": "FR-WHC-003", "type": "event_driven", "statement": "When either client host starts, the system MUST load and validate servers.json schema version 2 exactly once and publish one immutable version-consistent snapshot or a typed startup failure.", "priority": "must", "rationale": "mixed fleet/auth versionを防ぐ。"},
+    {"id": "FR-WHC-004", "type": "unwanted", "statement": "If bearer authentication is configured, the system MUST NOT expose bearer material to clients/ui, browser JavaScript, Electron renderer, logs, or host projections.", "priority": "must", "rationale": "credential ownerをhost trust boundaryへ固定する。"},
+    {"id": "FR-WHC-005", "type": "ubiquitous", "statement": "clients/web-host MUST remain an independently buildable nested Go module with no require, replace, internal import, or source import from the services module.", "priority": "must", "rationale": "client host boundaryをcompile-timeに保つ。"},
+    {"id": "FR-WHC-006", "type": "state_driven", "statement": "While Web host serves clients/ui, the system MUST preserve embedded static delivery, CSP and security headers, same-origin WebSocket checks, credentialed upstream routing, and typed retryable upstream-not-ready behavior on server-qualified routes.", "priority": "must", "rationale": "移動でbrowser-visible security/transport semanticsを失わない。"},
+    {"id": "FR-WHC-007", "type": "event_driven", "statement": "When the services-module flag day is applied, the system MUST move src module metadata and cmd, host, server, platform, orchestrator, internal, gorules, protocolsim, and .golangci.yml together into services/, use module github.com/takezoh/agent-grid/services, update every active consumer, and leave no src wrapper.", "priority": "must", "rationale": "nonclient services ownershipを一意にする。"},
+    {"id": "FR-WHC-008", "type": "unwanted", "statement": "If repository references are migrated, the system MUST NOT rewrite completed or abandoned change history merely to mirror the current source layout, and MUST NOT copy tracked empty src/.claude placeholders over repository-local host configuration.", "priority": "must", "rationale": "immutable historyとuser/environment configを保護する。"}
+  ],
+  "non_functional_requirements": [
+    {"id": "NFR-WHC-001", "type": "security", "criteria": "All UI-visible projections omit bearer tokens and all upstream Authorization injection occurs only inside the selected host process.", "measurement": "projection serialization tests plus request-capture contract tests"},
+    {"id": "NFR-WHC-002", "type": "reliability", "criteria": "Config outcomes are stable IDs config_unavailable/config_invalid; fleet outcomes are per-server available/unavailable/retryable and never erase healthy servers.", "measurement": "T0 outcome matrix and T1 fake-fleet integration"},
+    {"id": "NFR-WHC-003", "type": "maintainability", "criteria": "Host choice changes transport adapter only; schema, identity, failure, retry, and cardinality semantics remain common and parity-tested.", "measurement": "host-neutral fixture suite and forbidden host-branch audit"},
+    {"id": "NFR-WHC-004", "type": "compatibility", "criteria": "Services and Web-host modules build/test independently with GOWORK=off; no active src/ or clients/desktop-config reference or legacy unqualified Web proxy route remains.", "measurement": "module gates and tracked active-reference audit"}
+  ],
+  "acceptance": [
+    {"id": "AC-WHC-001", "given": "the same multi-server servers.json v2 fixture", "when": "Web host and Workspace produce the UI projection", "then": "server IDs, labels, capabilities, partial outcomes, and retry eligibility are identical and tokens are absent", "requirement_refs": ["FR-WHC-001", "FR-WHC-002", "FR-WHC-004"]},
+    {"id": "AC-WHC-002", "given": "missing, unreadable, unsupported, or malformed config", "when": "a host starts", "then": "startup produces exactly one stable operator-visible typed outcome and no UI session starts", "requirement_refs": ["FR-WHC-003"]},
+    {"id": "AC-WHC-003", "given": "clients/web-host checked out with the services module unavailable to module resolution", "when": "GOWORK=off go test ./... and go list -m all run inside it", "then": "both succeed and the dependency graph has no services module edge", "requirement_refs": ["FR-WHC-005"]},
+    {"id": "AC-WHC-004", "given": "one healthy and one unavailable configured server", "when": "the Web host projection and qualified routes are used", "then": "the healthy server remains usable, the failed server is typed retryable, and CSP/same-origin rules remain enforced", "requirement_refs": ["FR-WHC-001", "FR-WHC-006"]},
+    {"id": "AC-WHC-005", "given": "the flag-day tree", "when": "services, Web-host, top-level ownership, CI-path, docs, and active-reference gates run", "then": "all pass, src and clients/desktop-config are absent, services/clients config owners are unique, and completed history bytes are unchanged", "requirement_refs": ["FR-WHC-007", "FR-WHC-008"]}
+  ],
+  "adrs": [
+    {
+      "id": "adr-20260727-host-neutral-fleet-provider",
+      "title": "Host-neutral configured fleet provider",
+      "status": "accepted",
+      "context": "The accepted fleet boundary confined credentials correctly but privileged Electron multi-server and browser one-server behavior.",
+      "decision": "Supersede the browser one-server portion: every UI host loads servers.json v2, owns credentialed routing, and exposes the same credential-free server-qualified provider; host differences are transport only. Use immutable startup snapshots.",
+      "consequences": ["Web host becomes a fleet router", "UI provider semantics become host-independent", "runtime reload is excluded"],
+      "alternatives": [{"option": "Keep browser one-server adapter", "why_not": "Violates the explicit no-special-case requirement."}, {"option": "Expose credentials to shared UI", "why_not": "Breaks the accepted trust boundary."}],
+      "related_requirements": ["FR-WHC-001", "FR-WHC-002", "FR-WHC-003", "FR-WHC-004"],
+      "contract_refs": ["contract-client-config-model", "contract-config-snapshot", "contract-config-outcomes", "contract-host-neutral-provider", "contract-host-credential-boundary"],
+      "decision_input_refs": ["decision-input-host-neutral-fleet"],
+      "status_provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["consultation-20260727-web-host-all-accepted", "conversation:2026-07-27:user:all-accept"], "rationale": "User accepted every proposed ADR after the host-neutral fleet design and revised repository layout were explained."}
+    },
+    {
+      "id": "adr-20260727-independent-web-host-module",
+      "title": "Independent Web host nested Go module",
+      "status": "accepted",
+      "context": "uihost currently imports parent platform/lib/tlsdev, which conflicts with an independent clients/web-host module.",
+      "decision": "Move command, host package, embed assets and tests into module github.com/takezoh/agent-grid/clients/web-host; own the small TLS serving implementation under that module and forbid all parent-module edges.",
+      "consequences": ["Web host builds independently", "TLS helper code exists on each side of the module boundary", "root go test does not cover the nested module"],
+      "alternatives": [{"option": "require/replace the services module", "why_not": "Violates the requested dependency boundary."}, {"option": "new shared backend module", "why_not": "Creates a vague box solely to avoid a small cohesive host responsibility."}],
+      "related_requirements": ["FR-WHC-005"],
+      "contract_refs": ["contract-web-module"],
+      "decision_input_refs": ["decision-input-web-host-module"],
+      "status_provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["consultation-20260727-web-host-all-accepted", "conversation:2026-07-27:user:all-accept"], "rationale": "User accepted every proposed ADR after the host-neutral fleet design and revised repository layout were explained."}
+    },
+    {
+      "id": "adr-20260727-web-host-transport-continuity",
+      "title": "Server-qualified Web host transport continuity",
+      "status": "accepted",
+      "context": "Removing one-server behavior requires a qualified route, while CSP, headers, same-origin WS, auth confinement and retry semantics must remain.",
+      "decision": "Expose credential-free /host/config and same-origin /host/servers/{serverId}/api/... and /host/servers/{serverId}/ws; resolve serverId in the immutable snapshot, inject auth in Web host, strip the host prefix upstream, reject redirects, and remove legacy unqualified /api and /ws routes in the flag day.",
+      "consequences": ["Browser-visible route shape changes with UI in one flag day", "same-origin and retry semantics remain", "legacy route shims do not survive"],
+      "alternatives": [{"option": "Keep /api and /ws as an implicit default", "why_not": "Reintroduces the forbidden single-server special case."}, {"option": "Direct browser-to-server requests", "why_not": "Leaks trust and origin policy into shared UI."}],
+      "related_requirements": ["FR-WHC-004", "FR-WHC-006"],
+      "contract_refs": ["contract-host-credential-boundary", "contract-web-transport"],
+      "decision_input_refs": ["decision-input-web-observables"],
+      "status_provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["consultation-20260727-web-host-all-accepted", "conversation:2026-07-27:user:all-accept"], "rationale": "User accepted every proposed ADR after the host-neutral fleet design and revised repository layout were explained."}
+    },
+    {
+      "id": "adr-20260727-services-go-module-flag-day",
+      "title": "Independent services Go module flag day",
+      "status": "accepted",
+      "context": "The repository needs a named owner for nonclient deployable services and their dedicated shared infrastructure without mixing Go client hosts into that boundary.",
+      "decision": "Move src/go.mod, src/go.sum, cmd, host, server, platform, orchestrator, internal, gorules, protocolsim, and .golangci.yml into services/ as module github.com/takezoh/agent-grid/services in one flag day. Rename clients/desktop-config to clients/config. Keep top-level source ownership under services/, clients/, protocol/, contracts/, docs/, deploy/, scripts/, and test-harness/ with no src wrapper or repository-root Go module.",
+      "consequences": ["Large atomic path churn", "services and client hosts have separate module owners", "completed history retains old paths"],
+      "alternatives": [{"option": "Repository-root Go module and flat packages", "why_not": "Rejected by the user because it lacks the explicit services ownership boundary."}, {"option": "Incremental dual roots or src wrapper", "why_not": "Creates two active ownership paths."}],
+      "related_requirements": ["FR-WHC-007", "FR-WHC-008"],
+      "contract_refs": ["contract-services-flag-day"],
+      "decision_input_refs": ["decision-input-root-flag-day"],
+      "status_provenance": {"source": "user_consultation", "confidence": "confirmed", "evidence_refs": ["consultation-20260727-web-host-all-accepted", "conversation:2026-07-27:user:all-accept"], "rationale": "User accepted every proposed ADR after the root-module proposal was replaced by the services-module design."}
+    }
+  ],
+  "decision_dispositions": [
+    {"decision_input_ref": "decision-input-web-host-module", "disposition": "adopted", "rationale": "Independent module and owned TLS boundary are fixed.", "adr_refs": ["adr-20260727-independent-web-host-module"], "contract_refs": ["contract-web-module"]},
+    {"decision_input_ref": "decision-input-host-neutral-fleet", "disposition": "adopted", "rationale": "Accepted credential isolation is generalized while browser one-server is superseded.", "adr_refs": ["adr-20260727-host-neutral-fleet-provider"], "contract_refs": ["contract-host-neutral-provider", "contract-host-credential-boundary"]},
+    {"decision_input_ref": "decision-input-root-flag-day", "disposition": "adopted", "rationale": "The flag day is retained but its target is the explicit independent services module; repository-root Go module is rejected.", "adr_refs": ["adr-20260727-services-go-module-flag-day"], "contract_refs": ["contract-services-flag-day"]},
+    {"decision_input_ref": "decision-input-web-observables", "disposition": "adopted", "rationale": "Qualified routes preserve the required observable semantics without a one-server default.", "adr_refs": ["adr-20260727-web-host-transport-continuity"], "contract_refs": ["contract-web-transport"]}
+  ],
+  "resolved_issues": [
+    {"issue_ref": "issue-accepted-adr-omitted", "resolution": "Grounded the plan in three applicable accepted ADRs and explicitly superseded only the browser one-server clause."},
+    {"issue_ref": "issue-workspace-host-misgrounded", "resolution": "Grounding now points to clients/workspace and its real config/provider seams."},
+    {"issue_ref": "issue-auth-trust-boundary-open", "resolution": "Credential-bearing snapshot/routing stays in each host; UI projection is credential-free."},
+    {"issue_ref": "issue-fallible-config-partition-open", "resolution": "Selected immutable startup snapshot and exhaustive determinate/unknown/inconclusive config outcomes with precedence."},
+    {"issue_ref": "issue-independent-module-import-closure", "resolution": "Web host owns its TLS implementation and has GOWORK=off/no-parent-edge gates."},
+    {"issue_ref": "issue-root-migration-consumer-closure", "resolution": "Fixed services module target, top-level owners, active consumer classes, clients/config rename, no src wrapper, and completed-history exemption."},
+    {"issue_ref": "issue-config-failure-observable-unspecified", "resolution": "Fixed stable operator startup codes and credential-free per-server UI outcomes with retry ownership."}
+  ],
+  "critique_blockers": [],
+  "open_questions": [],
+  "design_dimensions": ["data_model", "state_lifecycle", "failure_recovery", "integration_contract", "security_boundary", "migration_compatibility"],
+  "implementation_contracts": [
+    {
+      "id": "contract-client-config-model",
+      "dimension": "data_model",
+      "subject": "servers.json v2 normalized host snapshot and credential-free projection",
+      "owner_component_ref": "component-client-config",
+      "related_requirements": ["FR-WHC-001", "FR-WHC-004"],
+      "related_units": ["Define shared client config and provider fixtures", "Relocate and generalize Web host"],
+      "decision_rules": [{"id": "decision-config-model", "condition": "schema v2 validates", "evidence_mode": "total", "input_refs": ["input-servers-v2"], "epistemic_state": "determinate", "outcome": "derive canonical URL/serverId and split secret host snapshot from UI projection", "observable_refs": ["observable-config-projection"], "rationale": "One schema and derivation prevents host drift."}],
+      "observable_effects": [{"id": "observable-config-projection", "description": "Both hosts publish identical server-qualified metadata and auth capability without token values.", "scope": "global", "operational_input_refs": ["input-servers-v2"], "input_closure_reason": ""}],
+      "operational_inputs": [{"id": "input-servers-v2", "kind": "versioned_state", "owner_component_ref": "component-client-config", "producer": {"kind": "external", "external_identity": "operator-owned servers.json v2"}, "source": "resolved --config-dir/servers.json", "acquired_at": "host startup before listener/window creation", "required_until": "host process exit", "preservation": "snapshot", "mutable_between_acquire_and_use": true, "stability_basis": "validated immutable in-memory copy", "invalidation_behavior": "on-disk changes do not alter the running snapshot", "unavailable_outcome": "config_unavailable startup failure", "witness_refs": ["witness-config-model-normal", "witness-config-model-adversarial"]}],
+      "semantic_profiles": [],
+      "invariants": ["serverId is derived from RFC3986-canonical URL", "bearer token is absent from every UI projection"],
+      "failure_semantics": [{"id": "failure-config-model-internal", "class": "projection-secret-leak", "source": "internal_violation", "outcome": "fail contract test and startup assertion", "requirement_effect": "preserves", "recovery": "fail_fast"}],
+      "verification": [{"id": "verify-config-model", "requirement_refs": ["FR-WHC-001", "FR-WHC-004"], "tier": "T0", "method": "run shared JSON fixtures through Go and TypeScript projections", "criterion": "deep-equal projections and no serialized token"}],
+      "witnesses": [
+        {"id": "witness-config-model-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-WHC-001", "FR-WHC-004"], "precondition": "valid multi-server v2 fixture", "stimulus": "project through both hosts", "expected_observables": ["same ids/labels/capabilities; no token"], "expected_observable_refs": ["observable-config-projection"], "forbidden_outcomes": ["host-specific cardinality", "token projection"], "verification_refs": ["verify-config-model"]},
+        {"id": "witness-config-model-adversarial", "case": "adversarial", "risk_tags": ["boundary", "stale"], "requirement_refs": ["FR-WHC-001", "FR-WHC-004"], "precondition": "fixture contains bearer token and file changes after load", "stimulus": "serialize projection after mutation", "expected_observables": ["original non-secret snapshot only"], "expected_observable_refs": ["observable-config-projection"], "forbidden_outcomes": ["token leak", "mixed version"], "verification_refs": ["verify-config-model"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-host-neutral-fleet-provider"]
+    },
+    {
+      "id": "contract-config-snapshot",
+      "dimension": "state_lifecycle",
+      "subject": "single immutable host config snapshot",
+      "owner_component_ref": "component-client-config",
+      "related_requirements": ["FR-WHC-003"],
+      "related_units": ["Define shared client config and provider fixtures", "Relocate and generalize Web host"],
+      "decision_rules": [{"id": "decision-config-snapshot", "condition": "host bootstrap begins", "evidence_mode": "total", "input_refs": ["input-config-snapshot-source"], "epistemic_state": "determinate", "outcome": "validate once before exposing any host surface and retain until process exit", "observable_refs": ["observable-config-snapshot"], "rationale": "Runtime reload adds unrequested mixed-version semantics."}],
+      "observable_effects": [{"id": "observable-config-snapshot", "description": "A running UI session observes exactly one config version.", "scope": "global", "operational_input_refs": ["input-config-snapshot-source"], "input_closure_reason": ""}],
+      "operational_inputs": [{"id": "input-config-snapshot-source", "kind": "versioned_state", "owner_component_ref": "component-client-config", "producer": {"kind": "external", "external_identity": "operator-owned servers.json v2"}, "source": "startup file read", "acquired_at": "before HTTP listen or BrowserWindow creation", "required_until": "process exit", "preservation": "snapshot", "mutable_between_acquire_and_use": true, "stability_basis": "no reload path exists", "invalidation_behavior": "file changes require process restart", "unavailable_outcome": "no UI surface starts", "witness_refs": ["witness-config-snapshot-normal", "witness-config-snapshot-adversarial"]}],
+      "semantic_profiles": [],
+      "invariants": ["listener/window creation follows successful validation", "fleet and auth derive from the same snapshot"],
+      "failure_semantics": [{"id": "failure-config-snapshot-order", "class": "surface-before-validation", "source": "internal_violation", "outcome": "fail fast before serving", "requirement_effect": "preserves", "recovery": "fail_fast"}],
+      "verification": [{"id": "verify-config-snapshot", "requirement_refs": ["FR-WHC-003"], "tier": "T1", "method": "bootstrap with mutable temp config and observe lifecycle", "criterion": "one initial read; mutation has no effect until restart"}],
+      "witnesses": [
+        {"id": "witness-config-snapshot-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-WHC-003"], "precondition": "valid v2 config", "stimulus": "start host", "expected_observables": ["one version-bound session"], "expected_observable_refs": ["observable-config-snapshot"], "forbidden_outcomes": ["mixed version"], "verification_refs": ["verify-config-snapshot"]},
+        {"id": "witness-config-snapshot-adversarial", "case": "adversarial", "risk_tags": ["boundary", "stale", "concurrency"], "requirement_refs": ["FR-WHC-003"], "precondition": "file replaced after validation", "stimulus": "issue provider requests", "expected_observables": ["original complete snapshot until restart"], "expected_observable_refs": ["observable-config-snapshot"], "forbidden_outcomes": ["partial reload"], "verification_refs": ["verify-config-snapshot"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-host-neutral-fleet-provider"]
+    },
+    {
+      "id": "contract-config-outcomes",
+      "dimension": "failure_recovery",
+      "subject": "typed startup and per-server outcome partition",
+      "owner_component_ref": "component-client-config",
+      "related_requirements": ["FR-WHC-001", "FR-WHC-003"],
+      "related_units": ["Define shared client config and provider fixtures", "Generalize UI and Workspace fleet provider", "Relocate and generalize Web host"],
+      "decision_rules": [
+        {"id": "decision-config-determinate", "condition": "file is readable and validates as schema v2", "evidence_mode": "fallible", "input_refs": ["input-config-evidence"], "epistemic_state": "determinate", "outcome": "config_valid and host starts", "observable_refs": ["observable-config-outcome"], "rationale": "Positive evidence is complete."},
+        {"id": "decision-config-unknown", "condition": "file is missing or unreadable", "evidence_mode": "fallible", "input_refs": ["input-config-evidence"], "epistemic_state": "unknown", "outcome": "config_unavailable; operator may fix source and restart", "observable_refs": ["observable-config-outcome"], "rationale": "No content is available to judge."},
+        {"id": "decision-config-inconclusive", "condition": "JSON/schema/version is malformed or unsupported", "evidence_mode": "fallible", "input_refs": ["input-config-evidence"], "epistemic_state": "inconclusive", "outcome": "config_invalid; operator must edit and restart", "observable_refs": ["observable-config-outcome"], "rationale": "Evidence exists but cannot form a supported snapshot."}
+      ],
+      "observable_effects": [{"id": "observable-config-outcome", "description": "Operator receives stable code and file path; UI surface exists only for config_valid.", "scope": "local", "operational_input_refs": ["input-config-evidence"], "input_closure_reason": ""}],
+      "operational_inputs": [{"id": "input-config-evidence", "kind": "information", "data_scope": "full", "owner_component_ref": "component-client-config", "producer": {"kind": "external", "external_identity": "filesystem and operator config"}, "source": "single startup read of servers.json", "acquired_at": "bootstrap", "required_until": "bootstrap outcome emitted", "preservation": "immutable_value", "mutable_between_acquire_and_use": true, "stability_basis": "bytes are copied before parse", "invalidation_behavior": "concurrent replacement cannot alter copied bytes", "unavailable_outcome": "config_unavailable", "witness_refs": ["witness-config-outcomes-normal", "witness-config-outcomes-adversarial"]}],
+      "semantic_profiles": [{"id": "profile-config-outcomes", "kind": "outcome_partition", "decision_rule_refs": ["decision-config-determinate", "decision-config-unknown", "decision-config-inconclusive"], "failure_refs": ["failure-config-unavailable", "failure-config-invalid"], "input_refs": ["input-config-evidence"], "coverage_basis": "readable+valid, missing/unreadable, and readable+invalid cover startup evidence", "exclusivity_basis": "read result precedes parse/validation and first matching terminal outcome wins", "precedence": "I/O unavailable before parse; schema/version invalid after successful read; valid only after all checks", "default_policy": "fail closed as config_invalid for unclassified parse/validation defects", "verification_ref": "verify-config-outcomes", "witness_refs": ["witness-config-outcomes-normal", "witness-config-outcomes-adversarial"]}],
+      "invariants": ["exactly one terminal startup outcome", "no fallback to implicit server or no-auth"],
+      "failure_semantics": [
+        {"id": "failure-config-unavailable", "class": "config_unavailable", "source": "environmental", "outcome": "nonzero startup with stable code/path", "requirement_effect": "preserves", "recovery": "retry"},
+        {"id": "failure-config-invalid", "class": "config_invalid", "source": "unsupported_input", "outcome": "nonzero startup with validation detail", "requirement_effect": "preserves", "recovery": "escalate"}
+      ],
+      "verification": [{"id": "verify-config-outcomes", "requirement_refs": ["FR-WHC-001", "FR-WHC-003"], "tier": "T0", "method": "table-test every I/O, JSON, version, auth, duplicate and valid class", "criterion": "exactly one expected stable outcome and no host surface for failure"}],
+      "witnesses": [
+        {"id": "witness-config-outcomes-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-WHC-001", "FR-WHC-003"], "precondition": "valid v2 file", "stimulus": "bootstrap", "expected_observables": ["config_valid"], "expected_observable_refs": ["observable-config-outcome"], "forbidden_outcomes": ["fallback"], "verification_refs": ["verify-config-outcomes"]},
+        {"id": "witness-config-outcomes-adversarial", "case": "adversarial", "risk_tags": ["boundary", "unknown", "inconclusive", "recovery"], "requirement_refs": ["FR-WHC-001", "FR-WHC-003"], "precondition": "missing or malformed or replaced file", "stimulus": "bootstrap repeatedly", "expected_observables": ["one stable unavailable or invalid code"], "expected_observable_refs": ["observable-config-outcome"], "forbidden_outcomes": ["mixed state", "implicit server"], "verification_refs": ["verify-config-outcomes"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-host-neutral-fleet-provider"]
+    },
+    {
+      "id": "contract-host-neutral-provider",
+      "dimension": "integration_contract",
+      "subject": "server-qualified host-neutral fleet provider",
+      "owner_component_ref": "component-client-config",
+      "related_requirements": ["FR-WHC-001", "FR-WHC-002"],
+      "related_units": ["Define shared client config and provider fixtures", "Generalize UI and Workspace fleet provider", "Relocate and generalize Web host", "Enforce host parity and documentation invariants"],
+      "decision_rules": [{"id": "decision-provider-contract", "condition": "clients/ui requests fleet/session operation", "evidence_mode": "total", "input_refs": ["input-provider-snapshot"], "epistemic_state": "determinate", "outcome": "route by explicit serverId and preserve per-server typed results", "observable_refs": ["observable-provider-parity"], "rationale": "Host adapter changes transport only."}],
+      "observable_effects": [{"id": "observable-provider-parity", "description": "Same snapshot and fake responses produce identical UI state for Web and Workspace.", "scope": "global", "operational_input_refs": ["input-provider-snapshot"], "input_closure_reason": ""}],
+      "operational_inputs": [{"id": "input-provider-snapshot", "kind": "versioned_state", "owner_component_ref": "component-client-config", "producer": {"kind": "component", "component_ref": "component-client-config"}, "source": "validated immutable host snapshot", "acquired_at": "provider construction", "required_until": "host exit", "preservation": "snapshot", "mutable_between_acquire_and_use": false, "stability_basis": "provider owns immutable copy", "invalidation_behavior": "process restart creates a new provider", "unavailable_outcome": "host does not expose UI", "witness_refs": ["witness-provider-normal", "witness-provider-adversarial"]}],
+      "semantic_profiles": [],
+      "invariants": ["serverId is explicit on every routed operation", "healthy server state survives another server failure", "no host-kind or fleet-cardinality branch"],
+      "failure_semantics": [{"id": "failure-provider-server", "class": "server_unavailable", "source": "transient", "outcome": "typed per-server retryable result without erasing healthy scopes", "requirement_effect": "preserves", "recovery": "retry"}],
+      "verification": [{"id": "verify-provider-parity", "requirement_refs": ["FR-WHC-001", "FR-WHC-002"], "tier": "T2", "method": "run the same multi-server provider conformance suite against Web HTTP adapter and Workspace IPC adapter", "criterion": "deep-equal projections, qualified requests, partial outcomes and retry eligibility"}],
+      "witnesses": [
+        {"id": "witness-provider-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-WHC-001", "FR-WHC-002"], "precondition": "two healthy servers", "stimulus": "list and create on second server", "expected_observables": ["both hosts target the second server by id"], "expected_observable_refs": ["observable-provider-parity"], "forbidden_outcomes": ["first-server default"], "verification_refs": ["verify-provider-parity"]},
+        {"id": "witness-provider-adversarial", "case": "adversarial", "risk_tags": ["boundary", "partial_data"], "requirement_refs": ["FR-WHC-001", "FR-WHC-002"], "precondition": "one healthy and one failed server", "stimulus": "refresh and retry failed server", "expected_observables": ["healthy state retained and failed scope retryable in both hosts"], "expected_observable_refs": ["observable-provider-parity"], "forbidden_outcomes": ["global fail-fast", "single-server collapse"], "verification_refs": ["verify-provider-parity"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-host-neutral-fleet-provider"]
+    },
+    {
+      "id": "contract-host-credential-boundary",
+      "dimension": "security_boundary",
+      "subject": "host-owned credentialed routing and credential-free UI",
+      "owner_component_ref": "component-client-config",
+      "related_requirements": ["FR-WHC-001", "FR-WHC-004"],
+      "related_units": ["Define shared client config and provider fixtures", "Generalize UI and Workspace fleet provider", "Relocate and generalize Web host", "Enforce host parity and documentation invariants"],
+      "decision_rules": [{"id": "decision-host-credential", "condition": "a qualified operation targets an enabled server", "evidence_mode": "total", "input_refs": ["input-host-credential"], "epistemic_state": "determinate", "outcome": "host resolves serverId and injects auth only on the bound upstream request", "observable_refs": ["observable-credential-boundary"], "rationale": "Preserves accepted Electron main trust semantics for every host."}],
+      "observable_effects": [{"id": "observable-credential-boundary", "description": "UI sees auth capability and typed result but never credential material.", "scope": "local", "operational_input_refs": ["input-host-credential"], "input_closure_reason": ""}],
+      "operational_inputs": [{"id": "input-host-credential", "kind": "authority", "owner_component_ref": "component-client-config", "producer": {"kind": "external", "external_identity": "operator-owned servers.json bearer value"}, "source": "host-private validated snapshot entry", "acquired_at": "host startup", "required_until": "host exit", "preservation": "capability_bound", "mutable_between_acquire_and_use": false, "stability_basis": "credential bound to canonical serverId/url in snapshot", "invalidation_behavior": "restart required to change authority", "unavailable_outcome": "qualified server unavailable; never fall back to no-auth", "witness_refs": ["witness-credential-normal", "witness-credential-adversarial"]}],
+      "semantic_profiles": [],
+      "invariants": ["Authorization is never replayed across serverId, origin, redirect, or downgrade", "projection serializers cannot represent token"],
+      "failure_semantics": [{"id": "failure-credential-target", "class": "unknown-or-redirected-target", "source": "unsupported_input", "outcome": "reject before credential forwarding", "requirement_effect": "preserves", "recovery": "none"}],
+      "verification": [{"id": "verify-credential-boundary", "requirement_refs": ["FR-WHC-001", "FR-WHC-004"], "tier": "T2", "method": "capture projections and upstream requests for both adapters including redirect/cross-target cases", "criterion": "token only on exact configured target; zero token bytes in UI/IPC/HTTP config/log output"}],
+      "witnesses": [
+        {"id": "witness-credential-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-WHC-001", "FR-WHC-004"], "precondition": "bearer server selected", "stimulus": "qualified operation", "expected_observables": ["upstream authenticated and UI token-free"], "expected_observable_refs": ["observable-credential-boundary"], "forbidden_outcomes": ["renderer/browser token"], "verification_refs": ["verify-credential-boundary"]},
+        {"id": "witness-credential-adversarial", "case": "adversarial", "risk_tags": ["boundary", "stale"], "requirement_refs": ["FR-WHC-001", "FR-WHC-004"], "precondition": "unknown id or redirect or mismatched origin", "stimulus": "attempt operation", "expected_observables": ["request rejected without credential forwarding"], "expected_observable_refs": ["observable-credential-boundary"], "forbidden_outcomes": ["cross-target Authorization"], "verification_refs": ["verify-credential-boundary"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-host-neutral-fleet-provider", "adr-20260727-web-host-transport-continuity"]
+    },
+    {
+      "id": "contract-web-transport",
+      "dimension": "security_boundary",
+      "subject": "qualified same-origin Web host transport continuity",
+      "owner_component_ref": "component-web-host",
+      "related_requirements": ["FR-WHC-004", "FR-WHC-006"],
+      "related_units": ["Relocate and generalize Web host"],
+      "decision_rules": [{"id": "decision-web-transport", "condition": "request matches /host/config or /host/servers/{serverId}/api|ws", "evidence_mode": "total", "input_refs": ["input-web-request"], "epistemic_state": "determinate", "outcome": "serve credential-free config or validate same-origin/target then proxy with host credential", "observable_refs": ["observable-web-transport"], "rationale": "Qualified path removes implicit default while retaining browser boundary."}],
+      "observable_effects": [{"id": "observable-web-transport", "description": "Static assets and qualified routes retain CSP, headers, same-origin WS and retryable 503/Retry-After semantics.", "scope": "local", "operational_input_refs": ["input-web-request"], "input_closure_reason": ""}],
+      "operational_inputs": [{"id": "input-web-request", "kind": "information", "data_scope": "single_value", "owner_component_ref": "component-web-host", "producer": {"kind": "external", "external_identity": "browser HTTP/WebSocket client"}, "source": "same-origin listener request", "acquired_at": "request admission", "required_until": "response/proxy completion", "preservation": "immutable_value", "mutable_between_acquire_and_use": false, "stability_basis": "net/http request snapshot", "invalidation_behavior": "cancel upstream on client cancellation", "unavailable_outcome": "typed 4xx or retryable 503", "witness_refs": ["witness-web-transport-normal", "witness-web-transport-adversarial"]}],
+      "semantic_profiles": [],
+      "invariants": ["all responses carry defensive headers", "WS Origin must match host when present", "legacy unqualified /api and /ws are not provider routes"],
+      "failure_semantics": [{"id": "failure-web-upstream", "class": "upstream_not_ready", "source": "transient", "outcome": "503 with Retry-After: 1 for retryable network classes", "requirement_effect": "preserves", "recovery": "retry"}, {"id": "failure-web-origin", "class": "forbidden_origin", "source": "unsupported_input", "outcome": "403 without upstream/auth forwarding", "requirement_effect": "preserves", "recovery": "none"}],
+      "verification": [{"id": "verify-web-transport", "requirement_refs": ["FR-WHC-004", "FR-WHC-006"], "tier": "T1", "method": "httptest with fake upstream HTTP/WS and header capture", "criterion": "moved tests plus qualified route, origin, auth, redirect and retry matrices pass"}],
+      "witnesses": [
+        {"id": "witness-web-transport-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-WHC-004", "FR-WHC-006"], "precondition": "valid serverId and same origin", "stimulus": "load asset and open qualified API/WS", "expected_observables": ["content/headers and proxied response"], "expected_observable_refs": ["observable-web-transport"], "forbidden_outcomes": ["missing CSP", "token in browser"], "verification_refs": ["verify-web-transport"]},
+        {"id": "witness-web-transport-adversarial", "case": "adversarial", "risk_tags": ["boundary", "recovery"], "requirement_refs": ["FR-WHC-004", "FR-WHC-006"], "precondition": "cross-origin WS, unknown id, redirect, or refused upstream", "stimulus": "request qualified route", "expected_observables": ["403/404/rejected redirect or retryable 503 as typed"], "expected_observable_refs": ["observable-web-transport"], "forbidden_outcomes": ["credential replay", "header weakening", "502 for retryable refusal"], "verification_refs": ["verify-web-transport"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-web-host-transport-continuity"]
+    },
+    {
+      "id": "contract-web-module",
+      "dimension": "migration_compatibility",
+      "subject": "independent clients/web-host module boundary",
+      "owner_component_ref": "component-web-host",
+      "related_requirements": ["FR-WHC-005"],
+      "related_units": ["Relocate and generalize Web host"],
+      "decision_rules": [{"id": "decision-web-module", "condition": "Web host builds or tests", "evidence_mode": "total", "input_refs": [], "epistemic_state": "determinate", "outcome": "resolve only stdlib and nested-module dependencies", "observable_refs": ["observable-web-module"], "rationale": "Module metadata is authoritative."}],
+      "observable_effects": [{"id": "observable-web-module", "description": "Web host builds/tests with GOWORK=off and no services module availability.", "scope": "single", "operational_input_refs": [], "input_closure_reason": "go.mod and local source fully determine module resolution."}],
+      "operational_inputs": [],
+      "semantic_profiles": [{"id": "profile-web-module-evolution", "kind": "contract_evolution", "surface": "src/cmd/uihost + src/uihost to clients/web-host nested module", "consumer_refs": [{"kind": "external", "external_identity": "Makefile/CI/run-dev"}], "compatibility": "breaking", "migration_strategy": "move command/package/tests/embed assets and replace parent tlsdev import with module-owned internal TLS implementation", "rollout": "single repository commit after nested gate passes", "rollback": "revert the flag-day commit as a whole; no dual module path", "baseline_verification_refs": ["verify-web-module"], "target_verification_refs": ["verify-web-module"], "witness_refs": ["witness-web-module-adversarial"]}],
+      "invariants": ["no services module require/replace/import/internal edge", "UI dist is embedded from clients/web-host/dist"],
+      "failure_semantics": [{"id": "failure-web-module-edge", "class": "forbidden-parent-edge", "source": "internal_violation", "outcome": "CI gate fails", "requirement_effect": "preserves", "recovery": "fail_fast"}],
+      "verification": [{"id": "verify-web-module", "requirement_refs": ["FR-WHC-005"], "tier": "T1", "method": "GOWORK=off go test ./..., go list -m -json all, and import audit inside clients/web-host", "criterion": "success with zero root-module edge and retained host/TLS tests", "command": "cd clients/web-host && GOWORK=off go test ./..."}],
+      "witnesses": [
+        {"id": "witness-web-module-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-WHC-005"], "precondition": "nested module checkout", "stimulus": "build/test with GOWORK=off", "expected_observables": ["independent success"], "expected_observable_refs": ["observable-web-module"], "forbidden_outcomes": ["parent resolution"], "verification_refs": ["verify-web-module"]},
+        {"id": "witness-web-module-adversarial", "case": "adversarial", "risk_tags": ["stale", "recovery", "unsupported_environment"], "requirement_refs": ["FR-WHC-005"], "precondition": "services module cache/workspace unavailable and stale parent import inserted", "stimulus": "run module gate", "expected_observables": ["gate rejects stale edge; clean tree passes"], "expected_observable_refs": ["observable-web-module"], "forbidden_outcomes": ["replace hides dependency"], "verification_refs": ["verify-web-module"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-independent-web-host-module"]
+    },
+    {
+      "id": "contract-services-flag-day",
+      "dimension": "migration_compatibility",
+      "subject": "independent services module, clients/config rename, and top-level ownership cutover",
+      "owner_component_ref": "component-services-layout",
+      "related_requirements": ["FR-WHC-007", "FR-WHC-008"],
+      "related_units": ["Execute services Go module flag day", "Enforce host parity and documentation invariants"],
+      "decision_rules": [{"id": "decision-services-flag-day", "condition": "tracked migration is applied", "evidence_mode": "total", "input_refs": [], "epistemic_state": "determinate", "outcome": "one services module, one clients/config owner, allowed top-level umbrellas, updated active consumers, preserved history", "observable_refs": ["observable-services-layout"], "rationale": "Repository-root Go module, flat packages, dual paths and src wrappers are invalid states."}],
+      "observable_effects": [{"id": "observable-services-layout", "description": "services commands and active docs/CI resolve new paths; src and clients/desktop-config are absent; completed history is byte-stable.", "scope": "global", "operational_input_refs": [], "input_closure_reason": "Tracked tree, document statuses and command outputs are locally enumerable."}],
+      "operational_inputs": [],
+      "semantic_profiles": [{"id": "profile-services-evolution", "kind": "contract_evolution", "surface": "src module contents to services/, clients/desktop-config to clients/config, and active path consumers", "consumer_refs": [{"kind": "external", "external_identity": "Go toolchain, Makefile, CI, scripts and contributors"}, {"kind": "component", "component_ref": "component-web-host"}], "compatibility": "breaking", "migration_strategy": "git-aware flag day; active means executable/build config, source/tests, AGENTS/ARCHITECTURE, docs/design, current guides/notes, and nonterminal changes; done/abandoned changes remain historical", "rollout": "one commit after services and Web-host gates pass; no root module or src wrapper", "rollback": "revert the complete commit; never keep aliases/symlinks", "baseline_verification_refs": ["verify-services-baseline"], "target_verification_refs": ["verify-services-target"], "witness_refs": ["witness-services-adversarial"]}],
+      "invariants": ["services/go.mod declares github.com/takezoh/agent-grid/services", "src and clients/desktop-config are absent after cutover", "top-level source ownership is limited to services, clients, protocol, contracts, docs, deploy, scripts, and test-harness", "root .claude is never overwritten by tracked empty src/.claude placeholders", "no completed history rewrite solely for current paths"],
+      "failure_semantics": [{"id": "failure-services-stale-reference", "class": "active-src-reference", "source": "internal_violation", "outcome": "migration/CI gate fails with owning file", "requirement_effect": "preserves", "recovery": "fail_fast"}],
+      "verification": [
+        {"id": "verify-services-baseline", "requirement_refs": ["FR-WHC-007", "FR-WHC-008"], "tier": "T0", "method": "capture tracked move manifest, active-reference inventory, and completed-history hashes before cutover", "criterion": "every named tracked source has one target and every exempt document has terminal status"},
+        {"id": "verify-services-target", "requirement_refs": ["FR-WHC-007", "FR-WHC-008"], "tier": "T1", "method": "run services test/vet/lint/build, Web-host gate, top-level ownership and active-reference audits, docs conformance and history hash comparison", "criterion": "all gates pass; services module path is exact; src and clients/desktop-config are absent; terminal history hashes unchanged", "command": "cd services && GOWORK=off go test ./..."}
+      ],
+      "witnesses": [
+        {"id": "witness-services-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-WHC-007", "FR-WHC-008"], "precondition": "complete tracked move manifest", "stimulus": "apply flag day and run gates", "expected_observables": ["one services layout, clients/config owner, and unchanged history"], "expected_observable_refs": ["observable-services-layout"], "forbidden_outcomes": ["src wrapper", "root Go packages"], "verification_refs": ["verify-services-baseline", "verify-services-target"]},
+        {"id": "witness-services-adversarial", "case": "adversarial", "risk_tags": ["stale", "recovery"], "requirement_refs": ["FR-WHC-007", "FR-WHC-008"], "precondition": "active workflow retains src/go.mod or clients/desktop-config, a root go.mod appears, or migration touches done change/root .claude", "stimulus": "run target audit", "expected_observables": ["gate names stale/destructive consumer and fails"], "expected_observable_refs": ["observable-services-layout"], "forbidden_outcomes": ["silent partial cutover", "history/config overwrite"], "verification_refs": ["verify-services-baseline", "verify-services-target"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-services-go-module-flag-day"]
+    }
+  ],
+  "reference_algorithms": [],
+  "implementation_decisions_remaining": [],
+  "non_goals": {
+    "must_not": ["Add a services-module dependency to clients/web-host", "Create a repository-root Go module or flat Go package tree", "Keep browser one-server or Electron-only fleet semantics", "Keep src compatibility paths after the flag day"],
+    "should_not": ["Rewrite terminal historical change prose", "Introduce a generic backend/runtime/host umbrella; services is the named nonclient service boundary"]
+  }
+}

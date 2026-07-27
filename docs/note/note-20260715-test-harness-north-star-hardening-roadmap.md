@@ -12,7 +12,7 @@ owners: []
 relations: []
 source_paths:
 - test-harness/
-- src/internal/harnesspolicy/
+- services/internal/harnesspolicy/
 - .github/workflows/
 - scripts/
 - clients/ui/

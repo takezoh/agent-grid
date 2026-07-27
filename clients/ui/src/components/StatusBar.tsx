@@ -1,5 +1,6 @@
 import { type JSX, useEffect, useState } from "react";
 import type { FleetHealth } from "../auth";
+import { makeFleetProvider } from "../fleet/provider";
 import { formatElapsed, useNow1Hz } from "../hooks/useNow1Hz";
 import { type ConnectionStatus, useDaemonStore } from "../store/daemon";
 import "../css/view.css";
@@ -50,14 +51,23 @@ export function StatusBar({
   const daemonDisconnected = useDaemonStore((s) => s.daemonDisconnected);
   const [fleet, setFleet] = useState<FleetHealth | null>(null);
   useEffect(() => {
-    const api = window.agentGridWorkspace?.serverHealth;
-    if (!api) return;
+    const provider = makeFleetProvider();
     let active = true;
     const refresh = () => {
-      void api
-        .list()
-        .then((next) => {
-          if (active) setFleet(next);
+      void provider
+        .listConfigs()
+        .then((outcomes) => {
+          if (active) {
+            setFleet({
+              checkedAt: new Date().toISOString(),
+              servers: outcomes.map((outcome) => ({
+                serverId: outcome.serverId,
+                displayName: outcome.serverLabel,
+                state: outcome.state,
+                ...(outcome.reason ? { reason: outcome.reason } : {}),
+              })),
+            });
+          }
         })
         .catch(() => {});
     };

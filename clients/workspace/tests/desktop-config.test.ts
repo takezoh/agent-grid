@@ -203,7 +203,7 @@ describe("desktop config", () => {
     const directory = tempDir();
     loadOrCreateDesktopConfig(directory);
     fs.copyFileSync(
-      path.resolve("../desktop-config/fixtures", fixture),
+      path.resolve("../config/fixtures", fixture),
       path.join(directory, "servers.json"),
     );
 
@@ -217,7 +217,7 @@ describe("desktop config", () => {
     const directory = tempDir();
     loadOrCreateDesktopConfig(directory);
     fs.copyFileSync(
-      path.resolve("../desktop-config/fixtures", fixture),
+      path.resolve("../config/fixtures", fixture),
       path.join(directory, "servers.json"),
     );
 

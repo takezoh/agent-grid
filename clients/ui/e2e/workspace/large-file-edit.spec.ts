@@ -64,7 +64,7 @@ test("verify-editor-large-file-editing-performance: 200 keystrokes stay within b
     await route.fulfill({ status: 405, body: "method not allowed" });
   });
 
-  await page.goto("/#token=test");
+  await page.goto("/?server=test-server#token=test");
   await backend.waitForSocketOpen();
 
   await backend.emit({

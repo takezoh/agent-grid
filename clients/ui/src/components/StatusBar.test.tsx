@@ -47,15 +47,12 @@ describe("StatusBar (FR-023 / UAC-010)", () => {
 
   it("summarizes a partial hosted fleet outage without counting disabled servers", async () => {
     window.agentGridWorkspace = {
-      serverHealth: {
-        list: vi.fn(async () => ({
-          checkedAt: "2026-07-27T00:00:00Z",
-          servers: [
-            { serverId: "a", displayName: "A", state: "connected" },
-            { serverId: "b", displayName: "B", state: "unavailable", reason: "HTTP 503" },
-            { serverId: "c", displayName: "C", state: "disabled" },
-          ],
-        })),
+      sessionFleet: {
+        listConfigs: vi.fn(async () => [
+          { serverId: "a", serverLabel: "A", state: "connected" },
+          { serverId: "b", serverLabel: "B", state: "unavailable", reason: "HTTP 503" },
+        ]),
+        create: vi.fn(),
       },
     };
     useDaemonStore.setState({ status: "open", daemonDisconnected: false });

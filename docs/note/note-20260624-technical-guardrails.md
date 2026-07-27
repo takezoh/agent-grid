@@ -17,13 +17,13 @@ relations:
 - {type: references, target: note-20260624-user-orchestrator}
 source_paths:
 - WORKFLOW.md
-- src/orchestrator/wfconfig/
-- src/orchestrator/scheduler/eligibility.go
-- src/orchestrator/scheduler/slots.go
-- src/platform/agent/codexclient/client.go
-- src/orchestrator/agent/handler.go
-- src/orchestrator/prompt/
-- src/orchestrator/scheduler/preflight.go
+- services/orchestrator/wfconfig/
+- services/orchestrator/scheduler/eligibility.go
+- services/orchestrator/scheduler/slots.go
+- services/platform/agent/codexclient/client.go
+- services/orchestrator/agent/handler.go
+- services/orchestrator/prompt/
+- services/orchestrator/scheduler/preflight.go
 topic: technical
 summary: 'The orchestrator runs coding agents unattended against an issue tracker.
   Guardrails are the mechanisms that keep those agents inside safe, intended bounds

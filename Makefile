@@ -1,10 +1,12 @@
-BRIDGE           := bridge
-ORCHESTRATOR     := orchestrator
-CLAUDE_APP_SERVER := claude-app-server
-SERVER           := server
+BIN_DIR          := dist/bin
+BRIDGE           := $(BIN_DIR)/bridge
+ORCHESTRATOR     := $(BIN_DIR)/orchestrator
+CLAUDE_APP_SERVER := $(BIN_DIR)/claude-app-server
+SERVER           := $(BIN_DIR)/server
 WSL_SUPERVISOR   := dist/windows/agent-grid-wsl-supervisor.exe
-WEB              := web
-SRC_DIR     := src
+WEB              := $(BIN_DIR)/web-host
+SERVICES_DIR     := services
+WEB_HOST_DIR     := clients/web-host
 INSTALL_DIR    := $(HOME)/.local/bin
 LIBEXEC_DIR    := $(HOME)/.local/lib/agent-grid
 SYSTEMD_USER_DIR := $(HOME)/.config/systemd/user
@@ -18,7 +20,7 @@ CODEX_MANAGED_BIN := $(HOME)/.codex/packages/standalone/current/codex
 SERVER_BIN  := agent-grid-server
 WEB_BIN     := agent-grid-web
 
-CODEX_SCHEMA_DIR := $(SRC_DIR)/platform/agent/codexschema
+CODEX_SCHEMA_DIR := $(SERVICES_DIR)/platform/agent/codexschema
 CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
 .PHONY: build build-orchestrator build-claude-app-server build-server build-wsl-supervisor-windows build-web build-all \
@@ -31,28 +33,32 @@ CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 # build builds the main backend (cmd/server) — the merged daemon + HTTP/WS
 # gateway — plus the in-container helper binary.
 build: build-server
-	cd $(SRC_DIR) && go build -o ../$(BRIDGE) ./cmd/bridge
+	mkdir -p $(BIN_DIR)
+	cd $(SERVICES_DIR) && go build -o ../$(BRIDGE) ./cmd/bridge
 
 build-orchestrator:
-	cd $(SRC_DIR) && go build -o ../$(ORCHESTRATOR) ./cmd/orchestrator
+	mkdir -p $(BIN_DIR)
+	cd $(SERVICES_DIR) && go build -o ../$(ORCHESTRATOR) ./cmd/orchestrator
 
 build-claude-app-server:
-	cd $(SRC_DIR) && go build -o ../$(CLAUDE_APP_SERVER) ./cmd/claude-app-server
+	mkdir -p $(BIN_DIR)
+	cd $(SERVICES_DIR) && go build -o ../$(CLAUDE_APP_SERVER) ./cmd/claude-app-server
 
 # build-server builds the headless backend (cmd/server): the merged daemon +
 # REST/WebSocket gateway that browser/CLI clients connect to. It serves no UI.
 build-server:
-	cd $(SRC_DIR) && go build -o ../$(SERVER) ./cmd/server
+	mkdir -p $(BIN_DIR)
+	cd $(SERVICES_DIR) && go build -o ../$(SERVER) ./cmd/server
 
 # Build the Windows SCM supervisor from any Go host. Copy the resulting binary
 # to a Windows-local, administrator-controlled directory before registration.
 build-wsl-supervisor-windows:
 	mkdir -p dist/windows
-	cd $(SRC_DIR) && GOOS=windows GOARCH=amd64 go build -o ../$(WSL_SUPERVISOR) ./cmd/agent-grid-wsl-supervisor
+	cd $(SERVICES_DIR) && GOOS=windows GOARCH=amd64 go build -o ../$(WSL_SUPERVISOR) ./cmd/agent-grid-wsl-supervisor
 
 WEB_DIR             := clients/ui
 WEB_DIST            := $(WEB_DIR)/dist/index.html
-UIHOST_DIST         := src/uihost/dist/index.html
+WEB_HOST_DIST       := $(WEB_HOST_DIR)/internal/webhost/dist/index.html
 WEB_NPM_STAMP       := $(WEB_DIR)/node_modules/.install-stamp
 # -prune skips the descent into node_modules / dist entirely (a post-filter
 # would still walk those subtrees — ~50k files for a React app — on every
@@ -70,24 +76,22 @@ $(WEB_NPM_STAMP): $(WEB_DIR)/package-lock.json
 $(WEB_DIST): $(WEB_NPM_STAMP) $(WEB_SRC_FILES)
 	cd $(WEB_DIR) && npm run build
 
-# Sync the Vite build output into the embed dir consumed by cmd/uihost
-# (//go:embed all:dist in src/uihost). .gitkeep is the only tracked file
+# Sync the Vite build output into the embed dir consumed by clients/web-host.
+# .gitkeep is the only tracked file
 # there; everything else is derived from clients/ui.
-$(UIHOST_DIST): $(WEB_DIST)
-	find src/uihost/dist -mindepth 1 ! -name .gitkeep -delete
-	cp -r $(WEB_DIR)/dist/. src/uihost/dist/
+$(WEB_HOST_DIST): $(WEB_DIST)
+	find $(WEB_HOST_DIR)/internal/webhost/dist -mindepth 1 ! -name .gitkeep -delete
+	cp -r $(WEB_DIR)/dist/. $(WEB_HOST_DIR)/internal/webhost/dist/
 
-# build-web-frontend: alias for $(UIHOST_DIST). Stays in the .PHONY list as a
+# build-web-frontend: alias for $(WEB_HOST_DIST). Stays in the .PHONY list as a
 # discoverable target name; the real work lives in the file-target rules above.
-build-web-frontend: $(UIHOST_DIST)
+build-web-frontend: $(WEB_HOST_DIST)
 
-# build-web builds the shared-UI host (cmd/uihost): serves the session UI to
-# browsers and the Electron workspace, and reverse-proxies /api and /ws to the
-# backend. The output binary and installed service keep the historical name
-# `web` / agent-grid-web (ops vocabulary); the source lives at src/uihost.
-# Depends on $(UIHOST_DIST) so //go:embed always picks up fresh CSS / JS.
-build-web: $(UIHOST_DIST)
-	cd $(SRC_DIR) && go build -o ../$(WEB) ./cmd/uihost
+# build-web builds the independently versioned Web client host. It loads the
+# shared client configuration and serves server-qualified same-origin routes.
+build-web: $(WEB_HOST_DIST)
+	mkdir -p $(BIN_DIR)
+	cd $(WEB_HOST_DIR) && GOWORK=off go build -o ../../$(WEB) ./cmd/web-host
 
 build-all: build build-orchestrator build-claude-app-server build-server build-web
 
@@ -181,7 +185,8 @@ update-server: install-server
 	systemctl --user restart agent-grid-server.service
 
 test:
-	cd $(SRC_DIR) && go test ./...
+	cd $(SERVICES_DIR) && GOWORK=off go test ./...
+	cd $(WEB_HOST_DIR) && GOWORK=off go test ./...
 
 # test-race runs the concurrency-sensitive subtrees under the race detector.
 # Scoped to platform/termvt (Session actor model + emulator drain) and
@@ -190,13 +195,14 @@ test:
 # haven't validated under -race yet. Add subtrees here as they're audited.
 # See docs/note/note-20260624-agent-testing.md for the rollout plan.
 test-race:
-	cd $(SRC_DIR) && go test -race -count=1 ./platform/termvt/... ./host/runtime/...
+	cd $(SERVICES_DIR) && GOWORK=off go test -race -count=1 ./platform/termvt/... ./host/runtime/...
 
 vet:
-	cd $(SRC_DIR) && go vet ./...
+	cd $(SERVICES_DIR) && GOWORK=off go vet ./...
+	cd $(WEB_HOST_DIR) && GOWORK=off go vet ./...
 
 lint:
-	cd $(SRC_DIR) && go tool golangci-lint run ./...
+	cd $(SERVICES_DIR) && GOWORK=off go tool golangci-lint run ./...
 
 # Opt-in fidelity backstop: real-CLI e2e for the fakes.
 #
@@ -233,7 +239,7 @@ verify-nightly:
 
 verify-bridge-deps:
 	@echo "Checking that bridge does not import host/state, host/uiproc, or platform/features..."
-	@cd $(SRC_DIR) && go list -deps ./cmd/bridge | grep -E 'takezoh/agent-grid/(host/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
+	@cd $(SERVICES_DIR) && GOWORK=off go list -deps ./cmd/bridge | grep -E 'takezoh/agent-grid/services/(host/(state|uiproc)|platform/features)$$' && echo "FAIL: bridge imports forbidden packages" && exit 1 || echo "OK: bridge deps are clean"
 
 # generate-sdks: quicktype models from protocol/*.schema.json into clients/sdk.
 # openapi.yaml is REST annex only (not an input). Pin: clients/sdk package-lock
@@ -274,7 +280,7 @@ codex-schema-check:
 
 # codex-schema-update — regenerate pinned schema bundles and Go types.
 # Run this when upgrading codex. Requires codex and npx (quicktype) in PATH.
-# After running: update the version line in src/platform/agent/codexschema/README.md.
+# After running: update the version line in services/platform/agent/codexschema/README.md.
 codex-schema-update:
 	@echo "Generating codex JSON Schema into $(CODEX_SCHEMA_TMP)..."
 	@rm -rf $(CODEX_SCHEMA_TMP)

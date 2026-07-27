@@ -14,8 +14,8 @@ relations:
 - {type: references, target: note-20260624-user-orchestrator}
 source_paths:
 - WORKFLOW.md
-- src/orchestrator/workflowfile/
-- src/orchestrator/prompt/
+- services/orchestrator/workflowfile/
+- services/orchestrator/prompt/
 topic: agent
 summary: 'WORKFLOW.md has two parts: a YAML front-matter block (configuration) and
   a Markdown body (the prompt template handed to each dispatched agent). This page

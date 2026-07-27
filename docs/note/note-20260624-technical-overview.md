@@ -18,7 +18,7 @@ relations:
 - {type: references, target: note-20260624-technical-harness-engineering-assessment}
 source_paths:
 - ARCHITECTURE.md
-- src/.golangci.yml
+- services/.golangci.yml
 topic: technical
 summary: Internals organized by the three architecture layers. The canonical overview
   — scope, design principles, the layer trees, and import boundaries — is in ARCHITECTURE.md.
@@ -40,7 +40,7 @@ orchestrator/  Symphony SPEC implementation — poll/dispatch/reconcile + observ
 cmd/           Binary entry points
 ```
 
-Import direction (enforced by `depguard`, `src/.golangci.yml`): `cmd/* → client/* + orchestrator/* + platform/*` with no reverse. `platform/*` imports neither `client/*` nor `orchestrator/*`; `client/*` does not import `orchestrator/*`; `orchestrator/*` does not import `client/*`.
+Import direction (enforced by `depguard`, `services/.golangci.yml`): `cmd/* → client/* + orchestrator/* + platform/*` with no reverse. `platform/*` imports neither `client/*` nor `orchestrator/*`; `client/*` does not import `orchestrator/*`; `orchestrator/*` does not import `client/*`.
 
 ## Per-layer deep dives
 

@@ -111,10 +111,10 @@ compatibility_policies:
   before schema changes.
 - Keep legacy component identifiers resolvable through documentation aliases.
 source_paths:
-- src/host/
-- src/server/api/
-- src/cmd/server/
-- src/cmd/uihost/
+- services/host/
+- services/server/api/
+- services/cmd/server/
+- clients/web-host/
 ---
 
 # Client architecture
@@ -125,7 +125,7 @@ The complete legacy sources remain below as migration history. The governing con
 
 ## Windows WSL host supervisor — machine-wide structured record
 
-Governing ADR: `adr-20260725-wsl-supervisor-machine-wide-record`. Implementation lives in `src/platform/wslhost` (`RecordSink`, registration snapshot `log_path`).
+Governing ADR: `adr-20260725-wsl-supervisor-machine-wide-record`. Implementation lives in `services/platform/wslhost` (`RecordSink`, registration snapshot `log_path`).
 
 ### Record surface
 
@@ -173,14 +173,14 @@ relations:
 - {type: referencedBy, target: component-20260624-client-state-monitoring}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/platform/termvt/
-- src/host/config/config.go
+- services/platform/termvt/
+- services/host/config/config.go
 - ARCHITECTURE.md
-- src/platform/
-- src/host/
-- src/cmd/
-- src/cmd/server/
-- src/cmd/uihost/
+- services/platform/
+- services/host/
+- services/cmd/
+- services/cmd/server/
+- clients/web-host/
 provides:
 - interfaces-data-files-and-file-structure
 summary: All state, runtime, and driver layers are defined as interfaces for testability.
@@ -489,7 +489,7 @@ User-facing `settings.toml` fields and defaults live in the source code (`host/c
 ## File Structure
 
 Source tree is split into three top-level trees under `src/` — see ARCHITECTURE.md "Layer Structure".
-`src/platform/` holds shared infrastructure, `src/host/` holds client-specific code, `src/cmd/` holds binary entry points.
+`services/platform/` holds shared infrastructure, `services/host/` holds client-specific code, `services/cmd/` holds binary entry points.
 
 ```
 src/
@@ -510,8 +510,6 @@ src/
 │   │                       host-exec / mcp-exec / help)
 │   ├── hostexec.go         `server host-exec` shim (in-container glue)
 │   └── mcpexec.go          `server mcp-exec` shim (in-container glue)
-├── cmd/uihost/             Web frontend host binary — serves embedded src/uihost/dist
-│                        and reverse-proxies /api + /ws to the server gateway
 ├── cmd/bridge/  Bridge binary (thin container-side client; uses host/proto)
 ├── cmd/claude-app-server/  Codex app-server stdio shim for Claude
 ├── host/event/
@@ -703,7 +701,7 @@ src/
 │   │   ├── css/              Stylesheets
 │   │   └── auth.ts           Bearer-token handshake
 │   ├── dist/            Built bundle (vite build output)
-│   ├── embed.go         //go:embed dist/* — exposes the built bundle to cmd/uihost
+│   ├── embed.go         //go:embed dist/* — owned by clients/web-host
 │   ├── headers.go       Static-asset header helpers
 │   └── host.go          HTTP host that serves the embedded bundle
 ├── host/procio/
@@ -785,10 +783,10 @@ relations:
 - {type: referencedBy, target: component-20260624-client-state-monitoring}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/platform/termvt/
+- services/platform/termvt/
 - ARCHITECTURE.md
-- src/host/proto/
-- src/host/proto/sessions/
+- services/host/proto/
+- services/host/proto/sessions/
 provides:
 - inter-process-communication-ipc-and-tool-system
 summary: 'JSON messaging over Unix domain sockets. Two physical endpoints serve different
@@ -1175,13 +1173,13 @@ relations:
 - {type: referencedBy, target: component-20260705-client-web-browser-harness}
 source_paths:
 - clients/ui/
-- src/cmd/server/
-- src/server/api/
+- services/cmd/server/
+- services/server/api/
 - ARCHITECTURE.md
-- src/host/state/
-- src/host/runtime/
-- src/host/state/view/
-- src/host/driver/
+- services/host/state/
+- services/host/runtime/
+- services/host/state/view/
+- services/host/driver/
 provides:
 - client-agent-grid-client-session-lifecycle-manager
 summary: 'client/ is all of the client: the in-process session daemon (state machine
@@ -1219,7 +1217,8 @@ This split is why the core is testable without mocks: `Reduce` and `Driver.Step`
 | `host/proto/` | Typed IPC wire layer — Command / Response / ServerEvent sum types + codec. Imports `state/view` only. |
 | `host/proto/sessions/` | Session-management helpers wrapping `proto.Client`. Imports `state`. |
 | `host/tools/` | Operator tool abstraction (palette-style tool invocation surfaced through IPC). |
-| `clients/ui/` (repo root) | Browser frontend assets (React + xterm.js), served by `cmd/uihost` via `src/uihost`. |
+| `clients/ui/` (repo root) | Shared frontend assets consumed through the host-neutral FleetProvider contract. |
+| `clients/web-host/` | Independent Web client host: embeds the SPA, loads client configuration, and provides server-qualified HTTP/WS transport. |
 | `host/config/` | TOML loading, DataDir injection, SandboxResolver. |
 | `client/cli/` | Subcommand registry — tool-specific subcommands registered via `init()`. |
 | `host/lib/peers/` | Peers MCP server (IPC specific to the client). |
@@ -1303,13 +1302,13 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
 - clients/ui/
-- src/cmd/server/
+- services/cmd/server/
 - clients/ui/src/
-- src/host/lib/agenthook/
-- src/server/api/
-- src/host/runtime/subsystem/stream/
-- src/host/runtime/pty_backend.go
-- src/platform/termvt/session.go
+- services/host/lib/agenthook/
+- services/server/api/
+- services/host/runtime/subsystem/stream/
+- services/host/runtime/pty_backend.go
+- services/platform/termvt/session.go
 provides:
 - process-model-frame-model-and-rendering-responsibilities
 summary: agent-grid rendering divides responsibilities between the driver and the
@@ -1574,9 +1573,9 @@ relations:
 - {type: references, target: component-20260624-client-ipc}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/platform/termvt/
-- src/host/state/
-- src/host/runtime/
+- services/platform/termvt/
+- services/host/state/
+- services/host/runtime/
 provides:
 - state-monitoring
 summary: For the interactive operation processing flow (client → IPC → Reduce → Effect),
@@ -1829,7 +1828,7 @@ relations:
 - {type: referencedBy, target: component-20260624-platform-termvt-multiplexer-testing}
 - {type: referencedBy, target: note-20260624-agent-testing}
 source_paths:
-- src/host/runtime/subsystem/stream/
+- services/host/runtime/subsystem/stream/
 provides:
 - stream-backend-real-app-server-e2e-fidelity-backstop
 summary: The routing-isolation harness (stream-backend-testing.md) runs against an
@@ -1935,7 +1934,7 @@ relations:
 - {type: referencedBy, target: note-20260624-agent-testing}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 source_paths:
-- src/host/runtime/subsystem/stream/
+- services/host/runtime/subsystem/stream/
 provides:
 - stream-backend-routing-isolation-test-harness
 summary: 'The stream subsystem backend multiplexes many frames (agents) over a single
@@ -2025,13 +2024,13 @@ asserts two same-cwd frames get distinct ids and never cross-talk — under
 ```sh
 # regression guards + structural fuzz seeds (the ci job's test step;
 # a separate `fuzz` CI job also actively fuzzes — see .github/workflows/ci.yml)
-cd src && TMPDIR=/tmp go test ./host/runtime/subsystem/stream/
+cd services && TMPDIR=/tmp go test ./host/runtime/subsystem/stream/
 
 # concurrency check
-cd src && go test -race ./host/runtime/subsystem/stream/
+cd services && go test -race ./host/runtime/subsystem/stream/
 
 # active fuzzing
-cd src && go test -run x -fuzz 'FuzzStreamRouting$' -fuzztime=30s \
+cd services && go test -run x -fuzz 'FuzzStreamRouting$' -fuzztime=30s \
   ./host/runtime/subsystem/stream/
 
 # fidelity backstop against a real app-server (opt-in; see stream-backend-e2e.md)
@@ -2113,7 +2112,7 @@ WebSocket は `page.addInitScript()` で差し替えて初期 event 列を制御
 - visual regression や screenshot diff
 
 実機依存の観察は `docs/specs/web-terminal-mobile-ux/` の手動検証チェックリストが正本で、backend 側の
-server→view の単独契約は `src/server/api` の gateway scenario e2e が担当する。Windows E2Eは
+server→view の単独契約は `services/server/api` の gateway scenario e2e が担当する。Windows E2Eは
 ShellのWinUI/UIAとWorkspaceのElectron配線など、OS固有surfaceに限定し、共有Web UI/UXを重複検証しない。
 
 ## Parts

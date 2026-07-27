@@ -27,38 +27,38 @@
     },
     {
       "id": "claude-cli", "strategy": "triple",
-      "seam": {"path":"src/platform/lib/claude/fakeclaude/fakeclaude.go","symbol":"LauncherFunc"},
-      "fake": {"path":"src/platform/lib/claude/fakeclaude/fakeclaude.go","symbol":"NewLauncher"},
-      "contract": {"path":"src/platform/lib/claude/fakeclaude/fakeclaude_test.go","test":"TestLines_RoundTrip","invariant":"stream-json lines round trip","assertion":"reflect.DeepEqual"},
-      "fidelity": {"path":"src/platform/lib/claude/fakeclaude/claude_cli_e2e_test.go","test":"TestE2E_FakeVsRealShape","shared_input":"fakeLines","real_marker":"realTypes","suite_id":"claude-cli"}
+      "seam": {"path":"services/platform/lib/claude/fakeclaude/fakeclaude.go","symbol":"LauncherFunc"},
+      "fake": {"path":"services/platform/lib/claude/fakeclaude/fakeclaude.go","symbol":"NewLauncher"},
+      "contract": {"path":"services/platform/lib/claude/fakeclaude/fakeclaude_test.go","test":"TestLines_RoundTrip","invariant":"stream-json lines round trip","assertion":"reflect.DeepEqual"},
+      "fidelity": {"path":"services/platform/lib/claude/fakeclaude/claude_cli_e2e_test.go","test":"TestE2E_FakeVsRealShape","shared_input":"fakeLines","real_marker":"realTypes","suite_id":"claude-cli"}
     },
     {
       "id": "codex-app-server", "strategy": "triple",
-      "seam": {"path":"src/platform/agent/fakecodex/fakecodex.go","symbol":"TurnHandler"},
-      "fake": {"path":"src/platform/agent/fakecodex/fakecodex.go","symbol":"New"},
-      "contract": {"path":"src/platform/agent/fakecodex/fakecodex_test.go","test":"TestDefaultTurnContractPreservesMissingKeys","invariant":"default turn wire keys remain stable","assertion":"reflect.DeepEqual"},
-      "fidelity": {"path":"src/platform/agent/fakecodex/codex_appserver_e2e_test.go","test":"TestE2E_FakeVsRealMethods","shared_input":"runFakeScenario","real_marker":"runRealAppServerScenario","suite_id":"codex-app-server"}
+      "seam": {"path":"services/platform/agent/fakecodex/fakecodex.go","symbol":"TurnHandler"},
+      "fake": {"path":"services/platform/agent/fakecodex/fakecodex.go","symbol":"New"},
+      "contract": {"path":"services/platform/agent/fakecodex/fakecodex_test.go","test":"TestDefaultTurnContractPreservesMissingKeys","invariant":"default turn wire keys remain stable","assertion":"reflect.DeepEqual"},
+      "fidelity": {"path":"services/platform/agent/fakecodex/codex_appserver_e2e_test.go","test":"TestE2E_FakeVsRealMethods","shared_input":"runFakeScenario","real_marker":"runRealAppServerScenario","suite_id":"codex-app-server"}
     },
     {
       "id": "grok-cli", "strategy": "triple",
-      "seam": {"path":"src/platform/lib/grok/argv.go","symbol":"BuildCommand"},
-      "fake": {"path":"src/platform/lib/grok/fake/fake.go","symbol":"ValidateArgv"},
-      "contract": {"path":"src/platform/lib/grok/contract_test.go","test":"TestGrokLifecycleContract_SelectorShape","invariant":"lifecycle selectors keep their CLI shape","assertion":"violates lifecycle contract"},
-      "fidelity": {"path":"src/platform/lib/grok/grok_real_e2e_test.go","test":"TestFakeVsRealGrokLifecycleFlags","shared_input":"--session-id","real_marker":"AG_E2E_GROK_BIN","suite_id":"grok-cli"}
+      "seam": {"path":"services/platform/lib/grok/argv.go","symbol":"BuildCommand"},
+      "fake": {"path":"services/platform/lib/grok/fake/fake.go","symbol":"ValidateArgv"},
+      "contract": {"path":"services/platform/lib/grok/contract_test.go","test":"TestGrokLifecycleContract_SelectorShape","invariant":"lifecycle selectors keep their CLI shape","assertion":"violates lifecycle contract"},
+      "fidelity": {"path":"services/platform/lib/grok/grok_real_e2e_test.go","test":"TestFakeVsRealGrokLifecycleFlags","shared_input":"--session-id","real_marker":"AG_E2E_GROK_BIN","suite_id":"grok-cli"}
     },
     {
       "id": "agy-hooks", "strategy": "triple",
-      "seam": {"path":"src/host/driver/agy.go","symbol":"AgyDriver"},
-      "fake": {"path":"src/host/driver/drivertest/agy.go","symbol":"FakeAgyLifecycle"},
-      "contract": {"path":"src/host/driver/agy_test.go","test":"TestAgyHookLifecycle","invariant":"passive PreInvocation and fully-idle Stop project Running then Waiting","assertion":"want Waiting"},
-      "fidelity": {"path":"src/host/driver/agy_real_e2e_test.go","test":"TestFakeVsRealAgyPassiveLifecycle","shared_input":"FakeAgyLifecycle","real_marker":"AG_E2E_AGY_BIN","suite_id":"agy-hooks"}
+      "seam": {"path":"services/host/driver/agy.go","symbol":"AgyDriver"},
+      "fake": {"path":"services/host/driver/drivertest/agy.go","symbol":"FakeAgyLifecycle"},
+      "contract": {"path":"services/host/driver/agy_test.go","test":"TestAgyHookLifecycle","invariant":"passive PreInvocation and fully-idle Stop project Running then Waiting","assertion":"want Waiting"},
+      "fidelity": {"path":"services/host/driver/agy_real_e2e_test.go","test":"TestFakeVsRealAgyPassiveLifecycle","shared_input":"FakeAgyLifecycle","real_marker":"AG_E2E_AGY_BIN","suite_id":"agy-hooks"}
     },
     {
       "id": "docker-cli", "strategy": "triple",
-      "seam": {"path":"src/platform/sandbox/devcontainer/manager.go","symbol":"Manager"},
-      "fake": {"path":"src/platform/sandbox/devcontainer/fakedocker/config.go","symbol":"LoadConfig"},
-      "contract": {"path":"src/platform/sandbox/devcontainer/manager_lifecycle_test.go","test":"TestManagerLifecycle_FakeDocker","invariant":"container lifecycle commands preserve state","assertion":"assertCreateArgs"},
-      "fidelity": {"path":"src/platform/sandbox/devcontainer/docker_e2e_test.go","test":"TestE2E_FakeVsRealDocker","shared_input":"createArgs","real_marker":"realBin","suite_id":"docker-cli"}
+      "seam": {"path":"services/platform/sandbox/devcontainer/manager.go","symbol":"Manager"},
+      "fake": {"path":"services/platform/sandbox/devcontainer/fakedocker/config.go","symbol":"LoadConfig"},
+      "contract": {"path":"services/platform/sandbox/devcontainer/manager_lifecycle_test.go","test":"TestManagerLifecycle_FakeDocker","invariant":"container lifecycle commands preserve state","assertion":"assertCreateArgs"},
+      "fidelity": {"path":"services/platform/sandbox/devcontainer/docker_e2e_test.go","test":"TestE2E_FakeVsRealDocker","shared_input":"createArgs","real_marker":"realBin","suite_id":"docker-cli"}
     },
     {
       "id": "pty", "strategy": "exception", "seam": {}, "fake": {}, "contract": {}, "fidelity": {},
@@ -70,10 +70,10 @@
     },
     {
       "id": "wsl-runtime", "strategy": "triple",
-      "seam": {"path":"src/platform/wslhost/process.go","symbol":"WSLRunner"},
-      "fake": {"path":"src/platform/wslhost/process.go","symbol":"FakeWSLRunner"},
-      "contract": {"path":"src/platform/wslhost/supervisor_contract_test.go","test":"TestContractNoShutdownAndBoundTarget","invariant":"force actions target only the registered distribution","assertion":"--shutdown"},
-      "fidelity": {"path":"src/platform/wslhost/wsl_runtime_e2e_test.go","test":"TestE2E_FakeVsRealWSLBoundDistribution","shared_input":"BuildWSLExecArgv","real_marker":"wsl.exe","suite_id":"wsl-runtime"}
+      "seam": {"path":"services/platform/wslhost/process.go","symbol":"WSLRunner"},
+      "fake": {"path":"services/platform/wslhost/process.go","symbol":"FakeWSLRunner"},
+      "contract": {"path":"services/platform/wslhost/supervisor_contract_test.go","test":"TestContractNoShutdownAndBoundTarget","invariant":"force actions target only the registered distribution","assertion":"--shutdown"},
+      "fidelity": {"path":"services/platform/wslhost/wsl_runtime_e2e_test.go","test":"TestE2E_FakeVsRealWSLBoundDistribution","shared_input":"BuildWSLExecArgv","real_marker":"wsl.exe","suite_id":"wsl-runtime"}
     }
   ]
 }

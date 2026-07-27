@@ -95,7 +95,7 @@ WebClient ──(多対多)── Host ──(1対多)── Session ──(1対
 
 frame の出所は **Gateway** か **Host** のどちらか。browser はそれぞれの channel で別のフレーム種を受け取り、**混ぜない**。
 
-#### Go (`src/host/proto/response.go`)
+#### Go (`services/host/proto/response.go`)
 
 ```go
 type SessionInfo struct {
@@ -393,7 +393,7 @@ cmd/gateway/
 - frame teardown → sandbox release の経路 (d1e3a8c4)。
 - env overlay invariant ([[host-direct-env-inherit]])。
 
-### 4.3 Web client の変更 — `clients/ui/` (旧 `src/host/web/`)
+### 4.3 Web client の変更 — `clients/ui/` (旧 `services/host/web/`)
 
 #### 4.3.1 状態スライス追加
 
@@ -797,7 +797,7 @@ src/
 
 ### 13.2 depguard 拡張
 
-`src/.golangci.yml` に追加:
+`services/.golangci.yml` に追加:
 
 ```yaml
 gateway:
@@ -820,13 +820,13 @@ platform.transport:
 
 ```makefile
 build-gateway: ## Build → ./gateway
-	cd src && go build -o ../gateway ./cmd/gateway
+	cd services && go build -o ../gateway ./cmd/gateway
 ```
 
 ### 13.5 テスト方針
 
 - Gateway 単体: in-memory control tunnel mock を `platform/transport/control/fake/` に置き、relay / tunnel / authorizer の各責務を `tier-1` で覆う。**gateway no-domain 不変条件の regression guard**: session_id / display_name / capability / driver list / agent name が gateway audit log と registry にいかなる経路でも入らないことを test で観察。`UserSignedOp` が gateway 側で parse されないこと (opaque blob 維持) も test で固定。
-- 統合: server ↔ gateway ↔ web を 1 process で起動する e2e harness (`src/cmd/gateway/e2e_test.go`)。Tier-2。
+- 統合: server ↔ gateway ↔ web を 1 process で起動する e2e harness (`services/cmd/gateway/e2e_test.go`)。Tier-2。
 - Noise handshake: 既知 test vector (Noise Explorer 出力) で固定回帰。
 - 既存 [[host-direct-env-inherit]] / sandbox release 不変条件は host 側の既存テストで担保 (新規 transport で介入しない)。
 

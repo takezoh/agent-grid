@@ -17,7 +17,7 @@ test("right-click on a session row opens the session context menu", async ({ pag
     ],
   });
 
-  await page.goto("/#token=test");
+  await page.goto("/?server=test-server#token=test");
   await backend.waitForSocketOpen();
 
   await backend.emit({
@@ -77,7 +77,7 @@ test("a very long session title is truncated in the context menu and the stop co
     ],
   });
 
-  await page.goto("/#token=test");
+  await page.goto("/?server=test-server#token=test");
   await backend.waitForSocketOpen();
 
   await backend.emit({

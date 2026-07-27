@@ -5,29 +5,47 @@ import { expect, test } from "../support/test";
 type CreatedSession = { id: string };
 const PROJECT_ROOT = path.resolve(process.cwd(), "../..");
 
-async function createCodexSession(page: Page): Promise<string> {
-  const response = await page.request.post("/api/sessions", {
+function serverPath(serverId: string, pathname: string): string {
+  return `/host/servers/${encodeURIComponent(serverId)}${pathname}`;
+}
+
+async function createCodexSession(
+  page: Page,
+  serverId: string,
+  profileRevision: string,
+): Promise<string> {
+  const response = await page.request.post(serverPath(serverId, "/api/sessions"), {
     data: {
+      version: 2,
       project: PROJECT_ROOT,
-      command: "codex",
+      profile_id: "codex",
+      profile_revision: profileRevision,
+      parameters: {},
       cols: 100,
       rows: 30,
       sandbox: "host",
     },
   });
-  expect(response.status()).toBe(201);
-  return ((await response.json()) as CreatedSession).id;
+  const body = await response.text();
+  expect(response.status(), body).toBe(201);
+  return (JSON.parse(body) as CreatedSession).id;
 }
 
-async function sendTerminalInput(page: Page, sessionId: string, input: string): Promise<void> {
+async function sendTerminalInput(
+  page: Page,
+  serverId: string,
+  sessionId: string,
+  input: string,
+): Promise<void> {
   await page.evaluate(
-    async ({ id, data }) => {
-      const ticketResponse = await fetch("/api/ws-ticket", { method: "POST" });
+    async ({ server, id, data }) => {
+      const prefix = `/host/servers/${encodeURIComponent(server)}`;
+      const ticketResponse = await fetch(`${prefix}/api/ws-ticket`, { method: "POST" });
       if (!ticketResponse.ok) throw new Error(`ticket failed: ${ticketResponse.status}`);
       const { ticket } = (await ticketResponse.json()) as { ticket: string };
       const scheme = location.protocol === "https:" ? "wss:" : "ws:";
       const socket = new WebSocket(
-        `${scheme}//${location.host}/ws?ticket=${encodeURIComponent(ticket)}&session=${encodeURIComponent(id)}`,
+        `${scheme}//${location.host}${prefix}/ws?ticket=${encodeURIComponent(ticket)}&session=${encodeURIComponent(id)}`,
       );
       await new Promise<void>((resolve, reject) => {
         socket.onerror = () => reject(new Error("surface websocket failed"));
@@ -45,7 +63,7 @@ async function sendTerminalInput(page: Page, sessionId: string, input: string): 
         globalThis as typeof globalThis & { __statusE2ESockets: WebSocket[] }
       ).__statusE2ESockets.push(socket);
     },
-    { id: sessionId, data: input },
+    { server: serverId, id: sessionId, data: input },
   );
 }
 
@@ -72,17 +90,33 @@ test("real server and uihost render Codex composite status patterns", async ({ p
       globalThis as typeof globalThis & { __statusE2ETrackedSockets?: WebSocket[] }
     ).__statusE2ETrackedSockets = sockets;
   });
-  await page.goto("/#token=e2e");
+  const projection = (await (await page.request.get("/host/config")).json()) as {
+    servers: Array<{ serverId: string }>;
+  };
+  const serverId = projection.servers[0].serverId;
+  const sessionConfig = (await (
+    await page.request.get(serverPath(serverId, "/api/session-config"))
+  ).json()) as {
+    projects: Array<{
+      path: string;
+      command_profiles: Array<{ id: string; revision: string }>;
+    }>;
+  };
+  const profileRevision = sessionConfig.projects
+    .find((project) => project.path === PROJECT_ROOT)
+    ?.command_profiles.find((profile) => profile.id === "codex")?.revision;
+  expect(profileRevision).toBeTruthy();
+  await page.goto(`/?server=${encodeURIComponent(serverId)}`);
 
-  const completedID = await createCodexSession(page);
-  const activeID = await createCodexSession(page);
-  const approvalID = await createCodexSession(page);
+  const completedID = await createCodexSession(page, serverId, profileRevision as string);
+  const activeID = await createCodexSession(page, serverId, profileRevision as string);
+  const approvalID = await createCodexSession(page, serverId, profileRevision as string);
 
   await expect(page.locator(`[data-session-id="${completedID}"]`)).toBeVisible();
   await expect(page.locator(`[data-session-id="${activeID}"]`)).toBeVisible();
   await expect(page.locator(`[data-session-id="${approvalID}"]`)).toBeVisible();
 
-  await sendTerminalInput(page, completedID, "complete normally");
+  await sendTerminalInput(page, serverId, completedID, "complete normally");
   await expect(statusSlot(page, completedID)).toHaveAttribute(
     "aria-label",
     "status: Idle; Notification",
@@ -91,13 +125,13 @@ test("real server and uihost render Codex composite status patterns", async ({ p
   await expect(statusSlot(page, completedID).locator(".status-icon__action")).toHaveCount(0);
   await expect(statusSlot(page, completedID).locator(".session-status-spinner")).toHaveCount(0);
 
-  await sendTerminalInput(page, activeID, "[agent-grid-e2e:active]");
+  await sendTerminalInput(page, serverId, activeID, "[agent-grid-e2e:active]");
   await expect(statusSlot(page, activeID)).toHaveAttribute("aria-label", "status: Working");
   await expect(statusSlot(page, activeID).locator(".session-status-spinner")).toBeVisible();
   await expect(statusSlot(page, activeID).locator(".status-icon__signal")).toHaveCount(0);
   await expect(statusSlot(page, activeID).locator(".status-icon__action")).toHaveCount(0);
 
-  await sendTerminalInput(page, approvalID, "[agent-grid-e2e:approval]");
+  await sendTerminalInput(page, serverId, approvalID, "[agent-grid-e2e:approval]");
   await expect(statusSlot(page, approvalID)).toHaveAttribute(
     "aria-label",
     "status: Action required; Notification",
@@ -114,7 +148,7 @@ test("real server and uihost render Codex composite status patterns", async ({ p
       .__statusE2ETrackedSockets;
     const lifecycle = sockets?.find((socket) => {
       const url = new URL(socket.url);
-      return url.pathname === "/ws" && !url.searchParams.has("session");
+      return url.pathname.endsWith("/ws") && !url.searchParams.has("session");
     });
     if (!lifecycle) throw new Error("lifecycle websocket not found");
     lifecycle.close();

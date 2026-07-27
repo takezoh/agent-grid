@@ -16,7 +16,7 @@ relations:
 source_paths:
 - deploy/windows/register-wsl-host-service.ps1
 - deploy/windows/register-wsl-host-service.bat
-- src/cmd/agent-grid-wsl-supervisor/
+- services/cmd/agent-grid-wsl-supervisor/
 summary: Build, register, update, inspect, and remove the Agent Grid WSL host Windows
   Service.
 updated: '2026-07-26'

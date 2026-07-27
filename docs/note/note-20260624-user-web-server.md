@@ -13,9 +13,9 @@ relations:
 - {type: references, target: note-20260624-technical-web-gateway}
 source_paths:
 - Makefile
-- src/cmd/server/
-- src/cmd/uihost/
-- src/server/api/
+- services/cmd/server/
+- clients/web-host/
+- services/server/api/
 - clients/ui/
 topic: user
 summary: the pty session daemon (typed proto over a Unix socket, -data-dir rooted)
@@ -36,9 +36,10 @@ The runtime stack is two processes:
   the same process (host or devcontainer launch); several browser tabs can
   attach to and share one session. Sessions outlive any single browser
   client.
-- **`web` (web-client host)** — serves the browser UI (React + xterm.js) and
-  reverse-proxies `/api` and `/ws` to `server`, so the browser talks only to
-  this one origin. Future native clients connect to `server` directly.
+- **`web-host`** — an ordinary configured client host. It loads the same
+  `servers.json` fleet contract as Workspace Electron, serves the shared SPA,
+  and exposes `/host/servers/{serverId}/api/...` and
+  `/host/servers/{serverId}/ws` on one browser origin.
 
 Wire-level detail and the full REST + WebSocket vocabulary live in
 [server gateway internals](note-20260624-technical-web-gateway.md).
@@ -52,7 +53,7 @@ The fastest path for local dev launches the **entire** stack — an isolated
 make run-dev
 #   → backend : http://127.0.0.1:8443  (sock: $ROOT/.run-dev/server/server.sock)
 #     web     : http://127.0.0.1:8080
-#     Open  →  http://127.0.0.1:8080/
+#     Open  →  the URL printed by run-dev (includes an explicit server ID)
 #   Ctrl-C stops both processes (the scratch dir is preserved by default;
 #   set CLEAN_DATA_DIR=1 to wipe it).
 ```
@@ -65,17 +66,17 @@ isolated dir), `CLEAN_DATA_DIR=1` (wipe the scratch dir on exit).
 Or run the backend + web host standalone:
 
 ```sh
-make build-server build-web      # → ./server ./web
+make build-server build-web      # → dist/bin/server dist/bin/web-host
 
 # The server binary boots the daemon and a co-resident HTTP/WS gateway in
 # one process under -data-dir. SIGTERM tears down both. Pick any writable
 # path; the example uses an XDG-style cache dir so the command works for
 # non-root users out of the box.
-./server -addr :8443 -data-dir "$HOME/.cache/agent-grid-web"
+./dist/bin/server -addr :8443 -data-dir "$HOME/.cache/agent-grid-web"
 #   → "agent-grid backend on https://:8443  sock=…/server.sock"
 
-# Web-client host, pointed at the backend:
-./web -addr :8080 -server https://127.0.0.1:8443
+# Web client host reads <config-dir>/servers.json once at startup:
+./dist/bin/web-host -addr :8080 -config-dir "$HOME/.config/agent-grid"
 ```
 
 The backend always owns its socket — there is no "attach mode" because the
@@ -84,14 +85,12 @@ gateway is in-process. The socket path is derived from `-data-dir`
 run independently, which is what `make run-dev` relies on to stay isolated
 from a user-scope `~/.agent-grid/` install.
 
-Open `http://<web-host>:8080/#token=<token>` in a browser. The token goes in the
-URL **fragment** (`#…`), not the query string, so it is never sent to a server,
-logged, or leaked via `Referer`. The static page holds no secrets and loads
-without auth; authority is on the data plane: the page uses the token as an
-`Authorization: Bearer` header for the REST API (proxied to the backend) and
-exchanges it for a short-lived, single-use ticket to open each WebSocket
-(browsers cannot set headers on a WebSocket). For an SSH-only host, forward the
-web port (`ssh -L 8080:localhost:8080 <host>`).
+Open `http://<web-host>:8080/?server=<serverId>`. `serverId` comes from
+`GET /host/config`; it is never inferred from the browser origin. Bearer
+credentials remain inside the Web host process and are injected only into the
+selected upstream request. They are not exposed to browser JavaScript or URLs.
+For an SSH-only host, forward the web port
+(`ssh -L 8080:localhost:8080 <host>`).
 
 > The `web` process proxies to an **http** backend (local dev: `server -insecure`)
 > or a **real-certificate https** backend; it cannot verify a self-signed https

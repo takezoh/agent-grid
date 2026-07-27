@@ -15,8 +15,8 @@ relations:
 - {type: references, target: note-20260624-user-sandbox}
 source_paths:
 - WORKFLOW.md
-- src/cmd/orchestrator/
-- src/orchestrator/
+- services/cmd/orchestrator/
+- services/orchestrator/
 topic: user
 summary: orchestrator is the unattended, headless scheduler — the user-facing side
   of the orchestrator layer. It reads a WORKFLOW.md, polls an issue tracker, dispatches

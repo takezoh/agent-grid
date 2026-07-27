@@ -545,7 +545,15 @@ describe("App", () => {
     // does not blow up the test.
     const fetchSpy = vi.fn((url: RequestInfo | URL) => {
       const u = typeof url === "string" ? url : url.toString();
-      if (u.endsWith("/api/session-config")) {
+      if (u === "/host/config") {
+        return Promise.resolve(
+          Response.json({
+            schema_version: 2,
+            servers: [{ serverId: "test-server", displayName: "Test", enabled: true }],
+          }),
+        );
+      }
+      if (u.endsWith("/host/servers/test-server/api/session-config")) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -579,12 +587,20 @@ describe("App", () => {
 
     const calls = fetchSpy.mock.calls.filter((c) => {
       const u = typeof c[0] === "string" ? c[0] : (c[0] as URL).toString();
-      return u.endsWith("/api/session-config");
+      return u.endsWith("/host/servers/test-server/api/session-config");
     });
     expect(calls.length).toBeGreaterThanOrEqual(1);
     const cfg = useDaemonStore.getState().sessionConfig;
     expect(cfg).not.toBeNull();
-    expect(cfg?.projects).toEqual([{ path: "/repo/a", isGit: true, isSandboxed: false }]);
+    expect(cfg?.projects).toEqual([
+      {
+        path: "/repo/a",
+        isGit: true,
+        isSandboxed: false,
+        serverId: "test-server",
+        serverLabel: "Test",
+      },
+    ]);
     expect(cfg?.pushCommands).toEqual(["/clear", "/exit"]);
   });
 
@@ -594,8 +610,8 @@ describe("App", () => {
   it("mount の getSessionConfig が失敗したら error toast を出す (T1 失敗パス)", async () => {
     const fetchSpy = vi.fn((url: RequestInfo | URL) => {
       const u = typeof url === "string" ? url : url.toString();
-      if (u.endsWith("/api/session-config")) {
-        return Promise.resolve(new Response("daemon down", { status: 503 }));
+      if (u === "/host/config") {
+        return Promise.resolve(new Response("host down", { status: 503 }));
       }
       return new Promise(() => {});
     });

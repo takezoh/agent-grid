@@ -63,8 +63,8 @@ compatibility_policies:
 - Keep legacy component identifiers resolvable through documentation aliases.
 source_paths:
 - WORKFLOW.md
-- src/cmd/orchestrator/
-- src/orchestrator/
+- services/cmd/orchestrator/
+- services/orchestrator/
 ---
 
 # Orchestrator architecture
@@ -107,13 +107,13 @@ relations:
 - {type: referencedBy, target: note-20260624-user-orchestrator}
 source_paths:
 - WORKFLOW.md
-- src/orchestrator/workflowfile/
-- src/orchestrator/wfconfig/
-- src/orchestrator/scheduler/
-- src/orchestrator/tracker/
-- src/platform/tracker/linear/
-- src/orchestrator/workspace/
-- src/orchestrator/agent/
+- services/orchestrator/workflowfile/
+- services/orchestrator/wfconfig/
+- services/orchestrator/scheduler/
+- services/orchestrator/tracker/
+- services/platform/tracker/linear/
+- services/orchestrator/workspace/
+- services/orchestrator/agent/
 provides:
 - orchestrator-symphony-spec-implementation
 summary: The orchestrator is a headless, single-authority background service that
@@ -282,14 +282,14 @@ relations:
 - {type: referencedBy, target: note-20260624-technical-harness-engineering-assessment}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- src/cmd/orchestrator/
+- services/cmd/orchestrator/
 - WORKFLOW.md
-- src/orchestrator/tracker/
-- src/platform/tracker/linear/
-- src/cmd/claude-app-server/
-- src/platform/metrics/
-- src/orchestrator/httpserver/
-- src/orchestrator/workflowfile/
+- services/orchestrator/tracker/
+- services/platform/tracker/linear/
+- services/cmd/claude-app-server/
+- services/platform/metrics/
+- services/orchestrator/httpserver/
+- services/orchestrator/workflowfile/
 provides:
 - symphony-spec-conformance
 summary: Authoritative conformance document against Symphony SPEC v1 Draft. plans/.archive/symphony-orchestrator/05-conformance.md

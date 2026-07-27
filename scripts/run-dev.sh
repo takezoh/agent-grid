@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Launch a fully-isolated dev stack: the merged backend (cmd/server — daemon +
-# HTTP/WS gateway in one process) under a scratch data dir, plus the web-client
-# host (cmd/uihost, binary name `web`). The scratch data dir means this never collides with another
+# HTTP/WS gateway in one process) under a scratch data dir, plus the configured
+# Web client host. The scratch data dir means this never collides with another
 # user-scope agent-grid backend ($HOME/.agent-grid/) — they can run side
 # by side.
 #
@@ -39,10 +39,12 @@ cd "$ROOT"
 BACKEND_ADDR="${BACKEND_ADDR:-127.0.0.1:8443}"
 WEB_ADDR="${WEB_ADDR:-127.0.0.1:8080}"
 SERVER_DATA_DIR="${SERVER_DATA_DIR:-$ROOT/.run-dev/server}"
+CLIENT_CONFIG_DIR="${CLIENT_CONFIG_DIR:-$ROOT/.run-dev/client-config}"
 CLEAN_DATA_DIR="${CLEAN_DATA_DIR:-0}"
 AG_DEVCONTAINER_PREFIX="${AG_DEVCONTAINER_PREFIX:-reactor-dev}"
 SERVER_SOCKET="$SERVER_DATA_DIR/server.sock"
 SERVER_LOG="$SERVER_DATA_DIR/server.log"
+SERVER_ID="srv_$(printf '%s' "http://$BACKEND_ADDR" | sha256sum | cut -d' ' -f1)"
 
 # Always rebuild — guarding on file existence (`[ -x ./server ]`) lets a stale
 # binary from a previous checkout/branch run against today's source. `go build`
@@ -53,7 +55,11 @@ SERVER_LOG="$SERVER_DATA_DIR/server.log"
 make build-server
 make build-web
 
-mkdir -p "$SERVER_DATA_DIR"
+mkdir -p "$SERVER_DATA_DIR" "$CLIENT_CONFIG_DIR"
+printf '%s\n' \
+  '{"schema_version":2,"servers":[{"display_name":"Local development","enabled":true,"url":"http://'"$BACKEND_ADDR"'","auth":{"mode":"none"}}]}' \
+  >"$CLIENT_CONFIG_DIR/servers.json"
+chmod 600 "$CLIENT_CONFIG_DIR/servers.json"
 
 pids=()
 cleanup() {
@@ -91,7 +97,7 @@ trap cleanup EXIT INT TERM
 # --filter` would surface the peer's container, mount-hash drift would fire,
 # and `docker rm -f` would kill it.
 AG_DATA_DIR="$SERVER_DATA_DIR" AG_DEVCONTAINER_PREFIX="$AG_DEVCONTAINER_PREFIX" \
-  ./server -insecure -no-auth -addr "$BACKEND_ADDR" -data-dir "$SERVER_DATA_DIR" \
+  ./dist/bin/server -insecure -no-auth -addr "$BACKEND_ADDR" -data-dir "$SERVER_DATA_DIR" \
   >"$SERVER_LOG" 2>&1 &
 pids+=("$!")
 
@@ -107,7 +113,7 @@ if [ ! -S "$SERVER_SOCKET" ]; then
   exit 1
 fi
 
-./web -insecure -addr "$WEB_ADDR" -server "http://$BACKEND_ADDR" &
+./dist/bin/web-host -insecure -addr "$WEB_ADDR" -config-dir "$CLIENT_CONFIG_DIR" &
 pids+=("$!")
 
 cat <<EOF
@@ -116,10 +122,10 @@ agent-grid dev up (isolated from ~/.agent-grid):
   data         : $SERVER_DATA_DIR
   server sock  : $SERVER_SOCKET
   backend      : http://$BACKEND_ADDR  (auth disabled — loopback only)
-  web          : http://$WEB_ADDR
+  web          : http://$WEB_ADDR/?server=$SERVER_ID
   dc prefix    : $AG_DEVCONTAINER_PREFIX  (docker container & label prefix)
 
-  Open →   http://$WEB_ADDR/
+  Open →   http://$WEB_ADDR/?server=$SERVER_ID
 
   Server log: tail -f $SERVER_LOG
   Sessions persist across restarts under $SERVER_DATA_DIR/sessions/.

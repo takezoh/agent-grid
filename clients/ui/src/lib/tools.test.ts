@@ -357,8 +357,8 @@ describe("new-session.submit", () => {
       profile_revision: "rev-1",
       parameters: { effort: "high", limit: 3 },
     });
-    expect(daemonActions.selectSessionCalls).toEqual([]);
-    expect(notify.successCalls).toEqual(["Session created on Server A"]);
+    expect(daemonActions.selectSessionCalls).toEqual(["remote"]);
+    expect(notify.successCalls).toEqual(["Session created"]);
   });
 
   it("calls http.createSession with the selected profile when toggles are absent", async () => {

@@ -38,7 +38,7 @@ src/shared/
 ## Configuration
 
 Shell and Workspace share the files documented in
-[`../desktop-config/README.md`](../desktop-config/README.md). Production uses
+[`../config/README.md`](../config/README.md). Production uses
 `%APPDATA%\agent-grid\config`; pass `--config-dir <path>` to replace the whole
 set. Shell forwards the argument when it launches Workspace.
 

@@ -7,7 +7,7 @@ by the sibling Electron app at `clients/workspace/`.
 ## Configuration
 
 Shell and Workspace share the four JSON files described in
-[`../desktop-config/README.md`](../desktop-config/README.md). The default
+[`../config/README.md`](../config/README.md). The default
 directory is `%APPDATA%\agent-grid\config`; `--config-dir <path>` replaces it
 for both apps and is the required test-isolation mechanism.
 

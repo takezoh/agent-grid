@@ -3,7 +3,7 @@
 - **作成日**: 2026-07-25
 - **ブランチ**: `main`
 - **ステータス**: draft（技術検証前）
-- **影響範囲**: `src/host/`、`src/platform/sandbox/`、`src/platform/framelaunch/`、`src/cmd/bridge/`、Windows 向け配布・検証基盤
+- **影響範囲**: `services/host/`、`services/platform/sandbox/`、`services/platform/framelaunch/`、`services/cmd/bridge/`、Windows 向け配布・検証基盤
 - **関連**: [`multi-host-gateway.md`](./multi-host-gateway.md)
 
 ## 0. 決定の前提

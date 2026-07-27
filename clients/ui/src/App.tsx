@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { makeSessionsApi } from "./api/sessions";
 import type { ApiHttpError } from "./api/sessions";
-import {
-  desktopBaseUrl,
-  hostedSessionId,
-  isHostedMode,
-  readBearerTokenFromHash,
-  resolveApiUrl,
-} from "./auth";
+import { hostedSessionId, isHostedMode, readBearerTokenFromHash } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { HeaderBar } from "./components/HeaderBar";
@@ -21,6 +15,7 @@ import { StatusBar } from "./components/StatusBar";
 import { TerminalPane } from "./components/TerminalPane";
 import { CommandPalette } from "./components/palette/CommandPalette";
 import { WorkspaceDrawer } from "./components/workspace/WorkspaceDrawer";
+import { makeFleetProvider } from "./fleet/provider";
 import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
 import { useMobileGate } from "./hooks/useMobileGate";
@@ -56,22 +51,22 @@ export function App() {
   const token = useMemo(() => readBearerTokenFromHash(), []);
   const hosted = useMemo(() => isHostedMode(), []);
   const hostedSession = useMemo(() => hostedSessionId(), []);
-  const baseUrl = useMemo(() => desktopBaseUrl(), []);
+  const fleet = useMemo(() => makeFleetProvider(), []);
+  const serverId = useMemo(() => {
+    const selected = fleet.currentServerId();
+    if (!selected) {
+      throw new Error("No server selected; open the client with ?server=<serverId>");
+    }
+    return selected;
+  }, [fleet]);
   const conn = useMemo(
     () =>
       new Connection({
-        ticketEndpoint: resolveApiUrl("/api/ws-ticket"),
-        wsUrl: (ticket) => {
-          const origin = new URL(baseUrl ?? window.location.origin);
-          origin.protocol = origin.protocol === "https:" ? "wss:" : "ws:";
-          origin.pathname = "/ws";
-          origin.search = `?ticket=${encodeURIComponent(ticket)}`;
-          origin.hash = "";
-          return origin.toString();
-        },
+        ticketEndpoint: fleet.apiUrl(serverId, "/api/ws-ticket"),
+        wsUrl: (ticket) => fleet.wsUrl(serverId, ticket),
         bearerToken: token,
       }),
-    [baseUrl, token],
+    [fleet, serverId, token],
   );
 
   useEffect(() => {

@@ -29,9 +29,9 @@ if ($shellDir -match '^\\\\') {
   if (Test-Path $localRoot) { Remove-Item -Recurse -Force $localRoot }
   & robocopy $shellDir $local /E /XD bin obj .git /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
   if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
-  $desktopConfigDir = Join-Path (Split-Path -Parent $shellDir) "desktop-config"
-  & robocopy $desktopConfigDir (Join-Path $localRoot "desktop-config") /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
-  if ($LASTEXITCODE -ge 8) { throw "desktop-config robocopy failed: $LASTEXITCODE" }
+  $desktopConfigDir = Join-Path (Split-Path -Parent $shellDir) "config"
+  & robocopy $desktopConfigDir (Join-Path $localRoot "config") /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+  if ($LASTEXITCODE -ge 8) { throw "client config robocopy failed: $LASTEXITCODE" }
   $work = $local
   $copied = $true
 } else {

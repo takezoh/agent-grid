@@ -49,7 +49,7 @@ async function installScrollBench(page: Page): Promise<FakeBackend> {
     });
   });
 
-  await page.goto("/#token=test");
+  await page.goto("/?server=test-server#token=test");
   await backend.waitForSocketOpen();
 
   await backend.emit({
