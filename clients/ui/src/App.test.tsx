@@ -156,10 +156,10 @@ describe("App", () => {
     expect(screen.queryByLabelText("Last user prompt")).toBeNull();
   });
 
-  it("hides status bar when no active session", () => {
+  it("keeps the connection status bar reachable when no session is active", () => {
     useDaemonStore.setState({ sessions: [], activeSessionID: null });
     render(<App />);
-    expect(screen.queryByLabelText("session status")).toBeNull();
+    expect(screen.getByLabelText("session status")).toBeTruthy();
     expect(screen.queryByLabelText("driver view")).toBeNull();
   });
 

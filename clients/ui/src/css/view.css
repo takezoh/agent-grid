@@ -111,6 +111,25 @@
   font-variant-numeric: tabular-nums;
 }
 
+.status-bar__connection-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-bar__retry {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.status-bar__retry:hover {
+  text-decoration: underline;
+}
+
 /* ─── MainTabs ─────────────────────────────────────────────────────────── */
 /* MainTabs は .terminal (flex column) の flex:1 child として、自分の中で
    ヘッダ (.log-tab-row) + body (.main-tabs-body, flex:1) に分割する。body は

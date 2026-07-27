@@ -8,6 +8,7 @@ describe("StatusBar (FR-023 / UAC-010)", () => {
     cleanup();
     vi.useRealTimers();
     useDaemonStore.getState().reset();
+    window.agentGridWorkspace = undefined;
   });
 
   it("renders status_line on the left when present", () => {
@@ -34,6 +35,32 @@ describe("StatusBar (FR-023 / UAC-010)", () => {
     render(<StatusBar statusLine="Syncing changes" />);
     expect(screen.getByText("Syncing changes")).toBeTruthy();
     expect(screen.getByLabelText("connection state")?.textContent).toBe("reconnecting to server…");
+  });
+
+  it("offers an explicit retry after bounded automatic recovery stops", () => {
+    const onRetry = vi.fn();
+    useDaemonStore.setState({ status: "closed", daemonDisconnected: true });
+    render(<StatusBar onRetry={onRetry} />);
+    screen.getByRole("button", { name: "Retry" }).click();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("summarizes a partial hosted fleet outage without counting disabled servers", async () => {
+    window.agentGridWorkspace = {
+      serverHealth: {
+        list: vi.fn(async () => ({
+          checkedAt: "2026-07-27T00:00:00Z",
+          servers: [
+            { serverId: "a", displayName: "A", state: "connected" },
+            { serverId: "b", displayName: "B", state: "unavailable", reason: "HTTP 503" },
+            { serverId: "c", displayName: "C", state: "disabled" },
+          ],
+        })),
+      },
+    };
+    useDaemonStore.setState({ status: "open", daemonDisconnected: false });
+    render(<StatusBar />);
+    expect(await screen.findByText("1/2 servers unavailable")).toBeTruthy();
   });
 
   it("renders ticking elapsed next to status_line", () => {

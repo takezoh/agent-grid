@@ -17,7 +17,6 @@ import { NewSessionButton } from "./components/NewSessionButton";
 import { NotificationToast } from "./components/NotificationToast";
 import { SessionList } from "./components/SessionList";
 import { SidebarBrandRow } from "./components/SidebarBrandRow";
-import { StatusBanner } from "./components/StatusBanner";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalPane } from "./components/TerminalPane";
 import { CommandPalette } from "./components/palette/CommandPalette";
@@ -324,19 +323,18 @@ export function App() {
             )}
           </div>
         </div>
-        {activeSession && (
-          <StatusBar
-            statusLine={activeSession.view.status_line}
-            statusChangedAt={activeSession.status.changed_at}
-          />
-        )}
+        <StatusBar
+          statusLine={activeSession?.view.status_line}
+          statusChangedAt={activeSession?.status.changed_at}
+          onRetry={() => conn.retry()}
+        />
       </div>
     </div>
   );
 
   return (
     <AppShell
-      banner={<StatusBanner />}
+      banner={null}
       header={headerContent}
       sidebar={sidebarContent}
       main={mainContent}

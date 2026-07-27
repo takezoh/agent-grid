@@ -298,6 +298,14 @@ export function buildSettingsPageHtml(): string {
         color: var(--muted);
         line-height: 1.5;
       }
+      .server-health {
+        margin-left: auto;
+        font-size: 12px;
+      }
+      .server-health[data-state="connected"] { color: var(--ok); }
+      .server-health[data-state="unavailable"] { color: #f48771; }
+      .server-health[data-state="disabled"] { color: var(--muted); }
+      .server-health[data-state="checking"] { color: var(--muted); }
     </style>
   </head>
   <body>
@@ -423,6 +431,7 @@ export function buildSettingsPageHtml(): string {
 
     <script>
       const workspaceApi = window.agentGridWorkspace?.desktopConfig;
+      const healthApi = window.agentGridWorkspace?.serverHealth;
       const sections = {
         connections: {
           title: "Connections",
@@ -441,6 +450,7 @@ export function buildSettingsPageHtml(): string {
       const state = {
         snapshot: null,
         activeSection: "connections",
+        health: new Map(),
       };
 
       const els = {
@@ -522,6 +532,13 @@ export function buildSettingsPageHtml(): string {
           return;
         }
         els.servers.innerHTML = servers.map((server, index) => {
+          const health = state.health.get(server.id);
+          const healthState = health?.state || (server.enabled ? "checking" : "disabled");
+          const healthLabel =
+            healthState === "connected" ? "Connected" :
+            healthState === "disabled" ? "Disabled" :
+            healthState === "checking" ? "Checking…" : "Unavailable";
+          const healthDetail = health?.reason ? " — " + health.reason : "";
           return [
             '<article class="server-card" data-server-index="' + index + '">',
             '<div class="server-card__header">',
@@ -529,6 +546,8 @@ export function buildSettingsPageHtml(): string {
             '<strong>' + escapeHtml(serverSummary(server)) + '</strong>',
             '<span>' + escapeHtml(server.id || "Identifier is derived after saving") + '</span>',
             '</div>',
+            '<span class="server-health" data-state="' + healthState + '" title="' +
+              escapeHtml(healthDetail) + '">' + healthLabel + escapeHtml(healthDetail) + '</span>',
             '<button type="button" class="btn btn--danger" data-action="remove-server" data-index="' + index + '">Remove</button>',
             '</div>',
             '<div class="server-card__body">',
@@ -611,8 +630,20 @@ export function buildSettingsPageHtml(): string {
           const snapshot = await workspaceApi.load();
           applySnapshot(snapshot);
           setStatus("info", "Loaded desktop client settings.");
+          await refreshHealth();
         } catch (error) {
           setStatus("error", error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      async function refreshHealth() {
+        if (!healthApi?.list) return;
+        try {
+          const fleet = await healthApi.list();
+          state.health = new Map(fleet.servers.map((server) => [server.serverId, server]));
+          renderServers();
+        } catch {
+          // Configuration remains editable when health observation is unavailable.
         }
       }
 
@@ -681,6 +712,7 @@ export function buildSettingsPageHtml(): string {
       });
 
       load();
+      setInterval(refreshHealth, 5000);
     </script>
   </body>
 </html>`;

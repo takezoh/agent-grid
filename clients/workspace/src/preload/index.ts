@@ -7,6 +7,7 @@
  */
 
 import type { DesktopConfig, EditableDesktopSettings } from "../main/desktop-config.js";
+import type { FleetHealth } from "../main/server-health.js";
 
 export interface HostedModeInfo {
   hosted: boolean;
@@ -31,6 +32,7 @@ export interface WorkspacePreloadApi {
   hostedModeInfo: HostedModeInfo | null;
   requestJumpBack(sessionId: string): Promise<void>;
   desktopConfig?: DesktopConfigBridge;
+  serverHealth?: { list(): Promise<FleetHealth> };
   /**
    * Re-syncs the native chrome (caption-button overlay, title-bar view,
    * popup menus) with the SPA theme. `mode` is the user's choice —
@@ -48,12 +50,14 @@ export function buildPreloadApi(opts: {
   windowControls: WindowControls;
   requestJumpBack: (sessionId: string) => Promise<void>;
   desktopConfig?: DesktopConfigBridge;
+  serverHealth?: { list(): Promise<FleetHealth> };
 }): WorkspacePreloadApi {
   return {
     windowControls: opts.windowControls,
     hostedModeInfo: opts.hostedModeInfo,
     requestJumpBack: opts.requestJumpBack,
     desktopConfig: opts.desktopConfig,
+    serverHealth: opts.serverHealth,
   };
 }
 

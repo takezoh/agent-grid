@@ -81,6 +81,13 @@ export class Connection {
     }
   }
 
+  /** Restarts a connection whose bounded automatic recovery has stopped. */
+  retry(): void {
+    if (this.reconnecting || this.ws?.readyState === 1) return;
+    this.reconnectAttempt = 0;
+    void this.start();
+  }
+
   close(): void {
     this.closedByUser = true;
     this.drainPending();
@@ -196,7 +203,6 @@ export class Connection {
   }
 
   private handleOpen(): void {
-    this.reconnectAttempt = 0;
     useDaemonStore.getState().setStatus("open");
     useWorkspaceActivityStore.getState().setTransportDegraded(false);
     this.terminalSubscriptions.onOpen();
@@ -212,6 +218,11 @@ export class Connection {
     }
     switch (frame.k) {
       case "h":
+        // A socket handshake only proves that the gateway is reachable.
+        // Hello is the first daemon-derived lifecycle frame and therefore the
+        // authoritative recovery boundary.
+        this.reconnectAttempt = 0;
+        useDaemonStore.getState().setDaemonDisconnected(false);
         if (frame.clientInstanceID) {
           this.terminalSubscriptions.setClientInstanceID(frame.clientInstanceID);
         }

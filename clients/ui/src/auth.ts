@@ -13,6 +13,16 @@ export interface HostedModeInfo {
   token: string;
 }
 
+export interface FleetHealth {
+  checkedAt: string;
+  servers: Array<{
+    serverId: string;
+    displayName: string;
+    state: "connected" | "unavailable" | "disabled";
+    reason?: string;
+  }>;
+}
+
 export interface DesktopAppearance {
   theme: "default" | "system" | "light" | "dark";
   density: "compact" | "comfortable";
@@ -31,6 +41,7 @@ declare global {
        * native UI following the OS palette.
        */
       setTitleBarTheme?: (theme: "dark" | "light", mode?: "system" | "light" | "dark") => void;
+      serverHealth?: { list(): Promise<FleetHealth> };
     };
   }
 }

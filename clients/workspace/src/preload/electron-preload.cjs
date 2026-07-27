@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
     load: () => ipcRenderer.invoke("agent-grid:desktop-config-load"),
     save: (settings) => ipcRenderer.invoke("agent-grid:desktop-config-save", settings),
   },
+  serverHealth: {
+    list: () => ipcRenderer.invoke("agent-grid:server-health-list"),
+  },
   // Keeps the native chrome (caption-button overlay, title-bar view, popup
   // menus) in sync with the SPA theme. `theme` is the resolved value;
   // `mode` is the user's choice ("system" keeps native UI on the OS theme).

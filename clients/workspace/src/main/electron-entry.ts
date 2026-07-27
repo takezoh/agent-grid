@@ -22,6 +22,7 @@ import type {
   ElectronBaseWindowConstructor,
   ElectronWebContentsViewConstructor,
 } from "./electron-window-factory.js";
+import { FleetHealthMonitor } from "./server-health.js";
 import {
   isTitleBarMenuId,
   themeSourceFor,
@@ -37,6 +38,7 @@ const rendererInfo = new Map<number, import("./daemon-config.js").HostedModeInfo
 let desktopConfig: DesktopConfig | null = null;
 let updateDesktopConfig: ((config: DesktopConfig) => void) | null = null;
 let openSettingsWindow: (() => void) | null = null;
+const serverHealth = new FleetHealthMonitor(() => desktopConfig?.servers ?? []);
 
 ipcMain.on("agent-grid:renderer-bootstrap", (event) => {
   event.returnValue = rendererInfo.get(event.sender.id) ?? null;
@@ -69,8 +71,14 @@ ipcMain.handle("agent-grid:desktop-config-save", (_event, settings: EditableDesk
   if (!desktopConfig) throw new Error("desktop config is not ready");
   const next = saveEditableDesktopSettings(desktopConfig.configDirectory, settings);
   desktopConfig = next;
+  serverHealth.invalidate();
   updateDesktopConfig?.(next);
   return next;
+});
+
+ipcMain.handle("agent-grid:server-health-list", () => {
+  if (!desktopConfig) throw new Error("desktop config is not ready");
+  return serverHealth.list();
 });
 
 // ─── Window chrome (VSCode-style title bar) ─────────────────────────────────
