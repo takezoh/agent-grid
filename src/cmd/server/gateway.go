@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -64,7 +65,7 @@ func (g *gatewayHandle) Close() {
 // driven shutdown cascades into it. A panic inside the gateway goroutine is
 // contained by recover() — it cancels the daemon ctx so the binary exits, but
 // the recovered stack is logged rather than dropped into the void.
-func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, dataDir string, df *daemonFlagSet) (*gatewayHandle, error) {
+func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, dataDir string, df *daemonFlagSet, stdout io.Writer) (*gatewayHandle, error) {
 	token, err := resolveAuth(df.token, df.tokenFile, df.noAuth, df.allowNoAuthNonLoop, df.addr)
 	if err != nil {
 		return nil, err
@@ -87,6 +88,9 @@ func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, data
 	}
 
 	doneCh := make(chan struct{})
+	effectiveAddr := ln.Addr()
+	logStartup(effectiveAddr.String(), df.insecure, df.noAuth, sockPath)
+	writeStartupStatus(stdout, effectiveAddr, df.insecure, df.noAuth, df.printToken, token)
 
 	go func() {
 		<-ctx.Done()
@@ -105,7 +109,6 @@ func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, data
 				cancel()
 			}
 		}()
-		logStartup(df.addr, df.insecure, df.noAuth, sockPath, token)
 		if err := notifyReady(); err != nil {
 			slog.Warn("gateway: readiness notify failed", "err", err)
 		}
@@ -117,6 +120,31 @@ func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, data
 	}()
 
 	return &gatewayHandle{daemon: daemon, srv: srv, done: doneCh}, nil
+}
+
+func writeStartupStatus(w io.Writer, addr net.Addr, insecure, noAuth, printToken bool, token string) {
+	if w == nil {
+		return
+	}
+	host, port, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		host = addr.String()
+	}
+	scheme := "https"
+	tlsEnabled := true
+	if insecure {
+		scheme = "http"
+		tlsEnabled = false
+	}
+	auth := "bearer-token"
+	if noAuth {
+		auth = "disabled"
+	}
+	fmt.Fprintf(w, "server: listening address=%s port=%s tls=%t insecure=%t auth=%s url=%s://%s\n",
+		host, port, tlsEnabled, insecure, auth, scheme, addr.String())
+	if printToken && !noAuth {
+		fmt.Fprintf(w, "server: bearer token=%s\n", token)
+	}
 }
 
 // resolveAuth materializes the effective bearer token. -no-auth wins and
@@ -243,14 +271,14 @@ func buildHTTPHandler(daemon *serverapi.DaemonClient, dataDir, token string, noA
 	return mux
 }
 
-func logStartup(addr string, insecure, noAuth bool, sockPath, token string) {
+func logStartup(addr string, insecure, noAuth bool, sockPath string) {
 	scheme := "https"
 	if insecure {
 		scheme = "http"
 	}
-	authDesc := "token=" + token
+	authDesc := "bearer-token"
 	if noAuth {
-		authDesc = "auth=disabled"
+		authDesc = "disabled"
 	}
 	slog.Info("gateway listening",
 		"url", fmt.Sprintf("%s://%s", scheme, addr),

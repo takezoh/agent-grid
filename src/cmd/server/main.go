@@ -189,7 +189,7 @@ func loadConfig() (*config.Config, error) {
 
 func runCommand(args []string, df *daemonFlagSet, stdout io.Writer) error {
 	if len(args) == 0 || isDaemonFlagToken(args[0]) {
-		return runDaemonFn(df)
+		return runDaemonFn(df, stdout)
 	}
 	if isHelpCommand(args[0]) {
 		printUsage(stdout)
@@ -241,6 +241,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s -addr <host:port>            Gateway listen address (default :8443)\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s -token <bearer>              Set the bearer token (generated if omitted)\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s -token-file <path>           Persisted-token file (generated on first boot)\n", appid.ClientBin)
+	fmt.Fprintf(w, "  %s -print-token                 Print effective token to stdout (explicit opt-in)\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s -tls-cert <path> -tls-key <path>   Use the supplied TLS material\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s -insecure                    Serve plain HTTP (local dev only)\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s -no-auth                     Disable bearer + WS-ticket auth (loopback only)\n", appid.ClientBin)

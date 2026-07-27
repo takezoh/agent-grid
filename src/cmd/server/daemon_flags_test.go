@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -23,6 +24,7 @@ func TestParseDaemonArgs(t *testing.T) {
 		{name: "double dash", args: []string{"--data-dir", "/var/lib/x"}, want: daemonFlagSet{addr: ":8443", dataDir: "/var/lib/x"}},
 		{name: "addr override", args: []string{"-addr", "127.0.0.1:9090"}, want: daemonFlagSet{addr: "127.0.0.1:9090"}},
 		{name: "noauth+insecure", args: []string{"-insecure", "-no-auth"}, want: daemonFlagSet{addr: ":8443", insecure: true, noAuth: true}},
+		{name: "print token", args: []string{"-print-token"}, want: daemonFlagSet{addr: ":8443", printToken: true}},
 		{name: "token", args: []string{"-token", "abcdef"}, want: daemonFlagSet{addr: ":8443", token: "abcdef"}},
 		{name: "token-file", args: []string{"-token-file", "/run/tok"}, want: daemonFlagSet{addr: ":8443", tokenFile: "/run/tok"}},
 		{name: "tls", args: []string{"-tls-cert", "/c", "-tls-key", "/k"}, want: daemonFlagSet{addr: ":8443", certFile: "/c", keyFile: "/k"}},
@@ -69,7 +71,7 @@ func TestRunMainInjectsDataDirIntoConfig(t *testing.T) {
 		capturedDir = dir
 		return nil
 	}
-	runDaemonFn = func(*daemonFlagSet) error { return nil }
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error { return nil }
 
 	var stdout, stderr bytes.Buffer
 	code := runMain([]string{"-data-dir", flagDir}, &stdout, &stderr)
@@ -96,7 +98,7 @@ func TestRunMainExportsDataDirToEnv(t *testing.T) {
 		return config.DefaultConfig(), nil
 	}
 	initLoggerWithDataDir = func(level, dir string) error { return nil }
-	runDaemonFn = func(*daemonFlagSet) error { return nil }
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error { return nil }
 
 	var stdout, stderr bytes.Buffer
 	if code := runMain([]string{"-data-dir", flagDir}, &stdout, &stderr); code != 0 {
@@ -128,7 +130,7 @@ func TestRunMainFlagWinsOverStaleEnv(t *testing.T) {
 		capturedDir = dir
 		return nil
 	}
-	runDaemonFn = func(*daemonFlagSet) error { return nil }
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error { return nil }
 
 	var stdout, stderr bytes.Buffer
 	if code := runMain([]string{"-data-dir", flagDir}, &stdout, &stderr); code != 0 {
@@ -153,7 +155,7 @@ func TestRunMainBadDaemonFlagExitsTwo(t *testing.T) {
 		return nil, errors.New("bad flag")
 	}
 	called := false
-	runDaemonFn = func(*daemonFlagSet) error { called = true; return nil }
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error { called = true; return nil }
 
 	var stdout, stderr bytes.Buffer
 	code := runMain([]string{"-data-dir", "/x"}, &stdout, &stderr)
@@ -185,7 +187,7 @@ func TestRunMainBadDaemonFlagSurfacesWhenConfigNil(t *testing.T) {
 		parseCalled = true
 		return nil, errors.New("unexpected positional")
 	}
-	runDaemonFn = func(*daemonFlagSet) error { return nil }
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error { return nil }
 	initLoggerWithDataDir = func(level, dir string) error { return nil }
 
 	var stdout, stderr bytes.Buffer

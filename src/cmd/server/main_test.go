@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,7 +69,7 @@ func TestRunMainDaemonSuccess(t *testing.T) {
 		cfg.DataDir = dir
 		return cfg, nil
 	}
-	runDaemonFn = func(*daemonFlagSet) error { return nil }
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error { return nil }
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -95,7 +96,7 @@ func TestRunMainDaemonErrorLogsAndPrints(t *testing.T) {
 		cfg.DataDir = dir
 		return cfg, nil
 	}
-	runDaemonFn = func(*daemonFlagSet) error { return wantErr }
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error { return wantErr }
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -130,7 +131,7 @@ func TestRunMainUnknownCommandDoesNotRunDaemon(t *testing.T) {
 		return cfg, nil
 	}
 	daemonCalled := false
-	runDaemonFn = func(*daemonFlagSet) error {
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error {
 		daemonCalled = true
 		return nil
 	}
@@ -157,7 +158,7 @@ func TestRunMainHelp(t *testing.T) {
 		return cfg, nil
 	}
 	initLoggerWithDataDir = func(level, dir string) error { return nil }
-	runDaemonFn = func(*daemonFlagSet) error {
+	runDaemonFn = func(*daemonFlagSet, io.Writer) error {
 		t.Fatal("daemon must not run on help")
 		return nil
 	}
