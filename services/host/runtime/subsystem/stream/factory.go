@@ -119,7 +119,7 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 		sessionID,
 		project,
 		cmdCfg.ServerBin,
-		cmdCfg.ServerArgs,
+		cmdCfg.ConfigArgs,
 		cmdCfg.Model,
 		cmdCfg.Effort,
 		plan.Stream.SandboxPolicy == state.StreamSandboxPolicyExternal,

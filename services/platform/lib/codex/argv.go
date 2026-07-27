@@ -15,7 +15,7 @@ const (
 // CommandConfig is the parsed form of a codex launch command string.
 type CommandConfig struct {
 	ServerBin                    string
-	ServerArgs                   []string
+	ConfigArgs                   []string
 	Model                        string
 	Effort                       string
 	DangerouslyBypassPermissions bool
@@ -48,7 +48,7 @@ func ParseCommand(argv []string) (CommandConfig, error) {
 			cfg.DangerouslyBypassPermissions = true
 		case "-c", "--config", "--enable", "--disable":
 			if i+1 < len(argv) {
-				cfg.ServerArgs = append(cfg.ServerArgs, arg, argv[i+1])
+				cfg.ConfigArgs = append(cfg.ConfigArgs, arg, argv[i+1])
 				i++
 			}
 		default:
@@ -57,6 +57,10 @@ func ParseCommand(argv []string) (CommandConfig, error) {
 				cfg.Model = strings.TrimSpace(strings.TrimPrefix(arg, "--model="))
 			case strings.HasPrefix(arg, "--effort="):
 				cfg.Effort = strings.TrimSpace(strings.TrimPrefix(arg, "--effort="))
+			case strings.HasPrefix(arg, "--config="),
+				strings.HasPrefix(arg, "--enable="),
+				strings.HasPrefix(arg, "--disable="):
+				cfg.ConfigArgs = append(cfg.ConfigArgs, arg)
 			}
 		}
 	}
@@ -101,16 +105,19 @@ func AppServerStdioArgs(extra []string, sandboxExternal bool) []string {
 //     unix://<sock>` — the CLI reads `~/.codex/sessions/…/rollout-<id>.jsonl`
 //     locally and issues `thread/resume`, so app-server events for <id>
 //     route back to the frame that was pre-bound with that id.
-func RemoteAttachArgs(sock, threadID, startDir, model, effort string, dangerouslyBypassPermissions bool) []string {
+func RemoteAttachArgs(
+	sock, threadID, startDir string,
+	configArgs []string,
+	model string,
+	dangerouslyBypassPermissions bool,
+) []string {
 	args := []string{DriverName}
+	args = append(args, configArgs...)
 	if threadID != "" {
 		args = append(args, "resume", threadID)
 	}
 	if model != "" {
 		args = append(args, "--model", model)
-	}
-	if effort != "" {
-		args = append(args, "--effort", effort)
 	}
 	args = append(args, "--remote", "unix://"+sock)
 	if dangerouslyBypassPermissions {

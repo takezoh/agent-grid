@@ -45,7 +45,15 @@ func TestParseCommand(t *testing.T) {
 		{
 			name: "config flag with quoted value preserved as element",
 			argv: []string{"codex", "-c", `sandbox_mode="danger-full-access"`},
-			want: CommandConfig{ServerBin: "codex", ServerArgs: []string{"-c", `sandbox_mode="danger-full-access"`}},
+			want: CommandConfig{ServerBin: "codex", ConfigArgs: []string{"-c", `sandbox_mode="danger-full-access"`}},
+		},
+		{
+			name: "config flags preserve spelling and element boundaries",
+			argv: []string{"codex", "--config", `model_reasoning_effort="high"`, "--enable=responses_websockets", "--disable", "legacy_feature"},
+			want: CommandConfig{
+				ServerBin:  "codex",
+				ConfigArgs: []string{"--config", `model_reasoning_effort="high"`, "--enable=responses_websockets", "--disable", "legacy_feature"},
+			},
 		},
 		{
 			name:    "unsupported command",
@@ -73,8 +81,8 @@ func TestParseCommand(t *testing.T) {
 			if got.DangerouslyBypassPermissions != tt.want.DangerouslyBypassPermissions {
 				t.Errorf("DangerouslyBypassPermissions = %v, want %v", got.DangerouslyBypassPermissions, tt.want.DangerouslyBypassPermissions)
 			}
-			if len(got.ServerArgs) != len(tt.want.ServerArgs) {
-				t.Errorf("ServerArgs = %v, want %v", got.ServerArgs, tt.want.ServerArgs)
+			if strings.Join(got.ConfigArgs, "\x00") != strings.Join(tt.want.ConfigArgs, "\x00") {
+				t.Errorf("ConfigArgs = %v, want %v", got.ConfigArgs, tt.want.ConfigArgs)
 			}
 		})
 	}
@@ -154,7 +162,7 @@ func TestRemoteAttachArgs(t *testing.T) {
 		threadID     string
 		startDir     string
 		model        string
-		effort       string
+		configArgs   []string
 		bypass       bool
 		wantContains []string
 		wantAbsent   []string
@@ -178,11 +186,12 @@ func TestRemoteAttachArgs(t *testing.T) {
 			wantContains: []string{"-C", "/workspace/foo"},
 		},
 		{
-			name:         "with model and effort",
+			name:         "with model and config args",
 			sock:         "/opt/agent-grid/run/codex-sess5.sock",
 			model:        "gpt-5-codex",
-			effort:       "high",
-			wantContains: []string{"--model", "gpt-5-codex", "--effort", "high"},
+			configArgs:   []string{"-c", `model_reasoning_effort="high"`},
+			wantContains: []string{"--model", "gpt-5-codex", "-c", `model_reasoning_effort="high"`},
+			wantAbsent:   []string{"--effort"},
 		},
 		{
 			name:         "with explicit danger bypass",
@@ -203,7 +212,7 @@ func TestRemoteAttachArgs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir, tt.model, tt.effort, tt.bypass)
+			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir, tt.configArgs, tt.model, tt.bypass)
 			for _, want := range tt.wantContains {
 				found := false
 				for _, g := range got {

@@ -15,7 +15,7 @@ import (
 // The returned *strings.Builder accumulates the app-server's stderr; read it
 // only after the process is reaped (res.Wait) so the copier goroutine is done.
 func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *strings.Builder, error) {
-	argv := libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.serverArgs, b.sandboxed)
+	argv := libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.configArgs, b.sandboxed)
 	if b.shouldUseShim() {
 		argv = b.shimArgs()
 	}
@@ -82,14 +82,14 @@ func (b *Backend) shimArgs() []string {
 		"--server-bin", b.serverBin,
 		"--session-id", string(b.sessionID),
 	}
-	for _, arg := range b.serverArgs {
+	for _, arg := range b.configArgs {
 		args = append(args, "--server-arg", arg)
 	}
 	if b.sandboxed {
 		args = append(args, "--sandbox-external")
 	}
 	if b.serverBin == "" {
-		return libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.serverArgs, b.sandboxed)
+		return libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.configArgs, b.sandboxed)
 	}
 	return args
 }

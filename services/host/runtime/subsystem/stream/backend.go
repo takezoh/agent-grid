@@ -76,7 +76,7 @@ type Backend struct {
 	sessionID           state.SessionID
 	project             string
 	serverBin           string
-	serverArgs          []string
+	configArgs          []string
 	helperBin           string
 	isContainer         bool
 	sandboxed           bool
@@ -155,7 +155,7 @@ func New(
 	subsystemID state.SubsystemID,
 	sessionID state.SessionID,
 	project, serverBin string,
-	serverArgs []string,
+	configArgs []string,
 	_, _ string,
 	sandboxed, autoApprove bool,
 	listenSock string,
@@ -168,7 +168,7 @@ func New(
 		sessionID:   sessionID,
 		project:     project,
 		serverBin:   serverBin,
-		serverArgs:  serverArgs,
+		configArgs:  configArgs,
 		sandboxed:   sandboxed,
 		autoApprove: autoApprove,
 		readTimeout: readTimeout,
@@ -317,13 +317,20 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	}
 	bindOK = true
 
-	model, effort := b.bindingSettings(req.FrameID)
+	model, _ := b.bindingSettings(req.FrameID)
 	// Argv-first path: in-container bridge frame-exec runs PreCommands then
 	// syscall.Execs MainCommand. Avoid shell composition of trust && exec
 	// (adr-20260711-0082 / 0083). Host DirectLauncher also uses frame-exec
 	// when Argv is set.
 	bypassPermissions := b.sandboxed || req.Plan.Stream.DangerouslyBypassPermissions
-	attachArgv := libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir, model, effort, bypassPermissions)
+	attachArgv := libcodex.RemoteAttachArgs(
+		b.listenSock,
+		persistedThreadID,
+		startDir,
+		b.configArgs,
+		model,
+		bypassPermissions,
+	)
 	result.Plan.Argv = attachArgv
 	result.Plan.Command = "" // legacy shell path unused for codex stream attach
 	if b.sandboxed {

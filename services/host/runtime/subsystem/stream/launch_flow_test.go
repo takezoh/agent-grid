@@ -245,7 +245,7 @@ func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
 		t.Errorf("initState occupancy = %d, want 1", pendingCount(h.backend))
 	}
 	// Argv must be `codex --remote unix://<sock>` with NO `resume`.
-	wantArgv := libcodex.RemoteAttachArgs(listen, "", "/repo", "", "", false)
+	wantArgv := libcodex.RemoteAttachArgs(listen, "", "/repo", nil, "", false)
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
@@ -255,6 +255,29 @@ func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
 	joined := strings.Join(res.Plan.Argv, " ")
 	if strings.Contains(joined, " resume ") {
 		t.Errorf("fresh cold-start argv must not contain `resume`: %q", joined)
+	}
+}
+
+func TestBackendBindFrame_FreshColdStart_PreservesCodexConfigArgs(t *testing.T) {
+	const listen = "/opt/agent-grid/run/codex-config.sock"
+	h := newBoundBackend(t, listen)
+	h.backend.configArgs = []string{"-c", `model_reasoning_effort="high"`}
+
+	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
+		FrameID: "f-config",
+		Plan: state.LaunchPlan{
+			StartDir: "/repo",
+			Command:  `codex -c 'model_reasoning_effort="high"'`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("BindFrame: %v", err)
+	}
+	if !slices.Contains(res.Plan.Argv, `model_reasoning_effort="high"`) {
+		t.Fatalf("Argv = %#v, want Codex config override preserved for remote CLI", res.Plan.Argv)
+	}
+	if slices.Contains(res.Plan.Argv, "--effort") {
+		t.Fatalf("Argv = %#v, must not use unsupported --effort flag", res.Plan.Argv)
 	}
 }
 
@@ -271,7 +294,7 @@ func TestBackendBindFrame_ContainerTrustsResolvedWorkingDirectoryBeforeAttach(t 
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	wantArgv := libcodex.RemoteAttachArgs(listen, "", worktree, "", "", true)
+	wantArgv := libcodex.RemoteAttachArgs(listen, "", worktree, nil, "", true)
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
@@ -364,7 +387,7 @@ func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
 		t.Fatalf("backend observer thread/resume id = %q, want thread-abc (params=%v)", got, lastResume)
 	}
 	// Argv must contain `resume thread-abc`.
-	wantArgv := libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", "", "", false)
+	wantArgv := libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", nil, "", false)
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
@@ -373,14 +396,15 @@ func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
 	}
 }
 
-func TestBackendBindFrame_RecoveryRestoresModelEffortIntoAttachCommand(t *testing.T) {
+func TestBackendBindFrame_RecoveryPreservesCodexConfigArgs(t *testing.T) {
 	const listen = "/opt/agent-grid/run/codex-sess-model.sock"
 	h := newBoundBackend(t, listen)
+	h.backend.configArgs = []string{"--config", `model_reasoning_effort="high"`}
 
 	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
 		FrameID: "f1",
 		Plan: state.LaunchPlan{
-			Command:  "codex --model gpt-5-codex --effort high",
+			Command:  `codex --config 'model_reasoning_effort="high"'`,
 			StartDir: "/repo",
 			Stream: state.StreamLaunchOptions{
 				ResumeTarget: state.ResumeTarget{ThreadID: "thread-abc"},
@@ -390,16 +414,15 @@ func TestBackendBindFrame_RecoveryRestoresModelEffortIntoAttachCommand(t *testin
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	joined := strings.Join(res.Plan.Argv, " ")
-	if !strings.Contains(joined, "--model gpt-5-codex") {
-		t.Fatalf("Argv = %q, want restored --model", joined)
+	if !slices.Contains(res.Plan.Argv, `model_reasoning_effort="high"`) {
+		t.Fatalf("Argv = %#v, want Codex config override preserved for recovery CLI", res.Plan.Argv)
 	}
-	if !strings.Contains(joined, "--effort high") {
-		t.Fatalf("Argv = %q, want restored --effort", joined)
+	if slices.Contains(res.Plan.Argv, "--effort") {
+		t.Fatalf("Argv = %#v, must not use unsupported --effort flag", res.Plan.Argv)
 	}
 }
 
-func TestBackendBindFrame_RecoveryUsesPerFrameSettingsNotAnotherThreadsSettings(t *testing.T) {
+func TestBackendBindFrame_RecoveryUsesPerFrameModelNotAnotherThreadsModel(t *testing.T) {
 	const listen = "/opt/agent-grid/run/codex-sess-isolated.sock"
 	h := newBoundBackend(t, listen)
 	h.backend.mu.Lock()
@@ -424,8 +447,8 @@ func TestBackendBindFrame_RecoveryUsesPerFrameSettingsNotAnotherThreadsSettings(
 	if !strings.Contains(joined, "--model gpt-5-codex") || strings.Contains(joined, "--model gpt-4.1") {
 		t.Fatalf("Argv = %q, want recovered thread settings only", joined)
 	}
-	if !strings.Contains(joined, "--effort high") || strings.Contains(joined, "--effort low") {
-		t.Fatalf("Argv = %q, want recovered thread effort only", joined)
+	if strings.Contains(joined, "--effort") {
+		t.Fatalf("Argv = %q, must not use unsupported --effort flag", joined)
 	}
 }
 
