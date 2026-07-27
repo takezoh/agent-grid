@@ -334,6 +334,18 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
         void submit(ctx);
       }}
     >
+      {paramCursor === 1 && selectedProject && (
+        <div className="palette-project-summary" data-testid="palette-project-summary">
+          <span>
+            {selectedProject.serverLabel
+              ? `${selectedProject.serverLabel} · ${selectedProject.path}`
+              : selectedProject.path}
+          </span>
+          <button type="button" onClick={() => moveCursor(-1)}>
+            Change
+          </button>
+        </div>
+      )}
       {snapshot.serverOutcomes
         .map((outcome) => ({ outcome, label: fleetOutcomeLabel(outcome) }))
         .filter((entry): entry is typeof entry & { label: string } => entry.label !== null)
@@ -455,14 +467,6 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
           </div>
         );
       })}
-      {paramCursor === 1 && selectedProject && (
-        <div className="palette-project-summary" data-testid="palette-project-summary">
-          <span>{selectedProject.path}</span>
-          <button type="button" onClick={() => moveCursor(-1)}>
-            Change
-          </button>
-        </div>
-      )}
       {paramCursor === 1 && selectedProfile && (
         <ProfileArgs
           parameters={selectedProfile.parameters}

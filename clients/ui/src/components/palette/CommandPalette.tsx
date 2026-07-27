@@ -197,7 +197,9 @@ export function CommandPalette(props: CommandPaletteProps = {}): JSX.Element | n
             Command Palette
           </h2>
           <PaletteAnnouncer announce={announceRef.current} />
-          <div className="palette-body">
+          <div
+            className={`palette-body ${phase === "paramSelect" ? "palette-body--param-select" : ""}`}
+          >
             {phase === "toolSelect" ? (
               <ToolSelectPhase
                 inputRef={inputRef}

@@ -73,6 +73,13 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* Param selection owns scrolling at the candidate-list level. This keeps
+   Project/Command filters and the Project worktree/host controls visible
+   while a long list of candidates moves underneath them. */
+.palette-body--param-select {
+  overflow: hidden;
+}
 /* toolSelect: input is a full-bleed row; the list carries its own gutter. */
 .palette-tool-select {
   display: flex;
@@ -527,10 +534,14 @@
   cursor: not-allowed;
 }
 
-/* Parameter phases share the palette body's single scroll owner. */
+/* Candidate rows are the parameter phase's only scroll owner. */
 .palette-param-listbox {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   gap: 1px;
   border-radius: 6px;
 }
@@ -630,7 +641,21 @@
 .palette-param-text-group {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   gap: 8px;
+}
+
+.palette-param-select {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.palette-param-text-group > .palette-param {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .palette-project-options,

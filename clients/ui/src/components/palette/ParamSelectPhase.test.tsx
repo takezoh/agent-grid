@@ -949,6 +949,63 @@ describe("ParamSelectPhase", () => {
     ).toBe(true);
   });
 
+  it("keeps the project filter and worktree/host controls before the scrollable project list", () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
+        profileIds: ["claude"],
+      }),
+    );
+    seedPalette("new-session", { project: "/repo/a" }, 0);
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    const input = projectFilterInput();
+    const actions = document.querySelector(".palette-project-options");
+    const list = document.getElementById("palette-param-project");
+    expect(actions).not.toBeNull();
+    expect(list).not.toBeNull();
+    expect(
+      input.compareDocumentPosition(actions as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      (actions as Node).compareDocumentPosition(list as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(list?.classList.contains("palette-param-listbox")).toBe(true);
+  });
+
+  it("shows the server-qualified project before the fixed command filter and candidate list", () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [
+          {
+            path: "/repo/a",
+            serverId: "build",
+            serverLabel: "Build Server",
+            commandProfiles: [{ id: "claude", label: "Claude", revision: "rev", parameters: [] }],
+          },
+        ],
+        profileIds: ["claude"],
+      }),
+    );
+    seedPalette(
+      "new-session",
+      { project: JSON.stringify(["build", "/repo/a"]), command: "claude" },
+      1,
+    );
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    const summary = screen.getByTestId("palette-project-summary");
+    const input = commandInput();
+    const list = document.getElementById("palette-param-command");
+    expect(summary.textContent).toContain("Build Server · /repo/a");
+    expect(summary.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(input.compareDocumentPosition(list as Node) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(
+      0,
+    );
+  });
+
   // UAC-008 / FR-016: no chips when project has no git or sandboxed capability
   it("renders no chip when selected project is not git nor sandboxed (UAC-008 / FR-016)", () => {
     setDaemonSnapshot(
