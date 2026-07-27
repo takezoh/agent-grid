@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace AgentGrid.Shell.Core.GatewayClient;
 
 /// <summary>
-/// Boundary-2 adapter: UNC-fresh token, REST ws-ticket mint, health probe for DaemonSupervisor.
+/// Boundary-2 adapter: persisted auth, REST ws-ticket mint, health probe for DaemonSupervisor.
 /// Reuses the ticket flow (contract-b2-native-ws-auth-path) — zero server change.
 /// First consumer of clients/sdk/csharp transport patterns.
 /// </summary>
@@ -49,7 +49,7 @@ public sealed class ShellGatewayClient : IDisposable
 
     /// <summary>
     /// Authenticated health probe used by DaemonSupervisor (GET /api/sessions).
-    /// Reads a fresh token every attempt; returns false on auth/IO failure (never Connected fake).
+    /// Returns false on auth/network failure (never Connected fake).
     /// </summary>
     public async Task<bool> ProbeSessionsAsync(CancellationToken ct = default)
     {
@@ -59,10 +59,6 @@ public sealed class ShellGatewayClient : IDisposable
             await ApplyAuthAsync(req, ct).ConfigureAwait(false);
             using var res = await SendAsync(req, ct).ConfigureAwait(false);
             return res.IsSuccessStatusCode;
-        }
-        catch (TokenUnavailableException)
-        {
-            return false;
         }
         catch (HttpRequestException)
         {
@@ -127,10 +123,6 @@ public sealed class ShellGatewayClient : IDisposable
                 return ApprovalSubmitResult.ServerError;
             return ApprovalSubmitResult.Accepted;
         }
-        catch (TokenUnavailableException)
-        {
-            return ApprovalSubmitResult.NetworkError;
-        }
         catch (HttpRequestException)
         {
             return ApprovalSubmitResult.NetworkError;
@@ -172,10 +164,6 @@ public sealed class ShellGatewayClient : IDisposable
             if (!res.IsSuccessStatusCode)
                 return ApprovalSubmitResult.ServerError;
             return ApprovalSubmitResult.Accepted;
-        }
-        catch (TokenUnavailableException)
-        {
-            return ApprovalSubmitResult.NetworkError;
         }
         catch (HttpRequestException)
         {

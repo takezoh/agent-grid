@@ -8,21 +8,21 @@ const servers: ServerConfig[] = [
     display_name: "Healthy",
     enabled: true,
     url: "http://healthy.test",
-    token_path: "healthy.token",
+    auth: { mode: "bearer", token: "healthy-token" },
   },
   {
     id: "down",
     display_name: "Down",
     enabled: true,
     url: "http://down.test",
-    token_path: "down.token",
+    auth: { mode: "bearer", token: "down-token" },
   },
   {
     id: "disabled",
     display_name: "Disabled",
     enabled: false,
     url: "http://disabled.test",
-    token_path: "disabled.token",
+    auth: { mode: "none" },
   },
 ];
 
@@ -32,9 +32,7 @@ describe("probeServerFleet", () => {
       ok: String(input).includes("healthy.test"),
       status: 503,
     })) as unknown as typeof fetch;
-    const readToken = vi.fn(async () => "token");
-
-    const result = await probeServerFleet(servers, { fetchFn, readToken });
+    const result = await probeServerFleet(servers, { fetchFn });
 
     expect(result.servers).toEqual([
       { serverId: "healthy", displayName: "Healthy", state: "connected" },
@@ -47,7 +45,23 @@ describe("probeServerFleet", () => {
       { serverId: "disabled", displayName: "Disabled", state: "disabled" },
     ]);
     expect(fetchFn).toHaveBeenCalledTimes(2);
-    expect(readToken).toHaveBeenCalledTimes(2);
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      1,
+      expect.any(URL),
+      expect.objectContaining({
+        headers: { Authorization: "Bearer healthy-token" },
+      }),
+    );
+  });
+
+  it("omits Authorization for explicit none auth", async () => {
+    const fetchFn = vi.fn(async () => ({ ok: true, status: 200 })) as unknown as typeof fetch;
+    await probeServerFleet([{ ...servers[0]!, auth: { mode: "none" } }], { fetchFn });
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({ headers: undefined }),
+    );
   });
 });
 
@@ -56,7 +70,6 @@ describe("FleetHealthMonitor", () => {
     const fetchFn = vi.fn(async () => ({ ok: true, status: 200 })) as unknown as typeof fetch;
     const monitor = new FleetHealthMonitor(() => servers.slice(0, 1), 60_000, {
       fetchFn,
-      readToken: async () => "token",
     });
 
     await Promise.all([monitor.list(), monitor.list()]);

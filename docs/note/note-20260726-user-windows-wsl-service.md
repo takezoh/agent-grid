@@ -168,4 +168,6 @@ Managerイベントと `sc.exe query AgentGridWSLHost` を確認してくださ�
 - サービスのログオンユーザーは、対象WSL distributionの所有者と一致させる
 - 複数distributionを停止する `wsl.exe --shutdown` は使用しない
 - 強制復旧は登録時に固定したdistributionだけを対象にする
-- 設定JSONやログへパスワード、token、環境変数値を記録しない
+- Windows service supervision の設定JSONやログへパスワード、bearer token、
+  環境変数値を記録しない。クライアント接続tokenの正本は別契約の
+  `%APPDATA%\agent-grid\config\servers.json` とし、設定UIではマスクする

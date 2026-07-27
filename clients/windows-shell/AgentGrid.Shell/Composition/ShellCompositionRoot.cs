@@ -1,4 +1,5 @@
 using AgentGrid.Shell.Core.DaemonSupervisor;
+using AgentGrid.Shell.Core.Configuration;
 using AgentGrid.Shell.Core.GatewayClient;
 using AgentGrid.Shell.Core.Health;
 using AgentGrid.Shell.Core.SupervisionState;
@@ -41,9 +42,9 @@ public sealed class ShellCompositionRoot : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(opts);
 
         ITokenSource tokens = opts.TokenSource
-            ?? (opts.NoAuth
+            ?? (opts.Auth.Mode == ServerAuthMode.None
                 ? new NoAuthTokenSource()
-                : new FileTokenSource(opts.TokenPath));
+                : new PersistedTokenSource(opts.Auth.Token!));
         var gateway = new ShellGatewayClient(opts.GatewayBaseUri, tokens, opts.HttpClient);
         var supervision = new ApprovalSubmissionService(gateway);
         var ws = new SupervisionWsSession(gateway, supervision, opts.WebSocketFactory);
@@ -113,11 +114,7 @@ public sealed class ShellCompositionRoot : IAsyncDisposable
 public sealed class ShellHostOptions
 {
     public required Uri GatewayBaseUri { get; init; }
-    public required string TokenPath { get; init; }
-    /// <summary>
-    /// Loopback e2e against scripts/run-dev.sh (-no-auth). Skips bearer file.
-    /// </summary>
-    public bool NoAuth { get; init; }
+    public required ServerAuthConfig Auth { get; init; }
     public string WorkspaceExePath { get; init; } = "agent-grid-workspace";
     public string[] WorkspaceArguments { get; init; } = Array.Empty<string>();
     public string? WorkspaceControlPath { get; init; }

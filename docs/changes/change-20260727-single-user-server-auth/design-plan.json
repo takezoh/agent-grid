@@ -1,0 +1,1196 @@
+{
+  "revision": "design-r1",
+  "base_revision": null,
+  "goal": "Adopt explicit stable per-server none|bearer authentication for trusted single-user devices while preserving the network boundary.",
+  "scope": {
+    "in_scope": [
+      "desktop auth schema and both native clients",
+      "server startup auth lifecycle and warning",
+      "authority and operator docs"
+    ],
+    "out_of_scope": [
+      "local compromise",
+      "automatic rotation",
+      "TLS or WS ticket redesign"
+    ]
+  },
+  "approach": "Use one nested versioned client auth contract, retain server token-file persistence, and replace non-loopback no-auth rejection with bound-listener warning.",
+  "components": [
+    {
+      "id": "component-desktop-auth-schema",
+      "name": "Desktop authentication contract",
+      "responsibility": "Own schema version 2, validated auth values, network mapping, and token exposure rules",
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "clients/desktop-config/servers.schema.json",
+          "clients/desktop-config/README.md"
+        ],
+        "owner": "Desktop authentication contract",
+        "integration_points": [
+          "authentication boundary"
+        ],
+        "test_seams": [
+          "deterministic contract tests"
+        ],
+        "rationale": "Own schema version 2, validated auth values, network mapping, and token exposure rules",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-2-token-unc-fresh-read"
+        ]
+      },
+      "contract_refs": [
+        "contract-auth-config",
+        "contract-client-auth"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-windows-shell-auth",
+      "name": "Windows Shell auth consumer",
+      "responsibility": "Consume the shared auth contract without filesystem acquisition or fallback",
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "clients/windows-shell/AgentGrid.Shell.Core/Configuration/DesktopConfig.cs",
+          "clients/windows-shell/AgentGrid.Shell.Core/GatewayClient/TokenSource.cs"
+        ],
+        "owner": "Windows Shell auth consumer",
+        "integration_points": [
+          "authentication boundary"
+        ],
+        "test_seams": [
+          "deterministic contract tests"
+        ],
+        "rationale": "Consume the shared auth contract without filesystem acquisition or fallback",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-2-token-unc-fresh-read"
+        ]
+      },
+      "contract_refs": [
+        "contract-client-auth"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-workspace-auth",
+      "name": "Workspace auth consumer",
+      "responsibility": "Consume the shared auth contract for connection, health, preload, and settings",
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "clients/workspace/src/main/desktop-config.ts",
+          "clients/workspace/src/main/server-health.ts",
+          "clients/workspace/src/main/settings-page.ts"
+        ],
+        "owner": "Workspace auth consumer",
+        "integration_points": [
+          "authentication boundary"
+        ],
+        "test_seams": [
+          "deterministic contract tests"
+        ],
+        "rationale": "Consume the shared auth contract for connection, health, preload, and settings",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-2-token-unc-fresh-read"
+        ]
+      },
+      "contract_refs": [
+        "contract-client-auth"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-server-auth-startup",
+      "name": "Server auth startup owner",
+      "responsibility": "Own stable token-file startup and bound-listener no-auth warning",
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": [
+          "src/cmd/server/daemon_flags.go",
+          "src/cmd/server/gateway.go"
+        ],
+        "owner": "Server auth startup owner",
+        "integration_points": [
+          "authentication boundary"
+        ],
+        "test_seams": [
+          "deterministic contract tests"
+        ],
+        "rationale": "Own stable token-file startup and bound-listener no-auth warning",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": [
+        "contract-server-auth",
+        "contract-token-change"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-auth-governance-docs",
+      "name": "Authentication governance",
+      "responsibility": "Own supersession and coordinated operational documentation",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "docs/changes/change-20260727-single-user-server-auth",
+          "docs/note/note-20260624-user-systemd.md"
+        ],
+        "owner": "Authentication governance",
+        "integration_points": [
+          "authentication boundary"
+        ],
+        "test_seams": [
+          "deterministic contract tests"
+        ],
+        "rationale": "Own supersession and coordinated operational documentation",
+        "accepted_adr_refs": [
+          "adr-20260724-boundary-2-token-unc-fresh-read"
+        ]
+      },
+      "contract_refs": [
+        "contract-token-change"
+      ],
+      "decision_closure_reason": ""
+    }
+  ],
+  "requirements": [
+    {
+      "id": "FR-AUTH-001",
+      "type": "state_driven",
+      "statement": "While a schema-version-2 server is enabled, it shall contain exactly auth none or bearer with a non-empty token.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    },
+    {
+      "id": "FR-AUTH-002",
+      "type": "event_driven",
+      "statement": "When bearer is selected, both clients shall use the direct token only for REST Authorization and existing ticket minting.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    },
+    {
+      "id": "FR-AUTH-003",
+      "type": "unwanted",
+      "statement": "If none is selected or bearer authentication fails, clients shall omit credentials only for none and never fall back from bearer.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    },
+    {
+      "id": "FR-AUTH-004",
+      "type": "unwanted",
+      "statement": "Legacy token_path, schema version 1, and malformed auth variants shall fail actionably without file reads or rewrite.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    },
+    {
+      "id": "FR-AUTH-005",
+      "type": "event_driven",
+      "statement": "When -no-auth is requested, the server shall accept any bind and shall not accept -allow-non-loopback-no-auth.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    },
+    {
+      "id": "FR-AUTH-006",
+      "type": "state_driven",
+      "statement": "While a bound no-auth listener is non-loopback or unspecified, startup shall emit a conspicuous network-reachability WARN.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    },
+    {
+      "id": "FR-AUTH-007",
+      "type": "state_driven",
+      "statement": "While bearer mode uses server-owned -token-file, normal restart shall preserve identity and invalid input shall fail startup.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    },
+    {
+      "id": "FR-AUTH-008",
+      "type": "complex",
+      "statement": "When an explicit token change is attempted, completion requires all target clients to authenticate; partial failure shall roll back both sides.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    },
+    {
+      "id": "FR-AUTH-009",
+      "type": "ubiquitous",
+      "statement": "The system shall mask stored tokens and exclude them from URLs, ordinary logs, status, and user-facing errors.",
+      "priority": "must",
+      "rationale": "Directly traces the authoritative user requirement."
+    }
+  ],
+  "non_functional_requirements": [
+    {
+      "id": "NFR-AUTH-001",
+      "statement": "JSON Schema, C#, and TypeScript shall enforce equivalent mode/token invariants.",
+      "priority": "must",
+      "rationale": "Prevent consumer drift."
+    },
+    {
+      "id": "NFR-AUTH-002",
+      "statement": "Bearer material shall not appear in URLs, ordinary logs, status, or user-facing errors.",
+      "priority": "must",
+      "rationale": "Preserve the network credential boundary."
+    },
+    {
+      "id": "NFR-AUTH-003",
+      "statement": "Authentication failures shall remain observable and shall never trigger unauthenticated fallback.",
+      "priority": "must",
+      "rationale": "Prevent boundary downgrade."
+    }
+  ],
+  "adrs": [
+    {
+      "id": "adr-20260727-single-user-server-auth",
+      "title": "Use explicit persisted server authentication for trusted single-user devices",
+      "status": "proposed",
+      "context": "Local device is trusted while the network boundary remains relevant; prior fresh-read and LAN escape-hatch authorities conflict.",
+      "decision": "Use schema version 2 nested auth, direct masked bearer values, stable server-owned token-file, explicit coordinated changes, and warning-only non-loopback no-auth based on bound listener address.",
+      "consequences": [
+        "Positive: one explicit client auth owner and stable restart identity.",
+        "Negative: manual migration and accepted operator risk for no-auth exposure.",
+        "Neutral: existing REST bearer and WS ticket protocol remains."
+      ],
+      "decision_input_refs": [
+        "decision-input-threat-model",
+        "decision-input-direct-token",
+        "decision-input-no-rotation",
+        "decision-input-nonloopback-noauth",
+        "decision-input-fresh-read-adr"
+      ],
+      "alternatives": [
+        {
+          "option": "Retain token_path and fresh reads",
+          "why_not": "Conflicts with explicit direct configuration and no rotation."
+        },
+        {
+          "option": "Retain LAN escape hatch",
+          "why_not": "Conflicts with warning-only startup."
+        }
+      ],
+      "related_requirements": [
+        "FR-AUTH-001",
+        "FR-AUTH-002",
+        "FR-AUTH-003",
+        "FR-AUTH-004",
+        "FR-AUTH-005",
+        "FR-AUTH-006",
+        "FR-AUTH-007",
+        "FR-AUTH-008",
+        "FR-AUTH-009"
+      ],
+      "contract_refs": [
+        "contract-auth-config",
+        "contract-client-auth",
+        "contract-server-auth",
+        "contract-token-change"
+      ]
+    }
+  ],
+  "decision_inputs": [
+    {
+      "id": "decision-input-threat-model",
+      "subject": "Single-user local trust",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "original requirement"
+      },
+      "authority": "constraint",
+      "candidate": "Keep network auth explicit without local isolation machinery.",
+      "requirement_refs": [
+        "FR-AUTH-001",
+        "FR-AUTH-003"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "Fresh local-file acquisition"
+    },
+    {
+      "id": "decision-input-direct-token",
+      "subject": "Direct token configuration",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "original requirement"
+      },
+      "authority": "constraint",
+      "candidate": "Nested direct auth union.",
+      "requirement_refs": [
+        "FR-AUTH-001",
+        "FR-AUTH-004"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "token_path"
+    },
+    {
+      "id": "decision-input-no-rotation",
+      "subject": "Stable token lifecycle",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "original requirement"
+      },
+      "authority": "constraint",
+      "candidate": "Retain server-owned token-file and coordinate changes.",
+      "requirement_refs": [
+        "FR-AUTH-007",
+        "FR-AUTH-008"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "independent rotation"
+    },
+    {
+      "id": "decision-input-nonloopback-noauth",
+      "subject": "Warning-only no-auth bind",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "original requirement"
+      },
+      "authority": "constraint",
+      "candidate": "Remove escape hatch and warn from bound address.",
+      "requirement_refs": [
+        "FR-AUTH-005",
+        "FR-AUTH-006"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "startup rejection"
+    },
+    {
+      "id": "decision-input-fresh-read-adr",
+      "subject": "Accepted fresh-read ADR",
+      "source": {
+        "kind": "accepted_adr",
+        "ref": "adr-20260724-boundary-2-token-unc-fresh-read"
+      },
+      "authority": "constraint",
+      "candidate": "Supersede.",
+      "requirement_refs": [
+        "FR-AUTH-004",
+        "FR-AUTH-007"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "preserve accepted ADR"
+    },
+    {
+      "id": "decision-input-project-testing",
+      "subject": "Repository verification policy",
+      "source": {
+        "kind": "repository_policy",
+        "ref": "AGENTS.md"
+      },
+      "authority": "constraint",
+      "candidate": "T0-T3 tests.",
+      "requirement_refs": [
+        "FR-AUTH-001",
+        "FR-AUTH-009"
+      ],
+      "classification": "implementation_detail",
+      "comparison_baseline": "unverified changes"
+    }
+  ],
+  "decision_dispositions": [
+    {
+      "decision_input_ref": "decision-input-threat-model",
+      "disposition": "adopted",
+      "rationale": "Closed by the implementation contract and verification package.",
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ],
+      "contract_refs": [
+        "contract-auth-config"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-direct-token",
+      "disposition": "adopted",
+      "rationale": "Closed by the implementation contract and verification package.",
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ],
+      "contract_refs": [
+        "contract-client-auth"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-no-rotation",
+      "disposition": "adopted",
+      "rationale": "Closed by the implementation contract and verification package.",
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ],
+      "contract_refs": [
+        "contract-server-auth"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-nonloopback-noauth",
+      "disposition": "adopted",
+      "rationale": "Closed by the implementation contract and verification package.",
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ],
+      "contract_refs": [
+        "contract-token-change"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-fresh-read-adr",
+      "disposition": "adopted",
+      "rationale": "Closed by the implementation contract and verification package.",
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ],
+      "contract_refs": [
+        "contract-token-change"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-project-testing",
+      "disposition": "adopted",
+      "rationale": "Closed by the implementation contract and verification package.",
+      "adr_refs": [],
+      "contract_refs": [
+        "contract-token-change"
+      ]
+    }
+  ],
+  "critique_blockers": [],
+  "open_questions": [],
+  "design_dimensions": [
+    "data_model",
+    "state_lifecycle",
+    "integration_contract",
+    "security_boundary"
+  ],
+  "implementation_contracts": [
+    {
+      "id": "contract-auth-config",
+      "dimension": "data_model",
+      "subject": "Schema-version-2 nested auth union",
+      "owner_component_ref": "component-desktop-auth-schema",
+      "related_requirements": [
+        "FR-AUTH-001",
+        "FR-AUTH-004"
+      ],
+      "related_units": [
+        "Implement schema and migration boundary"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-auth-config",
+          "condition": "The authoritative input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-auth-config"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Both clients accept exactly the same none and bearer variants.",
+          "observable_refs": [
+            "observable-auth-config"
+          ],
+          "rationale": "The owning boundary validates before use."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-auth-config",
+          "description": "Both clients accept exactly the same none and bearer variants. Adversarially: Legacy and malformed variants fail without reads or mutation.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-auth-config"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-auth-config",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-desktop-auth-schema",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-desktop-auth-schema"
+          },
+          "source": "Schema-version-2 nested auth union owner boundary",
+          "acquired_at": "At configuration load, startup, or explicit change",
+          "required_until": "The operation completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "The validated configuration generation is immutable for the operation.",
+          "invalidation_behavior": "Reject and reacquire through the owning public contract.",
+          "unavailable_outcome": "Legacy and malformed variants fail without reads or mutation.",
+          "witness_refs": [
+            "witness-auth-config-normal",
+            "witness-auth-config-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Both clients accept exactly the same none and bearer variants.",
+        "Legacy and malformed variants fail without reads or mutation."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-auth-config",
+          "class": "external_failure",
+          "source": "external_dependency",
+          "outcome": "Legacy and malformed variants fail without reads or mutation.",
+          "requirement_effect": "preserves",
+          "recovery": "explicit_retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-auth-config",
+          "requirement_refs": [
+            "FR-AUTH-001",
+            "FR-AUTH-004"
+          ],
+          "tier": "T0",
+          "method": "Deterministic contract and component tests.",
+          "criterion": "Normal and adversarial observations are distinguished exactly.",
+          "command": "cd clients/ui && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-auth-config-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-AUTH-001",
+            "FR-AUTH-004"
+          ],
+          "precondition": "Authoritative inputs are valid.",
+          "stimulus": "Execute the normal operation.",
+          "expected_observables": [
+            "Both clients accept exactly the same none and bearer variants."
+          ],
+          "expected_observable_refs": [
+            "observable-auth-config"
+          ],
+          "forbidden_outcomes": [
+            "Legacy and malformed variants fail without reads or mutation."
+          ],
+          "verification_refs": [
+            "verify-auth-config"
+          ]
+        },
+        {
+          "id": "witness-auth-config-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-AUTH-001",
+            "FR-AUTH-004"
+          ],
+          "precondition": "Input is legacy, malformed, unavailable, stale, or partially applied.",
+          "stimulus": "Execute the same operation.",
+          "expected_observables": [
+            "Legacy and malformed variants fail without reads or mutation."
+          ],
+          "expected_observable_refs": [
+            "observable-auth-config"
+          ],
+          "forbidden_outcomes": [
+            "Both clients accept exactly the same none and bearer variants. from insufficient evidence."
+          ],
+          "verification_refs": [
+            "verify-auth-config"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ]
+    },
+    {
+      "id": "contract-client-auth",
+      "dimension": "integration_contract",
+      "subject": "Shared client auth mapping and token exposure",
+      "owner_component_ref": "component-desktop-auth-schema",
+      "related_requirements": [
+        "FR-AUTH-002",
+        "FR-AUTH-003",
+        "FR-AUTH-009"
+      ],
+      "related_units": [
+        "Implement native client consumers"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-client-auth",
+          "condition": "The authoritative input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-client-auth"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Bearer maps only to Authorization and none maps to omission; presentation remains masked.",
+          "observable_refs": [
+            "observable-client-auth"
+          ],
+          "rationale": "The owning boundary validates before use."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-client-auth",
+          "description": "Bearer maps only to Authorization and none maps to omission; presentation remains masked. Adversarially: 401, unavailable input, or display paths never cause no-auth fallback or token disclosure.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-client-auth"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-client-auth",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-desktop-auth-schema",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-desktop-auth-schema"
+          },
+          "source": "Shared client auth mapping and token exposure owner boundary",
+          "acquired_at": "At configuration load, startup, or explicit change",
+          "required_until": "The operation completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "The validated configuration generation is immutable for the operation.",
+          "invalidation_behavior": "Reject and reacquire through the owning public contract.",
+          "unavailable_outcome": "401, unavailable input, or display paths never cause no-auth fallback or token disclosure.",
+          "witness_refs": [
+            "witness-client-auth-normal",
+            "witness-client-auth-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Bearer maps only to Authorization and none maps to omission; presentation remains masked.",
+        "401, unavailable input, or display paths never cause no-auth fallback or token disclosure."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-client-auth",
+          "class": "external_failure",
+          "source": "external_dependency",
+          "outcome": "401, unavailable input, or display paths never cause no-auth fallback or token disclosure.",
+          "requirement_effect": "preserves",
+          "recovery": "explicit_retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-client-auth",
+          "requirement_refs": [
+            "FR-AUTH-002",
+            "FR-AUTH-003",
+            "FR-AUTH-009"
+          ],
+          "tier": "T1",
+          "method": "Deterministic contract and component tests.",
+          "criterion": "Normal and adversarial observations are distinguished exactly.",
+          "command": "dotnet test clients/windows-shell/AgentGrid.Shell.sln"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-client-auth-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-AUTH-002",
+            "FR-AUTH-003",
+            "FR-AUTH-009"
+          ],
+          "precondition": "Authoritative inputs are valid.",
+          "stimulus": "Execute the normal operation.",
+          "expected_observables": [
+            "Bearer maps only to Authorization and none maps to omission; presentation remains masked."
+          ],
+          "expected_observable_refs": [
+            "observable-client-auth"
+          ],
+          "forbidden_outcomes": [
+            "401, unavailable input, or display paths never cause no-auth fallback or token disclosure."
+          ],
+          "verification_refs": [
+            "verify-client-auth"
+          ]
+        },
+        {
+          "id": "witness-client-auth-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-AUTH-002",
+            "FR-AUTH-003",
+            "FR-AUTH-009"
+          ],
+          "precondition": "Input is legacy, malformed, unavailable, stale, or partially applied.",
+          "stimulus": "Execute the same operation.",
+          "expected_observables": [
+            "401, unavailable input, or display paths never cause no-auth fallback or token disclosure."
+          ],
+          "expected_observable_refs": [
+            "observable-client-auth"
+          ],
+          "forbidden_outcomes": [
+            "Bearer maps only to Authorization and none maps to omission; presentation remains masked. from insufficient evidence."
+          ],
+          "verification_refs": [
+            "verify-client-auth"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ]
+    },
+    {
+      "id": "contract-server-auth",
+      "dimension": "security_boundary",
+      "subject": "Stable server bearer and bound-listener warning",
+      "owner_component_ref": "component-server-auth-startup",
+      "related_requirements": [
+        "FR-AUTH-005",
+        "FR-AUTH-006",
+        "FR-AUTH-007"
+      ],
+      "related_units": [
+        "Implement server lifecycle and warning"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-server-auth",
+          "condition": "The authoritative input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-server-auth"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Token-file identity survives restart and non-loopback or unspecified no-auth listeners emit WARN.",
+          "observable_refs": [
+            "observable-server-auth"
+          ],
+          "rationale": "The owning boundary validates before use."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-server-auth",
+          "description": "Token-file identity survives restart and non-loopback or unspecified no-auth listeners emit WARN. Adversarially: Invalid token-file fails and risky bound listeners cannot start silently.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-server-auth"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-server-auth",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-server-auth-startup",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-server-auth-startup"
+          },
+          "source": "Stable server bearer and bound-listener warning owner boundary",
+          "acquired_at": "At configuration load, startup, or explicit change",
+          "required_until": "The operation completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "The validated configuration generation is immutable for the operation.",
+          "invalidation_behavior": "Reject and reacquire through the owning public contract.",
+          "unavailable_outcome": "Invalid token-file fails and risky bound listeners cannot start silently.",
+          "witness_refs": [
+            "witness-server-auth-normal",
+            "witness-server-auth-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Token-file identity survives restart and non-loopback or unspecified no-auth listeners emit WARN.",
+        "Invalid token-file fails and risky bound listeners cannot start silently."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-server-auth",
+          "class": "external_failure",
+          "source": "external_dependency",
+          "outcome": "Invalid token-file fails and risky bound listeners cannot start silently.",
+          "requirement_effect": "preserves",
+          "recovery": "explicit_retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-server-auth",
+          "requirement_refs": [
+            "FR-AUTH-005",
+            "FR-AUTH-006",
+            "FR-AUTH-007"
+          ],
+          "tier": "T1",
+          "method": "Deterministic contract and component tests.",
+          "criterion": "Normal and adversarial observations are distinguished exactly.",
+          "command": "cd src && go test ./cmd/server/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-server-auth-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-AUTH-005",
+            "FR-AUTH-006",
+            "FR-AUTH-007"
+          ],
+          "precondition": "Authoritative inputs are valid.",
+          "stimulus": "Execute the normal operation.",
+          "expected_observables": [
+            "Token-file identity survives restart and non-loopback or unspecified no-auth listeners emit WARN."
+          ],
+          "expected_observable_refs": [
+            "observable-server-auth"
+          ],
+          "forbidden_outcomes": [
+            "Invalid token-file fails and risky bound listeners cannot start silently."
+          ],
+          "verification_refs": [
+            "verify-server-auth"
+          ]
+        },
+        {
+          "id": "witness-server-auth-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-AUTH-005",
+            "FR-AUTH-006",
+            "FR-AUTH-007"
+          ],
+          "precondition": "Input is legacy, malformed, unavailable, stale, or partially applied.",
+          "stimulus": "Execute the same operation.",
+          "expected_observables": [
+            "Invalid token-file fails and risky bound listeners cannot start silently."
+          ],
+          "expected_observable_refs": [
+            "observable-server-auth"
+          ],
+          "forbidden_outcomes": [
+            "Token-file identity survives restart and non-loopback or unspecified no-auth listeners emit WARN. from insufficient evidence."
+          ],
+          "verification_refs": [
+            "verify-server-auth"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ]
+    },
+    {
+      "id": "contract-token-change",
+      "dimension": "state_lifecycle",
+      "subject": "Coordinated explicit token change",
+      "owner_component_ref": "component-server-auth-startup",
+      "related_requirements": [
+        "FR-AUTH-008"
+      ],
+      "related_units": [
+        "Document and verify coordinated token change"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-token-change",
+          "condition": "The authoritative input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-token-change"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Completion is declared only after every target authenticates with the new token.",
+          "observable_refs": [
+            "observable-token-change"
+          ],
+          "rationale": "The owning boundary validates before use."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-token-change",
+          "description": "Completion is declared only after every target authenticates with the new token. Adversarially: Partial restart or health failure restores old server and client values and remains incomplete.",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-token-change"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-token-change",
+          "kind": "versioned_state",
+          "data_scope": "single_value",
+          "owner_component_ref": "component-server-auth-startup",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-server-auth-startup"
+          },
+          "source": "Coordinated explicit token change owner boundary",
+          "acquired_at": "At configuration load, startup, or explicit change",
+          "required_until": "The operation completes",
+          "preservation": "version_bound",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "The validated configuration generation is immutable for the operation.",
+          "invalidation_behavior": "Reject and reacquire through the owning public contract.",
+          "unavailable_outcome": "Partial restart or health failure restores old server and client values and remains incomplete.",
+          "witness_refs": [
+            "witness-token-change-normal",
+            "witness-token-change-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Completion is declared only after every target authenticates with the new token.",
+        "Partial restart or health failure restores old server and client values and remains incomplete."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-token-change",
+          "class": "external_failure",
+          "source": "external_dependency",
+          "outcome": "Partial restart or health failure restores old server and client values and remains incomplete.",
+          "requirement_effect": "preserves",
+          "recovery": "explicit_retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-token-change",
+          "requirement_refs": [
+            "FR-AUTH-008"
+          ],
+          "tier": "T2",
+          "method": "Deterministic contract and component tests.",
+          "criterion": "Normal and adversarial observations are distinguished exactly.",
+          "command": "cd src && go test ./cmd/server/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-token-change-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-AUTH-008"
+          ],
+          "precondition": "Authoritative inputs are valid.",
+          "stimulus": "Execute the normal operation.",
+          "expected_observables": [
+            "Completion is declared only after every target authenticates with the new token."
+          ],
+          "expected_observable_refs": [
+            "observable-token-change"
+          ],
+          "forbidden_outcomes": [
+            "Partial restart or health failure restores old server and client values and remains incomplete."
+          ],
+          "verification_refs": [
+            "verify-token-change"
+          ]
+        },
+        {
+          "id": "witness-token-change-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "malformed",
+            "boundary"
+          ],
+          "requirement_refs": [
+            "FR-AUTH-008"
+          ],
+          "precondition": "Input is legacy, malformed, unavailable, stale, or partially applied.",
+          "stimulus": "Execute the same operation.",
+          "expected_observables": [
+            "Partial restart or health failure restores old server and client values and remains incomplete."
+          ],
+          "expected_observable_refs": [
+            "observable-token-change"
+          ],
+          "forbidden_outcomes": [
+            "Completion is declared only after every target authenticates with the new token. from insufficient evidence."
+          ],
+          "verification_refs": [
+            "verify-token-change"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-single-user-server-auth"
+      ]
+    }
+  ],
+  "reference_algorithms": [],
+  "implementation_decisions_remaining": [],
+  "chunks": [
+    {
+      "id": "milestone-1-auth-contract",
+      "members": [
+        "component-desktop-auth-schema",
+        "component-windows-shell-auth",
+        "component-workspace-auth",
+        "component-server-auth-startup",
+        "component-auth-governance-docs"
+      ],
+      "units": [
+        {
+          "title": "Implement schema and migration boundary",
+          "objective": "Introduce schema v2 and reject v1.",
+          "output_format": "Schema, docs, fixtures, tests.",
+          "tool_guidance": "Use existing validators.",
+          "task_boundaries": "No production token rotation.",
+          "files_touched": [
+            "clients/desktop-config"
+          ],
+          "acceptance": [
+            "Shared fixtures agree."
+          ],
+          "contract_refs": [
+            "contract-auth-config"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "Implement native client consumers",
+          "objective": "Apply direct auth and masking in both clients.",
+          "output_format": "C#/TypeScript code and tests.",
+          "tool_guidance": "Reuse existing gateway clients.",
+          "task_boundaries": "Do not alter ticket protocol.",
+          "files_touched": [
+            "clients/windows-shell",
+            "clients/workspace"
+          ],
+          "acceptance": [
+            "No fallback or disclosure."
+          ],
+          "contract_refs": [
+            "contract-client-auth"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "Implement server lifecycle and warning",
+          "objective": "Remove escape hatch and warn from listener address.",
+          "output_format": "Go code and tests.",
+          "tool_guidance": "Retain token-file owner.",
+          "task_boundaries": "No TLS redesign.",
+          "files_touched": [
+            "src/cmd/server"
+          ],
+          "acceptance": [
+            "Restart stable; risky no-auth warns."
+          ],
+          "contract_refs": [
+            "contract-server-auth"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        },
+        {
+          "title": "Document and verify coordinated token change",
+          "objective": "Update authority and operational rollback docs.",
+          "output_format": "Docs and verification evidence.",
+          "tool_guidance": "Use dev-docs CLI.",
+          "task_boundaries": "No automatic rotation.",
+          "files_touched": [
+            "docs"
+          ],
+          "acceptance": [
+            "Supersession and rollback explicit."
+          ],
+          "contract_refs": [
+            "contract-token-change"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": []
+        }
+      ]
+    }
+  ],
+  "acceptance": [
+    "All FR-AUTH requirements have executable verification."
+  ],
+  "resolved_issues": [
+    {
+      "issue_ref": "issue-server-token-lifecycle-open",
+      "resolution": "Retained server-owned -token-file with fail-fast invalid input and stable restart."
+    },
+    {
+      "issue_ref": "issue-config-shape-open",
+      "resolution": "Fixed schema version 2 nested discriminated auth union."
+    },
+    {
+      "issue_ref": "issue-migration-outcome-open",
+      "resolution": "Fixed manual fail-fast migration without read or rewrite."
+    },
+    {
+      "issue_ref": "issue-shared-client-contract-owner",
+      "resolution": "Moved shared mapping ownership to desktop auth schema with two consumers."
+    },
+    {
+      "issue_ref": "issue-token-exposure-incomplete-consumers",
+      "resolution": "Expanded invariant and sentinel verification across both clients, settings, errors, and writers."
+    },
+    {
+      "issue_ref": "issue-coordinated-change-partial-failure",
+      "resolution": "Fixed prepare/replace/restart/reload/verify transition and rollback."
+    },
+    {
+      "issue_ref": "issue-service-supervision-authority-gap",
+      "resolution": "Preserved server-owned token-file and referenced supervision change explicitly."
+    },
+    {
+      "issue_ref": "issue-warning-effective-bind-epistemics",
+      "resolution": "Made successful listener Addr the warning authority."
+    }
+  ],
+  "adr_impacts": [],
+  "implementation_checklist": [
+    "schema",
+    "clients",
+    "server",
+    "docs"
+  ],
+  "verification_profiles": [],
+  "entities": [],
+  "failure_modes": [],
+  "non_goals": [
+    "local compromise",
+    "automatic rotation"
+  ],
+  "worked_examples": []
+}

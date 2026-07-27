@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "servers": [
+    {
+      "display_name": "Empty bearer",
+      "enabled": true,
+      "url": "http://127.0.0.1:8443",
+      "auth": { "mode": "bearer", "token": " " }
+    }
+  ]
+}

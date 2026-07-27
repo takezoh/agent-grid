@@ -97,10 +97,16 @@ cat ~/.local/state/agent-grid/server.token
 http://127.0.0.1:8080/#token=<paste>
 ```
 
-The bearer token is generated on first boot and persisted to
-`~/.local/state/agent-grid/server.token` (mode 0600). Restarting `server`
-re-reads the same file, so bookmarked URLs survive a unit reload. Rotate by
-deleting the file and restarting `agent-grid-server`.
+`make install-systemd` provisions the bearer token once at
+`~/.local/state/agent-grid/server.token` (mode 0600). Server startup only reads
+that value: a missing, unreadable, or empty file fails startup and never
+generates a replacement. Restarting therefore preserves the same credential.
+
+Changing the token is an explicit coordinated operation: prepare the new value
+in every client configuration, atomically replace `server.token`, restart the
+server and clients, and confirm authenticated health. If any client fails,
+restore the previous server and client values. Deleting the file is not a
+rotation mechanism.
 
 ## Logs
 
@@ -173,20 +179,19 @@ Normally `-server` stays on loopback and only `-web` fronts it. If you
 truly need to reach the server directly from another host on an isolated
 dev network — e.g. debugging a native client that talks to the gateway
 without the web proxy in between — you can combine `-no-auth` with a
-non-loopback bind, but this requires an explicit opt-in:
+non-loopback bind:
 
 ```ini
 [Service]
 ExecStart=
 ExecStart=%h/.local/bin/agent-grid-server \
-  -addr 0.0.0.0:8443 -insecure -no-auth -allow-non-loopback-no-auth \
+  -addr 0.0.0.0:8443 -insecure -no-auth \
   -data-dir %S/agent-grid -token-file %S/agent-grid/server.token
 ```
 
-`-no-auth` alone still refuses non-loopback binds — the daemon exits with
-`-no-auth refuses non-loopback bind …`. `-allow-non-loopback-no-auth` is
-the opt-in that suppresses that guard. When both are set, startup emits a
-distinct WARN in `~/.local/state/agent-grid/server.log`:
+`-no-auth` は非 loopback bind も拒否しません。実際に bind された
+listener address が非 loopback または wildcard の場合、起動時に
+`~/.local/state/agent-grid/server.log` へ明確な WARN を出力します:
 
 ```
 WARN msg="gateway: -no-auth on NON-LOOPBACK bind — auth is disabled and
@@ -197,8 +202,7 @@ WARN msg="gateway: -no-auth on NON-LOOPBACK bind — auth is disabled and
 This exposes every session, every workspace file, and every attached
 agent process to any host that can route to this port. Use only on
 isolated dev networks. To revert, restore `-addr 127.0.0.1:8443` and
-drop `-allow-non-loopback-no-auth` (leaving `-no-auth` intact is fine on
-loopback).
+leave `-no-auth` only when unauthenticated loopback access is intended.
 
 ### TLS direct on `-web`
 

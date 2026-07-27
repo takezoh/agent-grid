@@ -8,6 +8,7 @@ SRC_DIR     := src
 INSTALL_DIR    := $(HOME)/.local/bin
 LIBEXEC_DIR    := $(HOME)/.local/lib/agent-grid
 SYSTEMD_USER_DIR := $(HOME)/.config/systemd/user
+AGENT_GRID_STATE_DIR := $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)/agent-grid
 CODEX_MANAGED_BIN := $(HOME)/.codex/packages/standalone/current/codex
 
 # install-systemd renames the production binaries to their server/web roles so
@@ -111,6 +112,13 @@ install: build
 # see docs/note/note-20260624-user-systemd.md for the full procedure.
 install-systemd: install-server install-web
 	install -d $(SYSTEMD_USER_DIR)
+	install -d -m 700 $(AGENT_GRID_STATE_DIR)
+	@test -s $(AGENT_GRID_STATE_DIR)/server.token || { \
+		command -v openssl >/dev/null || { echo "openssl is required to provision server.token"; exit 1; }; \
+		umask 077; openssl rand -hex 24 > $(AGENT_GRID_STATE_DIR)/server.token; \
+		echo "Provisioned $(AGENT_GRID_STATE_DIR)/server.token"; \
+	}
+	chmod 600 $(AGENT_GRID_STATE_DIR)/server.token
 	install -m 644 deploy/systemd/agent-grid-server.service  $(SYSTEMD_USER_DIR)/
 	install -m 644 deploy/systemd/agent-grid-web.service     $(SYSTEMD_USER_DIR)/
 	systemctl --user daemon-reload

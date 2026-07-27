@@ -6,7 +6,8 @@
 # Default bind is 127.0.0.1:8443 + -insecure (loopback only). Operators
 # exposing to LAN/internet should set -tls-cert / -tls-key and re-bind via
 # server.env. Bearer-token auth is always on (see -token-file below) unless
-# -no-auth is explicitly added to ExecStart (loopback-only guard still applies).
+# -no-auth is explicitly added to ExecStart. Non-loopback no-auth binds start
+# with a strong network-exposure warning.
 
 [Unit]
 Description=agent-grid server (session daemon + HTTP/WS gateway)
@@ -17,8 +18,9 @@ Type=notify
 NotifyAccess=main
 StateDirectory=agent-grid
 # -data-dir tells the server where to write its socket, pid file, sessions
-# snapshot and logs. -token-file persists a bearer token across restarts so
-# bookmarked browser URLs survive a unit reload.
+# snapshot and logs. -token-file reads the bearer token provisioned by
+# `make install-systemd`; missing or empty files fail startup rather than
+# silently changing the credential.
 #
 # Wrap the daemon in `bash -lc` so host-mode frame launches inherit the
 # operator's login-shell environment (PATH, MISE_*, GOPATH, npm_config_prefix,

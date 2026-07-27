@@ -504,7 +504,7 @@ export function buildSettingsPageHtml(): string {
           display_name: "New server",
           enabled: true,
           url: "http://127.0.0.1:8443",
-          token_path: "",
+          auth: { mode: "none" },
         };
       }
 
@@ -566,7 +566,10 @@ export function buildSettingsPageHtml(): string {
             '</div>',
             '<div class="form-row">',
             '<div class="field"><label>Gateway URL</label><input data-field="url" data-index="' + index + '" value="' + escapeHtml(server.url || "") + '"></div>',
-            '<div class="field"><label>Token path</label><input data-field="token_path" data-index="' + index + '" value="' + escapeHtml(server.token_path || "") + '"><small>Windows path to the gateway bearer token file.</small></div>',
+            '<div class="field"><label>Authentication</label><select data-field="auth_mode" data-index="' + index + '"><option value="none"' + (server.auth?.mode === "none" ? " selected" : "") + '>None</option><option value="bearer"' + (server.auth?.mode === "bearer" ? " selected" : "") + '>Bearer token</option></select><small>Use None only when the server was started with -no-auth.</small></div>',
+            '</div>',
+            '<div class="form-row">',
+            '<div class="field"><label>Bearer token</label><input type="password" autocomplete="new-password" data-field="auth_token" data-index="' + index + '" value="' + escapeHtml(server.auth?.mode === "bearer" ? server.auth.token || "" : "") + '"' + (server.auth?.mode === "bearer" ? "" : " disabled") + '><small>Stored in servers.json and masked in this UI.</small></div>',
             '</div>',
             '</div>',
             '<div class="server-card__footer">',
@@ -623,6 +626,23 @@ export function buildSettingsPageHtml(): string {
           server.enabled = Boolean(value);
           return;
         }
+        if (field === "auth_mode") {
+          server.auth = value === "bearer"
+            ? { mode: "bearer", token: server.auth?.mode === "bearer" ? server.auth.token : "" }
+            : { mode: "none" };
+          const tokenInput = els.servers.querySelector(
+            'input[data-field="auth_token"][data-index="' + index + '"]',
+          );
+          if (tokenInput) {
+            tokenInput.disabled = value !== "bearer";
+            if (value !== "bearer") tokenInput.value = "";
+          }
+          return;
+        }
+        if (field === "auth_token") {
+          server.auth = { mode: "bearer", token: String(value) };
+          return;
+        }
         server[field] = String(value);
         if (field === "display_name") {
           updateServerPresentation(index);
@@ -636,7 +656,9 @@ export function buildSettingsPageHtml(): string {
               display_name: (server.display_name || "").trim(),
               enabled: Boolean(server.enabled),
               url: (server.url || "").trim(),
-              token_path: (server.token_path || "").trim(),
+              auth: server.auth?.mode === "bearer"
+                ? { mode: "bearer", token: (server.auth.token || "").trim() }
+                : { mode: "none" },
             };
           }),
           appearance: {

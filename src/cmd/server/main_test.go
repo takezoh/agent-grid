@@ -12,25 +12,7 @@ import (
 	"github.com/takezoh/agent-grid/host/config"
 )
 
-// === randToken / isLoopbackAddr — gateway helpers ===
-
-func TestRandTokenDistinctNonEmpty(t *testing.T) {
-	a, b := randToken(), randToken()
-	if a == "" {
-		t.Fatal("randToken returned empty")
-	}
-	if a == b {
-		t.Fatal("randToken returned identical tokens — not random")
-	}
-	if len(a) != 48 { // 24 random bytes, hex-encoded
-		t.Fatalf("token length = %d, want 48", len(a))
-	}
-}
-
-// TestIsLoopbackAddr pins the -no-auth guardrail: only loopback binds are
-// accepted. A regression that allowed -no-auth on 0.0.0.0 / a public IP /
-// the empty wildcard would expose the unauthenticated REST surface to the
-// network, which is precisely what this check exists to prevent.
+// TestIsLoopbackAddr pins listener classification for the no-auth warning.
 func TestIsLoopbackAddr(t *testing.T) {
 	cases := []struct {
 		addr string

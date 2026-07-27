@@ -29,6 +29,7 @@ func TestParseDaemonArgs(t *testing.T) {
 		{name: "token-file", args: []string{"-token-file", "/run/tok"}, want: daemonFlagSet{addr: ":8443", tokenFile: "/run/tok"}},
 		{name: "tls", args: []string{"-tls-cert", "/c", "-tls-key", "/k"}, want: daemonFlagSet{addr: ":8443", certFile: "/c", keyFile: "/k"}},
 		{name: "unknown flag", args: []string{"-unknown"}, wantErr: true},
+		{name: "removed non-loopback no-auth escape hatch", args: []string{"-allow-non-loopback-no-auth"}, wantErr: true},
 		{name: "positional rejected", args: []string{"-data-dir", "/x", "extra"}, wantErr: true},
 	}
 	for _, tc := range cases {

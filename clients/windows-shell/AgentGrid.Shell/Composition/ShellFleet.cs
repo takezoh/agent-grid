@@ -57,7 +57,7 @@ public sealed class ShellFleet : IAsyncDisposable
             roots.Add(server.Id, ShellCompositionRoot.Build(new ShellHostOptions
             {
                 GatewayBaseUri = server.Url,
-                TokenPath = server.TokenPath,
+                Auth = server.Auth,
                 WorkspaceExePath = ResolveWorkspaceExecutable(config.Shell.WorkspaceExecutable),
                 WorkspaceArguments = WorkspaceLaunchArguments(config.ConfigDirectory),
                 QuitApplication = quit,

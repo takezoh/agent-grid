@@ -1,67 +1,33 @@
 namespace AgentGrid.Shell.Core.GatewayClient;
 
 /// <summary>
-/// Fresh-read token acquisition (contract-b2-token-acquisition, FR-B2-01).
-/// Never caches the bearer token across connection attempts.
+/// Supplies the validated credential selected by desktop configuration.
 /// </summary>
 public interface ITokenSource
 {
     /// <summary>
-    /// Read the current bearer token. Throws <see cref="TokenUnavailableException"/>
-    /// when the UNC path (or configured source) is unreadable (FR-B2-03).
+    /// Return the configured bearer token, or empty for explicit no-auth mode.
     /// </summary>
     Task<string> ReadFreshAsync(CancellationToken ct = default);
 }
 
-public sealed class TokenUnavailableException : Exception
+public sealed class PersistedTokenSource : ITokenSource
 {
-    public TokenUnavailableException(string path, Exception? inner = null)
-        : base($"gateway token unreadable at '{path}'", inner)
+    private readonly string _token;
+
+    public PersistedTokenSource(string token)
     {
-        Path = path;
+        if (string.IsNullOrWhiteSpace(token))
+            throw new ArgumentException("Bearer token must not be empty.", nameof(token));
+        _token = token;
     }
 
-    public string Path { get; }
+    public Task<string> ReadFreshAsync(CancellationToken ct = default) =>
+        Task.FromResult(_token);
 }
 
 /// <summary>
-/// File-backed token source. On Windows the path is typically
-/// \\wsl$\distro\home\user\.agent-grid\gateway-token; tests inject any readable path.
-/// </summary>
-public sealed class FileTokenSource : ITokenSource
-{
-    private readonly string _path;
-
-    public FileTokenSource(string path)
-    {
-        _path = path ?? throw new ArgumentNullException(nameof(path));
-    }
-
-    public async Task<string> ReadFreshAsync(CancellationToken ct = default)
-    {
-        try
-        {
-            // Fresh read every call — no static/instance cache of content.
-            var text = await File.ReadAllTextAsync(_path, ct).ConfigureAwait(false);
-            var token = text.Trim();
-            if (string.IsNullOrEmpty(token))
-                throw new TokenUnavailableException(_path);
-            return token;
-        }
-        catch (TokenUnavailableException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
-        {
-            throw new TokenUnavailableException(_path, ex);
-        }
-    }
-}
-
-/// <summary>
-/// Loopback e2e against <c>scripts/run-dev.sh</c> (<c>-no-auth</c>): no bearer file.
-/// Production MUST use <see cref="FileTokenSource"/>.
+/// Explicit no-auth configuration. The gateway client omits Authorization.
 /// </summary>
 public sealed class NoAuthTokenSource : ITokenSource
 {

@@ -1,4 +1,3 @@
-import * as fs from "node:fs/promises";
 import type { ServerConfig } from "./desktop-config.js";
 
 export type ServerHealthState = "connected" | "unavailable" | "disabled";
@@ -17,7 +16,6 @@ export interface FleetHealth {
 
 export interface ServerHealthDependencies {
   fetchFn?: typeof fetch;
-  readToken?: (path: string) => Promise<string>;
 }
 
 /** Runtime-only fleet observation. It never enters DesktopConfig persistence. */
@@ -26,7 +24,6 @@ export async function probeServerFleet(
   deps: ServerHealthDependencies = {},
 ): Promise<FleetHealth> {
   const fetchFn = deps.fetchFn ?? fetch;
-  const readToken = deps.readToken ?? ((path: string) => fs.readFile(path, "utf8"));
   const observations = await Promise.all(
     servers.map(async (server): Promise<ServerHealth> => {
       if (!server.enabled) {
@@ -37,10 +34,11 @@ export async function probeServerFleet(
         };
       }
       try {
-        const token = (await readToken(server.token_path)).trim();
-        if (!token) throw new Error("token is empty");
+        const headers = server.auth.mode === "bearer"
+          ? { Authorization: `Bearer ${server.auth.token}` }
+          : undefined;
         const response = await fetchFn(new URL("/api/sessions", `${server.url}/`), {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           signal: AbortSignal.timeout(3000),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

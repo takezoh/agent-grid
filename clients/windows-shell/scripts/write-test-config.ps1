@@ -2,23 +2,24 @@ param(
   [Parameter(Mandatory = $true)][string]$ConfigDir,
   [Parameter(Mandatory = $true)][string]$GatewayUrl,
   [string]$WorkspaceExecutable = "agent-grid-workspace",
-  [string]$TokenPath = ""
+  [string]$Token = ""
 )
 
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
-if (-not $TokenPath) {
-  $TokenPath = Join-Path $ConfigDir "test-gateway-token"
-  Set-Content -Path $TokenPath -Value "test-no-auth-token" -NoNewline
+$auth = if ($Token) {
+  @{ mode = "bearer"; token = $Token }
+} else {
+  @{ mode = "none" }
 }
 
 @{
-  schema_version = 1
+  schema_version = 2
   servers = @(@{
     display_name = "Test"
     enabled = $true
     url = $GatewayUrl
-    token_path = $TokenPath
+    auth = $auth
   })
 } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $ConfigDir "servers.json")
 

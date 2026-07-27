@@ -21,13 +21,17 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $shellDir = Split-Path -Parent $scriptDir
 
 # If we're on a UNC (\\wsl.localhost\...) path, robocopy to local temp first.
-$local = Join-Path $env:LOCALAPPDATA "Temp\ag-shell-src-$PID"
+$localRoot = Join-Path $env:LOCALAPPDATA "Temp\ag-client-src-$PID"
+$local = Join-Path $localRoot "windows-shell"
 $copied = $false
 if ($shellDir -match '^\\\\') {
   Write-Host "Syncing $shellDir -> $local"
-  if (Test-Path $local) { Remove-Item -Recurse -Force $local }
+  if (Test-Path $localRoot) { Remove-Item -Recurse -Force $localRoot }
   & robocopy $shellDir $local /E /XD bin obj .git /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
   if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
+  $desktopConfigDir = Join-Path (Split-Path -Parent $shellDir) "desktop-config"
+  & robocopy $desktopConfigDir (Join-Path $localRoot "desktop-config") /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+  if ($LASTEXITCODE -ge 8) { throw "desktop-config robocopy failed: $LASTEXITCODE" }
   $work = $local
   $copied = $true
 } else {
@@ -42,7 +46,7 @@ try {
 } finally {
   if ($copied) {
     Set-Location $env:TEMP
-    Remove-Item -Recurse -Force $local -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force $localRoot -ErrorAction SilentlyContinue
   }
 }
 exit $testExit

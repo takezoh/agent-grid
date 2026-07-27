@@ -11,7 +11,7 @@ import (
 
 // resolveAuth precedence matrix (highest first):
 //
-//	-no-auth  > -token  > -token-file  > random
+//	-no-auth  > -token  > -token-file
 //
 // Mutually exclusive: -token AND -token-file is an explicit error so that a
 // stale literal or a typo'd path is never silently masked by the other.
@@ -20,7 +20,7 @@ func TestResolveAuth_NoAuthZeroesToken(t *testing.T) {
 	// Using only -token (not -token-file) so the mutex check stays out of
 	// the way; what we're asserting here is that -no-auth wins over an
 	// explicit token literal.
-	got, err := resolveAuth("ignored", "", true, false, "127.0.0.1:0")
+	got, err := resolveAuth("ignored", "", true)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -29,42 +29,18 @@ func TestResolveAuth_NoAuthZeroesToken(t *testing.T) {
 	}
 }
 
-func TestResolveAuth_NoAuthRejectsNonLoopback(t *testing.T) {
-	if _, err := resolveAuth("", "", true, false, "0.0.0.0:8443"); err == nil {
-		t.Fatal("expected error on non-loopback bind with -no-auth")
-	}
-}
-
-// TestResolveAuth_NoAuthAllowsNonLoopbackWithOptIn documents the explicit
-// escape hatch: -allow-non-loopback-no-auth suppresses the loopback guard
-// so an operator can (dangerously) expose the unauthenticated surface on
-// an isolated dev network. Without the opt-in the guard MUST still fire —
-// that is the invariant TestResolveAuth_NoAuthRejectsNonLoopback pins.
-func TestResolveAuth_NoAuthAllowsNonLoopbackWithOptIn(t *testing.T) {
-	got, err := resolveAuth("", "", true, true, "0.0.0.0:8443")
+func TestResolveAuth_NoAuthAllowsNonLoopback(t *testing.T) {
+	got, err := resolveAuth("", "", true)
 	if err != nil {
-		t.Fatalf("unexpected err with opt-in: %v", err)
+		t.Fatalf("unexpected err on non-loopback bind with -no-auth: %v", err)
 	}
 	if got != "" {
 		t.Errorf("token = %q, want empty (no-auth still zeroes the token)", got)
 	}
 }
 
-// TestResolveAuth_AllowNonLoopbackWithoutNoAuthIsNoop guards against the
-// opt-in flag accidentally becoming an implicit -no-auth. Without -no-auth
-// it must have zero effect: token resolution follows the normal precedence.
-func TestResolveAuth_AllowNonLoopbackWithoutNoAuthIsNoop(t *testing.T) {
-	got, err := resolveAuth("literal", "", false, true, "0.0.0.0:8443")
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if got != "literal" {
-		t.Errorf("token = %q, want %q (opt-in must not bypass token resolution)", got, "literal")
-	}
-}
-
 func TestResolveAuth_TokenFlagWins(t *testing.T) {
-	got, err := resolveAuth("literal", "", false, false, "127.0.0.1:0")
+	got, err := resolveAuth("literal", "", false)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -74,7 +50,7 @@ func TestResolveAuth_TokenFlagWins(t *testing.T) {
 }
 
 func TestResolveAuth_TokenAndTokenFileConflict(t *testing.T) {
-	_, err := resolveAuth("literal", "/some/path", false, false, "127.0.0.1:0")
+	_, err := resolveAuth("literal", "/some/path", false)
 	if err == nil {
 		t.Fatal("expected error when both -token and -token-file are set")
 	}
@@ -89,7 +65,7 @@ func TestResolveAuth_TokenAndTokenFileConflict(t *testing.T) {
 // adding TLS) hits a fresh "mutually exclusive" error at the moment auth is
 // being enabled — exactly the wrong time to learn about a misconfig.
 func TestResolveAuth_ConflictSurfacesUnderNoAuth(t *testing.T) {
-	_, err := resolveAuth("literal", "/some/path", true, false, "127.0.0.1:0")
+	_, err := resolveAuth("literal", "/some/path", true)
 	if err == nil {
 		t.Fatal("expected mutual-exclusion error even with -no-auth")
 	}
@@ -98,80 +74,41 @@ func TestResolveAuth_ConflictSurfacesUnderNoAuth(t *testing.T) {
 	}
 }
 
-func TestResolveAuth_RandomWhenBothEmpty(t *testing.T) {
-	got, err := resolveAuth("", "", false, false, "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if len(got) != 48 { // randToken() = 24 bytes hex-encoded
-		t.Errorf("random token length = %d, want 48", len(got))
+func TestResolveAuth_RequiresExplicitMode(t *testing.T) {
+	if _, err := resolveAuth("", "", false); err == nil {
+		t.Fatal("missing -token, -token-file, and -no-auth must fail")
 	}
 }
 
-func TestTokenFromFile_GeneratesAndPersists(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "nested", "server.token")
-
-	first, err := tokenFromFile(path)
-	if err != nil {
-		t.Fatalf("first call: %v", err)
-	}
-	if first == "" {
-		t.Fatal("first call returned empty token")
-	}
-
-	// File must exist with mode 0600 after first call.
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat %s: %v", path, err)
-	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Errorf("token file mode = %o, want 0600", got)
-	}
-
-	// Parent dir must be 0700.
-	parentInfo, err := os.Stat(filepath.Dir(path))
-	if err != nil {
-		t.Fatalf("stat parent: %v", err)
-	}
-	if got := parentInfo.Mode().Perm(); got != 0o700 {
-		t.Errorf("token dir mode = %o, want 0700", got)
-	}
-
-	// Second call must read the same token, not regenerate.
-	second, err := tokenFromFile(path)
-	if err != nil {
-		t.Fatalf("second call: %v", err)
-	}
-	if first != second {
-		t.Errorf("token rotated across calls: first=%q second=%q", first, second)
-	}
-}
-
-func TestTokenFromFile_EmptyFileRegenerates(t *testing.T) {
+func TestTokenFromFile_MissingFailsWithoutCreating(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "server.token")
-	if err := os.WriteFile(path, []byte("   \n"), 0o600); err != nil {
+	if _, err := tokenFromFile(path); err == nil {
+		t.Fatal("missing token file must fail")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing token file was created or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestTokenFromFile_EmptyFailsWithoutReplacing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "server.token")
+	const empty = "   \n"
+	if err := os.WriteFile(path, []byte(empty), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	tok, err := tokenFromFile(path)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
+	if _, err := tokenFromFile(path); err == nil {
+		t.Fatal("empty token file must fail")
 	}
-	if strings.TrimSpace(tok) == "" {
-		t.Error("empty file should regenerate, got empty token")
-	}
-
-	// File now must hold the new token.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(string(data)) != tok {
-		t.Errorf("file content = %q, want %q", strings.TrimSpace(string(data)), tok)
+	if string(data) != empty {
+		t.Fatalf("empty token file was modified: %q", data)
 	}
 }
-
 func TestTokenFromFile_ExistingTokenIsTrimmed(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "server.token")
@@ -218,39 +155,6 @@ func TestTokenFromFile_TightensExistingLoosePermissions(t *testing.T) {
 	}
 	if mode := info.Mode().Perm(); mode != 0o600 {
 		t.Errorf("mode after read = %o, want 0600 (loose perms must be tightened)", mode)
-	}
-}
-
-// TestTokenFromFile_WriteIsAtomicAtFinalMode regenerates a token into a
-// new path and asserts that, post-rename, the final file is at 0600 even
-// though the source path was created via CreateTemp (which defaults to
-// the umask-influenced mode). The atomic-write path is what survives a
-// crash without leaving a half-written zero-byte file.
-func TestTokenFromFile_WriteIsAtomicAtFinalMode(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "server.token")
-	tok, err := tokenFromFile(path)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if tok == "" {
-		t.Fatal("empty token")
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if mode := info.Mode().Perm(); mode != 0o600 {
-		t.Errorf("freshly-written token file mode = %o, want 0600", mode)
-	}
-	// No stray temp file left behind.
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 {
-		t.Errorf("dir entries = %d (%v), want exactly 1 (the renamed token file)",
-			len(entries), entries)
 	}
 }
 

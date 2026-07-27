@@ -1,50 +1,37 @@
-import * as fs from "node:fs/promises";
-import * as os from "node:os";
-import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DaemonConfigResolver } from "../src/main/daemon-config.js";
 import { sessionPageUrl } from "../src/main/electron-window-factory.js";
 import { assertTokenNotInUrl, buildPreloadApi } from "../src/preload/index.js";
 
 describe("daemon-config", () => {
-  it("reads token fresh each resolve", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ag-tok-"));
-    const tokenPath = path.join(dir, "gateway-token");
-    await fs.writeFile(tokenPath, "v1\n");
+  it("resolves the persisted bearer token", async () => {
     const r = new DaemonConfigResolver({
       serverId: "local",
-      tokenPath,
+      auth: { mode: "bearer", token: "v1" },
       baseUrl: "http://127.0.0.1:8443",
     });
     expect((await r.resolve("local")).token).toBe("v1");
-    await fs.writeFile(tokenPath, "v2\n");
-    expect((await r.resolve("local")).token).toBe("v2");
   });
 
-  it("throws explicit error when unreadable", async () => {
+  it("resolves no-auth without fabricating a token", async () => {
     const r = new DaemonConfigResolver({
       serverId: "local",
-      tokenPath: path.join(os.tmpdir(), `missing-${Date.now()}`),
+      auth: { mode: "none" },
       baseUrl: "http://127.0.0.1:8443",
     });
-    await expect(r.resolve("local")).rejects.toThrow(/unreadable/);
+    await expect(r.resolve("local")).resolves.toMatchObject({ token: "" });
   });
 
   it("selects the configured connection by serverId", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ag-tok-multi-"));
-    const one = path.join(dir, "one");
-    const two = path.join(dir, "two");
-    await fs.writeFile(one, "token-one");
-    await fs.writeFile(two, "token-two");
     const resolver = new DaemonConfigResolver([
       {
         serverId: "one",
-        tokenPath: one,
+        auth: { mode: "bearer", token: "token-one" },
         baseUrl: "http://one.test",
       },
       {
         serverId: "two",
-        tokenPath: two,
+        auth: { mode: "bearer", token: "token-two" },
         baseUrl: "http://two.test",
       },
     ]);

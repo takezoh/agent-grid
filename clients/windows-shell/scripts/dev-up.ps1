@@ -5,10 +5,10 @@
 #   Terminal A (WSL):  make run-dev          # scripts/run-dev.sh — server+web, -no-auth loopback
 #   Terminal B (Win):  this script          # build + launch with --config-dir
 #
-# Product/auth path: pass -NoAuth:$false and -TokenPath to a real gateway-token file.
+# Product/auth path: pass -NoAuth:$false and -Token with the configured bearer value.
 param(
   [string]$GatewayUrl = "http://127.0.0.1:8443",
-  [string]$TokenPath = "",
+  [string]$Token = "",
   [bool]$NoAuth = $true,
   [switch]$NoLaunch,
   [switch]$SkipBuild,
@@ -20,10 +20,6 @@ $ErrorActionPreference = "Stop"
 Write-Host "== agent-grid WinUI client =="
 Write-Host "Gateway: $GatewayUrl (connect only)"
 Write-Host "NoAuth:  $NoAuth  (match scripts/run-dev.sh -no-auth for e2e)"
-
-if (-not $TokenPath) {
-  $TokenPath = Join-Path $env:LOCALAPPDATA "agent-grid\gateway-token"
-}
 
 $repo = (wsl.exe -e wslpath -w /workspace/agent-grid).Trim()
 
@@ -43,9 +39,8 @@ if (-not $SkipRegister) {
 try {
   $headers = @{}
   if (-not $NoAuth) {
-    if (-not (Test-Path $TokenPath)) { throw "token file missing: $TokenPath" }
-    $tok = (Get-Content $TokenPath -Raw).Trim()
-    $headers["Authorization"] = "Bearer $tok"
+    if (-not $Token) { throw "-Token is required when -NoAuth:`$false" }
+    $headers["Authorization"] = "Bearer $Token"
   }
   $r = Invoke-WebRequest -Uri ($GatewayUrl.TrimEnd('/') + "/api/sessions") `
     -Headers $headers -UseBasicParsing -TimeoutSec 3
@@ -67,7 +62,7 @@ $configArgs = @{
   ConfigDir = $configDir
   GatewayUrl = $GatewayUrl
 }
-if (-not $NoAuth) { $configArgs.TokenPath = $TokenPath }
+if (-not $NoAuth) { $configArgs.Token = $Token }
 & (Join-Path $PSScriptRoot "write-test-config.ps1") @configArgs | Out-Null
 Start-Process -FilePath $exe -ArgumentList @("--config-dir", $configDir)
 Start-Sleep -Seconds 2

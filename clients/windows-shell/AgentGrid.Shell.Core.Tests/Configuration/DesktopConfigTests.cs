@@ -47,7 +47,7 @@ public sealed class DesktopConfigTests : IDisposable
         var path = Path.Combine(_directory, "servers.json");
         var document = new
         {
-            schema_version = 1,
+            schema_version = 2,
             servers = new object[]
             {
                 Server("one", "http://127.0.0.1:8443"),
@@ -81,7 +81,7 @@ public sealed class DesktopConfigTests : IDisposable
     }
 
     [Fact]
-    public void Legacy_launch_settings_are_ignored_for_read_compatibility()
+    public void Legacy_schema_and_token_path_fail_without_rewrite()
     {
         DesktopConfigLoader.LoadOrCreate(_directory);
         var path = Path.Combine(_directory, "servers.json");
@@ -108,11 +108,13 @@ public sealed class DesktopConfigTests : IDisposable
             },
         }));
 
-        var config = DesktopConfigLoader.LoadOrCreate(_directory);
+        var before = File.ReadAllText(path);
+        var error = Assert.Throws<DesktopConfigException>(
+            () => DesktopConfigLoader.LoadOrCreate(_directory));
 
-        Assert.Equal(
-            "srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a",
-            Assert.Single(config.Servers).Id);
+        Assert.Contains("schema_version 1", error.Message);
+        Assert.Contains("token_path is no longer supported", error.Message);
+        Assert.Equal(before, File.ReadAllText(path));
     }
 
     [Fact]
@@ -127,6 +129,36 @@ public sealed class DesktopConfigTests : IDisposable
             DesktopConfigLoader.ServerIdentifier(canonical));
     }
 
+    [Theory]
+    [InlineData("servers-valid-none.json", ServerAuthMode.None)]
+    [InlineData("servers-valid-bearer.json", ServerAuthMode.Bearer)]
+    public void Shared_valid_auth_fixtures_are_accepted(string fixture, ServerAuthMode expected)
+    {
+        DesktopConfigLoader.LoadOrCreate(_directory);
+        File.Copy(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture),
+            Path.Combine(_directory, "servers.json"),
+            overwrite: true);
+
+        var server = Assert.Single(DesktopConfigLoader.LoadOrCreate(_directory).Servers);
+        Assert.Equal(expected, server.Auth.Mode);
+    }
+
+    [Theory]
+    [InlineData("servers-invalid-v1-token-path.json")]
+    [InlineData("servers-invalid-empty-bearer.json")]
+    public void Shared_invalid_auth_fixtures_are_rejected(string fixture)
+    {
+        DesktopConfigLoader.LoadOrCreate(_directory);
+        File.Copy(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture),
+            Path.Combine(_directory, "servers.json"),
+            overwrite: true);
+
+        Assert.Throws<DesktopConfigException>(
+            () => DesktopConfigLoader.LoadOrCreate(_directory));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))
@@ -138,6 +170,6 @@ public sealed class DesktopConfigTests : IDisposable
         display_name = displayName,
         enabled = true,
         url,
-        token_path = "token",
+        auth = new { mode = "bearer", token = "token" },
     };
 }

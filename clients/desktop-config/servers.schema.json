@@ -5,14 +5,14 @@
   "additionalProperties": false,
   "required": ["schema_version", "servers"],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "servers": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["display_name", "enabled", "url", "token_path"],
+        "required": ["display_name", "enabled", "url", "auth"],
         "properties": {
           "id": {
             "type": "string",
@@ -21,8 +21,32 @@
           },
           "display_name": { "type": "string", "minLength": 1 },
           "enabled": { "type": "boolean" },
-          "url": { "type": "string", "format": "uri" },
-          "token_path": { "type": "string", "minLength": 1 }
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://"
+          },
+          "auth": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["mode"],
+                "properties": {
+                  "mode": { "const": "none" }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["mode", "token"],
+                "properties": {
+                  "mode": { "const": "bearer" },
+                  "token": { "type": "string", "minLength": 1, "pattern": ".*\\S.*" }
+                }
+              }
+            ]
+          }
         }
       }
     }

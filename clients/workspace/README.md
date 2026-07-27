@@ -15,7 +15,7 @@ src/main/
                         title-bar document (pure, no electron import)
   control-endpoint.ts   named-pipe / Unix-socket JSON Lines server
   desktop-config.ts     shared config load/create + validation
-  daemon-config.ts      per-server fresh token resolve + hosted URL
+  daemon-config.ts      per-server persisted auth resolve + hosted URL
   index.ts              bootstrap wiring
 src/preload/
   index.ts              contextBridge surface + token-not-in-URL guard
@@ -33,7 +33,7 @@ src/shared/
 | `contract-window-close-not-session-stop` | `window-registry.ts` `closeSessionView` |
 | `contract-workspace-state-schema-evolution` | `loadWorkspaceState` |
 | `contract-b2-hosted-mode-token-injection` | `daemon-config.ts` + preload |
-| `contract-b2-token-acquisition` | `DaemonConfigResolver.resolve` |
+| persisted desktop auth | `DaemonConfigResolver.resolve` |
 
 ## Configuration
 

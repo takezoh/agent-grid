@@ -103,7 +103,7 @@ dotnet test
 | Contract | Owner |
 |---|---|
 | Client connection-health state machine | `DaemonSupervisorMachine` |
-| `contract-b2-token-acquisition` | `FileTokenSource` / `ShellGatewayClient` |
+| persisted desktop auth | `PersistedTokenSource` / `ShellGatewayClient` |
 | `contract-approve-submission-rollback` | `SupervisionReducer` |
 | `contract-resolved-by-other-display` | `SupervisionReducer` |
 | `contract-deep-link-question-jump-kind-gap` | `DeepLinkRouter` + `AliasTable` |
@@ -183,7 +183,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
 ```
 
 Auth-enabled gateway (non-e2e):  
-`dev-up.ps1 -NoAuth:$false -TokenPath 'C:\path\to\gateway-token'`.
+`dev-up.ps1 -NoAuth:$false -Token 'the-server-token'`.
 
 Server lifecycle is outside the desktop clients. The Shell only observes and connects
 to the configured gateway.

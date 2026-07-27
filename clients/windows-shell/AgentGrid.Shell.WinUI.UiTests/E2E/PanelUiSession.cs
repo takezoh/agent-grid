@@ -124,14 +124,12 @@ public class PanelUiSession : IDisposable
             Path.GetTempPath(),
             $"agent-grid-winui-e2e-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
-        var tokenPath = Path.Combine(directory, "gateway-token");
-        File.WriteAllText(tokenPath, "test-no-auth-token");
         var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
         File.WriteAllText(
             Path.Combine(directory, "servers.json"),
             System.Text.Json.JsonSerializer.Serialize(new
             {
-                schema_version = 1,
+                schema_version = 2,
                 servers = new[]
                 {
                     new
@@ -139,7 +137,7 @@ public class PanelUiSession : IDisposable
                         display_name = "Test",
                         enabled = true,
                         url = gatewayUrl,
-                        token_path = tokenPath,
+                        auth = new { mode = "none" },
                     },
                 },
             }, options));

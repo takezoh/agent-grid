@@ -4,20 +4,27 @@ import * as os from "node:os";
 import { createHash } from "node:crypto";
 
 export const CONFIG_SCHEMA_VERSION = 1;
+export const SERVERS_SCHEMA_VERSION = 2;
 export const CONFIG_DIR_ARGUMENT = "--config-dir";
 
 export type Theme = "default" | "system" | "light" | "dark";
 export type Density = "compact" | "comfortable";
+export type ServerAuth =
+  | { mode: "none" }
+  | { mode: "bearer"; token: string };
 export interface ServerConfig {
   /** Deterministic routing identifier derived from the canonical gateway URL. */
   id: string;
   display_name: string;
   enabled: boolean;
   url: string;
-  token_path: string;
+  auth: ServerAuth;
 }
 
-type ServerDocument = Omit<ServerConfig, "id"> & { id?: unknown; launch?: unknown };
+type ServerDocument = Omit<ServerConfig, "id" | "auth"> & {
+  auth: unknown;
+  id?: unknown;
+};
 
 export interface AppearanceConfig {
   theme: Theme;
@@ -80,7 +87,7 @@ export function loadOrCreateDesktopConfig(configDirectory: string): DesktopConfi
   const appearanceDoc = readJson<Versioned<AppearanceConfig>>(directory, "appearance.json");
   const shellDoc = readJson<Versioned<ShellAppConfig>>(directory, "shell.json");
   const workspaceDoc = readJson<Versioned<WorkspaceAppConfig>>(directory, "workspace.json");
-  checkVersion(serversDoc, "servers.json");
+  checkVersion(serversDoc, "servers.json", SERVERS_SCHEMA_VERSION);
   checkVersion(appearanceDoc, "appearance.json");
   checkVersion(shellDoc, "shell.json");
   checkVersion(workspaceDoc, "workspace.json");
@@ -120,7 +127,7 @@ export function saveEditableDesktopSettings(
   const directory = path.resolve(configDirectory);
   loadOrCreateDesktopConfig(directory);
   const serversDoc: Versioned<{ servers: readonly ServerDocument[] }> = {
-    schema_version: CONFIG_SCHEMA_VERSION,
+    schema_version: SERVERS_SCHEMA_VERSION,
     servers: settings.servers.map(({ id: _id, ...server }) => server),
   };
   const appearanceDoc: Versioned<AppearanceConfig> = {
@@ -148,7 +155,7 @@ export function saveEditableDesktopSettings(
 
 function createIfMissing(filePath: string, value: unknown): void {
   try {
-    const fd = fs.openSync(filePath, "wx");
+    const fd = fs.openSync(filePath, "wx", 0o600);
     try {
       fs.writeFileSync(fd, `${JSON.stringify(value, null, 2)}\n`, "utf8");
       fs.fsyncSync(fd);
@@ -173,13 +180,21 @@ function writeJson(filePath: string, value: unknown): void {
   fs.mkdirSync(directory, { recursive: true });
   const tempPath = `${filePath}.tmp-${process.pid}`;
   fs.writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  fs.chmodSync(tempPath, 0o600);
   fs.renameSync(tempPath, filePath);
 }
 
-function checkVersion(value: { schema_version?: unknown }, name: string): void {
-  if (value.schema_version !== CONFIG_SCHEMA_VERSION) {
+function checkVersion(
+  value: { schema_version?: unknown },
+  name: string,
+  expected = CONFIG_SCHEMA_VERSION,
+): void {
+  if (value.schema_version !== expected) {
     throw new Error(
-      `${name}: unsupported schema_version ${String(value.schema_version)}; expected ${CONFIG_SCHEMA_VERSION}`,
+      `${name}: unsupported schema_version ${String(value.schema_version)}; expected ${expected}. ` +
+        (name === "servers.json"
+          ? 'Use auth {"mode":"none"} or {"mode":"bearer","token":"..."}; token_path is no longer supported.'
+          : ""),
     );
   }
 }
@@ -193,6 +208,12 @@ function validateServers(servers: unknown): asserts servers is ServerDocument[] 
   for (const raw of servers) {
     if (!isRecord(raw)) throw new Error("servers.json: every server must be an object");
     const server = raw as unknown as ServerDocument;
+    const extraKeys = Object.keys(raw).filter(
+      (key) => !["id", "display_name", "enabled", "url", "auth"].includes(key),
+    );
+    if (extraKeys.length > 0) {
+      throw new Error(`servers.json: server contains unsupported field '${extraKeys[0]}'`);
+    }
     const label = typeof server.display_name === "string" && server.display_name.trim()
       ? server.display_name
       : "unnamed server";
@@ -207,9 +228,7 @@ function validateServers(servers: unknown): asserts servers is ServerDocument[] 
     const id = serverIdentifier(server.url);
     if (ids.has(id)) throw new Error(`servers.json: duplicate server url '${server.url}'`);
     ids.add(id);
-    if (typeof server.token_path !== "string" || !server.token_path.trim()) {
-      throw new Error(`servers.json: server '${label}' needs token_path`);
-    }
+    validateServerAuth(server.auth, label);
   }
   if (enabled === 0) throw new Error("servers.json: at least one server must be enabled");
 }
@@ -220,7 +239,7 @@ function mapServer(server: ServerDocument): ServerConfig {
     display_name: server.display_name,
     enabled: server.enabled,
     url: canonicalServerUrl(server.url),
-    token_path: expandWindowsEnvironment(server.token_path),
+    auth: mapServerAuth(server.auth),
   };
 }
 
@@ -290,21 +309,47 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function expandWindowsEnvironment(value: string): string {
-  return value.replace(/%([^%]+)%/g, (match, name: string) => process.env[name] ?? match);
+function validateServerAuth(value: unknown, label: string): asserts value is ServerAuth {
+  if (!isRecord(value) || (value.mode !== "none" && value.mode !== "bearer")) {
+    throw new Error(
+      `servers.json: server '${label}' auth must be {"mode":"none"} or ` +
+        '{"mode":"bearer","token":"..."}',
+    );
+  }
+  const keys = Object.keys(value).sort();
+  if (value.mode === "none") {
+    if (keys.length !== 1 || keys[0] !== "mode") {
+      throw new Error(`servers.json: server '${label}' auth mode none cannot contain a token`);
+    }
+    return;
+  }
+  if (
+    keys.length !== 2 ||
+    keys[0] !== "mode" ||
+    keys[1] !== "token" ||
+    typeof value.token !== "string" ||
+    !value.token.trim()
+  ) {
+    throw new Error(`servers.json: server '${label}' bearer auth needs a non-empty token`);
+  }
+}
+
+function mapServerAuth(value: unknown): ServerAuth {
+  validateServerAuth(value, "server");
+  return value.mode === "none"
+    ? { mode: "none" }
+    : { mode: "bearer", token: value.token.trim() };
 }
 
 function defaultDocuments(): Record<string, unknown> {
-  const localAppData =
-    process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local");
   return {
     "servers.json": {
-      schema_version: CONFIG_SCHEMA_VERSION,
+      schema_version: SERVERS_SCHEMA_VERSION,
       servers: [{
         display_name: "Local",
         enabled: true,
         url: "http://127.0.0.1:8443",
-        token_path: path.join(localAppData, "agent-grid", "gateway-token"),
+        auth: { mode: "none" },
       }],
     },
     "appearance.json": {

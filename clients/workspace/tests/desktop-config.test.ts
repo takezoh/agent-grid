@@ -46,6 +46,9 @@ describe("desktop config", () => {
       .not.toHaveProperty("launch");
     expect(JSON.parse(fs.readFileSync(path.join(directory, "servers.json"), "utf8")).servers[0])
       .not.toHaveProperty("id");
+    if (process.platform !== "win32") {
+      expect(fs.statSync(path.join(directory, "servers.json")).mode & 0o777).toBe(0o600);
+    }
   });
 
   it("resolves --config-dir for isolated test configuration", () => {
@@ -59,7 +62,7 @@ describe("desktop config", () => {
     fs.writeFileSync(
       path.join(directory, "servers.json"),
       JSON.stringify({
-        schema_version: 1,
+        schema_version: 2,
         servers: [
           server("One", true, "http://127.0.0.1:8443"),
           server("Two", false, "https://example.test"),
@@ -88,6 +91,45 @@ describe("desktop config", () => {
 
     expect(() => loadOrCreateDesktopConfig(directory)).toThrow(/appearance\.json/);
     expect(fs.readFileSync(file, "utf8")).toBe('{"schema_version":1,"theme":"blue"}');
+  });
+
+  it("rejects legacy token_path configuration without rewriting it", () => {
+    const directory = tempDir();
+    loadOrCreateDesktopConfig(directory);
+    const file = path.join(directory, "servers.json");
+    const legacy = JSON.stringify({
+      schema_version: 1,
+      servers: [{
+        display_name: "Legacy",
+        enabled: true,
+        url: "http://127.0.0.1:8443",
+        token_path: "gateway-token",
+      }],
+    });
+    fs.writeFileSync(file, legacy);
+
+    expect(() => loadOrCreateDesktopConfig(directory)).toThrow(/token_path is no longer supported/);
+    expect(fs.readFileSync(file, "utf8")).toBe(legacy);
+  });
+
+  it.each([
+    { auth: { mode: "bearer", token: " " }, message: /non-empty token/ },
+    { auth: { mode: "none", token: "leak" }, message: /cannot contain a token/ },
+    { auth: { mode: "unknown" }, message: /auth must be/ },
+  ])("rejects malformed auth variant %#", ({ auth, message }) => {
+    const directory = tempDir();
+    loadOrCreateDesktopConfig(directory);
+    fs.writeFileSync(path.join(directory, "servers.json"), JSON.stringify({
+      schema_version: 2,
+      servers: [{
+        display_name: "Invalid",
+        enabled: true,
+        url: "http://127.0.0.1:8443",
+        auth,
+      }],
+    }));
+
+    expect(() => loadOrCreateDesktopConfig(directory)).toThrow(message);
   });
 
   it("saves editable workspace settings without disturbing server config", () => {
@@ -139,7 +181,7 @@ describe("desktop config", () => {
       default_window: { width: 1440, height: 900 },
     });
     expect(JSON.parse(fs.readFileSync(path.join(directory, "servers.json"), "utf8"))).toMatchObject({
-      schema_version: 1,
+      schema_version: 2,
       servers: [
         {
           display_name: "Updated Local",
@@ -152,6 +194,34 @@ describe("desktop config", () => {
     expect(serverIdentifier("HTTP://Example.TEST:80/api///?token=ignored#fragment")).toBe(
       "srv_36edcc69555ffb4873eb2d2b461c03839096e08cbb4dd60ba5ecc53f8175a5d0",
     );
+  });
+
+  it.each([
+    "servers-valid-none.json",
+    "servers-valid-bearer.json",
+  ])("accepts shared fixture %s", (fixture) => {
+    const directory = tempDir();
+    loadOrCreateDesktopConfig(directory);
+    fs.copyFileSync(
+      path.resolve("../desktop-config/fixtures", fixture),
+      path.join(directory, "servers.json"),
+    );
+
+    expect(() => loadOrCreateDesktopConfig(directory)).not.toThrow();
+  });
+
+  it.each([
+    "servers-invalid-v1-token-path.json",
+    "servers-invalid-empty-bearer.json",
+  ])("rejects shared fixture %s", (fixture) => {
+    const directory = tempDir();
+    loadOrCreateDesktopConfig(directory);
+    fs.copyFileSync(
+      path.resolve("../desktop-config/fixtures", fixture),
+      path.join(directory, "servers.json"),
+    );
+
+    expect(() => loadOrCreateDesktopConfig(directory)).toThrow();
   });
 
   it("ignores a legacy client-selected id and removes it on save", () => {
@@ -179,6 +249,6 @@ function server(displayName: string, enabled: boolean, url: string) {
     display_name: displayName,
     enabled,
     url,
-    token_path: "token",
+    auth: { mode: "bearer", token: "token" },
   };
 }

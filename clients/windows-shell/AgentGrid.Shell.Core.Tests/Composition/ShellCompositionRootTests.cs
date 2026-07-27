@@ -1,4 +1,5 @@
 using AgentGrid.Shell.Composition;
+using AgentGrid.Shell.Core.Configuration;
 using AgentGrid.Shell.Core.DaemonSupervisor;
 using AgentGrid.Shell.Core.GatewayClient;
 using AgentGrid.Shell.Core.Health;
@@ -23,7 +24,7 @@ public class ShellCompositionRootTests
         var root = ShellCompositionRoot.Build(new ShellHostOptions
         {
             GatewayBaseUri = new Uri("http://127.0.0.1:9"),
-            TokenPath = Path.Combine(Path.GetTempPath(), $"ag-t-{Guid.NewGuid():N}"),
+            Auth = ServerAuthConfig.Bearer("tok"),
             TokenSource = new StaticToken("tok"),
             HttpClient = httpClient,
             Win32 = new NullWin32InteropService(),
@@ -96,7 +97,7 @@ public class ShellCompositionRootTests
         var root = ShellCompositionRoot.Build(new ShellHostOptions
         {
             GatewayBaseUri = new Uri("http://127.0.0.1:9"),
-            TokenPath = Path.Combine(Path.GetTempPath(), $"ag-t-{Guid.NewGuid():N}"),
+            Auth = ServerAuthConfig.Bearer("tok"),
             TokenSource = new StaticToken("tok"),
             HttpClient = httpClient,
             Win32 = new NullWin32InteropService(),
@@ -179,7 +180,7 @@ public class ShellCompositionRootTests
         var root = ShellCompositionRoot.Build(new ShellHostOptions
         {
             GatewayBaseUri = new Uri("http://127.0.0.1:9"),
-            TokenPath = Path.Combine(Path.GetTempPath(), $"ag-t-{Guid.NewGuid():N}"),
+            Auth = ServerAuthConfig.Bearer("tok"),
             TokenSource = new StaticToken("tok"),
             Win32 = win32,
             // AlwaysOkPipe simulates the pipe-success path: workspace is already running and

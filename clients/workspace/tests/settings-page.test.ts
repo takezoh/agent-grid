@@ -20,6 +20,8 @@ describe("settings page", () => {
     expect(html).toContain("<label>Display name</label>");
     expect(html).not.toContain("<label>Identifier</label>");
     expect(html).not.toContain('data-field="id"');
+    expect(html).toContain('<input type="password"');
+    expect(html).not.toContain("Token path");
   });
 
   it("packs the page as a data URL", () => {
@@ -34,7 +36,7 @@ describe("settings page", () => {
     );
   });
 
-  it.each(["display_name", "url", "token_path"])(
+  it.each(["display_name", "url", "auth_token"])(
     "preserves the focused %s input while editing and refreshing health",
     async (field) => {
       const { window, runHealthRefresh, close } = await loadSettingsPage();
@@ -94,7 +96,7 @@ async function loadSettingsPage(): Promise<{
             display_name: "Local",
             enabled: true,
             url: "http://127.0.0.1:8443",
-            token_path: "C:\\agent-grid\\gateway-token",
+            auth: { mode: "bearer", token: "test-token" },
           }],
           appearance: { theme: "dark", density: "comfortable", font_scale: 1 },
           workspace: {

@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "servers": [
+    {
+      "display_name": "Bearer",
+      "enabled": true,
+      "url": "https://example.test",
+      "auth": { "mode": "bearer", "token": "fixture-token" }
+    }
+  ]
+}

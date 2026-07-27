@@ -10,16 +10,15 @@ import (
 // in daemon mode (no subcommand). The struct is the parsed form; the loose
 // flag.FlagSet wires from CLI args.
 type daemonFlagSet struct {
-	dataDir            string
-	addr               string
-	token              string
-	tokenFile          string
-	certFile           string
-	keyFile            string
-	insecure           bool
-	noAuth             bool
-	printToken         bool
-	allowNoAuthNonLoop bool
+	dataDir    string
+	addr       string
+	token      string
+	tokenFile  string
+	certFile   string
+	keyFile    string
+	insecure   bool
+	noAuth     bool
+	printToken bool
 }
 
 // defaultDaemonFlags returns the flag values used when daemon mode runs with
@@ -48,24 +47,20 @@ func parseDaemonArgs(args []string) (*daemonFlagSet, error) {
 			"Overrides settings.toml data_dir and any inherited AG_DATA_DIR env value.")
 	fs.StringVar(&out.addr, "addr", out.addr, "gateway listen address")
 	fs.StringVar(&out.token, "token", "",
-		"bearer token (generated and printed if empty); ignored with -no-auth")
+		"bearer token; one of -token, -token-file, or -no-auth is required")
 	fs.StringVar(&out.tokenFile, "token-file", "",
-		"path to a file holding the bearer token; if the file does not exist "+
-			"it is created (mode 0600) with a freshly generated token, so the "+
-			"value survives restarts. Mutually exclusive with -token; ignored "+
+		"path to an existing non-empty file holding the bearer token. "+
+			"Missing, unreadable, or empty files fail startup rather than rotate "+
+			"the credential. Mutually exclusive with -token; ignored "+
 			"with -no-auth.")
 	fs.StringVar(&out.certFile, "tls-cert", "", "TLS certificate file (self-signed if empty)")
 	fs.StringVar(&out.keyFile, "tls-key", "", "TLS key file")
 	fs.BoolVar(&out.insecure, "insecure", false, "serve plain HTTP (no TLS) — local dev only")
 	fs.BoolVar(&out.noAuth, "no-auth", false,
-		"disable bearer-token AND WS-ticket auth — local dev only (loopback only). "+
-			"Bind MUST be 127.0.0.1/localhost; refuses non-loopback addrs.")
+		"disable bearer-token AND WS-ticket auth. DANGEROUS on non-loopback binds: "+
+			"the unauthenticated REST/WS surface is reachable from the network.")
 	fs.BoolVar(&out.printToken, "print-token", false,
 		"print the effective bearer token to stdout at startup (may expose it to log collectors)")
-	fs.BoolVar(&out.allowNoAuthNonLoop, "allow-non-loopback-no-auth", false,
-		"opt-in escape hatch: allow -no-auth on non-loopback binds (e.g. 0.0.0.0). "+
-			"DANGEROUS — exposes the unauthenticated REST/WS surface to the "+
-			"network. Only intended for isolated dev networks.")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}

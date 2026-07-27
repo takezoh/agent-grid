@@ -18,7 +18,7 @@ import type { SessionRef } from "../shared/session-ref.js";
 
 export interface MainBootstrapOptions {
   serverId: string;
-  tokenPath: string;
+  auth: { mode: "none" } | { mode: "bearer"; token: string };
   baseUrl: string;
   controlPath?: string;
   factory: WindowFactory;
@@ -35,7 +35,7 @@ export async function bootstrapMain(opts: MainBootstrapOptions): Promise<{
 }> {
   const config = new DaemonConfigResolver({
     serverId: opts.serverId,
-    tokenPath: opts.tokenPath,
+    auth: opts.auth,
     baseUrl: opts.baseUrl,
   });
   const store: StateStore | null =

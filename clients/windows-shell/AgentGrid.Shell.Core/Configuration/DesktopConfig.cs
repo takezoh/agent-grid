@@ -17,7 +17,19 @@ public sealed record ServerConfig(
     string DisplayName,
     bool Enabled,
     Uri Url,
-    string TokenPath);
+    ServerAuthConfig Auth);
+
+public enum ServerAuthMode
+{
+    None,
+    Bearer,
+}
+
+public sealed record ServerAuthConfig(ServerAuthMode Mode, string? Token)
+{
+    public static ServerAuthConfig None { get; } = new(ServerAuthMode.None, null);
+    public static ServerAuthConfig Bearer(string token) => new(ServerAuthMode.Bearer, token);
+}
 
 public sealed record AppearanceConfig(string Theme, string Density, double FontScale);
 
@@ -36,6 +48,7 @@ public sealed record WorkspaceAppConfig(
 public static class DesktopConfigLoader
 {
     public const int SchemaVersion = 1;
+    public const int ServersSchemaVersion = 2;
     public const string ConfigDirectoryArgument = "--config-dir";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -83,7 +96,7 @@ public static class DesktopConfigLoader
         var shell = Read<ShellDocument>(configDirectory, "shell.json");
         var workspace = Read<WorkspaceDocument>(configDirectory, "workspace.json");
 
-        ValidateVersion(servers.SchemaVersion, "servers.json");
+        ValidateVersion(servers.SchemaVersion, "servers.json", ServersSchemaVersion);
         ValidateVersion(appearance.SchemaVersion, "appearance.json");
         ValidateVersion(shell.SchemaVersion, "shell.json");
         ValidateVersion(workspace.SchemaVersion, "workspace.json");
@@ -119,17 +132,36 @@ public static class DesktopConfigLoader
             url.Scheme is not ("http" or "https"))
             throw new DesktopConfigException(
                 $"servers.json: server '{server.DisplayName}' has invalid url");
-        if (string.IsNullOrWhiteSpace(server.TokenPath))
-            throw new DesktopConfigException(
-                $"servers.json: server '{server.DisplayName}' needs token_path");
+        var auth = MapAuth(server.Auth, server.DisplayName);
         var canonicalUrl = CanonicalServerUrl(url);
         return new ServerConfig(
             ServerIdentifier(canonicalUrl),
             server.DisplayName,
             server.Enabled,
             new Uri(canonicalUrl),
-            Environment.ExpandEnvironmentVariables(server.TokenPath));
+            auth);
     }
+
+    private static ServerAuthConfig MapAuth(AuthDocument auth, string displayName)
+    {
+        if (auth is null)
+            throw AuthError(displayName);
+        return auth.Mode switch
+        {
+            "none" when auth.Token is null => ServerAuthConfig.None,
+            "bearer" when !string.IsNullOrWhiteSpace(auth.Token) =>
+                ServerAuthConfig.Bearer(auth.Token.Trim()),
+            "none" => throw new DesktopConfigException(
+                $"servers.json: server '{displayName}' auth mode none cannot contain a token"),
+            "bearer" => throw new DesktopConfigException(
+                $"servers.json: server '{displayName}' bearer auth needs a non-empty token"),
+            _ => throw AuthError(displayName),
+        };
+    }
+
+    private static DesktopConfigException AuthError(string displayName) => new(
+        $"servers.json: server '{displayName}' auth must be {{\"mode\":\"none\"}} or " +
+        "{\"mode\":\"bearer\",\"token\":\"...\"}");
 
     public static string CanonicalServerUrl(Uri url)
     {
@@ -182,11 +214,14 @@ public static class DesktopConfigLoader
             throw new DesktopConfigException("workspace.json: default_window size is out of range");
     }
 
-    private static void ValidateVersion(int version, string name)
+    private static void ValidateVersion(int version, string name, int expected = SchemaVersion)
     {
-        if (version != SchemaVersion)
+        if (version != expected)
             throw new DesktopConfigException(
-                $"{name}: unsupported schema_version {version}; expected {SchemaVersion}");
+                $"{name}: unsupported schema_version {version}; expected {expected}" +
+                (name == "servers.json"
+                    ? ". Use auth {\"mode\":\"none\"} or {\"mode\":\"bearer\",\"token\":\"...\"}; token_path is no longer supported."
+                    : ""));
     }
 
     private static T Read<T>(string directory, string name)
@@ -194,7 +229,24 @@ public static class DesktopConfigLoader
         var path = Path.Combine(directory, name);
         try
         {
-            return JsonSerializer.Deserialize<T>(File.ReadAllText(path), JsonOptions)
+            var json = File.ReadAllText(path);
+            if (name == "servers.json")
+            {
+                using var document = JsonDocument.Parse(json);
+                if (!document.RootElement.TryGetProperty("schema_version", out var version) ||
+                    version.ValueKind != JsonValueKind.Number ||
+                    version.GetInt32() != ServersSchemaVersion)
+                {
+                    var actual = version.ValueKind == JsonValueKind.Undefined
+                        ? "missing"
+                        : version.ToString();
+                    throw new DesktopConfigException(
+                        $"servers.json: unsupported schema_version {actual}; expected {ServersSchemaVersion}. " +
+                        "Use auth {\"mode\":\"none\"} or {\"mode\":\"bearer\",\"token\":\"...\"}; " +
+                        "token_path is no longer supported.");
+                }
+            }
+            return JsonSerializer.Deserialize<T>(json, JsonOptions)
                    ?? throw new DesktopConfigException($"{name}: document is null");
         }
         catch (JsonException ex)
@@ -219,6 +271,8 @@ public static class DesktopConfigLoader
             writer.Write(json);
             writer.Flush();
             stream.Flush(flushToDisk: true);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
         catch (IOException) when (File.Exists(path))
         {
@@ -228,19 +282,16 @@ public static class DesktopConfigLoader
 
     private static IReadOnlyDictionary<string, object> DefaultDocuments()
     {
-        var localAppData = Environment.GetEnvironmentVariable("LOCALAPPDATA");
-        if (string.IsNullOrWhiteSpace(localAppData))
-            localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         return new Dictionary<string, object>
         {
             ["servers.json"] = new ServersDocument(
-                SchemaVersion,
+                ServersSchemaVersion,
                 [
                     new ServerDocument(
                         "Local",
                         true,
                         "http://127.0.0.1:8443",
-                        Path.Combine(localAppData, "agent-grid", "gateway-token"))
+                        new AuthDocument("none", null))
                 ]),
             ["appearance.json"] = new AppearanceDocument(SchemaVersion, "default", "comfortable", 1.0),
             ["shell.json"] = new ShellDocument(SchemaVersion, "agent-grid-workspace", 5),
@@ -259,17 +310,18 @@ public static class DesktopConfigLoader
         [property: JsonPropertyName("display_name")] string DisplayName,
         [property: JsonPropertyName("enabled")] bool Enabled,
         [property: JsonPropertyName("url")] string Url,
-        [property: JsonPropertyName("token_path")] string TokenPath,
+        [property: JsonPropertyName("auth")] AuthDocument Auth,
         // Read-only compatibility for schema v1 files that persisted a
         // client-selected routing identifier. The value is never mapped or written.
         [property: JsonPropertyName("id")]
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        JsonElement? LegacyId = null,
-        // Read-only compatibility for schema v1 files created before desktop
-        // clients stopped owning server lifecycle. It is never mapped or written.
-        [property: JsonPropertyName("launch")]
+        JsonElement? LegacyId = null);
+
+    private sealed record AuthDocument(
+        [property: JsonPropertyName("mode")] string Mode,
+        [property: JsonPropertyName("token")]
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        JsonElement? LegacyLaunch = null);
+        string? Token);
 
     private sealed record AppearanceDocument(
         [property: JsonPropertyName("schema_version")] int SchemaVersion,
