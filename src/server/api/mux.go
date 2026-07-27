@@ -311,11 +311,17 @@ func handleSessionConfig() http.HandlerFunc {
 		raw := cfg.ListProjects()
 		projects := make([]apiProjectMeta, 0, len(raw))
 		for _, p := range raw {
+			profiles, err := cfg.Session.ResolveProfiles(p)
+			if err != nil {
+				gatewayError(w, r, http.StatusInternalServerError, "project_config_load_failed",
+					"project settings.toml load failed", "project", p, "err", err)
+				return
+			}
 			projects = append(projects, apiProjectMeta{
 				Path:            p,
 				IsGit:           gitChildExists(r.Context(), p),
 				IsSandboxed:     resolver.Resolve(p).IsSandboxed(),
-				CommandProfiles: cfg.Session.ProfilesForProject(p),
+				CommandProfiles: profiles,
 			})
 		}
 		writeJSON(w, http.StatusOK, apiSessionConfig{
@@ -445,8 +451,14 @@ func handleCreateSession(d *DaemonClient) http.HandlerFunc {
 				"settings.toml load failed", "err", err)
 			return
 		}
-		argv, err := cfg.Session.MaterializeProfile(
-			req.Project, req.ProfileID, req.ProfileRevision, req.Parameters)
+		profiles, err := cfg.Session.ResolveProfiles(req.Project)
+		if err != nil {
+			gatewayError(w, r, http.StatusInternalServerError, "project_config_load_failed",
+				"project settings.toml load failed", "project", req.Project, "err", err)
+			return
+		}
+		argv, err := config.MaterializeResolvedProfile(
+			profiles, req.ProfileID, req.ProfileRevision, req.Parameters)
 		if err != nil {
 			status := http.StatusBadRequest
 			code := "invalid_profile_parameters"

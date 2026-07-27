@@ -7,7 +7,7 @@
     "in_scope": [
       "Workspace Electron と browser SPA に共通する fleet/session-launch provider 境界",
       "全 enabled server の project catalog 集約、server identity、partial failure、retry",
-      "project applicability を持つ単一 command profile 設定モデル",
+      "server defaults と project settings override を持つ単一 command profile 設定モデル",
       "順序付き typed parameter descriptor、default/explicit/absent semantics、schema revision",
       "project/profile/revision/typed values を使う create-session REST contract",
       "server-side validation と argv-direct materialization",
@@ -46,7 +46,7 @@
         "test_seams": [
           "temporary TOML fixtures through LoadFrom/LoadProjectFrom",
           "pure normalize/merge/validate functions",
-          "invalid and project-applicability fixtures"
+          "invalid and project override fixtures"
         ],
         "rationale": "launch command の設定 authority を session.command_profiles 一つに限定する。",
         "accepted_adr_refs": []
@@ -924,7 +924,7 @@
         "rationale": "ユーザーはmodel/effortを特別扱いしない一般化typed parameter schemaを承認した。"
       },
       "context": "Multi-server palette needs one falsifiable owner and compatibility/security rule for this decision.",
-      "decision": "Parameter kinds are enum, boolean, string, and number. Profiles have optional project applicability and duplicate IDs fail. command_profiles is the only configuration authority. Schema revision is SHA-256 over a canonical length-prefixed encoding of the complete merged descriptor including labels, ordered parameters, validation/defaults and typed argv nodes.",
+      "decision": "Parameter kinds are enum, boolean, string, and number. command_profiles is valid in server and project settings. Project settings inherit unspecified IDs, replace matching complete descriptors, append new IDs, and disable inherited IDs explicitly; path allow-lists are forbidden and duplicate IDs fail. Schema revision is SHA-256 over a canonical encoding of the complete resolved descriptor including labels, ordered parameters, validation/defaults and argv templates.",
       "consequences": [
         "Implementations cannot vary the stated owner, identity, mapping, compatibility, or failure semantics.",
         "Normal and adversarial witnesses are required before rollout."

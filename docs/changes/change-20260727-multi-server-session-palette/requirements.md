@@ -17,4 +17,4 @@ The canonical wording, priorities, rationale, NFR-001–NFR-007, and AC-001–AC
 
 ## Fixed behavior
 
-Parameter kinds are `enum`, `boolean`, `string`, and `number`. `session.command_profiles` is the only launch-command setting; optional project allow-lists determine applicability and duplicate IDs fail. `[session].commands`, `[session].default_command`, and the old `{project, command}` create request are unsupported. One server-local `GET /api/session-config` snapshot remains the REST contract.
+Parameter kinds are `enum`, `boolean`, `string`, and `number`. `session.command_profiles` is the only launch-command setting. Server settings provide defaults; `<project>/.agent-grid/settings.toml` inherits unspecified IDs, replaces matching IDs as complete descriptors, appends new IDs, and may disable inherited IDs. Profile path allow-lists are unsupported. `[session].commands`, `[session].default_command`, and the old `{project, command}` create request are unsupported. One server-local `GET /api/session-config` snapshot remains the REST contract.

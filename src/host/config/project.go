@@ -17,6 +17,11 @@ import (
 type ProjectConfig struct {
 	Workspace ProjectWorkspaceConfig        `toml:"workspace"`
 	Sandbox   *platformconfig.SandboxConfig `toml:"sandbox"`
+	Session   ProjectSessionConfig          `toml:"session"`
+}
+
+type ProjectSessionConfig struct {
+	CommandProfiles []CommandProfileConfig `toml:"command_profiles"`
 }
 
 // ProjectWorkspaceConfig is the [workspace] table inside a project settings file.
@@ -35,10 +40,14 @@ const MaxWorkspaceNameLen = 64
 // A missing file is not an error; it returns a zero-value *ProjectConfig.
 func LoadProjectFrom(path string) (*ProjectConfig, error) {
 	cfg := &ProjectConfig{}
-	if _, err := toml.DecodeFile(path, cfg); err != nil {
+	metadata, err := toml.DecodeFile(path, cfg)
+	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil
 		}
+		return nil, err
+	}
+	if err := rejectRemovedCommandProfileFields(metadata); err != nil {
 		return nil, err
 	}
 	if cfg.Sandbox != nil {
@@ -46,6 +55,11 @@ func LoadProjectFrom(path string) (*ProjectConfig, error) {
 			return nil, err
 		}
 	}
+	session := SessionConfig{CommandProfiles: cfg.Session.CommandProfiles}
+	if err := session.validateCommandProfiles(true); err != nil {
+		return nil, fmt.Errorf("session.command_profiles: %w", err)
+	}
+	cfg.Session.CommandProfiles = session.CommandProfiles
 	return cfg, nil
 }
 

@@ -42,7 +42,11 @@ type fakeDaemon struct {
 
 func defaultCreateBody(t *testing.T, project string, extra map[string]any) string {
 	t.Helper()
-	profile := config.DefaultConfig().Session.ProfilesForProject(project)[0]
+	profiles, err := config.DefaultConfig().Session.ResolveProfiles(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := profiles[0]
 	body := map[string]any{
 		"version":          2,
 		"project":          project,
@@ -371,7 +375,33 @@ func TestMux_CreateV2MaterializesValidatedProfile(t *testing.T) {
 			Name: "model", Type: config.ParameterEnum, Values: []string{"gpt sol", "terra"},
 		}},
 	}}
-	profile := cfg.Session.ProfilesForProject("/p")[0]
+	project := t.TempDir()
+	settingsDir := filepath.Join(project, ".agent-grid")
+	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	projectSettings := `
+[[session.command_profiles]]
+id = "sol"
+executable = "project-codex"
+argv = ["--model", "{{model}}"]
+
+[[session.command_profiles.parameters]]
+name = "model"
+type = "enum"
+required = true
+values = ["gpt sol", "terra"]
+`
+	if err := os.WriteFile(
+		filepath.Join(settingsDir, "settings.toml"), []byte(projectSettings), 0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	profiles, err := cfg.Session.ResolveProfiles(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := profiles[0]
 	restore := withSessionConfigLoader(func() (*config.Config, error) { return cfg, nil })
 	defer restore()
 
@@ -389,8 +419,8 @@ func TestMux_CreateV2MaterializesValidatedProfile(t *testing.T) {
 	}()
 
 	body := fmt.Sprintf(
-		`{"version":2,"project":"/p","profile_id":"sol","profile_revision":%q,"parameters":{"model":"gpt sol"}}`,
-		profile.Revision,
+		`{"version":2,"project":%q,"profile_id":"sol","profile_revision":%q,"parameters":{"model":"gpt sol"}}`,
+		project, profile.Revision,
 	)
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions", strings.NewReader(body))
 	r.Header.Set("Authorization", "Bearer tok")
@@ -399,7 +429,7 @@ func TestMux_CreateV2MaterializesValidatedProfile(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
 	}
-	if got := (<-done).Command; got != "codex --model 'gpt sol'" {
+	if got := (<-done).Command; got != "project-codex --model 'gpt sol'" {
 		t.Fatalf("materialized command = %q", got)
 	}
 }
@@ -1039,6 +1069,69 @@ func TestMux_SessionConfigSurfacesConfigFields(t *testing.T) {
 	// so the UI's projects.map(...) doesn't blow up.
 	if got.Projects == nil {
 		t.Errorf("Projects = nil, want non-nil array")
+	}
+}
+
+func TestMux_SessionConfigResolvesProjectCommandProfiles(t *testing.T) {
+	project := t.TempDir()
+	settingsDir := filepath.Join(project, ".agent-grid")
+	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	settings := `
+[[session.command_profiles]]
+id = "shell"
+label = "Project Shell"
+executable = "project-shell"
+
+[[session.command_profiles]]
+id = "project-only"
+label = "Project Only"
+executable = "project-agent"
+`
+	if err := os.WriteFile(
+		filepath.Join(settingsDir, "settings.toml"), []byte(settings), 0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	restore := withSessionConfigLoader(func() (*config.Config, error) {
+		cfg := config.DefaultConfig()
+		cfg.Projects.ProjectPaths = []string{project}
+		return cfg, nil
+	})
+	defer restore()
+
+	d := NewDaemonClientWithDialer(
+		func() (*proto.Client, error) { return nil, errors.New("unused") },
+		time.Millisecond, 2*time.Millisecond,
+	)
+	defer d.Close()
+	mux := NewMux(d, "tok")
+	r := httptest.NewRequest(http.MethodGet, "/api/session-config", nil)
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %q", w.Code, w.Body.String())
+	}
+	var got apiSessionConfig
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Projects) != 1 {
+		t.Fatalf("projects = %#v", got.Projects)
+	}
+	profiles := got.Projects[0].CommandProfiles
+	if len(profiles) != 2 {
+		t.Fatalf("profiles = %#v", profiles)
+	}
+	if profiles[0].ID != "shell" || profiles[0].Executable != "project-shell" {
+		t.Fatalf("project override not applied: %#v", profiles[0])
+	}
+	if profiles[1].ID != "project-only" {
+		t.Fatalf("project-local profile missing: %#v", profiles)
 	}
 }
 

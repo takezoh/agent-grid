@@ -719,8 +719,10 @@ src/
 ├── host/config/
 │   ├── config.go        TOML configuration loading (`AG_DATA_DIR` env override).
 │   │                    Source of truth for user-facing settings.toml fields
+│   ├── command_profiles.go  Resolves server defaults with project-local profile
+│   │                       replacement/removal and materializes validated argv
 │   ├── notify.go        Notification rule matching
-│   ├── project.go       Project enumeration from `project_roots` / `project_paths`
+│   ├── project.go       Project enumeration and `.agent-grid/settings.toml` loading
 │   └── workspace_resolver.go  Reads each project's `.agent-grid/settings.toml`
 │                              for workspace grouping
 ├── platform/agentlaunch/

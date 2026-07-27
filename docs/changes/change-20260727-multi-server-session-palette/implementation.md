@@ -13,7 +13,7 @@ role: implementation
 
 Key seams and authorities:
 
-- `host/config` owns validated profile snapshots, applicability, revision generation, typed defaults, and argv materialization.
+- `host/config` owns server/project profile resolution, revision generation, typed defaults, and argv materialization.
 - `server/api` accepts only version-2 profile creates and reloads the current config before revision/value validation.
 - Electron main owns credentialed REST fan-out and target routing; preload exposes typed projections only. Browser remains a one-server adapter.
 - Palette state renders all profile parameters in declaration order and preserves compound server/project identity.
@@ -26,8 +26,6 @@ id = "sol"
 label = "Codex Sol"
 executable = "codex"
 argv = ["--model", "{{model}}", "-c", "model_reasoning_effort=\"{{effort}}\""]
-projects = ["/workspace/agent-grid"] # optional; omitted means every project
-
 [[session.command_profiles.parameters]]
 name = "model"
 label = "Model"
@@ -43,7 +41,15 @@ default = "low"
 values = ["low", "medium", "high"]
 ```
 
-Parameter types are `enum`, `boolean`, `string`, and `number`. Each `argv` entry produces exactly one token; references may appear inside that token and the completed token is shell-quoted by the server. Referenced optional parameters require a default, preventing a missing value from leaving a dangling flag. `[session].commands`, `[session].default_command`, and raw `command` create requests are not supported.
+The same shape is valid in `<project>/.agent-grid/settings.toml`. Project entries replace a server profile with the same ID as a complete descriptor and append new IDs. To remove an inherited profile:
+
+```toml
+[[session.command_profiles]]
+id = "sol"
+disabled = true
+```
+
+Parameter types are `enum`, `boolean`, `string`, and `number`. Each `argv` entry produces exactly one token; references may appear inside that token and the completed token is shell-quoted by the server. Referenced optional parameters require a default, preventing a missing value from leaving a dangling flag. `[session].commands`, `[session].default_command`, profile path allow-lists, and raw `command` create requests are not supported.
 
 ## Delivery order
 

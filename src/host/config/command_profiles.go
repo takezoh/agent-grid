@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 const (
@@ -25,9 +27,9 @@ const (
 type CommandProfileConfig struct {
 	ID         string                   `toml:"id" json:"id"`
 	Label      string                   `toml:"label" json:"label"`
+	Disabled   bool                     `toml:"disabled" json:"-"`
 	Executable string                   `toml:"executable" json:"executable"`
 	Argv       []string                 `toml:"argv" json:"argv"`
-	Projects   []string                 `toml:"projects" json:"projects,omitempty"`
 	Parameters []CommandParameterConfig `toml:"parameters" json:"parameters"`
 }
 
@@ -53,17 +55,44 @@ var (
 	argvReferencePattern = regexp.MustCompile(`\{\{\s*([A-Za-z][A-Za-z0-9_-]*)\s*\}\}`)
 )
 
+func rejectRemovedCommandProfileFields(metadata toml.MetaData) error {
+	for _, key := range metadata.Undecoded() {
+		if strings.HasSuffix(key.String(), "command_profiles.projects") {
+			return fmt.Errorf(
+				"%s is unsupported; use <project>/.agent-grid/settings.toml", key,
+			)
+		}
+	}
+	return nil
+}
+
 func (s SessionConfig) ValidateCommandProfiles() error {
+	return s.validateCommandProfiles(false)
+}
+
+func (s SessionConfig) validateCommandProfiles(allowDisabled bool) error {
 	seen := make(map[string]struct{}, len(s.CommandProfiles))
 	for i := range s.CommandProfiles {
 		p := &s.CommandProfiles[i]
-		if p.ID == "" || p.Executable == "" {
-			return fmt.Errorf("profile %d requires id and executable", i)
+		if p.ID == "" {
+			return fmt.Errorf("profile %d requires id", i)
 		}
 		if _, ok := seen[p.ID]; ok {
 			return fmt.Errorf("duplicate profile id %q", p.ID)
 		}
 		seen[p.ID] = struct{}{}
+		if p.Disabled {
+			if !allowDisabled {
+				return fmt.Errorf("profile %q: disabled is only valid in project settings", p.ID)
+			}
+			if p.Executable != "" || len(p.Argv) != 0 || len(p.Parameters) != 0 {
+				return fmt.Errorf("profile %q: disabled profile must contain only id and disabled", p.ID)
+			}
+			continue
+		}
+		if p.Executable == "" {
+			return fmt.Errorf("profile %q requires executable", p.ID)
+		}
 		if p.Label == "" {
 			p.Label = p.ID
 		}
@@ -156,26 +185,44 @@ func validateParameters(params []CommandParameterConfig) error {
 	return nil
 }
 
-func (s SessionConfig) ProfilesForProject(project string) []ResolvedCommandProfile {
-	out := make([]ResolvedCommandProfile, 0, len(s.CommandProfiles))
-	for _, p := range s.CommandProfiles {
-		if appliesToProject(p.Projects, project) {
-			out = append(out, resolvedProfile(p))
-		}
+func (s SessionConfig) ResolveProfiles(project string) ([]ResolvedCommandProfile, error) {
+	projectConfig, err := LoadProject(project)
+	if err != nil {
+		return nil, err
 	}
-	return out
+	merged := append([]CommandProfileConfig(nil), s.CommandProfiles...)
+	index := make(map[string]int, len(merged))
+	for i, profile := range merged {
+		index[profile.ID] = i
+	}
+	for _, profile := range projectConfig.Session.CommandProfiles {
+		if profile.Disabled {
+			if i, ok := index[profile.ID]; ok {
+				merged = append(merged[:i], merged[i+1:]...)
+				index = profileIndexes(merged)
+			}
+			continue
+		}
+		if i, ok := index[profile.ID]; ok {
+			merged[i] = profile
+			continue
+		}
+		index[profile.ID] = len(merged)
+		merged = append(merged, profile)
+	}
+	out := make([]ResolvedCommandProfile, 0, len(merged))
+	for _, profile := range merged {
+		out = append(out, resolvedProfile(profile))
+	}
+	return out, nil
 }
 
-func appliesToProject(projects []string, project string) bool {
-	if len(projects) == 0 {
-		return true
+func profileIndexes(profiles []CommandProfileConfig) map[string]int {
+	index := make(map[string]int, len(profiles))
+	for i, profile := range profiles {
+		index[profile.ID] = i
 	}
-	for _, candidate := range projects {
-		if candidate == project {
-			return true
-		}
-	}
-	return false
+	return index
 }
 
 func resolvedProfile(p CommandProfileConfig) ResolvedCommandProfile {
@@ -187,11 +234,11 @@ func resolvedProfile(p CommandProfileConfig) ResolvedCommandProfile {
 	}
 }
 
-func (s SessionConfig) MaterializeProfile(
-	project, id, revision string,
+func MaterializeResolvedProfile(
+	profiles []ResolvedCommandProfile, id, revision string,
 	values map[string]any,
 ) ([]string, error) {
-	for _, profile := range s.ProfilesForProject(project) {
+	for _, profile := range profiles {
 		if profile.ID != id {
 			continue
 		}
@@ -200,7 +247,7 @@ func (s SessionConfig) MaterializeProfile(
 		}
 		return materializeProfile(profile.CommandProfileConfig, values)
 	}
-	return nil, fmt.Errorf("profile %q is not available for project", id)
+	return nil, fmt.Errorf("profile %q is not available", id)
 }
 
 func materializeProfile(profile CommandProfileConfig, values map[string]any) ([]string, error) {

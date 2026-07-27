@@ -76,7 +76,6 @@ id = "sol"
 label = "Codex Sol"
 executable = "codex"
 argv = ["--model", "{{model}}", "-c", "model_reasoning_effort=\"{{effort}}\""]
-projects = ["/repo/a"]
 
 [[session.command_profiles.parameters]]
 name = "model"
@@ -100,12 +99,15 @@ values = ["low", "medium", "high"]
 	if err != nil {
 		t.Fatal(err)
 	}
-	profiles := cfg.Session.ProfilesForProject("/repo/a")
+	profiles, err := cfg.Session.ResolveProfiles(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(profiles) != 1 || profiles[0].ID != "sol" {
 		t.Fatalf("profiles = %#v", profiles)
 	}
-	argv, err := cfg.Session.MaterializeProfile(
-		"/repo/a", "sol", profiles[0].Revision,
+	argv, err := MaterializeResolvedProfile(
+		profiles, "sol", profiles[0].Revision,
 		map[string]any{"model": "gpt-5.6-terra", "effort": "high"},
 	)
 	if err != nil {
@@ -117,6 +119,23 @@ values = ["low", "medium", "high"]
 	}
 	if !reflect.DeepEqual(argv, want) {
 		t.Fatalf("argv = %v, want %v", argv, want)
+	}
+}
+
+func TestLoadFrom_CommandProfilesRejectProjectsAllowList(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.toml")
+	err := os.WriteFile(path, []byte(`
+[[session.command_profiles]]
+id = "sol"
+executable = "codex"
+projects = ["/repo/a"]
+`), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadFrom(path); err == nil {
+		t.Fatal("projects allow-list was silently accepted")
 	}
 }
 

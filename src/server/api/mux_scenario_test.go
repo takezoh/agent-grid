@@ -156,7 +156,11 @@ func createSessionViaAPI(t *testing.T, daemon daemonInstance, project, command s
 		session := config.SessionConfig{CommandProfiles: []config.CommandProfileConfig{{
 			ID: command, Label: command, Executable: command,
 		}}}
-		revision = session.ProfilesForProject(project)[0].Revision
+		profiles, resolveErr := session.ResolveProfiles(project)
+		if resolveErr != nil {
+			t.Fatal(resolveErr)
+		}
+		revision = profiles[0].Revision
 	}
 	bodyBytes, err := json.Marshal(map[string]any{
 		"version": 2, "project": project, "profile_id": command,

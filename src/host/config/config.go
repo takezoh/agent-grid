@@ -83,10 +83,14 @@ type TerminalConfig struct {
 
 func LoadFrom(path string) (*Config, error) {
 	cfg := DefaultConfig()
-	if _, err := toml.DecodeFile(path, cfg); err != nil {
+	metadata, err := toml.DecodeFile(path, cfg)
+	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil
 		}
+		return nil, err
+	}
+	if err := rejectRemovedCommandProfileFields(metadata); err != nil {
 		return nil, err
 	}
 	if err := cfg.Sandbox.Validate(); err != nil {

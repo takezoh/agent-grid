@@ -373,7 +373,11 @@ func TestE2E_CreateThenListRoundtrip(t *testing.T) {
 
 	// Create.
 	dir := t.TempDir()
-	profile := config.DefaultConfig().Session.ProfilesForProject(dir)[0]
+	profiles, err := config.DefaultConfig().Session.ResolveProfiles(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := profiles[0]
 	bodyBytes, err := json.Marshal(map[string]any{
 		"version": 2, "project": dir, "profile_id": profile.ID,
 		"profile_revision": profile.Revision,

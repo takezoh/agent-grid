@@ -11,8 +11,8 @@ owners: []
 relations:
 - {type: originatedFrom, target: change-20260727-multi-server-session-palette}
 source_paths: []
-summary: Profiles use general primitive parameters, project applicability, and deterministic
-  revisions as the only launch-command configuration.
+summary: Server and project settings resolve typed profiles by stable ID with deterministic
+  revisions and no path allow-list.
 ---
 
 <!-- 本文セクション構成は利用側の方法論 (例: design/PRINCIPLES.md の Nygard 4 節 Context/Decision/Consequences/Alternatives) が規定する。
@@ -32,7 +32,7 @@ Project-specific commands, arbitrary parameters, and deterministic revisions nee
 
 ## Decision
 
-The only launch-command setting is `session.command_profiles`. Parameters support `enum`, `boolean`, `string`, and `number`; every profile has a stable ID, executable, complete argv tokens, optional project allow-list, validation, and defaults. Duplicate IDs and invalid schemas fail config loading. Revision is SHA-256 of the complete normalized profile descriptor. `[session].commands` and `[session].default_command` are removed rather than normalized or retained as fallbacks.
+The only launch-command setting is `session.command_profiles`, accepted in both `~/.agent-grid/settings.toml` and `<project>/.agent-grid/settings.toml`. Parameters support `enum`, `boolean`, `string`, and `number`. Project settings inherit unspecified server profiles, replace the complete descriptor on the same ID, append new IDs, and remove inherited IDs with `{id, disabled=true}`. Path allow-lists are forbidden. Duplicate IDs and invalid schemas fail config loading. Revision is SHA-256 of the resolved descriptor. `[session].commands` and `[session].default_command` are removed rather than normalized or retained as fallbacks.
 
 ## Consequences
 
