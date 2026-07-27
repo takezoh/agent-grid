@@ -234,9 +234,6 @@ type helloFrame struct {
 	Capabilities    []string `json:"capabilities,omitempty"`
 }
 
-// ProtocolVersion is the Phase 0/1 wire contract version advertised on hello.
-const ProtocolVersion = "1.0.0-phase01"
-
 // BundledCapabilities is the capability set co-shipped with this daemon build.
 var BundledCapabilities = []string{
 	"approval.respond",

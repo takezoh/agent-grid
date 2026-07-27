@@ -128,6 +128,12 @@ public sealed class SupervisionWsSession : ISurfaceResubscriber, IAsyncDisposabl
             {
                 return;
             }
+            catch (ProtocolVersionMismatchException)
+            {
+                // Version skew is terminal until configuration or binaries
+                // change. Reconnect cannot make an incompatible peer valid.
+                return;
+            }
             catch
             {
                 // Failure already recorded in RunOnceAsync.

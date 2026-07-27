@@ -28,10 +28,16 @@ const servers: ServerConfig[] = [
 
 describe("probeServerFleet", () => {
   it("reports every configured server and never probes disabled entries", async () => {
-    const fetchFn = vi.fn(async (input: string | URL | Request) => ({
-      ok: String(input).includes("healthy.test"),
-      status: 503,
-    })) as unknown as typeof fetch;
+    const fetchFn = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("healthy.test") && url.includes("/api/capabilities")) {
+        return Response.json({ protocolVersion: "protocol-2" });
+      }
+      if (url.includes("healthy.test")) {
+        return Response.json({ sessions: [] });
+      }
+      return new Response("", { status: 503 });
+    }) as unknown as typeof fetch;
     const result = await probeServerFleet(servers, { fetchFn });
 
     expect(result.servers).toEqual([
@@ -44,7 +50,7 @@ describe("probeServerFleet", () => {
       },
       { serverId: "disabled", displayName: "Disabled", state: "disabled" },
     ]);
-    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
     expect(fetchFn).toHaveBeenNthCalledWith(
       1,
       expect.any(URL),
@@ -55,7 +61,10 @@ describe("probeServerFleet", () => {
   });
 
   it("omits Authorization for explicit none auth", async () => {
-    const fetchFn = vi.fn(async () => ({ ok: true, status: 200 })) as unknown as typeof fetch;
+    const fetchFn = vi.fn(async (input: string | URL | Request) =>
+      String(input).includes("/api/capabilities")
+        ? Response.json({ protocolVersion: "protocol-2" })
+        : Response.json({ sessions: [] })) as unknown as typeof fetch;
     await probeServerFleet([{ ...servers[0]!, auth: { mode: "none" } }], { fetchFn });
 
     expect(fetchFn).toHaveBeenCalledWith(
@@ -63,21 +72,37 @@ describe("probeServerFleet", () => {
       expect.objectContaining({ headers: undefined }),
     );
   });
+
+  it("reports version mismatch without probing sessions", async () => {
+    const fetchFn = vi.fn(async () => Response.json({ protocolVersion: "old" })) as typeof fetch;
+    const result = await probeServerFleet(servers.slice(0, 1), { fetchFn });
+
+    expect(result.servers[0]).toEqual({
+      serverId: "healthy",
+      displayName: "Healthy",
+      state: "incompatible_protocol",
+      reason: "incompatible protocol: client protocol-2, server old",
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("FleetHealthMonitor", () => {
   it("coalesces renderer requests and invalidates after config changes", async () => {
-    const fetchFn = vi.fn(async () => ({ ok: true, status: 200 })) as unknown as typeof fetch;
+    const fetchFn = vi.fn(async (input: string | URL | Request) =>
+      String(input).includes("/api/capabilities")
+        ? Response.json({ protocolVersion: "protocol-2" })
+        : Response.json({ sessions: [] })) as unknown as typeof fetch;
     const monitor = new FleetHealthMonitor(() => servers.slice(0, 1), 60_000, {
       fetchFn,
     });
 
     await Promise.all([monitor.list(), monitor.list()]);
     await monitor.list();
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
 
     monitor.invalidate();
     await monitor.list();
-    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn).toHaveBeenCalledTimes(4);
   });
 });

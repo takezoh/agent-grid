@@ -186,7 +186,7 @@ func TestPendingHumanInputPlaceholderIsEmpty(t *testing.T) {
 	// detector on the placeholder shape, not a non-fabrication proof.
 	d, _ := newDaemonPair(t)
 	mux := NewMux(d, "tok")
-	req := httptest.NewRequest(http.MethodGet, "/api/sessions/sess-1/pending-human-input", nil)
+	req := protocolRequest(http.MethodGet, "/api/sessions/sess-1/pending-human-input", nil)
 	req.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -360,7 +360,7 @@ func TestMux_ApprovalRespondFirstWriterWinsHTTP(t *testing.T) {
 		daemon.sendResp(env.ReqID, nil)
 	}()
 
-	req1 := httptest.NewRequest(http.MethodPost, "/api/sessions/sess-1/approvals/ap-1",
+	req1 := protocolRequest(http.MethodPost, "/api/sessions/sess-1/approvals/ap-1",
 		bytes.NewBufferString(`{"decision":"accept","client_instance_id":"ci-A"}`))
 	req1.Header.Set("Authorization", "Bearer tok")
 	req1.Header.Set("Content-Type", "application/json")
@@ -379,7 +379,7 @@ func TestMux_ApprovalRespondFirstWriterWinsHTTP(t *testing.T) {
 		daemon.sendErr(env.ReqID, proto.ErrResolvedByOther, "approval already resolved by another client")
 	}()
 
-	req2 := httptest.NewRequest(http.MethodPost, "/api/sessions/sess-1/approvals/ap-1",
+	req2 := protocolRequest(http.MethodPost, "/api/sessions/sess-1/approvals/ap-1",
 		bytes.NewBufferString(`{"decision":"deny","client_instance_id":"ci-B"}`))
 	req2.Header.Set("Authorization", "Bearer tok")
 	req2.Header.Set("Content-Type", "application/json")
@@ -410,7 +410,7 @@ func TestMux_ApprovalRespondInvalidDecision400(t *testing.T) {
 	d, daemon := newDaemonPair(t)
 	mux := NewMux(d, "tok")
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sessions/sess-1/approvals/ap-1",
+	req := protocolRequest(http.MethodPost, "/api/sessions/sess-1/approvals/ap-1",
 		bytes.NewBufferString(`{"decision":"maybe"}`))
 	req.Header.Set("Authorization", "Bearer tok")
 	req.Header.Set("Content-Type", "application/json")

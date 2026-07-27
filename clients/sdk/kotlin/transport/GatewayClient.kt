@@ -17,6 +17,9 @@ class GatewayClient(
         .connectTimeout(Duration.ofSeconds(10))
         .build(),
 ) {
+    companion object {
+        const val PROTOCOL_VERSION = "protocol-2"
+    }
     var clientInstanceId: String? = null
         private set
 
@@ -48,6 +51,7 @@ class GatewayClient(
         val b = HttpRequest.newBuilder(URI.create(baseUrl.trimEnd('/') + path))
             .timeout(Duration.ofSeconds(10))
             .header("Accept", "application/json")
+            .header("X-Agent-Grid-Protocol-Version", PROTOCOL_VERSION)
         if (token != null) b.header("Authorization", "Bearer $token")
         clientInstanceId?.let { b.header("X-Client-Instance-ID", it) }
         return b

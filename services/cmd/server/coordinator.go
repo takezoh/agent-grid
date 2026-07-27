@@ -76,7 +76,7 @@ func runDaemon(df *daemonFlagSet, stdout io.Writer) error {
 		slog.Warn("shellalias: login shell lookup failed; commands stay literal", "err", err)
 	}
 
-	rt, sockPath, err := buildRuntime(ctx, cfg, loginShell, dataDir)
+	rt, sockPath, err := buildRuntime(ctx, cfg, dataDir)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func registerOneHostAgentHook(home, exe, dataDir string, spec agenthook.Spec) {
 // Manager's Session.Subscribe stream, so the existing tap_manager + vt.Terminal
 // pipeline parses OSC 0/9/133 back into EvFrameOsc/EvFramePrompt — restoring
 // driver run-state detection on top of the pty backend.
-func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, dataDir string) (*runtime.Runtime, string, error) {
+func buildRuntime(ctx context.Context, cfg *config.Config, dataDir string) (*runtime.Runtime, string, error) {
 	ptyBackend := runtime.NewPtyBackend(cfg.Terminal.ScrollbackLines)
 	ptyTap := runtime.NewPtyFrameTap(ptyBackend)
 	pollInterval := time.Duration(cfg.Monitor.PollIntervalMs) * time.Millisecond

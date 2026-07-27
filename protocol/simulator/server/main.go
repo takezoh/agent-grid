@@ -15,6 +15,11 @@ import (
 	"time"
 )
 
+const (
+	protocolVersion       = "protocol-2"
+	protocolVersionHeader = "X-Agent-Grid-Protocol-Version"
+)
+
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8790", "listen address")
 	recording := flag.String("recording", "", "path to .jsonl recording (required)")
@@ -34,7 +39,7 @@ func main() {
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("GET /api/capabilities", s.handleCapabilities)
-	mux.HandleFunc("GET /replay", s.handleReplay)
+	mux.Handle("GET /replay", protocolGate(http.HandlerFunc(s.handleReplay)))
 	log.Printf("simserver listening on %s (events=%d)", *addr, len(events))
 	log.Fatal(http.ListenAndServe(*addr, mux))
 }
@@ -70,14 +75,29 @@ func loadRecording(path string) ([]simEvent, error) {
 
 func (s *simServer) handleCapabilities(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{
-		"protocolVersion": "1.0.0-phase01",
+		"protocolVersion": protocolVersion,
 		"capabilities": []string{
 			"approval.respond",
 			"question.respond",
 			"sessions.view_update",
 			"surface.subscribe",
 		},
-		"axis": "bundled",
+	})
+}
+
+func protocolGate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(protocolVersionHeader) != protocolVersion {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUpgradeRequired)
+			writeJSON(w, map[string]any{
+				"code":            "incompatible_protocol",
+				"expectedVersion": protocolVersion,
+				"actualVersion":   r.Header.Get(protocolVersionHeader),
+			})
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -90,7 +110,7 @@ func (s *simServer) handleReplay(w http.ResponseWriter, _ *http.Request) {
 	cp := make([]simEvent, len(s.events))
 	copy(cp, s.events)
 	writeJSON(w, map[string]any{
-		"protocolVersion": "1.0.0-phase01",
+		"protocolVersion": protocolVersion,
 		"replayedAt":      time.Date(2026, 7, 23, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		"events":          cp,
 	})

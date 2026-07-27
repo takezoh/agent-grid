@@ -180,7 +180,7 @@ func DeriveHealthURL(addr, tlsMode string) (string, error) {
 	if strings.HasPrefix(hostport, ":") {
 		hostport = "127.0.0.1" + hostport
 	}
-	scheme := "https"
+	var scheme string
 	switch tlsMode {
 	case TLSModeTLS:
 		scheme = "https"
@@ -291,10 +291,10 @@ type ACLPrincipal string
 
 // Fixed principal classes used by the ACL policy (Windows SIDs mapped later).
 const (
-	PrincipalSYSTEM         ACLPrincipal = "SYSTEM"
-	PrincipalAdministrators ACLPrincipal = "Administrators"
+	PrincipalSYSTEM          ACLPrincipal = "SYSTEM"
+	PrincipalAdministrators  ACLPrincipal = "Administrators"
 	PrincipalServiceIdentity ACLPrincipal = "ServiceIdentity"
-	PrincipalBuiltinUsers   ACLPrincipal = "BUILTIN\\Users"
+	PrincipalBuiltinUsers    ACLPrincipal = "BUILTIN\\Users"
 )
 
 // ACLRight is a portable permission class.

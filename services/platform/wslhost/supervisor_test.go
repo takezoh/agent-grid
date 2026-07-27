@@ -390,9 +390,7 @@ func TestStaleEpochDiscarded(t *testing.T) {
 	if h.rec.CountKind(KindStaleDiscard) == 0 {
 		t.Fatal("expected stale discard")
 	}
-	if h.sup.Phase() != PhaseReady {
-		// may still be ready if re-probe ok
-	}
+	_ = h.sup.Phase() // The stale delivery must be harmless regardless of the live phase.
 }
 
 // Performance budget: backoff schedule and one pending timer.

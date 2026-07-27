@@ -24,6 +24,11 @@ import type {
 } from "./electron-window-factory.js";
 import { FleetHealthMonitor } from "./server-health.js";
 import {
+  PROTOCOL_VERSION,
+  PROTOCOL_VERSION_HEADER,
+  protocolMismatchReason,
+} from "./protocol-version.js";
+import {
   isTitleBarMenuId,
   themeSourceFor,
   titleBarOverlayFor,
@@ -88,6 +93,23 @@ ipcMain.handle("agent-grid:session-fleet-configs", async () => {
       .filter((server) => server.enabled)
       .map(async (server) => {
         try {
+          const capabilitiesResponse = await fleetFetch(
+            server,
+            "/api/capabilities",
+            { method: "GET" },
+            false,
+          );
+          const capabilities = (await capabilitiesResponse.json()) as {
+            protocolVersion?: unknown;
+          };
+          if (capabilities.protocolVersion !== PROTOCOL_VERSION) {
+            return {
+              serverId: server.id,
+              serverLabel: server.display_name,
+              state: "incompatible_protocol",
+              reason: protocolMismatchReason(capabilities.protocolVersion),
+            };
+          }
           const response = await fleetFetch(server, "/api/session-config", { method: "GET" });
           return {
             serverId: server.id,
@@ -128,12 +150,16 @@ async function fleetFetch(
   server: import("./desktop-config.js").ServerConfig,
   pathname: string,
   init: RequestInit,
+  includeProtocolVersion = true,
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10_000);
   try {
     const headers = new Headers(init.headers);
     if (server.auth.mode === "bearer") headers.set("Authorization", `Bearer ${server.auth.token}`);
+    if (includeProtocolVersion) {
+      headers.set(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION);
+    }
     const response = await fetch(new URL(pathname, `${server.url.replace(/\/+$/, "")}/`), {
       ...init,
       headers,

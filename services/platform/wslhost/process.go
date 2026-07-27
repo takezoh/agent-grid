@@ -436,6 +436,14 @@ func parseProbeJSON(raw []byte) (ProbeResult, error) {
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		return ProbeResult{Class: ProbeClassUnknown, Reason: "probe_json: " + err.Error()}, nil
 	}
+	switch wire.Class {
+	case ProbeClassAbsent, ProbeClassMatchedRunning, ProbeClassMismatch, ProbeClassUnknown:
+	default:
+		return ProbeResult{
+			Class:  ProbeClassUnknown,
+			Reason: "probe_json: unrecognized class " + wire.Class,
+		}, fmt.Errorf("wslhost: unrecognized probe class %q", wire.Class)
+	}
 	return ProbeResult{
 		Class:          wire.Class,
 		OwnershipToken: wire.OwnershipToken,
@@ -454,6 +462,14 @@ func parseStopJSON(raw []byte) (StopResult, error) {
 	}
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		return StopResult{Class: StopClassUnknown, Reason: "stop_json: " + err.Error()}, nil
+	}
+	switch wire.Class {
+	case StopClassSignaled, StopClassRejected, StopClassAbsent, StopClassUnknown:
+	default:
+		return StopResult{
+			Class:  StopClassUnknown,
+			Reason: "stop_json: unrecognized class " + wire.Class,
+		}, fmt.Errorf("wslhost: unrecognized stop class %q", wire.Class)
 	}
 	return StopResult{Class: wire.Class, PID: wire.PID, Reason: wire.Reason}, nil
 }

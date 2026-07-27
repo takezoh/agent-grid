@@ -15,6 +15,7 @@
 
 import { readBearerTokenFromHash } from "../auth";
 import { makeFleetProvider } from "../fleet/provider";
+import { PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER } from "../protocol-version";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -73,12 +74,7 @@ export interface CreateSessionPayload {
   sandbox?: "host";
 }
 
-/**
- * Project entry returned by GET /api/session-config. session-config-extension
- * (a later task) will fill in real `isGit` / `isSandboxed` values; until then
- * the wire still returns plain `string[]` and we normalize to this shape with
- * both flags false (see makeSessionsApi.getSessionConfig).
- */
+/** Project entry returned by the exact-version GET /api/session-config wire. */
 export interface SessionConfigProject {
   path: string;
   isGit: boolean;
@@ -132,25 +128,11 @@ export interface LaunchProfile {
 export interface ServerConfigOutcome {
   serverId: string;
   serverLabel: string;
-  state: "connected" | "unavailable";
+  state: "connected" | "unavailable" | "incompatible_protocol";
   reason?: string;
 }
 
-/**
- * SessionConfig is the normalized client view of the GET /api/session-config
- * response. We expose both legacy and forward-compat fields so palette code
- * doesn't have to change again when the server is upgraded:
- *
- *   - projectRoots / projectPaths: forward-compat (session-config-extension
- *     will add `project_roots` / `project_paths` to the wire). Until then,
- *     they're [] and the UI falls back to `projectPaths` only.
- *   - projects: normalized list of project entries (path + flags). Always
- *     populated, even when the server still returns the legacy `string[]`
- *     shape.
- *   - pushCommands: forward-compat (session-config-extension will populate).
- *     Until then, []. (Normalized from the wire's `push_commands` field —
- *     keeping the client interface camelCase matches projectRoots etc.)
- */
+/** Exact-version client view of GET /api/session-config. */
 export interface SessionConfig {
   projectRoots: string[];
   projectPaths: string[];
@@ -318,7 +300,9 @@ async function request(fetchImpl: typeof fetch, url: string, init: RequestInit):
 async function doFetch(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<Response> {
   let res: Response;
   try {
-    res = await fetchImpl(url, init);
+    const headers = new Headers(init.headers);
+    headers.set(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION);
+    res = await fetchImpl(url, { ...init, headers });
   } catch (e) {
     // AbortError (user-initiated cancel) is functionally different from a real
     // network failure: callers usually want to ignore it (no toast, no retry).
@@ -335,68 +319,29 @@ async function doFetch(fetchImpl: typeof fetch, url: string, init: RequestInit):
   return res;
 }
 
-// Distinguishes "field absent" (legitimate forward/backward compat) from
-// "field present but wrong type" (wire bug we want to surface).
-function isAbsent(raw: unknown): boolean {
-  return raw === undefined || raw === null;
-}
-
-// Legacy server returns Projects as string[]. session-config-extension will
-// change it to SessionConfigProject[]. Normalize both so palette code never
-// has to branch on shape.
-//
-// We silently accept three shapes:
-//   1. absent / null            → []  (legacy server with no projects field)
-//   2. string[]                 → [{path, isGit:false, isSandboxed:false}]
-//   3. SessionConfigProject[]   → pass-through (post session-config-extension)
-//
-// Any OTHER shape (object instead of array, mixed garbage entries, missing
-// `path` on a per-entry basis) is a wire-format bug. We still return a safe
-// value so the palette UI doesn't crash, but we emit a console.warn so the
-// silent-failure-hunter review concern doesn't recur: a gateway bug that
-// drops `projects` mid-flight will at minimum leave a breadcrumb in the dev
-// console instead of looking like "no projects configured".
-// (Spec: review finding "major — getSessionConfig silent fallback".)
 function normalizeProjects(raw: unknown): SessionConfigProject[] {
-  if (isAbsent(raw)) return [];
   if (!Array.isArray(raw)) {
-    // eslint-disable-next-line no-console -- diagnostic, see header comment
-    console.warn(
-      "[api/sessions] /api/session-config: `projects` field present but not an array; treating as empty. raw=",
-      raw,
-    );
-    return [];
+    throw new Error("invalid exact-version session-config: projects must be an array");
   }
   return raw.map((p, i): SessionConfigProject => {
-    if (typeof p === "string") {
-      return { path: p, isGit: false, isSandboxed: false };
-    }
     if (p && typeof p === "object") {
       const o = p as Record<string, unknown>;
-      const path = typeof o.path === "string" ? o.path : "";
-      if (path === "") {
-        // eslint-disable-next-line no-console -- diagnostic
-        console.warn(
-          `[api/sessions] /api/session-config: projects[${i}] object missing string \`path\` field. entry=`,
-          p,
-        );
+      if (
+        typeof o.path !== "string" ||
+        typeof o.isGit !== "boolean" ||
+        typeof o.isSandboxed !== "boolean"
+      ) {
+        throw new Error(`invalid exact-version session-config: projects[${i}]`);
       }
-      const isGit = typeof o.isGit === "boolean" ? o.isGit : false;
-      const isSandboxed = typeof o.isSandboxed === "boolean" ? o.isSandboxed : false;
       const commandProfiles = normalizeLaunchProfiles(o.command_profiles);
       return {
-        path,
-        isGit,
-        isSandboxed,
+        path: o.path,
+        isGit: o.isGit,
+        isSandboxed: o.isSandboxed,
         ...(commandProfiles.length > 0 ? { commandProfiles } : {}),
       };
     }
-    // eslint-disable-next-line no-console -- diagnostic
-    console.warn(
-      `[api/sessions] /api/session-config: projects[${i}] is neither string nor object; substituting empty entry. raw=`,
-      p,
-    );
-    return { path: "", isGit: false, isSandboxed: false };
+    throw new Error(`invalid exact-version session-config: projects[${i}]`);
   });
 }
 
@@ -431,20 +376,14 @@ function normalizeLaunchProfiles(raw: unknown): LaunchProfile[] {
   });
 }
 
-// Same silent-fallback distinction as normalizeProjects: absent → [] is
-// legitimate (forward-compat for fields the current server doesn't emit),
-// but a present-but-not-an-array value is a wire bug worth surfacing.
 function normalizeStringList(raw: unknown, fieldName: string): string[] {
-  if (isAbsent(raw)) return [];
   if (!Array.isArray(raw)) {
-    // eslint-disable-next-line no-console -- diagnostic, see normalizeProjects
-    console.warn(
-      `[api/sessions] /api/session-config: \`${fieldName}\` present but not an array; treating as empty. raw=`,
-      raw,
-    );
-    return [];
+    throw new Error(`invalid exact-version session-config: ${fieldName} must be an array`);
   }
-  return raw.filter((v): v is string => typeof v === "string");
+  if (!raw.every((v) => typeof v === "string")) {
+    throw new Error(`invalid exact-version session-config: ${fieldName} entries`);
+  }
+  return raw as string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -514,7 +453,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
         const serverOutcomes: ServerConfigOutcome[] = [];
         const pushCommands = new Set<string>();
         for (const outcome of outcomes) {
-          const state = outcome.state === "connected" ? "connected" : "unavailable";
+          const state = outcome.state;
           serverOutcomes.push({
             serverId: String(outcome.serverId ?? ""),
             serverLabel: String(outcome.serverLabel ?? outcome.serverId ?? ""),

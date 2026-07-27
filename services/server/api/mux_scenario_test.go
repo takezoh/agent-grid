@@ -102,9 +102,10 @@ func dialGatewayWS(t *testing.T, daemon daemonInstance, sessionID string) *webso
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	wsURL := "ws" + strings.TrimPrefix(daemon.httpURL, "http") + "/ws"
+	wsURL := "ws" + strings.TrimPrefix(daemon.httpURL, "http") +
+		"/ws?protocolVersion=" + url.QueryEscape(ProtocolVersion)
 	if sessionID != "" {
-		wsURL += "?session=" + sessionID
+		wsURL += "&session=" + url.QueryEscape(sessionID)
 	}
 	c, _, err := websocket.Dial(ctx, wsURL, nil)
 	if err != nil {
@@ -119,9 +120,17 @@ func dialGatewayWS(t *testing.T, daemon daemonInstance, sessionID string) *webso
 	return c
 }
 
+func newProtocolHTTPRequest(method, target string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(context.Background(), method, target, body)
+	if err == nil {
+		req.Header.Set(ProtocolVersionHeader, ProtocolVersion)
+	}
+	return req, err
+}
+
 func createSessionViaAPI(t *testing.T, daemon daemonInstance, project, command string) string {
 	t.Helper()
-	configReq, err := http.NewRequest(http.MethodGet, daemon.httpURL+"/api/session-config", nil)
+	configReq, err := newProtocolHTTPRequest(http.MethodGet, daemon.httpURL+"/api/session-config", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +179,7 @@ func createSessionViaAPI(t *testing.T, daemon daemonInstance, project, command s
 		t.Fatal(err)
 	}
 	body := string(bodyBytes)
-	req, err := http.NewRequest(http.MethodPost, daemon.httpURL+"/api/sessions", bytes.NewBufferString(body))
+	req, err := newProtocolHTTPRequest(http.MethodPost, daemon.httpURL+"/api/sessions", bytes.NewBufferString(body))
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
@@ -210,7 +219,7 @@ func waitForSessionIDByProject(
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		req, err := http.NewRequest(http.MethodGet, daemon.httpURL+"/api/sessions", nil)
+		req, err := newProtocolHTTPRequest(http.MethodGet, daemon.httpURL+"/api/sessions", nil)
 		if err != nil {
 			t.Fatalf("new list request: %v", err)
 		}
@@ -235,7 +244,7 @@ func waitForSessionIDByProject(
 
 func listSessionsViaAPI(t *testing.T, daemon daemonInstance) []apiSessionInfo {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, daemon.httpURL+"/api/sessions", nil)
+	req, err := newProtocolHTTPRequest(http.MethodGet, daemon.httpURL+"/api/sessions", nil)
 	if err != nil {
 		t.Fatalf("new list request: %v", err)
 	}
@@ -284,7 +293,7 @@ func waitForSessionListed(
 
 func deleteSessionViaAPI(t *testing.T, daemon daemonInstance, sessionID string) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodDelete, daemon.httpURL+"/api/sessions/"+sessionID, nil)
+	req, err := newProtocolHTTPRequest(http.MethodDelete, daemon.httpURL+"/api/sessions/"+sessionID, nil)
 	if err != nil {
 		t.Fatalf("new delete request: %v", err)
 	}
@@ -626,7 +635,11 @@ func TestE2E_GatewayScenarioWorkspaceFileWrite(t *testing.T) {
 	waitForSessionListed(t, daemon, sessionID, 5*time.Second, true)
 
 	handleURL := daemon.httpURL + "/api/sessions/" + sessionID + "/workspace/root-handle"
-	handleResp, err := http.Get(handleURL)
+	handleReq, err := newProtocolHTTPRequest(http.MethodGet, handleURL, nil)
+	if err != nil {
+		t.Fatalf("root-handle request: %v", err)
+	}
+	handleResp, err := http.DefaultClient.Do(handleReq)
 	if err != nil {
 		t.Fatalf("root-handle: %v", err)
 	}
@@ -644,7 +657,7 @@ func TestE2E_GatewayScenarioWorkspaceFileWrite(t *testing.T) {
 		"/workspace/file?path=edit-me.txt&handle=" + strconv.Itoa(handle.FrameGeneration) +
 		"&handle_session=" + url.QueryEscape(handle.SessionID) +
 		"&root=" + url.QueryEscape(handle.ResolvedRootPath)
-	putReq, err := http.NewRequest(http.MethodPut, putURL, bytes.NewBufferString("after"))
+	putReq, err := newProtocolHTTPRequest(http.MethodPut, putURL, bytes.NewBufferString("after"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,7 +675,11 @@ func TestE2E_GatewayScenarioWorkspaceFileWrite(t *testing.T) {
 		"/workspace/file?path=edit-me.txt&handle=" + strconv.Itoa(handle.FrameGeneration) +
 		"&handle_session=" + url.QueryEscape(handle.SessionID) +
 		"&root=" + url.QueryEscape(handle.ResolvedRootPath)
-	getResp, err := http.Get(getURL)
+	getReq, err := newProtocolHTTPRequest(http.MethodGet, getURL, nil)
+	if err != nil {
+		t.Fatalf("get file request: %v", err)
+	}
+	getResp, err := http.DefaultClient.Do(getReq)
 	if err != nil {
 		t.Fatalf("get file: %v", err)
 	}

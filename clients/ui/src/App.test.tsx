@@ -565,6 +565,9 @@ describe("App", () => {
           ),
         );
       }
+      if (u.endsWith("/host/servers/test-server/api/capabilities")) {
+        return Promise.resolve(Response.json({ protocolVersion: "protocol-2" }));
+      }
       return new Promise(() => {}); // hang ws-ticket forever
     });
     vi.stubGlobal("fetch", fetchSpy);

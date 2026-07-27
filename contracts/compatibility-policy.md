@@ -1,23 +1,39 @@
 # Compatibility policy
 
-**Change**: change-20260723-native-clients-phase01  
-**Schema**: `protocol/capabilities.schema.json`
+**Change**: change-20260727-client-server-protocol-version
+**Decision**: `adr-20260727-exact-match-client-server-protocol`
+**Version SSOT**: `protocol/protocol-version.json`
 
-## Two-axis model
+## Exact-match admission
 
-| Axis | When | Behavior |
-|---|---|---|
-| **bundled** | Native shell + co-shipped same-build daemon (`protocolVersion` equal) | Version-match only; no per-capability negotiation round-trip (NFR-04) |
-| **remote** | Version skew or non-bundled client | Daemon advertises capability set; client degrades undeclared capabilities to disabled/hidden; never invokes them speculatively (FR-P1-04) |
+Every client/server protocol boundary admits exactly one state: the client's
+compiled protocol version is byte-for-byte equal to the server version.
+Different, missing, malformed, or duplicate versions are
+`incompatible_protocol`; operational REST handlers and WebSocket application
+frames are not entered.
 
-## Evolution
+The server list preserves the server identity, expected client version, and
+observed server version (or an explicit missing/invalid marker). A mismatching
+server does not disable matching peers.
 
-Within a major version, protocol schema changes are **additive-only** (NFR-05). Removed/renamed required fields require a major bump.
+## Permanent development rule
 
-## CI gate
+Cross-version success is forbidden. Do not implement:
 
-The `compatibility` test-harness profile fails closed on:
+- version ranges or SemVer compatibility;
+- capability-based degradation across versions;
+- legacy, dual, tolerant, or fallback decoders;
+- downgrade, retry-as-fallback, or user overrides;
+- rolling mixed-version availability.
 
-1. Generated SDK invoking undeclared wire surface
-2. Inconclusive undeclared-surface scans
-3. New SDK targets that skip the shared recorded-scenario suite
+Every public wire change is a breaking flag-day change: update
+`protocol/protocol-version.json`, the server, every shipped client and SDK,
+simulators/fakes, fixtures, and tests atomically. Capability declarations are
+informational within an already exact-matching version and never authorize a
+compatibility path.
+
+## Enforcement
+
+CI must fail when a shipped projection differs from the manifest, a protected
+route bypasses exact-version admission, a client performs operational work
+after mismatch, or a protocol decoder accepts an alternate version shape.

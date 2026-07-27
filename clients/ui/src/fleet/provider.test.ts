@@ -18,6 +18,9 @@ describe("FleetProvider host parity", () => {
           ],
         });
       }
+      if (url.includes("/api/capabilities")) {
+        return Response.json({ protocolVersion: "protocol-2" });
+      }
       if (url.includes("srv-a")) return Response.json({ projects: ["/a"] });
       return new Response("not ready", { status: 503, headers: { "Retry-After": "1" } });
     }) as typeof fetch;
@@ -40,6 +43,27 @@ describe("FleetProvider host parity", () => {
     ]);
     expect(fetchImpl).toHaveBeenCalledWith("/host/servers/srv-a/api/session-config");
     expect(fetchImpl).toHaveBeenCalledWith("/host/servers/srv-b/api/session-config");
+  });
+
+  it("preserves an exact protocol mismatch as the server-list cause", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/host/config") {
+        return Response.json({
+          servers: [{ serverId: "srv-a", displayName: "A", enabled: true }],
+        });
+      }
+      return Response.json({ protocolVersion: "old" });
+    }) as typeof fetch;
+
+    await expect(makeFleetProvider(fetchImpl).listConfigs()).resolves.toEqual([
+      {
+        serverId: "srv-a",
+        serverLabel: "A",
+        state: "incompatible_protocol",
+        reason: "incompatible protocol: client protocol-2, server old",
+      },
+    ]);
+    expect(fetchImpl).not.toHaveBeenCalledWith("/host/servers/srv-a/api/session-config");
   });
 
   it("Workspace transport exposes the same contract without bearer material", async () => {

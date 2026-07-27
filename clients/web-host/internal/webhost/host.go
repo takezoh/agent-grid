@@ -17,7 +17,11 @@ import (
 	"github.com/takezoh/agent-grid/clients/web-host/internal/clientconfig"
 )
 
-const serverRoutePrefix = "/host/servers/"
+const (
+	serverRoutePrefix     = "/host/servers/"
+	protocolVersion       = "protocol-2"
+	protocolVersionHeader = "X-Agent-Grid-Protocol-Version"
+)
 
 // Handler serves the shared SPA and one server-qualified transport for every
 // configured client server. The immutable snapshot contains credentials; only
@@ -98,6 +102,7 @@ func serverProxy(
 			pr.Out.Host = target.Host
 			pr.Out.Header.Del("Origin")
 			pr.Out.Header.Del("Authorization")
+			pr.Out.Header.Set(protocolVersionHeader, protocolVersion)
 			if server.Auth.Mode == "bearer" {
 				pr.Out.Header.Set("Authorization", "Bearer "+server.Auth.Token)
 			}

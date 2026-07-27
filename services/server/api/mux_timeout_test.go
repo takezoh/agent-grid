@@ -54,7 +54,7 @@ func TestMux_ListTimesOutAs504(t *testing.T) {
 		_ = daemon.recv()
 	}()
 
-	r := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+	r := protocolRequest(http.MethodGet, "/api/sessions", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 
@@ -87,7 +87,7 @@ func TestMux_CreateTimesOutAs504(t *testing.T) {
 		_ = daemon.recv()
 	}()
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		strings.NewReader(defaultCreateBody(t, "/p", nil)))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -111,7 +111,7 @@ func TestMux_DeleteTimesOutAs504(t *testing.T) {
 		_ = daemon.recv()
 	}()
 
-	r := httptest.NewRequest(http.MethodDelete, "/api/sessions/s1", nil)
+	r := protocolRequest(http.MethodDelete, "/api/sessions/s1", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 
@@ -124,7 +124,7 @@ func TestMux_DeleteTimesOutAs504(t *testing.T) {
 // dummyReq builds a minimal *http.Request for handleProtoError unit tests.
 // gatewayError needs r.Method, r.URL.Path, r.Header; nothing else.
 func dummyReq() *http.Request {
-	return httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	return protocolRequest(http.MethodGet, "/api/test", nil)
 }
 
 // TestHandleProtoError_DeadlineExceededMaps504 is a focused unit test on the
@@ -272,7 +272,7 @@ func TestMux_HandlesConcurrentTimeoutsCleanly(t *testing.T) {
 	for i := 0; i < N; i++ {
 		go func() {
 			defer wg.Done()
-			r := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+			r := protocolRequest(http.MethodGet, "/api/sessions", nil)
 			r.Header.Set("Authorization", "Bearer tok")
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, r)

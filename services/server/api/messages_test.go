@@ -53,7 +53,7 @@ func TestMux_GetSessionMessages(t *testing.T) {
 		})
 	}()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/sessions/s1/messages", nil)
+	req := protocolRequest(http.MethodGet, "/api/sessions/s1/messages", nil)
 	req.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -111,7 +111,7 @@ func TestMux_ReadSessionMessages(t *testing.T) {
 		daemon.sendResp(env.ReqID, proto.RespOK{})
 	}()
 
-	req := httptest.NewRequest(
+	req := protocolRequest(
 		http.MethodPost,
 		"/api/sessions/s1/messages/read",
 		bytes.NewBufferString(`{"last_read_message_id":"m1"}`),

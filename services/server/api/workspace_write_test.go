@@ -16,7 +16,7 @@ import (
 )
 
 func authedPut(path string, body []byte, extraHeaders map[string]string) *http.Request {
-	r := httptest.NewRequest(http.MethodPut, path, bytes.NewReader(body))
+	r := protocolRequest(http.MethodPut, path, bytes.NewReader(body))
 	r.Header.Set("Authorization", "Bearer tok")
 	for k, v := range extraHeaders {
 		r.Header.Set(k, v)
@@ -169,7 +169,7 @@ func TestWorkspaceWriteHandlerAuth(t *testing.T) {
 	t.Parallel()
 	d, _ := newDaemonPair(t)
 	mux := NewMux(d, "tok")
-	req := httptest.NewRequest(http.MethodPut, workspaceWriteURL("x.txt", ""), strings.NewReader("x"))
+	req := protocolRequest(http.MethodPut, workspaceWriteURL("x.txt", ""), strings.NewReader("x"))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {

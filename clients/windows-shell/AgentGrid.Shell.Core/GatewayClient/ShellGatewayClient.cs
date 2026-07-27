@@ -180,7 +180,9 @@ public sealed class ShellGatewayClient : IDisposable
         {
             Scheme = _baseUri.Scheme == "https" ? "wss" : "ws",
             Path = "/ws",
-            Query = string.IsNullOrEmpty(ticket) ? "" : $"ticket={Uri.EscapeDataString(ticket)}",
+            Query =
+                $"ticket={Uri.EscapeDataString(ticket)}" +
+                $"&protocolVersion={Uri.EscapeDataString(ProtocolVersion.Current)}",
         }.Uri;
 
     private Uri Combine(string path) => new(_baseUri, path);
@@ -188,6 +190,7 @@ public sealed class ShellGatewayClient : IDisposable
     /// <summary>Omit Authorization when token is empty (run-dev -no-auth).</summary>
     private async Task ApplyAuthAsync(HttpRequestMessage req, CancellationToken ct)
     {
+        req.Headers.TryAddWithoutValidation(ProtocolVersion.Header, ProtocolVersion.Current);
         var token = await _tokens.ReadFreshAsync(ct).ConfigureAwait(false);
         if (!string.IsNullOrEmpty(token))
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);

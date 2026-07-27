@@ -100,8 +100,8 @@ func TestFakeVsRealHostControlLockAndSignal(t *testing.T) {
 	}
 	restore = fake.install(t)
 	fakeMatched := classifyProbe(probeRequest{
-		DataDir:     dir,
-		ExpectedExe: realIdent.Executable,
+		DataDir:      dir,
+		ExpectedExe:  realIdent.Executable,
 		ExpectedArgv: realIdent.Argv,
 	})
 	restore()

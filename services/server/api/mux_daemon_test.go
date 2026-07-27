@@ -28,6 +28,15 @@ import (
 	platformconfig "github.com/takezoh/agent-grid/services/platform/config"
 )
 
+// Test muxes use a process-wide hermetic baseline authority. Individual tests
+// can replace it before construction; newMux captures the selected loader, so
+// later restores cannot change an already-built handler.
+func init() {
+	loadSessionConfig = func() (*config.Config, error) {
+		return config.DefaultConfig(), nil
+	}
+}
+
 // --- fake daemon helpers ---
 
 // fakeDaemon simulates the server daemon side of a proto connection. The test
@@ -173,7 +182,7 @@ func TestMux_Health503OnRest(t *testing.T) {
 	}
 
 	mux := NewMux(d, "tok")
-	r := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+	r := protocolRequest(http.MethodGet, "/api/sessions", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -200,6 +209,7 @@ func TestMux_Health503OnWS(t *testing.T) {
 	// Mint a ticket (requires auth, but server is not a daemon call — tickets
 	// are minted in-process; only the WS upgrade itself checks d.Health()).
 	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/ws-ticket", nil)
+	req.Header.Set(ProtocolVersionHeader, ProtocolVersion)
 	req.Header.Set("Authorization", "Bearer tok")
 	resp, err := srv.Client().Do(req)
 	if err != nil {
@@ -214,6 +224,7 @@ func TestMux_Health503OnWS(t *testing.T) {
 	}
 	// Re-mint because resp body already closed above — do it properly.
 	req2, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/ws-ticket", nil)
+	req2.Header.Set(ProtocolVersionHeader, ProtocolVersion)
 	req2.Header.Set("Authorization", "Bearer tok")
 	resp2, err := srv.Client().Do(req2)
 	if err != nil {
@@ -252,6 +263,7 @@ func TestMux_TicketFlowUnchanged(t *testing.T) {
 
 	// Mint ticket.
 	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/ws-ticket", nil)
+	req.Header.Set(ProtocolVersionHeader, ProtocolVersion)
 	req.Header.Set("Authorization", "Bearer tok")
 	resp, err := srv.Client().Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
@@ -331,7 +343,7 @@ func TestMux_CreateForwardsCmdEvent(t *testing.T) {
 		daemon.sendResp(env.ReqID, proto.RespCreateSession{SessionID: "abc"})
 	}()
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"cols": 120, "rows": 40})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -365,9 +377,52 @@ func TestMux_CreateForwardsCmdEvent(t *testing.T) {
 	}
 }
 
-func TestMux_CreateV2MaterializesValidatedProfile(t *testing.T) {
+// TestMux_CreateCapturesInjectedConfigAuthority proves that a mux keeps the
+// config authority selected at construction time. The process HOME contains a
+// deliberately conflicting shell profile, so consulting ambient config while
+// serving the request would reject the injected profile revision as stale.
+func TestMux_CreateCapturesInjectedConfigAuthority(t *testing.T) {
+	home := t.TempDir()
+	settingsDir := filepath.Join(home, ".agent-grid")
+	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(settingsDir, "settings.toml"), []byte(`
+[[session.command_profiles]]
+id = "shell"
+label = "Ambient shell"
+executable = "ambient-shell"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+
+	injected := config.DefaultConfig()
+	restore := withSessionConfigLoader(func() (*config.Config, error) {
+		return injected, nil
+	})
 	d, daemon := newDaemonPair(t)
 	mux := NewMux(d, "tok")
+	restore()
+
+	daemon.pumpResponses(func(reqID string) {
+		daemon.sendResp(reqID, proto.RespCreateSession{SessionID: "isolated"})
+	})
+	project := filepath.Join(t.TempDir(), "project")
+	r := protocolRequest(http.MethodPost, "/api/sessions",
+		strings.NewReader(defaultCreateBody(t, project, nil)))
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 with injected config authority (body %q)",
+			w.Code, w.Body.String())
+	}
+}
+
+func TestMux_CreateV2MaterializesValidatedProfile(t *testing.T) {
+	d, daemon := newDaemonPair(t)
 	cfg := config.DefaultConfig()
 	cfg.Session.CommandProfiles = []config.CommandProfileConfig{{
 		ID: "sol", Executable: "codex", Argv: []string{"--model", "{{model}}"},
@@ -404,6 +459,7 @@ values = ["gpt sol", "terra"]
 	profile := profiles[0]
 	restore := withSessionConfigLoader(func() (*config.Config, error) { return cfg, nil })
 	defer restore()
+	mux := NewMux(d, "tok")
 
 	done := make(chan state.CreateSessionParams, 1)
 	go func() {
@@ -422,7 +478,7 @@ values = ["gpt sol", "terra"]
 		`{"version":2,"project":%q,"profile_id":"sol","profile_revision":%q,"parameters":{"model":"gpt sol"}}`,
 		project, profile.Revision,
 	)
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions", strings.NewReader(body))
+	r := protocolRequest(http.MethodPost, "/api/sessions", strings.NewReader(body))
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -436,14 +492,14 @@ values = ["gpt sol", "terra"]
 
 func TestMux_CreateV2RejectsStaleRevisionWithoutDaemonRPC(t *testing.T) {
 	d, _ := newDaemonPair(t)
-	mux := NewMux(d, "tok")
 	cfg := config.DefaultConfig()
 	cfg.Session.CommandProfiles = []config.CommandProfileConfig{{
 		ID: "sol", Executable: "codex",
 	}}
 	restore := withSessionConfigLoader(func() (*config.Config, error) { return cfg, nil })
 	defer restore()
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions", strings.NewReader(
+	mux := NewMux(d, "tok")
+	r := protocolRequest(http.MethodPost, "/api/sessions", strings.NewReader(
 		`{"version":2,"project":"/p","profile_id":"sol","profile_revision":"old"}`,
 	))
 	r.Header.Set("Authorization", "Bearer tok")
@@ -461,7 +517,7 @@ func TestApiCreateSessionInvalidCols(t *testing.T) {
 	d, daemon := newDaemonPair(t)
 	mux := NewMux(d, "tok")
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"cols": 99999, "rows": 47})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -493,7 +549,7 @@ func TestApiCreateSessionInvalidAsymmetricCols(t *testing.T) {
 	d, daemon := newDaemonPair(t)
 	mux := NewMux(d, "tok")
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"cols": 120, "rows": 0})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -553,7 +609,7 @@ func TestMux_CreateForwardsWorktreeAndSandbox(t *testing.T) {
 		daemon.sendResp(env.ReqID, proto.RespCreateSession{SessionID: "abc"})
 	}()
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		strings.NewReader(defaultCreateBody(t, "/p",
 			map[string]any{"worktree": true, "sandbox": "host"})))
 	r.Header.Set("Authorization", "Bearer tok")
@@ -602,7 +658,7 @@ func TestMux_CreateDefaultsWorktreeAndSandbox(t *testing.T) {
 		daemon.sendResp(env.ReqID, proto.RespCreateSession{SessionID: "abc"})
 	}()
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		strings.NewReader(defaultCreateBody(t, "/p", nil)))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -630,7 +686,7 @@ func TestMux_CreateRejectsUnknownSandbox(t *testing.T) {
 	d, _ := newDaemonPair(t)
 	mux := NewMux(d, "tok")
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"sandbox": "docker"})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -660,7 +716,7 @@ func TestMux_ListMapsRespSessions(t *testing.T) {
 		})
 	}()
 
-	r := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+	r := protocolRequest(http.MethodGet, "/api/sessions", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -745,7 +801,7 @@ func TestMux_PushForwardsEventPushDriver(t *testing.T) {
 	}
 	gotCh := drainPushRequest(t, daemon, list, true)
 
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("s1"),
+	r := protocolRequest(http.MethodPost, pushPathFor("s1"),
 		strings.NewReader(`{"command":"/clear"}`))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -780,7 +836,7 @@ func TestMux_PushReturns404OnUnknownSession(t *testing.T) {
 	}
 	gotCh := drainPushRequest(t, daemon, list, false)
 
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("ghost"),
+	r := protocolRequest(http.MethodPost, pushPathFor("ghost"),
 		strings.NewReader(`{"command":"/clear"}`))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -802,7 +858,7 @@ func TestMux_PushRejectsEmptyCommand(t *testing.T) {
 	d, _ := newDaemonPair(t)
 	mux := NewMux(d, "tok")
 
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("s1"),
+	r := protocolRequest(http.MethodPost, pushPathFor("s1"),
 		strings.NewReader(`{"command":"   "}`))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -821,7 +877,7 @@ func TestMux_PushRejectsInvalidJSON(t *testing.T) {
 	d, _ := newDaemonPair(t)
 	mux := NewMux(d, "tok")
 
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("s1"),
+	r := protocolRequest(http.MethodPost, pushPathFor("s1"),
 		strings.NewReader(`{"command":`))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -845,7 +901,7 @@ func TestMux_PushRequiresAuth(t *testing.T) {
 	defer d.Close()
 
 	mux := NewMux(d, "tok")
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("s1"),
+	r := protocolRequest(http.MethodPost, pushPathFor("s1"),
 		strings.NewReader(`{"command":"/clear"}`))
 	// no Authorization header
 	r.Header.Set("Content-Type", "application/json")
@@ -885,7 +941,7 @@ func TestMux_PushRejectsBodyTooLarge(t *testing.T) {
 	// trigger the failure path.
 	huge := strings.Repeat("A", pushBodyLimit+1)
 	body := `{"command":"` + huge + `"}`
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("s1"), strings.NewReader(body))
+	r := protocolRequest(http.MethodPost, pushPathFor("s1"), strings.NewReader(body))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -923,7 +979,7 @@ func TestMux_PushRejectsBodyTooLargeOnHealthyDaemon(t *testing.T) {
 
 	huge := strings.Repeat("B", pushBodyLimit+1)
 	body := `{"command":"` + huge + `"}`
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("s1"), strings.NewReader(body))
+	r := protocolRequest(http.MethodPost, pushPathFor("s1"), strings.NewReader(body))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -955,7 +1011,7 @@ func TestMux_PushMapsDaemonErrorTo502(t *testing.T) {
 		daemon.sendErr(env2.ReqID, proto.ErrInternal, "spawn failed")
 	}()
 
-	r := httptest.NewRequest(http.MethodPost, pushPathFor("s1"),
+	r := protocolRequest(http.MethodPost, pushPathFor("s1"),
 		strings.NewReader(`{"command":"/clear"}`))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -994,7 +1050,7 @@ func TestMux_DeleteMapsErrorToHTTPCode(t *testing.T) {
 				daemon.sendErr(env.ReqID, tc.errCode, "test error")
 			}()
 
-			r := httptest.NewRequest(http.MethodDelete, "/api/sessions/s1", nil)
+			r := protocolRequest(http.MethodDelete, "/api/sessions/s1", nil)
 			r.Header.Set("Authorization", "Bearer tok")
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, r)
@@ -1036,7 +1092,7 @@ func TestMux_SessionConfigSurfacesConfigFields(t *testing.T) {
 	defer restore()
 
 	mux := NewMux(d, "tok")
-	r := httptest.NewRequest(http.MethodGet, "/api/session-config", nil)
+	r := protocolRequest(http.MethodGet, "/api/session-config", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -1108,7 +1164,7 @@ executable = "project-agent"
 	)
 	defer d.Close()
 	mux := NewMux(d, "tok")
-	r := httptest.NewRequest(http.MethodGet, "/api/session-config", nil)
+	r := protocolRequest(http.MethodGet, "/api/session-config", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -1174,7 +1230,7 @@ func TestMux_SessionConfigProjectMetadataReflectsDiskState(t *testing.T) {
 		defer restore()
 
 		mux := NewMux(d, "tok")
-		r := httptest.NewRequest(http.MethodGet, "/api/session-config", nil)
+		r := protocolRequest(http.MethodGet, "/api/session-config", nil)
 		r.Header.Set("Authorization", "Bearer tok")
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
@@ -1226,7 +1282,7 @@ func TestMux_SessionConfigProjectMetadataReflectsDiskState(t *testing.T) {
 		defer restore()
 
 		mux := NewMux(d, "tok")
-		r := httptest.NewRequest(http.MethodGet, "/api/session-config", nil)
+		r := protocolRequest(http.MethodGet, "/api/session-config", nil)
 		r.Header.Set("Authorization", "Bearer tok")
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
@@ -1272,7 +1328,7 @@ func TestMux_SessionConfigSurfacesLoadError(t *testing.T) {
 	defer restore()
 
 	mux := NewMux(d, "tok")
-	r := httptest.NewRequest(http.MethodGet, "/api/session-config", nil)
+	r := protocolRequest(http.MethodGet, "/api/session-config", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -1298,7 +1354,7 @@ func TestMux_AuthInvariant(t *testing.T) {
 	defer d.Close()
 
 	mux := NewMux(d, "tok")
-	r := httptest.NewRequest(http.MethodGet, "/api/sessions", nil) // no auth
+	r := protocolRequest(http.MethodGet, "/api/sessions", nil) // no auth
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
 	if w.Code != http.StatusUnauthorized {
@@ -1326,7 +1382,7 @@ func TestMuxNoAuth_AllowsUnauthenticated(t *testing.T) {
 	mux := NewMuxNoAuth(d)
 
 	t.Run("REST passes without bearer", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+		r := protocolRequest(http.MethodGet, "/api/sessions", nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
 		// Daemon dial fails in this test, so the handler reaches the daemon
@@ -1338,7 +1394,7 @@ func TestMuxNoAuth_AllowsUnauthenticated(t *testing.T) {
 	})
 
 	t.Run("WS without ticket reaches daemon health check", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet, "/ws", nil)
+		r := protocolRequest(http.MethodGet, "/ws", nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
 		// Under NewMux this would be 401 (ticket missing); under NewMuxNoAuth

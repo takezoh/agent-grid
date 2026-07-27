@@ -5,6 +5,7 @@
 import Foundation
 
 public final class GatewayClient: @unchecked Sendable {
+    public static let protocolVersion = "protocol-2"
     private let baseURL: URL
     private let token: String?
     private let session: URLSession
@@ -50,6 +51,7 @@ public final class GatewayClient: @unchecked Sendable {
 
     private func applyAuth(_ req: inout URLRequest) {
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue(Self.protocolVersion, forHTTPHeaderField: "X-Agent-Grid-Protocol-Version")
         if let token {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }

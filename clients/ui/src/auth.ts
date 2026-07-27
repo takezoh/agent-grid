@@ -20,7 +20,7 @@ export interface FleetHealth {
   servers: Array<{
     serverId: string;
     displayName: string;
-    state: "connected" | "unavailable" | "disabled";
+    state: "connected" | "unavailable" | "incompatible_protocol" | "disabled";
     reason?: string;
   }>;
 }

@@ -12,8 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -117,38 +115,6 @@ type apiSessionConfig struct {
 	Projects     []apiProjectMeta `json:"projects"`
 }
 
-// apiCreateReq is the POST /api/sessions body. Required: version 2, project,
-// profile id and profile revision. Optional: typed parameters, terminal
-// cols/rows hint, worktree (create a
-// git worktree before launch), and sandbox ("" / "auto" → follow project
-// config, "host" → force direct/host launch).
-type apiCreateReq struct {
-	Version         int            `json:"version,omitempty"`
-	Project         string         `json:"project"`
-	ProfileID       string         `json:"profile_id,omitempty"`
-	ProfileRevision string         `json:"profile_revision,omitempty"`
-	Parameters      map[string]any `json:"parameters,omitempty"`
-	Cols            int            `json:"cols,omitempty"`
-	Rows            int            `json:"rows,omitempty"`
-	Worktree        bool           `json:"worktree,omitempty"`
-	Sandbox         string         `json:"sandbox,omitempty"`
-}
-
-// parseSandbox maps the apiCreateReq sandbox field to the daemon's
-// SandboxOverride enum. "" and "auto" both mean "follow project config"
-// (SandboxOverrideAuto). "host" forces SandboxOverrideHost. Anything else
-// returns ok=false so the gateway can 400 the request rather than silently
-// degrading.
-func parseSandbox(v string) (state.SandboxOverride, bool) {
-	switch v {
-	case "", "auto":
-		return state.SandboxOverrideAuto, true
-	case "host":
-		return state.SandboxOverrideHost, true
-	}
-	return 0, false
-}
-
 // NewMux builds the backend HTTP handler. DaemonClient replaces the old
 // Sessions interface; auth/ticket/CSP invariants are unchanged.
 //
@@ -169,13 +135,20 @@ func NewMuxNoAuth(d *DaemonClient) http.Handler {
 
 type muxDependencies struct {
 	workspaceAtomicWrite workspaceAtomicWriteFunc
+	sessionConfigLoader  func() (*config.Config, error)
 }
 
 func defaultMuxDependencies() muxDependencies {
-	return muxDependencies{workspaceAtomicWrite: atomicWriteWorkspaceFile}
+	return muxDependencies{
+		workspaceAtomicWrite: atomicWriteWorkspaceFile,
+		sessionConfigLoader:  loadSessionConfig,
+	}
 }
 
 func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependencies) http.Handler {
+	if dependencies.sessionConfigLoader == nil {
+		dependencies.sessionConfigLoader = loadSessionConfig
+	}
 	tickets := newTicketStore()
 	mux := http.NewServeMux()
 
@@ -184,9 +157,9 @@ func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependen
 	// "empty want rejects everything" contract is preserved on the path that
 	// still uses it.
 	if noAuth {
-		mux.Handle("/api/", apiHandler(d, tickets, dependencies))
+		mux.Handle("/api/", protocolAwareAPIHandler(d, tickets, dependencies))
 	} else {
-		mux.Handle("/api/", TokenAuth(token, apiHandler(d, tickets, dependencies)))
+		mux.Handle("/api/", TokenAuth(token, protocolAwareAPIHandler(d, tickets, dependencies)))
 	}
 
 	// The WebSocket attach endpoint authenticates with a single-use ticket (a
@@ -207,6 +180,10 @@ func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependen
 			}
 			clientInstanceID = ci
 		} else {
+			if version, ok := noAuthWSProtocolVersion(r); !ok {
+				writeProtocolVersionError(w, version)
+				return
+			}
 			// no-auth local mode still needs a distinct producer id per WS.
 			clientInstanceID = randomOpaque24()
 		}
@@ -220,7 +197,7 @@ func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependen
 func apiHandler(d *DaemonClient, tickets *ticketStore, dependencies muxDependencies) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/sessions", handleListSessions(d))
-	mux.HandleFunc("POST /api/sessions", handleCreateSession(d))
+	mux.HandleFunc("POST /api/sessions", handleCreateSession(d, dependencies.sessionConfigLoader))
 	mux.HandleFunc("POST /api/sessions/{id}/push", handlePushCommand(d))
 	mux.HandleFunc("GET /api/sessions/{id}/messages", handleGetSessionMessages(d))
 	mux.HandleFunc("POST /api/sessions/{id}/messages/read", handleReadSessionMessages(d))
@@ -232,7 +209,7 @@ func apiHandler(d *DaemonClient, tickets *ticketStore, dependencies muxDependenc
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/file", handleWorkspaceFile(d))
 	mux.HandleFunc("PUT /api/sessions/{id}/workspace/file", handleWorkspaceFileWrite(d, dependencies.workspaceAtomicWrite))
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/diff", handleWorkspaceDiff(d))
-	mux.HandleFunc("GET /api/session-config", handleSessionConfig())
+	mux.HandleFunc("GET /api/session-config", handleSessionConfig(dependencies.sessionConfigLoader))
 	mux.HandleFunc("POST /api/ws-ticket", func(w http.ResponseWriter, _ *http.Request) {
 		ticket, ci := tickets.mint()
 		writeJSON(w, http.StatusOK, map[string]string{
@@ -281,9 +258,9 @@ func withSessionConfigLoader(loader func() (*config.Config, error)) func() {
 // On config-load error, returns 500 so a malformed settings.toml is visibly
 // failing rather than silently surfacing as an empty form. A missing config
 // file is NOT an error (LoadFrom treats it as DefaultConfig).
-func handleSessionConfig() http.HandlerFunc {
+func handleSessionConfig(loadConfig func() (*config.Config, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cfg, err := loadSessionConfig()
+		cfg, err := loadConfig()
 		if err != nil {
 			gatewayError(w, r, http.StatusInternalServerError, "config_load_failed",
 				"settings.toml load failed", "err", err)
@@ -401,133 +378,6 @@ func handleListSessions(d *DaemonClient) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
-}
-
-func handleCreateSession(d *DaemonClient) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !d.Health() {
-			gatewayError(w, r, http.StatusServiceUnavailable, "daemon_unavailable",
-				"daemon unavailable")
-			return
-		}
-		var req apiCreateReq
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			gatewayError(w, r, http.StatusBadRequest, "bad_request",
-				"bad request body", "err", err)
-			return
-		}
-		// Reject relative-path "projects" at the gateway boundary. The daemon
-		// hands req.Project straight to drivers / devcontainer launchers as
-		// the working directory; docker create rejects non-absolute workdirs
-		// with "the working directory 'X' is invalid, it needs to be an
-		// absolute path", which used to surface as an opaque 502 from deep
-		// inside the launcher chain. Catching it here turns the operator
-		// mistake into a clean 400 with the actual rule stated.
-		if !isAbsoluteProjectPath(req.Project) {
-			gatewayError(w, r, http.StatusBadRequest, "project_not_absolute",
-				"project must be an absolute path (e.g. /home/me/myrepo); got "+strconv.Quote(req.Project),
-				"project", req.Project)
-			return
-		}
-		sandbox, ok := parseSandbox(req.Sandbox)
-		if !ok {
-			gatewayError(w, r, http.StatusBadRequest, "invalid_sandbox",
-				"sandbox must be one of \"\"/\"auto\"/\"host\"; got "+strconv.Quote(req.Sandbox),
-				"sandbox", req.Sandbox)
-			return
-		}
-		if err := state.ValidateSizeHint(req.Cols, req.Rows); err != nil {
-			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_cols_rows", err.Error())
-			return
-		}
-		if req.Version != 2 || req.ProfileID == "" || req.ProfileRevision == "" {
-			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_create_version",
-				"version 2 requires profile_id and profile_revision")
-			return
-		}
-		cfg, err := loadSessionConfig()
-		if err != nil {
-			gatewayError(w, r, http.StatusInternalServerError, "config_load_failed",
-				"settings.toml load failed", "err", err)
-			return
-		}
-		profiles, err := cfg.Session.ResolveProfiles(req.Project)
-		if err != nil {
-			gatewayError(w, r, http.StatusInternalServerError, "project_config_load_failed",
-				"project settings.toml load failed", "project", req.Project, "err", err)
-			return
-		}
-		argv, err := config.MaterializeResolvedProfile(
-			profiles, req.ProfileID, req.ProfileRevision, req.Parameters)
-		if err != nil {
-			status := http.StatusBadRequest
-			code := "invalid_profile_parameters"
-			if strings.Contains(err.Error(), "stale profile revision") {
-				status = http.StatusConflict
-				code = "stale_profile_revision"
-			}
-			gatewayAPIError(w, r, status, code, err.Error())
-			return
-		}
-		command := joinShellCommand(argv)
-		params := state.CreateSessionParams{
-			Project: req.Project,
-			Command: command,
-			Sandbox: sandbox,
-			Options: state.LaunchOptions{
-				Cols:     uint16(req.Cols),
-				Rows:     uint16(req.Rows),
-				Worktree: state.WorktreeOption{Enabled: req.Worktree},
-			},
-		}
-		payload, err := json.Marshal(params)
-		if err != nil {
-			// json.Marshal of a struct of primitives cannot fail — this is
-			// defensive only. Surface as 500 with the err so a future
-			// type-change that breaks marshalling is visible.
-			gatewayError(w, r, http.StatusInternalServerError, "marshal_error",
-				"internal error", "err", err)
-			return
-		}
-		ctx, cancel := rpcContext(r)
-		defer cancel()
-		resp, err := d.SendCommand(ctx, proto.CmdEvent{
-			Event:   state.EventCreateSession,
-			Payload: json.RawMessage(payload),
-		})
-		if err != nil {
-			handleProtoError(w, r, err)
-			return
-		}
-		rc, ok := resp.(proto.RespCreateSession)
-		if !ok {
-			gatewayError(w, r, http.StatusInternalServerError, "response_type_mismatch",
-				"unexpected response type", "got_type", typeName(resp))
-			return
-		}
-		info := apiSessionInfo{
-			ID:        rc.SessionID,
-			Project:   req.Project,
-			Command:   command,
-			CreatedAt: time.Now().UTC().Format(time.RFC3339),
-		}
-		writeJSON(w, http.StatusCreated, info)
-	}
-}
-
-func joinShellCommand(argv []string) string {
-	quoted := make([]string, len(argv))
-	for i, arg := range argv {
-		if arg != "" && strings.IndexFunc(arg, func(r rune) bool {
-			return !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') &&
-				!(r >= '0' && r <= '9') && !strings.ContainsRune("_-./:@", r)
-		}) == -1 {
-			quoted[i] = arg
-			continue
-		}
-		quoted[i] = "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
-	}
-	return strings.Join(quoted, " ")
 }
 
 // Push-route handler and helpers (handlePushCommand, decodePushBody,

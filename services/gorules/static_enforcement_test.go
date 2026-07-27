@@ -125,6 +125,43 @@ func TestCheckE2ESiblingsScript(t *testing.T) {
 	})
 }
 
+func TestProtocolVersionManifestMatchesEveryShippedProjection(t *testing.T) {
+	var manifest struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	raw, err := os.ReadFile(filepath.Join(repoRoot(t), "protocol", "protocol-version.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.ProtocolVersion == "" {
+		t.Fatal("protocol version must not be empty")
+	}
+	for _, rel := range []string{
+		"services/server/api/protocol_version.go",
+		"clients/web-host/internal/webhost/host.go",
+		"clients/ui/src/protocol-version.ts",
+		"clients/workspace/src/main/protocol-version.ts",
+		"clients/windows-shell/AgentGrid.Shell.Core/GatewayClient/ProtocolVersion.cs",
+		"clients/sdk/ts/src/transport.ts",
+		"clients/sdk/csharp/Transport/GatewayClient.cs",
+		"clients/sdk/swift/Transport/GatewayClient.swift",
+		"clients/sdk/kotlin/transport/GatewayClient.kt",
+		"protocol/capabilities.schema.json",
+		"protocol/simulator/server/main.go",
+	} {
+		body, err := os.ReadFile(filepath.Join(repoRoot(t), rel))
+		if err != nil {
+			t.Fatalf("%s: %v", rel, err)
+		}
+		if strings.Count(string(body), manifest.ProtocolVersion) != 1 {
+			t.Errorf("%s must contain the exact protocol version once", rel)
+		}
+	}
+}
+
 func TestCheckCoverageScriptDedupsUnknownPackageReport(t *testing.T) {
 	scriptPath := filepath.Join(repoRoot(t), "scripts", "check-coverage.sh")
 	scriptRaw, err := os.ReadFile(scriptPath)

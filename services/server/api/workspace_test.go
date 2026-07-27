@@ -67,7 +67,7 @@ func TestWorkspaceReadOnlyVerbs(t *testing.T) {
 				if verb == http.MethodPut && strings.Contains(route, "/workspace/file") {
 					return
 				}
-				req := httptest.NewRequest(verb, route, nil)
+				req := protocolRequest(verb, route, nil)
 				req.Header.Set("Authorization", "Bearer tok")
 				w := httptest.NewRecorder()
 				mux.ServeHTTP(w, req)
@@ -91,7 +91,7 @@ func TestWorkspaceReadOnlyVerbs_StrictReadRoutes(t *testing.T) {
 	for _, route := range strictRoutes {
 		for _, verb := range workspaceMutationVerbs {
 			t.Run(verb+" "+route, func(t *testing.T) {
-				req := httptest.NewRequest(verb, route, nil)
+				req := protocolRequest(verb, route, nil)
 				req.Header.Set("Authorization", "Bearer tok")
 				w := httptest.NewRecorder()
 				mux.ServeHTTP(w, req)

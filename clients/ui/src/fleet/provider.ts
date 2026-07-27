@@ -1,9 +1,10 @@
 import { desktopBaseUrl } from "../auth";
+import { PROTOCOL_VERSION, protocolMismatchReason } from "../protocol-version";
 
 export interface FleetConfigOutcome {
   serverId: string;
   serverLabel: string;
-  state: "connected" | "unavailable";
+  state: "connected" | "unavailable" | "incompatible_protocol";
   reason?: string;
   config?: Record<string, unknown>;
 }
@@ -36,6 +37,7 @@ function websocketURL(pathname: string, ticket: string): string {
   const url = new URL(pathname, window.location.origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("ticket", ticket);
+  url.searchParams.set("protocolVersion", PROTOCOL_VERSION);
   return url.toString();
 }
 
@@ -55,6 +57,23 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
             const serverLabel =
               typeof server.displayName === "string" ? server.displayName : serverId;
             try {
+              const capabilitiesResponse = await fetchImpl(
+                qualifiedPath(serverId, "/api/capabilities"),
+              );
+              if (!capabilitiesResponse.ok) {
+                throw new Error(`HTTP ${capabilitiesResponse.status}`);
+              }
+              const capabilities = (await capabilitiesResponse.json()) as {
+                protocolVersion?: unknown;
+              };
+              if (capabilities.protocolVersion !== PROTOCOL_VERSION) {
+                return {
+                  serverId,
+                  serverLabel,
+                  state: "incompatible_protocol",
+                  reason: protocolMismatchReason(capabilities.protocolVersion),
+                };
+              }
               const response = await fetchImpl(qualifiedPath(serverId, "/api/session-config"));
               if (!response.ok) {
                 return {
@@ -115,6 +134,7 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
       const url = new URL("/ws", `${baseUrl}/`);
       url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
       url.searchParams.set("ticket", ticket);
+      url.searchParams.set("protocolVersion", PROTOCOL_VERSION);
       return url.toString();
     },
   };

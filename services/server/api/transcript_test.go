@@ -60,7 +60,7 @@ func sendFakeResponse(t *testing.T, fd *fakeDaemon, resp proto.Response) {
 
 // authedGet returns an authenticated GET request to the given path.
 func authedGet(path string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, path, nil)
+	r := protocolRequest(http.MethodGet, path, nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	return r
 }
@@ -112,7 +112,7 @@ func TestTranscript_RejectsTraversal(t *testing.T) {
 
 	for _, badID := range []string{"../evil", "bad/id", "foo bar", "id\x00null"} {
 		t.Run(badID, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/api/sessions/x/transcript", nil)
+			r := protocolRequest(http.MethodGet, "/api/sessions/x/transcript", nil)
 			r.SetPathValue("id", badID)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, r)

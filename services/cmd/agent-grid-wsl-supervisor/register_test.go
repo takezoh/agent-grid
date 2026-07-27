@@ -55,7 +55,7 @@ func TestRegisterCLIBindsDefaultsOnce(t *testing.T) {
 		t.Fatalf("output = %q", out)
 	}
 	// Runtime load uses only the snapshot file; drifted env defaults are ignored.
-	t.Setenv("AG_WSL_DEFAULT_IDENTITY", "CONTOSO\\other")
+	t.Setenv("AG_WSL_DEFAULT_IDENTITY", "CONTOSO\\alternate")
 	t.Setenv("AG_WSL_DEFAULT_DISTRIBUTION", "OtherDistro")
 	store := &wslhost.FileConfigStore{Path: wslhost.ConfigPath(root)}
 	snap, err := store.Load()

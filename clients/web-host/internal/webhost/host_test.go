@@ -39,11 +39,12 @@ func TestProjectionContainsFleetWithoutCredentials(t *testing.T) {
 }
 
 func TestQualifiedProxySelectsServerAndInjectsConfiguredCredential(t *testing.T) {
-	var gotAuth, gotOrigin, gotPath string
+	var gotAuth, gotOrigin, gotPath, gotProtocolVersion string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
 		gotOrigin = r.Header.Get("Origin")
 		gotPath = r.URL.Path
+		gotProtocolVersion = r.Header.Get(protocolVersionHeader)
 		_, _ = io.WriteString(w, "ok")
 	}))
 	defer upstream.Close()
@@ -71,6 +72,9 @@ func TestQualifiedProxySelectsServerAndInjectsConfiguredCredential(t *testing.T)
 	}
 	if gotOrigin != "" {
 		t.Fatalf("upstream origin = %q", gotOrigin)
+	}
+	if gotProtocolVersion != protocolVersion {
+		t.Fatalf("upstream protocol version = %q", gotProtocolVersion)
 	}
 }
 

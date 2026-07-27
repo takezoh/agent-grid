@@ -129,7 +129,7 @@ public class WsFrameParserTests
     public void Parses_hello_frame_seeds_initial_sessions()
     {
         var json = """
-            {"k":"h","sessions":[{"id":"s1","project":"/repo/p","command":"claude","status":{"lifecycle":"active","human_input":false,"failure":"none"},"view":{"card":{"title":"T1"}}}],"features":["surface"],"serverTime":1700000001,"protocolVersion":"1.0.0-phase01","capabilities":["sessions.view_update"]}
+            {"k":"h","sessions":[{"id":"s1","project":"/repo/p","command":"claude","status":{"lifecycle":"active","human_input":false,"failure":"none"},"view":{"card":{"title":"T1"}}}],"features":["surface"],"serverTime":1700000001,"protocolVersion":"protocol-2","capabilities":["sessions.view_update"]}
             """;
         var ev = WsFrameParser.TryParse(json) as EvtViewUpdateSessions;
         Assert.NotNull(ev);
@@ -139,13 +139,11 @@ public class WsFrameParserTests
         Assert.Equal("T1", ev.Sessions[0].Title);
     }
 
-    // A hello frame that legitimately carries no session data (e.g. a
-    // capability-negotiation-only variant) must still be ignorable — this
-    // pins that the fix (routing "h" through the same sessions-array parse
-    // as "v") does not turn every hello frame into a forced snapshot reset.
     [Fact]
-    public void Ignores_hello_frame_without_sessions_key()
+    public void Rejects_hello_frame_with_mismatching_protocol()
     {
-        Assert.Null(WsFrameParser.TryParse("""{"k":"h","protocolVersion":"1"}"""));
+        var error = Assert.Throws<ProtocolVersionMismatchException>(
+            () => WsFrameParser.TryParse("""{"k":"h","protocolVersion":"1"}"""));
+        Assert.Contains("client protocol-2, server 1", error.Message);
     }
 }

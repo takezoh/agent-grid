@@ -27,7 +27,7 @@ func TestTokenAuth(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			r := protocolRequest(http.MethodGet, "/", nil)
 			tc.setup(r)
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)
@@ -39,7 +39,7 @@ func TestTokenAuth(t *testing.T) {
 }
 
 func TestTokenAuthEmptyWantRejects(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/?token=anything", nil)
+	r := protocolRequest(http.MethodGet, "/?token=anything", nil)
 	r.Header.Set("Authorization", "Bearer ")
 	w := httptest.NewRecorder()
 	TokenAuth("", okHandler()).ServeHTTP(w, r)

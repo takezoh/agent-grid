@@ -375,15 +375,23 @@ func (c *StopCoordinator) mark(out *StopOutcome, cp StopCheckpoint) {
 	c.last = cloneOutcome(*out)
 	c.mu.Unlock()
 	if c.Status != nil {
-		hint := uint32(c.GracefulBudget() / time.Millisecond)
-		switch cp {
-		case CheckpointChildWait:
-			hint = ChildKillWaitMS
-		case CheckpointCompleted, CheckpointGracefulExited, CheckpointAbsenceConfirmed:
-			hint = 0
-		}
-		c.Status.OnCheckpoint(cp, hint, seq)
+		c.Status.OnCheckpoint(cp, c.checkpointWaitHint(cp), seq)
 	}
+}
+
+func (c *StopCoordinator) checkpointWaitHint(cp StopCheckpoint) uint32 {
+	switch cp {
+	case CheckpointChildWait:
+		return ChildKillWaitMS
+	case CheckpointCompleted, CheckpointGracefulExited, CheckpointAbsenceConfirmed:
+		return 0
+	case CheckpointAccepted, CheckpointDuplicateIgnored, CheckpointTokenMissing,
+		CheckpointStopRejected, CheckpointSIGTERMDelivered, CheckpointGracefulWaiting,
+		CheckpointBudgetExpired, CheckpointChildKill, CheckpointEvidenceProbe,
+		CheckpointTerminateDistro, CheckpointTerminateFailed, CheckpointEvidenceCleared:
+		return uint32(c.GracefulBudget() / time.Millisecond)
+	}
+	return uint32(c.GracefulBudget() / time.Millisecond)
 }
 
 func cloneOutcome(o StopOutcome) StopOutcome {

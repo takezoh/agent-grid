@@ -6,6 +6,8 @@
 
 import type { Capabilities } from "../generated/capabilities.js";
 
+export const PROTOCOL_VERSION = "protocol-2";
+
 export interface TransportConfig {
   /** Gateway base URL, e.g. http://127.0.0.1:8787 */
   baseUrl: string;
@@ -77,6 +79,7 @@ export class GatewayTransport {
   ): Promise<T> {
     const headers: Record<string, string> = {
       Accept: "application/json",
+      "X-Agent-Grid-Protocol-Version": PROTOCOL_VERSION,
     };
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;

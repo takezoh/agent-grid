@@ -127,7 +127,6 @@ func handleCapabilities() http.HandlerFunc {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"protocolVersion": ProtocolVersion,
 			"capabilities":    BundledCapabilities,
-			"axis":            "bundled",
 		})
 	}
 }

@@ -61,10 +61,19 @@ public static class WsFrameParser
                 "ax" => ParseApprovalResolved(doc.RootElement),
                 "qr" => ParseQuestionRequested(doc.RootElement),
                 "qx" => ParseQuestionResolved(doc.RootElement),
-                "h" or "v" => ParseViewUpdate(doc.RootElement),
+                "h" => ParseHello(doc.RootElement),
+                "v" => ParseViewUpdate(doc.RootElement),
                 _ => null,
             };
         }
+    }
+
+    private static SupervisionEvent? ParseHello(JsonElement root)
+    {
+        var actual = OptString(root, "protocolVersion");
+        if (actual != ProtocolVersion.Current)
+            throw new ProtocolVersionMismatchException(actual);
+        return ParseViewUpdate(root);
     }
 
     private static SupervisionEvent? ParseApprovalRequested(JsonElement root)

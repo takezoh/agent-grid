@@ -1,4 +1,5 @@
 import { currentServerIdentity } from "../auth";
+import { PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER } from "../protocol-version";
 import { useDaemonStore } from "../store/daemon";
 import { useFrameMessagingStore } from "../store/frameMessaging";
 import { useNotificationsStore } from "../store/notifications";
@@ -171,7 +172,10 @@ export class Connection {
     const fetchFn = this.cfg.fetchFn ?? fetch;
     const resp = await fetchFn(this.cfg.ticketEndpoint, {
       method: "POST",
-      headers: { Authorization: `Bearer ${this.cfg.bearerToken}` },
+      headers: {
+        Authorization: `Bearer ${this.cfg.bearerToken}`,
+        [PROTOCOL_VERSION_HEADER]: PROTOCOL_VERSION,
+      },
     });
     if (!resp.ok) {
       throw new Error(`ws-ticket failed: ${resp.status}`);

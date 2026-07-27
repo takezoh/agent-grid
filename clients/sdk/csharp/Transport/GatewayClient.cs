@@ -10,6 +10,7 @@ namespace AgentGrid.Client.Transport;
 
 public sealed class GatewayClient : IDisposable
 {
+    public const string ProtocolVersion = "protocol-2";
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
     private string? _clientInstanceId;
@@ -18,6 +19,9 @@ public sealed class GatewayClient : IDisposable
     {
         _ownsHttp = http is null;
         _http = http ?? new HttpClient { BaseAddress = baseUri };
+        _http.DefaultRequestHeaders.TryAddWithoutValidation(
+            "X-Agent-Grid-Protocol-Version",
+            ProtocolVersion);
         if (bearerToken is not null)
         {
             _http.DefaultRequestHeaders.Authorization =

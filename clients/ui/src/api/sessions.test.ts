@@ -24,7 +24,10 @@ describe("server-qualified SessionsApi", () => {
             serverId: "srv-a",
             serverLabel: "A",
             state: "connected",
-            config: { projects: ["/a"], push_commands: ["/clear"] },
+            config: {
+              projects: [{ path: "/a", isGit: false, isSandboxed: false }],
+              push_commands: ["/clear"],
+            },
           },
           {
             serverId: "srv-b",
@@ -211,6 +214,7 @@ describe("server-qualified SessionsApi", () => {
                   ],
                 },
               ],
+              push_commands: [],
             },
           },
         ]),
@@ -240,8 +244,7 @@ describe("server-qualified SessionsApi", () => {
     });
   });
 
-  it("keeps a safe shape for malformed optional config fields", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("rejects malformed fields instead of applying a compatibility fallback", async () => {
     window.agentGridWorkspace = {
       sessionFleet: {
         listConfigs: vi.fn().mockResolvedValue([
@@ -259,12 +262,9 @@ describe("server-qualified SessionsApi", () => {
       },
     };
 
-    const config = await makeSessionsApi(vi.fn()).getSessionConfig();
-
-    expect(config.projects).toHaveLength(3);
-    expect(config.projects.every((project) => project.serverId === "srv-a")).toBe(true);
-    expect(config.pushCommands).toEqual([]);
-    expect(warn).toHaveBeenCalled();
+    await expect(makeSessionsApi(vi.fn()).getSessionConfig()).rejects.toThrow(
+      "invalid exact-version session-config",
+    );
   });
 
   it("deduplicates push commands across healthy servers", async () => {

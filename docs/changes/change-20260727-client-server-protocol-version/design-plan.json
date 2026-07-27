@@ -1,0 +1,467 @@
+{
+  "revision": "design-r2",
+  "base_revision": "design-r1",
+  "goal": "Bind every shipped client and server gateway to one bounded opaque exact-match protocol version, reject every non-match before operational side effects, explain the typed cause per server, and permanently forbid cross-version compatibility or fallback.",
+  "approach": "Use a protocol manifest as the only version owner, gate authenticated/no-auth REST and version-bound WebSocket tickets at the server boundary, propagate one generated client token through every host, retain mismatch as a generation-fenced per-server fleet outcome, and enforce flag-day-only evolution with a closed surface inventory and mutation-tested conformance gates.",
+  "scope": {
+    "in_scope": [
+      "Protocol manifest, generated projections, OpenAPI binding, SDKs, simulator, fakes, and fixtures",
+      "Server REST authentication/version precedence and version-bound WebSocket admission",
+      "Web, Workspace, Windows, and shared UI typed mismatch propagation and server-list presentation",
+      "Supersession of the two-axis capability-negotiation policy and persistent exact-match/no-fallback governance"
+    ],
+    "out_of_scope": [
+      "Cross-version conversion, compatibility ranges, feature negotiation, downgrade, fallback, or mixed-version rollout",
+      "User-configurable expected versions or servers.json version overrides",
+      "Versioning internal daemon IPC, agent-specific protocols, or orchestrator protocols"
+    ]
+  },
+  "components": [
+    {
+      "id": "component-protocol-version-sot",
+      "name": "Protocol version SSOT",
+      "responsibility": "Own the bounded opaque token, exact-equality semantics, typed mismatch schema, and generated language projections.",
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": ["protocol/protocol-version.json", "protocol/openapi.yaml", "protocol/README.md"],
+        "owner": "contract-layer maintainers",
+        "integration_points": ["services/server/api", "clients/ui", "clients/workspace", "clients/windows-shell", "clients/sdk"],
+        "test_seams": ["manifest validator", "pure token parser/comparator", "projection drift check"],
+        "rationale": "The current protocol version is advertised from code and fixtures without a single machine-readable owner.",
+        "accepted_adr_refs": ["adr-20260724-protocol-message-schema-sot-rest-binding", "adr-20260724-protocol-cross-language-sdks-supersedes-0021", "adr-20260724-sdk-codegen-quicktype-typegen"]
+      },
+      "contract_refs": ["contract-version-and-evolution"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-server-gateway-version-gate",
+      "name": "Server gateway version admission",
+      "responsibility": "Own authentication precedence, common REST version admission, typed 426 failures, and version-bound WebSocket tickets.",
+      "depends_on": ["component-protocol-version-sot"],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": ["services/server/api/mux.go", "services/server/api/gateway.go", "services/server/api/ticket.go", "services/server/api/auth_test.go", "services/server/api/mux_scenario_test.go"],
+        "owner": "services/server/api",
+        "integration_points": ["TokenAuth and /api/* mount", "POST /api/ws-ticket", "GET /ws ticket consume"],
+        "test_seams": ["injected handler effect counter", "ticketStore", "gateway scenario harness"],
+        "rationale": "The gateway advertises a version but does not currently enforce it before REST or WS work.",
+        "accepted_adr_refs": ["adr-20260724-protocol-message-schema-sot-rest-binding", "adr-20260724-boundary-2-native-ws-auth-reuse-ticket"]
+      },
+      "contract_refs": ["contract-server-admission"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-protocol-policy-enforcement",
+      "name": "Protocol policy and carrier conformance",
+      "responsibility": "Own all-host version continuity, the permanent no-compatibility policy, closed surface inventory, and deterministic gates.",
+      "depends_on": ["component-protocol-version-sot"],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": ["contracts/compatibility-policy.md", "scripts/check-protocol-compatibility.sh", "clients/web-host", "clients/workspace", "clients/windows-shell"],
+        "owner": "contract-layer maintainers and CI",
+        "integration_points": ["Web proxy", "Electron fleetFetch and IPC", "Windows HttpClient", "compatibility CI profile"],
+        "test_seams": ["host-neutral recorded scenario matrix", "closed inventory validator", "mutation fixtures"],
+        "rationale": "A shared semantic owner is required because carrier continuity and fallback decisions otherwise remain distributed across hosts.",
+        "accepted_adr_refs": ["adr-20260724-capability-negotiation-bundled-remote-two-axis", "adr-20260724-protocol-cross-language-sdks-supersedes-0021", "adr-20260726-status-wire-flag-day-replacement"]
+      },
+      "contract_refs": ["contract-client-continuity", "contract-repository-enforcement", "contract-version-and-evolution"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-shared-fleet-outcome",
+      "name": "Shared fleet compatibility outcome",
+      "responsibility": "Own the closed per-server outcome partition, observation generation fencing, terminal mismatch state, and healthy-peer preservation.",
+      "depends_on": ["component-protocol-version-sot"],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": ["clients/ui/src/fleet/provider.ts", "clients/ui/src/api/sessions.ts", "clients/workspace/src/main/server-health.ts", "clients/windows-shell/AgentGrid.Shell.Core/DaemonSupervisor/DaemonSupervisorMachine.cs"],
+        "owner": "host-neutral fleet provider",
+        "integration_points": ["FleetConfigOutcome", "Workspace health projection", "Windows supervision state"],
+        "test_seams": ["two-server fixtures", "generation fencing constructors", "retry and operation counters"],
+        "rationale": "Current boolean/string health outcomes erase mismatch meaning and host retry terminality.",
+        "accepted_adr_refs": ["adr-20260727-host-neutral-fleet-provider", "adr-20260727-server-qualified-identity-partial-failure"]
+      },
+      "contract_refs": ["contract-client-continuity", "contract-fleet-observability"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-server-list-presentation",
+      "name": "Server-list mismatch presentation",
+      "responsibility": "Render current server labels and typed client/server version evidence without owning transport decisions.",
+      "depends_on": ["component-shared-fleet-outcome"],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": ["clients/ui/src/components/StatusBar.tsx", "clients/ui/src/components/palette/ParamSelectPhase.tsx", "clients/windows-shell/AgentGrid.Shell/Composition/ShellFleet.cs"],
+        "owner": "shared and native server-list presenters",
+        "integration_points": ["status bar", "palette server rows", "Windows fleet glance"],
+        "test_seams": ["pure presenter fixtures", "Playwright smoke", "Windows UIA assertion"],
+        "rationale": "Presentation ownership must remain separate from carrier/fleet outcome creation.",
+        "accepted_adr_refs": ["adr-20260727-host-neutral-fleet-provider", "adr-20260727-server-qualified-identity-partial-failure"]
+      },
+      "contract_refs": ["contract-fleet-observability"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-client-hosts",
+      "name": "Web, Workspace, and Windows host adapters",
+      "responsibility": "Consume generated versions, preserve credentials and routing boundaries, decode typed mismatch, and suppress operations after mismatch.",
+      "depends_on": ["component-protocol-policy-enforcement", "component-shared-fleet-outcome"],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": ["clients/web-host/internal/webhost/host.go", "clients/workspace/src/main/electron-entry.ts", "clients/windows-shell/AgentGrid.Shell.Core/GatewayClient/ShellGatewayClient.cs"],
+        "owner": "client host adapter maintainers",
+        "integration_points": ["reverse proxy", "fleetFetch and preload IPC", "ShellGatewayClient and SupervisionWsSession"],
+        "test_seams": ["request capture", "injected fetch", "HttpMessageHandler", "fake clock"],
+        "rationale": "Delivery transports differ, but compatibility meaning and terminality must not.",
+        "accepted_adr_refs": ["adr-20260727-host-neutral-fleet-provider", "adr-20260727-single-user-server-auth"]
+      },
+      "contract_refs": ["contract-client-continuity"],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-sdk-simulator-conformance",
+      "name": "SDK, simulator, and fake conformance",
+      "responsibility": "Keep generated consumers and deterministic test doubles on the same exact-match contract as the production gateway.",
+      "depends_on": ["component-protocol-version-sot", "component-protocol-policy-enforcement"],
+      "repo_grounding": {
+        "kind": "existing",
+        "paths": ["clients/sdk", "protocol/simulator", "clients/ui/e2e/support/fake-backend.ts"],
+        "owner": "SDK and test-harness maintainers",
+        "integration_points": ["generated SDK pipeline", "protocol simulator", "Playwright fake backend", "FakeVsReal backstop"],
+        "test_seams": ["recorded fixtures", "fake-vs-real contract", "projection regeneration check"],
+        "rationale": "A production-only gate would allow fakes and SDKs to validate behavior the real system rejects.",
+        "accepted_adr_refs": ["adr-20260724-protocol-cross-language-sdks-supersedes-0021", "adr-20260724-sdk-codegen-quicktype-typegen"]
+      },
+      "contract_refs": ["contract-version-and-evolution", "contract-repository-enforcement"],
+      "decision_closure_reason": ""
+    }
+  ],
+  "requirements": [
+    {"id": "FR-PROTO-001", "type": "ubiquitous", "statement": "The protocol shall use one 1-64 byte [A-Za-z0-9._-]+ opaque token and compatibility shall mean exact byte equality only.", "priority": "must", "rationale": "Closes token grammar, malformed classification, and bounded comparison."},
+    {"id": "FR-PROTO-002", "type": "event_driven", "statement": "Authenticated protected requests and explicitly unauthenticated routes shall pass one version gate before operational handlers.", "priority": "must"},
+    {"id": "FR-PROTO-003", "type": "unwanted", "statement": "Invalid protected credentials shall retain 401/403 without version disclosure; otherwise missing, duplicate, malformed, or unequal versions shall return typed 426 with zero operational effects.", "priority": "must"},
+    {"id": "FR-PROTO-004", "type": "event_driven", "statement": "WebSocket admission shall consume a single-use version-bound ticket before hello or application frames.", "priority": "must"},
+    {"id": "FR-PROTO-005", "type": "state_driven", "statement": "While a server is incompatible_protocol, every host shall suppress operational REST, WS open, reconnect, degradation, and fallback until a later exact-match probe.", "priority": "must"},
+    {"id": "FR-PROTO-006", "type": "complex", "statement": "Concurrent matching, mismatching, and unavailable servers shall retain independent latest-generation outcomes and matching peers shall remain operable.", "priority": "must"},
+    {"id": "FR-PROTO-007", "type": "state_driven", "statement": "A mismatch server row shall show current label, typed cause, client version, and server version or explicit missing/invalid markers.", "priority": "must"},
+    {"id": "FR-PROTO-008", "type": "ubiquitous", "statement": "Every public protocol change shall bump the token and atomically update server, shipped hosts, SDKs, simulator/fakes, fixtures, and verification.", "priority": "must"},
+    {"id": "FR-PROTO-009", "type": "unwanted", "statement": "The repository shall never introduce ranges, SemVer compatibility, capability degradation, legacy or dual decoders, downgrade, retry fallback, or another cross-version success path.", "priority": "must"},
+    {"id": "FR-PROTO-010", "type": "ubiquitous", "statement": "The exact-match ADR shall supersede the two-axis capability-negotiation policy while retaining schema and cross-language generation authorities.", "priority": "must"}
+  ],
+  "non_functional_requirements": [
+    {"id": "NFR-PROTO-001", "type": "security", "criteria": "Authentication precedes version disclosure on protected routes; versions are public diagnostics and never credentials or URL query secrets."},
+    {"id": "NFR-PROTO-002", "type": "performance", "criteria": "Validation performs one constant-bounded comparison per admission/bootstrap and no per-message negotiation.", "measurement": "At most 64 compared bytes and one compatibility decision per request admission."},
+    {"id": "NFR-PROTO-003", "type": "reliability", "criteria": "Existing per-server timeout, cancellation, generation, partial-failure, credential confinement, and redirect rejection remain unchanged."},
+    {"id": "NFR-PROTO-004", "type": "maintainability", "criteria": "A closed public-surface inventory fails CI when incomplete or when a surface bypasses exact-equality or typed outcome chokepoints."},
+    {"id": "NFR-PROTO-005", "type": "compatibility", "criteria": "Both old/new cross-pair directions fail identically and no rollout or rollback compatibility mode exists."}
+  ],
+  "acceptance": [
+    {"id": "AC-PROTO-001", "given": "Representative authenticated read/write routes and an effect counter", "when": "Exact, missing, duplicate, malformed, older, and newer tokens are sent", "then": "Only exact match executes the handler; every other authenticated/no-auth case is typed 426 with zero effects."},
+    {"id": "AC-PROTO-002", "given": "Invalid bearer and mismatching version", "when": "A protected route is requested", "then": "The existing auth failure is returned without version evidence."},
+    {"id": "AC-PROTO-003", "given": "One matching and one mismatching configured server", "when": "Web, Workspace, and Windows refresh their fleets", "then": "The matching server remains operable and the mismatching row shows typed cause and version evidence with zero operational/reconnect attempts."},
+    {"id": "AC-PROTO-004", "given": "Compatibility mutation fixtures", "when": "A range, dual decoder, capability degradation, renamed fallback retry, or unregistered surface is introduced", "then": "The conformance gate fails deterministically."}
+  ],
+  "decision_inputs": [
+    {"id": "decision-input-exact-version-only", "subject": "Exact version admission", "source": {"kind": "user_requirement", "ref": "different versions are errors"}, "authority": "constraint", "candidate": "bounded opaque exact equality", "requirement_refs": ["FR-PROTO-001", "FR-PROTO-002", "FR-PROTO-003"], "classification": "design_choice"},
+    {"id": "decision-input-no-compatibility-fallback", "subject": "Permanent compatibility and fallback ban", "source": {"kind": "user_requirement", "ref": "never implement cross-version compatibility or fallback"}, "authority": "constraint", "candidate": "flag-day-only policy and conformance gate", "requirement_refs": ["FR-PROTO-008", "FR-PROTO-009", "FR-PROTO-010"], "classification": "design_choice"},
+    {"id": "decision-input-server-list-cause", "subject": "Server-list failure observability", "source": {"kind": "user_requirement", "ref": "show the cause in the server list"}, "authority": "constraint", "candidate": "server-qualified typed evidence", "requirement_refs": ["FR-PROTO-006", "FR-PROTO-007"], "classification": "design_choice"},
+    {"id": "decision-input-protocol-schema-sot", "subject": "Wire ownership", "source": {"kind": "accepted_adr", "ref": "adr-20260724-protocol-message-schema-sot-rest-binding"}, "authority": "constraint", "candidate": "protocol manifest and OpenAPI annex", "requirement_refs": ["FR-PROTO-001", "FR-PROTO-008"], "classification": "design_choice"},
+    {"id": "decision-input-host-neutral-fleet", "subject": "Host-neutral fleet semantics", "source": {"kind": "accepted_adr", "ref": "adr-20260727-host-neutral-fleet-provider"}, "authority": "constraint", "candidate": "same recorded outcomes across hosts", "requirement_refs": ["FR-PROTO-005", "FR-PROTO-006", "FR-PROTO-007"], "classification": "design_choice"},
+    {"id": "decision-input-status-flag-day-precedent", "subject": "Flag-day precedent", "source": {"kind": "accepted_adr", "ref": "adr-20260726-status-wire-flag-day-replacement"}, "authority": "handoff", "candidate": "generalize no-fallback cutover", "requirement_refs": ["FR-PROTO-008", "FR-PROTO-009"], "classification": "design_choice"},
+    {"id": "decision-input-conflicting-capability-adr", "subject": "Two-axis ADR disposition", "source": {"kind": "accepted_adr", "ref": "adr-20260724-capability-negotiation-bundled-remote-two-axis"}, "authority": "constraint", "candidate": "explicit supersession", "requirement_refs": ["FR-PROTO-009", "FR-PROTO-010"], "classification": "design_choice"},
+    {"id": "decision-input-tests-required", "subject": "Test completeness", "source": {"kind": "repository_policy", "ref": "AGENTS.md"}, "authority": "constraint", "candidate": "T0-T3 and fake/fidelity/contract triple", "requirement_refs": ["FR-PROTO-002", "FR-PROTO-005", "FR-PROTO-008"], "classification": "implementation_detail"},
+    {"id": "decision-input-cross-language-projection", "subject": "Cross-language generated projections", "source": {"kind": "accepted_adr", "ref": "adr-20260724-protocol-cross-language-sdks-supersedes-0021"}, "authority": "constraint", "candidate": "generated C#/Swift/Kotlin/TS and stdlib-only Go projection without legacy authority", "requirement_refs": ["FR-PROTO-001", "FR-PROTO-008"], "classification": "design_choice"}
+  ],
+  "adrs": [
+    {
+      "id": "adr-20260727-exact-match-client-server-protocol",
+      "title": "Require exact-match client-server protocol versions and forbid compatibility fallback",
+      "status": "accepted",
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "conversation:user:2026-07-27",
+          "consultation-20260727-exact-match-protocol"
+        ],
+        "rationale": "The user explicitly mandated a permanent development contract forbidding cross-version compatibility and fallback."
+      },
+      "context": "The accepted two-axis policy permits version-skew capability degradation and missing-version lowest-capability behavior, which conflicts with the explicit permanent no-compatibility/no-fallback requirement.",
+      "decision": "Use one bounded opaque build-time token, exact equality only, authenticated/no-auth pre-side-effect REST and version-bound WS admission, typed per-server mismatch evidence, and flag-day-only evolution; supersede the two-axis policy in full.",
+      "consequences": [
+        "Positive: deterministic compatibility and actionable per-server failures across every host.",
+        "Negative: mixed-version rollout and rollback availability are intentionally unavailable.",
+        "Neutral: schema ownership and cross-language generated SDK decisions remain in force."
+      ],
+      "decision_input_refs": ["decision-input-exact-version-only", "decision-input-no-compatibility-fallback", "decision-input-server-list-cause", "decision-input-status-flag-day-precedent", "decision-input-conflicting-capability-adr"],
+      "alternatives": [
+        {"option": "Retain remote capability degradation", "why_not": "It permits cross-version success and violates the permanent ban."},
+        {"option": "Use SemVer ranges", "why_not": "It creates a compatibility policy instead of opaque exact equality."},
+        {"option": "Client preflight only", "why_not": "It cannot prevent forgotten clients or preflight-to-use side effects."}
+      ],
+      "related_requirements": ["FR-PROTO-001", "FR-PROTO-002", "FR-PROTO-003", "FR-PROTO-004", "FR-PROTO-005", "FR-PROTO-006", "FR-PROTO-007", "FR-PROTO-008", "FR-PROTO-009", "FR-PROTO-010"],
+      "contract_refs": ["contract-version-and-evolution", "contract-server-admission", "contract-client-continuity", "contract-fleet-observability", "contract-repository-enforcement"]
+    }
+  ],
+  "decision_dispositions": [
+    {"decision_input_ref": "decision-input-exact-version-only", "disposition": "adopted", "rationale": "Fixed by the bounded token and server admission contracts.", "adr_refs": ["adr-20260727-exact-match-client-server-protocol"], "contract_refs": ["contract-version-and-evolution", "contract-server-admission"]},
+    {"decision_input_ref": "decision-input-no-compatibility-fallback", "disposition": "adopted", "rationale": "Fixed by the superseding ADR, evolution contract, and closed conformance gate.", "adr_refs": ["adr-20260727-exact-match-client-server-protocol"], "contract_refs": ["contract-version-and-evolution", "contract-repository-enforcement"]},
+    {"decision_input_ref": "decision-input-server-list-cause", "disposition": "adopted", "rationale": "Fixed as a generation-fenced typed server outcome and presenter input.", "adr_refs": ["adr-20260727-exact-match-client-server-protocol"], "contract_refs": ["contract-fleet-observability"]},
+    {"decision_input_ref": "decision-input-protocol-schema-sot", "disposition": "adopted", "rationale": "Retains protocol/ and OpenAPI ownership under the version contract.", "adr_refs": [], "contract_refs": ["contract-version-and-evolution"]},
+    {"decision_input_ref": "decision-input-host-neutral-fleet", "disposition": "adopted", "rationale": "All host adapters consume the same continuity and fleet contracts.", "adr_refs": [], "contract_refs": ["contract-client-continuity", "contract-fleet-observability"]},
+    {"decision_input_ref": "decision-input-status-flag-day-precedent", "disposition": "adopted", "rationale": "Generalized to all public protocol changes with no compatibility exception.", "adr_refs": ["adr-20260727-exact-match-client-server-protocol"], "contract_refs": ["contract-version-and-evolution"]},
+    {"decision_input_ref": "decision-input-conflicting-capability-adr", "disposition": "rejected", "rationale": "Its version-skew degradation and missing-version lowest-capability branches are superseded by the new ADR.", "adr_refs": ["adr-20260727-exact-match-client-server-protocol"], "contract_refs": ["contract-version-and-evolution", "contract-repository-enforcement"]},
+    {"decision_input_ref": "decision-input-tests-required", "disposition": "adopted", "rationale": "T0-T3 verification and the external-dependency fake/fidelity/contract triple are fixed by each contract.", "adr_refs": [], "contract_refs": ["contract-server-admission", "contract-client-continuity", "contract-fleet-observability", "contract-repository-enforcement"]},
+    {"decision_input_ref": "decision-input-cross-language-projection", "disposition": "adopted", "rationale": "Generated non-Go projections and stdlib-only Go remain constraints; incremental TS migration cannot retain an old version authority or fallback.", "adr_refs": [], "contract_refs": ["contract-version-and-evolution", "contract-repository-enforcement"]}
+  ],
+  "design_dimensions": ["state_lifecycle", "integration_contract", "security_boundary", "migration_compatibility", "user_observability"],
+  "implementation_contracts": [
+    {
+      "id": "contract-version-and-evolution",
+      "dimension": "migration_compatibility",
+      "subject": "Bounded protocol token ownership and flag-day-only evolution",
+      "owner_component_ref": "component-protocol-version-sot",
+      "related_requirements": ["FR-PROTO-001", "FR-PROTO-008", "FR-PROTO-009", "FR-PROTO-010"],
+      "related_units": ["Define protocol token and flag-day evolution"],
+      "decision_rules": [
+        {"id": "decision-version-equal", "condition": "Both bounded generated tokens are present and byte-equal.", "evidence_mode": "total", "input_refs": ["input-protocol-manifest"], "epistemic_state": "determinate", "outcome": "The artifacts are compatible for this source revision.", "observable_refs": ["observable-version-contract"], "rationale": "Exact equality is the only compatibility predicate."},
+        {"id": "decision-version-nonmatch", "condition": "Tokens are unequal or a projection is absent or malformed.", "evidence_mode": "total", "input_refs": ["input-protocol-manifest"], "epistemic_state": "determinate", "outcome": "Build/conformance fails or runtime admission reports mismatch; no compatibility path is selected.", "observable_refs": ["observable-version-contract"], "rationale": "Invalid projections and non-match never receive a default."}
+      ],
+      "observable_effects": [
+        {"id": "observable-version-contract", "description": "All shipped artifacts from one revision expose one bounded token; drift and every cross-version pairing fail without fallback.", "scope": "global", "operational_input_refs": ["input-protocol-manifest"], "input_closure_reason": ""}
+      ],
+      "operational_inputs": [
+        {"id": "input-protocol-manifest", "kind": "versioned_state", "data_scope": "single_value", "owner_component_ref": "component-protocol-version-sot", "producer": {"kind": "component", "component_ref": "component-protocol-version-sot"}, "source": "protocol/protocol-version.json", "acquired_at": "Build and generation time", "required_until": "Artifact execution and conformance complete", "preservation": "version_bound", "mutable_between_acquire_and_use": false, "stability_basis": "One checked-out source revision and projection drift gate", "invalidation_behavior": "Any manifest change invalidates every projection and requires atomic regeneration.", "unavailable_outcome": "Build and conformance fail; no guessed version.", "witness_refs": ["witness-version-normal", "witness-version-adversarial"]}
+      ],
+      "semantic_profiles": [
+        {"id": "profile-version-evolution", "kind": "contract_evolution", "surface": "All public REST/WS schemas, required fields, routes, and behavioral contracts", "consumer_refs": [{"kind": "component", "component_ref": "component-server-gateway-version-gate"}, {"kind": "component", "component_ref": "component-client-hosts"}, {"kind": "component", "component_ref": "component-sdk-simulator-conformance"}], "compatibility": "breaking", "migration_strategy": "Bump one opaque token and update every typed consumer, fixture, fake, simulator, and gate in one change.", "rollout": "Flag-day only; no mixed-version availability.", "rollback": "Revert the entire source revision and artifacts; never add a compatibility bridge.", "baseline_verification_refs": ["verify-version-contract"], "target_verification_refs": ["verify-version-contract"], "witness_refs": ["witness-version-adversarial"]},
+        {"id": "profile-version-cost", "kind": "cost_convergence", "workload_axis": "Protocol token length and request admissions", "cost_metric": "Compared bytes and compatibility decisions", "bound": "At most 64 bytes and one exact comparison per admission/bootstrap", "resource_cap": "No per-message capability negotiation state or round trip", "measurement_ref": "verify-version-contract", "witness_refs": ["witness-version-normal", "witness-version-adversarial"]}
+      ],
+      "invariants": ["The manifest is the only version authority.", "Compatibility is exact equality only.", "Every public protocol change is a breaking flag-day change with no compatibility or fallback."],
+      "failure_semantics": [
+        {"id": "failure-version-projection", "class": "Projection drift or invalid manifest", "source": "internal_violation", "outcome": "Build/conformance fails before shipping.", "requirement_effect": "preserves", "recovery": "fail_fast"}
+      ],
+      "verification": [
+        {"id": "verify-version-contract", "requirement_refs": ["FR-PROTO-001", "FR-PROTO-008", "FR-PROTO-009", "FR-PROTO-010"], "tier": "T0", "method": "Manifest grammar, projection equality, old/new cross-pair, and atomic-bump contract tests.", "criterion": "Every artifact has the exact manifest token; 1/64-byte values pass, 0/65/invalid values fail, and no cross-pair succeeds.", "command": "scripts/check-protocol-compatibility.sh"}
+      ],
+      "witnesses": [
+        {"id": "witness-version-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-PROTO-001", "FR-PROTO-008"], "precondition": "All artifacts are generated from one valid manifest revision.", "stimulus": "Run projection and exact-equality checks.", "expected_observables": ["All tokens are identical and bounded; same-revision pairing is admitted."], "expected_observable_refs": ["observable-version-contract"], "forbidden_outcomes": ["A projection supplies an independent default or range."], "verification_refs": ["verify-version-contract"]},
+        {"id": "witness-version-adversarial", "case": "adversarial", "risk_tags": ["stale", "boundary", "scale", "unsupported_environment"], "requirement_refs": ["FR-PROTO-001", "FR-PROTO-009", "FR-PROTO-010"], "precondition": "One projection is stale, token is invalid, or old/new artifacts are paired.", "stimulus": "Run build/conformance and runtime cross-pair fixtures.", "expected_observables": ["The gate or admission fails and no degradation, downgrade, or fallback occurs."], "expected_observable_refs": ["observable-version-contract"], "forbidden_outcomes": ["Range comparison, lowest-capability behavior, or cross-version success."], "verification_refs": ["verify-version-contract"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-exact-match-client-server-protocol"]
+    },
+    {
+      "id": "contract-server-admission",
+      "dimension": "security_boundary",
+      "subject": "Authenticated REST and version-bound WebSocket admission before side effects",
+      "owner_component_ref": "component-server-gateway-version-gate",
+      "related_requirements": ["FR-PROTO-002", "FR-PROTO-003", "FR-PROTO-004"],
+      "related_units": ["Gate server REST and WebSocket admission"],
+      "decision_rules": [
+        {"id": "decision-admission-auth-failure", "condition": "A protected route has missing or invalid credentials.", "evidence_mode": "fallible", "input_refs": ["input-request-version", "input-server-version", "input-auth-result"], "epistemic_state": "determinate", "outcome": "Return existing 401/403 without version evidence and without handler effects.", "observable_refs": ["observable-server-admission"], "rationale": "Authentication precedes version disclosure."},
+        {"id": "decision-admission-match", "condition": "Authentication succeeds or route is no-auth, and the one bounded request token exactly equals the server token.", "evidence_mode": "fallible", "input_refs": ["input-request-version", "input-server-version", "input-auth-result"], "epistemic_state": "determinate", "outcome": "Dispatch the handler once and allow a version-bound ticket to be minted.", "observable_refs": ["observable-server-admission"], "rationale": "Exact match is the only admitted state."},
+        {"id": "decision-admission-version-error", "condition": "Authentication succeeds or route is no-auth, and the request token is missing, duplicate, malformed, or unequal.", "evidence_mode": "fallible", "input_refs": ["input-request-version", "input-server-version", "input-auth-result"], "epistemic_state": "unknown", "outcome": "Return typed 426 evidence and execute no handler or WS application frame.", "observable_refs": ["observable-server-admission"], "rationale": "Unknown or nonmatching client compatibility fails closed."},
+        {"id": "decision-admission-server-invalid", "condition": "The server build token is unavailable or invalid.", "evidence_mode": "fallible", "input_refs": ["input-server-version"], "epistemic_state": "inconclusive", "outcome": "Fail build/start; do not advertise or assume compatibility.", "observable_refs": ["observable-server-admission"], "rationale": "An invalid server authority cannot produce a trustworthy runtime response."}
+      ],
+      "observable_effects": [
+        {"id": "observable-server-admission", "description": "Auth failures preserve auth semantics; exact match alone reaches handlers and version-bound WS; every version error is typed and side-effect-free.", "scope": "local", "operational_input_refs": ["input-request-version", "input-server-version", "input-auth-result"], "input_closure_reason": ""}
+      ],
+      "operational_inputs": [
+        {"id": "input-request-version", "kind": "information", "data_scope": "single_value", "owner_component_ref": "component-server-gateway-version-gate", "producer": {"kind": "external", "external_identity": "configured agent-grid client host"}, "source": "mandatory single protocol-version request header", "acquired_at": "Gateway middleware entry", "required_until": "Admission and optional ticket mint complete", "preservation": "immutable_value", "mutable_between_acquire_and_use": false, "stability_basis": "HTTP request header snapshot", "invalidation_behavior": "Missing, duplicate, malformed, or unequal input selects typed 426 after auth.", "unavailable_outcome": "Typed 426 with missing/invalid client marker after auth.", "witness_refs": ["witness-admission-normal", "witness-admission-adversarial"]},
+        {"id": "input-server-version", "kind": "versioned_state", "data_scope": "single_value", "owner_component_ref": "component-server-gateway-version-gate", "producer": {"kind": "component", "component_ref": "component-protocol-version-sot"}, "source": "Generated immutable server projection", "acquired_at": "Build/start", "required_until": "Server process termination", "preservation": "version_bound", "mutable_between_acquire_and_use": false, "stability_basis": "Immutable binary build", "invalidation_behavior": "Invalid projection prevents build/start.", "unavailable_outcome": "Server fails closed and does not advertise compatibility.", "witness_refs": ["witness-admission-normal", "witness-admission-adversarial"]},
+        {"id": "input-auth-result", "kind": "authority", "owner_component_ref": "component-server-gateway-version-gate", "producer": {"kind": "component", "component_ref": "component-server-gateway-version-gate"}, "source": "Existing TokenAuth result or explicit no-auth route declaration", "acquired_at": "Before ProtocolVersionGate on protected routes", "required_until": "Admission completes", "preservation": "capability_bound", "mutable_between_acquire_and_use": false, "stability_basis": "Single request middleware chain", "invalidation_behavior": "Failed auth terminates before version evaluation.", "unavailable_outcome": "Existing auth failure without version disclosure.", "witness_refs": ["witness-admission-normal", "witness-admission-adversarial"]}
+      ],
+      "semantic_profiles": [
+        {"id": "profile-admission-outcomes", "kind": "outcome_partition", "decision_rule_refs": ["decision-admission-auth-failure", "decision-admission-match", "decision-admission-version-error", "decision-admission-server-invalid"], "failure_refs": ["failure-admission-version", "failure-admission-server"], "input_refs": ["input-request-version", "input-server-version", "input-auth-result"], "coverage_basis": "Auth result and bounded version evidence partition every request before dispatch.", "exclusivity_basis": "Auth failure terminates first; otherwise exactly one of equal, invalid/nonmatch, or invalid server authority applies.", "precedence": "Protected auth failure; server validity; request token syntax; exact equality; dispatch.", "default_policy": "Any unclassified or inconclusive condition fails closed.", "verification_ref": "verify-server-admission", "witness_refs": ["witness-admission-normal", "witness-admission-adversarial"]}
+      ],
+      "invariants": ["Protected auth precedes version disclosure.", "No nonmatching request executes an operational handler.", "WS frames require a single-use ticket bound to the admitted version."],
+      "failure_semantics": [
+        {"id": "failure-admission-version", "class": "Unsupported client protocol evidence", "source": "unsupported_input", "outcome": "Typed 426 with available client/server evidence and zero effects.", "requirement_effect": "preserves", "recovery": "none"},
+        {"id": "failure-admission-server", "class": "Invalid server version projection", "source": "internal_violation", "outcome": "Fail build/start.", "requirement_effect": "preserves", "recovery": "fail_fast"}
+      ],
+      "verification": [
+        {"id": "verify-server-admission", "requirement_refs": ["FR-PROTO-002", "FR-PROTO-003", "FR-PROTO-004"], "tier": "T1", "method": "Gateway scenario, compound auth/version table, handler effect counter, and ticket lifecycle tests.", "criterion": "Only exact authenticated/no-auth requests execute; auth failures do not disclose versions; every ticket failure precedes frames.", "command": "cd services && go test ./server/api/..."}
+      ],
+      "witnesses": [
+        {"id": "witness-admission-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-PROTO-002", "FR-PROTO-004"], "precondition": "Valid auth/no-auth declaration and equal bounded tokens.", "stimulus": "Call representative read/write routes, mint a ticket, and open WS once.", "expected_observables": ["Handlers execute once and WS emits frames only after ticket consume."], "expected_observable_refs": ["observable-server-admission"], "forbidden_outcomes": ["Extra negotiation or multiple ticket use."], "verification_refs": ["verify-server-admission"]},
+        {"id": "witness-admission-adversarial", "case": "adversarial", "risk_tags": ["boundary", "malformed", "repeated_usage", "stale", "unknown", "inconclusive"], "requirement_refs": ["FR-PROTO-002", "FR-PROTO-003", "FR-PROTO-004"], "precondition": "Invalid bearer plus mismatch, or authenticated missing/duplicate/malformed/unequal version, or stale/replayed ticket.", "stimulus": "Exercise the same REST and WS entry points.", "expected_observables": ["Auth wins when invalid; otherwise typed 426; handler/frame counters remain zero."], "expected_observable_refs": ["observable-server-admission"], "forbidden_outcomes": ["Version disclosure before auth, operational side effect, or legacy WS continuation."], "verification_refs": ["verify-server-admission"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-exact-match-client-server-protocol"]
+    },
+    {
+      "id": "contract-client-continuity",
+      "dimension": "state_lifecycle",
+      "subject": "All-host version continuity and terminal mismatch behavior",
+      "owner_component_ref": "component-protocol-policy-enforcement",
+      "related_requirements": ["FR-PROTO-005", "FR-PROTO-006", "FR-PROTO-009"],
+      "related_units": ["Propagate exact version through every client host"],
+      "decision_rules": [
+        {"id": "decision-client-compatible", "condition": "A host sends its immutable generated token and receives an exact-match response for the current server generation.", "evidence_mode": "total", "input_refs": ["input-client-build-version", "input-current-compatibility"], "epistemic_state": "determinate", "outcome": "Operational REST and WS are enabled for that server.", "observable_refs": ["observable-client-continuity"], "rationale": "The current exact-match observation authorizes operations."},
+        {"id": "decision-client-incompatible", "condition": "A host receives authoritative typed mismatch for a server and observation generation.", "evidence_mode": "total", "input_refs": ["input-client-build-version", "input-current-compatibility"], "epistemic_state": "determinate", "outcome": "Set incompatible_protocol and perform zero operational, reconnect, degradation, or fallback attempts until a later exact-match probe.", "observable_refs": ["observable-client-continuity"], "rationale": "Mismatch is terminal for the observation, not transient transport failure."}
+      ],
+      "observable_effects": [
+        {"id": "observable-client-continuity", "description": "Web, Workspace, and Windows attach the same token at every hop, classify the same evidence identically, and stop work after mismatch without exposing credentials.", "scope": "global", "operational_input_refs": ["input-client-build-version", "input-current-compatibility"], "input_closure_reason": ""}
+      ],
+      "operational_inputs": [
+        {"id": "input-client-build-version", "kind": "versioned_state", "data_scope": "single_value", "owner_component_ref": "component-protocol-policy-enforcement", "producer": {"kind": "component", "component_ref": "component-protocol-version-sot"}, "source": "Generated client projection", "acquired_at": "Client build/start", "required_until": "Client process termination", "preservation": "version_bound", "mutable_between_acquire_and_use": false, "stability_basis": "Immutable shipped artifact", "invalidation_behavior": "Projection drift fails build/CI.", "unavailable_outcome": "Client does not connect with a guessed/configured version.", "witness_refs": ["witness-client-normal", "witness-client-adversarial"]},
+        {"id": "input-current-compatibility", "kind": "information", "data_scope": "indexed", "owner_component_ref": "component-shared-fleet-outcome", "producer": {"kind": "external", "external_identity": "configured server gateway typed response"}, "source": "ServerId and observation-generation keyed bootstrap result", "acquired_at": "Fleet refresh or existing compatibility probe cadence", "required_until": "Superseding generation, server removal, or host close", "preservation": "snapshot", "mutable_between_acquire_and_use": true, "stability_basis": "Latest-generation fencing", "invalidation_behavior": "A newer generation replaces the state; stale completion is discarded.", "unavailable_outcome": "That server is unavailable, never inferred compatible or mismatched.", "witness_refs": ["witness-client-normal", "witness-client-adversarial"]}
+      ],
+      "semantic_profiles": [],
+      "invariants": ["Every host uses one immutable generated token across all hops.", "Mismatch is terminal for the server and observation generation.", "Network retry behavior remains distinct and no mismatch retry/fallback occurs."],
+      "failure_semantics": [
+        {"id": "failure-client-mismatch", "class": "Authoritative incompatible protocol", "source": "unsupported_input", "outcome": "Typed terminal incompatible_protocol with zero operations until later exact match.", "requirement_effect": "preserves", "recovery": "none"},
+        {"id": "failure-client-network", "class": "Transport unavailable", "source": "transient", "outcome": "Existing bounded network retry policy applies without changing protocol classification.", "requirement_effect": "preserves", "recovery": "retry"}
+      ],
+      "verification": [
+        {"id": "verify-client-continuity", "requirement_refs": ["FR-PROTO-005", "FR-PROTO-006", "FR-PROTO-009"], "tier": "T1", "method": "One recorded scenario matrix drives Web request capture, Electron injected fetch/IPC, and Windows HttpMessageHandler/fake-clock tests.", "criterion": "Every hop sends one token; mismatch yields the same typed state and zero operation/reconnect count on all three hosts.", "command": "cd clients/ui && npm run test:unit"}
+      ],
+      "witnesses": [
+        {"id": "witness-client-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-PROTO-005", "FR-PROTO-006"], "precondition": "Current server generation returns exact match.", "stimulus": "Run bootstrap, operational REST, ticket mint, and WS through each host.", "expected_observables": ["Every host preserves token continuity and enables the same server operations."], "expected_observable_refs": ["observable-client-continuity"], "forbidden_outcomes": ["Host-specific compatibility meaning or credential exposure."], "verification_refs": ["verify-client-continuity"]},
+        {"id": "witness-client-adversarial", "case": "adversarial", "risk_tags": ["boundary", "stale", "recovery", "repeated_usage"], "requirement_refs": ["FR-PROTO-005", "FR-PROTO-006", "FR-PROTO-009"], "precondition": "A hop drops/replaces the token or a current generation returns typed mismatch while stale/network results also complete.", "stimulus": "Advance retry clocks and attempt operational REST/WS.", "expected_observables": ["Mismatch remains current, operation and reconnect counts stay zero, and stale completion cannot overwrite it."], "expected_observable_refs": ["observable-client-continuity"], "forbidden_outcomes": ["Capability degradation, renamed fallback retry, or stale compatible overwrite."], "verification_refs": ["verify-client-continuity"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-exact-match-client-server-protocol"]
+    },
+    {
+      "id": "contract-fleet-observability",
+      "dimension": "user_observability",
+      "subject": "Generation-fenced per-server outcome and mismatch presentation",
+      "owner_component_ref": "component-shared-fleet-outcome",
+      "related_requirements": ["FR-PROTO-006", "FR-PROTO-007"],
+      "related_units": ["Project fleet mismatch into server lists"],
+      "decision_rules": [
+        {"id": "decision-fleet-connected", "condition": "Latest generation has authoritative exact-match evidence.", "evidence_mode": "multi_source", "input_refs": ["input-fleet-label", "input-fleet-evidence"], "epistemic_state": "determinate", "outcome": "Server is connected and operable.", "observable_refs": ["observable-fleet-row"], "rationale": "Exact-match evidence determines compatibility."},
+        {"id": "decision-fleet-incompatible", "condition": "Latest generation has authoritative typed mismatch evidence.", "evidence_mode": "multi_source", "input_refs": ["input-fleet-label", "input-fleet-evidence"], "epistemic_state": "determinate", "outcome": "Server is incompatible_protocol and row shows label, cause, and version evidence/markers.", "observable_refs": ["observable-fleet-row"], "rationale": "Typed mismatch must remain distinct from transport unavailability."},
+        {"id": "decision-fleet-unavailable", "condition": "Latest generation has auth/network/timeout failure without authoritative mismatch.", "evidence_mode": "multi_source", "input_refs": ["input-fleet-label", "input-fleet-evidence"], "epistemic_state": "unknown", "outcome": "Only that server is unavailable with its own typed transport reason.", "observable_refs": ["observable-fleet-row"], "rationale": "Unavailable evidence cannot infer protocol mismatch."},
+        {"id": "decision-fleet-conflicting", "condition": "The same current generation contains contradictory authoritative exact-match and mismatch evidence.", "evidence_mode": "multi_source", "input_refs": ["input-fleet-label", "input-fleet-evidence"], "epistemic_state": "conflicting", "outcome": "Fail closed for that server, expose a typed evidence conflict, and preserve unrelated peers.", "observable_refs": ["observable-fleet-row"], "rationale": "Conflicting authority cannot be resolved by optimistic precedence."},
+        {"id": "decision-fleet-stale", "condition": "Evidence generation is stale, server was removed, or label/evidence identity cannot be joined.", "evidence_mode": "multi_source", "input_refs": ["input-fleet-label", "input-fleet-evidence"], "epistemic_state": "inconclusive", "outcome": "Discard stale evidence and never erase unrelated current outcomes.", "observable_refs": ["observable-fleet-row"], "rationale": "Generation fencing prevents mixed snapshots."}
+      ],
+      "observable_effects": [
+        {"id": "observable-fleet-row", "description": "Each current server row shows its current label and exclusive typed state; mismatch shows client/server values or missing/invalid markers while healthy peers remain operable.", "scope": "global", "operational_input_refs": ["input-fleet-label", "input-fleet-evidence"], "input_closure_reason": ""}
+      ],
+      "operational_inputs": [
+        {"id": "input-fleet-label", "kind": "versioned_state", "data_scope": "indexed", "owner_component_ref": "component-shared-fleet-outcome", "producer": {"kind": "external", "external_identity": "clients/config server configuration"}, "source": "ServerId-keyed config label snapshot", "acquired_at": "Config generation load", "required_until": "Rename, removal, superseding generation, or host close", "preservation": "snapshot", "mutable_between_acquire_and_use": true, "stability_basis": "Current config generation and serverId", "invalidation_behavior": "Rename replaces label; removal expires the row and evidence.", "unavailable_outcome": "No stale label is displayed for a removed server.", "witness_refs": ["witness-fleet-normal", "witness-fleet-adversarial"]},
+        {"id": "input-fleet-evidence", "kind": "information", "data_scope": "indexed", "owner_component_ref": "component-shared-fleet-outcome", "producer": {"kind": "external", "external_identity": "configured server gateway responses"}, "source": "ServerId and observation-generation keyed typed bootstrap evidence", "acquired_at": "Fleet refresh", "required_until": "Next generation, server removal, or host close", "preservation": "snapshot", "mutable_between_acquire_and_use": true, "stability_basis": "Latest-generation fencing and typed decoder", "invalidation_behavior": "New generation replaces evidence; stale completion is discarded.", "unavailable_outcome": "Preserve available values and explicit missing/invalid markers; otherwise typed unavailable, never generic mismatch.", "witness_refs": ["witness-fleet-normal", "witness-fleet-adversarial"]}
+      ],
+      "semantic_profiles": [
+        {"id": "profile-fleet-outcomes", "kind": "outcome_partition", "decision_rule_refs": ["decision-fleet-connected", "decision-fleet-incompatible", "decision-fleet-unavailable", "decision-fleet-conflicting", "decision-fleet-stale"], "failure_refs": ["failure-fleet-mismatch", "failure-fleet-unavailable"], "input_refs": ["input-fleet-label", "input-fleet-evidence"], "coverage_basis": "Latest per-server evidence is exact-match, authoritative mismatch, other typed failure, conflicting, or stale/inconclusive.", "exclusivity_basis": "One serverId and current generation selects exactly one closed outcome; contradictory authority selects conflicting.", "precedence": "Discard stale; detect conflicting authority; authoritative exact/mismatch; typed auth/network/timeout; otherwise inconclusive.", "default_policy": "Never infer compatibility or mismatch from missing evidence.", "verification_ref": "verify-fleet-observability", "witness_refs": ["witness-fleet-normal", "witness-fleet-adversarial"]},
+        {"id": "profile-fleet-scope", "kind": "scope_consistency", "observable_refs": ["observable-fleet-row"], "input_refs": ["input-fleet-label", "input-fleet-evidence"], "available_scope": "partial", "promised_scope": "global", "execution_owner": "component-shared-fleet-outcome", "partial_data_behavior": "Update only completed server outcomes, retain current healthy peers, and fence stale generations.", "verification_ref": "verify-fleet-observability", "witness_refs": ["witness-fleet-normal", "witness-fleet-adversarial"]}
+      ],
+      "invariants": ["Each configured server has one exclusive latest-generation outcome.", "Mismatch evidence is never flattened to unavailable.", "Presentation joins current label and current evidence by serverId only."],
+      "failure_semantics": [
+        {"id": "failure-fleet-mismatch", "class": "Authoritative per-server mismatch", "source": "unsupported_input", "outcome": "Display incompatible_protocol and evidence while preserving peers.", "requirement_effect": "preserves", "recovery": "none"},
+        {"id": "failure-fleet-unavailable", "class": "Per-server auth/network/timeout failure", "source": "transient", "outcome": "Display that typed failure without changing other server outcomes.", "requirement_effect": "preserves", "recovery": "retry"}
+      ],
+      "verification": [
+        {"id": "verify-fleet-observability", "requirement_refs": ["FR-PROTO-006", "FR-PROTO-007"], "tier": "T1", "method": "Pure reducer/presenter tests plus Web smoke and Windows UIA backstop with rename, removal, stale generation, malformed evidence, and mixed fleet.", "criterion": "Current label and evidence remain aligned; mismatch is explicit; healthy peer remains operable.", "command": "cd clients/ui && npm run test:e2e"}
+      ],
+      "witnesses": [
+        {"id": "witness-fleet-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-PROTO-006", "FR-PROTO-007"], "precondition": "Two current servers: one exact match and one typed mismatch.", "stimulus": "Render the server list and operate the matching server.", "expected_observables": ["The matching peer remains operable and the mismatching row shows label, cause, and both versions."], "expected_observable_refs": ["observable-fleet-row"], "forbidden_outcomes": ["Fleet-wide failure or generic unavailable mismatch."], "verification_refs": ["verify-fleet-observability"]},
+        {"id": "witness-fleet-adversarial", "case": "adversarial", "risk_tags": ["boundary", "partial_data", "concurrency", "stale", "malformed", "unknown", "inconclusive", "conflicting_evidence"], "requirement_refs": ["FR-PROTO-006", "FR-PROTO-007"], "precondition": "A rename/removal races with stale, contradictory, and malformed/missing evidence while another server is healthy.", "stimulus": "Complete observations out of order and render.", "expected_observables": ["Only current serverId/generation evidence appears, with explicit markers or evidence conflict; healthy peer remains."], "expected_observable_refs": ["observable-fleet-row"], "forbidden_outcomes": ["Old label/new evidence join, blank reason, stale row, or peer erasure."], "verification_refs": ["verify-fleet-observability"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-exact-match-client-server-protocol"]
+    },
+    {
+      "id": "contract-repository-enforcement",
+      "dimension": "integration_contract",
+      "subject": "Closed protocol surface inventory and mutation-tested no-fallback enforcement",
+      "owner_component_ref": "component-protocol-policy-enforcement",
+      "related_requirements": ["FR-PROTO-008", "FR-PROTO-009", "FR-PROTO-010"],
+      "related_units": ["Enforce complete protocol conformance"],
+      "decision_rules": [
+        {"id": "decision-enforcement-complete", "condition": "Every declared route, host, decoder, retry site, SDK, fake, simulator, and fixture is registered and passes exact-match scenarios.", "evidence_mode": "multi_source", "input_refs": ["input-protocol-surface-inventory"], "epistemic_state": "determinate", "outcome": "Compatibility conformance passes.", "observable_refs": ["observable-enforcement"], "rationale": "A closed inventory makes the global claim enumerable."},
+        {"id": "decision-enforcement-unavailable", "condition": "A registered target cannot execute or return authoritative conformance evidence.", "evidence_mode": "multi_source", "input_refs": ["input-protocol-surface-inventory"], "epistemic_state": "unknown", "outcome": "Conformance fails and names the unavailable target.", "observable_refs": ["observable-enforcement"], "rationale": "Unavailable evidence cannot establish global compliance."},
+        {"id": "decision-enforcement-gap", "condition": "A public surface is unregistered, skipped, or cannot produce evidence.", "evidence_mode": "multi_source", "input_refs": ["input-protocol-surface-inventory"], "epistemic_state": "inconclusive", "outcome": "Conformance fails and names the missing surface.", "observable_refs": ["observable-enforcement"], "rationale": "Inconclusive coverage cannot count as success."},
+        {"id": "decision-enforcement-forbidden", "condition": "A mutation introduces range comparison, dual decode, capability degradation, renamed fallback retry, or an alternate decision chokepoint.", "evidence_mode": "multi_source", "input_refs": ["input-protocol-surface-inventory"], "epistemic_state": "conflicting", "outcome": "Dependency/scenario/mutation gate fails even if advisory word scanning misses the name.", "observable_refs": ["observable-enforcement"], "rationale": "Structural ownership and behavior, not vocabulary, discriminate fallback."}
+      ],
+      "observable_effects": [
+        {"id": "observable-enforcement", "description": "Any compatibility branch, bypass, projection drift, fake divergence, or inventory gap becomes a deterministic named CI failure before merge.", "scope": "global", "operational_input_refs": ["input-protocol-surface-inventory"], "input_closure_reason": ""}
+      ],
+      "operational_inputs": [
+        {"id": "input-protocol-surface-inventory", "kind": "information", "data_scope": "full", "owner_component_ref": "component-protocol-policy-enforcement", "producer": {"kind": "component", "component_ref": "component-protocol-version-sot"}, "source": "Checked-in route/client/decoder/retry/SDK/fake/simulator inventory and conformance matrix", "acquired_at": "Compatibility CI profile", "required_until": "Change verification completes", "preservation": "snapshot", "mutable_between_acquire_and_use": false, "stability_basis": "One checked-out source revision", "invalidation_behavior": "Surface or target change requires explicit inventory and scenario update.", "unavailable_outcome": "Verification is inconclusive and fails closed.", "witness_refs": ["witness-enforcement-normal", "witness-enforcement-adversarial"]}
+      ],
+      "semantic_profiles": [
+        {"id": "profile-enforcement-outcomes", "kind": "outcome_partition", "decision_rule_refs": ["decision-enforcement-complete", "decision-enforcement-unavailable", "decision-enforcement-gap", "decision-enforcement-forbidden"], "failure_refs": ["failure-enforcement-gap", "failure-enforcement-divergence"], "input_refs": ["input-protocol-surface-inventory"], "coverage_basis": "A checked revision has complete conforming evidence, unavailable evidence, an incomplete inventory, or contradictory forbidden behavior.", "exclusivity_basis": "Completeness and availability are checked before behavior; any gap is inconclusive, any unavailable target is unknown, otherwise mutation/dependency evidence selects conforming or conflicting.", "precedence": "Inventory gap; unavailable target; forbidden behavior or divergence; complete conformance.", "default_policy": "Unknown or inconclusive evidence fails closed.", "verification_ref": "verify-repository-enforcement", "witness_refs": ["witness-enforcement-normal", "witness-enforcement-adversarial"]},
+        {"id": "profile-enforcement-scope", "kind": "scope_consistency", "observable_refs": ["observable-enforcement"], "input_refs": ["input-protocol-surface-inventory"], "available_scope": "partial", "promised_scope": "global", "execution_owner": "component-protocol-policy-enforcement", "partial_data_behavior": "Any missing/skipped surface makes the global claim inconclusive and failing.", "verification_ref": "verify-repository-enforcement", "witness_refs": ["witness-enforcement-normal", "witness-enforcement-adversarial"]}
+      ],
+      "invariants": ["Only generated exact-equality and typed outcome chokepoints decide compatibility.", "Every public surface and shipped consumer is inventoried.", "Advisory word scanning is never sufficient evidence."],
+      "failure_semantics": [
+        {"id": "failure-enforcement-gap", "class": "Incomplete conformance evidence", "source": "internal_violation", "outcome": "CI fails with the missing surface.", "requirement_effect": "preserves", "recovery": "fail_fast"},
+        {"id": "failure-enforcement-divergence", "class": "Fake, SDK, or compatibility behavior divergence", "source": "internal_violation", "outcome": "CI fails; fake is corrected rather than assertions weakened.", "requirement_effect": "preserves", "recovery": "fail_fast"}
+      ],
+      "verification": [
+        {"id": "verify-repository-enforcement", "requirement_refs": ["FR-PROTO-008", "FR-PROTO-009", "FR-PROTO-010"], "tier": "T2", "method": "Closed inventory, dependency ownership lint, projection drift, shared scenarios, FakeVsReal, and compatibility mutation corpus.", "criterion": "Every gap and each range/dual-decode/degradation/renamed-retry/unregistered-surface mutation fails.", "command": "scripts/check-protocol-compatibility.sh"}
+      ],
+      "witnesses": [
+        {"id": "witness-enforcement-normal", "case": "normal", "risk_tags": [], "requirement_refs": ["FR-PROTO-008", "FR-PROTO-009"], "precondition": "Inventory covers every declared surface at one revision.", "stimulus": "Run compatibility profile, SDK generation, simulator/fake, and scenario matrix.", "expected_observables": ["All registered exact-match paths pass and evidence is complete."], "expected_observable_refs": ["observable-enforcement"], "forbidden_outcomes": ["Skipped target or unverified global claim."], "verification_refs": ["verify-repository-enforcement"]},
+        {"id": "witness-enforcement-adversarial", "case": "adversarial", "risk_tags": ["boundary", "unknown", "inconclusive", "conflicting_evidence", "unsupported_environment"], "requirement_refs": ["FR-PROTO-008", "FR-PROTO-009", "FR-PROTO-010"], "precondition": "A target is unavailable or a mutation adds an unregistered route/host/decoder/retry site or compatibility behavior under an unrelated name.", "stimulus": "Run the same compatibility profile.", "expected_observables": ["Inventory/dependency/scenario/mutation gate fails and names the unavailable target or violation class."], "expected_observable_refs": ["observable-enforcement"], "forbidden_outcomes": ["Passing because evidence was unavailable, a word scan missed the identifier, or a target was skipped."], "verification_refs": ["verify-repository-enforcement"]}
+      ],
+      "open_design_choices": [],
+      "adr_refs": ["adr-20260727-exact-match-client-server-protocol"]
+    }
+  ],
+  "reference_algorithms": [],
+  "implementation_decisions_remaining": [],
+  "chunks": [
+    {
+      "id": "chunk-protocol-core",
+      "depends_on": [],
+      "members": ["component-protocol-version-sot", "component-protocol-policy-enforcement"],
+      "units": [
+        {"title": "Define protocol token and flag-day evolution", "objective": "Create the bounded exact-match SSOT and atomic evolution contract.", "output_format": "Manifest, generated/verified projections, policy/ADR update, fixtures, and tests.", "tool_guidance": "Use existing protocol schemas and SDK generation pipeline; preserve Go stdlib-only.", "task_boundaries": "Do not add runtime compatibility, user override, or server admission.", "files_touched": ["protocol", "clients/sdk", "contracts/compatibility-policy.md"], "acceptance": ["All projections equal one valid token.", "Old/new cross-pairs fail."], "contract_refs": ["contract-version-and-evolution"], "decision_closure_reason": "", "implementation_decisions_remaining": [], "max_diff_loc": 300}
+      ]
+    },
+    {
+      "id": "chunk-server-admission",
+      "depends_on": ["chunk-protocol-core"],
+      "members": ["component-server-gateway-version-gate"],
+      "units": [
+        {"title": "Gate server REST and WebSocket admission", "objective": "Enforce auth precedence and exact version before REST/WS effects.", "output_format": "Middleware, typed failure, ticket binding, gateway and unit tests.", "tool_guidance": "Use apitest.Harness and existing ticketStore/auth seams.", "task_boundaries": "Do not implement client retries or presentation.", "files_touched": ["services/server/api"], "acceptance": ["Only exact match executes handlers.", "Compound auth/version and WS ticket tables pass."], "contract_refs": ["contract-server-admission"], "decision_closure_reason": "", "implementation_decisions_remaining": [], "max_diff_loc": 300}
+      ]
+    },
+    {
+      "id": "chunk-client-hosts",
+      "depends_on": ["chunk-server-admission"],
+      "members": ["component-client-hosts", "component-shared-fleet-outcome"],
+      "units": [
+        {"title": "Propagate exact version through every client host", "objective": "Make Web, Workspace, and Windows consume one version and stop after typed mismatch.", "output_format": "Transport adapters, typed decoders/state, shared recorded fixtures, and host tests.", "tool_guidance": "Reuse host-neutral provider and injected request/fetch/HttpMessageHandler seams.", "task_boundaries": "Do not duplicate compatibility decisions or add fallback.", "files_touched": ["clients/web-host", "clients/workspace", "clients/windows-shell", "clients/ui/src/fleet"], "acceptance": ["All hosts classify fixtures identically.", "Mismatch operation/reconnect counters remain zero."], "contract_refs": ["contract-client-continuity"], "decision_closure_reason": "", "implementation_decisions_remaining": [], "max_diff_loc": 500}
+      ]
+    },
+    {
+      "id": "chunk-fleet-presentation",
+      "depends_on": ["chunk-client-hosts"],
+      "members": ["component-shared-fleet-outcome", "component-server-list-presentation"],
+      "units": [
+        {"title": "Project fleet mismatch into server lists", "objective": "Preserve generation-fenced evidence and show actionable per-server cause.", "output_format": "Closed outcome union, presenter projection, unit/smoke/UIA tests.", "tool_guidance": "Keep transport ownership out of presenters and reuse serverId/generation semantics.", "task_boundaries": "Do not introduce a new server discovery or fleet cardinality policy.", "files_touched": ["clients/ui/src/fleet", "clients/ui/src/components", "clients/windows-shell"], "acceptance": ["Current label/evidence join is deterministic.", "Healthy peer remains operable."], "contract_refs": ["contract-fleet-observability"], "decision_closure_reason": "", "implementation_decisions_remaining": [], "max_diff_loc": 400}
+      ]
+    },
+    {
+      "id": "chunk-conformance",
+      "depends_on": ["chunk-protocol-core", "chunk-server-admission", "chunk-client-hosts", "chunk-fleet-presentation"],
+      "members": ["component-protocol-policy-enforcement", "component-sdk-simulator-conformance"],
+      "units": [
+        {"title": "Enforce complete protocol conformance", "objective": "Make bypasses, compatibility behavior, and missing surfaces deterministic CI failures.", "output_format": "Closed inventory, dependency/static gates, simulator/fake parity, mutation corpus, and CI profile.", "tool_guidance": "Use existing SDK/simulator/fake harnesses and FakeVsReal contract.", "task_boundaries": "Do not rely on vocabulary scanning as the decisive gate.", "files_touched": ["scripts/check-protocol-compatibility.sh", "protocol/simulator", "clients/sdk", "clients/ui/e2e/support"], "acceptance": ["Every mutation fixture fails.", "No registered target is skipped or inconclusive."], "contract_refs": ["contract-repository-enforcement"], "decision_closure_reason": "", "implementation_decisions_remaining": [], "max_diff_loc": 400}
+      ]
+    }
+  ],
+  "verification_profiles": [
+    {"id": "verification-protocol-t0", "tier": "T0", "scope": "Token grammar, equality, projection drift, fleet reducer/presenter"},
+    {"id": "verification-protocol-t1", "tier": "T1", "scope": "Gateway scenarios and all host recorded fixtures"},
+    {"id": "verification-protocol-t2", "tier": "T2", "scope": "Closed inventory, mutation gates, SDK/simulator/fake conformance"},
+    {"id": "verification-protocol-t3", "tier": "T3", "scope": "FakeVsReal, real Web stack, and Windows UIA backstops"}
+  ],
+  "resolved_issues": [
+    {"issue_ref": "issue-token-domain-unclosed", "resolution": "Adopted the suggested single 1-64 byte [A-Za-z0-9._-]+ header domain and constant-bounded exact comparison in FR-PROTO-001 and contract-version-and-evolution."},
+    {"issue_ref": "issue-auth-version-precedence-open", "resolution": "Adopted TokenAuth -> ProtocolVersionGate -> handler for protected routes and gate -> handler for explicit no-auth routes, with compound-input tests and no pre-auth version disclosure."},
+    {"issue_ref": "issue-client-continuity-owner-mismatch", "resolution": "Moved the cross-host continuity contract to component-protocol-policy-enforcement and grounded every Web, Electron, and Windows hop in one scenario matrix."},
+    {"issue_ref": "issue-retry-terminality-host-gap", "resolution": "Applied terminal mismatch semantics to Web, Workspace, and Windows through contract-client-continuity and shared operation/reconnect counters."},
+    {"issue_ref": "issue-observable-input-discontinuity", "resolution": "Added serverId/config-generation label snapshots and serverId/observation-generation mismatch evidence with replacement, removal, and stale-result behavior."},
+    {"issue_ref": "issue-permanent-ban-gate-nondiscriminating", "resolution": "Replaced word-scan authority with a closed surface inventory, chokepoint ownership rules, scenario coverage, and mutation fixtures for renamed compatibility behavior."},
+    {"issue_ref": "issue-cross-language-adr-omitted", "resolution": "Added the cross-language SDK ADR as a decision input and component authority; retained generated C#/Swift/Kotlin/TS and stdlib-only Go while forbidding legacy version authority/fallback."}
+  ],
+  "critique_blockers": [],
+  "open_questions": []
+}

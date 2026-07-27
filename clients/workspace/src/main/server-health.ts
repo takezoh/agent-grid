@@ -1,6 +1,15 @@
 import type { ServerConfig } from "./desktop-config.js";
+import {
+  PROTOCOL_VERSION,
+  PROTOCOL_VERSION_HEADER,
+  protocolMismatchReason,
+} from "./protocol-version.js";
 
-export type ServerHealthState = "connected" | "unavailable" | "disabled";
+export type ServerHealthState =
+  | "connected"
+  | "unavailable"
+  | "incompatible_protocol"
+  | "disabled";
 
 export interface ServerHealth {
   serverId: string;
@@ -37,8 +46,29 @@ export async function probeServerFleet(
         const headers = server.auth.mode === "bearer"
           ? { Authorization: `Bearer ${server.auth.token}` }
           : undefined;
+        const capabilitiesResponse = await fetchFn(
+          new URL("/api/capabilities", `${server.url}/`),
+          {
+            headers,
+            signal: AbortSignal.timeout(3000),
+          },
+        );
+        if (!capabilitiesResponse.ok) throw new Error(`HTTP ${capabilitiesResponse.status}`);
+        const capabilities = (await capabilitiesResponse.json()) as {
+          protocolVersion?: unknown;
+        };
+        if (capabilities.protocolVersion !== PROTOCOL_VERSION) {
+          return {
+            serverId: server.id,
+            displayName: server.display_name,
+            state: "incompatible_protocol",
+            reason: protocolMismatchReason(capabilities.protocolVersion),
+          };
+        }
+        const versionedHeaders = new Headers(headers);
+        versionedHeaders.set(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION);
         const response = await fetchFn(new URL("/api/sessions", `${server.url}/`), {
-          headers,
+          headers: versionedHeaders,
           signal: AbortSignal.timeout(3000),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

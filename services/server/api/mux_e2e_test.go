@@ -277,7 +277,12 @@ func waitForHTTPReady(t *testing.T, addr string, deadline time.Time) {
 	client := &http.Client{Timeout: 200 * time.Millisecond}
 	url := "http://" + addr + "/api/sessions"
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(url)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set(ProtocolVersionHeader, ProtocolVersion)
+		resp, err := client.Do(req)
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -325,7 +330,7 @@ func TestE2E_ListEmptyAtStartup(t *testing.T) {
 
 	mux := withRealDaemonMux(t)
 
-	r := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+	r := protocolRequest(http.MethodGet, "/api/sessions", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -386,7 +391,7 @@ func TestE2E_CreateThenListRoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := string(bodyBytes)
-	rc := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewBufferString(body))
+	rc := protocolRequest(http.MethodPost, "/api/sessions", bytes.NewBufferString(body))
 	rc.Header.Set("Authorization", "Bearer tok")
 	rc.Header.Set("Content-Type", "application/json")
 	wc := httptest.NewRecorder()
@@ -407,7 +412,7 @@ func TestE2E_CreateThenListRoundtrip(t *testing.T) {
 	// but pty spawn is async; poll for up to 2s before failing.
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		rl := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+		rl := protocolRequest(http.MethodGet, "/api/sessions", nil)
 		rl.Header.Set("Authorization", "Bearer tok")
 		wl := httptest.NewRecorder()
 		mux.ServeHTTP(wl, rl)
@@ -443,7 +448,7 @@ func TestE2E_DeleteUnknownSessionReturns404(t *testing.T) {
 
 	mux := withRealDaemonMux(t)
 
-	r := httptest.NewRequest(http.MethodDelete, "/api/sessions/no-such-session-id", nil)
+	r := protocolRequest(http.MethodDelete, "/api/sessions/no-such-session-id", nil)
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -472,7 +477,7 @@ func TestE2E_CreateRejectsRelativeProject(t *testing.T) {
 		t.Run(p, func(t *testing.T) {
 			body := `{"version":2,"project":"` + p +
 				`","profile_id":"shell","profile_revision":"unused"}`
-			r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+			r := protocolRequest(http.MethodPost, "/api/sessions",
 				bytes.NewBufferString(body))
 			r.Header.Set("Authorization", "Bearer tok")
 			r.Header.Set("Content-Type", "application/json")
@@ -500,7 +505,7 @@ func TestE2E_CreateRejectsMissingProject(t *testing.T) {
 
 	mux := withRealDaemonMux(t)
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		bytes.NewBufferString(`{"version":2,"profile_id":"shell","profile_revision":"unused"}`))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -521,7 +526,7 @@ func TestE2E_CreateRejectsMalformedJSON(t *testing.T) {
 
 	mux := withRealDaemonMux(t)
 
-	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
+	r := protocolRequest(http.MethodPost, "/api/sessions",
 		bytes.NewBufferString(`{not json`))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
@@ -564,6 +569,7 @@ func TestE2E_HostileSessionIDRejectedAt400(t *testing.T) {
 				t.Fatalf("build request: %v", err)
 			}
 			req.Header.Set("Authorization", "Bearer tok")
+			req.Header.Set(ProtocolVersionHeader, ProtocolVersion)
 			resp, err := srv.Client().Do(req)
 			if err != nil {
 				t.Fatalf("do: %v", err)
