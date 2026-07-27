@@ -6,6 +6,7 @@ sockbridge
 /server
 /web
 /protocol-simserver
+/dist/
 src/arc
 src/bridge
 src/orchestrator
