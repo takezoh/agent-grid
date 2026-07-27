@@ -101,8 +101,8 @@ run-dev: build-server build-web
 
 install: build
 	install -d $(INSTALL_DIR) $(LIBEXEC_DIR)
-	install -m 755 $(SERVER) $(INSTALL_DIR)/$(SERVER)
-	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(BRIDGE)
+	install -m 755 $(SERVER) $(INSTALL_DIR)/$(notdir $(SERVER))
+	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(notdir $(BRIDGE))
 
 # install-systemd composes install-server (server + bridge binaries) and
 # install-web (web binary) into the user-scope locations consumed by
@@ -164,7 +164,7 @@ install-web: build-web
 install-server: build
 	install -d $(INSTALL_DIR) $(LIBEXEC_DIR)
 	install -m 755 $(SERVER) $(INSTALL_DIR)/$(SERVER_BIN)
-	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(BRIDGE)
+	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(notdir $(BRIDGE))
 
 # update-web installs the web binary and restarts the running service.
 # daemon-reload is cheap and idempotent — covers the case where the unit file
