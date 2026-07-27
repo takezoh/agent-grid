@@ -34,6 +34,7 @@ node_modules/
 
 # Local tooling / editor / shell / agent configuration — not project-shared.
 .claude/
+/services/.claude/
 .codex
 .codex-e2e-home-*/
 .playwright-mcp/
