@@ -215,12 +215,7 @@ samp {
   }
 }
 
-/* ─── NotificationToast (FR-TOAST-001 / FR-TOAST-002 / FR-TOAST-003) ───── */
-
-/* UndoSnackbar slot: no visual output — purely a DOM landmark for FR-TOAST-003 */
-.notification-toast__undosnackbar-slot {
-  display: contents;
-}
+/* ─── NotificationToast (FR-TOAST-001 / FR-TOAST-002) ──────────────────── */
 
 /* Toast item base — flex container so the level glyph sits beside the text.
    Background still set by type modifier (no inline color, FR-TOAST-002).
@@ -416,9 +411,6 @@ samp {
   font-size: 0.92em;
   line-height: 1.4;
 }
-
-/* UndoSnackbar styles are in snackbar.css (imported separately to keep
-   app.css under the 500-line limit).                                      */
 
 /* ─── TagPill (FR-TAGPILL-001) ──────────────────────────────────────────── */
 /* Display-only chip; min-height 44px touch target exempted per FR-A11Y-001. */

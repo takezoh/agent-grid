@@ -175,10 +175,6 @@ describe("FR-MOTION-001: reduced-motion block contains required suppressions", (
     expect(reducedBlock).toMatch(/\.palette-listbox__row--flash/);
   });
 
-  it("suppresses .undo-snackbar transition and animation", () => {
-    expect(reducedBlock).toMatch(/\.undo-snackbar/);
-  });
-
   it("suppresses .notification-toast transition and animation", () => {
     expect(reducedBlock).toMatch(/\.notification-toast/);
   });

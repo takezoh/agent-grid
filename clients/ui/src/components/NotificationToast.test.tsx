@@ -131,40 +131,6 @@ describe("NotificationToast", () => {
     expect(css).toMatch(/--toast-bg-error/);
   });
 
-  // ── FR-TOAST-003: undosnackbar slot exists; 3-stream independence ─────────
-
-  it("FR-TOAST-003: container includes notification-toast__undosnackbar-slot", () => {
-    render(<NotificationToast />);
-    const container = screen.getByRole("status");
-    const slot = container.querySelector(".notification-toast__undosnackbar-slot");
-    expect(slot).not.toBeNull();
-  });
-
-  it("FR-TOAST-003: undosnackbar slot is a sibling of toast items (3-stream independent)", () => {
-    useNotificationsStore.getState().add({ level: "info", message: "passive" });
-    render(<NotificationToast />);
-
-    const container = screen.getByRole("status");
-    const children = Array.from(container.children);
-
-    // At least one toast item and exactly one undosnackbar-slot as children
-    const itemChildren = children.filter((el) => el.classList.contains("notification-toast__item"));
-    const slotChildren = children.filter((el) =>
-      el.classList.contains("notification-toast__undosnackbar-slot"),
-    );
-
-    expect(itemChildren.length).toBeGreaterThan(0);
-    expect(slotChildren).toHaveLength(1);
-
-    // Verify they are siblings (both direct children of container)
-    for (const item of itemChildren) {
-      expect(item.parentElement).toBe(container);
-    }
-    const slotEl = slotChildren[0];
-    expect(slotEl).toBeDefined();
-    expect(slotEl?.parentElement).toBe(container);
-  });
-
   // m1: FR-A11Y-001 44x44px floor — each toast item is the dismiss target on
   // tap, so the CSS contract must enforce min-height: 44px (width is already
   // 240px+). happy-dom cannot resolve layout, so we read app.css directly and
@@ -211,10 +177,8 @@ describe("NotificationToast", () => {
     );
     // The visual readout is shown…
     expect(screen.getByText("22px")).toBeTruthy();
-    // …but passive store notifications are NOT mirrored into the indicator,
-    // nor is the undosnackbar slot (visual-only surface).
+    // …but passive store notifications are NOT mirrored into the indicator.
     expect(screen.queryByText("passive-toast")).toBeNull();
-    expect(document.querySelector(".notification-toast__undosnackbar-slot")).toBeNull();
   });
 
   it("default (no ariaHidden) still exposes role=status (additive, unchanged)", () => {

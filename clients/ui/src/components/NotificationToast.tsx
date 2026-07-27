@@ -1,5 +1,5 @@
 /**
- * NotificationToast — FR-TOAST-001 / FR-TOAST-002 / FR-TOAST-003 / ADR-0063
+ * NotificationToast — FR-TOAST-001 / FR-TOAST-002 / ADR-0063
  *
  * Responsibilities:
  *  - Single aria-live='polite' role='status' on the container (not per-item).
@@ -12,7 +12,6 @@
  *  - Owns the mute preference persistence (localStorage, ThemeProvider
  *    pattern): reads it on mount into the notifications store, writes it
  *    back on change. The OverflowMenu toggle only touches the store.
- *  - notification-toast__undosnackbar-slot: reserved for UndoSnackbar (FR-TOAST-003).
  *  - Per-level leading glyph (✓ / ! / × / i) rendered inside an aria-hidden
  *    slot — purely visual, screen readers still read the message text.
  */
@@ -108,7 +107,7 @@ export interface NotificationToastProps {
    * Additive (ADR 0063 non-breaking): when true the container is rendered as a
    * purely visual, screen-reader-silent surface — `aria-hidden=true`, no
    * `role=status` / `aria-live`, and only `children` are rendered (no passive
-   * store items, no UndoSnackbar slot). PinchIndicator reuses this primitive in
+   * store items). PinchIndicator reuses this primitive in
    * this mode so the live fontSize is shown centre-screen without being
    * announced (a pinch is a continuous visual gesture, not a discrete event).
    * Default false preserves the existing notification behaviour exactly.
@@ -120,8 +119,6 @@ export interface NotificationToastProps {
 
 /**
  * Renders a single aria-live container with up to 3 toast items.
- * The UndoSnackbar slot is a sibling within the same container for
- * 3-stream isolation (FR-TOAST-003): passive toasts | undo snackbar | palette.
  */
 export function NotificationToast({
   ariaHidden = false,
@@ -156,16 +153,12 @@ export function NotificationToast({
   }
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: spec requires explicit role='status' aria-live='polite' on a div container (FR-TOAST-001); <output> does not support child slot for UndoSnackbar
+    // biome-ignore lint/a11y/useSemanticElements: spec requires explicit role='status' aria-live='polite' on a div container (FR-TOAST-001)
     <div className="notification-toast" aria-live="polite" role="status" aria-label="notifications">
       {/* Passive notification items — no individual aria-live (FR-TOAST-001) */}
       {visible.map((item) => (
         <ToastItem key={item.id} item={item} onDismiss={dismiss} />
       ))}
-
-      {/* UndoSnackbar slot — independent aria-live region (FR-TOAST-003) */}
-      {/* AppShell renders UndoSnackbar inside this slot via overlays prop */}
-      <div className="notification-toast__undosnackbar-slot" />
     </div>
   );
 }

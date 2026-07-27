@@ -27,7 +27,6 @@ import {
 } from "react";
 import { useDaemonStore } from "../store/daemon";
 import { type SwipePoint, isLeftToRightSwipe, pointFromTouch } from "../util/swipe";
-import { displayLabel } from "./SessionList";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -53,22 +52,11 @@ export interface SessionDrawerProps {
    * Called when a session row is selected inside the drawer (i.e. when
    * activeSessionID changes while the drawer is open).
    *
-   * Arguments:
-   *  - previousSessionId: the activeSessionID held immediately before the
-   *    selection took effect (null when no session was previously active).
-   *  - newSessionId: the activeSessionID after selection (non-null).
-   *  - newSessionLabel: a human-readable label for the new session — used by
-   *    UndoSnackbar's "Switched to <label>" announce (FR-TOAST-001 / FR-DRAWER-004).
-   *
    * The drawer observes the daemon store's activeSessionID directly (no
    * coupling to SessionList internals) so any close path that toggles the
    * active session — including drag-to-fix-active flows — fires this hook.
    */
-  onSelectionClose: (
-    previousSessionId: string | null,
-    newSessionId: string,
-    newSessionLabel: string,
-  ) => void;
+  onSelectionClose: () => void;
   /** Called when the user cancels (scrim click / Esc / left→right swipe). */
   onCancelClose: () => void;
   children: ReactNode;
@@ -102,15 +90,11 @@ export function SessionDrawer({
   // m3-minor: share SwipePoint with util/swipe via type import (avoid inline duplicate).
   const touchStartRef = useRef<SwipePoint | null>(null);
 
-  // B1: detect activeSessionID changes while the drawer is open and notify
-  // the parent (AppShell) via onSelectionClose so it can:
-  //   - close the drawer
-  //   - capture previousActiveSessionId for UndoSnackbar (FR-TOAST-003)
-  //   - announce 'Switched to <label>' on the snackbar's aria-live slot
+  // Detect activeSessionID changes while the drawer is open and notify the
+  // parent (AppShell) via onSelectionClose so it can close the drawer.
   // We observe the daemon store directly so the SessionList selection
   // (selectSession) is the single trigger — no coupling to SessionList internals.
   const activeSessionID = useDaemonStore((s) => s.activeSessionID);
-  const sessions = useDaemonStore((s) => s.sessions);
   const previousActiveIdRef = useRef<string | null>(activeSessionID);
   useEffect(() => {
     // Track latest seen activeSessionID; do not emit while drawer is closed.
@@ -119,11 +103,8 @@ export function SessionDrawer({
     if (!open) return;
     if (activeSessionID === null) return;
     if (prev === activeSessionID) return;
-    // The server owns the fallback; clients render the wire title.
-    const sess = sessions.find((s) => s.id === activeSessionID);
-    const label = displayLabel(sess?.view?.card ?? { title: "" }, activeSessionID);
-    onSelectionClose(prev, activeSessionID, label);
-  }, [open, activeSessionID, sessions, onSelectionClose]);
+    onSelectionClose();
+  }, [open, activeSessionID, onSelectionClose]);
 
   // --- Guard: apply / remove three-layer guard on main content ----------------
   useEffect(() => {

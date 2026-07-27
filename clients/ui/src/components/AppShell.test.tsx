@@ -8,8 +8,8 @@
  *  - FR-LAYOUT-003: >=1024px — grid-template-areas includes 'sidebar main',
  *    sidebar always visible.
  *  - FR-LAYOUT-004: root height is var(--dvh) based (CSS value assertion).
- *  - FR-STORE-001: drawerOpen / previousActiveSessionId use useState (not
- *    Zustand create<>), confirmed via source file regex.
+ *  - FR-STORE-001: drawerOpen uses useState (not Zustand create<>), confirmed
+ *    via source file regex.
  *  - ThemeProvider wrapping: data-theme propagation works.
  */
 
@@ -229,7 +229,7 @@ describe("ThemeProvider integration", () => {
   });
 });
 
-// ─── FR-STORE-001: drawerOpen / previousActiveSessionId as useState ───────────
+// ─── FR-STORE-001: drawerOpen as useState ─────────────────────────────────────
 
 describe("FR-STORE-001: UI-local state via useState (not Zustand)", () => {
   it("AppShell.tsx source does not create new Zustand stores (no new create<> beyond useThemeStore)", async () => {
@@ -250,18 +250,6 @@ describe("FR-STORE-001: UI-local state via useState (not Zustand)", () => {
     // drawerOpen must be managed via useState
     expect(
       /useState.*drawerOpen|drawerOpen.*useState|\[drawerOpen.*setDrawerOpen.*useState/.test(
-        source,
-      ),
-    ).toBe(true);
-  });
-
-  it("AppShell.tsx uses useState for previousActiveSessionId", async () => {
-    const filePath = path.join(import.meta.dirname ?? __dirname, "AppShell.tsx");
-    const source = await fs.readFile(filePath, "utf-8");
-
-    // previousActiveSessionId must be managed via useState
-    expect(
-      /useState.*previousActiveSessionId|previousActiveSessionId.*useState|\[previousActiveSessionId.*setPreviousActiveSessionId.*useState/.test(
         source,
       ),
     ).toBe(true);

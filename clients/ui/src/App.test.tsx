@@ -651,18 +651,12 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: /^Create$/ })).toBeNull();
   });
 
-  // ─── B1 / B2 / M2: cross-component user-reachable flow ─────────────────────
+  // ─── Session switch notification policy ────────────────────────────────────
   //
   // Hamburger tap → drawer open → row click changes activeSessionID → drawer
-  // closes via onSelectionClose → focus restores to hamburger → UndoSnackbar
-  // appears in the notification slot announcing "Switched to <label>".
-  // Clicking Undo restores the previous activeSessionID via the daemon store.
-  // This exercises:
-  //   - SessionDrawer's activeSessionID watcher (B1)
-  //   - AppShell's previousActiveSessionId state + portal slot (B2)
-  //   - UndoSnackbar / NotificationToast slot isolation (FR-TOAST-003)
-  //   - daemon store ownership of activeSessionID (web_active_session_ownership)
-  it("hamburger → drawer open → select session → UndoSnackbar → Undo restores (B1/B2 user-reachable)", () => {
+  // closes via onSelectionClose. Session switching is already reflected by the
+  // selected row and main view, so it must not add a redundant notification.
+  it("does not show a Switched to notification after selecting a session in the drawer", () => {
     useDaemonStore.setState({
       sessions: [
         {
@@ -697,8 +691,7 @@ describe("App", () => {
 
     // Switch active session inside the drawer (simulating SessionList row click
     // which calls daemonStore.selectSession). SessionDrawer's useEffect
-    // observes the change and calls onSelectionClose → AppShell closes drawer
-    // + captures previousActiveSessionId='s1' + previousLabel='Session B'.
+    // observes the change and calls onSelectionClose → AppShell closes drawer.
     act(() => {
       useDaemonStore.getState().selectSession("s2");
     });
@@ -706,21 +699,8 @@ describe("App", () => {
     // Drawer closes; hamburger aria-expanded back to false.
     expect(hamburger.getAttribute("aria-expanded")).toBe("false");
 
-    // UndoSnackbar is rendered with status announcing the new label.
-    const undoBtn = screen.getByRole("button", { name: "Undo" });
-    expect(undoBtn).toBeTruthy();
-    // 'Switched to Session B' is in the role=status live region.
-    // The notification container also has role=status, so we search by text
-    // content within the snackbar slot only.
-    const snackbarStatus = document.querySelector(".undo-snackbar__status");
-    expect(snackbarStatus).not.toBeNull();
-    expect(snackbarStatus?.textContent).toContain("Switched to Session B");
-
-    // Undo click → activeSessionID restored to s1; snackbar dismisses.
-    act(() => {
-      fireEvent.click(undoBtn);
-    });
-    expect(useDaemonStore.getState().activeSessionID).toBe("s1");
+    expect(useDaemonStore.getState().activeSessionID).toBe("s2");
+    expect(screen.queryByText(/Switched to/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 

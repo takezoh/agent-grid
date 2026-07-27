@@ -6,7 +6,6 @@ import "./css/app.css";
 import "./css/icon.css";
 import "./css/session-list.css";
 import "./css/palette.css";
-import "./css/snackbar.css";
 import "./css/shell.css";
 import "./css/status-icon.css";
 import "./css/view.css";

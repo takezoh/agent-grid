@@ -7,18 +7,14 @@
  *      <768px:   banner / header / main  (sidebar off-canvas, hamburger visible)
  *      768-1023: banner banner / header header / sidebar main
  *      >=1024:   banner banner / header header / sidebar main
- *  - Maintains drawerOpen / previousActiveSessionId as UI-local useState
- *    (FR-STORE-001: NOT in Zustand store).
+ *  - Maintains drawerOpen as UI-local useState.
  *  - Monitors window width via ResizeObserver and closes the drawer with a
  *    50ms debounce when crossing the 768px breakpoint (FR-DRAWER-007 prep).
  */
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useDaemonStore } from "../store/daemon";
 import { SessionDrawer } from "./SessionDrawer";
 import { ThemeProvider } from "./ThemeProvider";
-import { UndoSnackbar } from "./UndoSnackbar";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -89,16 +85,6 @@ export function AppShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Desktop sidebar collapse — default visible, persisted across launches.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
-  // previousActiveSessionId tracks the active session immediately BEFORE the
-  // drawer-selection event that closed the drawer (FR-DRAWER-004 / FR-TOAST-003).
-  // When non-null, UndoSnackbar renders with a 5s auto-dismiss; clicking Undo
-  // calls daemonStore.selectSession(previousActiveSessionId) and clears the slot.
-  // Maintained here per FR-STORE-001; populated by the drawer's onSelectionClose hook.
-  const [previousActiveSessionId, setPreviousActiveSessionId] = useState<string | null>(null);
-  const [previousLabel, setPreviousLabel] = useState<string | null>(null);
-  // Slot element mounted by NotificationToast — we read it via querySelector
-  // after each render so we can portal the snackbar into the right slot.
-  const [snackbarSlot, setSnackbarSlot] = useState<HTMLElement | null>(null);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -154,48 +140,13 @@ export function AppShell({
     });
   }, []);
 
-  // B1 / B2 wire-up: drawer reports (previousId, newId, label) when
-  // activeSessionID changes during the open period. We capture previousId +
-  // label and close the drawer in one tick so UndoSnackbar can render with
-  // an accurate "Switched to <label>" announce (FR-TOAST-001).
-  const handleSelectionClose = useCallback(
-    (previousSessionId: string | null, _newSessionId: string, newLabel: string) => {
-      setPreviousActiveSessionId(previousSessionId);
-      setPreviousLabel(newLabel);
-      setDrawerOpen(false);
-    },
-    [],
-  );
+  const handleSelectionClose = useCallback(() => {
+    setDrawerOpen(false);
+  }, []);
 
   const handleCancelClose = useCallback(() => {
     setDrawerOpen(false);
   }, []);
-
-  // B2: Undo restores the previous activeSessionID via the daemon store
-  // (the only owner of activeSessionID — see web_active_session_ownership
-  // memory). We then clear the snackbar slot so it auto-hides immediately.
-  const handleUndo = useCallback(() => {
-    const prev = previousActiveSessionId;
-    setPreviousActiveSessionId(null);
-    setPreviousLabel(null);
-    if (prev !== null) {
-      useDaemonStore.getState().selectSession(prev);
-    }
-  }, [previousActiveSessionId]);
-
-  const handleSnackbarDismiss = useCallback(() => {
-    setPreviousActiveSessionId(null);
-    setPreviousLabel(null);
-  }, []);
-
-  // Locate the NotificationToast's reserved slot once it lands in the DOM.
-  // We do this on every render via a callback ref-like effect; the slot is
-  // mounted by NotificationToast (sibling under overlays), so it is available
-  // after the first commit.
-  useEffect(() => {
-    const slot = document.querySelector<HTMLElement>(".notification-toast__undosnackbar-slot");
-    if (slot !== snackbarSlot) setSnackbarSlot(slot);
-  });
 
   // Hosted mode: mark document for CSS (titlebar drag, OS scrollbar, no session chrome).
   useEffect(() => {
@@ -278,22 +229,6 @@ export function AppShell({
 
       {/* Portal-mounted overlays (palette, toasts) */}
       {overlays}
-
-      {/* UndoSnackbar — portaled into NotificationToast's reserved slot so
-          the 3 aria-live streams stay isolated (FR-TOAST-003). The slot is
-          rendered by NotificationToast which is itself inside `overlays`,
-          so the slot is available after overlays mount on the same tick. */}
-      {previousActiveSessionId !== null &&
-        snackbarSlot !== null &&
-        createPortal(
-          <UndoSnackbar
-            previousActiveSessionId={previousActiveSessionId}
-            previousLabel={previousLabel}
-            onUndo={handleUndo}
-            onDismiss={handleSnackbarDismiss}
-          />,
-          snackbarSlot,
-        )}
     </ThemeProvider>
   );
 }

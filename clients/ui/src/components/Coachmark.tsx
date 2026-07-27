@@ -3,8 +3,8 @@
 //
 // Open Question 3 grep (Tooltip / Popover / Hint / Snackbar primitives under
 // clients/ui/src/components): the only dismissible surfaces are
-// NotificationToast (store-driven passive toasts) and UndoSnackbar (action-undo),
-// neither of which is a static one-line hint anchored to a control. Per ADR 0072
+// NotificationToast is a store-driven passive toast, not a static one-line hint
+// anchored to a control. Per ADR 0072
 // (4) "if none exists, a minimal <div role='status'>" we implement the minimal surface
 // rather than bending a toast/snackbar into a coachmark.
 //

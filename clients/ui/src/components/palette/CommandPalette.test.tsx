@@ -680,6 +680,11 @@ describe("CommandPalette", () => {
       expect(inlineStatus.textContent).toContain("Active session changed to bar"),
     );
     expect(inlineStatus.textContent).toContain("session-");
+    expect(
+      useNotificationsStore
+        .getState()
+        .items.some((item) => item.message.startsWith("Switched to ")),
+    ).toBe(false);
   });
 
   // ---------------------------------------------------------------------------

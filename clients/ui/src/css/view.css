@@ -434,12 +434,6 @@
     transition: none !important;
   }
 
-  /* UndoSnackbar: slide-in animation / transition */
-  .undo-snackbar {
-    transition: none !important;
-    animation: none !important;
-  }
-
   /* NotificationToast: entry animation / transition */
   .notification-toast,
   .notification-toast__item {
