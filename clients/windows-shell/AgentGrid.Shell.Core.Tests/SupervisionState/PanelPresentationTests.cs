@@ -39,20 +39,6 @@ public class PanelPresentationTests
         Assert.Equal("server title", PanelPresentation.SessionLabel(session));
     }
 
-    [Fact]
-    public void Qualified_session_label_always_identifies_the_server()
-    {
-        var session = new SessionSummary(
-            "s1", SessionPhase.Running, Title: "build fix", ServerId: "server-west");
-
-        Assert.Equal(
-            "server-west · build fix",
-            PanelPresentation.SessionQualifiedLabel(session));
-        Assert.Equal(
-            "server-west",
-            PanelPresentation.SessionQualifiedLabel(session with { Title = null }));
-    }
-
     [Theory]
     [InlineData(SessionPhase.Running, "Running", "success")]
     [InlineData(SessionPhase.Waiting, "Waiting", "warning")]

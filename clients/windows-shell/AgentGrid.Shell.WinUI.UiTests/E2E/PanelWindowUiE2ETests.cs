@@ -67,6 +67,11 @@ public sealed class PanelWindowUiE2ETests : IClassFixture<PanelUiSession>
         Assert.Equal(2, chips.Length);
         if (chips.Length > 0)
         {
+            Assert.Equal(
+                new[] { "Action fixture", "Working fixture" },
+                chips.Select(chip => chip.Name).OrderBy(name => name));
+            Assert.All(chips, chip => Assert.DoesNotContain("Test", chip.Name));
+
             var windowRect = _ui.Window.BoundingRectangle;
             var stripRect = _ui.Find("SessionRow").BoundingRectangle;
             Assert.True(stripRect.Left >= windowRect.Left && stripRect.Right <= windowRect.Right,
