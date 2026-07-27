@@ -382,10 +382,11 @@ type ResumeTarget struct {
 }
 
 type StreamLaunchOptions struct {
-	SandboxPolicy      StreamSandboxPolicy  `json:"sandbox_policy,omitempty"`
-	ApprovalPolicy     StreamApprovalPolicy `json:"approval_policy,omitempty"`
-	ResumeTarget       ResumeTarget         `json:"resume_target,omitempty"`
-	ColdStartSessionID string               `json:"cold_start_session_id,omitempty"`
+	SandboxPolicy                StreamSandboxPolicy  `json:"sandbox_policy,omitempty"`
+	ApprovalPolicy               StreamApprovalPolicy `json:"approval_policy,omitempty"`
+	DangerouslyBypassPermissions bool                 `json:"dangerously_bypass_permissions,omitempty"`
+	ResumeTarget                 ResumeTarget         `json:"resume_target,omitempty"`
+	ColdStartSessionID           string               `json:"cold_start_session_id,omitempty"`
 }
 
 type LaunchPlan struct {

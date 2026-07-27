@@ -193,6 +193,11 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 	cs, stripped = resolveCodexModelEffort(cs, stripped)
 	base := strings.TrimSpace(stripped)
 	stream := state.StreamLaunchOptions{}
+	if argv, err := agentlaunch.SplitArgs(base); err == nil {
+		if cfg, parseErr := libcodex.ParseCommand(argv); parseErr == nil {
+			stream.DangerouslyBypassPermissions = cfg.DangerouslyBypassPermissions
+		}
+	}
 	if sandboxed {
 		stream.SandboxPolicy = state.StreamSandboxPolicyExternal
 		stream.ApprovalPolicy = state.StreamApprovalPolicyAutoApprove

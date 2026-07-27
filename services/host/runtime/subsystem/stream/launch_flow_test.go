@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -244,7 +245,7 @@ func TestBackendBindFrame_FreshColdStart_LeavesPendingBinding(t *testing.T) {
 		t.Errorf("initState occupancy = %d, want 1", pendingCount(h.backend))
 	}
 	// Argv must be `codex --remote unix://<sock>` with NO `resume`.
-	wantArgv := libcodex.RemoteAttachArgs(listen, "", "/repo", "", "")
+	wantArgv := libcodex.RemoteAttachArgs(listen, "", "/repo", "", "", false)
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
@@ -270,7 +271,7 @@ func TestBackendBindFrame_ContainerTrustsResolvedWorkingDirectoryBeforeAttach(t 
 	if err != nil {
 		t.Fatalf("BindFrame: %v", err)
 	}
-	wantArgv := libcodex.RemoteAttachArgs(listen, "", worktree, "", "")
+	wantArgv := libcodex.RemoteAttachArgs(listen, "", worktree, "", "", true)
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}
@@ -300,6 +301,30 @@ func TestBackendBindFrame_HostDoesNotWriteContainerCodexTrust(t *testing.T) {
 	joined := strings.Join(res.Plan.Argv, " ")
 	if strings.Contains(joined, "codex-trust-project") {
 		t.Fatalf("host argv must not modify container Codex config: %q", joined)
+	}
+	if strings.Contains(joined, "--dangerously-bypass-approvals-and-sandbox") {
+		t.Fatalf("host argv must not bypass Codex approvals or sandbox: %q", joined)
+	}
+}
+
+func TestBackendBindFrame_HostPreservesExplicitDangerBypass(t *testing.T) {
+	const listen = "/tmp/codex-host-explicit-bypass.sock"
+	h := newBoundBackend(t, listen)
+
+	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
+		FrameID: "f-host-explicit-bypass",
+		Plan: state.LaunchPlan{
+			StartDir: "/repo",
+			Stream: state.StreamLaunchOptions{
+				DangerouslyBypassPermissions: true,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BindFrame: %v", err)
+	}
+	if !slices.Contains(res.Plan.Argv, "--dangerously-bypass-approvals-and-sandbox") {
+		t.Fatalf("host argv must preserve explicitly requested bypass: %#v", res.Plan.Argv)
 	}
 }
 
@@ -339,7 +364,7 @@ func TestBackendBindFrame_Recovery_BindsThreadDirectly(t *testing.T) {
 		t.Fatalf("backend observer thread/resume id = %q, want thread-abc (params=%v)", got, lastResume)
 	}
 	// Argv must contain `resume thread-abc`.
-	wantArgv := libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", "", "")
+	wantArgv := libcodex.RemoteAttachArgs(listen, "thread-abc", "/repo", "", "", false)
 	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
 		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
 	}

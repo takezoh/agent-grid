@@ -322,7 +322,8 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	// syscall.Execs MainCommand. Avoid shell composition of trust && exec
 	// (adr-20260711-0082 / 0083). Host DirectLauncher also uses frame-exec
 	// when Argv is set.
-	attachArgv := libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir, model, effort)
+	bypassPermissions := b.sandboxed || req.Plan.Stream.DangerouslyBypassPermissions
+	attachArgv := libcodex.RemoteAttachArgs(b.listenSock, persistedThreadID, startDir, model, effort, bypassPermissions)
 	result.Plan.Argv = attachArgv
 	result.Plan.Command = "" // legacy shell path unused for codex stream attach
 	if b.sandboxed {

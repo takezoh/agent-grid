@@ -38,6 +38,11 @@ func TestParseCommand(t *testing.T) {
 			want: CommandConfig{ServerBin: "codex"},
 		},
 		{
+			name: "danger bypass is retained as explicit intent",
+			argv: []string{"codex", "--dangerously-bypass-approvals-and-sandbox"},
+			want: CommandConfig{ServerBin: "codex", DangerouslyBypassPermissions: true},
+		},
+		{
 			name: "config flag with quoted value preserved as element",
 			argv: []string{"codex", "-c", `sandbox_mode="danger-full-access"`},
 			want: CommandConfig{ServerBin: "codex", ServerArgs: []string{"-c", `sandbox_mode="danger-full-access"`}},
@@ -64,6 +69,9 @@ func TestParseCommand(t *testing.T) {
 			}
 			if got.ServerBin != tt.want.ServerBin || got.Model != tt.want.Model || got.Effort != tt.want.Effort {
 				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+			if got.DangerouslyBypassPermissions != tt.want.DangerouslyBypassPermissions {
+				t.Errorf("DangerouslyBypassPermissions = %v, want %v", got.DangerouslyBypassPermissions, tt.want.DangerouslyBypassPermissions)
 			}
 			if len(got.ServerArgs) != len(tt.want.ServerArgs) {
 				t.Errorf("ServerArgs = %v, want %v", got.ServerArgs, tt.want.ServerArgs)
@@ -147,6 +155,7 @@ func TestRemoteAttachArgs(t *testing.T) {
 		startDir     string
 		model        string
 		effort       string
+		bypass       bool
 		wantContains []string
 		wantAbsent   []string
 	}{
@@ -176,6 +185,17 @@ func TestRemoteAttachArgs(t *testing.T) {
 			wantContains: []string{"--model", "gpt-5-codex", "--effort", "high"},
 		},
 		{
+			name:         "with explicit danger bypass",
+			sock:         "/opt/agent-grid/run/codex-sess6.sock",
+			bypass:       true,
+			wantContains: []string{"--dangerously-bypass-approvals-and-sandbox"},
+		},
+		{
+			name:       "without danger bypass",
+			sock:       "/tmp/codex-host.sock",
+			wantAbsent: []string{"--dangerously-bypass-approvals-and-sandbox"},
+		},
+		{
 			name:       "no startDir omits -C",
 			sock:       "/opt/agent-grid/run/codex-sess4.sock",
 			wantAbsent: []string{"-C"},
@@ -183,7 +203,7 @@ func TestRemoteAttachArgs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir, tt.model, tt.effort)
+			got := RemoteAttachArgs(tt.sock, tt.threadID, tt.startDir, tt.model, tt.effort, tt.bypass)
 			for _, want := range tt.wantContains {
 				found := false
 				for _, g := range got {

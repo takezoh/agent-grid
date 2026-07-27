@@ -493,6 +493,27 @@ func TestCodexPrepareLaunchLeavesStreamPoliciesDefaultWithoutSandbox(t *testing.
 	if plan.Stream.ApprovalPolicy != state.StreamApprovalPolicyDefault {
 		t.Fatalf("Stream.ApprovalPolicy = %q, want default", plan.Stream.ApprovalPolicy)
 	}
+	if plan.Stream.DangerouslyBypassPermissions {
+		t.Fatal("Stream.DangerouslyBypassPermissions = true, want false without user request")
+	}
+}
+
+func TestCodexPrepareLaunchPreservesExplicitDangerBypassWithoutSandbox(t *testing.T) {
+	d, cs, _ := newCodex(t)
+	plan, err := d.PrepareLaunch(
+		cs,
+		state.LaunchModeCreate,
+		"/repo",
+		"codex --dangerously-bypass-approvals-and-sandbox",
+		state.LaunchOptions{},
+		false,
+	)
+	if err != nil {
+		t.Fatalf("PrepareLaunch error: %v", err)
+	}
+	if !plan.Stream.DangerouslyBypassPermissions {
+		t.Fatal("Stream.DangerouslyBypassPermissions = false, want explicit user request preserved")
+	}
 }
 
 func TestCodexRestoreLegacyTranscriptPathPromotesRolloutPath(t *testing.T) {
