@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { SessionConfig, SessionConfigProject } from "../api/sessions";
+import type { ServerConfigOutcome, SessionConfig, SessionConfigProject } from "../api/sessions";
 import type { DaemonOccupant, DaemonSnapshot } from "../lib/tools";
 import type { HelloFrame, SessionInfo, ViewUpdateFrame } from "../wire/server";
 import {
@@ -33,7 +33,7 @@ export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed"
 // arrays.
 export type SessionConfigSlice = {
   projects: SessionConfigProject[];
-  commands: string[];
+  serverOutcomes: ServerConfigOutcome[];
   pushCommands: string[];
 };
 
@@ -135,6 +135,8 @@ export type ProjectGroup = {
    *  via this field, so /a/repo and /b/repo become two groups (with the
    *  same display name) rather than collapsing into one. */
   projectPath: string;
+  serverId?: string;
+  serverLabel?: string;
   sessions: SessionInfo[];
 };
 
@@ -152,13 +154,16 @@ export function groupSessionsByProject(
     const projectPath = s.project ?? "";
     const basename = projectBasename(projectPath);
     if (!basename) continue;
-    const existing = groups.get(projectPath);
+    const groupKey = `${s.serverId ?? ""}\u0000${projectPath}`;
+    const existing = groups.get(groupKey);
     if (existing) {
       existing.sessions.push(s);
     } else {
-      groups.set(projectPath, {
+      groups.set(groupKey, {
         project: basename,
         projectPath: projectPath || basename,
+        serverId: s.serverId,
+        serverLabel: s.serverLabel,
         sessions: [s],
       });
     }
@@ -250,7 +255,7 @@ export function selectDaemonSnapshot(state: DaemonSnapshotSource): DaemonSnapsho
     activeSessionID: state.activeSessionID,
     activeOccupant: state.activeOccupant,
     projects: state.sessionConfig?.projects ?? [],
-    commands: state.sessionConfig?.commands ?? [],
+    serverOutcomes: state.sessionConfig?.serverOutcomes ?? [],
     pushCommands: state.sessionConfig?.pushCommands ?? [],
   };
 }
@@ -396,7 +401,7 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
     set({
       sessionConfig: {
         projects: cfg.projects,
-        commands: cfg.commands,
+        serverOutcomes: cfg.serverOutcomes,
         pushCommands: cfg.pushCommands,
       },
     }),

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -88,15 +89,16 @@ type apiSessionInfo struct {
 // here, on the gateway, keeps the browser from having to reach across the
 // daemon boundary for every project listing.
 type apiProjectMeta struct {
-	Path        string `json:"path"`
-	IsGit       bool   `json:"isGit"`
-	IsSandboxed bool   `json:"isSandboxed"`
+	Path            string                          `json:"path"`
+	IsGit           bool                            `json:"isGit"`
+	IsSandboxed     bool                            `json:"isSandboxed"`
+	CommandProfiles []config.ResolvedCommandProfile `json:"command_profiles"`
 }
 
 // apiSessionConfig is the REST wire shape for GET /api/session-config. It
 // surfaces the subset of the user's settings.toml the create-session form
-// and the web UI palette need to render: the curated [session].commands list,
-// the [session].default_command, the resolved [projects] list
+// and the web UI palette need to render: typed command profiles attached to
+// the resolved [projects] list
 // (project_roots fan-out + project_paths) annotated with isGit/isSandboxed
 // flags, and the [session].push_commands list used by the palette's push
 // scope. Sourcing these from config rather than hardcoding driver names in
@@ -109,25 +111,27 @@ type apiProjectMeta struct {
 //
 // ADR-0041 keeps this extension REST-only: WS frames are unchanged (ADR-0030).
 type apiSessionConfig struct {
-	DefaultCommand string           `json:"default_command"`
-	Commands       []string         `json:"commands"`
-	PushCommands   []string         `json:"push_commands"`
-	ProjectRoots   []string         `json:"project_roots"`
-	ProjectPaths   []string         `json:"project_paths"`
-	Projects       []apiProjectMeta `json:"projects"`
+	PushCommands []string         `json:"push_commands"`
+	ProjectRoots []string         `json:"project_roots"`
+	ProjectPaths []string         `json:"project_paths"`
+	Projects     []apiProjectMeta `json:"projects"`
 }
 
-// apiCreateReq is the POST /api/sessions body. Required: project (absolute
-// path) and command. Optional: terminal cols/rows hint, worktree (create a
+// apiCreateReq is the POST /api/sessions body. Required: version 2, project,
+// profile id and profile revision. Optional: typed parameters, terminal
+// cols/rows hint, worktree (create a
 // git worktree before launch), and sandbox ("" / "auto" → follow project
 // config, "host" → force direct/host launch).
 type apiCreateReq struct {
-	Project  string `json:"project"`
-	Command  string `json:"command"`
-	Cols     int    `json:"cols,omitempty"`
-	Rows     int    `json:"rows,omitempty"`
-	Worktree bool   `json:"worktree,omitempty"`
-	Sandbox  string `json:"sandbox,omitempty"`
+	Version         int            `json:"version,omitempty"`
+	Project         string         `json:"project"`
+	ProfileID       string         `json:"profile_id,omitempty"`
+	ProfileRevision string         `json:"profile_revision,omitempty"`
+	Parameters      map[string]any `json:"parameters,omitempty"`
+	Cols            int            `json:"cols,omitempty"`
+	Rows            int            `json:"rows,omitempty"`
+	Worktree        bool           `json:"worktree,omitempty"`
+	Sandbox         string         `json:"sandbox,omitempty"`
 }
 
 // parseSandbox maps the apiCreateReq sandbox field to the daemon's
@@ -285,10 +289,6 @@ func handleSessionConfig() http.HandlerFunc {
 				"settings.toml load failed", "err", err)
 			return
 		}
-		commands := cfg.Session.Commands
-		if commands == nil {
-			commands = []string{}
-		}
 		pushCommands := cfg.Session.PushCommands
 		if pushCommands == nil {
 			pushCommands = []string{}
@@ -312,18 +312,17 @@ func handleSessionConfig() http.HandlerFunc {
 		projects := make([]apiProjectMeta, 0, len(raw))
 		for _, p := range raw {
 			projects = append(projects, apiProjectMeta{
-				Path:        p,
-				IsGit:       gitChildExists(r.Context(), p),
-				IsSandboxed: resolver.Resolve(p).IsSandboxed(),
+				Path:            p,
+				IsGit:           gitChildExists(r.Context(), p),
+				IsSandboxed:     resolver.Resolve(p).IsSandboxed(),
+				CommandProfiles: cfg.Session.ProfilesForProject(p),
 			})
 		}
 		writeJSON(w, http.StatusOK, apiSessionConfig{
-			DefaultCommand: cfg.Session.DefaultCommand,
-			Commands:       commands,
-			PushCommands:   pushCommands,
-			ProjectRoots:   projectRoots,
-			ProjectPaths:   projectPaths,
-			Projects:       projects,
+			PushCommands: pushCommands,
+			ProjectRoots: projectRoots,
+			ProjectPaths: projectPaths,
+			Projects:     projects,
 		})
 	}
 }
@@ -435,9 +434,33 @@ func handleCreateSession(d *DaemonClient) http.HandlerFunc {
 			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_cols_rows", err.Error())
 			return
 		}
+		if req.Version != 2 || req.ProfileID == "" || req.ProfileRevision == "" {
+			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_create_version",
+				"version 2 requires profile_id and profile_revision")
+			return
+		}
+		cfg, err := loadSessionConfig()
+		if err != nil {
+			gatewayError(w, r, http.StatusInternalServerError, "config_load_failed",
+				"settings.toml load failed", "err", err)
+			return
+		}
+		argv, err := cfg.Session.MaterializeProfile(
+			req.Project, req.ProfileID, req.ProfileRevision, req.Parameters)
+		if err != nil {
+			status := http.StatusBadRequest
+			code := "invalid_profile_parameters"
+			if strings.Contains(err.Error(), "stale profile revision") {
+				status = http.StatusConflict
+				code = "stale_profile_revision"
+			}
+			gatewayAPIError(w, r, status, code, err.Error())
+			return
+		}
+		command := joinShellCommand(argv)
 		params := state.CreateSessionParams{
 			Project: req.Project,
-			Command: req.Command,
+			Command: command,
 			Sandbox: sandbox,
 			Options: state.LaunchOptions{
 				Cols:     uint16(req.Cols),
@@ -473,11 +496,26 @@ func handleCreateSession(d *DaemonClient) http.HandlerFunc {
 		info := apiSessionInfo{
 			ID:        rc.SessionID,
 			Project:   req.Project,
-			Command:   req.Command,
+			Command:   command,
 			CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		}
 		writeJSON(w, http.StatusCreated, info)
 	}
+}
+
+func joinShellCommand(argv []string) string {
+	quoted := make([]string, len(argv))
+	for i, arg := range argv {
+		if arg != "" && strings.IndexFunc(arg, func(r rune) bool {
+			return !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') &&
+				!(r >= '0' && r <= '9') && !strings.ContainsRune("_-./:@", r)
+		}) == -1 {
+			quoted[i] = arg
+			continue
+		}
+		quoted[i] = "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
+	}
+	return strings.Join(quoted, " ")
 }
 
 // Push-route handler and helpers (handlePushCommand, decodePushBody,

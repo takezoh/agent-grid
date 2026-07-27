@@ -227,12 +227,6 @@ func buildRuntime(ctx context.Context, cfg *config.Config, loginShell string, da
 		StreamDispatcher:  streamDispatcher,
 		StreamReadTimeout: time.Duration(cfg.Codex.ReadTimeoutMs) * time.Millisecond,
 	})
-	resolved, err := shellalias.Resolve(ctx, loginShell, cfg.Session.Commands, shellalias.RealRunner)
-	if err != nil {
-		slog.Warn("shellalias: resolve failed; commands stay literal", "err", err)
-	}
-	rt.SetAliases(resolved)
-	rt.SetDefaultCommand(cfg.Session.DefaultCommand)
 	rt.SetSandboxedProjectResolver(func(project string) bool {
 		return sbResolver.Resolve(project).IsSandboxed()
 	})

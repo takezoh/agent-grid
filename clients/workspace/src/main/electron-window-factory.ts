@@ -217,6 +217,8 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
             const url = sessionPageUrl(opts.uiEntryUrl);
             const info: HostedModeInfo = {
               hosted: false,
+              serverId: cfg.serverId,
+              serverLabel: cfg.serverLabel,
               baseUrl: cfg.baseUrl,
               token: cfg.token,
             };
@@ -268,6 +270,8 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
           const info: HostedModeInfo = {
             hosted: sessionId !== undefined,
             ...(sessionId === undefined ? {} : { sessionId }),
+            serverId: cfg.serverId,
+            serverLabel: cfg.serverLabel,
             baseUrl: cfg.baseUrl,
             token: cfg.token,
           };

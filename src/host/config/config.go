@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -66,10 +67,9 @@ type MonitorConfig struct {
 }
 
 type SessionConfig struct {
-	AutoName       bool     `toml:"auto_name"`
-	DefaultCommand string   `toml:"default_command"`
-	Commands       []string `toml:"commands"`
-	PushCommands   []string `toml:"push_commands"`
+	AutoName        bool                   `toml:"auto_name"`
+	CommandProfiles []CommandProfileConfig `toml:"command_profiles"`
+	PushCommands    []string               `toml:"push_commands"`
 }
 
 // TerminalConfig holds knobs that govern the server-side terminal emulator.
@@ -91,6 +91,9 @@ func LoadFrom(path string) (*Config, error) {
 	}
 	if err := cfg.Sandbox.Validate(); err != nil {
 		return nil, err
+	}
+	if err := cfg.Session.ValidateCommandProfiles(); err != nil {
+		return nil, fmt.Errorf("session command profiles: %w", err)
 	}
 	cfg.Driver.Pager = resolvePager(cfg.Driver.Pager)
 	return cfg, nil
@@ -120,10 +123,11 @@ func DefaultConfig() *Config {
 			IdleThresholdSec:   30,
 		},
 		Session: SessionConfig{
-			AutoName:       true,
-			DefaultCommand: "shell",
-			Commands:       []string{"shell"},
-			PushCommands:   []string{"shell"},
+			AutoName: true,
+			CommandProfiles: []CommandProfileConfig{{
+				ID: "shell", Label: "Shell", Executable: "shell",
+			}},
+			PushCommands: []string{"shell"},
 		},
 		Terminal: TerminalConfig{
 			ScrollbackLines: 10000,

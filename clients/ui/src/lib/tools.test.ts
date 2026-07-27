@@ -27,7 +27,7 @@ function makeFakeHttp(overrides: Partial<SessionsApi> = {}): SessionsApi {
       projectRoots: [],
       projectPaths: [],
       projects: [],
-      commands: [],
+      serverOutcomes: [],
       pushCommands: [],
     }),
     ...overrides,
@@ -117,16 +117,31 @@ function makeDaemonSnapshot(overrides: Partial<DaemonSnapshot> = {}): DaemonSnap
     sessions: [],
     activeSessionID: null,
     projects: [],
-    commands: [],
+    serverOutcomes: [],
     pushCommands: [],
     ...overrides,
   };
 }
 
 function makeCtx(overrides: Partial<ToolCtx> = {}): ToolCtx {
+  const defaultProfile = {
+    id: "claude",
+    label: "claude",
+    revision: "revision-claude",
+    parameters: [],
+  };
   return {
     http: makeFakeHttp(),
-    daemon: makeDaemonSnapshot(),
+    daemon: makeDaemonSnapshot({
+      projects: [
+        {
+          path: "/repo/a",
+          isGit: false,
+          isSandboxed: false,
+          commandProfiles: [defaultProfile],
+        },
+      ],
+    }),
     daemonActions: makeFakeDaemonActions(),
     notify: makeFakeNotify(),
     store: makeFakeStore(),
@@ -285,7 +300,68 @@ describe("standard ToolDef.disabledReason", () => {
 // ---------------------------------------------------------------------------
 
 describe("new-session.submit", () => {
-  it("calls http.createSession with project + command only when toggles absent", async () => {
+  it("routes a server-qualified typed profile with arbitrary parameter values", async () => {
+    const http = makeFakeHttp({
+      createSession: vi.fn().mockResolvedValue({ id: "remote", serverId: "server-a" }),
+    });
+    const daemonActions = makeFakeDaemonActions();
+    const notify = makeFakeNotify();
+    const ctx = makeCtx({
+      http,
+      daemonActions,
+      notify,
+      daemon: makeDaemonSnapshot({
+        projects: [
+          {
+            path: "/repo/a",
+            serverId: "server-a",
+            serverLabel: "Server A",
+            commandProfiles: [
+              {
+                id: "sol",
+                label: "Sol",
+                revision: "rev-1",
+                parameters: [
+                  {
+                    name: "effort",
+                    label: "Effort",
+                    type: "enum",
+                    required: true,
+                    values: ["low", "high"],
+                  },
+                  {
+                    name: "limit",
+                    label: "Limit",
+                    type: "number",
+                    required: false,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    const tool = findTool(listTools(ctx.daemon, []), "new-session");
+    await tool.submit(ctx, {
+      project: JSON.stringify(["server-a", "/repo/a"]),
+      command: "sol",
+      "profile:effort": "high",
+      "profile:limit": "3",
+    });
+    expect(http.createSession).toHaveBeenCalledWith({
+      server_id: "server-a",
+      project: "/repo/a",
+      version: 2,
+      profile_id: "sol",
+      profile_revision: "rev-1",
+      parameters: { effort: "high", limit: 3 },
+    });
+    expect(daemonActions.selectSessionCalls).toEqual([]);
+    expect(notify.successCalls).toEqual(["Session created on Server A"]);
+  });
+
+  it("calls http.createSession with the selected profile when toggles are absent", async () => {
     const http = makeFakeHttp();
     const notify = makeFakeNotify();
     const store = makeFakeStore();
@@ -295,7 +371,10 @@ describe("new-session.submit", () => {
     expect(http.createSession).toHaveBeenCalledTimes(1);
     expect(http.createSession).toHaveBeenCalledWith({
       project: "/repo/a",
-      command: "claude",
+      version: 2,
+      profile_id: "claude",
+      profile_revision: "revision-claude",
+      parameters: {},
     });
     expect(notify.successCalls).toEqual(["Session created"]);
     expect(store.closeCalls).toBe(1);
@@ -313,7 +392,10 @@ describe("new-session.submit", () => {
 
     expect(http.createSession).toHaveBeenCalledWith({
       project: "/repo/a",
-      command: "claude",
+      version: 2,
+      profile_id: "claude",
+      profile_revision: "revision-claude",
+      parameters: {},
       cols: 203,
       rows: 47,
     });
@@ -365,7 +447,10 @@ describe("new-session.submit", () => {
     });
     expect(http.createSession).toHaveBeenCalledWith({
       project: "/repo/a",
-      command: "claude",
+      version: 2,
+      profile_id: "claude",
+      profile_revision: "revision-claude",
+      parameters: {},
       worktree: true,
     });
   });
@@ -381,7 +466,10 @@ describe("new-session.submit", () => {
     });
     expect(http.createSession).toHaveBeenCalledWith({
       project: "/repo/a",
-      command: "claude",
+      version: 2,
+      profile_id: "claude",
+      profile_revision: "revision-claude",
+      parameters: {},
       sandbox: "host",
     });
   });
@@ -397,7 +485,10 @@ describe("new-session.submit", () => {
     });
     expect(http.createSession).toHaveBeenCalledWith({
       project: "/repo/a",
-      command: "claude",
+      version: 2,
+      profile_id: "claude",
+      profile_revision: "revision-claude",
+      parameters: {},
     });
   });
 

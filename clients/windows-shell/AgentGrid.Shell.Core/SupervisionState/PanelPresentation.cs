@@ -86,6 +86,16 @@ public static class PanelPresentation
     /// <summary>Clients render the server-owned title without local fallback.</summary>
     public static string SessionLabel(SessionSummary session) => session.Title ?? "";
 
+    public static string SessionQualifiedLabel(SessionSummary session)
+    {
+        var label = SessionLabel(session);
+        return string.IsNullOrWhiteSpace(session.ServerId)
+            ? label
+            : string.IsNullOrWhiteSpace(label)
+                ? session.ServerId
+                : $"{session.ServerId} · {label}";
+    }
+
     /// <summary>
     /// One-line aggregate for the compact island bar. Priority mirrors what the
     /// user must act on first: offline &gt; pending &gt; failed &gt; working &gt; done &gt; idle.

@@ -18,6 +18,7 @@
 //     `ProjectInfo`. We re-export that as `ProjectInfo` below for tests
 //     that want the conventional name without learning the real source.
 import type { SessionConfigProject } from "../../api/sessions";
+import type { ServerConfigOutcome } from "../../api/sessions";
 import type { DaemonOccupant, DaemonSnapshot } from "../../lib/tools";
 import type { SessionInfo } from "../../wire/server";
 
@@ -36,6 +37,9 @@ export interface MkSnapshotInput {
    * yields the FR-A4 "no projects" case (`projects: []`).
    */
   projects?: Partial<SessionConfigProject>[];
+  /** Command profile IDs attached to each project in this test snapshot. */
+  profileIds?: string[];
+  serverOutcomes?: ServerConfigOutcome[];
   /**
    * Partial session entries. Each is merged onto a default SessionInfo with
    * a stable `s${i+1}` id and `view.card.title === id` so list-rendering
@@ -44,8 +48,6 @@ export interface MkSnapshotInput {
   sessions?: Partial<SessionInfo>[];
   /** Active session id projection — default `null` (no selection). */
   activeSessionID?: string | null;
-  /** Curated [session].commands list (new-session "Command" picker) — default `[]`. */
-  commands?: string[];
   /** Push command catalog — default `[]`. */
   pushCommands?: string[];
   /** Pane occupancy for push-scope gating (FR-006). Default undefined. */
@@ -57,6 +59,9 @@ function mkProject(p: Partial<SessionConfigProject>, i: number): SessionConfigPr
     path: p.path ?? `/repo${i + 1}`,
     isGit: p.isGit ?? false,
     isSandboxed: p.isSandboxed ?? false,
+    ...(p.serverId ? { serverId: p.serverId } : {}),
+    ...(p.serverLabel ? { serverLabel: p.serverLabel } : {}),
+    ...(p.commandProfiles ? { commandProfiles: p.commandProfiles } : {}),
   };
 }
 
@@ -83,13 +88,25 @@ function mkSessionInfo(s: Partial<SessionInfo>, i: number): SessionInfo {
  * used by FR-A4 / scopeDisabledReason("standard") happy-paths.
  */
 export function mkSnapshot(input: MkSnapshotInput = {}): DaemonSnapshot {
-  const projects = (input.projects ?? []).map(mkProject);
+  const projects = (input.projects ?? []).map((project, index) => {
+    const normalized = mkProject(project, index);
+    if (normalized.commandProfiles || !input.profileIds) return normalized;
+    return {
+      ...normalized,
+      commandProfiles: input.profileIds.map((id) => ({
+        id,
+        label: id,
+        revision: `revision-${id}`,
+        parameters: [],
+      })),
+    };
+  });
   const sessions = (input.sessions ?? []).map(mkSessionInfo);
   const snap: DaemonSnapshot = {
     sessions,
     activeSessionID: input.activeSessionID ?? null,
     projects,
-    commands: input.commands ?? [],
+    serverOutcomes: input.serverOutcomes ?? [],
     pushCommands: input.pushCommands ?? [],
   };
   // activeOccupant is optional on DaemonSnapshot (omit when undefined so

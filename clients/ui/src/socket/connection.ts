@@ -1,3 +1,4 @@
+import { currentServerIdentity } from "../auth";
 import { useDaemonStore } from "../store/daemon";
 import { useFrameMessagingStore } from "../store/frameMessaging";
 import { useNotificationsStore } from "../store/notifications";
@@ -226,10 +227,12 @@ export class Connection {
         if (frame.clientInstanceID) {
           this.terminalSubscriptions.setClientInstanceID(frame.clientInstanceID);
         }
+        frame.sessions = tagSessions(frame.sessions);
         useDaemonStore.getState().seedHello(frame);
         useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
         break;
       case "v":
+        if (frame.sessions !== undefined) frame.sessions = tagSessions(frame.sessions);
         useDaemonStore.getState().applyViewUpdate(frame);
         if (frame.sessions !== undefined) {
           useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
@@ -318,4 +321,13 @@ export class Connection {
 
   // hook for TerminalPane: called on output frames (FR-β07: kHz output, not via store)
   onOutput?: (frame: OutputFrame) => void;
+}
+
+function tagSessions<T extends { serverId?: string; serverLabel?: string }>(sessions: T[]): T[] {
+  const server = currentServerIdentity();
+  return sessions.map((session) => ({
+    ...session,
+    serverId: session.serverId ?? server.id,
+    serverLabel: session.serverLabel ?? server.label,
+  }));
 }

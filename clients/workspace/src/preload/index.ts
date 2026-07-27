@@ -12,6 +12,8 @@ import type { FleetHealth } from "../main/server-health.js";
 export interface HostedModeInfo {
   hosted: boolean;
   sessionId?: string;
+  serverId?: string;
+  serverLabel?: string;
   baseUrl: string;
   token: string;
 }
@@ -33,6 +35,10 @@ export interface WorkspacePreloadApi {
   requestJumpBack(sessionId: string): Promise<void>;
   desktopConfig?: DesktopConfigBridge;
   serverHealth?: { list(): Promise<FleetHealth> };
+  sessionFleet?: {
+    listConfigs(): Promise<unknown>;
+    create(serverId: string, payload: unknown): Promise<unknown>;
+  };
   /**
    * Re-syncs the native chrome (caption-button overlay, title-bar view,
    * popup menus) with the SPA theme. `mode` is the user's choice —
@@ -51,6 +57,7 @@ export function buildPreloadApi(opts: {
   requestJumpBack: (sessionId: string) => Promise<void>;
   desktopConfig?: DesktopConfigBridge;
   serverHealth?: { list(): Promise<FleetHealth> };
+  sessionFleet?: WorkspacePreloadApi["sessionFleet"];
 }): WorkspacePreloadApi {
   return {
     windowControls: opts.windowControls,
@@ -58,6 +65,7 @@ export function buildPreloadApi(opts: {
     requestJumpBack: opts.requestJumpBack,
     desktopConfig: opts.desktopConfig,
     serverHealth: opts.serverHealth,
+    sessionFleet: opts.sessionFleet,
   };
 }
 

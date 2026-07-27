@@ -173,6 +173,8 @@ function WorkspaceSwitcher({ workspaces, selected, onChange }: WorkspaceSwitcher
 interface ProjectGroupProps {
   project: string;
   projectPath: string;
+  serverLabel?: string;
+  foldKey: string;
   sessions: SessionInfo[];
   folded: boolean;
   onToggleFold: (projectPath: string) => void;
@@ -185,6 +187,8 @@ interface ProjectGroupProps {
 function ProjectGroup({
   project,
   projectPath,
+  serverLabel,
+  foldKey,
   sessions,
   folded,
   onToggleFold,
@@ -220,13 +224,15 @@ function ProjectGroup({
         className="session-list__project-header"
         aria-expanded={!folded}
         aria-controls={panelId}
-        onClick={() => onToggleFold(projectPath)}
+        onClick={() => onToggleFold(foldKey)}
         title={projectPath}
       >
         <span className="session-list__project-chevron" aria-hidden="true">
           {folded ? "▶" : "▼"}
         </span>
-        <span className="session-list__project-name">{project}</span>
+        <span className="session-list__project-name">
+          {serverLabel ? `${serverLabel} · ${project}` : project}
+        </span>
         <span className="session-list__project-count" aria-hidden="true">
           {sessions.length}
         </span>
@@ -305,11 +311,13 @@ export function SessionList({ conn: _conn, onRequestTerminate }: SessionListProp
         <div className="session-list__projects">
           {groups.map((g) => (
             <ProjectGroup
-              key={g.projectPath}
+              key={`${g.serverId ?? ""}:${g.projectPath}`}
               project={g.project}
               projectPath={g.projectPath}
+              serverLabel={g.serverLabel}
+              foldKey={`${g.serverId ?? ""}\u0000${g.projectPath}`}
               sessions={g.sessions}
-              folded={foldedProjects.has(g.projectPath)}
+              folded={foldedProjects.has(`${g.serverId ?? ""}\u0000${g.projectPath}`)}
               onToggleFold={toggleProjectFold}
               activeId={activeId}
               daemonDisconnected={daemonDisconnected}

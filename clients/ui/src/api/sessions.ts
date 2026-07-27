@@ -54,8 +54,12 @@ export interface ApiWireFormatError extends Error {
 }
 
 export interface CreateSessionPayload {
+  server_id?: string;
   project: string;
-  command: string;
+  version: 2;
+  profile_id: string;
+  profile_revision: string;
+  parameters?: Record<string, string | number | boolean>;
   // Initial PTY size hint measured from the fitted browser terminal. Both
   // fields are sent together; omission selects the daemon's 80x24 default.
   cols?: number;
@@ -78,6 +82,57 @@ export interface SessionConfigProject {
   path: string;
   isGit: boolean;
   isSandboxed: boolean;
+  serverId?: string;
+  serverLabel?: string;
+  commandProfiles?: LaunchProfile[];
+}
+
+export type LaunchParameter =
+  | {
+      name: string;
+      label: string;
+      type: "enum";
+      required: boolean;
+      default?: string;
+      values: string[];
+    }
+  | {
+      name: string;
+      label: string;
+      type: "boolean";
+      required: boolean;
+      default?: boolean;
+    }
+  | {
+      name: string;
+      label: string;
+      type: "string";
+      required: boolean;
+      default?: string;
+      pattern?: string;
+    }
+  | {
+      name: string;
+      label: string;
+      type: "number";
+      required: boolean;
+      default?: number;
+      min?: number;
+      max?: number;
+    };
+
+export interface LaunchProfile {
+  id: string;
+  label: string;
+  revision: string;
+  parameters: LaunchParameter[];
+}
+
+export interface ServerConfigOutcome {
+  serverId: string;
+  serverLabel: string;
+  state: "connected" | "unavailable";
+  reason?: string;
 }
 
 /**
@@ -91,7 +146,6 @@ export interface SessionConfigProject {
  *   - projects: normalized list of project entries (path + flags). Always
  *     populated, even when the server still returns the legacy `string[]`
  *     shape.
- *   - commands: curated [session].commands list.
  *   - pushCommands: forward-compat (session-config-extension will populate).
  *     Until then, []. (Normalized from the wire's `push_commands` field —
  *     keeping the client interface camelCase matches projectRoots etc.)
@@ -100,7 +154,7 @@ export interface SessionConfig {
   projectRoots: string[];
   projectPaths: string[];
   projects: SessionConfigProject[];
-  commands: string[];
+  serverOutcomes: ServerConfigOutcome[];
   pushCommands: string[];
 }
 
@@ -142,7 +196,7 @@ export interface SessionMessagesResponse {
 }
 
 export interface SessionsApi {
-  createSession(payload: CreateSessionPayload): Promise<{ id: string }>;
+  createSession(payload: CreateSessionPayload): Promise<{ id: string; serverId?: string }>;
   deleteSession(id: string): Promise<void>;
   pushCommand(sessionId: string, command: string): Promise<void>;
   getSessionConfig(): Promise<SessionConfig>;
@@ -404,7 +458,13 @@ function normalizeProjects(raw: unknown): SessionConfigProject[] {
       }
       const isGit = typeof o.isGit === "boolean" ? o.isGit : false;
       const isSandboxed = typeof o.isSandboxed === "boolean" ? o.isSandboxed : false;
-      return { path, isGit, isSandboxed };
+      const commandProfiles = normalizeLaunchProfiles(o.command_profiles);
+      return {
+        path,
+        isGit,
+        isSandboxed,
+        ...(commandProfiles.length > 0 ? { commandProfiles } : {}),
+      };
     }
     // eslint-disable-next-line no-console -- diagnostic
     console.warn(
@@ -412,6 +472,37 @@ function normalizeProjects(raw: unknown): SessionConfigProject[] {
       p,
     );
     return { path: "", isGit: false, isSandboxed: false };
+  });
+}
+
+function normalizeLaunchProfiles(raw: unknown): LaunchProfile[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((value): LaunchProfile[] => {
+    if (!value || typeof value !== "object") return [];
+    const profile = value as Record<string, unknown>;
+    if (
+      typeof profile.id !== "string" ||
+      typeof profile.revision !== "string" ||
+      !Array.isArray(profile.parameters)
+    ) {
+      return [];
+    }
+    const parameters = profile.parameters.filter((parameter): parameter is LaunchParameter =>
+      Boolean(
+        parameter &&
+          typeof parameter === "object" &&
+          typeof (parameter as Record<string, unknown>).name === "string" &&
+          typeof (parameter as Record<string, unknown>).type === "string",
+      ),
+    );
+    return [
+      {
+        id: profile.id,
+        label: typeof profile.label === "string" && profile.label ? profile.label : profile.id,
+        revision: profile.revision,
+        parameters,
+      },
+    ];
   });
 }
 
@@ -440,7 +531,16 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
   const authHeader = makeAuthHeaderFn();
 
   return {
-    async createSession(payload: CreateSessionPayload): Promise<{ id: string }> {
+    async createSession(payload: CreateSessionPayload): Promise<{ id: string; serverId?: string }> {
+      const fleet = window.agentGridWorkspace?.sessionFleet;
+      if (fleet && payload.server_id) {
+        const { server_id: serverId, ...serverPayload } = payload;
+        const body = (await fleet.create(serverId, serverPayload)) as Record<string, unknown>;
+        if (typeof body.id !== "string" || body.id === "") {
+          throw makeWireFormatError("sessionFleet.create", "missing string `id`", body);
+        }
+        return { id: body.id, serverId };
+      }
       const url = resolveApiUrl("/api/sessions");
       const res = await request(f, url, {
         method: "POST",
@@ -494,6 +594,43 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
     },
 
     async getSessionConfig(): Promise<SessionConfig> {
+      const fleet = window.agentGridWorkspace?.sessionFleet;
+      if (fleet) {
+        const outcomes = (await fleet.listConfigs()) as Array<Record<string, unknown>>;
+        const projects: SessionConfigProject[] = [];
+        const serverOutcomes: ServerConfigOutcome[] = [];
+        const pushCommands = new Set<string>();
+        for (const outcome of outcomes) {
+          const state = outcome.state === "connected" ? "connected" : "unavailable";
+          serverOutcomes.push({
+            serverId: String(outcome.serverId ?? ""),
+            serverLabel: String(outcome.serverLabel ?? outcome.serverId ?? ""),
+            state,
+            ...(typeof outcome.reason === "string" ? { reason: outcome.reason } : {}),
+          });
+          if (state !== "connected" || !outcome.config || typeof outcome.config !== "object") {
+            continue;
+          }
+          const rawConfig = outcome.config as Record<string, unknown>;
+          for (const project of normalizeProjects(rawConfig.projects)) {
+            projects.push({
+              ...project,
+              serverId: String(outcome.serverId ?? ""),
+              serverLabel: String(outcome.serverLabel ?? outcome.serverId ?? ""),
+            });
+          }
+          for (const command of normalizeStringList(rawConfig.push_commands, "push_commands")) {
+            pushCommands.add(command);
+          }
+        }
+        return {
+          projectRoots: [],
+          projectPaths: [],
+          projects,
+          serverOutcomes,
+          pushCommands: [...pushCommands],
+        };
+      }
       const url = resolveApiUrl("/api/session-config");
       const res = await requestWithRetry(f, url, {
         method: "GET",
@@ -510,14 +647,13 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
       // gateway bug that drops a field leaves a breadcrumb in the dev console.
       const projectRoots = normalizeStringList(raw.project_roots, "project_roots");
       const projectPaths = normalizeStringList(raw.project_paths, "project_paths");
-      const commands = normalizeStringList(raw.commands, "commands");
       const pushCommands = normalizeStringList(raw.push_commands, "push_commands");
       const projects = normalizeProjects(raw.projects);
       return {
         projectRoots,
         projectPaths,
         projects,
-        commands,
+        serverOutcomes: [],
         pushCommands,
       };
     },

@@ -88,7 +88,7 @@ func TestMux_CreateTimesOutAs504(t *testing.T) {
 	}()
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
-		strings.NewReader(`{"project":"/p","command":"sh"}`))
+		strings.NewReader(defaultCreateBody(t, "/p", nil)))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

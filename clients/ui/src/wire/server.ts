@@ -86,6 +86,8 @@ export type FrameInfo = {
 // SessionInfo mirrors proto.SessionInfo — Go JSON tags used as-is (snake_case).
 export type SessionInfo = {
   id: string;
+  serverId?: string;
+  serverLabel?: string;
   project: string;
   workspace?: string;
   command: string;

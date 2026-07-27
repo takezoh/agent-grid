@@ -51,9 +51,87 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (window.agentGridWorkspace) window.agentGridWorkspace.sessionFleet = undefined;
   window.location.hash = originalHash;
   vi.restoreAllMocks();
   vi.useRealTimers();
+});
+
+describe("hosted session fleet", () => {
+  it("aggregates server-qualified projects and preserves partial failures", async () => {
+    window.agentGridWorkspace = {
+      ...(window.agentGridWorkspace ?? {}),
+      sessionFleet: {
+        listConfigs: vi.fn().mockResolvedValue([
+          {
+            serverId: "one",
+            serverLabel: "One",
+            state: "connected",
+            config: {
+              commands: ["shell"],
+              projects: [
+                {
+                  path: "/repo",
+                  isGit: true,
+                  command_profiles: [
+                    {
+                      id: "sol",
+                      label: "Sol",
+                      revision: "rev-1",
+                      parameters: [
+                        {
+                          name: "effort",
+                          label: "Effort",
+                          type: "enum",
+                          required: true,
+                          values: ["low", "high"],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          { serverId: "two", serverLabel: "Two", state: "unavailable", reason: "offline" },
+        ]),
+        create: vi.fn(),
+      },
+    };
+    const cfg = await makeSessionsApi(vi.fn()).getSessionConfig();
+    expect(cfg.projects).toEqual([
+      expect.objectContaining({
+        path: "/repo",
+        serverId: "one",
+        serverLabel: "One",
+        commandProfiles: [expect.objectContaining({ id: "sol", revision: "rev-1" })],
+      }),
+    ]);
+  });
+
+  it("routes create through the selected server without exposing credentials", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "created" });
+    window.agentGridWorkspace = {
+      ...(window.agentGridWorkspace ?? {}),
+      sessionFleet: { listConfigs: vi.fn(), create },
+    };
+    const result = await makeSessionsApi(vi.fn()).createSession({
+      server_id: "two",
+      project: "/repo",
+      version: 2,
+      profile_id: "sol",
+      profile_revision: "rev",
+      parameters: { effort: "high" },
+    });
+    expect(result).toEqual({ id: "created", serverId: "two" });
+    expect(create).toHaveBeenCalledWith("two", {
+      project: "/repo",
+      version: 2,
+      profile_id: "sol",
+      profile_revision: "rev",
+      parameters: { effort: "high" },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -549,7 +627,6 @@ describe("getSessionConfig", () => {
 
     const cfg = await api.getSessionConfig();
 
-    expect(cfg.commands).toEqual(["claude", "codex"]);
     expect(cfg.projects).toEqual([
       { path: "/home/me/repo", isGit: false, isSandboxed: false },
       { path: "/home/me/other", isGit: false, isSandboxed: false },
@@ -637,7 +714,6 @@ describe("getSessionConfig", () => {
 
     const cfg = await promise;
     expect(fetchFn).toHaveBeenCalledTimes(2);
-    expect(cfg.commands).toEqual(["claude"]);
     expect(cfg.projects).toEqual([{ path: "/p", isGit: false, isSandboxed: false }]);
   });
 
@@ -664,7 +740,6 @@ describe("getSessionConfig", () => {
 
     const cfg = await promise;
     expect(fetchFn).toHaveBeenCalledTimes(2);
-    expect(cfg.commands).toEqual(["claude"]);
   });
 
   it("TestGetSessionConfig_5xxEventuallyThrowsAfterRetryBudget", async () => {

@@ -21,6 +21,7 @@
 //     materializeKey → ParamOption[]; store / wire stay daemon-free)
 
 import { useEffect, useMemo, useRef } from "react";
+import type { LaunchParameter } from "../../api/sessions";
 import { useChipHotkey } from "../../hooks/useChipHotkey";
 import {
   type DaemonSnapshot,
@@ -29,7 +30,9 @@ import {
   type ToolCtx,
   type ToolDef,
   commandOptions,
+  findProject,
   listTools,
+  profileParameterID,
   projectOptions,
 } from "../../lib/tools";
 import { usePaletteStore } from "../../store/palette";
@@ -67,6 +70,7 @@ export interface ParamSelectPhaseProps {
 export function materializeOptions(
   param: ParamDef,
   snapshot: DaemonSnapshot,
+  projectPath?: string | null,
 ): ParamOption[] | null {
   switch (param.kind) {
     case "text":
@@ -78,7 +82,7 @@ export function materializeOptions(
         case "projects":
           return projectOptions(snapshot);
         case "commands":
-          return commandOptions(snapshot);
+          return commandOptions(snapshot, projectPath);
         default: {
           const _exhaustive: never = param.materializeKey;
           return _exhaustive;
@@ -128,6 +132,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
 
   // Ref to the command text input for focus fallback (FR-022).
   const commandInputRef = useRef<HTMLInputElement>(null);
+  const projectInputRef = useRef<HTMLInputElement>(null);
   // Ref to the explicit confirm button — the final field advances focus
   // here instead of submitting (selection is never the commit).
   const submitRef = useRef<HTMLButtonElement>(null);
@@ -146,7 +151,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
 
   // params is stable across re-renders of the same tool so downstream
   // useMemo / useEffect deps don't churn on identity.
-  const params = useMemo<ParamDef[]>(() => tool?.params ?? [], [tool]);
+  const baseParams = useMemo<ParamDef[]>(() => tool?.params ?? [], [tool]);
 
   // Derive the selected project's capabilities to drive chip visibility.
   // FR-015 / FR-016: chips are only shown when the command field is rendered
@@ -156,10 +161,30 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   const selectedProject = useMemo(
     () =>
       selectedProjectPath !== null
-        ? (snapshot.projects.find((p) => p.path === selectedProjectPath) ?? null)
+        ? (findProject(snapshot.projects, selectedProjectPath) ?? null)
         : null,
     [selectedProjectPath, snapshot.projects],
   );
+  const selectedCommand = typeof paramValues.command === "string" ? paramValues.command : null;
+  const selectedProfile = useMemo(
+    () =>
+      selectedProject?.commandProfiles?.find((profile) => profile.id === selectedCommand) ?? null,
+    [selectedCommand, selectedProject],
+  );
+  const profileParams = useMemo(
+    () => selectedProfile?.parameters.map(parameterParamDef) ?? [],
+    [selectedProfile],
+  );
+  const params = useMemo(() => [...baseParams, ...profileParams], [baseParams, profileParams]);
+
+  useEffect(() => {
+    if (!selectedProfile) return;
+    for (const parameter of selectedProfile.parameters) {
+      if (parameter.default === undefined) continue;
+      const id = profileParameterID(parameter.name);
+      if (paramValues[id] === undefined) setParam(id, parameter.default);
+    }
+  }, [paramValues, selectedProfile, setParam]);
 
   // Today's tools declare at most 2 params (new-session: project +
   // command). To keep useDynamicParamPreset's hook ordering stable
@@ -169,11 +194,21 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   // would warrant promoting this to an array-driven custom hook.
   const slot0 = params[0] ?? sentinelParam;
   const slot1 = params[1] ?? sentinelParam;
-  const options0 = useMemo(() => materializeOptions(slot0, snapshot), [slot0, snapshot]);
-  const options1 = useMemo(() => materializeOptions(slot1, snapshot), [slot1, snapshot]);
+  const options0 = useMemo(
+    () => materializeOptions(slot0, snapshot, selectedProjectPath),
+    [slot0, snapshot, selectedProjectPath],
+  );
+  const options1 = useMemo(
+    () => materializeOptions(slot1, snapshot, selectedProjectPath),
+    [slot1, snapshot, selectedProjectPath],
+  );
   useDynamicParamPreset(slot0, options0, paramValues[slot0.id], setParam);
   useDynamicParamPreset(slot1, options1, paramValues[slot1.id], setParam);
-  const materialized: Array<ParamOption[] | null> = [options0, options1];
+  const materialized: Array<ParamOption[] | null> = params.map((param, index) => {
+    if (index === 0) return options0;
+    if (index === 1) return options1;
+    return materializeOptions(param, snapshot, selectedProjectPath);
+  });
 
   // FR-015 / FR-016: chip visibility is derived from the selected project's
   // capabilities. hasCommandField is true when the 'command' param is in the
@@ -218,7 +253,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   useEffect(() => {
     if (!focusWasOnChipRef.current) return;
     focusWasOnChipRef.current = false;
-    commandInputRef.current?.focus();
+    (commandInputRef.current ?? projectInputRef.current)?.focus();
   }, [showHostToggle]);
 
   if (tool === null) {
@@ -266,6 +301,17 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
         void submit(ctx);
       }}
     >
+      {snapshot.serverOutcomes
+        .filter((outcome) => outcome.state === "unavailable")
+        .map((outcome) => (
+          <output
+            key={outcome.serverId}
+            className="palette-server-outcome palette-server-outcome--unavailable"
+          >
+            <strong>{outcome.serverLabel}</strong>
+            <span>Unavailable{outcome.reason ? ` — ${outcome.reason}` : ""}</span>
+          </output>
+        ))}
       {params.slice(0, stopIdx).map((param, idx) => {
         const isCurrent = idx === paramCursor;
         const value = paramValues[param.id];
@@ -295,6 +341,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
         }
 
         const isCommand = param.id === "command";
+        const isProject = param.id === "project";
         const chips = null;
 
         if (options !== null) {
@@ -313,7 +360,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
                 onEnter={advanceOrSubmit}
                 onCompositionStart={() => setComposing(true)}
                 onCompositionEnd={() => setComposing(false)}
-                inputRef={isCommand ? commandInputRef : undefined}
+                inputRef={isCommand ? commandInputRef : isProject ? projectInputRef : undefined}
               />
               {chips}
             </div>
@@ -376,4 +423,35 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
       </div>
     </form>
   );
+}
+
+function parameterParamDef(parameter: LaunchParameter): ParamDef {
+  const id = profileParameterID(parameter.name);
+  if (parameter.type === "enum") {
+    return {
+      id,
+      kind: "static-options",
+      label: parameter.label || parameter.name,
+      options: parameter.values.map((value) => ({ value, label: value })),
+      required: parameter.required,
+    };
+  }
+  if (parameter.type === "boolean") {
+    return {
+      id,
+      kind: "static-options",
+      label: parameter.label || parameter.name,
+      options: [
+        { value: "true", label: "On" },
+        { value: "false", label: "Off" },
+      ],
+      required: parameter.required,
+    };
+  }
+  return {
+    id,
+    kind: "text",
+    label: parameter.label || parameter.name,
+    required: parameter.required,
+  };
 }

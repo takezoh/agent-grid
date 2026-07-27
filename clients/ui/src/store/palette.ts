@@ -149,7 +149,7 @@ export const usePaletteStore = create<
         sessions: [],
         activeSessionID: null,
         projects: [],
-        commands: [],
+        serverOutcomes: [],
         pushCommands: [],
       };
       const tool = listTools(snap, snap.pushCommands).find((t) => t.id === opts.preselectToolId);

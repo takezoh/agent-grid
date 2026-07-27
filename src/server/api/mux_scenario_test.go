@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"github.com/takezoh/agent-grid/host/config"
 )
 
 var (
@@ -82,6 +84,17 @@ func startScenarioServer(t *testing.T, fakeBinDir string) daemonInstance {
 	return startServerDaemonWithOptions(t, daemonLaunchOptions{
 		addr:     reserveLoopbackAddr(t),
 		extraEnv: []string{"PATH=" + pathEnv},
+		settingsTOML: `
+[[session.command_profiles]]
+id = "claude"
+label = "claude"
+executable = "claude"
+
+[[session.command_profiles]]
+id = "codex"
+label = "codex"
+executable = "codex"
+`,
 	})
 }
 
@@ -108,7 +121,51 @@ func dialGatewayWS(t *testing.T, daemon daemonInstance, sessionID string) *webso
 
 func createSessionViaAPI(t *testing.T, daemon daemonInstance, project, command string) string {
 	t.Helper()
-	body := `{"project":"` + project + `","command":"` + command + `"}`
+	configReq, err := http.NewRequest(http.MethodGet, daemon.httpURL+"/api/session-config", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configResp, err := http.DefaultClient.Do(configReq)
+	if err != nil {
+		t.Fatalf("get session config: %v", err)
+	}
+	defer configResp.Body.Close()
+	var catalog struct {
+		Projects []struct {
+			Path     string                          `json:"path"`
+			Profiles []config.ResolvedCommandProfile `json:"command_profiles"`
+		} `json:"projects"`
+	}
+	if err := json.NewDecoder(configResp.Body).Decode(&catalog); err != nil {
+		t.Fatalf("decode session config: %v", err)
+	}
+	var revision string
+	for _, entry := range catalog.Projects {
+		if entry.Path != project {
+			continue
+		}
+		for _, profile := range entry.Profiles {
+			if profile.ID == command {
+				revision = profile.Revision
+			}
+		}
+	}
+	if revision == "" {
+		// Scenario projects are temporary and need not be listed in project
+		// config; profile revision is independent of project applicability.
+		session := config.SessionConfig{CommandProfiles: []config.CommandProfileConfig{{
+			ID: command, Label: command, Executable: command,
+		}}}
+		revision = session.ProfilesForProject(project)[0].Revision
+	}
+	bodyBytes, err := json.Marshal(map[string]any{
+		"version": 2, "project": project, "profile_id": command,
+		"profile_revision": revision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(bodyBytes)
 	req, err := http.NewRequest(http.MethodPost, daemon.httpURL+"/api/sessions", bytes.NewBufferString(body))
 	if err != nil {
 		t.Fatalf("new request: %v", err)

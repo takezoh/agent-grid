@@ -643,8 +643,22 @@ describe("CommandPalette", () => {
         ],
         activeSessionID: null,
         sessionConfig: {
-          projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
-          commands: [],
+          projects: [
+            {
+              path: "/home/foo/bar",
+              isGit: false,
+              isSandboxed: false,
+              commandProfiles: [
+                {
+                  id: "claude",
+                  label: "claude",
+                  revision: "revision-claude",
+                  parameters: [],
+                },
+              ],
+            },
+          ],
+          serverOutcomes: [],
           pushCommands: [],
         },
       });
@@ -866,8 +880,22 @@ describe("CommandPalette", () => {
         ],
         activeSessionID: "session-xyz",
         sessionConfig: {
-          projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
-          commands: [],
+          projects: [
+            {
+              path: "/home/foo/bar",
+              isGit: false,
+              isSandboxed: false,
+              commandProfiles: [
+                {
+                  id: "claude",
+                  label: "claude",
+                  revision: "revision-claude",
+                  parameters: [],
+                },
+              ],
+            },
+          ],
+          serverOutcomes: [],
           pushCommands: [],
         },
       });
@@ -993,8 +1021,22 @@ describe("CommandPalette", () => {
         daemon: {
           sessions: [],
           activeSessionID: null,
-          projects: [],
-          commands: [],
+          projects: [
+            {
+              path: "/home/foo/bar",
+              isGit: false,
+              isSandboxed: false,
+              commandProfiles: [
+                {
+                  id: "claude",
+                  label: "claude",
+                  revision: "revision-claude",
+                  parameters: [],
+                },
+              ],
+            },
+          ],
+          serverOutcomes: [],
           pushCommands: [],
         },
         daemonActions: { selectSession: vi.fn() },
@@ -1026,6 +1068,27 @@ describe("CommandPalette", () => {
   it("FR-PALETTE-FAIL-001: daemon http 4xx → palette open + freeze released + inline error once (M3)", async () => {
     // Seed the store with a tool selected so submit can resolve it.
     act(() => {
+      useDaemonStore.setState({
+        sessionConfig: {
+          projects: [
+            {
+              path: "/repo",
+              isGit: false,
+              isSandboxed: false,
+              commandProfiles: [
+                {
+                  id: "claude",
+                  label: "claude",
+                  revision: "revision-claude",
+                  parameters: [],
+                },
+              ],
+            },
+          ],
+          serverOutcomes: [],
+          pushCommands: [],
+        },
+      });
       usePaletteStore.setState({
         open: true,
         phase: "paramSelect",
@@ -1048,7 +1111,7 @@ describe("CommandPalette", () => {
         projectRoots: [],
         projectPaths: [],
         projects: [],
-        commands: [],
+        serverOutcomes: [],
         pushCommands: [],
       }),
     };

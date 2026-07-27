@@ -85,7 +85,7 @@ public sealed class SessionChipVm
         return new SessionChipVm
         {
             Session = session,
-            Label = PanelPresentation.SessionLabel(session),
+            Label = PanelPresentation.SessionQualifiedLabel(session),
             PhaseLabel = PanelPresentation.SessionStatusLabel(session) +
                 (session.Bell ? "; Notification" : ""),
             PhaseBrush = PanelBrushes.ForToken(PanelPresentation.SessionStatusAccent(session)),

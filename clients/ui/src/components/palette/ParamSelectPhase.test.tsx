@@ -35,7 +35,7 @@ function makeFakeHttp(overrides: Partial<SessionsApi> = {}): SessionsApi {
       projectRoots: [],
       projectPaths: [],
       projects: [],
-      commands: [],
+      serverOutcomes: [],
       pushCommands: [],
     }),
     ...overrides,
@@ -76,7 +76,10 @@ function makeFakeDaemonActions(): ToolDaemonActions {
 function makeCtx(overrides: Partial<ToolCtx> = {}): ToolCtx {
   return {
     http: makeFakeHttp(),
-    daemon: mkSnapshot(),
+    daemon: mkSnapshot({
+      projects: [{ path: "/repo/a" }],
+      profileIds: ["claude", "echo hi"],
+    }),
     daemonActions: makeFakeDaemonActions(),
     notify: makeFakeNotify(),
     store: makeFakeStoreActions(),
@@ -97,7 +100,7 @@ function setDaemonSnapshot(snap: DaemonSnapshot): void {
     activeOccupant: snap.activeOccupant,
     sessionConfig: {
       projects: snap.projects,
-      commands: snap.commands,
+      serverOutcomes: snap.serverOutcomes,
       pushCommands: snap.pushCommands,
     },
   });
@@ -208,8 +211,75 @@ describe("materializeOptions", () => {
 // ---------------------------------------------------------------------------
 
 describe("ParamSelectPhase", () => {
+  it("keeps an unavailable server visible with its reason", () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [{ path: "/repo/a", serverId: "healthy", serverLabel: "Healthy" }],
+        profileIds: ["claude"],
+        serverOutcomes: [
+          {
+            serverId: "offline",
+            serverLabel: "Build Server",
+            state: "unavailable",
+            reason: "connection refused",
+          },
+        ],
+      }),
+    );
+    seedPalette("new-session");
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    expect(screen.getByText("Build Server")).toBeTruthy();
+    expect(screen.getByText("Unavailable — connection refused")).toBeTruthy();
+  });
+
   beforeEach(() => {
     resetStores();
+  });
+
+  it("renders an arbitrary profile parameter form after project and command selection", async () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [
+          {
+            path: "/repo/a",
+            commandProfiles: [
+              {
+                id: "sol",
+                label: "Sol",
+                revision: "rev",
+                parameters: [
+                  {
+                    name: "effort",
+                    label: "Effort",
+                    type: "enum",
+                    required: true,
+                    default: "low",
+                    values: ["low", "high"],
+                  },
+                  {
+                    name: "note",
+                    label: "Note",
+                    type: "string",
+                    required: false,
+                    default: "hello",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    seedPalette("new-session", { project: "/repo/a", command: "sol" }, 1);
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+    expect(screen.getAllByLabelText("Effort").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Note").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(usePaletteStore.getState().paramValues["profile:effort"]).toBe("low");
+      expect(usePaletteStore.getState().paramValues["profile:note"]).toBe("hello");
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -226,7 +296,7 @@ describe("ParamSelectPhase", () => {
           { path: "/repo/a", isGit: true },
           { path: "/repo/b", isSandboxed: true },
         ],
-        commands: ["claude", "codex"],
+        profileIds: ["claude", "codex"],
       }),
     );
     seedPalette("new-session");
@@ -457,7 +527,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/alpha" }, { path: "/repo/beta" }, { path: "/work/gamma" }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session");
@@ -477,7 +547,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }, { path: "/repo/b" }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session");
@@ -497,7 +567,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }, { path: "/repo/b" }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 0);
@@ -526,7 +596,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }, { path: "/repo/b" }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", {}, 0);
@@ -553,7 +623,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 0);
@@ -570,7 +640,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
-        commands: ["echo hi"],
+        profileIds: ["echo hi"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a", command: "echo hi" }, 1);
@@ -592,7 +662,10 @@ describe("ParamSelectPhase", () => {
     expect(createSession).toHaveBeenCalledTimes(1);
     expect(createSession.mock.calls[0]?.[0]).toEqual({
       project: "/repo/a",
-      command: "echo hi",
+      version: 2,
+      profile_id: "echo hi",
+      profile_revision: "revision-echo hi",
+      parameters: {},
     });
   });
 
@@ -606,7 +679,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
-        commands: ["x"],
+        profileIds: ["x"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a", command: "x" }, 1);
@@ -628,7 +701,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
-        commands: ["x"],
+        profileIds: ["x"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a", command: "x" }, 1);
@@ -696,7 +769,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -719,7 +792,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -737,7 +810,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/plain", isGit: false, isSandboxed: false }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/plain" }, 1);
@@ -753,7 +826,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/git", isGit: true, isSandboxed: false }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/git" }, 1);
@@ -773,7 +846,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: false, isSandboxed: true }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -799,7 +872,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: false, isSandboxed: true }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -823,7 +896,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: false, isSandboxed: true }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -844,7 +917,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a", isGit: false, isSandboxed: true }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a" }, 1);
@@ -875,7 +948,7 @@ describe("ParamSelectPhase", () => {
           { path: "/repo/sandbox", isGit: false, isSandboxed: true },
           { path: "/repo/plain", isGit: false, isSandboxed: false },
         ],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/sandbox" }, 1);
@@ -901,7 +974,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/sandbox", isGit: false, isSandboxed: true }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/sandbox" }, 1);
@@ -917,7 +990,7 @@ describe("ParamSelectPhase", () => {
       usePaletteStore.getState().setParam("project", null);
     });
 
-    expect(document.activeElement).toBe(commandInput());
+    expect(document.activeElement).toBe(document.getElementById("palette-param-project-input"));
   });
 
   // -------------------------------------------------------------------------
@@ -929,7 +1002,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/sandbox", isGit: false, isSandboxed: true }],
-        commands: ["claude"],
+        profileIds: ["claude"],
       }),
     );
     seedPalette("new-session", { project: "/repo/sandbox" }, 1);
@@ -951,7 +1024,7 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/a" }],
-        commands: ["echo hi"],
+        profileIds: ["echo hi"],
       }),
     );
     seedPalette("new-session", { project: "/repo/a", command: "echo hi" }, 1);

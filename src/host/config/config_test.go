@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	platformconfig "github.com/takezoh/agent-grid/platform/config"
@@ -13,11 +14,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Monitor.PollIntervalMs != 1000 {
 		t.Errorf("PollIntervalMs = %d, want 1000", cfg.Monitor.PollIntervalMs)
 	}
-	if cfg.Session.DefaultCommand != "shell" {
-		t.Errorf("DefaultCommand = %q, want %q", cfg.Session.DefaultCommand, "shell")
-	}
-	if len(cfg.Session.Commands) != 1 || cfg.Session.Commands[0] != "shell" {
-		t.Errorf("Commands = %v, want [shell]", cfg.Session.Commands)
+	if len(cfg.Session.CommandProfiles) != 1 ||
+		cfg.Session.CommandProfiles[0].ID != "shell" {
+		t.Errorf("CommandProfiles = %v, want default shell profile", cfg.Session.CommandProfiles)
 	}
 	if cfg.Log.Level != "info" {
 		t.Errorf("Log.Level = %q, want %q", cfg.Log.Level, "info")
@@ -65,6 +64,59 @@ push_commands = ["shell", "claude"]
 	}
 	if cfg.Session.PushCommands[0] != "shell" || cfg.Session.PushCommands[1] != "claude" {
 		t.Errorf("PushCommands = %v, want [shell, claude]", cfg.Session.PushCommands)
+	}
+}
+
+func TestLoadFrom_CommandProfiles(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.toml")
+	err := os.WriteFile(path, []byte(`
+[[session.command_profiles]]
+id = "sol"
+label = "Codex Sol"
+executable = "codex"
+argv = ["--model", "{{model}}", "-c", "model_reasoning_effort=\"{{effort}}\""]
+projects = ["/repo/a"]
+
+[[session.command_profiles.parameters]]
+name = "model"
+label = "Model"
+type = "enum"
+default = "gpt-5.6-sol"
+values = ["gpt-5.6-sol", "gpt-5.6-terra"]
+
+[[session.command_profiles.parameters]]
+name = "effort"
+label = "Effort"
+type = "enum"
+default = "low"
+values = ["low", "medium", "high"]
+`), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFrom(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := cfg.Session.ProfilesForProject("/repo/a")
+	if len(profiles) != 1 || profiles[0].ID != "sol" {
+		t.Fatalf("profiles = %#v", profiles)
+	}
+	argv, err := cfg.Session.MaterializeProfile(
+		"/repo/a", "sol", profiles[0].Revision,
+		map[string]any{"model": "gpt-5.6-terra", "effort": "high"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"codex", "--model", "gpt-5.6-terra", "-c",
+		`model_reasoning_effort="high"`,
+	}
+	if !reflect.DeepEqual(argv, want) {
+		t.Fatalf("argv = %v, want %v", argv, want)
 	}
 }
 
@@ -195,8 +247,8 @@ func TestLoadFrom_Missing(t *testing.T) {
 	if cfg.Monitor.PollIntervalMs != 1000 {
 		t.Fatalf("expected defaults, got PollIntervalMs=%d", cfg.Monitor.PollIntervalMs)
 	}
-	if cfg.Session.DefaultCommand != "shell" {
-		t.Fatalf("expected defaults, got DefaultCommand=%s", cfg.Session.DefaultCommand)
+	if len(cfg.Session.CommandProfiles) != 1 {
+		t.Fatalf("expected default command profile, got %v", cfg.Session.CommandProfiles)
 	}
 }
 
@@ -214,8 +266,9 @@ poll_interval_ms = 5000
 	if cfg.Monitor.PollIntervalMs != 5000 {
 		t.Fatalf("expected 5000, got %d", cfg.Monitor.PollIntervalMs)
 	}
-	if cfg.Session.DefaultCommand != "shell" {
-		t.Fatalf("expected default 'shell', got %s", cfg.Session.DefaultCommand)
+	if len(cfg.Session.CommandProfiles) != 1 ||
+		cfg.Session.CommandProfiles[0].ID != "shell" {
+		t.Fatalf("expected default shell profile, got %v", cfg.Session.CommandProfiles)
 	}
 }
 

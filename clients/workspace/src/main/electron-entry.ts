@@ -81,6 +81,75 @@ ipcMain.handle("agent-grid:server-health-list", () => {
   return serverHealth.list();
 });
 
+ipcMain.handle("agent-grid:session-fleet-configs", async () => {
+  if (!desktopConfig) throw new Error("desktop config is not ready");
+  return Promise.all(
+    desktopConfig.servers
+      .filter((server) => server.enabled)
+      .map(async (server) => {
+        try {
+          const response = await fleetFetch(server, "/api/session-config", { method: "GET" });
+          return {
+            serverId: server.id,
+            serverLabel: server.display_name,
+            state: "connected",
+            config: await response.json(),
+          };
+        } catch (error) {
+          return {
+            serverId: server.id,
+            serverLabel: server.display_name,
+            state: "unavailable",
+            reason: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }),
+  );
+});
+
+ipcMain.handle(
+  "agent-grid:session-fleet-create",
+  async (_event, serverId: string, payload: unknown) => {
+    if (!desktopConfig) throw new Error("desktop config is not ready");
+    const server = desktopConfig.servers.find(
+      (candidate) => candidate.enabled && candidate.id === serverId,
+    );
+    if (!server) throw new Error(`unknown or disabled server '${serverId}'`);
+    const response = await fleetFetch(server, "/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return response.json();
+  },
+);
+
+async function fleetFetch(
+  server: import("./desktop-config.js").ServerConfig,
+  pathname: string,
+  init: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const headers = new Headers(init.headers);
+    if (server.auth.mode === "bearer") headers.set("Authorization", `Bearer ${server.auth.token}`);
+    const response = await fetch(new URL(pathname, `${server.url.replace(/\/+$/, "")}/`), {
+      ...init,
+      headers,
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (response.status >= 300 && response.status < 400) {
+      throw new Error(`redirect rejected (${response.status})`);
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Window chrome (VSCode-style title bar) ─────────────────────────────────
 // The factory registers each window's {BaseWindow, title-bar wc, content wc}
 // so this entry can answer title-bar IPC with native popup menus and repaint

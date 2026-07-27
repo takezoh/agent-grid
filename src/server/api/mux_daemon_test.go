@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -37,6 +38,25 @@ type fakeDaemon struct {
 	writer *bufio.Writer
 	conn   net.Conn
 	mu     sync.Mutex
+}
+
+func defaultCreateBody(t *testing.T, project string, extra map[string]any) string {
+	t.Helper()
+	profile := config.DefaultConfig().Session.ProfilesForProject(project)[0]
+	body := map[string]any{
+		"version":          2,
+		"project":          project,
+		"profile_id":       profile.ID,
+		"profile_revision": profile.Revision,
+	}
+	for key, value := range extra {
+		body[key] = value
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded)
 }
 
 // newDaemonPair creates a connected (DaemonClient, fakeDaemon) pair using
@@ -308,7 +328,7 @@ func TestMux_CreateForwardsCmdEvent(t *testing.T) {
 	}()
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
-		strings.NewReader(`{"project":"/p","command":"sh","cols":120,"rows":40}`))
+		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"cols": 120, "rows": 40})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -322,8 +342,8 @@ func TestMux_CreateForwardsCmdEvent(t *testing.T) {
 	if params.Project != "/p" {
 		t.Errorf("Project = %q, want /p", params.Project)
 	}
-	if params.Command != "sh" {
-		t.Errorf("Command = %q, want sh", params.Command)
+	if params.Command != "shell" {
+		t.Errorf("Command = %q, want shell", params.Command)
 	}
 	if params.Options.Cols != 120 {
 		t.Errorf("Cols = %d, want 120", params.Options.Cols)
@@ -341,6 +361,69 @@ func TestMux_CreateForwardsCmdEvent(t *testing.T) {
 	}
 }
 
+func TestMux_CreateV2MaterializesValidatedProfile(t *testing.T) {
+	d, daemon := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+	cfg := config.DefaultConfig()
+	cfg.Session.CommandProfiles = []config.CommandProfileConfig{{
+		ID: "sol", Executable: "codex", Argv: []string{"--model", "{{model}}"},
+		Parameters: []config.CommandParameterConfig{{
+			Name: "model", Type: config.ParameterEnum, Values: []string{"gpt sol", "terra"},
+		}},
+	}}
+	profile := cfg.Session.ProfilesForProject("/p")[0]
+	restore := withSessionConfigLoader(func() (*config.Config, error) { return cfg, nil })
+	defer restore()
+
+	done := make(chan state.CreateSessionParams, 1)
+	go func() {
+		env := daemon.recv()
+		var cmd struct {
+			Payload json.RawMessage `json:"payload"`
+		}
+		_ = json.Unmarshal(env.Data, &cmd)
+		var params state.CreateSessionParams
+		_ = json.Unmarshal(cmd.Payload, &params)
+		done <- params
+		daemon.sendResp(env.ReqID, proto.RespCreateSession{SessionID: "v2"})
+	}()
+
+	body := fmt.Sprintf(
+		`{"version":2,"project":"/p","profile_id":"sol","profile_revision":%q,"parameters":{"model":"gpt sol"}}`,
+		profile.Revision,
+	)
+	r := httptest.NewRequest(http.MethodPost, "/api/sessions", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
+	}
+	if got := (<-done).Command; got != "codex --model 'gpt sol'" {
+		t.Fatalf("materialized command = %q", got)
+	}
+}
+
+func TestMux_CreateV2RejectsStaleRevisionWithoutDaemonRPC(t *testing.T) {
+	d, _ := newDaemonPair(t)
+	mux := NewMux(d, "tok")
+	cfg := config.DefaultConfig()
+	cfg.Session.CommandProfiles = []config.CommandProfileConfig{{
+		ID: "sol", Executable: "codex",
+	}}
+	restore := withSessionConfigLoader(func() (*config.Config, error) { return cfg, nil })
+	defer restore()
+	r := httptest.NewRequest(http.MethodPost, "/api/sessions", strings.NewReader(
+		`{"version":2,"project":"/p","profile_id":"sol","profile_revision":"old"}`,
+	))
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 (body %s)", w.Code, w.Body.String())
+	}
+}
+
 // TestApiCreateSessionInvalidCols verifies oversized cols are rejected at the
 // gateway with the spec JSON body before any daemon RPC is sent.
 func TestApiCreateSessionInvalidCols(t *testing.T) {
@@ -349,7 +432,7 @@ func TestApiCreateSessionInvalidCols(t *testing.T) {
 	mux := NewMux(d, "tok")
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
-		strings.NewReader(`{"project":"/p","command":"sh","cols":99999,"rows":47}`))
+		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"cols": 99999, "rows": 47})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -381,7 +464,7 @@ func TestApiCreateSessionInvalidAsymmetricCols(t *testing.T) {
 	mux := NewMux(d, "tok")
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
-		strings.NewReader(`{"project":"/p","command":"sh","cols":120,"rows":0}`))
+		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"cols": 120, "rows": 0})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -441,7 +524,8 @@ func TestMux_CreateForwardsWorktreeAndSandbox(t *testing.T) {
 	}()
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
-		strings.NewReader(`{"project":"/p","command":"sh","worktree":true,"sandbox":"host"}`))
+		strings.NewReader(defaultCreateBody(t, "/p",
+			map[string]any{"worktree": true, "sandbox": "host"})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -489,7 +573,7 @@ func TestMux_CreateDefaultsWorktreeAndSandbox(t *testing.T) {
 	}()
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
-		strings.NewReader(`{"project":"/p","command":"sh"}`))
+		strings.NewReader(defaultCreateBody(t, "/p", nil)))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -517,7 +601,7 @@ func TestMux_CreateRejectsUnknownSandbox(t *testing.T) {
 	mux := NewMux(d, "tok")
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
-		strings.NewReader(`{"project":"/p","command":"sh","sandbox":"docker"}`))
+		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"sandbox": "docker"})))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -895,7 +979,7 @@ func TestMux_DeleteMapsErrorToHTTPCode(t *testing.T) {
 // --- session config ---
 
 // TestMux_SessionConfigSurfacesConfigFields verifies that GET /api/session-config
-// surfaces default_command / commands / projects sourced from settings.toml.
+// surfaces typed command profiles / projects sourced from settings.toml.
 // The loader is stubbed so the test doesn't depend on the developer's
 // ~/.agent-grid/settings.toml.
 // Not t.Parallel(): handleSessionConfig swaps a package-level loader via
@@ -911,8 +995,9 @@ func TestMux_SessionConfigSurfacesConfigFields(t *testing.T) {
 
 	restore := withSessionConfigLoader(func() (*config.Config, error) {
 		cfg := config.DefaultConfig()
-		cfg.Session.DefaultCommand = "claude"
-		cfg.Session.Commands = []string{"claude", "shell", "npm run dev"}
+		cfg.Session.CommandProfiles = []config.CommandProfileConfig{{
+			ID: "claude", Label: "Claude", Executable: "claude",
+		}}
 		cfg.Session.PushCommands = []string{"/clear", "/compact"}
 		cfg.Projects.ProjectPaths = []string{"/home/me/repo-a", "/home/me/repo-b"}
 		cfg.Projects.ProjectRoots = []string{"/home/me/code"}
@@ -932,12 +1017,6 @@ func TestMux_SessionConfigSurfacesConfigFields(t *testing.T) {
 	var got apiSessionConfig
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
-	}
-	if got.DefaultCommand != "claude" {
-		t.Errorf("DefaultCommand = %q, want claude", got.DefaultCommand)
-	}
-	if len(got.Commands) != 3 || got.Commands[0] != "claude" {
-		t.Errorf("Commands = %v, want [claude shell npm run dev]", got.Commands)
 	}
 	// push_commands flows straight from cfg.Session.PushCommands; the palette
 	// push scope reads this to enumerate tool entries (FR-027).

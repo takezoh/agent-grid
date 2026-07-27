@@ -18,7 +18,7 @@
 // drift (ADR-0047).
 
 import type { SessionsApi } from "../api/sessions";
-import type { SessionConfigProject } from "../api/sessions";
+import type { LaunchProfile, ServerConfigOutcome, SessionConfigProject } from "../api/sessions";
 import { type ActiveContextSnapshot, deriveActiveContext } from "../store/palette_active_context";
 import type { ActiveOccupant, SessionInfo } from "../wire/server";
 import type { TerminalGeometry } from "./terminalGeometry";
@@ -104,10 +104,7 @@ export interface DaemonSnapshot {
   activeSessionID: string | null;
   activeOccupant?: DaemonOccupant;
   projects: SessionConfigProject[];
-  // Curated [session].commands list from /api/session-config.
-  // new-session's "Command" param materializes its dynamic-options listbox
-  // from this field via materializeKey:'commands'.
-  commands: string[];
+  serverOutcomes: ServerConfigOutcome[];
   pushCommands: string[];
 }
 
@@ -257,7 +254,9 @@ const newSessionTool: ToolDef = {
   ],
   disabledReason: () => null,
   async submit(ctx, payload) {
-    const project = readString(payload, "project");
+    const projectTarget = readString(payload, "project");
+    const selectedProject = findProject(ctx.daemon.projects, projectTarget);
+    const project = selectedProject?.path ?? projectTarget;
     const command = readString(payload, "command");
     const worktree = readOptionalBool(payload, "worktree");
     const sandbox = readSandboxFromHostToggle(payload);
@@ -265,14 +264,29 @@ const newSessionTool: ToolDef = {
     // Build the payload with only present fields so JSON.stringify doesn't
     // serialize "worktree": undefined / "sandbox": undefined (which would
     // break the server's omitempty contract on round-trip).
+    const profile = selectedProject?.commandProfiles?.find((candidate) => candidate.id === command);
+    if (!profile) {
+      throw new Error(`command profile "${command}" is not available for the selected project`);
+    }
     const req: {
+      server_id?: string;
       project: string;
-      command: string;
+      version: 2;
+      profile_id: string;
+      profile_revision: string;
+      parameters?: Record<string, string | number | boolean>;
       cols?: number;
       rows?: number;
       worktree?: boolean;
       sandbox?: "host";
-    } = { project, command };
+    } = {
+      project,
+      version: 2,
+      profile_id: profile.id,
+      profile_revision: profile.revision,
+      parameters: profileParameterValues(profile, payload),
+    };
+    if (selectedProject?.serverId) req.server_id = selectedProject.serverId;
     if (geometry !== null) {
       req.cols = geometry.cols;
       req.rows = geometry.rows;
@@ -280,17 +294,22 @@ const newSessionTool: ToolDef = {
     if (worktree !== undefined) req.worktree = worktree;
     if (sandbox !== undefined) req.sandbox = sandbox;
     const rc = await ctx.http.createSession(req);
-    // FR-021: select the freshly-created session as active immediately.
-    // Without this, SessionList stays focused on whatever was active
-    // before (or nothing), and the user has to manually click the new
-    // row — which defeats the whole point of "New Session" being a CTA.
-    // We MUST do this before notify+close so that even if notify or close
-    // throws the activeSessionID write has already landed.
-    ctx.daemonActions.selectSession(rc.id);
+    // A session created through the local adapter can be selected
+    // immediately. A remote fleet result is selected only when that
+    // server's sessions are already projected into this snapshot; otherwise
+    // selecting its server-local ID would point the current connection at a
+    // non-existent row.
+    if (!rc.serverId || ctx.daemon.sessions.some((session) => session.serverId === rc.serverId)) {
+      ctx.daemonActions.selectSession(rc.id);
+    }
     // Notification first, then close: if notify throws the palette stays
     // open with the active error toast visible. close() is idempotent so a
     // future re-entry that calls submit() twice is fine.
-    ctx.notify.success("Session created");
+    ctx.notify.success(
+      rc.serverId
+        ? `Session created on ${selectedProject?.serverLabel ?? rc.serverId}`
+        : "Session created",
+    );
     ctx.store.close();
   },
 };
@@ -308,9 +327,21 @@ const newSessionTool: ToolDef = {
 
 export function projectOptions(daemon: DaemonSnapshot): ParamOption[] {
   return daemon.projects.map((p) => ({
-    value: p.path,
-    label: p.path,
+    value: projectTargetValue(p),
+    label: p.serverLabel ? `${p.serverLabel} · ${p.path}` : p.path,
   }));
+}
+
+export function projectTargetValue(project: SessionConfigProject): string {
+  return project.serverId ? JSON.stringify([project.serverId, project.path]) : project.path;
+}
+
+export function findProject(
+  projects: readonly SessionConfigProject[],
+  target: string | null | undefined,
+): SessionConfigProject | undefined {
+  if (!target) return undefined;
+  return projects.find((project) => projectTargetValue(project) === target);
 }
 
 // commandOptions is the materialize implementation for
@@ -318,11 +349,38 @@ export function projectOptions(daemon: DaemonSnapshot): ParamOption[] {
 // on the daemon snapshot (sourced from /api/session-config). value === label
 // since the command string IS what we send on the wire AND what we show to
 // the user (FR/UAC for new-session "Command" picker, web-ui-fixes 2026-06-24).
-export function commandOptions(daemon: DaemonSnapshot): ParamOption[] {
-  return daemon.commands.map((c) => ({
-    value: c,
-    label: c,
+export function commandOptions(daemon: DaemonSnapshot, projectPath?: string | null): ParamOption[] {
+  const project = findProject(daemon.projects, projectPath);
+  return (project?.commandProfiles ?? []).map((profile) => ({
+    value: profile.id,
+    label: profile.label,
   }));
+}
+
+export function profileParameterID(name: string): string {
+  return `profile:${name}`;
+}
+
+function profileParameterValues(
+  profile: LaunchProfile,
+  payload: Record<string, unknown>,
+): Record<string, string | number | boolean> {
+  const values: Record<string, string | number | boolean> = {};
+  for (const parameter of profile.parameters) {
+    const raw = payload[profileParameterID(parameter.name)];
+    if (raw === undefined || raw === "") continue;
+    if (parameter.type === "number") {
+      const number = typeof raw === "number" ? raw : Number(raw);
+      if (Number.isFinite(number)) values[parameter.name] = number;
+      continue;
+    }
+    if (parameter.type === "boolean") {
+      values[parameter.name] = raw === true || raw === "true";
+      continue;
+    }
+    if (typeof raw === "string") values[parameter.name] = raw;
+  }
+  return values;
 }
 
 // ---------------------------------------------------------------------------

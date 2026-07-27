@@ -9,6 +9,8 @@
 export interface HostedModeInfo {
   hosted: boolean;
   sessionId?: string;
+  serverId?: string;
+  serverLabel?: string;
   baseUrl: string;
   token: string;
 }
@@ -42,6 +44,10 @@ declare global {
        */
       setTitleBarTheme?: (theme: "dark" | "light", mode?: "system" | "light" | "dark") => void;
       serverHealth?: { list(): Promise<FleetHealth> };
+      sessionFleet?: {
+        listConfigs(): Promise<unknown>;
+        create(serverId: string, payload: unknown): Promise<unknown>;
+      };
     };
   }
 }
@@ -78,6 +84,15 @@ export function desktopBaseUrl(): string | null {
   const value =
     window.hostedModeInfo?.baseUrl ?? window.agentGridWorkspace?.hostedModeInfo?.baseUrl;
   return value ? value.replace(/\/+$/, "") : null;
+}
+
+export function currentServerIdentity(): { id: string; label: string } {
+  const hosted = window.hostedModeInfo ?? window.agentGridWorkspace?.hostedModeInfo;
+  if (hosted?.serverId) {
+    return { id: hosted.serverId, label: hosted.serverLabel || hosted.serverId };
+  }
+  const origin = new URL(desktopBaseUrl() ?? window.location.origin).origin.toLowerCase();
+  return { id: `origin:${origin}`, label: new URL(origin).host };
 }
 
 export function resolveApiUrl(pathname: string): string {

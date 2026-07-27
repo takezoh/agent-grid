@@ -5,6 +5,8 @@
 import type { ServerAuth, ServerConfig } from "./desktop-config.js";
 
 export interface DaemonConfig {
+  serverId: string;
+  serverLabel: string;
   baseUrl: string;
   token: string;
 }
@@ -12,6 +14,7 @@ export interface DaemonConfig {
 export interface DaemonConfigSource {
   /** Stable identifier derived from the canonical gateway URL by every client. */
   serverId: string;
+  serverLabel?: string;
   auth: ServerAuth;
   /** Gateway base URL, e.g. http://127.0.0.1:8443 */
   baseUrl: string;
@@ -29,6 +32,7 @@ export class DaemonConfigResolver {
     return new DaemonConfigResolver(
       servers.filter((server) => server.enabled).map((server) => ({
         serverId: server.id,
+        serverLabel: server.display_name,
         auth: server.auth,
         baseUrl: server.url,
       })),
@@ -42,6 +46,8 @@ export class DaemonConfigResolver {
     const source = this.sources.get(serverId);
     if (!source) throw new Error(`unknown or disabled server '${serverId}'`);
     return {
+      serverId: source.serverId,
+      serverLabel: source.serverLabel ?? source.serverId,
       baseUrl: source.baseUrl,
       token: source.auth.mode === "bearer" ? source.auth.token : "",
     };
@@ -53,6 +59,8 @@ export class DaemonConfigResolver {
 export interface HostedModeInfo {
   hosted: boolean;
   sessionId?: string;
+  serverId?: string;
+  serverLabel?: string;
   baseUrl: string;
   /** Bearer token — only via preload, never URL. */
   token: string;

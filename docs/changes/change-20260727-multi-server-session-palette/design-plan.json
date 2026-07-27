@@ -1,0 +1,3805 @@
+{
+  "revision": "design-2-reconciled",
+  "base_revision": "design-1-integrated",
+  "goal": "複数 server を一つの作業面として扱い、server-qualified project、project-scoped command profile、任意個の typed parameter を確認して、表示どおりの server へ安全に session を作成できる技術契約を定義する。",
+  "approach": "server ごとに versioned project/profile descriptor REST と profile-aware create REST を持たせ、設定 loader は session.command_profiles だけを検証済み catalog にする。Workspace Electron は全 server URL/auth を既に所有する main process に fleet provider を置き、per-server result を serverId で tag して partial-result snapshot を preload の narrow typed bridge 経由で SPA へ渡す。browser は現在の baseUrl/token を one-server provider に適応する。SPA palette/store は provider I/O と純粋な server-qualified selection/form state を分離する。create は必須の version=2、profileId、schemaRevision、typed values を target server へ送り、server が再検証・default 適用・argv token materialization を行う。旧 commands/default_command と {project,command} request は受理しない。",
+  "scope": {
+    "in_scope": [
+      "Workspace Electron と browser SPA に共通する fleet/session-launch provider 境界",
+      "全 enabled server の project catalog 集約、server identity、partial failure、retry",
+      "project applicability を持つ単一 command profile 設定モデル",
+      "順序付き typed parameter descriptor、default/explicit/absent semantics、schema revision",
+      "project/profile/revision/typed values を使う create-session REST contract",
+      "server-side validation と argv-direct materialization",
+      "旧 command 設定と create payload の明示的廃止",
+      "project/session row と active context の server-qualified identity",
+      "T0-T3 検証と外部 gateway 依存の fake/FakeVsReal/contract triple"
+    ],
+    "out_of_scope": [
+      "個人化した server 並び順",
+      "新しい通知 system",
+      "任意 shell command editor または client-side shell interpolation",
+      "command parameter 間の任意スクリプト依存関係",
+      "server 間で session を移送する機能",
+      "既存 terminal lifecycle protocol の再設計"
+    ]
+  },
+  "components": [
+    {
+      "id": "component-command-profile-config",
+      "name": "Server command profile configuration and normalization",
+      "responsibility": "session.command_profiles を検証済みの ordered/versioned profile catalog へ一意に変換する。",
+      "depends_on": [],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "src/host/config/config.go",
+          "src/host/config/project.go",
+          "src/host/config/command_profile.go"
+        ],
+        "owner": "host/config",
+        "integration_points": [
+          "config.Load and LoadProject",
+          "server/api session descriptor handlers",
+          "server-side launch materializer"
+        ],
+        "test_seams": [
+          "temporary TOML fixtures through LoadFrom/LoadProjectFrom",
+          "pure normalize/merge/validate functions",
+          "invalid and project-applicability fixtures"
+        ],
+        "rationale": "launch command の設定 authority を session.command_profiles 一つに限定する。",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": [
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-profile-data-model"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-session-descriptor-api",
+      "name": "Server-local session launch descriptor REST API",
+      "responsibility": "project catalog、project-scoped command descriptors、ordered parameter schema、revision と typed failure を REST で公開する。",
+      "depends_on": [
+        "component-command-profile-config"
+      ],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "src/server/api/mux.go",
+          "src/server/api/mux_session_catalog.go",
+          "src/server/api/openapi.yaml"
+        ],
+        "owner": "server/api",
+        "integration_points": [
+          "apiHandler REST routing",
+          "config.Load loader seam",
+          "client fleet providers"
+        ],
+        "test_seams": [
+          "httptest handlers with injected config loader",
+          "OpenAPI/schema conformance tests",
+          "malformed and stale descriptor fixtures"
+        ],
+        "rationale": "accepted ADR-0041 が静的 launch configuration の REST ownership を定めている。",
+        "accepted_adr_refs": [
+          "adr-20260624-0041-palette-session-config-rest-extension"
+        ]
+      },
+      "contract_refs": [
+        "contract-descriptor-rest"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-server-launch-materializer",
+      "name": "Profile-aware create validator and argv materializer",
+      "responsibility": "target project/profile/revision/value presence を authoritative に検証し、default を適用して shell を介さない executable/argv launch plan を生成する。",
+      "depends_on": [
+        "component-command-profile-config",
+        "component-session-descriptor-api"
+      ],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "src/server/api/mux.go",
+          "src/host/state/reduce_session.go",
+          "src/host/state/state.go",
+          "src/platform/agentlaunch"
+        ],
+        "owner": "host/state launch-profile service",
+        "integration_points": [
+          "POST /api/sessions",
+          "state.CreateSessionParams",
+          "Driver.PrepareLaunch and LaunchPlan.Argv",
+          "agentlaunch.Spawn"
+        ],
+        "test_seams": [
+          "pure typed-value validator/materializer",
+          "gateway scenario create tests",
+          "spawn backend fake capturing executable and argv"
+        ],
+        "rationale": "現行 create boundary と reducer-resolved LaunchPlan を保ちつつ、profile authority と argv-direct execution を server 側へ閉じる。",
+        "accepted_adr_refs": [
+          "adr-20260624-0042-palette-new-session-payload-wire-mirror",
+          "adr-20260714-launchplan-effect-embedding"
+        ]
+      },
+      "contract_refs": [
+        "contract-server-side-materialization",
+        "contract-create-wire-evolution",
+        "contract-confirm-create-control-flow"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-electron-fleet-provider",
+      "name": "Workspace Electron main-process fleet provider",
+      "responsibility": "desktop server/auth registry を唯一参照し、catalog/create/live session requests を target server へ fan-out/route して server-qualified partial results を返す。",
+      "depends_on": [
+        "component-session-descriptor-api",
+        "component-server-launch-materializer"
+      ],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "clients/workspace/src/main/electron-entry.ts",
+          "clients/workspace/src/main/daemon-config.ts",
+          "clients/workspace/src/main/server-health.ts",
+          "clients/workspace/src/main/fleet-session-provider.ts"
+        ],
+        "owner": "clients/workspace main process",
+        "integration_points": [
+          "DesktopConfig.servers",
+          "DaemonConfigResolver",
+          "ipcMain fleet request/stream handlers",
+          "WindowRegistry openSession"
+        ],
+        "test_seams": [
+          "injected fetch/WebSocket transports",
+          "fake multi-server gateway matrix",
+          "unknown server/auth isolation unit tests"
+        ],
+        "rationale": "main process already owns all fleet credentials and stable IDs; renderer currently owns only one server context。",
+        "accepted_adr_refs": [
+          "adr-20260724-hosted-mode-preload-contextbridge"
+        ]
+      },
+      "contract_refs": [
+        "contract-electron-fleet-routing",
+        "contract-fleet-partial-outcomes",
+        "contract-fleet-concurrency"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-fleet-preload-bridge",
+      "name": "Narrow fleet contextBridge API",
+      "responsibility": "renderer へ token/Node API を渡さず、catalog/read/create/retry/subscription の typed capability だけを公開する。",
+      "depends_on": [
+        "component-electron-fleet-provider"
+      ],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "clients/workspace/src/preload/index.ts",
+          "clients/workspace/src/preload/electron-preload.cjs"
+        ],
+        "owner": "clients/workspace preload",
+        "integration_points": [
+          "window.agentGrid fleet provider capability",
+          "Electron ipcRenderer invoke/subscription",
+          "clients/ui fleet provider adapter"
+        ],
+        "test_seams": [
+          "buildPreloadApi pure builder",
+          "contextBridge surface shape tests",
+          "token non-exposure invariant test"
+        ],
+        "rationale": "既存 contextIsolation bridge を fleet capability へ拡張し、credential authority を main に保持する。",
+        "accepted_adr_refs": [
+          "adr-20260724-hosted-mode-preload-contextbridge"
+        ]
+      },
+      "contract_refs": [
+        "contract-electron-fleet-routing"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-browser-single-server-adapter",
+      "name": "Browser one-server fleet adapter",
+      "responsibility": "既存 baseUrl/token/WS を単一 server-qualified provider として共通 SPA contract へ適応する。",
+      "depends_on": [
+        "component-session-descriptor-api",
+        "component-server-launch-materializer"
+      ],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "clients/ui/src/api/sessions.ts",
+          "clients/ui/src/api/fleetProvider.ts",
+          "clients/ui/src/auth.ts"
+        ],
+        "owner": "clients/ui API boundary",
+        "integration_points": [
+          "resolveApiUrl/readBearerTokenFromHash",
+          "existing WebSocket connection",
+          "palette and daemon stores"
+        ],
+        "test_seams": [
+          "fake fetch and fake WS",
+          "canonical base URL identity unit tests",
+          "single-entry parity contract tests"
+        ],
+        "rationale": "standalone browser に desktop fleet registry を発明せず、同じ UI contract を cardinality one へ退化させる。",
+        "accepted_adr_refs": [
+          "adr-20260624-0041-palette-session-config-rest-extension"
+        ]
+      },
+      "contract_refs": [
+        "contract-browser-single-entry"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-palette-launch-state",
+      "name": "Server-qualified palette state and arbitrary-N form",
+      "responsibility": "fleet selection、profile descriptor、typed value presence、validation、schema reconciliation、focus、confirmation freeze を純粋 state transition として所有する。",
+      "depends_on": [
+        "component-electron-fleet-provider",
+        "component-fleet-preload-bridge",
+        "component-browser-single-server-adapter"
+      ],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "clients/ui/src/store/palette.ts",
+          "clients/ui/src/lib/tools.ts",
+          "clients/ui/src/components/palette/CommandPalette.tsx",
+          "clients/ui/src/components/palette/ParameterForm.tsx"
+        ],
+        "owner": "clients/ui palette",
+        "integration_points": [
+          "ToolDef injected provider context",
+          "fleet catalog/profile descriptor reads",
+          "profile-aware create submit"
+        ],
+        "test_seams": [
+          "pure Zustand transition tests",
+          "React Testing Library accessibility/form tests",
+          "fake provider partial/stale response tests"
+        ],
+        "rationale": "既存 ADR-0036 の pure store + injected I/O を維持し、二段階 special-case を server/project/profile/form/confirm state machine へ拡張する。",
+        "accepted_adr_refs": [
+          "adr-20260624-0036-palette-2phase-store-architecture",
+          "adr-20260624-0050-palette-scope-unify-with-disabled-policy",
+          "adr-20260624-0055-palette-submit-freeze-via-lift-state"
+        ]
+      },
+      "contract_refs": [
+        "contract-typed-parameter-form",
+        "contract-schema-drift-reconciliation",
+        "contract-fleet-partial-outcomes"
+      ],
+      "decision_closure_reason": ""
+    },
+    {
+      "id": "component-server-qualified-session-projection",
+      "name": "Server-qualified project/session list projection",
+      "responsibility": "project/session identity を {serverId, localId/path} で保持し、row と active context に常時 server label と collision disambiguator を投影する。",
+      "depends_on": [
+        "component-electron-fleet-provider",
+        "component-browser-single-server-adapter"
+      ],
+      "repo_grounding": {
+        "kind": "planned",
+        "paths": [
+          "clients/ui/src/store/daemon.ts",
+          "clients/ui/src/components/SessionList.tsx",
+          "clients/ui/src/components/ProjectList.tsx"
+        ],
+        "owner": "clients/ui shared session projection",
+        "integration_points": [
+          "fleet provider live snapshots",
+          "active session selection",
+          "Workspace WindowRegistry SessionRef"
+        ],
+        "test_seams": [
+          "duplicate local ID/display-name fixtures",
+          "row accessibility-name assertions",
+          "active context server identity assertions"
+        ],
+        "rationale": "Workspace Electron と browser SPA の shared projection に限定し、server-qualified identity を単一表現で保持する。",
+        "accepted_adr_refs": []
+      },
+      "contract_refs": [
+        "contract-server-qualified-identity"
+      ],
+      "decision_closure_reason": ""
+    }
+  ],
+  "chunks": [
+    {
+      "id": "milestone-1",
+      "depends_on": [],
+      "members": [
+        "component-command-profile-config"
+      ],
+      "units": [
+        {
+          "title": "Implement typed profile configuration",
+          "objective": "Implement typed profile configuration with the fixed ownership, failure and compatibility contracts.",
+          "output_format": "Production code, deterministic tests, and contract fixtures.",
+          "tool_guidance": "Use existing loaders/providers/harnesses and the verification commands in referenced contracts.",
+          "task_boundaries": "Do not redesign terminal lifecycle, Windows Shell, notifications, or arbitrary shell scripting.",
+          "files_touched": [
+            "src/host/config"
+          ],
+          "acceptance": [
+            "contract-profile-model normal and adversarial witnesses pass.",
+            "contract-project-profile-override normal and adversarial witnesses pass.",
+            "contract-profile-data-model normal and adversarial witnesses pass."
+          ],
+          "contract_refs": [
+            "contract-profile-model",
+            "contract-project-profile-override",
+            "contract-profile-data-model"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "depends_on": [],
+          "max_diff_loc": 300
+        }
+      ]
+    },
+    {
+      "id": "milestone-2",
+      "depends_on": [
+        "milestone-1"
+      ],
+      "members": [
+        "component-session-descriptor-api"
+      ],
+      "units": [
+        {
+          "title": "Extend session-config descriptor REST",
+          "objective": "Extend session-config descriptor REST with the fixed ownership, failure and compatibility contracts.",
+          "output_format": "Production code, deterministic tests, and contract fixtures.",
+          "tool_guidance": "Use existing loaders/providers/harnesses and the verification commands in referenced contracts.",
+          "task_boundaries": "Do not redesign terminal lifecycle, Windows Shell, notifications, or arbitrary shell scripting.",
+          "files_touched": [
+            "src/server/api"
+          ],
+          "acceptance": [
+            "contract-descriptor-rest normal and adversarial witnesses pass."
+          ],
+          "contract_refs": [
+            "contract-descriptor-rest"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "depends_on": [
+            "Implement typed profile configuration"
+          ],
+          "max_diff_loc": 300
+        }
+      ]
+    },
+    {
+      "id": "milestone-3",
+      "depends_on": [
+        "milestone-2"
+      ],
+      "members": [
+        "component-server-launch-materializer"
+      ],
+      "units": [
+        {
+          "title": "Implement authoritative create validation and argv materialization",
+          "objective": "Implement authoritative create validation and argv materialization with the fixed ownership, failure and compatibility contracts.",
+          "output_format": "Production code, deterministic tests, and contract fixtures.",
+          "tool_guidance": "Use existing loaders/providers/harnesses and the verification commands in referenced contracts.",
+          "task_boundaries": "Do not redesign terminal lifecycle, Windows Shell, notifications, or arbitrary shell scripting.",
+          "files_touched": [
+            "src/host/state",
+            "src/server/api",
+            "src/platform/agentlaunch"
+          ],
+          "acceptance": [
+            "contract-server-side-materialization normal and adversarial witnesses pass.",
+            "contract-create-wire-evolution normal and adversarial witnesses pass.",
+            "contract-confirm-create-control-flow normal and adversarial witnesses pass."
+          ],
+          "contract_refs": [
+            "contract-server-side-materialization",
+            "contract-create-wire-evolution",
+            "contract-confirm-create-control-flow"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "depends_on": [
+            "Implement typed profile configuration",
+            "Extend session-config descriptor REST"
+          ],
+          "max_diff_loc": 300
+        }
+      ]
+    },
+    {
+      "id": "milestone-4",
+      "depends_on": [
+        "milestone-3"
+      ],
+      "members": [
+        "component-electron-fleet-provider",
+        "component-fleet-preload-bridge",
+        "component-palette-launch-state"
+      ],
+      "units": [
+        {
+          "title": "Implement Electron main fleet provider",
+          "objective": "Implement Electron main fleet provider with the fixed ownership, failure and compatibility contracts.",
+          "output_format": "Production code, deterministic tests, and contract fixtures.",
+          "tool_guidance": "Use existing loaders/providers/harnesses and the verification commands in referenced contracts.",
+          "task_boundaries": "Do not redesign terminal lifecycle, Windows Shell, notifications, or arbitrary shell scripting.",
+          "files_touched": [
+            "clients/workspace"
+          ],
+          "acceptance": [
+            "contract-electron-fleet-routing normal and adversarial witnesses pass.",
+            "contract-fleet-partial-outcomes normal and adversarial witnesses pass.",
+            "contract-fleet-concurrency normal and adversarial witnesses pass."
+          ],
+          "contract_refs": [
+            "contract-electron-fleet-routing",
+            "contract-fleet-partial-outcomes",
+            "contract-fleet-concurrency"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "depends_on": [
+            "Extend session-config descriptor REST"
+          ],
+          "max_diff_loc": 300
+        }
+      ]
+    },
+    {
+      "id": "milestone-5",
+      "depends_on": [
+        "milestone-4"
+      ],
+      "members": [
+        "component-browser-single-server-adapter",
+        "component-server-qualified-session-projection"
+      ],
+      "units": [
+        {
+          "title": "Adapt browser provider and shared server-qualified projection",
+          "objective": "Adapt browser provider and shared server-qualified projection with the fixed ownership, failure and compatibility contracts.",
+          "output_format": "Production code, deterministic tests, and contract fixtures.",
+          "tool_guidance": "Use existing loaders/providers/harnesses and the verification commands in referenced contracts.",
+          "task_boundaries": "Do not redesign terminal lifecycle, Windows Shell, notifications, or arbitrary shell scripting.",
+          "files_touched": [
+            "clients/ui/src"
+          ],
+          "acceptance": [
+            "contract-browser-single-entry normal and adversarial witnesses pass.",
+            "contract-server-qualified-identity normal and adversarial witnesses pass."
+          ],
+          "contract_refs": [
+            "contract-browser-single-entry",
+            "contract-server-qualified-identity"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "depends_on": [
+            "Extend session-config descriptor REST"
+          ],
+          "max_diff_loc": 300
+        }
+      ]
+    },
+    {
+      "id": "milestone-6",
+      "depends_on": [
+        "milestone-5"
+      ],
+      "members": [
+        "component-palette-launch-state"
+      ],
+      "units": [
+        {
+          "title": "Implement arbitrary-N palette form and stale reconciliation",
+          "objective": "Implement arbitrary-N palette form and stale reconciliation with the fixed ownership, failure and compatibility contracts.",
+          "output_format": "Production code, deterministic tests, and contract fixtures.",
+          "tool_guidance": "Use existing loaders/providers/harnesses and the verification commands in referenced contracts.",
+          "task_boundaries": "Do not redesign terminal lifecycle, Windows Shell, notifications, or arbitrary shell scripting.",
+          "files_touched": [
+            "clients/ui/src/components",
+            "clients/ui/src/stores"
+          ],
+          "acceptance": [
+            "contract-typed-parameter-form normal and adversarial witnesses pass.",
+            "contract-schema-drift-reconciliation normal and adversarial witnesses pass."
+          ],
+          "contract_refs": [
+            "contract-typed-parameter-form",
+            "contract-schema-drift-reconciliation"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "depends_on": [
+            "Adapt browser provider and shared server-qualified projection"
+          ],
+          "max_diff_loc": 300
+        }
+      ]
+    },
+    {
+      "id": "milestone-7",
+      "depends_on": [
+        "milestone-6"
+      ],
+      "members": [
+        "component-browser-single-server-adapter",
+        "component-command-profile-config",
+        "component-electron-fleet-provider",
+        "component-fleet-preload-bridge",
+        "component-palette-launch-state",
+        "component-server-launch-materializer",
+        "component-server-qualified-session-projection",
+        "component-session-descriptor-api"
+      ],
+      "units": [
+        {
+          "title": "Add fake/fidelity/contract verification triples",
+          "objective": "Add fake/fidelity/contract verification triples with the fixed ownership, failure and compatibility contracts.",
+          "output_format": "Production code, deterministic tests, and contract fixtures.",
+          "tool_guidance": "Use existing loaders/providers/harnesses and the verification commands in referenced contracts.",
+          "task_boundaries": "Do not redesign terminal lifecycle, Windows Shell, notifications, or arbitrary shell scripting.",
+          "files_touched": [
+            "src/server/api",
+            "clients/workspace",
+            "clients/ui"
+          ],
+          "acceptance": [
+            "contract-profile-data-model normal and adversarial witnesses pass.",
+            "contract-profile-model normal and adversarial witnesses pass.",
+            "contract-project-profile-override normal and adversarial witnesses pass.",
+            "contract-descriptor-rest normal and adversarial witnesses pass.",
+            "contract-server-side-materialization normal and adversarial witnesses pass.",
+            "contract-create-wire-evolution normal and adversarial witnesses pass.",
+            "contract-electron-fleet-routing normal and adversarial witnesses pass.",
+            "contract-fleet-partial-outcomes normal and adversarial witnesses pass.",
+            "contract-fleet-concurrency normal and adversarial witnesses pass.",
+            "contract-browser-single-entry normal and adversarial witnesses pass.",
+            "contract-typed-parameter-form normal and adversarial witnesses pass.",
+            "contract-schema-drift-reconciliation normal and adversarial witnesses pass.",
+            "contract-confirm-create-control-flow normal and adversarial witnesses pass.",
+            "contract-server-qualified-identity normal and adversarial witnesses pass."
+          ],
+          "contract_refs": [
+            "contract-profile-data-model",
+            "contract-profile-model",
+            "contract-project-profile-override",
+            "contract-descriptor-rest",
+            "contract-server-side-materialization",
+            "contract-create-wire-evolution",
+            "contract-electron-fleet-routing",
+            "contract-fleet-partial-outcomes",
+            "contract-fleet-concurrency",
+            "contract-browser-single-entry",
+            "contract-typed-parameter-form",
+            "contract-schema-drift-reconciliation",
+            "contract-confirm-create-control-flow",
+            "contract-server-qualified-identity"
+          ],
+          "decision_closure_reason": "",
+          "implementation_decisions_remaining": [],
+          "depends_on": [
+            "Implement authoritative create validation and argv materialization",
+            "Implement Electron main fleet provider",
+            "Implement arbitrary-N palette form and stale reconciliation"
+          ],
+          "max_diff_loc": 300
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "FR-001",
+      "type": "event_driven",
+      "statement": "New Session entry は接続対象 server 全体の project を server-qualified row として返し、検索・戻る・選択後も stable server identity を保持する。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-002",
+      "type": "event_driven",
+      "statement": "選択した server + project に適用される typed command profile だけを返し、旧 opaque command へ fallback しない。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-003",
+      "type": "event_driven",
+      "statement": "command profile は stable ID、明示順序、label、kind、required/default/validation を持つ任意個 parameter を宣言し、client は一つの form に順序どおり描画する。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-004",
+      "type": "event_driven",
+      "statement": "required missing または invalid value の create は session を作成せず、parameter ID ごとの typed error を返す。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-005",
+      "type": "event_driven",
+      "statement": "create 時の schema revision 不一致は stale conflict とし、古い値を実行せず、再取得後は同一 ID・互換 kind の値だけを保持できる情報を返す。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-006",
+      "type": "event_driven",
+      "statement": "明示 Confirm 後だけ、server/profile/revision/value snapshot を target server へ送信し、server が default を適用して argv を生成し、一つの server-qualified session を返す。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-007",
+      "type": "event_driven",
+      "statement": "zero-parameter profile は空 form を完了状態として作成できる。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-008",
+      "type": "ubiquitous",
+      "statement": "project/session row と active context は所属 server label を常時示し、display-name collision 時は stable server ID を補助表示する。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-009",
+      "type": "event_driven",
+      "statement": "fleet/project/profile の部分取得失敗は失敗 scope・理由・retry を示し、健康な scope と依然有効な selection/value/focus を保持する。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-010",
+      "type": "ubiquitous",
+      "statement": "server は version=2 profile request だけを受理し、旧 session.commands、default_command、POST {project,command} を fallback として扱わない。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-011",
+      "type": "ubiquitous",
+      "statement": "browser の単一 gateway entry は同じ fleet contract の one-server adapter として動作し、fleet 専用 gate や別 UX を導入しない。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-012",
+      "type": "ubiquitous",
+      "statement": "Electron surface は fleet credential を renderer に列挙せず、stable server ID で main-process provider を呼び出して catalog/read/create/stream を route する。",
+      "priority": "must",
+      "rationale": "Approved UX and explicit compatibility/security requirement."
+    },
+    {
+      "id": "FR-INVARIANT-001",
+      "type": "ubiquitous",
+      "statement": "The system shall always preserve the same stable server identity from the displayed project/session through selection, confirmation, routing, create result, and active context.",
+      "priority": "must",
+      "rationale": "Entry and persistent-state observation require a server-qualified invariant."
+    },
+    {
+      "id": "FR-INVARIANT-002",
+      "type": "unwanted",
+      "statement": "If a profile revision, parameter value, server identity, or routing authority is stale, malformed, unknown, or unavailable, then the system shall create no session and shall expose a typed scoped outcome.",
+      "priority": "must",
+      "rationale": "Prevents unsafe fallback across all create boundaries."
+    }
+  ],
+  "non_functional_requirements": [
+    {
+      "id": "NFR-001",
+      "type": "security",
+      "criteria": "bearer token は URL に含めず、target server 以外へ転送せず、client は shell 文字列を補間しない。",
+      "measurement": "Referenced implementation-contract witnesses and commands pass."
+    },
+    {
+      "id": "NFR-002",
+      "type": "reliability",
+      "criteria": "parameter、project、command profile、fleet row の順序は map iteration に依存しない。",
+      "measurement": "Referenced implementation-contract witnesses and commands pass."
+    },
+    {
+      "id": "NFR-003",
+      "type": "reliability",
+      "criteria": "descriptor validation、create validation、default application、argv materialization は同じ server-owned profile revision を参照する。",
+      "measurement": "Referenced implementation-contract witnesses and commands pass."
+    },
+    {
+      "id": "NFR-004",
+      "type": "reliability",
+      "criteria": "一 server の timeout、auth failure、malformed response は他 server の catalog/create/session projection を停止しない。",
+      "measurement": "Referenced implementation-contract witnesses and commands pass."
+    },
+    {
+      "id": "NFR-005",
+      "type": "usability",
+      "criteria": "server label、parameter label/state/error、retry、confirmation は keyboard、pointer、支援技術で同じ意味に到達できる。",
+      "measurement": "Referenced implementation-contract witnesses and commands pass."
+    },
+    {
+      "id": "NFR-006",
+      "type": "maintainability",
+      "criteria": "fleet transport、config loading、clock/revision、session create seam を注入可能にし、外部 gateway ごとに fake、FakeVsReal、invariant contract test を持つ。",
+      "measurement": "Referenced implementation-contract witnesses and commands pass."
+    },
+    {
+      "id": "NFR-007",
+      "type": "compatibility",
+      "criteria": "wire/config evolution は command_profiles と version=2 request の単一路だけを検証し、旧経路が拒否される。",
+      "measurement": "Referenced implementation-contract witnesses and commands pass."
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "AC-001",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-001 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-001"
+      ]
+    },
+    {
+      "id": "AC-002",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-002 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-002"
+      ]
+    },
+    {
+      "id": "AC-003",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-003 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-003"
+      ]
+    },
+    {
+      "id": "AC-004",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-004 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-004"
+      ]
+    },
+    {
+      "id": "AC-005",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-005 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-005"
+      ]
+    },
+    {
+      "id": "AC-006",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-006 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-006"
+      ]
+    },
+    {
+      "id": "AC-007",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-007 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-007"
+      ]
+    },
+    {
+      "id": "AC-008",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-008 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-008"
+      ]
+    },
+    {
+      "id": "AC-009",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-009 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-009"
+      ]
+    },
+    {
+      "id": "AC-010",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-010 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-010"
+      ]
+    },
+    {
+      "id": "AC-011",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-011 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-011"
+      ]
+    },
+    {
+      "id": "AC-012",
+      "given": "The approved UX scenario prerequisites hold.",
+      "when": "UAC-012 is exercised through the public provider/palette boundary.",
+      "then": "The corresponding UX success or typed failure observation occurs without cross-server or stale execution.",
+      "requirement_refs": [
+        "FR-012"
+      ]
+    }
+  ],
+  "adrs": [
+    {
+      "id": "adr-20260727-fleet-provider-boundary",
+      "title": "Fleet provider auth proxy and single-server adapter",
+      "status": "accepted",
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "conversation:2026-07-27-approved-recommendation",
+          "consultation-approved-generic-fleet-design"
+        ],
+        "rationale": "ユーザーはfleet横断catalogとserver認証を隠蔽する推奨方針を承認して実装開始を指示した。"
+      },
+      "context": "Multi-server palette needs one falsifiable owner and compatibility/security rule for this decision.",
+      "decision": "Electron main owns authenticated REST/WS fan-out, generation fencing and cleanup; preload exposes typed projections without credentials. Browser derives serverId as `origin:` plus lowercase RFC3986 canonical scheme/host and explicit non-default port, and adapts its one gateway to the identical provider contract. Redirects are not auto-followed; cross-origin, scheme downgrade, and indeterminate redirects are typed terminal failures and never receive Authorization.",
+      "consequences": [
+        "Implementations cannot vary the stated owner, identity, mapping, compatibility, or failure semantics.",
+        "Normal and adversarial witnesses are required before rollout."
+      ],
+      "decision_input_refs": [
+        "decision-input-fleet-snapshot-candidate",
+        "decision-input-preload-auth-boundary"
+      ],
+      "alternatives": [
+        {
+          "option": "Retain the draft alternative or infer behavior at the client boundary",
+          "why_not": "It leaves observable ownership, security, identity, or migration behavior implementation-dependent."
+        }
+      ],
+      "related_requirements": [
+        "FR-001",
+        "FR-009",
+        "FR-011",
+        "FR-012"
+      ],
+      "contract_refs": [
+        "contract-descriptor-rest",
+        "contract-electron-fleet-routing",
+        "contract-fleet-partial-outcomes",
+        "contract-fleet-concurrency",
+        "contract-browser-single-entry",
+        "contract-schema-drift-reconciliation",
+        "contract-server-qualified-identity"
+      ]
+    },
+    {
+      "id": "adr-20260727-typed-launch-profile-schema",
+      "title": "Typed launch profile schema",
+      "status": "accepted",
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "conversation:2026-07-27-approved-recommendation",
+          "consultation-approved-generic-fleet-design"
+        ],
+        "rationale": "ユーザーはmodel/effortを特別扱いしない一般化typed parameter schemaを承認した。"
+      },
+      "context": "Multi-server palette needs one falsifiable owner and compatibility/security rule for this decision.",
+      "decision": "Parameter kinds are enum, boolean, string, and number. Profiles have optional project applicability and duplicate IDs fail. command_profiles is the only configuration authority. Schema revision is SHA-256 over a canonical length-prefixed encoding of the complete merged descriptor including labels, ordered parameters, validation/defaults and typed argv nodes.",
+      "consequences": [
+        "Implementations cannot vary the stated owner, identity, mapping, compatibility, or failure semantics.",
+        "Normal and adversarial witnesses are required before rollout."
+      ],
+      "decision_input_refs": [
+        "decision-input-typed-parameter-candidate",
+        "decision-input-parameter-handoff",
+        "decision-input-breaking-profile-migration",
+        "decision-input-project-command-scope"
+      ],
+      "alternatives": [
+        {
+          "option": "Retain the draft alternative or infer behavior at the client boundary",
+          "why_not": "It leaves observable ownership, security, identity, or migration behavior implementation-dependent."
+        }
+      ],
+      "related_requirements": [
+        "FR-002",
+        "FR-003",
+        "FR-007",
+        "FR-010"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-descriptor-rest",
+        "contract-create-wire-evolution",
+        "contract-typed-parameter-form"
+      ]
+    },
+    {
+      "id": "adr-20260727-server-argv-materialization",
+      "title": "Server-owned argv materialization and stale validation",
+      "status": "accepted",
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "conversation:2026-07-27-approved-recommendation",
+          "consultation-approved-generic-fleet-design"
+        ],
+        "rationale": "ユーザーはclient shell補間を避けserverがtyped valuesを検証してargv生成する方針を承認した。"
+      },
+      "context": "Multi-server palette needs one falsifiable owner and compatibility/security rule for this decision.",
+      "decision": "A host/state pure launch-profile service is the sole authority for immutable snapshot lookup, revision/value validation, defaults and executable/argv. Typed nodes are literal, value, flag-value, flag-if-true and enum-token; each emits complete argv tokens only. Placeholders, partial-token expansion and shell interpolation are forbidden. Create requires version=2; absent, mixed, and unknown shapes fail.",
+      "consequences": [
+        "Implementations cannot vary the stated owner, identity, mapping, compatibility, or failure semantics.",
+        "Normal and adversarial witnesses are required before rollout."
+      ],
+      "decision_input_refs": [
+        "decision-input-server-materialization"
+      ],
+      "alternatives": [
+        {
+          "option": "Retain the draft alternative or infer behavior at the client boundary",
+          "why_not": "It leaves observable ownership, security, identity, or migration behavior implementation-dependent."
+        }
+      ],
+      "related_requirements": [
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-010"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-server-side-materialization",
+        "contract-create-wire-evolution",
+        "contract-typed-parameter-form",
+        "contract-schema-drift-reconciliation",
+        "contract-confirm-create-control-flow"
+      ]
+    },
+    {
+      "id": "adr-20260727-arbitrary-parameter-palette-state",
+      "title": "Arbitrary-N parameter palette form and pure state",
+      "status": "accepted",
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "conversation:2026-07-27-approved-recommendation",
+          "consultation-approved-generic-fleet-design"
+        ],
+        "rationale": "ユーザーは任意個parameterを一括formで扱うUXを承認した。"
+      },
+      "context": "Multi-server palette needs one falsifiable owner and compatibility/security rule for this decision.",
+      "decision": "Provider I/O remains injected and palette transitions remain pure. One ordered form represents arbitrary N enum/boolean parameters with distinct absent/default/explicit states, parameter-addressed errors, and compatible stale reconciliation. A 100-parameter fixture must render and update within 100 ms in the CI browser with O(N) retained state; any virtualization preserves DOM-order keyboard navigation and accessible name/error relations.",
+      "consequences": [
+        "Implementations cannot vary the stated owner, identity, mapping, compatibility, or failure semantics.",
+        "Normal and adversarial witnesses are required before rollout."
+      ],
+      "decision_input_refs": [
+        "decision-input-palette-pure-store"
+      ],
+      "alternatives": [
+        {
+          "option": "Retain the draft alternative or infer behavior at the client boundary",
+          "why_not": "It leaves observable ownership, security, identity, or migration behavior implementation-dependent."
+        }
+      ],
+      "related_requirements": [
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-007"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-descriptor-rest",
+        "contract-server-side-materialization",
+        "contract-typed-parameter-form",
+        "contract-schema-drift-reconciliation",
+        "contract-confirm-create-control-flow"
+      ]
+    },
+    {
+      "id": "adr-20260727-server-qualified-identity-partial-failure",
+      "title": "Server-qualified identity and scoped partial failure",
+      "status": "accepted",
+      "status_provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "conversation:2026-07-27-approved-recommendation",
+          "consultation-approved-generic-fleet-design"
+        ],
+        "rationale": "ユーザーはserver常時表示と障害serverの理由付き表示を含む推奨方針を承認した。"
+      },
+      "context": "Multi-server palette needs one falsifiable owner and compatibility/security rule for this decision.",
+      "decision": "Project and session identity is `(serverId, localId)` throughout rows, selection, create result and active context. ADR-0041 remains authoritative: one GET /api/session-config versioned snapshot per server, not split resources. Fleet results carry per-server typed outcomes; REST concurrency is capped at four, each request at ten seconds, only the latest generation survives, and supersede/close/removal cancels queued and in-flight work and closes streams; all outcomes converge within one second after timeout.",
+      "consequences": [
+        "Implementations cannot vary the stated owner, identity, mapping, compatibility, or failure semantics.",
+        "Normal and adversarial witnesses are required before rollout."
+      ],
+      "decision_input_refs": [
+        "decision-input-rest-static-config",
+        "decision-input-test-triple"
+      ],
+      "alternatives": [
+        {
+          "option": "Retain the draft alternative or infer behavior at the client boundary",
+          "why_not": "It leaves observable ownership, security, identity, or migration behavior implementation-dependent."
+        }
+      ],
+      "related_requirements": [
+        "FR-001",
+        "FR-008",
+        "FR-009"
+      ],
+      "contract_refs": [
+        "contract-descriptor-rest",
+        "contract-electron-fleet-routing",
+        "contract-fleet-partial-outcomes",
+        "contract-fleet-concurrency",
+        "contract-browser-single-entry",
+        "contract-schema-drift-reconciliation",
+        "contract-server-qualified-identity"
+      ]
+    }
+  ],
+  "adr_impacts": [],
+  "decision_inputs": [
+    {
+      "id": "decision-input-typed-parameter-candidate",
+      "subject": "Declarative typed parameter schema",
+      "source": {
+        "kind": "ux_technology_candidate",
+        "ref": "ux.md#candidate-declarative-typed-parameters"
+      },
+      "authority": "candidate",
+      "candidate": "command-owned ordered typed parameters with stable IDs, defaults, required/validation, and server-side argv mapping",
+      "requirement_refs": [
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "existing ToolDef project/command dynamic options plus flat session.commands []string and client payload construction"
+    },
+    {
+      "id": "decision-input-fleet-snapshot-candidate",
+      "subject": "Server-qualified fleet aggregation",
+      "source": {
+        "kind": "ux_technology_candidate",
+        "ref": "ux.md#candidate-fleet-config-aggregation"
+      },
+      "authority": "candidate",
+      "candidate": "per-server catalog/status/result snapshot with stable serverId",
+      "requirement_refs": [
+        "FR-001",
+        "FR-008",
+        "FR-009",
+        "FR-012"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "existing single baseUrl/sessionConfig SPA plus Electron serverHealth-only fleet observation"
+    },
+    {
+      "id": "decision-input-parameter-handoff",
+      "subject": "Parameter display/execution semantic continuity",
+      "source": {
+        "kind": "ux_design_handoff",
+        "ref": "ux.md#handoff-parameter-contract"
+      },
+      "authority": "handoff",
+      "candidate": "choose initial type range, stable order, wire presence/default semantics, materialization owner, and schema drift behavior",
+      "requirement_refs": [
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "hard-coded project/command params and model/effort-like alias combinations"
+    },
+    {
+      "id": "decision-input-server-materialization",
+      "subject": "Server-side argv materialization",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "original requirement: server-side argv materialization"
+      },
+      "authority": "constraint",
+      "candidate": "client sends profileId/revision/typed values; target server validates and produces executable plus argv without a client shell",
+      "requirement_refs": [
+        "FR-006"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "current client sends opaque command string and server passes it through existing launch preparation"
+    },
+    {
+      "id": "decision-input-breaking-profile-migration",
+      "subject": "Breaking migration to typed command profiles",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "user decision: no legacy compatibility or fallback"
+      },
+      "authority": "constraint",
+      "candidate": "remove old command settings and accept only version=2 typed profile requests",
+      "requirement_refs": [
+        "FR-002",
+        "FR-007",
+        "FR-010"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "breaking replacement of session.commands and project+command create body"
+    },
+    {
+      "id": "decision-input-project-command-scope",
+      "subject": "Project-specific command availability",
+      "source": {
+        "kind": "user_requirement",
+        "ref": "requirements-plan.json#decision-command-availability-scope"
+      },
+      "authority": "constraint",
+      "candidate": "project-level profile selection/override over server defaults",
+      "requirement_refs": [
+        "FR-002"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "current server-global SessionConfig.Commands applied to every project"
+    },
+    {
+      "id": "decision-input-rest-static-config",
+      "subject": "Static launch configuration transport",
+      "source": {
+        "kind": "accepted_adr",
+        "ref": "adr-20260624-0041-palette-session-config-rest-extension"
+      },
+      "authority": "constraint",
+      "candidate": "project/profile descriptor remains REST-owned and is not added to WS view updates",
+      "requirement_refs": [
+        "FR-001",
+        "FR-002",
+        "FR-003"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "putting static fleet/config metadata into hello/view-update WS frames"
+    },
+    {
+      "id": "decision-input-palette-pure-store",
+      "subject": "Palette state and I/O separation",
+      "source": {
+        "kind": "accepted_adr",
+        "ref": "adr-20260624-0036-palette-2phase-store-architecture"
+      },
+      "authority": "constraint",
+      "candidate": "keep fleet/profile I/O in injected provider/ToolDef context and state transitions pure",
+      "requirement_refs": [
+        "FR-001",
+        "FR-003",
+        "FR-009"
+      ],
+      "classification": "implementation_detail",
+      "comparison_baseline": "fetch and Electron IPC directly inside Zustand actions or React phase components"
+    },
+    {
+      "id": "decision-input-preload-auth-boundary",
+      "subject": "Electron fleet credential boundary",
+      "source": {
+        "kind": "accepted_adr",
+        "ref": "adr-20260724-hosted-mode-preload-contextbridge"
+      },
+      "authority": "constraint",
+      "candidate": "tokens remain out of URLs; expose narrow contextBridge capability and prefer main-owned fleet routing",
+      "requirement_refs": [
+        "FR-012"
+      ],
+      "classification": "design_choice",
+      "comparison_baseline": "renderer receives all fleet bearer tokens or URL query parameters"
+    },
+    {
+      "id": "decision-input-test-triple",
+      "subject": "External dependency verification triple",
+      "source": {
+        "kind": "repository_policy",
+        "ref": "AGENTS.md#Rules external dependency triple and Tier placement"
+      },
+      "authority": "constraint",
+      "candidate": "fake fleet gateway, FakeVsReal descriptor/create backstop, invariant-naming contract tests",
+      "requirement_refs": [
+        "FR-001",
+        "FR-006",
+        "FR-009",
+        "FR-012"
+      ],
+      "classification": "implementation_detail",
+      "comparison_baseline": "only mocked component tests or only manual real-stack checks"
+    }
+  ],
+  "decision_dispositions": [
+    {
+      "decision_input_ref": "decision-input-typed-parameter-candidate",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-descriptor-rest",
+        "contract-server-side-materialization",
+        "contract-create-wire-evolution",
+        "contract-typed-parameter-form",
+        "contract-schema-drift-reconciliation",
+        "contract-confirm-create-control-flow"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-fleet-snapshot-candidate",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary"
+      ],
+      "contract_refs": [
+        "contract-descriptor-rest",
+        "contract-electron-fleet-routing",
+        "contract-fleet-partial-outcomes",
+        "contract-fleet-concurrency",
+        "contract-browser-single-entry",
+        "contract-schema-drift-reconciliation",
+        "contract-server-qualified-identity"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-parameter-handoff",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-descriptor-rest",
+        "contract-server-side-materialization",
+        "contract-create-wire-evolution",
+        "contract-typed-parameter-form",
+        "contract-schema-drift-reconciliation",
+        "contract-confirm-create-control-flow"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-server-materialization",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-server-argv-materialization"
+      ],
+      "contract_refs": [
+        "contract-server-side-materialization",
+        "contract-create-wire-evolution",
+        "contract-confirm-create-control-flow"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-breaking-profile-migration",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-descriptor-rest",
+        "contract-create-wire-evolution",
+        "contract-typed-parameter-form"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-project-command-scope",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-descriptor-rest"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-rest-static-config",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-project-profile-override",
+        "contract-descriptor-rest",
+        "contract-fleet-partial-outcomes",
+        "contract-fleet-concurrency",
+        "contract-browser-single-entry",
+        "contract-typed-parameter-form",
+        "contract-server-qualified-identity"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-palette-pure-store",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-arbitrary-parameter-palette-state"
+      ],
+      "contract_refs": [
+        "contract-profile-data-model",
+        "contract-profile-model",
+        "contract-descriptor-rest",
+        "contract-electron-fleet-routing",
+        "contract-fleet-partial-outcomes",
+        "contract-fleet-concurrency",
+        "contract-browser-single-entry",
+        "contract-typed-parameter-form",
+        "contract-schema-drift-reconciliation",
+        "contract-server-qualified-identity"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-preload-auth-boundary",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary"
+      ],
+      "contract_refs": [
+        "contract-electron-fleet-routing",
+        "contract-fleet-concurrency"
+      ]
+    },
+    {
+      "decision_input_ref": "decision-input-test-triple",
+      "disposition": "adopted",
+      "rationale": "The final ADR and implementation contracts fix the owner, boundary, observable, failure, migration and verification behavior.",
+      "adr_refs": [
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ],
+      "contract_refs": [
+        "contract-descriptor-rest",
+        "contract-server-side-materialization",
+        "contract-create-wire-evolution",
+        "contract-electron-fleet-routing",
+        "contract-fleet-partial-outcomes",
+        "contract-fleet-concurrency",
+        "contract-browser-single-entry",
+        "contract-schema-drift-reconciliation",
+        "contract-confirm-create-control-flow",
+        "contract-server-qualified-identity"
+      ]
+    }
+  ],
+  "resolved_issues": [
+    {
+      "issue_ref": "issue-rest-split-conflicts-adr0041",
+      "issue": "「project catalog、project commands、profile schema を分離」を候補に残すが、accepted ADR-0041 は別 endpoint を round-trip 増加として明示的に却下している。",
+      "resolution": "decision_points[2] は ADR-0041 準拠の単一 GET /api/session-config versioned snapshot を採用すると固定し、resource 分割案を削除する。contract-descriptor-rest の retry は同一 snapshot の再取得と per-server outcome 表示に限定する。"
+    },
+    {
+      "issue_ref": "issue-fleet-owner-left-open",
+      "issue": "FR-012 は main-process provider が route すると固定する一方、draft は renderer に fan-out/WS coordination を持たせる代替を未決定で残す。",
+      "resolution": "decision_points[0] は Electron main が REST/WS fan-out、generation fencing、stream cleanup を所有する案を採用すると固定する。contract-electron-fleet-routing.open_design_choices を空にし、preload は typed projection/capability のみを公開すると明記する。"
+    },
+    {
+      "issue_ref": "issue-auth-redirect-policy-unclosed",
+      "issue": "adversarial case は redirect で credential を漏らさないとするが、redirect follow、origin comparison、Authorization 再送禁止、typed failure の契約がない。",
+      "resolution": "main transport は redirect を自動追従せず typed cross-origin-redirect failure を返すと固定し、同一 origin への明示的 follow を許す場合も origin 再検証後にだけ Authorization を再付与する契約を追加する。異 origin、scheme downgrade、判定不能は no-retry/no-create とする。"
+    },
+    {
+      "issue_ref": "issue-browser-server-id-not-fixed",
+      "issue": "canonical URL hash と bootstrap metadata を未決定にし、同じ gateway が異なる serverId になり得るため、row・create result・active context の identity 保存を保証できない。",
+      "resolution": "browser serverId は RFC 3986 に沿って scheme/host case、default port、trailing slash を正規化した gateway origin から所定の deterministic encoding で導出すると固定する。bootstrap metadata 案を削除し、同じ canonical origin は row/create/active context で同一 ID を使う。"
+    },
+    {
+      "issue_ref": "issue-project-override-semantics-open",
+      "issue": "「override versus explicit allow-list syntax」を未決定にしており、server default の継承・削除・同 ID 再定義で project に見える command 集合が実装ごとに変わる。",
+      "resolution": "project 設定は profile ID 単位の override と固定し、未指定 ID は server default を継承、同 ID は全 descriptor を置換、明示 disabled は削除と定義する。部分 field merge と暗黙 allow-list は禁止し、重複 ID は config error にする。"
+    },
+    {
+      "issue_ref": "issue-parameter-kind-range-open",
+      "issue": "handoff が初期 renderer 型範囲の決定を要求するのに enum+boolean、primitive、registry を未決定で残し、同じ profile config の受理・表示・検証結果が変わる。",
+      "resolution": "initial parameter kind は enum と boolean のみに固定し、string/number/registry options を削除する。unknown kind は descriptor/config validation の typed unsupported-kind failure とし、form は推測描画しない。"
+    },
+    {
+      "issue_ref": "issue-argv-mapping-shape-open",
+      "issue": "typed nodes と placeholder syntax を未決定にし、部分 token、flag ordering、空値、metacharacter が accepted argv か config error かを固定していない。",
+      "resolution": "argv mapping は typed argument nodes（literal、value、flag-value、flag-if-true、enum-token）に固定し、各 node が 0 個以上の完全な argv token を順序どおり生成すると定義する。placeholder と部分 token 展開を禁止し、unknown parameter、型不一致、空値違反は config error とする。"
+    },
+    {
+      "issue_ref": "issue-create-wire-discriminant-open",
+      "issue": "version field と mutually-exclusive fields を未決定にし、既存 caller、旧 server、新 client が mixed payload をどう分類するか、および rollback 可否が wire 実装で変わる。",
+      "resolution": "新 create payload は version=2 を必須とし、version 欠如と旧 {project,command} は拒否し、version=2 は {project,profileId,schemaRevision,values} のみと固定する。両 shape の field 混在、未知 version、重複 value ID は typed malformed request とし、明示的な設定 migration を契約へ追加する。"
+    },
+    {
+      "issue_ref": "issue-launch-materializer-owner-split",
+      "issue": "owner が「server/api + host/state」と二重で、profile revision 検証・default 適用・LaunchPlan.Argv 生成の最終決定者が一つに定まらない。",
+      "resolution": "authoritative profile lookup、revision/value validation、default application、LaunchPlan executable/argv materialization の owner を host/state の単一 pure service に固定する。server/api は wire decode と typed error encode の adapter に限定し、同じ service を daemon create 前に一度だけ呼ぶ。"
+    },
+    {
+      "issue_ref": "issue-fleet-cost-bound-missing",
+      "issue": "全 enabled server への bounded concurrent operation とだけあり、timeout、最大同時数、queue/backpressure、cancel、WS cleanup の数値または収束条件がない。",
+      "resolution": "fleet REST は最大同時 4 request、各 request 10 秒 timeout、server ごとに最新 1 generation のみを許し、supersede/window close/server removal で queued/in-flight request と WS を cancel/close すると固定する。全 operation は成功、typed failure、cancel のいずれかへ timeout 後 1 秒以内に収束する criterion を追加する。"
+    },
+    {
+      "issue_ref": "issue-arbitrary-n-ui-bound-missing",
+      "issue": "50 parameters を反例に挙げるだけで、任意 N の描画・focus・validation の time/memory bound や virtualization 時の accessibility semantics を固定していない。",
+      "resolution": "100 parameter descriptor を T1 基準入力とし、form 初期描画と任意 field validation update が基準 CI browser で 100 ms 以内、追加 retained state が O(N) と定義する。virtualization を採る場合も全 control を DOM 順の keyboard navigation と accessibility name/error relation で到達可能にする。"
+    },
+    {
+      "issue_ref": "issue-external-triple-not-grounded",
+      "issue": "fake/FakeVsReal/contract を列挙するだけで、descriptor/create、Electron routing、browser adapter の各外部 boundary に対応する実在 target と判定 criterion がない。",
+      "resolution": "descriptor/create gateway は src/server/api の httptest fake、FakeVsRealSessionConfig/Create e2e、OpenAPI+no-create contract、Electron routing は injected fetch/WS fake、FakeVsRealFleetGateway e2e、token/target isolation contract、browser adapter は fake fetch/WS、FakeVsRealBrowserProvider e2e、one-server parity contract に対応付ける。各 target に success と代表 typed failure の一致 criterion を記載する。"
+    },
+    {
+      "issue_ref": "issue-windows-shell-untraced-scope",
+      "issue": "scope は Workspace Electron と browser SPA の共通境界だが Windows Shell path と native fleet adapters を component に含め、対応 requirement/decision input を示していない。",
+      "resolution": "repo_grounding.paths、owner、integration_points、rationale から clients/windows-shell と native fleet adapters を削除し、Workspace Electron と browser SPA の shared projection に限定する。"
+    },
+    {
+      "issue_ref": "issue-config-revision-algorithm-missing",
+      "issue": "schemaRevision の生成範囲が未定義で、profile descriptor、default、argv mapping の変更後も revision が不変な実装が FR-005/NFR-003 を満たすように見える。",
+      "resolution": "schemaRevision は validation 後の applicable profile descriptor と argv mapping（parameter ID/order/kind/required/default/validation、argument nodes）を canonical length-prefixed encoding し SHA-256 した値と固定する。label だけの非実行変更を含めるかも明示し、create validation と descriptor response は同一 immutable snapshot の revision を使用する。"
+    }
+  ],
+  "critique_blockers": [],
+  "open_questions": [],
+  "design_dimensions": [
+    "data_model",
+    "control_flow",
+    "state_lifecycle",
+    "concurrency",
+    "failure_recovery",
+    "integration_contract",
+    "security_boundary",
+    "migration_compatibility",
+    "user_observability"
+  ],
+  "implementation_contracts": [
+    {
+      "id": "contract-profile-data-model",
+      "dimension": "data_model",
+      "subject": "profile IDs, parameter IDs, presence state, ordered descriptors and immutable revisions exclude duplicate or ambiguous states",
+      "owner_component_ref": "component-command-profile-config",
+      "related_requirements": [
+        "FR-002",
+        "FR-003",
+        "FR-005"
+      ],
+      "related_units": [
+        "Implement typed profile configuration"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-profile-data-model",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-profile-data-model"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "profile IDs, parameter IDs, presence state, ordered descriptors and immutable revisions exclude duplicate or ambiguous states",
+          "observable_refs": [
+            "observable-profile-data-model"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-profile-data-model",
+          "description": "profile IDs, parameter IDs, presence state, ordered descriptors and immutable revisions exclude duplicate or ambiguous states",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-profile-data-model"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-profile-data-model",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-command-profile-config",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-command-profile-config"
+          },
+          "source": "component-command-profile-config authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-profile-data-model-normal",
+            "witness-profile-data-model-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "profile IDs, parameter IDs, presence state, ordered descriptors and immutable revisions exclude duplicate or ambiguous states",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-profile-data-model",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-profile-data-model",
+          "requirement_refs": [
+            "FR-002",
+            "FR-003",
+            "FR-005"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `profile IDs, parameter IDs, presence state, ordered descriptors and immutable revisions exclude duplicate or ambiguous states` and prove malformed/stale inputs create nothing.",
+          "command": "cd src && go test ./host/config/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-profile-data-model-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-002",
+            "FR-003",
+            "FR-005"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "profile IDs, parameter IDs, presence state, ordered descriptors and immutable revisions exclude duplicate or ambiguous states"
+          ],
+          "expected_observable_refs": [
+            "observable-profile-data-model"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-profile-data-model"
+          ]
+        },
+        {
+          "id": "witness-profile-data-model-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-002",
+            "FR-003",
+            "FR-005"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-profile-data-model"
+          ],
+          "forbidden_outcomes": [
+            "profile IDs, parameter IDs, presence state, ordered descriptors and immutable revisions exclude duplicate or ambiguous states from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-profile-data-model"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema",
+        "adr-20260727-server-argv-materialization",
+        "adr-20260727-arbitrary-parameter-palette-state"
+      ]
+    },
+    {
+      "id": "contract-profile-model",
+      "dimension": "migration_compatibility",
+      "subject": "typed profile config produces one ordered immutable profile snapshot; semantic changes always change revision",
+      "owner_component_ref": "component-command-profile-config",
+      "related_requirements": [
+        "FR-002",
+        "FR-003",
+        "FR-007",
+        "FR-010"
+      ],
+      "related_units": [
+        "Implement typed profile configuration"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-profile-model",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-profile-model"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "typed profile config produces one ordered immutable profile snapshot; semantic changes always change revision",
+          "observable_refs": [
+            "observable-profile-model"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-profile-model",
+          "description": "typed profile config produces one ordered immutable profile snapshot; semantic changes always change revision",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-profile-model"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-profile-model",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-command-profile-config",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-command-profile-config"
+          },
+          "source": "component-command-profile-config authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-profile-model-normal",
+            "witness-profile-model-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-profile-model-evolution",
+          "kind": "contract_evolution",
+          "surface": "typed profile config produces one ordered immutable profile snapshot; semantic changes always change revision",
+          "consumer_refs": [
+            {
+              "kind": "external",
+              "external_identity": "version-2 clients/configurations"
+            }
+          ],
+          "compatibility": "backward_compatible",
+          "migration_strategy": "server-first dual read converges both shapes to the normalized model",
+          "rollout": "deploy tolerant server/config reader before new clients/config writers",
+          "rollback": "restore the prior release and migrate configuration explicitly",
+          "baseline_verification_refs": [
+            "verify-profile-model"
+          ],
+          "target_verification_refs": [
+            "verify-profile-model"
+          ],
+          "witness_refs": [
+            "witness-profile-model-normal",
+            "witness-profile-model-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "typed profile config produces one ordered immutable profile snapshot; semantic changes always change revision",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-profile-model",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-profile-model",
+          "requirement_refs": [
+            "FR-002",
+            "FR-003",
+            "FR-007",
+            "FR-010"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `typed profile config produces one ordered immutable profile snapshot; semantic changes always change revision` and prove malformed/stale inputs create nothing.",
+          "command": "cd src && go test ./host/config/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-profile-model-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-002",
+            "FR-003",
+            "FR-007",
+            "FR-010"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "typed profile config produces one ordered immutable profile snapshot; semantic changes always change revision"
+          ],
+          "expected_observable_refs": [
+            "observable-profile-model"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-profile-model"
+          ]
+        },
+        {
+          "id": "witness-profile-model-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-002",
+            "FR-003",
+            "FR-007",
+            "FR-010"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-profile-model"
+          ],
+          "forbidden_outcomes": [
+            "typed profile config produces one ordered immutable profile snapshot; semantic changes always change revision from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-profile-model"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema",
+        "adr-20260727-server-argv-materialization",
+        "adr-20260727-arbitrary-parameter-palette-state"
+      ]
+    },
+    {
+      "id": "contract-project-profile-override",
+      "dimension": "integration_contract",
+      "subject": "project profiles inherit unspecified IDs, fully replace matching IDs, remove explicit disabled IDs, and reject duplicates",
+      "owner_component_ref": "component-command-profile-config",
+      "related_requirements": [
+        "FR-002",
+        "FR-005"
+      ],
+      "related_units": [
+        "Implement typed profile configuration"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-project-profile-override",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-project-profile-override"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "project profiles inherit unspecified IDs, fully replace matching IDs, remove explicit disabled IDs, and reject duplicates",
+          "observable_refs": [
+            "observable-project-profile-override"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-project-profile-override",
+          "description": "project profiles inherit unspecified IDs, fully replace matching IDs, remove explicit disabled IDs, and reject duplicates",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-project-profile-override"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-project-profile-override",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-command-profile-config",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-command-profile-config"
+          },
+          "source": "component-command-profile-config authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-project-profile-override-normal",
+            "witness-project-profile-override-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "project profiles inherit unspecified IDs, fully replace matching IDs, remove explicit disabled IDs, and reject duplicates",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-project-profile-override",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-project-profile-override",
+          "requirement_refs": [
+            "FR-002",
+            "FR-005"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `project profiles inherit unspecified IDs, fully replace matching IDs, remove explicit disabled IDs, and reject duplicates` and prove malformed/stale inputs create nothing.",
+          "command": "cd src && go test ./host/config/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-project-profile-override-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-002",
+            "FR-005"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "project profiles inherit unspecified IDs, fully replace matching IDs, remove explicit disabled IDs, and reject duplicates"
+          ],
+          "expected_observable_refs": [
+            "observable-project-profile-override"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-project-profile-override"
+          ]
+        },
+        {
+          "id": "witness-project-profile-override-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-002",
+            "FR-005"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-project-profile-override"
+          ],
+          "forbidden_outcomes": [
+            "project profiles inherit unspecified IDs, fully replace matching IDs, remove explicit disabled IDs, and reject duplicates from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-project-profile-override"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema",
+        "adr-20260727-server-argv-materialization",
+        "adr-20260727-arbitrary-parameter-palette-state"
+      ]
+    },
+    {
+      "id": "contract-descriptor-rest",
+      "dimension": "integration_contract",
+      "subject": "one GET /api/session-config returns a server-local immutable versioned project/profile snapshot",
+      "owner_component_ref": "component-session-descriptor-api",
+      "related_requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003"
+      ],
+      "related_units": [
+        "Extend session-config descriptor REST"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-descriptor-rest",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-descriptor-rest"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "one GET /api/session-config returns a server-local immutable versioned project/profile snapshot",
+          "observable_refs": [
+            "observable-descriptor-rest"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-descriptor-rest",
+          "description": "one GET /api/session-config returns a server-local immutable versioned project/profile snapshot",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-descriptor-rest"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-descriptor-rest",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-session-descriptor-api",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-session-descriptor-api"
+          },
+          "source": "component-session-descriptor-api authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-descriptor-rest-normal",
+            "witness-descriptor-rest-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "one GET /api/session-config returns a server-local immutable versioned project/profile snapshot",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-descriptor-rest",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-descriptor-rest",
+          "requirement_refs": [
+            "FR-001",
+            "FR-002",
+            "FR-003"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `one GET /api/session-config returns a server-local immutable versioned project/profile snapshot` and prove malformed/stale inputs create nothing.",
+          "command": "cd src && go test ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-descriptor-rest-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-001",
+            "FR-002",
+            "FR-003"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "one GET /api/session-config returns a server-local immutable versioned project/profile snapshot"
+          ],
+          "expected_observable_refs": [
+            "observable-descriptor-rest"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-descriptor-rest"
+          ]
+        },
+        {
+          "id": "witness-descriptor-rest-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-001",
+            "FR-002",
+            "FR-003"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-descriptor-rest"
+          ],
+          "forbidden_outcomes": [
+            "one GET /api/session-config returns a server-local immutable versioned project/profile snapshot from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-descriptor-rest"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary",
+        "adr-20260727-typed-launch-profile-schema",
+        "adr-20260727-arbitrary-parameter-palette-state",
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ]
+    },
+    {
+      "id": "contract-server-side-materialization",
+      "dimension": "security_boundary",
+      "subject": "the host/state service alone validates the exact revision and emits shell-free executable/argv tokens",
+      "owner_component_ref": "component-server-launch-materializer",
+      "related_requirements": [
+        "FR-004",
+        "FR-005",
+        "FR-006"
+      ],
+      "related_units": [
+        "Implement authoritative create validation and argv materialization"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-server-side-materialization",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-server-side-materialization"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "the host/state service alone validates the exact revision and emits shell-free executable/argv tokens",
+          "observable_refs": [
+            "observable-server-side-materialization"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-server-side-materialization",
+          "description": "the host/state service alone validates the exact revision and emits shell-free executable/argv tokens",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-server-side-materialization"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-server-side-materialization",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-server-launch-materializer",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-server-launch-materializer"
+          },
+          "source": "component-server-launch-materializer authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-server-side-materialization-normal",
+            "witness-server-side-materialization-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "the host/state service alone validates the exact revision and emits shell-free executable/argv tokens",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-server-side-materialization",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-server-side-materialization",
+          "requirement_refs": [
+            "FR-004",
+            "FR-005",
+            "FR-006"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `the host/state service alone validates the exact revision and emits shell-free executable/argv tokens` and prove malformed/stale inputs create nothing.",
+          "command": "cd src && go test ./host/state/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-server-side-materialization-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-004",
+            "FR-005",
+            "FR-006"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "the host/state service alone validates the exact revision and emits shell-free executable/argv tokens"
+          ],
+          "expected_observable_refs": [
+            "observable-server-side-materialization"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-server-side-materialization"
+          ]
+        },
+        {
+          "id": "witness-server-side-materialization-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-004",
+            "FR-005",
+            "FR-006"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-server-side-materialization"
+          ],
+          "forbidden_outcomes": [
+            "the host/state service alone validates the exact revision and emits shell-free executable/argv tokens from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-server-side-materialization"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-server-argv-materialization",
+        "adr-20260727-arbitrary-parameter-palette-state"
+      ]
+    },
+    {
+      "id": "contract-create-wire-evolution",
+      "dimension": "migration_compatibility",
+      "subject": "only version=2 profile payloads are accepted; absent, mixed, or unknown shapes create no session",
+      "owner_component_ref": "component-server-launch-materializer",
+      "related_requirements": [
+        "FR-006",
+        "FR-010"
+      ],
+      "related_units": [
+        "Implement authoritative create validation and argv materialization"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-create-wire-evolution",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-create-wire-evolution"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "only version=2 profile payloads are accepted; absent, mixed, or unknown shapes create no session",
+          "observable_refs": [
+            "observable-create-wire-evolution"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-create-wire-evolution",
+          "description": "only version=2 profile payloads are accepted; absent, mixed, or unknown shapes create no session",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-create-wire-evolution"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-create-wire-evolution",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-server-launch-materializer",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-server-launch-materializer"
+          },
+          "source": "component-server-launch-materializer authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-create-wire-evolution-normal",
+            "witness-create-wire-evolution-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-create-wire-evolution-evolution",
+          "kind": "contract_evolution",
+          "surface": "only version=2 profile payloads are accepted; absent, mixed, or unknown shapes create no session",
+          "consumer_refs": [
+            {
+              "kind": "external",
+              "external_identity": "version-2 clients/configurations"
+            }
+          ],
+          "compatibility": "backward_compatible",
+          "migration_strategy": "server-first dual read converges both shapes to the normalized model",
+          "rollout": "deploy tolerant server/config reader before new clients/config writers",
+          "rollback": "restore the prior release and migrate configuration explicitly",
+          "baseline_verification_refs": [
+            "verify-create-wire-evolution"
+          ],
+          "target_verification_refs": [
+            "verify-create-wire-evolution"
+          ],
+          "witness_refs": [
+            "witness-create-wire-evolution-normal",
+            "witness-create-wire-evolution-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "only version=2 profile payloads are accepted; absent, mixed, or unknown shapes create no session",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-create-wire-evolution",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-create-wire-evolution",
+          "requirement_refs": [
+            "FR-006",
+            "FR-010"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `only version=2 profile payloads are accepted; absent, mixed, or unknown shapes create no session` and prove malformed/stale inputs create nothing.",
+          "command": "cd src && go test ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-create-wire-evolution-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-006",
+            "FR-010"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "only version=2 profile payloads are accepted; absent, mixed, or unknown shapes create no session"
+          ],
+          "expected_observable_refs": [
+            "observable-create-wire-evolution"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-create-wire-evolution"
+          ]
+        },
+        {
+          "id": "witness-create-wire-evolution-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-006",
+            "FR-010"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-create-wire-evolution"
+          ],
+          "forbidden_outcomes": [
+            "only version=2 profile payloads are accepted; absent, mixed, or unknown shapes create no session from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-create-wire-evolution"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema",
+        "adr-20260727-server-argv-materialization"
+      ]
+    },
+    {
+      "id": "contract-electron-fleet-routing",
+      "dimension": "security_boundary",
+      "subject": "Electron main alone holds credentials, routes by enabled serverId, rejects redirects, and owns REST/WS lifecycle",
+      "owner_component_ref": "component-fleet-preload-bridge",
+      "related_requirements": [
+        "FR-009",
+        "FR-012"
+      ],
+      "related_units": [
+        "Implement Electron main fleet provider"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-electron-fleet-routing",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-electron-fleet-routing"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "Electron main alone holds credentials, routes by enabled serverId, rejects redirects, and owns REST/WS lifecycle",
+          "observable_refs": [
+            "observable-electron-fleet-routing"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-electron-fleet-routing",
+          "description": "Electron main alone holds credentials, routes by enabled serverId, rejects redirects, and owns REST/WS lifecycle",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-electron-fleet-routing"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-electron-fleet-routing",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-fleet-preload-bridge",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-fleet-preload-bridge"
+          },
+          "source": "component-fleet-preload-bridge authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-electron-fleet-routing-normal",
+            "witness-electron-fleet-routing-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "Electron main alone holds credentials, routes by enabled serverId, rejects redirects, and owns REST/WS lifecycle",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-electron-fleet-routing",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-electron-fleet-routing",
+          "requirement_refs": [
+            "FR-009",
+            "FR-012"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `Electron main alone holds credentials, routes by enabled serverId, rejects redirects, and owns REST/WS lifecycle` and prove malformed/stale inputs create nothing.",
+          "command": "cd clients/workspace && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-electron-fleet-routing-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-009",
+            "FR-012"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "Electron main alone holds credentials, routes by enabled serverId, rejects redirects, and owns REST/WS lifecycle"
+          ],
+          "expected_observable_refs": [
+            "observable-electron-fleet-routing"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-electron-fleet-routing"
+          ]
+        },
+        {
+          "id": "witness-electron-fleet-routing-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-009",
+            "FR-012"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-electron-fleet-routing"
+          ],
+          "forbidden_outcomes": [
+            "Electron main alone holds credentials, routes by enabled serverId, rejects redirects, and owns REST/WS lifecycle from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-electron-fleet-routing"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary",
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ]
+    },
+    {
+      "id": "contract-fleet-partial-outcomes",
+      "dimension": "failure_recovery",
+      "subject": "healthy per-server results remain usable while failures are typed, retryable and generation-fenced within bounded resources",
+      "owner_component_ref": "component-palette-launch-state",
+      "related_requirements": [
+        "FR-001",
+        "FR-009"
+      ],
+      "related_units": [
+        "Implement Electron main fleet provider"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-fleet-partial-outcomes",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-fleet-partial-outcomes"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "healthy per-server results remain usable while failures are typed, retryable and generation-fenced within bounded resources",
+          "observable_refs": [
+            "observable-fleet-partial-outcomes"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-fleet-partial-outcomes",
+          "description": "healthy per-server results remain usable while failures are typed, retryable and generation-fenced within bounded resources",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-fleet-partial-outcomes"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-fleet-partial-outcomes",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-palette-launch-state",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-palette-launch-state"
+          },
+          "source": "component-palette-launch-state authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-fleet-partial-outcomes-normal",
+            "witness-fleet-partial-outcomes-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-fleet-partial-outcomes-cost",
+          "kind": "cost_convergence",
+          "workload_axis": "enabled server count",
+          "cost_metric": "concurrent resources and completion latency",
+          "bound": "four concurrent requests, 10 second timeout, convergence within 1 second thereafter",
+          "resource_cap": "four REST operations and one latest generation per server",
+          "measurement_ref": "verify-fleet-partial-outcomes",
+          "witness_refs": [
+            "witness-fleet-partial-outcomes-normal",
+            "witness-fleet-partial-outcomes-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "healthy per-server results remain usable while failures are typed, retryable and generation-fenced within bounded resources",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-fleet-partial-outcomes",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-fleet-partial-outcomes",
+          "requirement_refs": [
+            "FR-001",
+            "FR-009"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `healthy per-server results remain usable while failures are typed, retryable and generation-fenced within bounded resources` and prove malformed/stale inputs create nothing.",
+          "command": "cd clients/workspace && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-fleet-partial-outcomes-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-001",
+            "FR-009"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "healthy per-server results remain usable while failures are typed, retryable and generation-fenced within bounded resources"
+          ],
+          "expected_observable_refs": [
+            "observable-fleet-partial-outcomes"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-fleet-partial-outcomes"
+          ]
+        },
+        {
+          "id": "witness-fleet-partial-outcomes-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "recovery",
+            "unsupported_environment",
+            "partial_data",
+            "scale"
+          ],
+          "requirement_refs": [
+            "FR-001",
+            "FR-009"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-fleet-partial-outcomes"
+          ],
+          "forbidden_outcomes": [
+            "healthy per-server results remain usable while failures are typed, retryable and generation-fenced within bounded resources from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-fleet-partial-outcomes"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary",
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ]
+    },
+    {
+      "id": "contract-fleet-concurrency",
+      "dimension": "concurrency",
+      "subject": "main-owned scheduling permits four requests, one latest generation and one cleaned-up stream set per server",
+      "owner_component_ref": "component-electron-fleet-provider",
+      "related_requirements": [
+        "FR-001",
+        "FR-009",
+        "FR-012"
+      ],
+      "related_units": [
+        "Implement Electron main fleet provider"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-fleet-concurrency",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-fleet-concurrency"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "main-owned scheduling permits four requests, one latest generation and one cleaned-up stream set per server",
+          "observable_refs": [
+            "observable-fleet-concurrency"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-fleet-concurrency",
+          "description": "main-owned scheduling permits four requests, one latest generation and one cleaned-up stream set per server",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-fleet-concurrency"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-fleet-concurrency",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-electron-fleet-provider",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-electron-fleet-provider"
+          },
+          "source": "component-electron-fleet-provider authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-fleet-concurrency-normal",
+            "witness-fleet-concurrency-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "main-owned scheduling permits four requests, one latest generation and one cleaned-up stream set per server",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-fleet-concurrency",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-fleet-concurrency",
+          "requirement_refs": [
+            "FR-001",
+            "FR-009",
+            "FR-012"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `main-owned scheduling permits four requests, one latest generation and one cleaned-up stream set per server` and prove malformed/stale inputs create nothing.",
+          "command": "cd clients/workspace && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-fleet-concurrency-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-001",
+            "FR-009",
+            "FR-012"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "main-owned scheduling permits four requests, one latest generation and one cleaned-up stream set per server"
+          ],
+          "expected_observable_refs": [
+            "observable-fleet-concurrency"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-fleet-concurrency"
+          ]
+        },
+        {
+          "id": "witness-fleet-concurrency-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-001",
+            "FR-009",
+            "FR-012"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-fleet-concurrency"
+          ],
+          "forbidden_outcomes": [
+            "main-owned scheduling permits four requests, one latest generation and one cleaned-up stream set per server from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-fleet-concurrency"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary",
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ]
+    },
+    {
+      "id": "contract-browser-single-entry",
+      "dimension": "integration_contract",
+      "subject": "browser canonical origin yields one stable serverId and identical fleet-provider behavior for one gateway",
+      "owner_component_ref": "component-browser-single-server-adapter",
+      "related_requirements": [
+        "FR-001",
+        "FR-011"
+      ],
+      "related_units": [
+        "Adapt browser provider and shared server-qualified projection"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-browser-single-entry",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-browser-single-entry"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "browser canonical origin yields one stable serverId and identical fleet-provider behavior for one gateway",
+          "observable_refs": [
+            "observable-browser-single-entry"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-browser-single-entry",
+          "description": "browser canonical origin yields one stable serverId and identical fleet-provider behavior for one gateway",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-browser-single-entry"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-browser-single-entry",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-browser-single-server-adapter",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-browser-single-server-adapter"
+          },
+          "source": "component-browser-single-server-adapter authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-browser-single-entry-normal",
+            "witness-browser-single-entry-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "browser canonical origin yields one stable serverId and identical fleet-provider behavior for one gateway",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-browser-single-entry",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-browser-single-entry",
+          "requirement_refs": [
+            "FR-001",
+            "FR-011"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `browser canonical origin yields one stable serverId and identical fleet-provider behavior for one gateway` and prove malformed/stale inputs create nothing.",
+          "command": "cd clients/ui && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-browser-single-entry-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-001",
+            "FR-011"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "browser canonical origin yields one stable serverId and identical fleet-provider behavior for one gateway"
+          ],
+          "expected_observable_refs": [
+            "observable-browser-single-entry"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-browser-single-entry"
+          ]
+        },
+        {
+          "id": "witness-browser-single-entry-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-001",
+            "FR-011"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-browser-single-entry"
+          ],
+          "forbidden_outcomes": [
+            "browser canonical origin yields one stable serverId and identical fleet-provider behavior for one gateway from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-browser-single-entry"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary",
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ]
+    },
+    {
+      "id": "contract-typed-parameter-form",
+      "dimension": "user_observability",
+      "subject": "one ordered accessible form preserves absent/default/explicit state for arbitrary N enum/boolean parameters",
+      "owner_component_ref": "component-palette-launch-state",
+      "related_requirements": [
+        "FR-003",
+        "FR-004",
+        "FR-007"
+      ],
+      "related_units": [
+        "Implement arbitrary-N palette form and stale reconciliation"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-typed-parameter-form",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-typed-parameter-form"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "one ordered accessible form preserves absent/default/explicit state for arbitrary N enum/boolean parameters",
+          "observable_refs": [
+            "observable-typed-parameter-form"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-typed-parameter-form",
+          "description": "one ordered accessible form preserves absent/default/explicit state for arbitrary N enum/boolean parameters",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-typed-parameter-form"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-typed-parameter-form",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-palette-launch-state",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-palette-launch-state"
+          },
+          "source": "component-palette-launch-state authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-typed-parameter-form-normal",
+            "witness-typed-parameter-form-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [
+        {
+          "id": "profile-typed-parameter-form-cost",
+          "kind": "cost_convergence",
+          "workload_axis": "parameter count N",
+          "cost_metric": "render/update latency and retained state",
+          "bound": "100 parameters render/update within 100 ms; state O(N)",
+          "resource_cap": "O(N) controls/state; no hidden unreachable controls",
+          "measurement_ref": "verify-typed-parameter-form",
+          "witness_refs": [
+            "witness-typed-parameter-form-normal",
+            "witness-typed-parameter-form-adversarial"
+          ]
+        }
+      ],
+      "invariants": [
+        "one ordered accessible form preserves absent/default/explicit state for arbitrary N enum/boolean parameters",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-typed-parameter-form",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-typed-parameter-form",
+          "requirement_refs": [
+            "FR-003",
+            "FR-004",
+            "FR-007"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `one ordered accessible form preserves absent/default/explicit state for arbitrary N enum/boolean parameters` and prove malformed/stale inputs create nothing.",
+          "command": "cd clients/ui && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-typed-parameter-form-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-003",
+            "FR-004",
+            "FR-007"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "one ordered accessible form preserves absent/default/explicit state for arbitrary N enum/boolean parameters"
+          ],
+          "expected_observable_refs": [
+            "observable-typed-parameter-form"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-typed-parameter-form"
+          ]
+        },
+        {
+          "id": "witness-typed-parameter-form-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "scale",
+            "repeated_usage"
+          ],
+          "requirement_refs": [
+            "FR-003",
+            "FR-004",
+            "FR-007"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-typed-parameter-form"
+          ],
+          "forbidden_outcomes": [
+            "one ordered accessible form preserves absent/default/explicit state for arbitrary N enum/boolean parameters from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-typed-parameter-form"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-typed-launch-profile-schema",
+        "adr-20260727-server-argv-materialization",
+        "adr-20260727-arbitrary-parameter-palette-state"
+      ]
+    },
+    {
+      "id": "contract-schema-drift-reconciliation",
+      "dimension": "state_lifecycle",
+      "subject": "stale create never runs and refreshed forms retain only same-ID compatible-kind values plus valid focus",
+      "owner_component_ref": "component-palette-launch-state",
+      "related_requirements": [
+        "FR-005",
+        "FR-009"
+      ],
+      "related_units": [
+        "Implement arbitrary-N palette form and stale reconciliation"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-schema-drift-reconciliation",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-schema-drift-reconciliation"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "stale create never runs and refreshed forms retain only same-ID compatible-kind values plus valid focus",
+          "observable_refs": [
+            "observable-schema-drift-reconciliation"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-schema-drift-reconciliation",
+          "description": "stale create never runs and refreshed forms retain only same-ID compatible-kind values plus valid focus",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-schema-drift-reconciliation"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-schema-drift-reconciliation",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-palette-launch-state",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-palette-launch-state"
+          },
+          "source": "component-palette-launch-state authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-schema-drift-reconciliation-normal",
+            "witness-schema-drift-reconciliation-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "stale create never runs and refreshed forms retain only same-ID compatible-kind values plus valid focus",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-schema-drift-reconciliation",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-schema-drift-reconciliation",
+          "requirement_refs": [
+            "FR-005",
+            "FR-009"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `stale create never runs and refreshed forms retain only same-ID compatible-kind values plus valid focus` and prove malformed/stale inputs create nothing.",
+          "command": "cd clients/ui && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-schema-drift-reconciliation-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-005",
+            "FR-009"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "stale create never runs and refreshed forms retain only same-ID compatible-kind values plus valid focus"
+          ],
+          "expected_observable_refs": [
+            "observable-schema-drift-reconciliation"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-schema-drift-reconciliation"
+          ]
+        },
+        {
+          "id": "witness-schema-drift-reconciliation-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-005",
+            "FR-009"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-schema-drift-reconciliation"
+          ],
+          "forbidden_outcomes": [
+            "stale create never runs and refreshed forms retain only same-ID compatible-kind values plus valid focus from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-schema-drift-reconciliation"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary",
+        "adr-20260727-server-argv-materialization",
+        "adr-20260727-arbitrary-parameter-palette-state",
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ]
+    },
+    {
+      "id": "contract-confirm-create-control-flow",
+      "dimension": "control_flow",
+      "subject": "only explicit confirmation advances one validated immutable snapshot through materialization to exactly one target create",
+      "owner_component_ref": "component-server-launch-materializer",
+      "related_requirements": [
+        "FR-004",
+        "FR-005",
+        "FR-006"
+      ],
+      "related_units": [
+        "Implement authoritative create validation and argv materialization"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-confirm-create-control-flow",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-confirm-create-control-flow"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "only explicit confirmation advances one validated immutable snapshot through materialization to exactly one target create",
+          "observable_refs": [
+            "observable-confirm-create-control-flow"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-confirm-create-control-flow",
+          "description": "only explicit confirmation advances one validated immutable snapshot through materialization to exactly one target create",
+          "scope": "local",
+          "operational_input_refs": [
+            "input-confirm-create-control-flow"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-confirm-create-control-flow",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-server-launch-materializer",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-server-launch-materializer"
+          },
+          "source": "component-server-launch-materializer authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-confirm-create-control-flow-normal",
+            "witness-confirm-create-control-flow-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "only explicit confirmation advances one validated immutable snapshot through materialization to exactly one target create",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-confirm-create-control-flow",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-confirm-create-control-flow",
+          "requirement_refs": [
+            "FR-004",
+            "FR-005",
+            "FR-006"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `only explicit confirmation advances one validated immutable snapshot through materialization to exactly one target create` and prove malformed/stale inputs create nothing.",
+          "command": "cd src && go test ./host/state/... ./server/api/..."
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-confirm-create-control-flow-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-004",
+            "FR-005",
+            "FR-006"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "only explicit confirmation advances one validated immutable snapshot through materialization to exactly one target create"
+          ],
+          "expected_observable_refs": [
+            "observable-confirm-create-control-flow"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-confirm-create-control-flow"
+          ]
+        },
+        {
+          "id": "witness-confirm-create-control-flow-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-004",
+            "FR-005",
+            "FR-006"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-confirm-create-control-flow"
+          ],
+          "forbidden_outcomes": [
+            "only explicit confirmation advances one validated immutable snapshot through materialization to exactly one target create from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-confirm-create-control-flow"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-server-argv-materialization",
+        "adr-20260727-arbitrary-parameter-palette-state"
+      ]
+    },
+    {
+      "id": "contract-server-qualified-identity",
+      "dimension": "user_observability",
+      "subject": "compound server/local identity and visible server label survive discovery, selection, create and active context",
+      "owner_component_ref": "component-server-qualified-session-projection",
+      "related_requirements": [
+        "FR-001",
+        "FR-008",
+        "FR-009"
+      ],
+      "related_units": [
+        "Adapt browser provider and shared server-qualified projection"
+      ],
+      "decision_rules": [
+        {
+          "id": "decision-server-qualified-identity",
+          "condition": "The authoritative versioned input is available and valid.",
+          "evidence_mode": "total",
+          "input_refs": [
+            "input-server-qualified-identity"
+          ],
+          "epistemic_state": "determinate",
+          "outcome": "compound server/local identity and visible server label survive discovery, selection, create and active context",
+          "observable_refs": [
+            "observable-server-qualified-identity"
+          ],
+          "rationale": "The owning component validates once and does not infer missing authority."
+        }
+      ],
+      "observable_effects": [
+        {
+          "id": "observable-server-qualified-identity",
+          "description": "compound server/local identity and visible server label survive discovery, selection, create and active context",
+          "scope": "global",
+          "operational_input_refs": [
+            "input-server-qualified-identity"
+          ],
+          "input_closure_reason": ""
+        }
+      ],
+      "operational_inputs": [
+        {
+          "id": "input-server-qualified-identity",
+          "kind": "versioned_state",
+          "data_scope": "full",
+          "owner_component_ref": "component-server-qualified-session-projection",
+          "producer": {
+            "kind": "component",
+            "component_ref": "component-server-qualified-session-projection"
+          },
+          "source": "component-server-qualified-session-projection authoritative snapshot",
+          "acquired_at": "At descriptor load or create/retry generation start",
+          "required_until": "The operation completes or its generation is superseded",
+          "preservation": "immutable snapshot keyed by revision/generation",
+          "mutable_between_acquire_and_use": false,
+          "stability_basis": "Owner publishes an immutable revision/generation and rejects stale use.",
+          "invalidation_behavior": "Cancel or reject without side effects, reacquire through the owner, and expose a typed reason.",
+          "unavailable_outcome": "No create or cross-scope mutation; healthy independent scopes remain usable.",
+          "witness_refs": [
+            "witness-server-qualified-identity-normal",
+            "witness-server-qualified-identity-adversarial"
+          ]
+        }
+      ],
+      "semantic_profiles": [],
+      "invariants": [
+        "compound server/local identity and visible server label survive discovery, selection, create and active context",
+        "Invalid, stale, unknown, or unauthorized input never silently falls back or creates a session."
+      ],
+      "failure_semantics": [
+        {
+          "id": "failure-server-qualified-identity",
+          "class": "typed boundary failure",
+          "source": "unsupported_input",
+          "outcome": "Return a typed scoped failure and create no session.",
+          "requirement_effect": "preserves",
+          "recovery": "retry"
+        }
+      ],
+      "verification": [
+        {
+          "id": "verify-server-qualified-identity",
+          "requirement_refs": [
+            "FR-001",
+            "FR-008",
+            "FR-009"
+          ],
+          "tier": "T1",
+          "method": "Deterministic unit/gateway scenario with normal and adversarial fixtures.",
+          "criterion": "Observe `compound server/local identity and visible server label survive discovery, selection, create and active context` and prove malformed/stale inputs create nothing.",
+          "command": "cd clients/ui && npm run test:unit"
+        }
+      ],
+      "witnesses": [
+        {
+          "id": "witness-server-qualified-identity-normal",
+          "case": "normal",
+          "risk_tags": [],
+          "requirement_refs": [
+            "FR-001",
+            "FR-008",
+            "FR-009"
+          ],
+          "precondition": "Authoritative input is current and valid.",
+          "stimulus": "Execute discovery, render, or create through the owning public boundary.",
+          "expected_observables": [
+            "compound server/local identity and visible server label survive discovery, selection, create and active context"
+          ],
+          "expected_observable_refs": [
+            "observable-server-qualified-identity"
+          ],
+          "forbidden_outcomes": [
+            "A different server, revision, profile, or value is used."
+          ],
+          "verification_refs": [
+            "verify-server-qualified-identity"
+          ]
+        },
+        {
+          "id": "witness-server-qualified-identity-adversarial",
+          "case": "adversarial",
+          "risk_tags": [
+            "boundary",
+            "stale"
+          ],
+          "requirement_refs": [
+            "FR-001",
+            "FR-008",
+            "FR-009"
+          ],
+          "precondition": "Input is stale, malformed, redirected, duplicated, partial, or concurrently superseded.",
+          "stimulus": "Execute the same public operation.",
+          "expected_observables": [
+            "A typed scoped failure is visible and no session is created."
+          ],
+          "expected_observable_refs": [
+            "observable-server-qualified-identity"
+          ],
+          "forbidden_outcomes": [
+            "compound server/local identity and visible server label survive discovery, selection, create and active context from insufficient or stale evidence."
+          ],
+          "verification_refs": [
+            "verify-server-qualified-identity"
+          ]
+        }
+      ],
+      "open_design_choices": [],
+      "adr_refs": [
+        "adr-20260727-fleet-provider-boundary",
+        "adr-20260727-server-qualified-identity-partial-failure"
+      ]
+    }
+  ],
+  "reference_algorithms": [
+    {
+      "id": "alg-schema-revision",
+      "contract": "contract-profile-model",
+      "inputs": [
+        "merged applicable profile descriptor"
+      ],
+      "outputs": [
+        "lowercase SHA-256 schemaRevision"
+      ],
+      "state": [],
+      "pseudocode": "Validate IDs and kinds; encode every field as tag plus length-prefixed bytes in declared order, including labels, defaults, validation, argv nodes; SHA-256 the bytes.",
+      "bounds": [
+        "O(encoded descriptor size) time and memory",
+        "Any descriptor or execution-semantic change changes encoded bytes"
+      ],
+      "failure_cases": [
+        "Duplicate/unknown IDs or kinds fail config load; no revision is published."
+      ]
+    },
+    {
+      "id": "alg-fleet-generation",
+      "contract": "contract-fleet-partial-outcomes",
+      "inputs": [
+        "enabled server snapshot",
+        "operation generation"
+      ],
+      "outputs": [
+        "per-server result/failure/cancel snapshot"
+      ],
+      "state": [
+        "latest generation per server",
+        "queue of at most enabled server count",
+        "at most four in-flight REST calls"
+      ],
+      "pseudocode": "Enqueue enabled servers; run at most four; cancel older generation on supersede; cap each request at ten seconds; close streams on removal/window close; publish only matching generation outcomes.",
+      "bounds": [
+        "At most four REST requests concurrently",
+        "Each result converges by eleven seconds absent earlier completion",
+        "At most one live generation and stream set per server"
+      ],
+      "failure_cases": [
+        "Timeout/auth/malformed/redirect becomes a typed per-server failure while healthy results remain."
+      ]
+    }
+  ],
+  "implementation_decisions_remaining": [],
+  "verification_profiles": [
+    {
+      "id": "verify-triple-descriptor-create",
+      "tier": "T3",
+      "method": "httptest fake + FakeVsRealSessionConfig/Create + OpenAPI/no-create invariant contract",
+      "criterion": "Success and representative typed failure match fake and real; invalid/stale request creates no session.",
+      "command": "GOCACHE=/tmp/gocache-agent-grid make test-e2e"
+    },
+    {
+      "id": "verify-triple-electron",
+      "tier": "T3",
+      "method": "injected fetch/WS fake + FakeVsRealFleetGateway + token/target isolation contract",
+      "criterion": "Target/result parity and redirect/token isolation hold.",
+      "command": "cd clients/workspace && npm run test:e2e"
+    },
+    {
+      "id": "verify-triple-browser",
+      "tier": "T3",
+      "method": "fake fetch/WS + FakeVsRealBrowserProvider + one-server parity contract",
+      "criterion": "One-server provider matches fleet contract for success and typed failure.",
+      "command": "cd clients/ui && npm run test:e2e:real"
+    }
+  ],
+  "implementation_checklist": [
+    "Add tests before considering each unit complete.",
+    "Run Go/UI unit gates and the three external-boundary triples.",
+    "Keep canonical and runtime plan byte-identical."
+  ],
+  "non_goals": [
+    "個人化した server 並び順",
+    "新しい通知 system",
+    "任意 shell command editor または client-side shell interpolation",
+    "command parameter 間の任意スクリプト依存関係",
+    "server 間で session を移送する機能",
+    "既存 terminal lifecycle protocol の再設計"
+  ]
+}

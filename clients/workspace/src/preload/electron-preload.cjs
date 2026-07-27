@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
   serverHealth: {
     list: () => ipcRenderer.invoke("agent-grid:server-health-list"),
   },
+  sessionFleet: {
+    listConfigs: () => ipcRenderer.invoke("agent-grid:session-fleet-configs"),
+    create: (serverId, payload) =>
+      ipcRenderer.invoke("agent-grid:session-fleet-create", serverId, payload),
+  },
   // Keeps the native chrome (caption-button overlay, title-bar view, popup
   // menus) in sync with the SPA theme. `theme` is the resolved value;
   // `mode` is the user's choice ("system" keeps native UI on the OS theme).

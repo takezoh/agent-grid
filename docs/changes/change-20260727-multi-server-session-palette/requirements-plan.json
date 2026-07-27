@@ -1,0 +1,1614 @@
+{
+  "mode": "specify",
+  "revision": "specify-1-integrated",
+  "base_revision": "explore-4-user-approved",
+  "goal": "複数サーバーを一つの作業面として扱い、全接続サーバーの project を横断して発見し、所属 server と project 別 command、command が宣言する任意個の parameter を確認して、意図した宛先へ session を作成できるようにする。",
+  "target_users": [
+    "複数の Agent Grid サーバーへ同時接続してセッションを監督する利用者",
+    "キーボード、ポインター、または支援技術で New Session と一覧を操作する利用者"
+  ],
+  "user_goals": [
+    {
+      "id": "goal-find-target",
+      "actor": "複数サーバーへ接続中の利用者",
+      "context": "New Session を開き、同名 project が複数 server に存在し得る",
+      "desired_outcome": "server を先に切り替えず全接続 server の project から server + project の組を選ぶ",
+      "success_observation": "最初の候補面で全接続 server の project と所属 server を確認でき、選択後も宛先が維持される"
+    },
+    {
+      "id": "goal-valid-launch",
+      "actor": "新しい agent session を開始する利用者",
+      "context": "server + project を選択済みである",
+      "desired_outcome": "project で有効な command と宣言された任意個の parameter を一つの form で設定し、有効な組合せを確認して起動する",
+      "success_observation": "確認面に server、project、command、適用 parameter 値が現れ、有効な入力だけが session 作成に至る"
+    },
+    {
+      "id": "goal-identify-items",
+      "actor": "複数 server の session または project を走査する利用者",
+      "context": "同名 project や同一 session ID が複数 server に存在し得る",
+      "desired_outcome": "各項目の所属 server を hover や記憶に頼らず判別する",
+      "success_observation": "一覧の走査中と選択後の active context の双方で所属 server を確認できる"
+    },
+    {
+      "id": "goal-recover-partial-failure",
+      "actor": "一部 server だけが利用不能な利用者",
+      "context": "他 server は利用可能なまま一部の候補情報を取得できない",
+      "desired_outcome": "利用可能 server で作業を続け、欠落理由を判別し、回復後に再取得する",
+      "success_observation": "利用可能候補は操作でき、利用不能 server は理由付きで識別でき、再取得後に候補へ戻る"
+    }
+  ],
+  "experience_dimensions": [
+    {
+      "id": "connection-scope",
+      "values": [
+        "single-server",
+        "multi-server"
+      ],
+      "rationale": "同じ entry 契約が接続 server 数に応じて一つまたは fleet 全体の候補集合として観察される。"
+    },
+    {
+      "id": "server-availability",
+      "values": [
+        "all-available",
+        "partially-unavailable",
+        "recovered"
+      ],
+      "rationale": "一部障害時の継続操作と回復後の再取得を区別する。"
+    },
+    {
+      "id": "identity-collision",
+      "values": [
+        "distinct-names",
+        "duplicate-project-name",
+        "duplicate-session-id",
+        "duplicate-server-display-name"
+      ],
+      "rationale": "server-qualified identity が曖昧性を除くことを観察する。"
+    },
+    {
+      "id": "parameter-validity",
+      "values": [
+        "valid",
+        "required-missing",
+        "constraint-invalid",
+        "schema-stale"
+      ],
+      "rationale": "form から確認、拒否、修正、再取得への遷移を区別する。"
+    },
+    {
+      "id": "interaction-modality",
+      "values": [
+        "keyboard",
+        "pointer",
+        "assistive-technology"
+      ],
+      "rationale": "hover-only に退行せず主要操作と identity が各 modality から到達可能であることを確認する。"
+    }
+  ],
+  "experience_contracts": [
+    {
+      "id": "exp-fleet-targeting",
+      "subject": "New Session の入口から server-qualified project を検索・選択し宛先を維持する",
+      "goal_refs": [
+        "goal-find-target"
+      ],
+      "flow_refs": [
+        "F-001"
+      ],
+      "context_refs": [
+        "connection-scope",
+        "identity-collision"
+      ],
+      "interaction_rules": [
+        {
+          "condition": "keyboard、pointer、または支援技術で操作する",
+          "outcome": "同じ選択、確認、失敗、回復結果へ到達できる",
+          "rationale": "modality 間で契約を変えないため。"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "対象 flow の該当状態",
+          "observable": "全接続 server の project と所属 server が見える"
+        },
+        {
+          "phase": "progress",
+          "condition": "対象 flow の該当状態",
+          "observable": "project/server 検索と解除結果が見える"
+        },
+        {
+          "phase": "success",
+          "condition": "対象 flow の該当状態",
+          "observable": "stable server identity を伴う宛先が選択後も見える"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "表示された server identity と操作結果の宛先が一致する"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-parameter-form",
+      "subject": "project-scoped command と任意個 parameter を設定・検証・確認して作成する",
+      "goal_refs": [
+        "goal-valid-launch"
+      ],
+      "flow_refs": [
+        "F-002"
+      ],
+      "context_refs": [
+        "parameter-validity",
+        "interaction-modality"
+      ],
+      "interaction_rules": [
+        {
+          "condition": "keyboard、pointer、または支援技術で操作する",
+          "outcome": "同じ選択、確認、失敗、回復結果へ到達できる",
+          "rationale": "modality 間で契約を変えないため。"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "対象 flow の該当状態",
+          "observable": "宛先に有効な command だけが見える"
+        },
+        {
+          "phase": "progress",
+          "condition": "対象 flow の該当状態",
+          "observable": "default・明示値・未指定と検証結果を区別できる"
+        },
+        {
+          "phase": "failure",
+          "condition": "対象 flow の該当状態",
+          "observable": "invalid/stale/取得失敗の理由と回復操作が見える"
+        },
+        {
+          "phase": "success",
+          "condition": "対象 flow の該当状態",
+          "observable": "確認表示どおりの宛先と値で session が作成される"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "表示された server identity と操作結果の宛先が一致する"
+      ],
+      "scenario_refs": [
+        "UAC-003",
+        "UAC-004",
+        "UAC-005",
+        "UAC-006",
+        "UAC-007"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-qualified-lists",
+      "subject": "session と project の所属 server を走査中から識別する",
+      "goal_refs": [
+        "goal-identify-items"
+      ],
+      "flow_refs": [
+        "F-003"
+      ],
+      "context_refs": [
+        "identity-collision",
+        "interaction-modality"
+      ],
+      "interaction_rules": [
+        {
+          "condition": "keyboard、pointer、または支援技術で操作する",
+          "outcome": "同じ選択、確認、失敗、回復結果へ到達できる",
+          "rationale": "modality 間で契約を変えないため。"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "対象 flow の該当状態",
+          "observable": "各行に所属 server が見える"
+        },
+        {
+          "phase": "success",
+          "condition": "対象 flow の該当状態",
+          "observable": "選択後も同じ identity が見える"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "表示された server identity と操作結果の宛先が一致する"
+      ],
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-partial-recovery",
+      "subject": "部分障害でも健康な範囲を使い、同じ flow で再取得する",
+      "goal_refs": [
+        "goal-recover-partial-failure"
+      ],
+      "flow_refs": [
+        "F-004"
+      ],
+      "context_refs": [
+        "server-availability"
+      ],
+      "interaction_rules": [
+        {
+          "condition": "keyboard、pointer、または支援技術で操作する",
+          "outcome": "同じ選択、確認、失敗、回復結果へ到達できる",
+          "rationale": "modality 間で契約を変えないため。"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "対象 flow の該当状態",
+          "observable": "健康な候補と失敗対象・理由が同時に見える"
+        },
+        {
+          "phase": "failure",
+          "condition": "対象 flow の該当状態",
+          "observable": "下流取得失敗でも宛先と入力が残る"
+        },
+        {
+          "phase": "recovery",
+          "condition": "対象 flow の該当状態",
+          "observable": "retry 後に同じ flow へ戻る"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "表示された server identity と操作結果の宛先が一致する"
+      ],
+      "scenario_refs": [
+        "UAC-011",
+        "UAC-012"
+      ],
+      "open_product_choices": []
+    }
+  ],
+  "coverage_claims": [
+    {
+      "contract_ref": "exp-fleet-targeting",
+      "dimension_id": "connection-scope",
+      "value": "covered by referenced scenarios",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-fleet-targeting",
+      "dimension_id": "identity-collision",
+      "value": "covered by referenced scenarios",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-parameter-form",
+      "dimension_id": "parameter-validity",
+      "value": "covered by referenced scenarios",
+      "scenario_refs": [
+        "UAC-003",
+        "UAC-004",
+        "UAC-005",
+        "UAC-006",
+        "UAC-007"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-parameter-form",
+      "dimension_id": "interaction-modality",
+      "value": "covered by referenced scenarios",
+      "scenario_refs": [
+        "UAC-003",
+        "UAC-004",
+        "UAC-005",
+        "UAC-006",
+        "UAC-007"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-qualified-lists",
+      "dimension_id": "identity-collision",
+      "value": "covered by referenced scenarios",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-qualified-lists",
+      "dimension_id": "interaction-modality",
+      "value": "covered by referenced scenarios",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-partial-recovery",
+      "dimension_id": "server-availability",
+      "value": "covered by referenced scenarios",
+      "scenario_refs": [
+        "UAC-011",
+        "UAC-012"
+      ],
+      "exclusion_reason": ""
+    }
+  ],
+  "reference_ux_traces": [
+    {
+      "reference_name": "既存 Agent Grid command palette",
+      "aspect": "統合検索・検索解除",
+      "flow_refs": [
+        "F-001"
+      ],
+      "scenario_refs": [
+        "UAC-001"
+      ]
+    },
+    {
+      "reference_name": "既存 Agent Grid command palette",
+      "aspect": "disabled reason・明示的 Confirm・modality 規律",
+      "flow_refs": [
+        "F-002",
+        "F-004"
+      ],
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-007",
+        "UAC-011"
+      ]
+    }
+  ],
+  "legacy_behavior_traces": [
+    {
+      "behavior": "unified fuzzy search",
+      "scenario_refs": [
+        "UAC-001"
+      ]
+    },
+    {
+      "behavior": "dynamic option materialization and disabled reason",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-005",
+        "UAC-011"
+      ]
+    },
+    {
+      "behavior": "明示的 Confirm",
+      "scenario_refs": [
+        "UAC-007"
+      ]
+    },
+    {
+      "behavior": "既存 opaque command の実行互換",
+      "scenario_refs": [
+        "UAC-003",
+        "UAC-007"
+      ]
+    }
+  ],
+  "reference_ux": [
+    {
+      "name": "既存 Agent Grid command palette",
+      "stance": "modeled_on",
+      "aspects": [
+        "統合検索",
+        "disabled reason",
+        "明示的 Confirm",
+        "keyboard と pointer の単一 cursor 規律"
+      ]
+    },
+    {
+      "name": "command + parameter の全直積 alias 列挙",
+      "stance": "rejected",
+      "aspects": [
+        "候補数の組合せ爆発",
+        "parameter 意味の不可視化",
+        "model/effort 固有化"
+      ]
+    },
+    {
+      "name": "server identity の hover-only 表示",
+      "stance": "rejected",
+      "aspects": [
+        "keyboard と支援技術からの非到達",
+        "走査中の識別不能"
+      ]
+    }
+  ],
+  "legacy_context": {
+    "source_implementation": "clients/ui の二段階 command palette、単一 sessionConfig snapshot、server 非修飾 session/project 表示",
+    "inherited_behaviors": [
+      "統合検索",
+      "dynamic option materialization",
+      "disabled reason",
+      "明示的 Confirm",
+      "既存 opaque command の実行互換"
+    ],
+    "replaced_behaviors": [
+      "単一 server の project/command だけを表示",
+      "server 非修飾 identity",
+      "command + model + effort の平坦な alias 直積"
+    ]
+  },
+  "flows": [
+    {
+      "id": "F-001",
+      "name": "fleet 横断 project の発見と宛先選択",
+      "goal_refs": [
+        "goal-find-target"
+      ],
+      "steps": [
+        "[keyboard|pointer-mouse|assistive-technology] 既存の New Session を開くと、最初の候補面に接続対象 server 全体の project と所属 server が現れる",
+        "[keyboard|pointer-mouse|assistive-technology] project 名または server 表示を手掛かりに候補を走査・検索する",
+        "[keyboard|pointer-mouse|assistive-technology] server + project を選ぶと、その宛先に対する command 選択へ進み、選択済み server と project を確認できる"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-001",
+          "given": "複数 server が接続され、異なる server に同名 project が存在する",
+          "when": "利用者が keyboard、pointer、または支援技術で New Session を開き、project 名または server 表示で検索し、検索を解除する",
+          "then": "接続対象の全 server の project が所属 server 付きで現れ、検索中は project 名または server 表示に一致する候補へ絞られ、解除後は元の fleet catalog が復帰し、同名 project を stable server identity で区別して選べる",
+          "observations": {
+            "user_visible": [
+              "project 候補と所属 server が同時に読める",
+              "project 表示前の server 選択を要求されない"
+            ],
+            "assistive_technology": [
+              "各候補の project と所属 server を同じ候補の情報として知覚できる"
+            ]
+          },
+          "counterexample": "server gate、hover-only label、project 名だけの検索、または解除しても全候補へ戻らない実装は入口での横断発見を満たさず fail。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-002",
+          "given": "利用者が fleet catalog から一つの server + project を選択した",
+          "when": "command 選択へ進み、前の段階へ戻って別候補を選ぶ操作も行う",
+          "then": "command 選択中は選択済み server と project を確認でき、戻ると全 server の project catalog が再び観察でき、別の server + project を選べる",
+          "observations": {
+            "user_visible": [
+              "選択後も server と project が宛先として表示される",
+              "戻った候補面は server-local に狭まらない"
+            ],
+            "assistive_technology": [
+              "現在の宛先と戻った候補集合を知覚できる"
+            ]
+          },
+          "counterexample": "project 選択後に server identity を捨てる、または戻ると選択 server だけに絞る実装は、宛先確認と横断的な選び直しを満たさないため fail。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-002",
+      "name": "project 別 command と任意個 parameter の設定・確認・作成",
+      "goal_refs": [
+        "goal-valid-launch"
+      ],
+      "steps": [
+        "[keyboard|pointer-mouse|assistive-technology] 選択した server + project で利用可能な command 候補だけを走査して選ぶ",
+        "[keyboard|pointer-mouse|assistive-technology] command が宣言する全 parameter を一つの form で確認し、任意の順で編集する",
+        "[keyboard|pointer-mouse|assistive-technology] 有効な値で確認へ進み、server、project、command、適用 parameter 値を確認する",
+        "[keyboard|pointer-mouse|assistive-technology] Confirm すると確認した宛先に session が作成され、新しい session の active context へ退出する"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-003",
+          "given": "同一 server 内の project ごとに利用可能 command が異なる",
+          "when": "利用者が server + project を選択して command 候補を走査する",
+          "then": "選択した project で利用可能な command だけが候補として現れ、別 project 専用 command は選択可能な候補として現れない。既存 opaque command も project-scoped 候補として発見・選択できる",
+          "observations": {
+            "user_visible": [
+              "command 候補が選択した server + project の context と一致する"
+            ],
+            "assistive_technology": [
+              "現在の server + project と command 候補の関係を知覚できる"
+            ]
+          },
+          "counterexample": "server 共通 command 一覧を全 project に流用する実装は、別 project 専用 command を選べてしまうため fail。 opaque command を候補から消す実装も実行互換を失うため fail。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-004",
+          "given": "選択 command が複数の parameter を明示順序、ラベル、required/default/validation 情報とともに宣言する",
+          "when": "利用者が command を選び、keyboard、pointer、または支援技術で parameter を任意の順に編集する",
+          "then": "宣言された全 parameter が一つの form に明示順序で現れ、未編集 default は実際の適用値として、明示選択値は選択済みとして、optional 未指定値は未指定として区別され、任意順で編集して確認へ進める",
+          "observations": {
+            "user_visible": [
+              "全 parameter とそのラベル、必須性、既定状態、検証結果を一面で確認できる",
+              "任意の parameter から編集できる"
+            ],
+            "assistive_technology": [
+              "各 parameter の名前、状態、入力結果、エラーを知覚して操作できる"
+            ]
+          },
+          "design_handoff_refs": [
+            "handoff-parameter-contract"
+          ],
+          "counterexample": "未編集 default を省略する、optional 未指定と混同する、alias を平坦列挙する、または parameter を不定順に出す実装は fail。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-005",
+          "given": "parameter form の required 値が未入力、または入力値が宣言された制約を満たさない",
+          "when": "利用者が確認または作成へ進もうとする",
+          "then": "session は作成されず、修正対象と理由を同じ flow で確認でき、値を修正すると選択済み server、project、command と他の有効値を保って確認へ進める",
+          "observations": {
+            "user_visible": [
+              "作成されていないことと修正箇所が分かる",
+              "修正後は有効な context を再選択せず進める"
+            ],
+            "assistive_technology": [
+              "エラー対象と理由を知覚し、その control へ到達できる"
+            ]
+          },
+          "design_handoff_refs": [
+            "handoff-parameter-contract"
+          ],
+          "counterexample": "invalid 値でも session を作る、汎用エラーだけを出す、または修正時に全選択を失う実装は、安全な回復を満たさないため fail。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-006",
+          "given": "parameter 編集後、確認前または作成時に command schema が更新され、選択値が古くなった",
+          "when": "利用者が確認または作成を試みる",
+          "then": "古い schema では作成されず再取得が必要だと分かる。再取得成功時は新 schema に残り適合する値だけを保持し、削除値は破棄、新規または不適合値は要修正として示す。再取得失敗時は理由と retry を同じ flow に示し、選択済み server + project + command、依然有効な入力、現在の focus を保ち、retry 成功後に form へ戻る",
+          "observations": {
+            "user_visible": [
+              "保持・破棄・要修正になった入力を区別できる",
+              "再取得失敗理由と retry が分かり、有効な context と入力が残る"
+            ],
+            "assistive_technology": [
+              "schema 更新による拒否、入力ごとの結果、retry、focus の継続を知覚できる"
+            ]
+          },
+          "design_handoff_refs": [
+            "handoff-parameter-contract"
+          ],
+          "counterexample": "全値を無言で初期化する、削除値を残す、再取得失敗で context や focus を失う、または古い値を実行する実装は fail。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-007",
+          "given": "project-scoped command の parameter がすべて有効、または command が parameter を一つも宣言しない",
+          "when": "利用者が確認面を読み、明示的に Confirm する",
+          "then": "確認面に stable server identity、project、command、各 parameter の未編集 default を含む実際の適用値・明示選択値・optional 未指定が区別して示され、Confirm 後はその identity の server に表示どおり一つの session が作成され、同じ server identity を active context で確認できる。zero-parameter または opaque command では空 form が完了状態となり、確認面に parameter なしが示され、既存互換で作成される",
+          "observations": {
+            "user_visible": [
+              "作成前後で server identity と launch choices が一貫する",
+              "Confirm 前には session が作成されない"
+            ],
+            "assistive_technology": [
+              "確認内容と作成後の所属 server を知覚できる"
+            ]
+          },
+          "design_handoff_refs": [
+            "handoff-parameter-contract"
+          ],
+          "counterexample": "表示と異なる default を使う、optional 未指定へ値を足す、選択 label を保ったまま別 server へ routing する、または確認前に作成する実装は fail。 空 form を行き止まりにする、架空入力を要求する、または opaque command の互換実行を失う実装も fail。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-003",
+      "name": "session と project 一覧での server 識別",
+      "goal_refs": [
+        "goal-identify-items"
+      ],
+      "steps": [
+        "[keyboard|pointer-mouse|assistive-technology] project 一覧を走査すると、各 project 行で所属 server を常時確認できる",
+        "[keyboard|pointer-mouse|assistive-technology] session 一覧を走査すると、各 session の所属 server を常時確認できる",
+        "[keyboard|pointer-mouse|assistive-technology] 項目を選ぶと active context でも所属 server を確認できる"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-008",
+          "given": "複数 server に同名 project があり、project 一覧の既存 grouping が表示される",
+          "when": "利用者が keyboard、pointer、または支援技術で project 行を走査し選択する",
+          "then": "各 project 行に所属 server のラベルが常時現れ、既存 grouping を保ったまま同名 project を区別でき、選択後も active context で server を確認できる",
+          "observations": {
+            "user_visible": [
+              "各 project 行に server label がある",
+              "hover なしで走査中と選択後に server が分かる"
+            ],
+            "assistive_technology": [
+              "project 名と所属 server を行の情報として知覚できる"
+            ]
+          },
+          "counterexample": "server section へ regroup する、衝突時だけ表示する、または hover tooltip だけに server を置く実装は、承認済みの行ラベル常時表示を満たさないため fail。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-009",
+          "given": "異なる server に同一 session ID または見分けにくい session が存在する",
+          "when": "利用者が keyboard、pointer、または支援技術で session 一覧を走査し選択する",
+          "then": "各 session の所属 server が常時現れ、衝突する項目を区別でき、選択後の active context でも同じ server identity を確認できる",
+          "observations": {
+            "user_visible": [
+              "session の所属 server を走査中と選択後に読める"
+            ],
+            "assistive_technology": [
+              "session と所属 server の対応を hover なしで知覚できる"
+            ]
+          },
+          "counterexample": "session ID だけを identity とする、server を衝突時だけ出す、または hover-only にする実装は複数 server の session を区別できないため fail。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-010",
+          "given": "二つの server が同じ display name を持つ",
+          "when": "利用者が同名 server に属する project または session を走査する",
+          "then": "同じ display name だけでは曖昧な項目に stable server identity の補助表示が現れ、所属 server を区別できる",
+          "observations": {
+            "user_visible": [
+              "重複表示名でも二つの server を区別する補助情報がある"
+            ],
+            "assistive_technology": [
+              "曖昧でない server identity を知覚できる"
+            ]
+          },
+          "counterexample": "display name を一意と仮定して同じ文字列だけを表示する実装は、二つの server を区別できないため fail。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-004",
+      "name": "一部 server 障害からの継続と再取得",
+      "goal_refs": [
+        "goal-recover-partial-failure",
+        "goal-find-target"
+      ],
+      "steps": [
+        "[keyboard|pointer-mouse|assistive-technology] 一部 server が利用不能な状態で New Session を開く",
+        "[keyboard|pointer-mouse|assistive-technology] 健康な server の project は選べ、利用不能 server は理由付きの選択不能項目として確認できる",
+        "[keyboard|pointer-mouse|assistive-technology] server 回復後に候補を再取得すると、同じ fleet catalog にその server の project が現れる"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-011",
+          "given": "一部 server の project 候補、または選択済み project の command 候補・parameter schema の取得だけが失敗し、他の範囲は利用可能である",
+          "when": "利用者が New Session を開き、候補面を走査する",
+          "then": "健康な server の project は選択可能なまま、失敗した server または下流取得対象と理由、再取得操作が示される。下流失敗時は選択済み server + project と健康な範囲の操作を保ち、再取得後に同じ宛先から続行できる",
+          "observations": {
+            "user_visible": [
+              "健康な server の候補を操作できる",
+              "利用不能 server と欠落理由が分かる"
+            ],
+            "assistive_technology": [
+              "利用不能状態、server identity、理由、選択不能であることを知覚できる"
+            ]
+          },
+          "counterexample": "fleet 全体を止める、失敗対象を隠す、下流失敗で宛先を失う、または retry を示さない実装は fail。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-012",
+          "given": "利用不能 server が回復し、利用者が別の依然有効な server + project + command の parameter を編集中である",
+          "when": "利用者が候補を再取得する",
+          "then": "catalog 再取得後、回復 server の project が同じ catalog に現れる。編集中の宛先が依然有効なら選択・入力・focus を保持し、無効なら理由と再選択を示す",
+          "observations": {
+            "user_visible": [
+              "回復前の unavailable 表示が選択可能な project 候補へ更新される",
+              "別の server scope へ移動する必要がない"
+            ],
+            "assistive_technology": [
+              "更新後の利用可能状態と project 候補を知覚できる"
+            ]
+          },
+          "counterexample": "更新のたびに有効な編集 context を無言で失う、または無効化された context を説明なく残す実装は fail。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    }
+  ],
+  "states": [
+    "fleet project catalog ready",
+    "fleet project catalog partially available",
+    "server + project selected",
+    "project-scoped command selected",
+    "parameter form valid",
+    "parameter form invalid",
+    "parameter schema stale",
+    "launch confirmation",
+    "session created"
+  ],
+  "edge_cases": [
+    "異なる server に同名 project がある",
+    "異なる server に同一 session ID がある",
+    "server display name が重複する",
+    "選択 project に利用可能 command がない",
+    "command が parameter を一つも宣言しない",
+    "required parameter が未入力である",
+    "parameter 値が宣言制約に違反する",
+    "編集後に parameter schema が更新される",
+    "一部 server だけ候補取得に失敗する"
+  ],
+  "assumptions": [
+    "server display name の一意性は保証されない。",
+    "接続能力に応じて fleet catalog は一つ以上の server の候補集合として成立する。"
+  ],
+  "product_decisions_remaining": [],
+  "product_decisions": [
+    {
+      "id": "decision-command-availability-scope",
+      "decision_ref": "DP-COMMAND-SCOPE",
+      "decision": "同一 server 内でも project ごとに command 集合が異なる",
+      "selected_option_ref": "OPT-COMMAND-PROJECT",
+      "contract_effect": "normative",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーは提示した推奨方針全体の実装開始を承認した。"
+      }
+    },
+    {
+      "id": "decision-server-label-visibility",
+      "decision_ref": "DP-SERVER-LABEL",
+      "decision": "fleet 内容にかかわらず所属 server を走査中に確認できる",
+      "selected_option_ref": "OPT-LABEL-ALWAYS",
+      "contract_effect": "default",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーはserver名の常時表示を含む推奨方針を承認した。"
+      }
+    },
+    {
+      "id": "decision-project-list-server-presentation",
+      "decision_ref": "DP-PROJECT-LIST",
+      "decision": "既存 grouping を保ち各 project 行に server label を表示する",
+      "selected_option_ref": "OPT-PROJECT-SERVER-LABEL",
+      "contract_effect": "default",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーはproject行へのserver常時表示を含む推奨方針を承認した。"
+      }
+    },
+    {
+      "id": "decision-unavailable-server-visibility",
+      "decision_ref": "DP-UNAVAILABLE",
+      "decision": "利用不能 server を識別し、候補は選択不能として理由を示す",
+      "selected_option_ref": "OPT-UNAVAILABLE-SHOW",
+      "contract_effect": "default",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーは障害serverの理由付きdisabled表示を含む推奨方針を承認した。"
+      }
+    },
+    {
+      "id": "decision-command-parameter-schema",
+      "decision_ref": "DP-PARAMETER-SCHEMA",
+      "decision": "command ごとに順序付きの parameter 定義、型、候補、既定値、必須性、表示情報、検証制約を宣言し、UI は schema から任意個を描画する",
+      "selected_option_ref": "OPT-PARAM-TYPED",
+      "contract_effect": "normative",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "conversation:2026-07-27-generic-command-parameters"
+        ],
+        "rationale": "ユーザーが model/effort 固有処理を廃し、設定で宣言する一般化された複数 parameter と UI 描画を明示した。"
+      }
+    },
+    {
+      "id": "decision-parameter-presentation",
+      "decision_ref": "DP-PARAMETER-PRESENTATION",
+      "decision": "command 選択後に全 parameter を一面へ表示し、任意の順で編集して確認へ進む",
+      "selected_option_ref": "OPT-PARAM-FORM",
+      "contract_effect": "normative",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーは全parameterを一つのformで編集する推奨方針を承認した。"
+      }
+    }
+  ],
+  "resolved_issues": [
+    {
+      "issue": "critique-issue-1: UAC-006 values",
+      "resolution": "UAC-006 で観察可能な契約として解消した。"
+    },
+    {
+      "issue": "critique-issue-2: UAC-004/UAC-007 defaults",
+      "resolution": "UAC-004, UAC-007 で観察可能な契約として解消した。"
+    },
+    {
+      "issue": "critique-issue-3: downstream partial failure",
+      "resolution": "UAC-011 で観察可能な契約として解消した。"
+    },
+    {
+      "issue": "critique-issue-4: UAC-006 retry",
+      "resolution": "UAC-006 で観察可能な契約として解消した。"
+    },
+    {
+      "issue": "critique-issue-5: opaque command compatibility",
+      "resolution": "UAC-003, UAC-007 で観察可能な契約として解消した。"
+    },
+    {
+      "issue": "critique-issue-6: integrated search",
+      "resolution": "UAC-001 で観察可能な契約として解消した。"
+    },
+    {
+      "issue": "critique-issue-7: server routing identity",
+      "resolution": "UAC-001, UAC-007 で観察可能な契約として解消した。"
+    },
+    {
+      "issue": "critique-issue-8: zero-parameter command",
+      "resolution": "UAC-007 で観察可能な契約として解消した。"
+    },
+    {
+      "issue": "critique-issue-9: catalog refresh during editing",
+      "resolution": "UAC-012 で観察可能な契約として解消した。"
+    }
+  ],
+  "rejected_improvements": [],
+  "confirmed_constraints": [
+    "New Session の最初の project 候補面で接続対象となる全 server の project を同時に観察可能にする。",
+    "command 候補は選択した server + project で利用可能なものとして提示する。",
+    "model や effort を特別扱いせず、command 設定が宣言する任意個の parameter として扱う。",
+    "command 選択後は全 parameter を一つの form に表示し、任意の順で編集できる。",
+    "session 一覧と project 一覧の双方で所属 server を常時識別可能にする。",
+    "利用不能 server は identity と理由を伴う選択不能項目として候補面に残す。"
+  ],
+  "existing_system_context": [
+    "現行 Web は単一 baseUrl 由来の sessionConfig snapshot を保持し、projects と commands に server identity がない。",
+    "desktop の session identity は serverId + sessionId であり、fleet metadata は server display name と health を持つ。",
+    "既存 palette は unified search、dynamic option materialization、disabled reason、明示的 Confirm を採用している。"
+  ],
+  "product_assumptions": [
+    "複数 server 接続を提供する surface は fleet 横断契約を満たし、単一 server の surface では同じ操作が単一候補集合へ退化する。適用 surface は design で接続能力を棚卸しして検証する。",
+    "server display name は人間向け主表示に使えるが重複し得る。曖昧時は stable server identity を補助表示する。"
+  ],
+  "design_hypotheses": [
+    "server-qualified fleet config snapshot は全 server catalog、partial failure isolation、submit までの identity 維持を支え得る。",
+    "command-owned declarative typed parameter schema は client の alias 解析を避けて任意個 parameter の form を支え得る。"
+  ],
+  "decision_points": [
+    {
+      "id": "DP-COMMAND-SCOPE",
+      "decision_key": "command-availability-scope",
+      "question": "利用可能 command は server 共通か project 単位まで異なるか。",
+      "layer": "product",
+      "subject": "target",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-COMMAND-SERVER",
+          "label": "Server 共通",
+          "outcome": "選択 project の server が共通 command 集合を決める"
+        },
+        {
+          "id": "OPT-COMMAND-PROJECT",
+          "label": "Project 別",
+          "outcome": "同一 server 内でも project ごとに command 集合が異なる"
+        }
+      ],
+      "selected_option_ref": "OPT-COMMAND-PROJECT",
+      "user_impact": [
+        "project 選択後に見える command の正確さ",
+        "設定複雑性"
+      ],
+      "affected_refs": [
+        "goal-valid-launch"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーは提示した推奨方針全体の実装開始を承認した。"
+      }
+    },
+    {
+      "id": "DP-SERVER-LABEL",
+      "decision_key": "server-label-visibility",
+      "question": "session/project の所属 server を常時表示するか、名前衝突時だけ表示するか。",
+      "layer": "presentation",
+      "subject": "default",
+      "consultation_policy": "may_default",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-LABEL-ALWAYS",
+          "label": "常時表示",
+          "outcome": "fleet 内容にかかわらず所属 server を走査中に確認できる"
+        },
+        {
+          "id": "OPT-LABEL-COLLISION",
+          "label": "衝突時のみ",
+          "outcome": "通常時は簡潔だが fleet 変化で表示規則が変わる"
+        }
+      ],
+      "selected_option_ref": "OPT-LABEL-ALWAYS",
+      "user_impact": [
+        "所在確認の一貫性",
+        "一覧密度"
+      ],
+      "affected_refs": [
+        "goal-identify-items",
+        "goal-find-target"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーはserver名の常時表示を含む推奨方針を承認した。"
+      }
+    },
+    {
+      "id": "DP-PROJECT-LIST",
+      "decision_key": "project-list-server-presentation",
+      "question": "New Session 以外の project 一覧で server identity をどの常時観察可能な方式で示すか。",
+      "layer": "presentation",
+      "subject": "default",
+      "consultation_policy": "may_ask",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-PROJECT-SERVER-GROUP",
+          "label": "Server section",
+          "outcome": "server section の下で project を走査する"
+        },
+        {
+          "id": "OPT-PROJECT-SERVER-LABEL",
+          "label": "行ラベル",
+          "outcome": "既存 grouping を保ち各 project 行に server label を表示する"
+        }
+      ],
+      "selected_option_ref": "OPT-PROJECT-SERVER-LABEL",
+      "user_impact": [
+        "既存 grouping の維持",
+        "同名 project の走査性"
+      ],
+      "affected_refs": [
+        "goal-identify-items"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーはproject行へのserver常時表示を含む推奨方針を承認した。"
+      }
+    },
+    {
+      "id": "DP-UNAVAILABLE",
+      "decision_key": "unavailable-server-visibility",
+      "question": "利用不能 server を project 候補面へ理由付きで残すか。",
+      "layer": "product",
+      "subject": "default",
+      "consultation_policy": "may_default",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-UNAVAILABLE-SHOW",
+          "label": "理由付き表示",
+          "outcome": "利用不能 server を識別し、候補は選択不能として理由を示す"
+        },
+        {
+          "id": "OPT-UNAVAILABLE-HIDE",
+          "label": "非表示",
+          "outcome": "利用可能な候補だけを表示する"
+        }
+      ],
+      "selected_option_ref": "OPT-UNAVAILABLE-SHOW",
+      "user_impact": [
+        "障害と設定不存在の判別",
+        "一覧密度"
+      ],
+      "affected_refs": [
+        "goal-recover-partial-failure"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーは障害serverの理由付きdisabled表示を含む推奨方針を承認した。"
+      }
+    },
+    {
+      "id": "DP-PARAMETER-SCHEMA",
+      "decision_key": "command-parameter-schema",
+      "question": "command parameter をどの構造で宣言し、UI と実行側へ渡すか。",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-PARAM-TYPED",
+          "label": "Declarative typed schema",
+          "outcome": "command ごとに順序付きの parameter 定義、型、候補、既定値、必須性、表示情報、検証制約を宣言し、UI は schema から任意個を描画する"
+        },
+        {
+          "id": "OPT-PARAM-ALIASES",
+          "label": "Alias 列挙",
+          "outcome": "parameter 組合せごとに command alias を列挙し、parameter を独立表示しない"
+        },
+        {
+          "id": "OPT-PARAM-CLIENT-PARSE",
+          "label": "Client interpolation",
+          "outcome": "client が shell 文字列や alias を解析・補間して parameter を復元する"
+        }
+      ],
+      "selected_option_ref": "OPT-PARAM-TYPED",
+      "user_impact": [
+        "任意個 parameter の理解と編集",
+        "無効組合せの防止",
+        "model/effort 以外への拡張性"
+      ],
+      "affected_refs": [
+        "goal-valid-launch"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "conversation:2026-07-27-generic-command-parameters"
+        ],
+        "rationale": "ユーザーが model/effort 固有処理を廃し、設定で宣言する一般化された複数 parameter と UI 描画を明示した。"
+      }
+    },
+    {
+      "id": "DP-PARAMETER-PRESENTATION",
+      "decision_key": "parameter-presentation",
+      "question": "command 選択後、任意個の parameter をどの UX で提示・編集するか。",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-PARAM-SEQUENTIAL",
+          "label": "順次 parameter phase",
+          "outcome": "schema 順に一項目ずつ選択し、各選択後に次へ進み、最後に全 parameter を確認する"
+        },
+        {
+          "id": "OPT-PARAM-FORM",
+          "label": "一括 form",
+          "outcome": "command 選択後に全 parameter を一面へ表示し、任意の順で編集して確認へ進む"
+        },
+        {
+          "id": "OPT-PARAM-GROUPED",
+          "label": "必須順次 + 任意まとめ",
+          "outcome": "必須 parameter を順次確定し、任意 parameter は既定値付きの編集面へまとめる"
+        }
+      ],
+      "selected_option_ref": "OPT-PARAM-FORM",
+      "user_impact": [
+        "parameter 数が増えた際の操作数",
+        "依存関係と必須項目の理解",
+        "既定値を受け入れる速さ"
+      ],
+      "affected_refs": [
+        "goal-valid-launch"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-generic-parameters-approved",
+          "conversation:2026-07-27-approved-recommendation"
+        ],
+        "rationale": "ユーザーは全parameterを一つのformで編集する推奨方針を承認した。"
+      }
+    },
+    {
+      "id": "DP-PARAMETER-TYPE-RANGE",
+      "decision_key": "initial-parameter-type-range",
+      "question": "初期 renderer が正式対応する parameter type の範囲をどう切るか。",
+      "layer": "design",
+      "subject": "mechanism",
+      "consultation_policy": "defer",
+      "contract_effect": "handoff",
+      "answer_status": "unanswered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-TYPES-ENUM-BOOL",
+          "label": "enum + boolean",
+          "outcome": "候補選択と切替に限定し、検証可能性と一貫した操作を優先する"
+        },
+        {
+          "id": "OPT-TYPES-PRIMITIVES",
+          "label": "基本 primitive",
+          "outcome": "enum、boolean、string、number を扱い、自由入力には型別 validation を要求する"
+        },
+        {
+          "id": "OPT-TYPES-EXTENSIBLE",
+          "label": "Extensible renderer registry",
+          "outcome": "基本型に加え renderer 拡張点を初期契約へ含める"
+        }
+      ],
+      "selected_option_ref": null,
+      "user_impact": [
+        "初期に表現できる command 設定",
+        "入力エラーの可能性",
+        "UI 一貫性"
+      ],
+      "affected_refs": [
+        "goal-valid-launch"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-TYPES-ENUM-BOOL",
+        "basis": "planner_judgment",
+        "evidence_refs": [],
+        "confidence": "medium",
+        "reversibility": "moderate"
+      },
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "design-question:initial-renderer-range"
+        ],
+        "rationale": "型範囲は UI の観察より実装・検証境界を左右するため design handoff とする。"
+      }
+    },
+    {
+      "id": "DP-ARGUMENT-MATERIALIZATION",
+      "decision_key": "argument-materialization-owner",
+      "question": "検証済み parameter value を最終 invocation へ materialize する責任をどこへ置くか。",
+      "layer": "design",
+      "subject": "mechanism",
+      "consultation_policy": "defer",
+      "contract_effect": "handoff",
+      "answer_status": "unanswered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-MATERIALIZE-SERVER",
+          "label": "Server/config owner",
+          "outcome": "client は typed values を送り、設定を所有する server が検証して argv を生成する"
+        },
+        {
+          "id": "OPT-MATERIALIZE-CLIENT",
+          "label": "Client renderer",
+          "outcome": "client が schema の template へ値を補間して invocation を生成する"
+        },
+        {
+          "id": "OPT-MATERIALIZE-SHELL",
+          "label": "Shell template",
+          "outcome": "任意 shell template へ値を補間して実行する"
+        }
+      ],
+      "selected_option_ref": null,
+      "user_impact": [
+        "無効値の拒否一貫性",
+        "shell quoting 安全性",
+        "複数 client 間の同一挙動"
+      ],
+      "affected_refs": [
+        "goal-valid-launch"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-MATERIALIZE-SERVER",
+        "basis": "repository_constraint",
+        "evidence_refs": [
+          "repo:server-owns-command-execution",
+          "user:設定でparameterを吸収"
+        ],
+        "confidence": "high",
+        "reversibility": "hard"
+      },
+      "provenance": {
+        "source": "planner_proposal",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "consultation:generic-command-parameters"
+        ],
+        "rationale": "client interpolation と alias 解析を避け、設定・検証・実行の権威を同じ境界に置く候補を design で評価する。"
+      }
+    }
+  ],
+  "technology_candidates": [
+    {
+      "id": "candidate-declarative-typed-parameters",
+      "candidate": "command-owned declarative typed parameter schema with stable ids, ordered/grouped presentation metadata, defaults, required flags, validation constraints, and server-side argv mapping",
+      "source": "explicit_user_input",
+      "proposed_for": [
+        "任意個 command parameter の描画",
+        "model/effort 固有分岐の除去",
+        "安全な invocation materialization"
+      ],
+      "required_capabilities": [
+        "stable parameter id と明示順序",
+        "型・候補・default・required・validation",
+        "設定所有側による typed value 検証と argv mapping"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "command 選択後に schema 順で parameter を発見できる",
+        "required 未入力と invalid value を作成前に理解・修正できる",
+        "確認面で非既定値と作成先を確認できる"
+      ],
+      "design_questions": [
+        "初期 renderer type range",
+        "ordering と optional grouping",
+        "default の materialization semantics",
+        "schema/version mismatch 時の拒否と再取得"
+      ],
+      "disqualifiers": [
+        "client が任意 shell 文字列を補間する",
+        "alias 名から parameter を推測する",
+        "parameter ordering が map iteration に依存する"
+      ]
+    },
+    {
+      "id": "candidate-fleet-config-aggregation",
+      "candidate": "server-qualified fleet config snapshot with per-server status",
+      "source": "repository_context",
+      "proposed_for": [
+        "全server project catalog",
+        "partial failure isolation",
+        "server-qualified submit routing"
+      ],
+      "required_capabilities": [
+        "stable serverId",
+        "display name",
+        "server別 projects/commands/status"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "利用可能 server を一部障害でブロックしない",
+        "候補と確認で同じ server identity を維持"
+      ],
+      "design_questions": [
+        "snapshot freshness",
+        "aggregation owner",
+        "stale selection invalidation"
+      ],
+      "disqualifiers": [
+        "単一 baseUrl snapshot を fleet 全体として再利用",
+        "server identity の欠落"
+      ]
+    }
+  ],
+  "quality_thresholds": [],
+  "delivery_slices": [
+    {
+      "id": "slice-initial",
+      "horizon": "initial",
+      "goal": "fleet 横断 project 発見、server 識別、project 別 command、一般化 parameter form、partial failure recovery を一体で成立させる。",
+      "flow_refs": [
+        "F-001",
+        "F-002",
+        "F-003",
+        "F-004"
+      ],
+      "excluded_capabilities": [
+        "個人化した server 並び順",
+        "新しい通知 system",
+        "任意 CLI 引数 editor"
+      ]
+    }
+  ],
+  "observable_state_contracts": [
+    {
+      "id": "state-fleet-catalog",
+      "subject": "New Session project catalog",
+      "states": [
+        "ready",
+        "partially-available",
+        "server-project-selected"
+      ],
+      "initial_state": "ready または partially-available",
+      "transitions": [
+        "New Session entry -> ready: 全接続 server の取得済み project と server identity を表示する",
+        "一部取得失敗 -> partially-available: 健康な候補を操作可能に保ち、失敗 server を理由付きで示す",
+        "project selection -> server-project-selected: 選択 server と project を次段階でも確認可能にする",
+        "retry after recovery -> ready: 回復 server の project を同じ catalog に追加する"
+      ],
+      "invariants": [
+        "project 表示前に server gate を置かない",
+        "候補から確認まで server identity を維持する",
+        "一部障害で健康な候補をブロックしない"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-011",
+        "UAC-012"
+      ]
+    },
+    {
+      "id": "state-launch-form",
+      "subject": "project-scoped command launch",
+      "states": [
+        "command-selection",
+        "form-valid",
+        "form-invalid",
+        "schema-stale",
+        "confirmation",
+        "created"
+      ],
+      "initial_state": "command-selection",
+      "transitions": [
+        "command selection -> form-valid または form-invalid: 宣言された全 parameter を一括表示する",
+        "invalid submit -> form-invalid: 作成せず修正対象を示す",
+        "schema change -> schema-stale: 古い値で作成せず再取得を示す",
+        "valid form -> confirmation: server、project、command、parameter 値を示す",
+        "explicit Confirm -> created: 確認した宛先へ一つの session を作成する"
+      ],
+      "invariants": [
+        "project に無効な command を選択可能にしない",
+        "Confirm 前に session を作成しない",
+        "form 表示と実行結果の parameter 意味を一致させる"
+      ],
+      "scenario_refs": [
+        "UAC-003",
+        "UAC-004",
+        "UAC-005",
+        "UAC-006",
+        "UAC-007"
+      ]
+    },
+    {
+      "id": "state-qualified-identity",
+      "subject": "project/session list identity",
+      "states": [
+        "scanning",
+        "selected",
+        "display-name-ambiguous"
+      ],
+      "initial_state": "scanning",
+      "transitions": [
+        "list entry -> scanning: 各項目の所属 server を常時示す",
+        "item selection -> selected: active context に同じ所属 server を示す",
+        "duplicate display name -> display-name-ambiguous: stable server identity を補助表示する"
+      ],
+      "invariants": [
+        "server identity を hover-only にしない",
+        "project 行の既存 grouping を維持する",
+        "session ID 単独を fleet identity としない"
+      ],
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010"
+      ]
+    }
+  ],
+  "design_handoffs": [
+    {
+      "id": "handoff-parameter-contract",
+      "required_outcome": "任意個 parameter を順序、既定値、必須性、検証規則とともに宣言し、client の shell 補間や alias 解析なしに表示と実行で同じ意味を保つ。",
+      "design_obligations": [
+        "initial renderer の型範囲を決定する",
+        "stable ordering と optional grouping を定義する",
+        "default、required、validation の wire semantics を定義する",
+        "argument materialization と最終 validation の権威を決定する",
+        "schema drift 時は stale 値を実行せず再取得可能にする"
+      ],
+      "verification_obligations": [
+        "複数 parameter が宣言順に一括 form へ表示されること",
+        "required/invalid value では作成されず修正方法が分かること",
+        "default 採用値と明示値が表示と実行で同じ意味を持つこと",
+        "任意 shell interpolation と alias parsing が client に存在しないこと",
+        "stale schema の値が実行されず再取得できること"
+      ],
+      "provenance": "Explore plan の DP-PARAMETER-TYPE-RANGE と DP-ARGUMENT-MATERIALIZATION は contract_effect=handoff、answer_status=unanswered。型範囲や owner を UX product choice として発明しない。"
+    }
+  ],
+  "critique_resolutions": [
+    {
+      "issue_ref": "critique-issue-1",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-006"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    },
+    {
+      "issue_ref": "critique-issue-2",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-004",
+        "UAC-007"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    },
+    {
+      "issue_ref": "critique-issue-3",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-011"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    },
+    {
+      "issue_ref": "critique-issue-4",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-006"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    },
+    {
+      "issue_ref": "critique-issue-5",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-003",
+        "UAC-007"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    },
+    {
+      "issue_ref": "critique-issue-6",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-001"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    },
+    {
+      "issue_ref": "critique-issue-7",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-001",
+        "UAC-007"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    },
+    {
+      "issue_ref": "critique-issue-8",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-007"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    },
+    {
+      "issue_ref": "critique-issue-9",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-012"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "specify-critique:pass2"
+        ],
+        "rationale": "承認済み要件の判別性と必須 failure path を補完した。"
+      }
+    }
+  ],
+  "open_questions": []
+}

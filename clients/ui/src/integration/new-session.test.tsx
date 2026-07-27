@@ -74,8 +74,22 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
       sessions: [],
       activeSessionID: null,
       sessionConfig: {
-        projects: [{ path: "/repo/a", isGit: false, isSandboxed: false }],
-        commands: ["claude"],
+        projects: [
+          {
+            path: "/repo/a",
+            isGit: false,
+            isSandboxed: false,
+            commandProfiles: [
+              {
+                id: "claude",
+                label: "claude",
+                revision: "revision-claude",
+                parameters: [],
+              },
+            ],
+          },
+        ],
+        serverOutcomes: [],
         pushCommands: [],
       },
     });
@@ -97,8 +111,21 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              commands: ["claude"],
-              projects: [{ path: "/repo/a", isGit: false, isSandboxed: false }],
+              projects: [
+                {
+                  path: "/repo/a",
+                  isGit: false,
+                  isSandboxed: false,
+                  command_profiles: [
+                    {
+                      id: "claude",
+                      label: "claude",
+                      revision: "revision-claude",
+                      parameters: [],
+                    },
+                  ],
+                },
+              ],
               push_commands: [],
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },

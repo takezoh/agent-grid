@@ -37,6 +37,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/takezoh/agent-grid/host/config"
 )
 
 // serverBinaryCache memoises the on-demand-built server binary path so
@@ -54,8 +56,9 @@ type daemonInstance struct {
 }
 
 type daemonLaunchOptions struct {
-	addr     string
-	extraEnv []string
+	addr         string
+	extraEnv     []string
+	settingsTOML string
 }
 
 // buildServerOnce builds the server binary under t.TempDir() (shared across
@@ -140,6 +143,17 @@ func startServerDaemonWithOptions(t *testing.T, opts daemonLaunchOptions) daemon
 	if err != nil {
 		_ = os.RemoveAll(dataDir)
 		t.Fatalf("mkdir home dir: %v", err)
+	}
+	if opts.settingsTOML != "" {
+		configDir := filepath.Join(homeDir, ".agent-grid")
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
+			t.Fatalf("mkdir config dir: %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(configDir, "settings.toml"), []byte(opts.settingsTOML), 0o600,
+		); err != nil {
+			t.Fatalf("write settings.toml: %v", err)
+		}
 	}
 	addr := opts.addr
 	if addr == "" {
@@ -359,7 +373,15 @@ func TestE2E_CreateThenListRoundtrip(t *testing.T) {
 
 	// Create.
 	dir := t.TempDir()
-	body := `{"project":"` + dir + `","command":"shell"}`
+	profile := config.DefaultConfig().Session.ProfilesForProject(dir)[0]
+	bodyBytes, err := json.Marshal(map[string]any{
+		"version": 2, "project": dir, "profile_id": profile.ID,
+		"profile_revision": profile.Revision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(bodyBytes)
 	rc := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewBufferString(body))
 	rc.Header.Set("Authorization", "Bearer tok")
 	rc.Header.Set("Content-Type", "application/json")
@@ -444,7 +466,8 @@ func TestE2E_CreateRejectsRelativeProject(t *testing.T) {
 	// regression that re-allows relative paths surfaces here first.
 	for _, p := range []string{"bash", "claude", "myproject", "./relative", "foo/bar"} {
 		t.Run(p, func(t *testing.T) {
-			body := `{"project":"` + p + `","command":"shell"}`
+			body := `{"version":2,"project":"` + p +
+				`","profile_id":"shell","profile_revision":"unused"}`
 			r := httptest.NewRequest(http.MethodPost, "/api/sessions",
 				bytes.NewBufferString(body))
 			r.Header.Set("Authorization", "Bearer tok")
@@ -474,7 +497,7 @@ func TestE2E_CreateRejectsMissingProject(t *testing.T) {
 	mux := withRealDaemonMux(t)
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sessions",
-		bytes.NewBufferString(`{"command":"shell"}`))
+		bytes.NewBufferString(`{"version":2,"profile_id":"shell","profile_revision":"unused"}`))
 	r.Header.Set("Authorization", "Bearer tok")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
