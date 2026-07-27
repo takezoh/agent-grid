@@ -198,7 +198,7 @@ describe("usePaletteStore", () => {
       phase: "paramSelect",
       selectedToolId: "new-session",
       paramValues: { project: "/p", command: "claude" },
-      paramCursor: 3,
+      paramCursor: 0,
       query: "ses",
       error: "stale error",
     });
@@ -212,6 +212,23 @@ describe("usePaletteStore", () => {
     expect(s.query).toBe("ses");
     expect(s.error).toBeNull();
     expect(s.open).toBe(true);
+  });
+
+  it("back from the command step returns to the project step without clearing the project", () => {
+    usePaletteStore.getState().openPalette();
+    usePaletteStore.setState({
+      phase: "paramSelect",
+      selectedToolId: "new-session",
+      paramValues: { project: "/p", command: "claude" },
+      paramCursor: 1,
+    });
+
+    usePaletteStore.getState().back();
+
+    const s = usePaletteStore.getState();
+    expect(s.phase).toBe("paramSelect");
+    expect(s.paramCursor).toBe(0);
+    expect(s.paramValues).toEqual({ project: "/p", command: "claude" });
   });
 
   it("back from toolSelect closes the palette (FR-017)", () => {

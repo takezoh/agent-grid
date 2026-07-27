@@ -21,7 +21,6 @@
 //     materializeKey → ParamOption[]; store / wire stay daemon-free)
 
 import { useEffect, useMemo, useRef } from "react";
-import type { LaunchParameter } from "../../api/sessions";
 import { useChipHotkey } from "../../hooks/useChipHotkey";
 import {
   type DaemonSnapshot,
@@ -41,6 +40,7 @@ import { ChipSwitch } from "./ChipSwitch";
 import { ParamEmptyState } from "./ParamEmptyState";
 import { ParamListbox } from "./ParamListbox";
 import { ParamTextInput } from "./ParamTextInput";
+import { ProfileArgs } from "./ProfileArgs";
 import { useDynamicParamPreset } from "./useDynamicParamPreset";
 
 // ---------------------------------------------------------------------------
@@ -124,6 +124,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   const submitting = usePaletteStore((s) => s.submitting);
   const composing = usePaletteStore((s) => s.composing);
   const setParam = usePaletteStore((s) => s.setParam);
+  const setParams = usePaletteStore((s) => s.setParams);
   const moveCursor = usePaletteStore((s) => s.moveCursor);
   const submit = usePaletteStore((s) => s.submit);
   const setComposing = usePaletteStore((s) => s.setComposing);
@@ -171,20 +172,21 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
       selectedProject?.commandProfiles?.find((profile) => profile.id === selectedCommand) ?? null,
     [selectedCommand, selectedProject],
   );
-  const profileParams = useMemo(
-    () => selectedProfile?.parameters.map(parameterParamDef) ?? [],
-    [selectedProfile],
-  );
-  const params = useMemo(() => [...baseParams, ...profileParams], [baseParams, profileParams]);
+  const params = baseParams;
 
   useEffect(() => {
     if (!selectedProfile) return;
+    const next = { ...paramValues };
+    let changed = false;
     for (const parameter of selectedProfile.parameters) {
       if (parameter.default === undefined) continue;
       const id = profileParameterID(parameter.name);
-      if (paramValues[id] === undefined) setParam(id, parameter.default);
+      if (next[id] !== undefined) continue;
+      next[id] = parameter.default;
+      changed = true;
     }
-  }, [paramValues, selectedProfile, setParam]);
+    if (changed) setParams(next);
+  }, [paramValues, selectedProfile, setParams]);
 
   // Today's tools declare at most 2 params (new-session: project +
   // command). To keep useDynamicParamPreset's hook ordering stable
@@ -226,9 +228,9 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   // the chip visibility flags so hotkeys are only active when the chip is
   // visible.
   useChipHotkey({
-    worktreeChipVisible: showWorktreeToggle,
-    hostChipVisible: showHostToggle,
-    commandFieldVisible: hasCommandField,
+    worktreeChipVisible: paramCursor === 0 && showWorktreeToggle,
+    hostChipVisible: paramCursor === 0 && showHostToggle,
+    commandFieldVisible: paramCursor === 0 && hasCommandField,
   });
 
   // FR-022: when a chip's visibility transitions from true → false while
@@ -275,6 +277,36 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
     moveCursor(+1);
   }
 
+  function selectProject(value: unknown): void {
+    const projectTarget = typeof value === "string" ? value : "";
+    const project = findProject(snapshot.projects, projectTarget);
+    const next: Record<string, unknown> = { project: projectTarget };
+    if (project?.isGit === true && paramValues.worktree !== undefined) {
+      next.worktree = paramValues.worktree;
+    }
+    if (project?.isSandboxed === true && paramValues.host !== undefined) {
+      next.host = paramValues.host;
+    }
+    setParams(next);
+  }
+
+  function selectCommand(value: unknown): void {
+    const command = typeof value === "string" ? value : "";
+    const profile = selectedProject?.commandProfiles?.find((candidate) => candidate.id === command);
+    const next: Record<string, unknown> = {
+      project: paramValues.project,
+      command,
+    };
+    if (paramValues.worktree !== undefined) next.worktree = paramValues.worktree;
+    if (paramValues.host !== undefined) next.host = paramValues.host;
+    for (const parameter of profile?.parameters ?? []) {
+      if (parameter.default !== undefined) {
+        next[profileParameterID(parameter.name)] = parameter.default;
+      }
+    }
+    setParams(next);
+  }
+
   // FR-A4: a dynamic-options param with zero materialized options
   // renders the empty-state body AND suppresses every subsequent param
   // + the submit-trigger Enter handler the final field would carry.
@@ -313,6 +345,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
           </output>
         ))}
       {params.slice(0, stopIdx).map((param, idx) => {
+        if (idx !== paramCursor) return null;
         const isCurrent = idx === paramCursor;
         const value = paramValues[param.id];
         const options = materialized[idx] ?? null;
@@ -356,11 +389,45 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
                 focused={isCurrent}
                 disabled={submitting}
                 composing={composing}
-                onSelect={(v: unknown) => setParam(param.id, v)}
+                onSelect={(v: unknown) => {
+                  if (isProject) selectProject(v);
+                  else if (isCommand) selectCommand(v);
+                  else setParam(param.id, v);
+                }}
                 onEnter={advanceOrSubmit}
                 onCompositionStart={() => setComposing(true)}
                 onCompositionEnd={() => setComposing(false)}
                 inputRef={isCommand ? commandInputRef : isProject ? projectInputRef : undefined}
+                afterInput={
+                  isProject && (showWorktreeToggle || showHostToggle) ? (
+                    <div className="palette-project-options">
+                      <fieldset className="palette-actions__options" aria-label="session options">
+                        {showWorktreeToggle && (
+                          <ChipSwitch
+                            hintKey="W"
+                            label="worktree"
+                            checked={worktreeOn}
+                            onToggle={toggleWorktree}
+                            disabled={submitting}
+                            composing={composing}
+                            testId="worktree"
+                          />
+                        )}
+                        {showHostToggle && (
+                          <ChipSwitch
+                            hintKey="H"
+                            label="Run on host"
+                            checked={hostOn}
+                            onToggle={toggleHost}
+                            disabled={submitting}
+                            composing={composing}
+                            testId="host"
+                          />
+                        )}
+                      </fieldset>
+                    </div>
+                  ) : null
+                }
               />
               {chips}
             </div>
@@ -386,72 +453,36 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
           </div>
         );
       })}
-      <div className="palette-actions" data-testid="palette-actions">
-        <fieldset className="palette-actions__options" aria-label="session options">
-          {showWorktreeToggle && (
-            <ChipSwitch
-              hintKey="W"
-              label="worktree"
-              checked={worktreeOn}
-              onToggle={toggleWorktree}
-              disabled={submitting}
-              composing={composing}
-              testId="worktree"
-            />
-          )}
-          {showHostToggle && (
-            <ChipSwitch
-              hintKey="H"
-              label="Host (sandbox)"
-              checked={hostOn}
-              onToggle={toggleHost}
-              disabled={submitting}
-              composing={composing}
-              testId="host"
-            />
-          )}
-        </fieldset>
-        <button
-          ref={submitRef}
-          type="submit"
-          className="palette-submit"
-          data-testid="palette-submit"
+      {paramCursor === 1 && selectedProject && (
+        <div className="palette-project-summary" data-testid="palette-project-summary">
+          <span>{selectedProject.path}</span>
+          <button type="button" onClick={() => moveCursor(-1)}>
+            Change
+          </button>
+        </div>
+      )}
+      {paramCursor === 1 && selectedProfile && (
+        <ProfileArgs
+          parameters={selectedProfile.parameters}
+          values={paramValues}
           disabled={submitting}
-        >
-          {submitting ? "Working…" : (tool.label ?? "Confirm")}
-        </button>
-      </div>
+          onChange={setParam}
+        />
+      )}
+      {paramCursor === 1 && selectedProfile && (
+        <div className="palette-actions" data-testid="palette-actions">
+          <fieldset className="palette-actions__options" aria-label="session options" />
+          <button
+            ref={submitRef}
+            type="submit"
+            className="palette-submit"
+            data-testid="palette-submit"
+            disabled={submitting}
+          >
+            {submitting ? "Working…" : (tool.label ?? "Confirm")}
+          </button>
+        </div>
+      )}
     </form>
   );
-}
-
-function parameterParamDef(parameter: LaunchParameter): ParamDef {
-  const id = profileParameterID(parameter.name);
-  if (parameter.type === "enum") {
-    return {
-      id,
-      kind: "static-options",
-      label: parameter.label || parameter.name,
-      options: parameter.values.map((value) => ({ value, label: value })),
-      required: parameter.required,
-    };
-  }
-  if (parameter.type === "boolean") {
-    return {
-      id,
-      kind: "static-options",
-      label: parameter.label || parameter.name,
-      options: [
-        { value: "true", label: "On" },
-        { value: "false", label: "Off" },
-      ],
-      required: parameter.required,
-    };
-  }
-  return {
-    id,
-    kind: "text",
-    label: parameter.label || parameter.name,
-    required: parameter.required,
-  };
 }

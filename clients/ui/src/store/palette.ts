@@ -73,6 +73,7 @@ export interface PaletteActions {
   // submit" press will route through submit(ctx) as usual.
   confirmTool(id: string, ctx?: ToolCtx): void | Promise<void>;
   setParam(key: string, value: unknown): void;
+  setParams(values: Record<string, unknown>): void;
   toggleWorktree(): void;
   toggleHost(): void;
   setComposing(composing: boolean): void;
@@ -198,6 +199,10 @@ export const usePaletteStore = create<
   back() {
     const state = get();
     if (state.phase === "paramSelect") {
+      if (state.paramCursor > 0) {
+        set({ paramCursor: state.paramCursor - 1, error: null });
+        return;
+      }
       // From paramSelect we step one phase back to toolSelect (FR-017) and
       // wipe the half-filled param form. query is intentionally preserved so
       // the user lands back on the same filtered tool list they came from —
@@ -300,6 +305,10 @@ export const usePaletteStore = create<
 
   setParam(key, value) {
     set((s) => ({ paramValues: { ...s.paramValues, [key]: value } }));
+  },
+
+  setParams(values) {
+    set({ paramValues: values });
   },
 
   toggleWorktree() {

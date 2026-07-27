@@ -282,14 +282,120 @@ describe("ParamSelectPhase", () => {
     });
   });
 
+  it("shows typed profile defaults as the current value and a visual initial-value marker", async () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [
+          {
+            path: "/repo/a",
+            commandProfiles: [
+              {
+                id: "sol",
+                label: "Sol",
+                revision: "rev",
+                parameters: [
+                  {
+                    name: "thinking",
+                    label: "Thinking",
+                    type: "boolean",
+                    required: true,
+                    default: true,
+                  },
+                  {
+                    name: "limit",
+                    label: "Limit",
+                    type: "number",
+                    required: true,
+                    default: 3,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    seedPalette("new-session", { project: "/repo/a", command: "sol" }, 1);
+
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    const on = await screen.findByRole("radio", { name: /On/ });
+    expect(on.getAttribute("aria-checked")).toBe("true");
+    expect(on.getAttribute("data-initial")).toBe("true");
+    expect((screen.getByRole("spinbutton", { name: "Limit" }) as HTMLInputElement).value).toBe("3");
+    expect(screen.getByTestId("profile-arg-limit").getAttribute("data-at-initial")).toBe("true");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Off" }));
+    expect(on.getAttribute("data-initial")).toBe("true");
+    expect(on.getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByRole("radio", { name: "Off" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("button", { name: "Reset Thinking to initial value" })).toBeTruthy();
+  });
+
+  it("replaces stale profile values with the newly selected command defaults", async () => {
+    setDaemonSnapshot(
+      mkSnapshot({
+        projects: [
+          {
+            path: "/repo/a",
+            commandProfiles: [
+              {
+                id: "fast",
+                label: "Fast",
+                revision: "rev-fast",
+                parameters: [
+                  {
+                    name: "effort",
+                    label: "Effort",
+                    type: "enum",
+                    required: true,
+                    default: "low",
+                    values: ["low", "high"],
+                  },
+                ],
+              },
+              {
+                id: "deep",
+                label: "Deep",
+                revision: "rev-deep",
+                parameters: [
+                  {
+                    name: "effort",
+                    label: "Effort",
+                    type: "enum",
+                    required: true,
+                    default: "high",
+                    values: ["low", "high"],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    seedPalette(
+      "new-session",
+      { project: "/repo/a", command: "fast", "profile:effort": "high" },
+      1,
+    );
+    render(<ParamSelectPhase ctx={makeCtx()} />);
+
+    fireEvent.mouseDown(screen.getByRole("option", { name: "Deep" }));
+
+    await waitFor(() => {
+      expect(usePaletteStore.getState().paramValues["profile:effort"]).toBe("high");
+    });
+    const high = screen.getByRole("radio", { name: /high/ });
+    expect(high.getAttribute("aria-checked")).toBe("true");
+    expect(high.getAttribute("data-initial")).toBe("true");
+  });
+
   // -------------------------------------------------------------------------
   // FR-011 / FR-012 layout
   // -------------------------------------------------------------------------
 
-  it("renders new-session with project listbox + command listbox + filter combobox inputs", () => {
-    // web-ui-fixes 2026-06-24: both params are now ParamListbox (project +
-    // command). Each carries a combobox filter input fronting the listbox
-    // surface so the user can type to narrow the picker.
+  it("transitions from the project listbox to the command listbox", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [
@@ -304,11 +410,16 @@ describe("ParamSelectPhase", () => {
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
     const projectGroup = screen.getByRole("group", { name: "Project" });
-    const commandGroup = screen.getByRole("group", { name: "Command" });
     expect(projectGroup.querySelector("[role=listbox]")).not.toBeNull();
-    expect(commandGroup.querySelector("[role=listbox]")).not.toBeNull();
     expect(projectGroup.querySelector("input[role=combobox]")).not.toBeNull();
+    expect(screen.queryByRole("group", { name: "Command" })).toBeNull();
+
+    fireEvent.keyDown(projectFilterInput(), { key: "Enter" });
+
+    const commandGroup = screen.getByRole("group", { name: "Command" });
+    expect(commandGroup.querySelector("[role=listbox]")).not.toBeNull();
     expect(commandGroup.querySelector("input[role=combobox]")).not.toBeNull();
+    expect(screen.queryByRole("group", { name: "Project" })).toBeNull();
   });
 
   // -------------------------------------------------------------------------
@@ -630,7 +741,7 @@ describe("ParamSelectPhase", () => {
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    fireEvent.keyDown(commandInput(), { key: "Enter" });
+    fireEvent.keyDown(projectFilterInput(), { key: "Enter" });
     expect(usePaletteStore.getState().paramCursor).toBe(1);
   });
 
@@ -779,7 +890,7 @@ describe("ParamSelectPhase", () => {
 
     const input = commandInput();
     expect(input.disabled).toBe(true);
-    const listbox = projectListbox();
+    const listbox = document.getElementById("palette-param-command");
     expect(listbox.getAttribute("aria-disabled")).toBe("true");
   });
 
@@ -795,14 +906,20 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 1);
+    seedPalette("new-session", { project: "/repo/a" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    const actions = document.querySelector("[data-testid='palette-actions']");
+    const actions = document.querySelector(".palette-project-options");
     expect(actions).not.toBeNull();
     expect(actions?.querySelector("[data-toggle='worktree']")).not.toBeNull();
     expect(actions?.querySelector("[data-toggle='host']")).not.toBeNull();
+    const projectList = document.getElementById("palette-param-project");
+    expect(
+      actions !== null &&
+        projectList !== null &&
+        (actions.compareDocumentPosition(projectList) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+    ).toBe(true);
   });
 
   // UAC-008 / FR-016: no chips when project has no git or sandboxed capability
@@ -813,7 +930,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/plain" }, 1);
+    seedPalette("new-session", { project: "/repo/plain" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -829,7 +946,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/git" }, 1);
+    seedPalette("new-session", { project: "/repo/git" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -849,7 +966,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 1);
+    seedPalette("new-session", { project: "/repo/a" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -875,7 +992,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 1);
+    seedPalette("new-session", { project: "/repo/a" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -899,7 +1016,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 1);
+    seedPalette("new-session", { project: "/repo/a" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -920,7 +1037,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/a" }, 1);
+    seedPalette("new-session", { project: "/repo/a" }, 0);
 
     render(<ParamSelectPhase ctx={ctx} />);
 
@@ -951,7 +1068,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/sandbox" }, 1);
+    seedPalette("new-session", { project: "/repo/sandbox" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -964,9 +1081,7 @@ describe("ParamSelectPhase", () => {
       usePaletteStore.getState().setParam("project", "/repo/plain");
     });
 
-    // Focus should have been redirected to the command input.
-    const cmdInput = commandInput();
-    expect(document.activeElement).toBe(cmdInput);
+    expect(document.activeElement).toBe(projectFilterInput());
   });
 
   // UAC-010 / FR-022: selectedProject becomes null → both chips disappear → focus returns to command input
@@ -977,7 +1092,7 @@ describe("ParamSelectPhase", () => {
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/sandbox" }, 1);
+    seedPalette("new-session", { project: "/repo/sandbox" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
@@ -997,19 +1112,19 @@ describe("ParamSelectPhase", () => {
   // FR-021 / UAC-010 — Tab natural traversal (no Tab hijack)
   // -------------------------------------------------------------------------
 
-  // UAC-010 / FR-021: Tab key from command input does not toggle chip (natural traversal)
-  it("Tab key from command input does not toggle chip (FR-021 / UAC-010)", () => {
+  // UAC-010 / FR-021: Tab remains natural focus traversal on the project step.
+  it("Tab key from project input does not toggle chip (FR-021 / UAC-010)", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [{ path: "/repo/sandbox", isGit: false, isSandboxed: true }],
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/sandbox" }, 1);
+    seedPalette("new-session", { project: "/repo/sandbox" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    const input = commandInput();
+    const input = projectFilterInput();
     fireEvent.keyDown(input, { key: "Tab" });
     expect(usePaletteStore.getState().paramValues.host).toBeUndefined();
   });

@@ -527,16 +527,11 @@
   cursor: not-allowed;
 }
 
-/* Listbox surface inside a param. Caps at ~9 rows so a 50-project tree
-   doesn't shove the dialog past the viewport; rows scroll inside. */
+/* Parameter phases share the palette body's single scroll owner. */
 .palette-param-listbox {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  max-height: calc(9 * 30px);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--hairline) transparent;
   border-radius: 6px;
 }
 .palette-param-listbox[aria-disabled="true"] {
@@ -636,6 +631,162 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.palette-project-options,
+.palette-project-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 2px 0;
+}
+
+.palette-project-summary {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+
+.palette-project-summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-project-summary button {
+  padding: 3px 7px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.palette-project-summary button:hover,
+.palette-project-summary button:focus-visible {
+  color: var(--fg);
+  background: var(--surface-row-hover);
+  outline: none;
+}
+
+.palette-profile-args {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-input) 72%, transparent);
+}
+
+.palette-profile-arg {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.7fr) minmax(0, 2fr) 24px;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 4px 6px;
+}
+
+.palette-profile-arg__label {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.palette-profile-arg__segments {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--surface-canvas);
+}
+
+.palette-profile-arg__segment {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 48px;
+  padding: 5px 9px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.palette-profile-arg__segment[data-initial="true"]::after,
+.palette-profile-arg__input-wrap[data-initial="true"]::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 4px;
+  height: 4px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.58;
+}
+
+.palette-profile-arg__segment[aria-checked="true"] {
+  color: var(--fg);
+  background: var(--surface-row-selected);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rail-accent) 34%, transparent);
+}
+
+.palette-profile-arg__segment:focus-visible,
+.palette-profile-arg__reset:focus-visible,
+.palette-profile-arg__input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.palette-profile-arg__input-wrap {
+  position: relative;
+}
+
+.palette-profile-arg__input {
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 9px;
+  box-sizing: border-box;
+  color: var(--fg);
+  background: var(--surface-canvas);
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 11.5px;
+}
+
+.palette-profile-arg__reset {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.palette-profile-arg__reset:hover {
+  color: var(--fg);
+  background: var(--surface-row-hover);
+}
+
+@media (max-width: 520px) {
+  .palette-profile-arg {
+    grid-template-columns: 1fr 24px;
+  }
+
+  .palette-profile-arg__label {
+    grid-column: 1 / -1;
+  }
 }
 .palette-param-command-toggles {
   display: flex;

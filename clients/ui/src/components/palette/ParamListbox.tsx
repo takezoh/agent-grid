@@ -38,6 +38,7 @@ export interface ParamListboxProps {
   // command listbox so the chip-visibility focus fallback (FR-022) can
   // .focus() the filter input when a chip's visibility flips off.
   inputRef?: React.Ref<HTMLInputElement>;
+  afterInput?: React.ReactNode;
 }
 
 function optionIndexOf(options: ReadonlyArray<ParamOption>, value: unknown): number {
@@ -174,6 +175,7 @@ export function ParamListbox(props: ParamListboxProps): JSX.Element {
         onCompositionEnd={onCompositionEnd}
         data-testid={`palette-param-${paramId}-filter`}
       />
+      {props.afterInput}
       <div
         id={`palette-param-${paramId}`}
         className="palette-param-listbox"
