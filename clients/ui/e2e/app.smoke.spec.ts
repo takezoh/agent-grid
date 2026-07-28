@@ -73,8 +73,10 @@ test("renders live sessions and completes a new-session submission against the f
   await page.getByTestId("palette-submit").press("Enter");
 
   await expect.poll(async () => backend.createSessionRequests()).toHaveLength(1);
+  await expect
+    .poll(async () => (await backend.sentFrames()).filter((frame) => frame.k === "r").at(-1))
+    .toMatchObject({ k: "r" });
   const fittedSize = (await backend.sentFrames()).filter((frame) => frame.k === "r").at(-1);
-  expect(fittedSize).toMatchObject({ k: "r" });
   const fittedCols = fittedSize?.cols;
   const fittedRows = fittedSize?.rows;
   expect(typeof fittedCols).toBe("number");

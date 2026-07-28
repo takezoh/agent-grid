@@ -74,134 +74,191 @@ export async function installFakeBackend(
     });
   });
 
-  await page.addInitScript(() => {
-    type ClientRecord = { raw: string; parsed: Record<string, unknown> | null };
-    type ServerRecord = { raw: string; parsed: Record<string, unknown> | null };
-    type SocketHarness = {
-      sockets: FakeWebSocket[];
-      sent: ClientRecord[];
-      emitted: ServerRecord[];
-      emit(frame: ServerFrame): void;
-    };
-    const isOpenGatewaySocket = (socket: { readyState: number; url?: string | null }): boolean => {
-      if (socket.readyState !== 1 || !socket.url) return false;
-      try {
-        const parsed = new URL(socket.url, "http://127.0.0.1");
-        return parsed.pathname.endsWith("/ws") && parsed.searchParams.get("ticket") !== null;
-      } catch {
-        return false;
-      }
-    };
-
-    class FakeWebSocket {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSING = 2;
-      static readonly CLOSED = 3;
-
-      readonly url: string;
-      readyState = FakeWebSocket.CONNECTING;
-      onopen: ((ev: Event) => void) | null = null;
-      onmessage: ((ev: MessageEvent<string>) => void) | null = null;
-      onclose: ((ev: Event) => void) | null = null;
-      onerror: ((ev: Event) => void) | null = null;
-
-      constructor(url: string) {
-        this.url = url;
-        harness.sockets.push(this);
-        queueMicrotask(() => {
-          if (this.readyState !== FakeWebSocket.CONNECTING) return;
-          this.readyState = FakeWebSocket.OPEN;
-          this.onopen?.(new Event("open"));
-        });
-      }
-
-      send(data: string): void {
-        const raw = String(data);
-        let parsed: Record<string, unknown> | null = null;
+  await page.addInitScript(
+    ({ initialSessions }) => {
+      type ClientRecord = { raw: string; parsed: Record<string, unknown> | null };
+      type ServerRecord = { raw: string; parsed: Record<string, unknown> | null };
+      type SocketHarness = {
+        sockets: FakeWebSocket[];
+        sent: ClientRecord[];
+        emitted: ServerRecord[];
+        fleetSessions: SessionInfo[];
+        emit(frame: ServerFrame): void;
+        emitFleet(): void;
+      };
+      const isOpenGatewaySocket = (socket: {
+        readyState: number;
+        url?: string | null;
+      }): boolean => {
+        if (socket.readyState !== 1 || !socket.url) return false;
         try {
-          parsed = JSON.parse(raw) as Record<string, unknown>;
+          const parsed = new URL(socket.url, "http://127.0.0.1");
+          return parsed.pathname.endsWith("/ws") && parsed.searchParams.get("ticket") !== null;
         } catch {
-          parsed = null;
+          return false;
         }
-        harness.sent.push({ raw, parsed });
-        // The real gateway acks both legacy {k:"s"}/{k:"u"} and current
-        // lifecycle-v2 {k:"ld"} frames with {k:"r"}.
-        // so the React subscribeWithRetry / unsubscribeOnce promises resolve.
-        // Without acking "u" here, TerminalSubscriptionController's reconcile
-        // loop hangs forever awaiting the old session's unsubscribe response
-        // whenever the active session switches, and the new session never
-        // gets subscribed.
-        if (
-          (parsed?.k === "s" || parsed?.k === "u" || parsed?.k === "ld") &&
-          typeof parsed.reqId === "string"
-        ) {
+      };
+
+      class FakeWebSocket {
+        static readonly CONNECTING = 0;
+        static readonly OPEN = 1;
+        static readonly CLOSING = 2;
+        static readonly CLOSED = 3;
+
+        readonly url: string;
+        readyState = FakeWebSocket.CONNECTING;
+        onopen: ((ev: Event) => void) | null = null;
+        onmessage: ((ev: MessageEvent<string>) => void) | null = null;
+        onclose: ((ev: Event) => void) | null = null;
+        onerror: ((ev: Event) => void) | null = null;
+
+        constructor(url: string) {
+          this.url = url;
+          harness.sockets.push(this);
           queueMicrotask(() => {
-            this.onmessage?.(
-              new MessageEvent("message", {
-                data: JSON.stringify({ k: "r", reqId: parsed?.reqId }),
-              }),
-            );
-            if (parsed?.k === "ld" && parsed.correlation) {
-              harness.emit({
-                k: "lo",
-                correlation: parsed.correlation,
-                status: "applied",
-              } as ServerFrame);
+            if (this.readyState !== FakeWebSocket.CONNECTING) return;
+            this.readyState = FakeWebSocket.OPEN;
+            this.onopen?.(new Event("open"));
+            if (new URL(this.url, "http://127.0.0.1").pathname === "/host/fleet") {
+              harness.emitFleet();
             }
           });
         }
-      }
 
-      close(): void {
-        if (this.readyState === FakeWebSocket.CLOSED) return;
-        this.readyState = FakeWebSocket.CLOSED;
-        queueMicrotask(() => {
-          this.onclose?.(new Event("close"));
-        });
-      }
-
-      addEventListener(): void {}
-      removeEventListener(): void {}
-      dispatchEvent(): boolean {
-        return true;
-      }
-    }
-
-    const harness: SocketHarness = {
-      sockets: [],
-      sent: [],
-      emitted: [],
-      emit(frame: ServerFrame): void {
-        const raw = JSON.stringify(frame);
-        let parsed: Record<string, unknown> | null = null;
-        try {
-          parsed = JSON.parse(raw) as Record<string, unknown>;
-        } catch {
-          parsed = null;
+        send(data: string): void {
+          const raw = String(data);
+          let parsed: Record<string, unknown> | null = null;
+          try {
+            parsed = JSON.parse(raw) as Record<string, unknown>;
+          } catch {
+            parsed = null;
+          }
+          harness.sent.push({ raw, parsed });
+          // The real gateway acks both legacy {k:"s"}/{k:"u"} and current
+          // lifecycle-v2 {k:"ld"} frames with {k:"r"}.
+          // so the React subscribeWithRetry / unsubscribeOnce promises resolve.
+          // Without acking "u" here, TerminalSubscriptionController's reconcile
+          // loop hangs forever awaiting the old session's unsubscribe response
+          // whenever the active session switches, and the new session never
+          // gets subscribed.
+          if (
+            (parsed?.k === "s" || parsed?.k === "u" || parsed?.k === "ld") &&
+            typeof parsed.reqId === "string"
+          ) {
+            queueMicrotask(() => {
+              this.onmessage?.(
+                new MessageEvent("message", {
+                  data: JSON.stringify({ k: "r", reqId: parsed?.reqId }),
+                }),
+              );
+              if (parsed?.k === "ld" && parsed.correlation) {
+                harness.emit({
+                  k: "lo",
+                  correlation: parsed.correlation,
+                  status: "applied",
+                } as ServerFrame);
+              }
+            });
+          }
         }
-        this.emitted.push({ raw, parsed });
-        for (const socket of this.sockets) {
-          if (!isOpenGatewaySocket(socket)) continue;
-          socket.onmessage?.(new MessageEvent("message", { data: raw }));
-        }
-      },
-    };
 
-    Object.defineProperty(globalThis, "WebSocket", {
-      configurable: true,
-      writable: true,
-      value: FakeWebSocket,
-    });
-    (globalThis as typeof globalThis & { __agentGridHarness?: SocketHarness }).__agentGridHarness =
-      harness;
-  });
+        close(): void {
+          if (this.readyState === FakeWebSocket.CLOSED) return;
+          this.readyState = FakeWebSocket.CLOSED;
+          queueMicrotask(() => {
+            this.onclose?.(new Event("close"));
+          });
+        }
+
+        addEventListener(): void {}
+        removeEventListener(): void {}
+        dispatchEvent(): boolean {
+          return true;
+        }
+      }
+
+      const harness: SocketHarness = {
+        sockets: [],
+        sent: [],
+        emitted: [],
+        fleetSessions: initialSessions,
+        emitFleet(): void {
+          const snapshot = {
+            revision: this.emitted.length + 1,
+            members: [
+              {
+                serverId: "test-server",
+                serverLabel: "Test",
+                generation: 1,
+                state: "connected",
+                sessions: this.fleetSessions,
+              },
+            ],
+            sessions: this.fleetSessions.map((session) => ({
+              ref: { serverId: "test-server", sessionId: session.id },
+              serverLabel: "Test",
+              session,
+              stale: false,
+            })),
+          };
+          for (const socket of this.sockets) {
+            if (
+              socket.readyState === FakeWebSocket.OPEN &&
+              new URL(socket.url, "http://127.0.0.1").pathname === "/host/fleet"
+            ) {
+              socket.onmessage?.(new MessageEvent("message", { data: JSON.stringify(snapshot) }));
+            }
+          }
+        },
+        emit(frame: ServerFrame): void {
+          const raw = JSON.stringify(frame);
+          let parsed: Record<string, unknown> | null = null;
+          try {
+            parsed = JSON.parse(raw) as Record<string, unknown>;
+          } catch {
+            parsed = null;
+          }
+          this.emitted.push({ raw, parsed });
+          if (
+            !Array.isArray(frame) &&
+            (frame.k === "h" || frame.k === "v") &&
+            frame.sessions !== undefined
+          ) {
+            this.fleetSessions = structuredClone(frame.sessions);
+            this.emitFleet();
+          }
+          for (const socket of this.sockets) {
+            if (!isOpenGatewaySocket(socket)) continue;
+            socket.onmessage?.(new MessageEvent("message", { data: raw }));
+          }
+        },
+      };
+
+      Object.defineProperty(globalThis, "WebSocket", {
+        configurable: true,
+        writable: true,
+        value: FakeWebSocket,
+      });
+      (
+        globalThis as typeof globalThis & { __agentGridHarness?: SocketHarness }
+      ).__agentGridHarness = harness;
+    },
+    { initialSessions: sessions },
+  );
 
   await page.route("**/api/ws-ticket", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ ticket }),
+    });
+  });
+
+  await page.route("**/api/capabilities", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ protocolVersion: "protocol-2" }),
     });
   });
 
@@ -232,7 +289,7 @@ export async function installFakeBackend(
     });
   });
 
-  await page.route("**/api/sessions", async (route) => {
+  await page.route("**/sessions", async (route) => {
     if (route.request().method() !== "POST") {
       await route.fulfill({ status: 405, body: "method not allowed" });
       return;

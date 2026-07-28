@@ -37,7 +37,17 @@ export interface WorkspacePreloadApi {
   serverHealth?: { list(): Promise<FleetHealth> };
   sessionFleet?: {
     listConfigs(): Promise<unknown>;
+    subscribe(listener: (snapshot: unknown) => void): () => void;
+    openChannel(
+      serverId: string,
+      listener: (event: { channelId: string; kind: string; data?: unknown }) => void,
+    ): Promise<{ channelId: string; send(data: string): void; close(): void }>;
     create(serverId: string, payload: unknown): Promise<unknown>;
+    request(
+      serverId: string,
+      pathname: string,
+      init: { method?: string; headers?: Record<string, string>; body?: string },
+    ): Promise<{ status: number; headers: Record<string, string>; body: string }>;
   };
   /**
    * Re-syncs the native chrome (caption-button overlay, title-bar view,

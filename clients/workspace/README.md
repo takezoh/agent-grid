@@ -8,7 +8,7 @@ JSON Lines control channel (named pipe on Windows).
 
 ```text
 src/main/
-  window-registry.ts    window-per-session dedup over the sole creation point
+  window-registry.ts    one generic fleet window over the sole creation point
   electron-window-factory.ts  sole window/view creation point (frameless BaseWindow
                               + title-bar / SPA WebContentsViews)
   window-chrome.ts      VSCode-style title bar: colors, layout, menu-bar contract,
@@ -29,7 +29,7 @@ src/shared/
 |---|---|
 | `contract-b1-jsonlines-envelope-shape` | `control-envelope.ts` |
 | `contract-b1-window-registry-dedup` | `window-registry.ts` |
-| `contract-migration-window-per-session-invariant` | `window-registry.ts` |
+| `contract-single-fleet-window-construction` | `window-registry.ts` |
 | `contract-window-close-not-session-stop` | `window-registry.ts` `closeSessionView` |
 | `contract-workspace-state-schema-evolution` | `loadWorkspaceState` |
 | `contract-b2-hosted-mode-token-injection` | `daemon-config.ts` + preload |

@@ -36,7 +36,7 @@ test("right-click on a session row opens the session context menu", async ({ pag
     serverTime: 1_720_000_000_000,
   });
 
-  const row = page.locator('.session-list__row[data-session-id="session-1"]');
+  const row = page.locator('.session-list__row[data-session-id=\'["test-server","session-1"]\']');
   await expect(row).toBeVisible();
   await row.click({ button: "right" });
 
@@ -96,7 +96,7 @@ test("a very long session title is truncated in the context menu and the stop co
     serverTime: 1_720_000_000_000,
   });
 
-  const row = page.locator('.session-list__row[data-session-id="session-1"]');
+  const row = page.locator('.session-list__row[data-session-id=\'["test-server","session-1"]\']');
   await expect(row).toBeVisible();
   await row.click({ button: "right" });
 

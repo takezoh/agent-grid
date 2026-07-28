@@ -1,5 +1,6 @@
 import { desktopBaseUrl } from "../auth";
 import { PROTOCOL_VERSION, protocolMismatchReason } from "../protocol-version";
+import type { FleetSnapshot } from "./session-protocol";
 
 export interface FleetConfigOutcome {
   serverId: string;
@@ -10,11 +11,22 @@ export interface FleetConfigOutcome {
 }
 
 export interface FleetProvider {
-  currentServerId(): string | null;
+  initialServerId(): string | null;
+  subscribe(listener: (snapshot: FleetSnapshot) => void): () => void;
   listConfigs(): Promise<FleetConfigOutcome[]>;
   create(serverId: string, payload: unknown): Promise<unknown>;
   apiUrl(serverId: string, pathname: string): string;
   wsUrl(serverId: string, ticket: string): string;
+  activeConnection(
+    serverId: string,
+    bearerToken: string,
+  ): {
+    ticketEndpoint: string;
+    wsUrl(ticket: string): string;
+    fetchFn?: typeof fetch;
+    wsFactory?: (url: string) => WebSocket;
+  };
+  request(serverId: string, pathname: string, init?: RequestInit): Promise<Response>;
 }
 
 type HostProjection = {
@@ -43,7 +55,17 @@ function websocketURL(pathname: string, ticket: string): string {
 
 function webProvider(fetchImpl: typeof fetch): FleetProvider {
   return {
-    currentServerId: explicitServerId,
+    initialServerId: explicitServerId,
+    subscribe(listener) {
+      const url = new URL("/host/fleet", window.location.origin);
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      const socket = new WebSocket(url);
+      socket.onmessage = (event) => {
+        const snapshot = JSON.parse(String(event.data)) as FleetSnapshot;
+        listener(snapshot);
+      };
+      return () => socket.close();
+    },
     async listConfigs() {
       const projectionResponse = await fetchImpl("/host/config");
       if (!projectionResponse.ok) throw new Error(`HTTP ${projectionResponse.status}`);
@@ -101,17 +123,35 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
       );
     },
     async create(serverId, payload) {
-      const response = await fetchImpl(qualifiedPath(serverId, "/api/sessions"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetchImpl(
+        `/host/fleet/servers/${encodeURIComponent(serverId)}/sessions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
     },
     apiUrl: qualifiedPath,
     wsUrl(serverId, ticket) {
       return websocketURL(qualifiedPath(serverId, "/ws"), ticket);
+    },
+    activeConnection(serverId) {
+      if (serverId === "local") {
+        return {
+          ticketEndpoint: "/api/ws-ticket",
+          wsUrl: (ticket: string) => websocketURL("/ws", ticket),
+        };
+      }
+      return {
+        ticketEndpoint: qualifiedPath(serverId, "/api/ws-ticket"),
+        wsUrl: (ticket) => websocketURL(qualifiedPath(serverId, "/ws"), ticket),
+      };
+    },
+    request(serverId, pathname, init) {
+      return fetchImpl(qualifiedPath(serverId, pathname), init);
     },
   };
 }
@@ -120,7 +160,11 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
   const fleet = bridge.sessionFleet;
   if (!fleet) throw new Error("Workspace FleetProvider is unavailable");
   return {
-    currentServerId: explicitServerId,
+    initialServerId: explicitServerId,
+    subscribe(listener) {
+      if (!fleet.subscribe) throw new Error("Workspace fleet subscription is unavailable");
+      return fleet.subscribe((snapshot) => listener(snapshot as FleetSnapshot));
+    },
     listConfigs: () => fleet.listConfigs() as Promise<FleetConfigOutcome[]>,
     create: (serverId, payload) => fleet.create(serverId, payload),
     apiUrl(_serverId, pathname) {
@@ -137,7 +181,86 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
       url.searchParams.set("protocolVersion", PROTOCOL_VERSION);
       return url.toString();
     },
+    activeConnection(serverId) {
+      const openChannel = fleet.openChannel;
+      if (!openChannel) {
+        throw new Error("Workspace active session channel is unavailable");
+      }
+      return {
+        ticketEndpoint: "workspace://session-channel",
+        wsUrl: () => "workspace://session-channel",
+        fetchFn: async () => Response.json({ ticket: "ipc" }),
+        wsFactory: () => new WorkspaceSocket(serverId, openChannel) as unknown as WebSocket,
+      };
+    },
+    async request(serverId, pathname, init = {}) {
+      if (!fleet.request) throw new Error("Workspace routed request is unavailable");
+      const headers = Object.fromEntries(new Headers(init.headers).entries());
+      const result = await fleet.request(serverId, pathname, {
+        method: init.method,
+        headers,
+        body: typeof init.body === "string" ? init.body : undefined,
+      });
+      return new Response(result.body, {
+        status: result.status,
+        headers: result.headers,
+      });
+    },
   };
+}
+
+class WorkspaceSocket {
+  readyState: number = WebSocket.CONNECTING;
+  onopen: ((event: Event) => void) | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onclose: ((event: CloseEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  private channel: { send(data: string): void; close(): void } | null = null;
+  private pending: string[] = [];
+  private closing = false;
+
+  constructor(
+    serverId: string,
+    open: NonNullable<
+      NonNullable<NonNullable<Window["agentGridWorkspace"]>["sessionFleet"]>["openChannel"]
+    >,
+  ) {
+    void open(serverId, (event) => {
+      if (event.kind === "open") {
+        this.readyState = WebSocket.OPEN;
+        for (const data of this.pending) this.channel?.send(data);
+        this.pending = [];
+        this.onopen?.(new Event("open"));
+      } else if (event.kind === "message") {
+        this.onmessage?.(new MessageEvent("message", { data: String(event.data) }));
+      } else if (event.kind === "error") {
+        this.onerror?.(new Event("error"));
+      } else if (event.kind === "close") {
+        this.readyState = WebSocket.CLOSED;
+        this.onclose?.(new CloseEvent("close"));
+      }
+    })
+      .then((channel) => {
+        this.channel = channel;
+        if (this.closing) channel.close();
+      })
+      .catch(() => {
+        this.readyState = WebSocket.CLOSED;
+        this.onerror?.(new Event("error"));
+        this.onclose?.(new CloseEvent("close"));
+      });
+  }
+
+  send(data: string): void {
+    if (this.readyState === WebSocket.OPEN) this.channel?.send(data);
+    else this.pending.push(data);
+  }
+
+  close(): void {
+    this.closing = true;
+    this.readyState = WebSocket.CLOSING;
+    this.channel?.close();
+  }
 }
 
 /**

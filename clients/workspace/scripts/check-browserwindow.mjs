@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * contract-migration-window-per-session-invariant:
+ * contract-single-fleet-window-construction:
  * Electron window/view construction (`new BrowserWindow(`, `new BaseWindow(`,
  * `new WebContentsView(`) may only appear in electron-window-factory.ts
  * (the sole production creation site owned by window-registry).

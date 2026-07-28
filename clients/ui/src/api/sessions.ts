@@ -13,8 +13,8 @@
 // services/server/web/mux_push.go (ADR-0045 SendCommand pattern; ADR-0046 409
 // active-mismatch). pushCommand below is the client side of that contract.
 
-import { readBearerTokenFromHash } from "../auth";
 import { makeFleetProvider } from "../fleet/provider";
+import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
 import { PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER } from "../protocol-version";
 
 // ---------------------------------------------------------------------------
@@ -191,35 +191,6 @@ export interface SessionsApi {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-// makeAuthHeaderFn returns an authHeader function with its own "already
-// notified" flag, so a stale token-missing warning from one SessionsApi
-// instance doesn't suppress the warning on a freshly constructed one (this
-// is also what lets each test see the warning independently).
-function makeAuthHeaderFn(): (url: string) => Record<string, string> {
-  let bearerMissingNotified = false;
-  return (url: string): Record<string, string> => {
-    const token = readBearerTokenFromHash();
-    if (!token) {
-      // Dev-time hint only. The server still returns 401 (which palette-store
-      // surfaces as a toast), but without this one-shot warn a developer who
-      // forgot to put `#token=...` in the URL sees only "401 unauthorized"
-      // with no indication that the client never even attached an
-      // Authorization header. Surface it once per SessionsApi instance so the
-      // dev console has a breadcrumb without spamming on every poll.
-      // (Spec: review finding "minor — token missing silent path".)
-      if (!bearerMissingNotified) {
-        bearerMissingNotified = true;
-        // eslint-disable-next-line no-console -- diagnostic, see comment above
-        console.warn(
-          `[api/sessions] no bearer token in window.location.hash; sending ${url} without Authorization header`,
-        );
-      }
-      return {};
-    }
-    return { Authorization: `Bearer ${token}` };
-  };
-}
-
 function makeHttpError(status: number, body: string): ApiHttpError {
   const err = new Error(`HTTP ${status}`) as ApiHttpError;
   err.status = status;
@@ -392,32 +363,38 @@ function normalizeStringList(raw: unknown, fieldName: string): string[] {
 
 export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
   const f = fetchImpl ?? fetch.bind(globalThis);
-  const authHeader = makeAuthHeaderFn();
   const fleet = makeFleetProvider(f);
-
-  const currentURL = (pathname: string): string => {
-    const serverId = fleet.currentServerId();
+  const routedSession = (value: string) => {
+    const ref = parseSessionKey(value);
+    const serverId = ref?.serverId ?? fleet.initialServerId();
     if (!serverId) throw new Error("No server selected");
-    return fleet.apiUrl(serverId, pathname);
+    return { serverId, sessionId: ref?.sessionId ?? value };
+  };
+  const routedRequest = (value: string, suffix: string, init: RequestInit): Promise<Response> => {
+    const target = routedSession(value);
+    const pathname = `/api/sessions/${encodeURIComponent(target.sessionId)}${suffix}`;
+    return request(
+      (_input, requestInit) => fleet.request(target.serverId, pathname, requestInit),
+      pathname,
+      init,
+    );
   };
 
   return {
     async createSession(payload: CreateSessionPayload): Promise<{ id: string; serverId?: string }> {
-      const serverId = payload.server_id ?? fleet.currentServerId();
-      if (!serverId) throw new Error("createSession requires server_id");
+      const serverId = payload.server_id;
+      if (!serverId) throw new Error("createSession requires explicit server_id");
       const { server_id: _, ...serverPayload } = payload;
       const body = (await fleet.create(serverId, serverPayload)) as Record<string, unknown>;
       if (typeof body.id !== "string" || body.id === "") {
         throw makeWireFormatError("FleetProvider.create", "missing string `id`", body);
       }
-      return { id: body.id, serverId };
+      return { id: sessionKey({ serverId, sessionId: body.id }), serverId };
     },
 
     async deleteSession(id: string): Promise<void> {
-      const url = currentURL(`/api/sessions/${encodeURIComponent(id)}`);
-      await request(f, url, {
+      await routedRequest(id, "", {
         method: "DELETE",
-        headers: { ...authHeader(url) },
       });
     },
 
@@ -432,12 +409,10 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
       // allowlist rejects anything outside [A-Za-z0-9_-], but if a UI bug
       // ever leaks a stray '/' we don't want it to silently retarget a
       // different path segment (same defense as deleteSession above).
-      const url = currentURL(`/api/sessions/${encodeURIComponent(sessionId)}/push`);
-      await request(f, url, {
+      await routedRequest(sessionId, "/push", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...authHeader(url),
         },
         body: JSON.stringify({ command }),
       });
@@ -486,10 +461,9 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
     },
 
     async getSessionMessages(sessionId: string): Promise<SessionMessagesResponse> {
-      const url = currentURL(`/api/sessions/${encodeURIComponent(sessionId)}/messages`);
-      const res = await request(f, url, {
+      const url = `/api/sessions/${encodeURIComponent(sessionId)}/messages`;
+      const res = await routedRequest(sessionId, "/messages", {
         method: "GET",
-        headers: { ...authHeader(url) },
       });
       const body = await parseJsonBody(url, res);
       const messages = Array.isArray(body.messages) ? (body.messages as SessionMessage[]) : [];
@@ -504,12 +478,10 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
     },
 
     async markSessionMessagesRead(sessionId: string, lastReadMessageId?: string): Promise<void> {
-      const url = currentURL(`/api/sessions/${encodeURIComponent(sessionId)}/messages/read`);
-      await request(f, url, {
+      await routedRequest(sessionId, "/messages/read", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...authHeader(url),
         },
         body: JSON.stringify(lastReadMessageId ? { last_read_message_id: lastReadMessageId } : {}),
       });

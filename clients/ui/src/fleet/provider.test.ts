@@ -96,6 +96,6 @@ describe("FleetProvider host parity", () => {
 
   it("does not synthesize a server from the browser origin", () => {
     window.history.replaceState({}, "", "/");
-    expect(makeFleetProvider(vi.fn() as typeof fetch).currentServerId()).toBeNull();
+    expect(makeFleetProvider(vi.fn() as typeof fetch).initialServerId()).toBeNull();
   });
 });

@@ -77,6 +77,8 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
         projects: [
           {
             path: "/repo/a",
+            serverId: "test-server",
+            serverLabel: "Test Server",
             isGit: false,
             isSandboxed: false,
             commandProfiles: [
@@ -132,7 +134,7 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
           ),
         );
       }
-      if (u.endsWith("/api/sessions") && init?.method === "POST") {
+      if (u.endsWith("/sessions") && init?.method === "POST") {
         calls.push("createSession");
         return Promise.resolve(
           new Response(JSON.stringify({ id: "sess-new" }), {
@@ -217,7 +219,7 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
         await Promise.resolve();
       });
     }
-    expect(usePaletteStore.getState().paramValues.project).toBe("/repo/a");
+    expect(usePaletteStore.getState().paramValues.project).toBe('["test-server","/repo/a"]');
 
     // Advance from project (cursor 0) to command (cursor 1) — the cursor
     // move is store-only (no calls timeline impact).
@@ -263,6 +265,6 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
     // Sanity: the freshly-created session is now active (a regression of
     // selectSession would leave activeSessionID null even with the call
     // observed, since the spy delegates to realSelect).
-    expect(useDaemonStore.getState().activeSessionID).toBe("sess-new");
+    expect(useDaemonStore.getState().activeSessionID).toBe('["test-server","sess-new"]');
   });
 });

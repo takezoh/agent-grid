@@ -16,6 +16,7 @@ import { TerminalPane } from "./components/TerminalPane";
 import { CommandPalette } from "./components/palette/CommandPalette";
 import { WorkspaceDrawer } from "./components/workspace/WorkspaceDrawer";
 import { makeFleetProvider } from "./fleet/provider";
+import { parseSessionKey, sessionKey } from "./fleet/session-protocol";
 import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
 import { useMobileGate } from "./hooks/useMobileGate";
@@ -52,27 +53,75 @@ export function App() {
   const hosted = useMemo(() => isHostedMode(), []);
   const hostedSession = useMemo(() => hostedSessionId(), []);
   const fleet = useMemo(() => makeFleetProvider(), []);
-  const serverId = useMemo(() => {
-    const selected = fleet.currentServerId();
-    if (!selected) {
-      throw new Error("No server selected; open the client with ?server=<serverId>");
-    }
-    return selected;
-  }, [fleet]);
-  const conn = useMemo(
-    () =>
-      new Connection({
-        ticketEndpoint: fleet.apiUrl(serverId, "/api/ws-ticket"),
-        wsUrl: (ticket) => fleet.wsUrl(serverId, ticket),
-        bearerToken: token,
-      }),
-    [fleet, serverId, token],
+  const pendingExternalSelection = useRef<string | null>(null);
+  const activeSessionID = useDaemonStore((state) => state.activeSessionID);
+  const activeSessionServerID = useDaemonStore((state) =>
+    state.activeSessionID
+      ? state.sessions.find((session) => session.id === state.activeSessionID)?.serverId
+      : undefined,
   );
+  const serverId = useMemo(() => {
+    const selected = activeSessionID
+      ? (parseSessionKey(activeSessionID)?.serverId ?? activeSessionServerID)
+      : fleet.initialServerId();
+    return selected ?? "local";
+  }, [activeSessionID, activeSessionServerID, fleet]);
+  const conn = useMemo(() => {
+    const transport = fleet.activeConnection(serverId, token);
+    return new Connection({
+      ...transport,
+      bearerToken: token,
+      publishSessions: false,
+      serverId,
+    });
+  }, [fleet, serverId, token]);
 
   useEffect(() => {
     void conn.start();
     return () => conn.close();
   }, [conn]);
+
+  useEffect(
+    () =>
+      fleet.subscribe((snapshot) => {
+        const sessions = snapshot.sessions.map(({ ref, serverLabel, session }) => ({
+          ...session,
+          id: sessionKey(ref),
+          upstreamSessionId: ref.sessionId,
+          serverId: ref.serverId,
+          serverLabel,
+        }));
+        useDaemonStore.getState().applyViewUpdate({ k: "v", sessions });
+        const state = useDaemonStore.getState();
+        const pending = pendingExternalSelection.current;
+        if (pending && sessions.some((session) => session.id === pending)) {
+          pendingExternalSelection.current = null;
+          state.selectSession(pending);
+          return;
+        }
+        if (state.activeSessionID === null && sessions[0]) {
+          state.selectSession(sessions[0].id);
+        }
+      }),
+    [fleet],
+  );
+
+  useEffect(() => {
+    const select = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== "object") return;
+      const { serverId, sessionId } = detail as Record<string, unknown>;
+      if (typeof serverId !== "string" || typeof sessionId !== "string") return;
+      const id = sessionKey({ serverId, sessionId });
+      if (useDaemonStore.getState().sessions.some((session) => session.id === id)) {
+        useDaemonStore.getState().selectSession(id);
+      } else {
+        pendingExternalSelection.current = id;
+      }
+    };
+    window.addEventListener("agent-grid-select-session", select);
+    return () => window.removeEventListener("agent-grid-select-session", select);
+  }, []);
 
   // visibilitychange safety net: the daemon expires terminal leases after
   // 12s (ADR terminal-lifecycle-bounds). The 4s renewal timer inside
@@ -99,8 +148,10 @@ export function App() {
   // 2026-07-25: default visible, toggleable, persisted in AppShell).
   useEffect(() => {
     if (!hosted || !hostedSession) return;
-    useDaemonStore.getState().selectSession(hostedSession);
-  }, [hosted, hostedSession]);
+    useDaemonStore
+      .getState()
+      .selectSession(serverId ? sessionKey({ serverId, sessionId: hostedSession }) : hostedSession);
+  }, [hosted, hostedSession, serverId]);
 
   // Blocker T1: hydrate daemon.sessionConfig at mount so the command
   // palette has projects + pushCommands available. Without this call,
@@ -147,7 +198,6 @@ export function App() {
     };
   }, []);
 
-  const activeSessionID = useDaemonStore((s) => s.activeSessionID);
   // TerminalPane is the sole geometry measurement owner. App only retains the
   // latest snapshot so the independently-rendered palette overlay can read it
   // at submit time without duplicating xterm/DOM measurement.

@@ -11,6 +11,7 @@ import {
   type WebContents,
 } from "electron";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
 import { startWorkspaceApp } from "./app-entry.js";
 import {
   loadEditableDesktopSettings,
@@ -23,6 +24,7 @@ import type {
   ElectronWebContentsViewConstructor,
 } from "./electron-window-factory.js";
 import { FleetHealthMonitor } from "./server-health.js";
+import { FleetSessionRuntime } from "./fleet-session-runtime.js";
 import {
   PROTOCOL_VERSION,
   PROTOCOL_VERSION_HEADER,
@@ -44,6 +46,17 @@ let desktopConfig: DesktopConfig | null = null;
 let updateDesktopConfig: ((config: DesktopConfig) => void) | null = null;
 let openSettingsWindow: (() => void) | null = null;
 const serverHealth = new FleetHealthMonitor(() => desktopConfig?.servers ?? []);
+let fleetRuntime: FleetSessionRuntime | null = null;
+const fleetUnsubscribeByRenderer = new Map<number, () => void>();
+const activeChannels = new Map<string, { owner: number; socket: WebSocket }>();
+
+function replaceFleetRuntime(config: DesktopConfig): void {
+  for (const unsubscribe of fleetUnsubscribeByRenderer.values()) unsubscribe();
+  fleetUnsubscribeByRenderer.clear();
+  fleetRuntime?.stop();
+  fleetRuntime = new FleetSessionRuntime(config.servers);
+  fleetRuntime.start();
+}
 
 ipcMain.on("agent-grid:renderer-bootstrap", (event) => {
   event.returnValue = rendererInfo.get(event.sender.id) ?? null;
@@ -77,6 +90,7 @@ ipcMain.handle("agent-grid:desktop-config-save", (_event, settings: EditableDesk
   const next = saveEditableDesktopSettings(desktopConfig.configDirectory, settings);
   desktopConfig = next;
   serverHealth.invalidate();
+  replaceFleetRuntime(next);
   updateDesktopConfig?.(next);
   return next;
 });
@@ -129,6 +143,20 @@ ipcMain.handle("agent-grid:session-fleet-configs", async () => {
   );
 });
 
+ipcMain.handle("agent-grid:session-fleet-subscribe", (event) => {
+  if (!fleetRuntime) throw new Error("fleet runtime is not ready");
+  fleetUnsubscribeByRenderer.get(event.sender.id)?.();
+  const sender = event.sender;
+  const unsubscribe = fleetRuntime.subscribe((snapshot) => {
+    if (!sender.isDestroyed()) sender.send("agent-grid:session-fleet-snapshot", snapshot);
+  });
+  fleetUnsubscribeByRenderer.set(sender.id, unsubscribe);
+  sender.once("destroyed", () => {
+    unsubscribe();
+    fleetUnsubscribeByRenderer.delete(sender.id);
+  });
+});
+
 ipcMain.handle(
   "agent-grid:session-fleet-create",
   async (_event, serverId: string, payload: unknown) => {
@@ -142,9 +170,99 @@ ipcMain.handle(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    return response.json();
+    const result = (await response.json()) as Record<string, unknown>;
+    const id = typeof result.id === "string" ? result.id : "";
+    const confirmed =
+      id !== "" &&
+      (await fleetRuntime?.waitFor({ serverId, sessionId: id }, 10_000)) === true;
+    return {
+      ...result,
+      fleet_status: confirmed ? "confirmed" : "created_unconfirmed",
+    };
   },
 );
+
+ipcMain.handle(
+  "agent-grid:session-fleet-request",
+  async (
+    _event,
+    serverId: string,
+    pathname: string,
+    init: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => {
+    if (!desktopConfig) throw new Error("desktop config is not ready");
+    if (!pathname.startsWith("/api/") || pathname.includes("://")) {
+      throw new Error("invalid routed API path");
+    }
+    const method = init.method ?? "GET";
+    if (!["GET", "POST", "PUT", "DELETE"].includes(method)) {
+      throw new Error("unsupported routed API method");
+    }
+    const server = desktopConfig.servers.find(
+      (candidate) => candidate.enabled && candidate.id === serverId,
+    );
+    if (!server) throw new Error(`unknown or disabled server '${serverId}'`);
+    const response = await fleetFetch(server, pathname, {
+      method,
+      headers: init.headers,
+      body: init.body,
+    });
+    return {
+      status: response.status,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.text(),
+    };
+  },
+);
+
+ipcMain.handle("agent-grid:session-channel-open", async (event, serverId: string) => {
+  if (!desktopConfig) throw new Error("desktop config is not ready");
+  const server = desktopConfig.servers.find(
+    (candidate) => candidate.enabled && candidate.id === serverId,
+  );
+  if (!server) throw new Error(`unknown or disabled server '${serverId}'`);
+  const ticketResponse = await fleetFetch(server, "/api/ws-ticket", { method: "POST" });
+  const body = (await ticketResponse.json()) as { ticket?: unknown };
+  if (typeof body.ticket !== "string" || !body.ticket) throw new Error("empty websocket ticket");
+  const url = new URL("/ws", `${server.url.replace(/\/+$/, "")}/`);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.searchParams.set("ticket", body.ticket);
+  url.searchParams.set("protocolVersion", PROTOCOL_VERSION);
+  const socket = new WebSocket(url);
+  const channelId = randomUUID();
+  activeChannels.set(channelId, { owner: event.sender.id, socket });
+  event.sender.once("destroyed", () => {
+    const channel = activeChannels.get(channelId);
+    if (!channel) return;
+    activeChannels.delete(channelId);
+    channel.socket.close();
+  });
+  const publish = (kind: string, data?: unknown) => {
+    if (!event.sender.isDestroyed()) {
+      event.sender.send("agent-grid:session-channel-event", { channelId, kind, data });
+    }
+  };
+  socket.addEventListener("open", () => publish("open"));
+  socket.addEventListener("message", (message) => publish("message", String(message.data)));
+  socket.addEventListener("error", () => publish("error"));
+  socket.addEventListener("close", () => {
+    activeChannels.delete(channelId);
+    publish("close");
+  });
+  return channelId;
+});
+
+ipcMain.on("agent-grid:session-channel-send", (event, channelId: string, data: string) => {
+  const channel = activeChannels.get(channelId);
+  if (channel?.owner === event.sender.id) channel.socket.send(data);
+});
+
+ipcMain.on("agent-grid:session-channel-close", (event, channelId: string) => {
+  const channel = activeChannels.get(channelId);
+  if (channel?.owner !== event.sender.id) return;
+  activeChannels.delete(channelId);
+  channel.socket.close();
+});
 
 async function fleetFetch(
   server: import("./desktop-config.js").ServerConfig,
@@ -296,6 +414,7 @@ void startWorkspaceApp({
   titleBarPreloadPath,
   onDesktopConfigLoaded: (config) => {
     desktopConfig = config;
+    replaceFleetRuntime(config);
   },
   systemPrefersDark: () => nativeTheme.shouldUseDarkColors,
   registerWindowChrome: (handles) => {

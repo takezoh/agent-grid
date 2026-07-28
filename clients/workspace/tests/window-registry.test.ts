@@ -71,13 +71,14 @@ describe("window-registry", () => {
     expect(created).toEqual(["one:s1", "one:s1"]);
   });
 
-  it("different sessions get different windows", async () => {
+  it("switches different server-qualified sessions in the same fleet window", async () => {
     const { factory, created } = memFactory();
     const reg = new WindowRegistry(factory);
     await reg.openSession({ serverId: "one", sessionId: "same" });
     await reg.openSession({ serverId: "two", sessionId: "same" });
-    expect(created).toEqual(["one:same", "two:same"]);
-    expect(reg.openCount).toBe(2);
+    expect(created).toEqual(["one:same"]);
+    expect(reg.openCount).toBe(1);
+    expect(reg.listSessions()).toEqual([{ serverId: "two", sessionId: "same" }]);
   });
 });
 

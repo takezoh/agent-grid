@@ -1,9 +1,9 @@
 /**
  * Sole BrowserWindow creation point (contract-b1-window-registry-dedup,
- * contract-migration-window-per-session-invariant, FR-MIG-01).
+ * contract-single-fleet-window-construction, FR-FLEET-004).
  *
- * Atomic focus-or-create: concurrent openSession({serverId, sessionId})
- * converges to exactly one window.
+ * Atomic focus-or-create: every compound session opens in the same generic
+ * fleet window; server identity only selects the active routed channel.
  * Close is a view-collapse only — never a session-stop signal
  * (contract-window-close-not-session-stop).
  *
@@ -23,6 +23,7 @@ export interface WindowHandle {
   isDestroyed(): boolean;
   getBounds(): { x: number; y: number; width: number; height: number };
   setBounds(b: { x: number; y: number; width: number; height: number }): void;
+  selectSession?(session: SessionRef): void;
 }
 
 export interface WindowFactory {
@@ -55,6 +56,8 @@ export class WindowRegistry {
   private readonly inflight = new Map<string, Promise<WindowHandle>>();
   private readonly factory: WindowFactory;
   private readonly store: StateStore | null;
+  private activeSession: SessionRef | null = null;
+  private static readonly fleetWindowKey = "fleet";
 
   constructor(factory: WindowFactory, store: StateStore | null = null) {
     this.factory = factory;
@@ -68,7 +71,11 @@ export class WindowRegistry {
 
   has(session: SessionRef): boolean {
     this.gc();
-    return this.windows.has(sessionKey(session));
+    return (
+      this.windows.has(WindowRegistry.fleetWindowKey) &&
+      this.activeSession !== null &&
+      sessionKey(this.activeSession) === sessionKey(session)
+    );
   }
 
   /**
@@ -76,10 +83,12 @@ export class WindowRegistry {
    */
   async openSession(session: SessionRef): Promise<WindowHandle> {
     assertSessionRef(session);
-    const key = sessionKey(session);
+    const key = WindowRegistry.fleetWindowKey;
     this.gc();
     const existing = this.windows.get(key);
     if (existing && !existing.isDestroyed()) {
+      this.activeSession = session;
+      existing.selectSession?.(session);
       existing.focus();
       return existing;
     }
@@ -87,6 +96,8 @@ export class WindowRegistry {
     const pending = this.inflight.get(key);
     if (pending) {
       const w = await pending;
+      this.activeSession = session;
+      w.selectSession?.(session);
       w.focus();
       return w;
     }
@@ -102,7 +113,8 @@ export class WindowRegistry {
 
   /** Close window view only — does NOT signal session stop to the daemon. */
   closeSessionView(session: SessionRef): void {
-    const key = sessionKey(session);
+    if (!this.has(session)) return;
+    const key = WindowRegistry.fleetWindowKey;
     const w = this.windows.get(key);
     if (!w) return;
     this.persistBounds(session, w);
@@ -110,14 +122,12 @@ export class WindowRegistry {
       w.close();
     }
     this.windows.delete(key);
+    this.activeSession = null;
   }
 
   listSessions(): SessionRef[] {
     this.gc();
-    return [...this.windows.keys()].map((key) => {
-      const [serverId, sessionId] = JSON.parse(key) as [string, string];
-      return { serverId, sessionId };
-    });
+    return this.activeSession ? [this.activeSession] : [];
   }
 
   /** Restore previously open sessions that still exist on the daemon. */
@@ -132,14 +142,14 @@ export class WindowRegistry {
       // Force create path with bounds by temporarily storing preferred bounds on factory.
       await this.openSession(session);
       if (bounds) {
-        const w = this.windows.get(sessionKey(session));
+        const w = this.windows.get(WindowRegistry.fleetWindowKey);
         w?.setBounds(bounds);
       }
     }
   }
 
   private async createAndRegister(session: SessionRef): Promise<WindowHandle> {
-    const key = sessionKey(session);
+    const key = WindowRegistry.fleetWindowKey;
     // Re-check after await gaps (another path may have registered).
     const existing = this.windows.get(key);
     if (existing && !existing.isDestroyed()) {
@@ -150,6 +160,7 @@ export class WindowRegistry {
     const bounds = state?.windows[session.serverId]?.[session.sessionId];
     const handle = this.factory.create(session, bounds);
     this.windows.set(key, handle);
+    this.activeSession = session;
     this.persistAll();
     return handle;
   }
@@ -165,12 +176,11 @@ export class WindowRegistry {
   private persistAll(): void {
     if (!this.store) return;
     const state = emptyState();
-    for (const [key, w] of this.windows) {
-      if (!w.isDestroyed()) {
-        const [serverId, sessionId] = JSON.parse(key) as [string, string];
-        state.windows[serverId] ??= {};
-        state.windows[serverId]![sessionId] = w.getBounds();
-      }
+    const window = this.windows.get(WindowRegistry.fleetWindowKey);
+    if (window && !window.isDestroyed() && this.activeSession) {
+      const { serverId, sessionId } = this.activeSession;
+      state.windows[serverId] ??= {};
+      state.windows[serverId]![sessionId] = window.getBounds();
     }
     this.store.save(state);
   }
@@ -179,6 +189,7 @@ export class WindowRegistry {
     for (const [id, w] of this.windows) {
       if (w.isDestroyed()) {
         this.windows.delete(id);
+        this.activeSession = null;
       }
     }
   }
