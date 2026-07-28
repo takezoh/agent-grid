@@ -60,6 +60,7 @@ import (
 	"github.com/takezoh/agent-grid/services/host/procio"
 	"github.com/takezoh/agent-grid/services/platform/appid"
 	"github.com/takezoh/agent-grid/services/platform/framelaunch"
+	"github.com/takezoh/agent-grid/services/platform/lib/gitclone"
 	"github.com/takezoh/agent-grid/services/platform/logger"
 )
 
@@ -213,6 +214,10 @@ func runCommand(args []string, df *daemonFlagSet, stdout io.Writer) error {
 		return runSupervisorProbe(args[1:], stdout)
 	case "supervisor-stop":
 		return runSupervisorStop(args[1:], stdout)
+	case "internal-git-askpass":
+		// Peer/nonce-bound askpass helper for credential-brokered clones.
+		// Exit codes are process-local; no durable credential surfaces.
+		os.Exit(gitclone.RunAskpassClient(args[1:]))
 	}
 	return fmt.Errorf("unknown command: %s (run `%s help` for usage)", args[0], appid.ClientBin)
 }
