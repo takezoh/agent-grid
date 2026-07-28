@@ -32,7 +32,7 @@ pinned_context:
 done_criteria:
 - Workspace GitHub account/catalog serviceとprotected persistence
 - FakeGitHubAuth/FakeGitHubCatalog contractとWeb-host parity
-max_diff_loc: 550
+max_diff_loc: 800
 change: change-20260728-github-repository-sessions
 summary: Implement the fixed GitHub account/catalog contract in the Electron main
   process with protected persistence and credential-free projection.
@@ -53,7 +53,7 @@ Web hostで固定されたGitHub account/catalog contractをElectron main proces
 
 ## 前提
 
-`task-20260728-github-host-account-catalog`がshared config/fixtureとWeb-host基準projectionを提供する。`max_diff_loc: 550`はElectron mainのaccount/catalog/persistenceという単一TypeScript contextの上限である。
+`task-20260728-github-host-account-catalog`がshared config/fixtureとWeb-host基準projectionを提供する。`max_diff_loc: 800`は、Electron mainのaccount/catalog/persistenceと契約・parity・typed fidelity testを同じTypeScript contextで検証するための校正済み上限である。
 
 ## スコープ外
 
