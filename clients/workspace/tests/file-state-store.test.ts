@@ -1,9 +1,11 @@
-import * as fs from "node:fs/promises";
+import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   FileStateStore,
+  atomicWriteJson,
   readWorkspaceStateFile,
   writeWorkspaceStateFile,
 } from "../src/main/file-state-store.js";
@@ -15,7 +17,7 @@ describe("file-state-store", () => {
   afterEach(async () => {
     for (const f of tmpFiles) {
       try {
-        await fs.unlink(f);
+        await fsp.unlink(f);
       } catch {
         /* ignore */
       }
@@ -56,5 +58,14 @@ describe("file-state-store", () => {
   it("missing file loads as null", () => {
     const store = new FileStateStore(path.join(os.tmpdir(), "ag-missing-state.json"));
     expect(store.load()).toBeNull();
+  });
+
+  it("atomicWriteJson leaves no temp sibling and sets mode 0o600", () => {
+    const p = tmp();
+    atomicWriteJson(p, { ok: true }, 0o600);
+    expect(JSON.parse(fs.readFileSync(p, "utf8"))).toEqual({ ok: true });
+    expect(fs.statSync(p).mode & 0o777).toBe(0o600);
+    const dir = fs.readdirSync(path.dirname(p));
+    expect(dir.some((n) => n.includes(path.basename(p) + ".tmp-"))).toBe(false);
   });
 });

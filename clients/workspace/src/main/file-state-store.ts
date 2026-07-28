@@ -2,6 +2,9 @@
  * Persist workspace window layout to disk (schema_version: 2).
  * Default path: %APPDATA%/agent-grid/workspace-state.json on Windows.
  * contract-workspace-state-schema-evolution via loadWorkspaceState.
+ *
+ * Also owns atomic protected JSON persistence (temp write, fsync, rename,
+ * 0o600) used by GitHub credential/catalog stores (NFR-GH-004).
  */
 
 import * as fs from "node:fs";
@@ -23,6 +26,46 @@ export function defaultWorkspaceStatePath(): string {
   return path.join(xdg, "agent-grid", "workspace-state.json");
 }
 
+/**
+ * Same-filesystem temp write, optional mode, fsync, atomic rename.
+ * Used for workspace state and protected credential/catalog records.
+ */
+export function atomicWriteFile(
+  filePath: string,
+  contents: string,
+  mode = 0o600,
+): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tempPath, contents, { encoding: "utf8", mode });
+  try {
+    fs.chmodSync(tempPath, mode);
+  } catch {
+    /* Windows / exotic FS may ignore mode */
+  }
+  const fd = fs.openSync(tempPath, "r+");
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tempPath, filePath);
+  try {
+    const dirFd = fs.openSync(path.dirname(filePath), "r");
+    try {
+      fs.fsyncSync(dirFd);
+    } finally {
+      fs.closeSync(dirFd);
+    }
+  } catch {
+    /* parent fsync not always supported */
+  }
+}
+
+export function atomicWriteJson(filePath: string, value: unknown, mode = 0o600): void {
+  atomicWriteFile(filePath, `${JSON.stringify(value, null, 2)}\n`, mode);
+}
+
 export class FileStateStore implements StateStore {
   constructor(private readonly filePath: string = defaultWorkspaceStatePath()) {}
 
@@ -42,8 +85,7 @@ export class FileStateStore implements StateStore {
 
   save(state: WorkspaceStateV2): void {
     try {
-      fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-      fs.writeFileSync(this.filePath, JSON.stringify(state, null, 2), "utf8");
+      atomicWriteJson(this.filePath, state, 0o600);
     } catch {
       /* best-effort persistence; do not throw into window close path */
     }
@@ -66,6 +108,5 @@ export async function writeWorkspaceStateFile(
   filePath: string,
   state: WorkspaceStateV2,
 ): Promise<void> {
-  await fsp.mkdir(path.dirname(filePath), { recursive: true });
-  await fsp.writeFile(filePath, JSON.stringify(state, null, 2), "utf8");
+  atomicWriteJson(filePath, state, 0o600);
 }
