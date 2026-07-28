@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Grid fixed GitHub OAuth App (public)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "client_id", "scopes"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Public OAuth App client_id for the fixed device-flow registration. Never a client_secret."
+    },
+    "scopes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["read:user", "repo"]
+      },
+      "uniqueItems": true
+    }
+  }
+}
