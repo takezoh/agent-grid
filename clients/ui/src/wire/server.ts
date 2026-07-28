@@ -86,6 +86,8 @@ export type FrameInfo = {
 // SessionInfo mirrors proto.SessionInfo — Go JSON tags used as-is (snake_case).
 export type SessionInfo = {
   id: string;
+  /** Upstream-local identity when `id` is the compound fleet key. */
+  upstreamSessionId?: string;
   serverId?: string;
   serverLabel?: string;
   project: string;

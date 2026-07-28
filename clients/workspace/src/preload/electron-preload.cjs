@@ -19,8 +19,40 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
   },
   sessionFleet: {
     listConfigs: () => ipcRenderer.invoke("agent-grid:session-fleet-configs"),
+    subscribe: (listener) => {
+      const receive = (_event, snapshot) => listener(snapshot);
+      ipcRenderer.on("agent-grid:session-fleet-snapshot", receive);
+      void ipcRenderer.invoke("agent-grid:session-fleet-subscribe");
+      return () => ipcRenderer.removeListener("agent-grid:session-fleet-snapshot", receive);
+    },
+    openChannel: async (serverId, listener) => {
+      let channelId = null;
+      const pending = [];
+      const receive = (_event, envelope) => {
+        if (channelId === null) {
+          pending.push(envelope);
+          return;
+        }
+        if (envelope.channelId === channelId) listener(envelope);
+      };
+      ipcRenderer.on("agent-grid:session-channel-event", receive);
+      channelId = await ipcRenderer.invoke("agent-grid:session-channel-open", serverId);
+      for (const envelope of pending) {
+        if (envelope.channelId === channelId) listener(envelope);
+      }
+      return {
+        channelId,
+        send: (data) => ipcRenderer.send("agent-grid:session-channel-send", channelId, data),
+        close: () => {
+          ipcRenderer.removeListener("agent-grid:session-channel-event", receive);
+          ipcRenderer.send("agent-grid:session-channel-close", channelId);
+        },
+      };
+    },
     create: (serverId, payload) =>
       ipcRenderer.invoke("agent-grid:session-fleet-create", serverId, payload),
+    request: (serverId, pathname, init) =>
+      ipcRenderer.invoke("agent-grid:session-fleet-request", serverId, pathname, init),
   },
   // Keeps the native chrome (caption-button overlay, title-bar view, popup
   // menus) in sync with the SPA theme. `theme` is the resolved value;

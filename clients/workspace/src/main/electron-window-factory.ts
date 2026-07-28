@@ -1,6 +1,6 @@
 /**
  * Electron window factory — the ONLY production site that may construct
- * Electron windows/views (contract-migration-window-per-session-invariant
+ * Electron windows/views (contract-single-fleet-window-construction
  * lint, scripts/check-browserwindow.mjs).
  *
  * Each Workspace window is a frameless BaseWindow split into two
@@ -313,6 +313,14 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
         },
         setBounds: (b) => {
           if (!win.isDestroyed()) win.setBounds(b);
+        },
+        selectSession: (session) => {
+          if (win.isDestroyed()) return;
+          void content.webContents.executeJavaScript(
+            `window.dispatchEvent(new CustomEvent("agent-grid-select-session",{detail:${JSON.stringify(
+              session,
+            )}}));`,
+          );
         },
       };
   };

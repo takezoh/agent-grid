@@ -36,6 +36,7 @@ func Handler(snapshot clientconfig.Snapshot) (http.Handler, error) {
 	}
 
 	mux := http.NewServeMux()
+	fleet := newFleetRuntime(snapshot)
 	mux.Handle("/", staticHandler(distFS))
 	mux.HandleFunc("GET /host/config", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -45,6 +46,16 @@ func Handler(snapshot clientconfig.Snapshot) (http.Handler, error) {
 	})
 	mux.HandleFunc("/host/servers/", func(w http.ResponseWriter, r *http.Request) {
 		serveServerRoute(snapshot, w, r)
+	})
+	mux.HandleFunc("GET /host/fleet", func(w http.ResponseWriter, r *http.Request) {
+		serveFleet(fleet, w, r)
+	})
+	mux.HandleFunc("POST /host/fleet/servers/", func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/sessions") {
+			http.NotFound(w, r)
+			return
+		}
+		serveFleetCreate(fleet, snapshot, w, r)
 	})
 	return SecurityHeaders(mux), nil
 }

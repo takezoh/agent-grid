@@ -2,6 +2,8 @@
 // Mirrors services/server/web/workspace.go response shapes.
 
 import { readBearerTokenFromHash } from "../auth";
+import { makeFleetProvider } from "../fleet/provider";
+import { parseSessionKey } from "../fleet/session-protocol";
 
 export type WorkspaceRootHandle = {
   session_id: string;
@@ -180,8 +182,19 @@ function parseWorkspaceErrorBody(status: number, text: string): WorkspaceApiErro
 }
 
 export function makeWorkspaceApi(fetchFn: typeof fetch = fetch): WorkspaceApi {
-  const get = async <T>(url: string): Promise<T> => {
-    const resp = await fetchFn(url, { headers: authHeaders() });
+  const fleet = makeFleetProvider(fetchFn);
+  const sessionRequest = (
+    sessionId: string,
+    suffix: string,
+    init: RequestInit,
+  ): Promise<Response> => {
+    const ref = parseSessionKey(sessionId);
+    const localID = ref?.sessionId ?? sessionId;
+    const url = `/api/sessions/${encodeURIComponent(localID)}${suffix}`;
+    return ref ? fleet.request(ref.serverId, url, init) : fetchFn(url, init);
+  };
+  const get = async <T>(sessionId: string, suffix: string): Promise<T> => {
+    const resp = await sessionRequest(sessionId, suffix, { headers: authHeaders() });
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       const typed = parseWorkspaceErrorBody(resp.status, text);
@@ -198,30 +211,22 @@ export function makeWorkspaceApi(fetchFn: typeof fetch = fetch): WorkspaceApi {
 
   return {
     async getRootHandle(sessionId) {
-      return get<WorkspaceRootHandle>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/workspace/root-handle`,
-      );
+      return get<WorkspaceRootHandle>(sessionId, "/workspace/root-handle");
     },
     async getTree(sessionId, path, pinned) {
       const params = new URLSearchParams(pinnedQuery(pinned));
       if (path) params.set("path", path);
-      return get<WorkspaceTreeResponse>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/workspace/tree?${params}`,
-      );
+      return get<WorkspaceTreeResponse>(sessionId, `/workspace/tree?${params}`);
     },
     async getFile(sessionId, path, pinned) {
       const params = new URLSearchParams(pinnedQuery(pinned));
       params.set("path", path);
-      return get<WorkspaceFileResponse>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/workspace/file?${params}`,
-      );
+      return get<WorkspaceFileResponse>(sessionId, `/workspace/file?${params}`);
     },
     async getDiff(sessionId, path, pinned) {
       const params = new URLSearchParams(pinnedQuery(pinned));
       if (path) params.set("path", path);
-      return get<WorkspaceDiffResponse>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/workspace/diff?${params}`,
-      );
+      return get<WorkspaceDiffResponse>(sessionId, `/workspace/diff?${params}`);
     },
     async save(sessionId, path, pinned, bytes, ifUnmodifiedSince) {
       const params = new URLSearchParams(pinnedQuery(pinned));
@@ -233,14 +238,11 @@ export function makeWorkspaceApi(fetchFn: typeof fetch = fetch): WorkspaceApi {
       if (ifUnmodifiedSince) {
         headers["If-Unmodified-Since"] = ifUnmodifiedSince;
       }
-      const resp = await fetchFn(
-        `/api/sessions/${encodeURIComponent(sessionId)}/workspace/file?${params}`,
-        {
-          method: "PUT",
-          headers,
-          body: bytes,
-        },
-      );
+      const resp = await sessionRequest(sessionId, `/workspace/file?${params}`, {
+        method: "PUT",
+        headers,
+        body: bytes,
+      });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
         const typed = parseWorkspaceErrorBody(resp.status, text);

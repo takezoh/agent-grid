@@ -72,7 +72,7 @@ describe("server-qualified SessionsApi", () => {
       profile_revision: "r1",
     });
 
-    expect(result).toEqual({ id: "session-1", serverId: "srv-b" });
+    expect(result).toEqual({ id: '["srv-b","session-1"]', serverId: "srv-b" });
     expect(create).toHaveBeenCalledWith("srv-b", {
       project: "/repo",
       version: 2,
@@ -81,20 +81,15 @@ describe("server-qualified SessionsApi", () => {
     });
   });
 
-  it("uses the explicitly selected server when create payload omits server_id", async () => {
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
-      expect(String(input)).toBe("/host/servers/srv-current/api/sessions");
-      return json({ id: "session-2" }, 201);
-    }) as typeof fetch;
-
-    const result = await makeSessionsApi(fetchImpl).createSession({
-      project: "/repo",
-      version: 2,
-      profile_id: "shell",
-      profile_revision: "r1",
-    });
-
-    expect(result).toEqual({ id: "session-2", serverId: "srv-current" });
+  it("does not use the initial view server when create payload omits server_id", async () => {
+    await expect(
+      makeSessionsApi(vi.fn()).createSession({
+        project: "/repo",
+        version: 2,
+        profile_id: "shell",
+        profile_revision: "r1",
+      }),
+    ).rejects.toThrow("requires explicit server_id");
   });
 
   it("fails closed when no server is selected", async () => {
@@ -106,7 +101,7 @@ describe("server-qualified SessionsApi", () => {
         profile_id: "shell",
         profile_revision: "r1",
       }),
-    ).rejects.toThrow("requires server_id");
+    ).rejects.toThrow("requires explicit server_id");
   });
 
   it("qualifies session-scoped REST routes", async () => {

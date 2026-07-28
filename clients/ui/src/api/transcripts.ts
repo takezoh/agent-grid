@@ -23,7 +23,9 @@ export async function fetchSessionFile(
   deps: FetchTranscriptDeps,
   prevEtag?: string,
 ): Promise<FetchTranscriptResult> {
-  const url = `/api/sessions/${encodeURIComponent(sessionId)}/${kind}?offset=${offset}`;
+  const ref = parseSessionKey(sessionId);
+  const localID = ref?.sessionId ?? sessionId;
+  const url = `/api/sessions/${encodeURIComponent(localID)}/${kind}?offset=${offset}`;
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${deps.bearerToken}`,
@@ -32,7 +34,10 @@ export async function fetchSessionFile(
     headers["If-None-Match"] = prevEtag;
   }
 
-  const r = await (deps.fetchFn ?? fetch)(url, { headers });
+  const fetchFn = deps.fetchFn ?? fetch;
+  const r = ref
+    ? await makeFleetProvider(fetchFn).request(ref.serverId, url, { headers })
+    : await fetchFn(url, { headers });
 
   if (r.status === 304) {
     return { status: "not-modified", text: "", etag: prevEtag, nextOffset: offset };
@@ -72,3 +77,5 @@ export function splitLines(text: string): string[] {
   if (out.length > 0 && out[out.length - 1] === "") out.pop();
   return out;
 }
+import { makeFleetProvider } from "../fleet/provider";
+import { parseSessionKey } from "../fleet/session-protocol";

@@ -1,4 +1,5 @@
-import { currentServerIdentity } from "../auth";
+import { initialServerHint } from "../auth";
+import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
 import { PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER } from "../protocol-version";
 import { useDaemonStore } from "../store/daemon";
 import { useFrameMessagingStore } from "../store/frameMessaging";
@@ -31,6 +32,9 @@ export type ConnectionConfig = {
   wsFactory?: (url: string) => WebSocket;
   sleep?: (ms: number) => Promise<void>;
   fetchFn?: typeof fetch;
+  /** FleetRuntime owns membership in hosted clients. */
+  publishSessions?: boolean;
+  serverId?: string;
 };
 
 type Pending = {
@@ -134,7 +138,7 @@ export class Connection {
       newReqId: () => this.nextReqId(),
       sleep: this.cfg.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
     };
-    return subscribeWithRetry(sessionId, cols, rows, deps);
+    return subscribeWithRetry(this.upstreamSessionID(sessionId), cols, rows, deps);
   }
 
   private async unsubscribeOnce(sessionId: string): Promise<void> {
@@ -142,7 +146,7 @@ export class Connection {
     const response = new Promise<RespOKFrame | RespErrFrame>((resolve) => {
       this.pending.set(reqId, { resolve });
     });
-    this.send({ k: "u", reqId, sessionId });
+    this.send({ k: "u", reqId, sessionId: this.upstreamSessionID(sessionId) });
     await response;
   }
 
@@ -157,7 +161,15 @@ export class Connection {
     const response = new Promise<RespOKFrame | RespErrFrame>((resolve) => {
       this.pending.set(reqId, { resolve });
     });
-    this.send({ k: "ld", reqId, sessionId, cols, rows, correlation, desired });
+    this.send({
+      k: "ld",
+      reqId,
+      sessionId: this.upstreamSessionID(sessionId),
+      cols,
+      rows,
+      correlation,
+      desired,
+    });
     const resp = await response;
     if (resp.k === "r") return { status: "confirmed", reqId };
     return { status: "exhausted", lastError: resp.code };
@@ -166,6 +178,15 @@ export class Connection {
   private nextReqId(): string {
     this.reqIdCounter += 1;
     return `r${this.reqIdCounter}`;
+  }
+
+  private upstreamSessionID(value: string): string {
+    const ref = parseSessionKey(value);
+    if (!ref) return value;
+    if (this.cfg.serverId && ref.serverId !== this.cfg.serverId) {
+      throw new Error(`session belongs to ${ref.serverId}, not ${this.cfg.serverId}`);
+    }
+    return ref.sessionId;
   }
 
   private async connect(): Promise<void> {
@@ -218,7 +239,13 @@ export class Connection {
     if (!frame) return;
     if (Array.isArray(frame)) {
       // OutputFrame — direct callback per FR-β07 (kHz output, UI must not block)
-      this.onOutput?.(frame as OutputFrame);
+      const output = frame as OutputFrame;
+      if (this.cfg.serverId)
+        output[3] = sessionKey({
+          serverId: this.cfg.serverId,
+          sessionId: output[3],
+        });
+      this.onOutput?.(output);
       return;
     }
     switch (frame.k) {
@@ -232,21 +259,29 @@ export class Connection {
           this.terminalSubscriptions.setClientInstanceID(frame.clientInstanceID);
         }
         frame.sessions = tagSessions(frame.sessions);
-        useDaemonStore.getState().seedHello(frame);
-        useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
-        break;
-      case "v":
-        if (frame.sessions !== undefined) frame.sessions = tagSessions(frame.sessions);
-        useDaemonStore.getState().applyViewUpdate(frame);
-        if (frame.sessions !== undefined) {
+        if (this.cfg.publishSessions !== false) {
+          useDaemonStore.getState().seedHello(frame);
           useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
         }
         break;
+      case "v":
+        if (frame.sessions !== undefined) frame.sessions = tagSessions(frame.sessions);
+        if (this.cfg.publishSessions !== false) {
+          useDaemonStore.getState().applyViewUpdate(frame);
+          if (frame.sessions !== undefined) {
+            useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
+          }
+        }
+        break;
       case "tt":
-        useTranscriptStore.getState().appendLine(frame.sessionId, "transcript", frame.line);
+        useTranscriptStore
+          .getState()
+          .appendLine(this.fleetSessionID(frame.sessionId), "transcript", frame.line);
         break;
       case "et":
-        useTranscriptStore.getState().appendLine(frame.sessionId, "event-log", frame.line);
+        useTranscriptStore
+          .getState()
+          .appendLine(this.fleetSessionID(frame.sessionId), "event-log", frame.line);
         break;
       case "n":
         useNotificationsStore.getState().addFromFrame(frame);
@@ -267,6 +302,12 @@ export class Connection {
         break;
       }
     }
+  }
+
+  private fleetSessionID(value: string): string {
+    return this.cfg.serverId
+      ? sessionKey({ serverId: this.cfg.serverId, sessionId: value })
+      : value;
   }
 
   private handleLifecycleOutcome(frame: LifecycleOutcomeFrame): void {
@@ -328,7 +369,7 @@ export class Connection {
 }
 
 function tagSessions<T extends { serverId?: string; serverLabel?: string }>(sessions: T[]): T[] {
-  const server = currentServerIdentity();
+  const server = initialServerHint();
   return sessions.map((session) => ({
     ...session,
     serverId: session.serverId ?? server.id,
