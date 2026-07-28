@@ -8,6 +8,7 @@
 
 import type { DesktopConfig, EditableDesktopSettings } from "../main/desktop-config.js";
 import type { FleetHealth } from "../main/server-health.js";
+import type { GitHubAction, GitHubActionResult } from "../main/repository-lease.js";
 
 export interface HostedModeInfo {
   hosted: boolean;
@@ -29,12 +30,18 @@ export interface WindowControls {
   close(): void;
 }
 
+/** Credential-free GitHub Settings actions (success/denied/cancel/failure). */
+export interface GitHubSettingsBridge {
+  action(action: GitHubAction): Promise<GitHubActionResult>;
+}
+
 export interface WorkspacePreloadApi {
   windowControls: WindowControls;
   hostedModeInfo: HostedModeInfo | null;
   requestJumpBack(sessionId: string): Promise<void>;
   desktopConfig?: DesktopConfigBridge;
   serverHealth?: { list(): Promise<FleetHealth> };
+  github?: GitHubSettingsBridge;
   sessionFleet?: {
     listConfigs(): Promise<unknown>;
     subscribe(listener: (snapshot: unknown) => void): () => void;
@@ -67,6 +74,7 @@ export function buildPreloadApi(opts: {
   requestJumpBack: (sessionId: string) => Promise<void>;
   desktopConfig?: DesktopConfigBridge;
   serverHealth?: { list(): Promise<FleetHealth> };
+  github?: GitHubSettingsBridge;
   sessionFleet?: WorkspacePreloadApi["sessionFleet"];
 }): WorkspacePreloadApi {
   return {
@@ -75,6 +83,7 @@ export function buildPreloadApi(opts: {
     requestJumpBack: opts.requestJumpBack,
     desktopConfig: opts.desktopConfig,
     serverHealth: opts.serverHealth,
+    github: opts.github,
     sessionFleet: opts.sessionFleet,
   };
 }

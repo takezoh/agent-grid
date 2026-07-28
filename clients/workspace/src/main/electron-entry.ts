@@ -26,15 +26,14 @@ import type {
 import { FleetHealthMonitor } from "./server-health.js";
 import { FleetSessionRuntime } from "./fleet-session-runtime.js";
 import {
-  PROTOCOL_VERSION,
-  PROTOCOL_VERSION_HEADER,
-  protocolMismatchReason,
-} from "./protocol-version.js";
+  Account, Catalog, FileCacheStore, FileCredentialStore, fixedOAuthApp, type HttpDoer,
+} from "./github-host.js";
 import {
-  isTitleBarMenuId,
-  themeSourceFor,
-  titleBarOverlayFor,
-  type TitleBarMenuId,
+  PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER, protocolMismatchReason,
+} from "./protocol-version.js";
+import { githubActionResult, type GitHubAction } from "./repository-lease.js";
+import {
+  isTitleBarMenuId, themeSourceFor, titleBarOverlayFor, type TitleBarMenuId,
 } from "./window-chrome.js";
 
 const preloadPath = fileURLToPath(new URL("../preload/electron-preload.cjs", import.meta.url));
@@ -49,6 +48,27 @@ const serverHealth = new FleetHealthMonitor(() => desktopConfig?.servers ?? []);
 let fleetRuntime: FleetSessionRuntime | null = null;
 const fleetUnsubscribeByRenderer = new Map<number, () => void>();
 const activeChannels = new Map<string, { owner: number; socket: WebSocket }>();
+
+const nodeFetchDoer: HttpDoer = {
+  async do(req) {
+    const res = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
+    const headers: Record<string, string> = {};
+    res.headers.forEach((v, k) => { headers[k] = v; });
+    return { status: res.status, headers, body: await res.text() };
+  },
+};
+const githubCredentialStore = new FileCredentialStore();
+const githubAccount = new Account(nodeFetchDoer, { now: () => new Date() }, githubCredentialStore, fixedOAuthApp());
+const githubCatalog = new Catalog(nodeFetchDoer, { now: () => new Date() }, new FileCacheStore(), githubAccount);
+
+function githubStatusProjection() {
+  const { record, ok } = githubCredentialStore.load();
+  let account = githubAccount.projection();
+  if (account.state === "unauthenticated" && ok && record.access_token) {
+    account = { state: "authenticated", login: record.login || undefined };
+  }
+  return githubActionResult(account, githubCatalog.projection());
+}
 
 function replaceFleetRuntime(config: DesktopConfig): void {
   for (const unsubscribe of fleetUnsubscribeByRenderer.values()) unsubscribe();
@@ -98,6 +118,31 @@ ipcMain.handle("agent-grid:desktop-config-save", (_event, settings: EditableDesk
 ipcMain.handle("agent-grid:server-health-list", () => {
   if (!desktopConfig) throw new Error("desktop config is not ready");
   return serverHealth.list();
+});
+
+// Credential-free GitHub Settings actions only.
+ipcMain.handle("agent-grid:github-action", async (_event, action: GitHubAction) => {
+  if (action === "status") return githubStatusProjection();
+  if (action === "start") return githubActionResult(await githubAccount.startDeviceFlow(), githubCatalog.projection());
+  if (action === "cancel") return githubActionResult(githubAccount.cancelDeviceFlow(), githubCatalog.projection());
+  if (action === "poll") {
+    const account = await githubAccount.pollDeviceFlow();
+    if (account.state === "authenticated") {
+      try { await githubCatalog.refresh(); } catch { /* source-local */ }
+    }
+    return githubActionResult(account, githubCatalog.projection());
+  }
+  if (action === "refresh_catalog") {
+    try {
+      return githubActionResult(githubStatusProjection().account, await githubCatalog.refresh());
+    } catch {
+      return githubActionResult(githubStatusProjection().account, githubCatalog.projection());
+    }
+  }
+  return githubActionResult(
+    { state: "host_misconfigured", failure_code: "host_misconfigured" },
+    githubCatalog.projection(), "unknown action",
+  );
 });
 
 ipcMain.handle("agent-grid:session-fleet-configs", async () => {

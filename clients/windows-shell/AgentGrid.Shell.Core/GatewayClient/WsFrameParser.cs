@@ -68,6 +68,73 @@ public static class WsFrameParser
         }
     }
 
+    /// <summary>Parse preparation snapshots; protocol mismatch rejects before side effects.</summary>
+    public static IReadOnlyList<RepositoryPreparationFrame> TryParsePreparations(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<RepositoryPreparationFrame>();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) return Array.Empty<RepositoryPreparationFrame>();
+        if (root.TryGetProperty("protocolVersion", out var pv) && pv.ValueKind == JsonValueKind.String)
+            ProtocolVersion.AdmitRepositoryOperation(pv.GetString());
+        else if (OptString(root, "k") is "h" or "rp")
+            ProtocolVersion.AdmitRepositoryOperation(null);
+
+        var list = new List<RepositoryPreparationFrame>();
+        if (root.TryGetProperty("preparations", out var preps) && preps.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var el in preps.EnumerateArray())
+                if (ParsePreparationElement(el) is { } p) list.Add(p);
+        }
+        else if (OptString(root, "k") == "rp" && root.TryGetProperty("preparation", out var one) &&
+                 ParsePreparationElement(one) is { } single)
+        {
+            list.Add(single);
+        }
+        return list;
+    }
+
+    public static SessionTarget? TryParseSessionTarget(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var source = OptString(root, "source");
+        if (source == "project" && root.TryGetProperty("project", out var p) && p.ValueKind == JsonValueKind.Object)
+        {
+            var sid = OptString(p, "server_id"); var proj = OptString(p, "project");
+            return string.IsNullOrEmpty(sid) || string.IsNullOrEmpty(proj) ? null
+                : new SessionTarget("project", ServerId: sid, Project: proj);
+        }
+        if (source == "repository" && root.TryGetProperty("repository", out var r) && r.ValueKind == JsonValueKind.Object)
+        {
+            var id = OptString(r, "repository_id"); var owner = OptString(r, "owner"); var name = OptString(r, "name");
+            return string.IsNullOrEmpty(id) || string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(name) ? null
+                : new SessionTarget("repository", Repository: new GitHubRepositoryIdentity(id!, owner!, name!));
+        }
+        return null;
+    }
+
+    private static RepositoryPreparationFrame? ParsePreparationElement(JsonElement el)
+    {
+        if (el.ValueKind != JsonValueKind.Object) return null;
+        var prepId = OptString(el, "preparation_id"); var intentId = OptString(el, "intent_id");
+        var serverId = OptString(el, "server_id"); var stage = OptString(el, "stage");
+        if (prepId is null || intentId is null || serverId is null || stage is null) return null;
+        if (!el.TryGetProperty("repository", out var repo) || repo.ValueKind != JsonValueKind.Object) return null;
+        var rid = OptString(repo, "repository_id"); var owner = OptString(repo, "owner"); var name = OptString(repo, "name");
+        if (rid is null || owner is null || name is null) return null;
+        ulong revision = el.TryGetProperty("revision", out var revEl) && revEl.TryGetUInt64(out var rev) ? rev : 0;
+        var sessionId = OptString(el, "session_id");
+        if (stage == "available" && string.IsNullOrEmpty(sessionId)) return null;
+        if (stage != "available" && !string.IsNullOrEmpty(sessionId)) return null;
+        return new RepositoryPreparationFrame(prepId, intentId, serverId,
+            new GitHubRepositoryIdentity(rid, owner, name), stage, revision,
+            OptString(el, "failure_code"), OptString(el, "retry_origin"),
+            OptString(el, "environment_disposition"), sessionId,
+            OptString(el, "clone_path"), OptString(el, "environment_id"));
+    }
+
     private static SupervisionEvent? ParseHello(JsonElement root)
     {
         var actual = OptString(root, "protocolVersion");
