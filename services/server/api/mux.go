@@ -136,12 +136,15 @@ func NewMuxNoAuth(d *DaemonClient) http.Handler {
 type muxDependencies struct {
 	workspaceAtomicWrite workspaceAtomicWriteFunc
 	sessionConfigLoader  func() (*config.Config, error)
+	leases               *leaseStore
+	noAuth               bool
 }
 
 func defaultMuxDependencies() muxDependencies {
 	return muxDependencies{
 		workspaceAtomicWrite: atomicWriteWorkspaceFile,
 		sessionConfigLoader:  loadSessionConfig,
+		leases:               newLeaseStore(),
 	}
 }
 
@@ -149,13 +152,17 @@ func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependen
 	if dependencies.sessionConfigLoader == nil {
 		dependencies.sessionConfigLoader = loadSessionConfig
 	}
+	if dependencies.leases == nil {
+		dependencies.leases = newLeaseStore()
+	}
+	dependencies.noAuth = noAuth
 	tickets := newTicketStore()
 	mux := http.NewServeMux()
 
 	// REST API: bearer token via Authorization header (never a query param).
 	// In no-auth mode the API handler is mounted directly — the TokenAuth
 	// "empty want rejects everything" contract is preserved on the path that
-	// still uses it.
+	// still uses it. Repository lease routes still reject no-auth admission.
 	if noAuth {
 		mux.Handle("/api/", protocolAwareAPIHandler(d, tickets, dependencies))
 	} else {
@@ -221,6 +228,7 @@ func apiHandler(d *DaemonClient, tickets *ticketStore, dependencies muxDependenc
 	mux.HandleFunc("POST /api/sessions/{id}/questions/{questionId}", handleQuestionRespond(d))
 	mux.HandleFunc("GET /api/sessions/{id}/pending-human-input", handlePendingHumanInput(d))
 	mux.HandleFunc("GET /api/capabilities", handleCapabilities())
+	registerRepositoryRoutes(mux, dependencies)
 	return mux
 }
 

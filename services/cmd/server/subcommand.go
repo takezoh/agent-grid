@@ -35,7 +35,7 @@ func classifyCommand(args []string) commandKind {
 func isSubcommandName(name string) bool {
 	switch name {
 	case "event", "host-exec", "mcp-exec", "agent-frames-mcp", "frame-exec",
-		"supervisor-probe", "supervisor-stop":
+		"supervisor-probe", "supervisor-stop", "internal-git-askpass":
 		return true
 	}
 	return false
