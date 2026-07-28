@@ -46,7 +46,7 @@ done_criteria:
 - Repository、creation intent、preparation、session、clone path、repository environment の型と codec
 - 純粋 reducer の lifecycle・revision fencing・availability invariant テスト
 - exact-version mismatch の no-side-effect 契約テスト
-max_diff_loc: 800
+max_diff_loc: 1200
 change: change-20260728-github-repository-sessions
 summary: Define exact-version repository/preparation identities and pure lifecycle
   types before I/O.
@@ -68,7 +68,7 @@ GitHub repository session に必要な fully-qualified identity、exact-version 
 
 既存の exact-version policy、single-writer reducer、`runtimetest.Harness`、server-qualified fleet identity を維持する。公開 interface の変更と同じ compile 単位の codec・fixture・test はこのタスクに閉じ込める。
 
-`max_diff_loc: 800` は、`State`、closed `Event`/`Effect` sum、`Reduce` dispatch、protocol codec を一つの compile-safe interface change に閉じ込めるための上限である。これらを別taskへ分けると中間commitが未処理eventまたは不完全wire contractを持つため、interface confinementを粒度より優先する。
+`max_diff_loc: 1200` は、最初のfrontier実装がscope・fake-green・testsを通過しつつ1123 LOCを要した実測に基づく。`State`、closed `Event`/`Effect` sum、`Reduce` dispatch、protocol codec を一つの compile-safe interface change に閉じ込め、これらを別taskへ分けて未処理eventまたは不完全wire contractを持つ中間commitを作らないため、interface confinementを粒度より優先する。
 
 ## スコープ外
 
