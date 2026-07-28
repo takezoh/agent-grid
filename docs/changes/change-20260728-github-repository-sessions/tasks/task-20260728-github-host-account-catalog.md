@@ -31,7 +31,7 @@ done_criteria:
 - Web host の GitHub account/catalog projection
 - protected credential record と complete-generation retained catalog
 - FakeGitHubAuth、FakeGitHubCatalog、named contracts、opt-in FakeVsReal tests
-max_diff_loc: 550
+max_diff_loc: 800
 change: change-20260728-github-repository-sessions
 summary: Implement fixed OAuth device flow, protected credential ownership, retained
   complete-generation catalog, and credential-free projection in the Web host.
@@ -48,13 +48,13 @@ Web hostで固定 OAuth App の device flow、credential の保護保存・refre
 1. injected HTTP transport、clock、random source、credential/cache store を使う account state machine をWeb hostに実装し、browser/SPAへ token を渡さない。
 2. device-flow の success、denied、expired、cancelled、transport failure、refresh failure を distinct typed outcome にし、Settings 復帰用の状態だけを公開する。
 3. catalog refresh を一世代ずつ構築し、timeout、deadline、page/item/byte/cache 上限を超えた世代は publish せず、最後の完全世代を stale selectable として残す。
-4. FakeGitHubAuth、FakeGitHubCatalog、各 invariant contract と、authority 未設定時に明示 skip する FakeVsReal backstopをGo seamへ接続し、shared config schema/fixtureを検証する。
+4. FakeGitHubAuth、FakeGitHubCatalog、各 invariant contract と FakeVsReal backstopをGo seamへ接続する。authority 未設定時は直接 `t.Skip` せず typed unavailable outcome をcontract assertionし、shared config schema/fixtureも検証する。
 
 ## 前提
 
 `task-20260728-repository-protocol-domain` が credential-free account/catalog projection と repository identity の wire 型を提供する。OAuth credential は client host だけが所有する。
 
-`max_diff_loc: 550` は、Go account state machine、catalog generation、二つのexternal-dependency triple、shared config fixturesを一つのWeb-host contextでreviewするための上限である。Workspace実装はclean language/component境界で後続taskへ分離する。
+`max_diff_loc: 800` は、最初のfrontier実装がscope・testsを通過し739 LOCを要した実測に基づく。Go account state machine、catalog generation、二つのexternal-dependency triple、shared config fixturesを一つのWeb-host contextでreviewする。Workspace実装はclean language/component境界で後続taskへ分離する。
 
 ## スコープ外
 

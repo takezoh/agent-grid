@@ -43,7 +43,7 @@ done_criteria:
 - authenticated repository-bound memory-only lease admission
 - peer-bound one-use askpass broker と sanitized git process
 - FakeGitClone、named contracts、opt-in FakeVsRealGitClone
-max_diff_loc: 700
+max_diff_loc: 1000
 change: change-20260728-github-repository-sessions
 summary: Admit repository authority only on secure authenticated exact-version routes
   and consume it once through a sanitized askpass broker.
@@ -60,13 +60,13 @@ authenticated・exact-version・HTTPS または loopback の server route だけ
 1. transport/auth/version gate を lease/preparation/filesystem mutation より前に置き、repository identity、host identity、expiry、nonce、consumption state、32 lease cap を memory-only table で管理する。
 2. validated owner/name から `https://github.com/<owner>/<name>.git` だけを導出し、remote URL、argv、environment value、git config、file、log、durable record に credential を置かない askpass broker を実装する。
 3. replay、expiry、revoke、peer mismatch、redirect、不正 owner/name、process cancellation と bounded sanitized diagnostic を契約テストで網羅する。
-4. FakeGitClone、GitCloneContract、private fixture repository を使う opt-in FakeVsRealGitClone を同じ seam に接続する。
+4. FakeGitClone、GitCloneContract、private fixture repository を使う opt-in FakeVsRealGitClone を同じ seam に接続する。authority 未設定時は直接 `t.Skip` せず typed unavailable outcome をcontract assertionする。
 
 ## 前提
 
 `task-20260728-repository-protocol-domain` が exact-version repository identity と typed failure surface を提供する。既存 auth middleware と procgroup の ownership/cancellation 規約を再利用する。
 
-`max_diff_loc: 700` は、route composition、lease table、one-use broker、sanitized process とそれらのsecurity contractを、credentialを露出する中間状態なしにlandするための上限である。
+`max_diff_loc: 1000` は、最初のfrontier実装がscope・testsを通過し944 LOCを要した実測に基づく。route composition、lease table、one-use broker、sanitized process とsecurity contractを、credentialを露出する中間状態なしにlandする。
 
 ## スコープ外
 
