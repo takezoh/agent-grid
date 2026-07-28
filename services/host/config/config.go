@@ -13,7 +13,6 @@ import (
 
 type Config struct {
 	DataDir  string                        `toml:"data_dir"`
-	Theme    string                        `toml:"theme"`
 	Log      LogConfig                     `toml:"log"`
 	Monitor  MonitorConfig                 `toml:"monitor"`
 	Session  SessionConfig                 `toml:"session"`
@@ -24,17 +23,6 @@ type Config struct {
 	Features FeaturesConfig                `toml:"features"`
 	Sandbox  platformconfig.SandboxConfig  `toml:"sandbox"`
 	Codex    CodexConfig                   `toml:"codex"`
-	Editor   EditorConfig                  `toml:"editor"`
-}
-
-// EditorConfig holds settings for opening projects in an editor.
-type EditorConfig struct {
-	// Command is the editor executable to launch (e.g. "code", "code-insiders",
-	// "cursor"). It may include flags: "code --reuse-window". Defaults to "code".
-	Command string `toml:"command"`
-	// Extensions is the list of file extensions that, if found in the project
-	// root, cause the editor to open that file instead of the directory.
-	Extensions []string `toml:"extensions"`
 }
 
 // CodexConfig holds settings for the Codex app-server integration.
@@ -61,13 +49,11 @@ type LogConfig struct {
 }
 
 type MonitorConfig struct {
-	PollIntervalMs     int `toml:"poll_interval_ms"`
-	FastPollIntervalMs int `toml:"fast_poll_interval_ms"`
-	IdleThresholdSec   int `toml:"idle_threshold_sec"`
+	PollIntervalMs   int `toml:"poll_interval_ms"`
+	IdleThresholdSec int `toml:"idle_threshold_sec"`
 }
 
 type SessionConfig struct {
-	AutoName        bool                   `toml:"auto_name"`
 	CommandProfiles []CommandProfileConfig `toml:"command_profiles"`
 	PushCommands    []string               `toml:"push_commands"`
 }
@@ -119,15 +105,12 @@ func Load() (*Config, error) {
 
 func DefaultConfig() *Config {
 	return &Config{
-		Theme: "default",
-		Log:   LogConfig{Level: "info"},
+		Log: LogConfig{Level: "info"},
 		Monitor: MonitorConfig{
-			PollIntervalMs:     1000,
-			FastPollIntervalMs: 100,
-			IdleThresholdSec:   30,
+			PollIntervalMs:   1000,
+			IdleThresholdSec: 30,
 		},
 		Session: SessionConfig{
-			AutoName: true,
 			CommandProfiles: []CommandProfileConfig{{
 				ID: "shell", Label: "Shell", Executable: "shell",
 			}},
@@ -135,10 +118,6 @@ func DefaultConfig() *Config {
 		},
 		Terminal: TerminalConfig{
 			ScrollbackLines: 10000,
-		},
-		Editor: EditorConfig{
-			Command:    "code",                      // "code" is the VS Code CLI binary
-			Extensions: []string{".code-workspace"}, // VS Code workspace file extension
 		},
 		Projects: platformconfig.ProjectsConfig{},
 		Sandbox: platformconfig.SandboxConfig{

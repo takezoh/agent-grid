@@ -17,7 +17,6 @@ github.com/takezoh/agent-grid/services/host/event                        20
 github.com/takezoh/agent-grid/services/host/lib/agenthook               80
 github.com/takezoh/agent-grid/services/host/lib/claude/transcript        75
 github.com/takezoh/agent-grid/services/host/lib/codex/transcript         60
-github.com/takezoh/agent-grid/services/host/lib/editor                   80
 github.com/takezoh/agent-grid/services/host/procio                       95
 github.com/takezoh/agent-grid/services/host/proto                        85
 github.com/takezoh/agent-grid/services/host/proto/protofake             75

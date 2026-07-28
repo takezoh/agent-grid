@@ -2,7 +2,6 @@
   "version": 1,
   "entries": [
     {"path":"services/host/driver/summarize.go","kinds":["process"],"dependencies":["host-process"]},
-    {"path":"services/host/lib/editor/editor.go","kinds":["process"],"dependencies":["host-process"]},
     {"path":"services/host/runtime/subsystem/stream/fake/pty.go","kinds":["process","pty"],"dependencies":["host-process","pty"]},
     {"path":"services/cmd/bridge/codex_app_server_shim.go","kinds":["process"],"dependencies":["codex-app-server"]},
     {"path":"services/cmd/server/supervisor_control.go","kinds":["outbound-http"],"dependencies":["wsl-runtime"]},

@@ -9,6 +9,13 @@ contract. Desktop hosts additionally read appearance and process settings.
 - `shell.json`: Shell process settings
 - `workspace.json`: Workspace process settings
 
+Client presentation settings belong here rather than in the server's
+`settings.toml`. In particular, `appearance.json.theme` is the canonical theme
+setting; the retired server-side `theme`, `monitor.fast_poll_interval_ms`, and
+`session.auto_name` keys are not server configuration. The former server-side
+`editor` section and `open-editor` palette action are retired rather than moved
+to a client.
+
 Pass `--config-dir <path>` to a client host to replace the whole directory.
 Shell forwards the same argument when it starts Workspace. Web host loads
 `servers.json` only; desktop hosts load all four files. Tests must use a

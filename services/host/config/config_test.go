@@ -29,6 +29,22 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
+func TestConfigExcludesClientAndRetiredTUISettings(t *testing.T) {
+	assertNoTOMLField(t, reflect.TypeOf(Config{}), "theme")
+	assertNoTOMLField(t, reflect.TypeOf(Config{}), "editor")
+	assertNoTOMLField(t, reflect.TypeOf(MonitorConfig{}), "fast_poll_interval_ms")
+	assertNoTOMLField(t, reflect.TypeOf(SessionConfig{}), "auto_name")
+}
+
+func assertNoTOMLField(t *testing.T, typ reflect.Type, tag string) {
+	t.Helper()
+	for i := range typ.NumField() {
+		if got := typ.Field(i).Tag.Get("toml"); got == tag {
+			t.Errorf("%s still owns retired TOML setting %q", typ.Name(), tag)
+		}
+	}
+}
+
 // TestLoadFrom_TerminalScrollback pins the TOML wiring for the new
 // `[terminal] scrollback_lines = N` knob — late-joining Web UI clients see
 // up to this many scrolled-off rows on subscribe.
