@@ -28,6 +28,7 @@ import (
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/agentlaunch"
 	"github.com/takezoh/agent-grid/services/platform/features"
+	"github.com/takezoh/agent-grid/services/platform/lib/gitclone"
 	"github.com/takezoh/agent-grid/services/platform/procgroup"
 )
 
@@ -83,6 +84,24 @@ type Config struct {
 	// Zero uses the 15 s default in codexclient.NewConn.
 	// Maps to the codex.read_timeout_ms config key.
 	StreamReadTimeout time.Duration
+
+	// RepositorySessionsRoot is the canonical root for session clones and the
+	// sole repository-environment mount scope. Empty disables preparation I/O.
+	RepositorySessionsRoot string
+	// PreparationStore persists creation intents and preparation aggregates.
+	PreparationStore PreparationStore
+	// RepositoryEnvironmentStore persists repository-scoped environment records.
+	RepositoryEnvironmentStore RepositoryEnvironmentStore
+	// RepositoryDevcontainer ensures/reuses repository environments.
+	RepositoryDevcontainer RepositoryDevcontainer
+	// RepositoryConfigGeneration pins environment reuse identity.
+	RepositoryConfigGeneration string
+	// CloneAuthority supplies one-use credentials for preparation clones.
+	CloneAuthority CloneAuthority
+	// FilesystemProcess is the inject seam for durable clone publication.
+	FilesystemProcess gitclone.FilesystemProcess
+	// Cloner is the inject seam for git clone; nil uses gitclone.Service.
+	Cloner gitclone.Cloner
 }
 
 // Runtime owns the event loop goroutine and the side-effect backends.
@@ -200,6 +219,11 @@ type Runtime struct {
 	// saturation incident can be attributed to a specific producer. Snapshot via
 	// InternalDropStats.
 	internalDrops *internalDropCounter
+
+	// prepCtrl owns durable preparation workers, capacity, and clone publication.
+	prepCtrl *PreparationController
+	// envMgr owns repository-scoped environment ensure/reuse.
+	envMgr *RepositoryEnvironmentManager
 }
 
 // PruneProcessGroups reaps host process groups left marked by an earlier daemon
@@ -309,8 +333,44 @@ func New(cfg Config) *Runtime {
 	if sb, ok := cfg.Backend.(SurfaceBackend); ok {
 		r.terminalRelay = NewTerminalRelay(sb, r.enqueueInternal, r.sendInternalNow)
 	}
+	r.initRepositoryComposition()
 	r.publishState(initial)
 	return r
+}
+
+func (r *Runtime) initRepositoryComposition() {
+	root := r.cfg.RepositorySessionsRoot
+	if root == "" && r.cfg.DataDir != "" {
+		root = filepath.Join(r.cfg.DataDir, "repository-sessions")
+	}
+	if root == "" && r.cfg.PreparationStore == nil && r.cfg.RepositoryDevcontainer == nil {
+		return
+	}
+	fs := r.cfg.FilesystemProcess
+	if fs == nil {
+		fs = gitclone.OSFilesystem{}
+	}
+	store := r.cfg.PreparationStore
+	if store == nil && root != "" {
+		store = NewFilePreparationStore(root, fs)
+	}
+	ctrl := NewPreparationController(store, fs, r.cfg.Cloner, root, func(ev state.Event) {
+		if re, ok := ev.(state.EvRepository); ok {
+			r.enqueuePreparationEvent(re)
+			return
+		}
+		r.Enqueue(ev)
+	})
+	ctrl.Authority = r.cfg.CloneAuthority
+	r.prepCtrl = ctrl
+	envStore := r.cfg.RepositoryEnvironmentStore
+	if envStore == nil {
+		envStore = NewMemoryRepositoryEnvironmentStore()
+	}
+	r.envMgr = &RepositoryEnvironmentManager{
+		Store: envStore, Devcontainer: r.cfg.RepositoryDevcontainer,
+		ConfigGen: r.cfg.RepositoryConfigGeneration, SessionsRoot: root,
+	}
 }
 
 // registerSubsystemFactories is the one place that knows which factories
