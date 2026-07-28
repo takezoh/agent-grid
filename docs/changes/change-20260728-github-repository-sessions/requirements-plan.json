@@ -1,0 +1,3213 @@
+{
+  "mode": "specify",
+  "revision": "1",
+  "base_revision": "1",
+  "goal": "New Session から、既存の server-qualified project 検索を損なわず、GitHub repository を同じ categorized discovery へ追加し、出所と実行先を取り違えずに session を開始できるようにする。",
+  "target_users": [
+    "複数 server の project と GitHub repository を行き来して session を開始する利用者",
+    "keyboard、pointer、または支援技術で New Session を操作する利用者"
+  ],
+  "user_goals": [
+    {
+      "id": "goal-find-target",
+      "actor": "New Session を開始する利用者",
+      "context": "server project と GitHub repository の双方が候補になり、同名候補が存在し得る状況",
+      "desired_outcome": "一つの入口から目的の target を発見し、source と識別情報を確認して選択する",
+      "success_observation": "候補と選択後の確認で、project は server identity、repository は owner/name と実行先 server を識別できる"
+    },
+    {
+      "id": "goal-preserve-project-flow",
+      "actor": "既存の server project で session を作成する利用者",
+      "context": "GitHub repository 候補が New Session に追加された後",
+      "desired_outcome": "従来どおり全接続 server の project を検索し、正しい server-qualified target を選択する",
+      "success_observation": "GitHub 認証状態にかかわらず project を検索でき、stable server identity を保ったまま command 選択と確認へ進める"
+    },
+    {
+      "id": "goal-recover-catalog",
+      "actor": "候補取得の一部が失敗した利用者",
+      "context": "project catalog または repository catalog の一方だけが利用不能、未認証、更新中、または stale な状況",
+      "desired_outcome": "利用可能な候補を失わず、失敗範囲を理解して回復操作を選ぶ",
+      "success_observation": "健康な source の結果と現在の検索文脈が残り、失敗した source の理由と回復操作が分かる"
+    },
+    {
+      "id": "goal-create-repository-session",
+      "actor": "GitHub repository から session を作成する利用者",
+      "context": "repository と実行先 server を選択した後",
+      "desired_outcome": "session 単位の clone と repository 単位の devcontainer 準備の進行を理解し、成功または失敗から次へ進む",
+      "success_observation": "clone と devcontainer 準備を区別して確認でき、成功時は session が利用可能になり、失敗または中止時は対象と段階を保って再試行または退出できる"
+    }
+  ],
+  "experience_dimensions": [
+    {
+      "id": "input-modality",
+      "values": [
+        "keyboard",
+        "pointer",
+        "assistive technology"
+      ],
+      "rationale": "入口、候補、状態、回復操作を特定の入力方式だけに閉じないため。"
+    },
+    {
+      "id": "target-source",
+      "values": [
+        "server project",
+        "GitHub repository"
+      ],
+      "rationale": "同じ検索入口内で source 固有 identity と lifecycle を判別するため。"
+    },
+    {
+      "id": "catalog-condition",
+      "values": [
+        "healthy",
+        "refreshing with retained data",
+        "authentication required",
+        "source-scoped failure"
+      ],
+      "rationale": "健康な source を失わない部分失敗と回復を検証するため。"
+    },
+    {
+      "id": "preparation-stage",
+      "values": [
+        "target confirmation",
+        "clone",
+        "devcontainer preparation",
+        "available",
+        "failed or cancelled"
+      ],
+      "rationale": "repository session の段階、成功、失敗、中止を混同しないため。"
+    },
+    {
+      "id": "client-host",
+      "values": [
+        "browser",
+        "Electron-hosted"
+      ],
+      "rationale": "shared SPA の同一機能と credential-safe な回復体験を両 host で守るため。"
+    }
+  ],
+  "experience_contracts": [
+    {
+      "id": "exp-target-discovery",
+      "subject": "categorized unified discovery",
+      "goal_refs": [
+        "goal-find-target"
+      ],
+      "flow_refs": [
+        "F-001"
+      ],
+      "context_refs": [
+        "input-modality",
+        "target-source",
+        "catalog-condition",
+        "client-host"
+      ],
+      "interaction_rules": [
+        {
+          "condition": "New Session entry",
+          "outcome": "全 source を対象とする単一 query と category を示す",
+          "rationale": "承認済み topology/default"
+        },
+        {
+          "condition": "候補表示",
+          "outcome": "source badge と stable identity を常時示す",
+          "rationale": "誤選択防止"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "picker open",
+          "observable": "Projects と GitHub repositories が同じ入口に現れる"
+        },
+        {
+          "phase": "progress",
+          "condition": "query input",
+          "observable": "両 category が同じ query に応答する"
+        },
+        {
+          "phase": "success",
+          "condition": "repository selection",
+          "observable": "owner/name が後続にも残る"
+        },
+        {
+          "phase": "failure",
+          "condition": "selection invalidated",
+          "observable": "理由、選択解除、回復先が分かる"
+        },
+        {
+          "phase": "recovery",
+          "condition": "reselection",
+          "observable": "query と健康な候補を保って続行できる"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "両 host と全 modality で同じ entry と結果",
+        "row 単体で source と identity を判別可能"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-project-preservation",
+      "subject": "fleet-wide project flow preservation",
+      "goal_refs": [
+        "goal-preserve-project-flow"
+      ],
+      "flow_refs": [
+        "F-002"
+      ],
+      "context_refs": [
+        "input-modality",
+        "target-source",
+        "catalog-condition",
+        "client-host"
+      ],
+      "interaction_rules": [
+        {
+          "condition": "GitHub unavailable",
+          "outcome": "project flow を遮断しない",
+          "rationale": "partial failure decision"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "GitHub unavailable",
+          "observable": "Projects は検索可能"
+        },
+        {
+          "phase": "progress",
+          "condition": "project selection and command confirmation",
+          "observable": "stable server identity を保って既存 command 選択を進められる"
+        },
+        {
+          "phase": "success",
+          "condition": "project confirm",
+          "observable": "server-qualified session が作成される"
+        },
+        {
+          "phase": "failure",
+          "condition": "GitHub failure",
+          "observable": "GitHub に限定した理由が分かる"
+        },
+        {
+          "phase": "recovery",
+          "condition": "project continuation",
+          "observable": "認証なしで作成を完了できる"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "全接続 server の project と stable server identity を維持"
+      ],
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-catalog-recovery",
+      "subject": "source-scoped catalog recovery",
+      "goal_refs": [
+        "goal-recover-catalog",
+        "goal-find-target"
+      ],
+      "flow_refs": [
+        "F-003"
+      ],
+      "context_refs": [
+        "input-modality",
+        "catalog-condition",
+        "client-host"
+      ],
+      "interaction_rules": [
+        {
+          "condition": "authentication needed",
+          "outcome": "Settings account surface へ進み同じ文脈へ戻る",
+          "rationale": "confirmed auth entry"
+        },
+        {
+          "condition": "refresh/failure",
+          "outcome": "健康な結果と文脈を保持",
+          "rationale": "confirmed partial behavior"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "catalog open",
+          "observable": "保持結果または source-scoped status が見える"
+        },
+        {
+          "phase": "progress",
+          "condition": "background refresh/retry",
+          "observable": "保持結果を操作しながら進行が分かる"
+        },
+        {
+          "phase": "success",
+          "condition": "auth/refresh success",
+          "observable": "同じ query/filter で更新結果が見える"
+        },
+        {
+          "phase": "failure",
+          "condition": "auth/refresh failure",
+          "observable": "対象 source の理由と回復操作が見える"
+        },
+        {
+          "phase": "recovery",
+          "condition": "return/retry",
+          "observable": "focus と文脈を保って再開できる"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "一方の障害で他方を遮断しない",
+        "失敗・成功とも query/filter/focus を契約どおり保持"
+      ],
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "open_product_choices": []
+    },
+    {
+      "id": "exp-repository-preparation",
+      "subject": "repository session staged preparation",
+      "goal_refs": [
+        "goal-create-repository-session",
+        "goal-find-target"
+      ],
+      "flow_refs": [
+        "F-004"
+      ],
+      "context_refs": [
+        "input-modality",
+        "preparation-stage",
+        "client-host"
+      ],
+      "interaction_rules": [
+        {
+          "condition": "target selection",
+          "outcome": "repository の後に execution server を選ぶ",
+          "rationale": "confirmed order"
+        },
+        {
+          "condition": "preparation",
+          "outcome": "clone と devcontainer を別段階で示す",
+          "rationale": "confirmed staged visibility"
+        }
+      ],
+      "observations": [
+        {
+          "phase": "entry",
+          "condition": "repository selected",
+          "observable": "owner/name を保って server を選べる"
+        },
+        {
+          "phase": "progress",
+          "condition": "creation",
+          "observable": "clone と devcontainer の段階が区別できる"
+        },
+        {
+          "phase": "success",
+          "condition": "both complete",
+          "observable": "session が利用可能になる"
+        },
+        {
+          "phase": "failure",
+          "condition": "failure/cancel",
+          "observable": "対象、段階、retry、退出が分かる"
+        },
+        {
+          "phase": "recovery",
+          "condition": "retry",
+          "observable": "失敗または中止段階から再開する"
+        }
+      ],
+      "phase_exclusions": [],
+      "invariants": [
+        "session ごとに clone を隔離",
+        "repository 単位 devcontainer を再利用",
+        "未完成 session は利用可能に見せない"
+      ],
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "open_product_choices": []
+    }
+  ],
+  "coverage_claims": [
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "input-modality",
+      "value": "keyboard",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "input-modality",
+      "value": "pointer",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "input-modality",
+      "value": "assistive technology",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "target-source",
+      "value": "server project",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "target-source",
+      "value": "GitHub repository",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "catalog-condition",
+      "value": "healthy",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "catalog-condition",
+      "value": "refreshing with retained data",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "catalog-condition",
+      "value": "authentication required",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "catalog-condition",
+      "value": "source-scoped failure",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "client-host",
+      "value": "browser",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-target-discovery",
+      "dimension_id": "client-host",
+      "value": "Electron-hosted",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "input-modality",
+      "value": "keyboard",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "input-modality",
+      "value": "pointer",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "input-modality",
+      "value": "assistive technology",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "target-source",
+      "value": "server project",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "target-source",
+      "value": "GitHub repository",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "catalog-condition",
+      "value": "healthy",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "catalog-condition",
+      "value": "refreshing with retained data",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "catalog-condition",
+      "value": "authentication required",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "catalog-condition",
+      "value": "source-scoped failure",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "client-host",
+      "value": "browser",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-project-preservation",
+      "dimension_id": "client-host",
+      "value": "Electron-hosted",
+      "scenario_refs": [
+        "UAC-004",
+        "UAC-019"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "input-modality",
+      "value": "keyboard",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "input-modality",
+      "value": "pointer",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "input-modality",
+      "value": "assistive technology",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "catalog-condition",
+      "value": "healthy",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "catalog-condition",
+      "value": "refreshing with retained data",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "catalog-condition",
+      "value": "authentication required",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "catalog-condition",
+      "value": "source-scoped failure",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "client-host",
+      "value": "browser",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-catalog-recovery",
+      "dimension_id": "client-host",
+      "value": "Electron-hosted",
+      "scenario_refs": [
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "input-modality",
+      "value": "keyboard",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "input-modality",
+      "value": "pointer",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "input-modality",
+      "value": "assistive technology",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "preparation-stage",
+      "value": "target confirmation",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "preparation-stage",
+      "value": "clone",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "preparation-stage",
+      "value": "devcontainer preparation",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "preparation-stage",
+      "value": "available",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "preparation-stage",
+      "value": "failed or cancelled",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "client-host",
+      "value": "browser",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    },
+    {
+      "contract_ref": "exp-repository-preparation",
+      "dimension_id": "client-host",
+      "value": "Electron-hosted",
+      "scenario_refs": [
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "exclusion_reason": ""
+    }
+  ],
+  "reference_ux_traces": [
+    {
+      "reference_name": "既存の fleet-wide New Session project palette",
+      "aspect": "単一 entry",
+      "flow_refs": [
+        "F-001",
+        "F-002"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-004",
+        "UAC-019"
+      ]
+    },
+    {
+      "reference_name": "既存の fleet-wide New Session project palette",
+      "aspect": "stable server identity",
+      "flow_refs": [
+        "F-001",
+        "F-002"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-004",
+        "UAC-019"
+      ]
+    },
+    {
+      "reference_name": "既存の fleet-wide New Session project palette",
+      "aspect": "keyboard・pointer・支援技術からの到達",
+      "flow_refs": [
+        "F-001",
+        "F-002"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-004",
+        "UAC-019"
+      ]
+    },
+    {
+      "reference_name": "既存の fleet-wide New Session project palette",
+      "aspect": "選択後の command 選択と確認",
+      "flow_refs": [
+        "F-001",
+        "F-002"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-004",
+        "UAC-019"
+      ]
+    },
+    {
+      "reference_name": "source を hover 時だけ示す mixed result list",
+      "aspect": "同名 target の出所を常時判別できない",
+      "flow_refs": [
+        "F-001"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002"
+      ]
+    },
+    {
+      "reference_name": "source を hover 時だけ示す mixed result list",
+      "aspect": "keyboard・touch・支援技術で provenance に到達できない",
+      "flow_refs": [
+        "F-001"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002"
+      ]
+    }
+  ],
+  "legacy_behavior_traces": [
+    {
+      "behavior": "target catalog が server-defined project だけを表示する",
+      "scenario_refs": [
+        "UAC-019"
+      ]
+    },
+    {
+      "behavior": "すべての target row を project path と解釈して source を示さない",
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-002"
+      ]
+    },
+    {
+      "behavior": "全接続 server の project を一つの entry から検索できる",
+      "scenario_refs": [
+        "UAC-019"
+      ]
+    },
+    {
+      "behavior": "project row、選択後、確認面で stable server identity を維持する",
+      "scenario_refs": [
+        "UAC-019"
+      ]
+    },
+    {
+      "behavior": "keyboard、pointer、支援技術で候補選択と戻る操作ができる",
+      "scenario_refs": [
+        "UAC-019"
+      ]
+    },
+    {
+      "behavior": "選択した server + project に有効な command profile の選択へ進む",
+      "scenario_refs": [
+        "UAC-019"
+      ]
+    }
+  ],
+  "reference_ux": [
+    {
+      "name": "既存の fleet-wide New Session project palette",
+      "stance": "modeled_on",
+      "aspects": [
+        "単一 entry",
+        "stable server identity",
+        "keyboard・pointer・支援技術からの到達",
+        "選択後の command 選択と確認"
+      ],
+      "provenance": {
+        "source": "existing_product_behavior",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "context:change-20260727-multi-server-session-palette"
+        ],
+        "rationale": "承認済みの project discovery を互換境界として維持する。"
+      }
+    },
+    {
+      "name": "source を hover 時だけ示す mixed result list",
+      "stance": "rejected",
+      "aspects": [
+        "同名 target の出所を常時判別できない",
+        "keyboard・touch・支援技術で provenance に到達できない"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "context:ambiguous-rendering-must-be-distinguishable"
+        ],
+        "rationale": "要求された識別性と modality parity を満たさない。"
+      }
+    }
+  ],
+  "legacy_context": {
+    "source_implementation": "shared SPA の New Session palette と change-20260727-multi-server-session-palette",
+    "inherited_behaviors": [
+      "全接続 server の project を一つの entry から検索できる",
+      "project row、選択後、確認面で stable server identity を維持する",
+      "keyboard、pointer、支援技術で候補選択と戻る操作ができる",
+      "選択した server + project に有効な command profile の選択へ進む"
+    ],
+    "replaced_behaviors": [
+      "target catalog が server-defined project だけを表示する",
+      "すべての target row を project path と解釈して source を示さない"
+    ]
+  },
+  "flows": [
+    {
+      "id": "F-001",
+      "name": "categorized target picker から source と identity を確認して選択する",
+      "goal_refs": [
+        "goal-find-target"
+      ],
+      "experience_contract_refs": [
+        "exp-target-discovery"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[keyboard|pointer|assistive-technology] New Session の既存単一入口を開き、初期状態で Projects と GitHub repositories の category を確認する",
+        "[keyboard|pointer|assistive-technology] 一つの query で target を検索し、各 row の source badge と stable identity を確認する",
+        "[keyboard|pointer|assistive-technology] target を選び、後続画面でも source と stable identity を確認する"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-001",
+          "contract_refs": [
+            "exp-target-discovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、GitHub 認証済みで project と repository の保持済み候補があり、New Session は未入力の初期状態である",
+          "when": "利用者が keyboard、pointer、または支援技術で New Session を開く",
+          "then": "一つの検索欄の下に Projects と GitHub repositories が category として現れ、source filter は全 source を対象とし、各 row には source と project の server identity または repository の owner/name が常時分かる",
+          "observations": {
+            "user_visible": [
+              "単一検索欄",
+              "Projects と GitHub repositories の区分",
+              "全 source が対象の初期状態",
+              "row ごとの source と stable identity"
+            ],
+            "assistive_technology": [
+              "category、source filter の状態、各候補の source と stable identity を候補単体から認識できる"
+            ]
+          },
+          "instrumentation_hints": [
+            "keyboard、pointer、accessibility tree の各経路で同じ候補集合と識別情報を照合する"
+          ],
+          "design_handoff_refs": [
+            "handoff-target-projection",
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "source-first の追加選択を要求する、前回の source filter を初期値にする、または category heading だけに source を置く実装は、承認済みの categorized single-entry、全 source 初期表示、row 単位 provenance を観察できず fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-002",
+          "contract_refs": [
+            "exp-target-discovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、同じ表示名を持つ server project と GitHub repository が検索結果にあり、それぞれ別の stable identity を持つ",
+          "when": "利用者が repository row を選択する",
+          "then": "選択前と選択後の双方で repository source と owner/name が分かり、実行 server 選択へ進んでも選んだ repository identity が残る",
+          "observations": {
+            "user_visible": [
+              "同名 row の source badge と異なる stable identity",
+              "選択後も残る repository owner/name"
+            ],
+            "assistive_technology": [
+              "同名候補を source と stable identity を含む名前として区別し、選択後の対象を確認できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-target-projection"
+          ],
+          "counterexample": "hover 中だけ source を出す、または repository 選択後に basename だけを示す実装は、非 pointer modality と選択後の識別性を満たさず fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-003",
+          "contract_refs": [
+            "exp-target-discovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、owner/name を検索対象とする repository catalog が利用可能である",
+          "when": "利用者が既知の owner/name と、owner/name だけでは一意に識別できない曖昧な手掛かりで repository を探す",
+          "then": "既知の owner/name では目的の repository を発見して owner/name で識別できる。owner/name が同じまたは曖昧な候補から目的を一意に選べない事例が一つでも観察された場合は owner/name を不十分として検証を invalidated にし、拡張 metadata の判断へ戻す",
+          "observations": {
+            "user_visible": [
+              "既知の owner/name に対応する候補を発見できる",
+              "候補ごとの owner/name を認識できる",
+              "owner/name だけで識別不能な場合は目的を一意に選べないことが分かる"
+            ],
+            "assistive_technology": [
+              "同じ検索結果と owner/name の識別可否を認識できる"
+            ]
+          },
+          "instrumentation_hints": [
+            "既知 target 発見と曖昧検索の失敗例を収集し、owner/name の十分性を判定する"
+          ],
+          "design_handoff_refs": [
+            "handoff-search-validation"
+          ],
+          "counterexample": "既知 target を発見できない、または曖昧候補を識別できない結果を記録しただけで「十分」と判定する実装は、明示した invalidation 条件に反して fail する。",
+          "vs_legacy": "irrelevant"
+        },
+        {
+          "id": "UAC-018",
+          "contract_refs": [
+            "exp-target-discovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、選択中 repository が background refresh により利用不能になった",
+          "when": "更新結果が New Session に反映される",
+          "then": "無効な repository 選択は解除され、理由を示し、query と健康な候補を保持し、focus は該当状態または再選択可能な候補へ移り、別 repository の選択または退出ができる",
+          "observations": {
+            "user_visible": [
+              "選択解除の理由、保持 query、健康な候補"
+            ],
+            "assistive_technology": [
+              "無効化、focus、再選択または退出を認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "無効な選択を残す、理由なく消す、または focus を失う実装は fail する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-002",
+      "name": "GitHub 状態に遮断されず既存 server project session を作成する",
+      "goal_refs": [
+        "goal-preserve-project-flow"
+      ],
+      "experience_contract_refs": [
+        "exp-project-preservation"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[keyboard|pointer|assistive-technology] GitHub が未認証または利用不能な状態で New Session を開く",
+        "[keyboard|pointer|assistive-technology] 全接続 server の project を検索し、stable server identity を確認して選択する",
+        "[keyboard|pointer|assistive-technology] 既存の command 選択と server-qualified 確認を経て session を作成する"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-004",
+          "contract_refs": [
+            "exp-project-preservation"
+          ],
+          "given": "browser と Electron-hosted の双方で、GitHub は未認証または取得失敗だが、複数の接続 server から project catalog を取得できる",
+          "when": "利用者が project を検索して選択し、既存 command 選択と確認を完了する",
+          "then": "GitHub 認証を要求されず、全接続 server の健康な project を検索でき、row から作成結果まで選択した stable server identity が保たれた session が作成される",
+          "observations": {
+            "user_visible": [
+              "健康な project 結果",
+              "stable server identity",
+              "既存 command 選択と確認",
+              "作成された project session"
+            ],
+            "assistive_technology": [
+              "GitHub の状態と project 候補を別範囲として認識し、project flow を完了できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-target-projection",
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "GitHub 未認証を理由に picker 全体を遮断する実装、単一 server の project だけを出す実装、または確認面で server identity を失う実装は fail する。",
+          "vs_legacy": "must-pass"
+        },
+        {
+          "id": "UAC-019",
+          "contract_refs": [
+            "exp-project-preservation"
+          ],
+          "given": "browser と Electron-hosted の双方で、GitHub 認証済みかつ project と repository の候補がある",
+          "when": "利用者が New Session を開いて target を検索する",
+          "then": "既存 project flow を保ちながら GitHub repositories category も現れ、全 row で source badge と stable identity が常時分かる",
+          "observations": {
+            "user_visible": [
+              "Projects と GitHub repositories",
+              "全 row の source badge と identity"
+            ],
+            "assistive_technology": [
+              "候補単体で source と identity を認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-target-projection",
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "旧 project-only catalog、または source を示さない row のままの実装は fail する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-003",
+      "name": "GitHub 認証と catalog 更新の中断から検索文脈を保って回復する",
+      "goal_refs": [
+        "goal-recover-catalog",
+        "goal-find-target"
+      ],
+      "experience_contract_refs": [
+        "exp-catalog-recovery"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[keyboard|pointer|assistive-technology] query と全 source filter を使った状態で GitHub category の認証要求または更新状態を確認する",
+        "[keyboard|pointer|assistive-technology] Settings の account surface で認証する、または失敗 source を再試行する",
+        "[keyboard|pointer|assistive-technology] New Session の同じ query と filter に戻り、GitHub category の入口から操作を再開する"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-005",
+          "contract_refs": [
+            "exp-catalog-recovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、New Session で query を入力し全 source filter を使っているが、GitHub は未認証で project 結果は利用できる",
+          "when": "利用者が GitHub category の認証 entry から Settings の account surface へ進み、認証を完了して New Session へ戻る",
+          "then": "認証成功後は同じ query と全 source filter、健康な project 結果が復元され、focus は GitHub category の入口へ戻り、repository 選択を開始できる",
+          "observations": {
+            "user_visible": [
+              "Settings への認証導線",
+              "復帰後の同じ query と filter",
+              "GitHub category 入口",
+              "健康な project 結果"
+            ],
+            "assistive_technology": [
+              "Settings への遷移理由、復帰後の文脈、GitHub category の再開位置を認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-auth-mediation",
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "inline 認証、query/filter の reset、または復帰 focus が GitHub category の入口以外になる実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-006",
+          "contract_refs": [
+            "exp-catalog-recovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、保持済み repository 一覧と query が表示されており、background refresh が開始される",
+          "when": "refresh が進行した後に失敗する",
+          "then": "保持済み repository 結果と query は操作可能なまま残り、GitHub category は更新中から stale な状態と失敗理由、再試行を示し、Projects category は影響を受けない",
+          "observations": {
+            "user_visible": [
+              "保持済み repository 結果",
+              "更新中と stale の区別",
+              "失敗理由と再試行",
+              "健康な project 結果"
+            ],
+            "assistive_technology": [
+              "更新開始、stale への変化、GitHub に限定された失敗、再試行可能性を認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-accessible-catalog",
+            "handoff-target-projection"
+          ],
+          "counterexample": "refresh 完了まで repository を空にする、失敗時に picker 全体を error にする、または stale であることを示さず保持値を最新として見せる実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-007",
+          "contract_refs": [
+            "exp-catalog-recovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、一つの query に対して Projects と GitHub repositories の結果があり、GitHub source だけが取得失敗する",
+          "when": "利用者が GitHub の再試行を実行するか、健康な project 候補の操作を続ける",
+          "then": "再試行中、成功、再失敗の各状態で元の query と全 source filter、健康な結果、依然有効な選択が保持され、focus は GitHub の状態または再試行操作に残る。成功時は更新結果、再失敗時は理由と再試行を同じ New Session 内で確認できる",
+          "observations": {
+            "user_visible": [
+              "保持された query と健康な候補",
+              "source-scoped error と recovery",
+              "再試行後の GitHub category"
+            ],
+            "assistive_technology": [
+              "失敗範囲、残る操作可能候補、回復結果を区別して認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "再試行中または結果表示で query、filter、有効な選択、focus のいずれかを失う実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-013",
+          "contract_refs": [
+            "exp-catalog-recovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、query と全 source filter を保持した New Session から Settings の GitHub account 認証へ進んでいる",
+          "when": "認証を拒否、失敗、cancel、または back して New Session へ戻る",
+          "then": "元の query と filter、健康な project 結果が残り、repository 選択は解除され、focus は GitHub category の認証入口へ戻り、認証再試行、別候補選択、または退出を選べる",
+          "observations": {
+            "user_visible": [
+              "元の query/filter と健康な project",
+              "GitHub 認証入口、再試行、退出"
+            ],
+            "assistive_technology": [
+              "中断理由、復元文脈、focus、次の操作を認識できる"
+            ]
+          },
+          "instrumentation_hints": [
+            "各中断結果と focus 復元を host ごとに照合"
+          ],
+          "design_handoff_refs": [
+            "handoff-auth-mediation",
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "認証未完了時に初期状態へ reset する、repository 選択を有効なまま残す、または focus を失う実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-014",
+          "contract_refs": [
+            "exp-catalog-recovery"
+          ],
+          "given": "browser と Electron-hosted の双方で、repository 結果と query が利用できる一方、Projects category だけが取得失敗している",
+          "when": "利用者が repository を選択するか Projects の再試行を行う",
+          "then": "repository 結果、query、全 source filter、有効な選択を保持し、Projects category だけに失敗理由、再試行、退出を示す。repository 選択は継続でき、再試行の進行と結果を同じ文脈で確認できる",
+          "observations": {
+            "user_visible": [
+              "健康な repository 結果",
+              "Projects 限定の理由と回復"
+            ],
+            "assistive_technology": [
+              "失敗範囲、健康な候補、回復状態を区別できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "project 障害で repository 結果または picker 全体を遮断する実装は fail する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    },
+    {
+      "id": "F-004",
+      "name": "repository と execution server を選び段階別準備から session を開始する",
+      "goal_refs": [
+        "goal-create-repository-session",
+        "goal-find-target"
+      ],
+      "experience_contract_refs": [
+        "exp-repository-preparation"
+      ],
+      "experience_closure_reason": "",
+      "steps": [
+        "[keyboard|pointer|assistive-technology] GitHub repository を選択した後に execution server を選択する",
+        "[keyboard|pointer|assistive-technology] repository owner/name と stable server identity を確認して作成を開始する",
+        "[visual|assistive-technology] session 固有 clone と repository 単位 devcontainer 準備の段階を確認する",
+        "[keyboard|pointer|assistive-technology] 成功した session へ進むか、失敗または中止後に対象と段階を保って再試行または退出する"
+      ],
+      "acceptance_scenarios": [
+        {
+          "id": "UAC-008",
+          "contract_refs": [
+            "exp-repository-preparation"
+          ],
+          "given": "browser と Electron-hosted の双方で、利用者が GitHub repository を選択し、複数の execution server が選択可能である",
+          "when": "repository 選択後に server を選び、作成確認へ進む",
+          "then": "確認面で repository owner/name と stable server identity が同時に分かる。戻るまたは cancel では repository query と選択を保持し、focus は元の repository row に戻る",
+          "observations": {
+            "user_visible": [
+              "repository 選択後の server 選択",
+              "owner/name と stable server identity を併記した確認"
+            ],
+            "assistive_technology": [
+              "repository と execution server を別の選択として認識し、確認時に組を読み取れる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-target-projection",
+            "handoff-repository-lifecycle"
+          ],
+          "counterexample": "server-first、組の重複表示、identity 省略、または戻る操作で query・選択・focus を失う実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-009",
+          "contract_refs": [
+            "exp-repository-preparation"
+          ],
+          "given": "browser と Electron-hosted の双方で、repository と execution server を確認して新しい repository session の作成を開始した",
+          "when": "session 固有 clone が完了し、repository 単位の per-project devcontainer 準備も完了する",
+          "then": "clone と devcontainer 準備が別段階として順に分かり、両方の完了後にだけ repository session が利用可能として示される",
+          "observations": {
+            "user_visible": [
+              "clone 中",
+              "devcontainer 準備中",
+              "両段階完了後の利用可能 session"
+            ],
+            "assistive_technology": [
+              "準備段階の変化と最終的な session availability を順序どおり認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-repository-lifecycle",
+            "handoff-preparation-progress"
+          ],
+          "counterexample": "単一の「準備中」だけを示す、clone 完了時点で session を利用可能にする、または devcontainer を per-session mode として見せる実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-010",
+          "contract_refs": [
+            "exp-repository-preparation"
+          ],
+          "given": "browser と Electron-hosted の双方で、clone が完了し、対象 repository と server を示した devcontainer 準備段階にいる",
+          "when": "devcontainer 準備が失敗し、利用者が retry を選ぶ",
+          "then": "clone ではなく devcontainer 準備で失敗したこと、repository、server、失敗段階が retry 面に残り、未完成 session は利用可能に見えず、retry の進行を同じ段階から確認できる",
+          "observations": {
+            "user_visible": [
+              "devcontainer 固有の失敗",
+              "保持された target identity と失敗段階",
+              "retry と退出",
+              "未完成 session が利用可能でないこと"
+            ],
+            "assistive_technology": [
+              "失敗段階、保持された対象、利用可能な recovery、retry 開始を認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-repository-lifecycle",
+            "handoff-preparation-progress"
+          ],
+          "counterexample": "「準備失敗」とだけ示す、retry 時に repository/server を再選択させる、または失敗 session を session 一覧で利用可能にする実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-011",
+          "contract_refs": [
+            "exp-repository-preparation"
+          ],
+          "given": "browser と Electron-hosted の双方で、repository session の clone または devcontainer 準備が進行中である",
+          "when": "利用者が中止し、その後 retry 面を確認する",
+          "then": "中止した段階、repository、server が retry 面に残り、部分 session は利用可能に見えない。clone 中止の retry は clone から、devcontainer 中止の retry は clone を再実行せず devcontainer 準備から再開したことが分かり、退出も選べる",
+          "observations": {
+            "user_visible": [
+              "中止済み段階と target identity",
+              "retry と退出",
+              "部分 session が利用可能でないこと"
+            ],
+            "assistive_technology": [
+              "中止完了、残された対象と段階、次に可能な操作を認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-repository-lifecycle",
+            "handoff-preparation-progress"
+          ],
+          "counterexample": "devcontainer 中止後に clone から再開する、初期 picker に reset する、または部分 session を利用可能に示す実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-012",
+          "contract_refs": [
+            "exp-repository-preparation"
+          ],
+          "given": "browser と Electron-hosted の双方で、同じ repository の一つ目の session が存在し、利用者が同じ repository と任意の execution server で二つ目を作成する",
+          "when": "二つ目の session 作成を開始して clone 段階を確認する",
+          "then": "既存 session への切替や duplicate 確認なしに独立 clone が進み、各 session row で repository owner/name と既存の session 識別情報が常時分かり、選択前後で二つを判別して別々に利用できる",
+          "observations": {
+            "user_visible": [
+              "二つ目の独立した準備進行",
+              "完了後に区別できる二つの session"
+            ],
+            "assistive_technology": [
+              "既存 session と新規 session、および各 availability を別項目として認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-repository-lifecycle"
+          ],
+          "counterexample": "clone 共有、duplicate blocking、自動切替、または owner/name だけの識別不能な二行を示す実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-015",
+          "contract_refs": [
+            "exp-repository-preparation"
+          ],
+          "given": "browser と Electron-hosted の双方で、同一 repository の repository 単位 devcontainer が準備済みで、一つ目の session が存在する",
+          "when": "同じ repository の二つ目の session 作成を開始する",
+          "then": "新しい session 固有 clone の進行と既存 repository devcontainer の利用が別に分かり、新しい devcontainer 準備は開始されず、clone 完了後に二つ目が利用可能になる",
+          "observations": {
+            "user_visible": [
+              "新しい clone と既存 devcontainer 利用の区別",
+              "新しい devcontainer 準備がない"
+            ],
+            "assistive_technology": [
+              "二つ目の clone と既存環境利用を段階として識別できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-repository-lifecycle",
+            "handoff-preparation-progress"
+          ],
+          "counterexample": "二つ目にも別 devcontainer を準備しながら repository 単位と表示する実装は進行観察が異なり fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-016",
+          "contract_refs": [
+            "exp-repository-preparation"
+          ],
+          "given": "browser と Electron-hosted の双方で、repository と execution server を確認し clone を開始した",
+          "when": "clone が失敗し、利用者が retry または退出を選ぶ",
+          "then": "repository、server、失敗段階が clone として示され、未完成 session は利用可能に見えず、retry は clone 段階から始まり、退出もできる",
+          "observations": {
+            "user_visible": [
+              "clone 固有の失敗、対象、retry、退出",
+              "未完成 session の非利用可能"
+            ],
+            "assistive_technology": [
+              "失敗段階と recovery を認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-repository-lifecycle",
+            "handoff-preparation-progress"
+          ],
+          "counterexample": "clone 失敗を汎用準備失敗とする、devcontainer から retry する、または未完成 session を利用可能にする実装は fail する。",
+          "vs_legacy": "must-fail"
+        },
+        {
+          "id": "UAC-017",
+          "contract_refs": [
+            "exp-repository-preparation"
+          ],
+          "given": "browser と Electron-hosted の双方で、repository 選択後に選んだ execution server が利用不能になった",
+          "when": "利用者が server 選択面を確認する",
+          "then": "repository owner/name と query は保持され、利用不能理由が示され、無効な server 選択は解除され、focus は利用不能状態または次の server 候補へ移り、別 server の選択または退出ができる",
+          "observations": {
+            "user_visible": [
+              "保持された repository と server failure",
+              "別 server と退出"
+            ],
+            "assistive_technology": [
+              "理由、focus、次の操作を認識できる"
+            ]
+          },
+          "instrumentation_hints": [],
+          "design_handoff_refs": [
+            "handoff-target-projection",
+            "handoff-accessible-catalog"
+          ],
+          "counterexample": "repository 選択を失う、無効 server を残す、または行き止まりにする実装は fail する。",
+          "vs_legacy": "must-fail"
+        }
+      ]
+    }
+  ],
+  "states": [
+    "categorized catalog available",
+    "GitHub authentication required",
+    "repository catalog refreshing with retained results",
+    "repository catalog stale with retry",
+    "one source unavailable with healthy results retained",
+    "repository selected awaiting execution server",
+    "repository and server confirmed",
+    "session-specific clone in progress",
+    "repository devcontainer preparation in progress",
+    "preparation failed or cancelled with retry",
+    "session available"
+  ],
+  "edge_cases": [
+    {
+      "id": "edge-cross-source-name",
+      "condition": "project と repository が同名",
+      "expected_experience": "source badge と stable identity で区別する",
+      "scenario_refs": [
+        "UAC-002"
+      ]
+    },
+    {
+      "id": "edge-auth-or-source-failure",
+      "condition": "一方の catalog または認証だけが失敗",
+      "expected_experience": "健康な結果と文脈を保持して局所回復する",
+      "scenario_refs": [
+        "UAC-007",
+        "UAC-013",
+        "UAC-014"
+      ]
+    },
+    {
+      "id": "edge-selection-invalidated",
+      "condition": "repository または server が利用不能化",
+      "expected_experience": "理由、選択解除、focus、再選択または退出を示す",
+      "scenario_refs": [
+        "UAC-017",
+        "UAC-018"
+      ]
+    },
+    {
+      "id": "edge-preparation-failure",
+      "condition": "clone または devcontainer が失敗・中止",
+      "expected_experience": "対象と段階を保ち該当段階から retry する",
+      "scenario_refs": [
+        "UAC-010",
+        "UAC-011",
+        "UAC-016"
+      ]
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "assumption-search-fields",
+      "statement": "repository owner/name は初期検索に十分である可能性がある。",
+      "validation": "既知 owner/name で発見でき、owner/name 同一または曖昧候補でも目的を一意に選べることを実データ相当で確認する。",
+      "invalidation_behavior": "いずれかを満たさなければ DP-REPOSITORY-SEARCH-FIELDS を invalidated とし extended metadata の decision を再開する。",
+      "scenario_refs": [
+        "UAC-003"
+      ]
+    }
+  ],
+  "product_decisions_remaining": [
+    {
+      "decision": "repository search fields の十分性を検証する",
+      "decision_ref": "DP-REPOSITORY-SEARCH-FIELDS",
+      "contract_effect": "validation_required",
+      "rationale": "owner/name は provisional assumption であり未解決 product choice ではない。失敗時は invalidation behavior を適用する。"
+    }
+  ],
+  "product_decisions": [
+    {
+      "id": "decision-target-picker-topology",
+      "decision_ref": "DP-TARGET-TOPOLOGY",
+      "decision": "承認済みの単一入口、fleet-wide project 検索、stable server identity、既存 command 選択と確認を保った上で、repositories をどの topology で加えるか。",
+      "selected_option_ref": "OPT-TOPOLOGY-CATEGORIZED",
+      "contract_effect": "normative",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "categorized unified picker の推奨を承認した。"
+      }
+    },
+    {
+      "id": "decision-source-filter-default",
+      "decision_ref": "DP-SOURCE-FILTER-DEFAULT",
+      "decision": "picker を開いた直後の source filter は何を表示するか。",
+      "selected_option_ref": "OPT-FILTER-ALL",
+      "contract_effect": "default",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "全source初期表示の推奨を承認した。"
+      }
+    },
+    {
+      "id": "decision-row-provenance-presentation",
+      "decision_ref": "DP-ROW-PROVENANCE",
+      "decision": "各 target row で source provenance をどこまで常時表示するか。",
+      "selected_option_ref": "OPT-PROVENANCE-BADGE-CONTEXT",
+      "contract_effect": "default",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "各行にsourceとstable identityを常時表示する推奨を承認した。"
+      }
+    },
+    {
+      "id": "decision-partial-catalog-state",
+      "decision_ref": "DP-PARTIAL-CATALOG",
+      "decision": "一方の source catalog が取得不能なとき、健康な source の結果をどう扱うか。",
+      "selected_option_ref": "OPT-PARTIAL-RETAIN",
+      "contract_effect": "default",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "健康なsourceの結果と検索文脈を保持する推奨を承認した。"
+      }
+    },
+    {
+      "id": "decision-github-auth-entry",
+      "decision_ref": "DP-GITHUB-AUTH-ENTRY",
+      "decision": "GitHub 未認証時の認証 entry と、認証中断・失敗・復帰後の検索文脈をどうするか。",
+      "selected_option_ref": "OPT-AUTH-ACCOUNT-RETURN",
+      "contract_effect": "default",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "GitHub認証は設定画面で行い、完了後にNew Sessionへ戻る方針を明示した。"
+      }
+    },
+    {
+      "id": "decision-github-repository-refresh",
+      "decision_ref": "DP-REPOSITORY-REFRESH",
+      "decision": "保持された GitHub repository 一覧をいつ更新し、更新失敗時に何を残すか。",
+      "selected_option_ref": "OPT-REFRESH-BACKGROUND",
+      "contract_effect": "default",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "保持済み一覧を表示しながらbackground更新する推奨を承認した。"
+      }
+    },
+    {
+      "id": "decision-github-execution-server-selection",
+      "decision_ref": "DP-EXECUTION-SERVER",
+      "decision": "repository session の実行 server をいつ選び、利用不能時にどこへ戻るか。",
+      "selected_option_ref": "OPT-SERVER-AFTER-REPOSITORY",
+      "contract_effect": "normative",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "repository選択後に実行serverを選ぶ推奨を承認した。"
+      }
+    },
+    {
+      "id": "decision-github-clone-collision",
+      "decision_ref": "DP-CLONE-COLLISION",
+      "decision": "同じ repository の複数 session と clone 先衝突をどう扱うか。",
+      "selected_option_ref": "OPT-CLONE-ISOLATED",
+      "contract_effect": "normative",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "同じrepositoryでもsessionごとに独立cloneを作る推奨を承認した。"
+      }
+    },
+    {
+      "id": "decision-github-session-cancel-recovery",
+      "decision_ref": "DP-CANCEL-RECOVERY",
+      "decision": "clone または起動中の中止後、何を残してどこへ戻るか。",
+      "selected_option_ref": "OPT-CANCEL-RETRY",
+      "contract_effect": "normative",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "対象と失敗段階を保ったretry面を表示する推奨を承認した。"
+      }
+    },
+    {
+      "id": "decision-repository-devcontainer-progress",
+      "decision_ref": "DP-DEVCONTAINER-VISIBILITY",
+      "decision": "repository 単位 devcontainer の準備と失敗を clone からどの粒度で区別して示すか。",
+      "selected_option_ref": "OPT-DEVCONTAINER-STAGED",
+      "contract_effect": "normative",
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "cloneとdevcontainer準備を別段階で表示する推奨を承認した。"
+      }
+    }
+  ],
+  "resolved_issues": [
+    {
+      "issue": "critique-01: UAC-d3",
+      "resolution": "Then を、既知の owner/name で対象 repository を発見でき、owner/name が同じまたは曖昧な候補では利用者が目的の repository を一意に選べない失敗を観察した場合に「不十分」と判定する契約へ置き換える。"
+    },
+    {
+      "issue": "critique-02: UAC-d3 observations",
+      "resolution": "observations を、利用者が検索結果から目的の repository を発見・識別できることと、識別不能な場合にその結果が分かることへ書き換える。検証用 row や記録自体は acceptance observation から外す。"
+    },
+    {
+      "issue": "critique-03: F-d3 / UAC-d5",
+      "resolution": "Settings で認証を拒否、失敗、cancel、または back した各場合に、New Session へ戻った際の query、source filter、選択状態、focus 先、および再試行か退出を選べる結果を明記する。"
+    },
+    {
+      "issue": "critique-04: UAC-d5",
+      "resolution": "「安全に再開できる」を、復帰後も元の query と source filter が残り、focus が GitHub category の認証入口に戻り、利用者がそこから認証再試行または別候補選択を実行できる、へ置き換える。"
+    },
+    {
+      "issue": "critique-05: F-d3 acceptance_scenarios",
+      "resolution": "project catalog だけが利用不能な場合について、repository 結果と query を保持し、project source の失敗理由と回復操作を示し、repository の選択または project の再試行・退出へ進める acceptance scenario を加える。"
+    },
+    {
+      "issue": "critique-06: UAC-d7",
+      "resolution": "再試行中、成功、再失敗の各状態で元の query と source filter を保持し、選択がまだ有効なら維持し、focus を再試行対象の GitHub 状態または回復操作に残すことを Then に明記する。"
+    },
+    {
+      "issue": "critique-07: F-d4 / UAC-d9〜UAC-d12",
+      "resolution": "同一 repository の二つ目の session 作成では、新しい session clone と既存の repository 単位 devcontainer の利用が区別して示され、別の devcontainer 準備を開始しないことを観察する scenario を加える。"
+    },
+    {
+      "issue": "critique-08: UAC-d10 / UAC-d11",
+      "resolution": "clone 自体が失敗した場合に、repository と server、失敗段階が clone として示され、未完成 session は利用可能に見えず、retry が clone 段階から始まることと退出可能であることを acceptance scenario にする。"
+    },
+    {
+      "issue": "critique-09: UAC-d11",
+      "resolution": "devcontainer 準備を中止した場合の retry は、clone を再実行せず devcontainer 準備段階から進行が再開したと利用者が確認できる、と Then と counterexample に明記する。"
+    },
+    {
+      "issue": "critique-10: F-d4 back/cancel continuity",
+      "resolution": "server 選択から戻るまたは cancel した際に、repository query と選択を保持し、focus を元の repository row に戻すことを明記する。選択 server が利用不能になった場合は理由を示し、repository を保持したまま別 server の再選択または退出へ進める scenario を加える。"
+    },
+    {
+      "issue": "critique-11: experience_dimensions.client-host",
+      "resolution": "browser と Electron-hosted の双方について、同じ New Session entry、repository の検索・選択結果、Settings 認証への遷移と復帰結果を各 scenario の適用条件として明記する。"
+    },
+    {
+      "issue": "critique-12: F-d2 / UAC-d4 legacy trace",
+      "resolution": "F-d2 に、repository が候補にならない project-only catalog と、target row で source を判別できない表示を拒否する must-fail legacy delta を追加する。"
+    },
+    {
+      "issue": "critique-13: UAC-d12",
+      "resolution": "同一 repository の二つの session について、各 row で repository identity と session を区別する既存の識別情報が常時分かり、選択前と選択後に目的の session を判別して別々に利用できることを Then に明記する。"
+    },
+    {
+      "issue": "critique-14: edge_cases repository invalidation",
+      "resolution": "refresh で選択中 repository が利用不能になった場合に、選択解除と理由を示し、focus を該当 repository の状態または再選択可能な候補へ移し、別 repository の選択または退出へ進める acceptance scenario を加える。"
+    }
+  ],
+  "rejected_improvements": [],
+  "confirmed_constraints": [
+    {
+      "id": "constraint-target-types",
+      "statement": "New Session は server-defined project と GitHub repository の双方を session target として扱う。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "args.request"
+        ],
+        "rationale": "依頼で明示されている。"
+      }
+    },
+    {
+      "id": "constraint-github-catalog",
+      "statement": "GitHub repository 一覧は client で認証した GitHub context から提供され、保持される。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "args.request"
+        ],
+        "rationale": "依頼で client 認証と一覧保持が明示されている。"
+      }
+    },
+    {
+      "id": "constraint-repository-runtime",
+      "statement": "GitHub repository session は repository 単位の devcontainer を per-project mode だけで使い、session 単位で clone する。",
+      "provenance": {
+        "source": "explicit_user_requirement",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "args.request"
+        ],
+        "rationale": "依頼で lifecycle の単位が明示されている。"
+      }
+    },
+    {
+      "id": "constraint-existing-fleet-search",
+      "statement": "既承認の fleet-wide single-entry project 検索、stable server identity、既存 command 選択と確認を維持する。",
+      "provenance": {
+        "source": "existing_product_behavior",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "context:change-20260727-multi-server-session-palette"
+        ],
+        "rationale": "承認済み multi-server UX をこの変更で再決定しないため。"
+      }
+    },
+    {
+      "id": "constraint-shared-client",
+      "statement": "browser と Electron-hosted mode は shared SPA の同じ機能を提供し、credential を URL または web storage に置かない。",
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "context:design-clients-ui"
+        ],
+        "rationale": "既存設計の client parity と credential 境界である。"
+      }
+    }
+  ],
+  "existing_system_context": [
+    {
+      "id": "context-unified-project-search",
+      "statement": "既存の multi-server project palette は fleet 全体を単一入口から検索する方向で承認済みである。",
+      "provenance": {
+        "source": "existing_product_behavior",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "context:change-20260727-multi-server-session-palette"
+        ],
+        "rationale": "GitHub 追加後も維持すべき互換境界である。"
+      }
+    },
+    {
+      "id": "context-server-owned-lifecycle",
+      "statement": "session lifecycle と create authority は server/domain 側にあり、frontend は状態を投影する。",
+      "provenance": {
+        "source": "accepted_adr",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "context:design-client"
+        ],
+        "rationale": "client 認証を lifecycle authority の移管と解釈しないため。"
+      }
+    },
+    {
+      "id": "context-partial-failure",
+      "statement": "catalog の部分失敗では健康な scope と依然有効な選択を保持する UX 規律がある。",
+      "provenance": {
+        "source": "existing_product_behavior",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "context:existing-product-and-governance"
+        ],
+        "rationale": "GitHub 障害が既存 project 作成を止めないため。"
+      }
+    }
+  ],
+  "product_assumptions": [
+    {
+      "id": "assumption-search-fields",
+      "statement": "repository owner/name は初期 repository 検索に十分である。",
+      "validation": "実データ相当の repository catalog で既知 target 発見率と曖昧検索の失敗例を確認する。",
+      "invalidation_behavior": "不十分なら description 等を候補に追加し、ranking の予測可能性を再検証する。",
+      "decision_refs": [
+        "DP-REPOSITORY-SEARCH-FIELDS"
+      ],
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "draft-2:decision-repository-search-fields"
+        ],
+        "rationale": "追加 metadata の必要性は未検証である。"
+      }
+    }
+  ],
+  "design_hypotheses": [],
+  "decision_points": [
+    {
+      "id": "DP-TARGET-TOPOLOGY",
+      "decision_key": "target-picker-topology",
+      "question": "承認済みの単一入口、fleet-wide project 検索、stable server identity、既存 command 選択と確認を保った上で、repositories をどの topology で加えるか。",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-TOPOLOGY-CATEGORIZED",
+          "label": "Unified categorized",
+          "outcome": "単一 query で両 source を検索し、source category ごとの sections に結果を示す"
+        },
+        {
+          "id": "OPT-TOPOLOGY-SOURCE-FIRST",
+          "label": "Source first",
+          "outcome": "単一入口の後で source を選び、source-specific results を検索する"
+        },
+        {
+          "id": "OPT-TOPOLOGY-INTERLEAVED",
+          "label": "Unified interleaved",
+          "outcome": "単一 query で両 source を検索し、category 分けせず混在表示する"
+        },
+        {
+          "id": "OPT-TOPOLOGY-SIBLING",
+          "label": "Sibling commands",
+          "outcome": "単一入口内の source 別 command から各 browser へ進む"
+        }
+      ],
+      "selected_option_ref": "OPT-TOPOLOGY-CATEGORIZED",
+      "user_impact": [
+        "横断発見のしやすさ",
+        "既存 project flow の追加 step",
+        "source ごとの部分失敗の理解"
+      ],
+      "affected_refs": [
+        "goal-find-target",
+        "goal-preserve-project-flow",
+        "goal-recover-catalog"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "categorized unified picker の推奨を承認した。"
+      }
+    },
+    {
+      "id": "DP-SOURCE-FILTER-DEFAULT",
+      "decision_key": "source-filter-default",
+      "question": "picker を開いた直後の source filter は何を表示するか。",
+      "layer": "product",
+      "subject": "default",
+      "consultation_policy": "may_default",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-FILTER-ALL",
+          "label": "All sources",
+          "outcome": "初期状態で projects と repositories の双方を表示する"
+        },
+        {
+          "id": "OPT-FILTER-LAST",
+          "label": "Remember source",
+          "outcome": "前回利用した source filter を初期状態にする"
+        }
+      ],
+      "selected_option_ref": "OPT-FILTER-ALL",
+      "user_impact": [
+        "新しい source の discoverability と反復操作量が変わる"
+      ],
+      "affected_refs": [
+        "goal-find-target"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "全source初期表示の推奨を承認した。"
+      }
+    },
+    {
+      "id": "DP-ROW-PROVENANCE",
+      "decision_key": "row-provenance-presentation",
+      "question": "各 target row で source provenance をどこまで常時表示するか。",
+      "layer": "presentation",
+      "subject": "outcome",
+      "consultation_policy": "may_default",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-PROVENANCE-BADGE-CONTEXT",
+          "label": "Badge and context",
+          "outcome": "全 row に source と、project の server identity または repository の owner/name を常時示す"
+        },
+        {
+          "id": "OPT-PROVENANCE-CATEGORY-CONTEXT",
+          "label": "Category and context",
+          "outcome": "category heading と stable identity で区別し、row badge は省略する"
+        }
+      ],
+      "selected_option_ref": "OPT-PROVENANCE-BADGE-CONTEXT",
+      "user_impact": [
+        "同名 target の誤認",
+        "row 単体で支援技術から source を把握できるか"
+      ],
+      "affected_refs": [
+        "goal-find-target",
+        "goal-preserve-project-flow"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "各行にsourceとstable identityを常時表示する推奨を承認した。"
+      }
+    },
+    {
+      "id": "DP-REPOSITORY-SEARCH-FIELDS",
+      "decision_key": "repository-search-fields",
+      "question": "GitHub repository の query match 対象をどこまで含めるか。",
+      "layer": "performance",
+      "subject": "target",
+      "consultation_policy": "validate",
+      "contract_effect": "validation_required",
+      "answer_status": "unanswered",
+      "validation_status": "required",
+      "options": [
+        {
+          "id": "OPT-SEARCH-OWNER-NAME",
+          "label": "Owner and name",
+          "outcome": "repository owner と name の表示値を検索対象にする"
+        },
+        {
+          "id": "OPT-SEARCH-EXTENDED",
+          "label": "Extended metadata",
+          "outcome": "owner/name に加えて description 等も検索対象にする"
+        }
+      ],
+      "selected_option_ref": null,
+      "user_impact": [
+        "曖昧な記憶からの発見率と ranking の予測可能性が変わる"
+      ],
+      "affected_refs": [
+        "goal-find-target",
+        "assumption-search-fields"
+      ],
+      "recommendation": {
+        "option_ref": "OPT-SEARCH-OWNER-NAME",
+        "basis": "explicit_user_goal",
+        "evidence_refs": [
+          "args.request"
+        ],
+        "confidence": "medium",
+        "reversibility": "easy"
+      },
+      "provenance": {
+        "source": "proposed_for_validation",
+        "confidence": "provisional",
+        "evidence_refs": [
+          "draft-2"
+        ],
+        "rationale": "初期検索 field は利用実態で検証する。"
+      }
+    },
+    {
+      "id": "DP-PARTIAL-CATALOG",
+      "decision_key": "partial-catalog-state",
+      "question": "一方の source catalog が取得不能なとき、健康な source の結果をどう扱うか。",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "may_default",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-PARTIAL-RETAIN",
+          "label": "Retain healthy results",
+          "outcome": "健康な結果と検索文脈を保ち、失敗 source だけに理由と recovery を示す"
+        },
+        {
+          "id": "OPT-PARTIAL-BLOCK",
+          "label": "Block combined picker",
+          "outcome": "両 source が揃うまで picker 全体を利用不能にする"
+        }
+      ],
+      "selected_option_ref": "OPT-PARTIAL-RETAIN",
+      "user_impact": [
+        "GitHub 障害が既存 project creation を止めるかが変わる"
+      ],
+      "affected_refs": [
+        "goal-preserve-project-flow",
+        "goal-recover-catalog"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "健康なsourceの結果と検索文脈を保持する推奨を承認した。"
+      }
+    },
+    {
+      "id": "DP-GITHUB-AUTH-ENTRY",
+      "decision_key": "github-auth-entry",
+      "question": "GitHub 未認証時の認証 entry と、認証中断・失敗・復帰後の検索文脈をどうするか。",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-AUTH-INLINE-PRESERVE",
+          "label": "Inline and preserve context",
+          "outcome": "GitHub category から認証し、拒否・期限切れ・成功後も query、filter、selection、focus を可能な範囲で保つ"
+        },
+        {
+          "id": "OPT-AUTH-ACCOUNT-RETURN",
+          "label": "Account surface and return",
+          "outcome": "account surface で認証し、完了後は同じ query と filter に戻り、selection と focus は GitHub category の入口へ戻す"
+        },
+        {
+          "id": "OPT-AUTH-RESET",
+          "label": "Authenticate then reset",
+          "outcome": "認証完了または失敗後に New Session の初期表示へ戻る"
+        }
+      ],
+      "selected_option_ref": "OPT-AUTH-ACCOUNT-RETURN",
+      "user_impact": [
+        "認証による中断量",
+        "keyboard・pointer・screen-reader の操作位置と検索文脈の continuity"
+      ],
+      "affected_refs": [
+        "goal-find-target",
+        "goal-recover-catalog"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "GitHub認証は設定画面で行い、完了後にNew Sessionへ戻る方針を明示した。"
+      }
+    },
+    {
+      "id": "DP-REPOSITORY-REFRESH",
+      "decision_key": "github-repository-refresh",
+      "question": "保持された GitHub repository 一覧をいつ更新し、更新失敗時に何を残すか。",
+      "layer": "product",
+      "subject": "default",
+      "consultation_policy": "must_ask",
+      "contract_effect": "default",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-REFRESH-MANUAL",
+          "label": "Manual refresh",
+          "outcome": "保持済み一覧を表示し、明示操作で更新する"
+        },
+        {
+          "id": "OPT-REFRESH-ON-OPEN",
+          "label": "Refresh on open",
+          "outcome": "GitHub 候補を開くたびに更新完了を待つ"
+        },
+        {
+          "id": "OPT-REFRESH-BACKGROUND",
+          "label": "Background refresh",
+          "outcome": "保持済み一覧を表示しながら更新し、失敗時は stale 表示と再試行を示す"
+        }
+      ],
+      "selected_option_ref": "OPT-REFRESH-BACKGROUND",
+      "user_impact": [
+        "初期表示速度",
+        "catalog 鮮度",
+        "更新失敗時の継続利用"
+      ],
+      "affected_refs": [
+        "goal-find-target",
+        "goal-recover-catalog"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "保持済み一覧を表示しながらbackground更新する推奨を承認した。"
+      }
+    },
+    {
+      "id": "DP-EXECUTION-SERVER",
+      "decision_key": "github-execution-server-selection",
+      "question": "repository session の実行 server をいつ選び、利用不能時にどこへ戻るか。",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-SERVER-BEFORE-REPOSITORY",
+          "label": "Server before repository",
+          "outcome": "server を選んで stable identity を示した後に repository を選ぶ"
+        },
+        {
+          "id": "OPT-SERVER-AFTER-REPOSITORY",
+          "label": "Server after repository",
+          "outcome": "repository 選択後に server を選び、確認面で両方を示す"
+        },
+        {
+          "id": "OPT-SERVER-IN-ROW",
+          "label": "Server-qualified repository choices",
+          "outcome": "repository と実行可能 server の組を候補として示す"
+        }
+      ],
+      "selected_option_ref": "OPT-SERVER-AFTER-REPOSITORY",
+      "user_impact": [
+        "repository 発見前の絞り込み",
+        "作成先の予測可能性",
+        "server failure の scope と戻り先"
+      ],
+      "affected_refs": [
+        "goal-find-target",
+        "goal-create-repository-session"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "repository選択後に実行serverを選ぶ推奨を承認した。"
+      }
+    },
+    {
+      "id": "DP-CLONE-COLLISION",
+      "decision_key": "github-clone-collision",
+      "question": "同じ repository の複数 session と clone 先衝突をどう扱うか。",
+      "layer": "product",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-CLONE-ISOLATED",
+          "label": "Always isolate",
+          "outcome": "同じ repository でも各 session に独立 clone を作る"
+        },
+        {
+          "id": "OPT-CLONE-BLOCK",
+          "label": "Block duplicate",
+          "outcome": "既存 session がある場合は作成を止め、既存 session への導線を示す"
+        },
+        {
+          "id": "OPT-CLONE-ASK",
+          "label": "Ask on duplicate",
+          "outcome": "独立 clone 作成または既存 session 利用を選ばせる"
+        }
+      ],
+      "selected_option_ref": "OPT-CLONE-ISOLATED",
+      "user_impact": [
+        "並行作業の可否",
+        "作業コピーの独立性",
+        "衝突時の recovery"
+      ],
+      "affected_refs": [
+        "goal-create-repository-session"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "同じrepositoryでもsessionごとに独立cloneを作る推奨を承認した。"
+      }
+    },
+    {
+      "id": "DP-CANCEL-RECOVERY",
+      "decision_key": "github-session-cancel-recovery",
+      "question": "clone または起動中の中止後、何を残してどこへ戻るか。",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-CANCEL-RETURN-TARGET",
+          "label": "Return to target",
+          "outcome": "部分 session を利用可能に見せず、repository と server の選択を保って戻る"
+        },
+        {
+          "id": "OPT-CANCEL-CLOSE",
+          "label": "Close flow",
+          "outcome": "部分 session を利用可能に見せず New Session を閉じる"
+        },
+        {
+          "id": "OPT-CANCEL-RETRY",
+          "label": "Offer retry",
+          "outcome": "失敗段階と選択を保った再試行面を示す"
+        }
+      ],
+      "selected_option_ref": "OPT-CANCEL-RETRY",
+      "user_impact": [
+        "中止後の残存物の理解",
+        "再試行までの操作量"
+      ],
+      "affected_refs": [
+        "goal-create-repository-session"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "対象と失敗段階を保ったretry面を表示する推奨を承認した。"
+      }
+    },
+    {
+      "id": "DP-DEVCONTAINER-VISIBILITY",
+      "decision_key": "repository-devcontainer-progress",
+      "question": "repository 単位 devcontainer の準備と失敗を clone からどの粒度で区別して示すか。",
+      "layer": "interaction",
+      "subject": "outcome",
+      "consultation_policy": "must_ask",
+      "contract_effect": "normative",
+      "answer_status": "answered",
+      "validation_status": "not_applicable",
+      "options": [
+        {
+          "id": "OPT-DEVCONTAINER-STAGED",
+          "label": "Staged progress",
+          "outcome": "clone と devcontainer 準備を別段階として示し、失敗段階と再試行または退出を示す"
+        },
+        {
+          "id": "OPT-DEVCONTAINER-COMBINED",
+          "label": "Combined preparation",
+          "outcome": "session 準備としてまとめて示すが、失敗時は clone と devcontainer のどちらかを識別する"
+        }
+      ],
+      "selected_option_ref": "OPT-DEVCONTAINER-STAGED",
+      "user_impact": [
+        "待機理由の理解",
+        "失敗時に有効な recovery の選択"
+      ],
+      "affected_refs": [
+        "goal-create-repository-session"
+      ],
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "consultation-20260728-github-repository-sessions",
+          "conversation:2026-07-28"
+        ],
+        "rationale": "cloneとdevcontainer準備を別段階で表示する推奨を承認した。"
+      }
+    }
+  ],
+  "technology_candidates": [
+    {
+      "id": "candidate-github-app-auth",
+      "candidate": "GitHub App または OAuth device/web flow による client-mediated authentication",
+      "source": "explicit_user_input",
+      "proposed_for": [
+        "repository catalog access",
+        "credential-safe authentication"
+      ],
+      "required_capabilities": [
+        "browser と Electron の shared UX",
+        "credential を URL/web storage に置かない",
+        "拒否・期限切れ・再認証を区別できる"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "健康な server projects を認証失敗で遮断しない",
+        "選択した auth recovery policy を実現できる"
+      ],
+      "design_questions": [
+        "credential mediation の authority と保存境界",
+        "browser と Electron の callback handoff"
+      ],
+      "disqualifiers": [
+        "bearer credential を URL または web storage に置く",
+        "frontend を session lifecycle authority にする"
+      ]
+    },
+    {
+      "id": "candidate-github-repository-api",
+      "candidate": "GitHub repository listing API with pagination and refresh metadata",
+      "source": "planner_proposal",
+      "proposed_for": [
+        "repository catalog",
+        "loading・stale・partial failure の観察"
+      ],
+      "required_capabilities": [
+        "owner/name を含む識別",
+        "pagination",
+        "失敗 source の局所化"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "保持済み一覧と鮮度を区別できる",
+        "refresh policy の options を実現できる"
+      ],
+      "design_questions": [
+        "refresh metadata の正本",
+        "rate limit と pagination の扱い"
+      ],
+      "disqualifiers": [
+        "GitHub 取得失敗で project catalog 全体を利用不能にする"
+      ]
+    },
+    {
+      "id": "candidate-unified-target-model",
+      "candidate": "source-discriminated target projection shared by browser and Electron SPA hosts",
+      "source": "repository_context",
+      "proposed_for": [
+        "project と repository の一貫した row semantics",
+        "stable source identity"
+      ],
+      "required_capabilities": [
+        "server project と repository を区別する",
+        "project server identity と repository owner/name を保持する"
+      ],
+      "ux_constraints_relevant_to_evaluation": [
+        "同名 target が常時識別可能",
+        "shared SPA の feature parity"
+      ],
+      "design_questions": [
+        "static metadata の REST projection",
+        "repository と execution server の typed association"
+      ],
+      "disqualifiers": [
+        "host mode ごとの feature fork",
+        "source identity を hover のみに隠す"
+      ]
+    }
+  ],
+  "quality_thresholds": [],
+  "delivery_slices": [
+    {
+      "id": "slice-initial",
+      "horizon": "initial",
+      "goal": "categorized discovery、認証・部分失敗 recovery、repository session の段階別準備を end-to-end で提供する。",
+      "flow_refs": [
+        "F-001",
+        "F-002",
+        "F-003",
+        "F-004"
+      ],
+      "excluded_capabilities": [
+        "検証前の extended repository search",
+        "source-first/interleaved topology",
+        "clone 共有",
+        "per-session devcontainer"
+      ]
+    },
+    {
+      "id": "slice-follow-up-search-fields",
+      "horizon": "follow_up",
+      "goal": "owner/name validation が invalidated の場合だけ search fields を再決定する。",
+      "flow_refs": [],
+      "excluded_capabilities": [
+        "検証なしの extended metadata 採用",
+        "topology/ranking の同時 redesign"
+      ]
+    }
+  ],
+  "observable_state_contracts": [
+    {
+      "id": "state-catalog",
+      "subject": "categorized target catalog",
+      "states": [
+        "available",
+        "refreshing-retained",
+        "authentication-required",
+        "source-failed-retained"
+      ],
+      "initial_state": "available",
+      "transitions": [
+        {
+          "from": "available",
+          "trigger": "background refresh",
+          "to": "refreshing-retained"
+        },
+        {
+          "from": "refreshing-retained",
+          "trigger": "refresh failure",
+          "to": "source-failed-retained"
+        },
+        {
+          "from": "authentication-required",
+          "trigger": "authentication success",
+          "to": "available"
+        },
+        {
+          "from": "source-failed-retained",
+          "trigger": "retry success",
+          "to": "available"
+        }
+      ],
+      "invariants": [
+        "健康な source と query/filter を保持",
+        "source badge と identity を常時提示"
+      ],
+      "scenario_refs": [
+        "UAC-001",
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014",
+        "UAC-018"
+      ]
+    },
+    {
+      "id": "state-repository-target",
+      "subject": "repository and execution server selection",
+      "states": [
+        "repository-unselected",
+        "repository-selected",
+        "server-confirmed",
+        "server-invalid"
+      ],
+      "initial_state": "repository-unselected",
+      "transitions": [
+        {
+          "from": "repository-unselected",
+          "trigger": "repository select",
+          "to": "repository-selected"
+        },
+        {
+          "from": "repository-selected",
+          "trigger": "server select",
+          "to": "server-confirmed"
+        },
+        {
+          "from": "server-confirmed",
+          "trigger": "server unavailable",
+          "to": "server-invalid"
+        },
+        {
+          "from": "server-invalid",
+          "trigger": "alternate server select",
+          "to": "server-confirmed"
+        }
+      ],
+      "invariants": [
+        "repository を server より先に選ぶ",
+        "戻る・server failure でも repository query を保持"
+      ],
+      "scenario_refs": [
+        "UAC-002",
+        "UAC-008",
+        "UAC-017"
+      ]
+    },
+    {
+      "id": "state-repository-preparation",
+      "subject": "repository session availability",
+      "states": [
+        "confirmed",
+        "clone-in-progress",
+        "devcontainer-in-progress",
+        "failed-or-cancelled",
+        "available"
+      ],
+      "initial_state": "confirmed",
+      "transitions": [
+        {
+          "from": "confirmed",
+          "trigger": "create",
+          "to": "clone-in-progress"
+        },
+        {
+          "from": "clone-in-progress",
+          "trigger": "clone complete and environment absent",
+          "to": "devcontainer-in-progress"
+        },
+        {
+          "from": "clone-in-progress",
+          "trigger": "clone complete and environment ready",
+          "to": "available"
+        },
+        {
+          "from": "devcontainer-in-progress",
+          "trigger": "complete",
+          "to": "available"
+        },
+        {
+          "from": "clone-in-progress",
+          "trigger": "failure or cancel",
+          "to": "failed-or-cancelled"
+        },
+        {
+          "from": "devcontainer-in-progress",
+          "trigger": "failure or cancel",
+          "to": "failed-or-cancelled"
+        }
+      ],
+      "invariants": [
+        "未完成 session は available でない",
+        "retry は保持段階から再開",
+        "各 session clone は独立、devcontainer は repository 単位"
+      ],
+      "scenario_refs": [
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016"
+      ]
+    },
+    {
+      "id": "state-search-validation",
+      "subject": "repository search field assumption",
+      "states": [
+        "validation-required",
+        "validated",
+        "invalidated"
+      ],
+      "initial_state": "validation-required",
+      "transitions": [
+        {
+          "from": "validation-required",
+          "trigger": "all criteria met",
+          "to": "validated"
+        },
+        {
+          "from": "validation-required",
+          "trigger": "known target or ambiguous identification fails",
+          "to": "invalidated"
+        }
+      ],
+      "invariants": [
+        "validation 前に extended metadata を確定しない",
+        "invalidated は product blocker でなく follow-up decision を再開"
+      ],
+      "scenario_refs": [
+        "UAC-003"
+      ]
+    }
+  ],
+  "design_handoffs": [
+    {
+      "id": "handoff-auth-mediation",
+      "required_outcome": "Settings の account surface を経る GitHub 認証と New Session 復帰を、credential 境界を破らず browser と Electron で同じ体験にする。",
+      "design_obligations": [
+        "credential authority と callback 境界を定める",
+        "URL または web storage に bearer credential を置かない",
+        "query/filter と GitHub category 入口の復元責務を定める"
+      ],
+      "verification_obligations": [
+        "未認証、拒否、失敗、成功復帰を browser と Electron で照合する",
+        "外部依存の fake、invariant contract、FakeVsReal backstop を配置する"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "explore-plan-reconciled",
+          "handoff-auth-mediation"
+        ],
+        "rationale": "explore_plan:handoff-auth-mediation、DP-GITHUB-AUTH-ENTRY、constraint-shared-client"
+      },
+      "decision_refs": [
+        "DP-GITHUB-AUTH-ENTRY"
+      ]
+    },
+    {
+      "id": "handoff-target-projection",
+      "required_outcome": "project と repository の source、stable identity、execution server を shared clients へ一貫して投影する。",
+      "design_obligations": [
+        "source-discriminated target と repository/server association を型で表す",
+        "server-owned lifecycle authority を保つ",
+        "host mode ごとの feature fork を作らない"
+      ],
+      "verification_obligations": [
+        "同名 cross-source target、fleet-wide projects、repository 選択後の server 選択を browser と Electron の双方で検証する"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "explore-plan-reconciled",
+          "handoff-target-projection"
+        ],
+        "rationale": "explore_plan:handoff-target-projection、DP-TARGET-TOPOLOGY、DP-ROW-PROVENANCE、DP-EXECUTION-SERVER"
+      },
+      "decision_refs": [
+        "DP-TARGET-TOPOLOGY",
+        "DP-ROW-PROVENANCE",
+        "DP-EXECUTION-SERVER"
+      ]
+    },
+    {
+      "id": "handoff-accessible-catalog",
+      "required_outcome": "category、row provenance、loading、stale、source-scoped failure、recovery の意味と操作可能性を全 modality で同等に伝える。",
+      "design_obligations": [
+        "視覚だけに依存しない category と source identity を定める",
+        "状態変化と focus recovery の支援技術向け意味を定める",
+        "健康な候補の操作を error 状態から分離する"
+      ],
+      "verification_obligations": [
+        "keyboard、pointer、accessibility tree で entry、selection、Settings 復帰、refresh、部分失敗を検証する",
+        "hover-only provenance と global blocking の counterexample を must-fail にする"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "explore-plan-reconciled",
+          "handoff-accessible-catalog"
+        ],
+        "rationale": "DP-ROW-PROVENANCE、DP-PARTIAL-CATALOG、DP-GITHUB-AUTH-ENTRY、DP-REPOSITORY-REFRESH"
+      },
+      "decision_refs": [
+        "DP-ROW-PROVENANCE",
+        "DP-PARTIAL-CATALOG",
+        "DP-GITHUB-AUTH-ENTRY",
+        "DP-REPOSITORY-REFRESH"
+      ]
+    },
+    {
+      "id": "handoff-repository-lifecycle",
+      "required_outcome": "server-owned creation authority の下で session 固有 clone と repository 単位 per-project devcontainer を一貫して管理する。",
+      "design_obligations": [
+        "同一 repository の session clone を隔離する",
+        "repository と execution server の確認を create authority へ渡す",
+        "失敗または中止した部分 session を available として投影しない"
+      ],
+      "verification_obligations": [
+        "成功、clone failure、devcontainer failure、cancel、retry、同一 repository の複数 session を検証する",
+        "外部依存ごとに fake、invariant contract、FakeVsReal backstop を配置する"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "explore-plan-reconciled",
+          "handoff-repository-lifecycle"
+        ],
+        "rationale": "constraint-repository-runtime、context-server-owned-lifecycle、DP-CLONE-COLLISION、DP-CANCEL-RECOVERY"
+      },
+      "decision_refs": [
+        "DP-CLONE-COLLISION",
+        "DP-CANCEL-RECOVERY"
+      ]
+    },
+    {
+      "id": "handoff-preparation-progress",
+      "required_outcome": "clone と devcontainer 準備の段階、失敗、中止、retry、availability を視覚と支援技術で判別可能にする。",
+      "design_obligations": [
+        "段階遷移と失敗 scope の user-facing vocabulary を定める",
+        "retry 面で repository、server、失敗または中止段階を保持する",
+        "通知方式や timing threshold は設計時に検証可能な形で定める"
+      ],
+      "verification_obligations": [
+        "段階順序、失敗段階、retry、退出、未完成 session 非表示を各 modality で検証する"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "explore-plan-reconciled",
+          "handoff-preparation-progress"
+        ],
+        "rationale": "DP-DEVCONTAINER-VISIBILITY、DP-CANCEL-RECOVERY"
+      },
+      "decision_refs": [
+        "DP-DEVCONTAINER-VISIBILITY",
+        "DP-CANCEL-RECOVERY"
+      ]
+    },
+    {
+      "id": "handoff-search-validation",
+      "required_outcome": "owner/name を provisional initial search scope として検証し、不十分なら extended metadata の decision を再開する。",
+      "design_obligations": [
+        "owner/name と query の対応が予測可能な初期 behavior を定める",
+        "description 等を検証前の confirmed capability に含めない",
+        "invalidation 後の変更を topology/ranking redesign と束ねない"
+      ],
+      "verification_obligations": [
+        "実データ相当 catalog で既知 target 発見と曖昧記憶の失敗例を収集する",
+        "validated または invalidated の根拠を DP-REPOSITORY-SEARCH-FIELDS に記録する"
+      ],
+      "provenance": {
+        "source": "repository_evidence",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "explore-plan-reconciled",
+          "handoff-search-validation"
+        ],
+        "rationale": "DP-REPOSITORY-SEARCH-FIELDS、assumption-search-fields"
+      },
+      "decision_refs": [
+        "DP-REPOSITORY-SEARCH-FIELDS"
+      ]
+    }
+  ],
+  "critique_resolutions": [
+    {
+      "issue_ref": "critique-01",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-003"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "UAC-d3"
+        ],
+        "rationale": "既知 target を発見できない結果や曖昧候補を識別できない結果を、根拠なく「十分」とする実装が acceptance を通らない。"
+      }
+    },
+    {
+      "issue_ref": "critique-02",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-003"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "UAC-d3 observations"
+        ],
+        "rationale": "合否が検証記録ではなく、検索時に利用者が知覚できる発見・識別結果で決まる。"
+      }
+    },
+    {
+      "issue_ref": "critique-03",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-013"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "F-d3 / UAC-d5"
+        ],
+        "rationale": "認証を完了しなかった利用者も検索文脈を失わず、認証再試行または New Session からの退出へ進める。"
+      }
+    },
+    {
+      "issue_ref": "critique-04",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-005"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "UAC-d5"
+        ],
+        "rationale": "復帰後の文脈と操作開始位置を利用者が視覚または支援技術で確認できる。"
+      }
+    },
+    {
+      "issue_ref": "critique-05",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-014"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "F-d3 acceptance_scenarios"
+        ],
+        "rationale": "project 側だけの障害でも健康な repository source を失わず、失敗範囲と次の操作を理解できる。"
+      }
+    },
+    {
+      "issue_ref": "critique-06",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-007"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "UAC-d7"
+        ],
+        "rationale": "利用者が再試行の状態遷移を同じ検索文脈と操作位置で追跡できる。"
+      }
+    },
+    {
+      "issue_ref": "critique-07",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-015"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "F-d4 / UAC-d9〜UAC-d12"
+        ],
+        "rationale": "session ごとに devcontainer を新設する誤実装が、二つ目の session の準備表示と結果で失敗する。"
+      }
+    },
+    {
+      "issue_ref": "critique-08",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-016"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "UAC-d10 / UAC-d11"
+        ],
+        "rationale": "clone failure の原因範囲、session の非利用可能状態、再試行の開始段階を利用者が確認できる。"
+      }
+    },
+    {
+      "issue_ref": "critique-09",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-011"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "UAC-d11"
+        ],
+        "rationale": "devcontainer 中止後に clone からやり直す実装が、再開段階の観察で acceptance を通らない。"
+      }
+    },
+    {
+      "issue_ref": "critique-10",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-008",
+        "UAC-017"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "F-d4 back/cancel continuity"
+        ],
+        "rationale": "戻る操作や server 不可時にも repository の検索文脈と操作位置が保たれ、利用者が再選択または退出できる。"
+      }
+    },
+    {
+      "issue_ref": "critique-11",
+      "change_class": "preserve_modality_equivalence",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-001",
+        "UAC-002",
+        "UAC-003",
+        "UAC-018",
+        "UAC-004",
+        "UAC-019",
+        "UAC-005",
+        "UAC-006",
+        "UAC-007",
+        "UAC-013",
+        "UAC-014",
+        "UAC-008",
+        "UAC-009",
+        "UAC-010",
+        "UAC-011",
+        "UAC-012",
+        "UAC-015",
+        "UAC-016",
+        "UAC-017"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "experience_dimensions.client-host"
+        ],
+        "rationale": "どちらか一方だけが repository session 体験を提供する実装が acceptance を通らない。"
+      }
+    },
+    {
+      "issue_ref": "critique-12",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-019"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "F-d2 / UAC-d4 legacy trace"
+        ],
+        "rationale": "旧 project-only catalog または source 非表示のままの実装が、新しい discovery flow の適合と判定されない。"
+      }
+    },
+    {
+      "issue_ref": "critique-13",
+      "change_class": "clarify_existing_contract",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-012"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "UAC-d12"
+        ],
+        "rationale": "同じ owner/name だけの識別不能な二項目を表示する実装が acceptance を通らない。"
+      }
+    },
+    {
+      "issue_ref": "critique-14",
+      "change_class": "close_required_failure_path",
+      "disposition": "patch_contract",
+      "resulting_refs": [
+        "UAC-018"
+      ],
+      "provenance": {
+        "source": "critic_proposal",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "critique.json",
+          "edge_cases repository invalidation"
+        ],
+        "rationale": "無効な選択が残ることなく、利用者が理由と次の操作を視覚または支援技術で確認できる。"
+      }
+    }
+  ],
+  "open_questions": []
+}
