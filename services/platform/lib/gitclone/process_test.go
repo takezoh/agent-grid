@@ -108,7 +108,7 @@ func TestGitCloneAuthorityAndFailureContract(t *testing.T) {
 	}
 	fail := Service{}.Clone(context.Background(), CloneRequest{
 		Owner: "acme", Name: "widgets", DestDir: dest,
-		Cred: Credential{Username: "x-access-token", Token: "tok"},
+		Cred:   Credential{Username: "x-access-token", Token: "tok"},
 		Runner: &ScriptedRunner{Code: 1}, Timeout: time.Second,
 	})
 	if fail.Code != CodeCloneFailed {
