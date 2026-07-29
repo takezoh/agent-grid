@@ -2,7 +2,7 @@
 id: task-20260728-secure-clone-authority
 kind: task
 title: Authenticated lease and replay-resistant clone authority
-status: todo
+status: done
 created: '2026-07-28'
 priority: critical
 effort: large
@@ -47,6 +47,7 @@ max_diff_loc: 1000
 change: change-20260728-github-repository-sessions
 summary: Admit repository authority only on secure authenticated exact-version routes
   and consume it once through a sanitized askpass broker.
+updated: '2026-07-29'
 ---
 
 # Authenticated lease and replay-resistant clone authority
@@ -78,3 +79,13 @@ credential の永続化、URL 埋め込み、環境変数注入、汎用 Git cre
 - lease は repository-bound、one-use、60 秒、host あたり最大 32 件で、replay・expiry・revoke・peer mismatch を拒否する。
 - sentinel が URL、argv、environment、git config、filesystem、record、log、diagnostic に現れない。
 - `cd services && GOCACHE=/tmp/gocache-agent-grid go test ./server/api/... ./platform/lib/gitclone/... ./platform/procgroup/... ./cmd/server/...` が成功する。
+
+
+{% transition from="todo" to="in_progress" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}

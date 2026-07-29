@@ -2,7 +2,7 @@
 id: task-20260728-repository-fleet-ux
 kind: task
 title: Categorized accessible repository picker UX
-status: todo
+status: done
 created: '2026-07-28'
 priority: high
 effort: large
@@ -37,6 +37,7 @@ max_diff_loc: 3000
 change: change-20260728-github-repository-sessions
 summary: Consume the credential-free host projection in the shared SPA and deliver
   the accessible categorized repository-first picker and staged recovery flow.
+updated: '2026-07-29'
 ---
 
 # Categorized accessible repository picker UX
@@ -70,3 +71,13 @@ source-first topology、interleaved ranking、inline OAuth、extended metadata�
 - repository→server→clone→devcontainer/reuse→available の順序と、cancel/retry/invalidation の context preservation が観測できる。
 - owner/name-only search corpus の known-target または ambiguity failure は assumption を invalidated にし、metadata/ranking を黙って拡張しない。
 - `cd clients/ui && npm run lint && npm run test:unit && npm run test:e2e && npm run test:e2e:real` が成功する。T3 authorityが無い場合はnamed authorityとexplicit skip evidenceを記録する。
+
+
+{% transition from="todo" to="in_progress" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}

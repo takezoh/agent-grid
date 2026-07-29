@@ -2,7 +2,7 @@
 id: task-20260728-durable-repository-preparation
 kind: task
 title: Durable repository preparation and environment runtime
-status: todo
+status: done
 created: '2026-07-28'
 priority: critical
 effort: large
@@ -65,6 +65,7 @@ max_diff_loc: 2200
 change: change-20260728-github-repository-sessions
 summary: Compose durable preparation, atomic clone publication, restart recovery,
   and repository-scoped devcontainer reuse through the closed Runtime interpreter.
+updated: '2026-07-29'
 ---
 
 # Durable repository preparation and environment runtime
@@ -98,3 +99,13 @@ UI projection、completed workspace retention policy、shared clone、per-sessio
 - 同じserver/repository/config generationはready environmentを再利用し、別scope/conflicting generationは共有しない。
 - sessions rootだけがrepository mount scopeとなり各frame cwdはsession cloneになる。terminal launch成功resultだけがpreparationをavailableへ一度commitし、failure/cancel/late-success raceはSessionを公開せず資源を解放する。
 - `cd services && GOCACHE=/tmp/gocache-agent-grid go test ./host/state/... ./host/runtime/... ./platform/lib/gitclone/... ./platform/sandbox/... ./platform/agentlaunch/...` が成功し、filesystem/process/devcontainer fakesとlaunch race testsが通る。
+
+
+{% transition from="todo" to="in_progress" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}

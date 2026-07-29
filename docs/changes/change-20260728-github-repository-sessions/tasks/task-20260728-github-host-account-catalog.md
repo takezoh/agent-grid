@@ -2,7 +2,7 @@
 id: task-20260728-github-host-account-catalog
 kind: task
 title: Web-host GitHub account and retained catalog
-status: todo
+status: done
 created: '2026-07-28'
 priority: high
 effort: large
@@ -35,6 +35,7 @@ max_diff_loc: 800
 change: change-20260728-github-repository-sessions
 summary: Implement fixed OAuth device flow, protected credential ownership, retained
   complete-generation catalog, and credential-free projection in the Web host.
+updated: '2026-07-29'
 ---
 
 # Web-host GitHub account and retained catalog
@@ -66,3 +67,13 @@ Workspace/Electron実装、SPA 内認証、web storage、`gh auth` 依存、serv
 - Web hostの`GitHubCatalogContract`がsingleflight、全上限、partial-generation非公開、stale fallback、source-local failureを検証する。
 - shared config schema/fixtureが固定OAuth Appとcredential-free projectionだけを公開する。
 - `cd clients/web-host && GOCACHE=/tmp/gocache-agent-grid go test ./...` が成功する。
+
+
+{% transition from="todo" to="in_progress" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}

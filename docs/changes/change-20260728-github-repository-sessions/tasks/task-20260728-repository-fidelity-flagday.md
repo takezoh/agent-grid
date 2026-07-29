@@ -2,7 +2,7 @@
 id: task-20260728-repository-fidelity-flagday
 kind: task
 title: External fidelity and exact-version flag day
-status: todo
+status: done
 created: '2026-07-28'
 priority: high
 effort: large
@@ -41,6 +41,7 @@ max_diff_loc: 1000
 change: change-20260728-github-repository-sessions
 summary: Complete all dependency triples and migrate every protocol consumer under
   the same exact-version token.
+updated: '2026-07-29'
 ---
 
 # External fidelity and exact-version flag day
@@ -72,3 +73,13 @@ repository protocol の closed consumer inventory を同じ exact-version token 
 - old/new mismatch matrix が credential、preparation、process、filesystem side effect を一件も生成しない。
 - 五つの external dependency triple が fake・named contract・FakeVsReal・fixture authority・explicit skip condition を持つ。
 - `make lint`、`cd services && GOCACHE=/tmp/gocache-agent-grid go test ./...`、`cd clients/ui && npm run lint && npm run test:unit && npm run test:e2e && npm run test:e2e:real`、`dotnet test clients/windows-shell/AgentGrid.Shell.Core.Tests/AgentGrid.Shell.Core.Tests.csproj`、`make test-e2e` が成功する。未設定T3 authorityはnamed explicit skip evidenceを返す。
+
+
+{% transition from="todo" to="in_progress" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}

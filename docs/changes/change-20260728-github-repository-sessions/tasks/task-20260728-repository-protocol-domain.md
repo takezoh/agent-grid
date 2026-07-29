@@ -2,7 +2,7 @@
 id: task-20260728-repository-protocol-domain
 kind: task
 title: Repository protocol and preparation domain
-status: todo
+status: done
 created: '2026-07-28'
 priority: critical
 effort: large
@@ -43,13 +43,15 @@ pinned_context:
 - services/host/state/state.go
 - services/host/proto/envelope.go
 done_criteria:
-- Repository、creation intent、preparation、session、clone path、repository environment の型と codec
+- Repository、creation intent、preparation、session、clone path、repository environment
+  の型と codec
 - 純粋 reducer の lifecycle・revision fencing・availability invariant テスト
 - exact-version mismatch の no-side-effect 契約テスト
 max_diff_loc: 1200
 change: change-20260728-github-repository-sessions
 summary: Define exact-version repository/preparation identities and pure lifecycle
   types before I/O.
+updated: '2026-07-29'
 ---
 
 # Repository protocol and preparation domain
@@ -80,3 +82,13 @@ OAuth、credential lease、git process、filesystem publication、devcontainer�
 - `contract-repository-preparation-lifecycle` の全 terminal/non-terminal transition と sole availability commit が reducer test で通る。
 - exact-version mismatch が lease、preparation、process、filesystem の side effect より前に拒否される契約テストが通る。
 - `cd services && GOCACHE=/tmp/gocache-agent-grid go test ./host/state/... ./host/proto/... ./server/api/...` が成功する。
+
+
+{% transition from="todo" to="in_progress" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}

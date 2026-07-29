@@ -2,7 +2,7 @@
 id: task-20260729-repository-host-projection
 kind: task
 title: Repository host and protocol projection
-status: todo
+status: done
 created: '2026-07-29'
 priority: normal
 effort: large
@@ -60,6 +60,7 @@ max_diff_loc: 920
 change: change-20260728-github-repository-sessions
 summary: Connect credential-free GitHub and server preparation state through Web and
   Electron main/preload boundaries and migrate the Windows parser.
+updated: '2026-07-29'
 ---
 
 # Repository host and protocol projection
@@ -91,3 +92,13 @@ React picker/DOM、OAuth state machine、server lease table/lifecycle、credenti
 - auth.mode=none、protocol mismatch、非HTTPS/非loopbackはWeb/Workspace双方でcredential read/transfer、lease request、preparation/filesystem mutation前に拒否され、sentinelはSPA/preload/URL/log/diagnosticに現れない。
 - Windows parser/transportがrepository/preparation exact-version framesをround tripし、旧新mismatchをside effect前に拒否する。
 - `cd clients/web-host && GOCACHE=/tmp/gocache-agent-grid go test ./...`、`cd clients/workspace && npm run test`、`dotnet test clients/windows-shell/AgentGrid.Shell.Core.Tests/AgentGrid.Shell.Core.Tests.csproj`が成功する。
+
+
+{% transition from="todo" to="in_progress" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}

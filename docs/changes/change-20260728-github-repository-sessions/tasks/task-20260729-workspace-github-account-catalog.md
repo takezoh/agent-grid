@@ -2,7 +2,7 @@
 id: task-20260729-workspace-github-account-catalog
 kind: task
 title: Workspace GitHub account and retained catalog
-status: todo
+status: done
 created: '2026-07-29'
 priority: normal
 effort: large
@@ -36,6 +36,7 @@ max_diff_loc: 800
 change: change-20260728-github-repository-sessions
 summary: Implement the fixed GitHub account/catalog contract in the Electron main
   process with protected persistence and credential-free projection.
+updated: '2026-07-29'
 ---
 
 # Workspace GitHub account and retained catalog
@@ -65,3 +66,13 @@ Electron IPC/preload/Settings wiring、共有SPA、server lease/clone、extended
 - Workspaceの`GitHubCatalogContract`が全上限、partial-generation非公開、stale fallbackを検証する。
 - 同一fixtureに対するWeb/Workspace credential-free projectionがdeep-equalになる。
 - `cd clients/workspace && npm run test` が成功する。
+
+
+{% transition from="todo" to="in_progress" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}
+
+
+{% transition from="in_progress" to="done" date="2026-07-29" %}
+Implemented, independently gated, and integrated on delivery/github-repository-sessions
+{% /transition %}

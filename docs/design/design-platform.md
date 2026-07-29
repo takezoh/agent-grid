@@ -66,6 +66,10 @@ invariants:
   statement: Every SCM, WSL, Windows process, ACL, resume, and OS-record dependency
     ships a fake, invariant-naming contract test, and FakeVsReal fidelity backstop.
   enforcement: contract
+- id: INV-901
+  statement: Repository devcontainer identity is keyed by immutable repository scope
+    while every session clone remains an independent frame workspace.
+  enforcement: contract
 boundaries:
   provides:
   - Process launch, process-group lifecycle, PTY multiplexing, and path translation.
@@ -136,6 +140,9 @@ trust_boundaries:
   and containment.
 - Writers of runtime-authoritative shim directories hold executable precedence and
   must remain limited to governed providers.
+- id: TRUST-901
+  statement: Remote GitHub clone authority is authenticated, repository-bound, one-use,
+    memory-only, replay-resistant, and absent from durable or process-visible surfaces.
 compatibility_policies:
 - Schema upgrades are explicit, regenerate committed types, and pass drift and consumer
   contract checks.
@@ -146,6 +153,10 @@ compatibility_policies:
 - Changes to authoritative PATH order require an observable migration and a bounded
   rollback mechanism.
 - Keep legacy component identifiers resolvable through documentation aliases.
+- id: COMPAT-901
+  statement: Repository identity, preparation, lease, and progress protocol changes
+    migrate daemon IPC, REST/WS, all shipped host parsers, SPA, SDKs, simulator, fixtures,
+    and browser fakes under one exact token.
 source_paths:
 - services/cmd/claude-app-server/
 - services/platform/

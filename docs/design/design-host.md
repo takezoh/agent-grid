@@ -19,6 +19,9 @@ responsibilities:
 - id: RESP-004
   statement: Adapt agent-specific events into the shared client state and presentation
     model.
+- id: RESP-901
+  statement: Own durable repository preparation separately from Session and publish
+    a Session only after clone, repository environment, and launch success.
 invariants:
 - id: INV-001
   statement: Domain transitions are decided by a pure reducer; I/O and live handles
@@ -51,6 +54,10 @@ invariants:
 - id: INV-008
   statement: Host managed MCP requests are validated before frame authority issuance
     and process spawn.
+  enforcement: contract
+- id: INV-901
+  statement: Incomplete, failed, cancelled, interrupted, or corrupt repository preparation
+    never appears in the available Sessions collection.
   enforcement: contract
 boundaries:
   provides:
