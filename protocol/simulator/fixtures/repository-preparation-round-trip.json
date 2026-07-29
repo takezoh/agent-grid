@@ -1,0 +1,32 @@
+{
+  "name": "repository-preparation-round-trip",
+  "protocolVersion": "protocol-2",
+  "description": "Exact-version repository identity and preparation snapshot for SDK/simulator flag-day consumers.",
+  "sessionTarget": {
+    "source": "repository",
+    "repository": {
+      "repository_id": "42",
+      "owner": "acme",
+      "name": "widgets"
+    }
+  },
+  "preparation": {
+    "preparation_id": "prep-1",
+    "intent_id": "intent-1",
+    "server_id": "srv-a",
+    "repository": {
+      "repository_id": "42",
+      "owner": "acme",
+      "name": "widgets"
+    },
+    "stage": "clone-in-progress",
+    "revision": 2,
+    "environment_disposition": "none"
+  },
+  "mismatch": {
+    "oldClientVersion": "protocol-1",
+    "newServerVersion": "protocol-2",
+    "code": "incompatible_protocol",
+    "sideEffects": []
+  }
+}

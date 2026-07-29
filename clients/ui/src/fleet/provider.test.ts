@@ -72,7 +72,7 @@ describe("FleetProvider host parity", () => {
         serverId: "srv-a",
         serverLabel: "A",
         state: "connected" as const,
-        config: { projects: ["/a"] },
+        config: { projects: [{ path: "/a" }] },
       },
     ];
     window.agentGridWorkspace = {
@@ -86,12 +86,39 @@ describe("FleetProvider host parity", () => {
         listConfigs: vi.fn().mockResolvedValue(projected),
         create: vi.fn(),
       },
+      github: {
+        action: vi.fn().mockResolvedValue({
+          outcome: "success",
+          account: { state: "authenticated", login: "alice" },
+          catalog: {
+            outcome: "complete-current",
+            generation: 1,
+            repositories: [{ repository_id: "1", owner: "alice", name: "demo" }],
+          },
+        }),
+      },
     };
 
     const outcomes = await makeFleetProvider().listConfigs();
 
     expect(outcomes).toEqual(projected);
     expect(JSON.stringify(outcomes)).not.toContain("renderer-token");
+
+    const repo = await makeFleetProvider().repositoryProjection();
+    expect(repo.targets.some((t) => t.source === "project")).toBe(true);
+    expect(repo.targets.some((t) => t.source === "repository")).toBe(true);
+    expect(JSON.stringify(repo)).not.toContain("renderer-token");
+    expect(JSON.stringify(repo)).not.toMatch(/gho_|ghu_|github_pat/i);
+  });
+
+  it("Web repositoryProjection treats 404 as transient failure (not empty wipe)", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/host/repository") {
+        return new Response("missing", { status: 404 });
+      }
+      return new Response("nope", { status: 500 });
+    }) as typeof fetch;
+    await expect(makeFleetProvider(fetchImpl).repositoryProjection()).rejects.toThrow(/HTTP 404/);
   });
 
   it("does not synthesize a server from the browser origin", () => {

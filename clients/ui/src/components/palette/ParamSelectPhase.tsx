@@ -20,7 +20,7 @@
 //   - 0049 dynamic-options-materialize-at-view (display layer projects
 //     materializeKey → ParamOption[]; store / wire stay daemon-free)
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { fleetOutcomeLabel } from "../../fleet/presentation";
 import { useChipHotkey } from "../../hooks/useChipHotkey";
 import {
@@ -42,6 +42,7 @@ import { ParamEmptyState } from "./ParamEmptyState";
 import { ParamListbox } from "./ParamListbox";
 import { ParamTextInput } from "./ParamTextInput";
 import { ProfileArgs } from "./ProfileArgs";
+import { TargetPicker } from "./TargetPicker";
 import { useDynamicParamPreset } from "./useDynamicParamPreset";
 
 // ---------------------------------------------------------------------------
@@ -131,6 +132,13 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   const setComposing = usePaletteStore((s) => s.setComposing);
   const toggleHost = usePaletteStore((s) => s.toggleHost);
   const toggleWorktree = usePaletteStore((s) => s.toggleWorktree);
+  const emitInfoAnnounce = usePaletteStore((s) => s.emitInfoAnnounce);
+  const announcePreparation = useCallback(
+    (message: string) => {
+      emitInfoAnnounce(message);
+    },
+    [emitInfoAnnounce],
+  );
 
   // Ref to the command text input for focus fallback (FR-022).
   const commandInputRef = useRef<HTMLInputElement>(null);
@@ -285,13 +293,11 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   function selectProject(value: unknown): void {
     const projectTarget = typeof value === "string" ? value : "";
     const project = findProject(snapshot.projects, projectTarget);
-    const next: Record<string, unknown> = { project: projectTarget };
-    if (project?.isGit === true && paramValues.worktree !== undefined) {
-      next.worktree = paramValues.worktree;
-    }
-    if (project?.isSandboxed === true && paramValues.host !== undefined) {
-      next.host = paramValues.host;
-    }
+    // Preserve command/profile fields so scoped project re-bind does not wipe
+    // the command leading-option preset mid-flow (smoke Enter → confirm).
+    const next: Record<string, unknown> = { ...paramValues, project: projectTarget };
+    if (project?.isGit !== true) next.worktree = undefined;
+    if (project?.isSandboxed !== true) next.host = undefined;
     setParams(next);
   }
 
@@ -315,10 +321,12 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   // FR-A4: a dynamic-options param with zero materialized options
   // renders the empty-state body AND suppresses every subsequent param
   // + the submit-trigger Enter handler the final field would carry.
+  // new-session project uses TargetPicker (GitHub may still be available).
   let stopIdx = params.length;
   for (let i = 0; i < params.length; i++) {
     const p = params[i];
     if (p === undefined) continue;
+    if (p.id === "project" && selectedToolId === "new-session") continue;
     const opts = materialized[i] ?? null;
     if (p.kind === "dynamic-options" && opts !== null && opts.length === 0) {
       stopIdx = i + 1;
@@ -368,6 +376,29 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
         const value = paramValues[param.id];
         const options = materialized[idx] ?? null;
 
+        const isCommand = param.id === "command";
+        const isProject = param.id === "project";
+        const chips = null;
+
+        // Categorized project+repository picker replaces the plain project listbox.
+        // Always mount for new-session so GitHub category works even when projects are empty.
+        if (isProject && selectedToolId === "new-session") {
+          return (
+            <div key={param.id} className="palette-param-text-group">
+              <TargetPicker
+                focused={isCurrent}
+                disabled={submitting}
+                projects={snapshot.projects}
+                value={value}
+                onSelectProject={(v) => selectProject(v)}
+                onEnter={advanceOrSubmit}
+                onAnnounce={announcePreparation}
+                inputRef={projectInputRef}
+              />
+            </div>
+          );
+        }
+
         // FR-A4: dynamic-options with zero materialized options renders
         // the empty-state body. ParamEmptyState carries no key handlers
         // so Esc still bubbles to the palette shell. The message is
@@ -390,10 +421,6 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
             </fieldset>
           );
         }
-
-        const isCommand = param.id === "command";
-        const isProject = param.id === "project";
-        const chips = null;
 
         if (options !== null) {
           // Listbox (static-options / dynamic-options with N>=1).

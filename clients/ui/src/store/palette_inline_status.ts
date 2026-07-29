@@ -29,6 +29,8 @@ export interface InlineStatusSliceState {
 
 export interface InlineStatusSliceActions {
   emitDisabledFeedback(toolLabel: string, reason: string): void;
+  /** Single polite live-region announce (preparation stages, scoped status). */
+  emitInfoAnnounce(message: string): void;
   // clearInlineStatus is exported for tests and for the internal 4 s timer callback.
   clearInlineStatus(): void;
 }
@@ -92,6 +94,26 @@ export const createInlineStatusSlice: StateCreator<
       inlineStatus: {
         message,
         kind: "warning",
+        seq: prev.seq + 1,
+        timerId,
+      },
+    });
+  },
+
+  emitInfoAnnounce(message) {
+    if (get().composing) return;
+    const prev = get().inlineStatus;
+    if (prev.timerId !== null) clearTimeout(prev.timerId);
+    const timerId = setTimeout(() => {
+      const cur = get().inlineStatus;
+      set({
+        inlineStatus: { message: "", kind: cur.kind, seq: cur.seq, timerId: null },
+      });
+    }, INLINE_STATUS_AUTO_CLEAR_MS);
+    set({
+      inlineStatus: {
+        message,
+        kind: "info",
         seq: prev.seq + 1,
         timerId,
       },

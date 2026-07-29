@@ -146,4 +146,32 @@ public class WsFrameParserTests
             () => WsFrameParser.TryParse("""{"k":"h","protocolVersion":"1"}"""));
         Assert.Contains("client protocol-2, server 1", error.Message);
     }
+
+    [Fact]
+    public void Parses_repository_preparation_and_target_round_trip()
+    {
+        var preps = WsFrameParser.TryParsePreparations(
+            """{"k":"h","protocolVersion":"protocol-2","sessions":[],"preparations":[{"preparation_id":"prep-1","intent_id":"intent-1","server_id":"srv-a","repository":{"repository_id":"1","owner":"acme","name":"widgets"},"stage":"clone-in-progress","revision":2,"environment_disposition":"none"}]}""");
+        Assert.Single(preps);
+        Assert.Equal(("prep-1", "clone-in-progress", "acme", 2ul), (preps[0].PreparationId, preps[0].Stage, preps[0].Repository.Owner, preps[0].Revision));
+        var target = WsFrameParser.TryParseSessionTarget("""{"source":"repository","repository":{"repository_id":"1","owner":"acme","name":"widgets"}}""");
+        Assert.Equal("repository", target!.Source);
+        Assert.Equal("widgets", target.Repository!.Name);
+        var project = WsFrameParser.TryParseSessionTarget("""{"source":"project","project":{"server_id":"srv-a","project":"/repo/p"}}""");
+        Assert.Equal("project", project!.Source);
+        Assert.Equal("/repo/p", project.Project);
+    }
+
+    [Fact]
+    public void Rejects_preparation_frame_protocol_mismatch_before_side_effect()
+    {
+        var n = 0;
+        var error = Assert.Throws<ProtocolVersionMismatchException>(() => ProtocolVersion.AdmitRepositoryOperation("protocol-legacy", () => n++));
+        Assert.Contains("protocol-legacy", error.Message);
+        Assert.Equal(0, n);
+        Assert.Throws<ProtocolVersionMismatchException>(() => WsFrameParser.TryParsePreparations(
+            """{"k":"h","protocolVersion":"protocol-1","preparations":[{"preparation_id":"p","intent_id":"i","server_id":"s","repository":{"repository_id":"1","owner":"o","name":"n"},"stage":"confirmed","revision":0}]}"""));
+        ProtocolVersion.AdmitRepositoryOperation(ProtocolVersion.Current, () => n++);
+        Assert.Equal(1, n);
+    }
 }

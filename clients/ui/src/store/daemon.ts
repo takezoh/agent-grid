@@ -72,6 +72,13 @@ export type DaemonState = {
 
   // actions
   seedHello: (frame: HelloFrame) => void;
+  /**
+   * Fleet owns membership (`publishSessions: false`). Still apply reconnect
+   * hello as the one-shot status-signal boundary: mark replayed bells from
+   * the hello payload, then re-project the current membership so durable
+   * human-input stays while Notification is cleared.
+   */
+  seedReconnectStatusSignals: (helloSessions: readonly SessionInfo[]) => void;
   applyViewUpdate: (frame: ViewUpdateFrame) => void;
   selectSession: (id: string | null) => void;
   setStatus: (status: ConnectionStatus) => void;
@@ -289,6 +296,24 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
       serverTime: frame.serverTime,
       activeOccupant: frame.activeOccupant ?? s.activeOccupant,
       selectedWorkspace: ws,
+    });
+  },
+  seedReconnectStatusSignals: (helloSessions) => {
+    // Update reconnect-suppression maps from the hello payload (may use bare
+    // or fleet-qualified ids; statusSignals normalizes the key).
+    seedStatusSignals(helloSessions);
+    const s = get();
+    if (s.sessions.length === 0) return;
+    const projected = consumeStatusSignals(s.sessions);
+    const byId = new Map(s.sessions.map((x) => [x.id, x]));
+    set({
+      sessions: projected.map((incoming) => {
+        const prev = byId.get(incoming.id);
+        if (prev && JSON.stringify(prev) === JSON.stringify(incoming)) {
+          return prev;
+        }
+        return incoming;
+      }),
     });
   },
   applyViewUpdate: (frame) => {

@@ -1,9 +1,24 @@
 import { create } from "zustand";
+import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
 import type { ActivityActor, ActivityEvent, ViewUpdateFrame } from "../wire/server";
 
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
+
+/** Bare and fleet-qualified forms of a session id for activity keying. */
+function sessionIdAliases(id: string): string[] {
+  const ref = parseSessionKey(id);
+  if (ref) return [id, ref.sessionId, sessionKey(ref)];
+  return [id];
+}
+
+function sessionIdsMatch(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (a === b) return true;
+  const aSet = new Set(sessionIdAliases(a));
+  return sessionIdAliases(b).some((id) => aSet.has(id));
+}
 
 export type FileEventKind = "read" | "create" | "edit" | "delete";
 
@@ -148,7 +163,15 @@ const EMPTY_TURN_ROWS: TurnRow[] = [];
 
 export function selectTurnRows(state: WorkspaceActivityState, sessionId: string | null): TurnRow[] {
   if (!sessionId) return EMPTY_TURN_ROWS;
-  return state.rowsBySession[sessionId] ?? EMPTY_TURN_ROWS;
+  for (const alias of sessionIdAliases(sessionId)) {
+    const rows = state.rowsBySession[alias];
+    if (rows && rows.length > 0) return rows;
+  }
+  // Also match any stored bucket that aliases to this session (bare ↔ fleet).
+  for (const [key, rows] of Object.entries(state.rowsBySession)) {
+    if (rows.length > 0 && sessionIdsMatch(key, sessionId)) return rows;
+  }
+  return EMPTY_TURN_ROWS;
 }
 
 export function selectHasDirtyWorkspace(state: WorkspaceActivityState): boolean {
@@ -452,16 +475,24 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
 
   applyActivityEvents: (sessionId, events) => {
     const scoped = get().scopedSessionId;
-    if (scoped !== null && sessionId !== scoped) {
+    if (scoped !== null && !sessionIdsMatch(sessionId, scoped)) {
       return;
     }
+    // Store under the scoped (fleet-qualified) key when available so the
+    // Changes list — keyed by activeSessionID — observes the same bucket.
+    const storeKey = scoped ?? sessionId;
     set((s) => {
-      let rows = s.rowsBySession[sessionId] ?? [];
-      let lastSeq = s.lastSequenceBySession[sessionId] ?? 0;
+      let rows = s.rowsBySession[storeKey] ?? s.rowsBySession[sessionId] ?? [];
+      let lastSeq = s.lastSequenceBySession[storeKey] ?? s.lastSequenceBySession[sessionId] ?? 0;
       let patch: Partial<WorkspaceActivityState> = {};
 
       for (const event of events) {
-        if (event.session_id !== sessionId) continue;
+        if (
+          !sessionIdsMatch(event.session_id, sessionId) &&
+          !sessionIdsMatch(event.session_id, storeKey)
+        ) {
+          continue;
+        }
         if (event.sequence <= lastSeq) continue;
         if (event.sequence > lastSeq + 1) {
           patch.transportDegraded = true;
@@ -482,8 +513,8 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
 
       return {
         ...patch,
-        rowsBySession: { ...s.rowsBySession, [sessionId]: rows },
-        lastSequenceBySession: { ...s.lastSequenceBySession, [sessionId]: lastSeq },
+        rowsBySession: { ...s.rowsBySession, [storeKey]: rows },
+        lastSequenceBySession: { ...s.lastSequenceBySession, [storeKey]: lastSeq },
         transportDegraded: patch.transportDegraded ?? s.transportDegraded,
       };
     });

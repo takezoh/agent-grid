@@ -64,13 +64,17 @@ HOME="$SERVER_HOME" PATH="$FAKE_BIN_DIR:$PATH" AG_UI_E2E_STATUS_SCENARIOS=1 \
   >"$RUN_DIR/server.log" 2>&1 &
 pids+=("$!")
 
+# Protocol-gated /api/sessions returns 426 without the exact-version header;
+# any HTTP response from the listener means the server process is ready.
 for _ in $(seq 1 100); do
-  if curl --fail --silent "http://$BACKEND_ADDR/api/sessions" >/dev/null; then
+  code="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://$BACKEND_ADDR/api/sessions" || true)"
+  if [[ "$code" != "000" && "$code" != "" ]]; then
     break
   fi
   sleep 0.1
 done
-if ! curl --fail --silent "http://$BACKEND_ADDR/api/sessions" >/dev/null; then
+code="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://$BACKEND_ADDR/api/sessions" || true)"
+if [[ "$code" == "000" || "$code" == "" ]]; then
   tail -n 100 "$RUN_DIR/server.log" >&2 || true
   exit 1
 fi

@@ -285,6 +285,100 @@ describe("Connection", () => {
     expect(() => ws.receive(JSON.stringify({ k: "zz", data: "unknown" }))).not.toThrow();
   });
 
+  it("fleet mode: reconnect hello suppresses replayed bells without replacing membership", async () => {
+    const fetchFn = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ticket: "tkt" }),
+    })) as unknown as typeof fetch;
+    const fleetId = '["srv-a","s1"]';
+    const conn = new Connection({
+      ticketEndpoint: "/api/ws-ticket",
+      wsUrl: (t) => `ws://h/ws?ticket=${t}`,
+      bearerToken: "tok",
+      publishSessions: false,
+      serverId: "srv-a",
+      wsFactory: (u) => new FakeWS(u) as unknown as WebSocket,
+      sleep: async () => {},
+      fetchFn,
+    });
+    await conn.start();
+    const ws1 = FakeWS.instances[0];
+    if (!ws1) throw new Error("expected ws1");
+    ws1.open();
+
+    // First hello is ignored for membership (fleet owns it).
+    ws1.receive(
+      JSON.stringify({
+        k: "h",
+        sessions: [],
+        features: [],
+        serverTime: 1,
+      }),
+    );
+    expect(useDaemonStore.getState().sessions).toEqual([]);
+
+    // Fleet membership path installs the approval + bell.
+    useDaemonStore.getState().applyViewUpdate({
+      k: "v",
+      sessions: [
+        {
+          id: fleetId,
+          upstreamSessionId: "s1",
+          serverId: "srv-a",
+          project: "p",
+          command: "codex",
+          created_at: "2026-07-26T00:00:00Z",
+          status: {
+            lifecycle: "idle",
+            human_input: true,
+            failure: "none",
+            signal: { kind: "bell", epoch: "e1", sequence: 1 },
+          },
+          view: { card: { title: "approval" } },
+        },
+      ],
+    });
+    expect(useDaemonStore.getState().sessions[0]?.status.signal).toBeDefined();
+
+    // Lifecycle reconnect → second hello carries the same sequence.
+    ws1.close();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    const ws2 = FakeWS.instances[1];
+    if (!ws2) throw new Error("expected ws2 after reconnect");
+    ws2.open();
+    ws2.receive(
+      JSON.stringify({
+        k: "h",
+        sessions: [
+          {
+            id: "s1",
+            project: "p",
+            command: "codex",
+            created_at: "2026-07-26T00:00:00Z",
+            status: {
+              lifecycle: "idle",
+              human_input: true,
+              failure: "none",
+              signal: { kind: "bell", epoch: "e1", sequence: 1 },
+            },
+            view: { card: { title: "approval" } },
+          },
+        ],
+        features: [],
+        serverTime: 2,
+      }),
+    );
+
+    const after = useDaemonStore.getState().sessions;
+    expect(after).toHaveLength(1);
+    expect(after[0]?.id).toBe(fleetId);
+    expect(after[0]?.status.human_input).toBe(true);
+    expect(after[0]?.status.signal).toBeUndefined();
+  });
+
   it("brokers frame messaging summaries from hello/view-update into the dedicated store", async () => {
     const { ws } = await makeConnectedWS();
     ws.receive(

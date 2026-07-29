@@ -8,6 +8,11 @@ contract. Desktop hosts additionally read appearance and process settings.
 - `appearance.json`: theme, density, and UI font scale
 - `shell.json`: Shell process settings
 - `workspace.json`: Workspace process settings
+- `github.schema.json` / `fixtures/github-oauth-valid.json`: fixed public GitHub
+  OAuth App device-flow registration (`client_id`, `read:user` + `repo` scopes).
+  No `client_secret`, bearer token, or refresh material is stored here.
+- `fixtures/github-projection-credential-free.json`: sample SPA-facing account
+  and catalog projection (status, repositories only)
 
 Client presentation settings belong here rather than in the server's
 `settings.toml`. In particular, `appearance.json.theme` is the canonical theme

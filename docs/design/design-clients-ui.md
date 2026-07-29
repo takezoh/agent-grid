@@ -8,47 +8,49 @@ scope_type: component
 responsibilities:
 - id: RESP-001
   statement: Present sessions, terminals, transcripts, approvals, and the command
-    palette as one React SPA consumed by browsers (served by uihost) and by the
-    Electron workspace (bundled).
+    palette as one React SPA consumed by browsers (served by uihost) and by the Electron
+    workspace (bundled).
 - id: RESP-002
   statement: Own the TypeScript wire codec for gateway frames (hello/delta session
     updates, approval/question broadcasts) as the browser-side counterpart of the
     server wire contract.
 - id: RESP-003
-  statement: Resolve authentication per mode — browser bootstrap flow versus
-    hosted preload-injected token — behind one auth module.
+  statement: Resolve authentication per mode — browser bootstrap flow versus hosted
+    preload-injected token — behind one auth module.
 - id: RESP-004
-  statement: Own layout chrome (app shell grid, sidebar, drawer, header) and its
-    responsive and persisted-state behavior.
+  statement: Own layout chrome (app shell grid, sidebar, drawer, header) and its responsive
+    and persisted-state behavior.
 invariants:
 - id: INV-001
-  statement: One SPA serves both modes; mode differences are runtime flags
-    (hostedModeInfo presence), never build-time forks.
+  statement: One SPA serves both modes; mode differences are runtime flags (hostedModeInfo
+    presence), never build-time forks.
   enforcement: review
 - id: INV-002
-  statement: Hosted mode is additive — browser-mode URL contract, CSP, and
-    WS-origin checks stay unchanged, and the browser Playwright suite passes
-    unmodified (FR-HOSTED-SPA-COMPAT).
+  statement: Hosted mode is additive — browser-mode URL contract, CSP, and WS-origin
+    checks stay unchanged, and the browser Playwright suite passes unmodified (FR-HOSTED-SPA-COMPAT).
   enforcement: test
 - id: INV-003
-  statement: Bearer tokens never appear in URLs; hosted tokens arrive only via
-    the preload contextBridge.
+  statement: Bearer tokens never appear in URLs; hosted tokens arrive only via the
+    preload contextBridge.
   enforcement: test
 - id: INV-004
-  statement: The sidebar is hosted-independent — default visible in every mode,
-    collapsible via the desktop toggle, with the choice persisted across launches
-    (user decision 2026-07-25); the hosted flag only drives drag-region and
-    scrollbar styling.
+  statement: The sidebar is hosted-independent — default visible in every mode, collapsible
+    via the desktop toggle, with the choice persisted across launches (user decision
+    2026-07-25); the hosted flag only drives drag-region and scrollbar styling.
   enforcement: test
 - id: INV-005
-  statement: Color values live in tokens.css only; component styles reference
-    tokens (no hex/rgb literals outside tokens).
+  statement: Color values live in tokens.css only; component styles reference tokens
+    (no hex/rgb literals outside tokens).
   enforcement: test
 - id: INV-006
-  statement: UI-local view state (drawer open, sidebar collapse) stays in
-    component state per FR-STORE-001; the Zustand daemon store remains the sole
-    owner of session-selection state.
+  statement: UI-local view state (drawer open, sidebar collapse) stays in component
+    state per FR-STORE-001; the Zustand daemon store remains the sole owner of session-selection
+    state.
   enforcement: review
+- id: INV-901
+  statement: New Session target rows expose source and fully qualified identity in
+    every modality; independently failing sources never globally block healthy targets.
+  enforcement: contract
 boundaries:
   provides:
   - The complete session UI surface for browser and hosted consumers.
@@ -63,8 +65,7 @@ variability:
   - Single-bundle dual-mode delivery and the additive hosted flag.
   - Named-grid app shell with breakpoint-driven sidebar/drawer swap.
   free:
-  - Visual themes and density (token-driven), component composition, palette
-    tooling.
+  - Visual themes and density (token-driven), component composition, palette tooling.
 capabilities:
 - id: cap:shared-session-spa
   uniqueness: global
@@ -72,11 +73,11 @@ failure_responsibilities:
 - Connection loss degrades to status banner + reconnect; the SPA never hard-fails
   the window.
 trust_boundaries:
-- All gateway input is validated at the codec boundary; hosted preload input is
-  treated as trusted same-user context.
+- All gateway input is validated at the codec boundary; hosted preload input is treated
+  as trusted same-user context.
 compatibility_policies:
-- Wire codec changes track the server's discriminated frame union; unknown frame
-  kinds are ignored deliberately, known kinds must be handled.
+- Wire codec changes track the server's discriminated frame union; unknown frame kinds
+  are ignored deliberately, known kinds must be handled.
 tags:
 - web
 - native-clients

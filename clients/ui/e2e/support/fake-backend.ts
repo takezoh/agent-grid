@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import type { CreateSessionPayload } from "../../src/api/sessions";
+import { PROTOCOL_VERSION } from "../../src/protocol-version";
 import type { ServerFrame, SessionInfo, ViewUpdateFrame } from "../../src/wire/server";
 
 export type FakeBackendOptions = {
@@ -258,7 +259,7 @@ export async function installFakeBackend(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ protocolVersion: "protocol-2" }),
+      body: JSON.stringify({ protocolVersion: PROTOCOL_VERSION }),
     });
   });
 

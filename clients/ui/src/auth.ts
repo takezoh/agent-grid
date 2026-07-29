@@ -44,6 +44,12 @@ declare global {
        */
       setTitleBarTheme?: (theme: "dark" | "light", mode?: "system" | "light" | "dark") => void;
       serverHealth?: { list(): Promise<FleetHealth> };
+      /** Credential-free GitHub Settings actions (Workspace main/preload). */
+      github?: {
+        action(
+          action: import("./store/repository_picker").GitHubAction,
+        ): Promise<import("./store/repository_picker").GitHubActionResult>;
+      };
       sessionFleet?: {
         listConfigs(): Promise<unknown>;
         subscribe?(listener: (snapshot: unknown) => void): () => void;
@@ -52,6 +58,10 @@ declare global {
           listener: (event: { channelId: string; kind: string; data?: unknown }) => void,
         ): Promise<{ channelId: string; send(data: string): void; close(): void }>;
         create(serverId: string, payload: unknown): Promise<unknown>;
+        repositoryProjection?(): Promise<
+          import("./store/repository_picker").HostRepositoryProjection
+        >;
+        createRepositorySession?(serverId: string, payload: unknown): Promise<unknown>;
         request?(
           serverId: string,
           pathname: string,

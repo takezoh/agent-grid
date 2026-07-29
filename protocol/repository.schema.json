@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.dev/protocol/repository.schema.json",
+  "title": "RepositorySessionIdentities",
+  "description": "Fully-qualified repository session identities and preparation snapshots.",
+  "oneOf": [
+    { "$ref": "#/$defs/SessionTarget" },
+    { "$ref": "#/$defs/RepositoryPreparation" }
+  ],
+  "$defs": {
+    "GitHubRepositoryIdentity": {
+      "type": "object",
+      "required": ["repository_id", "owner", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_id": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ProjectTarget": {
+      "type": "object",
+      "required": ["server_id", "project"],
+      "additionalProperties": false,
+      "properties": {
+        "server_id": { "type": "string", "minLength": 1 },
+        "project": { "type": "string", "minLength": 1 }
+      }
+    },
+    "SessionTarget": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["source", "project"],
+          "additionalProperties": false,
+          "properties": {
+            "source": { "const": "project" },
+            "project": { "$ref": "#/$defs/ProjectTarget" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["source", "repository"],
+          "additionalProperties": false,
+          "properties": {
+            "source": { "const": "repository" },
+            "repository": { "$ref": "#/$defs/GitHubRepositoryIdentity" }
+          }
+        }
+      ]
+    },
+    "PreparationStage": {
+      "type": "string",
+      "enum": [
+        "confirmed", "clone-in-progress", "clone-ready", "devcontainer-in-progress",
+        "failed", "cancelled", "interrupted", "internal_corruption", "available", "abandoned"
+      ]
+    },
+    "RepositoryPreparation": {
+      "type": "object",
+      "required": ["preparation_id", "intent_id", "server_id", "repository", "stage", "revision"],
+      "additionalProperties": false,
+      "properties": {
+        "preparation_id": { "type": "string", "minLength": 1 },
+        "intent_id": { "type": "string", "minLength": 1 },
+        "server_id": { "type": "string", "minLength": 1 },
+        "repository": { "$ref": "#/$defs/GitHubRepositoryIdentity" },
+        "stage": { "$ref": "#/$defs/PreparationStage" },
+        "failure_code": { "type": "string" },
+        "retry_origin": { "type": "string", "enum": ["", "clone", "devcontainer"] },
+        "environment_disposition": { "type": "string", "enum": ["none", "ensuring", "ready", "reused", "failed"] },
+        "revision": { "type": "integer", "minimum": 0 },
+        "session_id": { "type": "string" },
+        "clone_path": { "type": "string" },
+        "environment_id": { "type": "string" }
+      }
+    }
+  }
+}

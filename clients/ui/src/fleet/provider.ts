@@ -1,5 +1,10 @@
 import { desktopBaseUrl } from "../auth";
 import { PROTOCOL_VERSION, protocolMismatchReason } from "../protocol-version";
+import type {
+  GitHubAction,
+  GitHubActionResult,
+  HostRepositoryProjection,
+} from "../store/repository_picker";
 import type { FleetSnapshot } from "./session-protocol";
 
 export interface FleetConfigOutcome {
@@ -10,11 +15,27 @@ export interface FleetConfigOutcome {
   config?: Record<string, unknown>;
 }
 
+export type { GitHubAction, GitHubActionResult, HostRepositoryProjection };
+
 export interface FleetProvider {
   initialServerId(): string | null;
   subscribe(listener: (snapshot: FleetSnapshot) => void): () => void;
   listConfigs(): Promise<FleetConfigOutcome[]>;
   create(serverId: string, payload: unknown): Promise<unknown>;
+  /** Credential-free host projection of projects + GitHub catalog + preparations. */
+  repositoryProjection(): Promise<HostRepositoryProjection>;
+  /** Settings/account actions; host-only — never returns credentials. */
+  githubAction(action: GitHubAction): Promise<GitHubActionResult>;
+  /** Start repository preparation on an execution server (host-mediated). */
+  createRepositorySession(
+    serverId: string,
+    payload: {
+      repository_id: string;
+      owner: string;
+      name: string;
+      intent_id?: string;
+    },
+  ): Promise<unknown>;
   apiUrl(serverId: string, pathname: string): string;
   wsUrl(serverId: string, ticket: string): string;
   activeConnection(
@@ -134,6 +155,35 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
     },
+    async repositoryProjection() {
+      const response = await fetchImpl("/host/repository");
+      // 404 is a transient host/route failure — not an empty catalog. Throwing
+      // preserves TargetPicker retention of last complete projection, selection,
+      // and in-flight preparation instead of wiping to unauthenticated empty.
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return (await response.json()) as HostRepositoryProjection;
+    },
+    async githubAction(action) {
+      const response = await fetchImpl("/host/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return (await response.json()) as GitHubActionResult;
+    },
+    async createRepositorySession(serverId, payload) {
+      const response = await fetchImpl(
+        `/host/fleet/servers/${encodeURIComponent(serverId)}/repository-sessions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
     apiUrl: qualifiedPath,
     wsUrl(serverId, ticket) {
       return websocketURL(qualifiedPath(serverId, "/ws"), ticket);
@@ -167,6 +217,74 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
     },
     listConfigs: () => fleet.listConfigs() as Promise<FleetConfigOutcome[]>,
     create: (serverId, payload) => fleet.create(serverId, payload),
+    async repositoryProjection() {
+      if (fleet.repositoryProjection) {
+        return fleet.repositoryProjection() as Promise<HostRepositoryProjection>;
+      }
+      // Compose credential-free status + projects when host only exposes github actions.
+      const github = bridge.github;
+      const status = github
+        ? await github.action("status")
+        : {
+            outcome: "unauthenticated" as const,
+            account: { state: "unauthenticated" },
+            catalog: { outcome: "empty", generation: 0, repositories: [] },
+          };
+      const configs = (await fleet.listConfigs()) as FleetConfigOutcome[];
+      const targets: HostRepositoryProjection["targets"] = [];
+      for (const cfg of configs) {
+        if (cfg.state !== "connected" || !cfg.config) continue;
+        const projects = (cfg.config as { projects?: Array<{ path?: string }> }).projects;
+        if (!Array.isArray(projects)) continue;
+        for (const p of projects) {
+          if (typeof p?.path === "string" && p.path) {
+            targets.push({
+              source: "project",
+              project: { server_id: cfg.serverId, project: p.path, server_label: cfg.serverLabel },
+            });
+          }
+        }
+      }
+      for (const r of status.catalog.repositories ?? []) {
+        if (r.repository_id && r.owner && r.name) {
+          targets.push({ source: "repository", repository: { ...r } });
+        }
+      }
+      const ghAvailable =
+        status.account.state === "authenticated" ||
+        status.account.state === "authorizing" ||
+        (status.catalog.repositories?.length ?? 0) > 0;
+      return {
+        sources: [
+          { id: "projects", available: true },
+          {
+            id: "github",
+            available: ghAvailable,
+            status: String(status.catalog.outcome || status.account.state),
+          },
+        ],
+        account: status.account,
+        catalog: {
+          outcome: status.catalog.outcome,
+          generation: status.catalog.generation ?? 0,
+          stale: status.catalog.stale,
+          failure_code: status.catalog.failure_code,
+          repositories: status.catalog.repositories ?? [],
+        },
+        targets,
+        preparations: [],
+      };
+    },
+    async githubAction(action) {
+      if (!bridge.github) throw new Error("Workspace GitHub bridge is unavailable");
+      return bridge.github.action(action);
+    },
+    async createRepositorySession(serverId, payload) {
+      if (fleet.createRepositorySession) {
+        return fleet.createRepositorySession(serverId, payload);
+      }
+      return fleet.create(serverId, { kind: "repository", ...payload });
+    },
     apiUrl(_serverId, pathname) {
       const baseUrl = desktopBaseUrl();
       if (!baseUrl) throw new Error("Workspace server base URL is unavailable");

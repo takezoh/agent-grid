@@ -29,6 +29,7 @@
     "capabilities.schema.json",
     "deep-links.schema.json",
     "notifications.schema.json",
-    "session-status.schema.json"
+    "session-status.schema.json",
+    "repository.schema.json"
   ]
 }

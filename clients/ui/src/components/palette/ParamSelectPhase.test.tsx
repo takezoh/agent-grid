@@ -474,9 +474,10 @@ describe("ParamSelectPhase", () => {
       expect(usePaletteStore.getState().paramValues.project).toBe("/repo/a");
     });
     await waitFor(() => {
-      const first = lb.querySelector("[role=option]:first-child");
+      const first = lb.querySelector("[role=option]");
       expect(first?.getAttribute("aria-selected")).toBe("true");
-      expect(lb.getAttribute("aria-activedescendant")).toBe("palette-param-project-opt-0");
+      expect(lb.getAttribute("aria-activedescendant")).toBe(first?.id ?? "");
+      expect(first?.id).toMatch(/^palette-param-project-opt-/);
     });
   });
 
@@ -536,16 +537,12 @@ describe("ParamSelectPhase", () => {
 
     render(<ParamSelectPhase ctx={ctx} />);
 
-    // role=status with the exact English copy.
-    const status = screen.getByRole("status");
-    expect(status.textContent).toBe("No projects available - add a project first");
-
-    // The command field is suppressed entirely — no input, no submit
-    // affordance (the form has no <button type=submit>; Enter on a
-    // non-existent input cannot fire advanceOrSubmit either).
+    // Categorized TargetPicker keeps the GitHub entry available (UAC-004) and
+    // still suppresses command/submit until a project is chosen.
+    expect(screen.getByTestId("target-picker")).toBeTruthy();
+    expect(screen.getByText("No project matches")).toBeTruthy();
     expect(document.getElementById("palette-param-command")).toBeNull();
     expect(screen.queryByRole("button", { name: /submit/i })).toBeNull();
-    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("paramCursor does not advance past the empty-state slot (FR-A4)", () => {
@@ -609,9 +606,8 @@ describe("ParamSelectPhase", () => {
       "form.palette-param-select",
     ) as HTMLFormElement;
     await waitFor(() => {
-      expect(projectListbox().getAttribute("aria-activedescendant")).toBe(
-        "palette-param-project-opt-0",
-      );
+      const active = projectListbox().getAttribute("aria-activedescendant");
+      expect(active).toMatch(/^palette-param-project-opt-/);
     });
     const preselectHtml = firstForm.outerHTML;
     firstRender.unmount();
@@ -628,9 +624,8 @@ describe("ParamSelectPhase", () => {
       "form.palette-param-select",
     ) as HTMLFormElement;
     await waitFor(() => {
-      expect(projectListbox().getAttribute("aria-activedescendant")).toBe(
-        "palette-param-project-opt-0",
-      );
+      const active = projectListbox().getAttribute("aria-activedescendant");
+      expect(active).toMatch(/^palette-param-project-opt-/);
     });
     const confirmHtml = secondForm.outerHTML;
 
@@ -643,9 +638,13 @@ describe("ParamSelectPhase", () => {
     // active descendant. If the byte-equality assertion above fires, these
     // pin the failure to a specific axis rather than leaving the developer
     // to diff a long HTML string.
-    const opts = projectListbox().querySelectorAll("[role=option]");
+    const opts = projectListbox().querySelectorAll('[role=option][data-source="project"]');
     expect(opts).toHaveLength(2);
-    expect(Array.from(opts).map((o) => o.textContent ?? "")).toEqual(["/p", "/q"]);
+    expect(
+      Array.from(opts).map(
+        (o) => o.querySelector('[data-testid="stable-identity"]')?.textContent ?? "",
+      ),
+    ).toEqual(["local · /p", "local · /q"]);
   });
 
   // -------------------------------------------------------------------------
@@ -677,8 +676,12 @@ describe("ParamSelectPhase", () => {
       fireEvent.change(filter, { target: { value: "work" } });
     });
 
-    const opts = projectListbox().querySelectorAll("[role=option]");
-    expect(Array.from(opts).map((o) => o.textContent ?? "")).toEqual(["/work/gamma"]);
+    const opts = projectListbox().querySelectorAll('[role=option][data-source="project"]');
+    expect(
+      Array.from(opts).map(
+        (o) => o.querySelector('[data-testid="stable-identity"]')?.textContent ?? "",
+      ),
+    ).toEqual(["local · /work/gamma"]);
   });
 
   it("filter with no matches renders the empty-state row", () => {
@@ -698,7 +701,7 @@ describe("ParamSelectPhase", () => {
     });
 
     expect(projectListbox().querySelectorAll("[role=option]")).toHaveLength(0);
-    expect(projectListbox().textContent).toContain("No matches");
+    expect(projectListbox().textContent).toContain("No project matches");
   });
 
   it("mousedown on a visible option commits the value AND advances the cursor", () => {

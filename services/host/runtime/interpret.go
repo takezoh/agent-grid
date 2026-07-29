@@ -40,6 +40,10 @@ func (r *Runtime) execute(eff state.Effect) {
 		state.EffBroadcastSurfaceOutput, state.EffBroadcastPromptEvent:
 		r.executeSurfaceEffect(e)
 
+	case state.EffRepositoryPersist, state.EffRepositoryStartClone,
+		state.EffRepositoryEnsureEnvironment, state.EffRepositoryStopOwnedWork:
+		r.executeRepositoryEffect(e)
+
 	default:
 		r.executeMiscEffect(eff)
 	}

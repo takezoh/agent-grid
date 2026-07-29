@@ -48,7 +48,11 @@ const DefaultNamePrefix = "reactor"
 // DevcontainerSpec holds the resolved container configuration for a project,
 // derived from devcontainer.json with roost overlay applied.
 type DevcontainerSpec struct {
-	ProjectPath             string
+	ProjectPath string
+	// ContainerIdentity, when non-empty, overrides ProjectPath for docker
+	// container names and project labels while ProjectPath remains the workspace
+	// bind-mount source (repository sessions root).
+	ContainerIdentity       string
 	Image                   string // resolved from devcontainer.json image: or build.name
 	Isolation               Isolation
 	NamePrefix              string // container-name & label prefix; empty → DefaultNamePrefix
@@ -388,6 +392,18 @@ func (s *DevcontainerSpec) EffectiveUser() string {
 	return s.ContainerUser
 }
 
+// projectIdentity is the durable docker project label/name key: ContainerIdentity
+// when set (repository environments), otherwise ProjectPath.
+func (s *DevcontainerSpec) projectIdentity() string {
+	if s != nil && s.ContainerIdentity != "" {
+		return s.ContainerIdentity
+	}
+	if s == nil {
+		return ""
+	}
+	return s.ProjectPath
+}
+
 // ContainerName returns the stable docker container name.
 // In shared mode returns "<prefix>-shared"; otherwise "<prefix>-<projectHash>".
 func (s *DevcontainerSpec) ContainerName() string {
@@ -395,7 +411,7 @@ func (s *DevcontainerSpec) ContainerName() string {
 	if s.Isolation == IsolationShared {
 		return p + "-shared"
 	}
-	return p + "-" + projectHash(s.ProjectPath)
+	return p + "-" + projectHash(s.projectIdentity())
 }
 
 // BuildCreateArgs returns the argument list for "docker create <args>".
@@ -414,7 +430,7 @@ func (s *DevcontainerSpec) BuildCreateArgs(image string) []string {
 	if s.Isolation == IsolationShared {
 		args = append(args, "--label", p+"-isolation=shared")
 	} else {
-		args = append(args, "--label", p+"-project="+s.ProjectPath)
+		args = append(args, "--label", p+"-project="+s.projectIdentity())
 	}
 	if s.ContainerUser != "" {
 		args = append(args, "-u", s.ContainerUser)

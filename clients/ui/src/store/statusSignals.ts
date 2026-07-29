@@ -1,7 +1,21 @@
+import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
 import type { SessionInfo } from "../wire/server";
 
 const highestConsumed = new Map<string, number>();
 const reconnectSuppressed = new Set<string>();
+
+/** Stable signal identity across bare wire ids and fleet-qualified store ids. */
+function signalIdentityKey(session: SessionInfo, epoch: string): string {
+  const fleet = parseSessionKey(session.id);
+  // Prefer the fleet-qualified id's server when present so a mismatched
+  // serverId tag (e.g. initialServerHint vs Connection.serverId) cannot
+  // split consume/seed maps.
+  const bareId = session.upstreamSessionId ?? fleet?.sessionId ?? session.id;
+  const serverId = fleet?.serverId ?? session.serverId;
+  const identity =
+    serverId != null && serverId !== "" ? sessionKey({ serverId, sessionId: bareId }) : bareId;
+  return `${identity}\u0000${epoch}`;
+}
 
 function projectStatusSignals(
   sessions: readonly SessionInfo[],
@@ -17,7 +31,7 @@ function projectStatusSignals(
     if (session.status.lifecycle === "active") {
       return { ...session, status: { ...session.status, signal: undefined } };
     }
-    const key = `${session.id}\u0000${signal.epoch}`;
+    const key = signalIdentityKey(session, signal.epoch);
     const highest = highestConsumed.get(key) ?? 0;
     if (reconnectHello && signal.sequence <= highest) {
       reconnectSuppressed.add(key);

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { sessionKey } from "../fleet/session-protocol";
 import type { SessionInfo } from "../wire/server";
 import {
   consumeStatusSignals,
@@ -10,9 +11,10 @@ function session(
   epoch: string,
   sequence: number,
   lifecycle: "active" | "idle" = "idle",
+  id = "s1",
 ): SessionInfo {
   return {
-    id: "s1",
+    id,
     project: "p",
     command: "codex",
     created_at: "2026-07-26T00:00:00Z",
@@ -46,5 +48,35 @@ describe("consumeStatusSignals", () => {
     expect(consumeStatusSignals([session("e1", 1, "active")])[0]?.status.signal).toBeUndefined();
     expect(consumeStatusSignals([session("e1", 1, "idle")])[0]?.status.signal).toBeDefined();
     expect(consumeStatusSignals([session("e1", 1, "idle")])[0]?.status.signal).toBeDefined();
+  });
+
+  it("matches bare wire ids with fleet-qualified membership keys on reconnect", () => {
+    const fleetId = sessionKey({ serverId: "srv-a", sessionId: "s1" });
+    const membership = {
+      ...session("e1", 1, "idle", fleetId),
+      upstreamSessionId: "s1",
+      serverId: "srv-a",
+      status: {
+        lifecycle: "idle" as const,
+        human_input: true,
+        failure: "none" as const,
+        signal: { kind: "bell" as const, epoch: "e1", sequence: 1 },
+      },
+    };
+    expect(consumeStatusSignals([membership])[0]?.status.signal).toBeDefined();
+
+    // Hello payload still uses the bare upstream id (+ serverId tag).
+    const helloBare = {
+      ...session("e1", 1, "idle", "s1"),
+      serverId: "srv-a",
+      status: {
+        lifecycle: "idle" as const,
+        human_input: true,
+        failure: "none" as const,
+        signal: { kind: "bell" as const, epoch: "e1", sequence: 1 },
+      },
+    };
+    expect(seedStatusSignals([helloBare])[0]?.status.signal).toBeUndefined();
+    expect(consumeStatusSignals([membership])[0]?.status.signal).toBeUndefined();
   });
 });

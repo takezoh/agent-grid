@@ -51,8 +51,8 @@ public sealed class ShellFleetTests
             @"C:\Users\test\AppData\Local");
 
         Assert.Equal(
-            @"C:\Users\test\AppData\Local\agent-grid\workspace\agent-grid-workspace.exe",
-            path);
+            @"C:\Users\test\AppData\Local\agent-grid\workspace\agent-grid-workspace.exe".Replace('\\', Path.DirectorySeparatorChar),
+            path.Replace('\\', Path.DirectorySeparatorChar));
         Assert.Equal(
             @"D:\custom\workspace.exe",
             ShellFleet.ResolveWorkspaceExecutable(

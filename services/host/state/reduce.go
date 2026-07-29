@@ -96,6 +96,9 @@ func Reduce(s State, ev Event) (State, []Effect) {
 		return reduceQuestionRespond(s, e)
 	case EvCmdQuestionCancel:
 		return reduceQuestionCancel(s, e)
+
+	case EvRepository:
+		return reduceRepository(s, e)
 	}
 
 	panic(fmt.Sprintf("state.Reduce: unhandled event type %T", ev))

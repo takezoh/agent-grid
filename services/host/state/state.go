@@ -97,6 +97,13 @@ type State struct {
 	// runtime-only and reset on daemon restart.
 	StatusEpoch   string
 	StatusSignals map[SessionID]uint64
+
+	// CreationIntents and RepositoryPreparations are the durable repository
+	// session foundation (adr-20260728-durable-repository-preparation). Only
+	// PrepStageAvailable may publish into Sessions; incomplete stages never
+	// appear as available sessions (FR-GH-INV-001).
+	CreationIntents        map[CreationIntentID]CreationIntent
+	RepositoryPreparations map[PreparationID]RepositoryPreparation
 }
 
 // Session is the static metadata + driver state of one client session.
@@ -149,12 +156,14 @@ type JobMeta struct {
 // are initialised so callers can write into them without nil checks.
 func New() State {
 	return State{
-		Lifecycle:     LifecycleRunning,
-		Sessions:      map[SessionID]Session{},
-		Subscribers:   map[ConnID]Subscriber{},
-		SurfaceSubs:   map[ConnID]map[SurfaceSubscription]SurfaceGeometry{},
-		Jobs:          map[JobID]JobMeta{},
-		StatusSignals: map[SessionID]uint64{},
+		Lifecycle:              LifecycleRunning,
+		Sessions:               map[SessionID]Session{},
+		Subscribers:            map[ConnID]Subscriber{},
+		SurfaceSubs:            map[ConnID]map[SurfaceSubscription]SurfaceGeometry{},
+		Jobs:                   map[JobID]JobMeta{},
+		StatusSignals:          map[SessionID]uint64{},
+		CreationIntents:        map[CreationIntentID]CreationIntent{},
+		RepositoryPreparations: map[PreparationID]RepositoryPreparation{},
 	}
 }
 

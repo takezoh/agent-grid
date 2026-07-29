@@ -185,6 +185,33 @@ public sealed class ShellGatewayClient : IDisposable
                 $"&protocolVersion={Uri.EscapeDataString(ProtocolVersion.Current)}",
         }.Uri;
 
+    /// <summary>Exact-version repository create; mismatch fails before HTTP side effect.</summary>
+    public async Task<HttpResponseMessage> CreateRepositoryPreparationAsync(
+        object body, string? observedProtocolVersion = null, CancellationToken ct = default)
+    {
+        var n = 0;
+        ProtocolVersion.AdmitRepositoryOperation(observedProtocolVersion ?? ProtocolVersion.Current, () => n++);
+        if (n != 1) throw new InvalidOperationException("repository admission side-effect count");
+        using var req = new HttpRequestMessage(HttpMethod.Post, Combine("/api/repository/preparations"));
+        await ApplyAuthAsync(req, ct).ConfigureAwait(false);
+        req.Content = JsonContent.Create(body);
+        return await SendAsync(req, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Probe capabilities and admit repository work only on exact protocol match.</summary>
+    public async Task EnsureRepositoryProtocolAsync(CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, Combine("/api/capabilities"));
+        await ApplyAuthAsync(req, ct).ConfigureAwait(false);
+        using var res = await SendAsync(req, ct).ConfigureAwait(false);
+        res.EnsureSuccessStatusCode();
+        await using var stream = await res.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
+        var actual = doc.RootElement.TryGetProperty("protocolVersion", out var pv) && pv.ValueKind == JsonValueKind.String
+            ? pv.GetString() : null;
+        ProtocolVersion.AdmitRepositoryOperation(actual);
+    }
+
     private Uri Combine(string path) => new(_baseUri, path);
 
     /// <summary>Omit Authorization when token is empty (run-dev -no-auth).</summary>
