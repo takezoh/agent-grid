@@ -37,7 +37,7 @@ done_criteria:
 - daemon/gateway/host/SPA/SDK/simulator/fixture/fake の exact-version consumer inventory
 - external dependency triple inventory と explicit T3 skip authority
 - full repository gates と old/new mismatch no-side-effect matrix
-max_diff_loc: 900
+max_diff_loc: 1000
 change: change-20260728-github-repository-sessions
 summary: Complete all dependency triples and migrate every protocol consumer under
   the same exact-version token.
@@ -60,7 +60,7 @@ repository protocol の closed consumer inventory を同じ exact-version token 
 
 `task-20260728-repository-fleet-ux` までの全 production seam と task-owned tests が存在する。standard-library composition と既存 wrapper の選択は、同じ contract observables を返す限り自由である。
 
-`max_diff_loc: 900` は、daemon/gateway/全host/SPA/SDK/simulator/fixture/generatorのclosed consumer inventoryを一つのexact-version tokenへ原子的に移すinterface-confinement上限である。consumer groupを別taskへ分けるmixed-version中間commitは禁止する。
+`max_diff_loc: 1000` は、daemon/gateway/全host/SPA/SDK/simulator/fixture/generatorのclosed consumer inventoryと元ファイルcontract assertionを一つのexact-version tokenへ原子的に移す校正済みinterface-confinement上限である。consumer groupを別taskへ分けるmixed-version中間commitは禁止する。
 
 ## スコープ外
 
