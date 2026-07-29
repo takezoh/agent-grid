@@ -3,8 +3,17 @@
  * Invoked via `npm test` under clients/sdk (and the repository flag-day gate).
  */
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 import { isSessionTarget } from "./generated/repository.ts";
+
+// Stable success sentinel consumed by run-session-target-conformance.sh.
+// Printed only after the suite completes; runner also requires exit 0.
+const SESSION_TARGET_CONFORMANCE_SENTINEL =
+  "AG_SDK_SESSION_TARGET_CONFORMANCE_OK:ts";
+
+after(() => {
+  console.log(SESSION_TARGET_CONFORMANCE_SENTINEL);
+});
 
 describe("isSessionTarget discriminator", () => {
   it("accepts valid project target", () => {

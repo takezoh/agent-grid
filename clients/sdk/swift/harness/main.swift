@@ -115,6 +115,8 @@ do {
     }
 
     print("SessionTarget Swift conformance: all cases passed")
+    // Stable success sentinel consumed by run-session-target-conformance.sh.
+    print("AG_SDK_SESSION_TARGET_CONFORMANCE_OK:swift")
 } catch {
     fputs("FAIL \(error)\n", stderr)
     exit(1)

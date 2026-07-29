@@ -214,29 +214,51 @@ func TestSessionTargetDiscriminatorCrossSDK(t *testing.T) {
 	}
 
 	// Runnable harness inventory — string-scan of models alone is not enough.
+	// Each harness must emit a stable language-specific success sentinel.
 	harnesses := []struct {
-		lang string
-		path string
+		lang     string
+		path     string
+		sentinel string
 	}{
-		{"ts", "clients/sdk/ts/session_target_discriminator.test.ts"},
-		{"csharp", "clients/sdk/csharp/harness/Program.cs"},
-		{"kotlin", "clients/sdk/kotlin/harness/SessionTargetConformance.kt"},
-		{"swift", "clients/sdk/swift/harness/main.swift"},
+		{"ts", "clients/sdk/ts/session_target_discriminator.test.ts", "AG_SDK_SESSION_TARGET_CONFORMANCE_OK:ts"},
+		{"csharp", "clients/sdk/csharp/harness/Program.cs", "AG_SDK_SESSION_TARGET_CONFORMANCE_OK:csharp"},
+		{"kotlin", "clients/sdk/kotlin/harness/SessionTargetConformance.kt", "AG_SDK_SESSION_TARGET_CONFORMANCE_OK:kotlin"},
+		{"swift", "clients/sdk/swift/harness/main.swift", "AG_SDK_SESSION_TARGET_CONFORMANCE_OK:swift"},
 	}
 	for _, h := range harnesses {
-		if _, err := os.Stat(filepath.Join(root, h.path)); err != nil {
+		body, err := os.ReadFile(filepath.Join(root, h.path))
+		if err != nil {
 			t.Errorf("missing runnable SessionTarget harness for %s at %s: %v", h.lang, h.path, err)
+			continue
+		}
+		if !strings.Contains(string(body), h.sentinel) {
+			t.Errorf("%s harness must emit success sentinel %q", h.lang, h.sentinel)
 		}
 	}
 	runner := filepath.Join(root, "clients/sdk/scripts/run-session-target-conformance.sh")
-	if _, err := os.Stat(runner); err != nil {
+	runnerBody, err := os.ReadFile(runner)
+	if err != nil {
 		t.Fatalf("missing SessionTarget conformance runner: %v", err)
+	}
+	runnerText := string(runnerBody)
+	for _, needle := range []string{
+		"run_with_sentinel",
+		"missing success sentinel",
+		"AG_SDK_SESSION_TARGET_CONFORMANCE_OK:ts",
+		"AG_SDK_SESSION_TARGET_CONFORMANCE_OK:csharp",
+		"AG_SDK_SESSION_TARGET_CONFORMANCE_OK:kotlin",
+		"AG_SDK_SESSION_TARGET_CONFORMANCE_OK:swift",
+	} {
+		if !strings.Contains(runnerText, needle) {
+			t.Errorf("conformance runner must enforce %q", needle)
+		}
 	}
 
 	// Executable harness runner:
 	//  - TypeScript always runs (npm test → isSessionTarget cases)
 	//  - C#/Kotlin/Swift run when toolchains are present
 	//  - CI sets AG_SDK_CONFORMANCE_REQUIRE_ALL=1 so all four must execute
+	//  - OK is gated on language-specific success sentinels, not exit code alone
 	cmd := exec.Command("bash", runner)
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
@@ -247,6 +269,54 @@ func TestSessionTargetDiscriminatorCrossSDK(t *testing.T) {
 	// Hard-require TypeScript execution evidence even when other languages skip.
 	if !strings.Contains(string(out), "OK ts") {
 		t.Fatalf("TypeScript SessionTarget harness must always run locally:\n%s", out)
+	}
+	if !strings.Contains(string(out), "AG_SDK_SESSION_TARGET_CONFORMANCE_OK:ts") {
+		t.Fatalf("TypeScript harness must emit success sentinel:\n%s", out)
+	}
+}
+
+// TestSessionTargetConformanceRejectsZeroExitFakeTool proves the runner cannot
+// mark a language OK when a zero-exit PATH shim pretends to be the toolchain
+// without emitting the harness success sentinel (the independent-verification
+// fake-green class: "only dotnet test is supported" + exit 0).
+//
+// Always-on: does not require a real .NET / Kotlin / Swift install.
+func TestSessionTargetConformanceRejectsZeroExitFakeTool(t *testing.T) {
+	root := repoRoot(t)
+	runner := filepath.Join(root, "clients/sdk/scripts/run-session-target-conformance.sh")
+	if _, err := os.Stat(runner); err != nil {
+		t.Fatalf("missing SessionTarget conformance runner: %v", err)
+	}
+
+	bin := t.TempDir()
+	// Zero-exit shim that matches the observed independent-verification failure.
+	fakeDotnet := filepath.Join(bin, "dotnet")
+	script := "#!/bin/sh\necho 'only dotnet test is supported'\nexit 0\n"
+	if err := os.WriteFile(fakeDotnet, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("bash", runner)
+	cmd.Dir = root
+	// Shadow any real dotnet; leave the rest of PATH intact so npm/TS can run.
+	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out, err := cmd.CombinedOutput()
+	text := string(out)
+	t.Logf("fake-tool runner output:\n%s", text)
+
+	if strings.Contains(text, "OK csharp") {
+		t.Fatalf("zero-exit fake dotnet must not be counted as OK csharp:\n%s", text)
+	}
+	// Runner FAIL lines name the expected sentinel; require the closed rejection path.
+	if !strings.Contains(text, "missing success sentinel") {
+		t.Fatalf("expected missing-sentinel rejection for fake csharp:\n%s", text)
+	}
+	if !strings.Contains(text, "only dotnet test is supported") {
+		t.Fatalf("expected fake shim stdout to be preserved in logs:\n%s", text)
+	}
+	// Overall run must fail: csharp attempted via fake and lacked sentinel.
+	if err == nil {
+		t.Fatalf("runner must exit non-zero when fake zero-exit tool is on PATH:\n%s", text)
 	}
 }
 

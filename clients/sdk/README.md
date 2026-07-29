@@ -70,5 +70,10 @@ AG_SDK_CONFORMANCE_REQUIRE_ALL=1 clients/sdk/scripts/run-session-target-conforma
 The always-on Go gate `TestSessionTargetDiscriminatorCrossSDK`
 (`services/gorules/repository_flagday_test.go`) asserts harness inventory,
 always runs TypeScript, and conditionally runs native harnesses when present.
-CI job `sdk-session-target` installs Node / .NET 8 / JDK+Kotlin / Swift and runs
-the runner with `AG_SDK_CONFORMANCE_REQUIRE_ALL=1`.
+Each harness emits a language-specific success sentinel
+(`AG_SDK_SESSION_TARGET_CONFORMANCE_OK:<lang>`); the runner captures output and
+fails if the sentinel is missing even when the process exits 0 (blocks zero-exit
+PATH shims). `TestSessionTargetConformanceRejectsZeroExitFakeTool` injects a
+fake `dotnet` to lock that regression. CI job `sdk-session-target` installs
+Node / .NET 8 / JDK+Kotlin / Swift and runs the runner with
+`AG_SDK_CONFORMANCE_REQUIRE_ALL=1`.

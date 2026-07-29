@@ -107,4 +107,6 @@ fun main() {
     }
 
     println("SessionTarget Kotlin conformance: all cases passed")
+    // Stable success sentinel consumed by run-session-target-conformance.sh.
+    println("AG_SDK_SESSION_TARGET_CONFORMANCE_OK:kotlin")
 }

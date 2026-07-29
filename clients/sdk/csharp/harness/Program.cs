@@ -85,3 +85,5 @@ ExpectInvalid(
     """{"source":"repository","repository":{"repository_id":"42","owner":"acme","name":""}}""");
 
 Console.WriteLine("SessionTarget C# conformance: all cases passed");
+// Stable success sentinel consumed by run-session-target-conformance.sh.
+Console.WriteLine("AG_SDK_SESSION_TARGET_CONFORMANCE_OK:csharp");
