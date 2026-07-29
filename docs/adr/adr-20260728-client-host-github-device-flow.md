@@ -5,7 +5,7 @@ title: Client-host GitHub device-flow account and catalog authority
 status: accepted
 created: '2026-07-28'
 decision_makers:
-- pending user consultation
+- user approval on 2026-07-28
 consulted:
 - design integration critique
 informed:
@@ -27,7 +27,7 @@ source_paths:
 - clients/workspace/
 - clients/ui/
 summary: Choose host-owned GitHub OAuth device flow, protected token persistence,
-  retained catalog, and credential-free projection pending consultation.
+  retained catalog, and credential-free projection.
 consequences:
   positive:
   - One credential-safe account/catalog behavior is shared across browser and Electron.
@@ -38,12 +38,15 @@ consequences:
   - The SPA continues to consume only credential-free provider state.
 confirmation: GitHubAuthContract and GitHubCatalogContract produce deep-equal Web/Workspace
   projections; configured FakeVsReal backstops pass or explicitly skip.
-updated: '2026-07-28'
+updated: '2026-07-29'
 ---
 
 ## Status
 
-Proposed. This decision is intentionally pending user consultation and does not authorize implementation until accepted or rejected.
+Accepted on 2026-07-28 and implemented by
+`change-20260728-github-repository-sessions`. Operating the dedicated OAuth App
+registration is a release prerequisite; acceptance of this ADR does not make an
+unvalidated client ID production-ready.
 
 ## Context
 
@@ -51,7 +54,12 @@ Browser and Electron require one credential-safe account/catalog capability with
 
 ## Decision
 
-Pending consultation, use a GitHub OAuth App device flow with fixed public client_id and scopes. Each host owns protected credential persistence/refresh and a bounded validated complete-generation catalog, while the SPA receives only credential-free status, repositories, and a discriminated target projection.
+Use a GitHub OAuth App device flow with a fixed public client_id and scopes.
+Each host owns protected credential persistence/refresh and a bounded validated
+complete-generation catalog, while the SPA receives only credential-free status,
+repositories, and a discriminated target projection. Registration provisioning,
+release validation, and rotation follow
+[GitHub OAuth App operations](../note/note-20260729-github-oauth-app-operations.md).
 
 ## Consequences
 
@@ -76,3 +84,7 @@ The SPA continues to consume only credential-free provider state.
 ## Confirmation
 
 GitHubAuthContract and GitHubCatalogContract produce deep-equal Web/Workspace projections; configured FakeVsReal backstops pass or explicitly skip.
+
+An explicit skip is acceptable for ordinary local and PR runs, but not for a
+production release. Release confirmation requires both host backstops against
+the exact client ID embedded in the package.

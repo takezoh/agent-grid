@@ -52,7 +52,7 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the canonical definition of the
 |---|---|---|---|---|
 | **User** | [sandbox setup](note-20260624-user-sandbox.md) | [web stack](note-20260624-user-web-server.md) · [systemd service](note-20260624-user-systemd.md) · [Windows WSL service](note-20260726-user-windows-wsl-service.md) | [orchestrator](note-20260624-user-orchestrator.md) | [getting started](note-20260624-user-getting-started.md) · [Codex Remote Control](note-20260715-user-codex-remote-control.md) |
 | **Agent** | — | — | [WORKFLOW.md authoring](note-20260624-agent-workflow-authoring.md) | [contributing](note-20260624-agent-contributing.md), [testing](note-20260624-agent-testing.md) |
-| **Technical** | [platform/](../design/design-platform.md) | [client/](../design/design-host.md) | [orchestrator/](../design/design-orchestrator.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) |
+| **Technical** | [platform/](../design/design-platform.md) | [client/](../design/design-host.md) | [orchestrator/](../design/design-orchestrator.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) · [GitHub OAuth App operations](note-20260729-github-oauth-app-operations.md) |
 
 ## By audience
 

@@ -11,6 +11,9 @@ contract. Desktop hosts additionally read appearance and process settings.
 - `github.schema.json` / `fixtures/github-oauth-valid.json`: fixed public GitHub
   OAuth App device-flow registration (`client_id`, `read:user` + `repo` scopes).
   No `client_secret`, bearer token, or refresh material is stored here.
+  Registration ownership, release validation, rotation, and the current
+  production limitation are documented in
+  [GitHub OAuth App operations](../../docs/note/note-20260729-github-oauth-app-operations.md).
 - `fixtures/github-projection-credential-free.json`: sample SPA-facing account
   and catalog projection (status, repositories only)
 
