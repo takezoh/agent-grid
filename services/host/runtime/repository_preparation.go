@@ -151,12 +151,12 @@ type CloneAuthority interface {
 }
 
 type PreparationCapacity struct {
-	ActiveGlobal     int
-	QueuedGlobal     int
-	ActiveByRepo     map[string]int
-	NeverAvailBytes  int64
-	ProcessByIntent  map[state.CreationIntentID]int
-	StagingByIntent  map[state.CreationIntentID]int
+	ActiveGlobal    int
+	QueuedGlobal    int
+	ActiveByRepo    map[string]int
+	NeverAvailBytes int64
+	ProcessByIntent map[state.CreationIntentID]int
+	StagingByIntent map[state.CreationIntentID]int
 }
 
 func NewPreparationCapacity() *PreparationCapacity {

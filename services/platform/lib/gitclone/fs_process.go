@@ -133,15 +133,15 @@ func (OSFilesystem) KillProcess(pid int) error {
 }
 
 type FakeFilesystemProcess struct {
-	FailAt string
-	FailErr error
+	FailAt             string
+	FailErr            error
 	DirSyncUnsupported bool
-	FinalExists map[string]bool
-	Trees map[string][]byte
-	Dirs map[string]bool
-	Calls []string
-	Killed []int
-	KillErr error
+	FinalExists        map[string]bool
+	Trees              map[string][]byte
+	Dirs               map[string]bool
+	Calls              []string
+	Killed             []int
+	KillErr            error
 }
 
 func NewFakeFilesystemProcess() *FakeFilesystemProcess {

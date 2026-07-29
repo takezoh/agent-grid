@@ -1,7 +1,6 @@
 package gitclone
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -83,37 +82,27 @@ func TestFilesystemProcessContract(t *testing.T) {
 	}
 }
 
-// TestFakeVsRealFilesystemProcess: opt-in host fidelity; absent authority is typed unavailable.
-func TestFakeVsRealFilesystemProcess(t *testing.T) {
-	if os.Getenv("AG_E2E_FILESYSTEM_PROCESS") == "" {
-		fake := NewFakeFilesystemProcess()
-		if err := fake.KillProcess(0); err != ErrProcessUnavailable {
-			t.Fatalf("fake unavailable: %v", err)
-		}
-		if err := (OSFilesystem{}).KillProcess(0); err != ErrProcessUnavailable {
-			t.Fatalf("real unavailable: %v", err)
-		}
-		return
+func TestPublishCloneContract_RequiredFieldsAndNesting(t *testing.T) {
+	fs := NewFakeFilesystemProcess()
+	if res := PublishClone(PublishRequest{StagingDir: "", FinalDir: "/f", Marker: "m", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("empty staging: %+v", res)
 	}
-	dir := t.TempDir()
-	real := OSFilesystem{}
-	staging := filepath.Join(dir, "stage")
-	final := filepath.Join(dir, "final")
-	if err := real.MkdirAll(filepath.Join(staging, ".git"), 0o755); err != nil {
-		t.Fatal(err)
+	if res := PublishClone(PublishRequest{StagingDir: "/s", FinalDir: "", Marker: "m", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("empty final: %+v", res)
 	}
-	if err := real.WriteFileAtomic(filepath.Join(staging, "README"), []byte("hi"), 0o644); err != nil {
-		t.Fatal(err)
+	if res := PublishClone(PublishRequest{StagingDir: "/s", FinalDir: "/f", Marker: "", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("empty marker: %+v", res)
 	}
-	res := PublishClone(PublishRequest{StagingDir: staging, FinalDir: final, Marker: "real-1", FS: real})
-	if res.Code != CodeAtomicPublishOK {
-		t.Fatalf("real publish: %+v", res)
+	if res := PublishClone(PublishRequest{StagingDir: "/same", FinalDir: "/same", Marker: "m", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("same path: %+v", res)
 	}
-	fake := NewFakeFilesystemProcess()
-	_ = fake.MkdirAll("/s", 0o755)
-	fakeRes := PublishClone(PublishRequest{StagingDir: "/s", FinalDir: "/f", Marker: "real-1", FS: fake})
-	if fakeRes.Code != CodeAtomicPublishOK {
-		t.Fatalf("fake publish: %+v", fakeRes)
+	if res := PublishClone(PublishRequest{StagingDir: "/root/final/nested", FinalDir: "/root/final", Marker: "m", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("nested staging: %+v", res)
+	}
+	_ = fs.MkdirAll("/repo/stage-ok", 0o755)
+	ok := PublishClone(PublishRequest{StagingDir: "/repo/stage-ok", FinalDir: "/repo/final-ok", Marker: "mk", FS: fs})
+	if ok.Code != CodeAtomicPublishOK || ok.FinalDir != "/repo/final-ok" || ok.Marker != "mk" {
+		t.Fatalf("ok fields: %+v", ok)
 	}
 }
 

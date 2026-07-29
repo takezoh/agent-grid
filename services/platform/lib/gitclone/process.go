@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -113,7 +112,10 @@ func runGit(ctx context.Context, broker *Broker, prep *BrokerPrepare, bin string
 	code := 0
 	if err != nil {
 		code = 1
-		if ee, ok := err.(*exec.ExitError); ok {
+		// Avoid importing os/exec (external process boundary); ExitCode is on the
+		// concrete process error from the shared procgroup seam.
+		type exitCoder interface{ ExitCode() int }
+		if ee, ok := err.(exitCoder); ok {
 			code = ee.ExitCode()
 		}
 	}

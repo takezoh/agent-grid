@@ -3,6 +3,10 @@
   "$id": "https://agent-grid.dev/protocol/repository.schema.json",
   "title": "RepositorySessionIdentities",
   "description": "Fully-qualified repository session identities and preparation snapshots.",
+  "oneOf": [
+    { "$ref": "#/$defs/SessionTarget" },
+    { "$ref": "#/$defs/RepositoryPreparation" }
+  ],
   "$defs": {
     "GitHubRepositoryIdentity": {
       "type": "object",

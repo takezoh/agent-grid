@@ -212,7 +212,8 @@ func TestRestartReconciliationAndFakeVsRealEnv(t *testing.T) {
 	if e, ok := evs[0].(state.EvRepository); !ok || e.Kind != "interrupted" {
 		t.Fatalf("ev=%v", evs[0])
 	}
-	// Absent real docker authority → typed unavailable (no t.Skip).
+	// Always-on unit contract: fake FailCode is a typed unavailable outcome (no error).
+	// Real/absent authority path lives in repository_devcontainer_e2e_test.go FakeVsReal.
 	fake := runtime.NewFakeRepositoryDevcontainer()
 	fake.FailCode = runtime.EnvCodeUnavailable
 	res, err := fake.Ensure(context.Background(), runtime.RepositoryEnvironmentRequest{

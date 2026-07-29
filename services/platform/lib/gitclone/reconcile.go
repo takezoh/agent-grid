@@ -11,11 +11,11 @@ import (
 type ReconcileDisposition string
 
 const (
-	ReconcileCloneReady   ReconcileDisposition = "clone_ready"
-	ReconcileRetryClone   ReconcileDisposition = "retry_clone"
-	ReconcileConflict     ReconcileDisposition = "clone_identity_conflict"
-	ReconcileUnsupported  ReconcileDisposition = "atomic_publish_unsupported"
-	ReconcileQuarantine   ReconcileDisposition = "internal_corruption"
+	ReconcileCloneReady  ReconcileDisposition = "clone_ready"
+	ReconcileRetryClone  ReconcileDisposition = "retry_clone"
+	ReconcileConflict    ReconcileDisposition = "clone_identity_conflict"
+	ReconcileUnsupported ReconcileDisposition = "atomic_publish_unsupported"
+	ReconcileQuarantine  ReconcileDisposition = "internal_corruption"
 )
 
 // ReconcileRequest inspects staging/final evidence for one intent.
