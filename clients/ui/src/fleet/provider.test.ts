@@ -118,9 +118,7 @@ describe("FleetProvider host parity", () => {
       }
       return new Response("nope", { status: 500 });
     }) as typeof fetch;
-    await expect(makeFleetProvider(fetchImpl).repositoryProjection()).rejects.toThrow(
-      /HTTP 404/,
-    );
+    await expect(makeFleetProvider(fetchImpl).repositoryProjection()).rejects.toThrow(/HTTP 404/);
   });
 
   it("does not synthesize a server from the browser origin", () => {
