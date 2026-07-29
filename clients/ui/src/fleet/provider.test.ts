@@ -111,16 +111,16 @@ describe("FleetProvider host parity", () => {
     expect(JSON.stringify(repo)).not.toMatch(/gho_|ghu_|github_pat/i);
   });
 
-  it("Web repositoryProjection falls back empty on 404 host route", async () => {
+  it("Web repositoryProjection treats 404 as transient failure (not empty wipe)", async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === "/host/repository") {
         return new Response("missing", { status: 404 });
       }
       return new Response("nope", { status: 500 });
     }) as typeof fetch;
-    const projection = await makeFleetProvider(fetchImpl).repositoryProjection();
-    expect(projection.sources.find((s) => s.id === "projects")?.available).toBe(true);
-    expect(projection.targets).toEqual([]);
+    await expect(makeFleetProvider(fetchImpl).repositoryProjection()).rejects.toThrow(
+      /HTTP 404/,
+    );
   });
 
   it("does not synthesize a server from the browser origin", () => {

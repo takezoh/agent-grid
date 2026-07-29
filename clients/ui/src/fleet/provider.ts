@@ -74,19 +74,6 @@ function websocketURL(pathname: string, ticket: string): string {
   return url.toString();
 }
 
-function emptyRepositoryProjection(): HostRepositoryProjection {
-  return {
-    sources: [
-      { id: "projects", available: true },
-      { id: "github", available: false, status: "unauthenticated" },
-    ],
-    account: { state: "unauthenticated" },
-    catalog: { outcome: "empty", generation: 0, repositories: [] },
-    targets: [],
-    preparations: [],
-  };
-}
-
 function webProvider(fetchImpl: typeof fetch): FleetProvider {
   return {
     initialServerId: explicitServerId,
@@ -170,7 +157,9 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
     },
     async repositoryProjection() {
       const response = await fetchImpl("/host/repository");
-      if (response.status === 404) return emptyRepositoryProjection();
+      // 404 is a transient host/route failure — not an empty catalog. Throwing
+      // preserves TargetPicker retention of last complete projection, selection,
+      // and in-flight preparation instead of wiping to unauthenticated empty.
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return (await response.json()) as HostRepositoryProjection;
     },

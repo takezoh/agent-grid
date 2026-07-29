@@ -12,6 +12,7 @@ import (
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/lib/gitclone"
 	"github.com/takezoh/agent-grid/services/platform/sandbox"
+	sandboxdc "github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer"
 )
 
 type fixedAuthority struct{ cred gitclone.Credential }
@@ -259,18 +260,19 @@ func TestNeverAvailableAccountingAndAbandonCleanup(t *testing.T) {
 	if ctrl.Cap.NeverAvailBytes < 10 {
 		t.Fatalf("never-available bytes not charged: %d", ctrl.Cap.NeverAvailBytes)
 	}
-	if code := ctrl.Cap.AdmitClone("s", testRepo(), "other", runtime.PrepCapNeverAvailableBytes); code != "capacity_disk_full" {
-		// With charged bytes, admitting a huge additional request should hit disk full
-		// only when sum exceeds cap; charge alone may be small — force full.
-		_ = code
+	// Fill remaining headroom so AdmitClone rejects on disk capacity.
+	remaining := runtime.PrepCapNeverAvailableBytes - ctrl.Cap.NeverAvailBytes
+	if remaining > 0 {
+		ctrl.Cap.AddNeverAvailable(remaining)
 	}
-	// Fill to cap and assert AdmitClone rejects.
-	ctrl.Cap.AddNeverAvailable(runtime.PrepCapNeverAvailableBytes)
 	if code := ctrl.Cap.AdmitClone("s", testRepo(), "other", 1); code != "capacity_disk_full" {
 		t.Fatalf("want capacity_disk_full, got %q", code)
 	}
 	// Terminal abandon cleanup removes never-available clone and releases charge.
-	ctrl.Cap.RemoveNeverAvailable(runtime.PrepCapNeverAvailableBytes) // reset artificial fill
+	// Undo the artificial fill first so we assert only the clone-path account.
+	if remaining > 0 {
+		ctrl.Cap.RemoveNeverAvailable(remaining)
+	}
 	before := ctrl.Cap.NeverAvailBytes
 	ctrl.CleanupNeverAvailable(state.RepositoryPreparation{
 		ID: "prep-na", Stage: state.PrepStageAbandoned, ClonePath: state.ClonePathID(clone),
@@ -483,16 +485,21 @@ func TestPlatformRepositoryDevcontainerIsolationAndFailures(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(clone, ".devcontainer", "devcontainer.json"), []byte(`{"image":"t:latest"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	var calls []string
+	var mountSources []string
+	var identities []string
 	dc := &runtime.PlatformRepositoryDevcontainer{
 		EnsureFn: func(_ context.Context, projectPath string, opts sandbox.StartOptions) (string, error) {
-			calls = append(calls, projectPath)
+			mountSources = append(mountSources, projectPath)
+			identities = append(identities, opts.Isolation.ContainerKey(projectPath))
 			if opts.Isolation.IsShared() {
 				t.Fatal("shared isolation forbidden")
 			}
-			// Must key by repository identity project path, not clone path.
+			// Mount source is sessions root; identity is not the clone path.
 			if projectPath == clone {
-				t.Fatal("must not use clone path as environment project")
+				t.Fatal("must not use clone path as mount source")
+			}
+			if opts.Isolation.ContainerKey(projectPath) == clone {
+				t.Fatal("must not key container by clone path")
 			}
 			return "ctr-platform-1", nil
 		},
@@ -508,15 +515,18 @@ func TestPlatformRepositoryDevcontainerIsolationAndFailures(t *testing.T) {
 	if res.MountScope != sessions || res.FrameCWD != clone {
 		t.Fatalf("scope: %+v", res)
 	}
-	wantProject := runtime.RepositoryEnvironmentProjectPath(sessions, "srv", testRepo().ID, "gen-1")
-	if len(calls) != 1 || calls[0] != wantProject {
-		t.Fatalf("project path=%v want %s", calls, wantProject)
+	wantIdentity := runtime.RepositoryEnvironmentProjectPath(sessions, "srv", testRepo().ID, "gen-1")
+	if len(mountSources) != 1 || mountSources[0] != sessions {
+		t.Fatalf("mount source=%v want sessions root %s", mountSources, sessions)
 	}
-	// Second ensure with different clone reuses same env project path.
+	if len(identities) != 1 || identities[0] != wantIdentity {
+		t.Fatalf("identity=%v want %s", identities, wantIdentity)
+	}
+	// Second ensure with different clone reuses same mount source + identity.
 	req.ClonePath = filepath.Join(sessions, "clones", "c2")
 	_, _ = dc.Ensure(context.Background(), req)
-	if len(calls) != 2 || calls[1] != wantProject {
-		t.Fatalf("reuse project path: %v", calls)
+	if len(mountSources) != 2 || mountSources[1] != sessions || identities[1] != wantIdentity {
+		t.Fatalf("reuse: mounts=%v ids=%v", mountSources, identities)
 	}
 
 	// Typed failure propagation from manager boundary.
@@ -538,6 +548,129 @@ func TestPlatformRepositoryDevcontainerIsolationAndFailures(t *testing.T) {
 	ur2, err := runtime.UnavailableRepositoryDevcontainer{}.Ensure(context.Background(), req)
 	if err != nil || ur2.Code != runtime.EnvCodeUnavailable {
 		t.Fatalf("typed unavailable adapter: %+v err=%v", ur2, err)
+	}
+}
+
+// TestPlatformRepositoryDevcontainerBindMountAndFrameCWD proves the manager is
+// given the sessions root as bind-mount source (not empty repository-env) and
+// that frame cwd translates under that mount — not metadata-only.
+func TestPlatformRepositoryDevcontainerBindMountAndFrameCWD(t *testing.T) {
+	sessions := t.TempDir()
+	clone := filepath.Join(sessions, "clones", "prep-bind")
+	dcDir := filepath.Join(clone, ".devcontainer")
+	if err := os.MkdirAll(dcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const wsFolder = "/workspaces/sessions"
+	specJSON := fmt.Sprintf(`{"image":"t:latest","workspaceFolder":%q}`, wsFolder)
+	if err := os.WriteFile(filepath.Join(dcDir, "devcontainer.json"), []byte(specJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var gotPath string
+	var gotOpts sandbox.StartOptions
+	dc := &runtime.PlatformRepositoryDevcontainer{
+		EnsureFn: func(_ context.Context, projectPath string, opts sandbox.StartOptions) (string, error) {
+			gotPath = projectPath
+			gotOpts = opts
+			return "ctr-bind-1", nil
+		},
+	}
+	req := runtime.RepositoryEnvironmentRequest{
+		ServerID: "srv", Repository: testRepo(), ConfigGen: "gen-bind",
+		SessionsRoot: sessions, ClonePath: clone,
+	}
+	res, err := dc.Ensure(context.Background(), req)
+	if err != nil || res.Code != runtime.EnvCodeOK {
+		t.Fatalf("ensure: %+v err=%v", res, err)
+	}
+	if gotPath != sessions {
+		t.Fatalf("Ensure projectPath (mount source) = %q, want sessions root %q", gotPath, sessions)
+	}
+	wantIdentity := runtime.RepositoryEnvironmentProjectPath(sessions, "srv", testRepo().ID, "gen-bind")
+	if gotOpts.Isolation.ContainerIdentity != wantIdentity {
+		t.Fatalf("ContainerIdentity = %q, want %q", gotOpts.Isolation.ContainerIdentity, wantIdentity)
+	}
+	if gotOpts.Isolation.ContainerKey(gotPath) != wantIdentity {
+		t.Fatalf("ContainerKey = %q, want identity %q", gotOpts.Isolation.ContainerKey(gotPath), wantIdentity)
+	}
+	if gotOpts.Isolation.DevcontainerDir != dcDir {
+		t.Fatalf("DevcontainerDir = %q, want clone-local %q", gotOpts.Isolation.DevcontainerDir, dcDir)
+	}
+	// Actual bind-mount source from resolved spec (not only returned MountScope).
+	spec, err := sandboxdc.LoadSpec(gotPath, gotOpts.Isolation.DevcontainerDir)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	spec.ContainerIdentity = gotOpts.Isolation.ContainerIdentity
+	binds := spec.BindMounts()
+	foundSessions := false
+	for _, b := range binds {
+		if b.Source == sessions {
+			foundSessions = true
+			break
+		}
+	}
+	if !foundSessions {
+		t.Fatalf("BindMounts = %+v, want sessions root %q as source", binds, sessions)
+	}
+	// Empty repository-env identity dir must not be the workspace mount source.
+	envDir := wantIdentity
+	for _, b := range binds {
+		if b.Source == envDir {
+			t.Fatalf("must not bind-mount empty repository-env identity dir %q", envDir)
+		}
+	}
+	// Frame cwd translation under mounted sessions root.
+	translated := runtime.TranslateRepositoryFrameCWD(sessions, clone, wsFolder)
+	wantCWD := wsFolder + "/clones/prep-bind"
+	if translated != wantCWD {
+		t.Fatalf("translated frame cwd = %q, want %q", translated, wantCWD)
+	}
+	if res.FrameCWD != clone || res.MountScope != sessions {
+		t.Fatalf("result metadata: %+v", res)
+	}
+	// Create args must stamp identity label, not sessions-root collision key.
+	args := spec.BuildCreateArgs(spec.Image)
+	foundLabel := false
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--label" && args[i+1] == "reactor-project="+wantIdentity {
+			foundLabel = true
+			break
+		}
+	}
+	if !foundLabel {
+		t.Fatalf("create args missing identity project label; args=%v", args)
+	}
+}
+
+func TestAbandonPendingLaunchReleasesNeverAvailableCapacity(t *testing.T) {
+	root := t.TempDir()
+	fs := gitclone.OSFilesystem{}
+	ctrl := runtime.NewPreparationController(runtime.NewMemoryPreparationStore(), fs, &gitclone.FakeGitClone{}, root, nil)
+	clone := filepath.Join(root, "clones", "prep-launch-fail")
+	if err := os.MkdirAll(clone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(clone, "blob"), []byte("0123456789"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	const prepID state.PreparationID = "prep-launch-fail"
+	ctrl.AccountClonePath(prepID, clone)
+	charged := ctrl.Cap.NeverAvailBytes
+	if charged < 10 {
+		t.Fatalf("expected charge, got %d", charged)
+	}
+	// Launch-failure abandon must free the never-available account even when the
+	// pending-launch map entry is already gone (worker finished; only capacity remains).
+	ctrl.AbandonPendingLaunch(prepID)
+	if ctrl.Cap.NeverAvailBytes != 0 {
+		t.Fatalf("AbandonPendingLaunch must release never-available capacity: before=%d after=%d", charged, ctrl.Cap.NeverAvailBytes)
+	}
+	// Second abandon is a no-op (no double-free / panic).
+	ctrl.AbandonPendingLaunch(prepID)
+	if ctrl.Cap.NeverAvailBytes != 0 {
+		t.Fatalf("double abandon leaked capacity: %d", ctrl.Cap.NeverAvailBytes)
 	}
 }
 

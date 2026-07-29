@@ -90,10 +90,12 @@ func TestFakeVsRealRepositoryDevcontainer(t *testing.T) {
 		if rres.ContainerID == "" || rres.MountScope != realSessions {
 			t.Fatalf("real ensure incomplete: %+v", rres)
 		}
-		// Best-effort cleanup of the repository-env project container.
+		// Best-effort cleanup of the repository-generation container (mount = sessions root).
 		envPath := runtime.RepositoryEnvironmentProjectPath(realSessions, "s", testRepo().ID, "real-g")
-		if inst, err := realMgr.EnsureInstance(context.Background(), envPath, "", sandbox.StartOptions{
-			Isolation: sandbox.RepositoryIsolationPlan(),
+		plan := sandbox.RepositoryIsolationPlan()
+		plan.ContainerIdentity = envPath
+		if inst, err := realMgr.EnsureInstance(context.Background(), realSessions, "", sandbox.StartOptions{
+			Isolation: plan,
 		}); err == nil {
 			_ = realMgr.DestroyInstance(context.Background(), inst)
 		}

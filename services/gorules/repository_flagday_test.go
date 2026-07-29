@@ -3,6 +3,7 @@ package gorules_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -202,6 +203,15 @@ func TestSessionTargetDiscriminatorCrossSDK(t *testing.T) {
 	s := string(schema)
 	if !strings.Contains(s, `"const": "project"`) || !strings.Contains(s, `"const": "repository"`) {
 		t.Error("repository.schema.json SessionTarget must keep source const discriminators")
+	}
+
+	// Executable TypeScript SDK guard: import/invoke isSessionTarget against valid
+	// and collapsed/mixed payloads (not source-string scan only).
+	cmd := exec.Command("npm", "test")
+	cmd.Dir = filepath.Join(root, "clients/sdk")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("clients/sdk npm test (SessionTarget discriminator) failed: %v\n%s", err, out)
 	}
 }
 

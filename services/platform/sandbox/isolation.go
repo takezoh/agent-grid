@@ -31,12 +31,21 @@ const SharedInstanceKey = "__shared__"
 // Key derivation takes projectPath as an argument rather than storing it: the
 // manager already carries one canonical projectPath (the EnsureInstance
 // argument), and keeping the plan free of it avoids a second, divergeable copy.
+// ContainerIdentity is the deliberate exception for repository environments,
+// where projectPath is the sessions-root mount source and must not double as
+// the per-repository-generation container key.
 type IsolationPlan struct {
 	// Kind selects shared vs per-project isolation.
 	Kind IsolationKind
 	// DevcontainerDir overrides devcontainer.json discovery; "" = auto-discover.
 	// Already ~-expanded by the decision shell.
 	DevcontainerDir string
+	// ContainerIdentity, when non-empty, is the durable container key used for
+	// ContainerKey, docker project labels, and container names. projectPath
+	// remains the workspace mount source and workdir translation base.
+	// Repository environments set this so one container per repository generation
+	// mounts the sessions root (not an empty repository-env identity directory).
+	ContainerIdentity string
 }
 
 // IsShared reports whether this plan routes through the shared instance.
@@ -50,10 +59,14 @@ func IsSharedKey(key string) bool { return key == SharedInstanceKey }
 
 // ContainerKey is the instance identity: it is BOTH the containers-map key and
 // the run-dir key. Being one method means the two cannot drift. Shared collapses
-// to SharedInstanceKey; per-project keys by the project path.
+// to SharedInstanceKey; ContainerIdentity overrides when set; otherwise
+// per-project keys by the project path.
 func (p IsolationPlan) ContainerKey(projectPath string) string {
 	if p.Kind == IsolationShared {
 		return SharedInstanceKey
+	}
+	if p.ContainerIdentity != "" {
+		return p.ContainerIdentity
 	}
 	return projectPath
 }

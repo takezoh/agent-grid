@@ -393,6 +393,52 @@ describe("TargetPicker retained projection on poll failure", () => {
       expect(label.toLowerCase()).not.toBe("github");
     });
   });
+
+  it("keeps catalog and selection when web projection 404s (HTTP 404 is transient)", async () => {
+    // Mirrors webProvider: HTTP 404 throws rather than returning empty projection.
+    let fail = false;
+    let calls = 0;
+    const provider: FleetProvider = {
+      ...fakeProvider(baseProjection),
+      repositoryProjection: async () => {
+        calls += 1;
+        if (fail) throw new Error("HTTP 404");
+        return baseProjection;
+      },
+    };
+    render(
+      <TargetPicker
+        focused
+        disabled={false}
+        projects={[
+          {
+            path: "/repo/demo",
+            isGit: true,
+            isSandboxed: false,
+            serverId: "srv-a",
+            serverLabel: "Alpha",
+          },
+        ]}
+        value={null}
+        onSelectProject={vi.fn()}
+        onEnter={vi.fn()}
+        onAnnounce={vi.fn()}
+        provider={provider}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("alice/demo")).toBeTruthy());
+    // Select the repository so retention must also preserve selection surface.
+    fireEvent.click(screen.getByText("alice/demo"));
+    fail = true;
+    await waitFor(() => expect(calls).toBeGreaterThan(1), { timeout: 4000 });
+    expect(screen.getByText("alice/demo")).toBeTruthy();
+    await waitFor(() => {
+      const label = screen.getByTestId("github-status-label").textContent ?? "";
+      expect(label).toMatch(/stale|fail|source failed|error/i);
+    });
+    // Must not collapse to unauthenticated empty (would hide catalog entirely).
+    expect(screen.queryByText(/sign in|unauthenticated/i)).toBeNull();
+  });
 });
 
 describe("TargetPicker confirm identity and back (UAC-002/UAC-008)", () => {

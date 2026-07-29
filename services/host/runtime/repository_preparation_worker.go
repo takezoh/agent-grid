@@ -373,6 +373,10 @@ func (c *PreparationController) AbandonPendingLaunch(id state.PreparationID) {
 			_ = c.FS.RemoveAll(w.final)
 		}
 	}
+	// Pending launch owns a published clone that is still never-available. Free
+	// the capacity charge immediately when abandoning (clone dirs removed above
+	// or left for age sweep); otherwise never-available bytes leak forever.
+	c.ReleaseNeverAvailableAccount(id)
 }
 
 func (c *PreparationController) ReconcileStartup(preps []state.RepositoryPreparation) []state.Event {

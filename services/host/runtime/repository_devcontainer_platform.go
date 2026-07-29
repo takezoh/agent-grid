@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/sandbox"
@@ -56,6 +57,11 @@ func (UnavailableRepositoryDevcontainer) Ensure(_ context.Context, _ RepositoryE
 
 // Ensure forces per-project isolation, reuses repository-stable project identity,
 // and reports mount scope as the sessions root with frame CWD = clone path.
+//
+// Manager projectPath is the sessions root (bind-mount source). Repository
+// generation identity is carried separately via IsolationPlan.ContainerIdentity
+// so multiple clones share one container without mounting an empty repository-env
+// directory.
 func (p *PlatformRepositoryDevcontainer) Ensure(ctx context.Context, req RepositoryEnvironmentRequest) (RepositoryEnvironmentResult, error) {
 	if p == nil || p.EnsureFn == nil {
 		return RepositoryEnvironmentResult{Code: EnvCodeUnavailable, Diagnostic: "repository environment authority unavailable"}, nil
@@ -70,15 +76,16 @@ func (p *PlatformRepositoryDevcontainer) Ensure(ctx context.Context, req Reposit
 	if err := sandbox.RejectSharedRepositoryIsolation(plan); err != nil {
 		return RepositoryEnvironmentResult{Code: EnvCodeIsolationDenied, Diagnostic: err.Error()}, nil
 	}
-	// Stable project path for container key: never the per-session clone path.
+	// Durable identity key for the container (never the per-session clone path).
 	gen := req.ConfigGen
 	if gen == "" {
 		gen = "default"
 	}
-	envProject := RepositoryEnvironmentProjectPath(req.SessionsRoot, req.ServerID, req.Repository.ID, gen)
-	if err := os.MkdirAll(envProject, 0o755); err != nil {
+	envIdentity := RepositoryEnvironmentProjectPath(req.SessionsRoot, req.ServerID, req.Repository.ID, gen)
+	if err := os.MkdirAll(envIdentity, 0o755); err != nil {
 		return RepositoryEnvironmentResult{Code: EnvCodeFailed, Diagnostic: err.Error()}, err
 	}
+	plan.ContainerIdentity = envIdentity
 	// Prefer clone-local .devcontainer when present; else Manager falls back to user base.
 	if req.ClonePath != "" {
 		candidate := filepath.Join(req.ClonePath, ".devcontainer")
@@ -86,7 +93,8 @@ func (p *PlatformRepositoryDevcontainer) Ensure(ctx context.Context, req Reposit
 			plan.DevcontainerDir = candidate
 		}
 	}
-	cid, err := p.EnsureFn(ctx, envProject, sandbox.StartOptions{Isolation: plan})
+	// Mount source is the sessions root so clones under sessionsRoot/clones are visible.
+	cid, err := p.EnsureFn(ctx, req.SessionsRoot, sandbox.StartOptions{Isolation: plan})
 	if err != nil {
 		return RepositoryEnvironmentResult{Code: EnvCodeFailed, Diagnostic: err.Error()}, err
 	}
@@ -101,8 +109,26 @@ func (p *PlatformRepositoryDevcontainer) Ensure(ctx context.Context, req Reposit
 	}, nil
 }
 
-// RepositoryEnvironmentProjectPath is the durable host path that identities a
-// repository environment for the sandbox manager (not a session clone).
+// RepositoryEnvironmentProjectPath is the durable host identity for a repository
+// environment (container key / label). It is not the workspace mount source;
+// sessions root is mounted and session clones are frame cwds under it.
 func RepositoryEnvironmentProjectPath(sessionsRoot string, server state.ExecutionServerID, repoID state.GitHubRepositoryID, configGen string) string {
 	return filepath.Join(sessionsRoot, "repository-env", string(server), string(repoID), configGen)
+}
+
+// TranslateRepositoryFrameCWD maps a host clone path under sessionsRoot to the
+// container-side cwd given the container workspace target (default mount target).
+// Used by contract tests and launch pathmap wiring.
+func TranslateRepositoryFrameCWD(sessionsRoot, clonePath, containerWorkspace string) string {
+	if sessionsRoot == "" || clonePath == "" || containerWorkspace == "" {
+		return containerWorkspace
+	}
+	if filepath.Clean(clonePath) == filepath.Clean(sessionsRoot) {
+		return containerWorkspace
+	}
+	rel, err := filepath.Rel(sessionsRoot, clonePath)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return containerWorkspace
+	}
+	return filepath.ToSlash(filepath.Join(containerWorkspace, rel))
 }
