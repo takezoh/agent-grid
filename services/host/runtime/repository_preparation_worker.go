@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/lib/gitclone"
@@ -22,9 +23,11 @@ type PreparationController struct {
 	SessionsRoot string // repository sessions root (mount scope)
 	Cap          *PreparationCapacity
 	Enqueue      func(state.Event)
+	Now          func() time.Time
 
-	workers       map[state.PreparationID]*prepWorker
-	pendingLaunch map[state.PreparationID]pendingTerminalLaunch
+	workers        map[state.PreparationID]*prepWorker
+	pendingLaunch  map[state.PreparationID]pendingTerminalLaunch
+	neverAvailSize map[state.PreparationID]int64 // bytes counted against never-available cap
 }
 
 type prepWorker struct {
@@ -57,14 +60,16 @@ func NewPreparationController(store PreparationStore, fs gitclone.FilesystemProc
 		cloner = gitclone.Service{}
 	}
 	return &PreparationController{
-		Store:         store,
-		FS:            fs,
-		Cloner:        cloner,
-		SessionsRoot:  root,
-		Cap:           NewPreparationCapacity(),
-		Enqueue:       enqueue,
-		workers:       map[state.PreparationID]*prepWorker{},
-		pendingLaunch: map[state.PreparationID]pendingTerminalLaunch{},
+		Store:          store,
+		FS:             fs,
+		Cloner:         cloner,
+		SessionsRoot:   root,
+		Cap:            NewPreparationCapacity(),
+		Enqueue:        enqueue,
+		Now:            time.Now,
+		workers:        map[state.PreparationID]*prepWorker{},
+		pendingLaunch:  map[state.PreparationID]pendingTerminalLaunch{},
+		neverAvailSize: map[state.PreparationID]int64{},
 	}
 }
 
@@ -82,6 +87,7 @@ func markerFor(p state.RepositoryPreparation) string {
 func (c *PreparationController) TryAdmit(prep state.RepositoryPreparation) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// cloneBytes=0: pre-clone size unknown; AdmitClone still enforces NeverAvailBytes cap.
 	code := c.Cap.AdmitClone(prep.ServerID, prep.Repository, prep.IntentID, 0)
 	if code == "" {
 		c.Cap.BeginActive(prep.ServerID, prep.Repository, prep.IntentID)
@@ -99,6 +105,107 @@ func (c *PreparationController) TryAdmit(prep state.RepositoryPreparation) bool 
 		})
 	}
 	return false
+}
+
+// AccountClonePath charges never-available capacity for a published clone that
+// is not yet a session-available workspace.
+func (c *PreparationController) AccountClonePath(id state.PreparationID, path string) {
+	if c == nil || path == "" {
+		return
+	}
+	n := DirBytes(path)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if prev, ok := c.neverAvailSize[id]; ok {
+		c.Cap.RemoveNeverAvailable(prev)
+	}
+	c.neverAvailSize[id] = n
+	c.Cap.AddNeverAvailable(n)
+}
+
+// ReleaseNeverAvailableAccount drops capacity charge without deleting files
+// (session became available and now owns the clone).
+func (c *PreparationController) ReleaseNeverAvailableAccount(id state.PreparationID) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if prev, ok := c.neverAvailSize[id]; ok {
+		c.Cap.RemoveNeverAvailable(prev)
+		delete(c.neverAvailSize, id)
+	}
+}
+
+// CleanupNeverAvailable removes non-available session clone/staging resources
+// and releases capacity. Never deletes shared repository environments or
+// session-available clones.
+func (c *PreparationController) CleanupNeverAvailable(prep state.RepositoryPreparation) {
+	if c == nil || prep.IsSessionAvailable() || prep.Stage == state.PrepStageAvailable {
+		return
+	}
+	staging := filepath.Join(c.SessionsRoot, "staging", string(prep.ID))
+	final := string(prep.ClonePath)
+	if final == "" {
+		final = filepath.Join(c.SessionsRoot, "clones", string(prep.ID))
+	}
+	_ = c.FS.RemoveAll(staging)
+	// Only remove final when it is under sessions root and not session-available.
+	if final != "" && c.SessionsRoot != "" {
+		cleanRoot := filepath.Clean(c.SessionsRoot)
+		cleanFinal := filepath.Clean(final)
+		if cleanFinal == cleanRoot || hasSessionsPrefix(cleanFinal, cleanRoot) {
+			_ = c.FS.RemoveAll(final)
+		}
+	}
+	c.ReleaseNeverAvailableAccount(prep.ID)
+}
+
+func hasSessionsPrefix(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !filepath.IsAbs(rel)
+}
+
+// SweepNeverAvailableOrphans deletes never-available preparation clones whose
+// durable records are older than PrepCapCleanupAge. Skips available sessions
+// and does not touch repository-environments/.
+func (c *PreparationController) SweepNeverAvailableOrphans() int {
+	if c == nil || c.Store == nil {
+		return 0
+	}
+	now := time.Now()
+	if c.Now != nil {
+		now = c.Now()
+	}
+	recs, err := c.Store.List()
+	if err != nil {
+		return 0
+	}
+	cleaned := 0
+	for _, rec := range recs {
+		prep := rec.Preparation
+		if prep.IsSessionAvailable() || prep.Stage == state.PrepStageAvailable {
+			continue
+		}
+		switch prep.Stage {
+		case state.PrepStageFailed, state.PrepStageCancelled, state.PrepStageAbandoned,
+			state.PrepStageInternalCorruption, state.PrepStageInterrupted:
+		default:
+			// In-flight stages are owned by live workers, not age sweep.
+			continue
+		}
+		updated := rec.UpdatedAt
+		if updated.IsZero() || now.Sub(updated) < PrepCapCleanupAge {
+			continue
+		}
+		c.CleanupNeverAvailable(prep)
+		_ = c.Store.Delete(prep.ID)
+		cleaned++
+	}
+	return cleaned
 }
 
 func (c *PreparationController) ReleaseAdmit(prep state.RepositoryPreparation) {
@@ -166,7 +273,10 @@ func (c *PreparationController) runClone(ctx context.Context, prep state.Reposit
 		StagingDir: w.staging, FinalDir: w.final, Marker: w.marker, FS: c.FS,
 	})
 	if pub.Code != gitclone.CodeAtomicPublishOK {
+		// Failed staging still occupies disk until removed; charge then free.
+		c.AccountClonePath(prep.ID, w.staging)
 		_ = c.FS.RemoveAll(w.staging)
+		c.ReleaseNeverAvailableAccount(prep.ID)
 		if pub.Code == gitclone.CodeCloneIdentityConflict {
 			c.Enqueue(state.EvRepository{Kind: "quarantined", PreparationID: prep.ID})
 			return
@@ -174,6 +284,8 @@ func (c *PreparationController) runClone(ctx context.Context, prep state.Reposit
 		c.fail(prep, state.PrepFailureCloneFailed, pub.Code)
 		return
 	}
+	// Published clone is not yet session-available → counts toward never-available cap.
+	c.AccountClonePath(prep.ID, w.final)
 	if c.Store != nil {
 		_ = c.Store.Save(PreparationRecord{
 			Preparation: prep, Intent: intent, Marker: w.marker,
@@ -272,7 +384,9 @@ func (c *PreparationController) ReconcileStartup(preps []state.RepositoryPrepara
 			switch r.Disposition {
 			case gitclone.ReconcileCloneReady:
 			case gitclone.ReconcileConflict, gitclone.ReconcileQuarantine:
-				out = append(out, state.EvRepository{Kind: "quarantined", PreparationID: prep.ID})
+				out = append(out, state.EvRepository{
+					Kind: "quarantined", PreparationID: prep.ID, ObservedRevision: prep.Revision,
+				})
 			case gitclone.ReconcileRetryClone:
 				out = append(out, state.EvRepository{Kind: "interrupted", PreparationID: prep.ID})
 			case gitclone.ReconcileUnsupported:

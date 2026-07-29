@@ -110,6 +110,177 @@ test("GitHub unauthenticated still allows project target flow (UAC-004)", async 
   await expect(page.getByTestId("palette-param-command-filter")).toBeVisible();
 });
 
+test("repository selection drives preparation stages without session at clone-ready (UAC prep)", async ({
+  page,
+}) => {
+  let prepStage = "clone-in-progress";
+  let prepRevision = 1;
+  await installFakeBackend(page, {
+    sessions: [],
+    sessionConfig: {
+      project_roots: ["/repo"],
+      project_paths: ["/repo/a"],
+      projects: [{ path: "/repo/a", isGit: true, isSandboxed: false }],
+      commands: ["codex"],
+      push_commands: [],
+    },
+  });
+  await page.route("**/host/repository", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        sources: [
+          { id: "projects", available: true },
+          { id: "github", available: true, status: "complete-current" },
+        ],
+        account: { state: "authenticated", login: "alice" },
+        catalog: {
+          outcome: "complete-current",
+          generation: 1,
+          repositories: [{ repository_id: "10", owner: "alice", name: "demo" }],
+        },
+        targets: [
+          {
+            source: "project",
+            project: { server_id: "test-server", project: "/repo/a", server_label: "Test" },
+          },
+          {
+            source: "repository",
+            repository: { repository_id: "10", owner: "alice", name: "demo" },
+          },
+        ],
+        preparations: [
+          {
+            preparation_id: "p1",
+            intent_id: "i1",
+            server_id: "test-server",
+            repository: { repository_id: "10", owner: "alice", name: "demo" },
+            stage: prepStage,
+            revision: prepRevision,
+          },
+        ],
+      }),
+    });
+  });
+  await page.route("**/host/repository/sessions", async (route) => {
+    prepStage = "clone-in-progress";
+    prepRevision = 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        preparation_id: "p1",
+        intent_id: "i1",
+        stage: "clone-in-progress",
+        revision: 1,
+      }),
+    });
+  });
+
+  await page.goto("/?server=test-server#token=test");
+  await page.getByRole("button", { name: "Open command menu" }).click();
+  await page.getByTestId("palette-input").press("Enter");
+  await expect(page.getByTestId("target-picker")).toBeVisible();
+  await page.getByText("alice/demo").click();
+  await expect(page.getByTestId("repository-server-confirm")).toBeVisible();
+  // Pick server via keyboard and confirm create.
+  const filter = page.getByTestId("palette-param-project-filter");
+  await filter.press("ArrowDown");
+  await filter.press("Enter");
+  await filter.press("Enter");
+  await expect(page.getByTestId("preparation-panel")).toBeVisible({ timeout: 5000 });
+  await expect(page.getByTestId("prep-stage")).toHaveAttribute("data-stage", "clone-in-progress");
+
+  prepStage = "clone-ready";
+  prepRevision = 2;
+  await expect(page.getByTestId("prep-stage")).toHaveAttribute("data-stage", "clone-ready", {
+    timeout: 5000,
+  });
+  // Session must not appear available at clone-ready.
+  await expect(page.getByText(/session available/i)).toHaveCount(0);
+  await expect(page.getByTestId("prep-stage")).not.toHaveAttribute("data-stage", "available");
+
+  prepStage = "devcontainer-in-progress";
+  prepRevision = 3;
+  await expect(page.getByTestId("prep-stage")).toHaveAttribute(
+    "data-stage",
+    "devcontainer-in-progress",
+    { timeout: 5000 },
+  );
+  await expect(page.getByText(/session available/i)).toHaveCount(0);
+});
+
+test("invalidated repository recovers combobox aria-activedescendant (UAC-018)", async ({
+  page,
+}) => {
+  let dropRepo = false;
+  await installFakeBackend(page, {
+    sessions: [],
+    sessionConfig: {
+      project_roots: ["/repo"],
+      project_paths: ["/repo/a"],
+      projects: [{ path: "/repo/a", isGit: true, isSandboxed: false }],
+      commands: ["codex"],
+      push_commands: [],
+    },
+  });
+  await page.route("**/host/repository", async (route) => {
+    const targets = dropRepo
+      ? [
+          {
+            source: "project",
+            project: { server_id: "test-server", project: "/repo/a", server_label: "Test" },
+          },
+        ]
+      : [
+          {
+            source: "project",
+            project: { server_id: "test-server", project: "/repo/a", server_label: "Test" },
+          },
+          {
+            source: "repository",
+            repository: { repository_id: "10", owner: "alice", name: "demo" },
+          },
+        ];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        sources: [
+          { id: "projects", available: true },
+          { id: "github", available: true, status: "complete-current" },
+        ],
+        account: { state: "authenticated", login: "alice" },
+        catalog: {
+          outcome: "complete-current",
+          generation: dropRepo ? 2 : 1,
+          repositories: dropRepo ? [] : [{ repository_id: "10", owner: "alice", name: "demo" }],
+        },
+        targets,
+        preparations: [],
+      }),
+    });
+  });
+
+  await page.goto("/?server=test-server#token=test");
+  await page.getByRole("button", { name: "Open command menu" }).click();
+  await page.getByTestId("palette-input").press("Enter");
+  await page.getByText("alice/demo").click();
+  await expect(page.getByTestId("repository-server-confirm")).toBeVisible();
+  dropRepo = true;
+  const filter = page.getByTestId("palette-param-project-filter");
+  await expect
+    .poll(async () => filter.getAttribute("aria-activedescendant"), { timeout: 5000 })
+    .toBeTruthy();
+  const activeId = await filter.getAttribute("aria-activedescendant");
+  expect(activeId).toBeTruthy();
+  if (!activeId) throw new Error("missing aria-activedescendant after invalidation");
+  const active = page.locator(`#${CSS.escape(activeId)}`);
+  await expect(active).toBeVisible();
+  await expect(active).not.toHaveAttribute("data-source", "repository");
+});
+
 test("real-stack repository host authority is typed unavailable when absent", async ({ page }) => {
   // Named authority evidence: host route may be missing in this work unit's
   // SPA-only scope; assert typed 404/unavailable rather than skipping.

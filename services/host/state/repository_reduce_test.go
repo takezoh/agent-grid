@@ -93,8 +93,10 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	}
 	s, prep = createPrep(t)
 	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "i", Kind: "clone_started", PreparationID: "prep-1", ObservedRevision: prep.Revision})
+	prep, _ = FindPreparation(s, "prep-1")
 	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "n", Kind: "interrupted", PreparationID: "prep-1"})
-	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "q", Kind: "quarantined", PreparationID: "prep-1"})
+	prep, _ = FindPreparation(s, "prep-1")
+	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "q", Kind: "quarantined", PreparationID: "prep-1", ObservedRevision: prep.Revision})
 	if prep, _ = FindPreparation(s, "prep-1"); prep.Stage != PrepStageInternalCorruption || len(s.Sessions) != 0 {
 		t.Fatal(prep)
 	}
@@ -105,6 +107,17 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	}
 	if p2, _ := FindPreparation(s2, "prep-1"); p2.Revision != prep.Revision {
 		t.Fatal("stale mutate")
+	}
+	// Stale quarantine must not rewrite stage (ObservedRevision fencing).
+	s, prep = createPrep(t)
+	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "cs", Kind: "clone_started", PreparationID: "prep-1", ObservedRevision: prep.Revision})
+	prep, _ = FindPreparation(s, "prep-1")
+	sQ, qEffs := Reduce(s, EvRepository{ConnID: 1, ReqID: "stale-q", Kind: "quarantined", PreparationID: "prep-1", ObservedRevision: prep.Revision + 3})
+	if err, ok := findEff[EffSendError](qEffs); !ok || err.Code != ErrCodeStaleRevision || hasEff[EffRepositoryPersist](qEffs) {
+		t.Fatal(qEffs)
+	}
+	if pQ, _ := FindPreparation(sQ, "prep-1"); pQ.Stage != PrepStageCloneInProgress || pQ.Revision != prep.Revision {
+		t.Fatalf("stale quarantine mutated: %+v", pQ)
 	}
 	s, _ = Reduce(New(), EvRepository{ConnID: 1, ReqID: "1", Kind: "create", IntentID: "a", PreparationID: "pa", ServerID: "s", Repository: testRepo(), Fingerprint: "a"})
 	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "2", Kind: "create", IntentID: "b", PreparationID: "pb", ServerID: "s", Repository: testRepo(), Fingerprint: "b"})

@@ -1,8 +1,10 @@
 // From protocol/repository.schema.json — exact-version repository/preparation surface.
+// SessionTarget oneOf is enforced in init; quicktype flattens discriminators for Kotlin.
 package dev.agentgrid.client.models
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 
 @Serializable
 data class GitHubRepositoryIdentity(
@@ -22,7 +24,36 @@ data class SessionTarget(
     val source: String,
     val project: ProjectTarget? = null,
     val repository: GitHubRepositoryIdentity? = null,
-)
+) {
+    init {
+        require(isValid()) {
+            "SessionTarget must be a oneOf project|repository discriminator payload"
+        }
+    }
+
+    fun isValid(): Boolean = when (source) {
+        "project" -> project != null &&
+            project.serverId.isNotEmpty() &&
+            project.project.isNotEmpty() &&
+            repository == null
+        "repository" -> repository != null &&
+            repository.repositoryId.isNotEmpty() &&
+            repository.owner.isNotEmpty() &&
+            repository.name.isNotEmpty() &&
+            project == null
+        else -> false
+    }
+
+    companion object {
+        fun parseOrThrow(source: String, project: ProjectTarget?, repository: GitHubRepositoryIdentity?): SessionTarget {
+            return try {
+                SessionTarget(source, project, repository)
+            } catch (e: IllegalArgumentException) {
+                throw SerializationException(e.message)
+            }
+        }
+    }
+}
 
 @Serializable
 data class RepositoryPreparation(

@@ -171,9 +171,9 @@ func reduceRepositoryInterrupted(s State, e EvRepository) (State, []Effect) {
 }
 
 func reduceRepositoryQuarantined(s State, e EvRepository) (State, []Effect) {
-	prep, ok := FindPreparation(s, e.PreparationID)
+	prep, ok, effs := loadPrepFenced(s, e.PreparationID, e.ObservedRevision, e.ConnID, e.ReqID)
 	if !ok {
-		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureInvalidIdentity, "preparation not found")
+		return s, effs
 	}
 	if prep.IsSessionAvailable() {
 		return s, illegal(prep, e.ConnID, e.ReqID)

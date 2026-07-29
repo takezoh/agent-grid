@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -219,7 +220,44 @@ func (c *PreparationCapacity) Dequeue() {
 	}
 }
 
-func (c *PreparationCapacity) AddNeverAvailable(n int64) { c.NeverAvailBytes += n }
+func (c *PreparationCapacity) AddNeverAvailable(n int64) {
+	if n > 0 {
+		c.NeverAvailBytes += n
+	}
+}
+
+func (c *PreparationCapacity) RemoveNeverAvailable(n int64) {
+	if n <= 0 {
+		return
+	}
+	c.NeverAvailBytes -= n
+	if c.NeverAvailBytes < 0 {
+		c.NeverAvailBytes = 0
+	}
+}
+
+// DirBytes sums file sizes under path (best-effort; missing path → 0).
+func DirBytes(root string) int64 {
+	if root == "" {
+		return 0
+	}
+	var total int64
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		total += info.Size()
+		return nil
+	})
+	return total
+}
 
 func listJSONNames(fs gitclone.FilesystemProcess, dir string) ([]string, error) {
 	if _, ok := fs.(gitclone.OSFilesystem); !ok {

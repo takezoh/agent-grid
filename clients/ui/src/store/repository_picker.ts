@@ -293,6 +293,11 @@ function recoverFocus(
 function clearInvalidSelection(state: RepositoryPickerState): RepositoryPickerState {
   const selected = state.selected;
   if (!selected) return state;
+  // In-flight preparation/retry must retain selection even when the catalog
+  // transiently omits the repository (projection refresh races).
+  if (state.phase === "preparing" || state.phase === "retry") {
+    return state;
+  }
   const ok =
     selected.source === "project"
       ? state.projects.some((p) => p.key === selected.key)
@@ -386,14 +391,17 @@ export function reduceRepositoryPicker(
         repositories: repositoryRows(event.projection.targets, event.projection.catalog),
       };
       if (event.servers) next = applyServers(next, event.servers);
-      next = clearInvalidSelection(next);
+      // Preserve preparing/retry before clearInvalidSelection so transient catalog
+      // omission cannot drop an in-flight preparation view (UAC-prep retain).
       if (next.phase === "settings-auth") return next;
       if (next.phase === "preparing" || next.phase === "retry") {
+        next = clearInvalidSelection(next);
         const prep = event.projection.preparations.find(
           (p) => p.preparation_id === next.preparation?.preparation_id,
         );
         return prep ? reducePreparation(next, prep) : next;
       }
+      next = clearInvalidSelection(next);
       return recoverFocus(next, next.activeKey ?? next.focusReturnKey);
     }
     case "activate":

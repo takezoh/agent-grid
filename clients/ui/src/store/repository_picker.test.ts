@@ -321,6 +321,50 @@ describe("UAC-009..011 / UAC-015..016 preparation stages", () => {
 });
 
 describe("UAC-014 / UAC-017 / UAC-018 scoped invalidation", () => {
+  it("preserves in-flight preparation selection when catalog transiently omits the repository", () => {
+    let s = openWithCatalog();
+    s = reduceRepositoryPicker(s, { type: "select", key: repositoryKey("10") });
+    s = reduceRepositoryPicker(s, { type: "selectServer", serverId: "srv-a" });
+    s = reduceRepositoryPicker(s, {
+      type: "startPreparation",
+      preparation: {
+        preparation_id: "p1",
+        intent_id: "i1",
+        server_id: "srv-a",
+        repository: { repository_id: "10", owner: "alice", name: "demo" },
+        stage: "clone-in-progress",
+        revision: 1,
+      },
+    });
+    expect(s.phase).toBe("preparing");
+    s = reduceRepositoryPicker(s, {
+      type: "applyProjection",
+      projection: projection({
+        catalog: { outcome: "complete-current", generation: 2, repositories: [] },
+        targets: [
+          {
+            source: "project",
+            project: { server_id: "srv-a", project: "/repo/demo", server_label: "Alpha" },
+          },
+        ],
+        preparations: [
+          {
+            preparation_id: "p1",
+            intent_id: "i1",
+            server_id: "srv-a",
+            repository: { repository_id: "10", owner: "alice", name: "demo" },
+            stage: "clone-ready",
+            revision: 2,
+          },
+        ],
+      }),
+    });
+    expect(s.phase).toBe("preparing");
+    expect(s.selected?.key).toBe(repositoryKey("10"));
+    expect(s.preparation?.stage).toBe("clone-ready");
+    expect(s.preparation?.stage).not.toBe("available");
+  });
+
   it("clears invalid repository selection and unavailable server without losing query", () => {
     let s = openWithCatalog();
     s = reduceRepositoryPicker(s, { type: "setQuery", query: "demo" });

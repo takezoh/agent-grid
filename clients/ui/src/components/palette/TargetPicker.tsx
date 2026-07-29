@@ -120,10 +120,14 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
+    // Last complete projection retained across transient poll failures so catalog
+    // selection and in-flight preparation are not wiped to unauthenticated empty.
+    let lastComplete: HostRepositoryProjection | null = null;
     const pull = async () => {
       try {
         const projection = mergeDaemonProjects(await provider.repositoryProjection(), projects);
         if (cancelled) return;
+        lastComplete = projection;
         dispatch({
           type: "applyProjection",
           projection,
@@ -131,6 +135,29 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
         });
       } catch {
         if (cancelled) return;
+        if (lastComplete) {
+          // Source-scoped failure: keep retained catalog/account/selection surfaces.
+          dispatch({
+            type: "applyProjection",
+            projection: {
+              ...lastComplete,
+              sources: lastComplete.sources.map((s) =>
+                s.id === "github"
+                  ? { ...s, available: s.available, status: "source-failed-retained" }
+                  : s,
+              ),
+              catalog: {
+                ...lastComplete.catalog,
+                outcome: "source-failed-retained",
+                stale: true,
+                failure_code: lastComplete.catalog.failure_code ?? "projection_poll_failed",
+              },
+            },
+            servers: serversFromProjects(projects),
+          });
+          return;
+        }
+        // Cold start with no retained projection: typed unauthenticated empty only.
         dispatch({
           type: "applyProjection",
           projection: mergeDaemonProjects(

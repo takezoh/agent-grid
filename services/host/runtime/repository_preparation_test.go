@@ -2,6 +2,8 @@ package runtime_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -236,6 +238,187 @@ func waitPrep(t *testing.T, r *runtime.Runtime, id state.PreparationID, stage st
 	}
 	p := r.TestPublishedState().RepositoryPreparations[id]
 	t.Fatalf("prep %s stage=%q want %q full=%+v", id, p.Stage, stage, p)
+}
+
+func TestNeverAvailableAccountingAndAbandonCleanup(t *testing.T) {
+	root := t.TempDir()
+	fs := gitclone.OSFilesystem{}
+	store := runtime.NewMemoryPreparationStore()
+	ctrl := runtime.NewPreparationController(store, fs, &gitclone.FakeGitClone{}, root, nil)
+	// Simulate published clone charged to never-available cap.
+	clone := filepath.Join(root, "clones", "prep-na")
+	if err := os.MkdirAll(clone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(clone, "blob"), []byte("0123456789"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctrl.AccountClonePath("prep-na", clone)
+	if ctrl.Cap.NeverAvailBytes < 10 {
+		t.Fatalf("never-available bytes not charged: %d", ctrl.Cap.NeverAvailBytes)
+	}
+	if code := ctrl.Cap.AdmitClone("s", testRepo(), "other", runtime.PrepCapNeverAvailableBytes); code != "capacity_disk_full" {
+		// With charged bytes, admitting a huge additional request should hit disk full
+		// only when sum exceeds cap; charge alone may be small — force full.
+		_ = code
+	}
+	// Fill to cap and assert AdmitClone rejects.
+	ctrl.Cap.AddNeverAvailable(runtime.PrepCapNeverAvailableBytes)
+	if code := ctrl.Cap.AdmitClone("s", testRepo(), "other", 1); code != "capacity_disk_full" {
+		t.Fatalf("want capacity_disk_full, got %q", code)
+	}
+	// Terminal abandon cleanup removes never-available clone and releases charge.
+	ctrl.Cap.RemoveNeverAvailable(runtime.PrepCapNeverAvailableBytes) // reset artificial fill
+	before := ctrl.Cap.NeverAvailBytes
+	ctrl.CleanupNeverAvailable(state.RepositoryPreparation{
+		ID: "prep-na", Stage: state.PrepStageAbandoned, ClonePath: state.ClonePathID(clone),
+	})
+	if _, err := os.Stat(clone); !os.IsNotExist(err) {
+		t.Fatalf("never-available clone must be deleted: %v", err)
+	}
+	if ctrl.Cap.NeverAvailBytes >= before && before > 0 {
+		t.Fatalf("capacity not released: before=%d after=%d", before, ctrl.Cap.NeverAvailBytes)
+	}
+	// Available session clones must not be deleted.
+	avail := filepath.Join(root, "clones", "prep-ok")
+	if err := os.MkdirAll(avail, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctrl.CleanupNeverAvailable(state.RepositoryPreparation{
+		ID: "prep-ok", Stage: state.PrepStageAvailable, SessionID: "sess-ok",
+		ClonePath: state.ClonePathID(avail),
+	})
+	if _, err := os.Stat(avail); err != nil {
+		t.Fatalf("available clone must survive: %v", err)
+	}
+}
+
+func TestSweepNeverAvailableOrphansByAge(t *testing.T) {
+	root := t.TempDir()
+	store := runtime.NewMemoryPreparationStore()
+	clone := filepath.Join(root, "clones", "old")
+	if err := os.MkdirAll(clone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(clone, "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rec := runtime.PreparationRecord{
+		Preparation: state.RepositoryPreparation{
+			ID: "old", IntentID: "i", ServerID: "s", Repository: testRepo(),
+			Stage: state.PrepStageFailed, ClonePath: state.ClonePathID(clone), Revision: 2,
+		},
+		Intent:    state.CreationIntent{ID: "i", ServerID: "s", Repository: testRepo(), Fingerprint: "f"},
+		UpdatedAt: time.Now().Add(-runtime.PrepCapCleanupAge - time.Hour),
+	}
+	if err := store.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+	// Save overwrites UpdatedAt to now; force age via direct field re-save pattern:
+	// Memory store sets UpdatedAt on Save — use Sweep with Now far in the future.
+	ctrl := runtime.NewPreparationController(store, gitclone.OSFilesystem{}, &gitclone.FakeGitClone{}, root, nil)
+	ctrl.AccountClonePath("old", clone)
+	ctrl.Now = func() time.Time { return time.Now().Add(runtime.PrepCapCleanupAge + 2*time.Hour) }
+	n := ctrl.SweepNeverAvailableOrphans()
+	if n != 1 {
+		t.Fatalf("cleaned=%d want 1", n)
+	}
+	if _, err := os.Stat(clone); !os.IsNotExist(err) {
+		t.Fatal("orphan clone must be removed")
+	}
+	if _, err := store.Load("old"); err == nil {
+		t.Fatal("store record must be deleted")
+	}
+}
+
+func TestFileRepositoryEnvironmentStoreFindReadyRestart(t *testing.T) {
+	root := t.TempDir()
+	fs := gitclone.OSFilesystem{}
+	s1 := runtime.NewFileRepositoryEnvironmentStore(root, fs)
+	rec := runtime.RepositoryEnvironmentRecord{
+		ID: "env-1", ServerID: "srv", RepositoryID: "42", ContainerID: "ctr",
+		ConfigGen: "gen-1", SessionsRoot: root, Ready: true, Disposition: state.EnvDispositionReady,
+	}
+	if err := s1.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+	// New store instance models daemon restart with same durable root.
+	s2 := runtime.NewFileRepositoryEnvironmentStore(root, fs)
+	got, ok, err := s2.FindReady("srv", "42", "gen-1")
+	if err != nil || !ok || got.ID != "env-1" || got.ContainerID != "ctr" {
+		t.Fatalf("FindReady after restart: ok=%v err=%v got=%+v", ok, err, got)
+	}
+	if _, ok, err := s2.FindReady("srv", "42", "gen-other"); err != nil || ok {
+		t.Fatal("wrong generation must miss")
+	}
+	// Manager reuses via FindReady after restart-shaped store.
+	mgr := &runtime.RepositoryEnvironmentManager{
+		Store: s2, Devcontainer: runtime.NewFakeRepositoryDevcontainer(),
+		ConfigGen: "gen-1", SessionsRoot: root,
+	}
+	res, err := mgr.Ensure(context.Background(), "srv", testRepo(), filepath.Join(root, "clones", "a"))
+	if err != nil || res.Code != runtime.EnvCodeOK || !res.Reused || res.EnvironmentID != "env-1" {
+		t.Fatalf("reuse: %+v err=%v", res, err)
+	}
+}
+
+func TestEnsureSingleFlightPerEnvironmentKey(t *testing.T) {
+	dc := runtime.NewFakeRepositoryDevcontainer()
+	// Slow first Ensure so concurrent callers pile up.
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var first bool
+	dcHook := &slowDevcontainer{inner: dc, started: started, release: release, first: &first}
+	mgr := &runtime.RepositoryEnvironmentManager{
+		Store: runtime.NewMemoryRepositoryEnvironmentStore(), Devcontainer: dcHook,
+		ConfigGen: "g", SessionsRoot: "/sessions",
+	}
+	repo := testRepo()
+	type result struct {
+		res runtime.RepositoryEnvironmentResult
+		err error
+	}
+	out := make(chan result, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			r, e := mgr.Ensure(context.Background(), "srv", repo, "/sessions/c")
+			out <- result{r, e}
+		}()
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ensure not started")
+	}
+	close(release)
+	r1 := <-out
+	r2 := <-out
+	if r1.err != nil || r2.err != nil {
+		t.Fatalf("errs %v %v", r1.err, r2.err)
+	}
+	if r1.res.EnvironmentID == "" || r1.res.EnvironmentID != r2.res.EnvironmentID {
+		t.Fatalf("ids %q %q", r1.res.EnvironmentID, r2.res.EnvironmentID)
+	}
+	// Only one underlying create; second is reuse (either from store under lock or same flight).
+	if len(dc.Calls) != 1 {
+		t.Fatalf("devcontainer calls=%d want 1 (single-flight)", len(dc.Calls))
+	}
+}
+
+type slowDevcontainer struct {
+	inner   *runtime.FakeRepositoryDevcontainer
+	started chan struct{}
+	release chan struct{}
+	first   *bool
+}
+
+func (s *slowDevcontainer) Ensure(ctx context.Context, req runtime.RepositoryEnvironmentRequest) (runtime.RepositoryEnvironmentResult, error) {
+	if !*s.first {
+		*s.first = true
+		close(s.started)
+		<-s.release
+	}
+	return s.inner.Ensure(ctx, req)
 }
 
 type recordingBackend struct{ spawned []string }

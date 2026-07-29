@@ -369,6 +369,10 @@ func (r *Runtime) initRepositoryComposition() {
 	ctrl.Authority = r.cfg.CloneAuthority
 	r.prepCtrl = ctrl
 	envStore := r.cfg.RepositoryEnvironmentStore
+	if envStore == nil && root != "" {
+		// Durable store so FindReady survives daemon restart (same root as preparations).
+		envStore = NewFileRepositoryEnvironmentStore(root, fs)
+	}
 	if envStore == nil {
 		envStore = NewMemoryRepositoryEnvironmentStore()
 	}

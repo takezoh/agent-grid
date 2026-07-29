@@ -128,6 +128,26 @@ func (s *FileRepositoryEnvironmentStore) Load(id state.RepositoryEnvironmentID) 
 }
 
 func (s *FileRepositoryEnvironmentStore) FindReady(server state.ExecutionServerID, repoID state.GitHubRepositoryID, configGen string) (RepositoryEnvironmentRecord, bool, error) {
+	dir := filepath.Join(s.Root, "repository-environments")
+	names, err := listJSONNames(s.FS, dir)
+	if err != nil {
+		return RepositoryEnvironmentRecord{}, false, err
+	}
+	wantKey := EnvironmentKey(server, repoID, configGen)
+	for _, name := range names {
+		id := state.RepositoryEnvironmentID(name[:len(name)-len(".json")])
+		rec, err := s.Load(id)
+		if err != nil {
+			continue
+		}
+		if !rec.Ready {
+			continue
+		}
+		if EnvironmentKey(rec.ServerID, rec.RepositoryID, rec.ConfigGen) != wantKey {
+			continue
+		}
+		return rec, true, nil
+	}
 	return RepositoryEnvironmentRecord{}, false, nil
 }
 
@@ -170,6 +190,14 @@ type RepositoryEnvironmentManager struct {
 	Devcontainer RepositoryDevcontainer
 	ConfigGen    string // pinned generation for this daemon config
 	SessionsRoot string
+
+	// inflight serializes Ensure per environment key (server|repo|configGen).
+	inflight sync.Map // string -> *sync.Mutex
+}
+
+func (m *RepositoryEnvironmentManager) ensureLock(key string) *sync.Mutex {
+	v, _ := m.inflight.LoadOrStore(key, &sync.Mutex{})
+	return v.(*sync.Mutex)
 }
 
 func (m *RepositoryEnvironmentManager) Ensure(ctx context.Context, server state.ExecutionServerID, repo state.GitHubRepositoryIdentity, clonePath string) (RepositoryEnvironmentResult, error) {
@@ -180,6 +208,10 @@ func (m *RepositoryEnvironmentManager) Ensure(ctx context.Context, server state.
 	if gen == "" {
 		gen = "default"
 	}
+	key := EnvironmentKey(server, repo.ID, gen)
+	mu := m.ensureLock(key)
+	mu.Lock()
+	defer mu.Unlock()
 	if m.Store != nil {
 		if rec, ok, err := m.Store.FindReady(server, repo.ID, gen); err == nil && ok {
 			return RepositoryEnvironmentResult{

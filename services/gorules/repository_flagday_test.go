@@ -165,6 +165,46 @@ func TestRepositoryPreparationRoundTripInventory(t *testing.T) {
 	}
 }
 
+// TestSessionTargetDiscriminatorCrossSDK freezes oneOf enforcement in every
+// shipped SDK model surface (TS runtime guard, C# converter, Kotlin init,
+// Swift decode). Collapsed project+repository payloads must be rejected.
+func TestSessionTargetDiscriminatorCrossSDK(t *testing.T) {
+	root := repoRoot(t)
+	checks := []struct {
+		path   string
+		needle string
+	}{
+		{"clients/sdk/ts/generated/repository.ts", "export function isSessionTarget"},
+		{"clients/sdk/ts/generated/repository.ts", `v.source === "project"`},
+		{"clients/sdk/ts/generated/repository.ts", `v.source === "repository"`},
+		{"clients/sdk/csharp/Generated/repository.cs", "SessionTargetJsonConverter"},
+		{"clients/sdk/csharp/Generated/repository.cs", "oneOf project|repository"},
+		{"clients/sdk/kotlin/generated/repository.kt", "fun isValid(): Boolean"},
+		{"clients/sdk/kotlin/generated/repository.kt", `"project"`},
+		{"clients/sdk/kotlin/generated/repository.kt", `"repository"`},
+		{"clients/sdk/swift/Generated/repository.swift", "public static func isValid"},
+		{"clients/sdk/swift/Generated/repository.swift", "oneOf project|repository"},
+	}
+	for _, c := range checks {
+		body, err := os.ReadFile(filepath.Join(root, c.path))
+		if err != nil {
+			t.Fatalf("%s: %v", c.path, err)
+		}
+		if !strings.Contains(string(body), c.needle) {
+			t.Errorf("%s must enforce SessionTarget discriminator (%q)", c.path, c.needle)
+		}
+	}
+	// Schema SSOT still declares oneOf with source const.
+	schema, err := os.ReadFile(filepath.Join(root, "protocol/repository.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(schema)
+	if !strings.Contains(s, `"const": "project"`) || !strings.Contains(s, `"const": "repository"`) {
+		t.Error("repository.schema.json SessionTarget must keep source const discriminators")
+	}
+}
+
 func TestExternalDependencyFidelityInventory(t *testing.T) {
 	root := repoRoot(t)
 	if len(repositoryFidelityTriples) != 5 {

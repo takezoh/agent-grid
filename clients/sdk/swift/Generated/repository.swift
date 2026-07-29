@@ -1,4 +1,5 @@
 // From protocol/repository.schema.json — exact-version repository/preparation surface.
+// SessionTarget oneOf is enforced in decode; quicktype flattens discriminators for Swift.
 import Foundation
 
 public struct GitHubRepositoryIdentity: Codable, Equatable {
@@ -24,6 +25,65 @@ public struct SessionTarget: Codable, Equatable {
     public let source: String
     public let project: ProjectTarget?
     public let repository: GitHubRepositoryIdentity?
+
+    enum CodingKeys: String, CodingKey {
+        case source, project, repository
+    }
+
+    public init(source: String, project: ProjectTarget? = nil, repository: GitHubRepositoryIdentity? = nil) throws {
+        self.source = source
+        self.project = project
+        self.repository = repository
+        guard Self.isValid(source: source, project: project, repository: repository) else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: [],
+                debugDescription: "SessionTarget must be a oneOf project|repository discriminator payload"
+            ))
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let source = try c.decode(String.self, forKey: .source)
+        let project = try c.decodeIfPresent(ProjectTarget.self, forKey: .project)
+        let repository = try c.decodeIfPresent(GitHubRepositoryIdentity.self, forKey: .repository)
+        try self.init(source: source, project: project, repository: repository)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        guard Self.isValid(source: source, project: project, repository: repository) else {
+            throw EncodingError.invalidValue(self, .init(
+                codingPath: [],
+                debugDescription: "SessionTarget must be a oneOf project|repository discriminator payload"
+            ))
+        }
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(source, forKey: .source)
+        if source == "project" {
+            try c.encodeIfPresent(project, forKey: .project)
+        }
+        if source == "repository" {
+            try c.encodeIfPresent(repository, forKey: .repository)
+        }
+    }
+
+    public static func isValid(source: String, project: ProjectTarget?, repository: GitHubRepositoryIdentity?) -> Bool {
+        switch source {
+        case "project":
+            return project != nil
+                && !(project!.serverId.isEmpty)
+                && !(project!.project.isEmpty)
+                && repository == nil
+        case "repository":
+            return repository != nil
+                && !(repository!.repositoryId.isEmpty)
+                && !(repository!.owner.isEmpty)
+                && !(repository!.name.isEmpty)
+                && project == nil
+        default:
+            return false
+        }
+    }
 }
 
 public struct RepositoryPreparation: Codable, Equatable {

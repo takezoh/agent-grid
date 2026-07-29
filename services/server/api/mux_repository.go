@@ -83,6 +83,11 @@ func handleRevokeHostLeases(noAuth bool, leases *leaseStore) http.HandlerFunc {
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
+
+// admitRepositoryLease enforces transport authenticity for lease routes.
+// Exact protocol-version admission is owned by the global ProtocolVersionGate
+// wrapping apiHandler in protocolAwareAPIHandler (see newMux). Handlers must
+// not re-implement a second incompatible version gate.
 func admitRepositoryLease(r *http.Request, noAuth bool) (*leaseErrorBody, int) {
 	if noAuth || !isSecureRepositoryTransport(r) {
 		return &leaseErrorBody{Code: "authenticated_transport_required"}, http.StatusForbidden

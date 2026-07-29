@@ -19,6 +19,11 @@ func (r *Runtime) executeRepositoryEffect(eff state.Effect) {
 	case state.EffRepositoryStopOwnedWork:
 		if r.prepCtrl != nil {
 			r.prepCtrl.StopOwnedWork(e.PreparationID, e.Generation)
+			// Terminal abandon only: cancel/retry must keep durable clone for
+			// RetryOriginDevcontainer. Age sweep handles long-lived orphans.
+			if prep, ok := state.FindPreparation(r.state, e.PreparationID); ok && prep.Stage == state.PrepStageAbandoned {
+				r.prepCtrl.CleanupNeverAvailable(prep)
+			}
 		}
 	}
 }
@@ -144,6 +149,8 @@ func (r *Runtime) launchPreparationTerminal(prep state.RepositoryPreparation, se
 		EnvironmentReused: envRes.Reused,
 	})
 	if r.prepCtrl != nil {
+		// Session now owns the clone; drop never-available accounting without delete.
+		r.prepCtrl.ReleaseNeverAvailableAccount(prep.ID)
 		r.prepCtrl.ConsumePendingLaunch(prep.ID)
 	}
 }
@@ -200,6 +207,8 @@ func (r *Runtime) ReconcileRepositoryPreparations() {
 			}
 		}
 	}
+	// Age-based orphan sweep for never-available clones (not session-available).
+	_ = r.prepCtrl.SweepNeverAvailableOrphans()
 	r.publishState(r.state)
 }
 
