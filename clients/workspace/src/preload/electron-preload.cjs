@@ -17,7 +17,6 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
   serverHealth: {
     list: () => ipcRenderer.invoke("agent-grid:server-health-list"),
   },
-  // Credential-free GitHub Settings actions only (never token/refresh material).
   github: {
     action: (action) => ipcRenderer.invoke("agent-grid:github-action", action),
   },

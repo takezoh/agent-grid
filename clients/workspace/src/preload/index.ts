@@ -30,7 +30,6 @@ export interface WindowControls {
   close(): void;
 }
 
-/** Credential-free GitHub Settings actions (success/denied/cancel/failure). */
 export interface GitHubSettingsBridge {
   action(action: GitHubAction): Promise<GitHubActionResult>;
 }
