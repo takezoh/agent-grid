@@ -135,3 +135,36 @@ jobs:
         with:
           name: pr-compatibility-verification
           path: test-harness/profile-result-compatibility.json
+
+  # Executable SessionTarget oneOf conformance across TS/C#/Kotlin/Swift SDKs.
+  # Fail-closed: every language must compile and run (not toolchain-skip).
+  sdk-session-target:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Kotlin compiler
+        run: |
+          set -euo pipefail
+          KOTLIN_VERSION=2.0.21
+          curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip" -o /tmp/kotlin-compiler.zip
+          sudo unzip -q /tmp/kotlin-compiler.zip -d /opt
+          echo "/opt/kotlinc/bin" >> "$GITHUB_PATH"
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '5.10'
+      - name: Run SessionTarget cross-SDK conformance
+        env:
+          AG_SDK_CONFORMANCE_REQUIRE_ALL: '1'
+          AG_SDK_CONFORMANCE_CACHE: ${{ runner.temp }}/sdk-conformance
+          DOTNET_CLI_HOME: ${{ runner.temp }}/dotnet-home
+        run: clients/sdk/scripts/run-session-target-conformance.sh

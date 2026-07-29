@@ -169,6 +169,14 @@ func TestRepositoryPreparationRoundTripInventory(t *testing.T) {
 // TestSessionTargetDiscriminatorCrossSDK freezes oneOf enforcement in every
 // shipped SDK model surface (TS runtime guard, C# converter, Kotlin init,
 // Swift decode). Collapsed project+repository payloads must be rejected.
+//
+// Always-on gate:
+//  1. generated models still contain discriminator enforcement symbols
+//  2. every language has a checked-in runnable harness entrypoint
+//  3. TypeScript harness always executes (npm test)
+//  4. C#/Kotlin/Swift harnesses execute when their toolchain is present
+//
+// CI sets AG_SDK_CONFORMANCE_REQUIRE_ALL=1 so all four must run, not skip.
 func TestSessionTargetDiscriminatorCrossSDK(t *testing.T) {
 	root := repoRoot(t)
 	checks := []struct {
@@ -205,13 +213,40 @@ func TestSessionTargetDiscriminatorCrossSDK(t *testing.T) {
 		t.Error("repository.schema.json SessionTarget must keep source const discriminators")
 	}
 
-	// Executable TypeScript SDK guard: import/invoke isSessionTarget against valid
-	// and collapsed/mixed payloads (not source-string scan only).
-	cmd := exec.Command("npm", "test")
-	cmd.Dir = filepath.Join(root, "clients/sdk")
+	// Runnable harness inventory — string-scan of models alone is not enough.
+	harnesses := []struct {
+		lang string
+		path string
+	}{
+		{"ts", "clients/sdk/ts/session_target_discriminator.test.ts"},
+		{"csharp", "clients/sdk/csharp/harness/Program.cs"},
+		{"kotlin", "clients/sdk/kotlin/harness/SessionTargetConformance.kt"},
+		{"swift", "clients/sdk/swift/harness/main.swift"},
+	}
+	for _, h := range harnesses {
+		if _, err := os.Stat(filepath.Join(root, h.path)); err != nil {
+			t.Errorf("missing runnable SessionTarget harness for %s at %s: %v", h.lang, h.path, err)
+		}
+	}
+	runner := filepath.Join(root, "clients/sdk/scripts/run-session-target-conformance.sh")
+	if _, err := os.Stat(runner); err != nil {
+		t.Fatalf("missing SessionTarget conformance runner: %v", err)
+	}
+
+	// Executable harness runner:
+	//  - TypeScript always runs (npm test → isSessionTarget cases)
+	//  - C#/Kotlin/Swift run when toolchains are present
+	//  - CI sets AG_SDK_CONFORMANCE_REQUIRE_ALL=1 so all four must execute
+	cmd := exec.Command("bash", runner)
+	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("clients/sdk npm test (SessionTarget discriminator) failed: %v\n%s", err, out)
+		t.Fatalf("SessionTarget cross-SDK conformance harness failed: %v\n%s", err, out)
+	}
+	t.Logf("SessionTarget conformance:\n%s", out)
+	// Hard-require TypeScript execution evidence even when other languages skip.
+	if !strings.Contains(string(out), "OK ts") {
+		t.Fatalf("TypeScript SessionTarget harness must always run locally:\n%s", out)
 	}
 }
 

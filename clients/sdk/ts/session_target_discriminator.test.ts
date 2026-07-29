@@ -76,4 +76,42 @@ describe("isSessionTarget discriminator", () => {
     assert.equal(isSessionTarget({}), false);
     assert.equal(isSessionTarget({ source: "other" }), false);
   });
+
+  it("rejects empty required identity fields", () => {
+    assert.equal(
+      isSessionTarget({
+        source: "project",
+        project: { server_id: "", project: "/repo/demo" },
+      }),
+      false,
+    );
+    assert.equal(
+      isSessionTarget({
+        source: "project",
+        project: { server_id: "srv-a", project: "" },
+      }),
+      false,
+    );
+    assert.equal(
+      isSessionTarget({
+        source: "repository",
+        repository: { repository_id: "", owner: "acme", name: "widgets" },
+      }),
+      false,
+    );
+    assert.equal(
+      isSessionTarget({
+        source: "repository",
+        repository: { repository_id: "42", owner: "", name: "widgets" },
+      }),
+      false,
+    );
+    assert.equal(
+      isSessionTarget({
+        source: "repository",
+        repository: { repository_id: "42", owner: "acme", name: "" },
+      }),
+      false,
+    );
+  });
 });

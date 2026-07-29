@@ -42,3 +42,33 @@ and the same pin must produce byte-identical model trees.
 | `package.json` / `package-lock.json` | exact `quicktype` version |
 | `.quicktype-version` | stamp written by the generator (CI asserts match) |
 | `quicktype-emit.json` | per-language emit options (invariance-witnessed) |
+
+## SessionTarget discriminator conformance
+
+Repository flag-day requires every shipped SDK to reject collapsed/mixed
+`SessionTarget` payloads (project XOR repository, non-empty identity fields).
+Each language has a runnable harness that imports the **checked-in generated**
+model — do not hand-edit `generated/` / `Generated/`.
+
+| Language | Harness entry | Local command |
+|---|---|---|
+| TypeScript | `ts/session_target_discriminator.test.ts` | `cd clients/sdk && npm test` |
+| C# | `csharp/harness/` (`dotnet` + System.Text.Json) | `dotnet run --project clients/sdk/csharp/harness` |
+| Kotlin | `kotlin/harness/SessionTargetConformance.kt` | via runner (needs `kotlinc` + `java`) |
+| Swift | `swift/harness/main.swift` | via runner (needs `swiftc`) |
+
+**Orchestrated runner** (preferred):
+
+```sh
+# from repo root — runs TS always; C#/Kotlin/Swift only when toolchains exist
+clients/sdk/scripts/run-session-target-conformance.sh
+
+# CI / fail-closed: every language must execute
+AG_SDK_CONFORMANCE_REQUIRE_ALL=1 clients/sdk/scripts/run-session-target-conformance.sh
+```
+
+The always-on Go gate `TestSessionTargetDiscriminatorCrossSDK`
+(`services/gorules/repository_flagday_test.go`) asserts harness inventory,
+always runs TypeScript, and conditionally runs native harnesses when present.
+CI job `sdk-session-target` installs Node / .NET 8 / JDK+Kotlin / Swift and runs
+the runner with `AG_SDK_CONFORMANCE_REQUIRE_ALL=1`.
