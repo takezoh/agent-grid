@@ -15,15 +15,15 @@ import (
 type PreparationController struct {
 	mu sync.Mutex
 
-	Store       PreparationStore
-	FS          gitclone.FilesystemProcess
-	Cloner      gitclone.Cloner
-	Authority   CloneAuthority
+	Store        PreparationStore
+	FS           gitclone.FilesystemProcess
+	Cloner       gitclone.Cloner
+	Authority    CloneAuthority
 	SessionsRoot string // repository sessions root (mount scope)
-	Cap         *PreparationCapacity
-	Enqueue     func(state.Event)
+	Cap          *PreparationCapacity
+	Enqueue      func(state.Event)
 
-	workers map[state.PreparationID]*prepWorker
+	workers       map[state.PreparationID]*prepWorker
 	pendingLaunch map[state.PreparationID]pendingTerminalLaunch
 }
 
@@ -57,13 +57,13 @@ func NewPreparationController(store PreparationStore, fs gitclone.FilesystemProc
 		cloner = gitclone.Service{}
 	}
 	return &PreparationController{
-		Store:        store,
-		FS:           fs,
-		Cloner:       cloner,
-		SessionsRoot: root,
-		Cap:          NewPreparationCapacity(),
-		Enqueue:      enqueue,
-		workers:      map[state.PreparationID]*prepWorker{},
+		Store:         store,
+		FS:            fs,
+		Cloner:        cloner,
+		SessionsRoot:  root,
+		Cap:           NewPreparationCapacity(),
+		Enqueue:       enqueue,
+		workers:       map[state.PreparationID]*prepWorker{},
 		pendingLaunch: map[state.PreparationID]pendingTerminalLaunch{},
 	}
 }
@@ -275,7 +275,12 @@ func (c *PreparationController) ReconcileStartup(preps []state.RepositoryPrepara
 				out = append(out, state.EvRepository{Kind: "quarantined", PreparationID: prep.ID})
 			case gitclone.ReconcileRetryClone:
 				out = append(out, state.EvRepository{Kind: "interrupted", PreparationID: prep.ID})
+			case gitclone.ReconcileUnsupported:
+				out = append(out, state.EvRepository{Kind: "interrupted", PreparationID: prep.ID})
 			}
+		case state.PrepStageFailed, state.PrepStageCancelled, state.PrepStageInterrupted,
+			state.PrepStageInternalCorruption, state.PrepStageAvailable, state.PrepStageAbandoned:
+			// Terminal or already-projected stages need no startup rewrite.
 		}
 	}
 	return out

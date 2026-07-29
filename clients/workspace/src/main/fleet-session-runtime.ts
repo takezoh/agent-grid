@@ -1,4 +1,5 @@
 import type { ServerConfig } from "./desktop-config.js";
+import { PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER } from "./protocol-version.js";
 
 export interface FleetSessionRef {
   serverId: string;
@@ -153,7 +154,7 @@ export class FleetSessionRuntime {
     const url = new URL("/ws", `${server.url.replace(/\/+$/, "")}/`);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.searchParams.set("ticket", ticket);
-    url.searchParams.set("protocolVersion", "protocol-2");
+    url.searchParams.set("protocolVersion", PROTOCOL_VERSION);
     const socket = this.webSocketFactory(url.toString());
     this.sockets.add(socket);
     await new Promise<void>((resolve, reject) => {
@@ -185,7 +186,7 @@ export class FleetSessionRuntime {
 }
 
 function fleetHeaders(server: ServerConfig): Headers {
-  const headers = new Headers({ "X-Agent-Grid-Protocol-Version": "protocol-2" });
+  const headers = new Headers({ [PROTOCOL_VERSION_HEADER]: PROTOCOL_VERSION });
   if (server.auth.mode === "bearer") {
     headers.set("Authorization", `Bearer ${server.auth.token}`);
   }

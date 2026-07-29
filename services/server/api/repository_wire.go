@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"net/http"
 )
 
 // Exact-version admission for repository operations. Lease/preparation/process/
@@ -25,22 +24,30 @@ type RepositoryAdmissionResult struct {
 }
 
 // AdmitRepositoryOperation enforces exact protocol equality before side effects.
+// sideEffect is invoked only after equality; mismatch never runs any effect.
 func AdmitRepositoryOperation(clientVersion string, sideEffect func(RepositorySideEffectKind)) RepositoryAdmissionResult {
+	return AdmitRepositoryOperationAgainst(ProtocolVersion, clientVersion, sideEffect)
+}
+
+// AdmitRepositoryOperationAgainst models old/new pairs: serverExpected is the
+// server's token, clientVersion is what the peer presented. Equality only.
+func AdmitRepositoryOperationAgainst(serverExpected, clientVersion string, sideEffect func(RepositorySideEffectKind)) RepositoryAdmissionResult {
 	actual := clientVersion
 	if actual == "" {
 		actual = "<missing>"
 	}
-	if clientVersion != ProtocolVersion {
+	if clientVersion == "" || clientVersion != serverExpected {
 		return RepositoryAdmissionResult{
 			Admitted: false, Code: "incompatible_protocol",
-			ExpectedVersion: ProtocolVersion, ActualVersion: actual,
+			ExpectedVersion: serverExpected, ActualVersion: actual,
 		}
 	}
 	if sideEffect != nil {
+		// Lease is the first credential-adjacent effect; callers may chain others.
 		sideEffect(RepoSideEffectLease)
 	}
 	return RepositoryAdmissionResult{
-		Admitted: true, ExpectedVersion: ProtocolVersion, ActualVersion: clientVersion,
+		Admitted: true, ExpectedVersion: serverExpected, ActualVersion: clientVersion,
 	}
 }
 
@@ -73,10 +80,3 @@ func (repositoryIdentityError) Error() string {
 }
 
 var errRepositoryInvalidIdentity repositoryIdentityError
-
-func writeRepositoryProtocolMismatch(w http.ResponseWriter, actual string) {
-	if actual == "" {
-		actual = "<missing>"
-	}
-	writeProtocolVersionError(w, actual)
-}

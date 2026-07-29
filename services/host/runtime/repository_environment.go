@@ -12,14 +12,14 @@ import (
 )
 
 type RepositoryEnvironmentRecord struct {
-	ID             state.RepositoryEnvironmentID `json:"id"`
-	ServerID       state.ExecutionServerID       `json:"server_id"`
-	RepositoryID   state.GitHubRepositoryID      `json:"repository_id"`
-	ContainerID    string                        `json:"container_id"`
-	ConfigGen      string                        `json:"config_generation"`
-	SessionsRoot   string                        `json:"sessions_root"`
-	Ready          bool                          `json:"ready"`
-	Disposition    state.EnvironmentDisposition  `json:"disposition"`
+	ID           state.RepositoryEnvironmentID `json:"id"`
+	ServerID     state.ExecutionServerID       `json:"server_id"`
+	RepositoryID state.GitHubRepositoryID      `json:"repository_id"`
+	ContainerID  string                        `json:"container_id"`
+	ConfigGen    string                        `json:"config_generation"`
+	SessionsRoot string                        `json:"sessions_root"`
+	Ready        bool                          `json:"ready"`
+	Disposition  state.EnvironmentDisposition  `json:"disposition"`
 }
 
 func EnvironmentKey(server state.ExecutionServerID, repoID state.GitHubRepositoryID, configGen string) string {
@@ -34,8 +34,8 @@ type RepositoryEnvironmentStore interface {
 }
 
 type MemoryRepositoryEnvironmentStore struct {
-	mu   sync.Mutex
-	byID map[state.RepositoryEnvironmentID]RepositoryEnvironmentRecord
+	mu    sync.Mutex
+	byID  map[state.RepositoryEnvironmentID]RepositoryEnvironmentRecord
 	byKey map[string]state.RepositoryEnvironmentID
 }
 
@@ -144,7 +144,7 @@ type RepositoryEnvironmentRequest struct {
 	Repository   state.GitHubRepositoryIdentity
 	ConfigGen    string
 	SessionsRoot string
-	ClonePath string
+	ClonePath    string
 }
 
 type RepositoryEnvironmentResult struct {
@@ -212,10 +212,10 @@ func (m *RepositoryEnvironmentManager) Ensure(ctx context.Context, server state.
 }
 
 type FakeRepositoryDevcontainer struct {
-	mu    sync.Mutex
-	Calls []RepositoryEnvironmentRequest
-	Ready map[string]RepositoryEnvironmentRecord
-	FailCode string
+	mu            sync.Mutex
+	Calls         []RepositoryEnvironmentRequest
+	Ready         map[string]RepositoryEnvironmentRecord
+	FailCode      string
 	NextContainer int
 }
 

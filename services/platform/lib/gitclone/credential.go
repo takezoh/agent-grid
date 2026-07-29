@@ -3,6 +3,7 @@
 package gitclone
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -24,7 +25,7 @@ type Credential struct{ Username, Token string }
 
 func CanonicalHTTPSRemote(owner, name string) (string, error) {
 	if !ownerRE.MatchString(owner) || strings.HasSuffix(owner, "-") || !nameRE.MatchString(name) || strings.Contains(name, "..") {
-		return "", fmt.Errorf(CodeInvalidIdentity)
+		return "", errors.New(CodeInvalidIdentity)
 	}
 	return fmt.Sprintf("https://github.com/%s/%s.git", owner, name), nil
 }

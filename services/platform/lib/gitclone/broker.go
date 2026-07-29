@@ -186,7 +186,7 @@ func RunAskpassClient(args []string) int {
 	if strings.Contains(strings.ToLower(strings.Join(args, " ")), "username") {
 		out = user
 	}
-	fmt.Print(strings.TrimRight(out, "\n"))
+	_, _ = os.Stdout.WriteString(strings.TrimRight(out, "\n"))
 	return 0
 }
 func peerPID(conn *net.UnixConn) int {

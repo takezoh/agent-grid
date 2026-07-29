@@ -7,6 +7,11 @@
 // The event loop is the only goroutine that touches Runtime.state.
 // Workers, IPC readers, and the fsnotify watcher feed events back via
 // channels — they never read or write state directly.
+//
+// preparation wiring) stays cohesive; splitting by artificial line count would
+// scatter the single-writer event-loop ownership boundary.
+//
+//revive:disable:file-length-limit Runtime composition (loop + subsystems + repository
 package runtime
 
 import (
