@@ -271,6 +271,15 @@ export class Connection {
           if (frame.sessions !== undefined) {
             useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
           }
+        } else if (frame.activity_events?.length) {
+          // FleetRuntime owns session membership, but gateway view-updates
+          // still carry workspace activity; ingest activity without rebinding
+          // the fleet session list.
+          useDaemonStore.getState().applyViewUpdate({
+            k: "v",
+            activity_session_id: frame.activity_session_id,
+            activity_events: frame.activity_events,
+          });
         }
         break;
       case "tt":
@@ -368,9 +377,11 @@ export class Connection {
   onOutput?: (frame: OutputFrame) => void;
 }
 
-function tagSessions<T extends { serverId?: string; serverLabel?: string }>(sessions: T[]): T[] {
+function tagSessions<T extends { serverId?: string; serverLabel?: string }>(
+  sessions: T[] | null | undefined,
+): T[] {
   const server = initialServerHint();
-  return sessions.map((session) => ({
+  return (sessions ?? []).map((session) => ({
     ...session,
     serverId: session.serverId ?? server.id,
     serverLabel: session.serverLabel ?? server.label,

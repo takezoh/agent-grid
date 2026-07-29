@@ -84,7 +84,7 @@ export function App() {
   useEffect(
     () =>
       fleet.subscribe((snapshot) => {
-        const sessions = snapshot.sessions.map(({ ref, serverLabel, session }) => ({
+        const sessions = (snapshot.sessions ?? []).map(({ ref, serverLabel, session }) => ({
           ...session,
           id: sessionKey(ref),
           upstreamSessionId: ref.sessionId,

@@ -101,7 +101,7 @@ function projectSnapshot(revision: number, members: FleetMember[]): FleetSnapsho
     revision,
     members,
     sessions: members.flatMap((member) =>
-      member.sessions.map((session) => ({
+      (member.sessions ?? []).map((session) => ({
         ref: { serverId: member.serverId, sessionId: session.id },
         serverLabel:
           labelCounts.get(member.serverLabel) === 1

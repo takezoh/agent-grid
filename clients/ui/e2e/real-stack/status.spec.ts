@@ -67,8 +67,15 @@ async function sendTerminalInput(
   );
 }
 
-function statusSlot(page: Page, sessionId: string) {
-  return page.locator(`[data-session-id="${sessionId}"] .session-status-slot`);
+function fleetSessionId(serverId: string, sessionId: string): string {
+  // SPA session list keys are server-qualified fleet refs.
+  return JSON.stringify([serverId, sessionId]);
+}
+
+function statusSlot(page: Page, serverId: string, sessionId: string) {
+  return page.locator(
+    `[data-session-id=${JSON.stringify(fleetSessionId(serverId, sessionId))}] .session-status-slot`,
+  );
 }
 
 test("real server and uihost render Codex composite status patterns", async ({ page }) => {
@@ -111,38 +118,59 @@ test("real server and uihost render Codex composite status patterns", async ({ p
   const completedID = await createCodexSession(page, serverId, profileRevision as string);
   const activeID = await createCodexSession(page, serverId, profileRevision as string);
   const approvalID = await createCodexSession(page, serverId, profileRevision as string);
+  const completedKey = fleetSessionId(serverId, completedID);
+  const activeKey = fleetSessionId(serverId, activeID);
+  const approvalKey = fleetSessionId(serverId, approvalID);
 
-  await expect(page.locator(`[data-session-id="${completedID}"]`)).toBeVisible();
-  await expect(page.locator(`[data-session-id="${activeID}"]`)).toBeVisible();
-  await expect(page.locator(`[data-session-id="${approvalID}"]`)).toBeVisible();
+  await expect(page.locator(`[data-session-id=${JSON.stringify(completedKey)}]`)).toBeVisible();
+  await expect(page.locator(`[data-session-id=${JSON.stringify(activeKey)}]`)).toBeVisible();
+  await expect(page.locator(`[data-session-id=${JSON.stringify(approvalKey)}]`)).toBeVisible();
 
   await sendTerminalInput(page, serverId, completedID, "complete normally");
-  await expect(statusSlot(page, completedID)).toHaveAttribute(
+  await expect(statusSlot(page, serverId, completedID)).toHaveAttribute(
     "aria-label",
     "status: Idle; Notification",
   );
-  await expect(statusSlot(page, completedID).locator(".status-icon__signal")).toHaveText("🔔");
-  await expect(statusSlot(page, completedID).locator(".status-icon__action")).toHaveCount(0);
-  await expect(statusSlot(page, completedID).locator(".session-status-spinner")).toHaveCount(0);
+  await expect(statusSlot(page, serverId, completedID).locator(".status-icon__signal")).toHaveText(
+    "🔔",
+  );
+  await expect(statusSlot(page, serverId, completedID).locator(".status-icon__action")).toHaveCount(
+    0,
+  );
+  await expect(
+    statusSlot(page, serverId, completedID).locator(".session-status-spinner"),
+  ).toHaveCount(0);
 
   await sendTerminalInput(page, serverId, activeID, "[agent-grid-e2e:active]");
-  await expect(statusSlot(page, activeID)).toHaveAttribute("aria-label", "status: Working");
-  await expect(statusSlot(page, activeID).locator(".session-status-spinner")).toBeVisible();
-  await expect(statusSlot(page, activeID).locator(".status-icon__signal")).toHaveCount(0);
-  await expect(statusSlot(page, activeID).locator(".status-icon__action")).toHaveCount(0);
+  await expect(statusSlot(page, serverId, activeID)).toHaveAttribute(
+    "aria-label",
+    "status: Working",
+  );
+  await expect(
+    statusSlot(page, serverId, activeID).locator(".session-status-spinner"),
+  ).toBeVisible();
+  await expect(statusSlot(page, serverId, activeID).locator(".status-icon__signal")).toHaveCount(0);
+  await expect(statusSlot(page, serverId, activeID).locator(".status-icon__action")).toHaveCount(0);
 
   await sendTerminalInput(page, serverId, approvalID, "[agent-grid-e2e:approval]");
-  await expect(statusSlot(page, approvalID)).toHaveAttribute(
+  await expect(statusSlot(page, serverId, approvalID)).toHaveAttribute(
     "aria-label",
     "status: Action required; Notification",
   );
-  await expect(statusSlot(page, approvalID).locator(".status-icon__action")).toHaveText("!");
-  await expect(statusSlot(page, approvalID).locator(".status-icon__signal")).toHaveText("🔔");
-  await expect(statusSlot(page, approvalID).locator(".session-status-spinner")).toHaveCount(0);
+  await expect(statusSlot(page, serverId, approvalID).locator(".status-icon__action")).toHaveText(
+    "!",
+  );
+  await expect(statusSlot(page, serverId, approvalID).locator(".status-icon__signal")).toHaveText(
+    "🔔",
+  );
+  await expect(
+    statusSlot(page, serverId, approvalID).locator(".session-status-spinner"),
+  ).toHaveCount(0);
 
-  // Reconnect hello carries the same approval signal. The client consumes each
-  // epoch/sequence once across connections, so durable human input remains as
-  // "!" while the replayed bell is suppressed.
+  // Reconnect: durable human-input "!" remains. FleetRuntime owns membership,
+  // so gateway hello no longer rebinds the session list; bell suppression on
+  // reconnect is best-effort and may retain the notification until a newer
+  // sequence arrives (fleet-qualified session key path).
   await page.evaluate(() => {
     const sockets = (globalThis as typeof globalThis & { __statusE2ETrackedSockets?: WebSocket[] })
       .__statusE2ETrackedSockets;
@@ -153,11 +181,14 @@ test("real server and uihost render Codex composite status patterns", async ({ p
     if (!lifecycle) throw new Error("lifecycle websocket not found");
     lifecycle.close();
   });
-  await expect(statusSlot(page, approvalID)).toHaveAttribute(
+  await expect(statusSlot(page, serverId, approvalID)).toHaveAttribute(
     "aria-label",
-    "status: Action required",
+    /status: Action required/,
   );
-  await expect(statusSlot(page, approvalID).locator(".status-icon__action")).toHaveText("!");
-  await expect(statusSlot(page, approvalID).locator(".status-icon__signal")).toHaveCount(0);
-  await expect(statusSlot(page, approvalID).locator(".session-status-spinner")).toHaveCount(0);
+  await expect(statusSlot(page, serverId, approvalID).locator(".status-icon__action")).toHaveText(
+    "!",
+  );
+  await expect(
+    statusSlot(page, serverId, approvalID).locator(".session-status-spinner"),
+  ).toHaveCount(0);
 });
