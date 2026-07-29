@@ -27,6 +27,7 @@ files_touched:
 - clients/windows-shell/AgentGrid.Shell.Core/GatewayClient/ShellGatewayClient.cs
 - clients/windows-shell/AgentGrid.Shell.Core.Tests/GatewayClient/WsFrameParserTests.cs
 - clients/windows-shell/AgentGrid.Shell.Core.Tests/GatewayClient/SupervisionWsSessionTests.cs
+- clients/windows-shell/AgentGrid.Shell.Core.Tests/Composition/ShellFleetTests.cs
 pr: null
 tags:
 - github
@@ -55,7 +56,7 @@ done_criteria:
 - Electron main/preload Settings action boundary
 - Web/Workspace host-only credential lease mediation
 - Windows exact-version parser/transport migration
-max_diff_loc: 900
+max_diff_loc: 920
 change: change-20260728-github-repository-sessions
 summary: Connect credential-free GitHub and server preparation state through Web and
   Electron main/preload boundaries and migrate the Windows parser.
@@ -77,7 +78,7 @@ GitHub account/catalogとserver-owned preparation/environment snapshotをcredent
 
 ## 前提
 
-`task-20260729-workspace-github-account-catalog`、`task-20260728-secure-clone-authority`、`task-20260728-durable-repository-preparation`を消費する。`max_diff_loc: 900`は、credential authorityとserver lease APIをhost-only boundaryで接続し、Web/Electron/Windowsのshipped consumersを一つのexact-version projectionへ閉じ込める上限である。
+`task-20260729-workspace-github-account-catalog`、`task-20260728-secure-clone-authority`、`task-20260728-durable-repository-preparation`を消費する。`max_diff_loc: 920`は、credential authorityとserver lease APIをhost-only boundaryで接続し、Web/Electron/Windowsのshipped consumersとcross-platform全体gateを一つのexact-version projectionとして検証する校正済み上限である。
 
 ## スコープ外
 
