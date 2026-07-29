@@ -82,6 +82,30 @@ func TestFilesystemProcessContract(t *testing.T) {
 	}
 }
 
+func TestPublishCloneContract_RequiredFieldsAndNesting(t *testing.T) {
+	fs := NewFakeFilesystemProcess()
+	if res := PublishClone(PublishRequest{StagingDir: "", FinalDir: "/f", Marker: "m", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("empty staging: %+v", res)
+	}
+	if res := PublishClone(PublishRequest{StagingDir: "/s", FinalDir: "", Marker: "m", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("empty final: %+v", res)
+	}
+	if res := PublishClone(PublishRequest{StagingDir: "/s", FinalDir: "/f", Marker: "", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("empty marker: %+v", res)
+	}
+	if res := PublishClone(PublishRequest{StagingDir: "/same", FinalDir: "/same", Marker: "m", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("same path: %+v", res)
+	}
+	if res := PublishClone(PublishRequest{StagingDir: "/root/final/nested", FinalDir: "/root/final", Marker: "m", FS: fs}); res.Code != CodePublishFailed {
+		t.Fatalf("nested staging: %+v", res)
+	}
+	_ = fs.MkdirAll("/repo/stage-ok", 0o755)
+	ok := PublishClone(PublishRequest{StagingDir: "/repo/stage-ok", FinalDir: "/repo/final-ok", Marker: "mk", FS: fs})
+	if ok.Code != CodeAtomicPublishOK || ok.FinalDir != "/repo/final-ok" || ok.Marker != "mk" {
+		t.Fatalf("ok fields: %+v", ok)
+	}
+}
+
 func TestReconcileCloneEvidence(t *testing.T) {
 	fs := NewFakeFilesystemProcess()
 	final := "/root/final"

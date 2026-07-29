@@ -212,6 +212,16 @@ func TestRestartReconciliationAndFakeVsRealEnv(t *testing.T) {
 	if e, ok := evs[0].(state.EvRepository); !ok || e.Kind != "interrupted" {
 		t.Fatalf("ev=%v", evs[0])
 	}
+	// Always-on unit contract: fake FailCode is a typed unavailable outcome (no error).
+	// Real/absent authority path lives in repository_devcontainer_e2e_test.go FakeVsReal.
+	fake := runtime.NewFakeRepositoryDevcontainer()
+	fake.FailCode = runtime.EnvCodeUnavailable
+	res, err := fake.Ensure(context.Background(), runtime.RepositoryEnvironmentRequest{
+		ServerID: "s", Repository: testRepo(), ConfigGen: "g", SessionsRoot: "/s", ClonePath: "/s/c",
+	})
+	if err != nil || res.Code != runtime.EnvCodeUnavailable {
+		t.Fatalf("fake unavailable: %+v err=%v", res, err)
+	}
 }
 
 func waitPrep(t *testing.T, r *runtime.Runtime, id state.PreparationID, stage state.PreparationStage, d time.Duration) {
