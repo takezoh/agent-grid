@@ -3,6 +3,8 @@ import { type FakeBackend, installFakeBackend, makeSessionInfo } from "../suppor
 import { expect, test } from "../support/test";
 
 const LINE = `${"x".repeat(80)}\n`;
+const FLEET_SESSION_ID = JSON.stringify(["test-server", "session-1"]);
+const ACTIVITY_SESSION_IDS = [FLEET_SESSION_ID, "session-1"] as const;
 
 function percentile(samples: number[], p: number): number {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -37,7 +39,7 @@ async function installScrollBench(page: Page): Promise<FakeBackend> {
     },
   });
 
-  await page.route("**/api/sessions/session-1/workspace/root-handle", async (route) => {
+  await page.route("**/workspace/root-handle**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -46,6 +48,14 @@ async function installScrollBench(page: Page): Promise<FakeBackend> {
         frame_generation: 1,
         resolved_root_path: "/repo/app",
       }),
+    });
+  });
+
+  await page.route("**/workspace/tree**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ outcome: "ok", path: "", entries: [] }),
     });
   });
 
@@ -63,10 +73,13 @@ async function installScrollBench(page: Page): Promise<FakeBackend> {
         status: "running",
       }),
     ],
-    activeSessionID: "session-1",
     features: ["surface"],
     serverTime: 1_720_000_000_000,
   });
+
+  const sessionOption = page.getByRole("option", { name: /Large file scroll/ });
+  await expect(sessionOption).toBeVisible();
+  await sessionOption.click();
 
   // Changes rows live in the Workspace mode side panel now.
   await page.getByRole("radio", { name: "Workspace" }).click();
@@ -83,7 +96,7 @@ async function benchLargeFileScroll(
 ): Promise<void> {
   const { content, lastLine } = makeLargeContent(targetBytes);
 
-  await page.route("**/api/sessions/session-1/workspace/file*", async (route) => {
+  await page.route("**/workspace/file**", async (route) => {
     const url = new URL(route.request().url());
     if (route.request().method() === "GET" && url.searchParams.get("path") === filePath) {
       await route.fulfill({
@@ -102,23 +115,26 @@ async function benchLargeFileScroll(
     await route.fulfill({ status: 405, body: "method not allowed" });
   });
 
-  await backend.emit({
-    k: "v",
-    activity_session_id: "session-1",
-    activity_events: [
-      {
-        type: "turn_row",
-        session_id: "session-1",
-        sequence: 1,
-        turn_id: "turn-1",
-        path: filePath,
-        kind: "read",
-        count: 1,
-        events: [{ path: filePath, kind: "read" }],
-      },
-    ],
-  });
+  for (const sessionId of ACTIVITY_SESSION_IDS) {
+    await backend.emit({
+      k: "v",
+      activity_session_id: sessionId,
+      activity_events: [
+        {
+          type: "turn_row",
+          session_id: sessionId,
+          sequence: 1,
+          turn_id: "turn-1",
+          path: filePath,
+          kind: "read",
+          count: 1,
+          events: [{ path: filePath, kind: "read" }],
+        },
+      ],
+    });
+  }
 
+  await expect(page.locator(`[data-path="${filePath}"]`)).toBeVisible({ timeout: 10_000 });
   await page.locator(`[data-path="${filePath}"]`).click();
   const viewer = page.getByTestId("virtualized-source");
   await expect(viewer).toBeVisible({ timeout: loadTimeoutMs });

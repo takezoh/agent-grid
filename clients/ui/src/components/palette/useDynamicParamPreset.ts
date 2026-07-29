@@ -29,14 +29,11 @@ export function useDynamicParamPreset(
   currentValue: unknown,
   setParam: (key: string, value: unknown) => void,
 ): void {
-  // The materializeKey-keyed gate lives outside the effect body so React
-  // can compare the deps array shallowly. For text / static-options we
-  // pass a stable sentinel ('' for materializeKey, null for options) so
-  // the deps array length stays constant across kinds (React requires
-  // dep-array stability across renders of the same hook call site).
+  // Re-run when currentValue is cleared (e.g. selectProject setParams wipe) so the
+  // leading-option preset is restored. A defined currentValue short-circuits, so a
+  // later user choice is never clobbered. materializeKey is included so a source
+  // change re-gates the leading option even when the options array identity is stable.
   const materializeKey = param.kind === "dynamic-options" ? param.materializeKey : "";
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: gate is "first-ever materialize"; depending on currentValue would clobber a later user choice on re-fire, and setParam / param.id are stable per slot (zustand selector + static ToolDef array)
   useEffect(() => {
     if (param.kind !== "dynamic-options") return;
     if (options === null || options.length === 0) return;
@@ -44,5 +41,7 @@ export function useDynamicParamPreset(
     const first = options[0];
     if (first === undefined) return;
     setParam(param.id, first.value);
-  }, [materializeKey, options]);
+    // materializeKey intentionally referenced for dep semantics.
+    void materializeKey;
+  }, [materializeKey, options, currentValue, param.kind, param.id, setParam]);
 }

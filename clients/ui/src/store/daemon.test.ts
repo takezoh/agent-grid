@@ -33,6 +33,44 @@ describe("daemonStore", () => {
     useWorkspaceActivityStore.getState().reset();
   });
 
+  it("seedReconnectStatusSignals suppresses replayed bells without rebinding membership", () => {
+    const fleetId = '["srv-a","s1"]';
+    useDaemonStore.getState().applyViewUpdate({
+      k: "v",
+      sessions: [
+        mkSession(fleetId, {
+          upstreamSessionId: "s1",
+          serverId: "srv-a",
+          status: {
+            lifecycle: "idle",
+            human_input: true,
+            failure: "none",
+            signal: { kind: "bell", epoch: "e1", sequence: 1 },
+          },
+        }),
+      ],
+    });
+    expect(useDaemonStore.getState().sessions[0]?.status.signal).toBeDefined();
+
+    useDaemonStore.getState().seedReconnectStatusSignals([
+      mkSession("s1", {
+        serverId: "srv-a",
+        status: {
+          lifecycle: "idle",
+          human_input: true,
+          failure: "none",
+          signal: { kind: "bell", epoch: "e1", sequence: 1 },
+        },
+      }),
+    ]);
+
+    const after = useDaemonStore.getState().sessions;
+    expect(after).toHaveLength(1);
+    expect(after[0]?.id).toBe(fleetId);
+    expect(after[0]?.status.human_input).toBe(true);
+    expect(after[0]?.status.signal).toBeUndefined();
+  });
+
   it("seedHello populates sessions/features/serverTime/activeSessionID", () => {
     const frame: HelloFrame = {
       k: "h",

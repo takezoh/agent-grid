@@ -15,6 +15,7 @@ import type {
   OutputFrame,
   RespErrFrame,
   RespOKFrame,
+  SessionInfo,
 } from "../wire/server";
 import { backoffDelay, exceededAttempts } from "./backoff";
 import { type RetryDeps, type SubscribeOutcome, subscribeWithRetry } from "./retry";
@@ -48,6 +49,8 @@ export class Connection {
   private reconnectAttempt = 0;
   private closedByUser = false;
   private reconnecting = false;
+  /** True after the first hello on this Connection instance (fleet reconnect boundary). */
+  private hasSeenHello = false;
   private reqIdCounter = 0;
   private terminalSubscriptions: TerminalSubscriptionController;
 
@@ -262,7 +265,15 @@ export class Connection {
         if (this.cfg.publishSessions !== false) {
           useDaemonStore.getState().seedHello(frame);
           useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
+        } else if (this.hasSeenHello) {
+          // FleetRuntime owns membership, so hello must not rebind the session
+          // list. Still treat reconnect hello as the one-shot status-signal
+          // boundary: suppress replayed bells while durable human_input stays.
+          useDaemonStore
+            .getState()
+            .seedReconnectStatusSignals(this.qualifyHelloSessions(frame.sessions));
         }
+        this.hasSeenHello = true;
         break;
       case "v":
         if (frame.sessions !== undefined) frame.sessions = tagSessions(frame.sessions);
@@ -271,6 +282,15 @@ export class Connection {
           if (frame.sessions !== undefined) {
             useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
           }
+        } else if (frame.activity_events?.length) {
+          // FleetRuntime owns session membership, but gateway view-updates
+          // still carry workspace activity; ingest activity without rebinding
+          // the fleet session list.
+          useDaemonStore.getState().applyViewUpdate({
+            k: "v",
+            activity_session_id: frame.activity_session_id,
+            activity_events: frame.activity_events,
+          });
         }
         break;
       case "tt":
@@ -308,6 +328,23 @@ export class Connection {
     return this.cfg.serverId
       ? sessionKey({ serverId: this.cfg.serverId, sessionId: value })
       : value;
+  }
+
+  /** Align hello session ids with fleet-qualified membership keys. */
+  private qualifyHelloSessions(sessions: SessionInfo[]): SessionInfo[] {
+    const serverId = this.cfg.serverId;
+    if (!serverId) return sessions;
+    return sessions.map((session) => {
+      const bareId =
+        session.upstreamSessionId ?? parseSessionKey(session.id)?.sessionId ?? session.id;
+      return {
+        ...session,
+        id: sessionKey({ serverId, sessionId: bareId }),
+        upstreamSessionId: bareId,
+        // Force Connection.serverId — do not keep tagSessions' initialServerHint.
+        serverId,
+      };
+    });
   }
 
   private handleLifecycleOutcome(frame: LifecycleOutcomeFrame): void {
@@ -368,9 +405,11 @@ export class Connection {
   onOutput?: (frame: OutputFrame) => void;
 }
 
-function tagSessions<T extends { serverId?: string; serverLabel?: string }>(sessions: T[]): T[] {
+function tagSessions<T extends { serverId?: string; serverLabel?: string }>(
+  sessions: T[] | null | undefined,
+): T[] {
   const server = initialServerHint();
-  return sessions.map((session) => ({
+  return (sessions ?? []).map((session) => ({
     ...session,
     serverId: session.serverId ?? server.id,
     serverLabel: session.serverLabel ?? server.label,

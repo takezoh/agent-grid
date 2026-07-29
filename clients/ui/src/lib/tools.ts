@@ -315,7 +315,7 @@ const newSessionTool: ToolDef = {
 // deliberate widening of the ParamDef union.
 
 export function projectOptions(daemon: DaemonSnapshot): ParamOption[] {
-  return daemon.projects.map((p) => ({
+  return (daemon.projects ?? []).map((p) => ({
     value: projectTargetValue(p),
     label: p.serverLabel ? `${p.serverLabel} · ${p.path}` : p.path,
   }));
