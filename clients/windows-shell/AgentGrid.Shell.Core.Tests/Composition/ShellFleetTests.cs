@@ -50,15 +50,21 @@ public sealed class ShellFleetTests
             "agent-grid-workspace",
             @"C:\Users\test\AppData\Local");
 
+        // Production uses Path.Combine, so separators follow the host OS.
+        // Assert the Windows install layout and executable name, not separator style.
         Assert.Equal(
-            @"C:\Users\test\AppData\Local\agent-grid\workspace\agent-grid-workspace.exe",
-            path);
+            NormalizeSeparators(@"C:\Users\test\AppData\Local\agent-grid\workspace\agent-grid-workspace.exe"),
+            NormalizeSeparators(path));
         Assert.Equal(
             @"D:\custom\workspace.exe",
             ShellFleet.ResolveWorkspaceExecutable(
                 @"D:\custom\workspace.exe",
                 @"C:\Users\test\AppData\Local"));
     }
+
+    private static string NormalizeSeparators(string path) =>
+        path.Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
 
     [Fact]
     public void Shell_launches_workspace_without_a_standalone_home_window()
