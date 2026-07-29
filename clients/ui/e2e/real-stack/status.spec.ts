@@ -167,10 +167,9 @@ test("real server and uihost render Codex composite status patterns", async ({ p
     statusSlot(page, serverId, approvalID).locator(".session-status-spinner"),
   ).toHaveCount(0);
 
-  // Reconnect: durable human-input "!" remains. FleetRuntime owns membership,
-  // so gateway hello no longer rebinds the session list; bell suppression on
-  // reconnect is best-effort and may retain the notification until a newer
-  // sequence arrives (fleet-qualified session key path).
+  // Reconnect hello carries the same approval signal. The client consumes each
+  // epoch/sequence once across connections (fleet membership stays intact), so
+  // durable human input remains as "!" while the replayed bell is suppressed.
   await page.evaluate(() => {
     const sockets = (globalThis as typeof globalThis & { __statusE2ETrackedSockets?: WebSocket[] })
       .__statusE2ETrackedSockets;
@@ -183,10 +182,13 @@ test("real server and uihost render Codex composite status patterns", async ({ p
   });
   await expect(statusSlot(page, serverId, approvalID)).toHaveAttribute(
     "aria-label",
-    /status: Action required/,
+    "status: Action required",
   );
   await expect(statusSlot(page, serverId, approvalID).locator(".status-icon__action")).toHaveText(
     "!",
+  );
+  await expect(statusSlot(page, serverId, approvalID).locator(".status-icon__signal")).toHaveCount(
+    0,
   );
   await expect(
     statusSlot(page, serverId, approvalID).locator(".session-status-spinner"),

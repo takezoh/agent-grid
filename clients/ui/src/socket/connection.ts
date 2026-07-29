@@ -15,6 +15,7 @@ import type {
   OutputFrame,
   RespErrFrame,
   RespOKFrame,
+  SessionInfo,
 } from "../wire/server";
 import { backoffDelay, exceededAttempts } from "./backoff";
 import { type RetryDeps, type SubscribeOutcome, subscribeWithRetry } from "./retry";
@@ -48,6 +49,8 @@ export class Connection {
   private reconnectAttempt = 0;
   private closedByUser = false;
   private reconnecting = false;
+  /** True after the first hello on this Connection instance (fleet reconnect boundary). */
+  private hasSeenHello = false;
   private reqIdCounter = 0;
   private terminalSubscriptions: TerminalSubscriptionController;
 
@@ -262,7 +265,15 @@ export class Connection {
         if (this.cfg.publishSessions !== false) {
           useDaemonStore.getState().seedHello(frame);
           useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
+        } else if (this.hasSeenHello) {
+          // FleetRuntime owns membership, so hello must not rebind the session
+          // list. Still treat reconnect hello as the one-shot status-signal
+          // boundary: suppress replayed bells while durable human_input stays.
+          useDaemonStore
+            .getState()
+            .seedReconnectStatusSignals(this.qualifyHelloSessions(frame.sessions));
         }
+        this.hasSeenHello = true;
         break;
       case "v":
         if (frame.sessions !== undefined) frame.sessions = tagSessions(frame.sessions);
@@ -317,6 +328,23 @@ export class Connection {
     return this.cfg.serverId
       ? sessionKey({ serverId: this.cfg.serverId, sessionId: value })
       : value;
+  }
+
+  /** Align hello session ids with fleet-qualified membership keys. */
+  private qualifyHelloSessions(sessions: SessionInfo[]): SessionInfo[] {
+    const serverId = this.cfg.serverId;
+    if (!serverId) return sessions;
+    return sessions.map((session) => {
+      const bareId =
+        session.upstreamSessionId ?? parseSessionKey(session.id)?.sessionId ?? session.id;
+      return {
+        ...session,
+        id: sessionKey({ serverId, sessionId: bareId }),
+        upstreamSessionId: bareId,
+        // Force Connection.serverId — do not keep tagSessions' initialServerHint.
+        serverId,
+      };
+    });
   }
 
   private handleLifecycleOutcome(frame: LifecycleOutcomeFrame): void {
