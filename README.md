@@ -1,107 +1,117 @@
 # Agent Grid
 
-**Run many AI agents in parallel without losing track of any of them.**
+**Run, supervise, and automate AI coding agents across projects, hosts, and sandboxes.**
 
-Agent Grid is a web control surface for running Claude, Codex, Gemini, and other CLI agents across all your projects at once. It replaces the manual work of opening tabs, remembering which agent is doing what, and checking back for completion — and it can also run agents unattended against an issue tracker.
+Agent Grid is a control plane for Claude, Codex, Gemini, and other terminal-based
+agents. It keeps concurrent sessions visible and reachable, preserves them when a
+client disconnects, and can dispatch unattended work from an issue tracker.
 
-### What it does
+![Agent Grid web interface](clients/ui/e2e/screenshots.spec.ts-snapshots/shell-dark-desktop-chromium-linux.png)
 
-- **Launch an agent without typing commands.** Select a project from the list and Reactor handles the directory, environment, and command for you.
-- **See every agent's status at a glance.** Each session shows whether the agent is running, waiting for your input, awaiting tool approval, or idle.
-- **Jump into any session instantly.** Live-preview a session, then press Enter to take over. Supervise dozens of concurrent tasks without losing focus.
-- **Keep agents running after you disconnect.** Sessions live in an in-process pty multiplexer owned by the `server` backend, so closing the browser tab or dropping the connection doesn't stop the work.
-- **Run each agent in its own sandbox.** Optional per-project devcontainer with brokered AWS / gcloud / SSH credentials and a policy-gated host-exec channel. Long-lived secrets stay on the host.
-- **Automate end to end.** The orchestrator reads a `WORKFLOW.md`, polls a tracker, and drives agents through issues with no human in the loop.
+## Why Agent Grid
 
-## Repository structure
+- **Supervise every session in one place.** See which agents are running, idle,
+  waiting for input, or awaiting approval.
+- **Resume work instantly.** Preview a live terminal and take control without
+  finding the right tab, shell, host, or project again.
+- **Keep sessions alive.** The backend owns the PTYs, so agents continue running
+  when a browser or desktop client disconnects.
+- **Isolate projects safely.** Optional per-project devcontainers use brokered
+  AWS, gcloud, and SSH access; long-lived credentials remain on the host.
+- **Automate issue-driven work.** The orchestrator reads `WORKFLOW.md`, polls
+  Linear or GitHub, dispatches agents, and reconciles their progress.
 
-Non-client deployables live in the independent `services/` Go module. Client
-applications and hosts live in `clients/`; the Web host is independently
-buildable and does not import the services module.
+## Quick start
 
-- **`server`** — the single-process backend: the pty session daemon plus HTTP/WS gateway
-- **`orchestrator`** — the scheduling brain that reads `WORKFLOW.md`, dispatches work to agents, and reconciles state — the `orchestrator` layer
-- **`claude-app-server`** — a stdio JSON-RPC shim that wraps a Claude agent as a drop-in Codex app-server
-- **`web-host`** — a configured Web client host under `clients/web-host`
-
-The layers and their enforced import boundaries are defined in [ARCHITECTURE.md](ARCHITECTURE.md).
-
-## Requirements
-
-- Go 1.26+
-
-## Install
+The quickest way to try the Web client from a source checkout is:
 
 ```bash
-make install
+make run-dev
 ```
 
-Installs to `~/.local/bin/server`. Then:
+This builds and starts an isolated local backend and Web host. Open the URL
+printed by the command (normally `http://127.0.0.1:8080`).
 
-```bash
-server                              # start the backend (daemon + HTTP/WS gateway).
-                                    # Hooks in ~/.claude/settings.json and
-                                    # ~/.gemini/settings.json are registered
-                                    # automatically against this binary's
-                                    # path on every boot — no manual setup.
+Prerequisites for the development stack:
+
+- Go 1.26.1 or newer
+- Node.js and npm
+- Linux or WSL
+- Docker when using per-project devcontainers
+- At least one supported agent CLI, such as Claude Code, Codex, or Gemini CLI
+
+For persistent installation and service setup, follow
+[Getting started](docs/note/note-20260624-user-getting-started.md) and
+[systemd setup](docs/note/note-20260624-user-systemd.md).
+
+## Surfaces
+
+| Surface | Role | Status |
+|---|---|---|
+| **Web** | Shared React/xterm.js UI served by an independent Web host | Available |
+| **Windows Shell** | Native WinUI panel, notifications, tray, and deep links | In development |
+| **Workspace** | Electron-hosted session windows using the shared UI | In development |
+| **Orchestrator** | Headless `WORKFLOW.md` scheduler for issue-driven agents | Available |
+
+Web and Electron are equal client hosts. Both use the same multi-server
+configuration and server-qualified session identity; only their delivery
+transport differs.
+
+## Architecture
+
+Agent Grid separates session supervision from autonomous orchestration:
+
+```text
+Web / Windows Shell / Electron Workspace
+                 │
+                 ▼
+       server (HTTP/WS + PTY sessions)
+                 │
+        agent CLIs and sandboxes
+
+orchestrator ──► issue tracker + per-issue workspaces
 ```
 
-To reach sessions from a browser, run `make run-dev` (boots `server` +
-`web-host` together) or follow [web stack (ad-hoc launch)](docs/note/note-20260624-user-web-server.md).
+The main deployables are:
 
-See [Getting started](docs/note/note-20260624-user-getting-started.md) for the full walkthrough.
+- **`server`** — single-process PTY session daemon and HTTP/WebSocket gateway
+- **`web-host`** — configured host for the shared browser UI
+- **`orchestrator`** — issue polling, dispatch, reconciliation, and observability
+- **`claude-app-server`** — stdio JSON-RPC adapter that exposes Claude through
+  the Codex app-server contract
 
-## Codex Remote Control（任意）
-
-Codex Remote Control はホスト単位で起動します。ホストで一つ起動すれば、そのホスト上で Agent Grid が起動した Codex セッションを、ホスト直接起動と devcontainer 起動のどちらもモバイルから確認・操作できます。devcontainer ごとの daemon 起動やペアリングは不要です。
-
-公式 installer で導入した managed standalone Codex が `~/.codex/packages/standalone/current/codex` にあることを確認し、systemd user service をインストールして起動します。
-
-```bash
-make install-codex-remote-control-systemd
-```
-
-ログインしていない間もホスト起動時から動かす場合は、linger も有効にします。
-
-```bash
-loginctl enable-linger "$USER"
-```
-
-### モバイル端末をペアリングする
-
-daemon の起動後、ホストで次を手動実行します。
-
-```bash
-codex remote-control pair
-```
-
-表示された pairing code を、同じ ChatGPT account/workspace でサインインしたモバイルアプリの Remote Control セットアップ画面へ入力します。コードは短時間で期限切れになるため、期限切れになった場合はコマンドを再実行してください。
-
-ペアリングが必要なのは次の場合です。
-
-- このホストへ端末を初めて接続するとき
-- 別のモバイル端末を追加するとき
-- 別のホストを追加するとき
-- 以前のペアリングを解除・失効したあと、再接続するとき
-
-daemon の再起動、通常のホスト再起動、Agent Grid の再起動、devcontainer の再作成、新しい Codex セッションの開始では、再ペアリングは不要です。`codex remote-control pair` は systemd へ組み込まず、新しいペアリングが必要なときだけ実行してください。
-
-状態確認とログ表示:
-
-```bash
-systemctl --user status codex-remote-control.service
-journalctl --user -u codex-remote-control.service -b
-codex app-server daemon version
-```
-
-詳しい運用方法とトラブルシューティングは [Codex Remote Control](docs/note/note-20260715-user-codex-remote-control.md) を参照してください。
+Go services live in the independent `services/` module. User-facing clients and
+their hosts live under `clients/`. See [ARCHITECTURE.md](ARCHITECTURE.md) for
+enforced layer and dependency boundaries.
 
 ## Documentation
 
-Documentation is stored as structured docs-skill records under [`docs/`](docs/note/note-20260624-docs-overview.md), with audience × architecture layer pages kept as the primary navigation.
-
-| | Start here |
+| Audience | Start here |
 |---|---|
-| **Using the tools** | [User guide](docs/note/note-20260624-user-overview.md) — [getting started](docs/note/note-20260624-user-getting-started.md), [web stack](docs/note/note-20260624-user-web-server.md), [Codex Remote Control](docs/note/note-20260715-user-codex-remote-control.md), [orchestrator](docs/note/note-20260624-user-orchestrator.md), [sandbox](docs/note/note-20260624-user-sandbox.md), [systemd service](docs/note/note-20260624-user-systemd.md) |
-| **Working in the repo** | [Agent guide](docs/note/note-20260624-agent-overview.md) — [contributing](docs/note/note-20260624-agent-contributing.md), [WORKFLOW.md authoring](docs/note/note-20260624-agent-workflow-authoring.md), [testing](docs/note/note-20260624-agent-testing.md) |
-| **Internals** | [Technical docs](docs/note/note-20260624-technical-overview.md) — [platform/](docs/design/design-platform.md), [client/](docs/design/design-client.md), [orchestrator/](docs/design/design-orchestrator.md) · [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Using Agent Grid | [User guide](docs/note/note-20260624-user-overview.md) |
+| Installing and launching | [Getting started](docs/note/note-20260624-user-getting-started.md) |
+| Configuring isolation | [Sandbox guide](docs/note/note-20260624-user-sandbox.md) |
+| Running unattended agents | [Orchestrator guide](docs/note/note-20260624-user-orchestrator.md) |
+| Contributing | [Contributor guide](docs/note/note-20260624-agent-contributing.md) |
+| Understanding internals | [Technical overview](docs/note/note-20260624-technical-overview.md) |
+
+Optional Codex mobile access is documented in
+[Codex Remote Control](docs/note/note-20260715-user-codex-remote-control.md).
+
+## Development
+
+Common verification commands:
+
+```bash
+make vet
+cd services && go test ./...
+cd clients/ui && npm run test:unit
+```
+
+See [AGENTS.md](AGENTS.md) and the
+[testing guide](docs/note/note-20260624-agent-testing.md) for the complete
+test-tier and contribution rules.
+
+## License
+
+[MIT](LICENSE)
