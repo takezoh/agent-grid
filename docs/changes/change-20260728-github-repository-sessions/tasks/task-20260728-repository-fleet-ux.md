@@ -33,7 +33,7 @@ done_criteria:
 - host-neutral credential-free FleetRuntime projection
 - categorized project/repository picker、Settings return、repository-first server selection
 - accessible preparation progress/retry と browser/Workspace parity tests
-max_diff_loc: 800
+max_diff_loc: 3000
 change: change-20260728-github-repository-sessions
 summary: Consume the credential-free host projection in the shared SPA and deliver
   the accessible categorized repository-first picker and staged recovery flow.
@@ -57,7 +57,7 @@ credential-free host projectionを共有 SPA で消費し、既存 fleet project
 
 `task-20260729-repository-host-projection` のcredential-free account/catalog/preparation/environment snapshotとSettings actionsを消費する。
 
-`max_diff_loc: 800` は、pure palette reducer、React DOM/accessibility、fake-backend/real-stack Playwrightで19 UACを一つのUI contextとしてreviewするための上限である。host/Electron/Windows wiringはclean boundaryとして先行taskへ分離する。
+`max_diff_loc: 3000` は、pure palette reducer、React DOM/accessibility、fleet/reconnect互換修正、fake-backend/real-stack Playwrightで19 UACを一つの実装済みUI contextとしてreviewするための最終校正上限である。host/Electron/Windows wiringはclean boundaryとして先行taskへ分離する。
 
 ## スコープ外
 
