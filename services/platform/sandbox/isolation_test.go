@@ -13,6 +13,8 @@ func TestIsolationPlan_ContainerKey(t *testing.T) {
 		{"project with empty path", IsolationPlan{Kind: IsolationProject}, "", ""},
 		{"shared collapses to sentinel", IsolationPlan{Kind: IsolationShared}, "/workspace/fintech", SharedInstanceKey},
 		{"shared ignores path", IsolationPlan{Kind: IsolationShared}, "", SharedInstanceKey},
+		{"container identity overrides mount source", IsolationPlan{Kind: IsolationProject, ContainerIdentity: "/sessions/repository-env/s/r/g"}, "/sessions", "/sessions/repository-env/s/r/g"},
+		{"shared still wins over identity", IsolationPlan{Kind: IsolationShared, ContainerIdentity: "/id"}, "/sessions", SharedInstanceKey},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

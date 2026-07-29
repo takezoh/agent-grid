@@ -229,6 +229,13 @@ type Runtime struct {
 	prepCtrl *PreparationController
 	// envMgr owns repository-scoped environment ensure/reuse.
 	envMgr *RepositoryEnvironmentManager
+
+	// lastRepoPrepSweep + repoPrepSweepInterval throttle durable orphan sweeps
+	// on the tick path (default RepositoryPrepSweepInterval).
+	lastRepoPrepSweep     time.Time
+	repoPrepSweepInterval time.Duration
+	// repoPrepSweepCount is a test/observability counter of cleaned orphans.
+	repoPrepSweepCount uint64
 }
 
 // PruneProcessGroups reaps host process groups left marked by an earlier daemon
@@ -369,6 +376,10 @@ func (r *Runtime) initRepositoryComposition() {
 	ctrl.Authority = r.cfg.CloneAuthority
 	r.prepCtrl = ctrl
 	envStore := r.cfg.RepositoryEnvironmentStore
+	if envStore == nil && root != "" {
+		// Durable store so FindReady survives daemon restart (same root as preparations).
+		envStore = NewFileRepositoryEnvironmentStore(root, fs)
+	}
 	if envStore == nil {
 		envStore = NewMemoryRepositoryEnvironmentStore()
 	}
@@ -657,6 +668,8 @@ func (r *Runtime) Run(ctx context.Context) error {
 		case t := <-ticker.C:
 			r.tickN++
 			r.dispatch(state.EvTick{Now: t, N: r.tickN})
+			// Throttled, bounded preparation orphan sweep — not every fast tick.
+			r.maybeSweepRepositoryPreparations(t)
 
 		case res := <-r.workers.Results():
 			r.dispatch(res)

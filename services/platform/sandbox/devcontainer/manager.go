@@ -234,7 +234,10 @@ func (m *Manager) ensureContainer(ctx context.Context, instanceKey, projectPath 
 	if opts.Isolation.IsShared() {
 		ctr, err = findSharedContainerFn(findCtx, prefix)
 	} else {
-		ctr, err = findContainerFn(findCtx, prefix, projectPath)
+		// Find by durable container identity when mount source (projectPath) differs
+		// from repository-generation identity (ContainerIdentity).
+		findKey := opts.Isolation.ContainerKey(projectPath)
+		ctr, err = findContainerFn(findCtx, prefix, findKey)
 	}
 	findCancel()
 	slog.Info("devcontainer: stage", "name", "find", "elapsed", time.Since(t), "project", projectPath, "shared", opts.Isolation.IsShared(), "prefix", prefix)
@@ -407,6 +410,9 @@ func (m *Manager) loadSpec(plan sandbox.IsolationPlan, projectPath, dcDir string
 	// label keys stamped on the new container all come out under this daemon's
 	// namespace, never the legacy default.
 	spec.NamePrefix = m.namePrefix
+	// Repository environments: ProjectPath is sessions-root mount source;
+	// ContainerIdentity keeps per-repository-generation docker names/labels.
+	spec.ContainerIdentity = plan.ContainerIdentity
 	return spec, nil
 }
 

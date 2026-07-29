@@ -93,8 +93,10 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	}
 	s, prep = createPrep(t)
 	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "i", Kind: "clone_started", PreparationID: "prep-1", ObservedRevision: prep.Revision})
+	prep, _ = FindPreparation(s, "prep-1")
 	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "n", Kind: "interrupted", PreparationID: "prep-1"})
-	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "q", Kind: "quarantined", PreparationID: "prep-1"})
+	prep, _ = FindPreparation(s, "prep-1")
+	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "q", Kind: "quarantined", PreparationID: "prep-1", ObservedRevision: prep.Revision})
 	if prep, _ = FindPreparation(s, "prep-1"); prep.Stage != PrepStageInternalCorruption || len(s.Sessions) != 0 {
 		t.Fatal(prep)
 	}
@@ -106,6 +108,17 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	if p2, _ := FindPreparation(s2, "prep-1"); p2.Revision != prep.Revision {
 		t.Fatal("stale mutate")
 	}
+	// Stale quarantine must not rewrite stage (ObservedRevision fencing).
+	s, prep = createPrep(t)
+	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "cs", Kind: "clone_started", PreparationID: "prep-1", ObservedRevision: prep.Revision})
+	prep, _ = FindPreparation(s, "prep-1")
+	sQ, qEffs := Reduce(s, EvRepository{ConnID: 1, ReqID: "stale-q", Kind: "quarantined", PreparationID: "prep-1", ObservedRevision: prep.Revision + 3})
+	if err, ok := findEff[EffSendError](qEffs); !ok || err.Code != ErrCodeStaleRevision || hasEff[EffRepositoryPersist](qEffs) {
+		t.Fatal(qEffs)
+	}
+	if pQ, _ := FindPreparation(sQ, "prep-1"); pQ.Stage != PrepStageCloneInProgress || pQ.Revision != prep.Revision {
+		t.Fatalf("stale quarantine mutated: %+v", pQ)
+	}
 	s, _ = Reduce(New(), EvRepository{ConnID: 1, ReqID: "1", Kind: "create", IntentID: "a", PreparationID: "pa", ServerID: "s", Repository: testRepo(), Fingerprint: "a"})
 	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "2", Kind: "create", IntentID: "b", PreparationID: "pb", ServerID: "s", Repository: testRepo(), Fingerprint: "b"})
 	if len(s.RepositoryPreparations) != 2 {
@@ -116,6 +129,56 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	}
 	if (SessionTarget{Source: TargetSourceProject, Project: ProjectTarget{ServerID: "s", Project: "p"}, Repository: RepositoryTarget{Repository: testRepo()}}).Valid() {
 		t.Fatal("collapse")
+	}
+}
+
+func TestCancelDevcontainerInProgressRetryOriginAndResume(t *testing.T) {
+	s, prep := createPrep(t)
+	s, prep = toCloneReady(t, s, prep.Revision)
+	s, _ = Reduce(s, EvRepository{
+		ConnID: 1, ReqID: "d", Kind: "devcontainer_started",
+		PreparationID: "prep-1", ObservedRevision: prep.Revision,
+	})
+	prep, _ = FindPreparation(s, "prep-1")
+	if prep.Stage != PrepStageDevcontainerInProgress {
+		t.Fatalf("stage=%s", prep.Stage)
+	}
+	s, effs := Reduce(s, EvRepository{
+		ConnID: 1, ReqID: "x", Kind: "cancelled",
+		PreparationID: "prep-1", ObservedRevision: prep.Revision,
+	})
+	prep, _ = FindPreparation(s, "prep-1")
+	if prep.Stage != PrepStageCancelled || prep.RetryOrigin != RetryOriginDevcontainer {
+		t.Fatalf("cancel must set retry_origin=devcontainer: %+v", prep)
+	}
+	if !hasEff[EffRepositoryStopOwnedWork](effs) {
+		t.Fatal("cancel must stop owned work")
+	}
+	s, effs = Reduce(s, EvRepository{
+		ConnID: 1, ReqID: "r", Kind: "retry",
+		PreparationID: "prep-1", ObservedRevision: prep.Revision,
+	})
+	if hasEff[EffRepositoryStartClone](effs) {
+		t.Fatal("devcontainer retry must not re-enter clone-in-progress")
+	}
+	if !hasEff[EffRepositoryEnsureEnvironment](effs) {
+		t.Fatal("devcontainer retry must resume ensure-environment")
+	}
+	prep, _ = FindPreparation(s, "prep-1")
+	if prep.Stage != PrepStageCloneReady {
+		t.Fatalf("retry lands on clone-ready (not clone-in-progress): %s", prep.Stage)
+	}
+	// Production ensure path then emits devcontainer_started without clone_started.
+	s, _ = Reduce(s, EvRepository{
+		ConnID: 1, ReqID: "d2", Kind: "devcontainer_started",
+		PreparationID: "prep-1", ObservedRevision: prep.Revision,
+	})
+	prep, _ = FindPreparation(s, "prep-1")
+	if prep.Stage != PrepStageDevcontainerInProgress {
+		t.Fatalf("must resume devcontainer-in-progress: %s", prep.Stage)
+	}
+	if prep.Stage == PrepStageCloneInProgress {
+		t.Fatal("must not be clone-in-progress after devcontainer retry")
 	}
 }
 

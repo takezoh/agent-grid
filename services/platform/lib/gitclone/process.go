@@ -80,10 +80,14 @@ func (Service) Clone(ctx context.Context, req CloneRequest) CloneResult {
 	}
 	surfaces := []string{remote, strings.Join(argv, " "), strings.Join(env, "\n"), string(stdout), string(stderr)}
 	if ContainsSentinel(surfaces, req.Cred.Token) {
-		return CloneResult{Code: CodeCloneFailed, Diagnostic: CodeCredentialSurfaceLeak, Remote: remote, Argv: argv, Env: env}
+		// Never return Argv/Env that may embed the token; diagnostic is a typed code only.
+		return CloneResult{Code: CodeCloneFailed, Diagnostic: CodeCredentialSurfaceLeak, Remote: remote}
 	}
 	diag := SanitizeDiagnostic(string(stderr)+"\n"+string(stdout), req.Cred.Token)
-	res := CloneResult{Diagnostic: diag, Remote: remote, Argv: argv, Env: env}
+	// Argv/Env are debug surfaces for tests; strip any residual token material.
+	safeArgv := scrubSlice(argv, req.Cred.Token)
+	safeEnv := scrubSlice(env, req.Cred.Token)
+	res := CloneResult{Diagnostic: diag, Remote: remote, Argv: safeArgv, Env: safeEnv}
 	if cctx.Err() != nil {
 		res.Code = CodeCancelled
 		return res

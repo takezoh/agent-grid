@@ -38,6 +38,9 @@ export interface HostTarget {
   project?: HostProjectTarget;
   repository?: HostRepositoryIdentity;
 }
+/** Wire enum from protocol/repository.schema.json / generated RepositoryPreparation. */
+export type EnvironmentDisposition = "none" | "ensuring" | "ready" | "reused" | "failed";
+
 export interface HostPreparation {
   preparation_id: string;
   intent_id: string;
@@ -47,7 +50,7 @@ export interface HostPreparation {
   revision: number;
   failure_code?: string;
   retry_origin?: string;
-  environment_disposition?: string;
+  environment_disposition?: EnvironmentDisposition;
   session_id?: string;
 }
 export interface AccountProjection {
@@ -68,6 +71,8 @@ export interface HostRepositoryProjection {
   catalog: CatalogProjection;
   targets: HostTarget[];
   preparations: HostPreparation[];
+  /** Optional fleet execution servers (unavailable members included). */
+  execution_servers?: ExecutionServer[];
 }
 
 export type ProjectRow = {
@@ -293,6 +298,11 @@ function recoverFocus(
 function clearInvalidSelection(state: RepositoryPickerState): RepositoryPickerState {
   const selected = state.selected;
   if (!selected) return state;
+  // In-flight preparation/retry must retain selection even when the catalog
+  // transiently omits the repository (projection refresh races).
+  if (state.phase === "preparing" || state.phase === "retry") {
+    return state;
+  }
   const ok =
     selected.source === "project"
       ? state.projects.some((p) => p.key === selected.key)
@@ -337,7 +347,7 @@ export function stageAnnouncement(p: HostPreparation): string {
     case "clone-ready":
       return `Clone ready for ${repo} on ${server}`;
     case "devcontainer-in-progress":
-      return p.environment_disposition === "reuse"
+      return p.environment_disposition === "reused"
         ? `Reusing repository environment for ${repo} on ${server}`
         : `Preparing devcontainer for ${repo} on ${server}`;
     case "available":
@@ -386,7 +396,9 @@ export function reduceRepositoryPicker(
         repositories: repositoryRows(event.projection.targets, event.projection.catalog),
       };
       if (event.servers) next = applyServers(next, event.servers);
-      next = clearInvalidSelection(next);
+      // In-flight preparation/retry: update matching preparation only. Do not run
+      // clearInvalidSelection — it resets phase to target-select when the catalog
+      // transiently omits the selected repository (UAC-prep retain).
       if (next.phase === "settings-auth") return next;
       if (next.phase === "preparing" || next.phase === "retry") {
         const prep = event.projection.preparations.find(
@@ -394,11 +406,14 @@ export function reduceRepositoryPicker(
         );
         return prep ? reducePreparation(next, prep) : next;
       }
+      next = clearInvalidSelection(next);
       return recoverFocus(next, next.activeKey ?? next.focusReturnKey);
     }
     case "activate":
       return { ...state, activeKey: event.key };
     case "select": {
+      // Palette value-sync and clicks must not clobber an in-flight prep view.
+      if (state.phase === "preparing" || state.phase === "retry") return state;
       if (state.phase === "server-select") {
         const id = event.key.startsWith("server:") ? event.key.slice(7) : event.key;
         return reduceRepositoryPicker(state, { type: "selectServer", serverId: id });
@@ -430,6 +445,7 @@ export function reduceRepositoryPicker(
       );
     }
     case "selectServer": {
+      if (state.phase === "preparing" || state.phase === "retry") return state;
       if (state.selected?.source !== "repository") return state;
       const server = state.servers.find((s) => s.serverId === event.serverId);
       if (!server?.available) {

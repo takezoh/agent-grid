@@ -264,10 +264,11 @@ describe("UAC-009..011 / UAC-015..016 preparation stages", () => {
         repository: { repository_id: "10", owner: "alice", name: "demo" },
         stage: "devcontainer-in-progress",
         revision: 2,
-        environment_disposition: "create",
+        environment_disposition: "ensuring",
       },
     });
     expect(s.announce).toContain("devcontainer");
+    expect(s.announce).not.toContain("Reusing");
     s = reduceRepositoryPicker(s, {
       type: "preparationUpdate",
       preparation: {
@@ -306,21 +307,124 @@ describe("UAC-009..011 / UAC-015..016 preparation stages", () => {
     expect(s.preparation?.stage).toBe("clone-in-progress");
   });
 
-  it("reuse disposition is distinct from create", () => {
-    const msg = stageAnnouncement({
+  it("reused wire disposition takes reuse path; wrong values do not", () => {
+    const base = {
       preparation_id: "p",
       intent_id: "i",
       server_id: "srv-a",
       repository: { repository_id: "10", owner: "alice", name: "demo" },
-      stage: "devcontainer-in-progress",
+      stage: "devcontainer-in-progress" as const,
       revision: 1,
-      environment_disposition: "reuse",
+    };
+    const reused = stageAnnouncement({ ...base, environment_disposition: "reused" });
+    expect(reused).toContain("Reusing");
+    expect(reused).not.toContain("Preparing devcontainer");
+
+    // Typo / non-wire literal must not take the reuse announcement path.
+    const wrongTypo = stageAnnouncement({
+      ...base,
+      environment_disposition: "reuse" as unknown as "reused",
     });
-    expect(msg).toContain("Reusing");
+    expect(wrongTypo).not.toContain("Reusing");
+    expect(wrongTypo).toContain("Preparing devcontainer");
+
+    const ensuring = stageAnnouncement({ ...base, environment_disposition: "ensuring" });
+    expect(ensuring).not.toContain("Reusing");
+    expect(ensuring).toContain("Preparing devcontainer");
   });
 });
 
 describe("UAC-014 / UAC-017 / UAC-018 scoped invalidation", () => {
+  it("preserves in-flight preparation selection when catalog transiently omits the repository", () => {
+    let s = openWithCatalog();
+    s = reduceRepositoryPicker(s, { type: "select", key: repositoryKey("10") });
+    s = reduceRepositoryPicker(s, { type: "selectServer", serverId: "srv-a" });
+    s = reduceRepositoryPicker(s, {
+      type: "startPreparation",
+      preparation: {
+        preparation_id: "p1",
+        intent_id: "i1",
+        server_id: "srv-a",
+        repository: { repository_id: "10", owner: "alice", name: "demo" },
+        stage: "clone-in-progress",
+        revision: 1,
+      },
+    });
+    expect(s.phase).toBe("preparing");
+    s = reduceRepositoryPicker(s, {
+      type: "applyProjection",
+      projection: projection({
+        catalog: { outcome: "complete-current", generation: 2, repositories: [] },
+        targets: [
+          {
+            source: "project",
+            project: { server_id: "srv-a", project: "/repo/demo", server_label: "Alpha" },
+          },
+        ],
+        preparations: [
+          {
+            preparation_id: "p1",
+            intent_id: "i1",
+            server_id: "srv-a",
+            repository: { repository_id: "10", owner: "alice", name: "demo" },
+            stage: "clone-ready",
+            revision: 2,
+          },
+        ],
+      }),
+    });
+    expect(s.phase).toBe("preparing");
+    expect(s.selected?.key).toBe(repositoryKey("10"));
+    expect(s.preparation?.stage).toBe("clone-ready");
+    expect(s.preparation?.stage).not.toBe("available");
+  });
+
+  it("ignores select/selectServer during preparing so palette value-sync cannot drop prep", () => {
+    // rejects counterexample: project param value re-select during poll → target-select
+    let s = openWithCatalog();
+    s = reduceRepositoryPicker(s, { type: "select", key: repositoryKey("10") });
+    s = reduceRepositoryPicker(s, { type: "selectServer", serverId: "srv-a" });
+    s = reduceRepositoryPicker(s, {
+      type: "startPreparation",
+      preparation: {
+        preparation_id: "p1",
+        intent_id: "i1",
+        server_id: "srv-a",
+        repository: { repository_id: "10", owner: "alice", name: "demo" },
+        stage: "clone-in-progress",
+        revision: 1,
+      },
+    });
+    const project = projectKey("srv-a", "/repo/demo");
+    s = reduceRepositoryPicker(s, { type: "select", key: project });
+    expect(s.phase).toBe("preparing");
+    expect(s.selected?.key).toBe(repositoryKey("10"));
+    expect(s.preparation?.stage).toBe("clone-in-progress");
+    s = reduceRepositoryPicker(s, { type: "selectServer", serverId: "srv-b" });
+    expect(s.phase).toBe("preparing");
+    expect(s.selectedServerId).toBe("srv-a");
+    s = reduceRepositoryPicker(s, {
+      type: "applyProjection",
+      projection: projection({
+        preparations: [
+          {
+            preparation_id: "p1",
+            intent_id: "i1",
+            server_id: "srv-a",
+            repository: { repository_id: "10", owner: "alice", name: "demo" },
+            stage: "clone-ready",
+            revision: 2,
+          },
+        ],
+      }),
+    });
+    // Spurious project select interleaved with prep poll must still leave clone-ready.
+    s = reduceRepositoryPicker(s, { type: "select", key: project });
+    expect(s.phase).toBe("preparing");
+    expect(s.preparation?.stage).toBe("clone-ready");
+    expect(s.selected?.key).toBe(repositoryKey("10"));
+  });
+
   it("clears invalid repository selection and unavailable server without losing query", () => {
     let s = openWithCatalog();
     s = reduceRepositoryPicker(s, { type: "setQuery", query: "demo" });

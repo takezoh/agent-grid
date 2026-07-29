@@ -209,23 +209,32 @@ func buildRuntime(ctx context.Context, cfg *config.Config, dataDir string) (*run
 
 	featureSet := features.FromConfig(cfg.Features.Enabled, features.All())
 	sbResolver := platformconfig.NewSandboxResolver(cfg.Sandbox)
-	agentLauncher, streamDispatcher, err := newAgentLauncher(ctx, cfg.Sandbox, sbResolver, cfg.Projects, dataDir, sockPath, cfg.ResolveDevcontainerPrefix())
+	agentLauncher, streamDispatcher, dcMgr, err := newAgentLauncher(ctx, cfg.Sandbox, sbResolver, cfg.Projects, dataDir, sockPath, cfg.ResolveDevcontainerPrefix())
 	if err != nil {
 		return nil, "", err
 	}
+	// Production repository environment authority: share the sandbox manager
+	// when present; otherwise inject a typed unavailable adapter (never nil).
+	repoDC := runtime.RepositoryDevcontainer(runtime.UnavailableRepositoryDevcontainer{})
+	if dcMgr != nil {
+		repoDC = runtime.NewPlatformRepositoryDevcontainer(dcMgr)
+	}
 	rt := runtime.New(runtime.Config{
-		DataDir:           dataDir,
-		TickInterval:      pollInterval,
-		Backend:           ptyBackend,
-		Persist:           runtime.NewFilePersist(dataDir),
-		EventLog:          runtime.NewFileEventLog(dataDir),
-		ToolLog:           runtime.NewFileToolLog(dataDir),
-		Pool:              pool,
-		Tap:               ptyTap,
-		Features:          featureSet,
-		Launcher:          agentLauncher,
-		StreamDispatcher:  streamDispatcher,
-		StreamReadTimeout: time.Duration(cfg.Codex.ReadTimeoutMs) * time.Millisecond,
+		DataDir:                    dataDir,
+		TickInterval:               pollInterval,
+		Backend:                    ptyBackend,
+		Persist:                    runtime.NewFilePersist(dataDir),
+		EventLog:                   runtime.NewFileEventLog(dataDir),
+		ToolLog:                    runtime.NewFileToolLog(dataDir),
+		Pool:                       pool,
+		Tap:                        ptyTap,
+		Features:                   featureSet,
+		Launcher:                   agentLauncher,
+		StreamDispatcher:           streamDispatcher,
+		StreamReadTimeout:          time.Duration(cfg.Codex.ReadTimeoutMs) * time.Millisecond,
+		RepositorySessionsRoot:     filepath.Join(dataDir, "repository-sessions"),
+		RepositoryDevcontainer:     repoDC,
+		RepositoryConfigGeneration: cfg.ResolveDevcontainerPrefix(),
 	})
 	rt.SetSandboxedProjectResolver(func(project string) bool {
 		return sbResolver.Resolve(project).IsSandboxed()
@@ -257,6 +266,11 @@ func bootSession(ctx context.Context, rt *runtime.Runtime, shellDriver statedriv
 	if err := rt.LoadSnapshot(true); err != nil {
 		slog.Error("snapshot load failed", "err", err)
 	}
+
+	// Reload durable repository preparations and age-sweep orphans before the
+	// daemon becomes available. Must run after snapshot load (sessions restored)
+	// and before RecreateAll so interrupted clones are marked before clients attach.
+	rt.ReconcileRepositoryPreparations()
 
 	// Try to adopt sandbox containers / codex threads that outlived the previous
 	// daemon. Adopted frames carry their cleanup callback + container mounts
@@ -399,7 +413,7 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 // devcontainer Manager and ultimately to ContainerName + label keys, so two
 // peer daemons (primary vs. run-dev gateway) under distinct prefixes never
 // compete for the same docker container name.
-func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, resolver *platformconfig.SandboxResolver, projects platformconfig.ProjectsConfig, dataDir, sockPath, namePrefix string) (runtime.AgentLauncher, agentlaunch.Dispatcher, error) {
+func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, resolver *platformconfig.SandboxResolver, projects platformconfig.ProjectsConfig, dataDir, sockPath, namePrefix string) (runtime.AgentLauncher, agentlaunch.Dispatcher, *sandboxdc.Manager, error) {
 	selfBin, err := os.Executable()
 	if err == nil {
 		if resolved, rerr := filepath.EvalSymlinks(selfBin); rerr == nil {
@@ -419,10 +433,11 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 	}
 	d := newDispatcher()
 	sd := newDispatcher()
+	var mgr *sandboxdc.Manager
 	if sb.Mode == "devcontainer" {
 		setup, err := dockercli.Setup(func(p string) bool { _, err := os.Stat(p); return err == nil })
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if setup.UsingRootless {
 			slog.Info("sandbox: rootless docker detected", "DOCKER_HOST", setup.DOCKERHOST)
@@ -435,7 +450,7 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 			MCPSock: agentlaunch.ContainerMCPSockPath,
 		})
 		if err != nil {
-			return nil, nil, fmt.Errorf("sandbox: start in-process credproxy: %w", err)
+			return nil, nil, nil, fmt.Errorf("sandbox: start in-process credproxy: %w", err)
 		}
 		// credproxy providers run under a child of this ctx (the daemon context).
 		// The coordinator's defer cancel() on graceful shutdown cascades into
@@ -454,7 +469,7 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 		overlayFn := agentlaunch.BuildContainerOverlay(func(project string) platformconfig.SandboxConfig {
 			return resolver.Resolve(project)
 		}, projects, runner, dataDir, agentHookPostCreateSubcmds())
-		mgr := sandboxdc.NewWithPrefix(overlayFn, namePrefix)
+		mgr = sandboxdc.NewWithPrefix(overlayFn, namePrefix)
 		slog.Info("sandbox: devcontainer prefix", "prefix", mgr.NamePrefix())
 		newDC := func(tty bool) *agentlaunch.DevcontainerLauncher {
 			return agentlaunch.NewDevcontainerLauncher(mgr,
@@ -471,7 +486,7 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 		sd.Devcontainer = newDC(false)
 		slog.Info("sandbox: devcontainer backend enabled")
 	}
-	return runtime.NewDispatcherAdapter(d), sd, nil
+	return runtime.NewDispatcherAdapter(d), sd, mgr, nil
 }
 
 // shellDisplayName picks the display name (basename) for the shell driver from

@@ -119,6 +119,52 @@ func TestGitCloneAuthorityAndFailureContract(t *testing.T) {
 	}
 }
 
+// TestCloneResultOmitsArgvEnvOnSentinelLeak: credential surface leak must not
+// return unredacted Argv/Env that embed the token.
+func TestCloneResultOmitsArgvEnvOnSentinelLeak(t *testing.T) {
+	t.Parallel()
+	dest := filepath.Join(t.TempDir(), "r")
+	leaky := &ScriptedRunner{
+		Code: 0,
+		Out:  []byte("cloned with " + cloneSentinel),
+	}
+	res := Service{}.Clone(context.Background(), CloneRequest{
+		Owner: "acme", Name: "widgets", DestDir: dest,
+		Cred:   Credential{Username: "x-access-token", Token: cloneSentinel},
+		Runner: leaky, Timeout: time.Second,
+	})
+	if res.Code != CodeCloneFailed || res.Diagnostic != CodeCredentialSurfaceLeak {
+		t.Fatalf("want surface leak: %+v", res)
+	}
+	if len(res.Argv) != 0 || len(res.Env) != 0 {
+		t.Fatalf("Argv/Env must be omitted on leak: argv=%v env=%v", res.Argv, res.Env)
+	}
+	if strings.Contains(res.Diagnostic, cloneSentinel) {
+		t.Fatal("diagnostic must not embed token")
+	}
+}
+
+// TestBrokerCloseRacesCredentialTake: Close concurrent with handle must not
+// race on cred (run with -race).
+func TestBrokerCloseRacesCredentialTake(t *testing.T) {
+	t.Parallel()
+	cred := Credential{Username: "x-access-token", Token: cloneSentinel}
+	for i := 0; i < 32; i++ {
+		b, prep, err := StartBroker(cred)
+		if err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_, _ = b.takeCredential()
+		}()
+		b.Close()
+		<-done
+		prep.Cleanup()
+	}
+}
+
 func dialAskpass(sock string, nonceFile *os.File) (string, string, error) {
 	nonceLine, err := bufio.NewReader(nonceFile).ReadString('\n')
 	if err != nil {

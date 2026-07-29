@@ -102,3 +102,13 @@ func TestExactVersionMismatchMatrixNoSideEffects(t *testing.T) {
 		t.Fatalf("equal admit: %+v invoked=%v", ok, equalInvoked)
 	}
 }
+
+// TestRegisteredRouteMismatchMatrixNoSideEffects is the route-level matrix:
+// production newMux rejects old/new/missing/garbage clients before lease
+// mutation. Complements AdmitRepositoryOperationAgainst unit coverage.
+func TestRegisteredRouteMismatchMatrixNoSideEffects(t *testing.T) {
+	t.Parallel()
+	// Present here so the mismatch matrix file cannot be green while only unit
+	// admission helpers are exercised (production path lives in repository_route_mismatch_test.go).
+	runRegisteredLeaseRoutesProtocolMismatchNoSideEffects(t)
+}

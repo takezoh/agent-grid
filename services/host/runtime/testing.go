@@ -14,6 +14,33 @@ func (r *Runtime) TestState() state.State {
 	return r.state
 }
 
+// TestHasRepositoryDevcontainer reports whether production authority is wired
+// (never nil in a correctly composed production Runtime).
+func (r *Runtime) TestHasRepositoryDevcontainer() bool {
+	return r.cfg.RepositoryDevcontainer != nil
+}
+
+// TestRepositoryPrepSweepCount returns how many never-available orphans the
+// production sweep path has cleaned (boot + tick).
+func (r *Runtime) TestRepositoryPrepSweepCount() uint64 {
+	return r.repoPrepSweepCount
+}
+
+// TestSetRepositoryPrepSweepInterval overrides the tick throttle for tests.
+func (r *Runtime) TestSetRepositoryPrepSweepInterval(d time.Duration) {
+	r.repoPrepSweepInterval = d
+}
+
+// TestMaybeSweepRepositoryPreparations exercises the production tick sweep entry.
+func (r *Runtime) TestMaybeSweepRepositoryPreparations(now time.Time) {
+	r.maybeSweepRepositoryPreparations(now)
+}
+
+// TestPreparationController exposes the production preparation controller.
+func (r *Runtime) TestPreparationController() *PreparationController {
+	return r.prepCtrl
+}
+
 // TestPublishedState returns the latest state snapshot published by the event
 // loop for cross-goroutine test assertions.
 func (r *Runtime) TestPublishedState() state.State {

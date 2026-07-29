@@ -97,18 +97,40 @@ func (b *Broker) BindGit(pid, pgid int) {
 }
 func (b *Broker) LastCode() string { b.mu.Lock(); defer b.mu.Unlock(); return b.lastCode }
 func (b *Broker) Close() {
-	if b.ln != nil {
-		_ = b.ln.Close()
-	}
+	b.mu.Lock()
+	ln := b.ln
+	b.ln = nil
 	b.cred = Credential{}
-	if b.dir != "" {
-		_ = os.RemoveAll(b.dir)
+	dir := b.dir
+	b.dir = ""
+	b.mu.Unlock()
+	if ln != nil {
+		_ = ln.Close()
+	}
+	if dir != "" {
+		_ = os.RemoveAll(dir)
 	}
 }
 func (b *Broker) setCode(c string) { b.mu.Lock(); b.lastCode = c; b.mu.Unlock() }
+func (b *Broker) takeCredential() (Credential, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.cred.Token == "" {
+		return Credential{}, false
+	}
+	c := b.cred
+	b.cred = Credential{}
+	return c, true
+}
 func (b *Broker) serve() {
+	b.mu.Lock()
+	ln := b.ln
+	b.mu.Unlock()
+	if ln == nil {
+		return
+	}
 	for {
-		c, err := b.ln.Accept()
+		c, err := ln.Accept()
 		if err != nil {
 			return
 		}
@@ -140,8 +162,12 @@ func (b *Broker) handle(c net.Conn) {
 		b.setCode(CodeReplay)
 		return
 	}
-	_, _ = io.WriteString(c, b.cred.Username+"\n"+b.cred.Token+"\n")
-	b.cred = Credential{}
+	cred, ok := b.takeCredential()
+	if !ok {
+		b.setCode(CodeAuthorityUnavailable)
+		return
+	}
+	_, _ = io.WriteString(c, cred.Username+"\n"+cred.Token+"\n")
 	b.setCode(CodeOK)
 }
 func (b *Broker) peerOK(pid int) bool {

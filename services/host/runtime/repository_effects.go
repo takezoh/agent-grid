@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"path/filepath"
+	"time"
 
 	"github.com/takezoh/agent-grid/services/host/state"
 )
@@ -19,6 +20,11 @@ func (r *Runtime) executeRepositoryEffect(eff state.Effect) {
 	case state.EffRepositoryStopOwnedWork:
 		if r.prepCtrl != nil {
 			r.prepCtrl.StopOwnedWork(e.PreparationID, e.Generation)
+			// Terminal abandon only: cancel/retry must keep durable clone for
+			// RetryOriginDevcontainer. Age sweep handles long-lived orphans.
+			if prep, ok := state.FindPreparation(r.state, e.PreparationID); ok && prep.Stage == state.PrepStageAbandoned {
+				r.prepCtrl.CleanupNeverAvailable(prep)
+			}
 		}
 	}
 }
@@ -144,6 +150,8 @@ func (r *Runtime) launchPreparationTerminal(prep state.RepositoryPreparation, se
 		EnvironmentReused: envRes.Reused,
 	})
 	if r.prepCtrl != nil {
+		// Session now owns the clone; drop never-available accounting without delete.
+		r.prepCtrl.ReleaseNeverAvailableAccount(prep.ID)
 		r.prepCtrl.ConsumePendingLaunch(prep.ID)
 	}
 }
@@ -173,6 +181,18 @@ func (r *Runtime) enqueuePreparationEvent(ev state.EvRepository) {
 	r.Enqueue(ev)
 }
 
+// RepositoryPrepSweepInterval bounds how often the tick path re-lists durable
+// preparation records. Fast ticks must not scan the filesystem every iteration.
+const RepositoryPrepSweepInterval = 5 * time.Minute
+
+// RepositoryPrepSweepMax deletes at most this many never-available orphans per
+// sweep so the event loop never runs unbounded RemoveAll work on one tick.
+const RepositoryPrepSweepMax = 4
+
+// ReconcileRepositoryPreparations reloads durable preparation records into
+// loop-owned state, applies startup interrupt/quarantine transitions, and runs
+// a bounded age sweep. Call after LoadSnapshot and only from the event-loop
+// owner (boot path before Run, or the tick path).
 func (r *Runtime) ReconcileRepositoryPreparations() {
 	if r.prepCtrl == nil {
 		return
@@ -200,7 +220,36 @@ func (r *Runtime) ReconcileRepositoryPreparations() {
 			}
 		}
 	}
+	r.sweepRepositoryOrphansBounded()
 	r.publishState(r.state)
+}
+
+// maybeSweepRepositoryPreparations is the production tick entry: throttled,
+// bounded filesystem sweep without re-running full startup reconciliation.
+func (r *Runtime) maybeSweepRepositoryPreparations(now time.Time) {
+	if r.prepCtrl == nil {
+		return
+	}
+	interval := r.repoPrepSweepInterval
+	if interval <= 0 {
+		interval = RepositoryPrepSweepInterval
+	}
+	if !r.lastRepoPrepSweep.IsZero() && now.Sub(r.lastRepoPrepSweep) < interval {
+		return
+	}
+	r.lastRepoPrepSweep = now
+	r.sweepRepositoryOrphansBounded()
+}
+
+func (r *Runtime) sweepRepositoryOrphansBounded() {
+	if r.prepCtrl == nil {
+		return
+	}
+	n := r.prepCtrl.SweepNeverAvailableOrphansN(RepositoryPrepSweepMax)
+	r.repoPrepSweepCount += uint64(n)
+	if n > 0 {
+		slog.Info("runtime: repository preparation orphan sweep", "cleaned", n)
+	}
 }
 
 func statePutPrep(s state.State, rec PreparationRecord) state.State {
