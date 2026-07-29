@@ -38,6 +38,9 @@ export interface HostTarget {
   project?: HostProjectTarget;
   repository?: HostRepositoryIdentity;
 }
+/** Wire enum from protocol/repository.schema.json / generated RepositoryPreparation. */
+export type EnvironmentDisposition = "none" | "ensuring" | "ready" | "reused" | "failed";
+
 export interface HostPreparation {
   preparation_id: string;
   intent_id: string;
@@ -47,7 +50,7 @@ export interface HostPreparation {
   revision: number;
   failure_code?: string;
   retry_origin?: string;
-  environment_disposition?: string;
+  environment_disposition?: EnvironmentDisposition;
   session_id?: string;
 }
 export interface AccountProjection {
@@ -344,7 +347,7 @@ export function stageAnnouncement(p: HostPreparation): string {
     case "clone-ready":
       return `Clone ready for ${repo} on ${server}`;
     case "devcontainer-in-progress":
-      return p.environment_disposition === "reuse"
+      return p.environment_disposition === "reused"
         ? `Reusing repository environment for ${repo} on ${server}`
         : `Preparing devcontainer for ${repo} on ${server}`;
     case "available":
