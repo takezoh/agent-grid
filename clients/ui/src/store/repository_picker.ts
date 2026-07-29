@@ -68,6 +68,8 @@ export interface HostRepositoryProjection {
   catalog: CatalogProjection;
   targets: HostTarget[];
   preparations: HostPreparation[];
+  /** Optional fleet execution servers (unavailable members included). */
+  execution_servers?: ExecutionServer[];
 }
 
 export type ProjectRow = {

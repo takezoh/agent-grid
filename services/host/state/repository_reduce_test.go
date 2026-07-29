@@ -132,4 +132,54 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	}
 }
 
+func TestCancelDevcontainerInProgressRetryOriginAndResume(t *testing.T) {
+	s, prep := createPrep(t)
+	s, prep = toCloneReady(t, s, prep.Revision)
+	s, _ = Reduce(s, EvRepository{
+		ConnID: 1, ReqID: "d", Kind: "devcontainer_started",
+		PreparationID: "prep-1", ObservedRevision: prep.Revision,
+	})
+	prep, _ = FindPreparation(s, "prep-1")
+	if prep.Stage != PrepStageDevcontainerInProgress {
+		t.Fatalf("stage=%s", prep.Stage)
+	}
+	s, effs := Reduce(s, EvRepository{
+		ConnID: 1, ReqID: "x", Kind: "cancelled",
+		PreparationID: "prep-1", ObservedRevision: prep.Revision,
+	})
+	prep, _ = FindPreparation(s, "prep-1")
+	if prep.Stage != PrepStageCancelled || prep.RetryOrigin != RetryOriginDevcontainer {
+		t.Fatalf("cancel must set retry_origin=devcontainer: %+v", prep)
+	}
+	if !hasEff[EffRepositoryStopOwnedWork](effs) {
+		t.Fatal("cancel must stop owned work")
+	}
+	s, effs = Reduce(s, EvRepository{
+		ConnID: 1, ReqID: "r", Kind: "retry",
+		PreparationID: "prep-1", ObservedRevision: prep.Revision,
+	})
+	if hasEff[EffRepositoryStartClone](effs) {
+		t.Fatal("devcontainer retry must not re-enter clone-in-progress")
+	}
+	if !hasEff[EffRepositoryEnsureEnvironment](effs) {
+		t.Fatal("devcontainer retry must resume ensure-environment")
+	}
+	prep, _ = FindPreparation(s, "prep-1")
+	if prep.Stage != PrepStageCloneReady {
+		t.Fatalf("retry lands on clone-ready (not clone-in-progress): %s", prep.Stage)
+	}
+	// Production ensure path then emits devcontainer_started without clone_started.
+	s, _ = Reduce(s, EvRepository{
+		ConnID: 1, ReqID: "d2", Kind: "devcontainer_started",
+		PreparationID: "prep-1", ObservedRevision: prep.Revision,
+	})
+	prep, _ = FindPreparation(s, "prep-1")
+	if prep.Stage != PrepStageDevcontainerInProgress {
+		t.Fatalf("must resume devcontainer-in-progress: %s", prep.Stage)
+	}
+	if prep.Stage == PrepStageCloneInProgress {
+		t.Fatal("must not be clone-in-progress after devcontainer retry")
+	}
+}
+
 func hasEff[T Effect](effs []Effect) bool { _, ok := findEff[T](effs); return ok }

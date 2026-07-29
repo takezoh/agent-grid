@@ -173,6 +173,13 @@ func hasSessionsPrefix(path, root string) bool {
 // durable records are older than PrepCapCleanupAge. Skips available sessions
 // and does not touch repository-environments/.
 func (c *PreparationController) SweepNeverAvailableOrphans() int {
+	return c.SweepNeverAvailableOrphansN(0)
+}
+
+// SweepNeverAvailableOrphansN is the bounded form: max > 0 caps how many
+// orphans are deleted in one call so the event-loop tick path stays finite.
+// max <= 0 means unbounded (boot / explicit full reconcile).
+func (c *PreparationController) SweepNeverAvailableOrphansN(max int) int {
 	if c == nil || c.Store == nil {
 		return 0
 	}
@@ -186,6 +193,9 @@ func (c *PreparationController) SweepNeverAvailableOrphans() int {
 	}
 	cleaned := 0
 	for _, rec := range recs {
+		if max > 0 && cleaned >= max {
+			break
+		}
 		prep := rec.Preparation
 		if prep.IsSessionAvailable() || prep.Stage == state.PrepStageAvailable {
 			continue

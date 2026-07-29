@@ -50,6 +50,16 @@ function serversFromProjects(projects: readonly SessionConfigProject[]): Executi
   return [...map.values()];
 }
 
+function resolveServers(
+  projection: HostRepositoryProjection,
+  projects: readonly SessionConfigProject[],
+): ExecutionServer[] {
+  if (projection.execution_servers && projection.execution_servers.length > 0) {
+    return projection.execution_servers;
+  }
+  return serversFromProjects(projects);
+}
+
 function mergeDaemonProjects(
   projection: HostRepositoryProjection,
   projects: readonly SessionConfigProject[],
@@ -88,22 +98,21 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
   const provider = useMemo(() => providerProp ?? makeFleetProvider(), [providerProp]);
   const [state, dispatch] = useReducer(reduceRepositoryPicker, undefined, () => {
     const seed = reduceRepositoryPicker(emptyPickerState(), { type: "open" });
+    const initial: HostRepositoryProjection = {
+      sources: [
+        { id: "projects", available: true },
+        { id: "github", available: false, status: "unauthenticated" },
+      ],
+      account: { state: "unauthenticated" },
+      catalog: { outcome: "empty", generation: 0, repositories: [] },
+      targets: [],
+      preparations: [],
+    };
+    const projection = mergeDaemonProjects(initial, projects);
     return reduceRepositoryPicker(seed, {
       type: "applyProjection",
-      projection: mergeDaemonProjects(
-        {
-          sources: [
-            { id: "projects", available: true },
-            { id: "github", available: false, status: "unauthenticated" },
-          ],
-          account: { state: "unauthenticated" },
-          catalog: { outcome: "empty", generation: 0, repositories: [] },
-          targets: [],
-          preparations: [],
-        },
-        projects,
-      ),
-      servers: serversFromProjects(projects),
+      projection,
+      servers: resolveServers(projection, projects),
     });
   });
   const filterRef = useRef<HTMLInputElement | null>(null);
@@ -131,49 +140,49 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
         dispatch({
           type: "applyProjection",
           projection,
-          servers: serversFromProjects(projects),
+          servers: resolveServers(projection, projects),
         });
       } catch {
         if (cancelled) return;
         if (lastComplete) {
           // Source-scoped failure: keep retained catalog/account/selection surfaces.
+          const failed: HostRepositoryProjection = {
+            ...lastComplete,
+            sources: lastComplete.sources.map((s) =>
+              s.id === "github"
+                ? { ...s, available: s.available, status: "source-failed-retained" }
+                : s,
+            ),
+            catalog: {
+              ...lastComplete.catalog,
+              outcome: "source-failed-retained",
+              stale: true,
+              failure_code: lastComplete.catalog.failure_code ?? "projection_poll_failed",
+            },
+          };
           dispatch({
             type: "applyProjection",
-            projection: {
-              ...lastComplete,
-              sources: lastComplete.sources.map((s) =>
-                s.id === "github"
-                  ? { ...s, available: s.available, status: "source-failed-retained" }
-                  : s,
-              ),
-              catalog: {
-                ...lastComplete.catalog,
-                outcome: "source-failed-retained",
-                stale: true,
-                failure_code: lastComplete.catalog.failure_code ?? "projection_poll_failed",
-              },
-            },
-            servers: serversFromProjects(projects),
+            projection: failed,
+            servers: resolveServers(failed, projects),
           });
           return;
         }
         // Cold start with no retained projection: typed unauthenticated empty only.
+        const empty: HostRepositoryProjection = {
+          sources: [
+            { id: "projects", available: true },
+            { id: "github", available: false, status: "unauthenticated" },
+          ],
+          account: { state: "unauthenticated" },
+          catalog: { outcome: "empty", generation: 0, repositories: [] },
+          targets: [],
+          preparations: [],
+        };
+        const projection = mergeDaemonProjects(empty, projects);
         dispatch({
           type: "applyProjection",
-          projection: mergeDaemonProjects(
-            {
-              sources: [
-                { id: "projects", available: true },
-                { id: "github", available: false, status: "unauthenticated" },
-              ],
-              account: { state: "unauthenticated" },
-              catalog: { outcome: "empty", generation: 0, repositories: [] },
-              targets: [],
-              preparations: [],
-            },
-            projects,
-          ),
-          servers: serversFromProjects(projects),
+          projection,
+          servers: resolveServers(projection, projects),
         });
       }
     };
@@ -207,6 +216,17 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
     if (!focused || disabled) return;
     filterRef.current?.focus();
   }, [focused, disabled]);
+
+  // UAC-005 / UAC-013: after GitHub settings cancel/complete, restore DOM focus
+  // to the github-auth-entry control (not only aria-activedescendant).
+  useEffect(() => {
+    if (!focused || disabled) return;
+    if (state.phase !== "target-select") return;
+    if (state.activeKey !== GITHUB_ENTRY_KEY) return;
+    if (state.settingsReturn == null) return;
+    const entry = document.querySelector<HTMLElement>('[data-testid="github-auth-entry"]');
+    entry?.focus();
+  }, [focused, disabled, state.phase, state.activeKey, state.settingsReturn]);
 
   useEffect(() => {
     if (state.selected?.source === "project") {

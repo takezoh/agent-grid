@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/takezoh/agent-grid/services/host/runtime"
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/lib/gitclone"
+	"github.com/takezoh/agent-grid/services/platform/sandbox"
 )
 
 type fixedAuthority struct{ cred gitclone.Credential }
@@ -402,6 +404,140 @@ func TestEnsureSingleFlightPerEnvironmentKey(t *testing.T) {
 	// Only one underlying create; second is reuse (either from store under lock or same flight).
 	if len(dc.Calls) != 1 {
 		t.Fatalf("devcontainer calls=%d want 1 (single-flight)", len(dc.Calls))
+	}
+}
+
+func TestRuntimeReconcileAndTickSweepProductionPath(t *testing.T) {
+	root := t.TempDir()
+	store := runtime.NewMemoryPreparationStore()
+	clone := filepath.Join(root, "clones", "stale")
+	if err := os.MkdirAll(clone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(clone, "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// In-progress durable prep reloaded by ReconcileRepositoryPreparations.
+	if err := store.Save(runtime.PreparationRecord{
+		Preparation: state.RepositoryPreparation{
+			ID: "live", IntentID: "i-live", ServerID: "s", Repository: testRepo(),
+			Stage: state.PrepStageCloneInProgress, Revision: 2, LastOwnedWorkerGeneration: 1,
+		},
+		Intent: state.CreationIntent{ID: "i-live", ServerID: "s", Repository: testRepo(), Fingerprint: "f"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(runtime.PreparationRecord{
+		Preparation: state.RepositoryPreparation{
+			ID: "stale", IntentID: "i-stale", ServerID: "s", Repository: testRepo(),
+			Stage: state.PrepStageFailed, ClonePath: state.ClonePathID(clone), Revision: 3,
+		},
+		Intent: state.CreationIntent{ID: "i-stale", ServerID: "s", Repository: testRepo(), Fingerprint: "g"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	r := runtime.New(runtime.Config{
+		RepositorySessionsRoot: root,
+		PreparationStore:       store,
+		RepositoryDevcontainer: runtime.UnavailableRepositoryDevcontainer{},
+		Backend:                newOKBackend(),
+	})
+	// Production boot path: reconcile after construction (mirrors bootSession).
+	r.ReconcileRepositoryPreparations()
+	snap := r.TestState()
+	live, ok := snap.RepositoryPreparations["live"]
+	if !ok || live.Stage != state.PrepStageInterrupted {
+		t.Fatalf("boot reconcile must interrupt in-progress prep: ok=%v %+v", ok, live)
+	}
+	// Force age for the failed orphan and exercise the production tick sweep entry.
+	ctrl := r.TestPreparationController()
+	if ctrl == nil {
+		t.Fatal("prep controller must be wired")
+	}
+	ctrl.AccountClonePath("stale", clone)
+	ctrl.Now = func() time.Time { return time.Now().Add(runtime.PrepCapCleanupAge + 2*time.Hour) }
+	r.TestSetRepositoryPrepSweepInterval(time.Millisecond)
+	before := r.TestRepositoryPrepSweepCount()
+	r.TestMaybeSweepRepositoryPreparations(time.Now())
+	if r.TestRepositoryPrepSweepCount() <= before {
+		t.Fatal("tick sweep path must invoke SweepNeverAvailableOrphans")
+	}
+	if _, err := os.Stat(clone); !os.IsNotExist(err) {
+		t.Fatal("tick sweep must remove aged never-available orphan")
+	}
+	// Throttle: immediate second call must not re-enter (count stays same).
+	mid := r.TestRepositoryPrepSweepCount()
+	r.TestMaybeSweepRepositoryPreparations(time.Now())
+	if r.TestRepositoryPrepSweepCount() != mid {
+		t.Fatal("throttled tick must not re-sweep immediately")
+	}
+}
+
+func TestPlatformRepositoryDevcontainerIsolationAndFailures(t *testing.T) {
+	sessions := t.TempDir()
+	clone := filepath.Join(sessions, "clones", "c1")
+	if err := os.MkdirAll(filepath.Join(clone, ".devcontainer"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(clone, ".devcontainer", "devcontainer.json"), []byte(`{"image":"t:latest"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var calls []string
+	dc := &runtime.PlatformRepositoryDevcontainer{
+		EnsureFn: func(_ context.Context, projectPath string, opts sandbox.StartOptions) (string, error) {
+			calls = append(calls, projectPath)
+			if opts.Isolation.IsShared() {
+				t.Fatal("shared isolation forbidden")
+			}
+			// Must key by repository identity project path, not clone path.
+			if projectPath == clone {
+				t.Fatal("must not use clone path as environment project")
+			}
+			return "ctr-platform-1", nil
+		},
+	}
+	req := runtime.RepositoryEnvironmentRequest{
+		ServerID: "srv", Repository: testRepo(), ConfigGen: "gen-1",
+		SessionsRoot: sessions, ClonePath: clone,
+	}
+	res, err := dc.Ensure(context.Background(), req)
+	if err != nil || res.Code != runtime.EnvCodeOK || res.ContainerID != "ctr-platform-1" {
+		t.Fatalf("ensure: %+v err=%v", res, err)
+	}
+	if res.MountScope != sessions || res.FrameCWD != clone {
+		t.Fatalf("scope: %+v", res)
+	}
+	wantProject := runtime.RepositoryEnvironmentProjectPath(sessions, "srv", testRepo().ID, "gen-1")
+	if len(calls) != 1 || calls[0] != wantProject {
+		t.Fatalf("project path=%v want %s", calls, wantProject)
+	}
+	// Second ensure with different clone reuses same env project path.
+	req.ClonePath = filepath.Join(sessions, "clones", "c2")
+	_, _ = dc.Ensure(context.Background(), req)
+	if len(calls) != 2 || calls[1] != wantProject {
+		t.Fatalf("reuse project path: %v", calls)
+	}
+
+	// Typed failure propagation from manager boundary.
+	failing := &runtime.PlatformRepositoryDevcontainer{
+		EnsureFn: func(context.Context, string, sandbox.StartOptions) (string, error) {
+			return "", fmt.Errorf("docker create exploded")
+		},
+	}
+	fr, err := failing.Ensure(context.Background(), req)
+	if err == nil || fr.Code != runtime.EnvCodeFailed {
+		t.Fatalf("want failed: %+v err=%v", fr, err)
+	}
+	// Nil EnsureFn → typed unavailable (composition-root direct mode).
+	unavail := &runtime.PlatformRepositoryDevcontainer{}
+	ur, err := unavail.Ensure(context.Background(), req)
+	if err != nil || ur.Code != runtime.EnvCodeUnavailable {
+		t.Fatalf("unavailable: %+v err=%v", ur, err)
+	}
+	ur2, err := runtime.UnavailableRepositoryDevcontainer{}.Ensure(context.Background(), req)
+	if err != nil || ur2.Code != runtime.EnvCodeUnavailable {
+		t.Fatalf("typed unavailable adapter: %+v err=%v", ur2, err)
 	}
 }
 

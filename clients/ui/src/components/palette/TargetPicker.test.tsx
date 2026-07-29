@@ -115,7 +115,7 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
     });
   });
 
-  it("opens Settings surface and returns focus entry on cancel", async () => {
+  it("opens Settings surface and returns document.activeElement to github-auth-entry (UAC-005/013)", async () => {
     const unauth: HostRepositoryProjection = {
       ...baseProjection,
       account: { state: "unauthenticated" },
@@ -155,7 +155,12 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
     fireEvent.click(screen.getByTestId("github-auth-entry"));
     await waitFor(() => expect(screen.getByTestId("github-settings-surface")).toBeTruthy());
     fireEvent.click(screen.getByTestId("github-settings-cancel"));
-    await waitFor(() => expect(screen.getByTestId("github-auth-entry")).toBeTruthy());
+    await waitFor(() => {
+      const entry = screen.getByTestId("github-auth-entry");
+      expect(entry).toBeTruthy();
+      // UAC-005/UAC-013: focus must return to the auth entry control, not merely exist.
+      expect(document.activeElement).toBe(entry);
+    });
   });
 });
 
@@ -382,7 +387,139 @@ describe("TargetPicker retained projection on poll failure", () => {
     // Catalog retained; GitHub source shows scoped failure rather than unauthenticated empty.
     expect(screen.getByText("alice/demo")).toBeTruthy();
     await waitFor(() => {
-      expect(screen.getByTestId("github-status-label").textContent).toMatch(/fail|stale|GitHub/i);
+      const label = screen.getByTestId("github-status-label").textContent ?? "";
+      // Do not allow bare "GitHub" alone to satisfy stale/failure coverage.
+      expect(label).toMatch(/stale|fail|source failed|error/i);
+      expect(label.toLowerCase()).not.toBe("github");
     });
+  });
+});
+
+describe("TargetPicker confirm identity and back (UAC-002/UAC-008)", () => {
+  it("shows repository and server identity together; back restores repository focus", async () => {
+    render(
+      <TargetPicker
+        focused
+        disabled={false}
+        projects={[
+          {
+            path: "/repo/demo",
+            isGit: true,
+            isSandboxed: false,
+            serverId: "srv-a",
+            serverLabel: "Alpha",
+          },
+        ]}
+        value={null}
+        onSelectProject={vi.fn()}
+        onEnter={vi.fn()}
+        onAnnounce={vi.fn()}
+        provider={fakeProvider(baseProjection)}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("target-option-repository:10")).toBeTruthy());
+    fireEvent.mouseDown(screen.getByTestId("target-option-repository:10"));
+    await waitFor(() => expect(screen.getByTestId("repository-server-confirm")).toBeTruthy());
+    // Select available server so confirm-server identity is populated.
+    const combobox = screen.getByTestId("palette-param-project-filter");
+    fireEvent.keyDown(combobox, { key: "ArrowDown" });
+    fireEvent.keyDown(combobox, { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByTestId("confirm-repository").textContent).toMatch(/alice\/demo/i);
+      expect(screen.getByTestId("confirm-server").textContent).toMatch(/Alpha|srv-a/i);
+    });
+    fireEvent.click(screen.getByTestId("server-select-back"));
+    await waitFor(() => {
+      // Back returns to target-select with repository still selected / focus restored.
+      const active = combobox.getAttribute("aria-activedescendant");
+      expect(active).toBeTruthy();
+      if (active) {
+        const el = document.getElementById(active);
+        expect(el?.getAttribute("data-source")).toBe("repository");
+      }
+      expect(document.activeElement).toBe(combobox);
+    });
+  });
+});
+
+describe("TargetPicker preparation retry/cancel/exit and unavailable server", () => {
+  it("covers prep cancel → retry → exit and unavailable server affordance", async () => {
+    const withServers: HostRepositoryProjection = {
+      ...baseProjection,
+      execution_servers: [
+        { serverId: "srv-a", serverLabel: "Alpha", available: true },
+        {
+          serverId: "srv-b",
+          serverLabel: "Bravo",
+          available: false,
+          reason: "Server offline",
+        },
+      ],
+    };
+    const provider: FleetProvider = {
+      ...fakeProvider(withServers),
+      createRepositorySession: async () => ({
+        preparation_id: "p1",
+        intent_id: "i1",
+        stage: "clone-in-progress",
+        revision: 1,
+      }),
+    };
+
+    render(
+      <TargetPicker
+        focused
+        disabled={false}
+        projects={[
+          {
+            path: "/repo/demo",
+            isGit: true,
+            isSandboxed: false,
+            serverId: "srv-a",
+            serverLabel: "Alpha",
+          },
+        ]}
+        value={null}
+        onSelectProject={vi.fn()}
+        onEnter={vi.fn()}
+        onAnnounce={vi.fn()}
+        provider={provider}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("target-option-repository:10")).toBeTruthy());
+    fireEvent.mouseDown(screen.getByTestId("target-option-repository:10"));
+    await waitFor(() => expect(screen.getByTestId("repository-server-confirm")).toBeTruthy());
+
+    // Unavailable server is listed and marked disabled with reason text.
+    await waitFor(() => {
+      const offline = screen.getByText("Server offline");
+      expect(offline).toBeTruthy();
+      const option = offline.closest('[role="option"]');
+      expect(option?.getAttribute("aria-disabled")).toBe("true");
+    });
+
+    // Select available server and start preparation.
+    const combobox = screen.getByTestId("palette-param-project-filter");
+    fireEvent.keyDown(combobox, { key: "ArrowDown" });
+    fireEvent.keyDown(combobox, { key: "Enter" });
+    fireEvent.keyDown(combobox, { key: "Enter" });
+
+    await waitFor(() => expect(screen.getByTestId("preparation-panel")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("prep-cancel"));
+    await waitFor(() => {
+      expect(screen.getByTestId("prep-retry")).toBeTruthy();
+      expect(screen.getByTestId("prep-exit")).toBeTruthy();
+      expect(screen.getByTestId("prep-retry-origin").textContent).toMatch(/clone/i);
+    });
+    fireEvent.click(screen.getByTestId("prep-retry"));
+    await waitFor(() => {
+      expect(screen.getByTestId("prep-stage").getAttribute("data-stage")).toBe("clone-in-progress");
+      expect(screen.getByTestId("prep-cancel")).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId("prep-cancel"));
+    await waitFor(() => expect(screen.getByTestId("prep-exit")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("prep-exit"));
+    await waitFor(() => expect(screen.queryByTestId("preparation-panel")).toBeNull());
   });
 });
