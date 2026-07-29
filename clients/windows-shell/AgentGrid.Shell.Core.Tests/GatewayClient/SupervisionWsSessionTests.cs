@@ -55,6 +55,34 @@ public class SupervisionWsSessionTests
         Assert.True(supervision.Snapshot.ConnectionFailed);
     }
 
+    [Fact]
+    public async Task Repository_transport_admits_exact_version_and_rejects_mismatch_before_http()
+    {
+        var hits = 0;
+        var http = new ScriptedHttpHandler(req =>
+        {
+            hits++;
+            var path = req.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/api/capabilities", StringComparison.Ordinal))
+                return JsonResponse(200, """{"protocolVersion":"protocol-2"}""");
+            if (path.EndsWith("/api/repository/preparations", StringComparison.Ordinal))
+                return JsonResponse(201, """{"ok":true}""");
+            throw new InvalidOperationException(path);
+        });
+        using var clientHttp = new HttpClient(http) { BaseAddress = new Uri("http://127.0.0.1:8443") };
+        var gateway = new ShellGatewayClient(new Uri("http://127.0.0.1:8443"), new StaticToken("tok"), clientHttp);
+        await gateway.EnsureRepositoryProtocolAsync();
+        using var created = await gateway.CreateRepositoryPreparationAsync(
+            new { intent_id = "i", preparation_id = "p", server_id = "s", repository_id = "1", owner = "o", name = "n" },
+            ProtocolVersion.Current);
+        Assert.Equal(System.Net.HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal(2, hits);
+        var before = hits;
+        await Assert.ThrowsAsync<ProtocolVersionMismatchException>(() =>
+            gateway.CreateRepositoryPreparationAsync(new { intent_id = "i" }, "protocol-legacy"));
+        Assert.Equal(before, hits);
+    }
+
     private sealed class StaticToken : ITokenSource
     {
         private readonly string _t;

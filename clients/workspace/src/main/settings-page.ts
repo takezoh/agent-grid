@@ -328,6 +328,7 @@ export function buildSettingsPageHtml(): string {
             <span>Workspace</span>
             <span class="tree__count"></span>
           </button>
+          <button type="button" data-target="github" aria-current="false"><span>GitHub</span><span id="github-status-count" class="tree__count"></span></button>
         </nav>
       </aside>
 
@@ -422,6 +423,16 @@ export function buildSettingsPageHtml(): string {
           </div>
         </section>
 
+        <section id="github" class="section" data-active="false"><div class="group">
+          <div class="group__header"><h2>GitHub account</h2><p>Host-owned device flow; credentials stay in main.</p></div>
+          <div class="group__body"><p id="github-account-state" class="sidebar__meta">Checking…</p>
+            <p id="github-account-detail" class="sidebar__meta"></p>
+            <div class="toolbar" style="margin-top:12px">
+              <button id="github-connect" type="button" class="btn btn--primary">Connect</button>
+              <button id="github-cancel" type="button" class="btn">Cancel</button>
+              <button id="github-refresh" type="button" class="btn">Refresh catalog</button></div>
+            <p id="github-device-hint" class="sidebar__meta" style="margin-top:12px"></p></div></div></section>
+
         <div class="toolbar">
           <button id="save-button" type="button" class="btn btn--primary">Save settings</button>
           <span id="status" class="status" data-level="info">Changes are written to the shared desktop client configuration.</span>
@@ -432,6 +443,7 @@ export function buildSettingsPageHtml(): string {
     <script>
       const workspaceApi = window.agentGridWorkspace?.desktopConfig;
       const healthApi = window.agentGridWorkspace?.serverHealth;
+      const githubApi = window.agentGridWorkspace?.github;
       const sections = {
         connections: {
           title: "Connections",
@@ -446,6 +458,7 @@ export function buildSettingsPageHtml(): string {
           title: "Workspace",
           description: "Tune Workspace-specific window behavior without affecting the server list.",
         },
+        github: { title: "GitHub", description: "Host-owned GitHub device flow. Credentials stay in the main process." },
       };
       const state = {
         snapshot: null,
@@ -470,7 +483,15 @@ export function buildSettingsPageHtml(): string {
         idleQuitSeconds: document.getElementById("idle-quit-seconds"),
         windowWidth: document.getElementById("window-width"),
         windowHeight: document.getElementById("window-height"),
+        ghState: document.getElementById("github-account-state"),
+        ghDetail: document.getElementById("github-account-detail"),
+        ghHint: document.getElementById("github-device-hint"),
+        ghConnect: document.getElementById("github-connect"),
+        ghCancel: document.getElementById("github-cancel"),
+        ghRefresh: document.getElementById("github-refresh"),
+        ghCount: document.getElementById("github-status-count"),
       };
+      let ghPoll = null;
 
       function escapeHtml(value) {
         return String(value)
@@ -734,6 +755,39 @@ export function buildSettingsPageHtml(): string {
         window.agentGridWorkspace?.windowControls?.close?.();
       });
       els.saveButton.addEventListener("click", save);
+
+      function renderGitHub(r) {
+        if (!r || !els.ghState) return;
+        const a = r.account || {}, c = r.catalog || {};
+        els.ghState.textContent = "Account: " + (a.state || "?") + (a.login ? " (" + a.login + ")" : "");
+        els.ghDetail.textContent = "Catalog: " + (c.outcome || "empty") + (c.repositories ? " · " + c.repositories.length : "");
+        if (els.ghCount) els.ghCount.textContent = a.state || "";
+        els.ghHint.textContent = a.state === "authorizing"
+          ? ((a.user_code ? "Code " + a.user_code + " — " : "") + (a.verification_uri || "Authorize in browser."))
+          : (r.outcome === "denied" || r.outcome === "cancel" || r.outcome === "failure"
+            ? ("Outcome: " + r.outcome + (a.failure_code ? " (" + a.failure_code + ")" : "")) : "");
+      }
+      async function githubAction(action) {
+        if (!githubApi?.action) { setStatus("error", "GitHub settings bridge is unavailable."); return null; }
+        try { const r = await githubApi.action(action); renderGitHub(r); return r; }
+        catch (e) { setStatus("error", e instanceof Error ? e.message : String(e)); return null; }
+      }
+      const stopGh = () => { if (ghPoll) { clearInterval(ghPoll); ghPoll = null; } };
+      els.ghConnect?.addEventListener("click", async () => {
+        stopGh();
+        const s = await githubAction("start");
+        if (!s || s.account?.state !== "authorizing") return;
+        setStatus("info", "Waiting for GitHub authorization…");
+        ghPoll = setInterval(async () => {
+          const p = await githubAction("poll");
+          if (p?.account?.state && p.account.state !== "authorizing") {
+            stopGh(); setStatus(p.outcome === "success" ? "success" : "error", "GitHub " + p.outcome);
+          }
+        }, 3000);
+      });
+      els.ghCancel?.addEventListener("click", async () => { stopGh(); const r = await githubAction("cancel"); if (r) setStatus("info", "GitHub " + r.outcome); });
+      els.ghRefresh?.addEventListener("click", async () => { const r = await githubAction("refresh_catalog"); if (r) setStatus("info", "Catalog " + (r.catalog?.outcome || r.outcome)); });
+      void githubAction("status");
       els.servers.addEventListener("input", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLInputElement)) return;
