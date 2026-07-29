@@ -200,6 +200,9 @@ describe("TargetPicker preparation stages (UAC-002/008/009/010/011/012/015/016/0
       },
     };
 
+    // Non-null project value reproduces palette param sync (E2E regression):
+    // applyProjection refresh must not re-select the project and drop prep.
+    const projectValue = JSON.stringify(["srv-a", "/repo/demo"]);
     render(
       <TargetPicker
         focused
@@ -213,7 +216,7 @@ describe("TargetPicker preparation stages (UAC-002/008/009/010/011/012/015/016/0
             serverLabel: "Alpha",
           },
         ]}
-        value={null}
+        value={projectValue}
         onSelectProject={vi.fn()}
         onEnter={vi.fn()}
         onAnnounce={vi.fn()}
@@ -236,6 +239,7 @@ describe("TargetPicker preparation stages (UAC-002/008/009/010/011/012/015/016/0
       expect(screen.getByTestId("prep-stage").getAttribute("data-stage")).toBe("clone-in-progress");
     });
     expect(screen.queryByTestId("session-available")).toBeNull();
+    expect(screen.queryByTestId("target-listbox")).toBeNull();
 
     prepStage = "clone-ready";
     prepRevision = 2;
@@ -248,6 +252,9 @@ describe("TargetPicker preparation stages (UAC-002/008/009/010/011/012/015/016/0
     // UAC: Session availability must NOT appear at clone-ready.
     expect(screen.queryByText(/session available/i)).toBeNull();
     expect(screen.getByTestId("prep-stage").getAttribute("data-stage")).not.toBe("available");
+    // Prep view must stay; listbox must not return while clone-ready is active.
+    expect(screen.getByTestId("preparation-panel")).toBeTruthy();
+    expect(screen.queryByTestId("target-listbox")).toBeNull();
 
     prepStage = "devcontainer-in-progress";
     prepRevision = 3;

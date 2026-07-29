@@ -391,11 +391,11 @@ export function reduceRepositoryPicker(
         repositories: repositoryRows(event.projection.targets, event.projection.catalog),
       };
       if (event.servers) next = applyServers(next, event.servers);
-      // Preserve preparing/retry before clearInvalidSelection so transient catalog
-      // omission cannot drop an in-flight preparation view (UAC-prep retain).
+      // In-flight preparation/retry: update matching preparation only. Do not run
+      // clearInvalidSelection — it resets phase to target-select when the catalog
+      // transiently omits the selected repository (UAC-prep retain).
       if (next.phase === "settings-auth") return next;
       if (next.phase === "preparing" || next.phase === "retry") {
-        next = clearInvalidSelection(next);
         const prep = event.projection.preparations.find(
           (p) => p.preparation_id === next.preparation?.preparation_id,
         );
@@ -407,6 +407,8 @@ export function reduceRepositoryPicker(
     case "activate":
       return { ...state, activeKey: event.key };
     case "select": {
+      // Palette value-sync and clicks must not clobber an in-flight prep view.
+      if (state.phase === "preparing" || state.phase === "retry") return state;
       if (state.phase === "server-select") {
         const id = event.key.startsWith("server:") ? event.key.slice(7) : event.key;
         return reduceRepositoryPicker(state, { type: "selectServer", serverId: id });
@@ -438,6 +440,7 @@ export function reduceRepositoryPicker(
       );
     }
     case "selectServer": {
+      if (state.phase === "preparing" || state.phase === "retry") return state;
       if (state.selected?.source !== "repository") return state;
       const server = state.servers.find((s) => s.serverId === event.serverId);
       if (!server?.available) {

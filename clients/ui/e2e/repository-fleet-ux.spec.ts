@@ -125,10 +125,13 @@ test("repository selection drives preparation stages without session at clone-re
       push_commands: [],
     },
   });
+  const pollStages: string[] = [];
   await page.route("**/host/repository", async (route) => {
+    pollStages.push(`${prepStage}@${prepRevision}`);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
+      headers: { "Cache-Control": "no-store" },
       body: JSON.stringify({
         sources: [
           { id: "projects", available: true },
@@ -163,12 +166,29 @@ test("repository selection drives preparation stages without session at clone-re
       }),
     });
   });
-  await page.route("**/host/repository/sessions", async (route) => {
+  // Production Web provider POSTs /host/fleet/servers/{serverId}/repository-sessions.
+  let createCount = 0;
+  let lastCreateUrl = "";
+  await page.route("**/host/fleet/servers/*/repository-sessions", async (route) => {
+    createCount += 1;
+    lastCreateUrl = route.request().url();
+    expect(route.request().method()).toBe("POST");
+    const body = route.request().postDataJSON() as {
+      repository_id?: string;
+      owner?: string;
+      name?: string;
+    };
+    expect(body).toMatchObject({
+      repository_id: "10",
+      owner: "alice",
+      name: "demo",
+    });
     prepStage = "clone-in-progress";
     prepRevision = 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
+      headers: { "Cache-Control": "no-store" },
       body: JSON.stringify({
         preparation_id: "p1",
         intent_id: "i1",
@@ -194,9 +214,28 @@ test("repository selection drives preparation stages without session at clone-re
 
   prepStage = "clone-ready";
   prepRevision = 2;
-  await expect(page.getByTestId("prep-stage")).toHaveAttribute("data-stage", "clone-ready", {
-    timeout: 5000,
-  });
+  const seen: string[] = [];
+  try {
+    await expect
+      .poll(
+        async () => {
+          const panel = await page.getByTestId("preparation-panel").count();
+          const stageEl = page.getByTestId("prep-stage");
+          const stageCount = await stageEl.count();
+          const stage = stageCount > 0 ? await stageEl.getAttribute("data-stage") : null;
+          const listbox = await page.getByTestId("target-listbox").count();
+          seen.push(`p=${panel}/s=${stage}/l=${listbox}`);
+          return stage;
+        },
+        { timeout: 8000, intervals: [300] },
+      )
+      .toBe("clone-ready");
+  } catch (err) {
+    throw new Error(
+      `clone-ready failed; creates=${createCount}; url=${lastCreateUrl}; polls=${JSON.stringify(pollStages)}; seen=${JSON.stringify(seen)}`,
+      { cause: err },
+    );
+  }
   // Session must not appear available at clone-ready.
   await expect(page.getByText(/session available/i)).toHaveCount(0);
   await expect(page.getByTestId("prep-stage")).not.toHaveAttribute("data-stage", "available");
@@ -276,7 +315,9 @@ test("invalidated repository recovers combobox aria-activedescendant (UAC-018)",
   const activeId = await filter.getAttribute("aria-activedescendant");
   expect(activeId).toBeTruthy();
   if (!activeId) throw new Error("missing aria-activedescendant after invalidation");
-  const active = page.locator(`#${CSS.escape(activeId)}`);
+  // CSS.escape is unavailable in Playwright's Node test context; attribute
+  // selector with JSON.stringify is safe for any id string.
+  const active = page.locator(`[id=${JSON.stringify(activeId)}]`);
   await expect(active).toBeVisible();
   await expect(active).not.toHaveAttribute("data-source", "repository");
 });
