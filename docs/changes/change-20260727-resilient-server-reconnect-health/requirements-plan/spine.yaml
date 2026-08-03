@@ -1,0 +1,247 @@
+artifact: requirements-plan-spine
+version: 1
+mode: specify
+user_goals:
+  - id: goal-recover-work
+  - id: goal-diagnose-fleet
+flows:
+  - id: F-001
+    goal_refs: [goal-recover-work]
+    experience_contract_refs: [exp-recovery-continuity]
+    experience_closure_reason: Initial and established-connection failures have fixed progress, hello-confirmed success, exact exhaustion, and manual recovery exits.
+    acceptance_scenario_refs: [UAC-001, UAC-002, UAC-005, UAC-010]
+  - id: F-002
+    goal_refs: [goal-recover-work]
+    experience_contract_refs: [exp-recovery-continuity]
+    experience_closure_reason: Manual recovery fixes activation, success, repeated failure, no-session reachability, modality equivalence, focus continuity, and single ownership.
+    acceptance_scenario_refs: [UAC-003, UAC-004, UAC-006, UAC-011]
+  - id: F-003
+    goal_refs: [goal-diagnose-fleet, goal-recover-work]
+    experience_contract_refs: [exp-fleet-health-legibility, exp-recovery-continuity]
+    experience_closure_reason: Partial and total degradation, both-host diagnosis, stale evidence, independent active recovery, and nominal fleet recovery have fixed observations.
+    acceptance_scenario_refs: [UAC-007, UAC-008, UAC-009, UAC-012, UAC-013, UAC-014]
+experience_contracts:
+  - id: exp-recovery-continuity
+    goal_refs: [goal-recover-work]
+    flow_refs: [F-001, F-002, F-003]
+    context_refs: [connection-origin, recovery-phase, recovery-proof, access-modality, session-context]
+    scenario_refs: [UAC-001, UAC-002, UAC-003, UAC-004, UAC-005, UAC-006, UAC-009, UAC-010, UAC-011]
+    observations:
+      - phase: entry
+      - phase: progress
+      - phase: success
+      - phase: failure
+      - phase: recovery
+      - phase: exit
+    phase_exclusions: []
+    open_product_choices: []
+  - id: exp-fleet-health-legibility
+    goal_refs: [goal-diagnose-fleet]
+    flow_refs: [F-003]
+    context_refs: [fleet-condition, access-modality, host]
+    scenario_refs: [UAC-007, UAC-008, UAC-009, UAC-012, UAC-013, UAC-014]
+    observations:
+      - phase: entry
+      - phase: progress
+      - phase: success
+      - phase: failure
+      - phase: recovery
+      - phase: exit
+    phase_exclusions: []
+    open_product_choices: []
+acceptance_scenarios:
+  - {id: UAC-001, flow_ref: F-001, contract_refs: [exp-recovery-continuity], vs_legacy: must-fail}
+  - {id: UAC-002, flow_ref: F-001, contract_refs: [exp-recovery-continuity], vs_legacy: must-fail}
+  - {id: UAC-005, flow_ref: F-001, contract_refs: [exp-recovery-continuity], vs_legacy: must-fail}
+  - {id: UAC-010, flow_ref: F-001, contract_refs: [exp-recovery-continuity], vs_legacy: must-fail}
+  - {id: UAC-003, flow_ref: F-002, contract_refs: [exp-recovery-continuity], vs_legacy: must-fail, design_handoff_refs: [handoff-retry-reachability, handoff-status-announcement]}
+  - {id: UAC-004, flow_ref: F-002, contract_refs: [exp-recovery-continuity], vs_legacy: must-fail, design_handoff_refs: [handoff-retry-reachability, handoff-status-announcement]}
+  - {id: UAC-006, flow_ref: F-002, contract_refs: [exp-recovery-continuity], vs_legacy: must-fail, design_handoff_refs: [handoff-status-announcement]}
+  - {id: UAC-011, flow_ref: F-002, contract_refs: [exp-recovery-continuity], vs_legacy: must-fail, design_handoff_refs: [handoff-retry-reachability]}
+  - {id: UAC-007, flow_ref: F-003, contract_refs: [exp-fleet-health-legibility], vs_legacy: must-fail, design_handoff_refs: [handoff-runtime-health-boundary, handoff-shared-connections-surface]}
+  - {id: UAC-008, flow_ref: F-003, contract_refs: [exp-fleet-health-legibility], vs_legacy: must-fail, design_handoff_refs: [handoff-runtime-health-boundary, handoff-shared-connections-surface]}
+  - {id: UAC-009, flow_ref: F-003, contract_refs: [exp-fleet-health-legibility, exp-recovery-continuity], vs_legacy: must-fail}
+  - {id: UAC-012, flow_ref: F-003, contract_refs: [exp-fleet-health-legibility], vs_legacy: must-fail, design_handoff_refs: [handoff-shared-connections-surface]}
+  - {id: UAC-013, flow_ref: F-003, contract_refs: [exp-fleet-health-legibility], vs_legacy: must-fail, design_handoff_refs: [handoff-runtime-health-boundary]}
+  - {id: UAC-014, flow_ref: F-003, contract_refs: [exp-fleet-health-legibility], vs_legacy: must-fail}
+experience_dimensions:
+  - {id: connection-origin, values: [initial-unavailability, established-close]}
+  - {id: recovery-phase, values: [client-automatic-attempts, automatic-attempts-exhausted, manual-retry-lifecycle, daemon-confirmed-recovery]}
+  - {id: recovery-proof, values: [socket-open-without-hello, daemon-hello-received]}
+  - {id: fleet-condition, values: [all-enabled-healthy, partially-unavailable, partially-incompatible, all-enabled-unavailable, disabled-present, health-refresh-unavailable]}
+  - {id: access-modality, values: [pointer, keyboard, assistive-technology-status-text]}
+  - {id: host, values: [browser, workspace]}
+  - {id: session-context, values: [session-selected, no-session-selected]}
+scenario_sets:
+  set-recovery-origins: [UAC-001, UAC-010]
+  set-recovery-success: [UAC-001, UAC-003]
+  set-manual-modalities: [UAC-003, UAC-004, UAC-011]
+  set-assistive-status: [UAC-004, UAC-006]
+  set-diagnosis-hosts: [UAC-008]
+  set-disabled-fleet: [UAC-007, UAC-012, UAC-013]
+coverage_claims:
+  - {contract_ref: exp-recovery-continuity, dimension_id: connection-origin, value: initial-unavailability, scenario_refs: [UAC-010]}
+  - {contract_ref: exp-recovery-continuity, dimension_id: connection-origin, value: established-close, scenario_refs: [UAC-001]}
+  - {contract_ref: exp-recovery-continuity, dimension_id: recovery-phase, value: client-automatic-attempts, scenario_set_ref: set-recovery-origins}
+  - {contract_ref: exp-recovery-continuity, dimension_id: recovery-phase, value: automatic-attempts-exhausted, scenario_refs: [UAC-005, UAC-010]}
+  - {contract_ref: exp-recovery-continuity, dimension_id: recovery-phase, value: manual-retry-lifecycle, scenario_set_ref: set-manual-modalities}
+  - {contract_ref: exp-recovery-continuity, dimension_id: recovery-phase, value: daemon-confirmed-recovery, scenario_set_ref: set-recovery-success}
+  - {contract_ref: exp-recovery-continuity, dimension_id: recovery-proof, value: socket-open-without-hello, scenario_refs: [UAC-002]}
+  - {contract_ref: exp-recovery-continuity, dimension_id: recovery-proof, value: daemon-hello-received, scenario_refs: [UAC-001, UAC-003]}
+  - {contract_ref: exp-recovery-continuity, dimension_id: access-modality, value: pointer, scenario_refs: [UAC-003, UAC-004]}
+  - {contract_ref: exp-recovery-continuity, dimension_id: access-modality, value: keyboard, scenario_refs: [UAC-004, UAC-011]}
+  - {contract_ref: exp-recovery-continuity, dimension_id: access-modality, value: assistive-technology-status-text, scenario_set_ref: set-assistive-status}
+  - {contract_ref: exp-recovery-continuity, dimension_id: session-context, value: session-selected, scenario_refs: [UAC-001, UAC-003, UAC-011]}
+  - {contract_ref: exp-recovery-continuity, dimension_id: session-context, value: no-session-selected, scenario_refs: [UAC-004, UAC-010]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: fleet-condition, value: all-enabled-healthy, scenario_refs: [UAC-014]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: fleet-condition, value: partially-unavailable, scenario_refs: [UAC-007, UAC-009]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: fleet-condition, value: partially-incompatible, scenario_refs: [UAC-007]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: fleet-condition, value: all-enabled-unavailable, scenario_refs: [UAC-012]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: fleet-condition, value: disabled-present, scenario_set_ref: set-disabled-fleet}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: fleet-condition, value: health-refresh-unavailable, scenario_refs: [UAC-013]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: access-modality, value: pointer, scenario_refs: [UAC-007, UAC-008]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: access-modality, value: keyboard, scenario_refs: [UAC-008, UAC-012]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: access-modality, value: assistive-technology-status-text, scenario_refs: [UAC-007, UAC-013]}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: host, value: browser, scenario_set_ref: set-diagnosis-hosts}
+  - {contract_ref: exp-fleet-health-legibility, dimension_id: host, value: workspace, scenario_refs: [UAC-008, UAC-013]}
+decision_points:
+  - id: DP-RECOVERY-POLICY
+    decision_key: recovery-policy
+    layer: product
+    subject: outcome
+    consultation_policy: may_default
+    contract_effect: normative
+    answer_status: defaulted
+    validation_status: not_applicable
+    selected_option_ref: OPT-SIXTEEN-AUTO-THEN-MANUAL
+    option_refs: [OPT-SIXTEEN-AUTO-THEN-MANUAL, OPT-ONE-AUTO-THEN-MANUAL, OPT-UNBOUNDED-AUTO]
+    user_impact: [A failed shared-UI lifecycle has a predictable stopping boundary and a reusable manual recovery action.]
+    recommendation: {option_ref: OPT-SIXTEEN-AUTO-THEN-MANUAL, basis: repository_constraint, evidence_refs: [clients/ui/src/socket/backoff.ts, docs/changes/change-20260727-resilient-server-reconnect-health/requirements.md], confidence: high, reversibility: moderate}
+    provenance: {source: existing_product_behavior, confidence: confirmed, evidence_refs: [clients/ui/src/socket/backoff.ts, clients/ui/src/socket/connection.ts], rationale: The accepted finite-retry requirement is made exact using the existing MAX_ATTEMPTS value rather than inventing a new threshold.}
+  - id: DP-RECOVERY-PROOF
+    decision_key: recovery-proof
+    layer: product
+    subject: outcome
+    consultation_policy: may_ask
+    contract_effect: normative
+    answer_status: answered
+    validation_status: not_applicable
+    selected_option_ref: OPT-DAEMON-HELLO
+    option_refs: [OPT-DAEMON-HELLO, OPT-SOCKET-OPEN]
+    user_impact: [The UI does not falsely report daemon recovery when only the gateway is reachable.]
+    recommendation: {option_ref: OPT-DAEMON-HELLO, basis: repository_constraint, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/change.md], confidence: high, reversibility: moderate}
+    provenance: {source: explicit_user_requirement, confidence: confirmed, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/change.md, clients/ui/src/socket/connection.ts], rationale: The accepted change package fixes daemon-derived hello as the recovery boundary.}
+  - id: DP-STATUS-OWNER
+    decision_key: status-owner
+    layer: interaction
+    subject: outcome
+    consultation_policy: may_ask
+    contract_effect: normative
+    answer_status: answered
+    validation_status: not_applicable
+    selected_option_ref: OPT-STATUS-BAR-ONLY
+    option_refs: [OPT-STATUS-BAR-ONLY, OPT-DUPLICATE-SHELL-SURFACES]
+    user_impact: [Connection recovery state and action cannot disagree across multiple shell surfaces.]
+    recommendation: {option_ref: OPT-STATUS-BAR-ONLY, basis: repository_constraint, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/requirements.md], confidence: high, reversibility: easy}
+    provenance: {source: explicit_user_requirement, confidence: confirmed, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/requirements.md], rationale: FR-003 assigns compact connection presentation exclusively to the status bar.}
+  - id: DP-FLEET-DENOMINATOR
+    decision_key: fleet-denominator
+    layer: product
+    subject: outcome
+    consultation_policy: may_ask
+    contract_effect: normative
+    answer_status: answered
+    validation_status: not_applicable
+    selected_option_ref: OPT-ENABLED-SERVERS
+    option_refs: [OPT-ENABLED-SERVERS, OPT-ALL-CONFIGURED-SERVERS]
+    user_impact: [Fleet health represents servers intended to participate.]
+    recommendation: {option_ref: OPT-ENABLED-SERVERS, basis: repository_constraint, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/requirements.md], confidence: high, reversibility: easy}
+    provenance: {source: explicit_user_requirement, confidence: confirmed, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/requirements.md], rationale: FR-006 excludes disabled servers from aggregate health.}
+  - id: DP-HEALTH-BOUNDARY
+    decision_key: health-boundary
+    layer: product
+    subject: outcome
+    consultation_policy: may_ask
+    contract_effect: normative
+    answer_status: answered
+    validation_status: not_applicable
+    selected_option_ref: OPT-RUNTIME-ONLY
+    option_refs: [OPT-RUNTIME-ONLY, OPT-PERSIST-HEALTH]
+    user_impact: [A stale probe result cannot become saved configuration truth.]
+    recommendation: {option_ref: OPT-RUNTIME-ONLY, basis: repository_constraint, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/change.md], confidence: high, reversibility: moderate}
+    provenance: {source: explicit_user_requirement, confidence: confirmed, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/change.md, ARCHITECTURE.md], rationale: Runtime health persistence is an explicit non-goal and would fabricate truth.}
+  - id: DP-DIAGNOSIS-ENTRY
+    decision_key: diagnosis-entry
+    layer: interaction
+    subject: outcome
+    consultation_policy: may_default
+    contract_effect: normative
+    answer_status: defaulted
+    validation_status: not_applicable
+    selected_option_ref: OPT-STATUS-BAR-CONNECTIONS-BOTH-HOSTS
+    option_refs: [OPT-STATUS-BAR-CONNECTIONS-BOTH-HOSTS, OPT-WORKSPACE-SETTINGS-ONLY]
+    user_impact: [Browser and Workspace users can identify the affected configured server and available reason from fleet degradation.]
+    recommendation: {option_ref: OPT-STATUS-BAR-CONNECTIONS-BOTH-HOSTS, basis: repository_constraint, evidence_refs: [ARCHITECTURE.md, docs/changes/change-20260727-resilient-server-reconnect-health/change.md], confidence: high, reversibility: moderate}
+    provenance: {source: repository_evidence, confidence: confirmed, evidence_refs: [ARCHITECTURE.md, docs/changes/change-20260727-resilient-server-reconnect-health/change.md], rationale: "The architecture forbids host-specific fleet semantics, and the accepted outcome requires server-specific diagnosis."}
+product_decisions:
+  - {id: decision-recovery-policy, decision_ref: DP-RECOVERY-POLICY, selected_option_ref: OPT-SIXTEEN-AUTO-THEN-MANUAL, contract_effect: normative, provenance: {source: existing_product_behavior, confidence: confirmed, evidence_refs: [clients/ui/src/socket/backoff.ts, clients/ui/src/socket/connection.ts], rationale: The accepted finite-retry requirement is made exact using the existing MAX_ATTEMPTS value rather than inventing a new threshold.}}
+  - {id: decision-recovery-proof, decision_ref: DP-RECOVERY-PROOF, selected_option_ref: OPT-DAEMON-HELLO, contract_effect: normative, provenance: {source: explicit_user_requirement, confidence: confirmed, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/change.md, clients/ui/src/socket/connection.ts], rationale: The accepted change package fixes daemon-derived hello as the recovery boundary.}}
+  - {id: decision-status-owner, decision_ref: DP-STATUS-OWNER, selected_option_ref: OPT-STATUS-BAR-ONLY, contract_effect: normative, provenance: {source: explicit_user_requirement, confidence: confirmed, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/requirements.md], rationale: FR-003 assigns compact connection presentation exclusively to the status bar.}}
+  - {id: decision-fleet-denominator, decision_ref: DP-FLEET-DENOMINATOR, selected_option_ref: OPT-ENABLED-SERVERS, contract_effect: normative, provenance: {source: explicit_user_requirement, confidence: confirmed, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/requirements.md], rationale: FR-006 excludes disabled servers from aggregate health.}}
+  - {id: decision-health-boundary, decision_ref: DP-HEALTH-BOUNDARY, selected_option_ref: OPT-RUNTIME-ONLY, contract_effect: normative, provenance: {source: explicit_user_requirement, confidence: confirmed, evidence_refs: [docs/changes/change-20260727-resilient-server-reconnect-health/change.md, ARCHITECTURE.md], rationale: Runtime health persistence is an explicit non-goal and would fabricate truth.}}
+  - {id: decision-diagnosis-entry, decision_ref: DP-DIAGNOSIS-ENTRY, selected_option_ref: OPT-STATUS-BAR-CONNECTIONS-BOTH-HOSTS, contract_effect: normative, provenance: {source: repository_evidence, confidence: confirmed, evidence_refs: [ARCHITECTURE.md, docs/changes/change-20260727-resilient-server-reconnect-health/change.md], rationale: "The architecture forbids host-specific fleet semantics, and the accepted outcome requires server-specific diagnosis."}}
+product_decisions_remaining: []
+design_handoffs:
+  - {id: handoff-retry-reachability, decision_refs: [DP-RECOVERY-POLICY, DP-STATUS-OWNER], provenance: {source: proposed_for_validation, confidence: provisional, evidence_refs: [clients/ui/src/components/StatusBar.tsx], rationale: Shell composition and focus behavior require assembled-UI validation without weakening modality coverage.}}
+  - {id: handoff-status-announcement, decision_refs: [DP-STATUS-OWNER], provenance: {source: proposed_for_validation, confidence: provisional, evidence_refs: [clients/ui/src/components/StatusBar.tsx], rationale: Design must select non-noisy semantics that expose each required status transition.}}
+  - {id: handoff-runtime-health-boundary, decision_refs: [DP-FLEET-DENOMINATOR, DP-HEALTH-BOUNDARY], provenance: {source: repository_evidence, confidence: confirmed, evidence_refs: [clients/workspace/src/main/server-health.ts, ARCHITECTURE.md], rationale: Current-versus-stale evidence and stable identity must remain runtime-only.}}
+  - {id: handoff-shared-connections-surface, decision_refs: [DP-DIAGNOSIS-ENTRY], provenance: {source: repository_evidence, confidence: confirmed, evidence_refs: [ARCHITECTURE.md, clients/workspace/src/main/settings-page.ts], rationale: Browser and Workspace delivery can differ only while preserving the same Connections action and diagnosis outcome.}}
+legacy_behavior_traces:
+  - {behavior: Manual page reload is the only client recovery after daemon restart or initial unavailability., scenario_refs: [UAC-001, UAC-003, UAC-004, UAC-010, UAC-011]}
+  - {behavior: An exhausted client connection path has no explicit status-bar Retry action., scenario_refs: [UAC-005, UAC-010, UAC-011]}
+  - {behavior: Active connection failure may be presented by duplicate shell surfaces., scenario_refs: [UAC-006]}
+  - {behavior: "When an enabled server was unavailable or protocol-incompatible, the legacy workspace showed neither an enabled-server aggregate condition in the status bar nor each configured server's current health and available reason in Connections.", scenario_refs: [UAC-007, UAC-008, UAC-009, UAC-012, UAC-013, UAC-014]}
+legacy_context:
+  replaced_behaviors:
+    - Manual page reload is the only client recovery after daemon restart or initial unavailability.
+    - An exhausted client connection path has no explicit status-bar Retry action.
+    - Active connection failure may be presented by duplicate shell surfaces.
+    - "When an enabled server was unavailable or protocol-incompatible, the legacy workspace showed neither an enabled-server aggregate condition in the status bar nor each configured server's current health and available reason in Connections."
+edge_cases:
+  - {id: edge-initial-connection-unavailable, scenario_refs: [UAC-010]}
+  - {id: edge-socket-open-without-hello, scenario_refs: [UAC-002]}
+  - {id: edge-no-session-retry, scenario_refs: [UAC-004, UAC-010]}
+  - {id: edge-failed-manual-lifecycle, scenario_refs: [UAC-011]}
+  - {id: edge-all-enabled-unavailable, scenario_refs: [UAC-012]}
+  - {id: edge-health-refresh-unavailable, scenario_refs: [UAC-013]}
+assumptions:
+  - id: assumption-status-bar-no-session-reachability
+    validation: Validate in the assembled shell that the status bar and Retry remain visible and operable when no session is selected.
+    invalidation_behavior: Repair shell composition if the no-session state hides or disables the status bar or Retry; do not weaken UAC-004 or UAC-010.
+    scenario_refs: [UAC-004, UAC-010]
+  - id: assumption-status-text-focus-continuity
+    validation: Validate in the assembled shell that required connection-status transitions are exposed as status text and do not leave focus unusable.
+    invalidation_behavior: Repair status announcement or focus continuity if a transition is not perceivable or leaves focus without a stable shell destination; do not weaken UAC-004 or UAC-006.
+    scenario_refs: [UAC-004, UAC-006]
+  - id: assumption-browser-connections-delivery
+    validation: Validate in the assembled browser host that the visible Connections action opens the server-qualified diagnosis surface with the same observable outcome as Workspace.
+    invalidation_behavior: Repair browser delivery if Connections cannot reach that diagnosis surface; do not weaken UAC-008 or make diagnosis Workspace-only.
+    scenario_refs: [UAC-008]
+critique_resolutions:
+  - {issue_ref: goal-recover-work / F-001 / UAC-001..002, change_class: close_required_failure_path, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-010], rationale: Added initial unavailability through bounded stop and Retry.}}
+  - {issue_ref: UAC-001 + UAC-002 recovery-proof boundary, change_class: clarify_existing_contract, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-001, UAC-002], rationale: Prohibited recovered presentation before hello even while a socket remains open.}}
+  - {issue_ref: F-002 / UAC-003..005 manual-retry failure exit, change_class: close_required_failure_path, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-011], rationale: Added finite failed-manual-lifecycle exit and repeatable Retry.}}
+  - {issue_ref: UAC-005 stopping condition, change_class: new_product_capability, disposition: create_decision_point, provenance: {source: existing_product_behavior, confidence: confirmed, evidence_refs: [DP-RECOVERY-POLICY, clients/ui/src/socket/backoff.ts], rationale: Closed the threshold at the existing 16 automatic retries.}}
+  - {issue_ref: UAC-004 / UAC-006 and access-modality coverage claims, change_class: preserve_modality_equivalence, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-004, UAC-006], rationale: Added status-text perception and focus continuity without a second surface.}}
+  - {issue_ref: F-003 step 2 / UAC-008 entry modality, change_class: new_product_capability, disposition: create_decision_point, provenance: {source: repository_evidence, confidence: confirmed, evidence_refs: [DP-DIAGNOSIS-ENTRY, ARCHITECTURE.md], rationale: Fixed a visible Connections entry with equivalent browser and Workspace outcomes.}}
+  - {issue_ref: UAC-008 health refresh failure, change_class: close_required_failure_path, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-013], rationale: Current health failure and stale retained evidence are visibly qualified.}}
+  - {issue_ref: coverage_claim fleet-condition all-enabled-healthy to UAC-009, change_class: clarify_existing_contract, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-014], rationale: Added a nominal fleet recovery exit.}}
+  - {issue_ref: coverage_claim fleet-condition all-enabled-unavailable to UAC-008, change_class: clarify_existing_contract, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-012], rationale: Added explicit total-outage wording and diagnosis.}}
+  - {issue_ref: UAC-006 single presentation owner, change_class: clarify_existing_contract, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-006], rationale: "Excluded duplicate header, sidebar, toast, modal, and other shell owners."}}
+  - {issue_ref: legacy_behavior_traces for UAC-007..009, change_class: clarify_existing_contract, disposition: patch_contract, provenance: {source: critic_proposal, confidence: confirmed, evidence_refs: [UAC-007, UAC-008, UAC-009, UAC-012, UAC-013, UAC-014], rationale: Replaced vague evaluation with concrete absent aggregate and per-server observations.}}
+  - {issue_ref: exp-recovery-continuity invariant Automatic retry is finite, change_class: clarify_existing_contract, disposition: patch_contract, provenance: {source: accepted_adr, confidence: confirmed, evidence_refs: [adr-20260624-0012-daemon-client-eager-dial-supervisor, exp-recovery-continuity], rationale: Scoped the finite limit to shared-UI lifecycles and preserved the unbounded gateway daemon supervisor.}}
+dispositions:
+  - {decision_input_ref: original-user-request, disposition: Defined reload-free recovery outcomes for initial and established connection failure., contract_refs: [exp-recovery-continuity]}
+  - {decision_input_ref: accepted-change-package, disposition: "Preserved finite client retry, status-bar ownership, hello proof, and runtime-only fleet diagnosis.", contract_refs: [exp-recovery-continuity, exp-fleet-health-legibility]}
+  - {decision_input_ref: adr-20260624-0011, disposition: Preserved typed close and rejected old-WebSocket transparent re-subscription., adr_refs: [adr-20260624-0011-two-step-ws-close-on-daemon-disconnect], contract_refs: [exp-recovery-continuity]}
+  - {decision_input_ref: adr-20260624-0012, disposition: Preserved unbounded gateway daemon supervision while bounding only shared-UI connection lifecycles., adr_refs: [adr-20260624-0012-daemon-client-eager-dial-supervisor], contract_refs: [exp-recovery-continuity]}

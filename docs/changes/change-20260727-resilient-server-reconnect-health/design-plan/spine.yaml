@@ -1,0 +1,661 @@
+artifact: design-plan-spine
+version: 1
+granularity_profile: boundary-complete
+requirements:
+  - id: FR-REC-001
+    type: functional
+    priority: must
+    statement: When an initiating connection fails or a hello-confirmed connection closes unexpectedly, the shared UI shall run no more than sixteen automatic retries and then expose closed with Retry.
+  - id: FR-REC-002
+    type: invariant
+    priority: must
+    statement: The active connection shall never publish nominal or recovered state before a daemon-derived hello from the current lifecycle generation.
+  - id: FR-REC-003
+    type: functional
+    priority: must
+    statement: Retry shall start exactly one fresh reload-free lifecycle with fresh accounting and shall become reusable after another exhaustion.
+  - id: FR-REC-004
+    type: invariant
+    priority: must
+    statement: The persistent StatusBar shall be the only active-recovery and Retry owner and shall preserve no-session, keyboard, pointer, assistive-technology, and focus reachability.
+  - id: FR-FLEET-001
+    type: invariant
+    priority: must
+    statement: Exactly one host FleetRuntime shall own enabled-member health generation and runtime-only publication; views shall not probe or persist health.
+  - id: FR-FLEET-002
+    type: functional
+    priority: must
+    statement: Every configured server shall have exactly one exclusive qualified observation; exact protocol mismatch is terminal for that member generation and Health unavailable may retain only a nested stale prior observation.
+  - id: FR-FLEET-003
+    type: functional
+    priority: must
+    statement: Degraded enabled-fleet health shall produce correct partial or total wording and Connections diagnosis in both hosts, including an operable browser configuration-path copy action and restart instruction.
+  - id: FR-FLEET-004
+    type: invariant
+    priority: must
+    statement: Active connection status and fleet aggregate status shall remain independent so recovery of one axis cannot erase degradation on the other.
+  - id: NFR-LIFE-001
+    type: non_functional
+    priority: must
+    statement: Retired active and host-member generations shall release or fence fetches, timers, sockets, channels, callbacks, pending requests, and publication.
+  - id: NFR-HEALTH-001
+    type: non_functional
+    priority: must
+    statement: Capabilities, ticket, and hello phases shall each terminate within three seconds; Connected evidence expires after five seconds, and concurrent/render consumers reuse one host snapshot without multiplying work.
+  - id: NFR-HOST-001
+    type: non_functional
+    priority: must
+    statement: Web and Workspace shall normalize equal evidence to equal credential-free health meaning while differing only in delivery transport.
+  - id: NFR-TEST-001
+    type: non_functional
+    priority: must
+    statement: Lifecycle races, host parity, and external gateway evidence shall have deterministic fake, invariant-contract, and FakeVsReal verification seams.
+components:
+  - id: component-active-connection
+    kind: existing
+    contract_refs:
+      - contract-active-recovery-lifecycle
+      - contract-daemon-hello-proof
+      - contract-active-resource-fence
+    paths:
+      - clients/ui/src/socket/connection.ts
+      - clients/ui/src/socket/backoff.ts
+      - clients/ui/src/store/daemon.ts
+  - id: component-status-bar
+    kind: existing
+    contract_refs:
+      - contract-statusbar-recovery
+      - contract-independent-status-axes
+    paths:
+      - clients/ui/src/components/StatusBar.tsx
+      - clients/ui/src/App.tsx
+      - clients/ui/src/css/view.css
+  - id: component-host-fleet-runtime
+    kind: existing
+    contract_refs:
+      - contract-fleet-health-authority
+      - contract-fleet-health-outcomes
+      - contract-fleet-resource-lifecycle
+    paths:
+      - clients/workspace/src/main/fleet-session-runtime.ts
+      - clients/workspace/src/main/server-health.ts
+      - clients/web-host/internal/webhost/fleet.go
+  - id: component-fleet-provider
+    kind: existing
+    contract_refs:
+      - contract-host-health-wire
+      - contract-health-configuration-boundary
+    paths:
+      - clients/ui/src/fleet/provider.ts
+      - clients/ui/src/fleet/session-protocol.ts
+      - clients/ui/src/fleet/presentation.ts
+      - clients/ui/src/auth.ts
+      - clients/workspace/src/preload/index.ts
+      - clients/web-host/internal/webhost/host.go
+  - id: component-connections-surface
+    kind: planned
+    contract_refs:
+      - contract-connections-diagnosis
+    paths:
+      - clients/ui/src/components/ConnectionsPanel.tsx
+      - clients/ui/src/fleet/connections-presentation.ts
+      - clients/workspace/src/main/settings-page.ts
+      - clients/workspace/src/main/app-entry.ts
+      - clients/web-host/internal/webhost/host.go
+  - id: component-gateway-evidence
+    kind: existing
+    contract_refs: []
+    paths:
+      - services/server/api
+contracts:
+  - id: contract-active-recovery-lifecycle
+    dimension: state_lifecycle
+    owner: component-active-connection
+    requirement_refs: [FR-REC-001, FR-REC-003, NFR-LIFE-001]
+    unit_refs: [unit-1-active-lifecycle]
+    adr_refs:
+      - adr-20260624-0011-two-step-ws-close-on-daemon-disconnect
+      - adr-20260624-0012-daemon-client-eager-dial-supervisor
+      - adr-20260624-0022-subscribe-retry-in-socket-layer
+    verification:
+      - {id: verify-active-retry-exact, tier: T0, command: "cd clients/ui && npm run test:unit -- src/socket/connection.recovery-regression.test.ts"}
+      - {id: verify-initial-recovery-stop, tier: T1, command: "cd clients/ui && npm run test:unit -- src/socket/connection.test.ts"}
+      - {id: verify-manual-retry-repeat, tier: T1, command: "cd clients/ui && npm run test:unit -- src/socket/connection.recovery-regression.test.ts"}
+      - {id: verify-stale-generation-noop, tier: T1, command: "cd clients/ui && npm run test:unit -- src/socket/connection.test.ts"}
+    discretion:
+      - id: discretion-active-generation-token
+        question: Which private lifecycle token representation fences active connection work?
+        scope:
+          files: [clients/ui/src/socket/connection.ts]
+          component: component-active-connection
+          visibility: private
+        escalate_when:
+          - The choice changes attempt counting, hello proof, the store API, or permits more than one live active resource.
+        constraints:
+          - Every asynchronous continuation checks current lifecycle authority.
+        preserves:
+          contract_refs: [contract-active-recovery-lifecycle, contract-active-resource-fence]
+          invariant_refs: [FR-REC-002, NFR-LIFE-001]
+        verification_refs: [verify-active-retry-exact, verify-stale-generation-noop]
+        difficulty_inputs:
+          decision_reasoning: local_tradeoff
+          boundary_reach: private
+          context_scope: files
+          reversibility: bounded
+          verification_strength: discriminating
+          runtime_risk: lifecycle
+          coupling: coupled_within_unit
+          grounding: evidenced
+  - id: contract-daemon-hello-proof
+    dimension: integration_contract
+    owner: component-active-connection
+    requirement_refs: [FR-REC-002]
+    unit_refs: [unit-1-active-lifecycle]
+    adr_refs: [adr-20260624-0011-two-step-ws-close-on-daemon-disconnect]
+    verification:
+      - {id: verify-hello-only-open, tier: T0, command: "cd clients/ui && npm run test:unit -- src/socket/connection.recovery-regression.test.ts"}
+      - {id: verify-open-without-hello, tier: T1, command: "cd clients/ui && npm run test:unit -- src/socket/connection.test.ts"}
+    partition:
+      outcomes: [determinate, unknown, inconclusive]
+      default_policy: Unknown or malformed/non-hello evidence remains non-nominal; only a valid current-generation hello is determinate recovery.
+  - id: contract-active-resource-fence
+    dimension: resource_management
+    owner: component-active-connection
+    requirement_refs: [FR-REC-003, NFR-LIFE-001]
+    unit_refs: [unit-1-active-lifecycle]
+    verification:
+      - {id: verify-active-resource-closure, tier: T1, command: "cd clients/ui && npm run test:unit -- src/socket/connection.test.ts"}
+      - {id: verify-single-flight-retry, tier: T0, command: "cd clients/ui && npm run test:unit -- src/socket/connection.recovery-regression.test.ts"}
+    discretion:
+      - id: discretion-cancelable-scheduler
+        question: How should the private retry scheduler expose cancellation to Connection?
+        scope:
+          files: [clients/ui/src/socket/connection.ts, clients/ui/src/socket/backoff.ts]
+          component: component-active-connection
+          visibility: private
+        escalate_when:
+          - Deterministic tests cannot prove timer/resource release or generation fencing without wall-clock waits.
+        constraints:
+          - Correctness cannot depend solely on fetch or timer cancellation support.
+        preserves:
+          contract_refs: [contract-active-resource-fence]
+          invariant_refs: [NFR-LIFE-001]
+        verification_refs: [verify-active-resource-closure]
+        difficulty_inputs:
+          decision_reasoning: local_tradeoff
+          boundary_reach: private
+          context_scope: files
+          reversibility: trivial
+          verification_strength: discriminating
+          runtime_risk: concurrency
+          coupling: coupled_within_unit
+          grounding: evidenced
+  - id: contract-statusbar-recovery
+    dimension: user_observability
+    owner: component-status-bar
+    requirement_refs: [FR-REC-003, FR-REC-004]
+    unit_refs: [unit-4-shell-connections]
+    verification:
+      - {id: verify-statusbar-retry-access, tier: T1, command: "cd clients/ui && npm run test:unit -- src/components/StatusBar.test.tsx"}
+      - {id: verify-status-announcement-focus, tier: T1, command: "cd clients/ui && npm run test:e2e"}
+      - {id: verify-single-recovery-owner, tier: T0, command: "cd clients/ui && npm run test:unit -- src/components/StatusBar.test.tsx src/App.test.tsx"}
+    discretion:
+      - id: discretion-status-focus-implementation
+        question: Which private ref/effect plumbing focuses the fixed persistent StatusBar landmark when focused Retry disappears?
+        scope:
+          files: [clients/ui/src/components/StatusBar.tsx, clients/ui/src/App.tsx]
+          component: component-status-bar
+          visibility: private
+        escalate_when:
+          - The destination changes, a visible recovery surface is added, a non-Retry transition steals focus, or the landmark is not perceivable by keyboard and assistive technology.
+        preserves:
+          contract_refs: [contract-statusbar-recovery]
+          invariant_refs: [FR-REC-004]
+        verification_refs: [verify-status-announcement-focus]
+        difficulty_inputs:
+          decision_reasoning: local_tradeoff
+          boundary_reach: component
+          context_scope: component
+          reversibility: bounded
+          verification_strength: discriminating
+          runtime_risk: normal
+          coupling: coupled_within_unit
+          grounding: evidenced
+  - id: contract-fleet-health-authority
+    dimension: integration_contract
+    owner: component-host-fleet-runtime
+    requirement_refs: [FR-FLEET-001, FR-FLEET-002, NFR-HOST-001, NFR-TEST-001]
+    unit_refs: [unit-2-host-health, unit-3-provider-migration]
+    adr_refs:
+      - adr-20260727-host-neutral-fleet-provider
+      - adr-20260727-application-scoped-fleet-session-authority
+      - adr-20260727-server-qualified-identity-partial-failure
+      - adr-20260727-exact-match-client-server-protocol
+      - adr-20260803-resilient-fleet-health-single-authority
+    verification:
+      - {id: verify-single-host-health-writer, tier: T0, command: "cd clients/workspace && npm run test:unit -- tests/fleet-session-runtime.test.ts tests/server-health.test.ts"}
+      - {id: verify-cross-host-health-conformance, tier: T1, command: "cd clients/workspace && npm run test:unit -- tests/fleet-session-runtime.test.ts tests/fleet-health-wire.test.ts"}
+      - {id: verify-generation-fence, tier: T1, command: "cd clients/web-host && go test ./..."}
+    partition:
+      outcomes: [determinate, unknown, inconclusive, conflicting]
+      default_policy: One full host revision contains every configured identity; newest host generation wins, exact mismatch is terminal, and adapter delivery loss is a consumer overlay that cannot advance host revision.
+    discretion:
+      - id: discretion-health-storage
+        question: Should private health state extend existing member records or use a parallel map before projection?
+        scope:
+          files: [clients/workspace/src/main/fleet-session-runtime.ts, clients/web-host/internal/webhost/fleet.go]
+          component: component-host-fleet-runtime
+          visibility: private
+        escalate_when:
+          - Session membership and health gain different generation owners or normalized host snapshots differ.
+        preserves:
+          contract_refs: [contract-fleet-health-authority, contract-fleet-health-outcomes]
+          invariant_refs: [FR-FLEET-001]
+        verification_refs: [verify-cross-host-health-conformance, verify-generation-fence]
+        difficulty_inputs:
+          decision_reasoning: multi_constraint
+          boundary_reach: component
+          context_scope: component
+          reversibility: bounded
+          verification_strength: discriminating
+          runtime_risk: concurrency
+          coupling: coupled_within_unit
+          grounding: evidenced
+  - id: contract-fleet-health-outcomes
+    dimension: failure_recovery
+    owner: component-host-fleet-runtime
+    requirement_refs: [FR-FLEET-002, FR-FLEET-004]
+    unit_refs: [unit-2-host-health, unit-4-shell-connections]
+    adr_refs:
+      - adr-20260727-exact-match-client-server-protocol
+      - adr-20260803-resilient-fleet-health-single-authority
+    verification:
+      - {id: verify-health-outcome-partition, tier: T0, command: "cd clients/workspace && npm run test:unit -- tests/server-health.test.ts"}
+      - {id: verify-stale-never-current, tier: T1, command: "cd clients/workspace && npm run test:unit -- tests/fleet-session-runtime.test.ts"}
+      - {id: verify-total-outage, tier: T1, command: "cd clients/ui && npm run test:unit -- src/fleet/presentation.test.ts"}
+      - {id: verify-fleet-recovery, tier: T1, command: "cd clients/ui && npm run test:unit -- src/components/StatusBar.test.tsx"}
+    partition:
+      outcomes: [determinate, unknown, inconclusive]
+      default_policy: The exclusive union admits current Checking/Connected/Unavailable/Incompatible, freshness-free Disabled, or Health unavailable with optional nested stale prior; protocol mismatch is terminal and delivery overlay is not host evidence.
+  - id: contract-fleet-resource-lifecycle
+    dimension: performance_budget
+    owner: component-host-fleet-runtime
+    requirement_refs: [NFR-LIFE-001, NFR-HEALTH-001]
+    unit_refs: [unit-2-host-health]
+    verification:
+      - {id: verify-health-singleflight, tier: T1, command: "cd clients/workspace && npm run test:unit -- tests/server-health.test.ts"}
+      - {id: verify-health-three-second-bound, tier: T0, command: "cd clients/workspace && npm run test:unit -- tests/server-health.test.ts tests/fleet-session-runtime.test.ts"}
+      - {id: verify-health-resource-closure, tier: T1, command: "cd clients/web-host && go test ./internal/webhost -run 'TestFleetHealthTimeout|TestFleetHealthShutdown'"}
+  - id: contract-host-health-wire
+    dimension: migration_compatibility
+    owner: component-fleet-provider
+    requirement_refs: [FR-FLEET-001, FR-FLEET-002, NFR-HOST-001]
+    unit_refs: [unit-3-provider-migration]
+    adr_refs:
+      - adr-20260727-host-neutral-fleet-provider
+      - adr-20260727-application-scoped-fleet-session-authority
+      - adr-20260803-resilient-fleet-health-single-authority
+    verification:
+      - {id: verify-health-wire-parity, tier: T1, command: "cd clients/ui && npm run test:unit -- src/fleet/provider.test.ts src/fleet/session-protocol.test.ts"}
+      - {id: verify-session-wire-compat, tier: T1, command: "cd clients/ui && npm run test:unit -- src/fleet/session-protocol.test.ts"}
+      - {id: verify-health-delivery-loss, tier: T1, command: "cd clients/workspace && npm run test:unit -- tests/fleet-session-runtime.test.ts"}
+    partition:
+      outcomes: [determinate, unknown, inconclusive]
+      default_policy: Valid delivery publishes monotonic current-instance host revisions; startup absence is Checking and broken delivery overlays Health unavailable while preserving the last host revision and forbidding renderer probing fallback.
+  - id: contract-independent-status-axes
+    dimension: user_observability
+    owner: component-status-bar
+    requirement_refs: [FR-FLEET-003, FR-FLEET-004]
+    unit_refs: [unit-4-shell-connections]
+    verification:
+      - {id: verify-independent-status-axes, tier: T1, command: "cd clients/ui && npm run test:unit -- src/components/StatusBar.test.tsx"}
+      - {id: verify-enabled-denominator, tier: T0, command: "cd clients/ui && npm run test:unit -- src/fleet/presentation.test.ts"}
+      - {id: verify-fleet-summary-exits, tier: T1, command: "cd clients/ui && npm run test:unit -- src/components/StatusBar.test.tsx"}
+    partition:
+      outcomes: [determinate, unknown, inconclusive, conflicting]
+      default_policy: Active and fleet inputs are reduced independently; unknown or inconclusive fleet evidence is non-nominal and never erased by active hello.
+  - id: contract-connections-diagnosis
+    dimension: integration_contract
+    owner: component-connections-surface
+    requirement_refs: [FR-FLEET-003]
+    unit_refs: [unit-4-shell-connections]
+    adr_refs: [adr-20260727-host-neutral-fleet-provider]
+    verification:
+      - {id: verify-connections-parity, tier: T1, command: "cd clients/ui && npm run test:unit -- src/fleet/connections-presentation.test.ts src/components/ConnectionsPanel.test.tsx"}
+      - {id: verify-browser-connections-reachability, tier: T1, command: "cd clients/ui && npm run test:e2e"}
+      - {id: verify-workspace-connections-editable, tier: T1, command: "cd clients/workspace && npm run test:unit -- tests/settings-page.test.ts"}
+      - {id: verify-connections-no-retry, tier: T0, command: "cd clients/ui && npm run test:unit -- src/components/StatusBar.test.tsx src/components/ConnectionsPanel.test.tsx"}
+    partition:
+      outcomes: [determinate, unknown, inconclusive]
+      default_policy: Every configured identity remains visible; absent current health is Health unavailable rather than omission and Connections never becomes a Retry owner.
+    discretion:
+      - id: discretion-connections-layout
+        question: Should the shared diagnosis be presented as a panel, drawer, or route?
+        scope:
+          files: [clients/ui/src/components/ConnectionsPanel.tsx, clients/ui/src/App.tsx]
+          component: component-connections-surface
+          visibility: private
+        escalate_when:
+          - Action name, server-qualified contents, modality reachability, configuration editability, or the no-duplicate-Retry contract changes.
+        preserves:
+          contract_refs: [contract-connections-diagnosis]
+          invariant_refs: [FR-REC-004]
+        verification_refs: [verify-browser-connections-reachability, verify-connections-no-retry]
+        difficulty_inputs:
+          decision_reasoning: local_tradeoff
+          boundary_reach: component
+          context_scope: component
+          reversibility: bounded
+          verification_strength: discriminating
+          runtime_risk: normal
+          coupling: coupled_within_unit
+          grounding: evidenced
+  - id: contract-health-configuration-boundary
+    dimension: security_boundary
+    owner: component-fleet-provider
+    requirement_refs: [FR-FLEET-001, FR-FLEET-002, NFR-HOST-001]
+    unit_refs: [unit-2-host-health, unit-3-provider-migration, unit-4-shell-connections]
+    adr_refs: [adr-20260727-single-user-server-auth]
+    verification:
+      - {id: verify-health-secret-redaction, tier: T1, command: "cd clients/workspace && npm run test:unit -- tests/server-health.test.ts tests/fleet-health-wire.test.ts"}
+      - {id: verify-health-not-persisted, tier: T1, command: "cd clients/workspace && npm run test:unit -- tests/desktop-config.test.ts tests/settings-page.test.ts"}
+    partition:
+      outcomes: [determinate, unknown, inconclusive, conflicting]
+      default_policy: Host credential/config authority wins; conflicting or unsanitized evidence is rejected and health never enters config persistence.
+adrs:
+  - id: adr-20260624-0011-two-step-ws-close-on-daemon-disconnect
+    status: accepted
+    decision_input_refs: [decision-input-adr-0011]
+  - id: adr-20260624-0012-daemon-client-eager-dial-supervisor
+    status: accepted
+    decision_input_refs: [decision-input-adr-0012]
+  - id: adr-20260624-0022-subscribe-retry-in-socket-layer
+    status: accepted
+    decision_input_refs: [decision-input-adr-0022]
+  - id: adr-20260727-host-neutral-fleet-provider
+    status: accepted
+    decision_input_refs: [decision-input-adr-host-neutral]
+  - id: adr-20260727-application-scoped-fleet-session-authority
+    status: accepted
+    decision_input_refs: [decision-input-adr-app-fleet]
+  - id: adr-20260727-server-qualified-identity-partial-failure
+    status: accepted
+    decision_input_refs: [decision-input-adr-partial-failure]
+  - id: adr-20260727-single-user-server-auth
+    status: accepted
+    decision_input_refs: [decision-input-adr-auth]
+  - id: adr-20260727-exact-match-client-server-protocol
+    status: accepted
+    decision_input_refs: [decision-input-adr-exact-protocol]
+  - id: adr-20260803-resilient-fleet-health-single-authority
+    status: accepted
+    decision_input_refs:
+      - decision-input-runtime-health-boundary
+      - decision-input-shared-connections
+      - decision-input-adr-host-neutral
+      - decision-input-adr-app-fleet
+units:
+  - title: unit-1-active-lifecycle
+    chunk: "1"
+    contract_refs:
+      - contract-active-recovery-lifecycle
+      - contract-daemon-hello-proof
+      - contract-active-resource-fence
+    files:
+      - clients/ui/src/socket/connection.ts
+      - clients/ui/src/socket/backoff.ts
+      - clients/ui/src/store/daemon.ts
+      - clients/ui/src/socket/connection.recovery-regression.test.ts
+      - clients/ui/src/socket/connection.test.ts
+    acceptance: [UAC-001, UAC-002, UAC-003, UAC-005, UAC-010, UAC-011]
+    objective: Implement exact finite, hello-proven, generation-fenced active recovery without changing gateway supervision or old-socket semantics.
+    output_format: Production TypeScript plus deterministic T0/T1 tests.
+    tool_guidance: Use injected fetch, WebSocket, scheduler, and fake timers; run targeted UI unit tests and typecheck.
+    task_boundaries: Do not change gateway wire, retry threshold, transcript replay, or fleet health.
+    decision_closure_reason: Public lifecycle and proof semantics are fixed; only private token and scheduler representation are delegated.
+  - title: unit-2-host-health
+    chunk: "2"
+    contract_refs:
+      - contract-fleet-health-authority
+      - contract-fleet-health-outcomes
+      - contract-fleet-resource-lifecycle
+      - contract-health-configuration-boundary
+    files:
+      - clients/workspace/src/main/fleet-session-runtime.ts
+      - clients/workspace/src/main/server-health.ts
+      - clients/web-host/internal/webhost/fleet.go
+      - clients/workspace/tests/fleet-session-runtime.test.ts
+      - clients/workspace/tests/server-health.test.ts
+      - clients/web-host/internal/webhost/host_test.go
+    acceptance: [UAC-007, UAC-012, UAC-013, UAC-014]
+    objective: Make existing one-per-host FleetRuntime the sole current/stale health producer with bounded resources and credential-safe projection.
+    output_format: Host runtime changes, shared fixture semantics, and deterministic host tests.
+    tool_guidance: Reuse existing runtime and health classifiers; use httptest and injected TS transports; add no dependency.
+    task_boundaries: Do not add renderer probes, persist health, expose bearer values, or bound host retry at sixteen.
+    decision_closure_reason: Accepted fleet ADRs and UX fix authority and outcomes; storage layout remains private.
+  - title: unit-3-provider-migration
+    chunk: "3"
+    contract_refs:
+      - contract-fleet-health-authority
+      - contract-host-health-wire
+      - contract-health-configuration-boundary
+    files:
+      - clients/ui/src/fleet/provider.ts
+      - clients/ui/src/fleet/session-protocol.ts
+      - clients/ui/src/fleet/presentation.ts
+      - clients/ui/src/fleet/fixtures/fleet-health-v1.json
+      - clients/ui/src/auth.ts
+      - clients/workspace/src/preload/index.ts
+      - clients/workspace/src/main/electron-entry.ts
+      - clients/web-host/internal/webhost/host.go
+    depends_on: [unit-2-host-health]
+    acceptance: [UAC-007, UAC-008, UAC-009, UAC-013, UAC-014]
+    objective: Deliver one versioned credential-free health snapshot through both host adapters and one App-level subscription.
+    output_format: Flag-day provider/adapter migration plus parity and compatibility tests.
+    tool_guidance: Preserve session FleetSnapshot and active channel contracts; test adapter loss and deep-equal normalization.
+    task_boundaries: No renderer polling fallback, config reload, or host-kind health semantics.
+    decision_closure_reason: Wire meaning and failure behavior are fixed; transport-specific plumbing may differ.
+  - title: unit-4-shell-connections
+    chunk: "4"
+    contract_refs:
+      - contract-statusbar-recovery
+      - contract-independent-status-axes
+      - contract-connections-diagnosis
+      - contract-health-configuration-boundary
+    files:
+      - clients/ui/src/components/StatusBar.tsx
+      - clients/ui/src/components/ConnectionsPanel.tsx
+      - clients/ui/src/fleet/connections-presentation.ts
+      - clients/ui/src/App.tsx
+      - clients/ui/src/css/view.css
+      - clients/workspace/src/main/settings-page.ts
+      - clients/workspace/src/main/app-entry.ts
+      - clients/ui/src/components/StatusBar.test.tsx
+      - clients/workspace/tests/settings-page.test.ts
+    depends_on: [unit-1-active-lifecycle, unit-3-provider-migration]
+    acceptance: [UAC-004, UAC-006, UAC-007, UAC-008, UAC-009, UAC-012, UAC-013, UAC-014]
+    objective: Present one accessible recovery owner plus independent fleet aggregate and both-host server-qualified diagnosis.
+    output_format: Shared React presentation, host navigation wiring, CSS, unit tests, and Playwright assertions.
+    tool_guidance: Prefer native button/status semantics and existing settings delivery; inspect roles, focus, keyboard, and normalized rows.
+    task_boundaries: Connections must not own Retry; no toast/modal recovery, health persistence, or browser credential mutation API.
+    decision_closure_reason: Observable action names, contents, and modality are fixed; layout is private discretion.
+  - title: unit-5-integration-verification
+    chunk: "5"
+    contract_refs:
+      - contract-active-recovery-lifecycle
+      - contract-daemon-hello-proof
+      - contract-fleet-health-authority
+      - contract-host-health-wire
+      - contract-connections-diagnosis
+    files:
+      - clients/ui/e2e
+      - clients/ui/e2e-real
+      - clients/workspace/tests
+      - clients/web-host/internal/webhost
+      - services/server/api
+      - docs/changes/change-20260727-resilient-server-reconnect-health
+    depends_on: [unit-1-active-lifecycle, unit-2-host-health, unit-3-provider-migration, unit-4-shell-connections]
+    acceptance:
+      - All UAC-001 through UAC-014 pass against applicable browser and Workspace boundaries.
+      - Fake, invariant contract, and FakeVsReal backstop are present for modified gateway-facing fakes.
+    objective: Close cross-boundary mechanical gates and materialize accepted ADR/design promotion evidence.
+    output_format: Passing verification evidence and change-package documentation updates.
+    tool_guidance: Run targeted gates first, then affected lint/typecheck, browser smoke, real-stack, host tests, and gateway tests.
+    task_boundaries: Do not weaken FakeVsReal assertions or claim manual/T3 evidence that was not run.
+    decision_closure_reason: No implementation choice remains; this unit gathers discriminating closure evidence.
+acceptance:
+  - id: UAC-001
+    criteria: Established disconnect remains reconnecting until a later daemon hello and then recovers without Retry or reload.
+    requirement_refs: [FR-REC-001, FR-REC-002]
+  - id: UAC-002
+    criteria: WebSocket open without current-generation hello never presents nominal recovery whether it remains open or closes.
+    requirement_refs: [FR-REC-002]
+  - id: UAC-003
+    criteria: One Retry activation starts one fresh lifecycle and only later hello completes recovery.
+    requirement_refs: [FR-REC-003]
+  - id: UAC-004
+    criteria: With no session, pointer, keyboard, and assistive-technology users can perceive and activate Retry with stable focus continuity.
+    requirement_refs: [FR-REC-003, FR-REC-004]
+  - id: UAC-005
+    criteria: Exactly sixteen automatic retries follow the initiating failure and no seventeenth is scheduled.
+    requirement_refs: [FR-REC-001]
+  - id: UAC-006
+    criteria: StatusBar is the sole visible and assistive-technology recovery/Retry owner and Connections has no duplicate Retry.
+    requirement_refs: [FR-REC-004]
+  - id: UAC-007
+    criteria: Partial degradation distinguishes unavailable and incompatible counts over enabled total and excludes disabled entries.
+    requirement_refs: [FR-FLEET-002, FR-FLEET-003]
+  - id: UAC-008
+    criteria: Connections is keyboard/pointer reachable in both hosts and shows each configured server with qualified state and available reason while config editing remains usable.
+    requirement_refs: [FR-FLEET-003, NFR-HOST-001]
+  - id: UAC-009
+    criteria: Active hello clears active recovery while another member's fleet degradation and Connections remain visible.
+    requirement_refs: [FR-FLEET-004]
+  - id: UAC-010
+    criteria: Initial unavailability before any hello progresses through exact exhaustion to closed with Retry even without a session.
+    requirement_refs: [FR-REC-001, FR-REC-004]
+  - id: UAC-011
+    criteria: Exhausted manual lifecycle returns to reusable Retry without reload or permanent disablement.
+    requirement_refs: [FR-REC-003]
+  - id: UAC-012
+    criteria: All enabled servers unavailable produces explicit total-outage wording and Connections identifies every configured server.
+    requirement_refs: [FR-FLEET-002, FR-FLEET-003]
+  - id: UAC-013
+    criteria: Failed health refresh or delivery shows Health unavailable and any retained Connected evidence is explicitly stale while configuration remains editable.
+    requirement_refs: [FR-FLEET-002, FR-FLEET-003]
+  - id: UAC-014
+    criteria: A current all-enabled-healthy revision clears aggregate degradation without altering independently correct active connection state.
+    requirement_refs: [FR-FLEET-002, FR-FLEET-004]
+dispositions:
+  - decision_input_ref: decision-input-recovery-policy
+    disposition: Adopt exact one initiating attempt plus sixteen automatic retries, then reusable manual Retry.
+    contract_refs: [contract-active-recovery-lifecycle]
+  - decision_input_ref: decision-input-recovery-proof
+    disposition: Adopt current-generation daemon hello as the only recovery proof.
+    contract_refs: [contract-daemon-hello-proof]
+  - decision_input_ref: decision-input-status-owner
+    disposition: Adopt persistent StatusBar as sole active-recovery and Retry owner.
+    contract_refs: [contract-statusbar-recovery]
+  - decision_input_ref: decision-input-fleet-denominator
+    disposition: Aggregate enabled configured entries only and retain disabled entries only in diagnosis.
+    contract_refs: [contract-fleet-health-outcomes, contract-independent-status-axes]
+  - decision_input_ref: decision-input-health-boundary
+    disposition: Keep health runtime-only and separate from immutable configuration persistence.
+    contract_refs: [contract-health-configuration-boundary]
+  - decision_input_ref: decision-input-diagnosis-entry
+    disposition: Provide a consistently named Connections action and server-qualified diagnosis in both hosts.
+    contract_refs: [contract-connections-diagnosis]
+  - decision_input_ref: decision-input-retry-reachability
+    disposition: Close through persistent no-session StatusBar, native Retry, generation single-flight, and focus verification.
+    contract_refs: [contract-statusbar-recovery, contract-active-recovery-lifecycle]
+  - decision_input_ref: decision-input-status-announcement
+    disposition: Use dedicated polite status text with Retry as a sibling action and focus the fixed persistent StatusBar landmark only when focused Retry disappears.
+    contract_refs: [contract-statusbar-recovery]
+  - decision_input_ref: decision-input-runtime-health-boundary
+    disposition: Extend the existing one host FleetRuntime as sole host health writer and propose a complementary projection/delivery-overlay ADR that cannot create a second owner.
+    adr_refs: [adr-20260803-resilient-fleet-health-single-authority]
+    contract_refs: [contract-fleet-health-authority, contract-health-configuration-boundary]
+  - decision_input_ref: decision-input-shared-connections
+    disposition: Share one pure row/label/reason projection and permit only host navigation/rendering differences.
+    adr_refs: [adr-20260803-resilient-fleet-health-single-authority]
+    contract_refs: [contract-host-health-wire, contract-connections-diagnosis]
+  - decision_input_ref: decision-input-adr-0011
+    disposition: Preserve two-step daemon-disconnected control plus typed close and create a new client socket.
+    adr_refs: [adr-20260624-0011-two-step-ws-close-on-daemon-disconnect]
+    contract_refs: [contract-active-recovery-lifecycle, contract-daemon-hello-proof]
+  - decision_input_ref: decision-input-adr-0012
+    disposition: Preserve eager unbounded gateway daemon supervision outside the finite shared-UI lifecycle.
+    adr_refs: [adr-20260624-0012-daemon-client-eager-dial-supervisor]
+    contract_refs: [contract-active-recovery-lifecycle]
+  - decision_input_ref: decision-input-adr-0022
+    disposition: Preserve only frame-not-ready subscribe retry and reusable backoff mechanics; this change owns active lifecycle count, proof, and fencing.
+    adr_refs: [adr-20260624-0022-subscribe-retry-in-socket-layer]
+    contract_refs: [contract-active-recovery-lifecycle]
+  - decision_input_ref: decision-input-adr-host-neutral
+    disposition: Add equal credential-free health meaning to both FleetProvider host adapters.
+    adr_refs: [adr-20260727-host-neutral-fleet-provider, adr-20260803-resilient-fleet-health-single-authority]
+    contract_refs: [contract-fleet-health-authority, contract-host-health-wire, contract-connections-diagnosis]
+  - decision_input_ref: decision-input-adr-app-fleet
+    disposition: Reuse the existing one-per-host FleetRuntime rather than adding view or Settings health authorities.
+    adr_refs: [adr-20260727-application-scoped-fleet-session-authority, adr-20260803-resilient-fleet-health-single-authority]
+    contract_refs: [contract-fleet-health-authority]
+  - decision_input_ref: decision-input-adr-partial-failure
+    disposition: Preserve compound server identity, latest-generation wins, stale retention, and healthy-member usability.
+    adr_refs: [adr-20260727-server-qualified-identity-partial-failure]
+    contract_refs: [contract-fleet-health-authority, contract-fleet-health-outcomes]
+  - decision_input_ref: decision-input-adr-auth
+    disposition: Keep credentials host-owned and exclude bearer values and raw secret-bearing errors from health projection.
+    adr_refs: [adr-20260727-single-user-server-auth]
+    contract_refs: [contract-health-configuration-boundary]
+  - decision_input_ref: decision-input-adr-exact-protocol
+    disposition: Preserve exact-match admission; mismatch is Incompatible protocol and terminal for member operational/reconnect work until config or process generation changes.
+    adr_refs: [adr-20260727-exact-match-client-server-protocol]
+    contract_refs: [contract-fleet-health-authority, contract-fleet-health-outcomes]
+  - decision_input_ref: decision-input-testing-policy
+    disposition: Require feature tests plus fake, invariant contract, and FakeVsReal backstop for modified external gateway seams.
+    contract_refs: [contract-daemon-hello-proof, contract-fleet-health-authority, contract-host-health-wire]
+  - decision_input_ref: issue-exact-match-protocol-adr-omitted
+    disposition: Resolved by tracing the exact-match ADR and making protocol mismatch terminal Incompatible protocol with no retry in the member generation.
+    adr_refs: [adr-20260727-exact-match-client-server-protocol]
+    contract_refs: [contract-fleet-health-authority, contract-fleet-health-outcomes]
+  - decision_input_ref: issue-fleet-authority-double-owner
+    disposition: Resolved by retaining FleetRuntime as the sole writer; the complementary ADR fixes projection and delivery-overlay semantics without creating an authority.
+    adr_refs: [adr-20260727-application-scoped-fleet-session-authority, adr-20260803-resilient-fleet-health-single-authority]
+    contract_refs: [contract-fleet-health-authority, contract-host-health-wire]
+  - decision_input_ref: issue-delivery-failure-owner-gap
+    disposition: Resolved with a provider-owned liveness overlay that preserves and never advances the last host revision.
+    contract_refs: [contract-host-health-wire]
+  - decision_input_ref: issue-health-refresh-lifecycle-undefined
+    disposition: Resolved with five-second Connected freshness, bounded refresh, stale prior retention on failure, and later current recovery.
+    contract_refs: [contract-fleet-health-outcomes, contract-fleet-resource-lifecycle]
+  - decision_input_ref: issue-active-attempt-generation-race
+    disposition: Resolved with separate lifecycle generation and per-attempt sequence checked by every asynchronous continuation.
+    contract_refs: [contract-active-recovery-lifecycle, contract-active-resource-fence]
+  - decision_input_ref: issue-health-wire-schema-owner-missing
+    disposition: Resolved by making session-protocol.ts the schema/decoder owner and canonical JSON fixtures the cross-codec conformance input.
+    contract_refs: [contract-host-health-wire]
+  - decision_input_ref: issue-health-state-invalid-combinations
+    disposition: Resolved with an exclusive qualified observation union and codec rejection of invalid combinations.
+    contract_refs: [contract-fleet-health-outcomes, contract-host-health-wire]
+  - decision_input_ref: issue-status-live-region-interaction-conflict
+    disposition: Resolved with sibling live text and Retry plus one fixed persistent StatusBar focus landmark.
+    contract_refs: [contract-statusbar-recovery]
+  - decision_input_ref: issue-test-closure-nonexecuting
+    disposition: Resolved with owning-package T0/T1 commands and the executable FakeVsRealFleetHealth T3 gate.
+    contract_refs: [contract-fleet-health-authority, contract-host-health-wire, contract-connections-diagnosis]
+  - decision_input_ref: issue-connections-semantics-split-owner
+    disposition: Resolved with one pure connections-presentation projection consumed by both host renderers.
+    contract_refs: [contract-connections-diagnosis]
+  - decision_input_ref: issue-adr-0022-overclaimed
+    disposition: Resolved by narrowing ADR 0022 to frame-not-ready subscribe retry and reusable backoff mechanics.
+    adr_refs: [adr-20260624-0022-subscribe-retry-in-socket-layer]
+    contract_refs: [contract-active-recovery-lifecycle]
+  - decision_input_ref: issue-security-redaction-boundary-unverifiable
+    disposition: Resolved with producer-side closed classifiers before snapshot/log boundaries and sentinel tests for wire, DOM, config, and logs.
+    contract_refs: [contract-health-configuration-boundary]
+  - decision_input_ref: issue-resource-progress-bounds-incomplete
+    disposition: Resolved by bounding capabilities, ticket, and hello phases to three seconds and making shutdown handle convergence deterministic.
+    contract_refs: [contract-fleet-resource-lifecycle]
+  - decision_input_ref: issue-browser-editability-outcome-weakened
+    disposition: Resolved with keyboard-operable browser configuration-path copy and restart instruction that remain available during health failure.
+    contract_refs: [contract-connections-diagnosis]
