@@ -65,6 +65,7 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
       ipcRenderer.invoke("agent-grid:session-fleet-create", serverId, payload),
     createRepositorySession: (serverId, payload) =>
       ipcRenderer.invoke("agent-grid:session-fleet-repository-create", serverId, payload),
+    reconnect: (serverId) => ipcRenderer.invoke("agent-grid:session-fleet-reconnect", serverId),
     request: (serverId, pathname, init) =>
       ipcRenderer.invoke("agent-grid:session-fleet-request", serverId, pathname, init),
   },

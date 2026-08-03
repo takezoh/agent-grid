@@ -279,7 +279,7 @@ func TestFleetHealthHTTPSnapshotIsCredentialFree(t *testing.T) {
 		Servers: []clientconfig.Server{
 			{
 				ID: "a", DisplayName: "A", Enabled: true,
-				URL: "https://user:pass@example.test?token=abc",
+				URL:  "https://user:pass@example.test?token=abc",
 				Auth: clientconfig.Auth{Mode: "bearer", Token: "super-secret"},
 			},
 		},
@@ -320,6 +320,152 @@ func TestFleetHealthGenerationFence(t *testing.T) {
 	}
 	if runtime.healthSnapshot().Servers[0].Observation.Kind != "connected" {
 		t.Fatalf("unexpected %#v", runtime.healthSnapshot())
+	}
+}
+
+func TestFleetReconnectUnknownAndDisabled(t *testing.T) {
+	snapshot := clientconfig.Snapshot{
+		Servers: []clientconfig.Server{
+			{ID: "a", DisplayName: "A", Enabled: true, URL: "http://127.0.0.1:1", Auth: clientconfig.Auth{Mode: "none"}},
+			{ID: "b", DisplayName: "B", Enabled: false, URL: "http://127.0.0.1:2", Auth: clientconfig.Auth{Mode: "none"}},
+		},
+	}
+	runtime := newFleetRuntime(snapshot)
+	defer runtime.stop()
+	if err := runtime.reconnect("missing"); !errors.Is(err, errUnknownOrDisabledServer) {
+		t.Fatalf("missing: %v", err)
+	}
+	if err := runtime.reconnect("b"); !errors.Is(err, errUnknownOrDisabledServer) {
+		t.Fatalf("disabled: %v", err)
+	}
+	if strings.Contains(errUnknownOrDisabledServer.Error(), "Bearer ") {
+		t.Fatal("credential material in error")
+	}
+}
+
+func TestFleetReconnectSelectedServerOnly(t *testing.T) {
+	// rejects counterexample: reconnect is a no-op or restarts every server
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/api/capabilities"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"protocolVersion": protocolVersion})
+		case strings.HasSuffix(r.URL.Path, "/api/ws-ticket"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"ticket": "t"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	runtime := newFleetRuntime(clientconfig.Snapshot{
+		Servers: []clientconfig.Server{
+			{ID: "a", DisplayName: "Alpha", Enabled: true, URL: upstream.URL, Auth: clientconfig.Auth{Mode: "none"}},
+			{ID: "b", DisplayName: "Beta", Enabled: true, URL: upstream.URL, Auth: clientconfig.Auth{Mode: "none"}},
+		},
+	})
+	// Avoid real websocket dial; fail immediately so workers stay in retry loop.
+	runtime.dialWebSocket = func(ctx context.Context, endpoint string) (*websocket.Conn, error) {
+		return nil, errors.New("websocket dial disabled in test")
+	}
+	defer runtime.stop()
+
+	_, unsub := runtime.subscribeHealth()
+	defer unsub()
+	deadline := time.Now().Add(2 * time.Second)
+	for runtime.startedWorkers.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if runtime.startedWorkers.Load() != 2 {
+		t.Fatalf("started workers before reconnect = %d", runtime.startedWorkers.Load())
+	}
+
+	runtime.mu.Lock()
+	epochBBefore := runtime.workerEpoch["b"]
+	genBBefore := runtime.memberGeneration["b"]
+	epochABefore := runtime.workerEpoch["a"]
+	runtime.mu.Unlock()
+
+	before := runtime.startedWorkers.Load()
+	if err := runtime.reconnect("a"); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.startedWorkers.Load() != before+1 {
+		t.Fatalf("expected exactly one fresh worker, before=%d after=%d", before, runtime.startedWorkers.Load())
+	}
+
+	runtime.mu.Lock()
+	epochBAfter := runtime.workerEpoch["b"]
+	genBAfter := runtime.memberGeneration["b"]
+	epochAAfter := runtime.workerEpoch["a"]
+	runtime.mu.Unlock()
+	if epochBAfter != epochBBefore || genBAfter != genBBefore {
+		t.Fatalf("peer B must not restart: epoch %d→%d gen %d→%d",
+			epochBBefore, epochBAfter, genBBefore, genBAfter)
+	}
+	if epochAAfter <= epochABefore {
+		t.Fatalf("server A epoch must advance: %d → %d", epochABefore, epochAAfter)
+	}
+
+	// Stale generation must not overwrite after reconnect.
+	if runtime.publishHealth("a", 0, healthObservation{
+		Kind: "unavailable", ObservedAt: runtime.isoNow(), Reason: "connection_failed",
+	}, false) {
+		t.Fatal("stale generation publish must be rejected")
+	}
+
+	// A must show checking/reconnecting evidence from the fresh worker.
+	deadline = time.Now().Add(time.Second)
+	var aKind string
+	for time.Now().Before(deadline) {
+		for _, server := range runtime.healthSnapshot().Servers {
+			if server.ServerID == "a" {
+				aKind = server.Observation.Kind
+			}
+		}
+		if aKind == "checking" || aKind == "unavailable" || aKind == "connected" {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if aKind == "" || aKind == "disabled" {
+		t.Fatalf("server A observation after reconnect = %q", aKind)
+	}
+}
+
+func TestFleetReconnectHTTPEndpoint(t *testing.T) {
+	snapshot := clientconfig.Snapshot{
+		Servers: []clientconfig.Server{
+			{ID: "a", DisplayName: "Alpha", Enabled: true, URL: "http://127.0.0.1:1", Auth: clientconfig.Auth{Mode: "none"}},
+			{ID: "b", DisplayName: "Beta", Enabled: false, URL: "http://127.0.0.1:2", Auth: clientconfig.Auth{Mode: "none"}},
+		},
+	}
+	handler, err := Handler(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Unknown
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/host/fleet/servers/missing/reconnect", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "Bearer ") {
+		t.Fatal("credential leaked")
+	}
+
+	// Disabled
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/host/fleet/servers/b/reconnect", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("disabled status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Enabled
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/host/fleet/servers/a/reconnect", nil))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("enabled status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

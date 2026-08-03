@@ -327,6 +327,14 @@ ipcMain.handle("agent-grid:session-fleet-config-path", () => {
   return `${desktopConfig.configDirectory.replace(/\\/g, "/")}/servers.json`;
 });
 
+ipcMain.handle("agent-grid:session-fleet-reconnect", async (_event, serverId: unknown) => {
+  if (!fleetRuntime) throw new Error("fleet runtime is not ready");
+  if (typeof serverId !== "string" || !serverId) {
+    throw new Error("unknown or disabled server");
+  }
+  await fleetRuntime.reconnect(serverId);
+});
+
 ipcMain.handle(
   "agent-grid:session-fleet-create",
   async (_event, serverId: string, payload: unknown) => {

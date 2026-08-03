@@ -51,6 +51,12 @@ export interface FleetProvider {
     serverId: string,
     payload: CreateRepositorySessionPayload & { intent_id?: string },
   ): Promise<unknown>;
+  /**
+   * Host-mediated manual reconnect for one configured server. Resolves when the
+   * host accepts the request (fresh worker started); does not wait for connected.
+   * Renderer never handles credentials or host-specific transport details.
+   */
+  reconnect(serverId: string): Promise<void>;
   apiUrl(serverId: string, pathname: string): string;
   wsUrl(serverId: string, ticket: string): string;
   activeConnection(
@@ -410,6 +416,24 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
     },
+    async reconnect(serverId) {
+      const response = await fetchImpl(
+        `/host/fleet/servers/${encodeURIComponent(serverId)}/reconnect`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        // Drain body without projecting it — host text may contain secrets.
+        try {
+          await response.text();
+        } catch {
+          // ignore drain failures
+        }
+        if (response.status === 404) {
+          throw new Error("unknown or disabled server");
+        }
+        throw new Error(`reconnect failed (HTTP ${response.status})`);
+      }
+    },
     apiUrl: qualifiedPath,
     wsUrl(serverId, ticket) {
       return websocketURL(qualifiedPath(serverId, "/ws"), ticket);
@@ -578,6 +602,10 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
         });
       }
       return result;
+    },
+    async reconnect(serverId) {
+      if (!fleet.reconnect) throw new Error("Workspace reconnect is unavailable");
+      await fleet.reconnect(serverId);
     },
     apiUrl(_serverId, pathname) {
       const baseUrl = desktopBaseUrl();

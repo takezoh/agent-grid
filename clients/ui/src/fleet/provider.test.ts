@@ -519,4 +519,64 @@ describe("FleetProvider host parity", () => {
     window.history.replaceState({}, "", "/");
     expect(makeFleetProvider(vi.fn() as typeof fetch).initialServerId()).toBeNull();
   });
+
+  it("Web reconnect posts the same-origin host endpoint and surfaces credential-free errors", async () => {
+    const secretBody = "gho_unrecognized_secret_format_xyz token=leaked-value Bearer abc.def";
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/host/fleet/servers/srv-a/reconnect" && init?.method === "POST") {
+        return new Response("unknown or disabled server", { status: 404 });
+      }
+      if (url === "/host/fleet/servers/srv-b/reconnect" && init?.method === "POST") {
+        return new Response(null, { status: 204 });
+      }
+      if (url === "/host/fleet/servers/srv-c/reconnect" && init?.method === "POST") {
+        return new Response(secretBody, { status: 503 });
+      }
+      return new Response(secretBody, { status: 500 });
+    }) as typeof fetch;
+    const provider = makeFleetProvider(fetchImpl);
+    await expect(provider.reconnect("srv-a")).rejects.toThrow(/^unknown or disabled server$/);
+    expect(fetchImpl).toHaveBeenCalledWith("/host/fleet/servers/srv-a/reconnect", {
+      method: "POST",
+    });
+    await expect(provider.reconnect("srv-b")).resolves.toBeUndefined();
+
+    // Non-404 failures map to closed HTTP status text — never raw host body.
+    await expect(provider.reconnect("srv-c")).rejects.toThrow(/^reconnect failed \(HTTP 503\)$/);
+    try {
+      await provider.reconnect("missing");
+      expect.unreachable("expected reconnect to reject");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      expect(message).toBe("reconnect failed (HTTP 500)");
+      expect(message).not.toContain(secretBody);
+      expect(message).not.toMatch(/gho_|token=|Bearer /i);
+    }
+
+    const calls = fetchImpl.mock.calls.map((call) => String(call[0]));
+    expect(calls).not.toContainEqual(expect.stringMatching(/Bearer |token=/i));
+  });
+
+  it("Workspace reconnect invokes the host bridge without renderer transport construction", async () => {
+    const reconnect = vi.fn().mockResolvedValue(undefined);
+    window.agentGridWorkspace = {
+      hostedModeInfo: {
+        hosted: true,
+        serverId: "srv-a",
+        baseUrl: "https://gateway.invalid",
+        token: "renderer-token",
+      },
+      sessionFleet: {
+        listConfigs: vi.fn().mockResolvedValue([]),
+        create: vi.fn(),
+        reconnect,
+        subscribe: () => () => undefined,
+      },
+    };
+    const provider = makeFleetProvider();
+    await provider.reconnect("srv-a");
+    expect(reconnect).toHaveBeenCalledWith("srv-a");
+    expect(reconnect).toHaveBeenCalledTimes(1);
+  });
 });

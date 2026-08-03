@@ -75,6 +75,30 @@
   border-bottom: 1px solid var(--border-hairline);
   font-size: var(--text-xs);
 }
+.connections-panel__row-actions {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  justify-items: start;
+}
+.connections-panel__reconnect {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.connections-panel__reconnect:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.connections-panel__reconnect:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.connections-panel__reconnect-error {
+  color: var(--status-stopped, var(--fg-muted));
+}
 .connections-panel__config {
   margin-top: var(--space-3);
   display: grid;

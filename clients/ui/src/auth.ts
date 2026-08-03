@@ -75,6 +75,8 @@ declare global {
           import("./store/repository_picker").HostRepositoryProjection
         >;
         createRepositorySession?(serverId: string, payload: unknown): Promise<unknown>;
+        /** Host-mediated per-server reconnect (Workspace FleetSessionRuntime). */
+        reconnect?(serverId: string): Promise<void>;
         request?(
           serverId: string,
           pathname: string,

@@ -621,3 +621,253 @@ describe("FleetSessionRuntime health authority", () => {
     expect(encoded).not.toContain("token=abc");
   });
 });
+
+describe("FleetSessionRuntime manual reconnect", () => {
+  it("rejects unknown and disabled server IDs with credential-free errors", async () => {
+    const runtime = new FleetSessionRuntime(servers, {
+      fetchFn: vi.fn() as typeof fetch,
+      hostInstanceId: "host-reconnect-reject",
+    });
+    await expect(runtime.reconnect("missing")).rejects.toThrow(
+      /unknown or disabled server 'missing'/,
+    );
+    await expect(runtime.reconnect("disabled")).rejects.toThrow(
+      /unknown or disabled server 'disabled'/,
+    );
+    const encoded = JSON.stringify({
+      missing: "missing",
+      disabled: "disabled",
+    });
+    expect(encoded).not.toMatch(/Bearer |token=|gho_/i);
+    runtime.stop();
+  });
+
+  it("makes start idempotent and keeps reconnect-before-start to one worker per server", async () => {
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/capabilities")) {
+        return Response.json({ protocolVersion: "protocol-3" });
+      }
+      if (url.includes("/api/ws-ticket")) {
+        return Response.json({ ticket: "ticket" });
+      }
+      return new Response("missing", { status: 404 });
+    }) as unknown as typeof fetch;
+    const socketsOpened: string[] = [];
+    const runtime = new FleetSessionRuntime(servers.slice(0, 2), {
+      fetchFn,
+      hostInstanceId: "host-lifecycle",
+      clock: {
+        now: () => Date.now(),
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, Math.min(ms, 1))),
+      },
+      webSocketFactory: (url) => {
+        socketsOpened.push(url);
+        return {
+          readyState: 1,
+          close: vi.fn(),
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        };
+      },
+    });
+
+    // reconnect before start: baseline once, then fence/replace selected only.
+    await runtime.reconnect("a");
+    expect(runtime.startedWorkerCount()).toBe(3); // 2 baseline + 1 reconnect for a
+    // Later start must not duplicate workers.
+    runtime.start();
+    runtime.start();
+    expect(runtime.startedWorkerCount()).toBe(3);
+    expect(runtime.enabledWorkerCount()).toBe(2);
+
+    // After stop, start may re-arm baseline once (preserve stop semantics).
+    runtime.stop();
+    expect(runtime.liveHandleCounts()).toEqual({ timers: 0, fetches: 0, sockets: 0 });
+    runtime.start();
+    expect(runtime.startedWorkerCount()).toBe(5); // prior 3 + 2 re-armed baseline
+    runtime.start();
+    expect(runtime.startedWorkerCount()).toBe(5);
+    runtime.stop();
+  });
+
+  it("reconnects only the selected server, fences stale callbacks, and preserves peers", async () => {
+    type Waiter = { at: number; resolve: () => void };
+    let nowMs = 0;
+    const waiters: Waiter[] = [];
+    const clock = {
+      now: () => nowMs,
+      sleep: (ms: number) =>
+        new Promise<void>((resolve) => {
+          waiters.push({ at: nowMs + ms, resolve });
+        }),
+    };
+    const advance = async (ms: number) => {
+      nowMs += ms;
+      const due = waiters.filter((waiter) => waiter.at <= nowMs).sort((a, b) => a.at - b.at);
+      for (const waiter of due) {
+        const index = waiters.indexOf(waiter);
+        if (index >= 0) waiters.splice(index, 1);
+        waiter.resolve();
+      }
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+
+    const messageHandlers = new Map<string, (event: Event) => void>();
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/capabilities")) {
+        return Response.json({ protocolVersion: "protocol-3" });
+      }
+      if (url.includes("/api/ws-ticket")) {
+        return Response.json({ ticket: "ticket" });
+      }
+      return new Response("missing", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const runtime = new FleetSessionRuntime(servers.slice(0, 2), {
+      fetchFn,
+      clock,
+      hostInstanceId: "host-reconnect-select",
+      random: () => 0,
+      webSocketFactory: (url) => {
+        const serverId = url.includes("://a") ? "a" : "b";
+        return {
+          readyState: 1,
+          close: vi.fn(),
+          addEventListener: (type: string, handler: EventListener) => {
+            if (type === "message") {
+              messageHandlers.set(serverId, handler as (event: Event) => void);
+            }
+          },
+          removeEventListener: () => undefined,
+        };
+      },
+    });
+    const healthListener = vi.fn();
+    const sessionListener = vi.fn();
+    runtime.subscribeHealth(healthListener);
+    runtime.subscribe(sessionListener);
+    runtime.start();
+    const workersAtStart = runtime.startedWorkerCount();
+    expect(workersAtStart).toBe(2);
+
+    await vi.waitFor(() => expect(messageHandlers.size).toBe(2));
+    messageHandlers.get("a")?.(
+      new MessageEvent("message", {
+        data: JSON.stringify({ k: "h", sessions: [{ id: "sa" }] }),
+      }),
+    );
+    messageHandlers.get("b")?.(
+      new MessageEvent("message", {
+        data: JSON.stringify({ k: "h", sessions: [{ id: "sb" }] }),
+      }),
+    );
+    await vi.waitFor(() => {
+      const latest = healthListener.mock.calls.at(-1)?.[0];
+      expect(latest?.servers.find((s: { serverId: string }) => s.serverId === "a")?.observation
+        .kind).toBe("connected");
+      expect(latest?.servers.find((s: { serverId: string }) => s.serverId === "b")?.observation
+        .kind).toBe("connected");
+    });
+
+    const genBeforeReconnect = healthListener.mock.calls.at(-1)?.[0]?.revision as number;
+    messageHandlers.clear();
+    await runtime.reconnect("a");
+    expect(runtime.startedWorkerCount()).toBe(workersAtStart + 1);
+
+    await vi.waitFor(() => {
+      const latest = healthListener.mock.calls.at(-1)?.[0];
+      expect(latest?.revision).toBeGreaterThan(genBeforeReconnect);
+      expect(
+        latest?.servers.find((s: { serverId: string }) => s.serverId === "a")?.observation.kind,
+      ).toBe("checking");
+    });
+
+    // Stale generation must not overwrite the reconnected server or peer state.
+    expect(
+      runtime.publishHealth("a", 0, {
+        kind: "unavailable",
+        observedAt: new Date(nowMs).toISOString(),
+        reason: "connection_failed",
+      }),
+    ).toBe(false);
+
+    await vi.waitFor(() => expect(messageHandlers.has("a")).toBe(true));
+    messageHandlers.get("a")?.(
+      new MessageEvent("message", {
+        data: JSON.stringify({ k: "h", sessions: [{ id: "sa-new" }] }),
+      }),
+    );
+    await vi.waitFor(() => {
+      const latest = healthListener.mock.calls.at(-1)?.[0];
+      expect(
+        latest?.servers.find((s: { serverId: string }) => s.serverId === "a")?.observation.kind,
+      ).toBe("connected");
+      // Peer B must remain connected — reconnect is not fleet-wide.
+      expect(
+        latest?.servers.find((s: { serverId: string }) => s.serverId === "b")?.observation.kind,
+      ).toBe("connected");
+    });
+    const sessions = sessionListener.mock.calls.at(-1)?.[0]?.sessions ?? [];
+    expect(sessions.some((s: { ref: { sessionId: string } }) => s.ref.sessionId === "sb")).toBe(
+      true,
+    );
+    runtime.stop();
+    void advance;
+  });
+
+  it("resets terminal protocol mismatch so a fresh worker can retry", async () => {
+    let protocol = "protocol-1";
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/capabilities")) {
+        return Response.json({ protocolVersion: protocol });
+      }
+      if (url.includes("/api/ws-ticket")) {
+        return Response.json({ ticket: "t" });
+      }
+      return new Response("missing", { status: 404 });
+    }) as unknown as typeof fetch;
+    let messageHandler: ((event: Event) => void) | null = null;
+    const runtime = new FleetSessionRuntime(servers.slice(0, 1), {
+      fetchFn,
+      hostInstanceId: "host-reconnect-terminal",
+      clock: {
+        now: () => Date.now(),
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, Math.min(ms, 1))),
+      },
+      webSocketFactory: () => ({
+        readyState: 1,
+        close: vi.fn(),
+        addEventListener: (type: string, handler: EventListener) => {
+          if (type === "message") messageHandler = handler as (event: Event) => void;
+        },
+        removeEventListener: () => undefined,
+      }),
+    });
+    const listener = vi.fn();
+    runtime.subscribeHealth(listener);
+    runtime.start();
+    await vi.waitFor(() => {
+      expect(listener.mock.calls.at(-1)?.[0]?.servers[0]?.observation.kind).toBe(
+        "incompatible_protocol",
+      );
+    });
+    const workersBefore = runtime.startedWorkerCount();
+    protocol = "protocol-3";
+    await runtime.reconnect("a");
+    expect(runtime.startedWorkerCount()).toBe(workersBefore + 1);
+    await vi.waitFor(() => expect(messageHandler).not.toBeNull());
+    messageHandler?.(
+      new MessageEvent("message", {
+        data: JSON.stringify({ k: "h", sessions: [] }),
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(listener.mock.calls.at(-1)?.[0]?.servers[0]?.observation.kind).toBe("connected");
+    });
+    runtime.stop();
+  });
+});

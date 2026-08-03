@@ -414,6 +414,7 @@ export function App() {
             health={fleetHealth}
             configPath={configPath}
             onClose={() => setConnectionsOpen(false)}
+            onReconnect={(serverId) => fleet.reconnect(serverId)}
           />
           <ConfirmDialog
             open={terminationTarget !== null}

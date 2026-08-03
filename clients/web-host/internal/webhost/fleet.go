@@ -22,7 +22,7 @@ import (
 
 // Closed protocol-version token: protocol-N only. Anything else is <invalid>/<missing>.
 var (
-	safeProtocolVersionToken = regexp.MustCompile(`^protocol-\d+$`)
+	safeProtocolVersionToken     = regexp.MustCompile(`^protocol-\d+$`)
 	closedProtocolMismatchDetail = regexp.MustCompile(
 		`^incompatible protocol: client protocol-\d+, server (?:protocol-\d+|<(?:missing|invalid)>)$`,
 	)
@@ -44,7 +44,7 @@ func protocolMismatchDetail(actual string) string {
 }
 
 const (
-	healthPhaseTimeout      = 3 * time.Second
+	healthPhaseTimeout       = 3 * time.Second
 	healthConnectedFreshness = 5 * time.Second
 	healthRetryBase          = 250 * time.Millisecond
 	healthRetryCap           = 2 * time.Second
@@ -133,6 +133,9 @@ type fleetRuntime struct {
 	now              func() time.Time
 	dialWebSocket    func(ctx context.Context, endpoint string) (*websocket.Conn, error)
 	memberGeneration map[string]uint64
+	workerEpoch      map[string]uint64
+	memberCancel     map[string]context.CancelFunc
+	memberWake       map[string]chan struct{}
 	rootCtx          context.Context
 	rootCancel       context.CancelFunc
 	workers          sync.WaitGroup
@@ -151,6 +154,9 @@ func newFleetRuntime(config clientconfig.Snapshot) *fleetRuntime {
 		httpClient:       &http.Client{Timeout: healthPhaseTimeout},
 		now:              time.Now,
 		memberGeneration: make(map[string]uint64),
+		workerEpoch:      make(map[string]uint64),
+		memberCancel:     make(map[string]context.CancelFunc),
+		memberWake:       make(map[string]chan struct{}),
 		rootCtx:          rootCtx,
 		rootCancel:       rootCancel,
 		activeConns:      make(map[*websocket.Conn]struct{}),
@@ -218,13 +224,95 @@ func (runtime *fleetRuntime) subscribeHealth() (<-chan fleetHealthSnapshotV1, fu
 
 func (runtime *fleetRuntime) startWorkers() {
 	for _, server := range runtime.servers {
+		runtime.mu.Lock()
+		epoch := runtime.workerEpoch[server.ID]
+		runtime.mu.Unlock()
 		runtime.startedWorkers.Add(1)
 		runtime.workers.Add(1)
-		go func(server clientconfig.Server) {
+		go func(server clientconfig.Server, epoch uint64) {
 			defer runtime.workers.Done()
-			runtime.follow(server)
-		}(server)
+			runtime.follow(server, epoch)
+		}(server, epoch)
 	}
+}
+
+// reconnect immediately retires the selected server's current session/health
+// attempt, fences late callbacks by generation, resets capped retry / terminal
+// protocol state, publishes checking evidence, and starts exactly one fresh
+// worker. It does not mutate servers.json or restart other servers.
+func (runtime *fleetRuntime) reconnect(serverID string) error {
+	if runtime.stopped.Load() {
+		return errors.New("fleet runtime is not ready")
+	}
+	var server clientconfig.Server
+	found := false
+	for _, candidate := range runtime.allServers {
+		if candidate.ID == serverID {
+			server = candidate
+			found = true
+			break
+		}
+	}
+	if !found || !server.Enabled {
+		return errUnknownOrDisabledServer
+	}
+
+	// Ensure the baseline fleet workers exist before replacing one of them.
+	runtime.startOnce.Do(runtime.startWorkers)
+
+	runtime.mu.Lock()
+	if record := runtime.health[serverID]; record != nil {
+		record.terminalIncompatible = false
+	}
+	if cancel := runtime.memberCancel[serverID]; cancel != nil {
+		cancel()
+		delete(runtime.memberCancel, serverID)
+	}
+	runtime.wakeMemberLocked(serverID)
+	generation := runtime.memberGeneration[serverID] + 1
+	runtime.memberGeneration[serverID] = generation
+	epoch := runtime.workerEpoch[serverID] + 1
+	runtime.workerEpoch[serverID] = epoch
+	runtime.mu.Unlock()
+
+	runtime.publishHealth(serverID, generation, healthObservation{
+		Kind: "checking", ObservedAt: runtime.isoNow(),
+	}, false)
+	runtime.replace(server, generation, "reconnecting", "manual reconnect", nil)
+
+	runtime.startedWorkers.Add(1)
+	runtime.workers.Add(1)
+	go func() {
+		defer runtime.workers.Done()
+		runtime.follow(server, epoch)
+	}()
+	return nil
+}
+
+var errUnknownOrDisabledServer = errors.New("unknown or disabled server")
+
+// wakeMemberLocked closes the current wake channel for serverID and installs a
+// fresh one. Caller must hold runtime.mu.
+func (runtime *fleetRuntime) wakeMemberLocked(serverID string) {
+	if ch := runtime.memberWake[serverID]; ch != nil {
+		select {
+		case <-ch:
+		default:
+			close(ch)
+		}
+	}
+	runtime.memberWake[serverID] = make(chan struct{})
+}
+
+func (runtime *fleetRuntime) memberWakeChannel(serverID string) <-chan struct{} {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	ch := runtime.memberWake[serverID]
+	if ch == nil {
+		ch = make(chan struct{})
+		runtime.memberWake[serverID] = ch
+	}
+	return ch
 }
 
 // stop cancels all workers, closes live sockets, and waits until live handles
@@ -294,8 +382,9 @@ func (runtime *fleetRuntime) untrackConn(conn *websocket.Conn) {
 	runtime.connMu.Unlock()
 }
 
-// interruptibleSleep sleeps unless the runtime is stopped / root context canceled.
-func (runtime *fleetRuntime) interruptibleSleep(d time.Duration) {
+// interruptibleSleep sleeps unless the runtime is stopped / root context canceled
+// or the optional server is woken by manual reconnect.
+func (runtime *fleetRuntime) interruptibleSleep(d time.Duration, serverID string) {
 	if runtime.stopped.Load() {
 		return
 	}
@@ -303,9 +392,14 @@ func (runtime *fleetRuntime) interruptibleSleep(d time.Duration) {
 	defer runtime.liveTimers.Add(-1)
 	timer := time.NewTimer(d)
 	defer timer.Stop()
+	var wake <-chan struct{}
+	if serverID != "" {
+		wake = runtime.memberWakeChannel(serverID)
+	}
 	select {
 	case <-timer.C:
 	case <-runtime.rootCtx.Done():
+	case <-wake:
 	}
 }
 
@@ -439,32 +533,44 @@ func projectFleetSessions(members []fleetMember) []fleetSession {
 	return result
 }
 
-func (runtime *fleetRuntime) follow(server clientconfig.Server) {
+func (runtime *fleetRuntime) follow(server clientconfig.Server, epoch uint64) {
 	var attempt int
 	for !runtime.stopped.Load() {
 		runtime.mu.Lock()
+		if runtime.workerEpoch[server.ID] != epoch {
+			runtime.mu.Unlock()
+			return
+		}
 		generation := runtime.memberGeneration[server.ID] + 1
 		runtime.memberGeneration[server.ID] = generation
 		record := runtime.health[server.ID]
 		terminal := record != nil && record.terminalIncompatible
+		genCtx, genCancel := context.WithCancel(runtime.rootCtx)
+		runtime.memberCancel[server.ID] = genCancel
 		runtime.mu.Unlock()
 		if terminal {
+			genCancel()
 			return
 		}
 		runtime.publishHealth(server.ID, generation, healthObservation{
 			Kind: "checking", ObservedAt: runtime.isoNow(),
 		}, false)
-		err := runtime.followGeneration(server, generation)
+		err := runtime.followGeneration(server, generation, genCtx)
+		genCancel()
 		if runtime.stopped.Load() {
 			return
 		}
 		runtime.mu.RLock()
+		currentEpoch := runtime.workerEpoch[server.ID]
 		record = runtime.health[server.ID]
 		terminal = record != nil && record.terminalIncompatible
 		prior := nestablePrior(record)
 		wasConnected := record != nil && (record.observation.Kind == "connected" ||
 			record.observation.Kind == "health_unavailable")
 		runtime.mu.RUnlock()
+		if currentEpoch != epoch {
+			return
+		}
 		if terminal {
 			return
 		}
@@ -503,7 +609,7 @@ func (runtime *fleetRuntime) follow(server clientconfig.Server) {
 			}
 		}
 		attempt++
-		runtime.interruptibleSleep(delay)
+		runtime.interruptibleSleep(delay, server.ID)
 	}
 }
 
@@ -524,10 +630,11 @@ func nestablePrior(record *healthRecord) *healthPrior {
 	}
 }
 
-func (runtime *fleetRuntime) followGeneration(server clientconfig.Server, generation uint64) error {
-	ctx, cancel := context.WithCancel(runtime.rootCtx)
-	defer cancel()
-
+func (runtime *fleetRuntime) followGeneration(
+	server clientconfig.Server,
+	generation uint64,
+	ctx context.Context,
+) error {
 	version, err := runtime.probeCapabilities(ctx, server)
 	if err != nil {
 		return err
@@ -576,6 +683,9 @@ func (runtime *fleetRuntime) followGeneration(server clientconfig.Server, genera
 	for {
 		if runtime.stopped.Load() {
 			return errors.New("runtime stopped")
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 
 		var readCtx context.Context
@@ -789,6 +899,33 @@ func (runtime *fleetRuntime) waitFor(ref sessionRef, timeout time.Duration) bool
 			return false
 		}
 	}
+}
+
+func serveFleetReconnect(
+	runtime *fleetRuntime,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	serverID := strings.TrimPrefix(r.URL.Path, "/host/fleet/servers/")
+	serverID = strings.TrimSuffix(serverID, "/reconnect")
+	serverID = strings.Trim(serverID, "/")
+	if serverID == "" || strings.Contains(serverID, "/") {
+		http.Error(w, "unknown or disabled server", http.StatusNotFound)
+		return
+	}
+	if err := runtime.reconnect(serverID); err != nil {
+		if errors.Is(err, errUnknownOrDisabledServer) {
+			http.Error(w, "unknown or disabled server", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "reconnect failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func serveFleetCreate(

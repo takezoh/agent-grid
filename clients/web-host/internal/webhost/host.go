@@ -54,11 +54,14 @@ func Handler(snapshot clientconfig.Snapshot) (http.Handler, error) {
 		serveFleetHealth(fleet, w, r)
 	})
 	mux.HandleFunc("POST /host/fleet/servers/", func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasSuffix(r.URL.Path, "/sessions") {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/sessions"):
+			serveFleetCreate(fleet, snapshot, w, r)
+		case strings.HasSuffix(r.URL.Path, "/reconnect"):
+			serveFleetReconnect(fleet, w, r)
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		serveFleetCreate(fleet, snapshot, w, r)
 	})
 	return SecurityHeaders(mux), nil
 }

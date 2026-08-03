@@ -54,6 +54,7 @@ export interface WorkspacePreloadApi {
     ): Promise<{ channelId: string; send(data: string): void; close(): void }>;
     create(serverId: string, payload: unknown): Promise<unknown>;
     createRepositorySession(serverId: string, payload: unknown): Promise<unknown>;
+    reconnect(serverId: string): Promise<void>;
     request(
       serverId: string,
       pathname: string,

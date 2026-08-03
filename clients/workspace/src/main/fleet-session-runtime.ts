@@ -89,7 +89,9 @@ export class FleetSessionRuntime {
   private readonly sessionGenerations = new Map<string, number>();
   private readonly healthByServer = new Map<string, HealthRecord>();
   private readonly sockets = new Set<WebSocketLike>();
+  private readonly socketsByServer = new Map<string, Set<WebSocketLike>>();
   private readonly abortControllers = new Set<AbortController>();
+  private readonly abortsByServer = new Map<string, Set<AbortController>>();
   private stopped = false;
   private healthRevision = 0;
   private readonly hostInstanceId: string;
@@ -99,8 +101,16 @@ export class FleetSessionRuntime {
   private readonly random: () => number;
   private live: LiveHandles = { timers: 0, fetches: 0, sockets: 0 };
   private workersStarted = 0;
+  /**
+   * True while baseline workers from start() are owned. start() is idempotent
+   * while this is set; stop() clears it so a later start() may re-arm.
+   */
+  private baselineRunning = false;
+  /** Per-server worker epoch: reconnect bumps it so the prior follow loop exits. */
+  private readonly workerEpochs = new Map<string, number>();
   /** Resolvers for in-flight interruptible sleeps (retry backoff / phase polls). */
   private readonly sleepWaiters = new Set<() => void>();
+  private readonly sleepWaitersByServer = new Map<string, Set<() => void>>();
 
   constructor(
     private servers: readonly ServerConfig[],
@@ -141,21 +151,30 @@ export class FleetSessionRuntime {
 
   start(): void {
     this.stopped = false;
+    // Idempotent: a second start while baseline is running must not duplicate workers.
+    if (this.baselineRunning) return;
+    this.baselineRunning = true;
     for (const server of this.servers) {
       if (!server.enabled) continue;
+      const epoch = this.workerEpochs.get(server.id) ?? 0;
+      this.workerEpochs.set(server.id, epoch);
       this.workersStarted += 1;
-      void this.follow(server);
+      void this.follow(server, epoch);
     }
   }
 
   stop(): void {
     this.stopped = true;
+    this.baselineRunning = false;
     for (const wake of [...this.sleepWaiters]) wake();
     this.sleepWaiters.clear();
+    this.sleepWaitersByServer.clear();
     for (const controller of [...this.abortControllers]) controller.abort();
     this.abortControllers.clear();
+    this.abortsByServer.clear();
     for (const socket of [...this.sockets]) socket.close();
     this.sockets.clear();
+    this.socketsByServer.clear();
     this.sessionListeners.clear();
     this.healthListeners.clear();
     // After synchronously aborting/closing every tracked handle, live counts are
@@ -163,6 +182,74 @@ export class FleetSessionRuntime {
     // retire cannot go negative. Tests must still establish pending work and
     // observe real abort/close — not only this zeroing.
     this.live = { timers: 0, fetches: 0, sockets: 0 };
+  }
+
+  /**
+   * Manual per-server reconnect: retire the selected server's current attempt,
+   * fence late callbacks by generation, reset capped retry / terminal protocol
+   * state, publish checking evidence, and start exactly one fresh worker.
+   * Does not mutate servers.json or restart other servers.
+   *
+   * Safe before start(): ensures the normal baseline once, then fences/replaces
+   * only the selected server so a later start() cannot duplicate workers.
+   */
+  async reconnect(serverId: string): Promise<void> {
+    if (this.stopped) {
+      throw new Error("fleet runtime is not ready");
+    }
+    const server = this.servers.find((candidate) => candidate.id === serverId);
+    if (!server || !server.enabled) {
+      throw new Error(`unknown or disabled server '${serverId}'`);
+    }
+
+    // Ensure baseline ownership first so reconnect-before-start leaves one worker
+    // per enabled server and start() remains a no-op afterward.
+    if (!this.baselineRunning) {
+      this.start();
+    }
+
+    const record = this.healthByServer.get(serverId);
+    if (record) {
+      record.terminalIncompatible = false;
+    }
+
+    // Retire in-flight I/O for this server only, then fence by generation.
+    this.retireServerAttempt(serverId);
+    const generation = (this.sessionGenerations.get(serverId) ?? 0) + 1;
+    this.sessionGenerations.set(serverId, generation);
+    const epoch = (this.workerEpochs.get(serverId) ?? 0) + 1;
+    this.workerEpochs.set(serverId, epoch);
+
+    this.publishHealth(serverId, generation, {
+      kind: "checking",
+      observedAt: this.isoNow(),
+    });
+    this.replace(server, generation, {
+      state: "reconnecting",
+      reason: "manual reconnect",
+      sessions: [],
+    });
+
+    this.workersStarted += 1;
+    void this.follow(server, epoch);
+  }
+
+  private retireServerAttempt(serverId: string): void {
+    const aborts = this.abortsByServer.get(serverId);
+    if (aborts) {
+      for (const controller of [...aborts]) controller.abort();
+      aborts.clear();
+    }
+    const sockets = this.socketsByServer.get(serverId);
+    if (sockets) {
+      for (const socket of [...sockets]) socket.close();
+      sockets.clear();
+    }
+    const sleeps = this.sleepWaitersByServer.get(serverId);
+    if (sleeps) {
+      for (const wake of [...sleeps]) wake();
+      sleeps.clear();
+    }
   }
 
   liveHandleCounts(): LiveHandles {
@@ -279,9 +366,9 @@ export class FleetSessionRuntime {
     return new Date(this.clock.now()).toISOString();
   }
 
-  private async follow(server: ServerConfig): Promise<void> {
+  private async follow(server: ServerConfig, epoch: number): Promise<void> {
     let attempt = 0;
-    while (!this.stopped) {
+    while (!this.stopped && (this.workerEpochs.get(server.id) ?? 0) === epoch) {
       const generation = (this.sessionGenerations.get(server.id) ?? 0) + 1;
       this.sessionGenerations.set(server.id, generation);
       const healthRecord = this.healthByServer.get(server.id);
@@ -295,6 +382,7 @@ export class FleetSessionRuntime {
         attempt = 0;
       } catch (error) {
         if (this.stopped) return;
+        if ((this.workerEpochs.get(server.id) ?? 0) !== epoch) return;
         const record = this.healthByServer.get(server.id);
         if (record?.terminalIncompatible) return;
         const classified = classifyHealthFailure(error);
@@ -341,8 +429,9 @@ export class FleetSessionRuntime {
           reason: classified.detail ?? classified.reason,
           sessions: [],
         });
+        if ((this.workerEpochs.get(server.id) ?? 0) !== epoch) return;
         if (attempt >= HEALTH_MAX_AUTO_RETRIES) {
-          await this.interruptibleSleep(HEALTH_RETRY_CAP_MS).promise;
+          await this.interruptibleSleep(HEALTH_RETRY_CAP_MS, server.id).promise;
           attempt = 0;
         } else {
           const delay = Math.max(
@@ -353,7 +442,7 @@ export class FleetSessionRuntime {
             ),
           );
           attempt += 1;
-          await this.interruptibleSleep(delay).promise;
+          await this.interruptibleSleep(delay, server.id).promise;
         }
       }
     }
@@ -374,6 +463,12 @@ export class FleetSessionRuntime {
     url.searchParams.set("protocolVersion", PROTOCOL_VERSION);
     const socket = this.webSocketFactory(url.toString());
     this.sockets.add(socket);
+    let serverSockets = this.socketsByServer.get(server.id);
+    if (!serverSockets) {
+      serverSockets = new Set();
+      this.socketsByServer.set(server.id, serverSockets);
+    }
+    serverSockets.add(socket);
     this.live.sockets += 1;
 
     let sawHello = false;
@@ -390,7 +485,7 @@ export class FleetSessionRuntime {
       freshnessControl.cancel?.();
       const epoch = ++freshnessEpoch;
       this.live.timers += 1;
-      const sleep = this.interruptibleSleep(HEALTH_CONNECTED_FRESHNESS_MS);
+      const sleep = this.interruptibleSleep(HEALTH_CONNECTED_FRESHNESS_MS, server.id);
       freshnessControl.cancel = () => {
         sleep.cancel();
       };
@@ -452,7 +547,7 @@ export class FleetSessionRuntime {
               closed.then(() => {
                 if (!sawHello) throw new Error("websocket closed");
               }),
-              this.interruptibleSleep(25).promise,
+              this.interruptibleSleep(25, server.id).promise,
             ]);
           }
         })(),
@@ -461,6 +556,7 @@ export class FleetSessionRuntime {
         () => {
           socket.close();
         },
+        server.id,
       );
 
       await closed;
@@ -473,6 +569,7 @@ export class FleetSessionRuntime {
       freshnessControl.cancel = undefined;
       socket.close();
       this.sockets.delete(socket);
+      this.socketsByServer.get(server.id)?.delete(socket);
       this.live.sockets = Math.max(0, this.live.sockets - 1);
     }
   }
@@ -521,12 +618,19 @@ export class FleetSessionRuntime {
     }
     const controller = new AbortController();
     this.abortControllers.add(controller);
+    let serverAborts = this.abortsByServer.get(serverId);
+    if (!serverAborts) {
+      serverAborts = new Set();
+      this.abortsByServer.set(serverId, serverAborts);
+    }
+    serverAborts.add(controller);
     this.live.fetches += 1;
     let retired = false;
     const retire = () => {
       if (retired) return;
       retired = true;
       this.abortControllers.delete(controller);
+      this.abortsByServer.get(serverId)?.delete(controller);
       this.live.fetches = Math.max(0, this.live.fetches - 1);
     };
     try {
@@ -540,6 +644,7 @@ export class FleetSessionRuntime {
           controller.abort();
           retire();
         },
+        serverId,
       );
       if (this.stopped || this.sessionGenerations.get(serverId) !== generation) {
         throw new Error("generation fenced");
@@ -555,12 +660,13 @@ export class FleetSessionRuntime {
     timeoutMs: number,
     timeoutMessage: string,
     onTimeout?: () => void,
+    serverId?: string,
   ): Promise<T> {
     this.live.timers += 1;
     let settled = false;
     try {
       return await new Promise<T>((resolve, reject) => {
-        const timeoutSleep = this.interruptibleSleep(timeoutMs);
+        const timeoutSleep = this.interruptibleSleep(timeoutMs, serverId);
         void timeoutSleep.promise.then(() => {
           if (settled) return;
           settled = true;
@@ -590,8 +696,12 @@ export class FleetSessionRuntime {
   /**
    * Sleep that resolves immediately when canceled or when the runtime is stopped.
    * cancel() is idempotent and does not invoke timeout side effects by itself.
+   * When serverId is set, reconnect for that server can wake this sleep alone.
    */
-  private interruptibleSleep(ms: number): { promise: Promise<void>; cancel: () => void } {
+  private interruptibleSleep(
+    ms: number,
+    serverId?: string,
+  ): { promise: Promise<void>; cancel: () => void } {
     if (this.stopped) {
       return { promise: Promise.resolve(), cancel: () => undefined };
     }
@@ -604,9 +714,18 @@ export class FleetSessionRuntime {
       if (done) return;
       done = true;
       this.sleepWaiters.delete(finish);
+      if (serverId) this.sleepWaitersByServer.get(serverId)?.delete(finish);
       resolve();
     };
     this.sleepWaiters.add(finish);
+    if (serverId) {
+      let serverSleeps = this.sleepWaitersByServer.get(serverId);
+      if (!serverSleeps) {
+        serverSleeps = new Set();
+        this.sleepWaitersByServer.set(serverId, serverSleeps);
+      }
+      serverSleeps.add(finish);
+    }
     void this.clock.sleep(ms).then(finish, finish);
     return { promise, cancel: finish };
   }
