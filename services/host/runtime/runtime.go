@@ -688,12 +688,12 @@ func (r *Runtime) Run(ctx context.Context) error {
 // (e.g. frame spawn → EvFrameSpawned), which are picked up on
 // subsequent loop iterations.
 //
-// After Reduce returns, dispatch reconciles persistence with the
-// state delta: sessions present in prev but absent in next are
-// Deleted from disk; the remaining set is Saved (upsert). This makes
-// persistence a runtime-level invariant rather than something each
-// reducer must remember to emit via EffPersistSnapshot. See the
-// "sessions.json が終了時の snapshot になっていない" investigation.
+// After Reduce returns, dispatch reconciles persistence with the state delta.
+// The remaining set is Saved (upsert), while a removed session is Deleted from
+// disk only when this transition was the explicit stop-session command used by
+// the UI. Backend/process failures may remove a session from the current
+// in-memory view, but they are not evidence that the user chose to remove its
+// durable record.
 func (r *Runtime) dispatch(ev state.Event) {
 	switch e := ev.(type) {
 	case state.EvFrameSpawned:
@@ -709,7 +709,12 @@ func (r *Runtime) dispatch(ev state.Event) {
 		r.execute(eff)
 	}
 	r.reconcileSurfaceRelay()
-	r.reconcilePersist(prev, r.state.Sessions, eventName(ev))
+	r.reconcilePersist(prev, r.state.Sessions, eventName(ev), isExplicitSessionDelete(ev))
+}
+
+func isExplicitSessionDelete(ev state.Event) bool {
+	e, ok := ev.(state.EvEvent)
+	return ok && e.Event == state.EventStopSession
 }
 
 // reconcileSurfaceRelay enforces the session-surface invariant after every
@@ -797,7 +802,11 @@ func (r *Runtime) finalPersistFlush() {
 // reducers that mutate sessions go through cloneSessions, which
 // returns a new map header; reducers that don't touch sessions leave
 // the reference intact and incur zero I/O here.
-func (r *Runtime) reconcilePersist(prev, next map[state.SessionID]state.Session, evName string) {
+func (r *Runtime) reconcilePersist(
+	prev, next map[state.SessionID]state.Session,
+	evName string,
+	deleteDurable bool,
+) {
 	if sameSessionMap(prev, next) {
 		return
 	}
@@ -810,16 +819,19 @@ func (r *Runtime) reconcilePersist(prev, next map[state.SessionID]state.Session,
 	for id := range prev {
 		if _, kept := next[id]; !kept {
 			removed = append(removed, string(id))
-			if err := r.cfg.Persist.Delete(string(id)); err != nil {
-				slog.Warn("runtime: persist delete failed", "id", id, "err", err)
-			}
-			if err := r.deleteFrameMessagingSession(id); err != nil {
-				slog.Warn("runtime: frame messaging delete failed", "id", id, "err", err)
+			if deleteDurable {
+				if err := r.cfg.Persist.Delete(string(id)); err != nil {
+					slog.Warn("runtime: persist delete failed", "id", id, "err", err)
+				}
+				if err := r.deleteFrameMessagingSession(id); err != nil {
+					slog.Warn("runtime: frame messaging delete failed", "id", id, "err", err)
+				}
 			}
 		}
 	}
 	if len(added) > 0 || len(removed) > 0 {
-		slog.Info("runtime: session delta", "event", evName, "added", added, "removed", removed, "now", len(next))
+		slog.Info("runtime: session delta", "event", evName, "added", added, "removed", removed,
+			"durable_delete", deleteDurable, "now", len(next))
 	}
 	if len(next) == 0 {
 		return

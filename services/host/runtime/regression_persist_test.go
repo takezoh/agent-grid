@@ -71,13 +71,10 @@ func TestRegressionFreshPersistDoesNotWipeOnEmptySave(t *testing.T) {
 	}
 }
 
-// T4: On cold start, a session whose frames are all status=stopped
-// MUST be dropped entirely — both from in-memory state and from
-// disk. The dead frames that gave those frames inspection value lived
-// in the previous backend session, which no longer exists; keeping the
-// metadata around just creates a zombie session the user cannot
-// display or terminate.
-func TestRegressionColdStartDropsStoppedFrames(t *testing.T) {
+// A cold-start recovery decision may omit an unrecoverable stopped session
+// from the current in-memory view, but it must not delete the durable record.
+// Only an explicit UI stop owns durable deletion.
+func TestRegressionColdStartRetainsStoppedSessionOnDisk(t *testing.T) {
 	dir := t.TempDir()
 	p := NewFilePersist(dir)
 
@@ -131,8 +128,8 @@ func TestRegressionColdStartDropsStoppedFrames(t *testing.T) {
 	}
 
 	deadFile := filepath.Join(dir, "sessions", "dead-session.json")
-	if _, err := os.Stat(deadFile); !os.IsNotExist(err) {
-		t.Errorf("dead-session.json must be removed from disk on cold start, got err=%v", err)
+	if _, err := os.Stat(deadFile); err != nil {
+		t.Errorf("dead-session.json must remain until explicit UI stop: %v", err)
 	}
 	liveFile := filepath.Join(dir, "sessions", "live-session.json")
 	if _, err := os.Stat(liveFile); err != nil {
@@ -187,10 +184,10 @@ func TestRegressionCreateSessionReachesDisk(t *testing.T) {
 	}
 }
 
-// T1c: A spawn failure deletes a session from state. The runtime must
-// translate that into Persist.Delete for the session's file so a
-// subsequent cold start does not resurrect the dead session.
-func TestRegressionSpawnFailureReachesDiskAsDelete(t *testing.T) {
+// A spawn failure may remove a session from the current state, but it must not
+// be translated into durable deletion. A transient launch failure is not an
+// explicit user decision.
+func TestRegressionSpawnFailureDoesNotDeleteDurableSession(t *testing.T) {
 	backend := newFakeBackend()
 	persist := &recordingPersist{}
 	r := New(Config{
@@ -224,36 +221,16 @@ func TestRegressionSpawnFailureReachesDiskAsDelete(t *testing.T) {
 		Err:       "injected",
 	})
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		persist.mu.Lock()
-		gotDelete := false
-		for _, d := range persist.deletes {
-			if d == "doomed" {
-				gotDelete = true
-				break
-			}
-		}
-		persist.mu.Unlock()
-		if gotDelete {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	time.Sleep(50 * time.Millisecond)
 	cancel()
 	<-r.Done()
 
 	persist.mu.Lock()
 	defer persist.mu.Unlock()
-	found := false
 	for _, d := range persist.deletes {
 		if d == "doomed" {
-			found = true
-			break
+			t.Fatalf("spawn failure deleted durable session; deletes=%v", persist.deletes)
 		}
-	}
-	if !found {
-		t.Errorf("expected Persist.Delete(\"doomed\"); got deletes=%v", persist.deletes)
 	}
 }
 
@@ -389,8 +366,8 @@ func TestRegressionRunFlushesPendingMutationsOnCancel(t *testing.T) {
 // EvFrameVanished (the same reducer the broken daemon's
 // reconcileWindows path drives), then fires the events the leaked tap
 // can emit (EvFrameOsc, EvFramePrompt) and verifies the session remains
-// absent from state, no Save call includes its ID, and Persist.Delete
-// was called exactly once.
+// absent from state, no Save call includes its ID, and the durable record is
+// retained because no explicit stop-session was received.
 func TestRegressionEvictedSessionStaysEvictedAfterFrameEvents(t *testing.T) {
 	backend := newFakeBackend()
 	persist := &recordingPersist{}
@@ -428,23 +405,8 @@ func TestRegressionEvictedSessionStaysEvictedAfterFrameEvents(t *testing.T) {
 	// path drives.
 	r.Enqueue(state.EvFrameVanished{FrameID: "doomed"})
 
-	// Wait for the eviction's Persist.Delete to land.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		persist.mu.Lock()
-		gotDelete := false
-		for _, d := range persist.deletes {
-			if d == "doomed" {
-				gotDelete = true
-				break
-			}
-		}
-		persist.mu.Unlock()
-		if gotDelete {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	// Allow the eviction dispatch to complete before injecting late events.
+	time.Sleep(50 * time.Millisecond)
 
 	// Now fire the events a leaked frametap would still emit for the
 	// dead frame. If any of these re-inserts the session, subsequent
@@ -481,16 +443,11 @@ func TestRegressionEvictedSessionStaysEvictedAfterFrameEvents(t *testing.T) {
 
 	persist.mu.Lock()
 	defer persist.mu.Unlock()
-	// "doomed" must have been deleted.
-	deleted := false
+	// "doomed" must not have been deleted from durable persistence.
 	for _, d := range persist.deletes {
 		if d == "doomed" {
-			deleted = true
-			break
+			t.Fatalf("frame disappearance deleted durable session; deletes=%v", persist.deletes)
 		}
-	}
-	if !deleted {
-		t.Errorf("Persist.Delete(\"doomed\") never called: deletes=%v", persist.deletes)
 	}
 
 	// "doomed" must NOT appear in the final Save's session list.

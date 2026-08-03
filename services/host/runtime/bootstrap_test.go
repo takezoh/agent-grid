@@ -463,7 +463,7 @@ func TestLoadSnapshot_ColdStartDropsStoppedGenericFrame(t *testing.T) {
 	}
 }
 
-func TestLoadSnapshot_ColdStartDropDeletesFrameMessagingStore(t *testing.T) {
+func TestLoadSnapshot_ColdStartDropRetainsFrameMessagingStore(t *testing.T) {
 	dir := t.TempDir()
 	storeDir := filepath.Join(dir, "frame-messaging", "generic-sess")
 	if err := os.MkdirAll(storeDir, 0o700); err != nil {
@@ -485,8 +485,8 @@ func TestLoadSnapshot_ColdStartDropDeletesFrameMessagingStore(t *testing.T) {
 	if err := r.LoadSnapshot(true); err != nil {
 		t.Fatalf("LoadSnapshot(true): %v", err)
 	}
-	if _, err := os.Stat(storeDir); !os.IsNotExist(err) {
-		t.Fatalf("frame messaging store still exists, err=%v", err)
+	if _, err := os.Stat(storeDir); err != nil {
+		t.Fatalf("frame messaging store must remain until explicit UI stop: %v", err)
 	}
 }
 

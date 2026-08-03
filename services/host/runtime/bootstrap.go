@@ -22,9 +22,9 @@ import (
 // Frames whose driver was at status=stopped have nothing left to
 // inspect (the tail output lived in the dead frame, which is gone)
 // and cannot be respawned without overwriting the very state the
-// user wanted to keep. Those frames are dropped here, and snapshots
-// whose every frame was stopped are removed from disk so they do
-// not show up again on the next cold start. The exception is a driver
+// user wanted to keep. Those frames are dropped from the current in-memory
+// view, but their snapshots remain on disk: only an explicit UI stop may
+// delete a durable session. The exception is a driver
 // whose durable state outlives the frame (a ColdStartRecoverer such as
 // codex, which resumes its thread): its stopped frames are kept and
 // relaunched.
@@ -43,15 +43,8 @@ func (r *Runtime) LoadSnapshot(coldStart bool) error {
 		if !ok {
 			if coldStart {
 				dropped++
-				if err := r.cfg.Persist.Delete(snap.ID); err != nil {
-					slog.Warn("bootstrap: drop unrecoverable snapshot failed", "id", snap.ID, "err", err)
-				} else {
-					if err := r.deleteFrameMessagingSession(state.SessionID(snap.ID)); err != nil {
-						slog.Warn("bootstrap: delete unrecoverable frame messaging store failed", "id", snap.ID, "err", err)
-					}
-					slog.Info("bootstrap: deleted unrecoverable snapshot",
-						"id", snap.ID, "frames", len(snap.Frames))
-				}
+				slog.Info("bootstrap: retained unrecoverable snapshot outside current view",
+					"id", snap.ID, "frames", len(snap.Frames))
 			}
 			continue
 		}

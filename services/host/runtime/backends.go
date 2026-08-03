@@ -102,7 +102,8 @@ type FrameBackend interface {
 //
 // Save is upsert-only: it writes each snapshot but never removes
 // existing records that are absent from the input. Removal is
-// explicit via Delete(id). This split prevents catastrophic data loss
+// explicit via Delete(id), and the runtime calls it only for the UI's
+// stop-session command. This split prevents catastrophic data loss
 // when in-memory state is transiently empty — the empty-list signal
 // is no longer interpreted as "wipe everything".
 type PersistBackend interface {

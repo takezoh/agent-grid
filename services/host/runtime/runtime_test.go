@@ -301,9 +301,11 @@ func TestEventTypeName(t *testing.T) {
 // stop-session immediately kills the session window (no SIGINT).
 func TestRuntimeStopSession(t *testing.T) {
 	backend := newFakeBackend()
+	persist := &recordingPersist{}
 	r := New(Config{
 		TickInterval: 10 * time.Second,
 		Backend:      backend,
+		Persist:      persist,
 	})
 	r.state.Sessions["abc"] = state.Session{
 		ID:      "abc",
@@ -332,6 +334,11 @@ func TestRuntimeStopSession(t *testing.T) {
 	defer backend.mu.Unlock()
 	if backend.killCalls != 1 {
 		t.Errorf("killCalls = %d, want 1 (kill-window should fire)", backend.killCalls)
+	}
+	persist.mu.Lock()
+	defer persist.mu.Unlock()
+	if len(persist.deletes) != 1 || persist.deletes[0] != "abc" {
+		t.Errorf("persist deletes = %v, want [abc] for explicit stop-session", persist.deletes)
 	}
 }
 
