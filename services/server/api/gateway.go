@@ -23,6 +23,11 @@ var errDaemonGone = errors.New("server/api: daemon disconnected")
 
 var lifecycleSubscriberCounter atomic.Uint64
 
+const (
+	lifecycleHeartbeatInterval = 2 * time.Second
+	lifecycleHeartbeatFrame    = `{"k":"p"}`
+)
+
 type runtimeTerminalBarrier struct{ forwarded uint64 }
 
 func (b *runtimeTerminalBarrier) mark(sequence uint64) {
@@ -274,7 +279,8 @@ func encodeHelloFrame(sc proto.EvtSessionsChanged, serverTime int64, clientInsta
 // AttachLifecycleWS bridges one WebSocket connection to daemon lifecycle
 // events. Used when the client connects without a ?session= query param.
 // The single WebSocket is multiplexed: it carries lifecycle frames
-// (k:"h" hello, k:"v" view-update, k:"tt" / k:"et" tail, k:"n" notification)
+// (k:"h" hello, k:"v" view-update, k:"p" freshness heartbeat,
+// k:"tt" / k:"et" tail, k:"n" notification)
 // and per-session surface frames (asciicast output array) for any session the
 // browser has subscribed to via inbound k:"s" frames. Inbound k:"u" frames
 // unsubscribe. k:"i"/"r" frames forward input and resize for a specific
@@ -316,10 +322,22 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, cl
 
 	helloSent := false
 	barriers := make(map[string]*runtimeTerminalBarrier)
+	heartbeat := time.NewTicker(lifecycleHeartbeatInterval)
+	defer heartbeat.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-heartbeat.C:
+			// Hello remains the first lifecycle frame. Once the generation is
+			// established, heartbeat frames prove that a quiet socket is live
+			// without changing fleet membership.
+			if !helloSent {
+				continue
+			}
+			if err := writeLifecycleFrameLocked(ctx, c, writeMu, []byte(lifecycleHeartbeatFrame)); err != nil {
+				return err
+			}
 		case frame, ok := <-pushCh:
 			if !ok {
 				_ = writeLifecycleFrameLocked(ctx, c, writeMu, controlFrame(0, "daemon-disconnected"))

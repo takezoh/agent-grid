@@ -703,10 +703,19 @@
 
 .palette-execution-server__summary strong {
   overflow: hidden;
-  color: var(--fg);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.palette-execution-server__summary strong[data-server-state="connected"],
+.palette-execution-server__options button[data-server-state="connected"] {
+  color: var(--fg);
+}
+
+.palette-execution-server__summary strong:not([data-server-state="connected"]),
+.palette-execution-server__options button:not([data-server-state="connected"]) {
+  color: var(--fg-muted);
 }
 
 .palette-execution-server button {
@@ -755,7 +764,6 @@
 }
 
 .palette-execution-server__options button[aria-current="true"] {
-  color: var(--fg);
   background: var(--surface-row-selected);
 }
 

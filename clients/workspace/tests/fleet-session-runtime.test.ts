@@ -558,6 +558,84 @@ describe("FleetSessionRuntime health authority", () => {
     });
   });
 
+  it("renews connected freshness from p heartbeats across two quiet windows", async () => {
+    type Waiter = { at: number; resolve: () => void };
+    let nowMs = 0;
+    const waiters: Waiter[] = [];
+    const clock = {
+      now: () => nowMs,
+      sleep: (ms: number) =>
+        new Promise<void>((resolve) => {
+          waiters.push({ at: nowMs + ms, resolve });
+        }),
+    };
+    const advance = async (ms: number) => {
+      nowMs += ms;
+      const due = waiters.filter((waiter) => waiter.at <= nowMs).sort((a, b) => a.at - b.at);
+      for (const waiter of due) {
+        const index = waiters.indexOf(waiter);
+        if (index >= 0) waiters.splice(index, 1);
+        waiter.resolve();
+      }
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+
+    let messageHandler: ((event: Event) => void) | null = null;
+    let closeHandler: (() => void) | null = null;
+    const socketClose = vi.fn(() => closeHandler?.());
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/capabilities")) {
+        return Response.json({ protocolVersion: "protocol-3" });
+      }
+      if (url.includes("/api/ws-ticket")) {
+        return Response.json({ ticket: "t-heartbeat" });
+      }
+      return new Response("missing", { status: 404 });
+    }) as unknown as typeof fetch;
+    const runtime = new FleetSessionRuntime(servers.slice(0, 1), {
+      fetchFn,
+      clock,
+      hostInstanceId: "host-heartbeat",
+      random: () => 0,
+      webSocketFactory: () => ({
+        readyState: 1,
+        close: socketClose,
+        addEventListener: (type: string, handler: EventListener) => {
+          if (type === "message") messageHandler = handler as (event: Event) => void;
+          if (type === "close") closeHandler = handler as () => void;
+        },
+        removeEventListener: () => undefined,
+      }),
+    });
+    const listener = vi.fn();
+    runtime.subscribeHealth(listener);
+    runtime.start();
+    await vi.waitFor(() => expect(messageHandler).not.toBeNull());
+    messageHandler?.(
+      new MessageEvent("message", { data: JSON.stringify({ k: "h", sessions: [] }) }),
+    );
+    await vi.waitFor(() => {
+      expect(listener.mock.calls.at(-1)?.[0]?.servers[0]?.observation.kind).toBe("connected");
+    });
+    // Let the 25ms hello-phase poll observe sawHello before jumping the fake
+    // clock across the 3s phase deadline. Production time advances normally;
+    // a single coarse fake-clock jump would otherwise fire both waiters first.
+    await advance(25);
+
+    const step = HEALTH_CONNECTED_FRESHNESS_MS - 1_000;
+    for (let index = 0; index < 3; index += 1) {
+      await advance(step);
+      messageHandler?.(new MessageEvent("message", { data: JSON.stringify({ k: "p" }) }));
+      await Promise.resolve();
+    }
+    expect(3 * step).toBeGreaterThanOrEqual(2 * HEALTH_CONNECTED_FRESHNESS_MS);
+    expect(socketClose).not.toHaveBeenCalled();
+    expect(listener.mock.calls.at(-1)?.[0]?.servers[0]?.observation.kind).toBe("connected");
+    runtime.stop();
+  });
+
   it("stop aborts an established pending fetch without relying on counter reset", async () => {
     type Waiter = { at: number; resolve: () => void };
     let nowMs = 0;

@@ -720,6 +720,14 @@ func (runtime *fleetRuntime) followGeneration(
 		if json.Unmarshal(data, &frame) != nil {
 			continue
 		}
+		if frame.Kind == "p" {
+			// A heartbeat is freshness evidence only after hello established the
+			// generation. It must not publish health or replace membership.
+			if connected {
+				freshnessDeadline = runtime.now().Add(healthConnectedFreshness)
+			}
+			continue
+		}
 		if (frame.Kind == "h" || frame.Kind == "v") && frame.Sessions != nil {
 			runtime.replace(server, generation, "connected", "", frame.Sessions)
 			runtime.publishHealth(server.ID, generation, healthObservation{

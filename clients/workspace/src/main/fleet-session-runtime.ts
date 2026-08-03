@@ -508,6 +508,12 @@ export class FleetSessionRuntime {
       } catch {
         return;
       }
+      if (frame.k === "p") {
+        // Heartbeats only renew an already-established generation. They do
+        // not seed Connected state or publish a new membership snapshot.
+        if (sawHello) armFreshness();
+        return;
+      }
       if ((frame.k === "h" || frame.k === "v") && Array.isArray(frame.sessions)) {
         sawHello = true;
         const sessions = frame.sessions.filter(

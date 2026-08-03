@@ -58,6 +58,9 @@ export function App() {
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [configPath, setConfigPath] = useState<string | null>(null);
   const pendingExternalSelection = useRef<string | null>(null);
+  const configMounted = useRef(true);
+  const configRequest = useRef<Promise<void> | null>(null);
+  const priorHealthKinds = useRef(new Map<string, string>());
   const activeSessionID = useDaemonStore((state) => state.activeSessionID);
   const activeSessionServerID = useDaemonStore((state) =>
     state.activeSessionID
@@ -79,6 +82,36 @@ export function App() {
       serverId,
     });
   }, [fleet, serverId, token]);
+
+  const loadSessionConfig = useCallback((): Promise<void> => {
+    if (configRequest.current) return configRequest.current;
+
+    const request = makeSessionsApi()
+      .getSessionConfig()
+      .then((cfg) => {
+        if (!configMounted.current) return;
+        useDaemonStore.getState().setSessionConfig(cfg);
+      })
+      .catch((e: unknown) => {
+        if (!configMounted.current) return;
+        // 401 = token missing / stale. Connection.start surfaces this
+        // separately; we stay quiet here so the user does not see two
+        // toasts for the same auth gap.
+        if (e instanceof Error && (e as ApiHttpError).status === 401) {
+          return;
+        }
+        const msg = e instanceof Error ? e.message : String(e);
+        useNotificationsStore.getState().add({
+          level: "error",
+          message: `Failed to load session config: ${msg}`,
+        });
+      });
+    configRequest.current = request;
+    void request.finally(() => {
+      if (configRequest.current === request) configRequest.current = null;
+    });
+    return request;
+  }, []);
 
   useEffect(() => {
     void conn.start();
@@ -111,7 +144,29 @@ export function App() {
   );
 
   // Application-lifecycle singleton health subscription (one writer path into SPA state).
-  useEffect(() => fleet.subscribeHealth(setFleetHealth), [fleet]);
+  // A server recovering from unavailable state also rehydrates session config:
+  // the initial request may have failed while that server was unreachable.
+  useEffect(
+    () =>
+      fleet.subscribeHealth((view) => {
+        let recovered = false;
+        for (const server of view.servers) {
+          const prior = priorHealthKinds.current.get(server.serverId);
+          const current = server.observation.kind;
+          if (
+            server.enabled &&
+            current === "connected" &&
+            (prior === "unavailable" || prior === "health_unavailable")
+          ) {
+            recovered = true;
+          }
+          priorHealthKinds.current.set(server.serverId, current);
+        }
+        setFleetHealth(view);
+        if (recovered) void loadSessionConfig();
+      }),
+    [fleet, loadSessionConfig],
+  );
 
   useEffect(() => {
     void fleet.configPath?.().then((path) => setConfigPath(path));
@@ -182,32 +237,12 @@ export function App() {
   //   stop-session) with empty project lists while the request is in
   //   flight; the hydrate fires-and-fills as soon as it lands.
   useEffect(() => {
-    const api = makeSessionsApi();
-    let cancelled = false;
-    api
-      .getSessionConfig()
-      .then((cfg) => {
-        if (cancelled) return;
-        useDaemonStore.getState().setSessionConfig(cfg);
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        // 401 = token missing / stale. Connection.start surfaces this
-        // separately; we stay quiet here so the user does not see two
-        // toasts for the same auth gap.
-        if (e instanceof Error && (e as ApiHttpError).status === 401) {
-          return;
-        }
-        const msg = e instanceof Error ? e.message : String(e);
-        useNotificationsStore.getState().add({
-          level: "error",
-          message: `Failed to load session config: ${msg}`,
-        });
-      });
+    configMounted.current = true;
+    void loadSessionConfig();
     return () => {
-      cancelled = true;
+      configMounted.current = false;
     };
-  }, []);
+  }, [loadSessionConfig]);
 
   // TerminalPane is the sole geometry measurement owner. App only retains the
   // latest snapshot so the independently-rendered palette overlay can read it

@@ -32,7 +32,9 @@ export function ExecutionServerSelector(props: ExecutionServerSelectorProps): JS
     <section className="palette-execution-server" data-testid="execution-server-selector">
       <div className="palette-execution-server__summary">
         <span>Execution Server</span>
-        <strong data-testid="execution-server-current">{selected.serverLabel}</strong>
+        <strong data-testid="execution-server-current" data-server-state={selected.state}>
+          {selected.serverLabel}
+        </strong>
         <button
           type="button"
           disabled={disabled || servers.length < 2}
@@ -54,6 +56,7 @@ export function ExecutionServerSelector(props: ExecutionServerSelectorProps): JS
               <button
                 type="button"
                 aria-current={server.serverId === value ? "true" : undefined}
+                data-server-state={server.state}
                 disabled={disabled || server.state !== "connected"}
                 onClick={() => {
                   onChange(server.serverId);

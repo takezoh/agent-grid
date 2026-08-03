@@ -131,11 +131,41 @@ test("New Session keeps Execution Server compact above Command and changes to a 
   await expect(page.getByRole("button", { name: "Old Server" })).toHaveCount(0);
 
   await selector.getByRole("button", { name: "Change" }).click();
-  await expect(page.getByRole("button", { name: "Connected" })).toBeEnabled();
-  await expect(page.getByRole("button", { name: /Build Server/ })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Old Server" })).toBeDisabled();
-  await page.getByRole("button", { name: "Connected" }).click();
-  await expect(page.getByTestId("execution-server-current")).toHaveText("Connected");
+  const connectedOption = page.getByRole("button", { name: "Connected" });
+  const unavailableOption = page.getByRole("button", { name: /Build Server/ });
+  const incompatibleOption = page.getByRole("button", { name: "Old Server" });
+  await expect(connectedOption).toBeEnabled();
+  await expect(unavailableOption).toBeDisabled();
+  await expect(incompatibleOption).toBeDisabled();
+  const optionColors = await selector.evaluate((element) => {
+    const connected = [
+      ...element.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+    ].find((button) => button.textContent?.trim() === "Connected");
+    const unavailable = element.querySelector<HTMLButtonElement>("button:disabled[aria-current]");
+    const incompatible = [...element.querySelectorAll<HTMLButtonElement>("button:disabled")].find(
+      (button) => button !== unavailable,
+    );
+    const current = element.querySelector<HTMLElement>("[data-testid='execution-server-current']");
+    const label = element.querySelector<HTMLElement>(".palette-execution-server__summary > span");
+    return {
+      connected: connected ? getComputedStyle(connected).color : null,
+      unavailable: unavailable ? getComputedStyle(unavailable).color : null,
+      incompatible: incompatible ? getComputedStyle(incompatible).color : null,
+      current: current ? getComputedStyle(current).color : null,
+      muted: label ? getComputedStyle(label).color : null,
+    };
+  });
+  expect(optionColors.connected).not.toBe(optionColors.muted);
+  expect(optionColors.unavailable).toBe(optionColors.muted);
+  expect(optionColors.incompatible).toBe(optionColors.muted);
+  expect(optionColors.current).toBe(optionColors.muted);
+  await connectedOption.click();
+  const selectedConnected = page.getByTestId("execution-server-current");
+  await expect(selectedConnected).toHaveText("Connected");
+  await expect(selectedConnected).toHaveAttribute("data-server-state", "connected");
+  expect(await selectedConnected.evaluate((element) => getComputedStyle(element).color)).toBe(
+    optionColors.connected,
+  );
 });
 
 test("renders live sessions and completes a new-session submission against the fake gateway", async ({

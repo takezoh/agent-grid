@@ -719,6 +719,95 @@ left:
 	runtime.stop()
 }
 
+func TestFleetHealthHeartbeatKeepsQuietSocketConnectedAcrossFreshnessWindows(t *testing.T) {
+	// The producer heartbeat, rather than an enlarged fixed timeout, keeps a
+	// healthy transport Connected while h/v membership frames remain quiet.
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/capabilities", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"protocolVersion": "protocol-3"})
+	})
+	mux.HandleFunc("POST /api/ws-ticket", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"ticket": "t-quiet"})
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	runtime := newFleetRuntime(clientconfig.Snapshot{
+		Servers: []clientconfig.Server{
+			{ID: "a", DisplayName: "A", Enabled: true, URL: server.URL, Auth: clientconfig.Auth{Mode: "none"}},
+		},
+	})
+	runtime.dialWebSocket = func(ctx context.Context, endpoint string) (*websocket.Conn, error) {
+		_ = endpoint
+		up := http.NewServeMux()
+		up.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			connection, acceptErr := websocket.Accept(w, r, nil)
+			if acceptErr != nil {
+				return
+			}
+			defer func() { _ = connection.CloseNow() }()
+			if writeErr := connection.Write(
+				context.Background(), websocket.MessageText, []byte(`{"k":"h","sessions":[]}`),
+			); writeErr != nil {
+				return
+			}
+			heartbeat := time.NewTicker(time.Second)
+			defer heartbeat.Stop()
+			until := time.NewTimer(2*healthConnectedFreshness + time.Second)
+			defer until.Stop()
+			for {
+				select {
+				case <-heartbeat.C:
+					if writeErr := connection.Write(
+						context.Background(), websocket.MessageText, []byte(`{"k":"p"}`),
+					); writeErr != nil {
+						return
+					}
+				case <-until.C:
+					return
+				case <-r.Context().Done():
+					return
+				}
+			}
+		})
+		peer := httptest.NewServer(up)
+		t.Cleanup(peer.Close)
+		wsURL := "ws" + strings.TrimPrefix(peer.URL, "http")
+		connection, _, err := websocket.Dial(ctx, wsURL, nil)
+		return connection, err
+	}
+	defer runtime.stop()
+
+	snapshots, unsub := runtime.subscribeHealth()
+	defer unsub()
+	deadline := time.Now().Add(2 * time.Second)
+	sawConnected := false
+	for !sawConnected && time.Now().Before(deadline) {
+		select {
+		case snapshot := <-snapshots:
+			sawConnected = len(snapshot.Servers) > 0 && snapshot.Servers[0].Observation.Kind == "connected"
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	if !sawConnected {
+		t.Fatal("expected connected observation after hello")
+	}
+
+	quietPeriod := 2*healthConnectedFreshness + 500*time.Millisecond
+	timer := time.NewTimer(quietPeriod)
+	defer timer.Stop()
+	for {
+		select {
+		case snapshot := <-snapshots:
+			if len(snapshot.Servers) > 0 && snapshot.Servers[0].Observation.Kind != "connected" {
+				t.Fatalf("responsive quiet transport left connected: %s", snapshot.Servers[0].Observation.Kind)
+			}
+		case <-timer.C:
+			return
+		}
+	}
+}
+
 func TestFleetRuntimeStopCancelsInFlightHTTPAndZerosHandles(t *testing.T) {
 	// rejects counterexample: stop only flips a flag while fetch/socket work remains
 	started := make(chan struct{})
