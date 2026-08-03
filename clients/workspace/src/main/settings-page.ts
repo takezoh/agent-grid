@@ -549,6 +549,7 @@ export function buildSettingsPageHtml(): string {
     <script>
       const workspaceApi = window.agentGridWorkspace?.desktopConfig;
       const healthApi = window.agentGridWorkspace?.serverHealth;
+      const fleetApi = window.agentGridWorkspace?.sessionFleet;
       const githubApi = window.agentGridWorkspace?.github;
       const sections = {
         connections: {
@@ -570,6 +571,7 @@ export function buildSettingsPageHtml(): string {
         snapshot: null,
         activeSection: "connections",
         health: new Map(),
+        reconnecting: new Set(),
       };
 
       const els = {
@@ -696,6 +698,13 @@ export function buildSettingsPageHtml(): string {
             '</div>',
             '<span class="server-health" data-role="server-health" data-state="' + health.state +
               '" title="' + escapeHtml(health.detail) + '">' + escapeHtml(health.label) + '</span>',
+            server.enabled && server.id
+              ? '<button type="button" class="btn" data-action="reconnect-server" data-index="' + index +
+                '" data-server-id="' + escapeHtml(server.id) + '" aria-label="Reconnect ' +
+                escapeHtml(serverSummary(server)) + '"' +
+                (state.reconnecting.has(server.id) ? ' disabled aria-busy="true"' : '') + '>' +
+                (state.reconnecting.has(server.id) ? 'Reconnecting…' : 'Reconnect') + '</button>'
+              : '',
             '<button type="button" class="btn btn--danger" data-action="remove-server" data-index="' + index + '">Remove</button>',
             '</div>',
             '<div class="server-card__body">',
@@ -787,7 +796,7 @@ export function buildSettingsPageHtml(): string {
         if (field === "enabled") {
           server.enabled = Boolean(value);
           if (!server.enabled && server.default_execution) server.default_execution = false;
-          renderDefaultExecutionServers();
+          renderServers();
           return;
         }
         if (field === "auth_mode") {
@@ -1003,12 +1012,46 @@ export function buildSettingsPageHtml(): string {
           if (Number.isInteger(index) && field) updateServer(index, field, target.checked);
         }
       });
-      els.servers.addEventListener("click", (event) => {
+      els.servers.addEventListener("click", async (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (target.dataset.action !== "remove-server") return;
         const index = Number(target.dataset.index);
         if (!Number.isInteger(index)) return;
+        if (target.dataset.action === "reconnect-server") {
+          const server = state.snapshot?.servers?.[index];
+          if (!server?.enabled || !server.id || state.reconnecting.has(server.id)) return;
+          if (!fleetApi?.reconnect) {
+            setStatus("error", "Workspace reconnect bridge is unavailable.");
+            return;
+          }
+          const serverId = server.id;
+          const label = serverSummary(server);
+          state.reconnecting.add(serverId);
+          target.setAttribute("disabled", "");
+          target.setAttribute("aria-busy", "true");
+          target.textContent = "Reconnecting…";
+          setStatus("info", "Reconnecting " + label + "…");
+          try {
+            await fleetApi.reconnect(serverId);
+            setStatus("success", "Reconnect started for " + label + ".");
+            await refreshHealth();
+          } catch {
+            setStatus("error", "Reconnect failed for " + label + ".");
+          } finally {
+            state.reconnecting.delete(serverId);
+            const buttons = Array.from(
+              els.servers.querySelectorAll('[data-action="reconnect-server"]'),
+            );
+            const button = buttons.find((candidate) => candidate.dataset.serverId === serverId);
+            if (button) {
+              button.removeAttribute("disabled");
+              button.removeAttribute("aria-busy");
+              button.textContent = "Reconnect";
+            }
+          }
+          return;
+        }
+        if (target.dataset.action !== "remove-server") return;
         state.snapshot.servers.splice(index, 1);
         renderServers();
         setStatus("info", "Removed server entry.");

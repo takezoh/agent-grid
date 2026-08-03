@@ -88,6 +88,43 @@ describe("settings page", () => {
     await close();
   });
 
+  it("reconnects the selected server from the actual Connections settings list", async () => {
+    let resolveReconnect!: () => void;
+    const reconnect = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveReconnect = resolve;
+        }),
+    );
+    const { window, close } = await loadSettingsPage(undefined, undefined, undefined, reconnect);
+
+    const local = window.document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Reconnect Local"]',
+    );
+    const remote = window.document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Reconnect Remote"]',
+    );
+    expect(local).not.toBeNull();
+    expect(remote).not.toBeNull();
+
+    local!.click();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    expect(reconnect).toHaveBeenCalledWith("srv_local");
+    expect(local!.disabled).toBe(true);
+    expect(local!.textContent).toContain("Reconnecting");
+    expect(remote!.disabled).toBe(false);
+
+    resolveReconnect();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(local!.disabled).toBe(false);
+    expect(local!.textContent).toBe("Reconnect");
+    expect(window.document.getElementById("status")?.textContent).toContain(
+      "Reconnect started for Local",
+    );
+    await close();
+  });
+
   it("assembles complete Connections diagnosis through the settings surface", async () => {
     // User-visible assembled rows: duplicates, health_unavailable+prior, incompatible,
     // config path, editable controls, and persistence boundary (no health in save).
@@ -414,6 +451,7 @@ async function loadSettingsPage(
     catalog: { outcome: "empty", generation: 0, stale: false, repositories: [] },
   }),
   openAuthorization: () => Promise<void> = async () => undefined,
+  reconnect: (serverId: string) => Promise<void> = async () => undefined,
 ): Promise<{
   window: BrowserWindow;
   runHealthRefresh: () => Promise<void>;
@@ -488,6 +526,7 @@ async function loadSettingsPage(
           };
         },
       },
+      sessionFleet: { reconnect },
       github: { action: githubAction, openAuthorization },
       setTitleBarTheme: () => undefined,
       windowControls: {
